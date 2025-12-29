@@ -10,13 +10,13 @@ Purpose: automatically detect when instructions are drifting from effective patt
 - **Auto-triggered**: Task-runner can invoke when failure rate exceeds threshold.
 
 ## Inputs
-- `failed.tasks.md` (primary source of drift signals).
-- `warnings.md` (existing known issues).
-- All `agents/*.agent.md` files.
-- `tasks.md` (to see success/failure ratio by agent).
+- `../../failed.tasks.md` (primary source of drift signals).
+- `../../warnings.md` (existing known issues).
+- All `../../agents/*.agent.md` files.
+- `../../tasks.md` (to see success/failure ratio by agent).
 
 ## Steps
-1. **Analyze failures**: Read `failed.tasks.md` and categorize by:
+1. **Analyze failures**: Read `../../failed.tasks.md` and categorize by:
    - Agent that failed
    - Failure reason (missing context, wrong scope, unclear steps, etc.)
    - Frequency (one-off vs. recurring)
@@ -30,7 +30,7 @@ Purpose: automatically detect when instructions are drifting from effective patt
    - New agent needed
    - Warning to add
 4. **Prioritize**: Rank fixes by impact (failure frequency × task importance).
-5. **Generate improvement tasks**: Create `raw.tasks.md` entries for each proposed fix, tagged with `[instruction-improvement]`.
+5. **Generate improvement tasks**: Create `../../raw.tasks.md` entries for each proposed fix, tagged with `[instruction-improvement]`.
 6. **Report**: Summary of drift findings and proposed improvements.
 
 ## Drift Detection Rules
@@ -45,7 +45,7 @@ Purpose: automatically detect when instructions are drifting from effective patt
 
 ## Output
 - Drift analysis report (in session summary).
-- New `raw.tasks.md` entries tagged `[instruction-improvement]`.
+- New `../../raw.tasks.md` entries tagged `[instruction-improvement]`.
 - Recommended priority order for fixes.
 
 ## Session Summary Format

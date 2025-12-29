@@ -6,7 +6,7 @@ To create a "installable" Operating System for coding agents that can be dropped
 ## 2. Core Architecture
 
 ### The Kernel
-*   **`.github/copilot.instructions.md`**: The central coordinator.
+*   **`.github/copilot-instructions.md`**: The central coordinator.
     *   **Responsibility**: The entry point for the AI. It determines intent, routes requests to the correct Meta-Agent or Domain Agent, and enforces the "Agentic Protocol".
     *   **Behavior**: "I am the Kernel. I do not write code directly. I delegate to Agents."
 
@@ -72,7 +72,7 @@ Pure knowledge bases referenced by agents.
     *   *Note*: Deep mode often triggers the `instruction-editor` to update documentation if the architecture changes.
 
 ## 6. Implementation Phases
-1.  **Scaffolding**: Create the folder structure and Core files (`copilot.instructions.md`, `architecture.md`).
+1.  **Scaffolding**: Create the folder structure and Core files (`copilot-instructions.md`, `architecture.md`).
 2.  **Meta-Agents**: Implement the Task Pipeline agents.
 3.  **Onboarding Logic**: Create the `onboarding.agent` to generate the rest.
 4.  **Domain Templates**: Create the templates that the onboarding agent will use.

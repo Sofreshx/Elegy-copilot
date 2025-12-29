@@ -9,31 +9,31 @@ We do not just "copy files". We **inject an intelligence layer**. The system sca
 
 ### 1. Bootstrap
 Copy the seed files into your repository root (or `.github` folder):
-*   `.github/copilot.instructions.md` (Kernel/router)
-*   `agents/` folder with all agent templates
-*   `contexts/` folder with context templates
-*   `architecture.md`, `warnings.md`, `raw.tasks.md`, `tasks.md`, `failed.tasks.md`
-*   `docs/` folder (example-session.md, instruction-changelog.md)
+*   `.github/copilot-instructions.md` (Kernel/router)
+*   `.github/agents/` folder with all agent templates
+*   `.github/contexts/` folder with context templates
+*   `.github/docs/` folder (example-session.md, instruction-changelog.md)
+*   `.github/architecture.md`, `.github/warnings.md`, `.github/raw.tasks.md`, `.github/tasks.md`, `.github/failed.tasks.md` (Project artifacts)
 
 ### 2. Onboarding Scan (Auto-tailor)
 Run the **Onboarding Agent** via Copilot.
 
 **Prompt:**
-> "Run the onboarding agent. Scan this repository. Identify our tech stack, patterns, and testing strategies. Generate/update `architecture.md`, populate `warnings.md` with inconsistencies, and generate tailored Domain Agents/Contexts for all detected stacks."
+> "Run the onboarding agent. Scan this repository. Identify our tech stack, patterns, and testing strategies. Generate/update `.github/architecture.md`, populate `.github/warnings.md` with inconsistencies, and generate tailored Domain Agents/Contexts for all detected stacks."
 
 **What happens:**
 1.  **Analysis**: Reads manifests (`package.json`, `.csproj`, Docker, IaC) and code samples.
-2.  **Stack Detection**: Uses the **Stack Detection Matrix** in `onboarding.agent.md` to map signals to agents/contexts.
+2.  **Stack Detection**: Uses the **Stack Detection Matrix** in `.github/agents/onboarding.agent.md` to map signals to agents/contexts.
 3.  **Merge Strategy**: Preserves your customizations using Git-style conflict markers—see below.
 4.  **Backup**: Creates `.backup/` copies before modifying existing files.
-5.  **Warnings**: Logs mixed patterns or drift into `warnings.md`.
-6.  **Follow-ups**: Adds clarification or fix requests to `raw.tasks.md` if gaps are found.
+5.  **Warnings**: Logs mixed patterns or drift into `.github/warnings.md`.
+6.  **Follow-ups**: Adds clarification or fix requests to `.github/raw.tasks.md` if gaps are found.
 
 ### 3. Override & Customization Behavior
 The system is designed to **adapt to your project**, not overwrite it.
 
-**For Agent Files (`agents/*.agent.md`):**
-- Backups created in `agents/.backup/` before changes
+**For Agent Files (`.github/agents/*.agent.md`):**
+- Backups created in `.github/agents/.backup/` before changes
 - Custom sections (marked `## Custom` or `## Project-Specific`) are **never overwritten**
 - Conflicts use Git-style markers:
   ```markdown
@@ -44,7 +44,7 @@ The system is designed to **adapt to your project**, not overwrite it.
   >>>>>>> GENERATED
   ```
 
-**For Context Files (`contexts/*.md`):**
+**For Context Files (`.github/contexts/*.md`):**
 - Filled fields are preserved; only empty fields are populated
 - New fields added with `(NEW)` marker
 
@@ -91,6 +91,23 @@ Just ask naturally—no task overhead needed:
 - `"How does X work?"` → Routes to assistant.agent
 - `"Is this secure?"` → Routes to security.agent
 - `"Optimize this"` → Routes to performance.agent
+
+### 6. System Updates
+To update the instruction engine to a newer version while preserving your customizations:
+
+1.  **Prepare**: Place the new version of the engine files into a `.upgrade/` folder in the root.
+    - `.upgrade/.github/agents/...`
+    - `.upgrade/.github/contexts/...`
+2.  **Run Upgrade**: Ask Copilot: `"Upgrade the system"`.
+3.  **What happens**:
+    - **Backup**: Current files are backed up to `.backup/`.
+    - **Migration**: If you are on an old folder structure, it automatically moves files to `.github/`.
+    - **Smart Merge**:
+        - Updates standard logic (Purpose, Steps).
+        - **Preserves** your `## Custom` sections.
+        - **Preserves** your filled-in Context details.
+        - Uses Git-style conflict markers for ambiguous changes.
+4.  **Review**: Check `.github/warnings.md` for any conflicts requiring manual resolution.
 
 ## Working with GitHub Copilot
 
