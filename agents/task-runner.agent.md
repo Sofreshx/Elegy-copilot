@@ -12,7 +12,10 @@ Purpose: execute a task by invoking the right Domain Agent and contexts, while k
 3. If scope is missing, add a clarifying entry to `raw.tasks.md` and mark task as blocked.
 4. Execute using the Domain Agent instructions.
 5. When encountering out-of-scope work, log it as a new `raw.tasks.md` entry.
-6. Update `tasks.md` status; if failed, add a `failed.tasks.md` entry with why and next steps.
+6. **Completion & Status Update**:
+   - **Success**: Update `tasks.md` status to `done`. **CRITICAL**: Do not leave it as `in-progress`.
+   - **Raw Task Cleanup**: If this task resolves a specific item in `raw.tasks.md`, mark it as completed (e.g., `[x]`) or note the Task ID that resolved it.
+   - **Failure**: Set status to `failed` and add a `failed.tasks.md` entry with why and next steps.
 7. Produce a session summary:
    - Done
    - Changes made (files/links)
