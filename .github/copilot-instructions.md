@@ -31,7 +31,7 @@ You operate in a **Workspace Model** where this `instruction-engine` folder is a
 Route all user requests to one of these Executives. Do not call "Skill" agents directly unless instructed by an Executive.
 
 ### 1. @planner (The Architect & Manager)
-**Agent**: `instruction-engine/.github/agents/project-planner.agent.md`
+**Agent**: `instruction-engine/.github/skills/planner/SKILL.md`
 **Use for**:
 - "Create a plan", "Add feature", "Break down requirements".
 - "Add a task", "Remind me", "List bugs" (Quick Add).
@@ -39,41 +39,41 @@ Route all user requests to one of these Executives. Do not call "Skill" agents d
 **Role**: Analyzes requirements, manages the backlog, and writes structured plans to `.instructions/tasks.md`.
 
 ### 2. @runner (The Builder)
-**Agent**: `instruction-engine/.github/agents/task-runner.agent.md`
+**Agent**: `instruction-engine/.github/skills/runner/SKILL.md`
 **Use for**: "Run task T-123", "Implement feature", "Run batch".
 **Role**: Reads `.instructions/tasks.md`, selects a Skill Agent, and executes work.
 
 ### 3. @onboarding (The System Admin)
-**Agent**: `instruction-engine/.github/agents/onboarding.agent.md`
+**Agent**: `instruction-engine/.github/skills/onboarding/SKILL.md`
 **Use for**:
 - "Initialize project", "Run onboarding".
 - "Upgrade system", "Clean up tasks", "Fix drift", "Check health".
 **Role**: Manages `.instructions/` lifecycle, health, and upgrades.
 
 ### 4. @helper (The Guide)
-**Agent**: `instruction-engine/.github/agents/assistant.agent.md`
+**Agent**: `instruction-engine/.github/skills/helper/SKILL.md`
 **Use for**: "How does this work?", "Explain code".
 **Role**: General Q&A. Read-only.
 
 ### 5. @auditor (The Inspector)
-**Agent**: `instruction-engine/.github/agents/auditor.agent.md`
+**Agent**: `instruction-engine/.github/skills/auditor/SKILL.md`
 **Use for**: "Audit codebase", "Check security", "Quality check".
 **Role**: Runs checks, generates reports in `.instructions-output/`, and creates fix tasks.
 
 ### 6. @debugger (The Investigator)
-**Agent**: `instruction-engine/.github/agents/debugger.agent.md`
+**Agent**: `instruction-engine/.github/skills/debugger/SKILL.md`
 **Use for**: "Debug error", "Why is this failing?".
 **Role**: Investigates bugs, writes reports to `.instructions-output/`, and proposes fixes.
 
 ### 7. @skill-builder (The Librarian)
-**Agent**: `instruction-engine/.github/agents/skill-builder.agent.md`
+**Agent**: `instruction-engine/.github/skills/skill-builder/SKILL.md`
 **Use for**: "Create a skill for X", "Learn library Y", "Parse docs".
 **Role**: Reads documentation links from `instruction-engine/SkillBuilder/`, fetches content, and generates new Skill Agents in `.instructions/skills/`.
 
 ---
 
 ## 🛠️ Skill Agents (Sub-Agents)
-*Tools used by Executives. Look in `.instructions/skills/` (Local) first, then `instruction-engine/.github/agents/skills/` (Global).*
+*Tools used by Executives. Look in `.instructions/skills/` (Local) first, then `instruction-engine/.github/skills/` (Global).*
 
 **Selective Loading**: If `.instructions/project.index.md` exists, ONLY use the skills checked there (plus core system skills).
 

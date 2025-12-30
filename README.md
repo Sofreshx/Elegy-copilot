@@ -3,7 +3,7 @@
 > **A structured agent orchestration system for GitHub Copilot Chat**
 
 [![Copilot Compatible](https://img.shields.io/badge/Copilot-Compatible-blue?logo=github)](https://docs.github.com/en/copilot)
-[![Agents](https://img.shields.io/badge/Agents-44-green)](/.github/agents)
+[![Agents](https://img.shields.io/badge/Agents-44-green)](/.github/skills)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ## What is this?
@@ -105,7 +105,7 @@ your-project/.instructions/          # Local Project (per-repo)
 ### AI/ML
 `semantic-kernel-agents` · `openai-api` · `ms-agent-framework`
 
-[View all skills →](/.github/agents/skills/index.md)
+[View all skills →](/.github/skills/index.md)
 
 ## Copilot Integration
 
@@ -135,12 +135,12 @@ To enable skill subagent delegation, add this to your VS Code `settings.json`:
 - [Upgrade Guide](UPGRADE_GUIDE.md)  
 - [Example Workflow](EXAMPLE_WORKFLOW.md)
 - [Lazy Loading Pattern](.github/patterns/lazy-loading.pattern.md)
-- [Skill Index](.github/agents/skills/index.md)
+- [Skill Index](.github/skills/index.md)
 
 ## Contributing
 
 1. Fork this repository
-2. Create a skill in `.github/agents/skills/`
+2. Create a skill in `.github/skills/`
 3. Follow the [agent schema](#agent-schema)
 4. Submit a PR
 

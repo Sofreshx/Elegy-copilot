@@ -111,4 +111,4 @@ detected_stacks: []
 - Run `@onboarding` to auto-detect your stack and populate this file
 - Check skills as you need them; uncheck to reduce context usage
 - Local skills in `.instructions/skills/` always take precedence
-- See `instruction-engine/.github/agents/skills/index.md` for full skill list
+- See `instruction-engine/.github/skills/index.md` for full skill list
