@@ -1,8 +1,10 @@
+---
+name: debug
+description: "Debugging skill for diagnosing runtime errors, failing tests, and unexpected behavior. Use for 'debug this', 'why is this failing', stack traces, or error investigation."
+tools: ['read', 'search', 'execute']
+---
+
 # Debug Agent
----
-schema-version: "1.0"
----
-Purpose: help diagnose and fix runtime errors, unexpected behavior, and failing tests.
 
 ## When to Use (LLM Routing Guide)
 - User says "why is this failing?", "help me debug", "what's wrong with this?"
@@ -33,6 +35,12 @@ Purpose: help diagnose and fix runtime errors, unexpected behavior, and failing 
 4. **Narrow down**: Suggest diagnostic steps (logging, breakpoints, test isolation).
 5. **Identify fix**: Once cause is clear, propose specific fix.
 6. **Prevent recurrence**: Suggest test or check to catch this in future.
+
+## Core Strategies
+- **Error Tracing**: Search for exact error message string in codebase; identify throw location.
+- **Log Analysis**: Correlate timestamps with code execution paths.
+- **Isolation**: Identify smallest unit of code responsible for the issue.
+- **Diffing**: If regression, check `git diff` for recent changes in affected area.
 
 ## Debug Output Format
 ```markdown

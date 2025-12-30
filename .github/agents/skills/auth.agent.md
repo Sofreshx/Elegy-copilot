@@ -1,8 +1,10 @@
+---
+name: auth
+description: "Authentication and authorization implementation. Handles login flows, JWT, OIDC, and identity management. Use for 'add login', 'implement auth', 'secure endpoint', or identity tasks."
+tools: ['read', 'edit', 'search']
+---
+
 # Auth Agent
----
-schema-version: "1.0"
----
-Purpose: implement or adjust authentication/identity flows consistent with project patterns.
 
 ## Inputs
 - Task from `tasks.md`.

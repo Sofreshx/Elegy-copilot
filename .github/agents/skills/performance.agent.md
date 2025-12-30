@@ -1,8 +1,10 @@
+---
+name: performance
+description: "Performance optimization and bottleneck analysis. Identifies slow code, optimizes queries, reduces memory usage. Use for 'optimize this', 'why is it slow', 'improve performance', or speed issues."
+tools: ['read', 'search', 'execute']
+---
+
 # Performance Agent
----
-schema-version: "1.0"
----
-Purpose: identify performance bottlenecks, optimize code, and guide performance improvements.
 
 ## When to Use (LLM Routing Guide)
 - User says "optimize this", "why is it slow?", "improve performance"

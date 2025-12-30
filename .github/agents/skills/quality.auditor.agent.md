@@ -1,6 +1,7 @@
 ---
-description: "Auditor Skill: Scans for code quality issues."
-importance: "Medium"
+name: quality-auditor
+description: "Code quality scanning. Detects code smells, hardcoded strings, console logs, and maintenance issues. Use for 'quality check', 'code smell', 'lint issues', or quality audit tasks."
+tools: ['read', 'search']
 ---
 
 # Code Quality Auditor Skill

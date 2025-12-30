@@ -1,32 +1,69 @@
-# Onboarding Agent
 ---
-schema-version: "1.0"
+name: onboarding
+description: "System lifecycle manager for project initialization, upgrades, and maintenance. Use for 'initialize project', 'run onboarding', 'upgrade system', 'check health', or 'fix drift'. Creates .instructions/ folder structure."
+tools: ['read', 'edit', 'search']
+infer: false
 ---
-Purpose: scan a host repository, detect patterns, generate tailored agents/contexts, and log inconsistencies.
+
+# Onboarding & System Agent
 
 ## Inputs
-- Repository files (project manifests, source samples, tests, infra).
-- Existing `../warnings.md`, `../failed.tasks.md` (for prior issues).
+- User Request.
+- Repository files (manifests, source).
+- `.instructions/` folder content.
+- `instruction-engine/.github/agents/skills/system.*.agent.md`.
+- `instruction-engine/.github/templates/` (Templates for initialization).
 
-## Steps
-1. **Safety Check**: Check if `.github/copilot-instructions.md` already exists. If it does, **STOP** and ask the user: "Project already initialized. Continue and potentially overwrite configurations? (yes/no)".
-2. Read `../warnings.md`, `../architecture.md` (if present), and manifests (`package.json`, `.csproj`, `Dockerfile`, `docker-compose.yml`, IaC files).
-3. Detect stacks and patterns using the **Stack Detection Matrix** below.
-4. Generate or update agents/contexts for ALL detected stacks in one pass using the **Merge Strategy** below:
-   - `../contexts/project.patterns.md` summarizing conventions.
-   - `../contexts/security.context.md` (Always generated).
-   - Stack contexts per detection matrix.
-   - Domain agent files per detection matrix.
-5. **Security Scan**: Check if `.env` files are tracked in git. If so, add a critical warning to `../warnings.md`.
-6. Append findings to `../warnings.md` for inconsistencies (mixed patterns, missing tests, drift between modules).
-7. Add `../raw.tasks.md` items for missing docs, refactors, or fixes.
-8. Produce a session summary.
+## Modes
+
+### Mode A: Initialization (Onboarding)
+*Trigger: "Initialize project", "Run onboarding", "Setup instructions"*
+1.  **Safety Check**: Check if `.instructions/` exists. If yes, ask for confirmation.
+2.  **Create Full Structure**:
+    ```
+    .instructions/
+    ├── project.index.md        <-- Registry of active skills & sub-agents
+    ├── architecture.md         <-- Project architecture overview
+    ├── warnings.md             <-- Active warnings and risks
+    ├── tasks.md                <-- Structured task backlog
+    ├── raw.tasks.md            <-- Raw task inbox
+    ├── failed.tasks.md         <-- Failed task log
+    ├── contexts/
+    │   ├── project.patterns.md <-- Coding conventions
+    │   └── project.memory.md   <-- Lessons learned & gotchas
+    ├── skills/                 <-- Project-specific skills (via @skill-builder)
+    └── sub-agents/             <-- Project-specific sub-agents
+    .instructions-output/       <-- Reports, logs, debug output
+    ```
+3.  **Copy Templates**: Copy from `instruction-engine/.github/templates/` to `.instructions/`.
+4.  **Scan**: Detect stacks (React, Python, etc.) using the **Stack Detection Matrix**.
+5.  **Generate**:
+    - Update `.instructions/project.index.md` with detected skills (checked).
+    - Fill `.instructions/contexts/project.patterns.md` with detected patterns.
+    - Create stack-specific skills in `.instructions/skills/` if needed.
+6.  **Security Scan**: Check if `.env` files are tracked in git. Add warning if so.
+7.  **Report**: Summary of detected stack and created files.
+
+### Mode B: Maintenance (The System Admin)
+*Trigger: "Upgrade system", "Check health", "Fix drift", "Clean tasks"*
+Delegate to the appropriate System Skill:
+- **Upgrade**: `skills/system.upgrade.agent.md` (Merge new engine files).
+- **Drift**: `skills/system.drift.agent.md` (Fix patterns vs code reality).
+- **Cleanup**: `skills/system.cleanup.agent.md` (Archive tasks).
+- **Health**: `skills/system.health.agent.md` (Verify integrity).
+
+## Stack Detection Matrix
+- `package.json` (react, vue, next) -> `frontend.agent.md`
+- `package.json` (express) -> `feature.creator.agent.md`
+- `*.csproj` -> `quality.csharp.agent.md`
+- `Dockerfile`, `docker-compose.yml` -> `deployment.compose.agent.md`
+- `*.tf` -> `terraform.agent.md`
 
 ## Merge Strategy (Override Behavior)
 When updating existing files, follow these rules:
 
-### For Agent Files (`.github/agents/*.agent.md`)
-1. **Backup first**: Create `.github/agents/.backup/[agent].agent.md.bak` before any changes.
+### For Agent Files (`.instructions/skills/*.agent.md`)
+1. **Backup first**: Create `.instructions/skills/.backup/[agent].agent.md.bak` before any changes.
 2. **Detect customizations**: If file has been modified from template (check for custom steps, project-specific notes):
    - Use **conflict markers** for sections that differ:
    ```markdown
@@ -39,12 +76,12 @@ When updating existing files, follow these rules:
 3. **Preserve custom sections**: Any section marked `## Custom` or `## Project-Specific` is never overwritten.
 4. **Append-only for Steps**: New steps are added; existing steps are updated only if semantically equivalent.
 
-### For Context Files (`.github/contexts/*.md`)
+### For Context Files (`.instructions/*.md`)
 1. **Never overwrite filled content**: If a field has user data, preserve it.
 2. **Merge new fields**: Add new template fields at the end with `(NEW)` marker.
 3. **Conflict handling**: Use Git-style markers for conflicting values.
 
-### For Task Files (`../raw.tasks.md`, `../tasks.md`, `../failed.tasks.md`)
+### For Task Files (`.instructions/raw.tasks.md`, `.instructions/tasks.md`, `.instructions/failed.tasks.md`)
 1. **Append-only**: Never delete existing entries.
 2. **Duplicate detection**: Skip if identical entry already exists.
 
@@ -71,9 +108,6 @@ If merge fails or user requests rollback:
 | Docker Compose / `docker-compose*.yml` | `deployment.compose.agent.md` | `aspire.context.md` or `deployment.context.md` |
 | C# / `*.csproj` | `quality.csharp.agent.md` | `project.patterns.md` |
 | TypeScript / `tsconfig.json` | `quality.ts.agent.md` | `project.patterns.md` |
-| Go / `go.mod` | `quality.go.agent.md` | `go.context.md` |
-| Python / `pyproject.toml` / `requirements.txt` | `quality.python.agent.md` | `python.context.md` |
-| NestJS / `@nestjs/*` | `feature.creator.agent.md` (NestJS variant) | `nestjs.context.md` |
 | Wolverine / MediatR / CQRS patterns | `feature.creator.agent.md` | `project.patterns.md` |
 
 ## Agent Template Schema

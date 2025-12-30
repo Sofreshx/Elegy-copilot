@@ -1,8 +1,10 @@
+---
+name: feature-creator
+description: "Backend feature implementation. Creates endpoints, services, and data access following project patterns. Use for 'add endpoint', 'create feature', 'implement API', or backend development tasks."
+tools: ['read', 'edit', 'search', 'execute']
+---
+
 # Feature Creator Agent
----
-schema-version: "1.0"
----
-Purpose: add or modify backend features following project patterns and endpoints.
 
 ## Inputs
 - Task from `tasks.md`.

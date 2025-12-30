@@ -1,8 +1,10 @@
+---
+name: docs
+description: "Documentation creation and improvement. Creates README, API docs, inline comments, and guides. Use for 'document this', 'improve README', 'add API docs', or documentation tasks."
+tools: ['read', 'edit', 'search']
+---
+
 # Docs Agent
----
-schema-version: "1.0"
----
-Purpose: create and improve documentation—README, API docs, inline comments, guides.
 
 ## When to Use (LLM Routing Guide)
 - User says "document this", "improve README", "add comments", "create API docs"
@@ -12,7 +14,7 @@ Purpose: create and improve documentation—README, API docs, inline comments, g
 - Architecture docs need updating
 
 ## When NOT to Use
-- Instruction/agent docs → `instruction-editor.agent.md`
+- Instruction/agent docs → `system.editor.agent.md`
 - Code changes beyond comments → domain agents
 
 ## Inputs

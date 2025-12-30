@@ -1,8 +1,10 @@
+---
+name: testing
+description: "Test creation and strategy. Writes unit tests, integration tests, identifies coverage gaps. Use for 'write tests', 'improve coverage', 'test this function', or test-related tasks."
+tools: ['read', 'edit', 'search', 'execute']
+---
+
 # Testing Agent
----
-schema-version: "1.0"
----
-Purpose: design test strategy, write tests, identify coverage gaps, and improve test quality.
 
 ## When to Use (LLM Routing Guide)
 - User says "write tests for this", "improve test coverage", "what should I test?"

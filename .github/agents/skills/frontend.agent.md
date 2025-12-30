@@ -1,8 +1,10 @@
+---
+name: frontend
+description: "Frontend UI development for React, Vue, or Angular. Creates components, pages, and handles state management. Use for 'create component', 'add page', 'UI work', or frontend tasks."
+tools: ['read', 'edit', 'search', 'execute']
+---
+
 # Frontend Agent
----
-schema-version: "1.0"
----
-Purpose: implement or adjust frontend features following project patterns and component conventions.
 
 ## Inputs
 - Task from `tasks.md`.

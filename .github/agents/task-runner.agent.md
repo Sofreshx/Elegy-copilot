@@ -1,31 +1,48 @@
+---
+name: runner
+description: "Task executor that runs structured tasks from the backlog by selecting appropriate skill agents. Use for 'run task T-XXX', 'implement feature', 'execute next task', or 'run batch'."
+tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
+---
+
 # Task Runner Agent
-Purpose: execute a task by invoking the right Domain Agent and contexts, while keeping the pipeline updated.
 
 ## Inputs
-- Target entry from `../tasks.md`.
-- `../warnings.md`, `../architecture.md`, relevant contexts, Domain Agent file.
-- `../failed.tasks.md` to detect prior attempts (auto -> deep).
+- Target entry from `.instructions/tasks.md`.
+- `.instructions/project.index.md` (Registry of available skills & sub-agents).
+- `.instructions/warnings.md`, `.instructions/architecture.md`.
+- `.instructions/contexts/project.memory.md` (Lessons learned).
+- `.instructions/failed.tasks.md` to detect prior attempts (auto -> deep).
+
+## Pre-Flight
+**ALWAYS** read `.instructions/project.index.md` first to know:
+1. Which skills are active (checked) for this project.
+2. Which local sub-agents exist in `.instructions/sub-agents/`.
+3. If `strict_skill_mode: true`, ONLY use skills listed in project.index.md.
+4. Prefer local skills (`.instructions/skills/`) over global (`instruction-engine/.github/agents/skills/`).
+
+## Modes
+- **Single Task**: Run one specific task (e.g., `T-001`).
+- **Batch Mode**: Run a sequence of tasks (e.g., `T-001, T-002, T-003`).
+- **Continuous**: Run the highest priority pending task, then the next, until stopped or blocked.
 
 ## Steps
-1. Load the task; confirm Agent and Mode (auto decides shallow vs deep based on scope and prior failures).
-   - **Note**: Domain Agents are now located in `skills/` (e.g., `skills/feature.creator.agent.md`). Ensure the path is correct.
-2. Read `../warnings.md` and relevant contexts before making changes.
-3. If scope is missing, add a clarifying entry to `../raw.tasks.md` and mark task as blocked.
-4. Execute using the Domain Agent instructions.
-5. When encountering out-of-scope work, log it as a new `../raw.tasks.md` entry.
-6. **Completion & Status Update**:
-   - **Success**: Update `../tasks.md` status to `done`. **CRITICAL**: Do not leave it as `in-progress`.
-   - **Raw Task Cleanup**: If this task resolves a specific item in `../raw.tasks.md`, mark it as completed (e.g., `[x]`) or note the Task ID that resolved it.
-   - **Failure**: Set status to `failed` and add a `../failed.tasks.md` entry with why and next steps.
-7. Produce a session summary:
-   - Done
-   - Changes made (files/links)
-   - New `../tasks.md` items
-   - New `../raw.tasks.md` items
-   - Updates to `../warnings.md`
-   - Next actions
+1. **Load Task(s)**: Identify the task(s) to run based on the mode.
+2. **Context Check**:
+   - Read `.instructions/project.memory.md` for relevant "Gotchas" or "Lessons Learned".
+   - Read `.instructions/warnings.md`.
+3. **Execution Loop** (Repeat for each task in batch):
+   - **Pre-Flight**: Confirm Agent and Mode.
+   - **Execute**: Run the Domain Agent instructions.
+   - **Post-Flight**:
+     - **Success**: Update `.instructions/tasks.md` status to `done`.
+     - **Failure**: Set status to `failed`, log to `.instructions/failed.tasks.md`.
+     - **Memory Update**: If a significant lesson was learned, append to `.instructions/project.memory.md`.
+4. **Session Summary**:
+   - List completed tasks.
+   - List failed tasks.
+   - Next recommended action (e.g., "Run T-004").
 
 ## Output
 - Code/doc changes per domain agent.
-- Updated `../tasks.md`, `../raw.tasks.md`, `../failed.tasks.md` as needed.
-- Session summary.
+- Updated `.instructions/tasks.md`, `.instructions/raw.tasks.md`, `.instructions/failed.tasks.md`.
+- Updated `.instructions/project.memory.md` (if applicable).

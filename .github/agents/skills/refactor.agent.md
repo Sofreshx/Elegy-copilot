@@ -1,8 +1,10 @@
+---
+name: refactor
+description: "Code restructuring and cleanup. Improves readability, reduces duplication, aligns with patterns without changing behavior. Use for 'refactor this', 'clean up', 'extract method', or code improvement."
+tools: ['read', 'edit', 'search']
+---
+
 # Refactor Agent
----
-schema-version: "1.0"
----
-Purpose: safely restructure code without changing behavior—improve readability, reduce duplication, align with patterns.
 
 ## When to Use (LLM Routing Guide)
 - User says "refactor this", "clean up this code", "extract this into..."

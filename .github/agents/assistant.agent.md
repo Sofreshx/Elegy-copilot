@@ -1,8 +1,10 @@
+---
+name: helper
+description: "General assistant for questions, explanations, and guidance. Use for 'how does X work', 'explain this code', 'what is the best way to', or any learning/clarification request. Read-only - does not modify code."
+tools: ['read', 'search']
+---
+
 # Assistant Agent
----
-schema-version: "1.0"
----
-Purpose: handle free-form questions, explanations, and general developer assistance without task overhead.
 
 ## When to Use (LLM Routing Guide)
 - User asks "how does X work?", "explain this", "what is the best way to..."

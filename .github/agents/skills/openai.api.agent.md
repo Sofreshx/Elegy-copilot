@@ -1,5 +1,7 @@
 ---
-description: "Skill: OpenAI API integration."
+name: openai-api
+description: "OpenAI API integration for .NET. Handles GPT chat completions, embeddings, and function calling. Use for 'OpenAI', 'GPT integration', 'chat completion', or AI API tasks."
+tools: ['read', 'edit', 'search']
 ---
 
 # OpenAI API Skill

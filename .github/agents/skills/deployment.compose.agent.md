@@ -1,8 +1,10 @@
+---
+name: deployment-compose
+description: "Docker Compose configuration. Creates and modifies docker-compose.yml for local development and deployment. Use for 'add docker', 'create compose', 'containerize', or Docker tasks."
+tools: ['read', 'edit', 'search']
+---
+
 # Deployment Compose Agent
----
-schema-version: "1.0"
----
-Purpose: define or adjust Docker Compose setup aligned with Aspire or project deployment patterns.
 
 ## Inputs
 - Task from `tasks.md`.

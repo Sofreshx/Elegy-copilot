@@ -1,8 +1,10 @@
+---
+name: terraform
+description: "Terraform infrastructure as code. Creates and modifies IaC for cloud resources. Use for 'create terraform', 'add infrastructure', 'provision resource', or IaC tasks."
+tools: ['read', 'edit', 'search', 'execute']
+---
+
 # Terraform Agent
----
-schema-version: "1.0"
----
-Purpose: create or modify Terraform IaC aligned with project and provider standards.
 
 ## Inputs
 - Task from `tasks.md`.

@@ -1,6 +1,7 @@
 ---
-description: "Auditor Skill: Scans for secrets and credentials."
-importance: "Critical"
+name: secrets-auditor
+description: "Secret and credential detection. Scans for exposed API keys, passwords, and sensitive data. Use for 'check for secrets', 'credential scan', 'security audit', or secret detection tasks."
+tools: ['read', 'search']
 ---
 
 # Secrets Auditor Skill

@@ -1,5 +1,8 @@
 ---
-description: "Skill: Comprehensive system health diagnostic."
+name: system-health
+description: "System health diagnostic. Validates file integrity, references, and configuration. Internal system skill."
+tools: ['read', 'search']
+infer: false
 ---
 
 # System Health Agent

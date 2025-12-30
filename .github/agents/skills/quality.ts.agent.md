@@ -1,8 +1,10 @@
+---
+name: quality-typescript
+description: "TypeScript quality standards enforcement. Checks types, state management, error handling. Use for 'TS quality', 'TypeScript patterns', 'ESLint', or TypeScript-specific quality tasks."
+tools: ['read', 'edit', 'search']
+---
+
 # Quality TS Agent
----
-schema-version: "1.0"
----
-Purpose: enforce TypeScript quality standards and patterns.
 
 ## Inputs
 - Task from `tasks.md`.

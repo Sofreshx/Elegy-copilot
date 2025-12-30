@@ -1,14 +1,17 @@
+---
+name: system-upgrade
+description: "Instruction engine upgrade. Merges new agent versions while preserving customizations. Internal system skill."
+tools: ['read', 'edit', 'search']
+infer: false
+---
+
 # System Upgrade Agent
----
-schema-version: "1.0"
----
-Purpose: Upgrade the instruction engine itself by merging new versions of agents and contexts from a staging area into the active workspace, while preserving project-specific customizations.
 
 ## Inputs
 - `.upgrade/` folder (containing the new version of the instruction engine files).
-- `.github/agents/` folder (active agents).
-- `.github/contexts/` folder (active contexts).
-- `../../architecture.md`, `../../warnings.md` (core files).
+- `instruction-engine/.github/agents/` folder (global agents).
+- `.instructions/skills/` folder (local skill overrides).
+- `.instructions/architecture.md`, `.instructions/warnings.md` (core files).
 
 ## Steps
 1. **Validation**:

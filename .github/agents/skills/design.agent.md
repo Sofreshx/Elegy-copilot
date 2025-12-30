@@ -1,8 +1,10 @@
+---
+name: design
+description: "Architecture and design evaluation. Reviews patterns, proposes designs, creates ADRs. Use for 'review this design', 'how should I architect', 'should I use X or Y', or architecture decisions."
+tools: ['read', 'search']
+---
+
 # Design Agent
----
-schema-version: "1.0"
----
-Purpose: evaluate architecture decisions, propose designs, create ADRs, and guide pattern selection.
 
 ## When to Use (LLM Routing Guide)
 - User asks "review this design", "is this a good pattern?", "how should I architect X?"

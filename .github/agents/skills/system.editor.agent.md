@@ -1,17 +1,20 @@
+---
+name: system-editor
+description: "Instruction file editor. Updates agent instructions, contexts, and architecture docs. Internal system skill."
+tools: ['read', 'edit', 'search']
+infer: false
+---
+
 # Instruction Editor Agent
----
-schema-version: "1.0"
----
-Purpose: evolve the agentic system itself—update instructions, contexts, and architecture docs with continuous improvement.
 
 ## Inputs
 - Proposed change or gap.
-- `../../architecture.md`, `../../warnings.md`, `../../failed.tasks.md`, relevant agent/context files.
-- Feedback from `instruction-drift.agent.md` (if triggered by drift detection).
+- `.instructions/architecture.md`, `.instructions/warnings.md`, `.instructions/failed.tasks.md`, relevant agent/context files.
+- Feedback from `system.drift.agent.md` (if triggered by drift detection).
 
 ## Steps
 1. Identify the change needed (new agent, context tweak, pipeline adjustment, pattern update).
-2. Read `../../warnings.md` and `../../failed.tasks.md` to understand prior issues—avoid reintroducing known problems.
+2. Read `.instructions/warnings.md` and `.instructions/failed.tasks.md` to understand prior issues—avoid reintroducing known problems.
 3. **Version tracking**: Before editing, note current schema-version; increment patch version for minor fixes, minor version for new capabilities.
 4. Apply updates to instructions/contexts; keep style consistent and follow Agent Template Schema from `onboarding.agent.md`.
 5. **Backup**: Create backup of modified files in `.backup/` before applying changes.

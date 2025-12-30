@@ -1,8 +1,10 @@
+---
+name: security
+description: "Security review and vulnerability detection. Checks for secure coding practices, secret exposure, injection risks. Use for 'security review', 'is this secure', 'check vulnerabilities', or security audits."
+tools: ['read', 'search']
+---
+
 # Security Agent
----
-schema-version: "1.0"
----
-Purpose: identify security vulnerabilities, review for secure coding practices, and guide security improvements.
 
 ## When to Use (LLM Routing Guide)
 - User says "is this secure?", "check for vulnerabilities", "security review"

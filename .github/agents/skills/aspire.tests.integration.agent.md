@@ -1,8 +1,10 @@
+---
+name: aspire-integration-tests
+description: "Aspire integration testing. Creates and maintains integration tests for Aspire-based applications. Use for 'Aspire test', 'integration test with Aspire', or Aspire testing tasks."
+tools: ['read', 'edit', 'search', 'execute']
+---
+
 # Aspire Integration Tests Agent
----
-schema-version: "1.0"
----
-Purpose: create or maintain integration tests for Aspire-based setups.
 
 ## Inputs
 - Task from `tasks.md`.

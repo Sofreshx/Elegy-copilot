@@ -1,8 +1,11 @@
+---
+name: system-drift
+description: "Instruction drift detection. Analyzes failed tasks to find systematic issues in agent instructions. Internal system skill."
+tools: ['read', 'search']
+infer: false
+---
+
 # Instruction Drift Agent
----
-schema-version: "1.0"
----
-Purpose: automatically detect when instructions are drifting from effective patterns and propose improvements based on failure analysis.
 
 ## When to Use
 - **Periodically**: Run after every 5-10 failed tasks to detect systemic issues.
@@ -10,13 +13,13 @@ Purpose: automatically detect when instructions are drifting from effective patt
 - **Auto-triggered**: Task-runner can invoke when failure rate exceeds threshold.
 
 ## Inputs
-- `../../failed.tasks.md` (primary source of drift signals).
-- `../../warnings.md` (existing known issues).
-- All `../../agents/*.agent.md` files.
-- `../../tasks.md` (to see success/failure ratio by agent).
+- `.instructions/failed.tasks.md` (primary source of drift signals).
+- `.instructions/warnings.md` (existing known issues).
+- All `.github/agents/*.agent.md` files (or `.instructions/skills/` for local overrides).
+- `.instructions/tasks.md` (to see success/failure ratio by agent).
 
 ## Steps
-1. **Analyze failures**: Read `../../failed.tasks.md` and categorize by:
+1. **Analyze failures**: Read `.instructions/failed.tasks.md` and categorize by:
    - Agent that failed
    - Failure reason (missing context, wrong scope, unclear steps, etc.)
    - Frequency (one-off vs. recurring)
@@ -55,4 +58,4 @@ Purpose: automatically detect when instructions are drifting from effective patt
 - **New tasks.md**: [none]
 - **New raw.tasks.md**: [instruction improvement tasks]
 - **Warnings**: [new systemic issues to log]
-- **Next**: [run instruction-editor to apply top-priority fix]
+- **Next**: [run system.editor to apply top-priority fix]
