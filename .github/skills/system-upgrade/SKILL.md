@@ -1,11 +1,9 @@
 ﻿---
 name: system-upgrade
-description: "Instruction engine upgrade. Merges new agent versions while preserving customizations. Internal system skill."
-tools: ['read', 'edit', 'search']
-infer: false
+description: "Instruction engine upgrade. Merges new agent versions while preserving customizations. Use this for internal system maintenance only."
 ---
 
-# System Upgrade Agent
+# System Upgrade Skill
 
 ## Inputs
 - `.upgrade/` folder (containing the new version of the instruction engine files).

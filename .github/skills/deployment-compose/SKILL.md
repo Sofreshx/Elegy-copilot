@@ -1,10 +1,9 @@
 ﻿---
 name: deployment-compose
-description: "Docker Compose configuration. Creates and modifies docker-compose.yml for local development and deployment. Use for 'add docker', 'create compose', 'containerize', or Docker tasks."
-tools: ['read', 'edit', 'search']
+description: "Docker Compose configuration. Creates and modifies docker-compose.yml for local development and deployment. Use this when asked to add Docker, create compose files, containerize an app, or work on Docker configuration."
 ---
 
-# Deployment Compose Agent
+# Deployment Compose Skill
 
 ## Inputs
 - Task from `tasks.md`.

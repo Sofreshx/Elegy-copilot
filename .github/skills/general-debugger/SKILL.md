@@ -1,7 +1,6 @@
 ---
 name: general-debugger
-schema-version: "1.0"
-description: "Debugger Skill: General debugging strategies."
+description: "General debugging strategies applicable to any language. Use this when asked for help with general debugging approaches, error tracing, or log analysis."
 ---
 
 # General Debugger Skill

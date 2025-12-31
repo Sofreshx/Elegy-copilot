@@ -1,10 +1,9 @@
 ﻿---
 name: testing
-description: "Test creation and strategy. Writes unit tests, integration tests, identifies coverage gaps. Use for 'write tests', 'improve coverage', 'test this function', or test-related tasks."
-tools: ['read', 'edit', 'search', 'execute']
+description: "Test creation and strategy. Writes unit tests, integration tests, identifies coverage gaps. Use this when asked to write tests, improve test coverage, add unit tests, or work on testing strategy."
 ---
 
-# Testing Agent
+# Testing Skill
 
 ## When to Use (LLM Routing Guide)
 - User says "write tests for this", "improve test coverage", "what should I test?"

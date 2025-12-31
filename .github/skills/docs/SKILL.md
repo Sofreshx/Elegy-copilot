@@ -1,10 +1,9 @@
 ﻿---
 name: docs
-description: "Documentation creation and improvement. Creates README, API docs, inline comments, and guides. Use for 'document this', 'improve README', 'add API docs', or documentation tasks."
-tools: ['read', 'edit', 'search']
+description: "Documentation creation and improvement. Creates README, API docs, inline comments, and guides. Use this when asked to document code, improve README, add API docs, or create documentation."
 ---
 
-# Docs Agent
+# Docs Skill
 
 ## When to Use (LLM Routing Guide)
 - User says "document this", "improve README", "add comments", "create API docs"

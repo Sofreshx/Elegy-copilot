@@ -1,10 +1,9 @@
 ﻿---
 name: security
-description: "Security review and vulnerability detection. Checks for secure coding practices, secret exposure, injection risks. Use for 'security review', 'is this secure', 'check vulnerabilities', or security audits."
-tools: ['read', 'search']
+description: "Security review and vulnerability detection. Checks for secure coding practices, secret exposure, injection risks. Use this when asked to do a security review, check for vulnerabilities, audit security, or review secure coding practices."
 ---
 
-# Security Agent
+# Security Skill
 
 ## When to Use (LLM Routing Guide)
 - User says "is this secure?", "check for vulnerabilities", "security review"

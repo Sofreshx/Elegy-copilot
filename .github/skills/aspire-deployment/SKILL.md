@@ -1,10 +1,6 @@
 ﻿---
 name: aspire-deployment
-description: ".NET Aspire deployment and publishing. Handles aspire publish, deploy, and manifest generation. Use for 'deploy Aspire app', 'publish to Azure', 'generate manifest', or Aspire deployment tasks."
-tools: ['read', 'edit', 'search', 'execute']
-sources:
-  - https://aspire.dev/deployment/overview/
-  - https://aspire.dev/deployment/manifest-format/
+description: ".NET Aspire deployment and publishing. Handles aspire publish, deploy, and manifest generation. Use this when asked to deploy an Aspire app, publish to Azure, generate deployment manifests, or work on Aspire deployment tasks."
 ---
 
 # .NET Aspire Deployment Skill

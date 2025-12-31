@@ -1,11 +1,9 @@
 ﻿---
 name: system-health
-description: "System health diagnostic. Validates file integrity, references, and configuration. Internal system skill."
-tools: ['read', 'search']
-infer: false
+description: "System health diagnostic. Validates file integrity, references, and configuration. Use this for internal system maintenance only."
 ---
 
-# System Health Agent
+# System Health Skill
 
 ## Purpose
 Perform a deep diagnostic scan of the instruction engine to ensure integrity, valid references, and correct configuration.

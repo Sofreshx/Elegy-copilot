@@ -1,10 +1,6 @@
 ﻿---
 name: marten-events
-description: "Marten event sourcing. PostgreSQL event store with projections. Use for 'event sourcing', 'Marten events', 'projection', or event store tasks."
-tools: ['read', 'edit', 'search']
-sources:
-  - https://martendb.io/events/
-  - https://martendb.io/events/projections/
+description: "Marten event sourcing. PostgreSQL event store with projections. Use this when asked to implement event sourcing, work with Marten events, create projections, or build event store functionality."
 ---
 
 # Marten Event Sourcing Skill

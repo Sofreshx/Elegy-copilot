@@ -1,9 +1,6 @@
 ﻿---
 name: wolverine-http
-description: "Wolverine HTTP endpoints. Creates minimal API-style HTTP endpoints with Wolverine. Use for 'Wolverine endpoint', 'HTTP handler', 'API endpoint', or Wolverine HTTP tasks."
-tools: ['read', 'edit', 'search']
-sources:
-  - https://wolverinefx.net/guide/http/endpoints
+description: "Wolverine HTTP endpoints. Creates minimal API-style HTTP endpoints with Wolverine. Use this when asked to create a Wolverine endpoint, add an HTTP handler, or work on API endpoints using Wolverine HTTP."
 ---
 
 # Wolverine HTTP Endpoints Skill

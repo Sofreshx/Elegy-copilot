@@ -1,10 +1,9 @@
 ﻿---
 name: terraform
-description: "Terraform infrastructure as code. Creates and modifies IaC for cloud resources. Use for 'create terraform', 'add infrastructure', 'provision resource', or IaC tasks."
-tools: ['read', 'edit', 'search', 'execute']
+description: "Terraform infrastructure as code. Creates and modifies IaC for cloud resources. Use this when asked to create Terraform files, add infrastructure, provision cloud resources, or work on IaC."
 ---
 
-# Terraform Agent
+# Terraform Skill
 
 ## Inputs
 - Task from `tasks.md`.

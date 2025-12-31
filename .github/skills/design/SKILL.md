@@ -1,10 +1,9 @@
 ﻿---
 name: design
-description: "Architecture and design evaluation. Reviews patterns, proposes designs, creates ADRs. Use for 'review this design', 'how should I architect', 'should I use X or Y', or architecture decisions."
-tools: ['read', 'search']
+description: "Architecture and design evaluation. Reviews patterns, proposes designs, creates ADRs. Use this when asked to review a design, suggest architecture, evaluate trade-offs, or make architecture decisions."
 ---
 
-# Design Agent
+# Design Skill
 
 ## When to Use (LLM Routing Guide)
 - User asks "review this design", "is this a good pattern?", "how should I architect X?"

@@ -1,10 +1,6 @@
 ﻿---
 name: aspire-apphost
-description: ".NET Aspire AppHost orchestration. Configures service discovery, dependencies, and local development. Use for 'Aspire setup', 'add service to AppHost', 'configure orchestration', or Aspire AppHost tasks."
-tools: ['read', 'edit', 'search']
-sources:
-  - https://aspire.dev/get-started/what-is-aspire/
-  - https://aspire.dev/get-started/app-host/
+description: ".NET Aspire AppHost orchestration. Configures service discovery, dependencies, and local development. Use this when asked to configure Aspire, add a service to AppHost, set up orchestration, or work on Aspire AppHost configuration."
 ---
 
 # .NET Aspire AppHost Skill

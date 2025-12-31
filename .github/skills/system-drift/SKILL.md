@@ -1,11 +1,9 @@
 ﻿---
 name: system-drift
-description: "Instruction drift detection. Analyzes failed tasks to find systematic issues in agent instructions. Internal system skill."
-tools: ['read', 'search']
-infer: false
+description: "Instruction drift detection. Analyzes failed tasks to find systematic issues in agent instructions. Use this for internal system maintenance only."
 ---
 
-# Instruction Drift Agent
+# System Drift Detection Skill
 
 ## When to Use
 - **Periodically**: Run after every 5-10 failed tasks to detect systemic issues.

@@ -1,12 +1,24 @@
 # Skill Index
 > **Purpose**: Master registry of all global skills. Enables discovery, routing, and lazy-loading.
 > **Note**: Executive agents are in `.github/agents/`, not here.
+> **Format**: All skills follow the [GitHub Copilot Agent Skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills) specification.
+
+## Skill File Format
+
+Each skill has a `SKILL.md` file with:
+```yaml
+---
+name: skill-name          # Required: lowercase, hyphens for spaces
+description: "..."        # Required: what it does + "Use this when..."
+---
+```
+
+**Note**: The `tools`, `sources`, and `schema-version` fields are NOT part of the GitHub spec and have been removed.
 
 ## How to Use This Index
-1. **Executives**: Query this index to find the right skill for a task.
-2. **Lazy Loading**: Only load skills when explicitly invoked.
-3. **Local Override**: If `.instructions/skills/[skill-name]/SKILL.md` exists, prefer it.
-4. **Project Index**: Check `.instructions/project.index.md` for project-specific skill activation.
+1. **Auto-Discovery**: Copilot loads skills based on `description` matching user requests.
+2. **Local Override**: If `.instructions/skills/[skill-name]/SKILL.md` exists, prefer it.
+3. **Project Index**: Check `.instructions/project.index.md` for project-specific skill activation.
 
 ---
 

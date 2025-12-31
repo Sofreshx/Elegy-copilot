@@ -1,7 +1,6 @@
 ﻿---
 name: ms-agent-framework
-description: "Microsoft.Agents SDK for building AI agents. Use for 'Microsoft.Agents', 'agent SDK', or Microsoft agent framework tasks."
-tools: ['read', 'edit', 'search']
+description: "Microsoft.Agents SDK for building AI agents. Use this when asked to implement Microsoft.Agents, build agents with the Microsoft SDK, or work on the Microsoft agent framework."
 ---
 
 # Microsoft Agent Framework Skill

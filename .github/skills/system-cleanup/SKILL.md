@@ -1,11 +1,9 @@
 ﻿---
 name: system-cleanup
-description: "Task file maintenance. Archives completed tasks and cleans up raw inputs. Internal system skill."
-tools: ['read', 'edit']
-infer: false
+description: "Task file maintenance. Archives completed tasks and cleans up raw inputs. Use this for internal system maintenance only."
 ---
 
-# Cleanup Agent
+# System Cleanup Skill
 
 ## Inputs
 - `.instructions/tasks.md`

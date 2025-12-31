@@ -1,10 +1,9 @@
 ﻿---
 name: migration
-description: "Framework and library migration. Handles version upgrades, breaking changes, and tech debt. Use for 'upgrade to X', 'migrate from A to B', 'handle breaking changes', or version migrations."
-tools: ['read', 'edit', 'search', 'execute']
+description: "Framework and library migration. Handles version upgrades, breaking changes, and tech debt. Use this when asked to upgrade frameworks, migrate between libraries, handle breaking changes, or perform version migrations."
 ---
 
-# Migration Agent
+# Migration Skill
 
 ## When to Use (LLM Routing Guide)
 - User says "upgrade to X", "migrate from A to B", "handle breaking changes"

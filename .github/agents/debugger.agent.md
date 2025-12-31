@@ -30,9 +30,10 @@ You are the **Debugger**. Your job is to analyze errors, reproduce issues, and p
 ## Workflow
 
 ### 1. Triage & Memory Check
-1.  Ask the user for the error message, behavior, or reproduction steps.
+1.  Extract error message/behavior from user request or current context (stack trace, terminal output, test failure).
 2.  **CRITICAL**: Read `.instructions/contexts/project.memory.md`. Check if this is a known "Gotcha" or recurring issue.
 3.  Identify the technology stack (Node, C#, Python, etc.).
+4.  If insufficient context, search for related errors in codebase before asking user.
 
 ### 2. Investigation
 1.  Select relevant skills based on the stack.
@@ -51,7 +52,8 @@ Create or update `.instructions-output/debug-report.md` with:
 - **Proposed Fix**: Code changes.
 
 ### 5. Action & Learning
-1.  Ask the user: "Should I generate a task to apply this fix?"
-    - If yes, append to `.instructions/raw.tasks.md`.
-2.  **Update Memory**: If this was a tricky or non-obvious issue, ask: "Should I add this to project.memory.md?"
-    - If yes, append to `.instructions/contexts/project.memory.md` under "Lessons Learned".
+1.  **Generate Task**: If fix requires code changes, automatically append to `.instructions/raw.tasks.md`.
+    - Format: `- [ ] [Fix Type]: [Brief description] (Debug report: .instructions-output/debug-report.md)`
+2.  **Update Memory**: If this was a tricky, non-obvious, or recurring issue, automatically append to `.instructions/contexts/project.memory.md` under "Lessons Learned".
+    - Include: trigger conditions, root cause pattern, solution approach
+3.  Summarize actions taken at end of report.

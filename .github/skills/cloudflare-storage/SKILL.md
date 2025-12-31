@@ -1,11 +1,6 @@
 ﻿---
 name: cloudflare-storage
-description: "Cloudflare storage services integration. Handles R2 object storage, Workers KV, and Images API. Use for 'Cloudflare R2', 'Workers KV', 'image CDN', or Cloudflare storage tasks."
-tools: ['read', 'edit', 'search']
-sources:
-  - https://developers.cloudflare.com/r2/
-  - https://developers.cloudflare.com/kv/
-  - https://developers.cloudflare.com/images/
+description: "Cloudflare storage services integration. Handles R2 object storage, Workers KV, and Images API. Use this when asked to work with Cloudflare R2, Workers KV, image CDN, or Cloudflare storage integration."
 ---
 
 # Cloudflare Storage Skill

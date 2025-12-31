@@ -1,11 +1,9 @@
 ﻿---
 name: system-editor
-description: "Instruction file editor. Updates agent instructions, contexts, and architecture docs. Internal system skill."
-tools: ['read', 'edit', 'search']
-infer: false
+description: "Instruction file editor. Updates agent instructions, contexts, and architecture docs. Use this for internal system maintenance only."
 ---
 
-# Instruction Editor Agent
+# System Editor Skill
 
 ## Inputs
 - Proposed change or gap.

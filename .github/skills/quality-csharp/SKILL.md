@@ -1,10 +1,9 @@
 ﻿---
 name: quality-csharp
-description: "C# quality standards enforcement. Checks DI patterns, async usage, nullability, naming conventions. Use for 'C# quality', '.NET patterns', 'Roslyn', or C#-specific quality tasks."
-tools: ['read', 'edit', 'search']
+description: "C# quality standards enforcement. Checks DI patterns, async usage, nullability, naming conventions. Use this when asked to improve C# code quality, enforce .NET patterns, or fix C#-specific quality issues."
 ---
 
-# Quality C# Agent
+# Quality C# Skill
 
 ## Inputs
 - Task from `tasks.md`.

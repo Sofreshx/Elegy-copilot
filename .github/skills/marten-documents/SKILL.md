@@ -1,10 +1,6 @@
 ﻿---
 name: marten-documents
-description: "Marten document database. PostgreSQL document store with LINQ queries. Use for 'Marten query', 'document store', 'store document', or Marten document tasks."
-tools: ['read', 'edit', 'search']
-sources:
-  - https://martendb.io/documents/sessions.html
-  - https://martendb.io/documents/
+description: "Marten document database. PostgreSQL document store with LINQ queries. Use this when asked to work with Marten queries, document store operations, storing or querying documents in Marten."
 ---
 
 # Marten Document Database Skill

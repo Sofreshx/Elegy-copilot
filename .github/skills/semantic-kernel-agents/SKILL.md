@@ -1,10 +1,6 @@
 ﻿---
 name: semantic-kernel-agents
-description: "Semantic Kernel multi-agent orchestration. Creates AI agents with plugins and planners. Use for 'Semantic Kernel', 'SK agent', 'AI orchestration', or LLM agent tasks."
-tools: ['read', 'edit', 'search']
-sources:
-  - https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-architecture
-  - https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-types/chat-completion-agent
+description: "Semantic Kernel multi-agent orchestration. Creates AI agents with plugins and planners. Use this when asked to implement Semantic Kernel agents, build AI orchestration, or work with SK agent patterns."
 ---
 
 # Semantic Kernel Agent Framework Skill

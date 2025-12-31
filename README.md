@@ -3,15 +3,15 @@
 > **A structured agent orchestration system for GitHub Copilot Chat**
 
 [![Copilot Compatible](https://img.shields.io/badge/Copilot-Compatible-blue?logo=github)](https://docs.github.com/en/copilot)
-[![Agents](https://img.shields.io/badge/Agents-44-green)](/.github/skills)
+[![Agents](https://img.shields.io/badge/Agents-46-green)](/.github/skills)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ## What is this?
 
 Instruction Engine is a **workspace model** that extends GitHub Copilot Chat with:
 
-- 🎯 **7 Executive Agents** - High-level task routing (planner, runner, debugger, etc.)
-- 🛠️ **37 Skill Agents** - Domain-specific capabilities (.NET, React, Firebase, Terraform, etc.)
+- 🎯 **8 Executive Agents** - High-level task routing (planner, runner, debugger, merger, etc.)
+- 🛠️ **38 Skill Agents** - Domain-specific capabilities (.NET, React, Firebase, Terraform, etc.)
 - 📋 **Task Pipeline** - Structured planning → execution → maintenance loop
 - 🧠 **Project Memory** - Lessons learned, patterns, and warnings persist across sessions
 
@@ -146,20 +146,24 @@ To enable skill subagent delegation, add this to your VS Code `settings.json`:
 
 ### Agent Schema
 
+Skills follow the [GitHub Copilot Agent Skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills) specification:
+
 ```yaml
 ---
 name: my-skill
-description: "What this skill does. Use for 'keyword1', 'keyword2', or related tasks."
-tools: ['read', 'edit', 'search']
-sources:
-  - https://docs.example.com
+description: "What this skill does. Use this when asked to do X, Y, or Z."
 ---
 
 # Skill Name
 
+## When NOT to Use
+- For X → use `other-skill`
+
 ## Purpose
 ...
 ```
+
+> **Note**: The `tools:` and `sources:` fields are NOT part of the GitHub spec. Skills are matched by `description` keywords.
 
 ## License
 

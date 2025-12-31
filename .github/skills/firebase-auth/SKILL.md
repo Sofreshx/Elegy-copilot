@@ -1,11 +1,6 @@
 ﻿---
 name: firebase-auth
-description: "Firebase Authentication with Admin SDK for .NET. Handles user management, token verification, custom claims, and role-based access. Use for Firebase auth, JWT verification, or custom claims."
-tools: ['read', 'edit', 'search']
-sources:
-  - https://firebase.google.com/docs/auth/admin/verify-id-tokens
-  - https://firebase.google.com/docs/auth/admin/custom-claims
-  - https://firebase.google.com/docs/auth/admin/manage-users
+description: "Firebase Authentication with Admin SDK for .NET. Handles user management, token verification, custom claims, and role-based access. Use this when asked to implement Firebase auth, verify JWT tokens, manage custom claims, or work on Firebase authentication."
 ---
 
 # Firebase Auth Skill

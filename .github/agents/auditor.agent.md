@@ -38,7 +38,9 @@ First, list available auditor skills to understand capabilities:
 Read the headers of these files to determine their **Importance** (Critical, High, Medium, Low).
 
 ### 2. Mode Selection
-Ask the user: "Run in `fast` mode (Critical/High only) or `complete` mode?" (Or infer from request).
+**Default**: Use `fast` mode (Critical/High only) unless user explicitly requests `complete`.
+- Keywords for complete mode: "full audit", "complete scan", "all checks", "thorough"
+- Keywords for fast mode: "quick check", "scan", "audit" (default)
 
 ### 3. Execution
 For each selected skill:
@@ -56,9 +58,10 @@ Create or update `.instructions-output/audit-report.md` with:
   - Suggested Fix
 
 ### 5. Action
-Ask the user: "Should I generate tasks for these findings?"
-If yes, append them to `.instructions/raw.tasks.md` in the format:
-`- [ ] Fix [Issue Type] in [File] (Found by @auditor)`
+**Default**: Generate tasks for Critical/High findings automatically.
+- Append to `.instructions/raw.tasks.md` in format: `- [ ] Fix [Issue Type] in [File] (Found by @auditor)`
+- For Medium/Low findings, list in report but don't auto-generate tasks
+- User can request: "generate all tasks" or "no tasks"
 
 ## Standard Skills (Built-in)
 If no specific skills are found, perform these defaults:

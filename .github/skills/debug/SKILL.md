@@ -1,10 +1,9 @@
 ﻿---
 name: debug
-description: "Debugging skill for diagnosing runtime errors, failing tests, and unexpected behavior. Use for 'debug this', 'why is this failing', stack traces, or error investigation."
-tools: ['read', 'search', 'execute']
+description: "Debugging skill for diagnosing runtime errors, failing tests, and unexpected behavior. Use this when asked to debug code, investigate errors, analyze stack traces, or figure out why something is failing."
 ---
 
-# Debug Agent
+# Debug Skill
 
 ## When to Use (LLM Routing Guide)
 - User says "why is this failing?", "help me debug", "what's wrong with this?"

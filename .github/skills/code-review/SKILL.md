@@ -1,10 +1,9 @@
 ﻿---
 name: code-review
-description: "Code review for quality, patterns, and bugs. Reviews PRs, identifies issues, suggests improvements. Use for 'review this code', 'check this PR', 'any issues here', or code quality assessment."
-tools: ['read', 'search']
+description: "Code review for quality, patterns, and bugs. Reviews PRs, identifies issues, suggests improvements. Use this when asked to review code, check a PR, assess code quality, or identify issues in code."
 ---
 
-# Code Review Agent
+# Code Review Skill
 
 ## When to Use (LLM Routing Guide)
 - User says "review this code", "check this PR", "any issues here?"

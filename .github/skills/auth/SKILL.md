@@ -1,22 +1,33 @@
 ﻿---
 name: auth
-description: "Authentication and authorization implementation. Handles login flows, JWT, OIDC, and identity management. Use for 'add login', 'implement auth', 'secure endpoint', or identity tasks."
-tools: ['read', 'edit', 'search']
+description: "Authentication and authorization implementation. Handles login flows, JWT, OIDC, and identity management. Use this when asked to add login, implement authentication, secure endpoints, or work on identity management."
 ---
 
-# Auth Agent
+# Auth Skill
+
+## When NOT to Use
+- For Firebase-specific auth → use `firebase-auth` (custom claims, Admin SDK)
+- For generic security review → use `security`
+- For secret scanning → use `secrets-auditor`
 
 ## Inputs
-- Task from `tasks.md`.
-- `warnings.md`, `contexts/project.patterns.md`, `contexts/auth.context.md`.
+- Task from `tasks.md`
+- `warnings.md`, `contexts/project.patterns.md`
+- Check for existing auth: look for JWT, OIDC, cookie auth patterns in codebase
+
+## Auth Patterns to Detect
+1. **JWT Bearer**: Look for `AddJwtBearer`, `[Authorize]`, token validation
+2. **Cookie Auth**: Look for `AddCookie`, session management
+3. **OIDC/OAuth**: Look for `AddOpenIdConnect`, `AddOAuth`, external providers
+4. **API Keys**: Look for custom middleware, header validation
 
 ## Steps
-1. Read warnings and patterns to align with existing auth approach (e.g., Firebase, Auth0).
-2. Mode selection: auto -> deep if prior failures or touching shared auth infra; shallow for config tweaks.
-3. Confirm scope; if unclear, add a clarifying entry to `raw.tasks.md` and pause.
-4. Implement changes: config, middleware/filters, token handling, user model impacts.
-5. Update tests or add them (unit/integration as appropriate).
-6. Note any inconsistencies in `warnings.md` (e.g., mixed providers).
+1. **Discover**: Search codebase for existing auth patterns before implementing
+2. **Align**: Match existing approach (don't mix Firebase + Auth0 without reason)
+3. **Mode**: Use deep mode if touching shared auth infra; shallow for config changes
+4. **Implement**: Config, middleware/filters, token handling, user model impacts
+5. **Test**: Add auth-specific tests (token validation, role checks, expiry)
+6. **Warn**: Note inconsistencies in `warnings.md` (e.g., mixed providers, missing HTTPS)
 
 ## Output
 - Auth changes plus tests.

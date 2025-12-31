@@ -1,7 +1,6 @@
 ﻿---
 name: secrets-auditor
-description: "Secret and credential detection. Scans for exposed API keys, passwords, and sensitive data. Use for 'check for secrets', 'credential scan', 'security audit', or secret detection tasks."
-tools: ['read', 'search']
+description: "Secret and credential detection. Scans for exposed API keys, passwords, and sensitive data. Use this when asked to check for secrets, scan for credentials, audit security, or detect exposed sensitive data."
 ---
 
 # Secrets Auditor Skill
