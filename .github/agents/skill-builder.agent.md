@@ -1,4 +1,4 @@
-﻿---
+---
 name: skill-builder
 description: "Skill generator that researches library documentation and creates reusable skill agents. Use for 'create a skill for X', 'learn library Y', 'parse docs for Z', or when you need to add new framework knowledge."
 tools: ['read', 'edit', 'search', 'web']
@@ -50,24 +50,26 @@ From the crawled content, extract:
 
 ### Phase 4: Skill Generation
 1.  **Segment if Needed**: If content is large, split into multiple skills:
-    - `[library].core.skill.md` (basics)
-    - `[library].[feature].skill.md` (specific features)
+    - `[library]-core/SKILL.md` (basics)
+    - `[library]-[feature]/SKILL.md` (specific features)
 2.  **Write Skill File**: Use the template below.
-3.  **Save**: Write to `.instructions/skills/[library].[focus].skill.md`.
+3.  **Save**: Write to `.instructions/skills/[library]-[focus]/SKILL.md`.
 4.  **Update Queue**: Mark as `completed` in `skill-queue.md`, move to Completed table.
 
 ## 📄 Skill Template (Output Format)
 ```markdown
-# Skill: [Library Name] - [Focus]
 ---
-schema-version: "v1"
+name: [library]-[focus]
 description: "Expert guidance on using [Library] for [Focus]"
+tools: ['read', 'edit', 'search']
 sources:
   - [Primary URL]
   - [Sub-page URL 1]
   - [Sub-page URL 2]
 last_processed: YYYY-MM-DD
 ---
+
+# Skill: [Library Name] - [Focus]
 
 ## 🧠 Knowledge (Cheat Sheet)
 ### Core Concepts
@@ -118,16 +120,16 @@ An agent MUST create a **project-specific skill** when:
 1. **Detect Gap**: Skill doesn't cover needed use case
 2. **Fetch Docs**: Use `fetch_webpage` on skill's `sources` URLs
 3. **Extract Knowledge**: Pull relevant new patterns/examples
-4. **Create Local Skill**: Write to `.instructions/skills/[library].[project-context].skill.md`
+4. **Create Local Skill**: Write to `.instructions/skills/[library]-[project-context]/SKILL.md`
 5. **Link**: Reference the parent global skill in sources
 
 ### Local Skill Template (Project-Specific)
 ```markdown
-# Skill: [Library] - [Project-Specific Context]
 ---
-schema-version: "v1"
+name: [library]-[project-context]
 description: "Project-specific patterns for [Library] in this codebase"
-extends: "[global-skill-name].agent.md"
+extends: "[global-skill-name]"
+tools: ['read', 'edit', 'search']
 sources:
   - [Fetched URL 1]
   - [Fetched URL 2]
@@ -135,17 +137,19 @@ generated: YYYY-MM-DD
 context: "[Brief description of why this was created]"
 ---
 
+# Skill: [Library] - [Project-Specific Context]
+
 ## Project-Specific Patterns
 
 ### [Pattern Name]
-\`\`\`code
+```code
 // Code extracted from docs for this project's use case
-\`\`\`
+```
 
 ### Configuration for This Project
-\`\`\`code
+```code
 // Project-specific config
-\`\`\`
+```
 
 ## Gotchas Discovered
 - Issue found during implementation...
@@ -155,10 +159,8 @@ context: "[Brief description of why this was created]"
 | Skill Type | Location | Example |
 |------------|----------|---------|
 | **Global** (reusable) | `instruction-engine/.github/skills/` | `firebase-auth/SKILL.md` |
-| **Project** (specific) | `.instructions/skills/` | `firebase.auth.multitenancy.skill.md` |
+| **Project** (specific) | `.instructions/skills/` | `firebase-auth-multitenancy/SKILL.md` |
 
 ### When to Create Global vs Local
 - **Global**: Generic patterns that apply to any project using the library
 - **Local**: Project-specific configurations, custom integrations, or niche features only this project needs
-
-

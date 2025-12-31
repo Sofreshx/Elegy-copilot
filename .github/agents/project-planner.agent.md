@@ -1,4 +1,4 @@
-﻿---
+---
 name: planner
 description: "Executive planner that creates implementation plans, manages task backlogs, prioritizes work, and breaks down features into structured tasks. Use for 'create a plan', 'add task', 'prioritize', 'what's next', or any planning request."
 tools: ['read', 'edit', 'search']
@@ -64,17 +64,15 @@ Determine the user's intent and select the correct mode:
       > "Plan saved. To start implementation, run: `run task-runner T-XXX`"
 
 ## Agent Selection Guide
-- **Backend/API**: `skills/feature.creator.agent.md`
-- **Frontend/UI**: `skills/frontend.agent.md`
-- **Auth/Identity**: `skills/auth.agent.md`
-- **Infrastructure**: `skills/terraform.agent.md` or `skills/deployment.compose.agent.md`
-- **Docs**: `skills/docs.agent.md`
-- **Refactor**: `skills/refactor.agent.md`
-- **Tests**: `skills/testing.agent.md`
+- **Backend/API**: `skills/feature-creator/SKILL.md`
+- **Frontend/UI**: `skills/frontend/SKILL.md`
+- **Auth/Identity**: `skills/auth/SKILL.md`
+- **Infrastructure**: `skills/terraform/SKILL.md` or `skills/deployment-compose/SKILL.md`
+- **Docs**: `skills/docs/SKILL.md`
+- **Refactor**: `skills/refactor/SKILL.md`
+- **Tests**: `skills/testing/SKILL.md`
 
 ## Output
 - Draft plan (initially).
-- Updated `../tasks.md` (after approval).
+- Updated `.instructions/tasks.md` (after approval).
 - Session summary with the "Start" command.
-
-

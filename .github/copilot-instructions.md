@@ -6,8 +6,22 @@ You operate in a **Workspace Model** where this `instruction-engine` folder is a
 
 ## 📂 Workspace Structure
 - **Global Engine**: `instruction-engine/.github/` (Agents, Generic Skills, Templates)
+  - `instruction-engine/.github/agents/` - Executive agent instruction files (8 agents)
+  - `instruction-engine/.github/skills/` - Generic skill agents (folder-based: `[skill-name]/SKILL.md`)
+  - `instruction-engine/.github/templates/` - Templates for initialization
 - **Local Project**: `.instructions/` (Project-specific Contexts, Tasks, Local Skills)
 - **Local Output**: `.instructions-output/` (Reports, Logs, Debug info)
+
+### ⚠️ CRITICAL: What Lives Where
+
+| Asset Type | Location | Can Duplicate Locally? |
+|------------|----------|------------------------|
+| **Executive Agents** | `instruction-engine/.github/agents/` | ❌ **NEVER** |
+| **Generic Skills** | `instruction-engine/.github/skills/` | ✅ Override only |
+| **Project Skills** | `.instructions/skills/` | ✅ Create new |
+| **Tasks & Context** | `.instructions/` | ✅ Always local |
+
+**Why no local executives?** Executives are the routing layer. Duplicating them causes version drift, confusion, and maintenance burden. All projects share the same 8 executives from instruction-engine.
 
 ### Local Project Structure (`.instructions/`)
 ```
@@ -30,8 +44,11 @@ You operate in a **Workspace Model** where this `instruction-engine` folder is a
 ## 👑 Executive Agents (Entry Points)
 Route all user requests to one of these Executives. Do not call "Skill" agents directly unless instructed by an Executive.
 
+> **⚠️ All 8 executives live ONLY in `instruction-engine/.github/agents/`**
+> Never create copies in consuming projects. Reference them by path.
+
 ### 1. @planner (The Architect & Manager)
-**Agent**: `instruction-engine/.github/skills/planner/SKILL.md`
+**Agent**: `instruction-engine/.github/agents/project-planner.agent.md`
 **Use for**:
 - "Create a plan", "Add feature", "Break down requirements".
 - "Add a task", "Remind me", "List bugs" (Quick Add).
@@ -39,36 +56,41 @@ Route all user requests to one of these Executives. Do not call "Skill" agents d
 **Role**: Analyzes requirements, manages the backlog, and writes structured plans to `.instructions/tasks.md`.
 
 ### 2. @runner (The Builder)
-**Agent**: `instruction-engine/.github/skills/runner/SKILL.md`
+**Agent**: `instruction-engine/.github/agents/task-runner.agent.md`
 **Use for**: "Run task T-123", "Implement feature", "Run batch".
 **Role**: Reads `.instructions/tasks.md`, selects a Skill Agent, and executes work.
 
 ### 3. @onboarding (The System Admin)
-**Agent**: `instruction-engine/.github/skills/onboarding/SKILL.md`
+**Agent**: `instruction-engine/.github/agents/onboarding.agent.md`
 **Use for**:
 - "Initialize project", "Run onboarding".
 - "Upgrade system", "Clean up tasks", "Fix drift", "Check health".
 **Role**: Manages `.instructions/` lifecycle, health, and upgrades.
 
 ### 4. @helper (The Guide)
-**Agent**: `instruction-engine/.github/skills/helper/SKILL.md`
+**Agent**: `instruction-engine/.github/agents/assistant.agent.md`
 **Use for**: "How does this work?", "Explain code".
 **Role**: General Q&A. Read-only.
 
 ### 5. @auditor (The Inspector)
-**Agent**: `instruction-engine/.github/skills/auditor/SKILL.md`
+**Agent**: `instruction-engine/.github/agents/auditor.agent.md`
 **Use for**: "Audit codebase", "Check security", "Quality check".
 **Role**: Runs checks, generates reports in `.instructions-output/`, and creates fix tasks.
 
 ### 6. @debugger (The Investigator)
-**Agent**: `instruction-engine/.github/skills/debugger/SKILL.md`
+**Agent**: `instruction-engine/.github/agents/debugger.agent.md`
 **Use for**: "Debug error", "Why is this failing?".
 **Role**: Investigates bugs, writes reports to `.instructions-output/`, and proposes fixes.
 
 ### 7. @skill-builder (The Librarian)
-**Agent**: `instruction-engine/.github/skills/skill-builder/SKILL.md`
+**Agent**: `instruction-engine/.github/agents/skill-builder.agent.md`
 **Use for**: "Create a skill for X", "Learn library Y", "Parse docs".
 **Role**: Reads documentation links from `instruction-engine/SkillBuilder/`, fetches content, and generates new Skill Agents in `.instructions/skills/`.
+
+### 8. @merger (The Integrator)
+**Agent**: `instruction-engine/.github/agents/merger.agent.md`
+**Use for**: "Merge conflict", "Resolve conflicts", "Fix merge", "Rebase help".
+**Role**: Analyzes merge conflicts, explains both sides' intent, helps choose resolutions. Has opt-in auto-resolve mode for high-confidence conflicts.
 
 ---
 
@@ -105,11 +127,11 @@ Route all user requests to one of these Executives. Do not call "Skill" agents d
 │  KERNEL (copilot-instructions.md)                    │
 │  Routes to Executives based on user intent           │
 ├──────────────────────────────────────────────────────┤
-│  EXECUTIVES (7 agents)                               │
+│  EXECUTIVES (8 agents)                               │
 │  planner, runner, helper, auditor, debugger,         │
-│  onboarding, skill-builder                           │
+│  onboarding, skill-builder, merger                   │
 ├──────────────────────────────────────────────────────┤
-│  SKILLS (37 subagents) - Invoked by runner           │
+│  SKILLS (38 subagents) - Invoked by runner           │
 │  feature-creator, testing, frontend, auth, etc.      │
 │  tools: ['read', 'edit', 'search'] (NO runSubagent)  │
 └──────────────────────────────────────────────────────┘
@@ -132,6 +154,7 @@ Route all user requests to one of these Executives. Do not call "Skill" agents d
 | debugger | ✅ | - | ✅ | ✅ | - | - |
 | onboarding | ✅ | ✅ | ✅ | - | - | - |
 | skill-builder | ✅ | ✅ | ✅ | - | - | ✅ |
+| merger | ✅ | ✅ | ✅ | ✅ | - | - |
 | Skills | ✅ | ✅ | ✅ | varies | ❌ | ❌ |
 
 ### infer: false (Manual-Only Agents)

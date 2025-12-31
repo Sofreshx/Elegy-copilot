@@ -1,4 +1,4 @@
-﻿---
+---
 name: onboarding
 description: "System lifecycle manager for project initialization, upgrades, and maintenance. Use for 'initialize project', 'run onboarding', 'upgrade system', 'check health', or 'fix drift'. Creates .instructions/ folder structure."
 tools: ['read', 'edit', 'search']
@@ -63,7 +63,7 @@ Delegate to the appropriate System Skill:
 When updating existing files, follow these rules:
 
 ### For Agent Files (`.instructions/skills/*/SKILL.md`)
-1. **Backup first**: Create `.instructions/skills/.backup/[agent]/SKILL.md.bak` before any changes.
+1. **Backup first**: Create `.instructions/skills/.backup/[skill]/SKILL.md.bak` before any changes.
 2. **Detect customizations**: If file has been modified from template (check for custom steps, project-specific notes):
    - Use **conflict markers** for sections that differ:
    ```markdown
@@ -85,70 +85,36 @@ When updating existing files, follow these rules:
 1. **Append-only**: Never delete existing entries.
 2. **Duplicate detection**: Skip if identical entry already exists.
 
-### For Core Files (`../architecture.md`, `../warnings.md`)
+### For Core Files (`.instructions/architecture.md`, `.instructions/warnings.md`)
 1. **Additive updates**: Append new sections; don't overwrite existing.
 2. **Timestamp entries**: New warnings include date for tracking.
 
 ### Rollback
 If merge fails or user requests rollback:
-1. Check `.github/skills/.backup/` and `.github/contexts/.backup/` for originals.
-2. Restore from backup and log rollback in `../../warnings.md`.
+1. Check `.instructions/skills/.backup/` for originals.
+2. Restore from backup and log rollback in `.instructions/warnings.md`.
 
 ## Stack Detection Matrix
-| Detected Signal | Agent to Generate | Context to Generate |
+| Detected Signal | Skill to Activate | Context to Generate |
 |-----------------|-------------------|---------------------|
 | Firebase config / `firebase.json` / Firebase SDK imports | `auth/SKILL.md` (Firebase variant) | `auth.context.md` |
-| Auth0 config / `@auth0/*` packages | `auth.agent.md` (Auth0 variant) | `auth.context.md` |
-| Keycloak / OIDC setup | `auth.agent.md` (OIDC variant) | `auth.context.md` |
-| React / Next.js / `package.json` with react | `frontend.agent.md` | `frontend.context.md` |
-| Vue / Nuxt | `frontend.agent.md` (Vue variant) | `frontend.context.md` |
-| Angular | `frontend.agent.md` (Angular variant) | `frontend.context.md` |
-| .NET Aspire / `*.AppHost.csproj` | `aspire.tests.integration.agent.md` | `aspire.context.md` |
-| Terraform / `*.tf` files | `terraform.agent.md` | `terraform.context.md` |
-| Docker Compose / `docker-compose*.yml` | `deployment.compose.agent.md` | `aspire.context.md` or `deployment.context.md` |
-| C# / `*.csproj` | `quality.csharp.agent.md` | `project.patterns.md` |
-| TypeScript / `tsconfig.json` | `quality.ts.agent.md` | `project.patterns.md` |
-| Wolverine / MediatR / CQRS patterns | `feature.creator.agent.md` | `project.patterns.md` |
-
-## Agent Template Schema
-When generating a new domain agent, use this structure:
-```markdown
-# [Agent Name] Agent
----
-schema-version: "1.0"
----
-Purpose: [one-liner describing what this agent does]
-
-## Inputs
-- Task from `tasks.md`.
-- `warnings.md`, relevant contexts.
-
-## Steps
-1. [Read context and confirm scope]
-2. [Mode selection: auto -> deep if prior failures or architectural risk; shallow otherwise]
-3. [Core work steps]
-4. [Tests/validation]
-5. [Log inconsistencies to warnings.md]
-6. [Session summary]
+| Auth0 config / `@auth0/*` packages | `auth/SKILL.md` (Auth0 variant) | `auth.context.md` |
+| Keycloak / OIDC setup | `auth/SKILL.md` (OIDC variant) | `auth.context.md` |
+| React / Next.js / `package.json` with react | `frontend/SKILL.md` | `frontend.context.md` |
+| Vue / Nuxt | `frontend/SKILL.md` (Vue variant) | `frontend.context.md` |
+| Angular | `frontend/SKILL.md` (Angular variant) | `frontend.context.md` |
+| .NET Aspire / `*.AppHost.csproj` | `aspire-integration-tests/SKILL.md` | `aspire.context.md` |
+| Terraform / `*.tf` files | `terraform/SKILL.md` | `terraform.context.md` |
+| Docker Compose / `docker-compose*.yml` | `deployment-compose/SKILL.md` | `deployment.context.md` |
+| C# / `*.csproj` | `quality-csharp/SKILL.md` | `project.patterns.md` |
+| TypeScript / `tsconfig.json` | `quality-typescript/SKILL.md` | `project.patterns.md` |
+| Wolverine / MediatR / CQRS patterns | `feature-creator/SKILL.md` | `project.patterns.md` |
 
 ## Output
-- [Primary artifacts]
-- Updated warnings/tasks/raw tasks as applicable.
-
-## Session Summary Format
-- **Done**: [what was completed]
-- **Changes**: [files/links modified]
-- **New tasks.md**: [any new structured tasks]
-- **New raw.tasks.md**: [any new unrefined tasks]
-- **Warnings**: [any warnings.md updates]
-- **Next**: [suggested next actions]
-```
-
-## Output
-- Updated/created agents and contexts for all detected stacks.
+- Updated/created skills and contexts for all detected stacks.
 - Backup files in `.backup/` folders.
-- `warnings.md` entries for risks.
-- New `raw.tasks.md` entries for follow-up work.
+- `.instructions/warnings.md` entries for risks.
+- New `.instructions/raw.tasks.md` entries for follow-up work.
 
 ## Session Summary Format
 - **Done**: [what was completed]
@@ -157,5 +123,3 @@ Purpose: [one-liner describing what this agent does]
 - **New raw.tasks.md**: [any new unrefined tasks]
 - **Warnings**: [any warnings.md updates]
 - **Next**: [suggested next actions]
-
-

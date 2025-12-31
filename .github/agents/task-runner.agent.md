@@ -1,4 +1,4 @@
-﻿---
+---
 name: runner
 description: "Task executor that runs structured tasks from the backlog by selecting appropriate skill agents. Use for 'run task T-XXX', 'implement feature', 'execute next task', or 'run batch'."
 tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
@@ -46,5 +46,3 @@ tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
 - Code/doc changes per domain agent.
 - Updated `.instructions/tasks.md`, `.instructions/raw.tasks.md`, `.instructions/failed.tasks.md`.
 - Updated `.instructions/project.memory.md` (if applicable).
-
-
