@@ -14,14 +14,19 @@ You operate in a **Workspace Model** where this `instruction-engine` folder is a
 
 ### ⚠️ CRITICAL: What Lives Where
 
-| Asset Type | Location | Can Duplicate Locally? |
-|------------|----------|------------------------|
-| **Executive Agents** | `instruction-engine/.github/agents/` | ❌ **NEVER** |
-| **Generic Skills** | `instruction-engine/.github/skills/` | ✅ Override only |
-| **Project Skills** | `.instructions/skills/` | ✅ Create new |
-| **Tasks & Context** | `.instructions/` | ✅ Always local |
+| Asset Type | Location | Can Duplicate Locally? | Git Tracked? |
+|------------|----------|------------------------|--------------|
+| **Executive Agents** | `instruction-engine/.github/agents/` | ❌ **NEVER** | ✅ Yes (Shared) |
+| **Generic Skills** | `instruction-engine/.github/skills/` | ✅ Override only | ✅ Yes (Shared) |
+| **Project Skills** | `.instructions/skills/` | ✅ Create new | ❌ **NO** (Local) |
+| **Tasks & Context** | `.instructions/` | ✅ Always local | ❌ **NO** (Local) |
 
 **Why no local executives?** Executives are the routing layer. Duplicating them causes version drift, confusion, and maintenance burden. All projects share the same 8 executives from instruction-engine.
+
+**Why .gitignore local instructions?**
+- Allows different developers to have different context/tasks.
+- Prevents merge conflicts on `tasks.md`.
+- Keeps the repository clean of "meta-work".
 
 ### Local Project Structure (`.instructions/`)
 ```

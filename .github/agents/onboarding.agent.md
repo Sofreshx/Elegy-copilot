@@ -41,8 +41,13 @@ infer: false
     - Update `.instructions/project.index.md` with detected skills (checked).
     - Fill `.instructions/contexts/project.patterns.md` with detected patterns.
     - Create stack-specific skills in `.instructions/skills/` if needed.
-6.  **Security Scan**: Check if `.env` files are tracked in git. Add warning if so.
-7.  **Report**: Summary of detected stack and created files.
+6.  **Git Configuration**:
+    - Check if `.gitignore` exists.
+    - Append `.instructions/` to `.gitignore` (Project-specific context should be private/local by default).
+    - Append `.instructions-output/` to `.gitignore`.
+    - Append `.github/skills/` to `.gitignore` (if using local skill overrides).
+7.  **Security Scan**: Check if `.env` files are tracked in git. Add warning if so.
+8.  **Report**: Summary of detected stack and created files.
 
 ### Mode B: Maintenance (The System Admin)
 *Trigger: "Upgrade system", "Check health", "Fix drift", "Clean tasks"*
