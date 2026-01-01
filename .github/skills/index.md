@@ -73,6 +73,7 @@ description: "..."        # Required: what it does + "Use this when..."
 ### 📦 Libraries & Frameworks
 | Skill | Folder | Triggers | Domain |
 |-------|--------|----------|--------|
+| React Query | `react-query/` | "react-query", "TanStack", "useQuery", "Query data cannot be undefined", "openapi-react-query" | TanStack React Query (server state) |
 | Wolverine Core | `wolverine-core/` | "Wolverine", "message handler", "CQRS" | Wolverine messaging |
 | Wolverine HTTP | `wolverine-http/` | "Wolverine endpoint", "Wolverine API" | Wolverine HTTP |
 | Marten Documents | `marten-documents/` | "Marten", "document store" | Marten document DB |
