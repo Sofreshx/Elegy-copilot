@@ -6,7 +6,7 @@ tools: ['read', 'edit', 'search']
 handoffs:
   - label: Start Implementation
     agent: runner
-    prompt: "Execute the first implementation task from the plan above."
+    prompt: "Execute the first task from the plan above."
     send: false
 ---
 

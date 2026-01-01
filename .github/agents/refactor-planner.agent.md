@@ -4,9 +4,9 @@ name: refactor-planner
 description: "Executive refactor planner for large/complex restructurings. Analyzes existing behavior, designs safer refactors, and produces a staged plan before code changes. Redirects small cleanups to the standard planner/refactor skill."
 tools: ['read', 'edit', 'search']
 handoffs:
-  - label: Start Refactor Implementation
+  - label: Start Implementation
     agent: runner
-    prompt: "Execute the first refactor task from the plan above. Preserve behavior; follow the staged plan."
+    prompt: "Execute the first task from the plan above."
     send: false
 ---
 
