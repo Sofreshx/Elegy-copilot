@@ -7,9 +7,10 @@ You operate in a **Workspace Model** where this `instruction-engine` folder is a
 ## 📂 Workspace Structure
 - **Global Engine**: `instruction-engine/.github/` (Agents, Generic Skills, Templates)
   - `instruction-engine/.github/agents/` - Executive agent instruction files (8 agents)
-  - `instruction-engine/.github/skills/` - Generic skill agents (folder-based: `[skill-name]/SKILL.md`)
+  - `instruction-engine/.github/skills/` - Generic skills (folder-based: `[skill-name]/SKILL.md`)
   - `instruction-engine/.github/templates/` - Templates for initialization
-- **Local Project**: `.instructions/` (Project-specific Contexts, Tasks, Local Skills)
+- **Local Project**: `.instructions/` (Project-specific contexts, tasks, prompts)
+- **Repo Skills (Auto-Loaded)**: `.github/skills/` (Project skills in SKILL.md format — hyphenated, lowercase)
 - **Local Output**: `.instructions-output/` (Reports, Logs, Debug info)
 
 ### ⚠️ CRITICAL: What Lives Where
@@ -18,7 +19,8 @@ You operate in a **Workspace Model** where this `instruction-engine` folder is a
 |------------|----------|------------------------|--------------|
 | **Executive Agents** | `instruction-engine/.github/agents/` | ❌ **NEVER** | ✅ Yes (Shared) |
 | **Generic Skills** | `instruction-engine/.github/skills/` | ✅ Override only | ✅ Yes (Shared) |
-| **Project Skills** | `.instructions/skills/` | ✅ Create new | ❌ **NO** (Local) |
+| **Project Skills (preferred)** | `.github/skills/` | ✅ Create new | ✅ Yes (Repo) |
+| **Legacy Overrides** | `.instructions/skills/` | ✅ Temporary override | ❌ **NO** (Local) |
 | **Tasks & Context** | `.instructions/` | ✅ Always local | ❌ **NO** (Local) |
 
 **Why no local executives?** Executives are the routing layer. Duplicating them causes version drift, confusion, and maintenance burden. All projects share the same 8 executives from instruction-engine.
@@ -44,7 +46,7 @@ You operate in a **Workspace Model** where this `instruction-engine` folder is a
 ### Local Project Structure (`.instructions/`)
 ```
 .instructions/
-├── project.index.md        <-- Registry of active skills & sub-agents
+├── project.index.md        <-- Optional catalog of skills/sub-agents (advisory, not gating)
 ├── architecture.md         <-- Project architecture overview
 ├── warnings.md             <-- Active warnings and risks
 ├── tasks.md                <-- Structured task backlog
@@ -53,11 +55,11 @@ You operate in a **Workspace Model** where this `instruction-engine` folder is a
 ├── contexts/
 │   ├── project.patterns.md <-- Coding conventions
 │   └── project.memory.md   <-- Lessons learned & gotchas
-├── skills/                 <-- Project-specific skills
-└── sub-agents/             <-- Project-specific sub-agents
+├── skills/                 <-- Legacy skill overrides (use .github/skills instead)
+└── sub-agents/             <-- Project-specific agent wrappers
 ```
 
-**Rule**: Always prioritize **Local** instructions/skills over **Global** ones if a conflict exists.
+**Rule**: Skills live in `.github/skills/` for native Copilot loading; `.instructions/skills/` is legacy override only. Instructions/contexts remain in `.instructions/`. Prioritize repo/global skills by specificity; avoid duplicating executives.
 
 ## 👑 Executive Agents (Entry Points)
 Route all user requests to one of these Executives. Do not call "Skill" agents directly unless instructed by an Executive.
@@ -112,14 +114,14 @@ Route all user requests to one of these Executives. Do not call "Skill" agents d
 
 ---
 
-## 🛠️ Skill Agents (Sub-Agents)
-*Tools used by Executives. Look in `.instructions/skills/` (Local) first, then `instruction-engine/.github/skills/` (Global).*
+### 🛠️ Skill Agents (Sub-Agents)
+*Tools used by Executives. Primary source is `.github/skills/[skill]/SKILL.md` (auto-loaded by Copilot). Global fallbacks live in `instruction-engine/.github/skills/`. `.instructions/skills/` is legacy override only.*
 
-**Selective Loading**: If `.instructions/project.index.md` exists, PREFER the skills checked there (plus core system skills), but ALWAYS allow native GitHub Skills in `.github/skills/` and any relevant skills even if they are not listed.
+**Loading Rule**: Skills auto-load by description match. `project.index.md` is advisory only (catalog/prefs) and must never block skills.
 
-- **Dev**: `feature.creator`, `frontend`, `auth`, `refactor`, `migration`
-- **Ops**: `terraform`, `deployment.compose`, `security`, `performance`
-- **Quality**: `testing`, `code-review`, `quality.*`
+- **Dev**: `feature-creator`, `frontend`, `auth`, `refactor`, `migration`
+- **Ops**: `terraform`, `deployment-compose`, `security`, `performance`
+- **Quality**: `testing`, `code-review`, `quality-csharp`, `quality-ts`
 - **Scribe**: `docs`, `design`
 
 ## Default Flow (The Loop)
@@ -156,15 +158,15 @@ Route all user requests to one of these Executives. Do not call "Skill" agents d
 ```
 
 ### Key Rules
-1. **Only `runner`** has `tools: ['runSubagent']` - delegates to Skills
-2. **Other executives** work directly without delegation
-3. **Skills** do NOT have `tools: ['runSubagent']` - cannot create subagents
-4. **Copilot limit**: Subagents cannot create other subagents (enforced)
-5. **Auto-selection**: Copilot uses `description:` field to auto-route tasks
+1. **Only `runner`** has `tools: ['agent']` - delegates to skills/sub-agents.
+2. **Other executives** work directly without delegation.
+3. **Skills** do NOT have `tools: ['agent']` - cannot create subagents.
+4. **Copilot limit**: Subagents cannot create other subagents (enforced).
+5. **Auto-selection**: Copilot uses `description:` field to auto-route tasks.
 
 ### Tool Access by Role
-| Agent | read | edit | search | execute | runSubagent | web |
-|-------|------|------|--------|---------|-------------|-----|
+| Agent | read | edit | search | execute | agent | web |
+|-------|------|------|--------|---------|-------|-----|
 | planner | ✅ | ✅ | ✅ | - | - | - |
 | runner | ✅ | ✅ | ✅ | ✅ | ✅ | - |
 | helper | ✅ | - | ✅ | - | - | - |
@@ -186,10 +188,9 @@ Some agents should NOT be auto-selected:
 
 ### The Rule
 If you fetch documentation from a skill's `sources` URLs to complete a task, you MUST:
-1. Extract the new knowledge into a **project-specific skill** in `.instructions/skills/`
-2. Name it: `[library].[specific-context].skill.md`
-3. Include `extends: "[original-skill].agent.md"` in metadata
-4. Reference the fetched URLs in the new skill's `sources`
+1. Extract the new knowledge into a **project-specific skill** in `.github/skills/` (preferred) or `.instructions/skills/` (legacy override).
+2. Name it: `[library]-[specific-context]` (hyphenated) and store instructions in `SKILL.md` with `name`/`description` frontmatter.
+3. Reference the fetched URLs in the new skill's `sources` section (in the body).
 
 ### Why
 - Prevents repeated documentation lookups

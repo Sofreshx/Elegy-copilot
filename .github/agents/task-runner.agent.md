@@ -1,7 +1,7 @@
 ---
 name: runner
 description: "Task executor that runs structured tasks from the backlog by selecting appropriate skill agents. Use for 'run task T-XXX', 'implement feature', 'execute next task', or 'run batch'."
-tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
+tools: ['read', 'edit', 'search', 'execute', 'agent']
 ---
 
 # Task Runner Agent
@@ -16,10 +16,10 @@ tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
 
 ## Pre-Flight
 **ALWAYS** read `.instructions/project.index.md` first to know:
-1. Which skills are active (checked) for this project.
+1. Which skills are active (checked) for this project (advisory only).
 2. Which local sub-agents exist in `.instructions/sub-agents/`.
 3. How to prioritize skills (e.g., `strict_skill_mode`) as hints; NEVER block native GitHub Skills or relevant skills that are not listed.
-4. Preference order: use local skills (`.instructions/skills/`) when present, otherwise load global (`instruction-engine/.github/skills/`) and native `.github/skills/` GitHub Skills freely.
+4. Preference order: use repository `.github/skills/[skill]/SKILL.md` when present (native GitHub Skills), otherwise load global (`instruction-engine/.github/skills/`); treat `.instructions/skills/` only for legacy overrides.
 
 ## Modes
 - **Default**: Batch Mode (size 1 to 5) using highest-priority pending tasks, skipping any with unmet `DependsOn`. Stop the batch on first failure to prevent cascading breakage.
@@ -28,8 +28,9 @@ tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
 - **Continuous**: Run the highest priority pending task, then the next, until stopped or blocked.
 
 ## Skill Selection
-- Prefer local `.instructions/skills/[skill]/SKILL.md` when present.
-- Otherwise load global `instruction-engine/.github/skills/[skill]/SKILL.md` and native GitHub `.github/skills/**/SKILL.md` automatically; do not block built-in skills even if absent from `project.index.md`.
+- Prefer repository-native `.github/skills/[skill]/SKILL.md` (auto-loaded by Copilot).
+- If missing, load global `instruction-engine/.github/skills/[skill]/SKILL.md`.
+- Only fall back to `.instructions/skills/[skill]/SKILL.md` for legacy overrides.
 - Use descriptions/triggers to choose the best-fit skill; when multiple apply, pick the most specific and prefer native/specific skills over generic ones.
 - If a task references a custom sub-agent in `.instructions/sub-agents/`, invoke it; otherwise rely on native skill injection without extra gating.
 
