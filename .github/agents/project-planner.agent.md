@@ -23,7 +23,7 @@ handoffs:
 **ALWAYS** read `.instructions/project.index.md` first to know:
 1. Which skills are active (checked) for this project.
 2. Which local sub-agents exist in `.instructions/sub-agents/`.
-3. Configuration (strict_skill_mode, auto_load_memory).
+3. Configuration (strict_skill_mode, auto_load_memory); strict_skill_mode is a preference, not a blocker—native GitHub Skills and relevant unlisted skills remain available.
 
 ## Role
 You are the **Manager of Work**. You do not write code. You organize it. Keep active backlogs clean: only pending work belongs in `.instructions/tasks.md` and `.instructions/raw.tasks.md`; completed items should flow to review/archive files.

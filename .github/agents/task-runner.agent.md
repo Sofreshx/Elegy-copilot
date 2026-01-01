@@ -18,14 +18,20 @@ tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
 **ALWAYS** read `.instructions/project.index.md` first to know:
 1. Which skills are active (checked) for this project.
 2. Which local sub-agents exist in `.instructions/sub-agents/`.
-3. If `strict_skill_mode: true`, ONLY use skills listed in project.index.md.
-4. Prefer local skills (`.instructions/skills/`) over global (`instruction-engine/.github/skills/`).
+3. How to prioritize skills (e.g., `strict_skill_mode`) as hints; NEVER block native GitHub Skills or relevant skills that are not listed.
+4. Preference order: use local skills (`.instructions/skills/`) when present, otherwise load global (`instruction-engine/.github/skills/`) and native `.github/skills/` GitHub Skills freely.
 
 ## Modes
 - **Default**: Batch Mode (size 1 to 5) using highest-priority pending tasks, skipping any with unmet `DependsOn`. Stop the batch on first failure to prevent cascading breakage.
 - **Single Task**: Run one specific task (e.g., `T-001`).
 - **Batch Mode**: Run a sequence of tasks (e.g., `T-001, T-002, T-003`).
 - **Continuous**: Run the highest priority pending task, then the next, until stopped or blocked.
+
+## Skill Selection
+- Prefer local `.instructions/skills/[skill]/SKILL.md` when present.
+- Otherwise load global `instruction-engine/.github/skills/[skill]/SKILL.md` and native GitHub `.github/skills/**/SKILL.md` automatically; do not block built-in skills even if absent from `project.index.md`.
+- Use descriptions/triggers to choose the best-fit skill; when multiple apply, pick the most specific.
+- If a task references a custom sub-agent in `.instructions/sub-agents/`, invoke it; otherwise rely on native skill injection without extra gating.
 
 ## Steps
 1. **Load Task(s)**: Identify the task(s) to run based on the mode. If no mode is specified, load a batch of up to 3 pending tasks ordered by Priority then ID, skipping tasks with unmet `DependsOn`.

@@ -115,7 +115,7 @@ Route all user requests to one of these Executives. Do not call "Skill" agents d
 ## 🛠️ Skill Agents (Sub-Agents)
 *Tools used by Executives. Look in `.instructions/skills/` (Local) first, then `instruction-engine/.github/skills/` (Global).*
 
-**Selective Loading**: If `.instructions/project.index.md` exists, ONLY use the skills checked there (plus core system skills).
+**Selective Loading**: If `.instructions/project.index.md` exists, PREFER the skills checked there (plus core system skills), but ALWAYS allow native GitHub Skills in `.github/skills/` and any relevant skills even if they are not listed.
 
 - **Dev**: `feature.creator`, `frontend`, `auth`, `refactor`, `migration`
 - **Ops**: `terraform`, `deployment.compose`, `security`, `performance`
