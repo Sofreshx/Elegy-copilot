@@ -43,6 +43,11 @@ Copilot is chatty. We need it to be transactional for the `@runner`.
   - In `task-runner.agent.md`, provide a TypeScript interface or JSON Schema.
   - Instruct Copilot to output *only* the JSON block for tool consumption.
 
+### D. Task Lifecycle Hygiene (Active vs. Review)
+- **Separation**: Keep `.instructions/tasks.md` and `.instructions/raw.tasks.md` for active/untriaged items only. Route completed work to `.instructions/tasks.review.md`; archive reviewed items into `.instructions/tasks.archive.md`.
+- **Runner Behavior**: On success, move rows from tasks to tasks.review to keep the active backlog clean.
+- **Cleanup Behavior**: System cleanup promotes reviewed items into tasks.archive and removes stragglers from raw/tasks.
+
 ## 4. Unexplored Directions
 
 ### A. "Chain of Thought" Recursion

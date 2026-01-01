@@ -12,6 +12,7 @@ tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
 - `.instructions/warnings.md`, `.instructions/architecture.md`.
 - `.instructions/contexts/project.memory.md` (Lessons learned).
 - `.instructions/failed.tasks.md` to detect prior attempts (auto -> deep).
+- `.instructions/tasks.review.md` (destination for completed tasks awaiting review) and `.instructions/tasks.archive.md` (history), created on demand.
 
 ## Pre-Flight
 **ALWAYS** read `.instructions/project.index.md` first to know:
@@ -35,15 +36,16 @@ tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
    - **Pre-Flight**: Confirm Agent and Mode.
    - **Execute**: Run the Domain Agent instructions.
    - **Post-Flight**:
-     - **Success**: Update `.instructions/tasks.md` status to `done`.
+     - **Success**: Move the completed row out of `.instructions/tasks.md` into `.instructions/tasks.review.md` (create with the same table header if missing) and set status to `done` in the review file. Remove the row from `.instructions/tasks.md` to keep the active list clean.
      - **Failure**: Set status to `failed`, log to `.instructions/failed.tasks.md`.
      - **Memory Update**: If a significant lesson was learned, append to `.instructions/project.memory.md`.
+   - **Archival Hint**: Reviewers or cleanup jobs will later move reviewed items from `.instructions/tasks.review.md` into `.instructions/tasks.archive.md`.
 4. **Session Summary**:
-   - List completed tasks.
+   - List completed tasks (now in review).
    - List failed tasks.
    - Next recommended action (e.g., "Run T-004").
 
 ## Output
 - Code/doc changes per domain agent.
-- Updated `.instructions/tasks.md`, `.instructions/raw.tasks.md`, `.instructions/failed.tasks.md`.
+- Updated `.instructions/tasks.md` (active only), `.instructions/tasks.review.md` (recently completed), `.instructions/raw.tasks.md`, `.instructions/failed.tasks.md`.
 - Updated `.instructions/project.memory.md` (if applicable).
