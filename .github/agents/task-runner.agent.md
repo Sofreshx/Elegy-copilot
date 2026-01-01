@@ -30,7 +30,7 @@ tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
 ## Skill Selection
 - Prefer local `.instructions/skills/[skill]/SKILL.md` when present.
 - Otherwise load global `instruction-engine/.github/skills/[skill]/SKILL.md` and native GitHub `.github/skills/**/SKILL.md` automatically; do not block built-in skills even if absent from `project.index.md`.
-- Use descriptions/triggers to choose the best-fit skill; when multiple apply, pick the most specific.
+- Use descriptions/triggers to choose the best-fit skill; when multiple apply, pick the most specific and prefer native/specific skills over generic ones.
 - If a task references a custom sub-agent in `.instructions/sub-agents/`, invoke it; otherwise rely on native skill injection without extra gating.
 
 ## Steps
