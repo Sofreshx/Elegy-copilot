@@ -74,5 +74,6 @@ The current system allows 1 level of sub-agent (Kernel -> Subagent).
 ## 6. Roadmap Recommendation
 
 1.  **Phase 1 (Immediate)**: Refine the `runSubagent` tool usage. Ensure it's used for *all* multi-file edits.
+    - Set runner default to batch execution (3 tasks, priority-ordered, stop-on-failure) to reduce repeated context loads while keeping dependency safety.
 2.  **Phase 2 (Short Term)**: Implement "Skill Auto-Loading" via a simple script or naming convention (e.g., if file is `.cs`, auto-load `csharp.skill.md`).
 3.  **Phase 3 (Long Term)**: Build the `instruction-engine` VS Code Extension to provide first-class `@agent` support.

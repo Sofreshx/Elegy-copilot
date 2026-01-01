@@ -42,6 +42,7 @@ Determine the user's intent and select the correct mode:
 2.  **Draft**: Present a structured plan to the user.
 3.  **Persist**: On approval, write structured rows to `.instructions/tasks.md`.
     - **Format**: `| ID | Title | Priority | Agent | Mode | Status | DependsOn | Notes |`
+  - If `Mode` is omitted, runner will default to batch mode (size 1 to 5) grouped by priority; set `Mode` explicitly when a task must run solo or continuously.
 4.  **Next Action**: Output a code block for the runner:
     ```bash
     run task-runner T-XXX

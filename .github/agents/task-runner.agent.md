@@ -21,12 +21,13 @@ tools: ['read', 'edit', 'search', 'execute', 'runSubagent']
 4. Prefer local skills (`.instructions/skills/`) over global (`instruction-engine/.github/skills/`).
 
 ## Modes
+- **Default**: Batch Mode (size 1 to 5) using highest-priority pending tasks, skipping any with unmet `DependsOn`. Stop the batch on first failure to prevent cascading breakage.
 - **Single Task**: Run one specific task (e.g., `T-001`).
 - **Batch Mode**: Run a sequence of tasks (e.g., `T-001, T-002, T-003`).
 - **Continuous**: Run the highest priority pending task, then the next, until stopped or blocked.
 
 ## Steps
-1. **Load Task(s)**: Identify the task(s) to run based on the mode.
+1. **Load Task(s)**: Identify the task(s) to run based on the mode. If no mode is specified, load a batch of up to 3 pending tasks ordered by Priority then ID, skipping tasks with unmet `DependsOn`.
 2. **Context Check**:
    - Read `.instructions/project.memory.md` for relevant "Gotchas" or "Lessons Learned".
    - Read `.instructions/warnings.md`.

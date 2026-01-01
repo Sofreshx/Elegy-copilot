@@ -40,7 +40,7 @@ You need to create the local configuration folder (`.instructions/`) in your pro
 Now you can use the agents defined in `instruction-engine`.
 
 - **@planner**: "Create a plan to add a login page." (Writes to `.instructions/tasks.md`)
-- **@runner**: "Implement the login page." (Reads from `.instructions/tasks.md`)
+- **@runner**: "Implement the login page." (Reads from `.instructions/tasks.md`; defaults to batching up to 3 pending tasks unless `Mode` is set)
 - **@skill-builder**: "Create a skill for this library." (Saves to `.instructions/skills/`)
 
 ## 📂 Folder Structure
