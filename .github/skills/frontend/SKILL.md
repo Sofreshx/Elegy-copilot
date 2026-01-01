@@ -8,12 +8,14 @@ description: "Frontend UI development for React, Vue, or Angular. Creates compon
 ## Inputs
 - Task from `tasks.md`.
 - `warnings.md`, `contexts/project.patterns.md`, `contexts/frontend.context.md`.
+- `contexts/frontend.aesthetics.context.md`.
 
 ## Steps
 1. Read warnings and patterns to align with existing frontend approach (framework, state mgmt, styling).
 2. Mode selection: auto -> deep if prior failures or architectural smell; shallow for local component fixes.
 3. Confirm scope; if unclear, add a clarifying entry to `raw.tasks.md` and pause.
 4. Implement changes: components, hooks/composables, state, API integration, routing.
+	- Default behavior: apply `DISTILLED_AESTHETICS_PROMPT` from `contexts/frontend.aesthetics.context.md` to avoid generic, cookie-cutter UI output.
 5. Add/update tests (unit, integration, e2e as appropriate per `frontend.context.md`).
 6. Note any inconsistencies in `warnings.md` (mixed patterns, outdated deps, accessibility gaps).
 
