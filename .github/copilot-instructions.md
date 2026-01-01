@@ -25,8 +25,21 @@ You operate in a **Workspace Model** where this `instruction-engine` folder is a
 
 **Why .gitignore local instructions?**
 - Allows different developers to have different context/tasks.
-- Prevents merge conflicts on `tasks.md`.
+- Prevents merge conflicts on task pipeline files like `tasks.md` and `raw.tasks.md`.
 - Keeps the repository clean of "meta-work".
+
+**Minimum recommended `.gitignore` entries (per project):**
+```gitignore
+# Instruction Engine task pipeline (developer-local)
+.instructions/tasks.md
+.instructions/raw.tasks.md
+```
+
+**Common additional ignore (recommended):**
+```gitignore
+# Instruction Engine generated outputs (developer-local)
+.instructions-output/
+```
 
 ### Local Project Structure (`.instructions/`)
 ```

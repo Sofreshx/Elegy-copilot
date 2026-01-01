@@ -36,6 +36,19 @@ You need to create the local configuration folder (`.instructions/`) in your pro
     - `.instructions/architecture.md`
     - `.instructions/tasks.md`
 
+**Important: add task pipeline files to `.gitignore`**
+
+These are developer-local and should not be committed:
+
+```gitignore
+# Instruction Engine task pipeline (developer-local)
+.instructions/tasks.md
+.instructions/raw.tasks.md
+
+# Instruction Engine generated outputs (developer-local)
+.instructions-output/
+```
+
 ### 3. Usage
 Now you can use the agents defined in `instruction-engine`.
 

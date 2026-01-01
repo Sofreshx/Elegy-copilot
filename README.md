@@ -38,6 +38,19 @@ This creates your `.instructions/` folder with:
 - `project.index.md` - Active skills registry
 - `contexts/` - Patterns and memory
 
+### 2.1 Add `.instructions` task files to `.gitignore`
+
+These are developer-local and will cause churn/merge conflicts if committed:
+
+```gitignore
+# Instruction Engine task pipeline (developer-local)
+.instructions/tasks.md
+.instructions/raw.tasks.md
+
+# Instruction Engine generated outputs (developer-local)
+.instructions-output/
+```
+
 ### 3. Start Using
 
 | Command | Agent | Purpose |
