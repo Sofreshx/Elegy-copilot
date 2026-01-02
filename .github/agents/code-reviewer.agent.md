@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: "Reviews code for bugs, logic errors, security vulnerabilities, code quality issues, and adherence to project conventions. Reports only high-priority issues."
-tools: ['read', 'search', 'list_dir']
+tools: ['read', 'search', 'search/listDirectory']
 infer: false
 ---
 

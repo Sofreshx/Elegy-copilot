@@ -1,7 +1,7 @@
 ---
 name: executive
 description: "Feature Planner and Orchestrator. Guides feature development through a structured 7-phase workflow: Discovery, Exploration, Clarification, Architecture, Implementation, Review, Summary."
-tools: ['read', 'edit', 'search', 'runSubagent', 'manage_todo_list']
+tools: ['read', 'edit', 'search', 'agent']
 infer: false
 ---
 

@@ -1,7 +1,8 @@
 ---
 name: security-auditor
 description: "Security specialist for identifying, auditing, fixing, and verifying security issues. Focuses on endpoints and OWASP vulnerabilities."
-tools: ['read', 'edit', 'search', 'fetch_webpage']
+tools: ['read', 'edit', 'search', 'web/fetch']
+model: GPT-5 mini (copilot)
 infer: false
 ---
 
