@@ -2,24 +2,23 @@
 > **Purpose**: Minimize context window usage by loading only what's needed, when it's needed.
 
 ## Problem
-Loading all skills, contexts, and agents at once overwhelms the context window and reduces response quality. The full engine is ~38 skills + 7 executives + contexts = significant token cost.
+Loading all skills, contexts, and documents at once overwhelms the context window and reduces response quality.
 
 ## Solution: Staged Loading
 
 ### Stage 1: Kernel Boot (Always Loaded)
 ```
 copilot-instructions.md     (~100 lines)
-├── Executive routing table
-├── Workspace model overview
+├── Repo/workspace model overview
 └── Skill expansion rule
 ```
 
-### Stage 2: Executive Selection (On Demand)
-When user intent is classified, load ONE executive:
+### Stage 2: Skill Selection (On Demand)
+When user intent is classified, load only the most relevant skill(s):
 ```
 user: "create a plan for..."
-→ Load: project-planner.agent.md
-→ Skip: all other executives
+→ Load: .github/skills/planning-feature/SKILL.md
+→ Skip: unrelated skills
 ```
 
 ### Stage 3: Skill Discovery (Index First)
@@ -42,7 +41,7 @@ if task.has_warnings:
 
 ## Implementation
 
-### In Executive Agents
+### In Complex Sessions
 Add this Pre-Flight pattern:
 
 ```markdown

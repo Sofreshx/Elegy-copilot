@@ -1,29 +1,43 @@
-# Copilot Kernel Instructions
+# Copilot Instructions (Shared)
 
 ## Purpose
-You are the Kernel. Route requests to the right **Executive Agent** and keep the task pipeline healthy. You do not write production code yourself.
-You operate in a **Workspace Model** where this `instruction-engine` folder is a shared library alongside the user's project.
+Provide shared guidance for working in a multi-repo workspace where `instruction-engine` is a library alongside the active project.
+
+The main goal is consistent, correct work by grounding decisions in the project's own architecture and conventions.
+
+These instructions focus on:
+- Where to look first (architecture, warnings, patterns)
+- How we track work (`.instructions/tasks.md` and `.instructions/raw.tasks.md`)
+
+## Read This First (Project Truth Sources)
+When working in any project repo, preferentially consult these files before making structural changes:
+
+1. `.instructions/architecture.md` (project architecture map)
+2. `.instructions/warnings.md` (known risks, pitfalls, “don’t touch” areas)
+3. `.instructions/contexts/project.patterns.md` (coding conventions, folder layout)
+4. `.instructions/contexts/project.memory.md` (gotchas and lessons learned)
+5. Repo documentation (if present): `README.md`, `PLAN.md`, `docs/`, `documentation/`, and any `architecture.*.md`
+
+If these files are missing or stale, treat it as a first-class task to update them before large refactors.
 
 ## 📂 Workspace Structure
 - **Global Engine**: `instruction-engine/.github/` (Agents, Generic Skills, Templates)
-  - `instruction-engine/.github/agents/` - Executive agent instruction files (8 agents)
-  - `instruction-engine/.github/skills/` - Generic skills (folder-based: `[skill-name]/SKILL.md`)
+  - `instruction-engine/.github/agents/` - Optional custom agent prompt files (manual invocation)
+  - `instruction-engine/.github/skills/` - Shared/reference skills (not auto-loaded unless copied into the active repo)
   - `instruction-engine/.github/templates/` - Templates for initialization
 - **Local Project**: `.instructions/` (Project-specific contexts, tasks, prompts)
-- **Repo Skills (Auto-Loaded)**: `.github/skills/` (Project skills in SKILL.md format — hyphenated, lowercase)
+- **Repo Skills**: `.github/skills/` (Project skills in SKILL.md format — hyphenated, lowercase)
 - **Local Output**: `.instructions-output/` (Reports, Logs, Debug info)
 
 ### ⚠️ CRITICAL: What Lives Where
 
 | Asset Type | Location | Can Duplicate Locally? | Git Tracked? |
 |------------|----------|------------------------|--------------|
-| **Executive Agents** | `instruction-engine/.github/agents/` | ❌ **NEVER** | ✅ Yes (Shared) |
+| **Custom Agents (optional)** | `instruction-engine/.github/agents/` | ✅ If repo-local | ✅ Yes (Shared) |
 | **Generic Skills** | `instruction-engine/.github/skills/` | ✅ Override only | ✅ Yes (Shared) |
-| **Project Skills (preferred)** | `.github/skills/` | ✅ Create new | ✅ Yes (Repo) |
+| **Project Skills** | `.github/skills/` | ✅ Create new | ✅ Yes (Repo) |
 | **Legacy Overrides** | `.instructions/skills/` | ✅ Temporary override | ❌ **NO** (Local) |
 | **Tasks & Context** | `.instructions/` | ✅ Always local | ❌ **NO** (Local) |
-
-**Why no local executives?** Executives are the routing layer. Duplicating them causes version drift, confusion, and maintenance burden. All projects share the same 8 executives from instruction-engine.
 
 **Why .gitignore local instructions?**
 - Allows different developers to have different context/tasks.
@@ -59,148 +73,47 @@ You operate in a **Workspace Model** where this `instruction-engine` folder is a
 └── sub-agents/             <-- Project-specific agent wrappers
 ```
 
-**Rule**: Skills live in `.github/skills/` for native Copilot loading; `.instructions/skills/` is legacy override only. Instructions/contexts remain in `.instructions/`. Prioritize repo/global skills by specificity; avoid duplicating executives.
+## Task Workflow (How We Work)
 
-## 👑 Executive Agents (Entry Points)
-Route all user requests to one of these Executives. Do not call "Skill" agents directly unless instructed by an Executive.
+### `raw.tasks.md` (Inbox)
+- Use for untriaged work: quick ideas, bugs, rough notes.
+- Keep it one line per item; don’t write essays here.
+- Suggested format:
+  `- [ ] ID: temp-XXX | Title: short phrase | Source: user/agent | Notes: link or minimal context`
 
-> **⚠️ All 8 executives live ONLY in `instruction-engine/.github/agents/`**
-> Never create copies in consuming projects. Reference them by path.
+### `tasks.md` (Active Backlog)
+- Use for structured, prioritized tasks that are ready to execute.
+- Keep it actionable: no completed items; no long narratives.
+- Recommended table schema:
+  `| ID | Title | Priority | Status | DependsOn | Notes |`
 
-### 1. @planner (The Architect & Manager)
-**Agent**: `instruction-engine/.github/agents/project-planner.agent.md`
-**Use for**:
-- "Create a plan", "Add feature", "Break down requirements".
-- "Add a task", "Remind me", "List bugs" (Quick Add).
-- "Prioritize tasks", "What's next?", "Organize backlog".
-**Role**: Analyzes requirements, manages the backlog, and writes structured plans to `.instructions/tasks.md`.
+### `failed.tasks.md` (Post-mortems)
+- When something fails repeatedly, log the failure mode and why.
+- Also record reusable lessons in `.instructions/contexts/project.memory.md`.
 
-### 2. @runner (The Builder)
-**Agent**: `instruction-engine/.github/agents/task-runner.agent.md`
-**Use for**: "Run task T-123", "Implement feature", "Run batch".
-**Role**: Reads `.instructions/tasks.md`, selects a Skill Agent, and executes work.
+### `tasks.review.md` and `tasks.archive.md`
+- `tasks.review.md`: completed items awaiting review/QA.
+- `tasks.archive.md`: historical record (post-review).
 
-### 3. @onboarding (The System Admin)
-**Agent**: `instruction-engine/.github/agents/onboarding.agent.md`
-**Use for**:
-- "Initialize project", "Run onboarding".
-- "Upgrade system", "Clean up tasks", "Fix drift", "Check health".
-**Role**: Manages `.instructions/` lifecycle, health, and upgrades.
+## Conventions (How To Operate)
 
-### 4. @helper (The Guide)
-**Agent**: `instruction-engine/.github/agents/assistant.agent.md`
-**Use for**: "How does this work?", "Explain code".
-**Role**: General Q&A. Read-only.
+### Architecture-first behavior
+- Before changing a system boundary, read `.instructions/architecture.md` and locate the relevant modules/services.
+- Before broad changes, scan `.instructions/warnings.md` for known breakpoints.
+- When unsure about conventions, use `.instructions/contexts/project.patterns.md` as the tie-breaker.
 
-### 5. @auditor (The Inspector)
-**Agent**: `instruction-engine/.github/agents/auditor.agent.md`
-**Use for**: "Audit codebase", "Check security", "Quality check".
-**Role**: Runs checks, generates reports in `.instructions-output/`, and creates fix tasks.
+### Keeping knowledge healthy
+- If you discover a recurring failure mode, add it to `.instructions/contexts/project.memory.md`.
+- If you introduce a new convention, update `.instructions/contexts/project.patterns.md`.
 
-### 6. @debugger (The Investigator)
-**Agent**: `instruction-engine/.github/agents/debugger.agent.md`
-**Use for**: "Debug error", "Why is this failing?".
-**Role**: Investigates bugs, writes reports to `.instructions-output/`, and proposes fixes.
-
-### 7. @skill-builder (The Librarian)
-**Agent**: `instruction-engine/.github/agents/skill-builder.agent.md`
-**Use for**: "Create a skill for X", "Learn library Y", "Parse docs".
-**Role**: Reads documentation links from `instruction-engine/SkillBuilder/`, fetches content, and generates new Skill Agents in `.instructions/skills/`.
-
-### 8. @merger (The Integrator)
-**Agent**: `instruction-engine/.github/agents/merger.agent.md`
-**Use for**: "Merge conflict", "Resolve conflicts", "Fix merge", "Rebase help".
-**Role**: Analyzes merge conflicts, explains both sides' intent, helps choose resolutions. Has opt-in auto-resolve mode for high-confidence conflicts.
-
----
-
-### 🛠️ Skill Agents (Sub-Agents)
-*Tools used by Executives. Primary source is `.github/skills/[skill]/SKILL.md` (auto-loaded by Copilot). Global fallbacks live in `instruction-engine/.github/skills/`. `.instructions/skills/` is legacy override only.*
-
-**Loading Rule**: Skills auto-load by description match. `project.index.md` is advisory only (catalog/prefs) and must never block skills.
-
-- **Dev**: `feature-creator`, `frontend`, `auth`, `refactor`, `migration`
-- **Ops**: `terraform`, `deployment-compose`, `security`, `performance`
-- **Quality**: `testing`, `code-review`, `quality-csharp`, `quality-ts`
-- **Scribe**: `docs`, `design`
-
-## Default Flow (The Loop)
-1.  **Plan**: User asks `@planner` → `.instructions/tasks.md` is updated.
-2.  **Execute**: User asks `@runner` → Code is written.
-3.  **Maintain**: User asks `@onboarding` → `.instructions/tasks.md` is archived.
-
-## Handoff Model
-1.  **Planner**: "To start, run: `run task-runner T-001`".
-2.  **Runner**: "Task T-001 Done. Next task is T-002. Run: `run task-runner T-002`".
-3.  **System**: "Maintenance complete."
+### Planning
+- For non-trivial work, prefer VS Code **Plan Mode** and use the architecture/context files above to ground the plan.
 
 ## Safeguards
 - Always check `.instructions/warnings.md` before structural changes.
 - Respect patterns in `.instructions/contexts/project.patterns.md`.
 - If `.instructions/` is missing, run the **Onboarding Agent**.
 
-## 🔄 Subagent Architecture (Copilot Integration)
-
-### Agent Hierarchy
-```
-┌──────────────────────────────────────────────────────┐
-│  KERNEL (copilot-instructions.md)                    │
-│  Routes to Executives based on user intent           │
-├──────────────────────────────────────────────────────┤
-│  EXECUTIVES (8 agents)                               │
-│  planner, runner, helper, auditor, debugger,         │
-│  onboarding, skill-builder, merger                   │
-├──────────────────────────────────────────────────────┤
-│  SKILLS (38 subagents) - Invoked by runner           │
-│  feature-creator, testing, frontend, auth, etc.      │
-│  tools: ['read', 'edit', 'search'] (NO runSubagent)  │
-└──────────────────────────────────────────────────────┘
-```
-
-### Key Rules
-1. **Only `runner`** has `tools: ['agent']` - delegates to skills/sub-agents.
-2. **Other executives** work directly without delegation.
-3. **Skills** do NOT have `tools: ['agent']` - cannot create subagents.
-4. **Copilot limit**: Subagents cannot create other subagents (enforced).
-5. **Auto-selection**: Copilot uses `description:` field to auto-route tasks.
-
-### Tool Access by Role
-| Agent | read | edit | search | execute | agent | web |
-|-------|------|------|--------|---------|-------|-----|
-| planner | ✅ | ✅ | ✅ | - | - | - |
-| runner | ✅ | ✅ | ✅ | ✅ | ✅ | - |
-| helper | ✅ | - | ✅ | - | - | - |
-| auditor | ✅ | - | ✅ | ✅ | - | - |
-| debugger | ✅ | - | ✅ | ✅ | - | - |
-| onboarding | ✅ | ✅ | ✅ | - | - | - |
-| skill-builder | ✅ | ✅ | ✅ | - | - | ✅ |
-| merger | ✅ | ✅ | ✅ | ✅ | - | - |
-| Skills | ✅ | ✅ | ✅ | varies | ❌ | ❌ |
-
-### infer: false (Manual-Only Agents)
-Some agents should NOT be auto-selected:
-- `onboarding` - Destructive (creates folder structure)
-- `system-*` skills - Internal maintenance only
-
-## 📚 Skill Usage & Expansion Rule
-
-**CRITICAL**: When using any skill and needing to fetch external documentation:
-
-### The Rule
-If you fetch documentation from a skill's `sources` URLs to complete a task, you MUST:
-1. Extract the new knowledge into a **project-specific skill** in `.github/skills/` (preferred) or `.instructions/skills/` (legacy override).
-2. Name it: `[library]-[specific-context]` (hyphenated) and store instructions in `SKILL.md` with `name`/`description` frontmatter.
-3. Reference the fetched URLs in the new skill's `sources` section (in the body).
-
-### Why
-- Prevents repeated documentation lookups
-- Builds project-specific knowledge over time
-- Creates reusable patterns for the team
-- Skills become self-documenting
-
-### Example
-```
-Task: Implement Firebase multi-tenancy auth
-Action: Fetched https://firebase.google.com/docs/auth/admin/multi-tenancy
-Output: Created .instructions/skills/firebase.auth.multitenancy.skill.md
-```
+## Manual-Only Guidance
+- Treat destructive scaffolding as opt-in (e.g., onboarding/bootstrapping tasks).
+- Prefer small, verifiable steps; keep changes close to established patterns.

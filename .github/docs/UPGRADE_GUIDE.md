@@ -14,16 +14,14 @@ We use a **System Upgrade Agent** to intelligently merge updates. This ensures t
 
 1.  **Prepare the Upgrade Package**:
     - Create a folder named `.upgrade` in the root of your workspace.
-    - Copy the *new* `.github/` folder (containing `agents/`, `contexts/`, `docs/`) into `.upgrade/`.
+    - Copy the *new* `.github/` folder (containing `skills/`, `workflows/`, etc.) into `.upgrade/`.
     - Structure should look like:
       ```
       .upgrade/
-        agents/
-          project-planner.agent.md
+        .github/
+          copilot-instructions.md
           skills/
             ...
-        contexts/
-          ...
       ```
 
 2.  **Run the Upgrade Agent**:
@@ -50,8 +48,8 @@ We use a **System Upgrade Agent** to intelligently merge updates. This ensures t
 ## Migration Notes (v1 -> v2)
 If you are upgrading from the flat structure (agents in root) to the new `.github` structure:
 1.  The upgrade agent will move your existing files to `.github/agents` and `.github/contexts`.
-2.  It will then merge the new "Executive vs Skill" hierarchy.
-3.  Your existing domain agents will be moved to `.github/agents/skills/`.
+2.  It will then merge the new repo instructions + skills structure.
+3.  Your existing reusable procedures should be moved into `.github/skills/<skill>/SKILL.md`.
 4.  **Action Required**: You may need to update any custom scripts that referenced `agents/` directly.
 
 ## What is Preserved?

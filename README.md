@@ -53,28 +53,27 @@ These are developer-local and will cause churn/merge conflicts if committed:
 
 ### 3. Start Using
 
-| Command | Agent | Purpose |
-|---------|-------|---------|
-| `@planner Create a plan for X` | Planner | Break down features into tasks |
-| `@runner Run task T-001` | Runner | Execute a task from backlog |
-| `@helper How does X work?` | Helper | Get explanations (read-only) |
-| `@debugger Why is this failing?` | Debugger | Investigate errors |
-| `@auditor Check security` | Auditor | Run quality/security scans |
+| Example | Uses | Purpose |
+|---------|------|---------|
+| "Plan this feature" (Plan Mode) | Plan Mode + `planning-feature` skill | Produce a structured plan before edits |
+| "Organize `.instructions/tasks.md`" | `project-management` skill | Triage/prioritize the backlog |
+| `@helper How does X work?` | Custom agent | Explanations (read-only) |
+| `@debugger Why is this failing?` | Custom agent | Investigate errors |
+| `@auditor Check security` | Custom agent | Run quality/security scans |
 
 ## Architecture
 
 ```
 instruction-engine/.github/          # Global Engine (shared)
-├── copilot-instructions.md          # Kernel - routes requests
-├── agents/                          # Executive agents
-│   ├── project-planner.agent.md     # @planner
-│   ├── task-runner.agent.md         # @runner  
+├── copilot-instructions.md          # Shared guidance (skills-first)
+├── agents/                          # Optional custom agents
 │   ├── assistant.agent.md           # @helper
 │   ├── debugger.agent.md            # @debugger
 │   ├── auditor.agent.md             # @auditor
 │   ├── onboarding.agent.md          # @onboarding
 │   ├── skill-builder.agent.md       # @skill-builder
-│   └── skills/                      # 37 domain skills
+│   └── merger.agent.md              # @merger
+├── skills/                          # Shared/reference skills (copy into repo for auto-load)
 ├── templates/                       # Project scaffolding
 └── patterns/                        # Reusable patterns
 
@@ -90,11 +89,11 @@ your-project/.instructions/          # Local Project (per-repo)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1. PLAN: @planner → Creates tasks in .instructions/tasks.md │
+│  1. PLAN: Plan Mode + planning skills                        │
 ├─────────────────────────────────────────────────────────────┤
-│  2. RUN:  @runner T-001 → Executes task using skill agents   │
+│  2. IMPLEMENT: Default agent + repo skills                   │
 ├─────────────────────────────────────────────────────────────┤
-│  3. MAINTAIN: @onboarding → Archives done, cleans up         │
+│  3. ORGANIZE: project-management skill keeps backlog tidy    │
 └─────────────────────────────────────────────────────────────┘
 ```
 

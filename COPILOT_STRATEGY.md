@@ -37,11 +37,12 @@ Currently, we rely on the user or the Kernel to "read" the skill file.
   4. Copilot answers with perfect domain knowledge without the user manually adding the file.
 
 ### C. Structured Output Enforcement
-Copilot is chatty. We need it to be transactional for the `@runner`.
+Copilot is chatty. We need it to be transactional for backlog/workflow automation.
 - **Upgrade**: Define strict JSON schemas for Task definitions.
 - **Implementation**:
-  - In `task-runner.agent.md`, provide a TypeScript interface or JSON Schema.
-  - Instruct Copilot to output *only* the JSON block for tool consumption.
+  - Define a table schema for `.instructions/tasks.md` and keep it stable (IDs, Priority, Status, DependsOn).
+  - In the `project-management` skill, document the schema and require consistent formatting.
+  - When a strict payload is needed, instruct Copilot to output *only* the JSON block for tool consumption.
 
 ### D. Task Lifecycle Hygiene (Active vs. Review)
 - **Separation**: Keep `.instructions/tasks.md` and `.instructions/raw.tasks.md` for active/untriaged items only. Route completed work to `.instructions/tasks.review.md`; archive reviewed items into `.instructions/tasks.archive.md`.
@@ -52,8 +53,10 @@ Copilot is chatty. We need it to be transactional for the `@runner`.
 
 ### A. "Chain of Thought" Recursion
 The current system allows 1 level of sub-agent (Kernel -> Subagent).
-- **Idea**: Allow the `@runner` to spawn a temporary `@researcher` sub-agent.
-- **Mechanism**: The `@runner` outputs a specific tool call (e.g., `run_research_task`). The system (or extension) executes this in a separate thread/context and feeds the summary back.
+- **Idea**: Allow the main session to spawn a temporary researcher subagent when the prompt would otherwise overflow the context window.
+- **Mechanism**: Copilot outputs a specific tool call (e.g., `runSubagent` with a research prompt). The system executes it in a separate context window and feeds the summary back.
+
+> Note: GitHub Copilot subagents cannot spawn subagents; keep delegation to one level.
 
 ### B. Automated Memory Management
 - **Idea**: A background process (or `@auditor` running on file save) that updates `project.memory.md`.
