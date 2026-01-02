@@ -44,6 +44,8 @@ description: "..."        # Required: what it does + "Use this when..."
 | Skill | Folder | Triggers | Domain |
 |-------|--------|----------|--------|
 | Testing | `testing/` | "test", "unit test", "integration test" | All test types |
+| Testing (.NET Unit) | `testing-dotnet-unit/` | "xUnit", "NSubstitute", "Shouldly", "AutoFixture", "backend unit test" | .NET backend unit tests |
+| Testing (Frontend Unit) | `testing-frontend-unit/` | "Vitest", "Jest", "RTL", "React Testing Library", "component test" | Frontend unit/component tests |
 | Aspire Integration Tests | `aspire-integration-tests/` | "Aspire test", "integration test Aspire" | Aspire testing |
 | Code Review | `code-review/` | "review", "PR review", "code quality" | Code review |
 | Quality Auditor | `quality-auditor/` | "audit quality", "code smell" | Quality metrics |
@@ -124,5 +126,5 @@ description: "..."        # Required: what it does + "Use this when..."
 ---
 
 ## Version
-- **Last Updated**: 2025-12-31
-- **Skill Count**: 38 (executive agents are in `/agents/`)
+- **Last Updated**: 2026-01-02
+- **Skill Count**: 40 (executive agents are in `/agents/`)

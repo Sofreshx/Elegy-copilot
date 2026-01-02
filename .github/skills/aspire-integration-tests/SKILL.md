@@ -5,6 +5,11 @@ description: "Aspire integration testing. Creates and maintains integration test
 
 # Aspire Integration Tests Skill
 
+## Execution Policy (Important)
+- You may write or update integration tests as requested.
+- Do **not** execute integration tests unless the user explicitly asks you to run them.
+- When not requested, provide the exact command(s) the user can run.
+
 ## Inputs
 - Task from `tasks.md`.
 - `warnings.md`, `contexts/aspire.context.md`, `contexts/project.patterns.md`.

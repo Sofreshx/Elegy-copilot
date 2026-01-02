@@ -12,10 +12,17 @@ description: "Test creation and strategy. Writes unit tests, integration tests, 
 - Test refactoring/cleanup
 - Flaky test investigation
 
+This is a general testing skill. When possible, route to the more specific skills:
+- Backend unit tests (.NET): `testing-dotnet-unit`
+- Frontend unit/component tests: `testing-frontend-unit`
+- Aspire integration tests: `aspire-integration-tests`
+
 ## When NOT to Use
-- Aspire-specific integration tests → `aspire.tests.integration.agent.md`
-- Debugging failing tests (runtime issue) → `debug.agent.md`
-- General code quality → `quality.*.agent.md`
+- Aspire-specific integration tests → `aspire-integration-tests`
+- Backend unit tests (.NET) → `testing-dotnet-unit`
+- Frontend unit/component tests → `testing-frontend-unit`
+- Debugging failing tests (runtime/environment) → `debug` or `general-debugger`
+- General code quality work → `quality-csharp` / `quality-typescript`
 
 ## Inputs
 - Code to test or test strategy scope.
@@ -35,6 +42,9 @@ description: "Test creation and strategy. Writes unit tests, integration tests, 
    - **Integration**: Multiple components, real dependencies
    - **E2E**: Full user flows
 4. Write tests following project conventions.
+5. Execution policy:
+   - Run **unit tests by default** after writing them.
+   - Only run **integration/E2E tests** when the user explicitly requests execution.
 5. Ensure tests are:
    - **Fast**: Don't slow down feedback loop
    - **Reliable**: No flakiness
