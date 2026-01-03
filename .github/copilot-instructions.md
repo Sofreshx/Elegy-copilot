@@ -97,6 +97,11 @@ If these files are missing or stale, treat it as a first-class task to update th
 
 ## Conventions (How To Operate)
 
+### Execution (Do Not Stop Early)
+- **Complete the full task**: Do not stop early to ask for confirmation if the path forward is clear.
+- **Chain tools**: If a task requires multiple steps (e.g., read -> edit -> verify), perform them in sequence without yielding control back to the user unless absolutely necessary.
+- **Resolve all items**: If given a list of tasks, work through them until all are complete or blocked.
+
 ### Architecture-first behavior
 - Before changing a system boundary, read `.instructions/architecture.md` and locate the relevant modules/services.
 - Before broad changes, scan `.instructions/warnings.md` for known breakpoints.
