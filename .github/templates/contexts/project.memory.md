@@ -23,3 +23,7 @@ description: "Persistent memory of project-specific patterns, anti-patterns, and
 *Problems that keep coming back.*
 | Issue | Frequency | Root Cause | Workaround |
 |-------|-----------|------------|------------|
+
+## ⚠️ Active Warnings
+*Current risks, inconsistencies, and security concerns.*
+- [ ] ...

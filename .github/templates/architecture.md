@@ -48,6 +48,29 @@ Built with .NET Aspire for orchestration, React frontend, and PostgreSQL with Ma
 
 ---
 
+## Patterns & Conventions
+*Project-specific patterns and conventions that guide implementation.*
+
+### Code Style & Naming
+- Files:
+- Components:
+- Functions:
+- Variables:
+
+### Project Structure
+- Folder organization:
+- Import order:
+
+### Architectural Patterns
+- Patterns in use:
+
+### Testing Patterns
+- How tests are written and organized:
+
+### Error Handling & Logging
+- Error handling approach:
+- Logging conventions:
+
 ## Key Components
 
 ### Component 1: [Name]
@@ -111,6 +134,4 @@ Built with .NET Aspire for orchestration, React frontend, and PostgreSQL with Ma
 ---
 
 ## Related Files
-- [project.patterns.md](contexts/project.patterns.md) - Coding conventions
-- [warnings.md](warnings.md) - Active risks and warnings
-- [project.memory.md](contexts/project.memory.md) - Lessons learned
+- [project.memory.md](contexts/project.memory.md) - Lessons, warnings, and gotchas

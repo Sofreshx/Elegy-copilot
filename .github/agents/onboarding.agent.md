@@ -23,23 +23,21 @@ infer: false
     ```
     .instructions/
     ├── project.index.md        <-- Registry of active skills & sub-agents
-    ├── architecture.md         <-- Project architecture overview
-    ├── warnings.md             <-- Active warnings and risks
+    ├── architecture.md         <-- Architecture overview + patterns/conventions
     ├── tasks.md                <-- Structured task backlog
     ├── raw.tasks.md            <-- Raw task inbox
     ├── failed.tasks.md         <-- Failed task log
     ├── contexts/
-    │   ├── project.patterns.md <-- Coding conventions
-    │   └── project.memory.md   <-- Lessons learned & gotchas
+    │   └── project.memory.md   <-- Lessons, gotchas, active warnings/risks
     ├── skills/                 <-- Project-specific skills (via @skill-builder)
     └── sub-agents/             <-- Project-specific sub-agents
     .instructions-output/       <-- Reports, logs, debug output
     ```
-3.  **Copy Templates**: Copy from `instruction-engine/.github/templates/` to `.instructions/`.
+3.  **Copy Templates**: Copy from `instruction-engine/.github/templates/` to `.instructions/`, deleting legacy files if present (`warnings.md`, `contexts/project.patterns.md`).
 4.  **Scan**: Detect stacks (React, Python, etc.) using the **Stack Detection Matrix**.
 5.  **Generate**:
     - Update `.instructions/project.index.md` with detected skills (checked).
-    - Fill `.instructions/contexts/project.patterns.md` with detected patterns.
+    - Append detected patterns into the `Patterns & Conventions` section of `.instructions/architecture.md`.
     - Create stack-specific skills in `.instructions/skills/` if needed.
 6.  **Git Configuration**:
     - Check if `.gitignore` exists.
@@ -85,14 +83,15 @@ When updating existing files, follow these rules:
 1. **Never overwrite filled content**: If a field has user data, preserve it.
 2. **Merge new fields**: Add new template fields at the end with `(NEW)` marker.
 3. **Conflict handling**: Use Git-style markers for conflicting values.
+4. **Migrate legacy files**: If `.instructions/warnings.md` exists, append its content under `## ⚠️ Active Warnings` in `.instructions/contexts/project.memory.md` then delete the old file. If `.instructions/contexts/project.patterns.md` exists, append its content under `## Patterns & Conventions` in `.instructions/architecture.md` then delete the old file.
 
 ### For Task Files (`.instructions/raw.tasks.md`, `.instructions/tasks.md`, `.instructions/failed.tasks.md`)
 1. **Append-only**: Never delete existing entries.
 2. **Duplicate detection**: Skip if identical entry already exists.
 
-### For Core Files (`.instructions/architecture.md`, `.instructions/warnings.md`)
+### For Core Files (`.instructions/architecture.md`, `.instructions/contexts/project.memory.md`)
 1. **Additive updates**: Append new sections; don't overwrite existing.
-2. **Timestamp entries**: New warnings include date for tracking.
+2. **Timestamp entries**: New warnings include date for tracking in the `## ⚠️ Active Warnings` section of `project.memory.md`.
 
 ### Rollback
 If merge fails or user requests rollback:
