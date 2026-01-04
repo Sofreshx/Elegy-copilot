@@ -2,7 +2,7 @@
 name: test-engineer
 description: "QA and Test Automation specialist. Audits code for test coverage, designs test strategies, and implements unit/integration tests."
 tools: ['read', 'edit', 'search', 'execute/runInTerminal']
-model: GPT-5 mini (copilot)
+model: Raptor mini (Preview) (copilot)
 infer: false
 ---
 

@@ -8,12 +8,13 @@ The main goal is consistent, correct work by grounding decisions in the project'
 These instructions focus on:
 - Where to look first (architecture + context memory)
 - How we track work (`.instructions/tasks.md` and `.instructions/raw.tasks.md`)
+- Remember to use related SKILL files in [.github/skills](.github/skills) when relevant.
 
 ## Read This First (Project Truth Sources)
 When working in any project repo, preferentially consult these files before making structural changes:
 
 1. `.instructions/architecture.md` (project architecture map, patterns/conventions)
-2. `.instructions/contexts/project.memory.md` (lessons, gotchas, active warnings/risks)
+2. `.instructions/contexts/*.md` (ALL context files: lessons, risks, and domain knowledge)
 3. Repo documentation (if present): `README.md`, `PLAN.md`, `docs/`, `documentation/`, and any `architecture.*.md`
 
 If these files are missing or stale, treat it as a first-class task to update them before large refactors.
@@ -68,7 +69,12 @@ Use `.instructions/contexts/project.memory.md` for deep context that helps futur
 - Suggested format:
   `- [ ] ID: temp-XXX | Title: short phrase | Source: user/agent | Notes: link or minimal context`
 
-### `tasks.md` (Active Backlog)
+### `active-tasks.md` (Work Memory)
+- Use for the *currently active* session context.
+- Treat this as "RAM": detailed context, scratchpad, immediate next steps for the active task.
+- Allows hopping back into work after context loss.
+
+### `tasks.md` (Backlog)
 - Use for structured, prioritized tasks that are ready to execute.
 - Keep it actionable: no completed items; no long narratives.
 - Recommended table schema:
@@ -99,6 +105,11 @@ Use `.instructions/contexts/project.memory.md` for deep context that helps futur
 
 ### Planning
 - For non-trivial work, prefer VS Code **Plan Mode** and use the architecture/context files above to ground the plan.
+
+### Documentation Strategy
+- **Succinct & Targeted**: Documentation should be concise and consolidated in key documents.
+- **Avoid Bloat**: Do not create many fragmented files.
+- **Update, Don't Create**: Prefer updating existing architecture/context files over creating new ones unless well-justified.
 
 ## Safeguards
 - Always check `.instructions/contexts/project.memory.md` for active warnings before structural changes.
