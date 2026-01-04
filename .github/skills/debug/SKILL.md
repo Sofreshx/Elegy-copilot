@@ -14,7 +14,7 @@ description: "Debugging skill for diagnosing runtime errors, failing tests, and 
 
 ## When NOT to Use
 - Code quality review (no specific error) → `code-review.agent.md`
-- Performance issues → `performance.agent.md`
+- Performance issues → `performance-auditer.agent.md`
 - Design questions → `design.agent.md`
 
 ## Inputs

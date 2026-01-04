@@ -159,7 +159,7 @@ context: "[Brief description of why this was created]"
 | Skill Type | Location | Example |
 |------------|----------|---------|
 | **Global** (reusable) | `instruction-engine/.github/skills/` | `firebase-auth/SKILL.md` |
-| **Project** (specific) | `.instructions/skills/` | `firebase-auth-multitenancy/SKILL.md` |
+| **Project** (specific) | `.instructions/skills/` | `firebase-auth-multitenancy/SKILL.md` (example — create when project needs this variant) |
 
 ### When to Create Global vs Local
 - **Global**: Generic patterns that apply to any project using the library

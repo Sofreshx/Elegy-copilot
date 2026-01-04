@@ -3,15 +3,15 @@
 > **A structured agent orchestration system for GitHub Copilot Chat**
 
 [![Copilot Compatible](https://img.shields.io/badge/Copilot-Compatible-blue?logo=github)](https://docs.github.com/en/copilot)
-[![Agents](https://img.shields.io/badge/Agents-46-green)](/.github/skills)
+[![Agents & Skills](https://img.shields.io/badge/Agents_%26_Skills-blue)](/.github/skills)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ## What is this?
 
 Instruction Engine is a **workspace model** that extends GitHub Copilot Chat with:
 
-- 🎯 **8 Executive Agents** - High-level task routing (planner, runner, debugger, merger, etc.)
-- 🛠️ **38 Skill Agents** - Domain-specific capabilities (.NET, React, Firebase, Terraform, etc.)
+- 🎯 **20 Executive & Utility Agents** - High-level task routing and specialized roles (planner, debugger, merger, onboarding, etc.)
+- 🛠️ **36 Skill Agents** - Domain-specific capabilities (ASP.NET, React, Firebase, Terraform, etc.)
 - 📋 **Task Pipeline** - Structured planning → execution → maintenance loop
 - 🧠 **Project Memory** - Lessons learned, patterns, and warnings persist across sessions
 
@@ -98,6 +98,8 @@ your-project/.instructions/          # Local Project (per-repo)
 ```
 
 ## Available Skills
+
+This repository currently includes **36** skills under `.github/skills/` (see `.github/skills/index.md` for a full list).
 
 ### Core Development
 `feature-creator` · `frontend` · `refactor` · `migration`

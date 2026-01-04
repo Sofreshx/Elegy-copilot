@@ -51,7 +51,6 @@ description: "..."        # Required: what it does + "Use this when..."
 | Quality Auditor | `quality-auditor/` | "audit quality", "code smell" | Quality metrics |
 | Quality C# | `quality-csharp/` | "C# quality", "Roslyn", ".NET patterns" | C#-specific quality |
 | Quality TypeScript | `quality-typescript/` | "TS quality", "ESLint", "TypeScript patterns" | TS-specific quality |
-| Performance | `performance/` | "performance", "optimize", "slow" | Performance tuning |
 
 ### 🐛 Debug & Diagnostics
 | Skill | Folder | Triggers | Domain |

@@ -15,7 +15,7 @@ description: "Code restructuring and cleanup. Improves readability, reduces dupl
 ## When NOT to Use
 - Adding new functionality → domain agents
 - Fixing bugs → `debug.agent.md`
-- Performance optimization → `performance.agent.md`
+- Performance optimization → `performance-auditer.agent.md`
 - Code review without changes → `code-review.agent.md`
 
 ## Inputs

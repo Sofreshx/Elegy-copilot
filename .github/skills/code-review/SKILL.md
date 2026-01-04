@@ -13,7 +13,7 @@ description: "Code review for quality, patterns, and bugs. Reviews PRs, identifi
 
 ## When NOT to Use
 - Implementing fixes → use appropriate domain agent after review
-- Performance optimization → `performance.agent.md`
+- Performance optimization → `performance-auditer.agent.md`
 - Security-specific review → `security.agent.md`
 - Debugging runtime errors → `debug.agent.md`
 

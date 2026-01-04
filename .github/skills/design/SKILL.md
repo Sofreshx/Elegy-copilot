@@ -15,7 +15,7 @@ description: "Architecture and design evaluation. Reviews patterns, proposes des
 ## When NOT to Use
 - Implementing the design → domain agents
 - Code-level review → `code-review.agent.md`
-- Performance of existing code → `performance.agent.md`
+- Performance of existing code → `performance-auditer.agent.md`
 
 ## Inputs
 - Design proposal or question.

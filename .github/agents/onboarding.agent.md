@@ -50,7 +50,7 @@ infer: false
 ### Mode B: Maintenance (The System Admin)
 *Trigger: "Upgrade system", "Check health", "Fix drift", "Clean tasks"*
 Delegate to the appropriate System Skill:
-- **Upgrade**: `skills/system-upgrade/SKILL.md` (Merge new engine files).
+- **Upgrade**: **Missing skill:** `skills/system-upgrade/SKILL.md` not found. Needed guidance: safe merge steps for engine updates (backup, conflict resolution, tests to run, and validation checks). Please add `system-upgrade/SKILL.md` with these procedures.
 - **Drift**: `skills/system-drift/SKILL.md` (Fix patterns vs code reality).
 - **Cleanup**: `skills/system-cleanup/SKILL.md` (Archive tasks).
 - **Health**: `skills/system-health/SKILL.md` (Verify integrity).
@@ -111,7 +111,7 @@ If merge fails or user requests rollback:
 | Terraform / `*.tf` files | `terraform/SKILL.md` | `terraform.context.md` |
 | Docker Compose / `docker-compose*.yml` | `deployment-compose/SKILL.md` | `deployment.context.md` |
 | C# / `*.csproj` | `quality-csharp/SKILL.md` | `project.patterns.md` |
-| TypeScript / `tsconfig.json` | `quality-typescript/SKILL.md` | `project.patterns.md` |
+| TypeScript / `tsconfig.json` | **Missing skill:** `quality-typescript/SKILL.md` not found. Needed instructions: linting rules, tsconfig conventions, recommended toolchain (ESLint, tsconfig strict settings, testing patterns). Add `quality-typescript/SKILL.md` or `.instructions/skills/quality-typescript/SKILL.md` | `project.patterns.md` |
 | Wolverine / MediatR / CQRS patterns | `feature-creator/SKILL.md` | `project.patterns.md` |
 
 ## Output

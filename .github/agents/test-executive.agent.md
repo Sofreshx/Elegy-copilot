@@ -25,6 +25,9 @@ If `test-tasks.md` is empty or you are starting a new session:
 1.  Run **`test-scanner`** to analyze the codebase.
 2.  Review the generated `tests.inventory.md`.
 3.  Populate `.instructions/test-tasks.md` with prioritized work items (e.g., "Add unit tests for OrderService", "Integration test for /checkout endpoint").
+4.  **Coverage Tooling Check:** Ensure coverage collection is configured and present in the inventory (refer to `.github/skills/test-coverage/SKILL.md`).
+    - Check `.github/workflows/` for coverage steps.
+    - If tooling is missing or CI lacks coverage collection, create a task in `test-tasks.md` to add `coverlet.collector` and the CI workflow steps (see `CI Integration` in the skill).
 
 ### 2. Execution Loop
 Iterate through `.instructions/test-tasks.md`:
@@ -42,3 +45,4 @@ Periodically run **`test-scanner`** again to verify coverage improvements and up
 - **Coverage is a means, not an end**: Focus on critical paths and complex logic first.
 - **Integration over Unit**: For microservices, integration tests often provide better value.
 - **Keep it Green**: Ensure the build is always passing before moving to the next task.
+- **Execution Policy**: Run unit tests by default after writing them. Only run integration/E2E tests when explicitly requested or when verifying a specific fix, as they can be slow.

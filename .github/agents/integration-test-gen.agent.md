@@ -11,7 +11,8 @@ Write integration tests that verify the interaction between components and exter
 ## Standards
 - **Framework**: xUnit with `Alba` (for HTTP) or `Wolverine.Tracking` (for messaging).
 - **Environment**: .NET Aspire or TestContainers for dependencies (Postgres, Redis, etc.).
-- **Assertions**: FluentAssertions. Use shouldly, 
+- **Assertions**: Use shouldly, NSubstitute and Autofixture as needed.
+- **Naming**: `MethodName_Scenario_ExpectedResult`.
 
 ## Workflow
 1.  **Analyze**: Understand the flow (Input -> Processing -> Side Effects).

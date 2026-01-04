@@ -72,6 +72,7 @@ Use `.instructions/contexts/project.memory.md` for deep context that helps futur
 ### `active-tasks.md` (Work Memory)
 - Use for the *currently active* session context.
 - Treat this as "RAM": detailed context, scratchpad, immediate next steps for the active task.
+- **Context Loading**: Explicitly list relevant skills (from `.github/skills/`) and context files (from `.instructions/contexts/`) to keep them in focus.
 - Allows hopping back into work after context loss.
 
 ### `tasks.md` (Backlog)

@@ -17,7 +17,7 @@ description: "Security review and vulnerability detection. Checks for secure cod
 ## When NOT to Use
 - General code quality → `code-review.agent.md`
 - Auth feature implementation → `auth.agent.md`
-- Performance issues → `performance.agent.md`
+- Performance issues → `performance-auditer.agent.md`
 
 ## Inputs
 - Code to review for security.
