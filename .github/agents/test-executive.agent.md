@@ -1,7 +1,7 @@
 ---
 name: test-executive
 description: "Orchestrates the testing lifecycle: scanning, planning, and executing unit/integration tests. Manages test-tasks.md."
-tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal']
+tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal', 'agent/runSubagent']
 ---
 
 # Test Executive Agent
