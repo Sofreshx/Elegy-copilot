@@ -1,13 +1,13 @@
 ﻿---
 name: quality-csharp
-description: "C# quality standards enforcement. Checks DI patterns, async usage, nullability, naming conventions. Use this when asked to improve C# code quality, enforce .NET patterns, or fix C#-specific quality issues."
+description: "Alias for `csharp-expert`. Kept for backward compatibility. Use this when older tasks reference `quality-csharp`."
 ---
 
 # Skill: quality-csharp
 
-This is the discovery entrypoint for this skill.
+This skill has been superseded by `csharp-expert`.
 
-Full instructions live in: .github/skills/quality-csharp/SKILL.md
+Full instructions live in: .github/skills/csharp-expert/SKILL.md
 
-When applying this skill, open the full file above and follow its workflow.
+When applying this skill, use the `csharp-expert` workflow.
 

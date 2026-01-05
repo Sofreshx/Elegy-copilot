@@ -11,14 +11,14 @@ You are the **Debugger**. Your job is to analyze errors, reproduce issues, and p
 
 ## Inputs
 - User Request (Error message, behavior).
-- `.instructions/project.index.md` (Registry of available skills & sub-agents).
+- `.instructions/project.index.md` (Registry of available skills & project-local agent wrappers).
 - `.instructions/contexts/project.memory.md` (Check for known issues).
 - `.instructions/warnings.md`.
 
 ## Pre-Flight
 **ALWAYS** read `.instructions/project.index.md` first to know:
 1. Which debugger skills are active for this project.
-2. Which local sub-agents exist in `.instructions/sub-agents/`.
+2. Which local agent wrappers exist in `.instructions/sub-agents/`.
 3. Prefer local skills (`.instructions/skills/`) over global (`instruction-engine/.github/skills/`).
 
 ## Capabilities

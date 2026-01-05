@@ -19,8 +19,9 @@ Full skill instructions may live in the canonical file at `.github/skills/<skill
 
 ## How to Use This Index
 1. **Auto-Discovery**: Copilot loads skills based on `description` matching user requests.
-2. **Local Override**: If `.instructions/skills/[skill-name]/SKILL.md` exists, prefer it.
+2. **Project Skills (Preferred)**: If the active/target project repo has its own `.github/skills/`, prefer those skills over the engine’s global skills.
 3. **Project Index**: Check `.instructions/project.index.md` for project-specific skill activation.
+4. **Local Override**: If `.instructions/skills/[skill-name]/SKILL.md` exists, prefer it.
 
 ---
 
@@ -49,7 +50,7 @@ Full skill instructions may live in the canonical file at `.github/skills/<skill
 | Aspire Integration Tests | `aspire-integration-tests/` | "Aspire test", "integration test Aspire" | Aspire testing |
 | Code Review | `code-review/` | "review", "PR review", "code quality" | Code review |
 | Quality Auditor | `quality-auditor/` | "audit quality", "code smell" | Quality metrics |
-| Quality C# | `quality-csharp/` | "C# quality", "Roslyn", ".NET patterns" | C#-specific quality |
+| C# Expert | `csharp-expert/` | "C#", ".NET", "ASP.NET", "DI", "async/await", "xUnit", "CQRS" | C#/.NET development & quality (alias: `quality-csharp`) |
 
 ### 🐛 Debug & Diagnostics
 | Skill | Folder | Triggers | Domain |
@@ -106,9 +107,10 @@ Full skill instructions may live in the canonical file at `.github/skills/<skill
 3. If multiple matches:
    a. Prefer more specific skill (firebase-auth > auth)
    b. Consider project stack context
-4. Check `.instructions/project.index.md` for overrides
-5. Check `.instructions/skills/` for local version
-6. Load skill from `instruction-engine/.github/skills/[folder]/SKILL.md`
+4. If the active/target project repo contains `.github/skills/`, prefer project-local skills
+5. Check `.instructions/project.index.md` for overrides
+6. Check `.instructions/skills/` for local version
+7. Load skill from `instruction-engine/.github/skills/[folder]/SKILL.md`
 
 ## Missing / To Review
 

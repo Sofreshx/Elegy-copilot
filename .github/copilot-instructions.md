@@ -8,7 +8,7 @@ The main goal is consistent, correct work by grounding decisions in the project'
 These instructions focus on:
 - Where to look first (architecture + context memory)
 - How we track work (`.instructions/tasks.md` and `.instructions/raw.tasks.md`)
-- Remember to use related SKILL files in [.github/skills](.github/skills) when relevant.
+- Remember to use related SKILL files when relevant (prefer the active/target project repo’s `.github/skills/` if present; otherwise fall back to `instruction-engine/.github/skills/`).
 
 ## Read This First (Project Truth Sources)
 When working in any project repo, preferentially consult these files before making structural changes:

@@ -11,7 +11,7 @@ Detect code smells, pollution, and maintenance burdens across the codebase.
 ## When NOT to Use
 - For security-specific issues → use `security` or `secrets-auditor`
 - For performance bottlenecks → use `performance-auditer`
-- For language-specific patterns → use `quality-csharp`
+- For language-specific patterns → use `csharp-expert` (alias: `quality-csharp`)
 
 ## Checks
 

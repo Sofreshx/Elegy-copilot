@@ -22,7 +22,7 @@ infer: false
 2.  **Create Full Structure**:
     ```
     .instructions/
-    ├── project.index.md        <-- Registry of active skills & sub-agents
+    ├── project.index.md        <-- Registry of active skills & project-local agent wrappers
     ├── architecture.md         <-- Architecture overview + patterns/conventions
     ├── tasks.md                <-- Structured task backlog
     ├── raw.tasks.md            <-- Raw task inbox
@@ -30,7 +30,7 @@ infer: false
     ├── contexts/
     │   └── project.memory.md   <-- Lessons, gotchas, active warnings/risks
     ├── skills/                 <-- Project-specific skills (via @skill-builder)
-    └── sub-agents/             <-- Project-specific sub-agents
+    └── sub-agents/             <-- Project-specific agent wrappers
     .instructions-output/       <-- Reports, logs, debug output
     ```
 3.  **Copy Templates**: Copy from `instruction-engine/.github/templates/` to `.instructions/`, deleting legacy files if present (`warnings.md`, `contexts/project.patterns.md`).
@@ -58,7 +58,7 @@ Delegate to the appropriate System Skill:
 ## Stack Detection Matrix
 - `package.json` (react, vue, next) -> `frontend/SKILL.md`
 - `package.json` (express) -> `feature-creator/SKILL.md`
-- `*.csproj` -> `quality-csharp/SKILL.md`
+- `*.csproj` -> `csharp-expert/SKILL.md`
 - `Dockerfile`, `docker-compose.yml` -> `deployment-compose/SKILL.md`
 - `*.tf` -> `terraform/SKILL.md`
 
@@ -110,7 +110,7 @@ If merge fails or user requests rollback:
 | .NET Aspire / `*.AppHost.csproj` | `aspire-integration-tests/SKILL.md` | `aspire.context.md` |
 | Terraform / `*.tf` files | `terraform/SKILL.md` | `terraform.context.md` |
 | Docker Compose / `docker-compose*.yml` | `deployment-compose/SKILL.md` | `deployment.context.md` |
-| C# / `*.csproj` | `quality-csharp/SKILL.md` | `project.patterns.md` |
+| C# / `*.csproj` | `csharp-expert/SKILL.md` (alias: `quality-csharp`) | `project.patterns.md` |
 | TypeScript / `tsconfig.json` | **Missing skill:** `quality-typescript/SKILL.md` not found. Needed instructions: linting rules, tsconfig conventions, recommended toolchain (ESLint, tsconfig strict settings, testing patterns). Add `quality-typescript/SKILL.md` or `.instructions/skills/quality-typescript/SKILL.md` | `project.patterns.md` |
 | Wolverine / MediatR / CQRS patterns | `feature-creator/SKILL.md` | `project.patterns.md` |
 

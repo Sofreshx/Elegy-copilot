@@ -108,7 +108,7 @@ This repository currently includes **36** skills under `.github/skills/` (see `.
 `auth` · `firebase-auth` · `security` · `secrets-auditor`
 
 ### Quality & Testing
-`testing` · `code-review` · `quality-csharp` · `quality-typescript` · `performance`
+`testing` · `code-review` · `csharp-expert` · `quality-typescript` · `performance`
 
 ### Infrastructure
 `terraform` · `deployment-compose` · `cloudflare-storage`
