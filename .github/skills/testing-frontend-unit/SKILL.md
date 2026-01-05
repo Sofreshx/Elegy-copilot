@@ -13,7 +13,7 @@ description: "Frontend unit/component testing (React/Vue/Angular). Use this when
 ## When NOT to Use
 - Backend unit tests → `testing-dotnet-unit`
 - Integration/E2E testing → `aspire-integration-tests` or project-specific E2E skills
-- User is debugging a failing UI test run due to environment → `debug` / `general-debugger`
+- User is debugging a failing UI test run due to environment → `debug`
 
 ## Principles
 - Test user-visible behavior (rendering, interactions, accessibility), not implementation details.

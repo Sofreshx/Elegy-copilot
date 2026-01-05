@@ -5,13 +5,15 @@
 
 ## Skill File Format
 
-Each skill has a `SKILL.md` file with:
+Each skill has a **flat entrypoint** file at `.github/skills/<skill-name>.md` with:
 ```yaml
 ---
 name: skill-name          # Required: lowercase, hyphens for spaces
 description: "..."        # Required: what it does + "Use this when..."
 ---
 ```
+
+Full skill instructions may live in the canonical file at `.github/skills/<skill-name>/SKILL.md`.
 
 **Note**: The `tools`, `sources`, and `schema-version` fields are NOT part of the GitHub spec and have been removed.
 
@@ -30,7 +32,6 @@ description: "..."        # Required: what it does + "Use this when..."
 | Feature Creator | `feature-creator/` | "add endpoint", "create feature", "backend" | Backend, APIs, CRUD |
 | Frontend | `frontend/` | "UI", "component", "React", "Vue", "page" | React, Vue, Angular |
 | Refactor | `refactor/` | "refactor", "clean up", "reorganize" | Code restructuring |
-| Migration | `migration/` | "migrate", "upgrade version", "move to" | Version upgrades, migrations |
 
 ### 🔐 Auth & Security
 | Skill | Folder | Triggers | Domain |
@@ -43,20 +44,17 @@ description: "..."        # Required: what it does + "Use this when..."
 ### 🧪 Quality & Testing
 | Skill | Folder | Triggers | Domain |
 |-------|--------|----------|--------|
-| Testing | `testing/` | "test", "unit test", "integration test" | All test types |
 | Testing (.NET Unit) | `testing-dotnet-unit/` | "xUnit", "NSubstitute", "Shouldly", "AutoFixture", "backend unit test" | .NET backend unit tests |
 | Testing (Frontend Unit) | `testing-frontend-unit/` | "Vitest", "Jest", "RTL", "React Testing Library", "component test" | Frontend unit/component tests |
 | Aspire Integration Tests | `aspire-integration-tests/` | "Aspire test", "integration test Aspire" | Aspire testing |
 | Code Review | `code-review/` | "review", "PR review", "code quality" | Code review |
 | Quality Auditor | `quality-auditor/` | "audit quality", "code smell" | Quality metrics |
 | Quality C# | `quality-csharp/` | "C# quality", "Roslyn", ".NET patterns" | C#-specific quality |
-| Quality TypeScript | `quality-typescript/` | "TS quality", "ESLint", "TypeScript patterns" | TS-specific quality |
 
 ### 🐛 Debug & Diagnostics
 | Skill | Folder | Triggers | Domain |
 |-------|--------|----------|--------|
 | Debug | `debug/` | "debug", "breakpoint", "trace", "investigate", "why failing", "error" | Debugging & Error investigation |
-| General Debugger | `general-debugger/` | "general debug", "standard debugging" | General debugging strategies |
 
 ### ☁️ Infrastructure & DevOps
 | Skill | Folder | Triggers | Domain |
@@ -82,8 +80,7 @@ description: "..."        # Required: what it does + "Use this when..."
 | Orleans | `orleans/` | "Orleans", "grain", "virtual actor" | Microsoft Orleans |
 | SignalR | `signalr/` | "SignalR", "real-time", "websocket" | SignalR real-time |
 | Semantic Kernel Agents | `semantic-kernel-agents/` | "Semantic Kernel", "SK agents" | MS Semantic Kernel |
-| MS Agent Framework | `ms-agent-framework/` | "Agent Framework", "MS agents" | MS Agent Framework |
-| OpenAI API | `openai-api/` | "OpenAI", "GPT", "chat completion" | OpenAI integration |
+| OpenAI-Compatible API | `openai-compatible/` | "OpenAI", "GPT", "chat completion" | OpenAI integration |
 
 ### 📝 Documentation & Design
 | Skill | Folder | Triggers | Domain |
@@ -98,7 +95,6 @@ description: "..."        # Required: what it does + "Use this when..."
 | System Cleanup | `system-cleanup/` | (internal) | Archive completed tasks |
 | System Drift | `system-drift/` | (internal) | Fix pattern drift |
 | System Health | `system-health/` | (internal) | Verify system integrity |
-| System Upgrade | `system-upgrade/` | (internal) | Upgrade engine files |
 
 ---
 
@@ -113,6 +109,17 @@ description: "..."        # Required: what it does + "Use this when..."
 4. Check `.instructions/project.index.md` for overrides
 5. Check `.instructions/skills/` for local version
 6. Load skill from `instruction-engine/.github/skills/[folder]/SKILL.md`
+
+## Missing / To Review
+
+The following skills are referenced historically but do not currently exist as global skills in this repo:
+- `migration`
+- `testing`
+- `quality-typescript`
+- `general-debugger`
+- `ms-agent-framework`
+- `system-upgrade`
+- `test-coverage` (referenced by some test agents)
 ```
 
 ## Adding New Skills
@@ -126,4 +133,4 @@ description: "..."        # Required: what it does + "Use this when..."
 
 ## Version
 - **Last Updated**: 2026-01-02
-- **Skill Count**: 40 (executive agents are in `/agents/`)
+- **Skill Count**: 36 (executive agents are in `/agents/`)

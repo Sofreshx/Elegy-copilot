@@ -1,6 +1,7 @@
 ---
 name: test-executive
 description: "Orchestrates the testing lifecycle: scanning, planning, and executing unit/integration tests. Manages test-tasks.md."
+tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal']
 ---
 
 # Test Executive Agent
@@ -25,9 +26,9 @@ If `test-tasks.md` is empty or you are starting a new session:
 1.  Run **`test-scanner`** to analyze the codebase.
 2.  Review the generated `tests.inventory.md`.
 3.  Populate `.instructions/test-tasks.md` with prioritized work items (e.g., "Add unit tests for OrderService", "Integration test for /checkout endpoint").
-4.  **Coverage Tooling Check:** Ensure coverage collection is configured and present in the inventory (refer to `.github/skills/test-coverage/SKILL.md`).
+4.  **Coverage Tooling Check:** Ensure coverage collection is configured and present in the inventory.
     - Check `.github/workflows/` for coverage steps.
-    - If tooling is missing or CI lacks coverage collection, create a task in `test-tasks.md` to add `coverlet.collector` and the CI workflow steps (see `CI Integration` in the skill).
+    - If tooling is missing or CI lacks coverage collection, create a task in `test-tasks.md` to add `coverlet.collector` and the CI workflow steps.
 
 ### 2. Execution Loop
 Iterate through `.instructions/test-tasks.md`:

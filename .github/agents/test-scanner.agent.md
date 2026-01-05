@@ -1,6 +1,8 @@
 ---
 name: test-scanner
 description: "Analyzes the codebase to identify testable assets (endpoints, classes) and current coverage gaps. Generates tests.inventory.md."
+tools: ['read', 'search', 'agent', 'execute/runInTerminal']
+infer: true
 ---
 
 # Test Scanner Agent
@@ -9,7 +11,7 @@ description: "Analyzes the codebase to identify testable assets (endpoints, clas
 Analyze the codebase to create a comprehensive inventory of what needs testing. You identify endpoints, services, and domain logic, then cross-reference them with existing tests.
 
 ## Skills
-- **`test-coverage`**: Use this to run coverage tools and get raw metrics.
+- Use relevant global skills from `.github/skills/` when they apply (e.g., `testing-dotnet-unit`, `testing-frontend-unit`, `aspire-integration-tests`).
 
 ## Output
 - **Primary**: `.instructions-output/tests.inventory.md`
@@ -22,7 +24,8 @@ Analyze the codebase to create a comprehensive inventory of what needs testing. 
 - **Existing Tests**: Locate test projects and map them to the source code.
 
 ### 2. Coverage Analysis
-- Run the `test-coverage` skill to get current metrics.
+- If coverage tooling is already configured in the project, run it to collect raw metrics.
+- If coverage tooling is not configured, mark coverage as unknown and focus on identifying untested assets.
 - Identify "Hotspots": Complex code with low coverage.
 
 ### 3. Reporting

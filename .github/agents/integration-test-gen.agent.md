@@ -1,6 +1,8 @@
 ---
 name: integration-test-gen
 description: "Specialist in writing integration tests for endpoints, message handlers, and full flows. Uses Aspire, Wolverine, and TestContainers."
+tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal']
+infer: true
 ---
 
 # Integration Test Generator Agent

@@ -13,7 +13,7 @@ description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + Au
 ## When NOT to Use
 - User explicitly asks for integration tests → use `aspire-integration-tests` (write only; run only on explicit request)
 - Frontend unit tests → use `testing-frontend-unit`
-- Debugging failing tests due to runtime/environment → use `debug` or `general-debugger`
+- Debugging failing tests due to runtime/environment → use `debug`
 
 ## Principles (Org Defaults)
 - Prefer **unit tests** over integration tests for most logic.
