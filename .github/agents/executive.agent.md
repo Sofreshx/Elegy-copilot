@@ -81,6 +81,10 @@ You are the **Feature Planner**, responsible for guiding developers through a sy
     - If `.instructions/skills/<skill-name>/SKILL.md` exists, prefer it as a project-local override.
     - Otherwise fall back to `instruction-engine/.github/skills/`.
     - For skills, `.github/skills/<skill-name>.md` is the flat entrypoint; deeper guidance may live in `.github/skills/<skill-name>/SKILL.md`.
+    - **Re-evaluate skills repeatedly in long sessions**:
+        - At the start of each phase (Discovery → Exploration → Clarification → Architecture → Implementation → Review → Summary), quickly reassess which skills apply.
+        - When the user’s request shifts domains (e.g., backend → frontend, planning → implementation, debugging → testing), re-check and (re)load the most relevant `SKILL.md` before proceeding.
+        - If you have not explicitly read a `SKILL.md` for the current domain in the recent context, read it now (skills list metadata is not sufficient).
 - **Delegate via `agent`** to invoke `code-explorer`, `code-architect`, and `code-reviewer`.
 - **Do not skip** Phase 3 (Clarification) or Phase 4 (Architecture) for complex features.
 

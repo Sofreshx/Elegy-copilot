@@ -10,6 +10,15 @@ These instructions focus on:
 - How we track work (`.instructions/tasks.md` and `.instructions/raw.tasks.md`)
 - Remember to use related SKILL files when relevant (prefer the active/target project repo’s `.github/skills/` if present; otherwise fall back to `instruction-engine/.github/skills/`).
 
+## Skills (Load, Don’t Assume)
+The “skills list” provided to the agent only includes **metadata** (name/description/path). To actually apply a skill’s guidance, the agent must **read** the corresponding `SKILL.md`.
+
+When a user request clearly matches a skill domain (e.g., React Query usage, .NET unit testing, refactors, planning workflows):
+- **MUST** read the most relevant `SKILL.md` early (before planning or making code changes).
+- Prefer repo-local skills first: `.github/skills/<skill>/SKILL.md`.
+- If not present, fall back to: `instruction-engine/.github/skills/<skill>/SKILL.md`.
+- If multiple skills apply, read the top 1–2 most relevant and follow them.
+
 ## Read This First (Project Truth Sources)
 When working in any project repo, preferentially consult these files before making structural changes:
 
