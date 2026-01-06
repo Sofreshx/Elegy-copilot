@@ -77,6 +77,7 @@ Full skill instructions may live in the canonical file at `.github/skills/<skill
 | Wolverine Core | `wolverine-core/` | "Wolverine", "message handler", "CQRS" | Wolverine messaging |
 | Wolverine HTTP | `wolverine-http/` | "Wolverine endpoint", "Wolverine API" | Wolverine HTTP |
 | Marten Documents | `marten-documents/` | "Marten", "document store" | Marten document DB |
+| Marten LINQ Querying | `marten-linq-querying/` | "Marten LINQ", "NotSupportedException", "Include()", "child collections", "Any", "Contains", "pagination", "Skip", "Take", "OrderBy", "ToPagedListAsync", "Stats", "ToAsyncEnumerable" | Marten LINQ querying pitfalls |
 | Marten Events | `marten-events/` | "event sourcing", "Marten events" | Marten event sourcing |
 | Orleans | `orleans/` | "Orleans", "grain", "virtual actor" | Microsoft Orleans |
 | SignalR | `signalr/` | "SignalR", "real-time", "websocket" | SignalR real-time |

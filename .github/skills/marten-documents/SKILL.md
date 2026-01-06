@@ -65,16 +65,12 @@ await session.SaveChangesAsync();
 
 ## Common Filtering Patterns
 
-### ⚠️ Critical: Avoid Chained `.Where()` Calls
-Marten's LINQ parser often fails with multiple `.Where()` calls. Always combine conditions into a single expression.
+### LINQ Translation: Prefer Simple Predicates
+Marten translates a subset of LINQ. Some expression shapes can compile in C# but fail at runtime if they cannot be translated.
 
-```csharp
-// ❌ BAD: Chained Where calls (often fails translation)
-query.Where(x => x.IsActive).Where(x => x.Role == "Admin");
+Practical rule: keep predicates simple, and when debugging a translation failure, consider collapsing conditions into a single predicate to isolate what Marten can translate.
 
-// ✅ GOOD: Single Where with boolean logic
-query.Where(x => x.IsActive && x.Role == "Admin");
-```
+For deeper guidance on supported operators, `Include()`, child collections (`Any/Contains` constraints), pagination, and async enumeration, use: `.github/skills/marten-linq-querying/SKILL.md`.
 
 ### Filtering Examples
 ```csharp
