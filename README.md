@@ -19,7 +19,7 @@ Instruction Engine is a **workspace model** that extends GitHub Copilot Chat wit
 
 ### 1. Add to Your Project
 
-Copy the `.github/` folder to your project, or add this repo as a submodule:
+Copy the `.github/` folder to your project (optional: include `.codex/` for browsable reference docs), or add this repo as a submodule:
 
 ```bash
 git submodule add https://github.com/Sofreshx/instruction-engine.git instruction-engine
@@ -55,7 +55,7 @@ The only common developer-local items are session RAM and generated outputs:
 
 | Example | Uses | Purpose |
 |---------|------|---------|
-| "Plan this feature" (Plan Mode) | Plan Mode + `planning-feature` skill | Produce a structured plan before edits |
+| "Plan this feature" | Plan Mode or `@executive2-planner` | Produce a structured plan before edits |
 | "Archive completed tasks" | `system-cleanup` skill | Move done task files to `tasks.archive/` and append to `tasks.history.md` |
 | `@helper How does X work?` | Custom agent | Explanations (read-only) |
 | `@debugger Why is this failing?` | Custom agent | Investigate errors |
@@ -82,7 +82,7 @@ Recommended: use VS Code “Configure Custom Agents” to hide internal agents f
 
 ```
 instruction-engine/.github/          # Global Engine (shared)
-├── copilot-instructions.md          # Shared guidance (skills-first)
+├── copilot-instructions.md          # Shared guidance (global conventions)
 ├── agents/                          # Optional custom agents
 │   ├── assistant.agent.md           # @helper
 │   ├── debugger.agent.md            # @debugger
@@ -90,9 +90,12 @@ instruction-engine/.github/          # Global Engine (shared)
 │   ├── onboarding.agent.md          # @onboarding
 │   ├── skill-builder.agent.md       # @skill-builder
 │   └── merger.agent.md              # @merger
-├── skills/                          # Shared/reference skills (copy into repo for auto-load)
+├── skills/                          # Skills (Copilot loads from here)
 ├── templates/                       # Project scaffolding
 └── patterns/                        # Reusable patterns
+
+instruction-engine/.codex/           # Reference docs (mirrors / indexes)
+└── skills/                          # Skill index + reference copies
 
 your-project/.instructions/          # Local Project (per-repo)
 ├── project.index.md                 # Active skills registry
@@ -100,19 +103,19 @@ your-project/.instructions/          # Local Project (per-repo)
 ├── tasks.archive/                   # Archived completed tasks
 ├── tasks.history.md                 # Append-only recap log
 ├── architecture.md                  # Project overview
-├── warnings.md                      # Active risks
 └── contexts/                        # Project-specific knowledge
+  └── project.memory.md            # Lessons, gotchas, active warnings/risks
 ```
 
 ## The Loop
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  1. PLAN: Plan Mode + planning skills                        │
+│  1. PLAN: Plan Mode + planner agents                          │
 ├─────────────────────────────────────────────────────────────┤
-│  2. IMPLEMENT: Default agent + repo skills                   │
+│  2. IMPLEMENT: Default agent + subagents as needed            │
 ├─────────────────────────────────────────────────────────────┤
-│  3. ORGANIZE: project-management skill keeps backlog tidy    │
+│  3. ORGANIZE: cleanup agents keep backlog tidy                │
 └─────────────────────────────────────────────────────────────┘
 ```
 

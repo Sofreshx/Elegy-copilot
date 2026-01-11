@@ -8,7 +8,7 @@ The main goal is consistent, correct work by grounding decisions in the project'
 These instructions focus on:
 - Where to look first (architecture + context memory)
 - How we track work (task files under `.instructions/tasks/`)
-- Remember to use related SKILL files when relevant (prefer the active/target project repo’s `.github/skills/` if present; otherwise fall back to `instruction-engine/.codex/skills/`).
+- Remember to use related SKILL files when relevant (prefer the active/target project repo’s `.github/skills/` if present; otherwise fall back to `instruction-engine/.github/skills/`).
 
 ## Skills (Load, Don’t Assume)
 The “skills list” provided to the agent only includes **metadata** (name/description/path). To actually apply a skill’s guidance, the agent must **read** the corresponding `SKILL.md`.
