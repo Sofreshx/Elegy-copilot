@@ -1,8 +1,6 @@
 ---
 name: security-scanner
 description: "Scans the codebase for security vulnerabilities, focusing on endpoints and OWASP risks."
-role: agent
-visibility: internal
 tools: ['read', 'edit', 'search', 'web']
 infer: true
 ---

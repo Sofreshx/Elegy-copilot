@@ -1,8 +1,6 @@
 ---
 name: test-scanner
 description: "Analyzes the codebase to identify testable assets (endpoints, classes) and current coverage gaps. Generates tests.inventory.md."
-role: agent
-visibility: internal
 tools: ['read', 'search', 'agent', 'execute/runInTerminal']
 infer: true
 ---

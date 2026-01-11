@@ -1,8 +1,6 @@
 ---
 name: debugger
 description: "Bug investigator that analyzes errors, reproduces issues, and proposes fixes. Use for 'debug this error', 'why is this failing', 'investigate bug', or when sharing stack traces. Generates reports in .instructions-output/."
-role: agent
-visibility: internal
 tools: ['read', 'search', 'execute']
 ---
 

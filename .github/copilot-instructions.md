@@ -78,6 +78,7 @@ Use `.instructions/contexts/project.memory.md` for deep context that helps futur
 - Tasks MUST include:
   - `owner` (developer responsible)
   - `skills` (skill names to load when working the task)
+  - `depends_on` / `next_tasks` (task graph links; empty arrays for isolated tasks)
   - Attempt log sections (what was tried, why it failed, next attempt)
 
 **Filename convention**
@@ -94,6 +95,8 @@ status: not-started | in-progress | blocked | done | archived
 priority: low | medium | high | critical
 owner: "dev-handle"
 skills: ["skill-one", "skill-two"]
+depends_on: []
+next_tasks: []
 created: "YYYY-MM-DD"
 updated: "YYYY-MM-DD"
 ---

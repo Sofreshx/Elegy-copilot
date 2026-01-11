@@ -1,8 +1,6 @@
 ---
 name: helper
 description: "General assistant for questions, explanations, and guidance. Use for 'how does X work', 'explain this code', 'what is the best way to', or any learning/clarification request. Read-only - does not modify code."
-role: agent
-visibility: internal
 tools: ['read', 'search']
 ---
 

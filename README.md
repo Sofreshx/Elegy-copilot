@@ -65,12 +65,8 @@ The only common developer-local items are session RAM and generated outputs:
 
 Executive2 is now split into two explicit agents:
 
-- `@executive2-planner`: planning-only. Clarifies the goal + acceptance criteria and proposes a concrete plan. It does **not** write code or persist tasks.
-- `@executive2`: orchestration-only. After you click **Start Implementation**, it creates persisted tasks/artefacts (when warranted) and delegates execution to subagents.
-
-There is also:
-
-- `@executive2-fast`: same discipline, but **no persisted tasks/artefacts**. Use for small, safe work.
+- `@executive2-planner`: planning + task graph creation. Produces goal/acceptance criteria/plan and creates persisted `.instructions/tasks/*` via explicit subagents. For complex work, it may also create `.instructions/artefacts/x-PLAN-artefact.md` to prevent context drift.
+- `@executive2`: orchestration-only. Executes strictly from the existing plan + task graph, explicitly delegating each task to `task-runner`, and routing testing through `test-executive`. If tasks/plan are missing or reality diverges, it hands back to planning.
 
 ### Hiding Internal Agents (Copilot UI)
 

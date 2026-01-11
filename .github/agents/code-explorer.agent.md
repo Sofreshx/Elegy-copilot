@@ -1,8 +1,6 @@
 ---
 name: code-explorer
 description: "Deeply analyzes existing codebase features by tracing execution paths, mapping architecture layers, understanding patterns and abstractions, and documenting dependencies to inform new development."
-role: agent
-visibility: internal
 tools: ['read', 'search', 'web/fetch']
 infer: true
 ---

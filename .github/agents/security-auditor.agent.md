@@ -1,8 +1,6 @@
 ---
 name: security-auditor
 description: "Security Executive. Orchestrates scanning and fixing of security vulnerabilities."
-role: agent
-visibility: internal
 ---
 
 # Security Auditor Agent
