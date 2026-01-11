@@ -1,8 +1,6 @@
 ---
 name: executive2
 description: "Executive2 Orchestrator. Creates persisted tasks/artefacts and delegates execution to internal subagents. Use after planning (via executive2-planner handoff)."
-role: executive
-visibility: public
 tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal', 'agent/runSubagent']
 infer: true
 handoffs:

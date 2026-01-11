@@ -1,8 +1,6 @@
 ---
 name: executive2-fast
 description: "Fast executive variant. Uses the Executive2 discipline but does NOT create persisted tasks/artefacts/fragments; executes directly like a normal agent."
-role: executive
-visibility: public
 tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal', 'agent/runSubagent']
 infer: true
 handoffs:

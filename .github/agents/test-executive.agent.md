@@ -1,8 +1,6 @@
 ---
 name: test-executive
 description: "Orchestrates the testing lifecycle: scanning, planning, and executing unit/integration tests. Manages test task files under .instructions/test-tasks/."
-role: agent
-visibility: internal
 tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal', 'agent/runSubagent']
 ---
 

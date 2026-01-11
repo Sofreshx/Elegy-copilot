@@ -1,8 +1,6 @@
 ---
 name: skill-porter
 description: "Specialist for porting and verifying skills between the instruction-engine and target repositories."
-role: agent
-visibility: internal
 tools: ['read', 'edit', 'search']
 model: GPT-5 mini (copilot)
 infer: false

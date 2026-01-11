@@ -1,9 +1,7 @@
 ---
 name: executive2-planner
 description: "Planning-only companion to executive2. Clarifies goals, constraints, and an actionable plan. Ends with a Start Implementation handoff to executive2."
-role: planner
-visibility: public
-handoff:
+
 tools: ['read', 'search', 'agent', 'agent/runSubagent']
 infer: true
 handoffs:

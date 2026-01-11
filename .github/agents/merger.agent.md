@@ -1,8 +1,6 @@
 ---
 name: merger
 description: "Merge conflict resolver and migration specialist. Helps resolve git merge conflicts, rebase issues, code integration problems, and framework/library migrations. Use for 'merge conflict', 'resolve conflict', 'fix merge', 'rebase help', 'upgrade framework', or 'migrate library'."
-role: agent
-visibility: internal
 tools: ['read', 'edit', 'search', 'execute']
 ---
 

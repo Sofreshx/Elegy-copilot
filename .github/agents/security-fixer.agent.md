@@ -1,8 +1,6 @@
 ---
 name: security-fixer
 description: "Implements security fixes for identified vulnerabilities."
-role: agent
-visibility: internal
 tools: ['read', 'edit', 'search']
 infer: true
 ---
