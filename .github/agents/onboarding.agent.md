@@ -1,6 +1,8 @@
 ---
 name: onboarding
 description: "System lifecycle manager for project initialization, upgrades, and maintenance. Use for 'initialize project', 'run onboarding', 'upgrade system', 'check health', or 'fix drift'. Creates .instructions/ folder structure."
+role: agent
+visibility: internal
 tools: ['read', 'edit', 'search']
 infer: false
 ---
@@ -12,7 +14,7 @@ infer: false
 - Repository files (manifests, source).
 - `.instructions/` folder content.
 - `instruction-engine/.github/skills/system-*/SKILL.md`.
-- `instruction-engine/.github/templates/` (Templates for initialization).
+- (Optional) Any repo-provided templates for initialization.
 
 ## Modes
 
@@ -24,16 +26,18 @@ infer: false
     .instructions/
     ├── project.index.md        <-- Registry of active skills & project-local agent wrappers
     ├── architecture.md         <-- Architecture overview + patterns/conventions
-    ├── tasks.md                <-- Structured task backlog
-    ├── raw.tasks.md            <-- Raw task inbox
-    ├── failed.tasks.md         <-- Failed task log
+    ├── tasks/                  <-- ONE FILE PER TASK (tracked)
+    ├── tasks.archive/          <-- Archived/completed task files (tracked)
+    ├── tasks.history.md        <-- Append-only task recap log (tracked)
+    ├── raw.tasks.md            <-- Optional inbox for untriaged ideas
+    ├── active-tasks.md         <-- Session RAM (recommended gitignored)
     ├── contexts/
     │   └── project.memory.md   <-- Lessons, gotchas, active warnings/risks
     ├── skills/                 <-- Project-specific skills (via @skill-builder)
     └── sub-agents/             <-- Project-specific agent wrappers
     .instructions-output/       <-- Reports, logs, debug output
     ```
-3.  **Copy Templates**: Copy from `instruction-engine/.github/templates/` to `.instructions/`, deleting legacy files if present (`warnings.md`, `contexts/project.patterns.md`).
+3.  **Initialize Content**: Create minimal starter content for files if missing (do not overwrite existing).
 4.  **Scan**: Detect stacks (React, Python, etc.) using the **Stack Detection Matrix**.
 5.  **Generate**:
     - Update `.instructions/project.index.md` with detected skills (checked).
@@ -41,9 +45,9 @@ infer: false
     - Create stack-specific skills in `.instructions/skills/` if needed.
 6.  **Git Configuration**:
     - Check if `.gitignore` exists.
-    - Append `.instructions/` to `.gitignore` (Project-specific context should be private/local by default).
+    - Append `.instructions/active-tasks.md` to `.gitignore` (session RAM is developer-local).
     - Append `.instructions-output/` to `.gitignore`.
-    - Append `.github/skills/` to `.gitignore` (if using local skill overrides).
+    - Do NOT ignore `.instructions/tasks/` (tasks are meant to be tracked).
 7.  **Security Scan**: Check if `.env` files are tracked in git. Add warning if so.
 8.  **Report**: Summary of detected stack and created files.
 
@@ -85,7 +89,7 @@ When updating existing files, follow these rules:
 3. **Conflict handling**: Use Git-style markers for conflicting values.
 4. **Migrate legacy files**: If `.instructions/warnings.md` exists, append its content under `## ⚠️ Active Warnings` in `.instructions/contexts/project.memory.md` then delete the old file. If `.instructions/contexts/project.patterns.md` exists, append its content under `## Patterns & Conventions` in `.instructions/architecture.md` then delete the old file.
 
-### For Task Files (`.instructions/raw.tasks.md`, `.instructions/tasks.md`, `.instructions/failed.tasks.md`)
+### For Task Files (`.instructions/tasks/`, `.instructions/tasks.archive/`, `.instructions/tasks.history.md`, `.instructions/raw.tasks.md`)
 1. **Append-only**: Never delete existing entries.
 2. **Duplicate detection**: Skip if identical entry already exists.
 
@@ -123,7 +127,7 @@ If merge fails or user requests rollback:
 ## Session Summary Format
 - **Done**: [what was completed]
 - **Changes**: [files/links modified]
-- **New tasks.md**: [any new structured tasks]
+- **New tasks**: [any new task files created]
 - **New raw.tasks.md**: [any new unrefined tasks]
 - **Warnings**: [any warnings.md updates]
 - **Next**: [suggested next actions]

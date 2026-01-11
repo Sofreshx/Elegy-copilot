@@ -1,6 +1,8 @@
 ---
 name: unit-test-gen
 description: "Specialist in writing high-quality unit tests for domain logic, services, and aggregates. Focuses on isolation and edge cases."
+role: agent
+visibility: internal
 tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal']
 infer: true
 ---

@@ -1,6 +1,8 @@
 ---
 name: skill-builder
 description: "Skill generator that researches library documentation and creates reusable skill agents. Use for 'create a skill for X', 'learn library Y', 'parse docs for Z', or when you need to add new framework knowledge."
+role: agent
+visibility: internal
 tools: ['read', 'edit', 'search', 'web']
 ---
 

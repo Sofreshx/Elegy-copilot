@@ -11,7 +11,7 @@ description: "Aspire integration testing. Creates and maintains integration test
 - When not requested, provide the exact command(s) the user can run.
 
 ## Inputs
-- Task from `tasks.md`.
+- Task from a task file under `.instructions/tasks/`.
 - `warnings.md`, `contexts/aspire.context.md`, `contexts/project.patterns.md`.
 
 ## Steps
@@ -29,7 +29,7 @@ description: "Aspire integration testing. Creates and maintains integration test
 ## Session Summary Format
 - **Done**: [what was completed]
 - **Changes**: [files/links modified]
-- **New tasks.md**: [any new structured tasks]
+- **New tasks**: [any new task files created]
 - **New raw.tasks.md**: [any new unrefined tasks]
 - **Warnings**: [any warnings.md updates]
 - **Next**: [suggested next actions]

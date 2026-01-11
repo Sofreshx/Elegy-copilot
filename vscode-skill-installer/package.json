@@ -1,0 +1,113 @@
+{
+  "name": "skill-installer",
+  "displayName": "Instruction Engine Skill Installer",
+  "description": "Shows which Instruction Engine skills are available and which are loaded in target repos.",
+  "version": "0.0.1",
+  "publisher": "sofreshx",
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sofreshx/instruction-engine.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:skillInstaller.skillsView",
+    "onView:skillInstaller.tasksView",
+    "onView:skillInstaller.activeTasksView",
+    "onView:skillInstaller.agentsView",
+    "onCommand:skillInstaller.refresh",
+    "onCommand:skillInstaller.clearRepoContext",
+    "onCommand:skillInstaller.clearAllRepoContexts"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "skillInstaller",
+          "title": "Skills",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "skillInstaller": [
+        {
+          "id": "skillInstaller.skillsView",
+          "name": "Skill Discovery"
+        },
+        {
+          "id": "skillInstaller.agentsView",
+          "name": "Agents"
+        },
+        {
+          "id": "skillInstaller.activeTasksView",
+          "name": "Active Tasks"
+        },
+        {
+          "id": "skillInstaller.tasksView",
+          "name": "Tasks"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "skillInstaller.refresh",
+        "title": "Refresh Skills, Tasks & Agents"
+      },
+      {
+        "command": "skillInstaller.clearRepoContext",
+        "title": "Clear Repo Context"
+      },
+      {
+        "command": "skillInstaller.clearAllRepoContexts",
+        "title": "Clear Context for All Repos"
+      }
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "skillInstaller.clearRepoContext",
+          "when": "view == skillInstaller.agentsView && viewItem == skillInstaller.repo",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Instruction Engine",
+      "properties": {
+        "skillInstaller.tasks.onlyOwner": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, only show tasks whose YAML front matter 'owner' matches 'skillInstaller.tasks.owner' (case-insensitive)."
+        },
+        "skillInstaller.tasks.owner": {
+          "type": "string",
+          "default": "",
+          "description": "Owner/dev handle used to filter tasks when 'skillInstaller.tasks.onlyOwner' is enabled. Example: 'lolzi'."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint \"src/**/*.ts\"",
+    "vscode:prepublish": "npm run compile",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.2.2",
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
+    "eslint": "^9.18.0",
+    "typescript": "^5.6.3"
+  }
+}

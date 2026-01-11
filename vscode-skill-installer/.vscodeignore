@@ -1,0 +1,19 @@
+# VSIX packaging ignore rules (applies when running vsce)
+# Keep runtime assets (dist/, resources/, package.json, README) and exclude dev-only sources.
+
+**/node_modules/**
+
+# Dev sources
+src/**
+**/*.ts
+
+# Tooling / configs
+.vscode/**
+tsconfig.json
+eslint.config.js
+
+# Artifacts
+*.vsix
+
+# OS cruft
+.DS_Store

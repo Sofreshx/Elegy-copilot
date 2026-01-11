@@ -1,6 +1,8 @@
 ---
 name: performance-auditer
 description: "Performance optimization and bottleneck analysis. Identifies slow code, optimizes queries, reduces memory usage."
+role: agent
+visibility: internal
 ---
 
 # Performance Auditor Agent

@@ -1,6 +1,8 @@
 ---
 name: security-auditor
 description: "Security Executive. Orchestrates scanning and fixing of security vulnerabilities."
+role: agent
+visibility: internal
 ---
 
 # Security Auditor Agent
@@ -17,7 +19,7 @@ You are the **Security Executive**. You manage the security posture of the appli
 ### 1. Audit Cycle
 1.  Run **`security-scanner`** to generate `.instructions-output/security-audit.md`.
 2.  Review the report.
-3.  Create tasks in `.instructions/tasks.md` (or `active-tasks.md`) for high-priority vulnerabilities.
+3.  Create task files under `.instructions/tasks/` (or note them in `.instructions/active-tasks.md` for session RAM) for high-priority vulnerabilities.
 
 ### 2. Remediation Cycle
 For each high-priority vulnerability:

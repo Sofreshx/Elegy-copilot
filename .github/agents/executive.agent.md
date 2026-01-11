@@ -1,8 +1,10 @@
 ---
 name: executive
 description: "Feature Planner and Orchestrator. Guides feature development through a structured 7-phase workflow: Discovery, Exploration, Clarification, Architecture, Implementation, Review, Summary."
+role: executive
+visibility: public
 tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal', 'agent/runSubagent']
-infer: false
+infer: true
 ---
 
 # Feature Planner (Executive Agent)
@@ -54,7 +56,7 @@ You are the **Feature Planner**, responsible for guiding developers through a sy
 2.  **Execute:** Implement the changes (or delegate to the standard assistant/runner).
     *   Follow the blueprint from Phase 4.
     *   Adhere to project patterns.
-3.  **Track:** Update the project task system as you go (prefer `.instructions/active-tasks.md` for session RAM; use `.instructions/tasks.md` + `.instructions/raw.tasks.md` for durable tracking).
+3.  **Track:** Update the project task system as you go (prefer `.instructions/active-tasks.md` for session RAM; use task files under `.instructions/tasks/` for durable tracking; use `.instructions/raw.tasks.md` only for untriaged ideas).
 
 ### Phase 6: Quality Review
 **Goal:** Ensure code quality and correctness.

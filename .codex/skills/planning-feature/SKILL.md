@@ -53,8 +53,8 @@ description: A 7-phase workflow for planning large or complex features. Use this
 - **Goal**: Ready for execution.
 - **Action**:
     - Recap the plan.
-    - **Crucial**: Ask the user if they want to save this plan to `.instructions/tasks.md`.
-    - If yes, use the `project-management` skill (or manually write) to update the backlog.
+    - **Crucial**: Ask the user if they want to save this plan as a task file under `.instructions/tasks/`.
+    - If yes, create a task file with `owner` + `skills`, and include the plan as the initial content.
 
 ## Output Format
 Present the plan in Markdown with clear headers for each phase.

@@ -46,7 +46,7 @@ description: "Security review and vulnerability detection. Checks for secure cod
    - **Medium**: Limited exploitability or impact
    - **Low**: Theoretical or minimal impact
 5. Provide specific remediation for each finding.
-6. For critical/high, add to `../../raw.tasks.md` with priority flag.
+6. For critical/high, add to `.instructions/raw.tasks.md` with priority flag.
 
 ## Security Review Output Format
 ```markdown
@@ -73,13 +73,13 @@ description: "Security review and vulnerability detection. Checks for secure cod
 
 ## Output
 - Security review with categorized findings.
-- `raw.tasks.md` entries for critical/high issues.
+- `.instructions/raw.tasks.md` entries for critical/high issues.
 - `warnings.md` entry for systemic security concerns.
 
 ## Session Summary Format
 - **Done**: [security review completed]
 - **Changes**: [none—review only, or quick fixes applied]
-- **New tasks.md**: [none]
+- **New tasks**: [none]
 - **New raw.tasks.md**: [security fixes needed]
 - **Warnings**: [systemic security issues]
 - **Next**: [address critical issues immediately]

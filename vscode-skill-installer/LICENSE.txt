@@ -1,0 +1,9 @@
+Instruction Engine Skill Installer (VS Code Extension)
+
+Copyright (c) Sofreshx
+
+This extension is provided for internal use only.
+All rights reserved.
+
+No license is granted for external distribution, modification, or commercial use
+without explicit permission from the copyright holder.

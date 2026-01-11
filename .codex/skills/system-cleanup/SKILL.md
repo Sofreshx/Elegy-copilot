@@ -6,40 +6,37 @@ description: "Task file maintenance. Archives completed tasks and cleans up raw 
 # System Cleanup Skill
 
 ## Inputs
-- `.instructions/tasks.md`
-- `.instructions/tasks.review.md` (recently completed, awaiting review)
+- `.instructions/tasks/`
+- `.instructions/tasks.archive/`
+- `.instructions/tasks.history.md`
 - `.instructions/raw.tasks.md`
-- `.instructions/failed.tasks.md`
-- `.instructions/tasks.archive.md` (will be created if it doesn't exist)
 
 ## Steps
-1. **Sweep Active Tasks**:
-   - Verify `.instructions/tasks.md` has no `done` rows. If any slipped through, move them to `.instructions/tasks.review.md` (create with matching header if absent) and remove from the active file.
+1. **Archive Completed Task Files**:
+   - Scan `.instructions/tasks/` for tasks with `status: done`.
+   - For each completed task:
+     - Move the task file into `.instructions/tasks.archive/`.
+     - Update front matter: set `status: archived` and bump `updated`.
+     - Append a one-line recap to `.instructions/tasks.history.md` (append-only).
 
-2. **Move Reviewed Items to Archive**:
-   - Scan `.instructions/tasks.review.md` for rows marked `done` or otherwise completed/reviewed.
-   - Move these rows to `.instructions/tasks.archive.md`, appending them to the bottom.
-   - Ensure `.instructions/tasks.archive.md` has a header if it's new.
-   - Remove the moved rows from `.instructions/tasks.review.md`.
+2. **Initialize/Validate History**:
+   - Ensure `.instructions/tasks.history.md` exists; create it if missing.
+   - Keep it append-only; do not rewrite history.
 
-3. **Clean Raw Tasks**:
+3. **Clean Raw Inbox (Optional)**:
    - Scan `.instructions/raw.tasks.md`.
-   - Identify entries that are marked as completed (e.g., `[x]`) or explicitly linked to a `done` task in `.instructions/tasks.md` (or the archive).
-   - Remove these completed entries to keep the inbox clean.
-   - Consolidate remaining entries if the file is fragmented.
+   - Remove entries that are completed (e.g., `[x]`) or explicitly linked to an archived task ID.
+   - Keep remaining entries terse; collapse duplicates.
 
-4. **Review Failed Tasks**:
-   - Check `.instructions/failed.tasks.md`.
-   - If a failed task has since been re-attempted and marked `done` in `.instructions/tasks.md` (check by ID), mark the failure entry as resolved or move it to an archive section within `.instructions/failed.tasks.md`.
-
-5. **Validation**:
-   - Ensure no active (`pending`, `in-progress`) tasks were accidentally moved.
-   - Ensure `.instructions/tasks.md` and `.instructions/tasks.review.md` table formatting remains valid.
+4. **Validation**:
+   - Ensure no active (`not-started`, `in-progress`, `blocked`) tasks were accidentally archived.
+   - Ensure archived files remain searchable by ID.
 
 ## Output
-- Updated `.instructions/tasks.md` (leaner).
+- Updated `.instructions/tasks/` (done tasks moved out).
 - Updated `.instructions/raw.tasks.md` (cleaner).
-- Updated `.instructions/tasks.archive.md` (history).
+- Updated `.instructions/tasks.archive/` (archived tasks).
+- Updated `.instructions/tasks.history.md` (append-only recaps).
 - Session summary of items archived and removed.
 
 

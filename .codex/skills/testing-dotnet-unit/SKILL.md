@@ -49,6 +49,6 @@ description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + Au
 ## Session Summary Format
 - **Done**: [tests written]
 - **Changes**: [files modified]
-- **New tasks.md**: [if follow-up needed]
+- **New tasks**: [if follow-up needed]
 - **Warnings**: [if a risky untested area remains]
 - **Next**: [suggest running broader suite if requested]

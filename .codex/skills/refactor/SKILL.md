@@ -58,7 +58,7 @@ description: "Code restructuring and cleanup. Improves readability, reduces dupl
 ## Session Summary Format
 - **Done**: [refactoring completed]
 - **Changes**: [files modified]
-- **New tasks.md**: [none]
+- **New tasks**: [none]
 - **New raw.tasks.md**: [if follow-up needed, e.g., add tests]
 - **Warnings**: [if risk found]
 - **Next**: [verify behavior, continue refactoring, or done]

@@ -6,7 +6,7 @@ description: "Docker Compose configuration. Creates and modifies docker-compose.
 # Deployment Compose Skill
 
 ## Inputs
-- Task from `tasks.md`.
+- Task from a task file under `.instructions/tasks/`.
 - `warnings.md`, `contexts/aspire.context.md` (if applicable), `contexts/project.patterns.md`.
 
 ## Steps
@@ -24,7 +24,7 @@ description: "Docker Compose configuration. Creates and modifies docker-compose.
 ## Session Summary Format
 - **Done**: [what was completed]
 - **Changes**: [files/links modified]
-- **New tasks.md**: [any new structured tasks]
+- **New tasks**: [any new task files created]
 - **New raw.tasks.md**: [any new unrefined tasks]
 - **Warnings**: [any warnings.md updates]
 - **Next**: [suggested next actions]

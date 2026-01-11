@@ -48,7 +48,7 @@ description: "Documentation creation and improvement. Creates README, API docs, 
 ## Session Summary Format
 - **Done**: [docs created/updated]
 - **Changes**: [files modified]
-- **New tasks.md**: [none]
+- **New tasks**: [none]
 - **New raw.tasks.md**: [if more docs needed]
 - **Warnings**: [if found undocumented critical areas]
 - **Next**: [review docs or continue]

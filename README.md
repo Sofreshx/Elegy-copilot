@@ -3,7 +3,7 @@
 > **A structured agent orchestration system for GitHub Copilot Chat**
 
 [![Copilot Compatible](https://img.shields.io/badge/Copilot-Compatible-blue?logo=github)](https://docs.github.com/en/copilot)
-[![Agents & Skills](https://img.shields.io/badge/Agents_%26_Skills-blue)](/.github/skills)
+[![Agents & Skills](https://img.shields.io/badge/Agents_%26_Skills-blue)](/.codex/skills)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ## What is this?
@@ -33,19 +33,19 @@ In VS Code Copilot Chat:
 ```
 
 This creates your `.instructions/` folder with:
-- `tasks.md` - Your task backlog
+- `tasks/` - One task per file (with attempts/failures as durable memory)
 - `architecture.md` - Project structure
 - `project.index.md` - Active skills registry
 - `contexts/` - Patterns and memory
 
-### 2.1 Add `.instructions` task files to `.gitignore`
+### 2.1 Recommended `.gitignore`
 
-These are developer-local and will cause churn/merge conflicts if committed:
+Tasks are meant to be tracked in git now (so teams can collaborate and resume work).
+The only common developer-local items are session RAM and generated outputs:
 
 ```gitignore
-# Instruction Engine task pipeline (developer-local)
-.instructions/tasks.md
-.instructions/raw.tasks.md
+# Instruction Engine session RAM (developer-local)
+.instructions/active-tasks.md
 
 # Instruction Engine generated outputs (developer-local)
 .instructions-output/
@@ -56,10 +56,31 @@ These are developer-local and will cause churn/merge conflicts if committed:
 | Example | Uses | Purpose |
 |---------|------|---------|
 | "Plan this feature" (Plan Mode) | Plan Mode + `planning-feature` skill | Produce a structured plan before edits |
-| "Organize `.instructions/tasks.md`" | `project-management` skill | Triage/prioritize the backlog |
+| "Archive completed tasks" | `system-cleanup` skill | Move done task files to `tasks.archive/` and append to `tasks.history.md` |
 | `@helper How does X work?` | Custom agent | Explanations (read-only) |
 | `@debugger Why is this failing?` | Custom agent | Investigate errors |
 | `@auditor Check security` | Custom agent | Run quality/security scans |
+
+### Executive2 (Two-Agent Workflow)
+
+Executive2 is now split into two explicit agents:
+
+- `@executive2-planner`: planning-only. Clarifies the goal + acceptance criteria and proposes a concrete plan. It does **not** write code or persist tasks.
+- `@executive2`: orchestration-only. After you click **Start Implementation**, it creates persisted tasks/artefacts (when warranted) and delegates execution to subagents.
+
+There is also:
+
+- `@executive2-fast`: same discipline, but **no persisted tasks/artefacts**. Use for small, safe work.
+
+### Hiding Internal Agents (Copilot UI)
+
+Most non-executive agents in `.github/agents/` are meant to be invoked as **subagents** by the executive agents.
+VS Code’s agent picker hiding is currently **per-user**, so this repo uses a convention:
+
+- Agent frontmatter includes `role:` and `visibility:`.
+- Internal-only agents use `visibility: internal`.
+
+Recommended: use VS Code “Configure Custom Agents” to hide internal agents from the picker.
 
 ## Architecture
 
@@ -79,7 +100,9 @@ instruction-engine/.github/          # Global Engine (shared)
 
 your-project/.instructions/          # Local Project (per-repo)
 ├── project.index.md                 # Active skills registry
-├── tasks.md                         # Task backlog
+├── tasks/                           # One task per file
+├── tasks.archive/                   # Archived completed tasks
+├── tasks.history.md                 # Append-only recap log
 ├── architecture.md                  # Project overview
 ├── warnings.md                      # Active risks
 └── contexts/                        # Project-specific knowledge
@@ -99,7 +122,7 @@ your-project/.instructions/          # Local Project (per-repo)
 
 ## Available Skills
 
-This repository currently includes **36** skills under `.github/skills/` (see `.github/skills/index.md` for a full list).
+This repository currently includes skills under `.codex/skills/` (see `.codex/skills/index.md` for a full list).
 
 ### Core Development
 `feature-creator` · `frontend` · `refactor` · `migration`
@@ -119,7 +142,7 @@ This repository currently includes **36** skills under `.github/skills/` (see `.
 ### AI/ML
 `semantic-kernel-agents` · `openai-api` · `ms-agent-framework`
 
-[View all skills →](/.github/skills/index.md)
+[View all skills →](/.codex/skills/index.md)
 
 ## Copilot Integration
 
@@ -149,12 +172,12 @@ To enable skill subagent delegation, add this to your VS Code `settings.json`:
 - [Upgrade Guide](UPGRADE_GUIDE.md)  
 - [Example Workflow](EXAMPLE_WORKFLOW.md)
 - [Lazy Loading Pattern](.github/patterns/lazy-loading.pattern.md)
-- [Skill Index](.github/skills/index.md)
+- [Skill Index](.codex/skills/index.md)
 
 ## Contributing
 
 1. Fork this repository
-2. Create a skill in `.github/skills/`
+2. Create a skill in `.codex/skills/`
 3. Follow the [agent schema](#agent-schema)
 4. Submit a PR
 

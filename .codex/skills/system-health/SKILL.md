@@ -18,11 +18,8 @@ Perform a deep diagnostic scan of the instruction engine to ensure integrity, va
 ### 1. Core Integrity
 - **Existence**: Verify presence of critical files:
   - `.github/copilot-instructions.md`
-  - `.github/tasks.md`
-  - `.github/raw.tasks.md`
-  - `.github/warnings.md`
-  - `.github/contexts/project.patterns.md`
-  - `.github/contexts/security.context.md`
+  - `.github/agents/` (at least one `*.agent.md`)
+  - `.codex/skills/` (at least one skill)
 
 ### 2. Agent Validation
 Iterate through all `.github/skills/*/SKILL.md`:
@@ -44,7 +41,7 @@ Iterate through `.github/contexts/*.md`:
   - ✅ **Pass**: System is healthy.
   - ⚠️ **Warning**: Minor issues (empty contexts, deprecated fields).
   - ❌ **Error**: Broken links, missing core files, invalid YAML.
-- **Fix Tasks**: If errors are found, generate `raw.tasks.md` entries to fix them.
+- **Fix Tasks**: If errors are found, propose task files under `.instructions/tasks/` (or `.instructions/raw.tasks.md` if clarification is needed).
 
 ## Example Report
 ```markdown

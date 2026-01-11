@@ -21,11 +21,11 @@ description: "Debugging skill for diagnosing runtime errors, failing tests, and 
 - Error message, stack trace, or behavior description.
 - Relevant code files.
 - `warnings.md` (for known issues in the area).
-- `failed.tasks.md` (for similar past failures).
+- Task files under `.instructions/tasks/` and `.instructions/tasks.archive/` (check `## Failures` / `## Attempts / Log` for similar past failures).
 
 ## Steps
 1. **Gather context**: Read error details, relevant code, and any logs provided.
-2. **Check history**: Look in `failed.tasks.md` for similar issues—may have known fix.
+2. **Check history**: Look in recent task files (especially `## Failures`) for similar issues—may have known fix.
 3. **Hypothesize**: Form theories about root cause based on:
    - Error type and message
    - Stack trace location
@@ -73,7 +73,7 @@ description: "Debugging skill for diagnosing runtime errors, failing tests, and 
 ## Session Summary Format
 - **Done**: [issue diagnosed]
 - **Changes**: [fix applied if simple]
-- **New tasks.md**: [none]
+- **New tasks**: [none]
 - **New raw.tasks.md**: [if fix needs tracked work]
 - **Warnings**: [if systemic issue]
 - **Next**: [apply fix or continue diagnosis]

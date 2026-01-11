@@ -6,7 +6,7 @@ description: "Terraform infrastructure as code. Creates and modifies IaC for clo
 # Terraform Skill
 
 ## Inputs
-- Task from `tasks.md`.
+- Task from a task file under `.instructions/tasks/`.
 - `warnings.md`, `contexts/terraform.context.md`, `contexts/project.patterns.md`.
 
 ## Steps
@@ -23,7 +23,7 @@ description: "Terraform infrastructure as code. Creates and modifies IaC for clo
 ## Session Summary Format
 - **Done**: [what was completed]
 - **Changes**: [files/links modified]
-- **New tasks.md**: [any new structured tasks]
+- **New tasks**: [any new task files created]
 - **New raw.tasks.md**: [any new unrefined tasks]
 - **Warnings**: [any warnings.md updates]
 - **Next**: [suggested next actions]

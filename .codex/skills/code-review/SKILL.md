@@ -62,7 +62,7 @@ description: "Code review for quality, patterns, and bugs. Reviews PRs, identifi
 ## Session Summary Format
 - **Done**: [review completed]
 - **Changes**: [none—review only]
-- **New tasks.md**: [none]
+- **New tasks**: [none]
 - **New raw.tasks.md**: [issues needing fixes]
 - **Warnings**: [if systemic issue found]
 - **Next**: [address critical issues or approve]

@@ -12,7 +12,7 @@ description: "Backend feature implementation. Creates endpoints, services, and d
 - For refactoring existing code → use `refactor`
 
 ## Inputs
-- Task from `tasks.md`
+- Task from a task file under `.instructions/tasks/`
 - `warnings.md`, `contexts/project.patterns.md`
 - Search for similar features in codebase to match patterns
 
@@ -39,7 +39,7 @@ Before implementing, search for:
 ## Session Summary Format
 - **Done**: [what was completed]
 - **Changes**: [files/links modified]
-- **New tasks.md**: [any new structured tasks]
+- **New tasks**: [any new task files created]
 - **New raw.tasks.md**: [any new unrefined tasks]
 - **Warnings**: [any warnings.md updates]
 - **Next**: [suggested next actions]

@@ -1,0 +1,29 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "skill-installer: compile",
+			"type": "npm",
+			"script": "compile",
+			"path": "vscode-skill-installer",
+			"problemMatcher": "$tsc",
+			"group": "build"
+		},
+		{
+			"label": "skill-installer: watch",
+			"type": "npm",
+			"script": "watch",
+			"path": "vscode-skill-installer",
+			"isBackground": true,
+			"problemMatcher": "$tsc-watch",
+			"group": "build"
+		},
+		{
+			"label": "skill-installer: package",
+			"type": "npm",
+			"script": "package",
+			"path": "vscode-skill-installer",
+			"problemMatcher": []
+		}
+	]
+}

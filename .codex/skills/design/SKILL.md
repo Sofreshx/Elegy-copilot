@@ -70,7 +70,7 @@ Proposed | Accepted | Deprecated | Superseded
 ## Session Summary Format
 - **Done**: [design evaluated/proposed]
 - **Changes**: [ADR created, architecture.md updated]
-- **New tasks.md**: [none]
+- **New tasks**: [none]
 - **New raw.tasks.md**: [implementation tasks if design approved]
 - **Warnings**: [if design has risks]
 - **Next**: [implement or iterate on design]

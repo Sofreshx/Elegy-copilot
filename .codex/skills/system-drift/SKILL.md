@@ -11,13 +11,13 @@ description: "Instruction drift detection. Analyzes failed tasks to find systema
 - **Auto-triggered**: Task-runner can invoke when failure rate exceeds threshold.
 
 ## Inputs
-- `.instructions/failed.tasks.md` (primary source of drift signals).
+- Task files under `.instructions/tasks/` and `.instructions/tasks.archive/` (primary source of drift signals; read `## Failures` + `## Attempts / Log`).
 - `.instructions/warnings.md` (existing known issues).
 - All `.github/skills/*/SKILL.md` files (or `.instructions/skills/` for local overrides).
-- `.instructions/tasks.md` (to see success/failure ratio by agent).
+- `.instructions/tasks.history.md` (optional summary signal).
 
 ## Steps
-1. **Analyze failures**: Read `.instructions/failed.tasks.md` and categorize by:
+1. **Analyze failures**: Read task files and categorize by:
    - Agent that failed
    - Failure reason (missing context, wrong scope, unclear steps, etc.)
    - Frequency (one-off vs. recurring)
@@ -31,7 +31,7 @@ description: "Instruction drift detection. Analyzes failed tasks to find systema
    - New agent needed
    - Warning to add
 4. **Prioritize**: Rank fixes by impact (failure frequency × task importance).
-5. **Generate improvement tasks**: Create `../../raw.tasks.md` entries for each proposed fix, tagged with `[instruction-improvement]`.
+5. **Generate improvement tasks**: Create task files under `.instructions/tasks/` for each proposed fix, tagged with `[instruction-improvement]` in `title` or `tags`.
 6. **Report**: Summary of drift findings and proposed improvements.
 
 ## Drift Detection Rules
@@ -46,15 +46,14 @@ description: "Instruction drift detection. Analyzes failed tasks to find systema
 
 ## Output
 - Drift analysis report (in session summary).
-- New `../../raw.tasks.md` entries tagged `[instruction-improvement]`.
+- New task files under `.instructions/tasks/` tagged `[instruction-improvement]`.
 - Recommended priority order for fixes.
 
 ## Session Summary Format
 - **Done**: [analysis completed]
 - **Findings**: [drift patterns detected]
 - **Changes**: [none—this agent only analyzes]
-- **New tasks.md**: [none]
-- **New raw.tasks.md**: [instruction improvement tasks]
+- **New tasks**: [instruction improvement task files]
 - **Warnings**: [new systemic issues to log]
 - **Next**: [run system.editor to apply top-priority fix]
 

@@ -7,8 +7,8 @@ The main goal is consistent, correct work by grounding decisions in the project'
 
 These instructions focus on:
 - Where to look first (architecture + context memory)
-- How we track work (`.instructions/tasks.md` and `.instructions/raw.tasks.md`)
-- Remember to use related SKILL files when relevant (prefer the active/target project repo’s `.github/skills/` if present; otherwise fall back to `instruction-engine/.github/skills/`).
+- How we track work (task files under `.instructions/tasks/`)
+- Remember to use related SKILL files when relevant (prefer the active/target project repo’s `.github/skills/` if present; otherwise fall back to `instruction-engine/.codex/skills/`).
 
 ## Skills (Load, Don’t Assume)
 The “skills list” provided to the agent only includes **metadata** (name/description/path). To actually apply a skill’s guidance, the agent must **read** the corresponding `SKILL.md`.
@@ -16,7 +16,7 @@ The “skills list” provided to the agent only includes **metadata** (name/des
 When a user request clearly matches a skill domain (e.g., React Query usage, .NET unit testing, refactors, planning workflows):
 - **MUST** read the most relevant `SKILL.md` early (before planning or making code changes).
 - Prefer repo-local skills first: `.github/skills/<skill>/SKILL.md`.
-- If not present, fall back to: `instruction-engine/.github/skills/<skill>/SKILL.md`.
+- If not present, fall back to: `instruction-engine/.codex/skills/<skill>/SKILL.md`.
 - If multiple skills apply, read the top 1–2 most relevant and follow them.
 
 ## Read This First (Project Truth Sources)
@@ -38,19 +38,17 @@ If these files are missing or stale, treat it as a first-class task to update th
 | Asset Type | Location | Can Duplicate Locally? | Git Tracked? |
 |------------|----------|------------------------|--------------|
 | **Custom Agents (optional)** | `instruction-engine/.github/agents/` | ✅ If repo-local | ✅ Yes (Shared) |
-| **Generic Skills** | `instruction-engine/.github/skills/` | ✅ Override only | ✅ Yes (Shared) |
-| **Tasks & Context** | `.instructions/` | ✅ Always local | ❌ **NO** (Local) |
+| **Generic Skills** | `instruction-engine/.codex/skills/` | ✅ Override only | ✅ Yes (Shared) |
+| **Tasks** | `.instructions/tasks/` | ✅ Yes | ✅ **YES** |
+| **Task Archive/History** | `.instructions/tasks.archive/` + `.instructions/tasks.history.md` | ✅ Yes | ✅ **YES** |
+| **Project Context** | `.instructions/contexts/` | ✅ Yes | ⚠️ Project decision |
 
 
-**Minimum recommended `.gitignore` entries (per project):**
+**Recommended `.gitignore` entries (per project):**
 ```gitignore
-# Instruction Engine task pipeline (developer-local)
-.instructions/tasks.md
-.instructions/raw.tasks.md
-```
+# Instruction Engine session RAM (developer-local)
+.instructions/active-tasks.md
 
-**Common additional ignore (recommended):**
-```gitignore
 # Instruction Engine generated outputs (developer-local)
 .instructions-output/
 ```
@@ -60,9 +58,11 @@ If these files are missing or stale, treat it as a first-class task to update th
 .instructions/
 ├── project.index.md        <-- Optional catalog of skills/sub-agents (advisory)
 ├── architecture.md         <-- Architecture overview + patterns/conventions
-├── tasks.md                <-- Structured task backlog
-├── raw.tasks.md            <-- Raw task inbox
-├── failed.tasks.md         <-- Failed task log
+├── tasks/                  <-- ONE FILE PER TASK (tracked)
+├── tasks.archive/          <-- Archived/completed task files (tracked)
+├── tasks.history.md        <-- Append-only task recap log (tracked)
+├── raw.tasks.md            <-- Optional inbox for untriaged ideas
+├── active-tasks.md         <-- Session RAM (recommended gitignored)
 ├── contexts/
 │   └── project.memory.md   <-- Lessons, gotchas, active warnings/risks
 └── sub-agents/             <-- Project-specific agent wrappers
@@ -72,11 +72,32 @@ Use `.instructions/contexts/project.memory.md` for deep context that helps futur
 
 ## Task Workflow (How We Work)
 
-### `raw.tasks.md` (Inbox)
-- Use for untriaged work: quick ideas, bugs, rough notes.
-- Keep it one line per item; don’t write essays here.
-- Suggested format:
-  `- [ ] ID: temp-XXX | Title: short phrase | Source: user/agent | Notes: link or minimal context`
+### Task Files (`.instructions/tasks/`)
+- One task = one markdown file.
+- Task files are iterative: keep attempts, failures, and next steps in the same file.
+
+**Filename convention**
+- `task-000123--short-slug.md`
+
+**Front matter (required, YAML)**
+```yaml
+---
+schema: task/v1
+id: task-000123
+title: "Short, specific title"
+type: feature | bug | chore | docs | research
+status: not-started | in-progress | blocked | done | archived
+priority: low | medium | high | critical
+owner: "dev-handle"
+skills: ["skill-one", "skill-two"]
+created: "YYYY-MM-DD"
+updated: "YYYY-MM-DD"
+---
+```
+
+### `raw.tasks.md` (Inbox, optional)
+- Use for untriaged ideas.
+- Suggested format: `- [ ] ID: temp-XXX | Title: short phrase | Source: user/agent | Notes: link or minimal context`
 
 ### `active-tasks.md` (Work Memory)
 - Use for the *currently active* session context.
@@ -84,19 +105,11 @@ Use `.instructions/contexts/project.memory.md` for deep context that helps futur
 - **Context Loading**: Explicitly list relevant skills (from `.github/skills/`) and context files (from `.instructions/contexts/`) to keep them in focus.
 - Allows hopping back into work after context loss.
 
-### `tasks.md` (Backlog)
-- Use for structured, prioritized tasks that are ready to execute.
-- Keep it actionable: no completed items; no long narratives.
-- Recommended table schema:
-  `| ID | Title | Priority | Status | DependsOn | Notes |`
+### `.instructions/tasks.history.md` (History)
+- Append-only log of completed tasks (small recap + link/path to the archived file).
 
-### `failed.tasks.md` (Post-mortems)
-- When something fails repeatedly, log the failure mode and why.
-- Also record reusable lessons in `.instructions/contexts/project.memory.md`.
-
-### `tasks.review.md` and `tasks.archive.md`
-- `tasks.review.md`: completed items awaiting review/QA.
-- `tasks.archive.md`: historical record (post-review).
+### `.instructions/tasks.archive/` (Archive)
+- Completed task files are moved here and marked `status: archived`.
 
 ## Conventions (How To Operate)
 
