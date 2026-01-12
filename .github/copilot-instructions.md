@@ -13,21 +13,10 @@ Before structural changes, consult in this order:
 2. `.instructions/contexts/*.md` (especially `project.memory.md`)
 3. Repo docs (`README.md`, `docs/`, `documentation/`, design notes)
 
-If `.instructions/` is missing in an application repo, suggest running `@onboarding`.
-
 ## Workspace Organization (Where Things Go)
 - **Engine (shared)**: `instruction-engine/.github/` (agents + templates), `instruction-engine/..github/skills` (reference skills/docs)
 - **Project (per-repo)**: `.instructions/` (tasks, architecture, context/memory)
 - **Local output**: `.instructions-output/` (generated reports/logs; keep developer-local)
-
-**Recommended `.gitignore` entries (per project):**
-```gitignore
-# Instruction Engine session RAM (developer-local)
-.instructions/active-tasks.md
-
-# Instruction Engine generated outputs (developer-local)
-.instructions-output/
-```
 
 ## Tasks (Durable Tracking)
 - Use `.instructions/tasks/` when work needs a durable log (multi-step, ambiguous, or likely to be revisited).
@@ -43,6 +32,7 @@ Use subagents to keep work high-signal and consistent:
 - `@test-executive` to plan/coordinate testing; `@unit-test-gen` / `@integration-test-gen` to generate tests.
 - `@executive2-planner` + `@executive2` for larger multi-phase features.
 
+
 ## Skills (Use Judgement)
 In most cases, you don’t need to explicitly “load skills” manually.
 Only consult skill docs when you’re unsure, the change is high-risk, or the repo clearly declares a preferred way of doing something.
@@ -50,3 +40,7 @@ Only consult skill docs when you’re unsure, the change is high-risk, or the re
 ## Safety
 - Don’t do destructive scaffolding or large deletions without an explicit user ask.
 - When you discover a recurring gotcha, record it in `.instructions/contexts/project.memory.md`.
+
+## Testing
+- Always run existing tests after changes.
+- When adding features or fixing bugs, add relevant unit/integration tests.
