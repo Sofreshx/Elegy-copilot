@@ -61,12 +61,21 @@ The only common developer-local items are session RAM and generated outputs:
 | `@debugger Why is this failing?` | Custom agent | Investigate errors |
 | `@auditor Check security` | Custom agent | Run quality/security scans |
 
-### Executive2 (Two-Agent Workflow)
+### Executive2 (Composable Workflow)
 
-Executive2 is now split into two explicit agents:
+Executive2 supports two clean “start implementing” paths:
 
-- `@executive2-planner`: planning + task graph creation. Produces goal/acceptance criteria/plan and creates persisted `.instructions/tasks/*` via explicit subagents. For complex work, it may also create `.instructions/artefacts/x-PLAN-artefact.md` to prevent context drift.
-- `@executive2`: orchestration-only. Executes strictly from the existing plan + task graph, explicitly delegating each task to `task-runner`, and routing testing through `test-executive`. If tasks/plan are missing or reality diverges, it hands back to planning.
+- **Fast path (no persistence):**
+  - `@executive2-planner` (plan only) → `@executive2-fast` (implement directly, no `.instructions/` state)
+
+- **Task-graph path (durable execution):**
+  - `@executive2-planner` (plan only) → `@executive2-task-creator` (create `.instructions/tasks/*`) → `@executive2` (orchestrate via `task-runner`)
+
+Agent roles:
+- `@executive2-planner`: planning only (goal/acceptance criteria/plan). Does not create tasks unless explicitly requested.
+- `@executive2-task-creator`: converts an approved plan into persisted `.instructions/tasks/*` (and optionally a plan artefact for complex work).
+- `@executive2`: orchestration-only. Requires an existing task graph and delegates execution to `task-runner` and testing to `test-executive`.
+- `@executive2-fast`: implements directly with good judgment, but never persists `.instructions/` state.
 
 ### Hiding Internal Agents (Copilot UI)
 

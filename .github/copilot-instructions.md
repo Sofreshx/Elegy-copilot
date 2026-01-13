@@ -7,6 +7,24 @@ These are the lightweight, **global** conventions for using Instruction Engine a
 - Prefer small, verifiable changes.
 - If a task spans multiple steps or sessions, capture decisions in `.instructions/` when present.
 
+## Completion Gate (Don’t Stop Early)
+When the user asks you to *do* something (implement/fix/refactor), keep going until it is truly done end-to-end.
+
+Before replying with a “done” / “here’s what I did” message, verify you have:
+- Applied the change in the workspace (not just proposed it).
+- Checked for new errors (`get_errors`) in touched files.
+- Run the narrowest relevant validation (tests/build/task) when available.
+- Written a concise recap + what changed + how to validate.
+
+If you need input from the user:
+- Ask **one** targeted question.
+- Continue executing any non-blocked work in parallel (exploration, drafting, refactors that are safe).
+- Do not yield early with only a plan unless the user explicitly asked for a plan.
+
+Avoid “handoff-only” endings:
+- Don’t stop at “I can do X next, want me to?” if you can safely proceed.
+- Offer optional next steps only after the core request is complete.
+
 ## Read First (Project Truth)
 Before structural changes, consult in this order:
 1. `.instructions/architecture.md`
@@ -30,7 +48,7 @@ Use subagents to keep work high-signal and consistent:
 - `@code-reviewer` for a focused quality/security review.
 - `@merger` for merge conflicts and migrations.
 - `@test-executive` to plan/coordinate testing; `@unit-test-gen` / `@integration-test-gen` to generate tests.
-- `@executive2-planner` + `@executive2` for larger multi-phase features.
+- `@executive2-planner` for planning; then either `@executive2-fast` (no persistence) or `@executive2-task-creator` → `@executive2` (durable task graph) for larger multi-phase features.
 
 
 ## Skills (Use Judgement)
