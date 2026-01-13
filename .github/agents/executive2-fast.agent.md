@@ -23,6 +23,13 @@ Hard constraints:
 You still follow deterministic context loading and can delegate to subagents.
 If scope expands or risk rises, keep going by default; surface the risk and offer the **Switch to Planner** handoff as an explicit user choice (use it only when the user requests it or you're blocked).
 
+## Task Closure + Cleanup (Guidance)
+Even though you cannot modify `.instructions/tasks/*`, you should still ensure the user does not end up with stale finished tasks sitting in `.instructions/tasks/`.
+
+When you believe work is complete:
+- Ask the user if you should switch to `executive2` (persisted mode) to close/archive tasks properly.
+- Or suggest running the standard task archival workflow (the `system-cleanup` skill), which moves completed tasks to `.instructions/tasks.archive/` and appends recaps to `.instructions/tasks.history.md`.
+
 ## Optional: Handover Artefact (Opt-in)
 If the session is becoming context-heavy, or if the user asks for a handover, you may create **one** handover artefact so work can be resumed efficiently.
 

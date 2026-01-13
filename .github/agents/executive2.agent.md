@@ -103,9 +103,26 @@ For each task in `.instructions/tasks/`:
 - MUST call `test-executive` at least once at the end.
 - Call it more frequently when risk is high (core flows, migrations, bug fixes, broad refactors).
 
-### Phase 3 — Review + Close
+### Phase 3 — Review (explicit)
 - Run a focused review via `code-reviewer`.
-- Ensure `.instructions/` reflects final state.
+
+### Phase 4 — Close + Cleanup (non-negotiable)
+Executive2 must ensure tasks are properly closed and that finished task files do not linger in `.instructions/tasks/`.
+
+Rules:
+- Completed tasks must be marked `status: done` (task-runner does this on success).
+- After work is complete (or at meaningful milestones), archive finished tasks:
+   - Move completed task files from `.instructions/tasks/` into `.instructions/tasks.archive/`.
+   - Update the archived task front matter to `status: archived` and bump `updated`.
+   - Append a one-line recap per task into `.instructions/tasks.history.md` (append-only).
+- Never archive tasks that are `not-started`, `in-progress`, or `blocked`.
+
+How to perform cleanup:
+- Prefer using the existing `system-cleanup` skill for task archival behavior.
+- If you decide the skill is needed, explicitly locate and read `system-cleanup/SKILL.md` per the skill discoverability contract before applying it.
+
+Finally:
+- Ensure `.instructions/` reflects final state (tasks, archive, history).
 
 ## Explicit Subagent Usage (non-negotiable)
 Executive2 must not “quietly” do major work itself.
