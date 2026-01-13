@@ -1,6 +1,8 @@
-﻿---
+---
 name: cloudflare-storage
-description: "Cloudflare storage services integration. Handles R2 object storage, Workers KV, and Images API. Use this when asked to work with Cloudflare R2, Workers KV, image CDN, or Cloudflare storage integration."
+description: >
+    Cloudflare storage services integration. Handles R2 object storage, Workers KV, and Images API. Use this when asked to work with Cloudflare R2, Workers KV, image CDN, or Cloudflare storage integration.
+    Triggers on: "R2", "Cloudflare", "Cloudflare R2", "storage", "object storage".
 ---
 
 # Cloudflare Storage Skill
@@ -19,7 +21,7 @@ Cloudflare provides multiple storage solutions for different use cases: R2 for o
 ## Authentication
 
 ### Create API Token
-1. Dashboard → My Profile → API Tokens
+1. Dashboard ? My Profile ? API Tokens
 2. Create Token with required permissions
 3. Use `Authorization: Bearer <token>` header
 

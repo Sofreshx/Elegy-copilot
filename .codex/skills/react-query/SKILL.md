@@ -1,6 +1,8 @@
 ---
 name: react-query
-description: "TanStack React Query conventions for this org: prevent 'Query data cannot be undefined', standardize empty-state vs error handling, and guide openapi-fetch/openapi-react-query usage. Use this when working with useQuery/useMutation, query keys, enabled gating, or debugging React Query runtime errors."
+description: >
+  TanStack React Query conventions for this org: prevent 'Query data cannot be undefined', standardize empty-state vs error handling, and guide openapi-fetch/openapi-react-query usage. Use this when working with useQuery/useMutation, query keys, enabled gating, or debugging React Query runtime errors.
+    Triggers on: "react-query", "TanStack", "useQuery", "useMutation", "Query data cannot be undefined", "openapi-react-query".
 ---
 
 # React Query (TanStack) Skill

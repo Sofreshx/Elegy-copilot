@@ -1,6 +1,8 @@
-﻿---
+---
 name: system-editor
-description: "Instruction file editor. Updates agent instructions, contexts, and architecture docs. Use this for internal system maintenance only."
+description: >
+  Instruction file editor. Updates agent instructions, contexts, and architecture docs. Use this for internal system maintenance only.
+    Triggers on: "system editor", "edit instruction files", "edit skills".
 ---
 
 # System Editor Skill
@@ -12,7 +14,7 @@ description: "Instruction file editor. Updates agent instructions, contexts, and
 
 ## Steps
 1. Identify the change needed (new agent, context tweak, pipeline adjustment, pattern update).
-2. Read `.instructions/contexts/project.memory.md` and recent task files (check `## Failures` sections) to understand prior issues—avoid reintroducing known problems.
+2. Read `.instructions/contexts/project.memory.md` and recent task files (check `## Failures` sections) to understand prior issues�avoid reintroducing known problems.
 3. **Version tracking**: Before editing, note current schema-version; increment patch version for minor fixes, minor version for new capabilities.
 4. Apply updates to instructions/contexts; keep style consistent and follow Agent Template Schema from `onboarding.agent.md`.
 5. **Backup**: Create backup of modified files in `.backup/` before applying changes.
@@ -23,7 +25,7 @@ description: "Instruction file editor. Updates agent instructions, contexts, and
 ## Feedback Loop Integration
 When called after task failures:
 1. Read the failing task file (usually under `.instructions/tasks/`; if already completed, check `.instructions/tasks.archive/`).
-2. Analyze **why** the instruction failed—missing context? wrong agent? unclear steps?
+2. Analyze **why** the instruction failed�missing context? wrong agent? unclear steps?
 3. Propose specific instruction fix (add step, clarify scope, add context reference).
 4. If fix is approved, apply and log in changelog.
 5. Create a follow-up improvement task file under `.instructions/tasks/` (or use `.instructions/raw.tasks.md` if it needs clarification).

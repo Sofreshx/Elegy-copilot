@@ -1,6 +1,8 @@
-﻿---
+---
 name: signalr
-description: "ASP.NET Core SignalR real-time communication. Creates hubs, clients, and WebSocket connections. Use this when asked to create SignalR hubs, implement real-time features, work with WebSockets, or build live update functionality."
+description: >
+    ASP.NET Core SignalR real-time communication. Creates hubs, clients, and WebSocket connections. Use this when asked to create SignalR hubs, implement real-time features, work with WebSockets, or build live update functionality.
+    Triggers on: "SignalR", "real-time", "websocket", "web sockets".
 ---
 
 # SignalR Real-Time Communication Skill

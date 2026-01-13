@@ -1,6 +1,8 @@
-﻿---
+---
 name: system-health
-description: "System health diagnostic. Validates file integrity, references, and configuration. Use this for internal system maintenance only."
+description: >
+  System health diagnostic. Validates file integrity, references, and configuration. Use this for internal system maintenance only.
+    Triggers on: "system health", "verify system integrity", "health check".
 ---
 
 # System Health Skill
@@ -38,15 +40,15 @@ Iterate through `.github/contexts/*.md`:
 
 ## Output
 - **Health Report**: A summary of the scan.
-  - ✅ **Pass**: System is healthy.
-  - ⚠️ **Warning**: Minor issues (empty contexts, deprecated fields).
-  - ❌ **Error**: Broken links, missing core files, invalid YAML.
+  - ? **Pass**: System is healthy.
+  - ?? **Warning**: Minor issues (empty contexts, deprecated fields).
+  - ? **Error**: Broken links, missing core files, invalid YAML.
 - **Fix Tasks**: If errors are found, propose task files under `.instructions/tasks/` (or `.instructions/raw.tasks.md` if clarification is needed).
 
 ## Example Report
 ```markdown
 # System Health Report
-Status: ⚠️ Warning
+Status: ?? Warning
 
 ## Errors
 - [ ] Agent `planner.agent.md` references missing skill `skills/unknown.skill.md`.

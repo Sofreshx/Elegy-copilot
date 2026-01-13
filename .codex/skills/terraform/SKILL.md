@@ -1,6 +1,8 @@
-﻿---
+---
 name: terraform
-description: "Terraform infrastructure as code. Creates and modifies IaC for cloud resources. Use this when asked to create Terraform files, add infrastructure, provision cloud resources, or work on IaC."
+description: >
+  Terraform infrastructure as code. Creates and modifies IaC for cloud resources. Use this when asked to create Terraform files, add infrastructure, provision cloud resources, or work on IaC.
+    Triggers on: "terraform", "infrastructure", "IaC", "infrastructure as code".
 ---
 
 # Terraform Skill

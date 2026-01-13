@@ -1,6 +1,8 @@
 ---
 name: planning-feature
-description: A 7-phase workflow for planning large or complex features. Use this skill when asked to "plan a feature", "design architecture", or "break down requirements" for significant changes.
+description: >
+    A 7-phase workflow for planning large or complex features. Use this skill when asked to "plan a feature", "design architecture", or "break down requirements" for significant changes.
+    Triggers on: "plan a feature", "design a feature", "break down requirements", "feature plan".
 ---
 
 # Feature Planning Skill (7-Phase Workflow)

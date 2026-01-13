@@ -1,6 +1,8 @@
-﻿---
+---
 name: orleans
-description: "Microsoft Orleans virtual actors. Creates grains, silos, and distributed state. Use this when asked to create Orleans grains, implement virtual actors, work with distributed state, or build Orleans functionality."
+description: >
+    Microsoft Orleans virtual actors. Creates grains, silos, and distributed state. Use this when asked to create Orleans grains, implement virtual actors, work with distributed state, or build Orleans functionality.
+    Triggers on: "Orleans", "grain", "virtual actor".
 ---
 
 # Orleans Virtual Actors Skill

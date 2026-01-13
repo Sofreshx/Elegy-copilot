@@ -1,6 +1,8 @@
-﻿---
+---
 name: security
-description: "Security review and vulnerability detection. Checks for secure coding practices, secret exposure, injection risks. Use this when asked to do a security review, check for vulnerabilities, audit security, or review secure coding practices."
+description: >
+   Security review and vulnerability detection. Checks for secure coding practices, secret exposure, injection risks. Use this when asked to do a security review, check for vulnerabilities, audit security, or review secure coding practices.
+   Triggers on: "security", "vulnerability", "hardening", "secure coding".
 ---
 
 # Security Skill
@@ -15,9 +17,9 @@ description: "Security review and vulnerability detection. Checks for secure cod
 - Dependency security concerns
 
 ## When NOT to Use
-- General code quality → `code-review.agent.md`
-- Auth feature implementation → `auth.agent.md`
-- Performance issues → `performance-auditer.agent.md`
+- General code quality ? `code-review.agent.md`
+- Auth feature implementation ? `auth.agent.md`
+- Performance issues ? `performance-auditer.agent.md`
 
 ## Inputs
 - Code to review for security.
@@ -78,7 +80,7 @@ description: "Security review and vulnerability detection. Checks for secure cod
 
 ## Session Summary Format
 - **Done**: [security review completed]
-- **Changes**: [none—review only, or quick fixes applied]
+- **Changes**: [none�review only, or quick fixes applied]
 - **New tasks**: [none]
 - **New raw.tasks.md**: [security fixes needed]
 - **Warnings**: [systemic security issues]

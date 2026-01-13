@@ -1,6 +1,8 @@
-﻿---
+---
 name: aspire-apphost
-description: ".NET Aspire AppHost orchestration. Configures service discovery, dependencies, and local development. Use this when asked to configure Aspire, add a service to AppHost, set up orchestration, or work on Aspire AppHost configuration."
+description: >
+    .NET Aspire AppHost orchestration. Configures service discovery, dependencies, and local development. Use this when asked to configure Aspire, add a service to AppHost, set up orchestration, or work on Aspire AppHost configuration.
+    Triggers on: "AppHost", "Aspire AppHost", "Aspire orchestration", "Aspire".
 ---
 
 # .NET Aspire AppHost Skill
@@ -210,13 +212,13 @@ app.Run();
 
 ```
 MySolution/
-├── MySolution.AppHost/           # Orchestration project
-│   ├── Program.cs                # AppHost definition
-│   └── apphost.run.json          # Local run configuration
-├── MySolution.ServiceDefaults/   # Shared service configuration
-│   └── Extensions.cs             # AddServiceDefaults() extension
-├── MySolution.Api/               # API service
-└── MySolution.Worker/            # Background worker
++-- MySolution.AppHost/           # Orchestration project
+�   +-- Program.cs                # AppHost definition
+�   +-- apphost.run.json          # Local run configuration
++-- MySolution.ServiceDefaults/   # Shared service configuration
+�   +-- Extensions.cs             # AddServiceDefaults() extension
++-- MySolution.Api/               # API service
++-- MySolution.Worker/            # Background worker
 ```
 
 ## Running the AppHost

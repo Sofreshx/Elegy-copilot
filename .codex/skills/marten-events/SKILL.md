@@ -1,6 +1,8 @@
-﻿---
+---
 name: marten-events
-description: "Marten event sourcing. PostgreSQL event store with projections. Use this when asked to implement event sourcing, work with Marten events, create projections, or build event store functionality."
+description: >
+    Marten event sourcing. PostgreSQL event store with projections. Use this when asked to implement event sourcing, work with Marten events, create projections, or build event store functionality.
+    Triggers on: "event sourcing", "Marten events", "event stream".
 ---
 
 # Marten Event Sourcing Skill
@@ -215,7 +217,7 @@ public class DailyQuestSummaryProjection : MultiStreamProjection<DailyQuestSumma
 }
 ```
 
-### Event Projection (One Event → Document)
+### Event Projection (One Event ? Document)
 ```csharp
 public class QuestStartedProjection : EventProjection
 {

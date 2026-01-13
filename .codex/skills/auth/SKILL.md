@@ -1,9 +1,19 @@
 ﻿---
 name: auth
-description: "Authentication and authorization implementation. Handles login flows, JWT, OIDC, and identity management. Use this when asked to add login, implement authentication, secure endpoints, or work on identity management."
+description: >
+  Backward-compatible alias for `firebase-auth`. This repo's primary auth implementation is
+  Firebase Authentication.
+  Triggers on: "auth", "authentication", "login", "firebase", "firebase auth", "id token", "custom claims".
 ---
 
-# Auth Skill
+# Auth Skill (Alias)
+
+This skill is retained for backward compatibility.
+
+Use the canonical Firebase skill instead:
+
+- Full instructions: `.github/skills/firebase-auth/SKILL.md`
+
 
 ## When NOT to Use
 - For Firebase-specific auth → use `firebase-auth` (custom claims, Admin SDK)

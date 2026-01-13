@@ -1,6 +1,8 @@
-﻿---
+---
 name: docs
-description: "Documentation creation and improvement. Creates README, API docs, inline comments, and guides. Use this when asked to document code, improve README, add API docs, or create documentation."
+description: >
+  Documentation creation and improvement. Creates README, API docs, inline comments, and guides. Use this when asked to document code, improve README, add API docs, or create documentation.
+    Triggers on: "documentation", "README", "docs", "write docs".
 ---
 
 # Docs Skill
@@ -13,8 +15,8 @@ description: "Documentation creation and improvement. Creates README, API docs, 
 - Architecture docs need updating
 
 ## When NOT to Use
-- Instruction/agent docs → `system.editor.agent.md`
-- Code changes beyond comments → domain agents
+- Instruction/agent docs ? `system.editor.agent.md`
+- Code changes beyond comments ? domain agents
 
 ## Inputs
 - Code or area to document.

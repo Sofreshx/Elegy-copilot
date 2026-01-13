@@ -1,6 +1,8 @@
-﻿---
+---
 name: refactor
-description: "Code restructuring and cleanup. Improves readability, reduces duplication, aligns with patterns without changing behavior. Use this when asked to refactor code, clean up, extract methods, or improve code structure."
+description: >
+  Code restructuring and cleanup. Improves readability, reduces duplication, aligns with patterns without changing behavior. Use this when asked to refactor code, clean up, extract methods, or improve code structure.
+    Triggers on: "refactor", "clean up", "reorganize", "simplify".
 ---
 
 # Refactor Skill
@@ -13,10 +15,10 @@ description: "Code restructuring and cleanup. Improves readability, reduces dupl
 - Preparing code for new features (pre-refactor)
 
 ## When NOT to Use
-- Adding new functionality → domain agents
-- Fixing bugs → `debug.agent.md`
-- Performance optimization → `performance-auditer.agent.md`
-- Code review without changes → `code-review.agent.md`
+- Adding new functionality ? domain agents
+- Fixing bugs ? `debug.agent.md`
+- Performance optimization ? `performance-auditer.agent.md`
+- Code review without changes ? `code-review.agent.md`
 
 ## Inputs
 - Code to refactor.
@@ -25,7 +27,7 @@ description: "Code restructuring and cleanup. Improves readability, reduces dupl
 
 ## Steps
 1. Read project patterns to understand target conventions.
-2. Mode selection: auto → **deep** if touching shared code or prior refactor failures; **shallow** for isolated cleanup.
+2. Mode selection: auto ? **deep** if touching shared code or prior refactor failures; **shallow** for isolated cleanup.
 3. Analyze current code for:
    - Duplication
    - Long methods/classes
@@ -33,7 +35,7 @@ description: "Code restructuring and cleanup. Improves readability, reduces dupl
    - Pattern violations
    - Tight coupling
 4. Plan refactoring steps (small, incremental changes).
-5. Apply changes while **preserving behavior**—no functional changes.
+5. Apply changes while **preserving behavior**�no functional changes.
 6. Ensure tests pass after each step (if tests exist).
 7. If tests don't exist, flag as risk and consider adding them first.
 

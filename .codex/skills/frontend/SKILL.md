@@ -1,6 +1,8 @@
 ﻿---
 name: frontend
-description: "Frontend UI development for React. Creates components, pages, and handles state management. Use this when asked to create components, add pages, build UI, style elements, or work on any frontend tasks."
+description: >
+  Frontend UI development for React. Creates components, pages, and handles state management. Use this when asked to create components, add pages, build UI, style elements, or work on any frontend tasks.
+    Triggers on: "UI", "component", "React", "Vue", "page", "frontend".
 ---
 
 # Frontend Skill
@@ -16,7 +18,7 @@ Apply this mindset to avoid generic "AI slop" UI:
 > - **Color**: Commit to a cohesive aesthetic with sharp accents.
 > - **Motion**: Use staggered reveals and micro-interactions.
 > - **Backgrounds**: Create atmosphere with gradients or patterns.
-> - **Avoid**: Clichéd purple gradients, predictable layouts, and cookie-cutter designs.
+> - **Avoid**: Clich�d purple gradients, predictable layouts, and cookie-cutter designs.
 > **Interpret creatively and make unexpected choices!**
 
 ## Architecture & Structure

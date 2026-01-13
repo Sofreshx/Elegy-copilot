@@ -1,6 +1,8 @@
-﻿---
+---
 name: aspire-deployment
-description: ".NET Aspire deployment and publishing. Handles aspire publish, deploy, and manifest generation. Use this when asked to deploy an Aspire app, publish to Azure, generate deployment manifests, or work on Aspire deployment tasks."
+description: >
+  .NET Aspire deployment and publishing. Handles aspire publish, deploy, and manifest generation. Use this when asked to deploy an Aspire app, publish to Azure, generate deployment manifests, or work on Aspire deployment tasks.
+    Triggers on: "Aspire deploy", "AZD", "aspire deployment", "deploy aspire".
 ---
 
 # .NET Aspire Deployment Skill
@@ -37,10 +39,10 @@ aspire deploy
 
 | Package | Target | Publish | Deploy |
 |---------|--------|---------|--------|
-| `Aspire.Hosting.Docker` | Docker Compose | ✅ | ❌ |
-| `Aspire.Hosting.Kubernetes` | Kubernetes | ✅ | ❌ |
-| `Aspire.Hosting.Azure.AppContainers` | Azure Container Apps | ✅ | ✅ (Preview) |
-| `Aspire.Hosting.Azure.AppService` | Azure App Service | ✅ | ✅ (Preview) |
+| `Aspire.Hosting.Docker` | Docker Compose | ? | ? |
+| `Aspire.Hosting.Kubernetes` | Kubernetes | ? | ? |
+| `Aspire.Hosting.Azure.AppContainers` | Azure Container Apps | ? | ? (Preview) |
+| `Aspire.Hosting.Azure.AppService` | Azure App Service | ? | ? (Preview) |
 
 ## Docker Compose Deployment
 

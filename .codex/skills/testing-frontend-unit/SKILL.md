@@ -1,6 +1,8 @@
 ---
 name: testing-frontend-unit
-description: "Frontend unit/component testing (React/Vue/Angular). Use this when asked to write frontend unit tests, component tests, or to add coverage for UI behavior. Prefers React Testing Library + Vitest when applicable."
+description: >
+   Frontend unit/component testing (React/Vue/Angular). Use this when asked to write frontend unit tests, component tests, or to add coverage for UI behavior. Prefers React Testing Library + Vitest when applicable.
+   Triggers on: "Vitest", "Jest", "RTL", "React Testing Library", "component test", "frontend unit test".
 ---
 
 # Frontend Unit Testing Skill

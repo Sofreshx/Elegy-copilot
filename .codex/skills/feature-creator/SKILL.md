@@ -1,15 +1,17 @@
-﻿---
+---
 name: feature-creator
-description: "Backend feature implementation. Creates endpoints, services, and data access following project patterns. Use this when asked to add an endpoint, create a feature, implement an API, or do backend development."
+description: >
+  Backend feature implementation. Creates endpoints, services, and data access following project patterns. Use this when asked to add an endpoint, create a feature, implement an API, or do backend development.
+    Triggers on: "add endpoint", "create feature", "backend", "CRUD", "API endpoint".
 ---
 
 # Feature Creator Skill
 
 ## When NOT to Use
-- For frontend/UI work → use `frontend`
-- For Wolverine HTTP endpoints specifically → use `wolverine-http`
-- For Marten document operations → use `marten-documents`
-- For refactoring existing code → use `refactor`
+- For frontend/UI work ? use `frontend`
+- For Wolverine HTTP endpoints specifically ? use `wolverine-http`
+- For Marten document operations ? use `marten-documents`
+- For refactoring existing code ? use `refactor`
 
 ## Inputs
 - Task from a task file under `.instructions/tasks/`
@@ -27,7 +29,7 @@ Before implementing, search for:
 1. **Understand**: Map domain, data flow, endpoints. Search existing code for patterns.
 2. **Mode**: Deep if new domain/boundaries; shallow for similar endpoint additions.
 3. **Pattern Match**: Follow `project.patterns.md` exactly (don't invent new patterns).
-4. **Implement**: Logic → data access → wiring → validation (in that order).
+4. **Implement**: Logic ? data access ? wiring ? validation (in that order).
 5. **Test**: Unit tests for logic, integration for data access. Use Aspire if available.
 6. **Document**: Update context if patterns evolve or new conventions emerge.
 
