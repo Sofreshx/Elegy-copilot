@@ -1,6 +1,8 @@
 ---
 name: planning-refactor
-description: A 7-phase workflow for planning large or complex refactors. Use this skill when asked to "refactor X", "restructure code", or "clean up technical debt" for significant areas.
+description: >
+    A 7-phase workflow for planning large or complex refactors. Use this skill when asked to "refactor X", "restructure code", or "clean up technical debt" for significant areas.
+    Triggers on: "plan refactor", "restructure", "refactor plan", "technical debt plan".
 ---
 
 # Refactor Planning Skill (7-Phase Workflow)

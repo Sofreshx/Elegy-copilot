@@ -125,11 +125,27 @@ export class SkillDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 	}
 
 	private toSkillNode(skill: SkillEntry): SkillNode {
+		const enabled = skill.enabled !== false;
+		const descriptionParts: string[] = [];
+		if (skill.source === 'instruction-engine') {
+			descriptionParts.push('engine');
+		} else {
+			descriptionParts.push('discoverable');
+		}
+		if (!enabled) {
+			descriptionParts.push('disabled');
+		}
+		const description = descriptionParts.length > 0 ? descriptionParts.join(' • ') : undefined;
+		const contextValue = enabled
+			? 'skillInstaller.skill.enabled'
+			: 'skillInstaller.skill.disabled';
+		const icon = enabled ? 'book' : 'circle-slash';
 		return {
 			kind: 'skill',
 			label: skill.name,
-			description: skill.source === 'instruction-engine' ? 'engine' : undefined,
-			iconPath: new vscode.ThemeIcon('book'),
+			description,
+			contextValue,
+			iconPath: new vscode.ThemeIcon(icon),
 			skill,
 			command: {
 				title: 'Open Skill',

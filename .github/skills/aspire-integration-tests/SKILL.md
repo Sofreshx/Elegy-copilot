@@ -1,6 +1,8 @@
-﻿---
+---
 name: aspire-integration-tests
-description: "Aspire integration testing. Creates and maintains integration tests for Aspire-based applications. Use this when asked to create Aspire tests, write integration tests with Aspire, or work on Aspire testing."
+description: >
+  Aspire integration testing. Creates and maintains integration tests for Aspire-based applications. Use this when asked to create Aspire tests, write integration tests with Aspire, or work on Aspire testing.
+    Triggers on: "Aspire test", "integration test Aspire", "Aspire integration tests", "TestContainers".
 ---
 
 # Aspire Integration Tests Skill

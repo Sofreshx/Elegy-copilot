@@ -1,6 +1,8 @@
-﻿---
+---
 name: code-review
-description: "Code review for quality, patterns, and bugs. Reviews PRs, identifies issues, suggests improvements. Use this when asked to review code, check a PR, assess code quality, or identify issues in code."
+description: >
+  Code review for quality, patterns, and bugs. Reviews PRs, identifies issues, suggests improvements. Use this when asked to review code, check a PR, assess code quality, or identify issues in code.
+    Triggers on: "review", "PR review", "code review", "code quality", "peer review".
 ---
 
 # Code Review Skill
@@ -12,10 +14,10 @@ description: "Code review for quality, patterns, and bugs. Reviews PRs, identifi
 - "Is this implementation correct?" questions
 
 ## When NOT to Use
-- Implementing fixes → use appropriate domain agent after review
-- Performance optimization → `performance-auditer.agent.md`
-- Security-specific review → `security.agent.md`
-- Debugging runtime errors → `debug.agent.md`
+- Implementing fixes ? use appropriate domain agent after review
+- Performance optimization ? `performance-auditer.agent.md`
+- Security-specific review ? `security.agent.md`
+- Debugging runtime errors ? `debug.agent.md`
 
 ## Inputs
 - Code to review (file, diff, or PR).
@@ -61,7 +63,7 @@ description: "Code review for quality, patterns, and bugs. Reviews PRs, identifi
 
 ## Session Summary Format
 - **Done**: [review completed]
-- **Changes**: [none—review only]
+- **Changes**: [none�review only]
 - **New tasks**: [none]
 - **New raw.tasks.md**: [issues needing fixes]
 - **Warnings**: [if systemic issue found]

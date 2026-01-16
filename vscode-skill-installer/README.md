@@ -4,9 +4,14 @@ Shows:
 - **Available** skills from `instruction-engine` (prefers `.github/skills`, falls back to `.codex/skills`).
 - **Loaded** skills in other workspace repos (targets), from their `.github/skills` folder.
 - **Tasks** from any workspace repo that has `.instructions/tasks/*.md`.
+- **Task Workflow** view for queueing and prioritizing tasks across repos.
 - **Agents** from any workspace repo that has `.github/agents/*.agent.md`.
 
 The **Tasks** view reads each task file’s YAML front matter (e.g. `title`, `status`, `owner`, `skills`) and lets you filter down to “my tasks”.
+
+Skills and agents can be **enabled/disabled** via context menu. The extension persists that state to both workspace settings and a repo-local registry file.
+
+The **Task Workflow** view surfaces a “Next Up” lane for active tasks and includes a toolbar button to open the configured E2E dashboard.
 
 ## Why `F5` opens a new VS Code window
 
@@ -47,10 +52,16 @@ From VS Code:
 
 ## Commands
 - `Skill Installer: Refresh Skills, Tasks & Agents`
+- `Skill Installer: Open E2E Dashboard`
 - `Skill Installer: Clear Repo Context`
 - `Skill Installer: Clear Context for All Repos`
 
 ## Settings
+- `skillInstaller.registry.fileName`: Repo-relative path for enablement metadata (default: `.instructions/registry.json`).
+- `skillInstaller.skills.disabledByRepo`: Map of repo paths to disabled skill names.
+- `skillInstaller.agents.disabledByRepo`: Map of repo paths to disabled agent file names.
+- `skillInstaller.e2e.url`: URL opened by the E2E command in the integrated browser.
+- `skillInstaller.workflow.nextUpLimit`: Max items shown in the Task Workflow “Next Up” lane.
 - `skillInstaller.tasks.onlyOwner`: When enabled, only show tasks whose front matter `owner` matches `skillInstaller.tasks.owner`.
 - `skillInstaller.tasks.owner`: Your dev handle (e.g. `lolzi`).
 

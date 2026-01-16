@@ -1,6 +1,8 @@
-﻿---
+---
 name: openai-compatible
-description: "Integration for OpenAI-compatible APIs (OpenAI, Azure, ZAI, etc.). Handles chat completions, embeddings, and function calling."
+description: >
+  Integration for OpenAI-compatible APIs (OpenAI, Azure, ZAI, etc.). Handles chat completions, embeddings, and function calling.
+    Triggers on: "OpenAI", "GPT", "chat completion", "OpenAI-compatible".
 ---
 
 # OpenAI-Compatible API Skill

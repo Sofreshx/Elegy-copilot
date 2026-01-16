@@ -1,6 +1,8 @@
-﻿---
+---
 name: quality-auditor
-description: "Code quality scanning. Detects code smells, hardcoded strings, console logs, and maintenance issues. Use this when asked to check code quality, find code smells, audit lint issues, or scan for quality problems."
+description: >
+  Code quality scanning. Detects code smells, hardcoded strings, console logs, and maintenance issues. Use this when asked to check code quality, find code smells, audit lint issues, or scan for quality problems.
+    Triggers on: "audit quality", "code smell", "quality audit", "quality auditor".
 ---
 
 # Code Quality Auditor Skill
@@ -9,9 +11,9 @@ description: "Code quality scanning. Detects code smells, hardcoded strings, con
 Detect code smells, pollution, and maintenance burdens across the codebase.
 
 ## When NOT to Use
-- For security-specific issues → use `security` or `secrets-auditor`
-- For performance bottlenecks → use `performance-auditer`
-- For language-specific patterns → use `csharp-expert` (alias: `quality-csharp`)
+- For security-specific issues ? use `security` or `secrets-auditor`
+- For performance bottlenecks ? use `performance-auditer`
+- For language-specific patterns ? use `csharp-expert` (alias: `quality-csharp`)
 
 ## Checks
 

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { RepoSkills, SkillDiscoverySnapshot, SkillEntry } from './types';
+import { getRepoDisabledSet } from './enablementStore';
 
 function existsDir(dirPath: string): boolean {
 	try {
@@ -23,7 +24,16 @@ function normalizeSkillNameFromFile(filename: string): string {
 	return filename.replace(/\.md$/i, '');
 }
 
-function listSkillsInDir(skillsRoot: string, source: 'instruction-engine' | 'target-repo'): SkillEntry[] {
+function normalizeKey(value: string): string {
+	return value.trim().toLowerCase();
+}
+
+function listSkillsInDir(
+	skillsRoot: string,
+	source: 'instruction-engine' | 'target-repo',
+	repoPath: string | undefined,
+	disabledSet: Set<string>
+): SkillEntry[] {
 	if (!existsDir(skillsRoot)) {
 		return [];
 	}
@@ -40,18 +50,22 @@ function listSkillsInDir(skillsRoot: string, source: 'instruction-engine' | 'tar
 			const skillFile = path.join(skillDir, 'SKILL.md');
 			const indexFile = path.join(skillDir, 'index.md');
 			if (existsFile(skillFile) || existsFile(indexFile)) {
-				results.push({ name: entry.name, path: skillDir, source });
+				const enabled = !disabledSet.has(normalizeKey(entry.name));
+				results.push({ name: entry.name, path: skillDir, source, repoPath, enabled });
 				continue;
 			}
 
 			// If directory exists but doesn't match known patterns, still treat it as a skill folder
-			results.push({ name: entry.name, path: skillDir, source });
+			const enabled = !disabledSet.has(normalizeKey(entry.name));
+			results.push({ name: entry.name, path: skillDir, source, repoPath, enabled });
 			continue;
 		}
 
 		if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
 			const fullPath = path.join(skillsRoot, entry.name);
-			results.push({ name: normalizeSkillNameFromFile(entry.name), path: fullPath, source });
+			const skillName = normalizeSkillNameFromFile(entry.name);
+			const enabled = !disabledSet.has(normalizeKey(skillName));
+			results.push({ name: skillName, path: fullPath, source, repoPath, enabled });
 		}
 	}
 
@@ -122,8 +136,11 @@ export async function scanSkills(): Promise<SkillDiscoverySnapshot> {
 
 	// Merge skill roots with a stable priority order: .github/skills first, then .codex/skills.
 	// De-dupe by name to prevent showing duplicates when both roots exist.
+	const engineDisabled = engineRoot ? getRepoDisabledSet('skills', engineRoot) : new Set<string>();
 	const availableSkills = dedupeSkills(
-		engineSkillsRoots.flatMap((root) => listSkillsInDir(root, 'instruction-engine'))
+		engineSkillsRoots.flatMap((root) =>
+			listSkillsInDir(root, 'instruction-engine', engineRoot, engineDisabled)
+		)
 	);
 
 	const targetRepos: RepoSkills[] = [];
@@ -135,7 +152,8 @@ export async function scanSkills(): Promise<SkillDiscoverySnapshot> {
 
 		const repoPath = folder.uri.fsPath;
 		const skillsDir = path.join(repoPath, '.github', 'skills');
-		const skills = listSkillsInDir(skillsDir, 'target-repo');
+		const disabledSet = getRepoDisabledSet('skills', repoPath);
+		const skills = listSkillsInDir(skillsDir, 'target-repo', repoPath, disabledSet);
 
 		targetRepos.push({
 			repoName: folder.name,

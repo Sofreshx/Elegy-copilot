@@ -1,6 +1,8 @@
-﻿---
+---
 name: semantic-kernel-agents
-description: "Semantic Kernel multi-agent orchestration. Creates AI agents with plugins and planners. Use this when asked to implement Semantic Kernel agents, build AI orchestration, or work with SK agent patterns."
+description: >
+    Semantic Kernel multi-agent orchestration. Creates AI agents with plugins and planners. Use this when asked to implement Semantic Kernel agents, build AI orchestration, or work with SK agent patterns.
+    Triggers on: "Semantic Kernel", "SK agents", "semantic kernel agents".
 ---
 
 # Semantic Kernel Agent Framework Skill
@@ -116,7 +118,7 @@ public class WeatherPlugin
     [KernelFunction, Description("Gets weather for a city")]
     public string GetWeather([Description("City name")] string city)
     {
-        return $"The weather in {city} is sunny, 72°F";
+        return $"The weather in {city} is sunny, 72�F";
     }
 }
 

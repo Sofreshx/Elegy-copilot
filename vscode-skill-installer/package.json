@@ -19,8 +19,14 @@
     "onView:skillInstaller.skillsView",
     "onView:skillInstaller.tasksView",
     "onView:skillInstaller.activeTasksView",
+    "onView:skillInstaller.workflowView",
     "onView:skillInstaller.agentsView",
     "onCommand:skillInstaller.refresh",
+    "onCommand:skillInstaller.runE2E",
+    "onCommand:skillInstaller.enableSkill",
+    "onCommand:skillInstaller.disableSkill",
+    "onCommand:skillInstaller.enableAgent",
+    "onCommand:skillInstaller.disableAgent",
     "onCommand:skillInstaller.clearRepoContext",
     "onCommand:skillInstaller.clearAllRepoContexts"
   ],
@@ -50,6 +56,10 @@
           "name": "Active Tasks"
         },
         {
+          "id": "skillInstaller.workflowView",
+          "name": "Task Workflow"
+        },
+        {
           "id": "skillInstaller.tasksView",
           "name": "Tasks"
         }
@@ -59,6 +69,26 @@
       {
         "command": "skillInstaller.refresh",
         "title": "Refresh Skills, Tasks & Agents"
+      },
+      {
+        "command": "skillInstaller.runE2E",
+        "title": "Open E2E Dashboard"
+      },
+      {
+        "command": "skillInstaller.enableSkill",
+        "title": "Enable Skill"
+      },
+      {
+        "command": "skillInstaller.disableSkill",
+        "title": "Disable Skill"
+      },
+      {
+        "command": "skillInstaller.enableAgent",
+        "title": "Enable Agent"
+      },
+      {
+        "command": "skillInstaller.disableAgent",
+        "title": "Disable Agent"
       },
       {
         "command": "skillInstaller.clearRepoContext",
@@ -75,12 +105,65 @@
           "command": "skillInstaller.clearRepoContext",
           "when": "view == skillInstaller.agentsView && viewItem == skillInstaller.repo",
           "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.disableSkill",
+          "when": "view == skillInstaller.skillsView && viewItem == skillInstaller.skill.enabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.enableSkill",
+          "when": "view == skillInstaller.skillsView && viewItem == skillInstaller.skill.disabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.disableAgent",
+          "when": "view == skillInstaller.agentsView && viewItem == skillInstaller.agent.enabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.enableAgent",
+          "when": "view == skillInstaller.agentsView && viewItem == skillInstaller.agent.disabled",
+          "group": "inline"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "skillInstaller.runE2E",
+          "when": "view == skillInstaller.workflowView",
+          "group": "navigation"
         }
       ]
     },
     "configuration": {
       "title": "Instruction Engine",
       "properties": {
+        "skillInstaller.registry.fileName": {
+          "type": "string",
+          "default": ".instructions/registry.json",
+          "description": "Relative path (from repo root) used to store skill/agent enablement metadata."
+        },
+        "skillInstaller.skills.disabledByRepo": {
+          "type": "object",
+          "default": {},
+          "description": "Map of repo paths to disabled skill names. Persisted alongside the repo registry file."
+        },
+        "skillInstaller.agents.disabledByRepo": {
+          "type": "object",
+          "default": {},
+          "description": "Map of repo paths to disabled agent file names. Persisted alongside the repo registry file."
+        },
+        "skillInstaller.e2e.url": {
+          "type": "string",
+          "default": "",
+          "description": "URL to open when running E2E tests in the integrated browser."
+        },
+        "skillInstaller.workflow.nextUpLimit": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "How many tasks to surface in the Task Workflow 'Next Up' lane."
+        },
         "skillInstaller.tasks.onlyOwner": {
           "type": "boolean",
           "default": false,

@@ -1,6 +1,8 @@
-﻿---
+---
 name: design
-description: "Architecture and design evaluation. Reviews patterns, proposes designs, creates ADRs. Use this when asked to review a design, suggest architecture, evaluate trade-offs, or make architecture decisions."
+description: >
+  Architecture and design evaluation. Reviews patterns, proposes designs, creates ADRs. Use this when asked to review a design, suggest architecture, evaluate trade-offs, or make architecture decisions.
+    Triggers on: "design", "architecture", "diagram", "system design".
 ---
 
 # Design Skill
@@ -13,9 +15,9 @@ description: "Architecture and design evaluation. Reviews patterns, proposes des
 - System design discussions
 
 ## When NOT to Use
-- Implementing the design → domain agents
-- Code-level review → `code-review.agent.md`
-- Performance of existing code → `performance-auditer.agent.md`
+- Implementing the design ? domain agents
+- Code-level review ? `code-review.agent.md`
+- Performance of existing code ? `performance-auditer.agent.md`
 
 ## Inputs
 - Design proposal or question.

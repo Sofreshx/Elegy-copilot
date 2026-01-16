@@ -1,6 +1,8 @@
-﻿---
+---
 name: debug
-description: "Debugging skill for diagnosing runtime errors, failing tests, and unexpected behavior. Use this when asked to debug code, investigate errors, analyze stack traces, or figure out why something is failing."
+description: >
+  Debugging skill for diagnosing runtime errors, failing tests, and unexpected behavior. Use this when asked to debug code, investigate errors, analyze stack traces, or figure out why something is failing.
+    Triggers on: "debug", "debugging", "stack trace", "investigate", "why failing", "error".
 ---
 
 # Debug Skill
@@ -13,9 +15,9 @@ description: "Debugging skill for diagnosing runtime errors, failing tests, and 
 - Unexpected behavior investigation
 
 ## When NOT to Use
-- Code quality review (no specific error) → `code-review.agent.md`
-- Performance issues → `performance-auditer.agent.md`
-- Design questions → `design.agent.md`
+- Code quality review (no specific error) ? `code-review.agent.md`
+- Performance issues ? `performance-auditer.agent.md`
+- Design questions ? `design.agent.md`
 
 ## Inputs
 - Error message, stack trace, or behavior description.
@@ -25,7 +27,7 @@ description: "Debugging skill for diagnosing runtime errors, failing tests, and 
 
 ## Steps
 1. **Gather context**: Read error details, relevant code, and any logs provided.
-2. **Check history**: Look in recent task files (especially `## Failures`) for similar issues—may have known fix.
+2. **Check history**: Look in recent task files (especially `## Failures`) for similar issues�may have known fix.
 3. **Hypothesize**: Form theories about root cause based on:
    - Error type and message
    - Stack trace location

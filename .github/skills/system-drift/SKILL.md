@@ -1,6 +1,8 @@
-﻿---
+---
 name: system-drift
-description: "Instruction drift detection. Analyzes failed tasks to find systematic issues in agent instructions. Use this for internal system maintenance only."
+description: >
+   Instruction drift detection. Analyzes failed tasks to find systematic issues in agent instructions. Use this for internal system maintenance only.
+   Triggers on: "system drift", "pattern drift", "fix drift".
 ---
 
 # System Drift Detection Skill
@@ -22,15 +24,15 @@ description: "Instruction drift detection. Analyzes failed tasks to find systema
    - Failure reason (missing context, wrong scope, unclear steps, etc.)
    - Frequency (one-off vs. recurring)
 2. **Detect patterns**:
-   - Same agent failing repeatedly → Agent needs update
-   - Same failure reason across agents → Systemic issue (missing context, unclear architecture)
-   - Tasks requiring deep mode too often → Shallow instructions insufficient
+   - Same agent failing repeatedly ? Agent needs update
+   - Same failure reason across agents ? Systemic issue (missing context, unclear architecture)
+   - Tasks requiring deep mode too often ? Shallow instructions insufficient
 3. **Propose fixes**: For each detected drift:
    - Specific instruction change (add step, clarify scope, reference new context)
    - New context file needed
    - New agent needed
    - Warning to add
-4. **Prioritize**: Rank fixes by impact (failure frequency × task importance).
+4. **Prioritize**: Rank fixes by impact (failure frequency � task importance).
 5. **Generate improvement tasks**: Create task files under `.instructions/tasks/` for each proposed fix, tagged with `[instruction-improvement]` in `title` or `tags`.
 6. **Report**: Summary of drift findings and proposed improvements.
 
@@ -52,7 +54,7 @@ description: "Instruction drift detection. Analyzes failed tasks to find systema
 ## Session Summary Format
 - **Done**: [analysis completed]
 - **Findings**: [drift patterns detected]
-- **Changes**: [none—this agent only analyzes]
+- **Changes**: [none�this agent only analyzes]
 - **New tasks**: [instruction improvement task files]
 - **Warnings**: [new systemic issues to log]
 - **Next**: [run system.editor to apply top-priority fix]

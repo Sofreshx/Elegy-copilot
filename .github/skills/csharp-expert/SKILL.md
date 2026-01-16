@@ -1,6 +1,8 @@
 ---
 name: csharp-expert
-description: "C# Expert. Produces clean, secure, fast, maintainable .NET code; applies conventions, async/await, DI, CQRS/GoF patterns, SOLID; and plans/writes tests (xUnit)."
+description: >
+   C# Expert. Produces clean, secure, fast, maintainable .NET code; applies conventions, async/await, DI, CQRS/GoF patterns, SOLID; and plans/writes tests (xUnit).
+   Triggers on: "C#", ".NET", "ASP.NET", "DI", "async/await", "CQRS", "xUnit".
 # version: 2026-01-05
 ---
 

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { AgentDiscoverySnapshot, AgentEntry, RepoAgents } from './types';
+import { getRepoDisabledSet } from './enablementStore';
 
 function existsDir(dirPath: string): boolean {
 	try {
@@ -144,6 +145,10 @@ function normalizeBoolean(value: unknown): boolean | undefined {
 	return undefined;
 }
 
+function normalizeKey(value: string): string {
+	return value.trim().toLowerCase();
+}
+
 function listAgentFiles(agentsDir: string): string[] {
 	if (!existsDir(agentsDir)) {
 		return [];
@@ -174,6 +179,7 @@ export async function scanAgents(): Promise<AgentDiscoverySnapshot> {
 		const repoPath = folder.uri.fsPath;
 		const agentsDir = path.join(repoPath, '.github', 'agents');
 		const agentsDirPath = existsDir(agentsDir) ? agentsDir : undefined;
+		const disabledSet = getRepoDisabledSet('agents', repoPath);
 
 		const agents: AgentEntry[] = [];
 		if (agentsDirPath) {
@@ -184,15 +190,19 @@ export async function scanAgents(): Promise<AgentDiscoverySnapshot> {
 				}
 				const contentStart = readFileStart(filePath);
 				const fm = tryParseYamlFrontMatter(contentStart) ?? {};
+				const fileName = path.basename(filePath);
+				const enabled = !disabledSet.has(normalizeKey(fileName));
 
 				agents.push({
 					path: filePath,
-					fileName: path.basename(filePath),
-					name: normalizeString(fm['name']) ?? path.basename(filePath),
+					fileName,
+					name: normalizeString(fm['name']) ?? fileName,
 					description: normalizeString(fm['description']),
 					role: normalizeString(fm['role']),
 					visibility: normalizeString(fm['visibility']),
-					infer: normalizeBoolean(fm['infer'])
+					infer: normalizeBoolean(fm['infer']),
+					repoPath,
+					enabled
 				});
 			}
 		}

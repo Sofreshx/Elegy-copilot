@@ -4,6 +4,8 @@ export interface SkillEntry {
 	name: string;
 	path: string;
 	source: SkillSourceKind;
+	repoPath?: string;
+	enabled?: boolean;
 }
 
 export interface RepoSkills {
@@ -56,6 +58,8 @@ export interface AgentEntry {
 	role?: string;
 	visibility?: string;
 	infer?: boolean;
+	repoPath?: string;
+	enabled?: boolean;
 }
 
 export interface RepoAgents {

@@ -1,6 +1,8 @@
-﻿---
+---
 name: wolverine-http
-description: "Wolverine HTTP endpoints. Creates minimal API-style HTTP endpoints with Wolverine. Use this when asked to create a Wolverine endpoint, add an HTTP handler, or work on API endpoints using Wolverine HTTP."
+description: >
+    Wolverine HTTP endpoints. Creates minimal API-style HTTP endpoints with Wolverine. Use this when asked to create a Wolverine endpoint, add an HTTP handler, or work on API endpoints using Wolverine HTTP.
+    Triggers on: "Wolverine endpoint", "Wolverine API", "minimal API", "HTTP handler".
 ---
 
 # Wolverine HTTP Endpoints Skill
@@ -119,7 +121,7 @@ public static Task<IReadOnlyList<Product>> SearchProducts(
 // First complex type parameter is bound from JSON body
 [WolverinePost("/orders")]
 public static async Task<IResult> CreateOrder(
-    CreateOrderRequest request,  // ← JSON body
+    CreateOrderRequest request,  // ? JSON body
     IDocumentSession session)
 {
     var order = new Order { Items = request.Items };

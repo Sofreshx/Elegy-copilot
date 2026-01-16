@@ -1,12 +1,34 @@
 ﻿---
 name: firebase-auth
-description: "Firebase Authentication with Admin SDK for .NET. Handles user management, token verification, custom claims, and role-based access. Use this when asked to implement Firebase auth, verify JWT tokens, manage custom claims, or work on Firebase authentication."
+description: >
+    Firebase Authentication with Admin SDK for .NET. Handles user management, token verification,
+    custom claims, and role-based access. Use this when asked to implement Firebase auth, verify
+    ID tokens (JWT), manage custom claims, or integrate Firebase login with a backend.
+    Triggers on: "firebase", "firebase auth", "firebase authentication", "id token", "verify id token",
+    "custom claims", "setCustomUserClaims", "admin sdk", "FirebaseAdmin", "Bearer token".
 ---
 
 # Firebase Auth Skill
 
 ## Purpose
 Integrate Firebase Authentication for user identity and role management using Custom Claims.
+
+## How Firebase Auth Works (Quick Mental Model)
+
+- **Frontend signs in** (email/password, Google, etc.) using the Firebase client SDK.
+- The client receives an **ID token** (a JWT) via `user.getIdToken()` / `getIdTokenResult()`.
+- The client sends that token to your backend as `Authorization: Bearer <idToken>`.
+- The backend verifies the token and authorizes requests based on:
+    - **Firebase standard claims** (issuer, audience, expiry, subject/uid)
+    - **Custom claims** you set via Admin SDK (RBAC / entitlements)
+
+### Token Types (Don’t Mix These Up)
+
+- **ID token**: short-lived (~1 hour), sent to your backend, contains claims.
+- **Refresh token**: long-lived, stays on the client, used by Firebase SDK to mint new ID tokens.
+    Never send refresh tokens to your backend.
+- **Custom token**: minted by your backend (Admin SDK) *only if* you need “sign-in with your own auth”.
+    The client exchanges it for an ID token.
 
 ## Setup
 
@@ -201,6 +223,9 @@ const refreshUserClaims = async () => {
 ### 3. Verifying & Reading Claims (Backend - The Solid Way)
 Instead of manually verifying tokens in every endpoint, implement an **Authentication Handler** to integrate with ASP.NET Core's standard `[Authorize]`.
 
+> Note: `JwtBearer` validation checks signature/expiry/issuer/audience.
+> If you also need **revocation checking** (e.g., after `RevokeRefreshTokensAsync`) use Admin SDK verification (`checkRevoked: true`) at the boundary.
+
 **A. Configure Authentication (Program.cs)**
 ```csharp
 builder.Services
@@ -284,12 +309,23 @@ export const AdminRoute = ({ children }: { children: JSX.Element }) => {
 
 ## Security Best Practices
 
-- **Validation**: Always verify the token on the backend using `VerifyIdTokenAsync`. Never trust the client-side token payload without verification.
+- **Validation**: Always verify the token on the backend. Use either:
+    - **ASP.NET Core `JwtBearer`** (standard, fast path) or
+    - **Admin SDK `VerifyIdTokenAsync`** (especially when you need `checkRevoked: true`).
+    Never trust or parse the token client-side for authorization.
 - **Size Limit**: Custom claims payload must not exceed 1000 bytes.
 - **Sensitive Data**: Do not store PII in custom claims; use the database for that.
 - **Service Accounts**: Use User Secrets for local dev and Managed Identity/Environment Variables for production credentials.
 - **Claims Are Not Real-Time**: Claims are embedded in the token at issue time. Force refresh after changes.
 - **OIDC Reserved Names**: Don't use reserved claim names like `iss`, `sub`, `aud`, `exp`, `iat`, `auth_time`.
+
+## Local Development (Emulator)
+
+If you use the Firebase Auth emulator locally:
+
+- Point the frontend SDK at the emulator (`connectAuthEmulator`).
+- Treat emulator tokens as local-only. Don’t relax production verification rules.
+- Keep emulator configuration out of source where appropriate (env-based).
 
 ## Common Gotchas
 
