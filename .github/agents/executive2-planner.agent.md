@@ -37,6 +37,7 @@ If the user explicitly wants persisted execution state, they should use the **Cr
 ## Working Agreement (Go Back & Forth)
 - If the user changes requirements or new constraints appear, update the plan and stay in planning.
 - If you discover a blocker that requires repository exploration, delegate to `code-explorer` (read-only) and integrate results into the plan.
+- Prefer parallel, read-only exploration when useful (e.g., run `code-explorer` + `code-architect` together for faster clarity).
 - If the request is small and can be done directly, still propose the minimal plan and let the user choose to start implementation.
 
 ## Complexity Gate (when to require a plan artefact)

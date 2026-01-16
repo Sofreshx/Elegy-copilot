@@ -160,6 +160,7 @@ export class AgentDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 
 	private toAgentNode(repo: RepoAgents, agent: AgentEntry): AgentNode {
 		const visibility = normalizeVisibility(agent.visibility);
+		const enabled = agent.enabled !== false;
 		const parts: string[] = [];
 		if (agent.role) {
 			parts.push(agent.role);
@@ -167,15 +168,25 @@ export class AgentDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 		if (visibility) {
 			parts.push(visibility);
 		}
+		parts.push('discoverable');
+		if (!enabled) {
+			parts.push('disabled');
+		}
 		const description = parts.length > 0 ? parts.join(' • ') : repo.repoName;
 
-		const icon = visibility === 'internal' ? 'lock' : 'person';
+		let icon = visibility === 'internal' ? 'lock' : 'person';
+		if (!enabled) {
+			icon = 'circle-slash';
+		}
 		return {
 			kind: 'agent',
 			key: agent.path,
 			label: agent.name,
 			description,
 			iconPath: new vscode.ThemeIcon(icon),
+			contextValue: enabled
+				? 'skillInstaller.agent.enabled'
+				: 'skillInstaller.agent.disabled',
 			agent,
 			command: {
 				title: 'Open Agent',

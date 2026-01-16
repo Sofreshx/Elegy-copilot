@@ -4,6 +4,35 @@ import { TaskDiscoveryTreeProvider } from './tasksTree';
 import { ActiveTaskTreeProvider } from './activeTasksTree';
 import { AgentDiscoveryTreeProvider } from './agentsTree';
 import { clearRepoContext } from './contextCleaner';
+import { WorkflowTaskTreeProvider } from './workflowTasksTree';
+import { setRepoItemEnabled } from './enablementStore';
+import { AgentEntry, SkillEntry } from './types';
+
+function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
+	if (!arg || typeof arg !== 'object') {
+		return undefined;
+	}
+	if ('skill' in (arg as Record<string, unknown>)) {
+		const skill = (arg as { skill?: SkillEntry }).skill;
+		if (skill && typeof skill.name === 'string') {
+			return skill;
+		}
+	}
+	return undefined;
+}
+
+function getAgentFromCommand(arg: unknown): AgentEntry | undefined {
+	if (!arg || typeof arg !== 'object') {
+		return undefined;
+	}
+	if ('agent' in (arg as Record<string, unknown>)) {
+		const agent = (arg as { agent?: AgentEntry }).agent;
+		if (agent && typeof agent.fileName === 'string') {
+			return agent;
+		}
+	}
+	return undefined;
+}
 
 export function activate(context: vscode.ExtensionContext): void {
 	const output = vscode.window.createOutputChannel('Skill Installer');
@@ -13,6 +42,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const taskProvider = new TaskDiscoveryTreeProvider(output);
 	const activeTaskProvider = new ActiveTaskTreeProvider(output);
 	const agentProvider = new AgentDiscoveryTreeProvider(output);
+	const workflowProvider = new WorkflowTaskTreeProvider(output);
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.skillsView', skillProvider)
 	);
@@ -25,6 +55,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.agentsView', agentProvider)
 	);
+	context.subscriptions.push(
+		vscode.window.registerTreeDataProvider('skillInstaller.workflowView', workflowProvider)
+	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('skillInstaller.refresh', () => {
@@ -32,6 +65,77 @@ export function activate(context: vscode.ExtensionContext): void {
 			taskProvider.invalidateCache();
 			activeTaskProvider.invalidateCache();
 			agentProvider.invalidateCache();
+			workflowProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.enableSkill', async (arg?: unknown) => {
+			const skill = getSkillFromCommand(arg);
+			if (!skill || !skill.repoPath) {
+				void vscode.window.showWarningMessage('Select a skill with a repo path to enable.');
+				return;
+			}
+			await setRepoItemEnabled('skills', skill.repoPath, skill.name, true);
+			skillProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.disableSkill', async (arg?: unknown) => {
+			const skill = getSkillFromCommand(arg);
+			if (!skill || !skill.repoPath) {
+				void vscode.window.showWarningMessage('Select a skill with a repo path to disable.');
+				return;
+			}
+			await setRepoItemEnabled('skills', skill.repoPath, skill.name, false);
+			skillProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.enableAgent', async (arg?: unknown) => {
+			const agent = getAgentFromCommand(arg);
+			if (!agent || !agent.repoPath) {
+				void vscode.window.showWarningMessage('Select an agent with a repo path to enable.');
+				return;
+			}
+			await setRepoItemEnabled('agents', agent.repoPath, agent.fileName, true);
+			agentProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.disableAgent', async (arg?: unknown) => {
+			const agent = getAgentFromCommand(arg);
+			if (!agent || !agent.repoPath) {
+				void vscode.window.showWarningMessage('Select an agent with a repo path to disable.');
+				return;
+			}
+			await setRepoItemEnabled('agents', agent.repoPath, agent.fileName, false);
+			agentProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.runE2E', async () => {
+			const config = vscode.workspace.getConfiguration();
+			let url = (config.get<string>('skillInstaller.e2e.url') ?? '').trim();
+			if (!url) {
+				url =
+					(await vscode.window.showInputBox({
+						prompt: 'Enter the E2E dashboard URL to open',
+						placeHolder: 'https://...'
+					})) ?? '';
+			}
+			if (!url) {
+				void vscode.window.showInformationMessage('No E2E URL configured.');
+				return;
+			}
+			if (!/^https?:\/\//i.test(url)) {
+				url = `https://${url}`;
+			}
+			await vscode.commands.executeCommand('simpleBrowser.show', url);
 		})
 	);
 

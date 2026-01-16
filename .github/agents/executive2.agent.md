@@ -74,6 +74,12 @@ Executive2 does NOT create or modify plan artefacts.
 
 ## Workflow (Orchestration)
 
+## Parallelization Rules (Subagents)
+- Default to **parallel** execution for read-only subagents (e.g., `code-explorer`, `code-architect`, `code-reviewer`) when their outputs are independent.
+- **Never** run two write-capable subagents at the same time (e.g., `task-runner`, `plan-artefact-writer`).
+- If a subagent needs to edit a shared file (e.g., a task file), **serialize** the edit: one writer at a time.
+- When in doubt, favor safety: run read-only work in parallel and serialize writes.
+
 ### Phase 0 — Bootstrap (fast)
 - Identify target repo.
 - Load project truth sources.
@@ -89,6 +95,7 @@ If any are missing/outdated, STOP and use the **Back to Planning** handoff.
 ### Phase 2 — Delegated Execution Loop (explicit)
 For each task in `.instructions/tasks/`:
 - MUST gather required context via explicit subagent calls BEFORE execution (typically `code-explorer`).
+- Prefer parallel, read-only exploration (e.g., `code-explorer` + `code-architect`) when it reduces latency and does not create write contention.
 - MUST delegate task execution to `task-runner` (do not implement tasks directly in executive2).
 - Provide `task-runner`:
    - the task file path
