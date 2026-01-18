@@ -62,3 +62,6 @@ Only consult skill docs when you’re unsure, the change is high-risk, or the re
 ## Testing
 - Always run existing tests after changes.
 - When adding features or fixing bugs, add relevant unit/integration tests.
+- **Prefer running tests via subagents** (especially `@test-executive` for coordinated test runs) to avoid context bloat and timeout issues.
+- **Segment large test suites** into smaller batches when possible (e.g., by project, test category, or file pattern) to avoid very long testing sessions, particularly for integration tests.
+- **Always use timeouts** when running tests via `run_in_terminal`. Use conservative timeouts (90s for unit tests, 1000s+ for integration tests) to prevent hanging. If uncertain about duration, use explicit timeout values rather than risking infinite waits.
