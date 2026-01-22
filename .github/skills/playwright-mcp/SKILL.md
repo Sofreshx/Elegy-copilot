@@ -210,15 +210,4 @@ verify(process.argv[2]);
     └── console-logs.json
 ```
 
-## Comparison with chrome-devtools-mcp
-
-| Feature | @playwright/mcp | chrome-devtools-mcp |
-|---------|-----------------|---------------------|
-| Browser | Chromium, Firefox, WebKit | Chrome only |
-| Focus | Testing automation | DevTools inspection |
-| Stability | Official Playwright team | Community maintained |
-| CI/CD | Excellent | Good |
-| DevTools access | Limited | Full |
-
-Use `@playwright/mcp` for E2E testing; use `chrome-devtools-mcp` for deep DevTools inspection.
 ```

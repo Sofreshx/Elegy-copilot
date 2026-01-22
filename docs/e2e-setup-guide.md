@@ -25,32 +25,15 @@ npm install -D @playwright/mcp @playwright/test
 npx playwright install chromium
 ```
 
-### Option B: chrome-devtools-mcp (For DevTools Inspection)
-
-**Best for**: Performance audits, network inspection, deep debugging
-
-```json
-{
-  "mcpServers": {
-    "chrome-devtools": {
-      "command": "npx",
-      "args": ["-y", "chrome-devtools-mcp@latest", "--isolated", "--viewport", "1280x720"]
-    }
-  }
-}
-```
-
-**Requires**: Chrome Stable installed on system
-
 ## Prerequisites
 
 ### Node.js
 - **Minimum**: Node.js >= 20.19
 - **Recommended**: Latest LTS version
 
-### Browser
-- `@playwright/mcp`: Downloads Chromium automatically via `npx playwright install chromium`
-- `chrome-devtools-mcp`: Uses system Chrome installation
+### Browsers
+- `@playwright/mcp` downloads Chromium automatically via `npx playwright install chromium`.
+- You can also install other browsers if needed: `npx playwright install firefox webkit`.
 
 ## E2E Setup Verification
 
