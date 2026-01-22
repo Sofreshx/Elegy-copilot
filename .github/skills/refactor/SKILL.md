@@ -1,8 +1,6 @@
 ---
 name: refactor
-description: >
-  Code restructuring and cleanup. Improves readability, reduces duplication, aligns with patterns without changing behavior. Use this when asked to refactor code, clean up, extract methods, or improve code structure.
-    Triggers on: "refactor", "clean up", "reorganize", "simplify".
+description: "Code restructuring and cleanup. Improves readability, reduces duplication, and aligns with patterns without changing behavior. Triggers on: refactor, clean up, reorganize, simplify."
 ---
 
 # Refactor Skill
@@ -22,8 +20,8 @@ description: >
 
 ## Inputs
 - Code to refactor.
-- `contexts/project.patterns.md` (target patterns).
-- `warnings.md` (known issues to address or avoid).
+- `../../contexts/project.patterns.md` (target patterns).
+- `../../warnings.md` (known issues to address or avoid).
 
 ## Steps
 1. Read project patterns to understand target conventions.
@@ -55,7 +53,7 @@ description: >
 ## Output
 - Refactored code.
 - Updated tests if needed.
-- `warnings.md` entry if risk discovered.
+- `../../warnings.md` entry if risk discovered.
 
 ## Session Summary Format
 - **Done**: [refactoring completed]

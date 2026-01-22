@@ -1,8 +1,6 @@
 ---
 name: debug
-description: >
-  Debugging skill for diagnosing runtime errors, failing tests, and unexpected behavior. Use this when asked to debug code, investigate errors, analyze stack traces, or figure out why something is failing.
-    Triggers on: "debug", "debugging", "stack trace", "investigate", "why failing", "error".
+description: "Debugging skill for diagnosing runtime errors, failing tests, and unexpected behavior. Triggers on: debug, debugging, stack trace, investigate, why failing, error."
 ---
 
 # Debug Skill
@@ -22,7 +20,7 @@ description: >
 ## Inputs
 - Error message, stack trace, or behavior description.
 - Relevant code files.
-- `warnings.md` (for known issues in the area).
+- `../../warnings.md` (for known issues in the area).
 - Task files under `.instructions/tasks/` and `.instructions/tasks.archive/` (check `## Failures` / `## Attempts / Log` for similar past failures).
 
 ## Steps
@@ -70,7 +68,7 @@ description: >
 ## Output
 - Debug analysis with hypotheses and fix.
 - Optional: `raw.tasks.md` entry if fix needs tracked implementation.
-- Optional: `warnings.md` entry if systemic issue discovered.
+- Optional: `../../warnings.md` entry if systemic issue discovered.
 
 ## Session Summary Format
 - **Done**: [issue diagnosed]
