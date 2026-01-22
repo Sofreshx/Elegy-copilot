@@ -1,8 +1,6 @@
 ---
 name: security
-description: >
-   Security review and vulnerability detection. Checks for secure coding practices, secret exposure, injection risks. Use this when asked to do a security review, check for vulnerabilities, audit security, or review secure coding practices.
-   Triggers on: "security", "vulnerability", "hardening", "secure coding".
+description: "Security review and vulnerability detection. Checks secure coding practices and exposure risks. Triggers on: security, vulnerability, hardening, secure coding."
 ---
 
 # Security Skill
@@ -76,7 +74,7 @@ description: >
 ## Output
 - Security review with categorized findings.
 - `.instructions/raw.tasks.md` entries for critical/high issues.
-- `warnings.md` entry for systemic security concerns.
+- `../../warnings.md` entry for systemic security concerns.
 
 ## Session Summary Format
 - **Done**: [security review completed]

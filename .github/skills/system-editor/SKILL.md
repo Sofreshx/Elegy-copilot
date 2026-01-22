@@ -1,20 +1,18 @@
 ---
 name: system-editor
-description: >
-  Instruction file editor. Updates agent instructions, contexts, and architecture docs. Use this for internal system maintenance only.
-    Triggers on: "system editor", "edit instruction files", "edit skills".
+description: "Instruction file editor. Updates agent instructions, contexts, and architecture docs. Triggers on: system editor, edit instruction files, edit skills."
 ---
 
 # System Editor Skill
 
 ## Inputs
 - Proposed change or gap.
-- `.instructions/architecture.md`, `.instructions/contexts/project.memory.md`, relevant agent/context files.
-- Feedback from `system.drift.agent.md` (if triggered by drift detection).
+- `../../.instructions/architecture.md`, `../../.instructions/contexts/project.memory.md`, relevant agent/context files.
+- Feedback from `../../skills/system-drift/SKILL.md` (if triggered by drift detection).
 
 ## Steps
 1. Identify the change needed (new agent, context tweak, pipeline adjustment, pattern update).
-2. Read `.instructions/contexts/project.memory.md` and recent task files (check `## Failures` sections) to understand prior issues�avoid reintroducing known problems.
+2. Read `../../.instructions/contexts/project.memory.md` and recent task files (check `## Failures` sections) to understand prior issues�avoid reintroducing known problems.
 3. **Version tracking**: Before editing, note current schema-version; increment patch version for minor fixes, minor version for new capabilities.
 4. Apply updates to instructions/contexts; keep style consistent and follow Agent Template Schema from `onboarding.agent.md`.
 5. **Backup**: Create backup of modified files in `.backup/` before applying changes.
@@ -41,7 +39,7 @@ When called after task failures:
 - **Changes**: [files/links modified]
 - **New tasks**: [any new task files created]
 - **New raw.tasks.md**: [any new unrefined tasks]
-- **Warnings**: [any warnings.md updates]
+- **Warnings**: [any ../../warnings.md updates]
 - **Next**: [suggested next actions]
 
 

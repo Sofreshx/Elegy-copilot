@@ -58,6 +58,7 @@ The only common developer-local items are session RAM and generated outputs:
 | "Plan this feature" | Plan Mode or `@executive2-planner` | Produce a structured plan before edits |
 | "Archive completed tasks" | `system-cleanup` skill | Move done task files to `tasks.archive/` and append to `tasks.history.md` |
 | `@helper How does X work?` | Custom agent | Explanations (read-only) |
+| `@e2e-ux-auditor Run an E2E UX audit` | Custom agent + `@playwright/mcp` | Drive a browser, report UX/feature gaps, sync to tasks |
 | `@debugger Why is this failing?` | Custom agent | Investigate errors |
 | `@auditor Check security` | Custom agent | Run quality/security scans |
 
@@ -183,6 +184,7 @@ To enable skill subagent delegation, add this to your VS Code `settings.json`:
 - [Example Workflow](EXAMPLE_WORKFLOW.md)
 - [Lazy Loading Pattern](.github/patterns/lazy-loading.pattern.md)
 - [Skill Index](.codex/skills/index.md)
+- [E2E Setup Guide](docs/e2e-setup-guide.md)
 
 ## Contributing
 

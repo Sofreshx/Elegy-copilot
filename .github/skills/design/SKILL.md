@@ -1,8 +1,6 @@
 ---
 name: design
-description: >
-  Architecture and design evaluation. Reviews patterns, proposes designs, creates ADRs. Use this when asked to review a design, suggest architecture, evaluate trade-offs, or make architecture decisions.
-    Triggers on: "design", "architecture", "diagram", "system design".
+description: "Architecture and design evaluation. Reviews patterns, proposes designs, and creates ADRs. Triggers on: design, architecture, diagram, system design."
 ---
 
 # Design Skill
@@ -21,13 +19,13 @@ description: >
 
 ## Inputs
 - Design proposal or question.
-- `architecture.md`, `contexts/project.patterns.md`.
+- `../../architecture.md`, `../../contexts/project.patterns.md`.
 - Relevant domain contexts.
-- `warnings.md` (to avoid known problematic patterns).
+- `../../warnings.md` (to avoid known problematic patterns).
 
 ## Steps
 1. Read existing architecture and patterns to understand current state.
-2. Check `warnings.md` for related past issues.
+2. Check `../../warnings.md` for related past issues.
 3. Analyze the design proposal against:
    - **Consistency**: Does it fit existing patterns?
    - **Scalability**: Will it handle growth?
@@ -36,7 +34,7 @@ description: >
    - **Complexity**: Is it appropriately simple?
 4. If proposing alternatives, explain trade-offs clearly.
 5. For significant decisions, create ADR in `docs/adr/`.
-6. Update `architecture.md` if design changes system understanding.
+6. Update `../../architecture.md` if design changes system understanding.
 
 ## ADR Template
 ```markdown
@@ -66,12 +64,12 @@ Proposed | Accepted | Deprecated | Superseded
 ## Output
 - Design evaluation with recommendations.
 - ADR if significant decision.
-- Updates to `architecture.md` if needed.
+- Updates to `../../architecture.md` if needed.
 - `raw.tasks.md` entries for implementation work.
 
 ## Session Summary Format
 - **Done**: [design evaluated/proposed]
-- **Changes**: [ADR created, architecture.md updated]
+- **Changes**: [ADR created, ../../architecture.md updated]
 - **New tasks**: [none]
 - **New raw.tasks.md**: [implementation tasks if design approved]
 - **Warnings**: [if design has risks]

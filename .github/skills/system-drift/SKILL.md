@@ -1,8 +1,6 @@
 ---
 name: system-drift
-description: >
-   Instruction drift detection. Analyzes failed tasks to find systematic issues in agent instructions. Use this for internal system maintenance only.
-   Triggers on: "system drift", "pattern drift", "fix drift".
+description: "Instruction drift detection. Analyzes failed tasks to find systematic issues in agent instructions. Triggers on: system drift, pattern drift, fix drift."
 ---
 
 # System Drift Detection Skill
@@ -14,9 +12,9 @@ description: >
 
 ## Inputs
 - Task files under `.instructions/tasks/` and `.instructions/tasks.archive/` (primary source of drift signals; read `## Failures` + `## Attempts / Log`).
-- `.instructions/warnings.md` (existing known issues).
+- `../../.instructions/warnings.md` (existing known issues).
 - All `.github/skills/*/SKILL.md` files (or `.instructions/skills/` for local overrides).
-- `.instructions/tasks.history.md` (optional summary signal).
+- `../../.instructions/tasks.history.md` (optional summary signal).
 
 ## Steps
 1. **Analyze failures**: Read task files and categorize by:
