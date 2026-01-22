@@ -74,7 +74,7 @@ Executive2 supports two clean “start implementing” paths:
 Agent roles:
 - `@executive2-planner`: planning only (goal/acceptance criteria/plan). Does not create tasks unless explicitly requested.
 - `@executive2-task-creator`: converts an approved plan into persisted `.instructions/tasks/*` (and optionally a plan artefact for complex work).
-- `@executive2`: orchestration-only. Requires an existing task graph and delegates execution to `task-runner` and testing to `test-executive`.
+- `@executive2`: orchestration-only. Requires an existing task graph and delegates execution to `task-runner`, testing to `test-executive`, and governance review to `code-reviewer`.
 - `@executive2-fast`: implements directly with good judgment, but never persists `.instructions/` state.
 
 ### Hiding Internal Agents (Copilot UI)
@@ -124,7 +124,9 @@ your-project/.instructions/          # Local Project (per-repo)
 ├─────────────────────────────────────────────────────────────┤
 │  2. IMPLEMENT: Default agent + subagents as needed            │
 ├─────────────────────────────────────────────────────────────┤
-│  3. ORGANIZE: cleanup agents keep backlog tidy                │
+│  3. REVIEW: governance + quality review                        │
+├─────────────────────────────────────────────────────────────┤
+│  4. ORGANIZE: cleanup agents keep backlog tidy                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
