@@ -1,8 +1,6 @@
 ---
 name: feature-creator
-description: >
-  Backend feature implementation. Creates endpoints, services, and data access following project patterns. Use this when asked to add an endpoint, create a feature, implement an API, or do backend development.
-    Triggers on: "add endpoint", "create feature", "backend", "CRUD", "API endpoint".
+description: "Backend feature implementation. Creates endpoints, services, and data access following project patterns. Triggers on: add endpoint, create feature, backend, CRUD, API endpoint."
 ---
 
 # Feature Creator Skill
@@ -15,7 +13,7 @@ description: >
 
 ## Inputs
 - Task from a task file under `.instructions/tasks/`
-- `warnings.md`, `contexts/project.patterns.md`
+- `../../warnings.md`, `../../contexts/project.patterns.md`
 - Search for similar features in codebase to match patterns
 
 ## Discovery First
@@ -43,7 +41,7 @@ Before implementing, search for:
 - **Changes**: [files/links modified]
 - **New tasks**: [any new task files created]
 - **New raw.tasks.md**: [any new unrefined tasks]
-- **Warnings**: [any warnings.md updates]
+- **Warnings**: [any ../../warnings.md updates]
 - **Next**: [suggested next actions]
 
 

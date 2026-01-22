@@ -1,9 +1,14 @@
+---
+name: chrome-devtools-mcp
+description: "Browser E2E via MCP. Enables automation and inspection of real Chrome sessions through the Model Context Protocol. Triggers on: chrome devtools, MCP browser, browser automation, E2E."
+---
+
 # Skill: chrome-devtools-mcp (Browser E2E via MCP)
----
-sources:
-  - https://github.com/ChromeDevTools/chrome-devtools-mcp
-last_processed: 2026-01-11
----
+
+Sources:
+- https://github.com/ChromeDevTools/chrome-devtools-mcp
+
+Last processed: 2026-01-11
 
 ## Purpose
 Enable an agent to control and inspect a **real Chrome** instance through the **Model Context Protocol (MCP)** server `chrome-devtools-mcp`.
