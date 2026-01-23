@@ -1,8 +1,6 @@
 ---
 name: system-health
-description: >
-  System health diagnostic. Validates file integrity, references, and configuration. Use this for internal system maintenance only.
-    Triggers on: "system health", "verify system integrity", "health check".
+description: "System health diagnostic. Validates file integrity, references, and configuration. Use this for internal system maintenance only. Triggers on:"system health", "verify system integrity", "health check"."
 ---
 
 # System Health Skill
@@ -57,5 +55,7 @@ Status: ?? Warning
 ## Warnings
 - [ ] `react.context.md` appears to be empty.
 ```
+
+
 
 

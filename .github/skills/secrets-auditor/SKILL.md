@@ -1,8 +1,6 @@
 ---
 name: secrets-auditor
-description: >
-  Secret and credential detection. Scans for exposed API keys, passwords, and sensitive data. Use this when asked to check for secrets, scan for credentials, audit security, or detect exposed sensitive data.
-    Triggers on: "secrets", "credentials", "leaked", "api key", "secret scanning".
+description: "Secret and credential detection. Scans for exposed API keys, passwords, and sensitive data. Use this when asked to check for secrets, scan for credentials, audit security, or detect exposed sensitive data. Triggers on:"secrets", "credentials", "leaked", "api key", "secret scanning"."
 ---
 
 # Secrets Auditor Skill
@@ -23,5 +21,7 @@ Detect potential secrets, API keys, and credentials committed to the codebase.
 
 ## Verification
 - If a match is found, verify it is not a placeholder (e.g., "your-key-here").
+
+
 
 

@@ -1,8 +1,6 @@
 ---
 name: cloudflare-storage
-description: >
-    Cloudflare storage services integration. Handles R2 object storage, Workers KV, and Images API. Use this when asked to work with Cloudflare R2, Workers KV, image CDN, or Cloudflare storage integration.
-    Triggers on: "R2", "Cloudflare", "Cloudflare R2", "storage", "object storage".
+description: "Cloudflare storage services integration. Handles R2 object storage, Workers KV, and Images API. Use this when asked to work with Cloudflare R2, Workers KV, image CDN, or Cloudflare storage integration. Triggers on:"R2", "Cloudflare", "Cloudflare R2", "storage", "object storage"."
 ---
 
 # Cloudflare Storage Skill
@@ -373,5 +371,7 @@ public record DirectUpload(string Id, string UploadUrl);
 - **API Rate Limits**: Check account limits for API calls
 
 ````
+
+
 
 

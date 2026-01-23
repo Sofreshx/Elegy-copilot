@@ -1,4 +1,4 @@
-﻿---
+---
 name: auth
 description: "Backward-compatible alias for firebase-auth. Primary auth implementation is Firebase Authentication. Triggers on: auth, authentication, login, firebase, firebase auth, id token, custom claims."
 ---
@@ -13,9 +13,9 @@ Use the canonical Firebase skill instead:
 
 
 ## When NOT to Use
-- For Firebase-specific auth → use `firebase-auth` (custom claims, Admin SDK)
-- For generic security review → use `security`
-- For secret scanning → use `secrets-auditor`
+- For Firebase-specific auth ? use `firebase-auth` (custom claims, Admin SDK)
+- For generic security review ? use `security`
+- For secret scanning ? use `secrets-auditor`
 
 ## Inputs
 - Task from a task file under `.instructions/tasks/`
@@ -47,5 +47,6 @@ Use the canonical Firebase skill instead:
 - **New raw.tasks.md**: [any new unrefined tasks]
 - **Warnings**: [any ../../warnings.md updates]
 - **Next**: [suggested next actions]
+
 
 

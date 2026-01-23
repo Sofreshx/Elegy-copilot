@@ -1,8 +1,6 @@
 ---
 name: system-cleanup
-description: >
-   Task file maintenance. Archives completed tasks and cleans up raw inputs. Use this for internal system maintenance only.
-   Triggers on: "system cleanup", "archive completed tasks", "cleanup tasks".
+description: "Task file maintenance. Archives completed tasks and cleans up raw inputs. Use this for internal system maintenance only. Triggers on:"system cleanup", "archive completed tasks", "cleanup tasks"."
 ---
 
 # System Cleanup Skill
@@ -40,5 +38,7 @@ description: >
 - Updated `.instructions/tasks.archive/` (archived tasks).
 - Updated `.instructions/tasks.history.md` (append-only recaps).
 - Session summary of items archived and removed.
+
+
 
 

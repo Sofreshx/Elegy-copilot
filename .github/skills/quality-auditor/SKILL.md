@@ -1,8 +1,6 @@
 ---
 name: quality-auditor
-description: >
-  Code quality scanning. Detects code smells, hardcoded strings, console logs, and maintenance issues. Use this when asked to check code quality, find code smells, audit lint issues, or scan for quality problems.
-    Triggers on: "audit quality", "code smell", "quality audit", "quality auditor".
+description: "Code quality scanning. Detects code smells, hardcoded strings, console logs, and maintenance issues. Use this when asked to check code quality, find code smells, audit lint issues, or scan for quality problems. Triggers on:"audit quality", "code smell", "quality audit", "quality auditor"."
 ---
 
 # Code Quality Auditor Skill
@@ -43,5 +41,7 @@ Detect code smells, pollution, and maintenance burdens across the codebase.
 - Context matters: `console.log` is fine in CLI tools, bad in libraries
 - Exclude: test files, generated code, vendor folders
 - Check `.gitignore` patterns to avoid scanning build outputs
+
+
 
 

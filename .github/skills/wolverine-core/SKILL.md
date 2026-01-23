@@ -1,8 +1,6 @@
 ---
 name: wolverine-core
-description: >
-    Wolverine message handling and CQRS. Creates handlers, commands, events, and message processing. Use this when asked to create a Wolverine handler, implement CQRS, work with message bus, or handle Wolverine messaging tasks.
-    Triggers on: "Wolverine", "message handler", "CQRS", "command handler".
+description: "Wolverine message handling and CQRS. Creates handlers, commands, events, and message processing. Use this when asked to create a Wolverine handler, implement CQRS, work with message bus, or handle Wolverine messaging tasks. Triggers on:"Wolverine", "message handler", "CQRS", "command handler"."
 ---
 
 # Wolverine Core Skill
@@ -211,5 +209,7 @@ public static async Task Handle(
 - **Message Types**: Keep messages simple POCOs or records - avoid complex inheritance
 
 ````
+
+
 
 
