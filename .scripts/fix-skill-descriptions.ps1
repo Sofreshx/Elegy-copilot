@@ -11,7 +11,10 @@ foreach ($file in $files) {
         if ($m.Success) {
             $block = $m.Groups[1].Value
             $one = ($block -replace '\r?\n',' ' -replace '\s+',' ').Trim()
+            # Sanitize internal double quotes to avoid breaking the quoted YAML value
+            $one = $one -replace '"', "'"
             if ($one -notmatch '(?i)Triggers on:') { $one += " Triggers on: $name" }
+            # Build replacement string using concatenation (safer for PowerShell parsing)
             $new = 'description: "' + $one + '"' + "`n---"
             $text = [regex]::Replace($text, 'description:\s*>\s*.*?\r?\n---', $new, [System.Text.RegularExpressions.RegexOptions]::Singleline)
             Set-Content -Path $file.FullName -Value $text
