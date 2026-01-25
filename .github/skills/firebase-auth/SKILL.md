@@ -1,11 +1,6 @@
-ï»¿---
+---
 name: firebase-auth
-description: >
-    Firebase Authentication with Admin SDK for .NET. Handles user management, token verification,
-    custom claims, and role-based access. Use this when asked to implement Firebase auth, verify
-    ID tokens (JWT), manage custom claims, or integrate Firebase login with a backend.
-    Triggers on: "firebase", "firebase auth", "firebase authentication", "id token", "verify id token",
-    "custom claims", "setCustomUserClaims", "admin sdk", "FirebaseAdmin", "Bearer token".
+description: "Firebase Authentication with Admin SDK for .NET. Handles user management, token verification, custom claims, and role-based access. Use this when asked to implement Firebase auth, verify ID tokens (JWT), manage custom claims, or integrate Firebase login with a backend. Triggers on:"firebase", "firebase auth", "firebase authentication", "id token", "verify id token", "custom claims", "setCustomUserClaims", "admin sdk", "FirebaseAdmin", "Bearer token"."
 ---
 
 # Firebase Auth Skill
@@ -22,12 +17,12 @@ Integrate Firebase Authentication for user identity and role management using Cu
     - **Firebase standard claims** (issuer, audience, expiry, subject/uid)
     - **Custom claims** you set via Admin SDK (RBAC / entitlements)
 
-### Token Types (Donâ€™t Mix These Up)
+### Token Types (Don’t Mix These Up)
 
 - **ID token**: short-lived (~1 hour), sent to your backend, contains claims.
 - **Refresh token**: long-lived, stays on the client, used by Firebase SDK to mint new ID tokens.
     Never send refresh tokens to your backend.
-- **Custom token**: minted by your backend (Admin SDK) *only if* you need â€œsign-in with your own authâ€.
+- **Custom token**: minted by your backend (Admin SDK) *only if* you need “sign-in with your own auth”.
     The client exchanges it for an ID token.
 
 ## Setup
@@ -324,7 +319,7 @@ export const AdminRoute = ({ children }: { children: JSX.Element }) => {
 If you use the Firebase Auth emulator locally:
 
 - Point the frontend SDK at the emulator (`connectAuthEmulator`).
-- Treat emulator tokens as local-only. Donâ€™t relax production verification rules.
+- Treat emulator tokens as local-only. Don’t relax production verification rules.
 - Keep emulator configuration out of source where appropriate (env-based).
 
 ## Common Gotchas
@@ -334,5 +329,7 @@ If you use the Firebase Auth emulator locally:
 - **Default Token Lifetime**: ID tokens expire after 1 hour by default
 - **Project ID Required**: Token verification needs project ID (from service account or `GOOGLE_CLOUD_PROJECT` env var)
 - **Email Lookup Limitation**: `GetUserByEmailAsync` only searches top-level email, not provider-specific emails
+
+
 
 

@@ -1,9 +1,6 @@
-﻿---
+---
 name: auth
-description: >
-  Backward-compatible alias for `firebase-auth`. This repo's primary auth implementation is
-  Firebase Authentication.
-  Triggers on: "auth", "authentication", "login", "firebase", "firebase auth", "id token", "custom claims".
+description: "Backward-compatible alias for firebase-auth. Primary auth implementation is Firebase Authentication. Triggers on: auth, authentication, login, firebase, firebase auth, id token, custom claims."
 ---
 
 # Auth Skill (Alias)
@@ -16,13 +13,13 @@ Use the canonical Firebase skill instead:
 
 
 ## When NOT to Use
-- For Firebase-specific auth → use `firebase-auth` (custom claims, Admin SDK)
-- For generic security review → use `security`
-- For secret scanning → use `secrets-auditor`
+- For Firebase-specific auth ? use `firebase-auth` (custom claims, Admin SDK)
+- For generic security review ? use `security`
+- For secret scanning ? use `secrets-auditor`
 
 ## Inputs
 - Task from a task file under `.instructions/tasks/`
-- `warnings.md`, `contexts/project.patterns.md`
+- `../../warnings.md`, `../../contexts/project.patterns.md`
 - Check for existing auth: look for JWT, OIDC, cookie auth patterns in codebase
 
 ## Auth Patterns to Detect
@@ -37,7 +34,7 @@ Use the canonical Firebase skill instead:
 3. **Mode**: Use deep mode if touching shared auth infra; shallow for config changes
 4. **Implement**: Config, middleware/filters, token handling, user model impacts
 5. **Test**: Add auth-specific tests (token validation, role checks, expiry)
-6. **Warn**: Note inconsistencies in `warnings.md` (e.g., mixed providers, missing HTTPS)
+6. **Warn**: Note inconsistencies in `../../warnings.md` (e.g., mixed providers, missing HTTPS)
 
 ## Output
 - Auth changes plus tests.
@@ -48,7 +45,8 @@ Use the canonical Firebase skill instead:
 - **Changes**: [files/links modified]
 - **New tasks**: [any new task files created]
 - **New raw.tasks.md**: [any new unrefined tasks]
-- **Warnings**: [any warnings.md updates]
+- **Warnings**: [any ../../warnings.md updates]
 - **Next**: [suggested next actions]
+
 
 

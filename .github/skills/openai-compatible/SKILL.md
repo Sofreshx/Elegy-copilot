@@ -1,8 +1,6 @@
 ---
 name: openai-compatible
-description: >
-  Integration for OpenAI-compatible APIs (OpenAI, Azure, ZAI, etc.). Handles chat completions, embeddings, and function calling.
-    Triggers on: "OpenAI", "GPT", "chat completion", "OpenAI-compatible".
+description: "Integration for OpenAI-compatible APIs (OpenAI, Azure, ZAI, etc.). Handles chat completions, embeddings, and function calling. Triggers on:"OpenAI", "GPT", "chat completion", "OpenAI-compatible"."
 ---
 
 # OpenAI-Compatible API Skill
@@ -41,5 +39,7 @@ var response = await client.CompleteAsync("Hello!");
 - **401/403 (Auth)**: Do not retry. Check configuration.
 
 **Do not leak provider errors to the client.** Return generic, safe error messages.
+
+
 
 

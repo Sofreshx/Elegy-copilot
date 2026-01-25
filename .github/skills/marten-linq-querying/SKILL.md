@@ -1,9 +1,6 @@
 ---
 name: marten-linq-querying
-description: >
-  
-Marten LINQ querying (documents). Prevent queries that compile but fail at runtime. Use this when writing/debugging Marten LINQ filters, Include(), child collection queries, pagination, Stats(), or async enumeration.
-  Triggers on: "Marten LINQ", "NotSupportedException", "Include()", "child collections", "Any", "Contains", "pagination", "Skip", "Take", "OrderBy", "Stats".
+description: "Marten LINQ querying (documents). Prevent queries that compile but fail at runtime. Use this when writing/debugging Marten LINQ filters, Include(), child collection queries, pagination, Stats(), or async enumeration. Triggers on:"Marten LINQ", "NotSupportedException", "Include()", "child collections", "Any", "Contains", "pagination", "Skip", "Take", "OrderBy", "Stats"."
 ---
 
 # Marten LINQ Querying Skill
@@ -100,3 +97,5 @@ When a query fails at runtime:
 - https://martendb.io/documents/querying/linq/async-enumerable.html
 - https://martendb.io/documents/querying/linq/paging
 - https://martendb.io/llms-full.txt
+
+

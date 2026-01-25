@@ -112,8 +112,13 @@ For each task in `.instructions/tasks/`:
 - For test orchestration/planning (when many tests need coordination), call `test-executive` which will delegate to `test-runner`.
 - **Never run tests directly** - always delegate to `test-runner` agent which has built-in safety mechanisms.
 
-### Phase 3 — Review (explicit)
-- Run a focused review via `code-reviewer`.
+### Phase 3 — Governance Review (explicit)
+- Run a review/governance pass via `code-reviewer` (Executive2 governance mode).
+- If the review agent returns `REPLAN_REQUESTED` or `NEW_TASK_REQUEST`, immediately hand off **Back to Planning** with that payload.
+- The review agent may perform task cleanup/archival; if it does not, you must still enforce Phase 4.
+
+### Phase 3b — Code Review (explicit)
+- Run a focused code review via `code-reviewer`.
 
 ### Phase 4 — Close + Cleanup (non-negotiable)
 Executive2 must ensure tasks are properly closed and that finished task files do not linger in `.instructions/tasks/`.
@@ -140,7 +145,8 @@ Major work MUST be delegated via `runSubagent`:
 - Task creation/update: `addtodo` (planner stage)
 - Task execution: `task-runner`
 - Testing orchestration: `test-executive`
-- Review: `code-reviewer`
+- Governance review: `code-reviewer` (Executive2 governance mode)
+- Code review: `code-reviewer`
 
 ### Standard prompt header (required)
 When calling subagents for execution/testing/review, include this at the top of the prompt:

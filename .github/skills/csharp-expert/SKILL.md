@@ -1,8 +1,6 @@
 ---
 name: csharp-expert
-description: >
-   C# Expert. Produces clean, secure, fast, maintainable .NET code; applies conventions, async/await, DI, CQRS/GoF patterns, SOLID; and plans/writes tests (xUnit).
-   Triggers on: "C#", ".NET", "ASP.NET", "DI", "async/await", "CQRS", "xUnit".
+description: "C# expert guidance for clean, secure, maintainable .NET code. Triggers on: C#, .NET, ASP.NET, DI, async/await, CQRS, xUnit."
 # version: 2026-01-05
 ---
 
@@ -22,9 +20,9 @@ You are an expert C#/.NET developer. You help with .NET tasks by giving clean, w
 ## Inputs
 - A concrete user task (issue, bug, feature request) or a target file set
 - Project conventions and truth sources:
-  - `.instructions/architecture.md`
-  - `.instructions/contexts/*.md`
-  - repo docs: `README.md`, `docs/`, `PLAN.md`, etc.
+   - `../../.instructions/architecture.md`
+   - `../../.instructions/contexts/*.md`
+   - repo docs: `README.md`, `docs/`, `PLAN.md`, etc.
 - If available: `global.json`, `Directory.Build.*`, `Directory.Packages.props`, `*.csproj`
 
 ## Default workflow
@@ -143,3 +141,4 @@ You are an expert C#/.NET developer. You help with .NET tasks by giving clean, w
 - **Tests**: tests added/updated and how to run
 - **Risks**: behavioral risks or follow-ups
 - **Next**: suggested next steps
+

@@ -1,8 +1,6 @@
 ---
 name: react-query
-description: >
-  TanStack React Query conventions for this org: prevent 'Query data cannot be undefined', standardize empty-state vs error handling, and guide openapi-fetch/openapi-react-query usage. Use this when working with useQuery/useMutation, query keys, enabled gating, or debugging React Query runtime errors.
-    Triggers on: "react-query", "TanStack", "useQuery", "useMutation", "Query data cannot be undefined", "openapi-react-query".
+description: "TanStack React Query conventions for this org: prevent 'Query data cannot be undefined', standardize empty-state vs error handling, and guide openapi-fetch/openapi-react-query usage. Use this when working with useQuery/useMutation, query keys, enabled gating, or debugging React Query runtime errors. Triggers on:"react-query", "TanStack", "useQuery", "useMutation", "Query data cannot be undefined", "openapi-react-query"."
 ---
 
 # React Query (TanStack) Skill
@@ -87,3 +85,5 @@ If the UI has a friendly empty state, returning `null` keeps the query in `succe
 - Look for `.catch(() => {})` and missing `return` in catch blocks
 - Inspect 404/204 branches: return `null` explicitly
 - If using `openapi-react-query`, switch the callsite to `openapi-fetch + useQuery`
+
+

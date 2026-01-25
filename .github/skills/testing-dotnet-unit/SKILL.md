@@ -1,8 +1,6 @@
 ---
 name: testing-dotnet-unit
-description: >
-   Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + AutoFixture). Use this when asked to write unit tests for C# backend code, add coverage for handlers/services, or validate business rules.
-   Triggers on: "xUnit", "NSubstitute", "Shouldly", "AutoFixture", "backend unit test", ".NET unit test".
+description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + AutoFixture). Use this when asked to write unit tests for C# backend code, add coverage for handlers/services, or validate business rules. Triggers on:"xUnit", "NSubstitute", "Shouldly", "AutoFixture", "backend unit test", ".NET unit test"."
 ---
 
 # .NET Unit Testing Skill
@@ -59,3 +57,5 @@ description: >
 - **New tasks**: [if follow-up needed]
 - **Warnings**: [if a risky untested area remains]
 - **Next**: [suggest running broader suite if requested]
+
+

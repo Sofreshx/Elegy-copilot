@@ -1,10 +1,6 @@
 ---
 name: tech-debt
-description: >
-  Use when asked to find code smells, audit TODOs, remove dead code, clean up unused imports,
-  delete debug statements, or assess code quality. Triggers on: "use tech-debt mode", "tech debt",
-  "code smells", "clean up", "remove dead code", "delete unused", "simplify", "eliminate waste".
-  Full access mode - can modify files and run tests.
+description: "Use when asked to find code smells, audit TODOs, remove dead code, clean up unused imports, delete debug statements, or assess code quality. Triggers on:"use tech-debt mode", "tech debt", "code smells", "clean up", "remove dead code", "delete unused", "simplify", "eliminate waste". Full access mode - can modify files and run tests."
 ---
 
 # Tech Debt Mode
@@ -206,3 +202,4 @@ To prevent future debt:
 - Review for simplification opportunities
 
 > "The best code is no code at all."
+

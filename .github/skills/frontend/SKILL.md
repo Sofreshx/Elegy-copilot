@@ -1,15 +1,13 @@
-﻿---
+---
 name: frontend
-description: >
-  Frontend UI development for React. Creates components, pages, and handles state management. Use this when asked to create components, add pages, build UI, style elements, or work on any frontend tasks.
-    Triggers on: "UI", "component", "React", "Vue", "page", "frontend".
+description: "Frontend UI development for React and similar frameworks. Creates components, pages, and handles state management. Triggers on: UI, component, React, Vue, page, frontend."
 ---
 
 # Frontend Skill
 
 ## Inputs
 - Task from a task file under `.instructions/tasks/`.
-- `warnings.md`, `contexts/project.patterns.md`, `contexts/frontend.context.md`.
+- `../../warnings.md`, `../../contexts/project.patterns.md`, `../../contexts/frontend.context.md`.
 
 ## Aesthetics (Critical)
 Apply this mindset to avoid generic "AI slop" UI:
@@ -18,7 +16,7 @@ Apply this mindset to avoid generic "AI slop" UI:
 > - **Color**: Commit to a cohesive aesthetic with sharp accents.
 > - **Motion**: Use staggered reveals and micro-interactions.
 > - **Backgrounds**: Create atmosphere with gradients or patterns.
-> - **Avoid**: Clich�d purple gradients, predictable layouts, and cookie-cutter designs.
+> - **Avoid**: Clich?d purple gradients, predictable layouts, and cookie-cutter designs.
 > **Interpret creatively and make unexpected choices!**
 
 ## Architecture & Structure
@@ -48,7 +46,7 @@ Adopt a **Feature-based** organization to keep the codebase scalable and segment
 4. Implement changes: components, hooks/composables, state, API integration, routing.
 	- **Apply the Aesthetics guidelines above.**
 5. Add/update tests (unit, integration, e2e as appropriate per `frontend.context.md`).
-6. Note any inconsistencies in `warnings.md` (mixed patterns, outdated deps, accessibility gaps).
+6. Note any inconsistencies in `../../warnings.md` (mixed patterns, outdated deps, accessibility gaps).
 
 ## Output
 - Frontend code and tests.
@@ -60,7 +58,8 @@ Adopt a **Feature-based** organization to keep the codebase scalable and segment
 - **Changes**: [files/links modified]
 - **New tasks**: [any new task files created]
 - **New raw.tasks.md**: [any new unrefined tasks]
-- **Warnings**: [any warnings.md updates]
+- **Warnings**: [any ../../warnings.md updates]
 - **Next**: [suggested next actions]
+
 
 

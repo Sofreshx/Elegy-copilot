@@ -1,8 +1,6 @@
-﻿---
+---
 name: marten-documents
-description: >
-    Marten document database. PostgreSQL document store with LINQ queries. Use this when asked to work with Marten queries, document store operations, storing or querying documents in Marten.
-    Triggers on: "Marten", "document store", "IDocumentSession", "document DB".
+description: "Marten document database. PostgreSQL document store with LINQ queries. Use this when asked to work with Marten queries, document store operations, storing or querying documents in Marten. Triggers on:"Marten", "document store", "IDocumentSession", "document DB"."
 ---
 
 # Marten Document Database Skill
@@ -122,5 +120,7 @@ Marten translates LINQ to SQL. Some C# expressions (nested `Where`, `??` in `Ord
 3. **Wolverine Integration**: Let Wolverine manage session lifecycle and transactions.
 4. **Avoid Complex LINQ**: Keep `Where` clauses simple or use `OrderBySql` for complex sorting.
 5. **Production Schema**: Set `AutoCreateSchemaObjects = None` and use migrations.
+
+
 
 

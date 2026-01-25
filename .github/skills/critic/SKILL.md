@@ -1,11 +1,6 @@
 ---
 name: critic
-description: >
-  Challenge assumptions and probe reasoning using adversarial thinking. Use when asked to
-  find weaknesses, challenge a design, identify edge cases, or stress-test an approach.
-  Triggers on: "use critic mode", "challenge this", "find weaknesses", "what could go wrong",
-  "critic", "devil's advocate", "poke holes", "stress test", "what am I missing", "5 whys".
-  Read-only mode - questions and probes but doesn't provide solutions.
+description: "Challenge assumptions and probe reasoning using adversarial thinking. Use when asked to find weaknesses, challenge a design, identify edge cases, or stress-test an approach. Triggers on:"use critic mode", "challenge this", "find weaknesses", "what could go wrong", "critic", "devil's advocate", "poke holes", "stress test", "what am I missing", "5 whys". Read-only mode - questions and probes but doesn't provide solutions."
 ---
 
 # Critic Mode
@@ -143,3 +138,4 @@ But also:
 The goal isn't to block progress—it's to strengthen the solution by finding weaknesses before production does.
 
 > "The first principle is that you must not fool yourself—and you are the easiest person to fool." - Richard Feynman
+

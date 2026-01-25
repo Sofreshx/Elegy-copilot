@@ -1,8 +1,6 @@
 ---
 name: code-review
-description: >
-  Code review for quality, patterns, and bugs. Reviews PRs, identifies issues, suggests improvements. Use this when asked to review code, check a PR, assess code quality, or identify issues in code.
-    Triggers on: "review", "PR review", "code review", "code quality", "peer review".
+description: "Code review for quality, patterns, and bugs. Reviews PRs, identifies issues, and suggests improvements. Triggers on: review, PR review, code review, code quality, peer review."
 ---
 
 # Code Review Skill
@@ -21,12 +19,12 @@ description: >
 
 ## Inputs
 - Code to review (file, diff, or PR).
-- `warnings.md`, `contexts/project.patterns.md`.
-- Relevant domain context (e.g., `auth.context.md` if reviewing auth code).
+- `../../warnings.md`, `../../contexts/project.patterns.md`.
+- Relevant domain context (e.g., `../../contexts/auth.context.md` if reviewing auth code).
 
 ## Steps
 1. Read project patterns to understand expected conventions.
-2. Check `warnings.md` for known issues in the area being reviewed.
+2. Check `../../warnings.md` for known issues in the area being reviewed.
 3. Analyze code for:
    - **Correctness**: Logic errors, edge cases, null handling
    - **Patterns**: Alignment with project conventions
@@ -68,5 +66,6 @@ description: >
 - **New raw.tasks.md**: [issues needing fixes]
 - **Warnings**: [if systemic issue found]
 - **Next**: [address critical issues or approve]
+
 
 

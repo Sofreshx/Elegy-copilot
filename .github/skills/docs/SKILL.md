@@ -1,8 +1,6 @@
 ---
 name: docs
-description: >
-  Documentation creation and improvement. Creates README, API docs, inline comments, and guides. Use this when asked to document code, improve README, add API docs, or create documentation.
-    Triggers on: "documentation", "README", "docs", "write docs".
+description: "Documentation creation and improvement. Creates README, API docs, inline comments, and guides. Triggers on: documentation, README, docs, write docs."
 ---
 
 # Docs Skill
@@ -20,7 +18,7 @@ description: >
 
 ## Inputs
 - Code or area to document.
-- `architecture.md`, `contexts/project.patterns.md`.
+- `../../architecture.md`, `../../contexts/project.patterns.md`.
 - Existing docs (if updating).
 
 ## Steps
@@ -54,5 +52,6 @@ description: >
 - **New raw.tasks.md**: [if more docs needed]
 - **Warnings**: [if found undocumented critical areas]
 - **Next**: [review docs or continue]
+
 
 
