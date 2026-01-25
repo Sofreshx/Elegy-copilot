@@ -22,7 +22,12 @@ Write integration tests that verify the interaction between components and exter
 3.  **Implement**:
     - **HTTP**: Use `Alba` to send requests and assert responses.
     - **Wolverine**: Use `InvokeMessageAndWaitAsync` and check `TrackedSession`.
-4.  **Verify**: Run the tests.
+4.  **Verify**: Delegate test execution to `test-runner` agent with:
+    - testType: integration
+    - projectPath: <test project path>
+    - filter: "FullyQualifiedName~<TestClass>"
+    - environmentVariables: { RUN_INTEGRATION_TESTS: "1", ALLOW_TEST_AUTH: "true", ASPNETCORE_ENVIRONMENT: "Test" }
+    - reason: "Validate [component] integration tests"
 
 ## Guidelines
 - **Real Dependencies**: Prefer real databases (via TestContainers/Aspire) over mocks for integration tests.

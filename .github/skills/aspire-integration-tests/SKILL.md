@@ -10,7 +10,20 @@ description: >
 ## Execution Policy (Important)
 - You may write or update integration tests as requested.
 - Do **not** execute integration tests unless the user explicitly asks you to run them.
-- When not requested, provide the exact command(s) the user can run.
+- When execution is requested, **ALWAYS delegate to `test-runner` agent** - never run tests directly.
+
+## Test Execution Delegation
+When integration tests need to be executed, delegate to `test-runner` with:
+- testType: integration
+- projectPath: SAASTools.AppHost.Tests/SAASTools.AppHost.Tests.csproj
+- filter: "FullyQualifiedName~<TestClass>" (when targeting specific tests)
+- environmentVariables:
+  - RUN_INTEGRATION_TESTS: "1"
+  - ALLOW_TEST_AUTH: "true"
+  - ASPNETCORE_ENVIRONMENT: "Test"
+- reason: "Validate Aspire integration tests for [component]"
+
+The `test-runner` handles all safety mechanisms (timeouts, non-interactive mode, proper flags).
 
 ## Inputs
 - Task from a task file under `.instructions/tasks/`.

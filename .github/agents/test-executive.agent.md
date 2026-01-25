@@ -47,3 +47,9 @@ Periodically run **`test-scanner`** again to verify coverage improvements and up
 - **Integration over Unit**: For microservices, integration tests often provide better value.
 - **Keep it Green**: Ensure the build is always passing before moving to the next task.
 - **Execution Policy**: Run unit tests by default after writing them. Only run integration/E2E tests when explicitly requested or when verifying a specific fix, as they can be slow.
+
+## Test Execution Delegation
+- **NEVER run tests directly** - always delegate to `test-runner` agent.
+- When delegating to `unit-test-gen` or `integration-test-gen`, remind them to use `test-runner` for verification.
+- When orchestrating multiple test runs, call `test-runner` for each execution with appropriate parameters.
+- `test-runner` has built-in safety mechanisms (timeouts, non-interactive mode, proper flags).

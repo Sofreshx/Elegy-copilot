@@ -40,8 +40,13 @@ description: >
    - Prefer behavior-based names: `Given_When_Then` or `Method_Scenario_Expected`
    - Use Shouldly for readable assertions
 5. Run unit tests (default behavior):
-   - Run the narrowest test project(s) affected
+   - Delegate to `test-runner` agent - never run tests directly
    - If the user said "skip tests", do not run them
+   - Provide to test-runner:
+     - testType: unit
+     - projectPath: <test project>
+     - filter: "FullyQualifiedName~<TestClass>" (when targeting specific tests)
+     - reason: "Validate unit tests for [component]"
 
 ## Output
 - New/updated test files (xUnit)

@@ -107,8 +107,10 @@ For each task in `.instructions/tasks/`:
 - If `task-runner` emits `NEW_TASK_REQUEST`, do not automatically replan. Summarize the request and ask the user whether to create a new task (via planning/task creation) or skip it.
 
 ### Phase 2b — Testing (explicit)
-- MUST call `test-executive` at least once at the end.
-- Call it more frequently when risk is high (core flows, migrations, bug fixes, broad refactors).
+- MUST call `test-runner` at least once at the end to validate changes.
+- Call `test-runner` more frequently when risk is high (core flows, migrations, bug fixes, broad refactors).
+- For test orchestration/planning (when many tests need coordination), call `test-executive` which will delegate to `test-runner`.
+- **Never run tests directly** - always delegate to `test-runner` agent which has built-in safety mechanisms.
 
 ### Phase 3 — Review (explicit)
 - Run a focused review via `code-reviewer`.
@@ -167,7 +169,8 @@ If a subagent proposes additional work as `NEW_TASK_REQUEST`:
 
 Execution routing:
 - Execute a single task end-to-end: `task-runner`
-- Orchestrate and run tests across tasks: `test-executive`
+- Run tests (unit/integration/e2e): `test-runner` (ALWAYS use this, never run tests directly)
+- Orchestrate test planning/coverage across tasks: `test-executive` (delegates to `test-runner` for execution)
 
 ## Output Expectations
 
