@@ -1,7 +1,7 @@
 ---
 name: executive2-planner
 description: "Planner for Executive2. Produces an actionable plan (goal/acceptance criteria/risks). Does not create tasks unless explicitly requested via a dedicated task-creation agent."
-tools: ['read', 'search', 'agent', 'agent/runSubagent']
+tools: ['read', 'search', 'agent', 'agent/runSubagent', 'search/searchSubagent']
 infer: true
 handoffs:
   - label: Start implementation (fast)
