@@ -47,6 +47,10 @@ This agent is designed to be called explicitly by `executive2`.
 
 5) **Validate**
    - Run the validation commands specified in the task (tests/build/lint) when available.
+   - **For test execution**: ALWAYS delegate to `test-runner` agent - never run tests directly.
+     - Provide: testType, projectPath, filter (if specific), environmentVariables (if needed), reason
+     - `test-runner` handles all safety mechanisms (timeouts, non-interactive mode, proper flags)
+   - For builds/lints: can run directly via `run_in_terminal` with appropriate timeouts.
    - Record results in the task log.
 
 6) **Close or block**

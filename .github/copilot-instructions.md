@@ -47,6 +47,7 @@ Use subagents to keep work high-signal and consistent:
 - `@code-explorer` when you need to map an unfamiliar codebase.
 - `@code-reviewer` for a focused quality/security review.
 - `@merger` for merge conflicts and migrations.
+- `@test-runner` for executing any tests (unit/integration/e2e) - handles all safety mechanisms.
 - `@test-executive` to plan/coordinate testing; `@unit-test-gen` / `@integration-test-gen` to generate tests.
 - `@executive2-planner` for planning; then either `@executive2-fast` (no persistence) or `@executive2-task-creator` → `@executive2` (durable task graph) for larger multi-phase features.
 
@@ -62,6 +63,7 @@ Only consult skill docs when you’re unsure, the change is high-risk, or the re
 ## Testing
 - Always run existing tests after changes.
 - When adding features or fixing bugs, add relevant unit/integration tests.
-- **Prefer running tests via subagents** (especially `@test-executive` for coordinated test runs) to avoid context bloat and timeout issues.
-- **Segment large test suites** into smaller batches when possible (e.g., by project, test category, or file pattern) to avoid very long testing sessions, particularly for integration tests.
-- **Always use timeouts** when running tests via `run_in_terminal`. Use conservative timeouts (90s for unit tests, 1000s+ for integration tests) to prevent hanging. If uncertain about duration, use explicit timeout values rather than risking infinite waits.
+- **Test execution**: Use `@test-runner` agent to run tests - it has built-in safety mechanisms (timeouts, non-interactive mode, proper flags).
+- **Never run tests directly via `run_in_terminal`** unless you are the test-runner agent.
+- **Test orchestration**: Use `@test-executive` for planning and coordinating test coverage across multiple areas.
+- **Segment large test suites** into smaller batches when delegating to test-runner (e.g., by test class filter).

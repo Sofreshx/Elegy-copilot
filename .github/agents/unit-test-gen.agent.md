@@ -21,7 +21,11 @@ Write robust, isolated unit tests for specific classes or components. You focus 
 2.  **Plan**: List the scenarios to test (Happy Path, Edge Cases, Error States).
 3.  **Scaffold**: Create the test class if it doesn't exist.
 4.  **Implement**: Write the tests using the "Arrange, Act, Assert" pattern.
-5.  **Verify**: Run the tests to ensure they pass.
+5.  **Verify**: Delegate test execution to `test-runner` agent with:
+    - testType: unit
+    - projectPath: <test project path>
+    - filter: "FullyQualifiedName~<TestClass>"
+    - reason: "Validate [component] unit tests"
 
 ## Guidelines
 - **Mock Externalities**: Always mock I/O, databases, and external services.
