@@ -21,8 +21,11 @@
     "onView:skillInstaller.activeTasksView",
     "onView:skillInstaller.workflowView",
     "onView:skillInstaller.agentsView",
+    "onView:skillInstaller.auditView",
     "onCommand:skillInstaller.refresh",
     "onCommand:skillInstaller.runE2E",
+    "onCommand:skillInstaller.runAudit",
+    "onCommand:skillInstaller.refreshAudit",
     "onCommand:skillInstaller.enableSkill",
     "onCommand:skillInstaller.disableSkill",
     "onCommand:skillInstaller.enableAgent",
@@ -62,6 +65,10 @@
         {
           "id": "skillInstaller.tasksView",
           "name": "Tasks"
+        },
+        {
+          "id": "skillInstaller.auditView",
+          "name": "Audit Results"
         }
       ]
     },
@@ -97,6 +104,16 @@
       {
         "command": "skillInstaller.clearAllRepoContexts",
         "title": "Clear Context for All Repos"
+      },
+      {
+        "command": "skillInstaller.runAudit",
+        "title": "Run Audit",
+        "icon": "$(play)"
+      },
+      {
+        "command": "skillInstaller.refreshAudit",
+        "title": "Refresh Audit Results",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -131,6 +148,16 @@
         {
           "command": "skillInstaller.runE2E",
           "when": "view == skillInstaller.workflowView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.runAudit",
+          "when": "view == skillInstaller.auditView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.refreshAudit",
+          "when": "view == skillInstaller.auditView",
           "group": "navigation"
         }
       ]
@@ -173,6 +200,17 @@
           "type": "string",
           "default": "",
           "description": "Owner/dev handle used to filter tasks when 'skillInstaller.tasks.onlyOwner' is enabled. Example: 'lolzi'."
+        },
+        "skillInstaller.audit.autoStack": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-detect and enable stack-specific skills based on audit results."
+        },
+        "skillInstaller.audit.e2eMode": {
+          "type": "string",
+          "enum": ["headless", "headed"],
+          "default": "headless",
+          "description": "Mode to run E2E validation audits."
         }
       }
     }

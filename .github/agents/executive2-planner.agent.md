@@ -1,7 +1,7 @@
 ---
 name: executive2-planner
 description: "Planner for Executive2. Produces an actionable plan (goal/acceptance criteria/risks). Does not create tasks unless explicitly requested via a dedicated task-creation agent."
-tools: ['read', 'search', 'agent', 'agent/runSubagent', 'search/searchSubagent']
+tools: ['vscode/getProjectSetupInfo', 'vscode/installExtension', 'vscode/newWorkspace', 'vscode/openSimpleBrowser', 'vscode/runCommand', 'vscode/askQuestions', 'vscode/switchAgent', 'vscode/vscodeAPI', 'vscode/extensions', 'vscode/memory', 'read/getNotebookSummary', 'read/problems', 'read/readFile', 'read/readNotebookCellOutput', 'read/terminalSelection', 'read/terminalLastCommand', 'read/getTaskOutput', 'agent/runSubagent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/searchResults', 'search/textSearch', 'search/usages', 'search/searchSubagent', 'web/fetch', 'web/githubRepo', 'todo']
 infer: true
 handoffs:
   - label: Start implementation (fast)

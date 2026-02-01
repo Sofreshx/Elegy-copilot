@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: "Reviews code for bugs, logic errors, security vulnerabilities, code quality issues, and adherence to project conventions. Reports only high-priority issues. Can also run Executive2 governance review when explicitly requested."
-tools: ['read', 'search', 'search/listDirectory', 'edit']
+tools: ['read/getNotebookSummary', 'read/problems', 'read/readFile', 'read/readNotebookCellOutput', 'read/terminalSelection', 'read/terminalLastCommand', 'read/getTaskOutput', 'edit/createDirectory', 'edit/createFile', 'edit/createJupyterNotebook', 'edit/editFiles', 'edit/editNotebook', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/searchResults', 'search/textSearch', 'search/usages', 'search/searchSubagent', 'web/fetch', 'web/githubRepo']
 infer: true
 ---
 
