@@ -3,11 +3,11 @@
 These are the lightweight, **global** conventions for using Instruction Engine across repos. Keep this file focused on “where to look / where to write / when to delegate”, and let the agents handle the detailed workflow.
 
 ## Defaults
-- Treat the **current repo** as the source of truth. Don’t override local conventions with engine conventions.
+- Treat the **current repo** as the source of truth; follow local conventions over engine conventions.
 - Prefer small, verifiable changes.
-- If a task spans multiple steps or sessions, capture decisions in `.instructions/` when present.
+- Capture multi-step or multi-session decisions in `.instructions/` when present.
 
-## Completion Gate (Don’t Stop Early)
+## Completion Gate (Finish End-to-End)
 When the user asks you to *do* something (implement/fix/refactor), keep going until it is truly done end-to-end.
 
 Before replying with a “done” / “here’s what I did” message, verify you have:
@@ -19,10 +19,10 @@ Before replying with a “done” / “here’s what I did” message, verify yo
 If you need input from the user:
 - Ask **one** targeted question.
 - Continue executing any non-blocked work in parallel (exploration, drafting, refactors that are safe).
-- Do not yield early with only a plan unless the user explicitly asked for a plan.
+- Provide a plan only when the user explicitly asked for a plan.
 
 Avoid “handoff-only” endings:
-- Don’t stop at “I can do X next, want me to?” if you can safely proceed.
+- Proceed with the next safe step instead of pausing at “I can do X next, want me to?”.
 - Offer optional next steps only after the core request is complete.
 
 ## Read First (Project Truth)
@@ -57,13 +57,13 @@ In most cases, you don’t need to explicitly “load skills” manually.
 Only consult skill docs when you’re unsure, the change is high-risk, or the repo clearly declares a preferred way of doing something.
 
 ## Safety
-- Don’t do destructive scaffolding or large deletions without an explicit user ask.
-- When you discover a recurring gotcha, record it in `.instructions/contexts/project.memory.md`.
+- Do destructive scaffolding or large deletions only with an explicit user ask.
+- Record recurring gotchas in `.instructions/contexts/project.memory.md`.
 
 ## Testing
 - Always run existing tests after changes.
 - When adding features or fixing bugs, add relevant unit/integration tests.
-- **Test execution**: Use `@test-runner` agent to run tests - it has built-in safety mechanisms (timeouts, non-interactive mode, proper flags).
-- **Never run tests directly via `run_in_terminal`** unless you are the test-runner agent.
+- **Test execution**: Use `@test-runner` agent to run tests; it provides timeouts, non-interactive mode, and safe flags.
+- **Test execution rule**: Run tests via `@test-runner` only.
 - **Test orchestration**: Use `@test-executive` for planning and coordinating test coverage across multiple areas.
 - **Segment large test suites** into smaller batches when delegating to test-runner (e.g., by test class filter).
