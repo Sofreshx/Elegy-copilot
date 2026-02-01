@@ -73,3 +73,21 @@ export interface RepoAgents {
 export interface AgentDiscoverySnapshot {
 	repos: RepoAgents[];
 }
+
+// Audit types
+export type AuditType = 'deploy' | 'stack' | 'test' | 'e2e' | 'security';
+
+export interface AuditStats {
+	pass: number;
+	warn: number;
+	fail: number;
+}
+
+export interface AuditReport {
+	type: AuditType;
+	path: string;
+	timestamp?: string;
+	durationMs?: number;
+	stats?: AuditStats;
+	exists: boolean;
+}

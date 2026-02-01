@@ -7,6 +7,7 @@ import { clearRepoContext } from './contextCleaner';
 import { WorkflowTaskTreeProvider } from './workflowTasksTree';
 import { setRepoItemEnabled } from './enablementStore';
 import { AgentEntry, SkillEntry } from './types';
+import { AuditTreeProvider, AUDIT_TYPES } from './auditTree';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -43,6 +44,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const activeTaskProvider = new ActiveTaskTreeProvider(output);
 	const agentProvider = new AgentDiscoveryTreeProvider(output);
 	const workflowProvider = new WorkflowTaskTreeProvider(output);
+	const auditProvider = new AuditTreeProvider(output);
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.skillsView', skillProvider)
 	);
@@ -58,6 +60,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.workflowView', workflowProvider)
 	);
+	context.subscriptions.push(
+		vscode.window.registerTreeDataProvider('skillInstaller.auditView', auditProvider)
+	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('skillInstaller.refresh', () => {
@@ -66,6 +71,44 @@ export function activate(context: vscode.ExtensionContext): void {
 			activeTaskProvider.invalidateCache();
 			agentProvider.invalidateCache();
 			workflowProvider.invalidateCache();
+			auditProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.refreshAudit', () => {
+			auditProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.runAudit', async () => {
+			const items = AUDIT_TYPES.map((a) => ({
+				label: a.label,
+				description: `Run ${a.type} audit`,
+				auditType: a.type
+			}));
+
+			const selected = await vscode.window.showQuickPick(items, {
+				placeHolder: 'Select audit type to run'
+			});
+
+			if (!selected) {
+				return;
+			}
+
+			const agentMap: Record<string, string> = {
+				deploy: 'deploy-auditor',
+				stack: 'stack-auditor',
+				test: 'test-auditor',
+				e2e: 'e2e-validator',
+				security: 'security-auditor'
+			};
+
+			const agentName = agentMap[selected.auditType];
+			void vscode.window.showInformationMessage(
+				`Run the ${selected.label} audit using @${agentName} in Copilot chat.`
+			);
 		})
 	);
 

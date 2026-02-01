@@ -1,7 +1,7 @@
 ---
 name: executive2-task-creator
 description: "Creates a persisted task graph from an approved Executive2 plan, then hands off to executive2 for orchestration."
-tools: ['read', 'search', 'agent', 'agent/runSubagent', 'search/searchSubagent']
+tools: ['read/getNotebookSummary', 'read/problems', 'read/readFile', 'read/readNotebookCellOutput', 'read/terminalSelection', 'read/terminalLastCommand', 'read/getTaskOutput', 'agent/runSubagent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/searchResults', 'search/textSearch', 'search/usages', 'search/searchSubagent', 'web/fetch', 'web/githubRepo']
 infer: true
 handoffs:
   - label: Start implementation (task graph)
