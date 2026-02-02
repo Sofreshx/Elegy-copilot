@@ -1,70 +1,120 @@
-# Instruction Engine Skill Installer (VS Code Extension)
+# Instruction Engine Skill Installer
 
-Shows:
-- **Available** skills from `instruction-engine` (prefers `.github/skills`, falls back to `.codex/skills`).
-- **Loaded** skills in other workspace repos (targets), from their `.github/skills` folder.
-- **Tasks** from any workspace repo that has `.instructions/tasks/*.md`.
-- **Task Workflow** view for queueing and prioritizing tasks across repos.
-- **Agents** from any workspace repo that has `.github/agents/*.agent.md`.
+> Workspace management for Instruction Engine: skills, agents, tasks, and remote mobile companion control.
 
-The **Tasks** view reads each task file’s YAML front matter (e.g. `title`, `status`, `owner`, `skills`) and lets you filter down to “my tasks”.
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![VS Code](https://img.shields.io/badge/VS%20Code-1.85%2B-blue)
 
-Skills and agents can be **enabled/disabled** via context menu. The extension persists that state to both workspace settings and a repo-local registry file.
+## Features
 
-The **Task Workflow** view surfaces a “Next Up” lane for active tasks and includes a toolbar button to open the configured E2E dashboard.
+### Skill Discovery
+Browse and toggle available skills from the Instruction Engine. Skills provide domain-specific knowledge (e.g., `wolverine-http`, `marten-events`, `firebase-auth`) that enhance AI assistant capabilities.
 
-## Why `F5` opens a new VS Code window
+### Agent Management  
+View and enable/disable agents across workspace repos. Agents are specialized AI workflows defined in `.github/agents/*.agent.md`.
 
-That window is the **Extension Development Host**. VS Code intentionally runs extensions under development in a separate host window so you can debug safely without crashing/locking up your main editor session.
+### Task Tracking
+Track tasks from `.instructions/tasks/*.md` with full YAML front matter support:
+- Filter by owner, status, priority
+- Task Workflow view with "Next Up" lane
+- Active Tasks view for in-progress work
 
-If you want to use the extension in your *current* window, you need to install it like a normal extension (dev-linked or packaged) and then reload.
+### Remote Control
+The `@remote-control` chat participant enables programmatic agent invocation:
+- `/status` - Show active and recent sessions
+- `/cancel` - Cancel a running session by ID
+- `/list` - List available agents in the workspace
+- `/invoke` - Invoke an agent with a prompt
 
-## Use the extension in your current window
+### Mobile Companion (Coming Soon)
+Real-time WebSocket server for mobile companion PWA:
+- Remote session monitoring
+- Idea drafting on-the-go
+- Push notifications for session events
+- GitHub OAuth authentication
 
-### Option A (recommended): dev-link from folder (fast iteration)
+## Installation
 
-1. Build once:
-	- `npm install`
-	- `npm run compile`
-2. In the VS Code window you want to use:
-	- Run **Developer: Install Extension from Location...**
-	- Select the `vscode-skill-installer/` folder
-	- Run **Developer: Reload Window**
+### From VSIX (Recommended)
+1. Download the latest `.vsix` from [Releases](https://github.com/Sofreshx/instruction-engine/releases)
+2. In VS Code: **Extensions: Install from VSIX...**
+3. Select the downloaded file
+4. Reload window
 
-After that, iterate with:
-- `npm run watch` (keeps `dist/` up to date)
-- **Developer: Reload Window** to pick up changes
+### From Source
+```bash
+cd vscode-skill-installer
+npm install
+npm run compile
+```
+Then use **Developer: Install Extension from Location...** and select the folder.
 
-### Option B: package to a VSIX
+## Views
 
-1. `npm install`
-2. `npm run package` (creates a `.vsix`)
-3. In the VS Code window you want to use:
-	- Run **Extensions: Install from VSIX...**
-	- Pick the generated `.vsix`
-	- Reload window
-
-## Run locally (debug mode)
-
-From VS Code:
-- Open this repo.
-- Press `F5` using the **Run Extension** launch config.
+| View | Description |
+|------|-------------|
+| **Skill Discovery** | Available skills from instruction-engine |
+| **Agents** | Agents across workspace repos |
+| **Active Tasks** | Currently in-progress tasks |
+| **Task Workflow** | Queue and prioritize tasks |
+| **Tasks** | All tasks from `.instructions/tasks/` |
+| **Audit Results** | Code quality audit results |
 
 ## Commands
-- `Skill Installer: Refresh Skills, Tasks & Agents`
-- `Skill Installer: Open E2E Dashboard`
-- `Skill Installer: Clear Repo Context`
-- `Skill Installer: Clear Context for All Repos`
 
-## Settings
-- `skillInstaller.registry.fileName`: Repo-relative path for enablement metadata (default: `.instructions/registry.json`).
-- `skillInstaller.skills.disabledByRepo`: Map of repo paths to disabled skill names.
-- `skillInstaller.agents.disabledByRepo`: Map of repo paths to disabled agent file names.
-- `skillInstaller.e2e.url`: URL opened by the E2E command in the integrated browser.
-- `skillInstaller.workflow.nextUpLimit`: Max items shown in the Task Workflow “Next Up” lane.
-- `skillInstaller.tasks.onlyOwner`: When enabled, only show tasks whose front matter `owner` matches `skillInstaller.tasks.owner`.
-- `skillInstaller.tasks.owner`: Your dev handle (e.g. `lolzi`).
+| Command | Description |
+|---------|-------------|
+| Refresh Skills, Tasks & Agents | Reload all views |
+| Open E2E Dashboard | Launch configured E2E URL |
+| Run Audit | Execute code quality audit |
+| Enable/Disable Skill | Toggle skill availability |
+| Enable/Disable Agent | Toggle agent availability |
+| Clear Repo Context | Reset context for a repo |
+| Login with GitHub | Authenticate for mobile companion |
 
-## Direction (scope expansion)
+## Configuration
 
-This extension is expected to grow beyond “skill installer” into a general **Instruction Engine Prompting Settings** extension (settings + UI + project scaffolding), with the goal of not needing to add `instruction-engine` as a workspace folder.
+### Basic Settings
+- `skillInstaller.tasks.owner` - Your dev handle for task filtering
+- `skillInstaller.tasks.onlyOwner` - Show only your tasks
+- `skillInstaller.workflow.nextUpLimit` - Max items in "Next Up" lane
+
+### WebSocket Server (Mobile Companion)
+- `skillInstaller.ws.enabled` - Enable WebSocket server
+- `skillInstaller.ws.port` - Server port (0 = random)
+- `skillInstaller.ws.heartbeatInterval` - Ping interval in ms
+
+### Session Logging
+- `skillInstaller.session.loggingEnabled` - Enable session logs
+- `skillInstaller.session.maxLogSize` - Max log entry size
+
+See [full settings documentation](https://github.com/Sofreshx/instruction-engine#settings) for all options.
+
+## Development
+
+```bash
+# Watch mode
+npm run watch
+
+# Debug
+# Press F5 to launch Extension Development Host
+
+# Package
+npm run package
+```
+
+## Screenshots
+
+<!-- TODO: Add screenshots
+![Skill Discovery](resources/screenshots/skills.png)
+![Task Workflow](resources/screenshots/workflow.png)
+![Remote Control](resources/screenshots/remote.png)
+-->
+
+## License
+
+See [LICENSE.txt](LICENSE.txt)
+
+---
+
+**[Instruction Engine](https://github.com/Sofreshx/instruction-engine)** - Enhance your AI-assisted development workflow

@@ -8,6 +8,11 @@ import { WorkflowTaskTreeProvider } from './workflowTasksTree';
 import { setRepoItemEnabled } from './enablementStore';
 import { AgentEntry, SkillEntry } from './types';
 import { AuditTreeProvider, AUDIT_TYPES } from './auditTree';
+import { WsServer } from './wsServer';
+import { WsAuthManager } from './wsAuth';
+import { SessionManager } from './sessionManager';
+import { RemoteControlParticipant } from './chatParticipant';
+import { GitHubOAuthManager, OAuthUriHandler } from './oauthManager';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -38,6 +43,134 @@ function getAgentFromCommand(arg: unknown): AgentEntry | undefined {
 export function activate(context: vscode.ExtensionContext): void {
 	const output = vscode.window.createOutputChannel('Skill Installer');
 	context.subscriptions.push(output);
+
+	// Initialize session manager
+	const sessionManager = new SessionManager(output);
+	context.subscriptions.push(sessionManager);
+
+	// Initialize GitHub OAuth manager
+	const oauthManager = new GitHubOAuthManager(context.secrets, output);
+	context.subscriptions.push(oauthManager);
+	
+	// Initialize OAuth manager in background (non-blocking)
+	oauthManager.initialize().catch((err) => {
+		const message = err instanceof Error ? err.message : 'Unknown error';
+		output.appendLine(`[OAuth] Failed to initialize: ${message}`);
+	});
+	
+	// Register URI handler for OAuth callback
+	const uriHandler = new OAuthUriHandler(oauthManager, output);
+	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
+	
+	// Register login command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.login', async () => {
+			await oauthManager.login();
+		})
+	);
+	
+	// Register logout command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.logout', async () => {
+			if (!oauthManager.isLoggedIn()) {
+				void vscode.window.showInformationMessage('Not currently logged in.');
+				return;
+			}
+			
+			const confirm = await vscode.window.showWarningMessage(
+				`Are you sure you want to logout from GitHub (${oauthManager.getUser()?.login})?`,
+				{ modal: true },
+				'Logout'
+			);
+			
+			if (confirm === 'Logout') {
+				await oauthManager.logout();
+			}
+		})
+	);
+
+	// Initialize chat participant for remote agent invocation
+	const chatParticipant = new RemoteControlParticipant(output, sessionManager);
+	chatParticipant.register();
+	context.subscriptions.push(chatParticipant);
+
+	// Initialize WebSocket server with authentication
+	const authManager = new WsAuthManager(context.secrets, output);
+	const wsServer = new WsServer(context, output, authManager);
+	context.subscriptions.push(wsServer);
+
+	// Wire up session manager and chat participant to WebSocket server
+	wsServer.setSessionManager(sessionManager);
+	wsServer.setChatParticipant(chatParticipant);
+
+	// Set up event callback for session updates to broadcast via WebSocket
+	chatParticipant.setSessionEventCallback((sessionId, event) => {
+		wsServer.broadcastEvent('session_event', {
+			sessionId,
+			eventType: event.type,
+			timestamp: event.timestamp.toISOString(),
+			data: event.data,
+		});
+	});
+
+	// Start WebSocket server (async, non-blocking)
+	wsServer.start().catch((err) => {
+		const message = err instanceof Error ? err.message : 'Unknown error';
+		output.appendLine(`[WS Server] Failed to start: ${message}`);
+	});
+
+	// Register command to show connected clients
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.showClientList', async () => {
+			const registry = wsServer.getClientRegistry();
+			const clients = registry.listClientsDto();
+
+			if (clients.length === 0) {
+				void vscode.window.showInformationMessage('No mobile companion clients connected.');
+				return;
+			}
+
+			const items = clients.map(c => ({
+				label: `${c.deviceType} (${c.os})`,
+				description: c.clientId.substring(0, 8),
+				detail: `Connected: ${new Date(c.connectionTime).toLocaleString()} | Last seen: ${new Date(c.lastSeen).toLocaleString()}`,
+				client: c,
+			}));
+
+			const selected = await vscode.window.showQuickPick(items, {
+				placeHolder: `${clients.length} client(s) connected`,
+				title: 'Connected Mobile Companion Clients',
+			});
+
+			if (selected) {
+				const action = await vscode.window.showQuickPick(
+					[
+						{ label: 'View Details', action: 'details' },
+						{ label: 'Disconnect', action: 'disconnect' },
+					],
+					{ placeHolder: `Action for ${selected.label}` }
+				);
+
+				if (action?.action === 'disconnect') {
+					registry.disconnectClient(selected.client.clientId);
+					void vscode.window.showInformationMessage(`Disconnected client ${selected.client.clientId.substring(0, 8)}`);
+				} else if (action?.action === 'details') {
+					const details = [
+						`Client ID: ${selected.client.clientId}`,
+						`Device Type: ${selected.client.deviceType}`,
+						`OS: ${selected.client.os}`,
+						`App Version: ${selected.client.appVersion}`,
+						`User ID: ${selected.client.userId ?? 'N/A'}`,
+						`Connected: ${new Date(selected.client.connectionTime).toLocaleString()}`,
+						`Last Seen: ${new Date(selected.client.lastSeen).toLocaleString()}`,
+						`State: ${selected.client.state}`,
+					].join('\n');
+					output.appendLine(`[Client Details]\n${details}`);
+					output.show();
+				}
+			}
+		})
+	);
 
 	const skillProvider = new SkillDiscoveryTreeProvider(output);
 	const taskProvider = new TaskDiscoveryTreeProvider(output);

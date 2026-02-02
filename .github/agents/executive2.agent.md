@@ -2,6 +2,7 @@
 name: executive2
 description: "Executive2 Orchestrator. Executes strictly from an existing plan + persisted tasks, delegating each major step to explicit subagents. Use after a task-creation step (e.g., executive2-task-creator) has produced the task graph."
 tools: ['execute/runInTerminal', 'read', 'edit', 'search', 'agent', 'todo', 'search/searchSubagent', 'agent/runSubagent']
+agents: ['task-runner', 'code-explorer', 'code-architect', 'code-reviewer', 'test-runner', 'test-executive', 'integration-test-gen', 'plan-artefact-writer', debugger']
 infer: true
 handoffs:
   - label: Back to Planning

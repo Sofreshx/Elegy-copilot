@@ -1,21 +1,43 @@
 {
   "name": "skill-installer",
   "displayName": "Instruction Engine Skill Installer",
-  "description": "Shows which Instruction Engine skills are available and which are loaded in target repos.",
-  "version": "0.0.1",
+  "description": "Workspace management for Instruction Engine: skills, agents, tasks, remote mobile companion, and AI session control.",
+  "version": "0.1.0",
   "publisher": "sofreshx",
   "license": "SEE LICENSE IN LICENSE.txt",
   "repository": {
     "type": "git",
     "url": "https://github.com/Sofreshx/instruction-engine.git"
   },
+  "homepage": "https://github.com/Sofreshx/instruction-engine#readme",
+  "bugs": {
+    "url": "https://github.com/Sofreshx/instruction-engine/issues"
+  },
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "keywords": [
+    "copilot",
+    "ai",
+    "skills",
+    "agents",
+    "tasks",
+    "remote",
+    "mobile",
+    "instruction-engine"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Machine Learning"
   ],
+  "extensionDependencies": [],
   "activationEvents": [
+    "onUri",
     "onView:skillInstaller.skillsView",
     "onView:skillInstaller.tasksView",
     "onView:skillInstaller.activeTasksView",
@@ -35,6 +57,33 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "chatParticipants": [
+      {
+        "id": "instruction-engine.remote-control",
+        "fullName": "Remote Control",
+        "name": "remote-control",
+        "description": "Remote control for Copilot agent sessions. Invoke agents programmatically and manage sessions.",
+        "isSticky": false,
+        "commands": [
+          {
+            "name": "status",
+            "description": "Show active and recent sessions"
+          },
+          {
+            "name": "cancel",
+            "description": "Cancel a running session by ID"
+          },
+          {
+            "name": "list",
+            "description": "List available agents in the workspace"
+          },
+          {
+            "name": "invoke",
+            "description": "Invoke an agent with a prompt"
+          }
+        ]
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
@@ -114,6 +163,20 @@
         "command": "skillInstaller.refreshAudit",
         "title": "Refresh Audit Results",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "skillInstaller.showClientList",
+        "title": "Show Connected Clients"
+      },
+      {
+        "command": "skillInstaller.login",
+        "title": "Login with GitHub",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "skillInstaller.logout",
+        "title": "Logout from GitHub",
+        "icon": "$(sign-out)"
       }
     ],
     "menus": {
@@ -211,6 +274,63 @@
           "enum": ["headless", "headed"],
           "default": "headless",
           "description": "Mode to run E2E validation audits."
+        },
+        "skillInstaller.ws.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable WebSocket server for mobile companion communication."
+        },
+        "skillInstaller.ws.port": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "WebSocket server port. Use 0 for random available port (recommended for security)."
+        },
+        "skillInstaller.ws.secret": {
+          "type": "string",
+          "default": "",
+          "description": "Custom JWT secret for authentication. Leave empty to auto-generate and store securely."
+        },
+        "skillInstaller.ws.heartbeatInterval": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 5000,
+          "maximum": 300000,
+          "description": "Heartbeat ping interval in milliseconds. Default: 30000 (30 seconds)."
+        },
+        "skillInstaller.ws.staleTimeout": {
+          "type": "number",
+          "default": 120000,
+          "minimum": 30000,
+          "maximum": 600000,
+          "description": "Stale connection timeout in milliseconds. Clients not responding within this time are disconnected. Default: 120000 (2 minutes)."
+        },
+        "skillInstaller.session.loggingEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable session logging to .instructions-output/sessions/ directory."
+        },
+        "skillInstaller.session.maxLogSize": {
+          "type": "number",
+          "default": 102400,
+          "minimum": 1024,
+          "description": "Maximum size (in bytes) for response/result data in session logs. Default: 100KB."
+        },
+        "skillInstaller.oauth.clientId": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub OAuth App Client ID. Create an OAuth App at https://github.com/settings/developers"
+        },
+        "skillInstaller.oauth.clientSecret": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub OAuth App Client Secret. WARNING: For development only. In production, use a token exchange proxy."
+        },
+        "skillInstaller.oauth.redirectUri": {
+          "type": "string",
+          "default": "vscode://sofreshx.skill-installer/auth/callback",
+          "description": "OAuth redirect URI. Must match the callback URL configured in your GitHub OAuth App."
         }
       }
     }
@@ -222,10 +342,16 @@
     "vscode:prepublish": "npm run compile",
     "package": "npx @vscode/vsce package"
   },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "jsonwebtoken": "^9.0.2"
+  },
   "devDependencies": {
     "@vscode/vsce": "^3.2.2",
     "@types/node": "^20.11.30",
     "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "@types/jsonwebtoken": "^9.0.5",
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "@typescript-eslint/parser": "^8.19.1",
     "eslint": "^9.18.0",
