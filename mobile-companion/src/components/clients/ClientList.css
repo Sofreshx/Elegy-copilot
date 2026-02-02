@@ -1,0 +1,132 @@
+.client-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.client-list-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+  margin-bottom: 4px;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.summary-item .status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.summary-item .status-indicator.online {
+  background: var(--color-success);
+}
+
+.summary-item .status-indicator.offline {
+  background: var(--color-text-secondary);
+}
+
+.client-list-items {
+  display: flex;
+  flex-direction: column;
+}
+
+/* State displays (loading, error, empty) */
+.client-list-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+}
+
+.state-icon {
+  color: var(--color-text-secondary);
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+.state-icon.error {
+  color: var(--color-error);
+}
+
+.state-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.state-text {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+.client-list-state .spinner {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 16px;
+}
+
+.client-list-state .btn {
+  margin-top: 16px;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: white;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.2s ease;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+/* Setup hint in empty state */
+.setup-hint {
+  margin-top: 24px;
+  padding: 16px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-md);
+  text-align: left;
+  width: 100%;
+  max-width: 300px;
+}
+
+.setup-hint h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--color-text);
+}
+
+.setup-hint ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.setup-hint li {
+  margin-bottom: 4px;
+}

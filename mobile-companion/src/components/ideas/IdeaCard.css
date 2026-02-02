@@ -1,0 +1,103 @@
+.idea-card {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 1rem;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.idea-card:active {
+  transform: scale(0.98);
+}
+
+.idea-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.idea-card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text);
+  flex: 1;
+}
+
+.idea-card-status {
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  color: white;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.idea-card-description {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.75rem 0;
+  line-height: 1.4;
+}
+
+.idea-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.idea-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.idea-card-tag {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  background: var(--surface-elevated);
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+.idea-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.idea-card-priority {
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.idea-card-date {
+  color: var(--text-secondary);
+}
+
+.idea-card-delete {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.idea-card-delete:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.idea-card-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

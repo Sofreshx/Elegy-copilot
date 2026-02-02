@@ -1,0 +1,171 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  padding-top: var(--safe-area-top);
+}
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: calc(var(--nav-height) + var(--safe-area-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-loading,
+.app-login {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+}
+
+/* Login styles */
+.login-container {
+  padding: 24px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.login-card {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.login-card h1 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.login-card p {
+  color: var(--color-text-secondary);
+  margin-bottom: 24px;
+}
+
+.login-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-text);
+  color: var(--color-bg);
+  padding: 12px 24px;
+  border-radius: var(--radius-md);
+  font-size: 16px;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.login-button:hover {
+  opacity: 0.9;
+}
+
+.login-button:active {
+  opacity: 0.8;
+}
+
+/* Page common styles */
+.page {
+  padding: 16px;
+  min-height: 100%;
+}
+
+.page-header {
+  margin-bottom: 20px;
+}
+
+.page-title {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.page-subtitle {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+/* Card styles */
+.card {
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.online {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--color-success);
+}
+
+.status-badge.offline {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--color-error);
+}
+
+.status-badge.pending {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--color-warning);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Connection status bar */
+.connection-status {
+  position: fixed;
+  top: var(--safe-area-top);
+  left: 0;
+  right: 0;
+  padding: 8px 16px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 100;
+  transition: transform 0.3s ease;
+}
+
+.connection-status.connected {
+  background: var(--color-success);
+  color: var(--color-bg);
+  transform: translateY(-100%);
+}
+
+.connection-status.disconnected {
+  background: var(--color-error);
+  color: white;
+  transform: translateY(0);
+}
+
+.connection-status.connecting {
+  background: var(--color-warning);
+  color: var(--color-bg);
+  transform: translateY(0);
+}

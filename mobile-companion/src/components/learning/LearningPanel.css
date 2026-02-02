@@ -1,0 +1,373 @@
+.learning-panel-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.learning-panel {
+  background: var(--color-bg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  width: 100%;
+  max-width: 500px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.learning-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.learning-panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.close-button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.learning-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.learning-tabs button {
+  flex: 1;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.learning-tabs button.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+.learning-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* Checkpoints Tab */
+.add-checkpoint-button {
+  width: 100%;
+  padding: 12px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+
+.add-checkpoint-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 16px;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.add-checkpoint-form input,
+.add-checkpoint-form textarea {
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.form-actions button {
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.form-actions button:first-child {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.form-actions button.primary {
+  background: var(--color-primary);
+  border: none;
+  color: white;
+}
+
+.form-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.checkpoints-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.empty-message {
+  text-align: center;
+  color: var(--color-text-secondary);
+  padding: 24px;
+}
+
+.checkpoint-card {
+  padding: 12px;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.checkpoint-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.checkpoint-summary {
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.delete-button {
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.delete-button:hover {
+  color: var(--color-error, #ef4444);
+}
+
+.checkpoint-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.tag {
+  padding: 2px 8px;
+  background: var(--color-bg);
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.checkpoint-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* Review Tab */
+.review-card {
+  text-align: center;
+}
+
+.review-card h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: var(--color-text-secondary);
+}
+
+.review-summary {
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0 0 12px 0;
+}
+
+.review-content {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  margin: 0 0 24px 0;
+  padding: 12px;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.confidence-prompt {
+  margin: 24px 0 12px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.confidence-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.confidence-buttons button {
+  padding: 12px 8px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.confidence-buttons button:hover {
+  transform: scale(1.05);
+}
+
+.confidence-0 { background: #fecaca; border: none; color: #991b1b; }
+.confidence-1 { background: #fed7aa; border: none; color: #9a3412; }
+.confidence-2 { background: #fef08a; border: none; color: #854d0e; }
+.confidence-3 { background: #d9f99d; border: none; color: #3f6212; }
+.confidence-4 { background: #a7f3d0; border: none; color: #065f46; }
+.confidence-5 { background: #67e8f9; border: none; color: #155e75; }
+
+.start-review {
+  text-align: center;
+  padding: 24px;
+}
+
+.start-review-button {
+  padding: 12px 24px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 12px;
+}
+
+.no-reviews {
+  text-align: center;
+  padding: 24px;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin: 0;
+}
+
+.hint {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+/* Progress Tab */
+.progress-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  padding: 16px;
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.stat-card.streak {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+}
+
+.stat-value {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.stat-label {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+.progress-bar-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.progress-bar {
+  height: 12px;
+  background: var(--color-bg-secondary);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary), #22c55e);
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  margin: 8px 0 0 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.last-study {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
