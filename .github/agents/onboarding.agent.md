@@ -2,7 +2,7 @@
 name: onboarding
 description: "System lifecycle manager for project initialization, upgrades, and maintenance. Use for 'initialize project', 'run onboarding', 'upgrade system', 'check health', or 'fix drift'. Creates .instructions/ folder structure."
 tools: ['read', 'edit', 'search']
-infer: false
+infer: user
 ---
 
 # Onboarding & System Agent

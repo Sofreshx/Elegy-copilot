@@ -21,8 +21,9 @@ Complete guide for setting up E2E browser testing via MCP on Windows.
 
 **Setup**:
 ```bash
+cd mobile-companion
 npm install -D @playwright/mcp @playwright/test
-npx playwright install chromium
+npm run playwright:install
 ```
 
 ## Prerequisites
@@ -37,7 +38,7 @@ npx playwright install chromium
 
 ## E2E Setup Verification
 
-Create `scripts/e2e-setup-verify.js`:
+Create `scripts/e2e-setup-verify.js` in the repo root:
 
 ```javascript
 const { chromium } = require('@playwright/test');
@@ -84,7 +85,9 @@ async function verify(url = 'http://localhost:5174') {
 verify(process.argv[2]);
 ```
 
-Run: `node scripts/e2e-setup-verify.js http://localhost:5174`
+Run from mobile-companion: `npm run e2e:verify -- http://localhost:5174`
+
+To exercise the external OAuth redirect during `e2e:login`, set `E2E_ALLOW_EXTERNAL=1`.
 
 ## Windows Optimizations
 
@@ -115,9 +118,9 @@ Run: `node scripts/e2e-setup-verify.js http://localhost:5174`
 {
   "scripts": {
     "playwright:install": "playwright install chromium",
-    "e2e:verify": "node scripts/e2e-setup-verify.js",
-    "e2e:login": "node scripts/e2e-login-flow.js",
-    "e2e:health": "node scripts/e2e-health-check-simple.js"
+    "e2e:verify": "node ../scripts/e2e-setup-verify.js",
+    "e2e:login": "node ../scripts/e2e-login-flow.js",
+    "e2e:health": "node ../scripts/e2e-health-check-simple.js"
   }
 }
 ```

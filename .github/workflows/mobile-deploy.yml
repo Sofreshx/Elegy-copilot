@@ -44,9 +44,9 @@ jobs:
       - name: Build PWA
         run: npm run build
         env:
-          VITE_API_BASE_URL: ${{ vars.RELAY_API_URL || '' }}
-          VITE_WS_URL: ${{ vars.RELAY_WS_URL || '' }}
-          VITE_GITHUB_CLIENT_ID: ${{ vars.GITHUB_OAUTH_CLIENT_ID || '' }}
+          VITE_RELAY_HTTP_URL: ${{ vars.RELAY_HTTP_URL || '' }}
+          VITE_RELAY_WS_URL: ${{ vars.RELAY_WS_URL || '' }}
+          VITE_GITHUB_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID || '' }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

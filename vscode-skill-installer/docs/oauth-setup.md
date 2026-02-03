@@ -81,7 +81,7 @@ If you're also using the mobile companion app, you'll need multiple callback URL
 Add these callback URLs (one per line):
 ```
 vscode://sofreshx.skill-installer/auth/callback
-http://localhost:3000/auth/callback
+http://localhost:5173/auth/callback
 https://your-relay-service.com/auth/callback
 ```
 
@@ -217,7 +217,7 @@ The mobile app uses the same OAuth flow but with different redirect URIs:
 2. The relay service handles token exchange
 3. App stores tokens securely using platform APIs (Keychain/Keystore)
 
-See the [Mobile Companion documentation](../mobile-companion/docs/auth.md) for mobile-specific setup.
+See the [Mobile Companion documentation](../mobile-companion/README.md) for mobile-specific setup.
 
 ## Related Documentation
 

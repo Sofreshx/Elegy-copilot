@@ -1,8 +1,8 @@
 ---
 name: test-runner
 description: "Executes tests safely with proper timeouts and non-interactive modes. The only agent authorized to run tests via run_in_terminal. Handles unit, integration, and E2E test execution with built-in safety mechanisms."
-tools: ['vscode/getProjectSetupInfo', 'vscode/installExtension', 'vscode/newWorkspace', 'vscode/openSimpleBrowser', 'vscode/runCommand', 'vscode/askQuestions', 'vscode/switchAgent', 'vscode/vscodeAPI', 'vscode/extensions', 'vscode/memory', 'execute/testFailure', 'execute/runTask', 'execute/createAndRunTask', 'execute/runInTerminal', 'execute/runTests', 'read/getNotebookSummary', 'read/problems', 'read/readFile', 'read/readNotebookCellOutput', 'read/terminalSelection', 'read/terminalLastCommand', 'read/getTaskOutput', 'agent/runSubagent', 'edit/createDirectory', 'edit/createFile', 'edit/createJupyterNotebook', 'edit/editFiles', 'edit/editNotebook', 'web/fetch', 'web/githubRepo', 'playwright/browser_click', 'playwright/browser_close', 'playwright/browser_console_messages', 'playwright/browser_drag', 'playwright/browser_evaluate', 'playwright/browser_file_upload', 'playwright/browser_fill_form', 'playwright/browser_handle_dialog', 'playwright/browser_hover', 'playwright/browser_install', 'playwright/browser_navigate', 'playwright/browser_navigate_back', 'playwright/browser_network_requests', 'playwright/browser_press_key', 'playwright/browser_resize', 'playwright/browser_run_code', 'playwright/browser_select_option', 'playwright/browser_snapshot', 'playwright/browser_tabs', 'playwright/browser_take_screenshot', 'playwright/browser_type', 'playwright/browser_wait_for']
-infer: true
+tools: ['vscode/getProjectSetupInfo', 'vscode/installExtension', 'vscode/newWorkspace', 'vscode/openSimpleBrowser', 'vscode/runCommand', 'vscode/askQuestions', 'vscode/switchAgent', 'vscode/vscodeAPI', 'vscode/extensions', 'vscode/memory', 'execute/testFailure', 'execute/runTask', 'execute/createAndRunTask', 'execute/runInTerminal', 'execute/runTests', 'read/getNotebookSummary', 'read/problems', 'read/readFile', 'read/readNotebookCellOutput', 'read/terminalSelection', 'read/terminalLastCommand', 'read/getTaskOutput', 'agent/runSubagent', 'edit/createDirectory', 'edit/createFile', 'edit/createJupyterNotebook', 'edit/editFiles', 'edit/editNotebook', 'web/fetch', 'web/githubRepo', 'playwright/browser_click', 'playwright/browser_close', 'playwright/browser_console_messages', 'playwright/browser_drag', 'playwright/browser_evaluate', 'playwright/browser_file_upload', 'playwright/browser_fill_form', 'playwright/browser_handle_dialog', 'playwright/browser_hover', 'playwright/browser_install', 'playwright/browser_navigate', 'playwright/browser_navigate_back', 'playwright/browser_network_requests', 'playwright/browser_press_key', 'playwright/browser_resize', 'playwright/browser_run_code', 'playwright/browser_select_option', 'playwright/browser_snapshot', 'playwright/browser_tabs', 'playwright/browser_take_screenshot', 'playwright/browser_type', 'playwright/browser_wait_for', 'execute/runInTerminal',  execute/getTerminalOutput, execute/awaitTerminal, execute/killTerminal]
+infer: agent
 ---
 
 # Test Runner Agent
@@ -22,6 +22,7 @@ ALL test executions MUST include:
 - ✅ **Proper flags** to prevent hangs
 - ✅ **Specific filters** when possible to reduce scope
 - ✅ **Logger output** for result capture
+- ✅ **Explicit exit-code verification** and a pass/fail/skip summary before reporting success
 
 ### Timeout Guidelines
 - **Unit tests**: 90,000ms (90 seconds)
@@ -130,10 +131,13 @@ reason: "Brief description of why tests are being run"
    - Use `runTests` tool first if available
    - Fall back to `run_in_terminal` with all safety parameters
    - Monitor for completion within timeout
+   - If output looks truncated or incomplete, fetch full output (e.g., use `getTaskOutput` for tasks)
 
 4. **Report results**:
+   - Verify exit code is zero before reporting success
    - Parse test output
    - Count passed/failed/skipped
+   - If counts are not visible, locate TRX output and report from there
    - Report any timeouts or hangs
    - Provide paths to TRX/log files if generated
 
@@ -152,6 +156,12 @@ logFile: <path>  # if available
 trxFile: <path>  # if available
 errors: []  # array of error messages if failed
 ```
+
+## Result Observation Guardrails
+
+- Do not report success unless the exit code is zero and pass/fail counts are known.
+- If the output does not show counts, find the TRX file and report counts from it.
+- When running tasks, always check the full task output if the initial output is truncated.
 
 ## Hang Prevention
 

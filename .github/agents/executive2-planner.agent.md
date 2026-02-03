@@ -1,8 +1,9 @@
 ---
 name: executive2-planner
 description: "Planner for Executive2. Produces an actionable plan (goal/acceptance criteria/risks). Does not create tasks unless explicitly requested via a dedicated task-creation agent."
-tools: ['vscode/getProjectSetupInfo', 'vscode/installExtension', 'vscode/newWorkspace', 'vscode/openSimpleBrowser', 'vscode/runCommand', 'vscode/askQuestions', 'vscode/switchAgent', 'vscode/vscodeAPI', 'vscode/extensions', 'vscode/memory', 'read/getNotebookSummary', 'read/problems', 'read/readFile', 'read/readNotebookCellOutput', 'read/terminalSelection', 'read/terminalLastCommand', 'read/getTaskOutput', 'agent/runSubagent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/searchResults', 'search/textSearch', 'search/usages', 'search/searchSubagent', 'web/fetch', 'web/githubRepo', 'todo']
+tools: ['vscode/getProjectSetupInfo', 'vscode/installExtension', 'vscode/newWorkspace', 'vscode/openSimpleBrowser', 'vscode/runCommand', 'vscode/askQuestions', 'vscode/switchAgent', 'vscode/vscodeAPI', 'vscode/extensions', 'vscode/memory', 'read/getNotebookSummary', 'read/problems', 'read/readFile', 'read/readNotebookCellOutput', 'read/terminalSelection', 'read/terminalLastCommand', 'read/getTaskOutput', 'agent/runSubagent', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/searchResults', 'search/textSearch', 'search/usages', 'search/searchSubagent', 'web/fetch', 'web/githubRepo', 'todo', 'agent', 'agent/runSubagent']
 infer: true
+agents: ['research-ideation', 'code-explorer', 'code-architect', 'reviewer-opus-4-5', 'reviewer-gpt-5-2-codex']
 handoffs:
   - label: Start implementation (fast)
     agent: executive2-fast
@@ -39,6 +40,8 @@ If the user explicitly wants persisted execution state, they should use the **Cr
 - If you discover a blocker that requires repository exploration, delegate to `code-explorer` (read-only) and integrate results into the plan.
 - Prefer parallel, read-only exploration when useful (e.g., run `code-explorer` + `code-architect` together for faster clarity).
 - If the request is small and can be done directly, still propose the minimal plan and let the user choose to start implementation.
+- If requirements are unclear or need ideation, delegate to `research-ideation` to produce a note under `.instructions/research/` and incorporate the findings.
+- For higher-risk plans or uncertainty, run an opposite-model reviewer (`reviewer-opus-4-5` if you are GPT-5.2-Codex, otherwise `reviewer-gpt-5-2-codex`) and refine the plan once.
 
 ## Complexity Gate (when to require a plan artefact)
 Only require `.instructions/artefacts/x-PLAN-artefact.md` when you believe context drift is likely.

@@ -1,8 +1,57 @@
 // GitHub OAuth configuration
-// Uses the same client ID as the VS Code extension for unified authentication
-const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liF3zWLNuXjUqCRG';
-const GITHUB_REDIRECT_URI = import.meta.env.VITE_GITHUB_REDIRECT_URI || `${window.location.origin}/auth/callback`;
+const FALLBACK_CLIENT_ID = 'Ov23liF3zWLNuXjUqCRG';
+const DEFAULT_RELAY_HTTP_URL = 'https://relay.example.com';
 const GITHUB_SCOPES = ['read:user', 'repo'];
+
+function getEnvValue(key: string): string | undefined {
+  const value = import.meta.env?.[key as keyof ImportMetaEnv];
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeHttpUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol === 'ws:') {
+      url.protocol = 'http:';
+    } else if (url.protocol === 'wss:') {
+      url.protocol = 'https:';
+    }
+    url.hash = '';
+    url.search = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return rawUrl.replace(/\/$/, '');
+  }
+}
+
+export function resolveRedirectUri(): string {
+  return getEnvValue('VITE_GITHUB_REDIRECT_URI') || `${window.location.origin}/auth/callback`;
+}
+
+export function resolveRelayHttpUrl(input?: string): string {
+  const rawUrl =
+    input ||
+    getEnvValue('VITE_RELAY_HTTP_URL') ||
+    getEnvValue('VITE_RELAY_URL') ||
+    DEFAULT_RELAY_HTTP_URL;
+  return normalizeHttpUrl(rawUrl);
+}
+
+export function resolveClientId(): string {
+  return getEnvValue('VITE_GITHUB_CLIENT_ID') || FALLBACK_CLIENT_ID;
+}
+
+export function getAuthConfigError(clientIdOverride?: string): string | null {
+  const clientId = clientIdOverride ?? resolveClientId();
+  if (!clientId || clientId === FALLBACK_CLIENT_ID) {
+    return 'GitHub OAuth client ID is not configured. Set VITE_GITHUB_CLIENT_ID in mobile-companion/.env.';
+  }
+  return null;
+}
 
 // Storage keys
 const TOKEN_KEY = 'ie_mobile_auth_token';
@@ -47,17 +96,30 @@ export class AuthService {
   }
 
   /**
+   * Validate required configuration for OAuth.
+   */
+  getConfigError(): string | null {
+    return getAuthConfigError();
+  }
+
+  /**
    * Initiate GitHub OAuth login flow
    */
   login(): void {
+    const configError = getAuthConfigError();
+    if (configError) {
+      console.error(configError);
+      return;
+    }
+
     // Generate and store state for CSRF protection
     const state = crypto.randomUUID();
     sessionStorage.setItem(this.stateKey, state);
 
     // Build OAuth URL
     const params = new URLSearchParams({
-      client_id: GITHUB_CLIENT_ID,
-      redirect_uri: GITHUB_REDIRECT_URI,
+      client_id: resolveClientId(),
+      redirect_uri: resolveRedirectUri(),
       scope: GITHUB_SCOPES.join(' '),
       state,
     });
@@ -83,11 +145,11 @@ export class AuthService {
     try {
       // Exchange code for token via the relay server
       // (GitHub doesn't allow direct token exchange from browser due to CORS)
-      const relayUrl = import.meta.env.VITE_RELAY_URL || 'https://relay.example.com';
-      const response = await fetch(`${relayUrl}/auth/github/callback`, {
+      const relayUrl = resolveRelayHttpUrl();
+      const response = await fetch(`${relayUrl}/auth/callback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, redirect_uri: GITHUB_REDIRECT_URI }),
+        body: JSON.stringify({ code, redirect_uri: resolveRedirectUri() }),
       });
 
       if (!response.ok) {

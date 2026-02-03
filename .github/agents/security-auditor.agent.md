@@ -1,6 +1,8 @@
 ---
 name: security-auditor
 description: "Security Executive. Orchestrates scanning and fixing of security vulnerabilities."
+tools: ['read', 'search', 'edit', 'agent', 'execute/runInTerminal']
+infer: true
 ---
 
 # Security Auditor Agent

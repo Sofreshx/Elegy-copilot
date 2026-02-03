@@ -48,6 +48,13 @@
   margin-bottom: 24px;
 }
 
+.login-error {
+  color: var(--color-error);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0 0 16px;
+}
+
 .login-button {
   display: inline-flex;
   align-items: center;
@@ -68,6 +75,11 @@
 
 .login-button:active {
   opacity: 0.8;
+}
+
+.login-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Page common styles */

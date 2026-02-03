@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
 import { SkillDiscoveryTreeProvider } from './tree';
-import { TaskDiscoveryTreeProvider } from './tasksTree';
-import { ActiveTaskTreeProvider } from './activeTasksTree';
 import { AgentDiscoveryTreeProvider } from './agentsTree';
 import { clearRepoContext } from './contextCleaner';
 import { WorkflowTaskTreeProvider } from './workflowTasksTree';
@@ -13,6 +11,11 @@ import { WsAuthManager } from './wsAuth';
 import { SessionManager } from './sessionManager';
 import { RemoteControlParticipant } from './chatParticipant';
 import { GitHubOAuthManager, OAuthUriHandler } from './oauthManager';
+import { ConnectionsTreeProvider } from './operationsConnectionsTree';
+import { RequestsTreeProvider } from './operationsRequestsTree';
+import { PermissionsTreeProvider } from './operationsPermissionsTree';
+import { archiveDoneTasks, purgeArchivedTasks } from './taskLifecycle';
+import { initializeSkills } from './skillInitializer';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -173,19 +176,14 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 
 	const skillProvider = new SkillDiscoveryTreeProvider(output);
-	const taskProvider = new TaskDiscoveryTreeProvider(output);
-	const activeTaskProvider = new ActiveTaskTreeProvider(output);
 	const agentProvider = new AgentDiscoveryTreeProvider(output);
 	const workflowProvider = new WorkflowTaskTreeProvider(output);
 	const auditProvider = new AuditTreeProvider(output);
+	const connectionsProvider = new ConnectionsTreeProvider(wsServer);
+	const requestsProvider = new RequestsTreeProvider(sessionManager);
+	const permissionsProvider = new PermissionsTreeProvider(wsServer.getEventEmitter());
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.skillsView', skillProvider)
-	);
-	context.subscriptions.push(
-		vscode.window.registerTreeDataProvider('skillInstaller.tasksView', taskProvider)
-	);
-	context.subscriptions.push(
-		vscode.window.registerTreeDataProvider('skillInstaller.activeTasksView', activeTaskProvider)
 	);
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.agentsView', agentProvider)
@@ -196,15 +194,25 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.auditView', auditProvider)
 	);
+	context.subscriptions.push(
+		vscode.window.registerTreeDataProvider('skillInstaller.connectionsView', connectionsProvider)
+	);
+	context.subscriptions.push(
+		vscode.window.registerTreeDataProvider('skillInstaller.requestsView', requestsProvider)
+	);
+	context.subscriptions.push(
+		vscode.window.registerTreeDataProvider('skillInstaller.permissionsView', permissionsProvider)
+	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('skillInstaller.refresh', () => {
 			skillProvider.invalidateCache();
-			taskProvider.invalidateCache();
-			activeTaskProvider.invalidateCache();
 			agentProvider.invalidateCache();
 			workflowProvider.invalidateCache();
 			auditProvider.invalidateCache();
+			connectionsProvider.invalidateCache();
+			requestsProvider.invalidateCache();
+			permissionsProvider.invalidateCache();
 		})
 	);
 
@@ -253,6 +261,13 @@ export function activate(context: vscode.ExtensionContext): void {
 				return;
 			}
 			await setRepoItemEnabled('skills', skill.repoPath, skill.name, true);
+			skillProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.initializeSkills', async () => {
+			await initializeSkills(output);
 			skillProvider.invalidateCache();
 		})
 	);
@@ -312,6 +327,20 @@ export function activate(context: vscode.ExtensionContext): void {
 				url = `https://${url}`;
 			}
 			await vscode.commands.executeCommand('simpleBrowser.show', url);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.archiveDoneTasks', async () => {
+			await archiveDoneTasks(output);
+			workflowProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.purgeArchivedTasks', async () => {
+			await purgeArchivedTasks(output);
+			workflowProvider.invalidateCache();
 		})
 	);
 

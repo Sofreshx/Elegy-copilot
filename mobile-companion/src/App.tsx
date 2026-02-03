@@ -65,14 +65,15 @@ function AuthenticatedApp() {
 }
 
 function LoginPrompt() {
-  const { login } = useAuth();
+  const { login, configError } = useAuth();
 
   return (
     <div className="login-container">
       <div className="login-card">
         <h1>Instruction Engine</h1>
         <p>Mobile companion for AI-powered development</p>
-        <button onClick={login} className="login-button">
+        {configError && <p className="login-error">{configError}</p>}
+        <button onClick={login} className="login-button" disabled={!!configError}>
           <GitHubIcon />
           Sign in with GitHub
         </button>

@@ -1,0 +1,34 @@
+version: "3.8"
+
+services:
+  relay:
+    image: ghcr.io/sofreshx/instruction-engine-cloud-relay:latest
+    container_name: instruction-engine-relay
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - JWT_ISSUER=${JWT_ISSUER:-instruction-engine-relay}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-instruction-engine}
+      - REQUIRE_AUTH=${REQUIRE_AUTH:-true}
+      - MAX_MESSAGE_SIZE=${MAX_MESSAGE_SIZE:-1048576}
+    networks:
+      - traefik-proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.relay.rule=Host(`relay.sfrsh.xyz`)"
+      - "traefik.http.routers.relay.entrypoints=websecure"
+      - "traefik.http.routers.relay.tls.certresolver=myresolver"
+      - "traefik.http.services.relay.loadbalancer.server.port=3000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  traefik-proxy:
+    external: true

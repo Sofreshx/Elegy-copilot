@@ -879,6 +879,16 @@ export class WsServer implements vscode.Disposable {
 	}
 
 	/**
+	 * Get uptime in milliseconds, if running.
+	 */
+	getUptimeMs(): number | undefined {
+		if (!this.httpServer?.listening || !this.startTime) {
+			return undefined;
+		}
+		return Date.now() - this.startTime;
+	}
+
+	/**
 	 * Get connected client count.
 	 */
 	getClientCount(): number {

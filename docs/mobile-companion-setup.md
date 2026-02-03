@@ -50,6 +50,38 @@ npm install
 npm run dev
 ```
 
+#### Local Development Details (Mobile App)
+
+Create a local env file for dev settings:
+
+```bash
+cd mobile-companion
+```
+
+Create `mobile-companion/.env.local`:
+
+```env
+# Mobile app dev server
+VITE_RELAY_URL=ws://127.0.0.1:5173
+
+# GitHub OAuth (optional for local UI checks)
+VITE_GITHUB_CLIENT_ID=your_client_id
+VITE_GITHUB_REDIRECT_URI=http://localhost:5173/auth/callback
+```
+
+Then run the app:
+
+```bash
+npm run dev
+```
+
+Open: `http://localhost:5173`
+
+Notes:
+- Without a relay/token exchange service, the GitHub login flow will not complete (GitHub blocks direct token exchange from the browser).
+- You can still validate the UI and navigation locally without logging in.
+- For full auth + data flows, use the local relay path described in [Mobile Local Testing](./mobile-local-testing.md).
+
 ### 4. Connect
 
 1. Open the Mobile Companion app
@@ -163,6 +195,7 @@ See [Security Model](./security-model.md) for detailed security guidance.
 
 ## Next Steps
 
+- [Mobile Local Testing](./mobile-local-testing.md) - Local testing plan and integration audit
 - [Security Model](./security-model.md) - Understand the security architecture
 - [Relay API Reference](./relay-api-reference.md) - API documentation
 - [Contributing](../CONTRIBUTING.md) - Help improve the project

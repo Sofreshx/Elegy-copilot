@@ -2,7 +2,7 @@
 name: security-fixer
 description: "Implements security fixes for identified vulnerabilities."
 tools: ['read', 'edit', 'search']
-infer: true
+infer: agent
 ---
 
 # Security Fixer Agent

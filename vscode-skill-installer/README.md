@@ -8,7 +8,7 @@
 ## Features
 
 ### Skill Discovery
-Browse and toggle available skills from the Instruction Engine. Skills provide domain-specific knowledge (e.g., `wolverine-http`, `marten-events`, `firebase-auth`) that enhance AI assistant capabilities.
+Browse and toggle available skills from the Instruction Engine. Skills provide domain-specific knowledge (e.g., `wolverine-http`, `marten-events`, `firebase-auth`) that enhance AI assistant capabilities. Use **Initialize Skills** to copy selected skills into a target repo's `.github/skills` folder.
 
 ### Agent Management  
 View and enable/disable agents across workspace repos. Agents are specialized AI workflows defined in `.github/agents/*.agent.md`.
@@ -16,8 +16,14 @@ View and enable/disable agents across workspace repos. Agents are specialized AI
 ### Task Tracking
 Track tasks from `.instructions/tasks/*.md` with full YAML front matter support:
 - Filter by owner, status, priority
-- Task Workflow view with "Next Up" lane
-- Active Tasks view for in-progress work
+- Task Workflow view with "Next Up" and "Active" lanes
+- Archive done tasks and purge archived tasks from the workflow view
+
+### Operations
+Operational visibility for mobile companion flows:
+- Connection status, ports, and connected clients
+- Running sessions and recent requests
+- Copilot permission request queue (pending and recent decisions)
 
 ### Remote Control
 The `@remote-control` chat participant enables programmatic agent invocation:
@@ -55,22 +61,26 @@ Then use **Developer: Install Extension from Location...** and select the folder
 |------|-------------|
 | **Skill Discovery** | Available skills from instruction-engine |
 | **Agents** | Agents across workspace repos |
-| **Active Tasks** | Currently in-progress tasks |
 | **Task Workflow** | Queue and prioritize tasks |
-| **Tasks** | All tasks from `.instructions/tasks/` |
 | **Audit Results** | Code quality audit results |
+| **Connections** | WebSocket server and mobile clients |
+| **Requests** | Active and recent agent sessions |
+| **Permissions** | Copilot permission requests and decisions |
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| Refresh Skills, Tasks & Agents | Reload all views |
+| Refresh Views | Reload all views |
 | Open E2E Dashboard | Launch configured E2E URL |
 | Run Audit | Execute code quality audit |
 | Enable/Disable Skill | Toggle skill availability |
 | Enable/Disable Agent | Toggle agent availability |
+| Initialize Skills | Copy selected skills into `.github/skills` |
 | Clear Repo Context | Reset context for a repo |
 | Login with GitHub | Authenticate for mobile companion |
+| Archive Done Tasks | Move completed tasks to `.instructions/tasks.archive` |
+| Purge Archived Tasks | Delete archived task files |
 
 ## Configuration
 

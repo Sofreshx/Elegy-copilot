@@ -2,6 +2,7 @@
 name: deploy-auditor
 description: "Deployment configuration drift detection. Compares local vs production Docker Compose, environment variables, and infrastructure configs to identify mismatches and missing resources."
 tools: ['read', 'search']
+infer: user
 ---
 
 # Deploy Auditor Agent

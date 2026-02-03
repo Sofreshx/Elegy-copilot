@@ -6,6 +6,7 @@ export interface AuthContextValue {
   user: GitHubUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  configError: string | null;
   login: () => void;
   logout: () => void;
 }
@@ -19,11 +20,13 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<GitHubUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [configError, setConfigError] = useState<string | null>(null);
 
   useEffect(() => {
     const initAuth = async () => {
       const authService = getAuthService();
       const state = authService.getState();
+      setConfigError(authService.getConfigError());
 
       if (state.isAuthenticated && state.user) {
         setUser(state.user);
@@ -75,6 +78,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = useCallback(() => {
     const authService = getAuthService();
+    const error = authService.getConfigError();
+    if (error) {
+      setConfigError(error);
+      return;
+    }
+    setConfigError(null);
     authService.login();
   }, []);
 
@@ -89,6 +98,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     isAuthenticated: !!user,
     isLoading,
+    configError,
     login,
     logout,
   };

@@ -55,6 +55,9 @@ docker-compose --profile dev up relay-dev
 | `JWT_AUDIENCE` | Expected JWT audience | `instruction-engine` |
 | `REQUIRE_AUTH` | Require JWT authentication | `true` |
 | `MAX_MESSAGE_SIZE` | Max message size in bytes | `1048576` (1MB) |
+| `GITHUB_CLIENT_ID` | GitHub OAuth client ID | (required for auth endpoints) |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth client secret | (required for auth endpoints) |
+| `GITHUB_REDIRECT_URI` | GitHub OAuth redirect URI | (optional fallback) |
 
 ## API Endpoints
 
@@ -65,6 +68,8 @@ docker-compose --profile dev up relay-dev
 | `/health` | GET | Service health + metrics |
 | `/health/ready` | GET | Kubernetes readiness probe |
 | `/health/live` | GET | Kubernetes liveness probe |
+| `/auth/login` | POST | Build a GitHub OAuth authorization URL |
+| `/auth/callback` | POST | Exchange GitHub OAuth code for tokens |
 
 ### WebSocket
 
@@ -127,6 +132,30 @@ All messages use the relay envelope format:
 All other commands are routed to the target client.
 
 ## Deployment
+
+### Production (Traefik + GHCR)
+
+This repo ships a production compose file at `cloud-relay/docker-compose.prod.yml` intended for the GenericInfrastructure server.
+It expects Traefik to route `relay.sfrsh.xyz` to the service on port 3000.
+
+Required runtime secrets on the server (provided via `.env`):
+- `JWT_SECRET`
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- `GITHUB_REDIRECT_URI` (must match the mobile frontend callback URL, e.g. `https://sofreshx.github.io/instruction-engine/auth/callback`)
+
+Optional runtime variables:
+- `JWT_ISSUER` (default `instruction-engine-relay`)
+- `JWT_AUDIENCE` (default `instruction-engine`)
+- `REQUIRE_AUTH` (default `true`)
+- `MAX_MESSAGE_SIZE` (default `1048576`)
+
+Deployment workflow secrets (instruction-engine repo):
+- `SERVER_IP`, `SSH_USER`, `SSH_KEY`
+- `RELAY_JWT_SECRET`, `RELAY_GITHUB_REDIRECT_URI`
+- `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`
+
+The deploy workflow uses the ephemeral GitHub Actions `GITHUB_TOKEN` to authenticate the server to GHCR for pulls.
 
 ### Production Checklist
 

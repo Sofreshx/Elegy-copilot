@@ -21,7 +21,7 @@ interface SectionNode extends BaseNode {
 
 interface LaneNode extends BaseNode {
 	kind: 'lane';
-	laneKey: 'next-up' | 'pipeline';
+	laneKey: 'next-up' | 'active' | 'pipeline';
 }
 
 interface RepoNode extends BaseNode {
@@ -171,6 +171,7 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 		const totalTasks = snapshot.repos.reduce((sum, repo) => sum + repo.tasks.length, 0);
 
 		const nextUpTasks = this.getNextUp(snapshot, nextUpLimit);
+		const activeLane = this.buildActiveLane(snapshot);
 
 		const section: SectionNode = {
 			kind: 'section',
@@ -188,6 +189,7 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 					iconPath: new vscode.ThemeIcon('play-circle'),
 					children: nextUpTasks.map((t) => this.toTaskNode(t))
 				},
+				activeLane,
 				{
 					kind: 'lane',
 					laneKey: 'pipeline',
@@ -230,10 +232,41 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 		return active.slice(0, limit);
 	}
 
+	private buildActiveLane(snapshot: TaskDiscoverySnapshot): LaneNode {
+		const activeByRepo = snapshot.repos
+			.map((repo) => ({
+				repo,
+				tasks: repo.tasks.filter(isActiveTask)
+			}))
+			.filter((entry) => entry.tasks.length > 0);
+
+		const totalActive = activeByRepo.reduce((sum, entry) => sum + entry.tasks.length, 0);
+
+		return {
+			kind: 'lane',
+			laneKey: 'active',
+			key: 'active',
+			label: 'Active',
+			description: totalActive.toString(),
+			iconPath: new vscode.ThemeIcon('rocket'),
+			children: activeByRepo.length
+				? activeByRepo.map((entry) => this.toActiveRepoNode(entry.repo, entry.tasks))
+				: [
+					{
+						kind: 'status',
+						key: 'active-empty',
+						statusKey: 'active-empty',
+						label: 'No active tasks',
+						iconPath: new vscode.ThemeIcon('circle-outline')
+					}
+				]
+		};
+	}
+
 	private toRepoNode(repo: RepoTasks): RepoNode {
 		const hasTasksDir = Boolean(repo.tasksDirPath);
 		const repoIcon = repo.isInstructionEngine ? 'library' : 'repo';
-		const children = hasTasksDir ? this.groupTasksByStatus(repo) : [];
+		const children = hasTasksDir ? this.groupTasksByStatus(repo, repo.tasks, 'workflow-status') : [];
 		return {
 			kind: 'repo',
 			key: repo.repoPath,
@@ -245,9 +278,24 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 		};
 	}
 
-	private groupTasksByStatus(repo: RepoTasks): StatusNode[] {
+	private toActiveRepoNode(repo: RepoTasks, tasks: TaskEntry[]): RepoNode {
+		const hasTasksDir = Boolean(repo.tasksDirPath);
+		const repoIcon = repo.isInstructionEngine ? 'library' : 'repo';
+		const children = hasTasksDir ? this.groupTasksByStatus(repo, tasks, 'active-status') : [];
+		return {
+			kind: 'repo',
+			key: `${repo.repoPath}::active`,
+			label: repo.repoName,
+			description: hasTasksDir ? `${tasks.length} active` : 'no .instructions/tasks',
+			iconPath: new vscode.ThemeIcon(hasTasksDir ? repoIcon : 'circle-slash'),
+			repo,
+			children
+		};
+	}
+
+	private groupTasksByStatus(repo: RepoTasks, tasks: TaskEntry[], keyPrefix: string): StatusNode[] {
 		const buckets = new Map<string, TaskEntry[]>();
-		for (const task of repo.tasks) {
+		for (const task of tasks) {
 			const key = normalizeStatus(task.status);
 			const arr = buckets.get(key) ?? [];
 			arr.push(task);
@@ -268,7 +316,7 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 			const tasks = buckets.get(statusKey) ?? [];
 			return {
 				kind: 'status',
-				key: `${repo.repoPath}::workflow-status::${statusKey}`,
+				key: `${repo.repoPath}::${keyPrefix}::${statusKey}`,
 				statusKey,
 				label: statusKey,
 				description: tasks.length.toString(),

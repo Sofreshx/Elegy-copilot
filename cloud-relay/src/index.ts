@@ -12,6 +12,7 @@ import dotenv from "dotenv";
 import { ConnectionManager } from "./connectionManager";
 import { WebSocketRelay, RelayConfig } from "./relay";
 import { createHealthRouter } from "./health";
+import { createAuthRouter } from "./auth";
 
 // Load environment variables
 dotenv.config();
@@ -47,6 +48,9 @@ async function main() {
 
   // Add health routes
   app.use(createHealthRouter(connectionManager, startTime));
+
+  // OAuth routes
+  app.use("/auth", createAuthRouter());
 
   // Create HTTP server
   const server = createServer(app);

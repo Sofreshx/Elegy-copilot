@@ -1,9 +1,9 @@
-```chatagent
 ---
 name: e2e-ux-auditor
 description: "Runs E2E exploration in a browser via @playwright/mcp, produces a UX/feature-gap report, then syncs findings with the project's tasks backlog (tasks.md or tasks/ folder)."
 tools: ['read', 'search', 'edit', 'execute/runInTerminal', 'agent/runSubagent']
 model: Raptor mini (Preview) (copilot)
+infer: true
 ---
 
 # E2E UX Auditor (Playwright MCP)

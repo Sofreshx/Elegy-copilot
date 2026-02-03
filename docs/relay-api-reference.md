@@ -34,7 +34,8 @@ Initiate GitHub OAuth login flow.
 **Response:**
 ```json
 {
-  "auth_url": "https://github.com/login/oauth/authorize?..."
+  "auth_url": "https://github.com/login/oauth/authorize?...",
+  "state": "string"
 }
 ```
 
@@ -45,6 +46,7 @@ Exchange OAuth code for tokens.
 ```json
 {
   "code": "string",
+  "redirect_uri": "string",
   "state": "string"
 }
 ```

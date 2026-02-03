@@ -28,6 +28,7 @@ interface BaseNode {
 	key: string;
 	label: string;
 	description?: string;
+	tooltip?: string | vscode.MarkdownString;
 	contextValue?: string;
 	command?: vscode.Command;
 	iconPath?: vscode.ThemeIcon;
@@ -62,6 +63,14 @@ const AUDIT_TYPES: { type: AuditType; label: string; file: string }[] = [
 	{ type: 'e2e', label: 'E2E', file: 'e2e-validation.md' },
 	{ type: 'security', label: 'Security', file: 'security-audit.md' }
 ];
+
+const AUDIT_DESCRIPTIONS: Record<AuditType, string> = {
+	deploy: 'Deployment readiness: manifests, infra setup, and publish checks.',
+	stack: 'Stack detection: frameworks, runtimes, and skill alignment.',
+	test: 'Test posture: unit/integration coverage and gaps.',
+	e2e: 'E2E health: startup, critical flows, and validation checks.',
+	security: 'Security posture: OWASP risks, secrets, and hardening.'
+};
 
 function parseYamlFrontMatter(content: string): Record<string, unknown> {
 	const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -240,6 +249,7 @@ export class AuditTreeProvider implements vscode.TreeDataProvider<Node> {
 		);
 
 		item.description = element.description;
+		item.tooltip = element.tooltip;
 		item.contextValue = element.contextValue;
 		item.command = element.command;
 		item.iconPath = element.iconPath;
@@ -320,6 +330,7 @@ export class AuditTreeProvider implements vscode.TreeDataProvider<Node> {
 		const meta = AUDIT_TYPES.find((m) => m.type === report.type);
 		const label = meta?.label ?? report.type;
 		const icon = getAuditIcon(report);
+		const tooltip = AUDIT_DESCRIPTIONS[report.type];
 
 		let description = '';
 		if (!report.exists) {
@@ -369,6 +380,7 @@ export class AuditTreeProvider implements vscode.TreeDataProvider<Node> {
 			key: report.path,
 			label,
 			description,
+			tooltip,
 			iconPath: icon,
 			report,
 			contextValue: report.exists ? 'skillInstaller.auditReport' : 'skillInstaller.auditReportMissing',

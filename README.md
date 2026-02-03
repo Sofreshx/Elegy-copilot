@@ -78,6 +78,10 @@ Agent roles:
 - `@executive2`: orchestration-only. Requires an existing task graph and delegates execution to `task-runner`, testing to `test-executive`, and governance review to `code-reviewer`.
 - `@executive2-fast`: implements directly with good judgment, but never persists `.instructions/` state.
 
+Optional subagents:
+- `@research-ideation`: research and ideation notes under `.instructions/research/` (no code design/implementation).
+- `@reviewer-gpt-5-2-codex` / `@reviewer-opus-4-5`: cross-model accuracy checks for plans and execution summaries.
+
 ### Hiding Internal Agents (Copilot UI)
 
 Most non-executive agents in `.github/agents/` are meant to be invoked as **subagents** by the executive agents.
@@ -113,6 +117,7 @@ your-project/.instructions/          # Local Project (per-repo)
 ├── tasks.archive/                   # Archived completed tasks
 ├── tasks.history.md                 # Append-only recap log
 ├── architecture.md                  # Project overview
+├── research/                        # Research notes and ideation outputs
 └── contexts/                        # Project-specific knowledge
   └── project.memory.md            # Lessons, gotchas, active warnings/risks
 ```

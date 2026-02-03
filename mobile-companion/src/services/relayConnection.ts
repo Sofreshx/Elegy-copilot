@@ -27,8 +27,8 @@ export class RelayConnection {
   private authToken: string | null = null;
   private relayUrl: string;
 
-  constructor(relayUrl: string = import.meta.env.VITE_RELAY_URL || 'wss://relay.example.com') {
-    this.relayUrl = relayUrl;
+  constructor(relayUrl: string = resolveRelayWsUrl()) {
+    this.relayUrl = resolveRelayWsUrl(relayUrl);
   }
 
   /**
@@ -186,6 +186,28 @@ export class RelayConnection {
       this.status = status;
       this.statusHandlers.forEach((handler) => handler(status));
     }
+  }
+}
+
+export function resolveRelayWsUrl(input?: string): string {
+  const rawUrl =
+    input ||
+    import.meta.env.VITE_RELAY_WS_URL ||
+    import.meta.env.VITE_RELAY_URL ||
+    'wss://relay.example.com';
+
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol === 'http:') {
+      url.protocol = 'ws:';
+    } else if (url.protocol === 'https:') {
+      url.protocol = 'wss:';
+    }
+    url.hash = '';
+    url.search = '';
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return rawUrl.replace(/\/$/, '');
   }
 }
 

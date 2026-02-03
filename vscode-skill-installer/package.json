@@ -39,11 +39,12 @@
   "activationEvents": [
     "onUri",
     "onView:skillInstaller.skillsView",
-    "onView:skillInstaller.tasksView",
-    "onView:skillInstaller.activeTasksView",
     "onView:skillInstaller.workflowView",
     "onView:skillInstaller.agentsView",
     "onView:skillInstaller.auditView",
+    "onView:skillInstaller.connectionsView",
+    "onView:skillInstaller.requestsView",
+    "onView:skillInstaller.permissionsView",
     "onCommand:skillInstaller.refresh",
     "onCommand:skillInstaller.runE2E",
     "onCommand:skillInstaller.runAudit",
@@ -52,6 +53,9 @@
     "onCommand:skillInstaller.disableSkill",
     "onCommand:skillInstaller.enableAgent",
     "onCommand:skillInstaller.disableAgent",
+    "onCommand:skillInstaller.initializeSkills",
+    "onCommand:skillInstaller.archiveDoneTasks",
+    "onCommand:skillInstaller.purgeArchivedTasks",
     "onCommand:skillInstaller.clearRepoContext",
     "onCommand:skillInstaller.clearAllRepoContexts"
   ],
@@ -90,6 +94,11 @@
           "id": "skillInstaller",
           "title": "Skills",
           "icon": "resources/icon.svg"
+        },
+        {
+          "id": "skillInstallerOps",
+          "title": "Operations",
+          "icon": "resources/icon.svg"
         }
       ]
     },
@@ -104,27 +113,33 @@
           "name": "Agents"
         },
         {
-          "id": "skillInstaller.activeTasksView",
-          "name": "Active Tasks"
-        },
-        {
           "id": "skillInstaller.workflowView",
           "name": "Task Workflow"
         },
         {
-          "id": "skillInstaller.tasksView",
-          "name": "Tasks"
-        },
-        {
           "id": "skillInstaller.auditView",
           "name": "Audit Results"
+        }
+      ],
+      "skillInstallerOps": [
+        {
+          "id": "skillInstaller.connectionsView",
+          "name": "Connections"
+        },
+        {
+          "id": "skillInstaller.requestsView",
+          "name": "Requests"
+        },
+        {
+          "id": "skillInstaller.permissionsView",
+          "name": "Permissions"
         }
       ]
     },
     "commands": [
       {
         "command": "skillInstaller.refresh",
-        "title": "Refresh Skills, Tasks & Agents"
+        "title": "Refresh Views"
       },
       {
         "command": "skillInstaller.runE2E",
@@ -137,6 +152,11 @@
       {
         "command": "skillInstaller.disableSkill",
         "title": "Disable Skill"
+      },
+      {
+        "command": "skillInstaller.initializeSkills",
+        "title": "Initialize Skills",
+        "icon": "$(cloud-download)"
       },
       {
         "command": "skillInstaller.enableAgent",
@@ -153,6 +173,16 @@
       {
         "command": "skillInstaller.clearAllRepoContexts",
         "title": "Clear Context for All Repos"
+      },
+      {
+        "command": "skillInstaller.archiveDoneTasks",
+        "title": "Archive Done Tasks",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "skillInstaller.purgeArchivedTasks",
+        "title": "Purge Archived Tasks",
+        "icon": "$(trash)"
       },
       {
         "command": "skillInstaller.runAudit",
@@ -209,7 +239,22 @@
       ],
       "view/title": [
         {
+          "command": "skillInstaller.initializeSkills",
+          "when": "view == skillInstaller.skillsView",
+          "group": "navigation"
+        },
+        {
           "command": "skillInstaller.runE2E",
+          "when": "view == skillInstaller.workflowView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.archiveDoneTasks",
+          "when": "view == skillInstaller.workflowView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.purgeArchivedTasks",
           "when": "view == skillInstaller.workflowView",
           "group": "navigation"
         },
@@ -221,6 +266,11 @@
         {
           "command": "skillInstaller.refreshAudit",
           "when": "view == skillInstaller.auditView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.refresh",
+          "when": "view == skillInstaller.connectionsView || view == skillInstaller.requestsView || view == skillInstaller.permissionsView",
           "group": "navigation"
         }
       ]
@@ -340,7 +390,8 @@
     "watch": "tsc -watch -p ./",
     "lint": "eslint \"src/**/*.ts\"",
     "vscode:prepublish": "npm run compile",
-    "package": "npx @vscode/vsce package"
+    "package": "npx @vscode/vsce package",
+    "test": "npm run compile && node ./dist/test/runTest.js"
   },
   "dependencies": {
     "ws": "^8.16.0",
@@ -348,6 +399,8 @@
   },
   "devDependencies": {
     "@vscode/vsce": "^3.2.2",
+    "@vscode/test-electron": "^2.3.9",
+    "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.30",
     "@types/vscode": "^1.85.0",
     "@types/ws": "^8.5.10",
@@ -355,6 +408,7 @@
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "@typescript-eslint/parser": "^8.19.1",
     "eslint": "^9.18.0",
+    "mocha": "^10.3.0",
     "typescript": "^5.6.3"
   }
 }

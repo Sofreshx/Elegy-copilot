@@ -1,8 +1,8 @@
 ---
 name: test-auditor
 description: "Test quality and coverage auditor. Combines actual coverage metrics with LLM-based test quality analysis to identify gaps and improvement opportunities."
-tools: ['read', 'search', 'agent', 'execute/runInTerminal']
-infer: true
+tools: ['read', 'search', 'agent', 'execute/runInTerminal', read/terminalLastCommand, read/terminalSelection, execute/getTerminalOutput, execute/awaitTerminal, execute/killTerminal]
+infer: agent
 ---
 
 # Test Auditor Agent
