@@ -1,7 +1,0 @@
-Placeholder for PWA icons.
-
-Create and add:
-- icon-192.png (192x192)
-- icon-512.png (512x512)
-
-For maskable icons, ensure a safe zone of 40% from edges.
