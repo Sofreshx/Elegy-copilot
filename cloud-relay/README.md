@@ -142,7 +142,7 @@ Required runtime secrets on the server (provided via `.env`):
 - `JWT_SECRET`
 - `GITHUB_CLIENT_ID`
 - `GITHUB_CLIENT_SECRET`
-- `GITHUB_REDIRECT_URI` (must match the mobile frontend callback URL, e.g. `https://sofreshx.github.io/instruction-engine/auth/callback`)
+- `GITHUB_REDIRECT_URI` (must match the mobile frontend callback URL, e.g. `https://your-mobile-domain/auth/callback`)
 
 Optional runtime variables:
 - `JWT_ISSUER` (default `instruction-engine-relay`)

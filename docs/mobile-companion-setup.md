@@ -40,8 +40,8 @@ Port `0` uses a random available port (recommended for security).
 
 ### 3. Access the Mobile App
 
-Option A: **GitHub Pages** (Recommended)
-- Navigate to: `https://[your-org].github.io/instruction-engine/`
+Option A: **Hosted (Cloudflare or similar)**
+- Navigate to: `https://your-mobile-domain/`
 
 Option B: **Local Development**
 ```bash
@@ -61,8 +61,9 @@ cd mobile-companion
 Create `mobile-companion/.env.local`:
 
 ```env
-# Mobile app dev server
-VITE_RELAY_URL=ws://127.0.0.1:5173
+# Relay endpoints
+VITE_RELAY_HTTP_URL=http://localhost:3000
+VITE_RELAY_WS_URL=ws://localhost:3000/v1/ws
 
 # GitHub OAuth (optional for local UI checks)
 VITE_GITHUB_CLIENT_ID=your_client_id

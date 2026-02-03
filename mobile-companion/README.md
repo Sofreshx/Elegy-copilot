@@ -13,6 +13,7 @@ The mobile companion is a Vite + React app that connects to the Instruction Engi
 1. Create a GitHub OAuth App at https://github.com/settings/developers
 2. Set the Authorization callback URL to:
    - http://localhost:5173/auth/callback
+   - https://your-mobile-domain/auth/callback (for production hosting)
 3. Copy the Client ID (client secret stays on the relay server).
 
 ## Configure Environment Variables
@@ -51,4 +52,5 @@ Then open http://localhost:5173 and sign in with GitHub.
 
 ## Production Hosting Note
 
-If you host the app as static files, ensure your host rewrites `/auth/callback` to `index.html` so the SPA can process the OAuth response.
+When hosting on Cloudflare (or any static host), ensure your host rewrites `/auth/callback` to `index.html` so the SPA can process the OAuth response.
+Set the OAuth callback URL to the hosted domain, for example `https://your-mobile-domain/auth/callback`.

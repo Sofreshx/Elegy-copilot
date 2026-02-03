@@ -82,7 +82,7 @@ Add these callback URLs (one per line):
 ```
 vscode://sofreshx.skill-installer/auth/callback
 http://localhost:5173/auth/callback
-https://your-relay-service.com/auth/callback
+https://your-mobile-domain/auth/callback
 ```
 
 ## Security Considerations
