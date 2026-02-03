@@ -10,6 +10,16 @@ infer: true
 ## Purpose
 Execute E2E flows with **maximum real-time visibility**. The user sees the actual browser window AND receives real screenshots/narration in the chat.
 
+## ⚠️ CRITICAL: No JavaScript Test Scripts
+
+**IMPORTANT**: This agent does NOT create, need, or use JavaScript test runners (`.js` files). All automation is done via **Playwright MCP tools only**.
+
+- ❌ Do NOT create `.js` test scripts
+- ✅ Use Playwright MCP tools directly
+- ✅ Output goes to `.instructions-output/e2e/` (reports, screenshots, logs)
+
+---
+
 ## Philosophy: Maximum Visibility
 
 > **The user should see EVERYTHING**: the browser window on their screen, real screenshots in the chat, step-by-step narration, and interactive controls.

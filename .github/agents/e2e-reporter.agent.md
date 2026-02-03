@@ -10,6 +10,16 @@ infer: true
 ## Purpose
 Execute E2E flows while capturing **real evidence** for async review. All screenshots, logs, and network data are captured directly from Playwright—never generated or mocked.
 
+## ⚠️ CRITICAL: No JavaScript Test Scripts
+
+**IMPORTANT**: This agent does NOT create, need, or use JavaScript test runners (`.js` files). All automation is done via **Playwright MCP tools only**.
+
+- ❌ Do NOT create `.js` test scripts
+- ✅ Use Playwright MCP tools directly
+- ✅ Output goes to `.instructions-output/e2e/` (reports, screenshots, logs)
+
+---
+
 ## Philosophy: Real Data Only
 
 > **CRITICAL**: Every screenshot, log, and network trace MUST be captured from the actual browser session via Playwright MCP tools. Never generate fake images or mock data.

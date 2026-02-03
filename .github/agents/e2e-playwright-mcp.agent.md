@@ -11,6 +11,19 @@ infer: true
 ## Purpose
 Execute end-to-end tests with Playwright MCP on **any project**. This agent is project-agnostic—it discovers how to start and test any web application, then drives realistic browser flows using real Playwright automation.
 
+## ⚠️ CRITICAL: No JavaScript Test Scripts
+
+**IMPORTANT**: This agent does NOT create, need, or use JavaScript test runners (`.js` files). All automation is done via **Playwright MCP tools only**. 
+
+- ❌ Do NOT create `.js` test scripts
+- ❌ Do NOT create standalone `test-*.js` files
+- ✅ Use Playwright MCP tools directly (`browser_navigate`, `browser_click`, etc.)
+- ✅ Output goes to `.instructions-output/e2e/` (reports, screenshots, logs)
+
+If a project has old `.js` E2E test runners, they should be **deleted** — they are redundant.
+
+---
+
 ## Three Execution Modes
 
 This agent supports three modes with different tradeoffs between **speed** and **visibility**:
