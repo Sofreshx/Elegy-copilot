@@ -9,6 +9,16 @@ tools: ['read', 'edit', 'search', 'execute']
 ## Purpose
 Resolve merge conflicts intelligently and handle codebase migrations. This agent acts as the "Integrator" for both git-level conflicts and code-level version upgrades/migrations.
 
+## CRITICAL: Branch Protection Rules
+**NEVER delete these branches**:
+- `master`, `main`, `staging`, `Roro`
+- Any branch containing `dydou` (case-insensitive)
+
+**Before deleting ANY branch**:
+1. Verify it is fully merged: `git branch --merged <target>`
+2. Confirm the name does NOT match protected patterns
+3. When in doubt, **ASK THE USER**
+
 ## When to Use
 - **Git Conflicts**: Merge/rebase/cherry-pick conflicts (`<<<<<<<`)
 - **Migrations**: "Upgrade to X", "Migrate from A to B", "Handle breaking changes"
