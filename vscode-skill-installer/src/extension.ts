@@ -16,6 +16,8 @@ import { RequestsTreeProvider } from './operationsRequestsTree';
 import { PermissionsTreeProvider } from './operationsPermissionsTree';
 import { archiveDoneTasks, purgeArchivedTasks } from './taskLifecycle';
 import { initializeSkills } from './skillInitializer';
+import { McpProvidersTreeProvider } from './mcpProvidersTree';
+import { McpProviderInfo, syncMcpConfigForRepo, syncMcpConfigForWorkspace } from './mcpConfig';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -39,6 +41,30 @@ function getAgentFromCommand(arg: unknown): AgentEntry | undefined {
 		if (agent && typeof agent.fileName === 'string') {
 			return agent;
 		}
+	}
+	return undefined;
+}
+
+function getMcpProviderFromCommand(arg: unknown): McpProviderInfo | undefined {
+	if (!arg || typeof arg !== 'object') {
+		return undefined;
+	}
+	if ('provider' in (arg as Record<string, unknown>)) {
+		const provider = (arg as { provider?: McpProviderInfo }).provider;
+		if (provider && typeof provider.id === 'string') {
+			return provider;
+		}
+	}
+	return undefined;
+}
+
+function getRepoPathFromCommand(arg: unknown): string | undefined {
+	if (!arg || typeof arg !== 'object') {
+		return undefined;
+	}
+	if ('repoPath' in (arg as Record<string, unknown>)) {
+		const repoPath = (arg as { repoPath?: string }).repoPath;
+		return typeof repoPath === 'string' ? repoPath : undefined;
 	}
 	return undefined;
 }
@@ -182,6 +208,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const connectionsProvider = new ConnectionsTreeProvider(wsServer);
 	const requestsProvider = new RequestsTreeProvider(sessionManager);
 	const permissionsProvider = new PermissionsTreeProvider(wsServer.getEventEmitter());
+	const mcpProvider = new McpProvidersTreeProvider(output);
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.skillsView', skillProvider)
 	);
@@ -203,6 +230,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.permissionsView', permissionsProvider)
 	);
+	context.subscriptions.push(
+		vscode.window.registerTreeDataProvider('skillInstaller.mcpView', mcpProvider)
+	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('skillInstaller.refresh', () => {
@@ -213,6 +243,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			connectionsProvider.invalidateCache();
 			requestsProvider.invalidateCache();
 			permissionsProvider.invalidateCache();
+			mcpProvider.invalidateCache();
 		})
 	);
 
@@ -305,6 +336,50 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 			await setRepoItemEnabled('agents', agent.repoPath, agent.fileName, false);
 			agentProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.enableMcpProvider', async (arg?: unknown) => {
+			const provider = getMcpProviderFromCommand(arg);
+			if (!provider || !provider.repoPath) {
+				void vscode.window.showWarningMessage('Select an MCP provider with a repo path to enable.');
+				return;
+			}
+			await setRepoItemEnabled('mcpProviders', provider.repoPath, provider.id, true);
+			await syncMcpConfigForRepo(provider.repoPath, output);
+			mcpProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.disableMcpProvider', async (arg?: unknown) => {
+			const provider = getMcpProviderFromCommand(arg);
+			if (!provider || !provider.repoPath) {
+				void vscode.window.showWarningMessage('Select an MCP provider with a repo path to disable.');
+				return;
+			}
+			await setRepoItemEnabled('mcpProviders', provider.repoPath, provider.id, false);
+			await syncMcpConfigForRepo(provider.repoPath, output);
+			mcpProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.syncMcpConfig', async (arg?: unknown) => {
+			const repoPath = getRepoPathFromCommand(arg);
+			if (repoPath) {
+				await syncMcpConfigForRepo(repoPath, output);
+			} else {
+				await syncMcpConfigForWorkspace(output);
+			}
+			mcpProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.openMcpSettings', async () => {
+			await vscode.commands.executeCommand('workbench.action.openSettings', 'skillInstaller.mcp');
 		})
 	);
 
@@ -405,6 +480,25 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 		})
 	);
+
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration((event) => {
+			if (event.affectsConfiguration('skillInstaller.mcp')) {
+				mcpProvider.invalidateCache();
+				const autoSync = vscode.workspace
+					.getConfiguration()
+					.get<boolean>('skillInstaller.mcp.autoSync', true);
+				if (autoSync) {
+					void syncMcpConfigForWorkspace(output);
+				}
+			}
+		})
+	);
+
+	const autoSync = vscode.workspace.getConfiguration().get<boolean>('skillInstaller.mcp.autoSync', true);
+	if (autoSync) {
+		void syncMcpConfigForWorkspace(output);
+	}
 
 	output.appendLine('[Skill Installer] Activated');
 }

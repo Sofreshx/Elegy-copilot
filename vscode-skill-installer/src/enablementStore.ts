@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-export type EnablementKind = 'skills' | 'agents';
+export type EnablementKind = 'skills' | 'agents' | 'mcpProviders';
 
 interface RegistrySection {
 	disabled?: string[];
@@ -11,6 +11,7 @@ interface RegistrySection {
 interface RegistryData {
 	skills?: RegistrySection;
 	agents?: RegistrySection;
+	mcpProviders?: RegistrySection;
 }
 
 function normalizeKey(value: string): string {
@@ -62,7 +63,9 @@ function writeRegistry(repoPath: string, config: vscode.WorkspaceConfiguration, 
 function getSettingsKey(kind: EnablementKind): string {
 	return kind === 'skills'
 		? 'skillInstaller.skills.disabledByRepo'
-		: 'skillInstaller.agents.disabledByRepo';
+		: kind === 'agents'
+			? 'skillInstaller.agents.disabledByRepo'
+			: 'skillInstaller.mcp.providers.disabledByRepo';
 }
 
 export function getRepoDisabledSet(kind: EnablementKind, repoPath: string): Set<string> {

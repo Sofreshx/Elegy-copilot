@@ -43,6 +43,7 @@
     "onView:skillInstaller.agentsView",
     "onView:skillInstaller.auditView",
     "onView:skillInstaller.connectionsView",
+    "onView:skillInstaller.mcpView",
     "onView:skillInstaller.requestsView",
     "onView:skillInstaller.permissionsView",
     "onCommand:skillInstaller.refresh",
@@ -51,6 +52,10 @@
     "onCommand:skillInstaller.refreshAudit",
     "onCommand:skillInstaller.enableSkill",
     "onCommand:skillInstaller.disableSkill",
+    "onCommand:skillInstaller.enableMcpProvider",
+    "onCommand:skillInstaller.disableMcpProvider",
+    "onCommand:skillInstaller.syncMcpConfig",
+    "onCommand:skillInstaller.openMcpSettings",
     "onCommand:skillInstaller.enableAgent",
     "onCommand:skillInstaller.disableAgent",
     "onCommand:skillInstaller.initializeSkills",
@@ -133,6 +138,10 @@
         {
           "id": "skillInstaller.permissionsView",
           "name": "Permissions"
+        },
+        {
+          "id": "skillInstaller.mcpView",
+          "name": "MCP Providers"
         }
       ]
     },
@@ -165,6 +174,22 @@
       {
         "command": "skillInstaller.disableAgent",
         "title": "Disable Agent"
+      },
+      {
+        "command": "skillInstaller.enableMcpProvider",
+        "title": "Enable MCP Provider"
+      },
+      {
+        "command": "skillInstaller.disableMcpProvider",
+        "title": "Disable MCP Provider"
+      },
+      {
+        "command": "skillInstaller.syncMcpConfig",
+        "title": "Sync MCP Config"
+      },
+      {
+        "command": "skillInstaller.openMcpSettings",
+        "title": "Open MCP Settings"
       },
       {
         "command": "skillInstaller.clearRepoContext",
@@ -235,6 +260,21 @@
           "command": "skillInstaller.enableAgent",
           "when": "view == skillInstaller.agentsView && viewItem == skillInstaller.agent.disabled",
           "group": "inline"
+        },
+        {
+          "command": "skillInstaller.disableMcpProvider",
+          "when": "view == skillInstaller.mcpView && viewItem == skillInstaller.mcpProvider.enabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.enableMcpProvider",
+          "when": "view == skillInstaller.mcpView && viewItem == skillInstaller.mcpProvider.disabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.syncMcpConfig",
+          "when": "view == skillInstaller.mcpView && viewItem == skillInstaller.mcpRepo",
+          "group": "navigation"
         }
       ],
       "view/title": [
@@ -272,6 +312,16 @@
           "command": "skillInstaller.refresh",
           "when": "view == skillInstaller.connectionsView || view == skillInstaller.requestsView || view == skillInstaller.permissionsView",
           "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.syncMcpConfig",
+          "when": "view == skillInstaller.mcpView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.openMcpSettings",
+          "when": "view == skillInstaller.mcpView",
+          "group": "navigation"
         }
       ]
     },
@@ -292,6 +342,52 @@
           "type": "object",
           "default": {},
           "description": "Map of repo paths to disabled agent file names. Persisted alongside the repo registry file."
+        },
+        "skillInstaller.mcp.providers.disabledByRepo": {
+          "type": "object",
+          "default": {},
+          "description": "Map of repo paths to disabled MCP provider IDs. Persisted alongside the repo registry file."
+        },
+        "skillInstaller.mcp.configPath": {
+          "type": "string",
+          "default": ".vscode/mcp.json",
+          "description": "Relative path (from repo root) to write the MCP server configuration."
+        },
+        "skillInstaller.mcp.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "When enabled, regenerate MCP config files whenever MCP settings change."
+        },
+        "skillInstaller.mcp.providers": {
+          "type": "object",
+          "default": {
+            "supabase": {
+              "label": "Supabase",
+              "transport": "http",
+              "url": "https://mcp.supabase.com/mcp"
+            },
+            "firebase": {
+              "label": "Firebase",
+              "transport": "stdio",
+              "command": "npx",
+              "args": ["-y", "firebase-tools@latest", "mcp"]
+            },
+            "vultr": {
+              "label": "Vultr",
+              "transport": "stdio",
+              "command": "vultr-mcp-server",
+              "args": [],
+              "env": {
+                "VULTR_API_KEY": "${env:VULTR_API_KEY}"
+              }
+            },
+            "cloudflare": {
+              "label": "Cloudflare",
+              "transport": "custom",
+              "notes": "Add a Cloudflare MCP server config when selected."
+            }
+          },
+          "description": "MCP provider definitions (command/url/env/headers)."
         },
         "skillInstaller.e2e.url": {
           "type": "string",
