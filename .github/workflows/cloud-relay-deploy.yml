@@ -43,6 +43,25 @@ jobs:
             ${{ env.RELAY_IMAGE }}:latest
             ${{ env.RELAY_IMAGE }}:${{ github.sha }}
 
+      - name: Ensure relay directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            mkdir -p /srv/apps/instruction-engine-relay
+
+      - name: Upload relay compose file
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          source: cloud-relay/docker-compose.prod.yml
+          target: /srv/apps/instruction-engine-relay
+
       - name: Deploy relay via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -54,7 +73,14 @@ jobs:
             mkdir -p /srv/apps/instruction-engine-relay
             cd /srv/apps/instruction-engine-relay
 
-            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/cloud-relay/docker-compose.prod.yml -o docker-compose.yml
+            if [ -f ./docker-compose.prod.yml ]; then
+              cp ./docker-compose.prod.yml ./docker-compose.yml
+            elif [ -f ./cloud-relay/docker-compose.prod.yml ]; then
+              cp ./cloud-relay/docker-compose.prod.yml ./docker-compose.yml
+            else
+              echo "docker-compose.prod.yml not found after upload"
+              exit 1
+            fi
 
             cat << 'EOF' > .env
             JWT_SECRET=${{ secrets.RELAY_JWT_SECRET }}

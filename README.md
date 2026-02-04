@@ -150,7 +150,7 @@ This repository currently includes skills under `.codex/skills/` (see `.codex/sk
 `testing` · `code-review` · `csharp-expert` · `quality-typescript` · `performance`
 
 ### Infrastructure
-`terraform` · `deployment-compose` · `cloudflare-storage`
+`terraform` · `deployment-compose` · `cloudflare-storage` · `cloudflare-deploy` · `supabase-mcp` · `vultr-mcp` · `firebase-mcp` · `infra-settings`
 
 ### .NET Ecosystem
 `aspire-apphost` · `aspire-deployment` · `wolverine-core` · `wolverine-http` · `marten-documents` · `marten-events` · `orleans` · `signalr`
@@ -187,6 +187,7 @@ To enable skill subagent delegation, add this to your VS Code `settings.json`:
 - [Installation Guide](INSTALLATION_GUIDE.md)
 - [Upgrade Guide](UPGRADE_GUIDE.md)  
 - [Example Workflow](EXAMPLE_WORKFLOW.md)
+- [MCP Workflow Guide](docs/mcp-workflow.md)
 - [Lazy Loading Pattern](.github/patterns/lazy-loading.pattern.md)
 - [Skill Index](.codex/skills/index.md)
 - [E2E Setup Guide](docs/e2e-setup-guide.md)
