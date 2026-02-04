@@ -1,8 +1,9 @@
 ---
 name: code-explorer
-description: "Deeply analyzes existing codebase features by tracing execution paths, mapping architecture layers, understanding patterns and abstractions, and documenting dependencies to inform new development."
-tools: ['read', 'search', 'web/fetch']
-infer: agent
+description: Deeply analyzes existing codebase features by tracing execution paths, mapping architecture layers, understanding patterns and abstractions, and documenting dependencies to inform new development.
+tools: [read, search, web/fetch]
+user-invokable: false
+disable-model-invocation: false
 ---
 
 # Code Explorer Agent

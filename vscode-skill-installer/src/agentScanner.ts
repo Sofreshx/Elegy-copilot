@@ -193,6 +193,26 @@ export async function scanAgents(): Promise<AgentDiscoverySnapshot> {
 				const fileName = path.basename(filePath);
 				const enabled = !disabledSet.has(normalizeKey(fileName));
 
+				// Determine new-style fields, falling back to legacy `infer` when needed
+				const rawInfer = fm['infer'];
+				let inferStr: string | undefined;
+				if (typeof rawInfer === 'boolean') inferStr = rawInfer ? 'true' : 'false';
+				else if (typeof rawInfer === 'string') inferStr = rawInfer.trim().toLowerCase();
+
+				const userInvokable =
+					normalizeBoolean(fm['user-invokable']) ??
+					(inferStr === 'true' || inferStr === 'user');
+
+				let disableModelInvocation = normalizeBoolean(fm['disable-model-invocation']);
+				if (disableModelInvocation === undefined) {
+					if (inferStr === 'agent') {
+						disableModelInvocation = false; // allow model-invocation for subagents
+					} else {
+						// be conservative: disallow model invocation unless explicitly marked 'agent'
+						disableModelInvocation = true;
+					}
+				}
+
 				agents.push({
 					path: filePath,
 					fileName,
@@ -200,7 +220,9 @@ export async function scanAgents(): Promise<AgentDiscoverySnapshot> {
 					description: normalizeString(fm['description']),
 					role: normalizeString(fm['role']),
 					visibility: normalizeString(fm['visibility']),
-					infer: normalizeBoolean(fm['infer']),
+					infer: normalizeBoolean(fm['infer']), // legacy
+					userInvokable,
+					disableModelInvocation,
 					repoPath,
 					enabled
 				});

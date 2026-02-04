@@ -167,7 +167,7 @@ This system is designed to work **with** GitHub Copilot, not against it:
 - ✅ All agents have `description:` for auto-routing
 - ✅ Runner uses `runSubagent` tool to delegate to skills
 - ✅ Skills can't spawn subagents (enforced via `tools:`)
-- ✅ Destructive agents marked `infer: false`
+- ✅ Destructive agents marked as non-user-invokable and model-invocation disabled (front-matter: `user-invokable: false`, `disable-model-invocation: true`)
 - ✅ Follows official [custom agents spec](https://code.visualstudio.com/docs/copilot/customization/custom-agents)
 
 ### Required Settings

@@ -57,7 +57,12 @@ export interface AgentEntry {
 	description?: string;
 	role?: string;
 	visibility?: string;
+	/** Deprecated: use `userInvokable` and `disableModelInvocation` */
 	infer?: boolean;
+	/** Whether the agent is visible/invokable by users (front-end). Mirrors `user-invokable` front-matter */
+	userInvokable?: boolean;
+	/** Whether model-level invocation is disabled. Mirrors `disable-model-invocation` front-matter */
+	disableModelInvocation?: boolean;
 	repoPath?: string;
 	enabled?: boolean;
 }

@@ -1,8 +1,9 @@
 ---
 name: infra-vultr
-description: "Infrastructure agent for Vultr servers, MCP setup, and safe resource management. Use for Vultr infra tasks, MCP integration, or server operations."
-tools: ['read', 'edit', 'search', 'web/fetch']
-infer: agent
+description: Infrastructure agent for Vultr servers, MCP setup, and safe resource management. Use for Vultr infra tasks, MCP integration, or server operations.
+tools: [read, edit, search, web/fetch]
+user-invokable: false
+disable-model-invocation: false
 visibility: internal
 ---
 

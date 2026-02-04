@@ -1,8 +1,9 @@
 ---
 name: test-executive
-description: "Orchestrates the testing lifecycle: scanning, planning, and executing unit/integration tests. Manages test task files under .instructions/test-tasks/."
-tools: ['read', 'edit', 'search', 'agent', 'agent/runSubagent', 'execute/runInTerminal', read/terminalLastCommand, read/terminalSelection, execute/getTerminalOutput, execute/awaitTerminal, execute/killTerminal]
-infer: true
+description: Orchestrates the testing lifecycle: scanning, planning, and executing unit/integration tests. Manages test task files under .instructions/test-tasks/.
+tools: [read, edit, search, agent, agent/runSubagent, execute/runInTerminal, read/terminalLastCommand, read/terminalSelection, execute/getTerminalOutput, execute/awaitTerminal, execute/killTerminal]
+user-invokable: true
+disable-model-invocation: true
 ---
 
 # Test Executive Agent

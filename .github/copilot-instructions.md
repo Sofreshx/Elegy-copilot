@@ -60,21 +60,6 @@ Only consult skill docs when you’re unsure, the change is high-risk, or the re
 - Do destructive scaffolding or large deletions only with an explicit user ask.
 - Record recurring gotchas in `.instructions/contexts/project.memory.md`.
 
-## Git Branch Workflow (Critical)
-**Protected Branches (NEVER delete)**:
-- `master`, `main`, `staging`, `Roro`
-- Any branch containing `dydou` (case-insensitive: Dydou, DYDOU, GIGADYDOU, MegaDydou, etc.)
-
-**Branch-per-Change Rule**:
-- Create a new branch for each fix or feature before making changes.
-- Use naming conventions: `fix/<description>`, `feature/<task-id>-<description>`, `chore/<description>`.
-- Do NOT commit fixes/features directly to protected branches.
-
-**Before deleting branches**:
-- Verify the branch is merged into the target (e.g., `git branch --merged <target>`).
-- Confirm the branch name does NOT match any protected pattern.
-- When in doubt, ask the user before deletion.
-
 ## Testing
 - Always run existing tests after changes.
 - When adding features or fixing bugs, add relevant unit/integration tests.

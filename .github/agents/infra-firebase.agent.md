@@ -1,8 +1,9 @@
 ---
 name: infra-firebase
-description: "Infrastructure agent for Firebase projects, MCP setup, and secure Firebase operations. Use for Firebase infra tasks, MCP integration, or Firebase project workflows."
-tools: ['read', 'edit', 'search', 'web/fetch']
-infer: agent
+description: Infrastructure agent for Firebase projects, MCP setup, and secure Firebase operations. Use for Firebase infra tasks, MCP integration, or Firebase project workflows.
+tools: [read, edit, search, web/fetch]
+user-invokable: false
+disable-model-invocation: false
 visibility: internal
 ---
 

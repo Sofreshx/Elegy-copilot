@@ -1,8 +1,9 @@
 ---
 name: code-architect
-description: "Designs feature architectures by analyzing existing codebase patterns and conventions, then providing comprehensive implementation blueprints with specific files to create/modify, component designs, data flows, and build sequences."
-tools: ['read', 'search', 'search/listDirectory', 'edit']
-infer: agent
+description: Designs feature architectures by analyzing existing codebase patterns and conventions, then providing comprehensive implementation blueprints with specific files to create/modify, component designs, data flows, and build sequences.
+tools: [read, search, search/listDirectory, edit]
+user-invokable: false
+disable-model-invocation: false
 ---
 
 # Code Architect Agent

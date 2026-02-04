@@ -1,8 +1,9 @@
 ---
 name: e2e-live-observer
-description: "Live mode E2E subagent. Visible browser, real-time narration, REAL screenshots shown to user as they happen. Maximum visibility for debugging and demos."
-tools: ['playwright/browser_take_screenshot', 'playwright/browser_snapshot', 'playwright/browser_console_messages', 'playwright/browser_network_requests', 'playwright/browser_navigate', 'playwright/browser_click', 'playwright/browser_fill_form', 'playwright/browser_type', 'playwright/browser_wait_for', 'playwright/browser_hover', 'playwright/browser_press_key', 'playwright/browser_select_option', 'playwright/browser_resize', 'playwright/browser_close', 'vscode/askQuestions', 'read/readFile', 'search/listDirectory', 'edit/createFile', 'edit/createDirectory']
-infer: true
+description: Live mode E2E subagent. Visible browser, real-time narration, REAL screenshots shown to user as they happen. Maximum visibility for debugging and demos.
+tools: [playwright/browser_take_screenshot, playwright/browser_snapshot, playwright/browser_console_messages, playwright/browser_network_requests, playwright/browser_navigate, playwright/browser_click, playwright/browser_fill_form, playwright/browser_type, playwright/browser_wait_for, playwright/browser_hover, playwright/browser_press_key, playwright/browser_select_option, playwright/browser_resize, playwright/browser_close, vscode/askQuestions, read/readFile, search/listDirectory, edit/createFile, edit/createDirectory]
+user-invokable: true
+disable-model-invocation: true
 ---
 
 # E2E Live Observer (Subagent)

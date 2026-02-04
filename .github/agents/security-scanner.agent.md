@@ -1,8 +1,9 @@
 ---
 name: security-scanner
-description: "Scans the codebase for security vulnerabilities, focusing on endpoints and OWASP risks."
-tools: ['read', 'edit', 'search', 'web']
-infer: agent
+description: Scans the codebase for security vulnerabilities, focusing on endpoints and OWASP risks.
+tools: [read, edit, search, web]
+user-invokable: false
+disable-model-invocation: false
 ---
 
 # Security Scanner Agent

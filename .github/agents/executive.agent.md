@@ -1,8 +1,9 @@
 ---
 name: executive
-description: "Feature Planner and Orchestrator. Guides feature development through a structured 7-phase workflow: Discovery, Exploration, Clarification, Architecture, Implementation, Review, Summary."
-tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal', 'agent/runSubagent']
-infer: true
+description: Feature Planner and Orchestrator. Guides feature development through a structured 7-phase workflow: Discovery, Exploration, Clarification, Architecture, Implementation, Review, Summary.
+tools: [read, edit, search, agent, execute/runInTerminal, agent/runSubagent]
+user-invokable: true
+disable-model-invocation: true
 ---
 
 # Feature Planner (Executive Agent)

@@ -1,8 +1,9 @@
 ---
 name: research-ideation
-description: "Research and ideation agent. Explores ideas, constraints, and options without designing code. Writes research notes to .instructions/research/*.md and can propose tasks for later creation."
-tools: ['read', 'search', 'edit', 'web/fetch']
-infer: agent
+description: Research and ideation agent. Explores ideas, constraints, and options without designing code. Writes research notes to .instructions/research/*.md and can propose tasks for later creation.
+tools: [read, search, edit, web/fetch]
+user-invokable: false
+disable-model-invocation: false
 ---
 
 # Research & Ideation Agent

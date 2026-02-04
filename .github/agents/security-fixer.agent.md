@@ -1,8 +1,9 @@
 ---
 name: security-fixer
-description: "Implements security fixes for identified vulnerabilities."
-tools: ['read', 'edit', 'search']
-infer: agent
+description: Implements security fixes for identified vulnerabilities.
+tools: [read, edit, search]
+user-invokable: false
+disable-model-invocation: false
 ---
 
 # Security Fixer Agent

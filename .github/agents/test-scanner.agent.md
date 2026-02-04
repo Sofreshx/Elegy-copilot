@@ -1,8 +1,9 @@
 ---
 name: test-scanner
-description: "Analyzes the codebase to identify testable assets (endpoints, classes) and current coverage gaps. Generates tests.inventory.md."
-tools: ['read', 'search', 'agent', 'execute/runInTerminal']
-infer: user
+description: Analyzes the codebase to identify testable assets (endpoints, classes) and current coverage gaps. Generates tests.inventory.md.
+tools: [read, search, agent, execute/runInTerminal]
+user-invokable: true
+disable-model-invocation: true
 ---
 
 # Test Scanner Agent

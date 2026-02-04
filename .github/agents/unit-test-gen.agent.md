@@ -1,8 +1,9 @@
 ---
 name: unit-test-gen
-description: "Specialist in writing high-quality unit tests for domain logic, services, and aggregates. Focuses on isolation and edge cases."
-tools: ['read', 'edit', 'search', 'agent', 'execute/runInTerminal', 'execute/runInTerminal', read/terminalLastCommand, read/terminalSelection, execute/getTerminalOutput, execute/awaitTerminal, execute/killTerminal]
-infer: agent
+description: Specialist in writing high-quality unit tests for domain logic, services, and aggregates. Focuses on isolation and edge cases.
+tools: [read, edit, search, agent, execute/runInTerminal, execute/runInTerminal, read/terminalLastCommand, read/terminalSelection, execute/getTerminalOutput, execute/awaitTerminal, execute/killTerminal]
+user-invokable: false
+disable-model-invocation: false
 ---
 
 # Unit Test Generator Agent

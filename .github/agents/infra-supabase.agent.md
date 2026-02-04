@@ -1,8 +1,9 @@
 ---
 name: infra-supabase
-description: "Infrastructure agent for Supabase projects, MCP setup, and safe project operations. Use for Supabase infra tasks, MCP integration, or Supabase project workflows."
-tools: ['read', 'edit', 'search', 'web/fetch']
-infer: agent
+description: Infrastructure agent for Supabase projects, MCP setup, and safe project operations. Use for Supabase infra tasks, MCP integration, or Supabase project workflows.
+tools: [read, edit, search, web/fetch]
+user-invokable: false
+disable-model-invocation: false
 visibility: internal
 ---
 

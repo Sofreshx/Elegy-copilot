@@ -1,8 +1,9 @@
 ---
 name: performance-auditer
-description: "Performance optimization and bottleneck analysis. Identifies slow code, optimizes queries, reduces memory usage."
-tools: ['read', 'search', 'edit']
-infer: user
+description: Performance optimization and bottleneck analysis. Identifies slow code, optimizes queries, reduces memory usage.
+tools: [read, search, edit]
+user-invokable: true
+disable-model-invocation: true
 ---
 
 # Performance Auditor Agent

@@ -1,9 +1,10 @@
 ---
 name: reviewer-opus-4-5
-description: "Cross-model reviewer (Opus 4.5). Validates plans and execution summaries for accuracy, gaps, and risks. Use as an opposite-model check."
-tools: ['read', 'search']
+description: Cross-model reviewer (Opus 4.5). Validates plans and execution summaries for accuracy, gaps, and risks. Use as an opposite-model check.
+tools: [read, search]
+user-invokable: false
+disable-model-invocation: false
 model: Claude Opus 4.5 (copilot)
-infer: agent
 ---
 
 # Cross-Model Reviewer (Opus 4.5)

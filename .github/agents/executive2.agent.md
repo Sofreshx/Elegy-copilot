@@ -1,14 +1,14 @@
 ---
 name: executive2
-description: "Executive2 Orchestrator. Executes strictly from an existing plan + persisted tasks, delegating each major step to explicit subagents. Use after a task-creation step (e.g., executive2-task-creator) has produced the task graph."
-tools: ['execute/runInTerminal', 'read', 'edit', 'search', 'agent', 'todo', 'search/searchSubagent', 'agent/runSubagent']
-agents: ['task-runner', 'code-explorer', 'code-architect', 'code-reviewer', 'reviewer-gpt-5-2-codex', 'reviewer-opus-4-5', 'research-ideation', 'test-runner', 'test-executive', 'integration-test-gen', 'plan-artefact-writer', 'executive2-planner', 'executive2-task-creator', 'debugger']
-infer: true
-handoffs:
-  - label: Back to Planning
-    agent: executive2-planner
-    prompt: "Return to planning and update the plan based on the latest findings or blockers."
-    send: false
+description: Executive2 Orchestrator. Executes strictly from an existing plan + persisted tasks, delegating each major step to explicit subagents. Use after a task-creation step (e.g., executive2-task-creator) has produced the task graph.
+tools: [execute/runInTerminal, read, edit, search, agent, todo, search/searchSubagent, agent/runSubagent]
+user-invokable: true
+disable-model-invocation: true
+agent: executive2-planner
+agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-2-codex, reviewer-opus-4-5, research-ideation, test-runner, test-executive, integration-test-gen, plan-artefact-writer, executive2-planner, executive2-task-creator, debugger]
+handoffs: 
+prompt: Return to planning and update the plan based on the latest findings or blockers.
+send: false
 ---
 
 # Executive2 (Orchestrator)

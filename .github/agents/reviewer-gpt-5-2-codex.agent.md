@@ -1,9 +1,10 @@
 ---
 name: reviewer-gpt-5-2-codex
-description: "Cross-model reviewer (GPT-5.2 Codex). Validates plans and execution summaries for accuracy, gaps, and risks. Use as an opposite-model check."
-tools: ['read', 'search']
+description: Cross-model reviewer (GPT-5.2 Codex). Validates plans and execution summaries for accuracy, gaps, and risks. Use as an opposite-model check.
+tools: [read, search]
+user-invokable: false
+disable-model-invocation: false
 model: GPT-5.2-Codex (copilot)
-infer: agent
 ---
 
 # Cross-Model Reviewer (GPT-5.2 Codex)
