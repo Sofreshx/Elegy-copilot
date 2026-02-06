@@ -1,13 +1,18 @@
 ---
 name: executive2-task-creator
 description: Creates a persisted task graph from an approved Executive2 plan, then hands off to executive2 for orchestration.
-tools: [read/getNotebookSummary, read/problems, read/readFile, read/readNotebookCellOutput, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, search/searchSubagent, web/fetch, web/githubRepo]
+tools: [read/getNotebookSummary, read/problems, read/readFile, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, search/searchSubagent, web/fetch, web/githubRepo]
 user-invokable: true
 disable-model-invocation: true
-agent: executive2-planner
-handoffs: 
-prompt: Return to planning mode; clarify or revise the plan before generating tasks.
-send: false
+handoffs:
+  - label: Start implementation (task graph)
+    agent: executive2
+    prompt: Start implementation using the persisted task graph.
+    send: false
+  - label: Back to planning
+    agent: executive2-planner
+    prompt: Return to planning mode; clarify or revise the plan before generating tasks.
+    send: false
 ---
 
 # Executive2 Task Creator (Persisted Task Graph)

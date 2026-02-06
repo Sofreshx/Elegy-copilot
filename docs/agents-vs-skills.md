@@ -1,0 +1,42 @@
+# Agents vs Skills Decision Matrix
+
+This guide clarifies when to choose an agent versus a skill when using MCP-backed tools.
+
+## Definitions
+
+- MCP: Access layer that exposes external services as tools for agents and skills.
+- Agents: Orchestrators that perform multi-step operations and make decisions.
+- Skills: Playbooks for repeatable, well-scoped operations (prefer idempotent and read-only).
+
+## Default Recommendation
+
+Default recommendation: use agents for multi-step, stateful operations; use skills for repeatable, well-scoped patterns (prefer idempotence and read-only where possible).
+
+## Decision Matrix
+
+| Scenario | Choose | Rationale |
+| --- | --- | --- |
+| Infra debugging (collect logs, run checks, optionally restart) | Agent | Multi-step flow with branching and possible approvals. |
+| DB schema lookup (list tables/columns, return schema) | Skill | Read-only, repeatable, and scoped to metadata. |
+| Deployment checks (pre-flight checks and canary runs) | Agent | Orchestration across steps with state and decision points. |
+| Read-only discovery (list buckets, inventory) | Skill | Simple queries that should be idempotent. |
+| Emergency incident recovery (runbook rollback) | Agent | High impact, requires sequencing and approval gating. |
+
+## Rule of Thumb
+
+If the work is multi-step, stateful, or requires decisions, prefer an agent. If the work is repeatable, well-scoped, and ideally read-only, prefer a skill.
+
+## Safety and Approval Guidance
+
+- Keep manual approval enabled for write or scoped operations.
+- Use least-privilege tokens and project-level scoping for MCP access.
+- Prefer read-only skills for discovery and metadata queries.
+- Require a human review for destructive or production-impacting actions.
+
+## Validation Checklist
+
+- [ ] Definitions for MCP, agents, and skills are present.
+- [ ] Decision matrix includes at least 3 concrete examples.
+- [ ] Default recommendation statement is present.
+- [ ] Rule of thumb paragraph is present.
+- [ ] Safety and approval guidance is present.

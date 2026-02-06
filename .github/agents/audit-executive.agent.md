@@ -2,6 +2,8 @@
 name: audit-executive
 description: "Unified orchestrator for running any/all audit types. Delegates to specialized auditors and aggregates results into a summary report."
 tools: ['read', 'edit', 'search', 'agent', 'agent/runSubagent']
+user-invokable: true
+disable-model-invocation: true
 ---
 
 # Audit Executive Agent

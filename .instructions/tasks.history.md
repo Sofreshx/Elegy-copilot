@@ -35,3 +35,29 @@ Append-only log of completed tasks.
 - `vscode-skill-installer/package.json` (updated)
 
 **Validation**: TypeScript compilation passed, all acceptance criteria met.
+
+---
+
+## 2026-02-05: MCP + Infra Docs & Diagnostics
+
+| Task | Title | Status |
+|------|-------|--------|
+| task-000425 | Inventory: MCP & infra secrets (Vultr, Supabase, SSH, Relay) | ✅ archived |
+| task-000426 | Document MCP config: Vultr & Supabase secure defaults and approval guidance | ✅ archived |
+| task-000427 | Verify & correct: Mobile companion OAuth callback config and production relay URLs | ✅ archived |
+| task-000428 | Add read-only SSH diagnostics workflow to GenericInfrastructure | ✅ archived |
+
+---
+
+## 2026-02-05: Executive2 Governance Cleanup
+
+- task-000425: Document E2E workflow: Playwright MCP & VS Code Integrated Browser (archived).
+- task-000430: Document MCP access strategy: Supabase & Vultr (archived).
+- task-000431: Document: Agents vs Skills decision matrix (archived).
+- task-000432: Draft feature spec: Kubernetes MCP integration (future) (archived).
+
+---
+
+## 2026-02-05: Task ID Collision Note
+
+- task-000425 appears in two entries on this date (MCP + Infra Docs & Diagnostics vs E2E workflow). Keep both entries for provenance; avoid reusing task IDs in future task creation.

@@ -2,6 +2,8 @@
 name: plan-artefact-writer
 description: "Creates/updates the optional big-picture plan artefact for complex Executive2 work to combat context deterioration. Writes ONLY to .instructions/artefacts/x-PLAN-artefact.md (and optionally other files under .instructions/artefacts/)."
 tools: ['read', 'search', 'edit']
+user-invokable: true
+disable-model-invocation: true
 model: Raptor mini (Preview) (copilot)
 ---
 

@@ -4,10 +4,11 @@ description: Fast executive variant. Uses the Executive2 discipline. Avoids pers
 tools: [read, edit, search, agent, execute/runInTerminal, agent/runSubagent, search/searchSubagent]
 user-invokable: true
 disable-model-invocation: true
-agent: executive2-planner
-handoffs: 
-prompt: Switch to planning mode and produce a clear plan + acceptance criteria.
-send: false
+handoffs:
+  - label: Switch to planner
+    agent: executive2-planner
+    prompt: Switch to planning mode and produce a clear plan + acceptance criteria.
+    send: false
 ---
 
 # Executive2 Fast (No-Persistence)

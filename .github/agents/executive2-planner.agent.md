@@ -1,14 +1,15 @@
 ---
 name: executive2-planner
 description: Planner for Executive2. Produces an actionable plan (goal/acceptance criteria/risks). Does not create tasks unless explicitly requested via a dedicated task-creation agent.
-tools: [vscode/getProjectSetupInfo, vscode/installExtension, vscode/newWorkspace, vscode/openSimpleBrowser, vscode/runCommand, vscode/askQuestions, vscode/switchAgent, vscode/vscodeAPI, vscode/extensions, vscode/memory, read/getNotebookSummary, read/problems, read/readFile, read/readNotebookCellOutput, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, search/searchSubagent, web/fetch, web/githubRepo, todo, agent, agent/runSubagent]
+tools: [vscode/getProjectSetupInfo, vscode/installExtension, vscode/newWorkspace, vscode/openSimpleBrowser, vscode/runCommand, vscode/askQuestions, vscode/vscodeAPI, vscode/extensions, read/getNotebookSummary, read/problems, read/readFile, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, search/searchSubagent, web/fetch, web/githubRepo, todo, agent, agent/runSubagent]
 user-invokable: true
 disable-model-invocation: true
-agent: executive2-task-creator
-agents: [research-ideation, code-explorer, code-architect, reviewer-opus-4-5, reviewer-gpt-5-2-codex]
-handoffs: 
-prompt: Convert the approved plan into a persisted task graph under .instructions/tasks/, then hand off to executive2 for orchestration.
-send: false
+agents: [research-ideation, code-explorer, code-architect, reviewer-opus-4-5, reviewer-gpt-5-2-codex, executive2-task-creator]
+handoffs:
+  - label: Create tasks from plan
+    agent: executive2-task-creator
+    prompt: Convert the approved plan into a persisted task graph under .instructions/tasks/, then hand off to executive2 for orchestration.
+    send: false
 ---
 
 # Executive2 Planner (Plan Only)

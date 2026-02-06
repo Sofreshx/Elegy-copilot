@@ -4,11 +4,12 @@ description: Executive2 Orchestrator. Executes strictly from an existing plan + 
 tools: [execute/runInTerminal, read, edit, search, agent, todo, search/searchSubagent, agent/runSubagent]
 user-invokable: true
 disable-model-invocation: true
-agent: executive2-planner
-agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-2-codex, reviewer-opus-4-5, research-ideation, test-runner, test-executive, integration-test-gen, plan-artefact-writer, executive2-planner, executive2-task-creator, debugger]
-handoffs: 
-prompt: Return to planning and update the plan based on the latest findings or blockers.
-send: false
+agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-2-codex, reviewer-opus-4-5, research-ideation, test-runner, test-executive, integration-test-gen, plan-artefact-writer, executive2-planner, executive2-task-creator]
+handoffs:
+   - label: Back to planning
+      agent: executive2-planner
+      prompt: Return to planning and update the plan based on the latest findings or blockers.
+      send: false
 ---
 
 # Executive2 (Orchestrator)

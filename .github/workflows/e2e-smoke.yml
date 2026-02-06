@@ -1,0 +1,77 @@
+name: E2E Smoke (Mobile Companion)
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_login:
+        type: boolean
+        description: "Run optional e2e:login flow (requires E2E_ALLOW_EXTERNAL secret set to '1')"
+        default: false
+
+jobs:
+  e2e-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mobile-companion/package-lock.json
+
+      - name: Install dependencies
+        working-directory: mobile-companion
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: mobile-companion
+        run: |
+          npx playwright install-deps
+          npx playwright install chromium
+
+      - name: Start dev server
+        working-directory: mobile-companion
+        run: npm run dev -- --host 127.0.0.1 --port 5173 &
+
+      - name: Wait for dev server
+        run: npx --yes wait-on@latest --timeout 120000 http://127.0.0.1:5173
+
+      - name: Run e2e:verify
+        working-directory: mobile-companion
+        env:
+          E2E_BASE_URL: http://127.0.0.1:5173
+          NODE_PATH: ${{ github.workspace }}/mobile-companion/node_modules
+        run: npm run e2e:verify
+
+      - name: Run e2e:health
+        working-directory: mobile-companion
+        env:
+          E2E_BASE_URL: http://127.0.0.1:5173
+          NODE_PATH: ${{ github.workspace }}/mobile-companion/node_modules
+        run: npm run e2e:health
+
+      - name: Run e2e:login (opt-in)
+        if: inputs.run_login
+        working-directory: mobile-companion
+        env:
+          E2E_BASE_URL: http://127.0.0.1:5173
+          E2E_ALLOW_EXTERNAL: ${{ secrets.E2E_ALLOW_EXTERNAL }}
+          NODE_PATH: ${{ github.workspace }}/mobile-companion/node_modules
+        run: |
+          if [ "${E2E_ALLOW_EXTERNAL}" != "1" ]; then
+            echo "E2E_ALLOW_EXTERNAL secret not set to 1; skipping login flow."
+            exit 0
+          fi
+          npm run e2e:login
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-health
+          path: .instructions-output/e2e-health
+          if-no-files-found: warn

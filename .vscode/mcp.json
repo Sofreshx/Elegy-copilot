@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "url": "https://mcp.supabase.com/mcp"
+    },
+    "firebase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "firebase-tools@latest",
+        "mcp"
+      ]
+    },
+    "vultr": {
+      "command": "vultr-mcp-server",
+      "env": {
+        "VULTR_API_KEY": "${env:VULTR_API_KEY}"
+      }
+    }
+  }
+}
