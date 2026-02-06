@@ -1,10 +1,10 @@
 ---
 name: executive2-planner
 description: Planner for Executive2. Produces an actionable plan and always persists the Executive2 state (task graph + plan artefact + task progress tracker), then hands off to executive2.
-tools: [vscode/getProjectSetupInfo, vscode/openSimpleBrowser, vscode/runCommand, vscode/askQuestions, read/problems, read/readFile, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, web/fetch, web/githubRepo, todo, agent, agent/runSubagent]
+tools: [vscode/getProjectSetupInfo, vscode/openSimpleBrowser, vscode/runCommand, vscode/askQuestions, read/problems, read/readFile, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, web/fetch, web/githubRepo, todo, agent, agent/runSubagent, edit]
 user-invokable: true
 disable-model-invocation: true
-agents: [research-ideation, code-explorer, code-architect, reviewer-opus-4-5, reviewer-gpt-5-2-codex, executive2-task-creator, plan-artefact-writer]
+agents: [research-ideation, code-explorer, code-architect, reviewer-opus-4-5, reviewer-gpt-5-2-codex, addtodo, plan-artefact-writer]
 handoffs:
   - label: Start implementation (task graph)
     agent: executive2
@@ -30,7 +30,7 @@ Executive2 state is **not optional**. You must always persist:
 - `.instructions/artefacts/x-PLAN-artefact.md`
 - `.instructions/artefacts/x-TASK-PROGRESS.md`
 
-Invoke the internal `executive2-task-creator` subagent to create the task graph and artefacts, then hand off to `executive2`.
+Create tasks via `addtodo` and the plan artefact/progress tracker via `plan-artefact-writer` directly, then hand off to `executive2`. Do not chain subagents.
 
 ## Working Agreement (Go Back & Forth)
 - If the user changes requirements or new constraints appear, update the plan and stay in planning.
@@ -58,8 +58,8 @@ Always create/update:
 3) Only after that, propose the plan.
 
 ## Task Creation Policy (explicit)
-- Always call `executive2-task-creator` as a subagent to create tasks and artefacts.
-- `executive2-task-creator` will invoke `plan-artefact-writer` to produce the plan artefact and task progress tracker.
+- Create tasks via `addtodo` (one task file per unit of work).
+- Create the plan artefact + task progress tracker via `plan-artefact-writer`.
 - Ensure tasks include task-group metadata (see below) so Executive2 can run an isolated group (e.g., "task group 3") in parallel.
 
 ## Task Groups (for parallel execution)

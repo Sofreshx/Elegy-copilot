@@ -25,7 +25,7 @@ Include the following sections:
 - Findings
 - Options
 - Recommendation (if any)
-- Proposed Tasks (optional; for executive2-task-creator)
+- Proposed Tasks (optional; for executive2-planner)
 - Open Questions (if needed)
 
 ## Proposed Tasks (Optional)

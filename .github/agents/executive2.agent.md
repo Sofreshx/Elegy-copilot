@@ -4,7 +4,7 @@ description: Executive2 Orchestrator. Executes strictly from an existing plan + 
 tools: [execute/runInTerminal, read, edit, search, agent, todo, agent/runSubagent, vscode/askQuestions]
 user-invokable: true
 disable-model-invocation: true
-agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-2-codex, reviewer-opus-4-5, research-ideation, test-runner, integration-test-gen, plan-artefact-writer, executive2-planner, executive2-task-creator]
+agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-2-codex, reviewer-opus-4-5, research-ideation, test-runner, integration-test-gen, plan-artefact-writer, executive2-planner]
 handoffs:
    - label: Back to planning
       agent: executive2-planner
@@ -37,7 +37,7 @@ Default to **task graph + delegated execution**.
 
 Hard rule: Executive2 operates on a task graph under `.instructions/tasks/*`.
 If tasks are missing/outdated, first run subplanning via `executive2-planner`.
-If the subplan requires new or updated tasks, let the planner invoke `executive2-task-creator` to regenerate the task graph, then continue.
+If the subplan requires new or updated tasks, hand off to `executive2-planner` so it can recreate tasks and artefacts via `addtodo` + `plan-artefact-writer`, then continue.
 Only use the **Back to Planning** handoff when the user requests it or subplanning cannot resolve ambiguity.
 
 ## Deterministic Context + Skill Loading
@@ -88,7 +88,7 @@ Executive2 MAY update `.instructions/artefacts/x-TASK-PROGRESS.md` to reflect ex
 - If requirements are unclear or external context is needed, run `research-ideation` to produce a note under `.instructions/research/`.
 - If ambiguity affects execution, run `executive2-planner` as a subagent to produce a micro-plan.
 - If the micro-plan is small and the task graph remains valid, proceed.
-- If the micro-plan indicates new tasks or large scope, hand off to `executive2-planner` so it can refresh the task graph and progress tracker via its internal task-creator subagent before execution.
+- If the micro-plan indicates new tasks or large scope, hand off to `executive2-planner` so it can refresh the task graph and progress tracker via `addtodo` + `plan-artefact-writer` before execution.
 
 ## Parallelization Rules (Subagents)
 - Default to **parallel** execution for read-only subagents (e.g., `code-explorer`, `code-architect`, `code-reviewer`) when their outputs are independent.

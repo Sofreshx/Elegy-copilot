@@ -38,6 +38,7 @@ The ONLY files you are permitted to edit are:
 </stopping_rules>
 
 ## Inputs
+- Target repo name/path (required in multi-root workspaces)
 - User's todo request (may be rough, vague, or incomplete)
 - `.instructions/tasks/` (active tasks)
 - `.instructions/tasks.archive/` (archived tasks; used for ID uniqueness)
@@ -50,6 +51,7 @@ The ONLY files you are permitted to edit are:
 ## Workflow
 
 ### 1. Pre-Flight: Read Context
+0. Identify the **target repo** (use the caller-provided repo/path; if missing in multi-root, default to the repo that is NOT `instruction-engine` and note the assumption)
 1. Scan `.instructions/tasks/` (and `.instructions/tasks.archive/` if present) to avoid duplicates and find next task ID
 2. Scan `.instructions/test-tasks/` (if present) to avoid duplicate test requests
 3. Read `.instructions/raw.tasks.md` to check inbox
@@ -70,6 +72,14 @@ Also determine task graph links:
 - **Next tasks**: tasks that should happen after this one (`next_tasks`).
 
 Task files must be **self-contained**: include any extra context needed to execute the work inside the same task file (under Context/Notes), rather than creating per-task artefacts.
+
+### 2b. Executive2 Task Graph Mode (planner invocation)
+If invoked by `executive2-planner` or the prompt includes a task graph:
+- Do not ask the user questions; make best-effort decisions and note assumptions in the task.
+- Always create tasks in the **target repo** `.instructions/` tree only.
+- **Require** `group_id`, `group_title`, and `group_order` for every task.
+- **Require** `depends_on` and `next_tasks` for every task (use `[]` if none).
+- Keep task titles aligned with the plan artefact/task graph names.
 
 ### 3. Decision: task file vs test-task file vs raw inbox
 **Create a file in `.instructions/test-tasks/`** if:
@@ -113,8 +123,8 @@ Create one markdown file per task.
 schema: task/v1
 id: task-000123
 title: "[Verb] [Component]: [Specific Goal]"
-type: feature | bug | chore | docs | research
-status: not-started
+type: feature | bug | bugfix | chore | docs | research
+status: not-started | in-progress | blocked | done
 priority: low | medium | high | critical
 owner: "dev-handle"
 skills: ["skill-one", "skill-two"]
@@ -139,7 +149,7 @@ updated: "YYYY-MM-DD"
 ## Next Steps
 ```
 
-**Optional fields (Executive2 task graphs)**
+**Executive2 task graphs (required fields)**
 - `group_id`: string identifier shared by related tasks (e.g., "group-03-validation")
 - `group_title`: short label for the group (e.g., "Validation")
 - `group_order`: number used to select a group by index (e.g., 3 for "task group 3")
@@ -203,9 +213,10 @@ Present as optional suggestions, not requirements.
 2. Format the task entry per the schema above
 3. Populate `depends_on` / `next_tasks` when relationships are clear
 4. Ensure the task is self-contained (Context/Notes include anything the runner will need)
-5. Add to the appropriate file
+5. Add to the appropriate file (in the **target repo** only)
 6. If adding multiple related tasks, group them logically and link them
 7. Preserve existing file structure and formatting
+8. In Executive2 task-graph mode, verify every task has group metadata + dependency links
 
 ### 8. Summary Report
 
@@ -260,6 +271,12 @@ After adding tasks, provide a concise summary:
 
 **Next:** Answer the question above, or I can proceed with assumptions.
 ```
+
+### Executive2 Task Graph Addition
+When invoked by `executive2-planner`, include:
+- Group metadata for each task (group_id/group_title/group_order)
+- Explicit dependency links (depends_on/next_tasks)
+- The target repo used for task creation
 
 ### Clarification Needed
 ```markdown

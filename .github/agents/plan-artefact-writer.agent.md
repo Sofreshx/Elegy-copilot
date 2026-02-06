@@ -11,7 +11,7 @@ disable-model-invocation: false
 ## Purpose
 Maintain a single, high-signal **big picture** plan artefact and a session-specific task progress tracker.
 
-This agent is intended to be invoked by `executive2-planner` (via `executive2-task-creator`).
+This agent is intended to be invoked directly by `executive2-planner`.
 
 ## Hard Restrictions
 You may ONLY edit files under:

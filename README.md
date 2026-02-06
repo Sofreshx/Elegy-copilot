@@ -73,10 +73,9 @@ Executive2 supports two clean “start implementing” paths:
   - `@executive2-planner` (always persists task graph + plan artefact + task progress tracker) → `@executive2` (orchestrate via `task-runner`)
 
 Agent roles:
-- `@executive2-planner`: planning + durable execution setup. Always persists tasks + plan artefact + task progress tracker via an internal task-creator subagent, then hands off to `@executive2`.
+- `@executive2-planner`: planning + durable execution setup. Always persists tasks + plan artefact + task progress tracker via `addtodo` + `plan-artefact-writer`, then hands off to `@executive2`.
 - `@executive2`: orchestration-only. Requires an existing task graph and delegates execution to `task-runner`, testing to `test-executive`, and governance review to `code-reviewer`.
 - `@executive2-fast`: implements directly with good judgment, but never persists `.instructions/` state.
-- `executive2-task-creator` (internal): converts an approved plan into persisted `.instructions/tasks/*`, a plan artefact, and a task progress tracker that groups and links tasks.
 
 Optional subagents:
 - `@research-ideation`: research and ideation notes under `.instructions/research/` (no code design/implementation).
