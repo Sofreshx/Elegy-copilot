@@ -67,20 +67,23 @@ The only common developer-local items are session RAM and generated outputs:
 Executive2 supports two clean “start implementing” paths:
 
 - **Fast path (no persistence):**
-  - `@executive2-planner` (plan only) → `@executive2-fast` (implement directly, no `.instructions/` state)
+  - `@executive2-fast` (implement directly, no `.instructions/` state)
 
 - **Task-graph path (durable execution):**
-  - `@executive2-planner` (plan only) → `@executive2-task-creator` (create `.instructions/tasks/*`) → `@executive2` (orchestrate via `task-runner`)
+  - `@executive2-planner` (always persists task graph + plan artefact + task progress tracker) → `@executive2` (orchestrate via `task-runner`)
 
 Agent roles:
-- `@executive2-planner`: planning only (goal/acceptance criteria/plan). Does not create tasks unless explicitly requested.
-- `@executive2-task-creator`: converts an approved plan into persisted `.instructions/tasks/*` (and optionally a plan artefact for complex work).
+- `@executive2-planner`: planning + durable execution setup. Always persists tasks + plan artefact + task progress tracker via an internal task-creator subagent, then hands off to `@executive2`.
 - `@executive2`: orchestration-only. Requires an existing task graph and delegates execution to `task-runner`, testing to `test-executive`, and governance review to `code-reviewer`.
 - `@executive2-fast`: implements directly with good judgment, but never persists `.instructions/` state.
+- `executive2-task-creator` (internal): converts an approved plan into persisted `.instructions/tasks/*`, a plan artefact, and a task progress tracker that groups and links tasks.
 
 Optional subagents:
 - `@research-ideation`: research and ideation notes under `.instructions/research/` (no code design/implementation).
 - `@reviewer-gpt-5-2-codex` / `@reviewer-opus-4-5`: cross-model accuracy checks for plans and execution summaries.
+
+### Task Groups (Parallel Execution)
+When `executive2-planner` persists tasks, it also creates a plan artefact and a task progress tracker that groups related tasks (group 1, group 2, etc.) and links dependencies. You can ask `@executive2` to run a specific group (for example, "run task group 3") so that group runs in an isolated context and can be parallelized with other groups.
 
 ### Hiding Internal Agents (Copilot UI)
 

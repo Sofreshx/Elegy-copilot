@@ -37,6 +37,95 @@ function listMarkdownFiles(dirPath: string): string[] {
 	return files;
 }
 
+function listMarkdownFilesRecursive(dirPath: string): string[] {
+	if (!existsDir(dirPath)) {
+		return [];
+	}
+
+	const files: string[] = [];
+	const pending: string[] = [dirPath];
+
+	while (pending.length > 0) {
+		const current = pending.pop();
+		if (!current) {
+			continue;
+		}
+		if (!existsDir(current)) {
+			continue;
+		}
+
+		const entries = fs.readdirSync(current, { withFileTypes: true });
+		for (const entry of entries) {
+			const entryPath = path.join(current, entry.name);
+			if (entry.isDirectory()) {
+				pending.push(entryPath);
+				continue;
+			}
+			if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+				files.push(entryPath);
+			}
+		}
+	}
+
+	files.sort((a, b) => a.localeCompare(b));
+	return files;
+}
+
+function getUniqueArchivePath(destPath: string): string {
+	if (!existsFile(destPath)) {
+		return destPath;
+	}
+
+	const dir = path.dirname(destPath);
+	const ext = path.extname(destPath);
+	const base = path.basename(destPath, ext);
+
+	const match = base.match(/^(.*)--archived-(\d+)$/i);
+	const stem = match ? match[1] : base;
+	const start = match ? Math.max(2, Number.parseInt(match[2], 10) + 1) : 2;
+
+	for (let i = start; i < 10_000; i++) {
+		const candidate = path.join(dir, `${stem}--archived-${i}${ext}`);
+		if (!existsFile(candidate)) {
+			return candidate;
+		}
+	}
+
+	throw new Error(`Unable to allocate unique archive path for ${destPath}`);
+}
+
+// Exported for extension tests (kept small and deterministic)
+export const __taskLifecycleTestExports = {
+	getUniqueArchivePath,
+	listMarkdownFilesRecursive
+};
+
+async function deleteEmptyDirs(dirPath: string): Promise<void> {
+	if (!existsDir(dirPath)) {
+		return;
+	}
+
+	const entries = await fs.promises.readdir(dirPath, { withFileTypes: true });
+	await Promise.all(
+		entries
+			.filter((e) => e.isDirectory())
+			.map(async (e) => {
+				const child = path.join(dirPath, e.name);
+				await deleteEmptyDirs(child);
+			})
+	);
+
+	// Remove directory if it's now empty.
+	try {
+		const after = await fs.promises.readdir(dirPath);
+		if (after.length === 0) {
+			await fs.promises.rmdir(dirPath);
+		}
+	} catch {
+		// ignore
+	}
+}
+
 function splitFrontMatter(content: string): FrontMatterResult | undefined {
 	if (!content.startsWith('---')) {
 		return undefined;
@@ -96,16 +185,19 @@ function updateFrontMatter(frontMatter: string, updates: Record<string, string>)
 	return updated.join('\n');
 }
 
-async function archiveTaskFile(filePath: string, archiveDir: string): Promise<'archived' | 'skipped'> {
+async function archiveTaskFile(
+	filePath: string,
+	archiveDir: string
+): Promise<{ result: 'archived'; destPath: string } | { result: 'skipped'; reason: string }> {
 	const content = await fs.promises.readFile(filePath, 'utf8');
 	const parsed = splitFrontMatter(content);
 	if (!parsed) {
-		return 'skipped';
+		return { result: 'skipped', reason: 'missing-front-matter' };
 	}
 
 	const status = parseFrontMatterValue(parsed.frontMatter, 'status');
 	if (!status || status.trim().toLowerCase() !== 'done') {
-		return 'skipped';
+		return { result: 'skipped', reason: 'not-done' };
 	}
 
 	const updatedFrontMatter = updateFrontMatter(parsed.frontMatter, {
@@ -114,15 +206,12 @@ async function archiveTaskFile(filePath: string, archiveDir: string): Promise<'a
 	});
 
 	const nextContent = `---\n${updatedFrontMatter}\n---${parsed.content}`;
-	const destPath = path.join(archiveDir, path.basename(filePath));
-	if (existsFile(destPath)) {
-		return 'skipped';
-	}
+	const destPath = getUniqueArchivePath(path.join(archiveDir, path.basename(filePath)));
 
 	await fs.promises.mkdir(archiveDir, { recursive: true });
 	await fs.promises.writeFile(destPath, nextContent, 'utf8');
 	await fs.promises.unlink(filePath);
-	return 'archived';
+	return { result: 'archived', destPath };
 }
 
 export async function archiveDoneTasks(output: vscode.OutputChannel): Promise<void> {
@@ -143,13 +232,13 @@ export async function archiveDoneTasks(output: vscode.OutputChannel): Promise<vo
 		}
 
 		const archiveDir = path.join(repoPath, '.instructions', 'tasks.archive');
-		const files = listMarkdownFiles(tasksDir);
+		const files = listMarkdownFilesRecursive(tasksDir);
 		for (const filePath of files) {
 			try {
 				const result = await archiveTaskFile(filePath, archiveDir);
-				if (result === 'archived') {
+				if (result.result === 'archived') {
 					archivedCount++;
-					output.appendLine(`[Tasks] Archived ${filePath}`);
+					output.appendLine(`[Tasks] Archived ${filePath} -> ${result.destPath}`);
 				} else {
 					skippedCount++;
 				}
@@ -190,7 +279,7 @@ export async function purgeArchivedTasks(output: vscode.OutputChannel): Promise<
 			continue;
 		}
 
-		const files = listMarkdownFiles(archiveDir);
+		const files = listMarkdownFilesRecursive(archiveDir);
 		for (const filePath of files) {
 			try {
 				await fs.promises.unlink(filePath);
@@ -201,6 +290,8 @@ export async function purgeArchivedTasks(output: vscode.OutputChannel): Promise<
 				output.appendLine(`[Tasks] Failed to delete ${filePath}: ${message}`);
 			}
 		}
+
+		await deleteEmptyDirs(archiveDir);
 	}
 
 	void vscode.window.showInformationMessage(`Deleted ${deletedCount} archived task(s).`);

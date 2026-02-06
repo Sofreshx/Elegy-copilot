@@ -9,6 +9,7 @@ export function run(): Promise<void> {
 
   const testsRoot = path.resolve(__dirname, '.');
   mocha.addFile(path.resolve(testsRoot, 'eventEmitter.test.js'));
+  mocha.addFile(path.resolve(testsRoot, 'taskLifecycle.test.js'));
 
   return new Promise((resolve, reject) => {
     try {

@@ -139,11 +139,17 @@ updated: "YYYY-MM-DD"
 ## Next Steps
 ```
 
+**Optional fields (Executive2 task graphs)**
+- `group_id`: string identifier shared by related tasks (e.g., "group-03-validation")
+- `group_title`: short label for the group (e.g., "Validation")
+- `group_order`: number used to select a group by index (e.g., 3 for "task group 3")
+
 **Linking Rules (Task Graph)**
 - `depends_on`: list prerequisite task IDs (e.g. `["task-000120", "task-000121"]`).
 - `next_tasks`: list follow-on task IDs if the work naturally continues (e.g. `["task-000124"]`).
 - For isolated tasks, keep both as `[]`.
 - Prefer explicit links over narrative “do X before Y” notes.
+- For grouped execution, ensure `group_id`, `group_title`, and `group_order` are consistent across tasks in the same group.
 
 **Priority Guidelines**:
 - **Critical**: Blocking other work, production issues
