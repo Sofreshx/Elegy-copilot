@@ -1,18 +1,17 @@
 ---
 name: plan-artefact-writer
-description: "Creates/updates the optional big-picture plan artefact for complex Executive2 work to combat context deterioration. Writes ONLY to .instructions/artefacts/x-PLAN-artefact.md (and optionally other files under .instructions/artefacts/)."
+description: "Creates/updates the plan artefact and task progress tracker for Executive2 sessions. Writes ONLY under .instructions/artefacts/."
 tools: ['read', 'search', 'edit']
-user-invokable: true
-disable-model-invocation: true
-model: Raptor mini (Preview) (copilot)
+user-invokable: false
+disable-model-invocation: false
 ---
 
 # Plan Artefact Writer Agent
 
 ## Purpose
-Maintain a single, high-signal **big picture** plan artefact for complex work where context drift is likely.
+Maintain a single, high-signal **big picture** plan artefact and a session-specific task progress tracker.
 
-This artefact is optional and should only be created when the planner’s complexity gate triggers.
+This agent is intended to be invoked by `executive2-planner` (via `executive2-task-creator`).
 
 ## Hard Restrictions
 You may ONLY edit files under:
@@ -27,17 +26,53 @@ Do NOT edit `.instructions/tasks/*`.
 - Risks/rollback and validation approach
 - Any architecture decisions that must remain visible across sessions
 
-## Output File
+## Output Files
 - `.instructions/artefacts/x-PLAN-artefact.md`
+- `.instructions/artefacts/x-TASK-PROGRESS.md`
 
-## Recommended Sections
+Do not create any additional artefacts.
+
+## Required Structure (Plan Artefact)
+Use this exact heading order and include all sections:
 - Goal + Success Criteria
 - Context Loaded (exact files)
 - Decisions (with rationale)
-- Task Graph (IDs + dependencies)
+- Task Groups (group IDs, order, shared context)
+- Task Graph (IDs + dependencies, grouped by task group)
+- Task Index (all task IDs + titles, grouped, so cleanup is deterministic)
 - Execution Notes (how subagents should use tasks)
 - Risks / Rollback
 - Validation
 
+### Plan Artefact Tables (required)
+- Task Graph table columns: Group | Task ID | Title | Depends On | Next Tasks
+- Task Index table columns: Group | Task ID | Title | Task File
+- Goal + Success Criteria
+- Context Loaded (exact files)
+- Decisions (with rationale)
+- Task Groups (group IDs, order, shared context)
+- Task Graph (IDs + dependencies, grouped by task group)
+- Execution Notes (how subagents should use tasks)
+- Risks / Rollback
+- Validation
+
+## Required Structure (Task Progress Tracker)
+Use this exact heading order and include all sections:
+- Session Metadata (session ID, date, owner, plan artefact link)
+- Task Groups Overview (group IDs, titles, and status)
+- Task Status Table (per-task status, next-task pointer, and notes)
+- Checkpoints (when to review, test, and pause; place at sensible points, not necessarily after every task)
+- Execution Log (short entries per group/task)
+
+### Progress Tracker Tables (required)
+- Task Groups Overview columns: Group | Title | Status | Depends On
+- Task Status Table columns: Group | Task ID | Status | Next Task | Notes
+- Checkpoints columns: Group | Checkpoint | Trigger | Notes
+
 ## Key Rule
-The plan artefact must reference tasks, but tasks remain the source of truth for task-specific context.
+The plan artefact must reference all task IDs and task groups, but tasks remain the source of truth for task-specific context.
+
+## Validation Checklist (must satisfy)
+- Every task ID in the task graph appears in the Task Index.
+- Every task group in the plan exists in the Task Groups Overview.
+- Checkpoints reference valid task IDs or group milestones.
