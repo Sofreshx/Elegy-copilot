@@ -4,7 +4,6 @@ description: "Task intake specialist that reformulates user-dumped todos into st
 tools: ['read', 'search', 'edit']
 user-invokable: true
 disable-model-invocation: true
-model: Raptor mini (Preview) (copilot)
 ---
 
 # Add Todo Agent

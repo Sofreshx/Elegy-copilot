@@ -4,7 +4,6 @@ description: Infrastructure agent for Vultr servers, MCP setup, and safe resourc
 tools: [read, edit, search, web/fetch]
 user-invokable: false
 disable-model-invocation: false
-visibility: internal
 ---
 
 # Infra Vultr Agent

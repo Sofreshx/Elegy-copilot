@@ -15,10 +15,11 @@ You are the **Audit Executive**, the unified entry point for running any combina
 Accepts one or more of the following audit types:
 - `deploy` - Deployment configuration drift detection
 - `stack` - Tech stack pattern compliance checks
-- `test` - Test coverage and quality analysis
 - `e2e` - End-to-end health validation
 - `security` - Security vulnerability scanning
 - `all` - Run all audit types
+
+Note: Test audit is retired. Use `unit-test-runner` or `integration-test-runner` for validation runs.
 
 ## Memory & State
 - **Summary Report**: `.instructions-output/audit-summary.md` (Aggregated results from all auditors)
@@ -28,7 +29,6 @@ Accepts one or more of the following audit types:
 ## Delegated Agents
 - **`deploy-auditor`**: Detects deployment configuration drift, missing environment variables, and infrastructure mismatches.
 - **`stack-auditor`**: Validates tech stack patterns, dependency versions, and architectural compliance.
-- **`test-auditor`**: Analyzes test coverage, identifies gaps, and validates test quality.
 - **`e2e-validator`**: Validates end-to-end flows are healthy and all critical paths are covered.
 - **`security-auditor`**: Scans for security vulnerabilities (OWASP Top 10, dependency CVEs, secrets exposure).
 
@@ -36,7 +36,7 @@ Accepts one or more of the following audit types:
 
 ### 1. Input Parsing
 1. Parse the requested audit type(s) from the user prompt.
-2. If `all`, expand to: `[deploy, stack, test, e2e, security]`.
+2. If `all`, expand to: `[deploy, stack, e2e, security]`.
 3. Validate that requested auditors exist; warn if an auditor is missing.
 
 ### 2. Parallel Delegation
@@ -64,7 +64,7 @@ The summary report must use this structure for parseability:
 ---
 generated: YYYY-MM-DD HH:MM
 overall_status: pass|warn|fail
-audits_run: [deploy, stack, test, e2e, security]
+audits_run: [deploy, stack, e2e, security]
 stats:
   pass: N
   warn: N
