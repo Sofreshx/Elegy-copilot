@@ -51,7 +51,9 @@ Before structural changes, consult in this order:
 
 ## Delegation (Use Subagents)
 Use subagents to keep work high-signal and consistent. Prefer only the ones that clearly apply:
-- Core: `@debugger`, `@code-explorer`, `@code-reviewer`, `@test-runner`, `@test-executive`.
+- Core: `@debugger`, `@code-explorer`, `@code-reviewer`, `@unit-test-runner`, `@integration-test-runner`.
+- Testing exec: `@testing-executive` for coverage scans + validation runs.
+- Issue audit exec: `@issue-audit-executive` for code smell, security, and stack consistency scans.
 - Tasking: `@addtodo` for task files; `@executive2-planner` → `@executive2` for durable, task-graph execution (task groups can run in isolation).
 - Context: `@context-curator` to condense and refresh `.instructions/contexts/*.md` when they get large.
 - UI/UX: `@ui-ux` for iterative client-side visual changes; it relies heavily on `vscode/askQuestions`.
@@ -75,7 +77,8 @@ If a task maps to a known domain, treat skills as the default path:
 ## Testing
 - Run the narrowest relevant tests after changes.
 - When adding features or fixing bugs, add relevant unit/integration tests.
-- **Test execution**: Use `@test-runner` agent to run tests; it provides timeouts, non-interactive mode, and safe flags.
-- **Test execution rule**: Run tests via `@test-runner` only.
-- **Test orchestration**: Use `@test-executive` only when you are directly running a testing initiative; Executive2 should call `@test-runner` directly.
-- **Segment large test suites** into smaller batches when delegating to test-runner (e.g., by test class filter).
+- **Unit test execution**: Use `@unit-test-runner` (timeouts, non-interactive mode, safe flags).
+- **Integration test execution**: Use `@integration-test-runner` only when explicitly requested.
+- **Integration test authoring**: Prefer Alba (`alba-integration-tests`).
+- **Executive2**: Ask the user before running long E2E/integration tests and log declines to `.instructions/testing/skipped-validation.md`.
+- **Segment large test suites** into smaller batches (e.g., by test class filter).

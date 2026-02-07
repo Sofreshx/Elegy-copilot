@@ -94,26 +94,19 @@ When executing tests via agents, ensure ALL of these:
 - [ ] **Specific filters** when possible (`--filter "FullyQualifiedName~TestClass"`)
 - [ ] **Logger flag** for capturing results (`--logger trx`)
 - [ ] **Environment variables** set when required (e.g., `RUN_INTEGRATION_TESTS=1`)
-- [ ] **`runTests` tool preferred** over `run_in_terminal` when available
+- [ ] **Explicit timeout** always set on `run_in_terminal`
 
 ## Agent Configuration
 
-Test execution is centralized in the `test-runner` agent:
+Test execution is centralized in two agents:
 
-- **`test-runner.agent.md`** - The ONLY agent authorized to execute tests via run_in_terminal
-  - Contains all test execution safety rules
-  - Handles timeouts, non-interactive mode, proper flags
-  - Used by all other agents for test execution
+- **`unit-test-runner.agent.md`** - The ONLY agent authorized to execute unit tests via run_in_terminal
+- **`integration-test-runner.agent.md`** - The ONLY agent authorized to execute integration tests via run_in_terminal
 
-Other agents delegate to test-runner:
-- `test-executive.agent.md` - Orchestrates test planning, delegates execution to test-runner
-- `unit-test-gen.agent.md` - Generates tests, delegates execution to test-runner
-- `integration-test-gen.agent.md` - Generates tests, delegates execution to test-runner
-- `task-runner.agent.md` - Validates tasks, delegates test execution to test-runner
-- `executive2.agent.md` - Calls test-runner for validation phase
-- Skills reference test-runner:
-  - `testing-dotnet-unit/SKILL.md`
-  - `aspire-integration-tests/SKILL.md`
+Execution flow:
+- `executive2.agent.md` calls `unit-test-runner` at checkpoints.
+- `executive2.agent.md` asks the user before running `integration-test-runner` or `e2e-playwright-mcp`.
+- `task-runner.agent.md` records test requests but does not run tests.
 
 ## Emergency Recovery
 
@@ -195,7 +188,7 @@ If timeout triggers but process still running:
 
 ## Best Practices Summary
 
-1. **Default to `runTests` tool** - It has built-in safety mechanisms
+1. **Use `run_in_terminal` with explicit timeouts** - Conservative (longer) is safer than aggressive
 2. **Use timeouts liberally** - Conservative (longer) is safer than aggressive
 3. **Build before testing** - Separate build and test phases when debugging hangs
 4. **Test incrementally** - Run small batches to isolate hanging tests
@@ -206,7 +199,8 @@ If timeout triggers but process still running:
 ## Related Files
 
 - [.github/copilot-instructions.md](./copilot-instructions.md#testing) - Global testing guidelines
-- [agents/test-executive.agent.md](./agents/test-executive.agent.md) - Test orchestration
+- [agents/unit-test-runner.agent.md](./agents/unit-test-runner.agent.md) - Unit test execution
+- [agents/integration-test-runner.agent.md](./agents/integration-test-runner.agent.md) - Integration test execution
 - [agents/task-runner.agent.md](./agents/task-runner.agent.md) - Task validation
 - [skills/testing-dotnet-unit/SKILL.md](./skills/testing-dotnet-unit/SKILL.md) - Unit test patterns
-- [skills/aspire-integration-tests/SKILL.md](./skills/aspire-integration-tests/SKILL.md) - Integration test patterns
+- [skills/alba-integration-tests/SKILL.md](./skills/alba-integration-tests/SKILL.md) - Integration test patterns

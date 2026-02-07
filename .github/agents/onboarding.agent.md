@@ -110,7 +110,7 @@ If merge fails or user requests rollback:
 | React / Next.js / `package.json` with react | `frontend/SKILL.md` | `frontend.context.md` |
 | Vue / Nuxt | `frontend/SKILL.md` (Vue variant) | `frontend.context.md` |
 | Angular | `frontend/SKILL.md` (Angular variant) | `frontend.context.md` |
-| .NET Aspire / `*.AppHost.csproj` | `aspire-integration-tests/SKILL.md` | `aspire.context.md` |
+| .NET Aspire / `*.AppHost.csproj` | `alba-integration-tests/SKILL.md` | `aspire.context.md` |
 | Terraform / `*.tf` files | `terraform/SKILL.md` | `terraform.context.md` |
 | Docker Compose / `docker-compose*.yml` | `deployment-compose/SKILL.md` | `deployment.context.md` |
 | C# / `*.csproj` | `csharp-expert/SKILL.md` (alias: `quality-csharp`) | `project.patterns.md` |
