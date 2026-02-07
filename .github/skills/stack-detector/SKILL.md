@@ -50,7 +50,8 @@ Look for these files in the workspace:
 | `WolverineFx.Http` | `wolverine-http` |
 | `Microsoft.Orleans.*` | `orleans` |
 | `Microsoft.AspNetCore.SignalR*` | `signalr` |
-| `Aspire.Hosting*` | `aspire-apphost`, `aspire-deployment`, `aspire-integration-tests` |
+| `Aspire.Hosting*` | `aspire-apphost`, `aspire-deployment`, `alba-integration-tests` |
+| `Alba` | `alba-integration-tests` |
 | `Aspire.*` | `aspire-apphost`, `aspire-deployment` |
 | `FirebaseAdmin` | `firebase-auth` |
 | `Microsoft.SemanticKernel*` | `semantic-kernel-agents` |

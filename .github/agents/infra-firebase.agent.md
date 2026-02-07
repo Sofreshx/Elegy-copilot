@@ -4,7 +4,6 @@ description: Infrastructure agent for Firebase projects, MCP setup, and secure F
 tools: [read, edit, search, web/fetch]
 user-invokable: false
 disable-model-invocation: false
-visibility: internal
 ---
 
 # Infra Firebase Agent

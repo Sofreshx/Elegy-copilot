@@ -4,7 +4,7 @@ description: Planner for Executive2. Produces an actionable plan and always pers
 tools: [vscode/getProjectSetupInfo, vscode/openSimpleBrowser, vscode/runCommand, vscode/askQuestions, read/problems, read/readFile, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, web/fetch, web/githubRepo, todo, agent, agent/runSubagent, edit]
 user-invokable: true
 disable-model-invocation: true
-agents: [research-ideation, code-explorer, code-architect, reviewer-opus-4-5, reviewer-gpt-5-2-codex, addtodo, plan-artefact-writer]
+agents: [research-ideation, code-explorer, code-architect, reviewer-opus-4-5, reviewer-gpt-5-2-codex, executive2-task-creator, plan-artefact-writer]
 handoffs:
   - label: Start implementation (task graph)
     agent: executive2
@@ -30,7 +30,7 @@ Executive2 state is **not optional**. You must always persist:
 - `.instructions/artefacts/x-PLAN-artefact.md`
 - `.instructions/artefacts/x-TASK-PROGRESS.md`
 
-Create tasks via `addtodo` and the plan artefact/progress tracker via `plan-artefact-writer` directly, then hand off to `executive2`. Do not chain subagents.
+Create tasks via `executive2-task-creator` and the plan artefact/progress tracker via `plan-artefact-writer` directly, then hand off to `executive2`. Do not chain subagents.
 
 ## Working Agreement (Go Back & Forth)
 - If the user changes requirements or new constraints appear, update the plan and stay in planning.
@@ -58,13 +58,15 @@ Always create/update:
 3) Only after that, propose the plan.
 
 ## Task Creation Policy (explicit)
-- Create tasks via `addtodo` (one task file per unit of work).
+- Create tasks via `executive2-task-creator` (one task file per unit of work).
 - Create the plan artefact + task progress tracker via `plan-artefact-writer`.
 - Ensure tasks include task-group metadata (see below) so Executive2 can run an isolated group (e.g., "task group 3") in parallel.
 
 ## Task Groups (for parallel execution)
 When persisting tasks, organize them into numbered groups (1..N) with short labels.
 - Each task must include `group_order` and `group_id` in its front matter.
+- Use `group_id` format `group-<NN>-<slug>` (zero-padded order).
+- Prefix `group_title` with `Group <N>:` so users can target groups by number.
 - The plan artefact must list task groups, their shared context, and the tasks that belong to each group.
 - Groups should be runnable in isolation when possible; document cross-group dependencies explicitly.
 - The plan artefact must enumerate all task IDs linked to the plan so they can be cleaned up later.
@@ -75,6 +77,7 @@ The task progress tracker represents a single Executive2 session and must:
 - Enumerate all task groups and tasks linked to the plan.
 - Track per-task status and the next task within each group.
 - Define review/testing checkpoints at sensible points (not necessarily after every task) so Executive2 can decide when to review, test, and continue.
+- Default checkpoint behavior: run `unit-test-runner` after each task group unless explicitly marked optional.
 
 You may additionally delegate (read-only) exploration/architecture during planning:
 - `code-explorer` for tracing current behavior.

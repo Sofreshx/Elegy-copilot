@@ -64,6 +64,10 @@ Use this exact heading order and include all sections:
 - Checkpoints (when to review, test, and pause; place at sensible points, not necessarily after every task)
 - Execution Log (short entries per group/task)
 
+Checkpoint defaults to include:
+- A `unit-test-runner` checkpoint after each task group completes.
+- A final graph-level checkpoint that offers optional integration or E2E testing (user-confirmed).
+
 ### Progress Tracker Tables (required)
 - Task Groups Overview columns: Group | Title | Status | Depends On
 - Task Status Table columns: Group | Task ID | Status | Next Task | Notes

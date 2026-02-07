@@ -4,7 +4,6 @@ description: Infrastructure agent for Supabase projects, MCP setup, and safe pro
 tools: [read, edit, search, web/fetch]
 user-invokable: false
 disable-model-invocation: false
-visibility: internal
 ---
 
 # Infra Supabase Agent

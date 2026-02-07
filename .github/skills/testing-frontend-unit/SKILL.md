@@ -1,6 +1,6 @@
 ---
 name: testing-frontend-unit
-description: "Frontend unit/component testing (React/Vue/Angular). Use this when asked to write frontend unit tests, component tests, or to add coverage for UI behavior. Prefers React Testing Library + Vitest when applicable. Triggers on:"Vitest", "Jest", "RTL", "React Testing Library", "component test", "frontend unit test"."
+description: "Frontend unit/component testing (React/Vue/Angular). Use this when asked to write frontend unit tests, component tests, or to add coverage for UI behavior. Prefers React Testing Library + Vitest when applicable."
 ---
 
 # Frontend Unit Testing Skill
@@ -12,7 +12,7 @@ description: "Frontend unit/component testing (React/Vue/Angular). Use this when
 
 ## When NOT to Use
 - Backend unit tests → `testing-dotnet-unit`
-- Integration/E2E testing → `aspire-integration-tests` or project-specific E2E skills
+- Integration/E2E testing → `alba-integration-tests` or `e2e-playwright-mcp`
 - User is debugging a failing UI test run due to environment → `debug`
 
 ## Principles
@@ -36,6 +36,7 @@ description: "Frontend unit/component testing (React/Vue/Angular). Use this when
    - keep setup minimal
    - assert via screen queries (role/text/label)
 5. Run unit tests (default behavior):
+   - Delegate to `unit-test-runner` (do not run tests directly)
    - Run the closest package/workspace tests
    - If the user said "skip tests", do not run them
 
