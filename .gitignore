@@ -1,5 +1,7 @@
 # Dependencies
 node_modules/
+package-lock.json
+**/package-lock.json
 
 # Build outputs
 dist/
@@ -18,5 +20,6 @@ yarn-error.log*
 .DS_Store
 tmpclaude-*
 .vscode-test/
+.vscode/mcp.json
 *.vsix
 *.tsbuildinfo
