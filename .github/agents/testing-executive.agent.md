@@ -1,7 +1,7 @@
 ---
 name: testing-executive
 description: Executive testing orchestrator. Runs coverage scan, unit tests, and (with approval) integration or E2E validation.
-tools: [read, search, edit, agent, agent/runSubagent, vscode/askQuestions]
+tools: [read, search, edit, agent, agent/runSubagent, vscode/askQuestions, playwright/*]
 agents: ['test-coverage-scanner', 'unit-test-runner', 'integration-test-runner', 'e2e-validator', 'e2e-ux-auditor', 'e2e-reporter', 'e2e-live-observer', 'e2e-playwright-mcp']
 user-invokable: true
 disable-model-invocation: true
