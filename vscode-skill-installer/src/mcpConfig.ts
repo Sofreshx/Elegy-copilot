@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { getRepoDisabledSet } from './enablementStore';
+import { normalizeString } from './utils/strings';
 
 export type McpTransport = 'stdio' | 'http' | 'custom';
 
@@ -63,14 +64,6 @@ const DEFAULT_PROVIDERS: Record<string, McpProviderConfig> = {
 		notes: 'Add a Cloudflare MCP server configuration when selected.'
 	}
 };
-
-function normalizeString(value: unknown): string | undefined {
-	if (typeof value !== 'string') {
-		return undefined;
-	}
-	const trimmed = value.trim();
-	return trimmed ? trimmed : undefined;
-}
 
 function normalizeStringArray(value: unknown): string[] | undefined {
 	if (!Array.isArray(value)) {

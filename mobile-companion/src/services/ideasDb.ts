@@ -24,39 +24,9 @@ export interface IdeaFilters {
   priority?: IdeaPriority;
 }
 
-const DB_NAME = 'mobile-companion';
-const DB_VERSION = 1;
+import { getDb } from './db';
+
 const STORE_NAME = 'ideas';
-
-let dbInstance: IDBDatabase | null = null;
-
-function openDb(): Promise<IDBDatabase> {
-  if (dbInstance) {
-    return Promise.resolve(dbInstance);
-  }
-
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('status', 'status', { unique: false });
-        store.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
-    };
-
-    request.onsuccess = () => {
-      dbInstance = request.result;
-      resolve(request.result);
-    };
-
-    request.onerror = () => {
-      reject(new Error('Failed to open IndexedDB'));
-    };
-  });
-}
 
 function generateId(): string {
   return crypto.randomUUID();
@@ -64,7 +34,7 @@ function generateId(): string {
 
 export const ideasDb = {
   async getAll(): Promise<Idea[]> {
-    const db = await openDb();
+    const db = await getDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
@@ -75,7 +45,7 @@ export const ideasDb = {
   },
 
   async getById(id: string): Promise<Idea | undefined> {
-    const db = await openDb();
+    const db = await getDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
@@ -86,7 +56,7 @@ export const ideasDb = {
   },
 
   async create(input: IdeaInput): Promise<Idea> {
-    const db = await openDb();
+    const db = await getDb();
     const now = Date.now();
     const idea: Idea = {
       ...input,
@@ -105,7 +75,7 @@ export const ideasDb = {
   },
 
   async update(id: string, changes: Partial<IdeaInput>): Promise<Idea> {
-    const db = await openDb();
+    const db = await getDb();
     const existing = await this.getById(id);
     if (!existing) {
       throw new Error('Idea not found');
@@ -127,7 +97,7 @@ export const ideasDb = {
   },
 
   async delete(id: string): Promise<void> {
-    const db = await openDb();
+    const db = await getDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);

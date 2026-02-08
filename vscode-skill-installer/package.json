@@ -1,6 +1,6 @@
 {
   "name": "skill-installer",
-  "displayName": "Instruction Engine Skill Installer",
+  "displayName": "Instruction Engine",
   "description": "Workspace management for Instruction Engine: skills, agents, tasks, remote mobile companion, and AI session control.",
   "version": "0.1.0",
   "publisher": "sofreshx",
@@ -62,7 +62,8 @@
     "onCommand:skillInstaller.archiveDoneTasks",
     "onCommand:skillInstaller.purgeArchivedTasks",
     "onCommand:skillInstaller.clearRepoContext",
-    "onCommand:skillInstaller.clearAllRepoContexts"
+    "onCommand:skillInstaller.clearAllRepoContexts",
+    "onCommand:skillInstaller.relayStatus"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -232,6 +233,12 @@
         "command": "skillInstaller.logout",
         "title": "Logout from GitHub",
         "icon": "$(sign-out)"
+      },
+      {
+        "command": "skillInstaller.relayStatus",
+        "title": "Relay Status",
+        "category": "Instruction Engine",
+        "icon": "$(cloud)"
       }
     ],
     "menus": {
@@ -477,6 +484,21 @@
           "type": "string",
           "default": "vscode://sofreshx.skill-installer/auth/callback",
           "description": "OAuth redirect URI. Must match the callback URL configured in your GitHub OAuth App."
+        },
+        "skillInstaller.relay.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable outbound connection to the cloud relay for remote mobile control."
+        },
+        "skillInstaller.relay.url": {
+          "type": "string",
+          "default": "wss://relay.sfrsh.xyz/v1/ws",
+          "description": "Cloud relay WebSocket URL for mobile companion connectivity."
+        },
+        "skillInstaller.relay.httpUrl": {
+          "type": "string",
+          "default": "https://relay.sfrsh.xyz",
+          "description": "Cloud relay HTTP URL for auth token exchange."
         }
       }
     }

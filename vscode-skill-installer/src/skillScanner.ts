@@ -3,22 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { RepoSkills, SkillDiscoverySnapshot, SkillEntry } from './types';
 import { getRepoDisabledSet } from './enablementStore';
-
-function existsDir(dirPath: string): boolean {
-	try {
-		return fs.statSync(dirPath).isDirectory();
-	} catch {
-		return false;
-	}
-}
-
-function existsFile(filePath: string): boolean {
-	try {
-		return fs.statSync(filePath).isFile();
-	} catch {
-		return false;
-	}
-}
+import { existsDir, existsFile } from './utils/fs';
 
 function normalizeSkillNameFromFile(filename: string): string {
 	return filename.replace(/\.md$/i, '');

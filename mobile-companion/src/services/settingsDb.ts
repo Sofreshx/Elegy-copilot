@@ -23,46 +23,9 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
 }
 
-const DB_NAME = 'mobile-companion';
-const DB_VERSION = 2; // Bump version to add settings store
+import { getDb } from './db';
+
 const SETTINGS_STORE = 'settings';
-
-let dbInstance: IDBDatabase | null = null;
-
-function openDb(): Promise<IDBDatabase> {
-  if (dbInstance) {
-    return Promise.resolve(dbInstance);
-  }
-
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      
-      // Create ideas store if not exists
-      if (!db.objectStoreNames.contains('ideas')) {
-        const ideasStore = db.createObjectStore('ideas', { keyPath: 'id' });
-        ideasStore.createIndex('status', 'status', { unique: false });
-        ideasStore.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
-      
-      // Create settings store if not exists
-      if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
-        db.createObjectStore(SETTINGS_STORE, { keyPath: 'key' });
-      }
-    };
-
-    request.onsuccess = () => {
-      dbInstance = request.result;
-      resolve(request.result);
-    };
-
-    request.onerror = () => {
-      reject(new Error('Failed to open IndexedDB'));
-    };
-  });
-}
 
 const DEFAULT_SETTINGS: AppSettings = {
   agent: {
@@ -116,7 +79,7 @@ export const AVAILABLE_SKILLS = [
 
 export const settingsDb = {
   async get<T>(key: string): Promise<T | null> {
-    const db = await openDb();
+    const db = await getDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(SETTINGS_STORE, 'readonly');
       const store = tx.objectStore(SETTINGS_STORE);
@@ -129,7 +92,7 @@ export const settingsDb = {
   },
 
   async set<T>(key: string, value: T): Promise<void> {
-    const db = await openDb();
+    const db = await getDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(SETTINGS_STORE, 'readwrite');
       const store = tx.objectStore(SETTINGS_STORE);

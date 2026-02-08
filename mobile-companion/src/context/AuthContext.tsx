@@ -31,20 +31,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (state.isAuthenticated && state.user) {
         setUser(state.user);
         
-        // Connect to relay with auth token
-        const relay = getRelayConnection();
-        if (state.accessToken) {
-          relay.connect(state.accessToken);
-        }
-      } else if (state.accessToken) {
-        // Have token but no user, try to fetch
-        const fetchedUser = await authService.fetchUser();
-        if (fetchedUser) {
-          setUser(fetchedUser);
-          
+        // Connect to relay with a valid (possibly refreshed) token
+        const validToken = await authService.getValidToken();
+        if (validToken) {
           const relay = getRelayConnection();
-          relay.connect(state.accessToken);
+          relay.connect(validToken);
         }
+      } else if (state.accessToken && !state.user) {
+        // Have token but no user — user info should have been stored during
+        // handleCallback(). Missing user means stale state; require re-login.
+        authService.logout();
       }
 
       // Check for OAuth callback
@@ -58,11 +54,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (success) {
           setUser(authService.getUser());
           
-          // Connect to relay
-          const token = authService.getToken();
-          if (token) {
+          // Connect to relay with validated token
+          const validToken = await authService.getValidToken();
+          if (validToken) {
             const relay = getRelayConnection();
-            relay.connect(token);
+            relay.connect(validToken);
           }
         }
 

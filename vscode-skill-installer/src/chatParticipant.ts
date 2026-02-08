@@ -3,7 +3,7 @@
  * Enables programmatic invocation of agents via WebSocket commands.
  */
 import * as vscode from 'vscode';
-import { SessionManager, SessionEvent } from './sessionManager';
+import { SessionManager } from './sessionManager';
 import { scanAgents } from './agentScanner';
 
 /** Parsed agent invocation request */
@@ -25,9 +25,6 @@ export class RemoteControlParticipant implements vscode.Disposable {
 	private readonly sessionManager: SessionManager;
 	private readonly disposables: vscode.Disposable[] = [];
 	private participant: vscode.ChatParticipant | undefined;
-
-	// Callback for session events (to broadcast via WebSocket) - legacy, kept for compatibility
-	private onSessionEvent?: (sessionId: string, event: SessionEvent) => void;
 
 	constructor(output: vscode.OutputChannel, sessionManager: SessionManager) {
 		this.output = output;
@@ -54,18 +51,6 @@ export class RemoteControlParticipant implements vscode.Disposable {
 			const message = err instanceof Error ? err.message : 'Unknown error';
 			this.output.appendLine(`[Chat Participant] Failed to register: ${message}`);
 		}
-	}
-
-	/**
-	 * Set callback for session events (legacy, for backwards compatibility).
-	 * Note: Event emitter is now set directly on SessionManager by WsServer.
-	 */
-	setSessionEventCallback(
-		callback: (sessionId: string, event: SessionEvent) => void
-	): void {
-		this.onSessionEvent = callback;
-		// Note: Session manager's event emitter is now set by WsServer directly
-		// This callback is kept for legacy code that may still use it
 	}
 
 	/**
@@ -406,15 +391,15 @@ export class RemoteControlParticipant implements vscode.Disposable {
 				this.sessionManager.completeSession(session.id);
 				return { sessionId: session.id, success: true };
 			} catch {
-				// Fallback: open chat with prefilled message
-				this.sessionManager.addResponse(
+				// Programmatic invocation not available — report failure
+				this.sessionManager.failSession(
 					session.id,
 					`Manual invocation required: ${chatMessage}`
 				);
-				this.sessionManager.completeSession(session.id);
 				return {
 					sessionId: session.id,
-					success: true, // Session created, but requires manual action
+					success: false,
+					error: `Direct agent invocation not available. Manual invocation required: ${chatMessage}`,
 				};
 			}
 

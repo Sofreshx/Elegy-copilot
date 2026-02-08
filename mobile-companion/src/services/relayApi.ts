@@ -94,16 +94,16 @@ async function sendRequest<T>(method: string, params?: Record<string, unknown>):
     }, 30000); // 30 second timeout
 
     const unsubscribe = relay.onMessage((message: RelayMessage) => {
-      // Check if this is a response to our request
-      const payload = message.payload as { id?: string; result?: T; error?: { message: string } };
-      if (payload?.id === requestId) {
+      // Match response by message.id (set by envelope unwrapper from JSON-RPC id)
+      if (message.id === requestId) {
         clearTimeout(timeout);
         unsubscribe();
 
-        if (payload.error) {
-          reject(new Error(payload.error.message));
+        if (message.type === 'error') {
+          const err = message.payload as { message?: string; code?: number };
+          reject(new Error(err?.message ?? 'Request failed'));
         } else {
-          resolve(payload.result as T);
+          resolve(message.payload as T);
         }
       }
     });
@@ -176,6 +176,30 @@ export function subscribeToClientEvents(
   const relay = getRelayConnection();
 
   return relay.onMessage((message: RelayMessage) => {
+    // Handle relay event notifications (method: 'event', params: ExtensionEvent)
+    if (message.type === 'event') {
+      const event = message.payload as { type: string; payload?: unknown };
+      switch (event.type) {
+        case 'client_connected': {
+          const data = event.payload as { client?: Client };
+          if (data?.client) onClientConnected(data.client);
+          break;
+        }
+        case 'client_disconnected': {
+          const data = event.payload as { clientId?: string };
+          if (data?.clientId) onClientDisconnected(data.clientId);
+          break;
+        }
+        case 'client_updated': {
+          const data = event.payload as { client?: Client };
+          if (data?.client) onClientUpdated(data.client);
+          break;
+        }
+      }
+      return;
+    }
+
+    // Legacy format fallback
     switch (message.type) {
       case 'client:connected':
       case 'connection_update': {
@@ -302,6 +326,93 @@ export function subscribeToSessionEvents(callbacks: SessionEventCallbacks): () =
   const relay = getRelayConnection();
 
   return relay.onMessage((message: RelayMessage) => {
+    // Handle relay event notifications (method: 'event', params: ExtensionEvent)
+    if (message.type === 'event') {
+      const event = message.payload as {
+        type: string;
+        sessionId?: string;
+        payload?: unknown;
+        correlationId?: string;
+      };
+
+      switch (event.type) {
+        case 'session_started': {
+          const data = event.payload as { session?: Session; agent?: string; prompt?: string };
+          if (callbacks.onSessionStarted) {
+            const session: Session = data?.session ?? {
+              sessionId: event.sessionId ?? '',
+              clientId: '',
+              agentName: data?.agent ?? '',
+              prompt: data?.prompt ?? '',
+              status: 'running',
+              messages: [],
+              toolCalls: [],
+              startedAt: new Date().toISOString(),
+            };
+            callbacks.onSessionStarted(session);
+          }
+          break;
+        }
+        case 'session_progress': {
+          if (event.sessionId && callbacks.onSessionMessage) {
+            const data = event.payload as { content?: string; type?: string };
+            const msg: SessionMessage = {
+              id: crypto.randomUUID(),
+              type: (data?.type as SessionMessage['type']) ?? 'assistant',
+              content: data?.content ?? '',
+              timestamp: new Date().toISOString(),
+            };
+            callbacks.onSessionMessage(event.sessionId, msg);
+          }
+          break;
+        }
+        case 'tool_called': {
+          if (event.sessionId && callbacks.onSessionToolCall) {
+            const data = event.payload as { toolCall?: ToolCall; name?: string; arguments?: Record<string, unknown> };
+            const toolCall: ToolCall = data?.toolCall ?? {
+              id: crypto.randomUUID(),
+              name: data?.name ?? 'unknown',
+              arguments: data?.arguments ?? {},
+              status: 'running',
+              startedAt: new Date().toISOString(),
+            };
+            callbacks.onSessionToolCall(event.sessionId, toolCall);
+          }
+          break;
+        }
+        case 'session_completed': {
+          if (callbacks.onSessionCompleted) {
+            const data = event.payload as { session?: Session };
+            const session: Session = data?.session ?? {
+              sessionId: event.sessionId ?? '',
+              clientId: '',
+              agentName: '',
+              prompt: '',
+              status: 'completed',
+              messages: [],
+              toolCalls: [],
+              startedAt: '',
+              completedAt: new Date().toISOString(),
+            };
+            callbacks.onSessionCompleted(session);
+          }
+          break;
+        }
+        case 'session_error': {
+          if (event.sessionId && callbacks.onSessionFailed) {
+            const data = event.payload as { error?: string; message?: string };
+            callbacks.onSessionFailed(
+              event.sessionId,
+              data?.error ?? data?.message ?? 'Unknown error'
+            );
+          }
+          break;
+        }
+      }
+      return;
+    }
+
+    // Legacy format fallback
     switch (message.type) {
       case 'session:started': {
         const payload = message.payload as { session?: Session };

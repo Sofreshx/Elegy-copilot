@@ -18,6 +18,8 @@ import { archiveDoneTasks, purgeArchivedTasks } from './taskLifecycle';
 import { initializeSkills } from './skillInitializer';
 import { McpProvidersTreeProvider } from './mcpProvidersTree';
 import { McpProviderInfo, syncMcpConfigForRepo, syncMcpConfigForWorkspace } from './mcpConfig';
+import { RelayAuthBridge } from './relayAuthBridge';
+import { RelayClient } from './relayClient';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -118,6 +120,27 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
+	// Register relay status command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.relayStatus', () => {
+			if (!relayClient) {
+				void vscode.window.showInformationMessage(
+					'Cloud Relay is not enabled. Enable it in settings (skillInstaller.relay.enabled).'
+				);
+				return;
+			}
+
+			const status = relayClient.getStatus();
+			const clientId = relayClient.getClientId();
+			const userId = relayClient.getUserId();
+			const parts = [`Cloud Relay: ${status}`];
+			if (clientId) { parts.push(`Client: ${clientId.slice(0, 8)}`); }
+			if (userId) { parts.push(`User: ${userId}`); }
+
+			void vscode.window.showInformationMessage(parts.join(' | '));
+		})
+	);
+
 	// Initialize chat participant for remote agent invocation
 	const chatParticipant = new RemoteControlParticipant(output, sessionManager);
 	chatParticipant.register();
@@ -132,21 +155,48 @@ export function activate(context: vscode.ExtensionContext): void {
 	wsServer.setSessionManager(sessionManager);
 	wsServer.setChatParticipant(chatParticipant);
 
-	// Set up event callback for session updates to broadcast via WebSocket
-	chatParticipant.setSessionEventCallback((sessionId, event) => {
-		wsServer.broadcastEvent('session_event', {
-			sessionId,
-			eventType: event.type,
-			timestamp: event.timestamp.toISOString(),
-			data: event.data,
-		});
-	});
-
 	// Start WebSocket server (async, non-blocking)
 	wsServer.start().catch((err) => {
 		const message = err instanceof Error ? err.message : 'Unknown error';
 		output.appendLine(`[WS Server] Failed to start: ${message}`);
 	});
+
+	// Initialize relay client for cloud connectivity (if enabled)
+	const relayConfig = vscode.workspace.getConfiguration('skillInstaller.relay');
+	const relayEnabled = relayConfig.get<boolean>('enabled', false);
+
+	let relayClient: RelayClient | undefined;
+
+	if (relayEnabled) {
+		const relayAuthBridge = new RelayAuthBridge(context.secrets, output);
+		context.subscriptions.push(relayAuthBridge);
+
+		const rc = new RelayClient(relayAuthBridge, output);
+		relayClient = rc;
+		context.subscriptions.push(rc);
+
+		// Route incoming relay requests through the WsServer handlers
+		rc.setRequestHandler((request) => wsServer.handleRelayRequest(request));
+
+		// Forward extension events to relay for remote mobile clients
+		const eventEmitter = wsServer.getEventEmitter();
+		eventEmitter.onEvent((event) => {
+			if (rc.getStatus() === 'connected') {
+				rc.sendEvent(event);
+			}
+		});
+
+		// Connect to relay (async, non-blocking)
+		rc.connect().catch((err) => {
+			const message = err instanceof Error ? err.message : 'Unknown error';
+			output.appendLine(`[Relay] Failed to connect: ${message}`);
+		});
+
+		// Log relay connection status changes
+		rc.onStatusChanged((status) => {
+			output.appendLine(`[Relay] Status changed: ${status}`);
+		});
+	}
 
 	// Register command to show connected clients
 	context.subscriptions.push(
@@ -205,7 +255,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	const agentProvider = new AgentDiscoveryTreeProvider(output);
 	const workflowProvider = new WorkflowTaskTreeProvider(output);
 	const auditProvider = new AuditTreeProvider(output);
-	const connectionsProvider = new ConnectionsTreeProvider(wsServer);
+	const connectionsProvider = new ConnectionsTreeProvider(wsServer, relayClient);
 	const requestsProvider = new RequestsTreeProvider(sessionManager);
 	const permissionsProvider = new PermissionsTreeProvider(wsServer.getEventEmitter());
 	const mcpProvider = new McpProvidersTreeProvider(output);

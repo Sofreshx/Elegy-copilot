@@ -1,26 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { existsDir, existsFile } from './utils/fs';
 
 interface FrontMatterResult {
 	frontMatter: string;
 	content: string;
-}
-
-function existsDir(dirPath: string): boolean {
-	try {
-		return fs.statSync(dirPath).isDirectory();
-	} catch {
-		return false;
-	}
-}
-
-function existsFile(filePath: string): boolean {
-	try {
-		return fs.statSync(filePath).isFile();
-	} catch {
-		return false;
-	}
 }
 
 function listMarkdownFiles(dirPath: string): string[] {

@@ -9,8 +9,12 @@ import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import dotenv from "dotenv";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { ConnectionManager } from "./connectionManager";
 import { WebSocketRelay, RelayConfig } from "./relay";
+import { RateLimiter } from "./rateLimit";
+import { TokenService } from "./tokenService";
 import { createHealthRouter } from "./health";
 import { createAuthRouter } from "./auth";
 
@@ -38,6 +42,10 @@ async function main() {
 
   // Create Express app
   const app = express();
+
+  // Security headers
+  app.use(helmet());
+
   app.use(express.json());
 
   // Create connection manager
@@ -46,33 +54,71 @@ async function main() {
   // Initialize async resources (load persisted offline queue)
   await connectionManager.initialize();
 
+  // Instantiate TokenService
+  const tokenService = new TokenService({
+    jwtSecret: JWT_SECRET,
+    jwtIssuer: JWT_ISSUER,
+    jwtAudience: JWT_AUDIENCE,
+    accessTokenTtlSeconds: parseInt(process.env.ACCESS_TOKEN_TTL || "3600", 10),
+    refreshTokenTtlSeconds: parseInt(process.env.REFRESH_TOKEN_TTL || "2592000", 10),
+  });
+
   // Add health routes
   app.use(createHealthRouter(connectionManager, startTime));
 
+  // HTTP rate limiting for auth endpoints (10 requests/minute per IP)
+  const authLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: { code: -32003, message: "Too many requests, please try again later" } },
+  });
+
   // OAuth routes
-  app.use("/auth", createAuthRouter());
+  app.use("/auth", authLimiter, createAuthRouter(tokenService));
 
   // Create HTTP server
   const server = createServer(app);
+
+  // Parse allowed origins for WS upgrade validation
+  const allowedWsOrigins = (process.env.CORS_ORIGINS || "https://companion.sfrsh.xyz")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
 
   // Create WebSocket server (attached to HTTP server)
   const wss = new WebSocketServer({
     server,
     path: "/v1/ws",
     maxPayload: MAX_MESSAGE_SIZE,
+    verifyClient: (info, callback) => {
+      const origin = info.origin;
+      // Allow connections without an Origin header (server-side clients like the VS Code extension)
+      if (!origin) {
+        callback(true);
+        return;
+      }
+      if (allowedWsOrigins.includes(origin)) {
+        callback(true);
+      } else {
+        console.log(`[Relay] Rejected WS upgrade from disallowed origin: ${origin}`);
+        callback(false, 403, "Origin not allowed");
+      }
+    },
   });
+
+  // Create per-client WS rate limiter (100 messages/minute)
+  const wsRateLimiter = new RateLimiter();
 
   // Configure relay
   const relayConfig: RelayConfig = {
-    jwtSecret: JWT_SECRET,
-    jwtIssuer: JWT_ISSUER,
-    jwtAudience: JWT_AUDIENCE,
     maxMessageSize: MAX_MESSAGE_SIZE,
     requireAuth: REQUIRE_AUTH,
   };
 
   // Create WebSocket relay
-  const relay = new WebSocketRelay(wss, connectionManager, relayConfig);
+  const relay = new WebSocketRelay(wss, connectionManager, relayConfig, wsRateLimiter, tokenService);
 
   // Start listening
   server.listen(PORT, HOST, () => {
@@ -92,8 +138,9 @@ async function main() {
       console.log("HTTP server closed");
     });
 
-    // Shutdown relay and connection manager
+    // Shutdown relay, rate limiter, and connection manager
     relay.shutdown();
+    wsRateLimiter.shutdown();
     await connectionManager.shutdown();
 
     console.log("Shutdown complete");

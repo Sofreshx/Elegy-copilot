@@ -55,7 +55,6 @@ export class WsServer implements vscode.Disposable {
 	
 	private httpServer: http.Server | undefined;
 	private wss: WebSocketServer | undefined;
-	private legacyClients: Map<WebSocket, ClientInfo> = new Map(); // Legacy subscription tracking
 	private clientsById: Map<string, WebSocket> = new Map(); // Reverse lookup for broadcasting
 	private statusBarItem: vscode.StatusBarItem | undefined;
 	private startTime: number = 0;
@@ -241,7 +240,7 @@ export class WsServer implements vscode.Disposable {
 	 * Handle new WebSocket connection.
 	 */
 	private handleConnection(ws: WebSocket, registeredClient: RegisteredClientInfo): void {
-		// Create legacy client info for subscription tracking
+		// Create client info for subscription tracking
 		const clientInfo: ClientInfo = {
 			id: registeredClient.clientId,
 			connectedAt: registeredClient.connectionTime,
@@ -249,7 +248,6 @@ export class WsServer implements vscode.Disposable {
 			userId: registeredClient.userId,
 		};
 
-		this.legacyClients.set(ws, clientInfo);
 		this.clientsById.set(registeredClient.clientId, ws);
 		this.output.appendLine(`[WS Server] Client connected: ${registeredClient.clientId} (user: ${registeredClient.userId})`);
 		this.updateStatusBar();
@@ -259,7 +257,6 @@ export class WsServer implements vscode.Disposable {
 		});
 
 		ws.on('close', () => {
-			this.legacyClients.delete(ws);
 			this.clientsById.delete(registeredClient.clientId);
 			this.clientRegistry.removeClient(registeredClient.clientId);
 			this.eventEmitter.removeClient(registeredClient.clientId);
@@ -269,7 +266,6 @@ export class WsServer implements vscode.Disposable {
 
 		ws.on('error', (err) => {
 			this.output.appendLine(`[WS Server] Client error (${registeredClient.clientId}): ${err.message}`);
-			this.legacyClients.delete(ws);
 			this.clientsById.delete(registeredClient.clientId);
 			this.clientRegistry.removeClient(registeredClient.clientId);
 			this.eventEmitter.removeClient(registeredClient.clientId);
@@ -314,72 +310,87 @@ export class WsServer implements vscode.Disposable {
 	}
 
 	/**
-	 * Route request to appropriate handler.
+	 * Internal request routing — returns response without sending.
+	 * Used by both local WS handler and relay bridge.
+	 */
+	private async routeRequestInternal(
+		request: WsRequest,
+		context?: { clientInfo?: ClientInfo; ws?: WebSocket }
+	): Promise<WsResponse> {
+		switch (request.method) {
+			case 'execute_command':
+				return this.handleExecuteCommand(request);
+			case 'get_status':
+				return this.handleGetStatus(request);
+			case 'subscribe_events':
+				return context?.clientInfo
+					? this.handleSubscribeEvents(request, context.clientInfo)
+					: createErrorResponse(request.id, WsErrorCodes.INVALID_REQUEST, 'subscribe_events not available via relay');
+			case 'unsubscribe_events':
+				return context?.clientInfo
+					? this.handleUnsubscribeEvents(request, context.clientInfo)
+					: createErrorResponse(request.id, WsErrorCodes.INVALID_REQUEST, 'unsubscribe_events not available via relay');
+			case 'invoke_agent':
+				return this.handleInvokeAgent(request);
+			case 'get_sessions':
+				return this.handleGetSessions(request);
+			case 'cancel_session':
+				return this.handleCancelSession(request);
+			case 'list_agents':
+				return this.handleListAgents(request);
+			case 'get_event_history':
+				return this.handleGetEventHistory(request);
+			case 'resolve_permission':
+				return this.handleResolvePermission(request, context?.clientInfo);
+			case 'get_pending_permissions':
+				return this.handleGetPendingPermissions(request);
+			case 'list_clients':
+				return this.handleListClients(request);
+			case 'get_client':
+				return this.handleGetClient(request);
+			case 'disconnect_client':
+				return this.handleDisconnectClient(request);
+			case 'pong':
+				return context?.ws
+					? this.handlePong(request, context.ws)
+					: createSuccessResponse(request.id, { acknowledged: true });
+			default:
+				return createErrorResponse(
+					request.id,
+					WsErrorCodes.METHOD_NOT_FOUND,
+					`Method not found: ${request.method}`
+				);
+		}
+	}
+
+	/**
+	 * Route request to appropriate handler (local WS clients).
 	 */
 	private async routeRequest(ws: WebSocket, clientInfo: ClientInfo, request: WsRequest): Promise<void> {
 		let response: WsResponse;
-
 		try {
-			switch (request.method) {
-				case 'execute_command':
-					response = await this.handleExecuteCommand(request);
-					break;
-				case 'get_status':
-					response = this.handleGetStatus(request);
-					break;
-				case 'subscribe_events':
-					response = this.handleSubscribeEvents(request, clientInfo);
-					break;
-				case 'unsubscribe_events':
-					response = this.handleUnsubscribeEvents(request, clientInfo);
-					break;
-				case 'invoke_agent':
-					response = await this.handleInvokeAgent(request);
-					break;
-				case 'get_sessions':
-					response = this.handleGetSessions(request);
-					break;
-				case 'cancel_session':
-					response = this.handleCancelSession(request);
-					break;
-				case 'list_agents':
-					response = await this.handleListAgents(request);
-					break;
-				case 'get_event_history':
-					response = this.handleGetEventHistory(request);
-					break;
-				case 'resolve_permission':
-					response = this.handleResolvePermission(request, clientInfo);
-					break;
-				case 'get_pending_permissions':
-					response = this.handleGetPendingPermissions(request);
-					break;
-				case 'list_clients':
-					response = this.handleListClients(request);
-					break;
-				case 'get_client':
-					response = this.handleGetClient(request);
-					break;
-				case 'disconnect_client':
-					response = this.handleDisconnectClient(request);
-					break;
-				case 'pong':
-					response = this.handlePong(request, ws);
-					break;
-				default:
-					response = createErrorResponse(
-						request.id,
-						WsErrorCodes.METHOD_NOT_FOUND,
-						`Method not found: ${request.method}`
-					);
-			}
+			response = await this.routeRequestInternal(request, { clientInfo, ws });
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'Internal error';
 			this.output.appendLine(`[WS Server] Handler error: ${message}`);
 			response = createErrorResponse(request.id, WsErrorCodes.INTERNAL_ERROR, message);
 		}
-
 		this.send(ws, response);
+	}
+
+	/**
+	 * Handle a request from the cloud relay (no local WebSocket).
+	 * Used by RelayClient to route incoming relay envelopes through the same handlers.
+	 */
+	async handleRelayRequest(request: WsRequest): Promise<WsResponse> {
+		this.output.appendLine(`[WS Server] Relay request: ${request.method}`);
+		try {
+			return await this.routeRequestInternal(request);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Internal error';
+			this.output.appendLine(`[WS Server] Relay handler error: ${message}`);
+			return createErrorResponse(request.id, WsErrorCodes.INTERNAL_ERROR, message);
+		}
 	}
 
 	/**
@@ -654,7 +665,7 @@ export class WsServer implements vscode.Disposable {
 	/**
 	 * Handle resolve_permission request - respond to permission request.
 	 */
-	private handleResolvePermission(request: WsRequest, clientInfo: ClientInfo): WsResponse {
+	private handleResolvePermission(request: WsRequest, clientInfo?: ClientInfo): WsResponse {
 		const params = request.params as ResolvePermissionParams | undefined;
 
 		if (!params?.callbackId || typeof params.callbackId !== 'string') {
@@ -673,7 +684,7 @@ export class WsServer implements vscode.Disposable {
 			);
 		}
 
-		const resolvedBy = params.resolvedBy ?? clientInfo.userId ?? clientInfo.id;
+		const resolvedBy = params.resolvedBy ?? clientInfo?.userId ?? clientInfo?.id ?? 'relay-client';
 		const success = this.eventEmitter.resolvePermission(params.callbackId, params.approved, resolvedBy);
 
 		if (!success) {
@@ -775,20 +786,6 @@ export class WsServer implements vscode.Disposable {
 	private handlePong(request: WsRequest, ws: WebSocket): WsResponse {
 		this.clientRegistry.handlePong(ws);
 		return createSuccessResponse(request.id, { acknowledged: true });
-	}
-
-	/**
-	 * Broadcast an event to all subscribed clients (legacy subscription method).
-	 * For new code, prefer using the event emitter directly.
-	 */
-	broadcastEvent(eventName: string, data: Record<string, unknown>): void {
-		const notification = createNotification(eventName, data);
-		
-		for (const [ws, clientInfo] of this.legacyClients) {
-			if (clientInfo.subscribedEvents.has(eventName) || clientInfo.subscribedEvents.has('*')) {
-				this.send(ws, notification);
-			}
-		}
 	}
 
 	/**
@@ -911,7 +908,6 @@ export class WsServer implements vscode.Disposable {
 
 		// Close all client connections via registry
 		this.clientRegistry.clear();
-		this.legacyClients.clear();
 		this.clientsById.clear();
 
 		// Close WebSocket server

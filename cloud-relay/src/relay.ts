@@ -5,10 +5,11 @@
 
 import WebSocket, { WebSocketServer } from "ws";
 import { IncomingMessage } from "http";
-import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import { ConnectionManager } from "./connectionManager";
 import { GroupType } from "./connectionGroups";
+import { RateLimiter } from "./rateLimit";
+import { TokenService } from "./tokenService";
 import {
   AccessTokenClaims,
   ErrorCodes,
@@ -19,17 +20,41 @@ import {
 } from "./types";
 
 export interface RelayConfig {
-  jwtSecret: string;
-  jwtIssuer: string;
-  jwtAudience: string;
   maxMessageSize: number;
   requireAuth: boolean;
 }
+
+/** Scope required for each control method. Methods not listed (e.g. `initialize`) are unrestricted. */
+const CONTROL_METHOD_SCOPES: Record<string, string> = {
+  list_clients: "read:clients",
+  get_client: "read:clients",
+  disconnect_client: "admin:clients",
+  join_group: "read:clients",
+  leave_group: "read:clients",
+  list_group_members: "read:clients",
+  list_my_groups: "read:clients",
+  get_offline_queue_stats: "read:status",
+};
+
+/** Scope required for relay-forwarded methods. */
+const RELAY_METHOD_SCOPES: Record<string, string> = {
+  execute_command: "write:sessions",
+  get_status: "read:status",
+  invoke_agent: "write:sessions",
+  get_sessions: "read:sessions",
+  cancel_session: "write:sessions",
+  subscribe_events: "read:events",
+  unsubscribe_events: "read:events",
+  resolve_permission: "write:permissions",
+  get_pending_permissions: "read:events",
+};
 
 export class WebSocketRelay {
   private wss: WebSocketServer;
   private connectionManager: ConnectionManager;
   private config: RelayConfig;
+  private rateLimiter: RateLimiter;
+  private tokenService: TokenService;
   
   // Track pending auth for connections (clientId -> timeout)
   private pendingAuth: Map<string, NodeJS.Timeout> = new Map();
@@ -37,10 +62,18 @@ export class WebSocketRelay {
   // Auth timeout (30 seconds to authenticate after connecting)
   private readonly AUTH_TIMEOUT = 30000;
 
-  constructor(wss: WebSocketServer, connectionManager: ConnectionManager, config: RelayConfig) {
+  constructor(
+    wss: WebSocketServer,
+    connectionManager: ConnectionManager,
+    config: RelayConfig,
+    rateLimiter: RateLimiter,
+    tokenService: TokenService,
+  ) {
     this.wss = wss;
     this.connectionManager = connectionManager;
     this.config = config;
+    this.rateLimiter = rateLimiter;
+    this.tokenService = tokenService;
 
     this.setupConnectionHandler();
   }
@@ -96,6 +129,7 @@ export class WebSocketRelay {
         // Remove from connection manager if authenticated
         if ((ws as any).__authenticated) {
           this.connectionManager.removeClient(clientId);
+          this.rateLimiter.remove(clientId);
         }
       });
 
@@ -106,16 +140,11 @@ export class WebSocketRelay {
   }
 
   private verifyToken(token: string): AccessTokenClaims | null {
-    try {
-      const decoded = jwt.verify(token, this.config.jwtSecret, {
-        issuer: this.config.jwtIssuer,
-        audience: this.config.jwtAudience,
-      }) as AccessTokenClaims;
-      return decoded;
-    } catch (error) {
-      console.error(`[Relay] Token verification failed:`, error);
-      return null;
+    const claims = this.tokenService.verifyAccessToken(token);
+    if (!claims) {
+      console.error(`[Relay] Token verification failed`);
     }
+    return claims;
   }
 
   private completeAuth(ws: WebSocket, claims: AccessTokenClaims): void {
@@ -214,6 +243,18 @@ export class WebSocketRelay {
       return;
     }
 
+    // Per-client rate limiting (applied to authenticated messages only)
+    const clientId = (ws as any).__clientId as string | undefined;
+    if (clientId) {
+      const rateResult = this.rateLimiter.consume(clientId);
+      if (!rateResult.allowed) {
+        this.sendError(ws, parsed.id, ErrorCodes.RATE_LIMITED, "Rate limit exceeded", {
+          retryAfter: rateResult.retryAfterSecs,
+        });
+        return;
+      }
+    }
+
     // Handle relay envelope
     if (parsed.version === "1.0" && parsed.payload) {
       this.handleRelayEnvelope(ws, parsed as RelayEnvelope);
@@ -246,6 +287,23 @@ export class WebSocketRelay {
     this.completeAuth(ws, claims);
   }
 
+  /**
+   * Check if the client's token includes the required scope.
+   * Sends a FORBIDDEN error and returns false if the scope is missing.
+   */
+  private requireScope(
+    ws: WebSocket,
+    requestId: string,
+    claims: AccessTokenClaims,
+    scope: string,
+  ): boolean {
+    if (claims.scopes.includes(scope)) {
+      return true;
+    }
+    this.sendError(ws, requestId, ErrorCodes.FORBIDDEN, `Missing required scope: ${scope}`);
+    return false;
+  }
+
   private handleRelayEnvelope(ws: WebSocket, envelope: RelayEnvelope): void {
     const claims = (ws as any).__claims as AccessTokenClaims;
     
@@ -270,6 +328,15 @@ export class WebSocketRelay {
         "Message too old"
       );
       return;
+    }
+
+    // Scope enforcement for relayed methods
+    const payloadMethod = (envelope.payload as any)?.method as string | undefined;
+    if (typeof payloadMethod === "string") {
+      const requiredScope = RELAY_METHOD_SCOPES[payloadMethod];
+      if (requiredScope && !this.requireScope(ws, (envelope.payload as any).id, claims, requiredScope)) {
+        return;
+      }
     }
 
     // Extract routing options from meta
@@ -299,6 +366,12 @@ export class WebSocketRelay {
 
   private handleControlMessage(ws: WebSocket, request: WsRequest): void {
     const claims = (ws as any).__claims as AccessTokenClaims;
+
+    // Scope enforcement for control methods
+    const requiredScope = CONTROL_METHOD_SCOPES[request.method];
+    if (requiredScope && !this.requireScope(ws, request.id, claims, requiredScope)) {
+      return;
+    }
 
     switch (request.method) {
       case "list_clients": {
@@ -332,6 +405,39 @@ export class WebSocketRelay {
           clientType: client.clientType,
           connectedAt: client.connectedAt.toISOString(),
           lastSeen: client.lastSeen.toISOString(),
+        });
+        break;
+      }
+
+      case "disconnect_client": {
+        const targetClientId = (request.params as any)?.clientId;
+        if (!targetClientId) {
+          this.sendError(ws, request.id, ErrorCodes.INVALID_PARAMS, "clientId required");
+          return;
+        }
+
+        const targetClient = this.connectionManager.getClientInfo(targetClientId);
+        if (!targetClient || targetClient.userId !== claims.sub) {
+          this.sendError(ws, request.id, ErrorCodes.NOT_FOUND, "Client not found");
+          return;
+        }
+
+        // Cannot disconnect yourself
+        if (targetClientId === claims.client_id) {
+          this.sendError(ws, request.id, ErrorCodes.INVALID_PARAMS, "Cannot disconnect yourself");
+          return;
+        }
+
+        // Close the target client's WebSocket and remove from connection manager
+        const targetWs = this.connectionManager.getClient(targetClientId);
+        if (targetWs) {
+          targetWs.close(4002, "Disconnected by admin");
+        }
+        this.connectionManager.removeClient(targetClientId);
+
+        this.sendResponse(ws, request.id, {
+          disconnected: true,
+          clientId: targetClientId,
         });
         break;
       }

@@ -2,22 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { RepoTasks, TaskDiscoverySnapshot, TaskEntry } from './types';
-
-function existsDir(dirPath: string): boolean {
-	try {
-		return fs.statSync(dirPath).isDirectory();
-	} catch {
-		return false;
-	}
-}
-
-function existsFile(filePath: string): boolean {
-	try {
-		return fs.statSync(filePath).isFile();
-	} catch {
-		return false;
-	}
-}
+import { existsDir, existsFile } from './utils/fs';
+import { tryParseYamlFrontMatter } from './utils/yaml';
+import { normalizeString } from './utils/strings';
 
 function isInstructionEngineFolder(folder: vscode.WorkspaceFolder): boolean {
 	const name = folder.name.toLowerCase();
@@ -40,97 +27,12 @@ function readFileStart(filePath: string, maxBytes = 64_000): string {
 	}
 }
 
-function tryParseYamlFrontMatter(text: string): { fm: Record<string, unknown>; bodyStartIndex: number } | undefined {
-	// Minimal front matter parser for the task schema.
-	// Only supports simple "key: value" and "key: [a, b]" / "key: [\n  - a\n]" cases.
-	if (!text.startsWith('---')) {
-		return undefined;
-	}
-
-	const endMarker = '\n---';
-	const endIdx = text.indexOf(endMarker, 3);
-	if (endIdx === -1) {
-		return undefined;
-	}
-
-	const yamlBlock = text.slice(3, endIdx).trim();
-	const fm: Record<string, unknown> = {};
-
-	const lines = yamlBlock.split(/\r?\n/);
-	let currentListKey: string | undefined;
-
-	for (const rawLine of lines) {
-		const line = rawLine.trimEnd();
-		if (!line.trim() || line.trimStart().startsWith('#')) {
-			continue;
-		}
-
-		const listMatch = line.match(/^\s*-\s+(.*)$/);
-		if (listMatch && currentListKey) {
-			const item = listMatch[1].trim();
-			const arr = (fm[currentListKey] as unknown[]) ?? [];
-			arr.push(stripQuotes(item));
-			fm[currentListKey] = arr;
-			continue;
-		}
-
-		currentListKey = undefined;
-		const kv = line.match(/^\s*([A-Za-z0-9_.-]+)\s*:\s*(.*)$/);
-		if (!kv) {
-			continue;
-		}
-
-		const key = kv[1];
-		let value = kv[2].trim();
-		if (value === '') {
-			// Potential multi-line list in subsequent lines
-			fm[key] = [];
-			currentListKey = key;
-			continue;
-		}
-
-		// Inline list: [a, b]
-		if (value.startsWith('[') && value.endsWith(']')) {
-			const inside = value.slice(1, -1).trim();
-			if (inside === '') {
-				fm[key] = [];
-			} else {
-				fm[key] = inside.split(',').map((s) => stripQuotes(s.trim())).filter(Boolean);
-			}
-			continue;
-		}
-
-		fm[key] = stripQuotes(value);
-	}
-
-	return { fm, bodyStartIndex: endIdx + endMarker.length };
-}
-
-function stripQuotes(value: string): string {
-	const trimmed = value.trim();
-	if (
-		(trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-		(trimmed.startsWith("'") && trimmed.endsWith("'"))
-	) {
-		return trimmed.slice(1, -1);
-	}
-	return trimmed;
-}
-
 function normalizeOwner(value: unknown): string | undefined {
 	if (typeof value !== 'string') {
 		return undefined;
 	}
 	const owner = value.trim();
 	return owner ? owner : undefined;
-}
-
-function normalizeString(value: unknown): string | undefined {
-	if (typeof value !== 'string') {
-		return undefined;
-	}
-	const s = value.trim();
-	return s ? s : undefined;
 }
 
 function normalizeStringArray(value: unknown): string[] | undefined {

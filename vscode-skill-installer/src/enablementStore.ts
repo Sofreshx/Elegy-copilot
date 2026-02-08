@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { existsFile } from './utils/fs';
 
 export type EnablementKind = 'skills' | 'agents' | 'mcpProviders';
 
@@ -20,14 +21,6 @@ function normalizeKey(value: string): string {
 
 function normalizeRepoKey(repoPath: string): string {
 	return repoPath.replace(/\\/g, '/');
-}
-
-function existsFile(filePath: string): boolean {
-	try {
-		return fs.statSync(filePath).isFile();
-	} catch {
-		return false;
-	}
 }
 
 function getRegistryPath(repoPath: string, config: vscode.WorkspaceConfiguration): string {

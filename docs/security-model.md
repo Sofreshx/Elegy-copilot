@@ -1,202 +1,492 @@
-# Security Model
+# Security Model — Instruction Engine Relay (v1)
 
-This document describes the security architecture of the Mobile Companion system.
+> **Last updated**: 2026-02-08
+>
+> This document describes the **actual, implemented** security architecture of the Instruction Engine relay ecosystem (cloud relay, mobile companion PWA, VS Code extension). Claims are verified against source code. Planned-but-unimplemented features are clearly marked as **v2 Planned**.
 
-## Overview
+---
 
-The Mobile Companion uses a layered security approach:
+## Table of Contents
 
-1. **Authentication** - GitHub OAuth for identity
-2. **Authorization** - JWT tokens with scoped permissions
-3. **Transport Security** - TLS encryption for all connections
-4. **Data Protection** - Encrypted storage for sensitive data
+1. [Architecture Overview](#architecture-overview)
+2. [Authentication](#authentication)
+3. [Token Design](#token-design)
+4. [Token Storage](#token-storage)
+5. [Authorization & Scopes](#authorization--scopes)
+6. [Transport Security](#transport-security)
+7. [CSRF Protection](#csrf-protection)
+8. [Rate Limiting](#rate-limiting)
+9. [Security Headers](#security-headers)
+10. [Threat Model](#threat-model)
+11. [Known v1 Limitations](#known-v1-limitations)
+12. [v2 Planned Improvements](#v2-planned-improvements)
+13. [Incident Response](#incident-response)
+14. [Best Practices](#best-practices)
 
-## Authentication Flow
+---
+
+## Architecture Overview
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Mobile PWA     │     │  Cloud Relay    │     │    GitHub       │
-└────────┬────────┘     └────────┬────────┘     └────────┬────────┘
-         │                       │                       │
-         │  1. Login Request     │                       │
-         │──────────────────────>│                       │
-         │                       │  2. OAuth Redirect    │
-         │                       │──────────────────────>│
-         │                       │                       │
-         │                       │  3. Authorization     │
-         │                       │<──────────────────────│
-         │                       │                       │
-         │  4. JWT Token         │                       │
-         │<──────────────────────│                       │
-         │                       │                       │
+┌──────────────────┐          ┌──────────────────┐          ┌──────────────┐
+│  Mobile PWA      │◄──WSS──►│  Cloud Relay     │◄──WSS──►│  VS Code     │
+│  (browser)       │          │  (Node.js)       │          │  Extension   │
+└──────────────────┘          └────────┬─────────┘          └──────────────┘
+                                       │
+                              ┌────────┴─────────┐
+                              │   GitHub OAuth   │
+                              │   (identity)     │
+                              └──────────────────┘
 ```
 
-### Token Lifecycle
+The relay is a **stateless** message router. It:
 
-1. **Access Token**: Short-lived (1 hour), used for API requests
-2. **Refresh Token**: Long-lived (7 days), used to obtain new access tokens
-3. **Session Token**: Tied to VS Code session, expires when session ends
+- Authenticates clients via GitHub OAuth → relay-minted JWTs
+- Does **not** store tokens server-side (no Redis, no database)
+- Routes JSON-RPC messages between authenticated clients over WebSocket
+- Enforces per-method authorization scopes
+- Applies rate limiting on HTTP and WebSocket channels
 
-### Token Storage
+---
 
-| Platform | Storage Method |
-|----------|---------------|
-| Mobile PWA | IndexedDB (encrypted) |
-| VS Code | SecretStorage API |
-| Cloud Relay | Redis (encrypted at rest) |
+## Authentication
 
-## Authorization
+### Mobile PWA Flow (OAuth Authorization Code)
 
-### Permission Scopes
+```
+Mobile                        Relay                         GitHub
+  │                             │                              │
+  │  1. POST /auth/login        │                              │
+  │    { redirect_uri }         │                              │
+  │───────────────────────────►│                              │
+  │                             │                              │
+  │  2. { auth_url, state }     │                              │
+  │◄───────────────────────────│                              │
+  │                             │                              │
+  │  3. Redirect to GitHub      │                              │
+  │─────────────────────────────────────────────────────────►│
+  │                             │                              │
+  │  4. User authorizes         │                              │
+  │◄─────────────────────────────────────────────────────────│
+  │                             │                              │
+  │  5. POST /auth/callback     │                              │
+  │    { code, state }          │                              │
+  │───────────────────────────►│                              │
+  │                             │  6. Exchange code for token  │
+  │                             │────────────────────────────►│
+  │                             │                              │
+  │                             │  7. GET /user (verify)       │
+  │                             │────────────────────────────►│
+  │                             │                              │
+  │  8. { access_token,         │                              │
+  │       refresh_token,        │                              │
+  │       scopes, user }        │                              │
+  │◄───────────────────────────│                              │
+```
 
-| Scope | Description | Risk Level |
-|-------|-------------|------------|
-| `session:read` | View session status | Low |
-| `session:write` | Control sessions | Medium |
-| `idea:read` | View ideas | Low |
-| `idea:write` | Create/edit ideas | Low |
-| `agent:invoke` | Execute agents | High |
-| `workflow:dispatch` | Trigger GitHub Actions | High |
+1. Mobile requests a GitHub OAuth URL via `POST /auth/login`
+2. Relay returns the GitHub authorization URL with an HMAC-signed `state` parameter (see [CSRF Protection](#csrf-protection))
+3. User authorizes in the browser; GitHub redirects back with `code` + `state`
+4. Mobile sends the code to `POST /auth/callback`
+5. Relay verifies the CSRF state, exchanges the code for a GitHub access token, then calls GitHub's `/user` API to verify identity
+6. Relay mints **relay-issued JWTs** (access + refresh) and returns them to the client
 
-### Role-Based Access
+### VS Code Extension Flow (Token Exchange)
 
-| Role | Scopes |
-|------|--------|
-| Viewer | `session:read`, `idea:read` |
-| Editor | Viewer + `session:write`, `idea:write` |
-| Admin | Editor + `agent:invoke`, `workflow:dispatch` |
+```
+Extension                     Relay                         GitHub
+  │                             │                              │
+  │  vscode.authentication      │                              │
+  │  .getSession('github')      │                              │
+  │─────────────────────────────────────────────────────────►│
+  │                             │                              │
+  │  GitHub token               │                              │
+  │◄─────────────────────────────────────────────────────────│
+  │                             │                              │
+  │  POST /auth/exchange        │                              │
+  │  { github_token }           │                              │
+  │───────────────────────────►│                              │
+  │                             │  GET /user (verify)          │
+  │                             │────────────────────────────►│
+  │                             │                              │
+  │  { access_token,            │                              │
+  │    refresh_token,           │                              │
+  │    scopes, user }           │                              │
+  │◄───────────────────────────│                              │
+```
+
+1. Extension uses VS Code's built-in GitHub authentication (`vscode.authentication.getSession`)
+2. Extension sends the GitHub token to `POST /auth/exchange`
+3. Relay verifies the token by calling GitHub's `/user` API
+4. Relay mints relay JWTs and returns them
+
+> **Security note**: Any valid GitHub token that can call `/user` will be accepted by `/auth/exchange`. This is a known v1 trade-off — GitHub's API does not expose which OAuth app issued a token. Short access TTL (1h) and rate limiting mitigate abuse. See [v2 Planned Improvements](#v2-planned-improvements) for device attestation.
+
+### Token Refresh
+
+`POST /auth/refresh` accepts a valid refresh token and returns a **new** access + refresh token pair (rotation). The previous refresh token is not explicitly invalidated (stateless — see [Known v1 Limitations](#known-v1-limitations)).
+
+### Token Revocation
+
+`POST /auth/revoke` is a **client-side cleanup endpoint only**. It always returns `{ revoked: true }`. Because tokens are stateless JWTs, the relay cannot truly revoke them server-side. The access token's 1-hour TTL limits the blast radius of a compromised token.
+
+### WebSocket Authentication
+
+1. Client connects to `/v1/ws`
+2. Client sends an `authenticate` JSON-RPC message with `{ token: "<relay access JWT>" }` — or passes the token as a `?token=` query parameter on the upgrade URL
+3. Relay verifies the JWT (signature, issuer, audience, expiry)
+4. On success: client is registered in the connection manager, receives an auth response with `clientId`, `userId`, and `scopes`
+5. **Auth timeout**: unauthenticated connections are dropped after **30 seconds** (close code `4001`)
+
+---
+
+## Token Design
+
+All relay-issued tokens are **HS256 JWTs** signed with a shared secret (`JWT_SECRET` env var).
+
+### Access Token
+
+| Claim | Description | Example |
+|-------|-------------|---------|
+| `sub` | User identifier | `github\|12345` |
+| `jti` | Unique token ID (UUIDv4) | `a1b2c3d4-...` |
+| `client_id` | Relay-assigned client ID (UUIDv4) | `e5f6a7b8-...` |
+| `client_type` | Client kind | `mobile` or `extension` |
+| `scopes` | Authorization scopes (array) | `["read:status", ...]` |
+| `github_login` | GitHub username | `octocat` |
+| `iss` | Issuer | `instruction-engine-relay` |
+| `aud` | Audience | `instruction-engine` |
+| `iat` | Issued at (epoch) | `1738972800` |
+| `exp` | Expires at (epoch) | `iat + 3600` |
+
+**TTL**: 1 hour (configurable via `ACCESS_TOKEN_TTL` env var)
+
+### Refresh Token
+
+| Claim | Description |
+|-------|-------------|
+| `sub` | User identifier |
+| `jti` | Unique token ID (UUIDv4) |
+| `github_login` | GitHub username |
+| `token_type` | Always `"refresh"` |
+| `iss` / `aud` | Same as access token |
+| `iat` / `exp` | Issued / expires |
+
+**TTL**: 30 days (configurable via `REFRESH_TOKEN_TTL` env var)
+
+---
+
+## Token Storage
+
+| Platform | Storage Method | Encryption | Notes |
+|----------|---------------|------------|-------|
+| **VS Code Extension** | `SecretStorage` API | OS keychain (encrypted) | Recommended approach; credentials never touch disk in plaintext |
+| **Mobile PWA** | `localStorage` | **None (plaintext)** | ⚠️ Known v1 limitation — see below |
+| **Cloud Relay** | **None** | N/A | Stateless — no server-side token storage |
+
+### Mobile Storage Limitation
+
+The mobile PWA stores relay JWTs in `localStorage`, which is accessible to any JavaScript running on the same origin. This is a **known v1 trade-off** (see Decision D4 in the plan). Mitigations:
+
+- CORS restricts relay API access to configured origins
+- Access tokens expire in 1 hour, limiting exposure window
+- The PWA is served from a dedicated subdomain, reducing cross-origin XSS risk
+
+---
+
+## Authorization & Scopes
+
+Scopes are **assigned by client type**, not by user role. There is no role-based access control (RBAC) in v1.
+
+### Scope Definitions
+
+| Scope | Description | Assigned To |
+|-------|-------------|-------------|
+| `read:status` | Query relay/extension status | Mobile, Extension |
+| `read:sessions` | List active agent sessions | Mobile, Extension |
+| `write:sessions` | Start/cancel sessions, invoke agents, execute commands | Mobile, Extension |
+| `read:events` | Subscribe to session events | Mobile, Extension |
+| `write:permissions` | Resolve permission requests | Mobile, Extension |
+| `read:clients` | List connected clients, manage groups | Mobile, Extension |
+| `admin:clients` | Disconnect other clients | Extension only |
+
+### Default Scope Assignments
+
+| Client Type | Scopes |
+|-------------|--------|
+| **Mobile** | `read:status`, `read:sessions`, `write:sessions`, `read:events`, `write:permissions`, `read:clients` |
+| **Extension** | All mobile scopes + `admin:clients` |
+
+### Scope Enforcement
+
+Every incoming message is checked against scope requirements before dispatch:
+
+**Control methods** (direct JSON-RPC to relay):
+
+| Method | Required Scope |
+|--------|---------------|
+| `list_clients` | `read:clients` |
+| `get_client` | `read:clients` |
+| `disconnect_client` | `admin:clients` |
+| `join_group` / `leave_group` | `read:clients` |
+| `list_group_members` / `list_my_groups` | `read:clients` |
+| `get_offline_queue_stats` | `read:status` |
+| `initialize` | *(unrestricted)* |
+
+**Relayed methods** (forwarded via `RelayEnvelope`):
+
+| Method | Required Scope |
+|--------|---------------|
+| `execute_command` | `write:sessions` |
+| `get_status` | `read:status` |
+| `invoke_agent` | `write:sessions` |
+| `get_sessions` | `read:sessions` |
+| `cancel_session` | `write:sessions` |
+| `subscribe_events` / `unsubscribe_events` | `read:events` |
+| `resolve_permission` | `write:permissions` |
+| `get_pending_permissions` | `read:events` |
+
+**Unauthorized requests** receive error code `-32004 FORBIDDEN` with message `Missing required scope: <scope>`.
+
+---
 
 ## Transport Security
 
-### WebSocket Connection
+### TLS
 
-- **Local**: Uses `ws://` on localhost only
-- **Remote**: Requires `wss://` with valid TLS certificate
-- **Heartbeat**: Regular pings to detect stale connections
+- **Production**: All connections are over TLS (HTTPS / WSS). TLS termination is handled by Traefik reverse proxy with Let's Encrypt certificates
+- **Local development**: Plaintext `http://` / `ws://` is acceptable on localhost
 
-### Certificate Requirements
+### WebSocket
 
-For production relay deployments:
-- Valid TLS certificate (Let's Encrypt recommended)
-- TLS 1.2 or higher
-- Strong cipher suites only
+- Endpoint: `/v1/ws`
+- Max payload size: 1 MB (configurable via `MAX_MESSAGE_SIZE`)
+- Heartbeat pings detect stale connections
+- Message age validation: messages older than 5 minutes are rejected
 
-## Data Protection
+### What Is NOT Encrypted
 
-### Sensitive Data Classification
+- **Message payloads are plaintext JSON** over the TLS channel. There is no application-layer payload encryption (no session keys, no E2E encryption). TLS provides confidentiality in transit, but the relay can read all message content.
 
-| Data Type | Classification | Protection |
-|-----------|---------------|------------|
-| OAuth tokens | Secret | Encrypted storage, no logging |
-| Session logs | Internal | Sanitized, size-limited |
-| User preferences | Internal | Local encryption |
-| Ideas/drafts | User | IndexedDB with encryption |
+---
 
-### Data at Rest
+## CSRF Protection
 
-- **IndexedDB**: Encrypted using Web Crypto API
-- **VS Code**: Uses platform SecretStorage
-- **Relay**: Redis with encryption at rest
+### OAuth State Parameter
 
-### Data in Transit
+The `/auth/login` endpoint generates a CSRF-resistant state parameter:
 
-- All API calls over HTTPS
-- WebSocket connections over WSS (production)
-- Message payloads encrypted with session key
+1. A random nonce is generated (or accepted from the client)
+2. An HMAC-SHA256 signature is computed over the nonce using the relay's `JWT_SECRET`
+3. The state is formatted as `{nonce}.{hmac}` and included in the GitHub OAuth URL
+
+On `/auth/callback`:
+
+1. The state parameter is split into nonce and HMAC
+2. The HMAC is recomputed and compared using `crypto.timingSafeEqual` (constant-time comparison)
+3. Mismatched state → `400 Invalid state parameter (CSRF verification failed)`
+
+### WebSocket Origin Validation
+
+The relay validates the `Origin` header on WebSocket upgrade requests:
+
+- Connections **with** an `Origin` header must match the `CORS_ORIGINS` allowlist
+- Connections **without** an `Origin` header are allowed (server-side clients like the VS Code extension do not send Origin headers)
+- Disallowed origins receive HTTP `403 Origin not allowed`
+
+Default allowed origin: `https://companion.sfrsh.xyz`
+
+### HTTP CORS
+
+The auth router restricts `Access-Control-Allow-Origin` to origins in the `CORS_ORIGINS` env var. Only `POST` and `OPTIONS` methods are allowed.
+
+---
+
+## Rate Limiting
+
+### HTTP Endpoints
+
+Auth endpoints (`/auth/*`) are rate-limited via `express-rate-limit`:
+
+| Parameter | Value |
+|-----------|-------|
+| Window | 60 seconds |
+| Max requests per IP | 10 |
+| Headers | Standard (`RateLimit-*`) |
+| Error response | `{ error: { code: -32003, message: "Too many requests, please try again later" } }` |
+
+### WebSocket Messages
+
+Authenticated WebSocket messages are rate-limited per client via a token-bucket algorithm:
+
+| Parameter | Value |
+|-----------|-------|
+| Bucket capacity (burst) | 100 messages |
+| Refill rate | ~1.67 msg/sec (100/min) |
+| Stale bucket cleanup | Every 60 seconds |
+| Bucket TTL | 5 minutes idle |
+
+When a client exceeds the rate limit:
+- Error code: `-32003 RATE_LIMITED`
+- Response includes `retryAfter` (seconds)
+- Bucket automatically refills — client can resume after waiting
+
+---
+
+## Security Headers
+
+The relay uses the `helmet` middleware, which sets the following headers by default:
+
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: SAMEORIGIN`
+- `X-XSS-Protection: 0` (deprecated, CSP preferred)
+- `Strict-Transport-Security` (HSTS)
+- `X-DNS-Prefetch-Control: off`
+- And others per helmet defaults
+
+---
 
 ## Threat Model
 
-### Attack Vectors
+### Attack Vectors & Mitigations
 
-| Threat | Mitigation |
-|--------|-----------|
-| Token theft | Short expiry, secure storage, no localStorage |
-| Man-in-the-middle | TLS required for remote, cert pinning optional |
-| Session hijacking | Session binding to device/browser |
-| XSS | CSP headers, input sanitization |
-| CSRF | SameSite cookies, origin validation |
+| Threat | Mitigation | Residual Risk |
+|--------|-----------|---------------|
+| **Token theft (mobile)** | 1h access TTL, refresh rotation | localStorage is vulnerable to XSS on the same origin |
+| **Token theft (extension)** | OS keychain via SecretStorage | Low — requires OS-level compromise |
+| **Man-in-the-middle** | TLS/WSS required in production (Traefik + Let's Encrypt) | None when TLS is properly configured |
+| **CSRF on OAuth** | HMAC-signed state parameter with timing-safe comparison | Low |
+| **WebSocket hijacking** | Origin validation on upgrade, JWT auth required within 30s | Server-side clients (no Origin) are allowed by design |
+| **Brute-force auth** | 10 req/min per IP on `/auth/*` | Distributed attacks could bypass IP-based limiting |
+| **Message flooding** | Token-bucket rate limiter, 100 msg/min per client | Burst of 100 messages is allowed before throttling |
+| **Relay reads messages** | N/A — relay is trusted infrastructure | Relay operator can see all message content (no E2E encryption) |
+| **Compromised JWT secret** | Rotate `JWT_SECRET` and redeploy; all tokens invalidated | Until rotated, attacker can mint arbitrary tokens |
 
 ### Trust Boundaries
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                      Trusted Zone                               │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐  │
-│  │   VS Code    │<-->│ Local Auth   │<-->│   User Device    │  │
-│  │  Extension   │    │   Service    │    │   (same machine) │  │
-│  └──────────────┘    └──────────────┘    └──────────────────┘  │
+│                    User's Machine (Trusted)                     │
+│  ┌──────────────┐    ┌──────────────────────────────────────┐  │
+│  │  VS Code     │    │  OS Keychain (SecretStorage)         │  │
+│  │  Extension   │◄──►│  Stores relay JWTs encrypted         │  │
+│  └──────────────┘    └──────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────┘
                               │
-                        TLS Boundary
+                     WSS (TLS Boundary)
                               │
 ┌────────────────────────────────────────────────────────────────┐
-│                    Semi-Trusted Zone                            │
-│  ┌──────────────┐    ┌──────────────┐                          │
-│  │ Cloud Relay  │<-->│   Mobile     │                          │
-│  │   (TLS)      │    │   PWA        │                          │
-│  └──────────────┘    └──────────────┘                          │
+│                  Cloud Relay (Semi-Trusted)                     │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  Stateless Node.js service behind Traefik                │  │
+│  │  • Verifies JWTs (HS256)                                 │  │
+│  │  • Routes messages between clients                       │  │
+│  │  • Enforces scopes and rate limits                       │  │
+│  │  • Can read all message content (no E2E encryption)      │  │
+│  └──────────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────┘
                               │
-                      GitHub OAuth Boundary
+                     WSS (TLS Boundary)
                               │
 ┌────────────────────────────────────────────────────────────────┐
-│                    External Services                            │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐  │
-│  │   GitHub     │    │   GitHub     │    │     GitHub       │  │
-│  │   OAuth      │    │   Actions    │    │   Codespaces     │  │
-│  └──────────────┘    └──────────────┘    └──────────────────┘  │
+│                  Mobile Device (Semi-Trusted)                   │
+│  ┌──────────────┐    ┌──────────────────────────────────────┐  │
+│  │  Mobile PWA  │    │  localStorage (⚠️ plaintext)         │  │
+│  │  (browser)   │◄──►│  Stores relay JWTs                   │  │
+│  └──────────────┘    └──────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────┘
+                              │
+                       HTTPS (GitHub API)
+                              │
+┌────────────────────────────────────────────────────────────────┐
+│                  GitHub (External, Trusted)                     │
+│  ┌──────────────┐                                              │
+│  │  OAuth +     │  Identity provider; relay never stores       │
+│  │  User API    │  GitHub tokens server-side                   │
+│  └──────────────┘                                              │
 └────────────────────────────────────────────────────────────────┘
 ```
 
-## Security Best Practices
+---
 
-### For Users
+## Known v1 Limitations
 
-1. **Use strong GitHub password** with 2FA enabled
-2. **Don't share connection QR codes** publicly
-3. **Disconnect unused sessions** regularly
-4. **Review OAuth permissions** periodically
+These are intentional trade-offs for v1. Each has been evaluated and accepted with documented mitigations.
 
-### For Deployments
+| Limitation | Impact | Mitigation | Tracking |
+|-----------|--------|------------|----------|
+| **localStorage for mobile tokens** | Tokens accessible to same-origin JS (XSS risk) | Dedicated subdomain, 1h access TTL, CORS restriction | v2: migrate to HttpOnly cookies or Web Crypto |
+| **No server-side token revocation** | `/auth/revoke` is client-side only; compromised tokens valid until expiry | 1h access TTL limits blast radius; rotate `JWT_SECRET` for emergency revocation | v2: JTI blocklist with short Redis TTL |
+| **No RBAC** | Scopes assigned by client type, not user role | Sufficient for current two-client-type model | v2: role-based scope assignment |
+| **No E2E encryption** | Relay can read all message content | Relay is trusted infrastructure; TLS protects in transit | v2: E2E encryption between client pairs |
+| **No device binding** | Tokens not bound to a specific device/browser | Short TTL, rate limiting | v2: device attestation |
+| **Refresh token reuse window** | Stateless rotation means old refresh token is valid until expiry | 30d TTL; in practice, rotation replaces tokens quickly | v2: JTI blocklist |
+| **`/auth/exchange` accepts any GitHub token** | Any valid GitHub PAT/token grants relay access | Short access TTL (1h), rate limiting (10 req/min) | v2: device attestation, provenance checks |
 
-1. **Use random ports** (`skillInstaller.ws.port: 0`)
-2. **Enable TLS** for any remote access
-3. **Rotate JWT secrets** periodically
-4. **Monitor for unusual activity**
-5. **Keep dependencies updated**
+---
 
-### For Development
+## v2 Planned Improvements
 
-1. **Never commit secrets** to repository
-2. **Use environment variables** for sensitive config
-3. **Sanitize all user input**
-4. **Log securely** (no tokens/passwords)
+> **Status**: Not implemented. Listed here for roadmap visibility.
+
+- **HttpOnly cookie or Web Crypto token storage** for mobile, replacing `localStorage`
+- **JTI blocklist** (Redis with short TTL) for true token revocation
+- **E2E payload encryption** between client pairs (relay cannot read content)
+- **Device attestation / binding** — tokens tied to a device fingerprint
+- **Role-based access control (RBAC)** — user-assigned roles instead of client-type scopes
+- **Push notifications** for mobile (ServiceWorker + Web Push API)
+- **Token provenance verification** on `/auth/exchange` (if GitHub's API supports it)
+- **CSP headers** on the mobile PWA serving layer
+
+---
 
 ## Incident Response
 
-### If tokens are compromised:
+### If tokens are compromised
 
-1. Revoke GitHub OAuth tokens immediately
-2. Rotate `skillInstaller.ws.secret`
-3. Clear all active sessions
-4. Review session logs for unauthorized access
+1. **Rotate `JWT_SECRET`** on the relay and redeploy — this immediately invalidates all access and refresh tokens
+2. Revoke the GitHub OAuth app credentials if the OAuth flow itself is compromised
+3. Notify affected users to re-authenticate
+4. Review relay logs for unauthorized access patterns
 
-### If relay is compromised:
+### If the relay server is compromised
 
-1. Take relay offline
-2. Invalidate all refresh tokens
-3. Notify affected users
-4. Audit access logs
-5. Deploy fresh instance with new secrets
+1. Take the relay offline immediately
+2. Rotate `JWT_SECRET`, `GITHUB_CLIENT_SECRET`, and all env vars
+3. Deploy a fresh instance with new credentials
+4. Notify users — all existing tokens are invalid after secret rotation
+5. Audit access logs for the compromise window
 
-## Compliance Notes
+### If a client device is compromised
 
-- **GDPR**: User data stored locally by default; relay stores minimal session data
-- **SOC 2**: Encryption at rest and in transit; access logging
-- **HIPAA**: Not designed for PHI; consult compliance team before use in healthcare
+1. User should revoke their GitHub OAuth grant (GitHub Settings → Applications)
+2. Rotate `JWT_SECRET` if the scope of compromise is unclear
+3. Mobile: clear `localStorage` on the compromised device
+4. Extension: VS Code SecretStorage is cleared on sign-out
 
-## Security Contacts
+---
 
-Report security issues to: security@[your-domain]
+## Best Practices
 
-Please do not disclose security vulnerabilities publicly until they have been addressed.
+### For Users
+
+1. Enable **GitHub 2FA** — the relay's security is only as strong as the GitHub account
+2. Use the **VS Code extension** as the primary client (SecretStorage > localStorage)
+3. Do not use the mobile PWA on shared/public devices
+4. Review GitHub OAuth grants periodically (Settings → Applications → Authorized OAuth Apps)
+
+### For Operators
+
+1. **Set a strong `JWT_SECRET`** — at least 32 bytes of cryptographic randomness
+2. **Configure `CORS_ORIGINS`** to only allow your mobile PWA domain
+3. **Serve the relay behind TLS** (Traefik, nginx, or cloud load balancer)
+4. **Rotate `JWT_SECRET` periodically** — all clients will need to re-authenticate
+5. **Monitor rate-limit rejections** for signs of abuse
+6. **Keep `REQUIRE_AUTH=true`** in production (default)
+
+### For Developers
+
+1. Never commit `JWT_SECRET` or `GITHUB_CLIENT_SECRET` to source control
+2. Use environment variables for all sensitive configuration
+3. Never log token values — log `jti` (token ID) instead for traceability
+4. Validate all user input; don't trust `client_type` from untrusted callers (relay assigns scopes server-side based on client type)

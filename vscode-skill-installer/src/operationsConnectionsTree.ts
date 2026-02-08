@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { WsServer } from './wsServer';
 import { ClientInfoDto } from './clientRegistry';
+import { RelayClient, ConnectionStatus } from './relayClient';
 
 type NodeKind = 'section' | 'status' | 'client' | 'detail';
 
@@ -60,7 +61,14 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 	private _onDidChangeTreeData = new vscode.EventEmitter<Node | undefined | null | void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-	constructor(private readonly wsServer: WsServer) {}
+	constructor(
+		private readonly wsServer: WsServer,
+		private readonly relayClient?: RelayClient,
+	) {
+		if (this.relayClient) {
+			this.relayClient.onStatusChanged(() => this.invalidateCache());
+		}
+	}
 
 	refresh(): void {
 		this._onDidChangeTreeData.fire();
@@ -164,7 +172,119 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 			children: clientNodes
 		};
 
-		return [serverSection, clientsSection];
+		return [serverSection, clientsSection, ...this.buildRelaySection()];
+	}
+
+	private buildRelaySection(): Node[] {
+		const relayEnabled = vscode.workspace
+			.getConfiguration('skillInstaller.relay')
+			.get<boolean>('enabled', false);
+
+		if (!relayEnabled && !this.relayClient) {
+			return [];
+		}
+
+		if (!this.relayClient) {
+			return [{
+				kind: 'section',
+				key: 'relay',
+				label: 'Cloud Relay',
+				description: 'not initialized',
+				iconPath: new vscode.ThemeIcon('cloud', new vscode.ThemeColor('disabledForeground')),
+				children: [{
+					kind: 'status',
+					key: 'relay-status',
+					label: 'Status: not initialized',
+					iconPath: new vscode.ThemeIcon('circle-slash')
+				}]
+			}];
+		}
+
+		const status = this.relayClient.getStatus();
+		const clientId = this.relayClient.getClientId();
+		const userId = this.relayClient.getUserId();
+		const reconnectInfo = this.relayClient.getReconnectInfo();
+
+		const children: Node[] = [
+			{
+				kind: 'status',
+				key: 'relay-status',
+				label: `Status: ${status}`,
+				iconPath: new vscode.ThemeIcon(
+					this.getRelayStatusIcon(status),
+					this.getRelayStatusColor(status)
+				)
+			}
+		];
+
+		if (clientId) {
+			children.push({
+				kind: 'status',
+				key: 'relay-client-id',
+				label: `Client ID: ${clientId.slice(0, 8)}`,
+				iconPath: new vscode.ThemeIcon('id-badge')
+			});
+		}
+
+		if (userId) {
+			children.push({
+				kind: 'status',
+				key: 'relay-user-id',
+				label: `User: ${userId}`,
+				iconPath: new vscode.ThemeIcon('account')
+			});
+		}
+
+		if (status === 'reconnecting' && reconnectInfo) {
+			children.push({
+				kind: 'status',
+				key: 'relay-reconnect',
+				label: `Reconnect: ${reconnectInfo.attempts}/${reconnectInfo.maxAttempts}`,
+				iconPath: new vscode.ThemeIcon('sync')
+			});
+		}
+
+		const relayUrl = vscode.workspace
+			.getConfiguration('skillInstaller.relay')
+			.get<string>('url', 'wss://relay.sfrsh.xyz/v1/ws');
+
+		children.push({
+			kind: 'status',
+			key: 'relay-url',
+			label: `URL: ${relayUrl}`,
+			iconPath: new vscode.ThemeIcon('globe')
+		});
+
+		return [{
+			kind: 'section',
+			key: 'relay',
+			label: 'Cloud Relay',
+			description: status,
+			iconPath: new vscode.ThemeIcon(
+				'cloud',
+				this.getRelayStatusColor(status)
+			),
+			children
+		}];
+	}
+
+	private getRelayStatusIcon(status: ConnectionStatus): string {
+		switch (status) {
+			case 'connected': return 'pass-filled';
+			case 'disconnected': return 'circle-slash';
+			case 'connecting': return 'loading~spin';
+			case 'authenticating': return 'shield';
+			case 'reconnecting': return 'sync~spin';
+		}
+	}
+
+	private getRelayStatusColor(status: ConnectionStatus): vscode.ThemeColor | undefined {
+		switch (status) {
+			case 'connected': return new vscode.ThemeColor('testing.iconPassed');
+			case 'disconnected': return new vscode.ThemeColor('testing.iconFailed');
+			case 'reconnecting': return new vscode.ThemeColor('charts.orange');
+			default: return undefined;
+		}
 	}
 
 	private toClientNode(client: ClientInfoDto): ClientNode {

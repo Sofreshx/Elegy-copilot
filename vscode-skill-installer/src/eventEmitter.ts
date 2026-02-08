@@ -191,6 +191,10 @@ export class ExtensionEventEmitter implements vscode.Disposable {
 	private readonly output: vscode.OutputChannel;
 	private broadcastCallback?: EventBroadcastCallback;
 
+	/** VS Code event for external listeners (relay bridge, etc.) */
+	private readonly _onEvent = new vscode.EventEmitter<ExtensionEvent>();
+	public readonly onEvent: vscode.Event<ExtensionEvent> = this._onEvent.event;
+
 	// Rate limit configuration
 	private readonly rateLimitConfig: RateLimitConfig = {
 		maxTokens: 100,        // 100 events/second
@@ -354,6 +358,9 @@ export class ExtensionEventEmitter implements vscode.Disposable {
 
 		// Add to history buffer
 		this.eventHistory.push(event);
+
+		// Fire VS Code event for external listeners (relay bridge, etc.)
+		this._onEvent.fire(event);
 
 		// Broadcast to subscribed clients
 		if (this.broadcastCallback) {
@@ -588,6 +595,7 @@ export class ExtensionEventEmitter implements vscode.Disposable {
 			this.output.appendLine(`[EventEmitter] Cancelled pending permission on dispose: ${callbackId}`);
 		}
 
+		this._onEvent.dispose();
 		this.subscriptions.clear();
 		this.rateLimitBuckets.clear();
 		this.pendingPermissions.clear();

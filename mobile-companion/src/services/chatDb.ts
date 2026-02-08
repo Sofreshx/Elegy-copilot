@@ -17,54 +17,13 @@ export interface Conversation {
   updatedAt: number;
 }
 
-const DB_NAME = 'mobile-companion';
-const DB_VERSION = 3; // Bump for chat store
+import { getDb } from './db';
+
 const CHAT_STORE = 'conversations';
-
-let dbInstance: IDBDatabase | null = null;
-
-function openDb(): Promise<IDBDatabase> {
-  if (dbInstance) {
-    return Promise.resolve(dbInstance);
-  }
-
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      
-      // Create stores if they don't exist
-      if (!db.objectStoreNames.contains('ideas')) {
-        const ideasStore = db.createObjectStore('ideas', { keyPath: 'id' });
-        ideasStore.createIndex('status', 'status', { unique: false });
-        ideasStore.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
-      
-      if (!db.objectStoreNames.contains('settings')) {
-        db.createObjectStore('settings', { keyPath: 'key' });
-      }
-      
-      if (!db.objectStoreNames.contains(CHAT_STORE)) {
-        const chatStore = db.createObjectStore(CHAT_STORE, { keyPath: 'id' });
-        chatStore.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
-    };
-
-    request.onsuccess = () => {
-      dbInstance = request.result;
-      resolve(request.result);
-    };
-
-    request.onerror = () => {
-      reject(new Error('Failed to open IndexedDB'));
-    };
-  });
-}
 
 export const chatDb = {
   async getAllConversations(): Promise<Conversation[]> {
-    const db = await openDb();
+    const db = await getDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(CHAT_STORE, 'readonly');
       const store = tx.objectStore(CHAT_STORE);
@@ -79,7 +38,7 @@ export const chatDb = {
   },
 
   async getConversation(id: string): Promise<Conversation | undefined> {
-    const db = await openDb();
+    const db = await getDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(CHAT_STORE, 'readonly');
       const store = tx.objectStore(CHAT_STORE);
@@ -90,7 +49,7 @@ export const chatDb = {
   },
 
   async createConversation(title?: string): Promise<Conversation> {
-    const db = await openDb();
+    const db = await getDb();
     const now = Date.now();
     const conversation: Conversation = {
       id: crypto.randomUUID(),
@@ -110,7 +69,7 @@ export const chatDb = {
   },
 
   async saveConversation(conversation: Conversation): Promise<void> {
-    const db = await openDb();
+    const db = await getDb();
     const updated = { ...conversation, updatedAt: Date.now() };
     
     return new Promise((resolve, reject) => {
@@ -123,7 +82,7 @@ export const chatDb = {
   },
 
   async deleteConversation(id: string): Promise<void> {
-    const db = await openDb();
+    const db = await getDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(CHAT_STORE, 'readwrite');
       const store = tx.objectStore(CHAT_STORE);

@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useSettings, useSetNotification } from '../hooks/useSettings';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
+import { getRelayConnection, type ConnectionStatus } from '../services/relayConnection';
 import AgentSelector from '../components/settings/AgentSelector';
 import SkillsList from '../components/settings/SkillsList';
+import appPackage from '../../package.json';
 import './Settings.css';
 
 type SettingsTab = 'general' | 'agents' | 'skills';
@@ -11,7 +14,15 @@ export default function Settings() {
   const { user, logout } = useAuth();
   const { data: settings } = useSettings();
   const setNotification = useSetNotification();
+  const { isInstallable, installApp } = useInstallPrompt();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [relayStatus, setRelayStatus] = useState<ConnectionStatus>('disconnected');
+
+  useEffect(() => {
+    const relay = getRelayConnection();
+    const unsubscribe = relay.onStatusChange(setRelayStatus);
+    return () => unsubscribe();
+  }, []);
 
   const handleNotificationToggle = (key: 'permissionRequests' | 'sessionUpdates' | 'reminders') => {
     if (settings) {
@@ -73,9 +84,12 @@ export default function Settings() {
               </div>
               <div className="setting-row">
                 <span className="setting-label">Status</span>
-                <span className="status-badge online">
+                <span className={`status-badge ${relayStatus === 'connected' ? 'online' : 'offline'}`}>
                   <span className="status-dot" />
-                  Connected
+                  {relayStatus === 'connected' ? 'Connected' :
+                   relayStatus === 'connecting' ? 'Connecting…' :
+                   relayStatus === 'reconnecting' ? 'Reconnecting…' :
+                   'Disconnected'}
                 </span>
               </div>
             </div>
@@ -104,10 +118,18 @@ export default function Settings() {
             <div className="card">
               <div className="setting-row">
                 <span className="setting-label">Version</span>
-                <span className="setting-value">0.1.0</span>
+                <span className="setting-value">{appPackage.version}</span>
               </div>
             </div>
           </section>
+
+          {isInstallable && (
+            <section className="settings-section">
+              <button className="install-button" onClick={installApp}>
+                Install App
+              </button>
+            </section>
+          )}
 
           <section className="settings-section">
             <button className="logout-button" onClick={logout}>

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { existsDir, existsFile } from './utils/fs';
 
 type ClearTargetKind = 'dir' | 'file';
 
@@ -47,22 +48,6 @@ const defaultTargets: ClearTarget[] = [
 		description: 'Cache (if used)'
 	}
 ];
-
-function existsDir(dirPath: string): boolean {
-	try {
-		return fs.statSync(dirPath).isDirectory();
-	} catch {
-		return false;
-	}
-}
-
-function existsFile(filePath: string): boolean {
-	try {
-		return fs.statSync(filePath).isFile();
-	} catch {
-		return false;
-	}
-}
 
 function safeDisplayPath(p: string): string {
 	return p.replace(/\\/g, '/');

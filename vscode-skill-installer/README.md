@@ -1,6 +1,6 @@
-# Instruction Engine Skill Installer
+# Instruction Engine
 
-> Workspace management for Instruction Engine: skills, agents, tasks, and remote mobile companion control.
+> Workspace management for Instruction Engine: skills, agents, tasks, cloud relay, remote mobile companion, and AI session control.
 
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.85%2B-blue)
@@ -32,12 +32,20 @@ The `@remote-control` chat participant enables programmatic agent invocation:
 - `/list` - List available agents in the workspace
 - `/invoke` - Invoke an agent with a prompt
 
-### Mobile Companion (Coming Soon)
-Real-time WebSocket server for mobile companion PWA:
-- Remote session monitoring
+### Mobile Companion
+Real-time connectivity for mobile companion PWA via local WebSocket server or cloud relay:
+- Remote session monitoring from anywhere
 - Idea drafting on-the-go
 - Push notifications for session events
 - GitHub OAuth authentication
+
+### Cloud Relay
+Outbound WebSocket connection to the cloud relay for remote mobile access:
+- Connects through NAT/firewalls without port forwarding
+- Live relay status in the Operations panel (Cloud Relay section)
+- Automatic reconnection with exponential backoff
+- Relay-minted JWT authentication via GitHub OAuth
+- Use `Relay Status` command to check connection state
 
 ## Installation
 
@@ -79,6 +87,7 @@ Then use **Developer: Install Extension from Location...** and select the folder
 | Initialize Skills | Copy selected skills into `.github/skills` |
 | Clear Repo Context | Reset context for a repo |
 | Login with GitHub | Authenticate for mobile companion |
+| Relay Status | Show cloud relay connection status |
 | Archive Done Tasks | Move completed tasks to `.instructions/tasks.archive` |
 | Purge Archived Tasks | Delete archived task files |
 
@@ -93,6 +102,11 @@ Then use **Developer: Install Extension from Location...** and select the folder
 - `skillInstaller.ws.enabled` - Enable WebSocket server
 - `skillInstaller.ws.port` - Server port (0 = random)
 - `skillInstaller.ws.heartbeatInterval` - Ping interval in ms
+
+### Cloud Relay
+- `skillInstaller.relay.enabled` - Enable outbound cloud relay connection
+- `skillInstaller.relay.url` - Cloud relay WebSocket URL
+- `skillInstaller.relay.httpUrl` - Cloud relay HTTP URL for auth token exchange
 
 ### Session Logging
 - `skillInstaller.session.loggingEnabled` - Enable session logs
@@ -127,4 +141,4 @@ See [LICENSE.txt](LICENSE.txt)
 
 ---
 
-**[Instruction Engine](https://github.com/Sofreshx/instruction-engine)** - Enhance your AI-assisted development workflow
+**[Instruction Engine](https://github.com/Sofreshx/instruction-engine)** — Enhance your AI-assisted development workflow

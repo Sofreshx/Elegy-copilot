@@ -144,3 +144,23 @@ export const ErrorCodes = {
   CLIENT_OFFLINE: -32009,
   QUOTA_EXCEEDED: -32010,
 } as const;
+
+// Default scopes per client type
+export const DEFAULT_MOBILE_SCOPES = [
+  "read:status",
+  "read:sessions",
+  "write:sessions",
+  "read:events",
+  "write:permissions",
+  "read:clients",
+];
+
+export const DEFAULT_EXTENSION_SCOPES = [
+  "read:status",
+  "read:sessions",
+  "write:sessions",
+  "read:events",
+  "write:permissions",
+  "read:clients",
+  "admin:clients",
+];
