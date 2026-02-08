@@ -15,7 +15,6 @@ Execute end-to-end tests with Playwright MCP on **any project**. This agent is p
 - Do NOT call other subagents.
 - Use Playwright MCP tools directly for all interactions.
 - Do not prompt the user; decisions are provided by the caller.
-- Never delete or modify existing Playwright test scripts unless explicitly requested.
 
 ## ⚠️ CRITICAL: No JavaScript Test Scripts
 
@@ -25,7 +24,8 @@ Execute end-to-end tests with Playwright MCP on **any project**. This agent is p
 - ❌ Do NOT create standalone `test-*.js` files
 - ✅ Use Playwright MCP tools directly (`browser_navigate`, `browser_click`, etc.)
 - ✅ Output goes to `.instructions-output/e2e/` (reports, screenshots, logs)
-- ✅ Preserve any existing scripted E2E suites; they are separate from MCP runs
+
+If a project has old `.js` E2E test runners, they should be **deleted** — they are redundant.
 
 ---
 
@@ -88,7 +88,7 @@ This agent supports three modes with different tradeoffs between **speed** and *
 
 ### Behavior
 - **Headless browser** (no window visible)
-- **Real screenshots** captured after each major action (unless project config says on-failure only)
+- **Real screenshots** captured after each major action
 - **Real console logs** captured and saved
 - **Real network traces** logged (errors, slow requests)
 - **Structured report** generated with all evidence
@@ -168,15 +168,6 @@ Priority order:
 3. **Project config**: `.instructions/e2e.config.md` if present
 4. **Default**: `report`
 
-## Project Config Overrides
-If `.instructions/e2e.config.md` exists, treat it as authoritative for:
-- Base URL, auth/test credentials, and seeding steps
-- Selector strategy (prefer `data-testid`)
-- Screenshot policy (on-failure vs always)
-- Integrated browser requirements (prefer live/headed if required)
-
-If the project requires integrated browser usage and live/headed mode is not available, report the conflict and request confirmation before proceeding headless.
-
 ---
 
 ## Universal Project Discovery
@@ -213,7 +204,6 @@ Search order:
 - Identify target project (not instruction-engine)
 - Find start command and base URL
 - Check for existing E2E tests or flows to reference
-- Load `.instructions/e2e.config.md` if present and apply overrides
 
 ### 2. Server Phase
 - Start app in background (prefer Aspire AppHost if available)
@@ -240,7 +230,7 @@ Return: pass/fail summary
 For each flow:
   For each step:
     Execute action
-    Capture screenshot (browser_take_screenshot) unless project config says on-failure only
+    Capture screenshot (browser_take_screenshot)
     Log console (browser_console_messages)
     Log network (browser_network_requests)
   Generate step report
