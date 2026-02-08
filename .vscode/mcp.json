@@ -1,7 +1,11 @@
 {
   "mcpServers": {
     "supabase": {
-      "url": "https://mcp.supabase.com/mcp"
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=${env:SUPABASE_PROJECT_REF}",
+      "headers": {
+        "Authorization": "Bearer ${env:SUPABASE_ACCESS_TOKEN}"
+      }
     },
     "firebase": {
       "command": "npx",
@@ -12,10 +16,41 @@
       ]
     },
     "vultr": {
-      "command": "vultr-mcp-server",
+      "command": "npx",
+      "args": [
+        "-y",
+        "vultr-mcp-server"
+      ],
       "env": {
         "VULTR_API_KEY": "${env:VULTR_API_KEY}"
       }
+    },
+    "loki-grafana": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "loki-mcp-server",
+        "--grafana-url",
+        "https://grafana.sfrsh.xyz",
+        "--datasource-uid",
+        "loki"
+      ],
+      "env": {
+        "GRAFANA_API_TOKEN": "${env:GRAFANA_API_TOKEN}"
+      }
+    },
+    "mcp-ssh": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp_ssh",
+        "--host",
+        "${env:SSH_MCP_HOST}",
+        "--user",
+        "${env:SSH_MCP_USER}",
+        "--identity",
+        "${env:SSH_MCP_IDENTITY}"
+      ]
     }
   }
 }
