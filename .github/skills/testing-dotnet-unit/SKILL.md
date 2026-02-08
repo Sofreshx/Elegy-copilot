@@ -1,6 +1,6 @@
 ---
 name: testing-dotnet-unit
-description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + AutoFixture). Use this when asked to write unit tests for C# backend code, add coverage for handlers/services, or validate business rules. Triggers on:"xUnit", "NSubstitute", "Shouldly", "AutoFixture", "backend unit test", ".NET unit test"."
+description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + AutoFixture). Use this when asked to write unit tests for C# backend code, add coverage for handlers/services, or validate business rules."
 ---
 
 # .NET Unit Testing Skill
@@ -11,7 +11,7 @@ description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + Au
 - Refactoring backend code where behavior must remain stable
 
 ## When NOT to Use
-- User explicitly asks for integration tests → use `aspire-integration-tests` (write only; run only on explicit request)
+- User explicitly asks for integration tests → use `alba-integration-tests` (write only; run only on explicit request)
 - Frontend unit tests → use `testing-frontend-unit`
 - Debugging failing tests due to runtime/environment → use `debug`
 
@@ -38,9 +38,9 @@ description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + Au
    - Prefer behavior-based names: `Given_When_Then` or `Method_Scenario_Expected`
    - Use Shouldly for readable assertions
 5. Run unit tests (default behavior):
-   - Delegate to `test-runner` agent - never run tests directly
+   - Delegate to `unit-test-runner` agent - never run tests directly
    - If the user said "skip tests", do not run them
-   - Provide to test-runner:
+   - Provide to unit-test-runner:
      - testType: unit
      - projectPath: <test project>
      - filter: "FullyQualifiedName~<TestClass>" (when targeting specific tests)

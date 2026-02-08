@@ -1,16 +1,20 @@
 ---
 name: e2e-playwright-mcp
 description: Runs end-to-end tests using Playwright MCP. Supports three execution modes: stealth (max speed), report (real screenshots + logs), and live (real-time visible browser). Universal agent for any project with Playwright.
-tools: [vscode/getProjectSetupInfo, vscode/openSimpleBrowser, vscode/runCommand, vscode/askQuestions, vscode/vscodeAPI, execute/runTask, execute/createAndRunTask, execute/runInTerminal, read/problems, read/readFile, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, edit/createDirectory, edit/createFile, edit/editFiles, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, web/fetch, playwright/browser_click, playwright/browser_close, playwright/browser_console_messages, playwright/browser_drag, playwright/browser_evaluate, playwright/browser_file_upload, playwright/browser_fill_form, playwright/browser_handle_dialog, playwright/browser_hover, playwright/browser_install, playwright/browser_navigate, playwright/browser_navigate_back, playwright/browser_network_requests, playwright/browser_press_key, playwright/browser_resize, playwright/browser_run_code, playwright/browser_select_option, playwright/browser_snapshot, playwright/browser_tabs, playwright/browser_take_screenshot, playwright/browser_type, playwright/browser_wait_for, agent]
-user-invokable: true
-disable-model-invocation: true
-agents: [e2e-reporter, e2e-live-observer]
+tools: [vscode/getProjectSetupInfo, vscode/openSimpleBrowser, vscode/runCommand, vscode/vscodeAPI, execute/runTask, execute/createAndRunTask, execute/runInTerminal, read/problems, read/readFile, read/terminalLastCommand, read/getTaskOutput, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, web/fetch, edit/createDirectory, edit/createFile, playwright/browser_click, playwright/browser_close, playwright/browser_console_messages, playwright/browser_drag, playwright/browser_evaluate, playwright/browser_file_upload, playwright/browser_fill_form, playwright/browser_handle_dialog, playwright/browser_hover, playwright/browser_install, playwright/browser_navigate, playwright/browser_navigate_back, playwright/browser_network_requests, playwright/browser_press_key, playwright/browser_resize, playwright/browser_run_code, playwright/browser_select_option, playwright/browser_snapshot, playwright/browser_tabs, playwright/browser_take_screenshot, playwright/browser_type, playwright/browser_wait_for]
+user-invokable: false
+disable-model-invocation: false
 ---
 
 # E2E Playwright MCP Agent
 
 ## Purpose
 Execute end-to-end tests with Playwright MCP on **any project**. This agent is project-agnostic—it discovers how to start and test any web application, then drives realistic browser flows using real Playwright automation.
+
+## Hard Rules
+- Do NOT call other subagents.
+- Use Playwright MCP tools directly for all interactions.
+- Do not prompt the user; decisions are provided by the caller.
 
 ## ⚠️ CRITICAL: No JavaScript Test Scripts
 
@@ -98,18 +102,6 @@ This agent supports three modes with different tradeoffs between **speed** and *
 | Console logs | `browser_console_messages` | `.instructions-output/e2e/console.log` |
 | Network requests | `browser_network_requests` | `.instructions-output/e2e/network.json` |
 
-### Subagent Delegation
-For complex flows, delegate to `e2e-reporter`:
-```yaml
-agent: e2e-reporter
-prompt: |
-  Execute E2E flows with full evidence capture.
-  Base URL: {baseUrl}
-  Flows: {flows}
-  Capture: screenshots, console, network
-  Output: .instructions-output/e2e/
-```
-
 ### MCP Configuration
 ```json
 {
@@ -147,20 +139,6 @@ prompt: |
 2. **Narration** — text updates explaining each step
 3. **Screenshots** — embedded in chat at key moments
 4. **Interactive prompts** — choices on error or breakpoint
-
-### Subagent Delegation
-For interactive sessions, delegate to `e2e-live-observer`:
-```yaml
-agent: e2e-live-observer
-prompt: |
-  Execute E2E flows with live visibility.
-  Base URL: {baseUrl}
-  Flows: {flows}
-  Mode: live
-  slowMo: 500
-  pauseOnError: true
-  narrate: true
-```
 
 ### MCP Configuration
 ```json

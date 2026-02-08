@@ -73,13 +73,17 @@ Executive2 supports two clean “start implementing” paths:
   - `@executive2-planner` (always persists task graph + plan artefact + task progress tracker) → `@executive2` (orchestrate via `task-runner`)
 
 Agent roles:
-- `@executive2-planner`: planning + durable execution setup. Always persists tasks + plan artefact + task progress tracker via `addtodo` + `plan-artefact-writer`, then hands off to `@executive2`.
-- `@executive2`: orchestration-only. Requires an existing task graph and delegates execution to `task-runner`, testing to `test-executive`, and governance review to `code-reviewer`.
+- `@executive2-planner`: planning + durable execution setup. Always persists tasks + plan artefact + task progress tracker via `executive2-task-creator` + `plan-artefact-writer`, then hands off to `@executive2`.
+- `@executive2`: orchestration-only. Requires an existing task graph and delegates execution to `task-runner`, unit testing to `unit-test-runner`, and governance review to `code-reviewer`.
 - `@executive2-fast`: implements directly with good judgment, but never persists `.instructions/` state.
 
 Optional subagents:
 - `@research-ideation`: research and ideation notes under `.instructions/research/` (no code design/implementation).
 - `@reviewer-gpt-5-2-codex` / `@reviewer-opus-4-5`: cross-model accuracy checks for plans and execution summaries.
+
+Testing & audit execs:
+- `@testing-executive`: coverage scan + unit tests, with optional integration/E2E (user-confirmed).
+- `@issue-audit-executive`: code smell, security, and stack consistency scans.
 
 ### Task Groups (Parallel Execution)
 When `executive2-planner` persists tasks, it also creates a plan artefact and a task progress tracker that groups related tasks (group 1, group 2, etc.) and links dependencies. You can ask `@executive2` to run a specific group (for example, "run task group 3") so that group runs in an isolated context and can be parallelized with other groups.

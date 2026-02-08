@@ -4,7 +4,6 @@ description: Manages infrastructure and MCP provider settings for Instruction En
 tools: [read, edit, search]
 user-invokable: false
 disable-model-invocation: false
-visibility: internal
 ---
 
 # Infra Settings Manager Agent

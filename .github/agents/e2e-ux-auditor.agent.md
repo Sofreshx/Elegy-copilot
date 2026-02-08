@@ -4,7 +4,6 @@ description: Runs E2E exploration in a browser via @playwright/mcp, produces a U
 tools: [read, search, edit, execute/runInTerminal, agent/runSubagent]
 user-invokable: true
 disable-model-invocation: true
-model: Raptor mini (Preview) (copilot)
 ---
 
 # E2E UX Auditor (Playwright MCP)

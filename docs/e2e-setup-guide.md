@@ -41,10 +41,10 @@ npm run playwright:install
 Playwright MCP currently expects localhost-based URLs in many workflows. See
 https://docs.github.com/en/copilot/concepts/agents/coding-agent/mcp-and-coding-agent.
 
-## Playwright MCP (test-runner workflow)
+## Playwright MCP (e2e-playwright-mcp agent)
 
-Use the MCP config above, then run the scripts via the test-runner workflow
-(per project memory). Example commands to ask the test runner to execute:
+Use the MCP config above, then run E2E flows via the `e2e-playwright-mcp` agent
+(per project memory). Example script commands (manual/CI fallback):
 
 ```bash
 npm run e2e:verify -- http://localhost:5173

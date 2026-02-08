@@ -4,7 +4,6 @@ description: Infrastructure agent for Cloudflare client deployments and safe con
 tools: [read, edit, search, web/fetch]
 user-invokable: false
 disable-model-invocation: false
-visibility: internal
 ---
 
 # Infra Cloudflare Agent
