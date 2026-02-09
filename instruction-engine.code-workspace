@@ -26,7 +26,11 @@
 				"approve": true,
 				"matchCommandLine": true
 			},
-			"npx tsc": true
+			"npx tsc": true,
+			"/^file \"c:\\\\Users\\\\lolzi\\\\Documents\\\\GitHub\\\\instruction-engine\\\\mobile-companion\\\\public\\\\icons\\\\icon-192\\.png\" 2>nul \\|\\| powershell -Command \"Get-Content 'c:\\\\Users\\\\lolzi\\\\Documents\\\\GitHub\\\\instruction-engine\\\\mobile-companion\\\\public\\\\icons\\\\icon-192\\.png' -Encoding Byte -TotalCount 16 \\| ForEach-Object \\{ '\\{0:X2\\}' -f \\$_ \\} \\| Join-String -Separator ' '\"$/": {
+				"approve": true,
+				"matchCommandLine": true
+			}
 		}
 	}
 }

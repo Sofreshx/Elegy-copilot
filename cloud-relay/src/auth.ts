@@ -49,10 +49,10 @@ function resolveRedirectUri(input?: string): string | null {
 
 /**
  * Parse CORS_ORIGINS env var into an allowlist.
- * Default: "https://companion.sfrsh.xyz"
+ * Default: "https://instruction-engine.pages.dev"
  */
 function parseCorsOrigins(): string[] {
-  const raw = process.env.CORS_ORIGINS || "https://companion.sfrsh.xyz";
+  const raw = process.env.CORS_ORIGINS || "https://instruction-engine.pages.dev";
   return raw.split(",").map((o) => o.trim()).filter(Boolean);
 }
 

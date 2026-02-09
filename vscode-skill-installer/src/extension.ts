@@ -20,6 +20,7 @@ import { McpProvidersTreeProvider } from './mcpProvidersTree';
 import { McpProviderInfo, syncMcpConfigForRepo, syncMcpConfigForWorkspace } from './mcpConfig';
 import { RelayAuthBridge } from './relayAuthBridge';
 import { RelayClient } from './relayClient';
+import { E3Database } from './e3Database';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -197,6 +198,232 @@ export function activate(context: vscode.ExtensionContext): void {
 			output.appendLine(`[Relay] Status changed: ${status}`);
 		});
 	}
+
+	// ── Executive3 Database ──────────────────────────────────────────────
+	const e3db = new E3Database(output);
+	context.subscriptions.push(e3db);
+
+	// Auto-open database on activation using workspace storage
+	if (context.storageUri) {
+		try {
+			e3db.open(context.storageUri.fsPath);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Unknown error';
+			output.appendLine(`[E3 DB] Auto-init failed: ${msg}`);
+		}
+	}
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.ensureDb', () => {
+			if (e3db.isOpen()) {
+				return JSON.stringify({ status: 'ready', path: e3db.getDbPath() });
+			}
+			const storageDir = context.storageUri?.fsPath;
+			if (!storageDir) {
+				return JSON.stringify({ status: 'error', message: 'No workspace storage available' });
+			}
+			try {
+				const dbPath = e3db.open(storageDir);
+				return JSON.stringify({ status: 'ready', path: dbPath });
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ status: 'error', message: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.getTasks', (filterJson?: string) => {
+			try {
+				const filter = filterJson ? JSON.parse(filterJson) : undefined;
+				return JSON.stringify(e3db.getTasks(filter));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.createTask', (taskJson: string) => {
+			try {
+				const task = JSON.parse(taskJson);
+				const created = e3db.createTask(task);
+				return JSON.stringify(created);
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.updateTask', (id: string, status: string, errorSummary?: string) => {
+			try {
+				e3db.updateTaskStatus(id, status as 'not-started' | 'in-progress' | 'done' | 'blocked' | 'failed', errorSummary);
+				return JSON.stringify({ success: true });
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.logExecution', (entryJson: string) => {
+			try {
+				const entry = JSON.parse(entryJson);
+				e3db.logExecution(entry);
+				return JSON.stringify({ success: true });
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.getSession', (sessionId?: string) => {
+			try {
+				const session = sessionId ? e3db.getSession(sessionId) : e3db.getActiveSession();
+				return JSON.stringify(session ?? null);
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.createSession', (sessionJson: string) => {
+			try {
+				const session = JSON.parse(sessionJson);
+				const created = e3db.createSession(session);
+				return JSON.stringify(created);
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.storeContext', (noteJson: string) => {
+			try {
+				const note = JSON.parse(noteJson);
+				e3db.storeContext(note);
+				return JSON.stringify({ success: true });
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.getContext', (scope: string, scopeId?: string) => {
+			try {
+				return JSON.stringify(e3db.getContext(scope, scopeId));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.getNextTask', (sessionId?: string) => {
+			try {
+				return JSON.stringify(e3db.getNextTask(sessionId));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.createPlan', (planJson: string) => {
+			try {
+				const plan = JSON.parse(planJson);
+				const created = e3db.createPlan(plan);
+				return JSON.stringify(created);
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.getTaskSummary', (sessionId?: string, planId?: string) => {
+			try {
+				return JSON.stringify(e3db.getTaskSummary(sessionId, planId));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.getExecutionLog', (filterJson?: string) => {
+			try {
+				const filter = filterJson ? JSON.parse(filterJson) : undefined;
+				return JSON.stringify(e3db.getExecutionLog(filter));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.incrementTaskAttempt', (taskId: string) => {
+			try {
+				const count = e3db.incrementTaskAttempt(taskId);
+				return JSON.stringify({ attempt_count: count });
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.incrementReplanCount', (sessionId: string) => {
+			try {
+				const count = e3db.incrementReplanCount(sessionId);
+				return JSON.stringify({ replan_count: count });
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.exportAll', () => {
+			try {
+				return JSON.stringify(e3db.exportAll());
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.reset', () => {
+			try {
+				e3db.reset();
+				return JSON.stringify({ success: true });
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
 
 	// Register command to show connected clients
 	context.subscriptions.push(

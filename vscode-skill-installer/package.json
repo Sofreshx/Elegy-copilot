@@ -63,7 +63,24 @@
     "onCommand:skillInstaller.purgeArchivedTasks",
     "onCommand:skillInstaller.clearRepoContext",
     "onCommand:skillInstaller.clearAllRepoContexts",
-    "onCommand:skillInstaller.relayStatus"
+    "onCommand:skillInstaller.relayStatus",
+    "onCommand:executive3.ensureDb",
+    "onCommand:executive3.getTasks",
+    "onCommand:executive3.createTask",
+    "onCommand:executive3.updateTask",
+    "onCommand:executive3.logExecution",
+    "onCommand:executive3.getSession",
+    "onCommand:executive3.createSession",
+    "onCommand:executive3.storeContext",
+    "onCommand:executive3.getContext",
+    "onCommand:executive3.getNextTask",
+    "onCommand:executive3.createPlan",
+    "onCommand:executive3.getTaskSummary",
+    "onCommand:executive3.getExecutionLog",
+    "onCommand:executive3.incrementTaskAttempt",
+    "onCommand:executive3.incrementReplanCount",
+    "onCommand:executive3.exportAll",
+    "onCommand:executive3.reset"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -239,6 +256,91 @@
         "title": "Relay Status",
         "category": "Instruction Engine",
         "icon": "$(cloud)"
+      },
+      {
+        "command": "executive3.ensureDb",
+        "title": "E3: Ensure Database",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.getTasks",
+        "title": "E3: Get Tasks",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.createTask",
+        "title": "E3: Create Task",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.updateTask",
+        "title": "E3: Update Task",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.logExecution",
+        "title": "E3: Log Execution",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.getSession",
+        "title": "E3: Get Session",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.createSession",
+        "title": "E3: Create Session",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.storeContext",
+        "title": "E3: Store Context",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.getContext",
+        "title": "E3: Get Context",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.getNextTask",
+        "title": "E3: Get Next Task",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.createPlan",
+        "title": "E3: Create Plan",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.getTaskSummary",
+        "title": "E3: Get Task Summary",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.getExecutionLog",
+        "title": "E3: Get Execution Log",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.incrementTaskAttempt",
+        "title": "E3: Increment Task Attempt",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.incrementReplanCount",
+        "title": "E3: Increment Replan Count",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.exportAll",
+        "title": "E3: Export All Data",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.reset",
+        "title": "E3: Reset Database",
+        "category": "Executive3"
       }
     ],
     "menus": {
@@ -377,7 +479,11 @@
               "label": "Firebase",
               "transport": "stdio",
               "command": "npx",
-              "args": ["-y", "firebase-tools@latest", "mcp"]
+              "args": [
+                "-y",
+                "firebase-tools@latest",
+                "mcp"
+              ]
             },
             "vultr": {
               "label": "Vultr",
@@ -424,7 +530,10 @@
         },
         "skillInstaller.audit.e2eMode": {
           "type": "string",
-          "enum": ["headless", "headed"],
+          "enum": [
+            "headless",
+            "headed"
+          ],
           "default": "headless",
           "description": "Mode to run E2E validation audits."
         },
@@ -509,22 +618,27 @@
     "lint": "eslint \"src/**/*.ts\"",
     "vscode:prepublish": "npm run compile",
     "package": "npx @vscode/vsce package",
-    "test": "npm run compile && node ./dist/test/runTest.js"
+    "test": "npm run compile && node ./dist/test/runTest.js",
+    "e3:init": "node scripts/e3-init.js",
+    "e3:reset": "node scripts/e3-init.js --reset",
+    "e3:export": "node -e \"const D=require('better-sqlite3');const d=new D(process.argv[1]||'.e3-local/executive3.db');console.log(JSON.stringify({plans:d.prepare('SELECT * FROM plans').all(),sessions:d.prepare('SELECT * FROM sessions').all(),tasks:d.prepare('SELECT * FROM tasks').all(),execution_log:d.prepare('SELECT * FROM execution_log ORDER BY timestamp DESC LIMIT 200').all(),context_notes:d.prepare('SELECT * FROM context_notes').all()},null,2));d.close()\""
   },
   "dependencies": {
-    "ws": "^8.16.0",
-    "jsonwebtoken": "^9.0.2"
+    "better-sqlite3": "^12.6.2",
+    "jsonwebtoken": "^9.0.2",
+    "ws": "^8.16.0"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.2.2",
-    "@vscode/test-electron": "^2.3.9",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/jsonwebtoken": "^9.0.5",
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.30",
     "@types/vscode": "^1.85.0",
     "@types/ws": "^8.5.10",
-    "@types/jsonwebtoken": "^9.0.5",
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "@typescript-eslint/parser": "^8.19.1",
+    "@vscode/test-electron": "^2.3.9",
+    "@vscode/vsce": "^3.2.2",
     "eslint": "^9.18.0",
     "mocha": "^10.3.0",
     "typescript": "^5.6.3"

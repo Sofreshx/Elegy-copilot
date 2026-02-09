@@ -91,6 +91,7 @@ jobs:
             GITHUB_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }}
             GITHUB_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }}
             GITHUB_REDIRECT_URI=${{ secrets.RELAY_GITHUB_REDIRECT_URI }}
+            CORS_ORIGINS=${{ vars.RELAY_CORS_ORIGINS || 'https://instruction-engine.pages.dev' }}
             EOF
 
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin

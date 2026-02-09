@@ -47,7 +47,7 @@ Before structural changes, consult in this order:
 - Use `.instructions/tasks/` when work needs a durable log (multi-step, ambiguous, or likely to be revisited).
 - Prefer `@addtodo` to turn a pile of notes into proper task files.
 - When asked to clean up, archive completed tasks to `.instructions/tasks.archive/` and append a short recap to `.instructions/tasks.history.md`.
-- Never write task files into the `instruction-engine` repo; tasks belong in the target repo that is using Instruction Engine.
+- Never write task files into the `instruction-engine` repo unless the task is specifically about Instruction Engine itself; tasks otherwise belong in the target repo that is using Instruction Engine.
 
 ## Delegation (Use Subagents)
 Use subagents to keep work high-signal and consistent. Prefer only the ones that clearly apply:
