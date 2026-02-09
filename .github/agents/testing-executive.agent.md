@@ -1,7 +1,7 @@
 ---
 name: testing-executive
 description: Executive testing orchestrator. Runs coverage scan, unit tests, and (with approval) integration or E2E validation.
-tools: [read, search, edit, agent, agent/runSubagent, vscode/askQuestions, playwright/*]
+tools: [read, search, edit, agent, agent/runSubagent, vscode/askQuestions, playwright/*, read, execute]
 agents: ['test-coverage-scanner', 'unit-test-runner', 'integration-test-runner', 'e2e-validator', 'e2e-ux-auditor', 'e2e-reporter', 'e2e-live-observer', 'e2e-playwright-mcp']
 user-invokable: true
 disable-model-invocation: true
@@ -14,19 +14,8 @@ Drive a focused testing initiative outside Executive2. This agent orchestrates t
 
 ## Hard Rules
 - Do NOT run tests directly.
-- Do NOT call subagents that call other subagents, except `e2e-validator` and `e2e-ux-auditor` (they may delegate to `e2e-playwright-mcp`).
 - Require user approval before integration or E2E runs.
 - Honor repo E2E guidance if `.instructions/e2e.config.md` exists.
-
-## Subagents
-- `test-coverage-scanner`
-- `unit-test-runner`
-- `integration-test-runner`
-- `e2e-validator`
-- `e2e-ux-auditor`
-- `e2e-reporter`
-- `e2e-live-observer`
-- `e2e-playwright-mcp` (direct use only when no higher-level E2E agent fits)
 
 ## E2E Strategy Decision Tree
 1. **Scripted Playwright tests present?**
