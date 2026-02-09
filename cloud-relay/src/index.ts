@@ -82,7 +82,7 @@ async function main() {
   const server = createServer(app);
 
   // Parse allowed origins for WS upgrade validation
-  const allowedWsOrigins = (process.env.CORS_ORIGINS || "https://companion.sfrsh.xyz")
+  const allowedWsOrigins = (process.env.CORS_ORIGINS || "https://instruction-engine.pages.dev")
     .split(",")
     .map((o) => o.trim())
     .filter(Boolean);
