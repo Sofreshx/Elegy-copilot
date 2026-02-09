@@ -25,3 +25,7 @@ tmpclaude-*
 .vscode/mcp.json
 *.vsix
 *.tsbuildinfo
+
+# Instruction Engine task logs (tasks belong to target repos)
+.instructions/tasks/
+.instructions/tasks.archive/
