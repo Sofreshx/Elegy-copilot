@@ -8,20 +8,6 @@ interface FrontMatterResult {
 	content: string;
 }
 
-function listMarkdownFiles(dirPath: string): string[] {
-	if (!existsDir(dirPath)) {
-		return [];
-	}
-
-	const entries = fs.readdirSync(dirPath, { withFileTypes: true });
-	const files = entries
-		.filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.md'))
-		.map((e) => path.join(dirPath, e.name));
-
-	files.sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
-	return files;
-}
-
 function listMarkdownFilesRecursive(dirPath: string): string[] {
 	if (!existsDir(dirPath)) {
 		return [];

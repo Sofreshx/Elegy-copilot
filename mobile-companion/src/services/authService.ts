@@ -239,7 +239,11 @@ export class AuthService {
     const t = token ?? this.accessToken;
     if (!t) { return true; }
     try {
-      const payload = JSON.parse(atob(t.split('.')[1]));
+      const parts = t.split('.');
+      if (parts.length !== 3 || !parts[1]) {
+        return true;
+      }
+      const payload = JSON.parse(atob(parts[1]));
       return Date.now() / 1000 >= payload.exp - 60;
     } catch { return true; }
   }
