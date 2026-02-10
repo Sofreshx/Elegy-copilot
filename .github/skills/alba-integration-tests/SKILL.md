@@ -12,7 +12,7 @@ description: "Alba-based integration testing for .NET web apps. Use this when as
 
 ## When NOT to Use
 - Pure business logic tests -> use `testing-dotnet-unit`
-- Frontend E2E/UI flows -> use `e2e-playwright-mcp`
+- Frontend E2E/UI flows -> use `e2e-browser`
 - The user explicitly requests real network or external environment tests
 
 ## Purpose

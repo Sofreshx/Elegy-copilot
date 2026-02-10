@@ -1,6 +1,6 @@
 # Windows E2E Testing Setup Guide
 
-Complete guide for setting up E2E browser testing via MCP on Windows.
+Complete guide for setting up E2E browser testing on Windows.
 
 ## Local App Host (Mobile Companion)
 
@@ -14,47 +14,45 @@ Override it with one of the following:
 - For scripts, pass a URL arg or set `E2E_BASE_URL`
 - For extension-driven runs, set `skillInstaller.e2e.url`
 
-## MCP Server Options
+## E2E Tools
 
-### Option A: @playwright/mcp (Recommended for E2E Testing)
+### Agent-Browser CLI (Exploratory / Agent-Driven)
 
-**Best for**: Automated E2E tests, CI/CD pipelines, cross-browser testing
-
-```json
-{
-  "mcpServers": {
-    "playwright": {
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp", "--browser=chromium", "--headless"]
-    }
-  }
-}
-```
-
-**Setup**:
-```bash
-cd mobile-companion
-npm install -D @playwright/mcp @playwright/test
-npm run playwright:install
-```
-
-Playwright MCP currently expects localhost-based URLs in many workflows. See
-https://docs.github.com/en/copilot/concepts/agents/coding-agent/mcp-and-coding-agent.
-
-## Playwright MCP (e2e-playwright-mcp agent)
-
-Use the MCP config above, then run E2E flows via the `e2e-playwright-mcp` agent
-(per project memory). Example script commands (manual/CI fallback):
+**Best for**: Exploratory testing driven by AI agents, snapshot-ref interaction
 
 ```bash
-npm run e2e:verify -- http://localhost:5173
-E2E_BASE_URL=http://localhost:5173 npm run e2e:health
+# Install Chromium (first time)
+npx agent-browser install
+
+# Open headed browser
+npx agent-browser open http://localhost:5173 --headed --ignore-https-errors
+
+# Snapshot accessibility tree (get @refs for interaction)
+npx agent-browser snapshot -i --json
+
+# Take screenshot
+npx agent-browser screenshot ./screenshots/test.png
 ```
 
-If you have Playwright tests in the repo, you can also run:
+Use the `e2e-browser` agent for automated exploratory flows.
+Use the `e2e-live-observer` agent for live, user-visible browser sessions.
+
+### Playwright CLI (Scripted Regression)
+
+**Best for**: CI/CD pipelines, deterministic test suites, reproducible tests
 
 ```bash
+# Install browsers
+npx playwright install chromium
+
+# Run all tests
 npx playwright test
+
+# Run with visible browser
+npx playwright test --headed
+
+# Interactive UI mode
+npx playwright test --ui
 ```
 
 ## CI Workflow (GitHub Actions)

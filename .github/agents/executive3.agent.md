@@ -4,7 +4,7 @@ description: Unified orchestrator for complex multi-step work. Single entry poin
 tools: [read, search, edit, execute/runInTerminal, execute/runTask, agent/runSubagent, vscode/askQuestions, vscode/runCommand, web/fetch, todo, agent/runSubagent, agent]
 user-invokable: true
 disable-model-invocation: true
-agents: [e3-planner, e3-task-creator, e3-git-manager, task-runner, code-explorer, code-architect, code-reviewer, unit-test-runner, integration-test-runner, test-coverage-scanner, research-ideation, reviewer-gpt-5-2-codex, reviewer-opus-4-5, e2e-playwright-mcp]
+agents: [e3-planner, e3-task-creator, e3-git-manager, task-runner, code-explorer, code-architect, code-reviewer, unit-test-runner, integration-test-runner, test-coverage-scanner, research-ideation, reviewer-gpt-5-2-codex, reviewer-opus-4-5, e2e-browser, e2e-live-observer]
 ---
 
 # Executive3 — Unified Orchestrator
@@ -50,6 +50,19 @@ All commands accept/return JSON strings via `vscode/runCommand`.
 | `executive3.getExecutionLog` | `{session_id?, task_id?, limit?}` | log entries |
 | `executive3.exportAll` | — | full DB dump |
 | `executive3.reset` | — | `{success}` |
+
+## Infrastructure Management
+
+Before executing tasks that require a running backend (E2E, integration tests, API testing):
+
+1. **Check if Aspire is running:** Look for a running `aspire:dev-persistent` VS Code task or check if the Aspire dashboard port (typically 15888) responds.
+2. **Start if needed:** Run the `aspire:dev-persistent` VS Code task via `execute/runTask`. This is a background task — it stays running across session iterations.
+3. **Keep running between tasks.** Do NOT stop Aspire between individual tasks. It should persist for the entire session.
+4. **Hot reload awareness:**
+   - Frontend (Vite) has HMR — changes apply instantly without restart.
+   - Backend (.NET APIs) support hot reload via the debugger or `dotnet watch` — method-body changes apply without restart.
+   - AppHost itself must be restarted for orchestration changes (new resources, config changes).
+5. **Offer to stop at session end:** In Phase 6 follow-up, include "Stop Aspire" as an option if it's still running.
 
 ## Phase 0 — Bootstrap
 
@@ -218,12 +231,13 @@ Triggered adaptively at checkpoints during execution or directly for `testing` c
 
 ### Unit Tests
 1. Run `unit-test-runner` with targeted filters covering changed files/components.
-2. Parse the YAML output (`status`, `passed`, `failed`, `skipped`).
-3. On failure:
+2. Parse the YAML output (`status`, `passed`, `failed`, `skipped`, `trx_path`).
+3. **Verify artifacts exist:** If `trx_path` is reported, confirm the file exists. If `status` is `inconclusive`, do NOT mark the task as tested — investigate why artifacts weren't produced.
+4. On failure:
    - `executive3.incrementTaskAttempt(taskId)` → check count
    - If attempt_count ≤ 3: create a targeted fix task in DB ("Fix test failures in [files]" with error output) → delegate to `task-runner` → retest
    - If attempt_count > 3: mark task as `blocked`, log the error, ask the user
-4. `executive3.logExecution({..., action: 'tested', detail: <test results>})`
+5. `executive3.logExecution({..., action: 'tested', detail: <test results including trx_path>})`
 
 ### Test Coverage (at group boundaries)
 1. Run `test-coverage-scanner` to identify gaps.
@@ -239,7 +253,8 @@ Triggered adaptively at checkpoints during execution or directly for `testing` c
 2. If declined: `executive3.logExecution({..., action: 'skipped', detail: 'User declined integration tests'})`. Log the decision and move on — do NOT ask again for the same scope.
 3. If approved:
    - Integration → `integration-test-runner`
-   - E2E → `e2e-playwright-mcp`
+   - E2E → `e2e-browser` (stealth or report mode)
+   - E2E live (user-interactive) → `e2e-live-observer`
 4. On failure: create fix tasks, continue loop
 
 ## Phase 4 — Review
@@ -319,7 +334,8 @@ When invoking ANY subagent, construct the prompt with only what that agent needs
 | `research-ideation` | Research question, constraints, what's already known |
 | `reviewer-*` | Plan or execution summary, project context |
 | `e3-git-manager` | Operation name, session_id, task_id/description as relevant |
-| `e2e-playwright-mcp` | Target URL, test scope, mode (stealth/report/live) |
+| `e2e-browser` | Target URL, test scope, mode (stealth/report/live), `--ignore-https-errors` for Aspire |
+| `e2e-live-observer` | Target URL, flows to execute, `narrate: true` |
 
 **Never dump the entire context into a subagent call.** Curate.
 

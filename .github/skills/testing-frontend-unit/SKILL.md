@@ -12,7 +12,7 @@ description: "Frontend unit/component testing (React/Vue/Angular). Use this when
 
 ## When NOT to Use
 - Backend unit tests → `testing-dotnet-unit`
-- Integration/E2E testing → `alba-integration-tests` or `e2e-playwright-mcp`
+- Integration/E2E testing → `alba-integration-tests` or `e2e-browser`
 - User is debugging a failing UI test run due to environment → `debug`
 
 ## Principles

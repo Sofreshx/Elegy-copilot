@@ -203,14 +203,18 @@ export function activate(context: vscode.ExtensionContext): void {
 	const e3db = new E3Database(output);
 	context.subscriptions.push(e3db);
 
-	// Auto-open database on activation using workspace storage
-	if (context.storageUri) {
-		try {
-			e3db.open(context.storageUri.fsPath);
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : 'Unknown error';
-			output.appendLine(`[E3 DB] Auto-init failed: ${msg}`);
-		}
+	// Auto-open database on activation using workspace storage (fallback to global storage)
+	const e3StorageDir = context.storageUri?.fsPath ?? context.globalStorageUri.fsPath;
+	try {
+		e3db.open(e3StorageDir);
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : 'Unknown error';
+		output.appendLine(`[E3 DB] Auto-init failed: ${msg}`);
+		// Show user-visible notification so agents know the DB is broken
+		vscode.window.showWarningMessage(
+			`Executive3 DB failed to initialize: ${msg}. ` +
+			`Run "Executive3: Diagnostics" from the command palette for details.`
+		);
 	}
 
 	context.subscriptions.push(
@@ -218,17 +222,38 @@ export function activate(context: vscode.ExtensionContext): void {
 			if (e3db.isOpen()) {
 				return JSON.stringify({ status: 'ready', path: e3db.getDbPath() });
 			}
-			const storageDir = context.storageUri?.fsPath;
-			if (!storageDir) {
-				return JSON.stringify({ status: 'error', message: 'No workspace storage available' });
-			}
+			const storageDir = context.storageUri?.fsPath ?? context.globalStorageUri.fsPath;
 			try {
 				const dbPath = e3db.open(storageDir);
 				return JSON.stringify({ status: 'ready', path: dbPath });
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : 'Unknown error';
+				vscode.window.showErrorMessage(`Executive3 DB error: ${msg}`);
 				return JSON.stringify({ status: 'error', message: msg });
 			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.diagnostics', () => {
+			const diag = {
+				dbOpen: e3db.isOpen(),
+				dbPath: e3db.getDbPath() ?? null,
+				storageUri: context.storageUri?.fsPath ?? null,
+				globalStorageUri: context.globalStorageUri.fsPath,
+				usedStorage: e3db.isOpen() ? e3db.getDbPath() : (context.storageUri?.fsPath ?? context.globalStorageUri.fsPath),
+				betterSqlite3: 'unknown' as string,
+			};
+			try {
+				require.resolve('better-sqlite3');
+				diag.betterSqlite3 = 'resolved';
+			} catch {
+				diag.betterSqlite3 = 'NOT FOUND';
+			}
+			const msg = JSON.stringify(diag, null, 2);
+			output.appendLine(`[E3 DB] Diagnostics:\n${msg}`);
+			output.show(true);
+			return msg;
 		})
 	);
 

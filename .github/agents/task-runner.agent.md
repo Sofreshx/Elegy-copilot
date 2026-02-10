@@ -26,7 +26,7 @@ This agent is designed to be called explicitly by `executive2`.
 - If `explorationContext` is provided, treat it as the current best snapshot of how the codebase behaves.
 - Keep the task file **self-contained**: any extra context discovered must be written back into the task file.
 - Subagents do NOT call other subagents. If more exploration/architecture/testing help is needed, request it from executive2.
-- Do NOT execute tests. If tests are required, record the requested test scope and ask executive2 to run `unit-test-runner` (or `integration-test-runner` / `e2e-playwright-mcp` when appropriate).
+- Do NOT execute tests. If tests are required, record the requested test scope and ask executive2 to run `unit-test-runner` (or `integration-test-runner` / `e2e-browser` when appropriate).
 - If scope/unknowns exceed the plan, request replanning (structured output below).
 - If new work is discovered, propose it via `NEW_TASK_REQUEST` (structured output below).
 
@@ -51,7 +51,7 @@ This agent is designed to be called explicitly by `executive2`.
 
 5) **Validate**
    - Run the validation commands specified in the task (tests/build/lint) when available.
-   - **For test execution**: do NOT run tests. Record the needed test scope in the task log and include it in the response so executive2 can call `unit-test-runner` (or `integration-test-runner` / `e2e-playwright-mcp`).
+   - **For test execution**: do NOT run tests. Record the needed test scope in the task log and include it in the response so executive2 can call `unit-test-runner` (or `integration-test-runner` / `e2e-browser`).
    - For builds/lints: can run directly via `run_in_terminal` with appropriate timeouts.
    - Record results in the task log.
 

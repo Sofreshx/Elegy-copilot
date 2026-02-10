@@ -1,6 +1,6 @@
 ---
 name: e2e-validator
-description: Validates E2E setup health: app startup, health endpoints, critical pages, and auth flow. Produces a pass/fail health report.
+description: Validates E2E setup health: app startup, health endpoints, critical pages, and auth flow. Produces a pass/fail health report. Uses agent-browser CLI for real browser testing.
 tools: [read/readFile, read/terminalLastCommand, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, execute/runInTerminal, agent/runSubagent, edit/createFile, edit/editFiles]
 user-invokable: true
 disable-model-invocation: true
@@ -9,7 +9,7 @@ disable-model-invocation: true
 # E2E Validator
 
 ## Purpose
-Validate that an E2E setup is healthy and functional. This agent answers **"does it work?"** with minimal critical path checks.
+Validate that an E2E setup is healthy and functional. This agent answers **"does it work?"** with minimal critical path checks using **real browser testing** via agent-browser CLI.
 
 **This is NOT `e2e-ux-auditor`.**
 - `e2e-ux-auditor`: Comprehensive UX exploration, feature gaps, friction points, backlog sync.
@@ -26,7 +26,10 @@ Use this agent for:
 - **Headed**: Visible browser for debugging. Set via `skillInstaller.audit.e2eMode: "headed"`.
 
 ## Delegated Agents
-- **`e2e-playwright-mcp`**: All browser automation (navigation, clicks, fills, screenshots).
+- **`e2e-browser`**: All browser automation via agent-browser CLI (navigation, clicks, fills, screenshots).
+
+## CRITICAL: No Fallback to curl-only
+**Browser validation is MANDATORY.** If agent-browser is not available, the validation FAILS — do NOT fall back to curl-only checks and claim "PASS". A validation without browser testing is INCONCLUSIVE, never PASS.
 
 ## Workflow
 
@@ -67,7 +70,7 @@ For each endpoint:
 At least one health endpoint OR the base URL must respond for validation to pass.
 
 ### Phase 3: Critical Page Validation
-Delegate to `e2e-playwright-mcp` for browser checks:
+Delegate to `e2e-browser` for browser checks (uses agent-browser CLI):
 
 1. **Home Page**
    - Navigate to base URL
@@ -105,6 +108,8 @@ Auth validation steps:
 3. `.env.local` with `TEST_*` prefixed vars
 
 If no credentials found, skip Phase 4 and note in report.
+
+**IMPORTANT:** If browser automation was skipped for any reason, the overall status MUST be `INCONCLUSIVE`, not `PASS`. Only mark `PASS` when browser validation actually ran successfully.
 
 ### Phase 5: Report
 Generate `.instructions-output/e2e-validation.md` with:

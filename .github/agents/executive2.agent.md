@@ -4,7 +4,7 @@ description: Executive2 Orchestrator. Executes strictly from an existing plan + 
 tools: [execute/runInTerminal, read, edit, search, agent, todo, agent/runSubagent, vscode/askQuestions]
 user-invokable: true
 disable-model-invocation: true
-agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-2-codex, reviewer-opus-4-5, research-ideation, unit-test-runner, integration-test-runner, e2e-playwright-mcp, plan-artefact-writer, executive2-planner]
+agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-2-codex, reviewer-opus-4-5, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-live-observer, plan-artefact-writer, executive2-planner]
 handoffs:
    - label: Back to planning
       agent: executive2-planner
@@ -29,7 +29,7 @@ Only use the **Back to Planning** handoff when you are truly blocked after subpl
 - **Skills are not “assumed”**: if a task needs a skill, you must explicitly read its `SKILL.md`.
 - **Keep the task system singular**: use the project’s `.instructions/` files; do not invent parallel tracking.
 - **Control retention (do not drop control)**: keep working until the request is fully done. Only ask the user for input when it is strictly necessary to proceed safely (i.e., you are blocked and no safe assumption exists). If you must ask, continue executing any non-blocked work in parallel instead of yielding early.
-- **No subagent chaining**: subagents must not call other subagents. Executive2 is responsible for all test execution decisions and calls `unit-test-runner` directly (and `integration-test-runner` or `e2e-playwright-mcp` only with user approval).
+- **No subagent chaining**: subagents must not call other subagents. Executive2 is responsible for all test execution decisions and calls `unit-test-runner` directly (and `integration-test-runner` or `e2e-browser` only with user approval).
 - **Clarify when blocked**: use `vscode/askQuestions` to resolve ambiguity with the smallest possible question set.
 
 ## Operating Model
@@ -148,7 +148,7 @@ After completing each task group, update `.instructions/artefacts/x-TASK-PROGRES
 
 ### Phase 2c — Long Tests (user-confirmed)
 - After completing the full task graph, decide whether to run longer validation:
-   - **Client-facing features**: E2E with `e2e-playwright-mcp`.
+   - **Client-facing features**: E2E with `e2e-browser`.
    - **Non-client features**: integration tests with `integration-test-runner`.
 - Ask the user using `vscode/askQuestions` before running E2E or integration tests.
 - If the user declines, append a short entry to `.instructions/testing/skipped-validation.md` with date, graph or group, test type, and reason.
@@ -194,7 +194,7 @@ Major work MUST be delegated via `runSubagent`:
 - Task execution: `task-runner`
 - Unit test execution: `unit-test-runner` (executive2 only)
 - Integration test execution: `integration-test-runner` (user-confirmed)
-- E2E execution: `e2e-playwright-mcp` (user-confirmed)
+- E2E execution: `e2e-browser` (user-confirmed)
 - Governance review: `code-reviewer` (Executive2 governance mode)
 - Code review: `code-reviewer`
 

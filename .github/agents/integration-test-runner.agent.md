@@ -57,12 +57,22 @@ Timeout: 600000ms
 ## Output Format
 Return a concise structured result:
 ```yaml
-status: passed | failed | timeout | error
+status: passed | failed | timeout | error | inconclusive
 executed: <count|unknown>
 passed: <count|unknown>
 failed: <count|unknown>
 skipped: <count|unknown>
 duration_ms: <number|unknown>
 command: "<command>"
+trx_path: "<path to TRX file if available>"
 notes: "<short notes or blockers>"
 ```
+
+## Artifact Verification
+- **Always** use `--logger trx` for .NET tests
+- After test execution, verify the TRX file exists in `TestResults/`
+- Parse TRX output for `total`, `passed`, `failed` counts
+- If no TRX file is produced, set status to `inconclusive`, not `passed`  
+- Report the TRX file path in `trx_path` so the caller can verify independently
+- Exit code 0 alone is NOT sufficient proof — parsed artifact data is required
+- If Docker is not available for containers, report `status: error` with a clear message

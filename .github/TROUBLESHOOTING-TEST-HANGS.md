@@ -105,7 +105,7 @@ Test execution is centralized in two agents:
 
 Execution flow:
 - `executive2.agent.md` calls `unit-test-runner` at checkpoints.
-- `executive2.agent.md` asks the user before running `integration-test-runner` or `e2e-playwright-mcp`.
+- `executive2.agent.md` asks the user before running `integration-test-runner` or `e2e-browser`.
 - `task-runner.agent.md` records test requests but does not run tests.
 
 ## Emergency Recovery

@@ -80,7 +80,8 @@
     "onCommand:executive3.incrementTaskAttempt",
     "onCommand:executive3.incrementReplanCount",
     "onCommand:executive3.exportAll",
-    "onCommand:executive3.reset"
+    "onCommand:executive3.reset",
+    "onCommand:executive3.diagnostics"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -340,6 +341,11 @@
       {
         "command": "executive3.reset",
         "title": "E3: Reset Database",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.diagnostics",
+        "title": "Executive3: Diagnostics",
         "category": "Executive3"
       }
     ],
