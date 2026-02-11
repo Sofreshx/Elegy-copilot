@@ -41,20 +41,26 @@ export class RelayAuthBridge implements vscode.Disposable {
    * Returns null if authentication fails — never throws.
    */
   async getRelayTokens(): Promise<RelayTokens | null> {
+    const start = Date.now();
     try {
       // 1. Return cached tokens if still valid
+      this.output.appendLine(`[RelayAuth] Step 1: checking cached tokens (${Date.now() - start}ms)`);
       if (this.cachedTokens && !this.isExpired(this.cachedTokens.expiresAt)) {
+        this.output.appendLine(`[RelayAuth] Authentication completed via cache in ${Date.now() - start}ms`);
         return this.cachedTokens;
       }
 
       // 2. Try loading from SecretStorage
+      this.output.appendLine(`[RelayAuth] Step 2: loading from SecretStorage (${Date.now() - start}ms)`);
       const stored = await this.loadStoredTokens();
       if (stored && !this.isExpired(stored.expiresAt)) {
         this.cachedTokens = stored;
+        this.output.appendLine(`[RelayAuth] Authentication completed via storage in ${Date.now() - start}ms`);
         return stored;
       }
 
       // 3. Try refresh if we have a refresh token
+      this.output.appendLine(`[RelayAuth] Step 3: attempting token refresh (${Date.now() - start}ms)`);
       const refreshToken = stored?.refreshToken
         ?? await this.secretStorage.get(RelayAuthBridge.REFRESH_TOKEN_KEY);
       if (refreshToken) {
@@ -62,13 +68,16 @@ export class RelayAuthBridge implements vscode.Disposable {
         if (refreshed) {
           this.cachedTokens = refreshed;
           await this.storeTokens(refreshed);
+          this.output.appendLine(`[RelayAuth] Authentication completed via refresh in ${Date.now() - start}ms`);
           return refreshed;
         }
       }
 
       // 4. Full exchange: get GitHub token → exchange for relay tokens
+      this.output.appendLine(`[RelayAuth] Step 4: full GitHub token exchange (${Date.now() - start}ms)`);
       const githubToken = await this.getGitHubToken();
       if (!githubToken) {
+        this.output.appendLine(`[RelayAuth] Authentication completed via failed in ${Date.now() - start}ms`);
         return null;
       }
 
@@ -76,14 +85,15 @@ export class RelayAuthBridge implements vscode.Disposable {
       if (exchanged) {
         this.cachedTokens = exchanged;
         await this.storeTokens(exchanged);
+        this.output.appendLine(`[RelayAuth] Authentication completed via exchange in ${Date.now() - start}ms`);
         return exchanged;
       }
 
       // All paths exhausted
-      this.output.appendLine('[RelayAuth] All authentication attempts failed');
+      this.output.appendLine(`[RelayAuth] Authentication completed via failed in ${Date.now() - start}ms`);
       return null;
     } catch (err) {
-      this.output.appendLine(`[RelayAuth] Unexpected error in getRelayTokens: ${err}`);
+      this.output.appendLine(`[RelayAuth] Unexpected error in getRelayTokens (${Date.now() - start}ms): ${err}`);
       return null;
     }
   }
@@ -116,6 +126,20 @@ export class RelayAuthBridge implements vscode.Disposable {
       this.secretStorage.delete(RelayAuthBridge.EXPIRES_AT_KEY),
     ]);
     this.output.appendLine('[RelayAuth] Tokens cleared');
+  }
+
+  /**
+   * Decode JWT claims without cryptographic verification.
+   * Returns the parsed payload object, or null on failure.
+   */
+  decodeJwtClaims(token: string): Record<string, unknown> | null {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) { return null; }
+      return JSON.parse(Buffer.from(parts[1], 'base64url').toString()) as Record<string, unknown>;
+    } catch {
+      return null;
+    }
   }
 
   dispose(): void {

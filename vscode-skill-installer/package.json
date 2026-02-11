@@ -64,6 +64,7 @@
     "onCommand:skillInstaller.clearRepoContext",
     "onCommand:skillInstaller.clearAllRepoContexts",
     "onCommand:skillInstaller.relayStatus",
+    "onCommand:skillInstaller.relay.testAuth",
     "onCommand:executive3.ensureDb",
     "onCommand:executive3.getTasks",
     "onCommand:executive3.createTask",
@@ -257,6 +258,11 @@
         "title": "Relay Status",
         "category": "Instruction Engine",
         "icon": "$(cloud)"
+      },
+      {
+        "command": "skillInstaller.relay.testAuth",
+        "title": "Test Relay Authentication",
+        "category": "Skill Installer"
       },
       {
         "command": "executive3.ensureDb",
@@ -627,7 +633,8 @@
     "test": "npm run compile && node ./dist/test/runTest.js",
     "e3:init": "node scripts/e3-init.js",
     "e3:reset": "node scripts/e3-init.js --reset",
-    "e3:export": "node -e \"const D=require('better-sqlite3');const d=new D(process.argv[1]||'.e3-local/executive3.db');console.log(JSON.stringify({plans:d.prepare('SELECT * FROM plans').all(),sessions:d.prepare('SELECT * FROM sessions').all(),tasks:d.prepare('SELECT * FROM tasks').all(),execution_log:d.prepare('SELECT * FROM execution_log ORDER BY timestamp DESC LIMIT 200').all(),context_notes:d.prepare('SELECT * FROM context_notes').all()},null,2));d.close()\""
+    "e3:cli": "node scripts/e3-cli.js",
+    "e3:export": "node scripts/e3-cli.js export-all"
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",

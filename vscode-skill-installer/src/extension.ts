@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
 import { SkillDiscoveryTreeProvider } from './tree';
 import { AgentDiscoveryTreeProvider } from './agentsTree';
 import { clearRepoContext } from './contextCleaner';
@@ -142,6 +144,46 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
+	// Register relay auth test command
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.relay.testAuth', async () => {
+			if (!relayAuthBridge) {
+				void vscode.window.showInformationMessage(
+					'Cloud Relay is not enabled. Enable it in settings (skillInstaller.relay.enabled).'
+				);
+				return;
+			}
+
+			output.appendLine('[RelayAuth Test] Starting auth test...');
+			const tokens = await relayAuthBridge.getRelayTokens();
+
+			if (!tokens) {
+				output.appendLine('[RelayAuth Test] Authentication failed — no tokens returned');
+				void vscode.window.showWarningMessage('Relay Auth Test: FAILED — could not obtain tokens');
+				return;
+			}
+
+			const claims = relayAuthBridge.decodeJwtClaims(tokens.accessToken);
+			const expirySeconds = tokens.expiresAt - Math.floor(Date.now() / 1000);
+			const expiryMinutes = Math.round(expirySeconds / 60);
+
+			if (claims) {
+				output.appendLine(`[RelayAuth Test] sub: ${claims.sub ?? 'N/A'}`);
+				output.appendLine(`[RelayAuth Test] client_type: ${claims.client_type ?? 'N/A'}`);
+				output.appendLine(`[RelayAuth Test] scopes: ${claims.scopes ?? claims.scope ?? 'N/A'}`);
+				output.appendLine(`[RelayAuth Test] expires in: ${expiryMinutes}m (${expirySeconds}s)`);
+				output.appendLine(`[RelayAuth Test] full claims: ${JSON.stringify(claims, null, 2)}`);
+			} else {
+				output.appendLine('[RelayAuth Test] Could not decode JWT claims');
+			}
+
+			const sub = claims?.sub ? String(claims.sub) : 'unknown';
+			void vscode.window.showInformationMessage(
+				`Relay Auth Test: OK | sub: ${sub} | expires in: ${expiryMinutes}m`
+			);
+		})
+	);
+
 	// Initialize chat participant for remote agent invocation
 	const chatParticipant = new RemoteControlParticipant(output, sessionManager);
 	chatParticipant.register();
@@ -167,9 +209,10 @@ export function activate(context: vscode.ExtensionContext): void {
 	const relayEnabled = relayConfig.get<boolean>('enabled', false);
 
 	let relayClient: RelayClient | undefined;
+	let relayAuthBridge: RelayAuthBridge | undefined;
 
 	if (relayEnabled) {
-		const relayAuthBridge = new RelayAuthBridge(context.secrets, output);
+		relayAuthBridge = new RelayAuthBridge(context.secrets, output);
 		context.subscriptions.push(relayAuthBridge);
 
 		const rc = new RelayClient(relayAuthBridge, output);
@@ -203,10 +246,21 @@ export function activate(context: vscode.ExtensionContext): void {
 	const e3db = new E3Database(output);
 	context.subscriptions.push(e3db);
 
-	// Auto-open database on activation using workspace storage (fallback to global storage)
-	const e3StorageDir = context.storageUri?.fsPath ?? context.globalStorageUri.fsPath;
+	// Resolve workspace-local DB path: prefer first workspace folder's .e3-local/
+	// This makes the DB discoverable by CLI tools and agents via run_in_terminal
+	const e3WorkspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	const e3StorageDir = e3WorkspaceDir
+		? path.join(e3WorkspaceDir, '.e3-local')
+		: (context.storageUri?.fsPath ?? context.globalStorageUri.fsPath);
 	try {
-		e3db.open(e3StorageDir);
+		const resolvedPath = e3db.open(e3StorageDir);
+		// Write db-path.txt so CLI tools can discover the DB location
+		if (e3WorkspaceDir) {
+			const e3LocalDir = path.join(e3WorkspaceDir, '.e3-local');
+			fs.mkdirSync(e3LocalDir, { recursive: true });
+			fs.writeFileSync(path.join(e3LocalDir, 'db-path.txt'), resolvedPath, 'utf-8');
+			output.appendLine(`[E3 DB] Discovery file written: ${path.join(e3LocalDir, 'db-path.txt')}`);
+		}
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : 'Unknown error';
 		output.appendLine(`[E3 DB] Auto-init failed: ${msg}`);
@@ -222,9 +276,8 @@ export function activate(context: vscode.ExtensionContext): void {
 			if (e3db.isOpen()) {
 				return JSON.stringify({ status: 'ready', path: e3db.getDbPath() });
 			}
-			const storageDir = context.storageUri?.fsPath ?? context.globalStorageUri.fsPath;
 			try {
-				const dbPath = e3db.open(storageDir);
+				const dbPath = e3db.open(e3StorageDir);
 				return JSON.stringify({ status: 'ready', path: dbPath });
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : 'Unknown error';
