@@ -5,7 +5,7 @@
  * to manage coding tasks dispatched to VS Code extension clients.
  */
 
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { RelayDatabase } from "./database";
 import { TokenService } from "./tokenService";
@@ -20,15 +20,17 @@ export function createTaskRouter(
   // Auth middleware — reject requests without a valid Bearer JWT
   // ---------------------------------------------------------------------------
 
-  const requireAuth = (req: Request, res: Response, next: Function) => {
+  const requireAuth = (req: Request, res: Response, next: NextFunction): void => {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Bearer token required" });
+      res.status(401).json({ error: "Bearer token required" });
+      return;
     }
     const token = authHeader.slice(7);
     const claims = tokenService.verifyAccessToken(token);
     if (!claims) {
-      return res.status(401).json({ error: "Invalid or expired token" });
+      res.status(401).json({ error: "Invalid or expired token" });
+      return;
     }
     (req as any).claims = claims;
     next();

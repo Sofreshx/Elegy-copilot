@@ -19,7 +19,7 @@ interface TasksResponse {
   limit: number;
 }
 
-const STATUS_OPTIONS = ["all", "pending", "in-progress", "done", "failed"] as const;
+const STATUS_OPTIONS = ["all", "pending", "in-progress", "completed", "failed"] as const;
 const PRIORITY_LABELS = ["Low", "Medium", "High", "Critical"];
 
 export default function TasksPage() {
@@ -167,7 +167,7 @@ export default function TasksPage() {
                   <button onClick={() => handleStatusUpdate(task.id, "in-progress")} className="btn-sm">Start</button>
                 )}
                 {task.status === "in-progress" && (
-                  <button onClick={() => handleStatusUpdate(task.id, "done")} className="btn-sm btn-success">Complete</button>
+                  <button onClick={() => handleStatusUpdate(task.id, "completed")} className="btn-sm btn-success">Complete</button>
                 )}
                 <button onClick={() => handleDelete(task.id)} className="btn-sm btn-danger">Delete</button>
               </div>

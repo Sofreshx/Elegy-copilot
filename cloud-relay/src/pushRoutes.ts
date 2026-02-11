@@ -112,10 +112,17 @@ export function createPushRouter(pushService: PushService, tokenService: TokenSe
   // ---------------------------------------------------------------------------
 
   router.post("/push/send", requireAuth, async (req: Request, res: Response): Promise<void> => {
+    const claims = (req as any).claims;
     const { userId, payload } = req.body;
 
     if (!userId) {
       res.status(400).json({ error: "userId is required" });
+      return;
+    }
+
+    // Authorization: users can only send push to themselves
+    if (userId !== claims.sub) {
+      res.status(403).json({ error: "Cannot send push notifications to other users" });
       return;
     }
     if (!payload) {

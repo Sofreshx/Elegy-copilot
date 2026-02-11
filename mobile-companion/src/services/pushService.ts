@@ -80,10 +80,12 @@ export class PushNotificationService {
       // Register subscription on the relay
       const subJson = this.subscription.toJSON();
       await api.post('/api/push/subscribe', {
-        endpoint: subJson.endpoint,
-        keys: {
-          p256dh: subJson.keys?.p256dh,
-          auth: subJson.keys?.auth,
+        subscription: {
+          endpoint: subJson.endpoint,
+          keys: {
+            p256dh: subJson.keys?.p256dh,
+            auth: subJson.keys?.auth,
+          },
         },
       });
 
@@ -108,6 +110,8 @@ export class PushNotificationService {
 
     if (!this.subscription) return true; // already unsubscribed
 
+    const endpoint = this.subscription.endpoint;
+
     try {
       await this.subscription.unsubscribe();
     } catch {
@@ -118,7 +122,7 @@ export class PushNotificationService {
     // Notify relay (best effort)
     try {
       const api = getApiClient();
-      await api.delete('/api/push/unsubscribe');
+      await api.delete('/api/push/unsubscribe', { endpoint });
     } catch {
       // best effort
     }
