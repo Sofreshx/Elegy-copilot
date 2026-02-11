@@ -18,6 +18,7 @@ import { TokenService } from "./tokenService";
 import { createHealthRouter } from "./health";
 import { createAuthRouter } from "./auth";
 import { RelayDatabase } from "./database";
+import { PersistentOfflineQueue } from "./persistentOfflineQueue";
 
 // Load environment variables
 dotenv.config();
@@ -56,8 +57,11 @@ async function main() {
   });
   await database.initialize();
 
-  // Create connection manager
-  const connectionManager = new ConnectionManager();
+  // Create persistent offline queue backed by SQLite
+  const offlineQueue = new PersistentOfflineQueue(database);
+
+  // Create connection manager with persistent queue
+  const connectionManager = new ConnectionManager(offlineQueue);
 
   // Initialize async resources (load persisted offline queue)
   await connectionManager.initialize();

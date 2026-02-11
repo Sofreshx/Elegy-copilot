@@ -9,7 +9,7 @@ import { ConnectedClient, RelayEnvelope } from "./types";
 import { GroupManager, GroupType } from "./connectionGroups";
 import { AcknowledgmentManager } from "./acknowledgment";
 import { DeadLetterQueue } from "./deadLetterQueue";
-import { OfflineQueue, OfflineQueueStats, UserQueueStats } from "./offlineQueue";
+import { IOfflineQueue, OfflineQueue, OfflineQueueStats, UserQueueStats } from "./offlineQueue";
 
 export interface RoutingMetrics {
   messagesRouted: number;
@@ -38,7 +38,7 @@ export class ConnectionManager {
   private deadLetterQueue: DeadLetterQueue;
 
   // Offline message queue
-  private offlineQueue: OfflineQueue;
+  private offlineQueue: IOfflineQueue;
 
   // Routing metrics
   private metrics: RoutingMetrics = {
@@ -56,9 +56,9 @@ export class ConnectionManager {
 
   private heartbeatTimer?: NodeJS.Timeout;
 
-  constructor() {
+  constructor(offlineQueue?: IOfflineQueue) {
     this.deadLetterQueue = new DeadLetterQueue();
-    this.offlineQueue = new OfflineQueue();
+    this.offlineQueue = offlineQueue ?? new OfflineQueue();
     this.groupManager = new GroupManager();
     this.ackManager = new AcknowledgmentManager(this.deadLetterQueue);
     this.startHeartbeat();

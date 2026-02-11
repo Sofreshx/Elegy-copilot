@@ -37,6 +37,34 @@ export interface UserQueueStats {
   oldest?: Date;
 }
 
+/**
+ * Common interface for offline queue implementations.
+ * Both the in-memory OfflineQueue and PersistentOfflineQueue implement this.
+ */
+export interface IOfflineQueue {
+  enqueue(
+    envelope: RelayEnvelope,
+    messageType?: "command" | "event"
+  ): { success: boolean; reason?: string };
+  dequeueForClient(userId: string, clientId?: string): QueuedMessage[];
+  cleanupExpired(): number;
+  isProcessed(userId: string, messageId: string): boolean;
+  markProcessed(userId: string, messageId: string): void;
+  getQueueStats(userId: string): UserQueueStats;
+  getStats(): OfflineQueueStats;
+  getMetrics(): {
+    enqueued: number;
+    dequeued: number;
+    expired: number;
+    evicted: number;
+    duplicatesPrevented: number;
+  };
+  save(): Promise<void>;
+  load(): Promise<void>;
+  shutdown(): Promise<void>;
+  clear(): void;
+}
+
 const DEFAULT_CONFIG: OfflineQueueConfig = {
   maxMessagesPerUser: parseInt(process.env.OFFLINE_QUEUE_MAX_PER_USER || "100", 10),
   defaultExpiryMs: 24 * 60 * 60 * 1000, // 24 hours
