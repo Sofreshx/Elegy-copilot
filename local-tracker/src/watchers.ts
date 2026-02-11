@@ -1,4 +1,4 @@
-import chokidar from "chokidar";
+import chokidar, { FSWatcher } from "chokidar";
 import path from "path";
 import Database from "better-sqlite3";
 import { TrackerConfig } from "./config";
@@ -8,7 +8,7 @@ export type EventHandler = (event: TrackerEvent) => void;
 
 export class FileWatcher {
   private config: TrackerConfig;
-  private watchers: chokidar.FSWatcher[] = [];
+  private watchers: FSWatcher[] = [];
   private handlers: EventHandler[] = [];
   private debounceTimers: Map<string, NodeJS.Timeout> = new Map();
   private readonly debounceMs: number;
