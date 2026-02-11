@@ -23,6 +23,7 @@ function makeConfig(overrides?: Partial<TrackerConfig>): TrackerConfig {
     workspacePaths: ["/fake/repo"],
     localWsPort: 9821,
     watchIntervalMs: 1000,
+    statusPort: 0,
     ...overrides,
   };
 }

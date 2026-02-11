@@ -1,0 +1,17 @@
+services:
+  tracker:
+    build: .
+    container_name: local-tracker
+    ports:
+      - "9821:9821"
+      - "9822:9822"
+    environment:
+      - TRACKER_WORKSPACE_PATHS=/workspace
+      - TRACKER_RELAY_URL=${TRACKER_RELAY_URL:-}
+      - TRACKER_RELAY_TOKEN=${TRACKER_RELAY_TOKEN:-}
+      - TRACKER_WS_PORT=9821
+      - TRACKER_STATUS_PORT=9822
+      - TRACKER_WATCH_INTERVAL=2000
+    volumes:
+      - ${WORKSPACE_PATH:-.}:/workspace:ro
+    restart: unless-stopped

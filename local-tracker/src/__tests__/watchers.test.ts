@@ -57,6 +57,7 @@ function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
     workspacePaths: ["/test/workspace"],
     localWsPort: 9821,
     watchIntervalMs: 2000,
+    statusPort: 0,
     ...overrides,
   };
 }

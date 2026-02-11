@@ -5,10 +5,12 @@ import BottomNav from './components/BottomNav';
 import PermissionModal from './components/permissions/PermissionModal';
 import Dashboard from './pages/Dashboard';
 import Sessions from './pages/Sessions';
+import SessionsPage from './pages/SessionsPage';
 import Ideas from './pages/Ideas';
 import AiChat from './pages/AiChat';
 import Settings from './pages/Settings';
 import TasksPage from './pages/TasksPage';
+import GitPage from './pages/GitPage';
 import AuthCallback from './pages/AuthCallback';
 import './App.css';
 
@@ -49,9 +51,11 @@ function AuthenticatedApp() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/sessions" element={<Sessions />} />
+          <Route path="/sessions/history" element={<SessionsPage />} />
           <Route path="/ideas" element={<Ideas />} />
           <Route path="/chat" element={<AiChat />} />
           <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/git" element={<GitPage />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
