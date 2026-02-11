@@ -6,11 +6,14 @@
 $ErrorActionPreference = "Stop"
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$envFile = if ($env:MCP_ENV_FILE) { $env:MCP_ENV_FILE } else { Join-Path $root ".env.mcp" }
-$localEnvFile = Join-Path $root ".env.mcp.local"
+$homeDir = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
+$defaultEnvDir = Join-Path $homeDir ".config\instruction-engine"
+$defaultEnvFile = Join-Path $defaultEnvDir "mcp.env"
+$envFile = if ($env:MCP_ENV_FILE) { $env:MCP_ENV_FILE } else { $defaultEnvFile }
+$localEnvFile = "$envFile.local"
 
 if (-not (Test-Path $envFile)) {
-  Write-Error "Missing $envFile. Copy .env.mcp.example to .env.mcp and fill values."
+  Write-Error "Missing $envFile. Store MCP secrets outside the repo (for example, $defaultEnvFile) or set MCP_ENV_FILE."
   exit 1
 }
 

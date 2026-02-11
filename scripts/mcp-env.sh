@@ -2,11 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="${MCP_ENV_FILE:-$ROOT_DIR/.env.mcp}"
-LOCAL_ENV_FILE="$ROOT_DIR/.env.mcp.local"
+DEFAULT_ENV_FILE="${HOME}/.config/instruction-engine/mcp.env"
+ENV_FILE="${MCP_ENV_FILE:-$DEFAULT_ENV_FILE}"
+LOCAL_ENV_FILE="${ENV_FILE}.local"
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing $ENV_FILE. Copy .env.mcp.example to .env.mcp and fill values."
+  echo "Missing $ENV_FILE. Store MCP secrets outside the repo (for example, $DEFAULT_ENV_FILE) or set MCP_ENV_FILE."
   exit 1
 fi
 

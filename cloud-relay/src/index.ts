@@ -19,6 +19,8 @@ import { createHealthRouter } from "./health";
 import { createAuthRouter } from "./auth";
 import { createTaskRouter } from "./taskRoutes";
 import { createSessionRouter } from "./sessionRoutes";
+import { PushService } from "./pushService";
+import { createPushRouter } from "./pushRoutes";
 import { RelayDatabase } from "./database";
 import { PersistentOfflineQueue } from "./persistentOfflineQueue";
 import { getAllowedOrigins } from "./corsConfig";
@@ -98,6 +100,15 @@ async function main() {
 
   // Session history REST API
   app.use("/api", createSessionRouter(database, tokenService));
+
+  // Push notification service + REST API
+  const pushService = new PushService(database);
+  app.use("/api", createPushRouter(pushService, tokenService));
+  if (pushService.isConfigured()) {
+    console.log("Web Push notifications enabled (VAPID configured)");
+  } else {
+    console.log("Web Push notifications disabled (VAPID keys not set)");
+  }
 
   // Create HTTP server
   const server = createServer(app);
