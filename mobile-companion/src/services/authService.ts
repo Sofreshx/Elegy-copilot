@@ -155,17 +155,17 @@ export class AuthService {
   }
 
   /**
-   * Handle OAuth callback and exchange code for token
-   * This should be called from the callback page
+   * Handle OAuth callback and exchange code for token.
+   * Returns an object with `success` and an optional `error` message.
    */
-  async handleCallback(code: string, state: string): Promise<boolean> {
+  async handleCallback(code: string, state: string): Promise<{ success: boolean; error?: string }> {
     // Verify state
     const storedState = sessionStorage.getItem(this.stateKey);
     sessionStorage.removeItem(this.stateKey);
 
     if (!storedState || storedState !== state) {
       console.error('OAuth state mismatch');
-      return false;
+      return { success: false, error: 'OAuth state mismatch — please try logging in again.' };
     }
 
     try {
@@ -182,7 +182,16 @@ export class AuthService {
       });
 
       if (!response.ok) {
-        throw new Error('Token exchange failed');
+        let detail = `Token exchange failed (HTTP ${response.status})`;
+        try {
+          const body = await response.json();
+          if (body.error) {
+            detail = typeof body.error === 'string' ? body.error : body.error.message ?? detail;
+          }
+        } catch {
+          // response body wasn't JSON — use the default detail
+        }
+        return { success: false, error: detail };
       }
 
       const data = await response.json();
@@ -197,10 +206,11 @@ export class AuthService {
       // Persist to storage
       this.saveToStorage();
 
-      return true;
+      return { success: true };
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error during OAuth callback';
       console.error('OAuth callback error:', error);
-      return false;
+      return { success: false, error: message };
     }
   }
 

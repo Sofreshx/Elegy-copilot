@@ -30,6 +30,7 @@ export class RelayConnection {
   private userId: string | null = null;
   private authenticated = false;
   private pendingMessages: RelayMessage[] = [];
+  private tokenRefresher: (() => Promise<string | null>) | null = null;
 
   constructor(relayUrl: string = resolveRelayWsUrl()) {
     this.relayUrl = relayUrl;
@@ -41,6 +42,15 @@ export class RelayConnection {
   connect(authToken: string): void {
     this.authToken = authToken;
     this.doConnect();
+  }
+
+  /**
+   * Set a callback that returns a fresh auth token.
+   * Called automatically before each (re)connection attempt so stale
+   * tokens are replaced transparently.
+   */
+  setTokenRefresher(refresher: () => Promise<string | null>): void {
+    this.tokenRefresher = refresher;
   }
 
   /**
@@ -158,9 +168,23 @@ export class RelayConnection {
     return this.authenticated;
   }
 
-  private doConnect(): void {
+  private async doConnect(): Promise<void> {
     if (this.ws?.readyState === WebSocket.OPEN) {
       return;
+    }
+
+    // Auto-refresh the token before (re)connecting if a refresher is set
+    if (this.tokenRefresher) {
+      try {
+        const freshToken = await this.tokenRefresher();
+        if (freshToken) {
+          this.authToken = freshToken;
+        } else {
+          console.warn('Token refresher returned null — connecting with existing token');
+        }
+      } catch (err) {
+        console.warn('Token refresher threw — connecting with existing token:', err);
+      }
     }
 
     this.setStatus('connecting');
@@ -339,7 +363,7 @@ export class RelayConnection {
     
     this.reconnectTimer = window.setTimeout(() => {
       this.reconnectAttempts++;
-      this.doConnect();
+      void this.doConnect();
     }, delay);
   }
 

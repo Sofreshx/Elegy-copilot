@@ -35,35 +35,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const validToken = await authService.getValidToken();
         if (validToken) {
           const relay = getRelayConnection();
+          relay.setTokenRefresher(() => authService.getValidToken());
           relay.connect(validToken);
         }
       } else if (state.accessToken && !state.user) {
         // Have token but no user — user info should have been stored during
         // handleCallback(). Missing user means stale state; require re-login.
         authService.logout();
-      }
-
-      // Check for OAuth callback
-      const url = new URL(window.location.href);
-      const code = url.searchParams.get('code');
-      const callbackState = url.searchParams.get('state');
-
-      if (code && callbackState) {
-        // Handle OAuth callback
-        const success = await authService.handleCallback(code, callbackState);
-        if (success) {
-          setUser(authService.getUser());
-          
-          // Connect to relay with validated token
-          const validToken = await authService.getValidToken();
-          if (validToken) {
-            const relay = getRelayConnection();
-            relay.connect(validToken);
-          }
-        }
-
-        // Clean URL
-        window.history.replaceState({}, '', '/');
       }
 
       setIsLoading(false);

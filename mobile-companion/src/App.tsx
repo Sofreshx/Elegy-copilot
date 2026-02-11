@@ -8,6 +8,7 @@ import Sessions from './pages/Sessions';
 import Ideas from './pages/Ideas';
 import AiChat from './pages/AiChat';
 import Settings from './pages/Settings';
+import AuthCallback from './pages/AuthCallback';
 import './App.css';
 
 function App() {
@@ -22,15 +23,19 @@ function App() {
     );
   }
 
-  if (!isAuthenticated) {
-    return (
-      <div className="app-login">
-        <LoginPrompt />
-      </div>
-    );
-  }
-
-  return <AuthenticatedApp />;
+  // Auth callback must be reachable before the user is authenticated
+  return (
+    <Routes>
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="*" element={
+        isAuthenticated ? <AuthenticatedApp /> : (
+          <div className="app-login">
+            <LoginPrompt />
+          </div>
+        )
+      } />
+    </Routes>
+  );
 }
 
 function AuthenticatedApp() {
