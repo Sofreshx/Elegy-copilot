@@ -1,6 +1,6 @@
 # Security Model — Instruction Engine Relay (v1)
 
-> **Last updated**: 2026-02-08
+> **Last updated**: 2026-02-11
 >
 > This document describes the **actual, implemented** security architecture of the Instruction Engine relay ecosystem (cloud relay, mobile companion PWA, VS Code extension). Claims are verified against source code. Planned-but-unimplemented features are clearly marked as **v2 Planned**.
 
@@ -12,16 +12,17 @@
 2. [Authentication](#authentication)
 3. [Token Design](#token-design)
 4. [Token Storage](#token-storage)
-5. [Authorization & Scopes](#authorization--scopes)
-6. [Transport Security](#transport-security)
-7. [CSRF Protection](#csrf-protection)
-8. [Rate Limiting](#rate-limiting)
-9. [Security Headers](#security-headers)
-10. [Threat Model](#threat-model)
-11. [Known v1 Limitations](#known-v1-limitations)
-12. [v2 Planned Improvements](#v2-planned-improvements)
-13. [Incident Response](#incident-response)
-14. [Best Practices](#best-practices)
+5. [Database Security](#database-security)
+6. [Authorization & Scopes](#authorization--scopes)
+7. [Transport Security](#transport-security)
+8. [CSRF Protection](#csrf-protection)
+9. [Rate Limiting](#rate-limiting)
+10. [Security Headers](#security-headers)
+11. [Threat Model](#threat-model)
+12. [Known v1 Limitations](#known-v1-limitations)
+13. [v2 Planned Improvements](#v2-planned-improvements)
+14. [Incident Response](#incident-response)
+15. [Best Practices](#best-practices)
 
 ---
 
@@ -31,18 +32,22 @@
 ┌──────────────────┐          ┌──────────────────┐          ┌──────────────┐
 │  Mobile PWA      │◄──WSS──►│  Cloud Relay     │◄──WSS──►│  VS Code     │
 │  (browser)       │          │  (Node.js)       │          │  Extension   │
-└──────────────────┘          └────────┬─────────┘          └──────────────┘
-                                       │
-                              ┌────────┴─────────┐
-                              │   GitHub OAuth   │
-                              │   (identity)     │
-                              └──────────────────┘
+└──────────────────┘          └───────┬┬─────────┘          └──────────────┘
+                                      ││
+                              ┌───────┘└─────────┐
+                              │                  │
+                     ┌────────┴─────────┐  ┌─────┴────────┐
+                     │   GitHub OAuth   │  │  SQLite DB   │
+                     │   (identity)     │  │  (relay.db)  │
+                     └──────────────────┘  └──────────────┘
 ```
 
-The relay is a **stateless** message router. It:
+The relay is a **persistent** message router with a SQLite database (WAL mode, `better-sqlite3`). It:
 
 - Authenticates clients via GitHub OAuth → relay-minted JWTs
-- Does **not** store tokens server-side (no Redis, no database)
+- Does **not** store tokens or secrets server-side — auth remains JWT-based
+- Stores user profiles (GitHub login, avatar) and offline messages in SQLite
+- Persists offline messages to disk so they survive relay restarts
 - Routes JSON-RPC messages between authenticated clients over WebSocket
 - Enforces per-method authorization scopes
 - Applies rate limiting on HTTP and WebSocket channels
@@ -124,11 +129,11 @@ Extension                     Relay                         GitHub
 
 ### Token Refresh
 
-`POST /auth/refresh` accepts a valid refresh token and returns a **new** access + refresh token pair (rotation). The previous refresh token is not explicitly invalidated (stateless — see [Known v1 Limitations](#known-v1-limitations)).
+`POST /auth/refresh` accepts a valid refresh token and returns a **new** access + refresh token pair (rotation). The previous refresh token is not explicitly invalidated (token rotation is stateless — see [Known v1 Limitations](#known-v1-limitations)).
 
 ### Token Revocation
 
-`POST /auth/revoke` is a **client-side cleanup endpoint only**. It always returns `{ revoked: true }`. Because tokens are stateless JWTs, the relay cannot truly revoke them server-side. The access token's 1-hour TTL limits the blast radius of a compromised token.
+`POST /auth/revoke` is a **client-side cleanup endpoint only**. It always returns `{ revoked: true }`. Because tokens are stateless JWTs (not stored in the database), the relay cannot truly revoke them server-side. The access token's 1-hour TTL limits the blast radius of a compromised token.
 
 ### WebSocket Authentication
 
@@ -182,7 +187,7 @@ All relay-issued tokens are **HS256 JWTs** signed with a shared secret (`JWT_SEC
 |----------|---------------|------------|-------|
 | **VS Code Extension** | `SecretStorage` API | OS keychain (encrypted) | Recommended approach; credentials never touch disk in plaintext |
 | **Mobile PWA** | `localStorage` | **None (plaintext)** | ⚠️ Known v1 limitation — see below |
-| **Cloud Relay** | **None** | N/A | Stateless — no server-side token storage |
+| **Cloud Relay** | SQLite — user info only (no tokens) | **None (no encryption at rest)** | Stores user profiles (`github_login`, `avatar_url`) and offline messages; does NOT store tokens or secrets |
 
 ### Mobile Storage Limitation
 
@@ -191,6 +196,50 @@ The mobile PWA stores relay JWTs in `localStorage`, which is accessible to any J
 - CORS restricts relay API access to configured origins
 - Access tokens expire in 1 hour, limiting exposure window
 - The PWA is served from a dedicated subdomain, reducing cross-origin XSS risk
+
+---
+
+## Database Security
+
+The relay uses a SQLite database (`better-sqlite3`) for persistent storage. The database file is located at `/app/data/relay.db` inside the Docker container, backed by a named Docker volume (`relay-data`).
+
+### Configuration
+
+| Setting | Value |
+|---------|-------|
+| **Engine** | `better-sqlite3` (synchronous, single-writer) |
+| **Journal mode** | WAL (concurrent reads, single writer) |
+| **Synchronous** | NORMAL |
+| **Foreign keys** | Enabled |
+| **Busy timeout** | 5000ms |
+| **Schema versioning** | Auto-migrated on startup via `schema_version` table |
+
+### Database Schema (v1)
+
+| Table | Purpose | Contains Secrets? |
+|-------|---------|-------------------|
+| `schema_version` | Tracks applied migrations | No |
+| `users` | User profiles from GitHub OAuth (`id`, `github_login`, `avatar_url`, timestamps) | No — no tokens, passwords, or secrets |
+| `sessions` | Agent session tracking (status, prompt, metadata) | No |
+| `task_queue` | Persistent task queue per user | No |
+| `push_subscriptions` | Web Push subscription endpoints and keys per user | Contains VAPID keys (`keys_p256dh`, `keys_auth`) — public-ish but should stay protected |
+| `offline_messages` | Messages queued for offline clients (JSON payloads, expiry timestamps) | May contain message content — same trust model as in-transit messages |
+| `processed_message_ids` | Deduplication tracking for delivered offline messages | No |
+
+### What the Database Does NOT Store
+
+- **No tokens** — relay JWTs are stateless; the database has no token table
+- **No GitHub access tokens** — GitHub tokens are exchanged for relay JWTs and then discarded
+- **No `JWT_SECRET`** — stored only in environment variables
+- **No passwords or user credentials**
+
+### Security Considerations
+
+- **No encryption at rest**: The SQLite file is stored unencrypted on the Docker volume. Access control depends on Docker volume isolation and server-level permissions.
+- **Docker volume isolation**: The `relay-data` named volume is only mounted by the relay container. The Dockerfile creates the `/app/data` directory with restricted ownership (`nodejs:nodejs`).
+- **Offline message content**: Messages stored in `offline_messages` contain the same JSON-RPC payloads that would otherwise transit the WebSocket in plaintext. The security posture matches in-transit messages (TLS protects the channel; the relay can read content).
+- **Push subscription keys**: The `keys_p256dh` and `keys_auth` values in `push_subscriptions` are not secrets per se (they are public keys for the Web Push protocol), but they should be protected to prevent unauthorized push notifications.
+- **Backup**: SQLite WAL mode allows safe file-level backup of the `.db` file while the relay is running. No automated backup is configured in v1.
 
 ---
 
@@ -378,10 +427,11 @@ The relay uses the `helmet` middleware, which sets the following headers by defa
 ┌────────────────────────────────────────────────────────────────┐
 │                  Cloud Relay (Semi-Trusted)                     │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Stateless Node.js service behind Traefik                │  │
+│  │  Node.js service behind Traefik (SQLite for persistence) │  │
 │  │  • Verifies JWTs (HS256)                                 │  │
 │  │  • Routes messages between clients                       │  │
 │  │  • Enforces scopes and rate limits                       │  │
+│  │  • Stores user profiles & offline messages (SQLite)      │  │
 │  │  • Can read all message content (no E2E encryption)      │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────┘
@@ -422,6 +472,8 @@ These are intentional trade-offs for v1. Each has been evaluated and accepted wi
 | **No device binding** | Tokens not bound to a specific device/browser | Short TTL, rate limiting | v2: device attestation |
 | **Refresh token reuse window** | Stateless rotation means old refresh token is valid until expiry | 30d TTL; in practice, rotation replaces tokens quickly | v2: JTI blocklist |
 | **`/auth/exchange` accepts any GitHub token** | Any valid GitHub PAT/token grants relay access | Short access TTL (1h), rate limiting (10 req/min) | v2: device attestation, provenance checks |
+| **No database encryption at rest** | SQLite file is unencrypted on the Docker volume | Docker volume isolation, server-level access control, no tokens/secrets stored in DB | v2: database encryption at rest |
+| **No database backup automation** | Manual file-level backup only | SQLite WAL mode allows safe file-level copy while running | v2: automated backup/restore strategy |
 
 ---
 
@@ -434,9 +486,11 @@ These are intentional trade-offs for v1. Each has been evaluated and accepted wi
 - **E2E payload encryption** between client pairs (relay cannot read content)
 - **Device attestation / binding** — tokens tied to a device fingerprint
 - **Role-based access control (RBAC)** — user-assigned roles instead of client-type scopes
-- **Push notifications** for mobile (ServiceWorker + Web Push API)
+- **Push notifications** for mobile (ServiceWorker + Web Push API) — **In Progress** (e3t-011)
 - **Token provenance verification** on `/auth/exchange` (if GitHub's API supports it)
 - **CSP headers** on the mobile PWA serving layer
+- **Database encryption at rest** (e.g., SQLCipher or OS-level volume encryption)
+- **Database backup/restore strategy** — automated periodic backups of `relay.db`
 
 ---
 
@@ -463,6 +517,19 @@ These are intentional trade-offs for v1. Each has been evaluated and accepted wi
 2. Rotate `JWT_SECRET` if the scope of compromise is unclear
 3. Mobile: clear `localStorage` on the compromised device
 4. Extension: VS Code SecretStorage is cleared on sign-out
+
+---
+
+## Auth Diagnostics
+
+The VS Code extension provides a built-in auth diagnostics command for troubleshooting relay authentication issues:
+
+- **Command**: `skillInstaller.relay.testAuth` (accessible via the Command Palette as "Test Relay Auth")
+- **What it does**: Obtains relay tokens via the `RelayAuthBridge`, decodes the JWT claims, and reports the `sub`, `client_type`, `scopes`, and expiry time
+- **Output**: Results are logged to the Skill Installer output channel and shown as an information message
+- **Security**: The command does not transmit tokens externally — it decodes the JWT locally and only displays non-sensitive claim metadata (`sub`, `client_type`, scopes, expiry)
+
+The mobile companion app includes an `AuthCallback` page that handles the OAuth redirect flow, extracting `code` and `state` parameters and exchanging them for relay tokens.
 
 ---
 

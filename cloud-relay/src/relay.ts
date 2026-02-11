@@ -86,32 +86,11 @@ export class WebSocketRelay {
 
       console.log(`[Relay] New connection from ${req.socket.remoteAddress}`);
 
-      // Try to authenticate via URL token
-      if (token) {
-        const claims = this.verifyToken(token);
-        if (claims) {
-          this.completeAuth(ws, claims);
-          return;
-        }
-      }
-
-      // If no token or invalid, wait for auth message
-      if (this.config.requireAuth) {
-        // Set auth timeout
-        const timeout = setTimeout(() => {
-          console.log(`[Relay] Auth timeout for ${tempClientId}`);
-          this.sendError(ws, "auth", ErrorCodes.UNAUTHORIZED, "Authentication timeout");
-          ws.close(4001, "Authentication timeout");
-          this.pendingAuth.delete(tempClientId);
-        }, this.AUTH_TIMEOUT);
-
-        this.pendingAuth.set(tempClientId, timeout);
-      }
-
       // Store temp reference for pre-auth messages
       (ws as any).__tempClientId = tempClientId;
       (ws as any).__authenticated = false;
 
+      // Set up event handlers for ALL connections (regardless of auth path)
       ws.on("message", (data: WebSocket.RawData) => {
         this.handleMessage(ws, data);
       });
@@ -136,6 +115,28 @@ export class WebSocketRelay {
       ws.on("error", (error) => {
         console.error(`[Relay] WebSocket error:`, error);
       });
+
+      // Try to authenticate via URL token
+      if (token) {
+        const claims = this.verifyToken(token);
+        if (claims) {
+          this.completeAuth(ws, claims);
+          return;
+        }
+      }
+
+      // If no token or invalid, wait for auth message
+      if (this.config.requireAuth) {
+        // Set auth timeout
+        const timeout = setTimeout(() => {
+          console.log(`[Relay] Auth timeout for ${tempClientId}`);
+          this.sendError(ws, "auth", ErrorCodes.UNAUTHORIZED, "Authentication timeout");
+          ws.close(4001, "Authentication timeout");
+          this.pendingAuth.delete(tempClientId);
+        }, this.AUTH_TIMEOUT);
+
+        this.pendingAuth.set(tempClientId, timeout);
+      }
     });
   }
 

@@ -13,7 +13,7 @@ This guide explains how Instruction Engine integrates MCP providers without load
 1. Open the Skill Installer sidebar.
 2. Go to Operations -> MCP Providers.
 3. Enable only the provider you need for the current task.
-4. Copy `.env.mcp.example` to `.env.mcp` and fill required values.
+4. Store MCP secrets outside the repo (for example, `~/.config/instruction-engine/mcp.env`) or set `MCP_ENV_FILE`.
 5. Launch VS Code from `scripts/mcp-env.sh` (macOS/Linux) or
   `scripts/mcp-env.ps1` (Windows) so MCP env vars are loaded.
 6. Review or edit provider settings in VS Code settings.
@@ -29,11 +29,13 @@ The extension writes to the path configured in:
 
 ## Local MCP Env
 
-Store local MCP secrets in `instruction-engine/.env.mcp` (ignored by git).
+Store local MCP secrets outside the repo (for example, `~/.config/instruction-engine/mcp.env`).
 Use the helper scripts to load env vars before opening VS Code:
 
 - macOS/Linux: `./scripts/mcp-env.sh`
 - Windows (PowerShell): `./scripts/mcp-env.ps1`
+
+Set `MCP_ENV_FILE` to override the default location.
 
 You can also pass a command to the scripts to run tools in the same env.
 
@@ -157,7 +159,7 @@ Env var mapping:
 
 ## Local vs CI Secrets Guidance
 
-- Local development: store MCP secrets in `.env.mcp` and load them with the
+- Local development: store MCP secrets outside the repo and load them with the
   helper scripts before launching VS Code. Prefer non-production projects and
   short-lived tokens.
 - CI: inject secrets via the CI secret store and map them to env vars. Do not
