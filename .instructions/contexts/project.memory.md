@@ -9,10 +9,14 @@
 - `vscode/runCommand` removed from Executive3's tool dependencies entirely.
 
 ## Relay System Status (2026-02-11)
-- Auth is broken: relay returns raw GitHub tokens instead of relay-signed JWTs.
-- Extension relay client (`relayClient.ts`) exists but can't function due to auth issue.
-- Full architecture proposal at `.instructions/research/e3-tooling-and-relay-redesign.md`.
-- Phased plan: A) Fix auth → B) Add persistence → C) Local agent tracker → D) Enhanced mobile.
+- Auth working: GitHub OAuth → HS256 JWTs (1h access, 30d refresh). 42 auth tests passing. WS auth bugfix applied.
+- SQLite persistence complete: 6 tables, migrations, WAL mode via better-sqlite3.
+- REST APIs complete: sessions, tasks, push endpoints with full test coverage (183 tests / 11 suites).
+- Mobile companion: REST client with auto-refresh, push notifications, tasks/git/sessions pages.
+- Local tracker: scaffolded with file watchers, git monitor, extension bridge (port 9821), status dashboard (port 9822).
+- E2E verification: `scripts/e2e-relay-flow.js`.
+- Branch: `e3/relay-system-redesign` (pushed to origin).
+- Full architecture: `.instructions/architecture.md`. Design research: `.instructions/research/e3-tooling-and-relay-redesign.md`.
 
 ## Testing Workflow
 - For any feature or bug fix, add or update unit tests in the touched package before marking work complete.
