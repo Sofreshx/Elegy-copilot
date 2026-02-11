@@ -4,6 +4,7 @@ import crypto from "crypto";
 import { v4 as uuidv4 } from "uuid";
 import { TokenService } from "./tokenService";
 import { DEFAULT_MOBILE_SCOPES, DEFAULT_EXTENSION_SCOPES } from "./types";
+import { getAllowedOrigins } from "./corsConfig";
 
 const DEFAULT_SCOPES = ["read:user", "repo"];
 
@@ -47,14 +48,7 @@ function resolveRedirectUri(input?: string): string | null {
   return input || process.env.GITHUB_REDIRECT_URI || null;
 }
 
-/**
- * Parse CORS_ORIGINS env var into an allowlist.
- * Default: "https://instruction-engine.pages.dev"
- */
-function parseCorsOrigins(): string[] {
-  const raw = process.env.CORS_ORIGINS || "https://instruction-engine.pages.dev";
-  return raw.split(",").map((o) => o.trim()).filter(Boolean);
-}
+
 
 /**
  * Fetch the authenticated GitHub user profile.
@@ -98,7 +92,7 @@ function resolveScopesForClientType(clientType: "mobile" | "extension"): string[
 
 export function createAuthRouter(tokenService: TokenService): Router {
   const router = Router();
-  const allowedOrigins = parseCorsOrigins();
+  const allowedOrigins = getAllowedOrigins();
 
   // CORS middleware — restrict to configured origins
   router.use((req, res, next) => {

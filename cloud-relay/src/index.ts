@@ -17,8 +17,11 @@ import { RateLimiter } from "./rateLimit";
 import { TokenService } from "./tokenService";
 import { createHealthRouter } from "./health";
 import { createAuthRouter } from "./auth";
+import { createTaskRouter } from "./taskRoutes";
+import { createSessionRouter } from "./sessionRoutes";
 import { RelayDatabase } from "./database";
 import { PersistentOfflineQueue } from "./persistentOfflineQueue";
+import { getAllowedOrigins } from "./corsConfig";
 
 // Load environment variables
 dotenv.config();
@@ -90,14 +93,17 @@ async function main() {
   // OAuth routes
   app.use("/auth", authLimiter, createAuthRouter(tokenService));
 
+  // Task queue REST API
+  app.use("/api", createTaskRouter(database, tokenService));
+
+  // Session history REST API
+  app.use("/api", createSessionRouter(database, tokenService));
+
   // Create HTTP server
   const server = createServer(app);
 
   // Parse allowed origins for WS upgrade validation
-  const allowedWsOrigins = (process.env.CORS_ORIGINS || "https://instruction-engine.pages.dev")
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean);
+  const allowedWsOrigins = getAllowedOrigins();
 
   // Create WebSocket server (attached to HTTP server)
   const wss = new WebSocketServer({
