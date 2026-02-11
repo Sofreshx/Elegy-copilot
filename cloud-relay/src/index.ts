@@ -17,6 +17,7 @@ import { RateLimiter } from "./rateLimit";
 import { TokenService } from "./tokenService";
 import { createHealthRouter } from "./health";
 import { createAuthRouter } from "./auth";
+import { RelayDatabase } from "./database";
 
 // Load environment variables
 dotenv.config();
@@ -47,6 +48,13 @@ async function main() {
   app.use(helmet());
 
   app.use(express.json());
+
+  // Initialize database
+  const database = new RelayDatabase({
+    dbPath: process.env.DB_PATH,
+    verbose: process.env.NODE_ENV === "development",
+  });
+  await database.initialize();
 
   // Create connection manager
   const connectionManager = new ConnectionManager();
@@ -142,6 +150,9 @@ async function main() {
     relay.shutdown();
     wsRateLimiter.shutdown();
     await connectionManager.shutdown();
+
+    // Close database
+    await database.close();
 
     console.log("Shutdown complete");
     process.exit(0);

@@ -14,6 +14,9 @@ services:
       - JWT_AUDIENCE=${JWT_AUDIENCE:-instruction-engine}
       - REQUIRE_AUTH=${REQUIRE_AUTH:-true}
       - MAX_MESSAGE_SIZE=${MAX_MESSAGE_SIZE:-1048576}
+      - DB_PATH=/app/data/relay.db
+    volumes:
+      - relay-data:/app/data
     networks:
       - traefik-proxy
     labels:
@@ -32,3 +35,6 @@ services:
 networks:
   traefik-proxy:
     external: true
+
+volumes:
+  relay-data:
