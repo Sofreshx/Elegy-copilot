@@ -18,6 +18,18 @@ interface ExpectMatchers {
   toBeGreaterThan: (expected: number) => void;
   toBeTruthy: () => void;
   toBeFalsy: () => void;
+  toThrow: (expected?: string | RegExp | Error) => void;
+  toHaveBeenCalled: () => void;
+  toHaveBeenCalledWith: (...args: unknown[]) => void;
+  toHaveBeenCalledTimes: (expected: number) => void;
+  toBeInstanceOf: (expected: unknown) => void;
+  toBeGreaterThanOrEqual: (expected: number) => void;
+  toBeLessThan: (expected: number) => void;
+  toBeLessThanOrEqual: (expected: number) => void;
+  toStrictEqual: (expected: unknown) => void;
+  toHaveProperty: (key: string, value?: unknown) => void;
+  resolves: ExpectMatchers;
+  rejects: ExpectMatchers;
 }
 
 interface ExpectStatic {

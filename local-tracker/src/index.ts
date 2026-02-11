@@ -1,6 +1,7 @@
 import { loadConfig } from "./config";
 import { FileWatcher } from "./watchers";
 import { GitMonitor } from "./gitMonitor";
+import { ExtensionBridge } from "./extensionBridge";
 
 async function main() {
   const config = loadConfig();
@@ -8,10 +9,15 @@ async function main() {
   console.log(`[Tracker] Watching: ${config.workspacePaths.join(", ")}`);
   console.log(`[Tracker] Relay: ${config.relayUrl || "not configured"}`);
 
+  // Initialize extension bridge (e3t-017)
+  const bridge = new ExtensionBridge(config);
+  bridge.start();
+
   // Initialize watchers (e3t-015)
   const watcher = new FileWatcher(config);
   watcher.on((event) => {
     console.log(`[Tracker] Event: ${event.type}`, JSON.stringify(event.data));
+    bridge.broadcast(event);
   });
   watcher.start();
 
@@ -19,10 +25,9 @@ async function main() {
   const gitMonitor = new GitMonitor(config);
   gitMonitor.on((event) => {
     console.log(`[Tracker] Git event:`, JSON.stringify(event.data));
+    bridge.broadcast(event);
   });
   gitMonitor.start();
-
-  // TODO: Connect to relay (e3t-017)
 
   console.log("[Tracker] Ready");
 
@@ -31,6 +36,7 @@ async function main() {
     console.log("[Tracker] Shutting down...");
     gitMonitor.stop();
     await watcher.stop();
+    await bridge.stop();
     process.exit(0);
   });
 }

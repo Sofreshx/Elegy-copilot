@@ -8,6 +8,7 @@ import Sessions from './pages/Sessions';
 import Ideas from './pages/Ideas';
 import AiChat from './pages/AiChat';
 import Settings from './pages/Settings';
+import TasksPage from './pages/TasksPage';
 import AuthCallback from './pages/AuthCallback';
 import './App.css';
 
@@ -50,6 +51,7 @@ function AuthenticatedApp() {
           <Route path="/sessions" element={<Sessions />} />
           <Route path="/ideas" element={<Ideas />} />
           <Route path="/chat" element={<AiChat />} />
+          <Route path="/tasks" element={<TasksPage />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>
