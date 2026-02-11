@@ -32,10 +32,11 @@ Create a feature branch for the current session.
 - `base_branch`: branch to base off (default: `main`)
 
 **Steps:**
-1. Run `git status --porcelain` to check for uncommitted changes.
-2. If uncommitted changes exist: `git stash push -m "e3-pre-branch-{session_id}"`.
-3. Run `git fetch origin` to ensure we have the latest.
-4. Run `git checkout -b {branch_name} origin/{base_branch}`.
+1. Run `git branch --show-current` and if it is already an `e3/*` branch, return `status: no-op` (single branch per session).
+2. Run `git status --porcelain` to check for uncommitted changes.
+3. If uncommitted changes exist: `git stash push -m "e3-pre-branch-{session_id}"`.
+4. Run `git fetch origin` to ensure we have the latest.
+5. Run `git checkout -b {branch_name} origin/{base_branch}`.
 
 **Branch naming convention:** `e3/{short-slug}` (e.g., `e3/add-user-service`, `e3/fix-auth-middleware`).
 - Derive the slug from the description: lowercase, hyphens, max 40 chars.
@@ -48,7 +49,7 @@ E3_GIT_RESULT
 - branch: <branch-name>
 - base: <base-branch>
 - stashed: <true/false>
-- status: success|error
+- status: success|no-op|error
 - message: <details>
 ```
 

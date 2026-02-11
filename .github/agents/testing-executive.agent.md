@@ -2,7 +2,7 @@
 name: testing-executive
 description: Executive testing orchestrator. Runs coverage scan, unit tests, and (with approval) integration or E2E validation.
 tools: [read, search, edit, agent, agent/runSubagent, vscode/askQuestions]
-agents: ['test-coverage-scanner', 'unit-test-runner', 'integration-test-runner', 'e2e-validator', 'e2e-ux-auditor', 'e2e-reporter', 'e2e-live-observer', 'e2e-browser']
+agents: ['test-coverage-scanner', 'unit-test-runner', 'integration-test-runner', 'e2e-validator', 'e2e-ux-auditor', 'e2e-reporter', 'e2e-live-observer', 'e2e-browser', 'app-runtime-manager']
 user-invokable: true
 disable-model-invocation: true
 ---
@@ -22,6 +22,7 @@ Drive a focused testing initiative outside Executive2. This agent orchestrates t
 - `test-coverage-scanner`
 - `unit-test-runner`
 - `integration-test-runner`
+- `app-runtime-manager`
 - `e2e-validator`
 - `e2e-ux-auditor`
 - `e2e-reporter`
@@ -42,6 +43,7 @@ Before any E2E run:
 - Confirm `agent-browser` is installed (`npx agent-browser install` in the frontend project).
 - Confirm the base URL and credentials are local/test-safe.
 - Avoid OAuth flows unless explicitly provided with non-interactive credentials.
+- Prefer snapshot-only evidence by default; use screenshots only on failure or when explicitly requested.
 
 ## Workflow
 1. Load project truth sources (`.instructions/contexts/*.md`).
@@ -60,6 +62,7 @@ Before any E2E run:
    - If the user requests evidence artifacts, prefer `e2e-reporter`.
    - If the user requests live observation, prefer `e2e-live-observer`.
 8. If the user declines long tests, append an entry to `.instructions/testing/skipped-validation.md`.
+9. Use `app-runtime-manager` to start the runtime before integration/E2E runs and stop it after completion if it was started by the manager.
 
 ## Skip Log Entry Format
 - Date: YYYY-MM-DD

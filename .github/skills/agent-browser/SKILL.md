@@ -72,6 +72,8 @@ agent-browser is enabled <sel>        # Check if enabled
 ```
 
 ### Evidence Capture
+For deterministic, low-token runs, prefer snapshot-only evidence and capture screenshots only on failure or when explicitly requested.
+
 ```bash
 agent-browser screenshot [path]       # Screenshot (temp dir if no path)
 agent-browser screenshot --full       # Full page screenshot

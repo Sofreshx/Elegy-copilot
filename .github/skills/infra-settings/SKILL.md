@@ -1,7 +1,6 @@
 ---
 name: infra-settings
-description: >
-  Infrastructure settings management for MCP providers and related tooling. Use this when asked to manage MCP provider settings, enable or disable MCP integrations, or sync MCP configuration files. Triggers on: MCP settings, MCP providers, mcp config, infra settings, provider settings.
+description: Infrastructure settings management for MCP providers and related tooling. Use this when asked to manage MCP provider settings, enable or disable MCP integrations, or sync MCP configuration files. Triggers on: MCP settings, MCP providers, mcp config, infra settings, provider settings.
 ---
 
 # Infra Settings Skill
@@ -19,4 +18,5 @@ Manage MCP provider settings and ensure configuration stays minimal, secure, and
 
 - Keep providers disabled by default.
 - Avoid writing secrets into repo files.
+- Do not store secrets in `.env*` files; use external env vars or OS keychain.
 - Prefer read-only or scoped modes when available.

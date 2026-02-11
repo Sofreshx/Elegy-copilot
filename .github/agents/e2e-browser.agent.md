@@ -1,6 +1,6 @@
 ---
 name: e2e-browser
-description: Runs end-to-end browser automation using agent-browser CLI. Supports three execution modes (stealth/report/live). Replaces the deprecated Playwright MCP approach with a CLI-based workflow using snapshot refs for AI-optimized element selection.
+description: Runs end-to-end browser automation using agent-browser CLI. Supports three execution modes (stealth/report/live). Replaces the Playwright MCP approach with a CLI-based workflow using snapshot refs for AI-optimized element selection.
 tools: [execute/runInTerminal, read/readFile, read/terminalLastCommand, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, edit/createFile, edit/createDirectory, vscode/askQuestions]
 user-invokable: false
 disable-model-invocation: false
@@ -10,6 +10,12 @@ disable-model-invocation: false
 
 ## Purpose
 Execute end-to-end tests with **agent-browser CLI** on any project. This agent is project-agnostic — it discovers how to start and test any web application, then drives realistic browser flows using the snapshot-ref pattern optimized for AI agents.
+
+## Inputs
+Supported fields:
+- `mode`: `stealth|report|live`
+- `evidenceMode`: `snapshot-only|screenshots`
+- `serverManaged`: `true|false` (skip start/stop when true)
 
 ## Hard Rules
 - Do NOT call other subagents.
@@ -51,7 +57,7 @@ agent-browser snapshot -i --json
 | Mode | Speed | Visibility | Evidence |
 |------|-------|------------|----------|
 | `stealth` | Maximum | None | Error screenshots only |
-| `report` | Fast | Async artifacts | Screenshots + console + errors at each step |
+| `report` | Fast | Async artifacts | Snapshots + console + errors (screenshots optional) |
 | `live` | Deliberate | Real-time | Everything + `--headed` browser window |
 
 ---
@@ -82,14 +88,14 @@ agent-browser errors
 
 ### Behavior
 - Headless browser
-- Real screenshots captured after each major action
+- Screenshots captured after each major action when `evidenceMode: screenshots`
 - Console logs and JS errors captured
 - Structured report generated
 
 ### Evidence Captured
 | Data | Command | Saved To |
 |------|---------|----------|
-| Screenshots | `agent-browser screenshot <path>` | `.instructions-output/e2e/screenshots/` |
+| Screenshots (optional) | `agent-browser screenshot <path>` | `.instructions-output/e2e/screenshots/` |
 | Page state | `agent-browser snapshot -i --json` | Embedded in report |
 | Console | `agent-browser console` | `.instructions-output/e2e/console.log` |
 | JS errors | `agent-browser errors` | `.instructions-output/e2e/errors.log` |
@@ -101,7 +107,7 @@ agent-browser errors
 agent-browser click @e2
 
 # Capture evidence
-agent-browser screenshot .instructions-output/e2e/screenshots/<flow>-step-<N>.png
+# If evidenceMode: screenshots, capture screenshots for each major step
 agent-browser snapshot -i --json > # parse for state verification
 agent-browser console              # check for errors
 agent-browser errors               # check for uncaught exceptions
@@ -136,11 +142,19 @@ Priority order:
 3. **Project config**: `.instructions/e2e.config.md` → `mode:` field
 4. **Default**: `report`
 
+## Evidence Mode Selection
+
+Priority order:
+1. **Explicit input**: `evidenceMode: snapshot-only|screenshots`
+2. **Project config**: `.instructions/e2e.config.md` → `evidenceMode:` field
+3. **Default**: `snapshot-only`
+
 ## Project Config
 If `.instructions/e2e.config.md` exists, treat it as authoritative for:
 - Base URL, auth credentials, seeding steps
 - Selector strategy (`data-testid` preferred)
 - Screenshot policy
+- Evidence mode (`snapshot-only` or `screenshots`)
 - Deep-link reference table
 - Known gotchas (Firebase IndexedDB, SignalR networkidle, etc.)
 
@@ -148,13 +162,17 @@ If `.instructions/e2e.config.md` exists, treat it as authoritative for:
 
 ## Evidence Requirements (MANDATORY)
 
-### Every E2E run MUST produce:
-1. **Screenshots** at each major step → `.instructions-output/e2e/screenshots/`
+### Default (snapshot-only) evidence mode must produce:
+1. **Snapshots** at each major step → captured via `agent-browser snapshot -i --json`
 2. **Console output** at test end → captured via `agent-browser console`
 3. **JS errors** at test end → captured via `agent-browser errors`
 4. **Summary report** → written to `.instructions-output/e2e/e2e-report-<date>.md`
 
-### Screenshot naming convention:
+### Screenshots are required only when:
+- `evidenceMode: screenshots` is explicitly set, or
+- a failure occurs (capture at least one error screenshot)
+
+### Screenshot naming convention (when used):
 `<flow>-step-<N>-<action>.png`
 Example: `login-step-01-navigate.png`, `login-step-02-fill-email.png`
 
@@ -176,15 +194,15 @@ Example: `login-step-01-navigate.png`, `login-step-02-fill-email.png`
 ## JS Exceptions
 <captured output or "None">
 
-## Screenshots
-- [login-step-01-navigate.png](screenshots/login-step-01-navigate.png)
+## Screenshots (if captured)
+- screenshots/login-step-01-navigate.png
 - ...
 
 ## Failures
 <detailed failure info with screenshot paths>
 ```
 
-**If evidence artifacts are missing, the test run is INCONCLUSIVE, not "passed".**
+**If required evidence artifacts are missing, the test run is INCONCLUSIVE, not "passed".**
 
 ---
 
@@ -201,15 +219,15 @@ Search order:
 ### 2. Base URL
 Search order:
 1. `.instructions/e2e.config.md` — `baseUrl:` field
-2. `.env*` files
-3. `launchSettings.json`
-4. Common defaults: `:3000`, `:5173`, `:8080`
+2. `launchSettings.json`
+3. `package.json` or Vite config (non-secret only)
+4. `.env*` files (non-secret config only)
+5. Common defaults: `:3000`, `:5173`, `:8080`
 
 ### 3. Test Credentials
 Search order:
 1. `.instructions/e2e.config.md` — `credentials:` section
-2. Environment vars: `TEST_USER_EMAIL`, `TEST_USER_PASSWORD`
-3. `.env.test` file
+2. Environment vars: `TEST_USER_EMAIL`, `TEST_USER_PASSWORD` (from local secret storage)
 
 ---
 
@@ -254,7 +272,8 @@ agent-browser state load .instructions-output/e2e/auth-state.json
 
 ### 2. Server Phase
 - Check if app is already running (curl base URL)
-- If not running: start via Aspire task or npm dev
+- If `serverManaged: true`, skip start/stop and assume runtime is already managed
+- If not running and `serverManaged` is false: start via Aspire task or npm dev
 - Wait for readiness (`agent-browser open <url> --ignore-https-errors`)
 
 ### 3. Execution Phase

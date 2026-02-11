@@ -57,6 +57,7 @@ Use subagents to keep work high-signal and consistent. Prefer only the ones that
 - Tasking: `@addtodo` for task files; `@executive2-planner` → `@executive2` for durable, task-graph execution (task groups can run in isolation).
 - Context: `@context-curator` to condense and refresh `.instructions/contexts/*.md` when they get large.
 - UI/UX: `@ui-ux` for iterative client-side visual changes; it relies heavily on `vscode/askQuestions`.
+- Runtime: `@app-runtime-manager` to start/stop local services for integration/E2E/UI exploration.
 - Use other agents when their specialty is directly relevant.
 
 Subagents must NOT call other subagents; only top-level orchestrators should delegate work.
@@ -73,6 +74,16 @@ If a task maps to a known domain, treat skills as the default path:
 ## Safety
 - Do destructive scaffolding or large deletions only with an explicit user ask.
 - Record recurring gotchas or major informations in `.instructions/contexts/*.md`, to a matching file if possible, otherwise create a new one with a clear name, those files should be concise? 
+
+## Secrets & Config
+- Never store secrets in `.env*` files or repo files. Use GitHub Secrets for CI and local secret stores (OS keychain, dotnet user-secrets, or environment variables set outside the repo).
+- `.env*` files are allowed only for non-secret configuration. If unsure, treat the value as a secret and keep it out of `.env*`.
+
+## Hooks (Deterministic Automation)
+- Hooks are opt-in. Keep `.github/hooks/` empty unless you are intentionally running automation like Executive3.
+- Use `.github/hooks/*.json` to run deterministic hooks (logging, infra start/stop, policy gates).
+- Write hook logs to `.instructions-output/hooks/*.jsonl`.
+- Keep hooks fast (under 5 seconds) and never log secrets.
 
 ## Testing
 - Run the narrowest relevant tests after changes.
