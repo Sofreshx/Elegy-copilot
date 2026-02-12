@@ -32,45 +32,94 @@
  * All output is JSON to stdout. Errors are JSON with { "error": "..." }.
  * Human-readable messages go to stderr.
  *
- * DB location discovery (in order):
+ * DB path resolution contract (e3-db-path-v1):
+ *   - Resolution is deterministic for a given invocation input.
+ *   - ensure-db returns both the resolved absolute path and resolution metadata.
+ *   - Orchestrators should capture ensure-db.path once, then pass --db <path>
+ *     on all subsequent CLI calls to guarantee single-path targeting across cwd changes.
+ *
+ * Resolution precedence (in order):
  *   1. --db <path> argument
  *   2. E3_DB_PATH environment variable
  *   3. .e3-local/db-path.txt (written by extension on startup)
  *   4. .e3-local/executive3.db (workspace-local default)
+ *   5. <cwd>/.e3-local/executive3.db (fallback)
  */
 
 const Database = require('better-sqlite3');
 const fsMod = require('fs');
 const pathMod = require('path');
+const DB_PATH_CONTRACT_VERSION = 'e3-db-path-v1';
+const MAX_DISCOVERY_DEPTH = 10;
 
 // ── DB Discovery ─────────────────────────────────────────────────────────────
 
+function normalizePath(rawPath, baseDir) {
+  return pathMod.resolve(baseDir, rawPath);
+}
+
 function findDbPath(args) {
+	const cwd = process.cwd();
+
 	// 1. Explicit --db flag
 	const dbIdx = args.indexOf('--db');
 	if (dbIdx !== -1 && args[dbIdx + 1]) {
-		return args[dbIdx + 1];
+		return {
+			path: normalizePath(args[dbIdx + 1], cwd),
+			source: 'flag',
+			contractVersion: DB_PATH_CONTRACT_VERSION,
+			cwd,
+		};
 	}
 
 	// 2. Environment variable
 	if (process.env.E3_DB_PATH) {
-		return process.env.E3_DB_PATH;
+		return {
+			path: normalizePath(process.env.E3_DB_PATH, cwd),
+			source: 'env',
+			contractVersion: DB_PATH_CONTRACT_VERSION,
+			cwd,
+		};
 	}
 
 	// 3. Walk up from cwd to find .e3-local/
-	let dir = process.cwd();
-	for (let i = 0; i < 10; i++) {
+	let dir = cwd;
+	for (let i = 0; i < MAX_DISCOVERY_DEPTH; i++) {
 		const dbPathFile = pathMod.join(dir, '.e3-local', 'db-path.txt');
 		if (fsMod.existsSync(dbPathFile)) {
 			const resolved = fsMod.readFileSync(dbPathFile, 'utf-8').trim();
-			if (fsMod.existsSync(resolved)) {
-				return resolved;
+			const normalized = normalizePath(resolved, pathMod.dirname(dbPathFile));
+			if (fsMod.existsSync(normalized)) {
+				return {
+					path: normalized,
+					source: 'discovery-file',
+					contractVersion: DB_PATH_CONTRACT_VERSION,
+					cwd,
+					discoveryFile: dbPathFile,
+				};
 			}
 		}
 
 		const directDb = pathMod.join(dir, '.e3-local', 'executive3.db');
 		if (fsMod.existsSync(directDb)) {
-			return directDb;
+			return {
+				path: directDb,
+				source: 'workspace-default',
+				contractVersion: DB_PATH_CONTRACT_VERSION,
+				cwd,
+				discoveryRoot: dir,
+			};
+		}
+
+		const localDir = pathMod.join(dir, '.e3-local');
+		if (fsMod.existsSync(localDir)) {
+			return {
+				path: directDb,
+				source: 'workspace-default',
+				contractVersion: DB_PATH_CONTRACT_VERSION,
+				cwd,
+				discoveryRoot: dir,
+			};
 		}
 
 		const parent = pathMod.dirname(dir);
@@ -78,8 +127,25 @@ function findDbPath(args) {
 		dir = parent;
 	}
 
-	// 4. Default: create in cwd
-	return pathMod.join(process.cwd(), '.e3-local', 'executive3.db');
+	// 5. Default: create in cwd
+	return {
+		path: pathMod.join(cwd, '.e3-local', 'executive3.db'),
+		source: 'cwd-default',
+		contractVersion: DB_PATH_CONTRACT_VERSION,
+		cwd,
+	};
+}
+
+function stripDbFlag(args) {
+	const stripped = [...args];
+	const dbFlagIdx = stripped.indexOf('--db');
+	if (dbFlagIdx !== -1) {
+		if (!stripped[dbFlagIdx + 1]) {
+			errorOut('Usage error: --db requires a path value');
+		}
+		stripped.splice(dbFlagIdx, 2);
+	}
+	return stripped;
 }
 
 function openDb(dbPath) {
@@ -137,9 +203,21 @@ function parseJsonArg(arg, name) {
 // ── Commands ─────────────────────────────────────────────────────────────────
 
 const commands = {
-	'ensure-db': (db, args, dbPath) => {
+	'ensure-db': (db, args, dbPath, resolution) => {
 		const version = db.prepare('SELECT version FROM schema_version ORDER BY version DESC LIMIT 1').get();
-		jsonOut({ status: 'ready', path: dbPath, schemaVersion: version?.version ?? 0 });
+		jsonOut({
+			status: 'ready',
+			path: dbPath,
+			schemaVersion: version?.version ?? 0,
+			resolution: {
+				contractVersion: resolution.contractVersion,
+				source: resolution.source,
+				cwd: resolution.cwd,
+				discoveryRoot: resolution.discoveryRoot ?? null,
+				discoveryFile: resolution.discoveryFile ?? null,
+				reuseHint: 'Capture path once and pass --db <path> on all subsequent E3 CLI commands.',
+			},
+		});
 	},
 
 	'get-session': (db, args) => {
@@ -415,13 +493,8 @@ const commands = {
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 function main() {
-	const args = process.argv.slice(2);
-
-	// Remove --db <path> from args
-	const dbFlagIdx = args.indexOf('--db');
-	if (dbFlagIdx !== -1) {
-		args.splice(dbFlagIdx, 2);
-	}
+	const rawArgs = process.argv.slice(2);
+	const args = stripDbFlag(rawArgs);
 
 	const command = args.shift();
 	if (!command || command === '--help' || command === '-h') {
@@ -462,8 +535,9 @@ Output: JSON to stdout. Errors: JSON with { "error": "..." }
 		errorOut(`Unknown command: ${command}. Run with --help for usage.`);
 	}
 
-	const dbPath = findDbPath(process.argv.slice(2));
-	process.stderr.write(`[E3 CLI] DB: ${dbPath}\n`);
+	const dbResolution = findDbPath(rawArgs);
+	const dbPath = dbResolution.path;
+	process.stderr.write(`[E3 CLI] DB (${dbResolution.source}): ${dbPath}\n`);
 
 	let db;
 	try {
@@ -473,7 +547,7 @@ Output: JSON to stdout. Errors: JSON with { "error": "..." }
 	}
 
 	try {
-		handler(db, args, dbPath);
+		handler(db, args, dbPath, dbResolution);
 	} catch (err) {
 		errorOut(`Command failed: ${err.message}`);
 	} finally {

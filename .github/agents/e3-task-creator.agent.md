@@ -29,6 +29,7 @@ All commands output JSON to stdout. Parse the output for results.
 - **Session ID**: the session ID to associate tasks with
 - **Plan ID**: the plan ID (from the plan output)
 - **CLI path**: the resolved path to `e3-cli.js`
+- **DB path**: deterministic DB path captured from `ensure-db.path`
 
 ## Non-Negotiables
 - **No subagent calls**: you are a leaf worker.
@@ -36,6 +37,7 @@ All commands output JSON to stdout. Parse the output for results.
 - **Validate dependencies**: all `depends_on` references must point to task IDs within this plan.
 - **Preserve ordering**: create tasks in dependency order (tasks with no deps first).
 - **Idempotent**: if a task with the same ID already exists, skip it and note the skip.
+- **Deterministic DB targeting**: pass `--db <DB path>` on every CLI invocation.
 
 ## Workflow
 
@@ -46,18 +48,18 @@ All commands output JSON to stdout. Parse the output for results.
 
 ### 2. Create the Plan Record
 ```bash
-node $E3CLI create-plan '{"id":"<plan_id>","title":"<title>","summary":"<summary>"}'
+node $E3CLI create-plan '{"id":"<plan_id>","title":"<title>","summary":"<summary>"}' --db "$E3DB"
 ```
 
 ### 3. Create the Session (if not already created)
 ```bash
-node $E3CLI create-session '{"id":"<session_id>","plan_id":"<plan_id>","request_summary":"<from plan summary>"}'
+node $E3CLI create-session '{"id":"<session_id>","plan_id":"<plan_id>","request_summary":"<from plan summary>"}' --db "$E3DB"
 ```
 
 ### 4. Create Tasks
 For each task in the plan:
 ```bash
-node $E3CLI create-task '{"id":"<task_id>","plan_id":"<plan_id>","session_id":"<session_id>","title":"<title>","description":"<description>","acceptance_criteria":"<criteria>","status":"not-started","group_id":"<group_id>","group_title":"<group_title>","group_order":<N>,"priority":<N>,"depends_on":"[\"dep1\"]","skills":"[\"skill1\"]"}'
+node $E3CLI create-task '{"id":"<task_id>","plan_id":"<plan_id>","session_id":"<session_id>","title":"<title>","description":"<description>","acceptance_criteria":"<criteria>","status":"not-started","group_id":"<group_id>","group_title":"<group_title>","group_order":<N>,"priority":<N>,"depends_on":"[\"dep1\"]","skills":"[\"skill1\"]"}' --db "$E3DB"
 ```
 
 Create tasks in dependency order:
@@ -67,7 +69,7 @@ Create tasks in dependency order:
 
 ### 5. Log the Creation
 ```bash
-node $E3CLI log-execution '{"session_id":"<session_id>","agent_name":"e3-task-creator","action":"created","detail":"{\"tasks_created\":<count>,\"plan_id\":\"<plan_id>\"}"}'
+node $E3CLI log-execution '{"session_id":"<session_id>","agent_name":"e3-task-creator","action":"created","detail":"{\"tasks_created\":<count>,\"plan_id\":\"<plan_id>\"}"}' --db "$E3DB"
 ```
 
 ## Output Format
