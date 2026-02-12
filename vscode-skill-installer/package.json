@@ -635,7 +635,8 @@
     "e3:reset": "node scripts/e3-init.js --reset",
     "e3:cli": "node scripts/e3-cli.js",
     "e3:export": "node scripts/e3-export.js",
-    "e3:matrix": "node scripts/e3-regression-matrix.js"
+    "e3:matrix": "node scripts/e3-regression-matrix.js",
+    "e3:test-cli": "node --test scripts/tests/e3-cli-db-contract.test.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",
