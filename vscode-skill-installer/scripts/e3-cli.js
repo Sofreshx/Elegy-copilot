@@ -35,6 +35,7 @@
  * DB path resolution contract (e3-db-path-v1):
  *   - Resolution is deterministic for a given invocation input.
  *   - ensure-db returns both the resolved absolute path and resolution metadata.
+ *   - Post-bootstrap commands require explicit --db <path>.
  *   - Orchestrators should capture ensure-db.path once, then pass --db <path>
  *     on all subsequent CLI calls to guarantee single-path targeting across cwd changes.
  *
@@ -51,6 +52,7 @@ const fsMod = require('fs');
 const pathMod = require('path');
 const DB_PATH_CONTRACT_VERSION = 'e3-db-path-v1';
 const MAX_DISCOVERY_DEPTH = 10;
+const OPTIONAL_DB_COMMANDS = new Set(['ensure-db']);
 
 // ── DB Discovery ─────────────────────────────────────────────────────────────
 
@@ -146,6 +148,23 @@ function stripDbFlag(args) {
 		stripped.splice(dbFlagIdx, 2);
 	}
 	return stripped;
+}
+
+function hasExplicitDbFlag(args) {
+	const dbFlagIdx = args.indexOf('--db');
+	return dbFlagIdx !== -1 && Boolean(args[dbFlagIdx + 1]);
+}
+
+function requiresExplicitDb(command) {
+	return !OPTIONAL_DB_COMMANDS.has(command);
+}
+
+function missingDbMessage(command) {
+	return [
+		`Missing required --db <path> for command: ${command}`,
+		'Run `node scripts/e3-cli.js ensure-db`, capture the returned `path`, then retry with `--db <path>`.',
+		`Example: node scripts/e3-cli.js ${command} ... --db <captured-path>`,
+	].join(' ');
 }
 
 function openDb(dbPath) {
@@ -523,7 +542,7 @@ Commands:
   reset                               Delete all data
 
 Options:
-  --db <path>   Explicit DB path (overrides auto-discovery)
+	--db <path>   Required for all commands except ensure-db
 
 Output: JSON to stdout. Errors: JSON with { "error": "..." }
 `);
@@ -533,6 +552,10 @@ Output: JSON to stdout. Errors: JSON with { "error": "..." }
 	const handler = commands[command];
 	if (!handler) {
 		errorOut(`Unknown command: ${command}. Run with --help for usage.`);
+	}
+
+	if (requiresExplicitDb(command) && !hasExplicitDbFlag(rawArgs)) {
+		errorOut(missingDbMessage(command));
 	}
 
 	const dbResolution = findDbPath(rawArgs);

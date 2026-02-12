@@ -634,7 +634,7 @@
     "e3:init": "node scripts/e3-init.js",
     "e3:reset": "node scripts/e3-init.js --reset",
     "e3:cli": "node scripts/e3-cli.js",
-    "e3:export": "node scripts/e3-cli.js export-all"
+    "e3:export": "node scripts/e3-export.js"
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",
