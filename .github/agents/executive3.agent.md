@@ -82,8 +82,19 @@ For deterministic single-path behavior across entry points and cwd changes:
 | `increment-replan-count` | `<sessionId>` | `{replan_count}` |
 | `store-context` | `'<json>'` | `{success}` |
 | `get-context` | `<scope> [scopeId]` | context notes array |
+| `smart-context-status` | — | `{phase, enabled, source, featureGate, rollback, contractVersion}` |
+| `store-context-link` | `'<json>'` | `{success, links_written, contractVersion}` |
+| `store-context-embedding` | `'<json>'` | `{success, vectorContract, embedding}` |
+| `get-context-smart` | `'<json>'` | `{ranked, linked_neighbors, embeddings, vectorContract}` |
 | `export-all` | — | full DB dump |
 | `reset` | — | `{success}` |
+
+### Smart-Context Gate (Phase B)
+
+- Default mode is **Phase A** (`store-context` + `get-context`) and is always backward-compatible.
+- Smart-context Phase B commands are **opt-in only**.
+- Enable per invocation with `--smart-context`, or set `E3_SMART_CONTEXT_ENABLED=1` for process-wide opt-in.
+- Rollback is immediate: remove `--smart-context` and unset `E3_SMART_CONTEXT_ENABLED`.
 
 ### Usage Examples
 ```bash
@@ -114,6 +125,14 @@ node scripts/e3-cli.js get-task-summary e3-20260211-120000-ab12 --db "$E3DB"
 
 # Export full DB (post-bootstrap commands always include --db)
 node scripts/e3-cli.js export-all --db "$E3DB"
+
+# Phase B smart-context (explicit opt-in)
+node scripts/e3-cli.js smart-context-status --db "$E3DB"
+node scripts/e3-cli.js get-context-smart '{"scope":"project","query":"db contract","limit":6,"neighbor_limit":4}' --db "$E3DB" --smart-context
+
+# Rollback to Phase A behavior
+unset E3_SMART_CONTEXT_ENABLED
+# and omit --smart-context on subsequent calls
 ```
 
 **IMPORTANT**: When passing JSON arguments on Windows, use double quotes for the outer shell and escape inner quotes, or use a heredoc pattern. On bash/WSL, single-quote the JSON.

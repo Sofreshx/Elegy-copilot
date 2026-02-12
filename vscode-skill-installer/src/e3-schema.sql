@@ -91,6 +91,34 @@ CREATE TABLE IF NOT EXISTS context_notes (
 );
 
 ------------------------------------------------------------------------
+-- Smart Context Phase B (additive, opt-in)
+------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS context_links (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_note_id  INTEGER NOT NULL REFERENCES context_notes(id) ON DELETE CASCADE,
+  target_note_id  INTEGER NOT NULL REFERENCES context_notes(id) ON DELETE CASCADE,
+  link_type       TEXT    NOT NULL DEFAULT 'related',
+  weight          REAL    NOT NULL DEFAULT 1.0,
+  metadata        TEXT,
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(source_note_id, target_note_id, link_type)
+);
+
+CREATE TABLE IF NOT EXISTS context_embeddings (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  note_id           INTEGER NOT NULL REFERENCES context_notes(id) ON DELETE CASCADE,
+  provider          TEXT    NOT NULL,
+  model             TEXT    NOT NULL,
+  dimensions        INTEGER,
+  embedding_ref     TEXT,          -- external vector store reference (optional)
+  embedding_preview TEXT,          -- optional lightweight preview/debug payload
+  metadata          TEXT,          -- JSON blob for provider-specific attributes
+  created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(note_id, provider, model)
+);
+
+------------------------------------------------------------------------
 -- Schema version  (for future migrations)
 ------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -99,6 +127,7 @@ CREATE TABLE IF NOT EXISTS schema_version (
 );
 
 INSERT OR IGNORE INTO schema_version (version) VALUES (1);
+INSERT OR IGNORE INTO schema_version (version) VALUES (2);
 
 ------------------------------------------------------------------------
 -- Indices
@@ -110,4 +139,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_group          ON tasks(group_id, group_ord
 CREATE INDEX IF NOT EXISTS idx_exec_log_session     ON execution_log(session_id);
 CREATE INDEX IF NOT EXISTS idx_exec_log_task        ON execution_log(task_id);
 CREATE INDEX IF NOT EXISTS idx_context_scope        ON context_notes(scope, scope_id);
+CREATE INDEX IF NOT EXISTS idx_context_links_source ON context_links(source_note_id);
+CREATE INDEX IF NOT EXISTS idx_context_links_target ON context_links(target_note_id);
+CREATE INDEX IF NOT EXISTS idx_context_embeddings_note ON context_embeddings(note_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_status      ON sessions(status);

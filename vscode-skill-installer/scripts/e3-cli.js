@@ -26,6 +26,10 @@
  *   increment-replan-count <sessionId> Increment replan count
  *   store-context <json>               Store a context note
  *   get-context <scope> [scopeId]      Get context notes
+ *   smart-context-status               Show Phase B smart-context gate status
+ *   store-context-link <json>          Store/update graph link between context notes (Phase B)
+ *   store-context-embedding <json>     Store/update vector metadata contract for a note (Phase B)
+ *   get-context-smart <json>           Ranked lexical retrieval + linked neighbors (Phase B)
  *   export-all                         Export entire DB as JSON
  *   reset                              Delete all data (keep schema)
  *
@@ -49,6 +53,11 @@
  * Conflict guardrail:
  *   - If non-flag signals disagree (including stale discovery-file signals),
  *     CLI fails fast with structured diagnostics unless explicit --db is provided.
+ *
+ * Smart-context Phase B gate:
+ *   - Disabled by default.
+ *   - Enable explicitly via --smart-context or E3_SMART_CONTEXT_ENABLED=1.
+ *   - Rollback to Phase A by removing --smart-context and unsetting E3_SMART_CONTEXT_ENABLED.
  */
 
 const Database = require('better-sqlite3');
@@ -59,6 +68,11 @@ const DB_PATH_CONFLICT_CODE = 'E_DB_PATH_CONFLICT';
 const DB_PATH_CONFLICT_CLASSIFICATION = 'db-path-signal-conflict';
 const MAX_DISCOVERY_DEPTH = 10;
 const OPTIONAL_DB_COMMANDS = new Set(['ensure-db']);
+const SMART_CONTEXT_GATE_ENV = 'E3_SMART_CONTEXT_ENABLED';
+const SMART_CONTEXT_GATE_FLAG = '--smart-context';
+const SMART_CONTEXT_PHASE_B_CONTRACT_VERSION = 'smart-context-phase-b-v1';
+const SMART_CONTEXT_DISABLED_CODE = 'E_SMART_CONTEXT_DISABLED';
+const SMART_CONTEXT_ALLOWED_SCOPES = new Set(['project', 'session', 'task']);
 
 // ── DB Discovery ─────────────────────────────────────────────────────────────
 
@@ -289,14 +303,21 @@ function findDbPath(args) {
 	};
 }
 
-function stripDbFlag(args) {
-	const stripped = [...args];
-	const dbFlagIdx = stripped.indexOf('--db');
-	if (dbFlagIdx !== -1) {
-		if (!stripped[dbFlagIdx + 1]) {
-			errorOut('Usage error: --db requires a path value');
+function stripGlobalFlags(args) {
+	const stripped = [];
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+		if (arg === '--db') {
+			if (!args[i + 1]) {
+				errorOut('Usage error: --db requires a path value');
+			}
+			i += 1;
+			continue;
 		}
-		stripped.splice(dbFlagIdx, 2);
+		if (arg === SMART_CONTEXT_GATE_FLAG) {
+			continue;
+		}
+		stripped.push(arg);
 	}
 	return stripped;
 }
@@ -316,6 +337,160 @@ function missingDbMessage(command) {
 		'Run `node scripts/e3-cli.js ensure-db`, capture the returned `path`, then retry with `--db <path>`.',
 		`Example: node scripts/e3-cli.js ${command} ... --db <captured-path>`,
 	].join(' ');
+}
+
+function hasSmartContextFlag(args) {
+	return args.includes(SMART_CONTEXT_GATE_FLAG);
+}
+
+function isTruthyToggle(value) {
+	if (typeof value !== 'string') return false;
+	const normalized = value.trim().toLowerCase();
+	return normalized === '1'
+		|| normalized === 'true'
+		|| normalized === 'yes'
+		|| normalized === 'on'
+		|| normalized === 'enabled'
+		|| normalized === 'phase-b';
+}
+
+function resolveSmartContextGate(rawArgs) {
+	const flagEnabled = hasSmartContextFlag(rawArgs);
+	const envEnabled = isTruthyToggle(process.env[SMART_CONTEXT_GATE_ENV]);
+	if (flagEnabled) {
+		return {
+			enabled: true,
+			source: 'flag',
+			phase: 'phase-b',
+			envVar: SMART_CONTEXT_GATE_ENV,
+			flag: SMART_CONTEXT_GATE_FLAG,
+			contractVersion: SMART_CONTEXT_PHASE_B_CONTRACT_VERSION,
+		};
+	}
+	if (envEnabled) {
+		return {
+			enabled: true,
+			source: 'env',
+			phase: 'phase-b',
+			envVar: SMART_CONTEXT_GATE_ENV,
+			flag: SMART_CONTEXT_GATE_FLAG,
+			contractVersion: SMART_CONTEXT_PHASE_B_CONTRACT_VERSION,
+		};
+	}
+	return {
+		enabled: false,
+		source: 'default-off',
+		phase: 'phase-a',
+		envVar: SMART_CONTEXT_GATE_ENV,
+		flag: SMART_CONTEXT_GATE_FLAG,
+		contractVersion: SMART_CONTEXT_PHASE_B_CONTRACT_VERSION,
+	};
+}
+
+function smartContextDisabledError(command, gate) {
+	return {
+		error: `Smart-context Phase B is disabled for command: ${command}`,
+		code: SMART_CONTEXT_DISABLED_CODE,
+		classification: 'feature-gate-disabled',
+		phase: 'phase-a',
+		command,
+		featureGate: {
+			enabled: gate.enabled,
+			source: gate.source,
+			envVar: gate.envVar,
+			flag: gate.flag,
+		},
+		remediation: [
+			`Enable per-call: add ${SMART_CONTEXT_GATE_FLAG} to this command.`,
+			`Enable process-wide: set ${SMART_CONTEXT_GATE_ENV}=1 before invoking the CLI.`,
+			`Rollback to Phase A: unset ${SMART_CONTEXT_GATE_ENV} and omit ${SMART_CONTEXT_GATE_FLAG}.`,
+		],
+	};
+}
+
+function ensureSmartContextEnabled(command, gate) {
+	if (!gate?.enabled) {
+		const err = new Error(`Smart-context disabled for ${command}`);
+		err.code = SMART_CONTEXT_DISABLED_CODE;
+		err.details = smartContextDisabledError(command, gate ?? resolveSmartContextGate([]));
+		throw err;
+	}
+}
+
+function ensureSmartContextScope(scope) {
+	if (!SMART_CONTEXT_ALLOWED_SCOPES.has(scope)) {
+		errorOut(`Invalid scope for smart-context: ${scope}. Expected one of project|session|task.`);
+	}
+}
+
+function parseBoundedInt(value, fallback, min, max) {
+	if (value === undefined || value === null || value === '') return fallback;
+	const parsed = Number.parseInt(String(value), 10);
+	if (!Number.isFinite(parsed) || Number.isNaN(parsed)) return fallback;
+	return Math.max(min, Math.min(max, parsed));
+}
+
+function computeLexicalScore(row, query) {
+	if (!query) return 0;
+	const key = String(row.key ?? '').toLowerCase();
+	const value = String(row.value ?? '').toLowerCase();
+	const citations = String(row.citations ?? '').toLowerCase();
+	let score = 0;
+
+	if (key === query) score += 8;
+	if (key.startsWith(query)) score += 5;
+	if (key.includes(query)) score += 3;
+	if (value.includes(query)) score += 2;
+	if (citations.includes(query)) score += 1;
+
+	const tokens = query.split(/\s+/).filter(Boolean);
+	for (const token of tokens) {
+		if (token.length < 2) continue;
+		if (key.includes(token)) score += 1;
+		if (value.includes(token)) score += 1;
+	}
+
+	return score;
+}
+
+function ensureSmartContextSchema(db) {
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS schema_version (
+			version     INTEGER PRIMARY KEY,
+			applied_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+		);
+
+		CREATE TABLE IF NOT EXISTS context_links (
+			id              INTEGER PRIMARY KEY AUTOINCREMENT,
+			source_note_id  INTEGER NOT NULL REFERENCES context_notes(id) ON DELETE CASCADE,
+			target_note_id  INTEGER NOT NULL REFERENCES context_notes(id) ON DELETE CASCADE,
+			link_type       TEXT    NOT NULL DEFAULT 'related',
+			weight          REAL    NOT NULL DEFAULT 1.0,
+			metadata        TEXT,
+			created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(source_note_id, target_note_id, link_type)
+		);
+
+		CREATE TABLE IF NOT EXISTS context_embeddings (
+			id                INTEGER PRIMARY KEY AUTOINCREMENT,
+			note_id           INTEGER NOT NULL REFERENCES context_notes(id) ON DELETE CASCADE,
+			provider          TEXT    NOT NULL,
+			model             TEXT    NOT NULL,
+			dimensions        INTEGER,
+			embedding_ref     TEXT,
+			embedding_preview TEXT,
+			metadata          TEXT,
+			created_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+			updated_at        TEXT    NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(note_id, provider, model)
+		);
+
+		CREATE INDEX IF NOT EXISTS idx_context_links_source ON context_links(source_note_id);
+		CREATE INDEX IF NOT EXISTS idx_context_links_target ON context_links(target_note_id);
+		CREATE INDEX IF NOT EXISTS idx_context_embeddings_note ON context_embeddings(note_id);
+
+		INSERT OR IGNORE INTO schema_version (version) VALUES (2);
+	`);
 }
 
 function openDb(dbPath) {
@@ -344,6 +519,8 @@ function openDb(dbPath) {
 			throw new Error(`Schema file not found: ${schemaPath}`);
 		}
 	}
+
+	ensureSmartContextSchema(db);
 
 	return db;
 }
@@ -641,6 +818,309 @@ const commands = {
 		jsonOut(rows);
 	},
 
+	'smart-context-status': (db, args, dbPath, resolution, smartContextGate) => {
+		jsonOut({
+			phase: smartContextGate.phase,
+			enabled: smartContextGate.enabled,
+			source: smartContextGate.source,
+			featureGate: {
+				envVar: smartContextGate.envVar,
+				flag: smartContextGate.flag,
+				description: 'Phase B smart-context is opt-in and disabled by default.',
+			},
+			rollback: `Unset ${smartContextGate.envVar} and omit ${smartContextGate.flag} to revert to Phase A behavior.`,
+			contractVersion: SMART_CONTEXT_PHASE_B_CONTRACT_VERSION,
+		});
+	},
+
+	'store-context-link': (db, args, dbPath, resolution, smartContextGate) => {
+		ensureSmartContextEnabled('store-context-link', smartContextGate);
+		const input = parseJsonArg(args[0], 'link');
+		const sourceNoteId = Number.parseInt(String(input.source_note_id), 10);
+		const targetNoteId = Number.parseInt(String(input.target_note_id), 10);
+		if (!Number.isInteger(sourceNoteId) || !Number.isInteger(targetNoteId)) {
+			errorOut('Usage: store-context-link <json> where source_note_id and target_note_id are integers');
+		}
+		if (sourceNoteId === targetNoteId) {
+			errorOut('store-context-link requires distinct source_note_id and target_note_id');
+		}
+
+		const sourceExists = db.prepare('SELECT 1 FROM context_notes WHERE id = ?').get(sourceNoteId);
+		const targetExists = db.prepare('SELECT 1 FROM context_notes WHERE id = ?').get(targetNoteId);
+		if (!sourceExists || !targetExists) {
+			errorOut('store-context-link requires existing context_notes IDs for source_note_id and target_note_id');
+		}
+
+		const linkType = input.link_type ? String(input.link_type) : 'related';
+		const weight = Number.isFinite(Number(input.weight)) ? Number(input.weight) : 1.0;
+		const metadata = input.metadata == null ? null : JSON.stringify(input.metadata);
+		const bidirectional = Boolean(input.bidirectional);
+
+		const upsertLink = db.prepare(
+			`INSERT INTO context_links (source_note_id, target_note_id, link_type, weight, metadata)
+			 VALUES (@source_note_id, @target_note_id, @link_type, @weight, @metadata)
+			 ON CONFLICT(source_note_id, target_note_id, link_type)
+			 DO UPDATE SET
+			 	weight = excluded.weight,
+			 	metadata = excluded.metadata,
+			 	created_at = datetime('now')`
+		);
+
+		upsertLink.run({
+			source_note_id: sourceNoteId,
+			target_note_id: targetNoteId,
+			link_type: linkType,
+			weight,
+			metadata,
+		});
+
+		let linksWritten = 1;
+		if (bidirectional) {
+			upsertLink.run({
+				source_note_id: targetNoteId,
+				target_note_id: sourceNoteId,
+				link_type: linkType,
+				weight,
+				metadata,
+			});
+			linksWritten = 2;
+		}
+
+		jsonOut({
+			success: true,
+			links_written: linksWritten,
+			featureGate: {
+				enabled: smartContextGate.enabled,
+				source: smartContextGate.source,
+			},
+			contractVersion: SMART_CONTEXT_PHASE_B_CONTRACT_VERSION,
+		});
+	},
+
+	'store-context-embedding': (db, args, dbPath, resolution, smartContextGate) => {
+		ensureSmartContextEnabled('store-context-embedding', smartContextGate);
+		const input = parseJsonArg(args[0], 'embedding');
+		const noteId = Number.parseInt(String(input.note_id), 10);
+		if (!Number.isInteger(noteId)) {
+			errorOut('Usage: store-context-embedding <json> where note_id is an integer');
+		}
+
+		const noteExists = db.prepare('SELECT 1 FROM context_notes WHERE id = ?').get(noteId);
+		if (!noteExists) {
+			errorOut(`store-context-embedding requires existing context note id: ${noteId}`);
+		}
+
+		const provider = String(input.provider ?? '').trim();
+		const model = String(input.model ?? '').trim();
+		if (!provider || !model) {
+			errorOut('store-context-embedding requires provider and model');
+		}
+
+		const dimensions = input.dimensions == null ? null : parseBoundedInt(input.dimensions, null, 1, 65535);
+		const embeddingRef = input.embedding_ref == null ? null : String(input.embedding_ref);
+		const embeddingPreview = input.embedding_preview == null ? null : String(input.embedding_preview);
+		const metadata = input.metadata == null ? null : JSON.stringify(input.metadata);
+
+		db.prepare(
+			`INSERT INTO context_embeddings (note_id, provider, model, dimensions, embedding_ref, embedding_preview, metadata)
+			 VALUES (@note_id, @provider, @model, @dimensions, @embedding_ref, @embedding_preview, @metadata)
+			 ON CONFLICT(note_id, provider, model)
+			 DO UPDATE SET
+			 	dimensions = excluded.dimensions,
+			 	embedding_ref = excluded.embedding_ref,
+			 	embedding_preview = excluded.embedding_preview,
+			 	metadata = excluded.metadata,
+			 	updated_at = datetime('now')`
+		).run({
+			note_id: noteId,
+			provider,
+			model,
+			dimensions,
+			embedding_ref: embeddingRef,
+			embedding_preview: embeddingPreview,
+			metadata,
+		});
+
+		const stored = db.prepare(
+			`SELECT id, note_id, provider, model, dimensions, embedding_ref, embedding_preview, metadata, created_at, updated_at
+			 FROM context_embeddings
+			 WHERE note_id = ? AND provider = ? AND model = ?`
+		).get(noteId, provider, model);
+
+		jsonOut({
+			success: true,
+			contractVersion: SMART_CONTEXT_PHASE_B_CONTRACT_VERSION,
+			vectorContract: {
+				description: 'Vector-ready metadata contract. Store external embedding reference and metadata per context note.',
+				table: 'context_embeddings',
+				key: ['note_id', 'provider', 'model'],
+				fields: ['dimensions', 'embedding_ref', 'embedding_preview', 'metadata', 'updated_at'],
+			},
+			embedding: stored,
+		});
+	},
+
+	'get-context-smart': (db, args, dbPath, resolution, smartContextGate) => {
+		ensureSmartContextEnabled('get-context-smart', smartContextGate);
+		const request = parseJsonArg(args[0], 'request');
+		const scope = String(request.scope ?? '').trim();
+		if (!scope) {
+			errorOut('Usage: get-context-smart <json> where json includes scope');
+		}
+		ensureSmartContextScope(scope);
+
+		const scopeId = request.scope_id ?? null;
+		const query = String(request.query ?? '').trim().toLowerCase();
+		const limit = parseBoundedInt(request.limit, 8, 1, 50);
+		const neighborLimit = parseBoundedInt(request.neighbor_limit, 6, 0, 50);
+		const includeEmbeddings = request.include_embeddings !== false;
+
+		const candidates = scopeId == null
+			? db.prepare('SELECT * FROM context_notes WHERE scope = ? AND scope_id IS NULL ORDER BY created_at DESC LIMIT 500').all(scope)
+			: db.prepare('SELECT * FROM context_notes WHERE scope = ? AND scope_id = ? ORDER BY created_at DESC LIMIT 500').all(scope, scopeId);
+
+		const ranked = candidates
+			.map(row => ({
+				...row,
+				lexical_score: computeLexicalScore(row, query),
+			}))
+			.filter(row => (query ? row.lexical_score > 0 : true))
+			.sort((left, right) => {
+				if (right.lexical_score !== left.lexical_score) {
+					return right.lexical_score - left.lexical_score;
+				}
+				return String(right.created_at).localeCompare(String(left.created_at));
+			})
+			.slice(0, limit);
+
+		const anchorIds = ranked.map(row => row.id);
+		const anchorSet = new Set(anchorIds);
+
+		let linkedNeighbors = [];
+		if (anchorIds.length > 0 && neighborLimit > 0) {
+			const placeholders = anchorIds.map(() => '?').join(',');
+			const linkRows = db.prepare(
+				`SELECT
+					cl.id AS link_id,
+					cl.source_note_id,
+					cl.target_note_id,
+					cl.link_type,
+					cl.weight,
+					cl.metadata,
+					cl.created_at,
+					src.id AS src_id,
+					src.scope AS src_scope,
+					src.scope_id AS src_scope_id,
+					src.key AS src_key,
+					src.value AS src_value,
+					src.citations AS src_citations,
+					src.created_at AS src_created_at,
+					tgt.id AS tgt_id,
+					tgt.scope AS tgt_scope,
+					tgt.scope_id AS tgt_scope_id,
+					tgt.key AS tgt_key,
+					tgt.value AS tgt_value,
+					tgt.citations AS tgt_citations,
+					tgt.created_at AS tgt_created_at
+				 FROM context_links cl
+				 JOIN context_notes src ON src.id = cl.source_note_id
+				 JOIN context_notes tgt ON tgt.id = cl.target_note_id
+				 WHERE cl.source_note_id IN (${placeholders}) OR cl.target_note_id IN (${placeholders})
+				 ORDER BY cl.weight DESC, cl.created_at DESC
+				 LIMIT ?`
+			).all(...anchorIds, ...anchorIds, neighborLimit * 4);
+
+			const seenNeighborIds = new Set();
+			for (const row of linkRows) {
+				const sourceIsAnchor = anchorSet.has(row.source_note_id);
+				const targetIsAnchor = anchorSet.has(row.target_note_id);
+				if (!sourceIsAnchor && !targetIsAnchor) {
+					continue;
+				}
+
+				const neighbor = sourceIsAnchor
+					? {
+						id: row.tgt_id,
+						scope: row.tgt_scope,
+						scope_id: row.tgt_scope_id,
+						key: row.tgt_key,
+						value: row.tgt_value,
+						citations: row.tgt_citations,
+						created_at: row.tgt_created_at,
+					}
+					: {
+						id: row.src_id,
+						scope: row.src_scope,
+						scope_id: row.src_scope_id,
+						key: row.src_key,
+						value: row.src_value,
+						citations: row.src_citations,
+						created_at: row.src_created_at,
+					};
+
+				if (anchorSet.has(neighbor.id) || seenNeighborIds.has(neighbor.id)) {
+					continue;
+				}
+
+				seenNeighborIds.add(neighbor.id);
+				linkedNeighbors.push({
+					...neighbor,
+					via: {
+						link_id: row.link_id,
+						link_type: row.link_type,
+						weight: row.weight,
+						metadata: row.metadata,
+						source_note_id: row.source_note_id,
+						target_note_id: row.target_note_id,
+						created_at: row.created_at,
+					},
+				});
+
+				if (linkedNeighbors.length >= neighborLimit) {
+					break;
+				}
+			}
+		}
+
+		let embeddings = [];
+		if (includeEmbeddings && anchorIds.length > 0) {
+			const placeholders = anchorIds.map(() => '?').join(',');
+			embeddings = db.prepare(
+				`SELECT id, note_id, provider, model, dimensions, embedding_ref, embedding_preview, metadata, created_at, updated_at
+				 FROM context_embeddings
+				 WHERE note_id IN (${placeholders})
+				 ORDER BY updated_at DESC`
+			).all(...anchorIds);
+		}
+
+		jsonOut({
+			phase: 'phase-b',
+			featureGate: {
+				enabled: smartContextGate.enabled,
+				source: smartContextGate.source,
+				envVar: smartContextGate.envVar,
+				flag: smartContextGate.flag,
+			},
+			request: {
+				scope,
+				scope_id: scopeId,
+				query,
+				limit,
+				neighbor_limit: neighborLimit,
+				include_embeddings: includeEmbeddings,
+			},
+			ranked,
+			linked_neighbors: linkedNeighbors,
+			embeddings,
+			vectorContract: {
+				version: SMART_CONTEXT_PHASE_B_CONTRACT_VERSION,
+				table: 'context_embeddings',
+				usage: 'Store vector metadata and external embedding references keyed by note_id/provider/model.',
+				fields: ['note_id', 'provider', 'model', 'dimensions', 'embedding_ref', 'embedding_preview', 'metadata', 'updated_at'],
+			},
+		});
+	},
+
 	'export-all': (db) => {
 		jsonOut({
 			plans: db.prepare('SELECT * FROM plans').all(),
@@ -648,6 +1128,8 @@ const commands = {
 			tasks: db.prepare('SELECT * FROM tasks ORDER BY group_order ASC, priority DESC').all(),
 			execution_log: db.prepare('SELECT * FROM execution_log ORDER BY timestamp DESC LIMIT 200').all(),
 			context_notes: db.prepare('SELECT * FROM context_notes ORDER BY created_at DESC').all(),
+			context_links: db.prepare('SELECT * FROM context_links ORDER BY created_at DESC').all(),
+			context_embeddings: db.prepare('SELECT * FROM context_embeddings ORDER BY updated_at DESC').all(),
 			schema_version: db.prepare('SELECT * FROM schema_version').all(),
 		});
 	},
@@ -655,6 +1137,8 @@ const commands = {
 	'reset': (db) => {
 		db.exec(`
 			DELETE FROM execution_log;
+			DELETE FROM context_embeddings;
+			DELETE FROM context_links;
 			DELETE FROM context_notes;
 			DELETE FROM tasks;
 			DELETE FROM sessions;
@@ -668,7 +1152,8 @@ const commands = {
 
 function main() {
 	const rawArgs = process.argv.slice(2);
-	const args = stripDbFlag(rawArgs);
+	const args = stripGlobalFlags(rawArgs);
+	const smartContextGate = resolveSmartContextGate(rawArgs);
 
 	const command = args.shift();
 	if (!command || command === '--help' || command === '-h') {
@@ -693,11 +1178,17 @@ Commands:
   increment-replan-count <sessionId>  Increment replan count
   store-context <json>                Store context note
   get-context <scope> [scopeId]       Get context notes
+	smart-context-status                Show smart-context Phase B gate status
+	store-context-link <json>           Store/update graph link between context notes (Phase B)
+	store-context-embedding <json>      Store/update vector metadata contract for note (Phase B)
+	get-context-smart <json>            Ranked lexical retrieval + linked neighbors (Phase B)
   export-all                          Export all DB data
   reset                               Delete all data
 
 Options:
 	--db <path>   Required for all commands except ensure-db
+	--smart-context   Opt in to Phase B smart-context commands for this invocation (default off)
+	                 Alternative: set E3_SMART_CONTEXT_ENABLED=1
 
 Output: JSON to stdout. Errors: JSON with { "error": "..." }
 `);
@@ -734,8 +1225,11 @@ Output: JSON to stdout. Errors: JSON with { "error": "..." }
 	}
 
 	try {
-		handler(db, args, dbPath, dbResolution);
+		handler(db, args, dbPath, dbResolution, smartContextGate);
 	} catch (err) {
+		if (err.code === SMART_CONTEXT_DISABLED_CODE && err.details) {
+			errorOut(err.details);
+		}
 		errorOut(`Command failed: ${err.message}`);
 	} finally {
 		db.close();
