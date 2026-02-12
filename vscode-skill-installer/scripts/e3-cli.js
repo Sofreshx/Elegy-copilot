@@ -239,14 +239,13 @@ function detectDbSignalConflict(cwd, signals) {
 	]);
 }
 
-function findDbPath(args) {
+function findDbPath(parsedDbFlag) {
 	const cwd = process.cwd();
 
 	// 1. Explicit --db flag
-	const dbIdx = args.indexOf('--db');
-	if (dbIdx !== -1 && args[dbIdx + 1]) {
+	if (parsedDbFlag?.isPresent) {
 		return {
-			path: normalizePath(args[dbIdx + 1], cwd),
+			path: normalizePath(parsedDbFlag.value, cwd),
 			source: 'flag',
 			contractVersion: DB_PATH_CONTRACT_VERSION,
 			cwd,
@@ -303,15 +302,82 @@ function findDbPath(args) {
 	};
 }
 
-function stripGlobalFlags(args) {
+function dbFlagUsageError(reason) {
+	return `${reason} Usage: --db <path> or --db=<path>`;
+}
+
+function parseStrictDbFlag(args) {
+	let parsed = null;
+
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i];
+
+		if (arg === '--db') {
+			if (parsed) {
+				throw new Error(dbFlagUsageError('Usage error: duplicate --db flag.'));
+			}
+
+			const value = args[i + 1];
+			if (value === undefined) {
+				throw new Error(dbFlagUsageError('Usage error: --db requires a path value.'));
+			}
+
+			const trimmed = String(value).trim();
+			if (!trimmed) {
+				throw new Error(dbFlagUsageError('Usage error: --db requires a non-empty path value.'));
+			}
+
+			if (trimmed.startsWith('-')) {
+				throw new Error(dbFlagUsageError('Usage error: --db value cannot be another flag.'));
+			}
+
+			parsed = {
+				isPresent: true,
+				value: trimmed,
+				startIndex: i,
+				endIndex: i + 1,
+			};
+			i += 1;
+			continue;
+		}
+
+		if (arg.startsWith('--db=')) {
+			if (parsed) {
+				throw new Error(dbFlagUsageError('Usage error: duplicate --db flag.'));
+			}
+
+			const value = arg.slice('--db='.length);
+			const trimmed = String(value).trim();
+			if (!trimmed) {
+				throw new Error(dbFlagUsageError('Usage error: --db requires a non-empty path value.'));
+			}
+
+			if (trimmed.startsWith('-')) {
+				throw new Error(dbFlagUsageError('Usage error: --db value cannot be another flag.'));
+			}
+
+			parsed = {
+				isPresent: true,
+				value: trimmed,
+				startIndex: i,
+				endIndex: i,
+			};
+		}
+	}
+
+	return parsed ?? {
+		isPresent: false,
+		value: null,
+		startIndex: -1,
+		endIndex: -1,
+	};
+}
+
+function stripGlobalFlags(args, parsedDbFlag) {
 	const stripped = [];
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i];
-		if (arg === '--db') {
-			if (!args[i + 1]) {
-				errorOut('Usage error: --db requires a path value');
-			}
-			i += 1;
+		if (parsedDbFlag?.isPresent && i >= parsedDbFlag.startIndex && i <= parsedDbFlag.endIndex) {
 			continue;
 		}
 		if (arg === SMART_CONTEXT_GATE_FLAG) {
@@ -320,11 +386,6 @@ function stripGlobalFlags(args) {
 		stripped.push(arg);
 	}
 	return stripped;
-}
-
-function hasExplicitDbFlag(args) {
-	const dbFlagIdx = args.indexOf('--db');
-	return dbFlagIdx !== -1 && Boolean(args[dbFlagIdx + 1]);
 }
 
 function requiresExplicitDb(command) {
@@ -1152,7 +1213,14 @@ const commands = {
 
 function main() {
 	const rawArgs = process.argv.slice(2);
-	const args = stripGlobalFlags(rawArgs);
+	let parsedDbFlag;
+	try {
+		parsedDbFlag = parseStrictDbFlag(rawArgs);
+	} catch (err) {
+		errorOut(err.message);
+	}
+
+	const args = stripGlobalFlags(rawArgs, parsedDbFlag);
 	const smartContextGate = resolveSmartContextGate(rawArgs);
 
 	const command = args.shift();
@@ -1186,7 +1254,7 @@ Commands:
   reset                               Delete all data
 
 Options:
-	--db <path>   Required for all commands except ensure-db
+	--db <path> | --db=<path>   Required for all commands except ensure-db
 	--smart-context   Opt in to Phase B smart-context commands for this invocation (default off)
 	                 Alternative: set E3_SMART_CONTEXT_ENABLED=1
 
@@ -1200,13 +1268,13 @@ Output: JSON to stdout. Errors: JSON with { "error": "..." }
 		errorOut(`Unknown command: ${command}. Run with --help for usage.`);
 	}
 
-	if (requiresExplicitDb(command) && !hasExplicitDbFlag(rawArgs)) {
+	if (requiresExplicitDb(command) && !parsedDbFlag.isPresent) {
 		errorOut(missingDbMessage(command));
 	}
 
 	let dbResolution;
 	try {
-		dbResolution = findDbPath(rawArgs);
+		dbResolution = findDbPath(parsedDbFlag);
 	} catch (err) {
 		if (err.code === DB_PATH_CONFLICT_CODE && err.details) {
 			errorOut(err.details);

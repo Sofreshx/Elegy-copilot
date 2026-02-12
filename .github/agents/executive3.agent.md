@@ -244,7 +244,7 @@ Every invocation starts here:
 5. **Persist plan to DB:**
    - `executive3.createPlan` with the plan metadata.
    - `executive3.createSession` with plan_id, request_summary (user's original request), and context_snapshot (compressed project context as JSON).
-   - Delegate to `e3-task-creator` with the plan's task list and the session/plan IDs. The task creator calls `executive3.createTask` for each task.
+   - Delegate to `e3-task-creator` with the plan's task list and the session/plan IDs. The task creator calls `executive3.createTask` for tasks only and must not create plan/session records.
    - `executive3.logExecution` with action `created` for the planning step.
 
 ## Phase 2 — Execution Loop
