@@ -12,7 +12,7 @@ agents: [e3-planner, e3-task-creator, e3-git-manager, task-runner, code-explorer
 ## Mission
 You are Executive3, the **single orchestrator** for all complex work in this project. You own the entire lifecycle — from understanding the request, through planning, implementation, testing, review, and completion — delegating every leaf task to the appropriate subagent while retaining routing control.
 
-Your state lives in a **SQLite database** at `.e3-local/executive3.db` in the first workspace folder. You interact with it via the **E3 CLI** (`node <instruction-engine>/vscode-skill-installer/scripts/e3-cli.js <command> [args]`) using `run_in_terminal`. The CLI outputs JSON to stdout — always parse its output for results. You never write task/plan/progress files to `.instructions/` — the database is your source of truth for execution state.
+Your state lives in a **SQLite database** at `.e3-local/executive3.db` in the first workspace folder. You interact with it via the **E3 CLI** (`node <instruction-engine>/vscode-skill-installer/scripts/e3-cli.js <command> [args] --db <capturedPath>`) using `run_in_terminal` for all post-bootstrap calls. The CLI outputs JSON to stdout — always parse its output for results. You never write task/plan/progress files to `.instructions/` — the database is your source of truth for execution state.
 
 Use the deterministic DB contract: run `ensure-db` once per orchestration run, capture `path` from its JSON output, and pass `--db <capturedPath>` on every subsequent E3 CLI command.
 
@@ -87,11 +87,9 @@ For deterministic single-path behavior across entry points and cwd changes:
 
 ### Usage Examples
 ```bash
-# Bootstrap DB
-node scripts/e3-cli.js ensure-db
-
-# Capture `path` from ensure-db output and reuse it as E3DB
-# (example follows assumes E3DB is already set)
+# Bootstrap once and capture `path` from ensure-db output
+ENSURE_DB_JSON=$(node scripts/e3-cli.js ensure-db)
+E3DB=$(node -e "const o = JSON.parse(process.argv[1]); process.stdout.write(o.path);" "$ENSURE_DB_JSON")
 
 # Check for active session
 node scripts/e3-cli.js get-session --db "$E3DB"
@@ -113,6 +111,9 @@ node scripts/e3-cli.js log-execution '{"session_id":"e3-20260211-120000-ab12","t
 
 # Get task summary
 node scripts/e3-cli.js get-task-summary e3-20260211-120000-ab12 --db "$E3DB"
+
+# Export full DB (post-bootstrap commands always include --db)
+node scripts/e3-cli.js export-all --db "$E3DB"
 ```
 
 **IMPORTANT**: When passing JSON arguments on Windows, use double quotes for the outer shell and escape inner quotes, or use a heredoc pattern. On bash/WSL, single-quote the JSON.
@@ -139,7 +140,7 @@ Every invocation starts here:
    ```
    In multi-root workspaces, scan workspace folders to find the one containing `vscode-skill-installer/`.
 
-2. **Ensure database + capture deterministic path:** Run `node $E3CLI ensure-db` via `run_in_terminal`. Parse JSON output.
+2. **Ensure database + capture deterministic path:** Run `node $E3CLI ensure-db` via `run_in_terminal`, parse JSON output once, and set `E3DB` to `ensure-db.path`.
    - If `status !== 'ready'`, tell the user and stop.
    - Capture returned `path` into an orchestration variable (e.g., `E3DB`).
    - From now on, pass `--db <E3DB>` on every E3 CLI call.

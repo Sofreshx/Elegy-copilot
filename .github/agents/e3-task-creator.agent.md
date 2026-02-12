@@ -17,9 +17,9 @@ You are called by `executive3` only. You do NOT implement code, explore the code
 
 **CRITICAL**: Use `run_in_terminal` with the E3 CLI script — NOT `vscode/runCommand` (which does not return values).
 
-The CLI path will be provided in your prompt by the orchestrator. Example:
+The CLI path will be provided in your prompt by the orchestrator. Example (post-bootstrap):
 ```bash
-node /path/to/instruction-engine/vscode-skill-installer/scripts/e3-cli.js <command> [args...]
+node /path/to/instruction-engine/vscode-skill-installer/scripts/e3-cli.js <command> [args...] --db "$E3DB"
 ```
 
 All commands output JSON to stdout. Parse the output for results.
@@ -29,7 +29,7 @@ All commands output JSON to stdout. Parse the output for results.
 - **Session ID**: the session ID to associate tasks with
 - **Plan ID**: the plan ID (from the plan output)
 - **CLI path**: the resolved path to `e3-cli.js`
-- **DB path**: deterministic DB path captured from `ensure-db.path`
+- **DB path**: deterministic DB path captured once from `ensure-db.path` and reused for every call
 
 ## Non-Negotiables
 - **No subagent calls**: you are a leaf worker.
