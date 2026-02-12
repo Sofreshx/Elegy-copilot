@@ -169,3 +169,56 @@ test('smart-context gate is off by default and enabled by --smart-context', () =
 		assert.ok(Array.isArray(enabled.json?.ranked));
 	});
 });
+
+test('reset requires --confirm-reset for destructive operation', () => {
+	withTempWorkspace((tempRoot) => {
+		const dbPath = path.join(tempRoot, 'db', 'reset-confirm.db');
+
+		const ensure = runCli({
+			cwd: tempRoot,
+			args: ['ensure-db', '--db', dbPath],
+		});
+
+		assert.equal(ensure.status, 0);
+
+		const resetWithoutConfirm = runCli({
+			cwd: tempRoot,
+			args: ['reset', '--db', dbPath],
+		});
+
+		assert.equal(resetWithoutConfirm.status, 1);
+		assert.equal(resetWithoutConfirm.json?.code, 'E_RESET_CONFIRM_REQUIRED');
+		assert.equal(resetWithoutConfirm.json?.command, 'reset');
+		assert.ok(Array.isArray(resetWithoutConfirm.json?.remediation));
+	});
+});
+
+test('reset blocks canonical local DB path unless --allow-canonical-reset is passed', () => {
+	withTempWorkspace((tempRoot) => {
+		const canonicalDbPath = path.join(tempRoot, '.e3-local', 'executive3.db');
+
+		const ensure = runCli({
+			cwd: tempRoot,
+			args: ['ensure-db', '--db', canonicalDbPath],
+		});
+
+		assert.equal(ensure.status, 0);
+
+		const blocked = runCli({
+			cwd: tempRoot,
+			args: ['reset', '--db', canonicalDbPath, '--confirm-reset'],
+		});
+
+		assert.equal(blocked.status, 1);
+		assert.equal(blocked.json?.code, 'E_CANONICAL_RESET_BLOCKED');
+		assert.equal(blocked.json?.command, 'reset');
+
+		const allowed = runCli({
+			cwd: tempRoot,
+			args: ['reset', '--db', canonicalDbPath, '--confirm-reset', '--allow-canonical-reset'],
+		});
+
+		assert.equal(allowed.status, 0);
+		assert.equal(allowed.json?.success, true);
+	});
+});

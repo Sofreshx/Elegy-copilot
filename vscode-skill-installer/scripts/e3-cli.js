@@ -31,7 +31,7 @@
  *   store-context-embedding <json>     Store/update vector metadata contract for a note (Phase B)
  *   get-context-smart <json>           Ranked lexical retrieval + linked neighbors (Phase B)
  *   export-all                         Export entire DB as JSON
- *   reset                              Delete all data (keep schema)
+ *   reset                              Delete all data (keep schema; requires reset safety flags)
  *
  * All output is JSON to stdout. Errors are JSON with { "error": "..." }.
  * Human-readable messages go to stderr.
@@ -73,6 +73,10 @@ const SMART_CONTEXT_GATE_FLAG = '--smart-context';
 const SMART_CONTEXT_PHASE_B_CONTRACT_VERSION = 'smart-context-phase-b-v1';
 const SMART_CONTEXT_DISABLED_CODE = 'E_SMART_CONTEXT_DISABLED';
 const SMART_CONTEXT_ALLOWED_SCOPES = new Set(['project', 'session', 'task']);
+const RESET_CONFIRM_FLAG = '--confirm-reset';
+const RESET_ALLOW_CANONICAL_FLAG = '--allow-canonical-reset';
+const RESET_CONFIRM_REQUIRED_CODE = 'E_RESET_CONFIRM_REQUIRED';
+const RESET_CANONICAL_BLOCKED_CODE = 'E_CANONICAL_RESET_BLOCKED';
 
 // ── DB Discovery ─────────────────────────────────────────────────────────────
 
@@ -383,6 +387,9 @@ function stripGlobalFlags(args, parsedDbFlag) {
 		if (arg === SMART_CONTEXT_GATE_FLAG) {
 			continue;
 		}
+		if (arg === RESET_CONFIRM_FLAG || arg === RESET_ALLOW_CANONICAL_FLAG) {
+			continue;
+		}
 		stripped.push(arg);
 	}
 	return stripped;
@@ -398,6 +405,70 @@ function missingDbMessage(command) {
 		'Run `node scripts/e3-cli.js ensure-db`, capture the returned `path`, then retry with `--db <path>`.',
 		`Example: node scripts/e3-cli.js ${command} ... --db <captured-path>`,
 	].join(' ');
+}
+
+function hasFlag(args, flag) {
+	return args.includes(flag);
+}
+
+function isCanonicalLocalDbPath(dbPath) {
+	const dbName = pathMod.basename(dbPath);
+	const parentName = pathMod.basename(pathMod.dirname(dbPath));
+	if (process.platform === 'win32') {
+		return dbName.toLowerCase() === 'executive3.db'
+			&& parentName.toLowerCase() === '.e3-local';
+	}
+	return dbName === 'executive3.db' && parentName === '.e3-local';
+}
+
+function createResetConfirmRequiredError(dbPath) {
+	return {
+		error: 'Reset is destructive and requires explicit confirmation.',
+		code: RESET_CONFIRM_REQUIRED_CODE,
+		classification: 'reset-confirmation-required',
+		command: 'reset',
+		dbPath,
+		remediation: [
+			`Re-run with ${RESET_CONFIRM_FLAG} to acknowledge destructive reset.`,
+			`Example: node scripts/e3-cli.js reset --db "${dbPath}" ${RESET_CONFIRM_FLAG}`,
+		],
+	};
+}
+
+function createCanonicalResetBlockedError(dbPath) {
+	return {
+		error: 'Refusing to reset canonical local DB path without explicit override.',
+		code: RESET_CANONICAL_BLOCKED_CODE,
+		classification: 'canonical-reset-guard',
+		command: 'reset',
+		dbPath,
+		canonicalPathPattern: '<repo>/.e3-local/executive3.db',
+		remediation: [
+			'Use a non-canonical DB path for disposable resets, or',
+			`If intentional, add ${RESET_ALLOW_CANONICAL_FLAG} together with ${RESET_CONFIRM_FLAG}.`,
+			`Example: node scripts/e3-cli.js reset --db "${dbPath}" ${RESET_CONFIRM_FLAG} ${RESET_ALLOW_CANONICAL_FLAG}`,
+		],
+	};
+}
+
+function enforceResetSafety(command, rawArgs, dbPath) {
+	if (command !== 'reset') {
+		return;
+	}
+
+	if (!hasFlag(rawArgs, RESET_CONFIRM_FLAG)) {
+		const err = new Error('Reset requires explicit confirmation');
+		err.code = RESET_CONFIRM_REQUIRED_CODE;
+		err.details = createResetConfirmRequiredError(dbPath);
+		throw err;
+	}
+
+	if (isCanonicalLocalDbPath(dbPath) && !hasFlag(rawArgs, RESET_ALLOW_CANONICAL_FLAG)) {
+		const err = new Error('Canonical reset requires explicit override');
+		err.code = RESET_CANONICAL_BLOCKED_CODE;
+		err.details = createCanonicalResetBlockedError(dbPath);
+		throw err;
+	}
 }
 
 function hasSmartContextFlag(args) {
@@ -1251,12 +1322,14 @@ Commands:
 	store-context-embedding <json>      Store/update vector metadata contract for note (Phase B)
 	get-context-smart <json>            Ranked lexical retrieval + linked neighbors (Phase B)
   export-all                          Export all DB data
-  reset                               Delete all data
+	reset                               Delete all data (requires --confirm-reset)
 
 Options:
 	--db <path> | --db=<path>   Required for all commands except ensure-db
 	--smart-context   Opt in to Phase B smart-context commands for this invocation (default off)
 	                 Alternative: set E3_SMART_CONTEXT_ENABLED=1
+	--confirm-reset   Required for reset; acknowledges destructive data deletion
+	--allow-canonical-reset Required with reset when --db points to <repo>/.e3-local/executive3.db
 
 Output: JSON to stdout. Errors: JSON with { "error": "..." }
 `);
@@ -1283,6 +1356,15 @@ Output: JSON to stdout. Errors: JSON with { "error": "..." }
 	}
 
 	const dbPath = dbResolution.path;
+	try {
+		enforceResetSafety(command, rawArgs, dbPath);
+	} catch (err) {
+		if (err.details) {
+			errorOut(err.details);
+		}
+		errorOut(`Command failed: ${err.message}`);
+	}
+
 	process.stderr.write(`[E3 CLI] DB (${dbResolution.source}): ${dbPath}\n`);
 
 	let db;
