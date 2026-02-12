@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
+const Database = require('better-sqlite3');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const DB_PATH_CONFLICT_CODE = 'E_DB_PATH_CONFLICT';
 const DB_PATH_CONFLICT_CLASSIFICATION = 'db-path-signal-conflict';
@@ -58,6 +59,37 @@ function runCli({ cwd, args, env = {} }) {
 		json: parseJsonOutput(result.stdout),
 		dbSignal: extractDbPath(result.stderr),
 	};
+}
+
+function runCliAsync({ cwd, args, env = {} }) {
+	return new Promise((resolve) => {
+		const child = spawn(process.execPath, [cliPath, ...args], {
+			cwd,
+			env: { ...process.env, ...env },
+			stdio: ['ignore', 'pipe', 'pipe'],
+		});
+
+		let stdout = '';
+		let stderr = '';
+
+		child.stdout.on('data', (chunk) => {
+			stdout += chunk.toString();
+		});
+
+		child.stderr.on('data', (chunk) => {
+			stderr += chunk.toString();
+		});
+
+		child.on('close', (status) => {
+			resolve({
+				status: status ?? 1,
+				stdout,
+				stderr,
+				json: parseJsonOutput(stdout),
+				dbSignal: extractDbPath(stderr),
+			});
+		});
+	});
 }
 
 function fail(message, context = {}) {
@@ -276,7 +308,215 @@ function runNegativeScenario(matrixRoot, scenario) {
 	};
 }
 
-function main() {
+function verifySqliteReliability(dbPath, sessionId, taskIds) {
+	const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+
+	try {
+		const integrityRow = db.prepare('PRAGMA integrity_check').get();
+		const integrity = integrityRow?.integrity_check ?? Object.values(integrityRow ?? {})[0] ?? null;
+
+		assert(integrity === 'ok', 'SQLite integrity_check should return ok', {
+			dbPath,
+			integrity,
+		});
+
+		const sessionCount = db.prepare('SELECT COUNT(*) as count FROM sessions WHERE id = ?').get(sessionId).count;
+		assert(sessionCount === 1, 'SQLite verification expected exactly one session row', {
+			dbPath,
+			sessionId,
+			sessionCount,
+		});
+
+		const taskCount = db.prepare('SELECT COUNT(*) as count FROM tasks WHERE session_id = ?').get(sessionId).count;
+		assert(taskCount === taskIds.length, 'SQLite verification expected exact task count for session', {
+			dbPath,
+			sessionId,
+			expected: taskIds.length,
+			actual: taskCount,
+		});
+
+		const distinctTaskCount = db.prepare('SELECT COUNT(DISTINCT id) as count FROM tasks WHERE session_id = ?').get(sessionId).count;
+		assert(distinctTaskCount === taskIds.length, 'SQLite verification expected unique task ids', {
+			dbPath,
+			sessionId,
+			expected: taskIds.length,
+			actual: distinctTaskCount,
+		});
+
+		const placeholders = taskIds.map(() => '?').join(',');
+		const matchedTaskCount = db
+			.prepare(`SELECT COUNT(*) as count FROM tasks WHERE id IN (${placeholders})`)
+			.get(...taskIds).count;
+
+		assert(matchedTaskCount === taskIds.length, 'SQLite verification expected all concurrent task IDs to persist', {
+			dbPath,
+			expected: taskIds.length,
+			actual: matchedTaskCount,
+		});
+
+		return {
+			integrity,
+			sessionCount,
+			taskCount,
+			distinctTaskCount,
+			matchedTaskCount,
+		};
+	} finally {
+		db.close();
+	}
+}
+
+async function runReliabilityScenario(matrixRoot) {
+	const scenarioRoot = path.join(matrixRoot, 'reliability-concurrency');
+	const layout = createLayout(scenarioRoot);
+	const expectedDbPath = path.join(scenarioRoot, 'isolated-db', 'reliability.db');
+
+	const ensureResult = runCli({
+		cwd: layout.instructionEngineDir,
+		args: ['ensure-db', '--db', expectedDbPath],
+	});
+
+	assert(ensureResult.status === 0, 'ensure-db should succeed for reliability scenario', {
+		stdout: ensureResult.stdout,
+		stderr: ensureResult.stderr,
+	});
+
+	const ensurePayload = ensureResult.json;
+	assert(ensurePayload?.path, 'ensure-db must return path for reliability scenario', {
+		stdout: ensureResult.stdout,
+	});
+
+	const authoritativeDbPath = ensurePayload.path;
+	assert(canonicalPath(authoritativeDbPath) === canonicalPath(expectedDbPath), 'reliability ensure-db returned unexpected path', {
+		expectedDbPath,
+		authoritativeDbPath,
+	});
+
+	const sessionId = 'reliability-session';
+	const createSessionPayload = JSON.stringify({
+		id: sessionId,
+		request_summary: 'matrix:reliability-concurrency',
+	});
+
+	const createSession = runCli({
+		cwd: layout.extensionSubdir,
+		args: ['create-session', createSessionPayload, '--db', authoritativeDbPath],
+	});
+
+	assert(createSession.status === 0, 'create-session should succeed for reliability scenario', {
+		stdout: createSession.stdout,
+		stderr: createSession.stderr,
+	});
+
+	const concurrentTaskCount = 12;
+	const concurrentReadCount = 8;
+	const taskIds = Array.from({ length: concurrentTaskCount }, (_, idx) => `reliability-task-${idx + 1}`);
+
+	const writePromises = taskIds.map((taskId) => {
+		const payload = JSON.stringify({
+			id: taskId,
+			session_id: sessionId,
+			title: `Reliability task ${taskId}`,
+			description: 'Concurrent writer validation',
+		});
+
+		return runCliAsync({
+			cwd: layout.extensionSubdir,
+			args: ['create-task', payload, '--db', authoritativeDbPath],
+		});
+	});
+
+	const readPromises = Array.from({ length: concurrentReadCount }, () =>
+		runCliAsync({
+			cwd: layout.instructionEngineDir,
+			args: ['export-all', '--db', authoritativeDbPath],
+		})
+	);
+
+	const [writeResults, readResults] = await Promise.all([
+		Promise.all(writePromises),
+		Promise.all(readPromises),
+	]);
+
+	for (const [index, result] of writeResults.entries()) {
+		assert(result.status === 0, 'concurrent create-task should succeed', {
+			index,
+			stdout: result.stdout,
+			stderr: result.stderr,
+		});
+		assert(canonicalPath(result.dbSignal.path) === canonicalPath(authoritativeDbPath), 'concurrent create-task used unexpected db path', {
+			index,
+			authoritativeDbPath,
+			observedPath: result.dbSignal.path,
+		});
+	}
+
+	const readTaskCounts = [];
+	for (const [index, result] of readResults.entries()) {
+		assert(result.status === 0, 'concurrent export-all should succeed', {
+			index,
+			stdout: result.stdout,
+			stderr: result.stderr,
+		});
+		assert(canonicalPath(result.dbSignal.path) === canonicalPath(authoritativeDbPath), 'concurrent export-all used unexpected db path', {
+			index,
+			authoritativeDbPath,
+			observedPath: result.dbSignal.path,
+		});
+
+		const payload = result.json;
+		assert(Array.isArray(payload?.tasks), 'concurrent export-all should include tasks array', {
+			index,
+			payload,
+		});
+
+		const observedCount = payload.tasks.length;
+		assert(observedCount >= 0 && observedCount <= concurrentTaskCount, 'concurrent read task count should be bounded and deterministic', {
+			index,
+			observedCount,
+			concurrentTaskCount,
+		});
+
+		readTaskCounts.push(observedCount);
+	}
+
+	const finalExport = runCli({
+		cwd: layout.instructionEngineDir,
+		args: ['export-all', '--db', authoritativeDbPath],
+	});
+
+	assert(finalExport.status === 0, 'final export-all should succeed for reliability scenario', {
+		stdout: finalExport.stdout,
+		stderr: finalExport.stderr,
+	});
+
+	const finalPayload = finalExport.json;
+	assert(Array.isArray(finalPayload?.tasks), 'final export-all should include tasks array', {
+		payload: finalPayload,
+	});
+
+	const finalTaskIds = new Set(finalPayload.tasks.map((task) => task.id));
+	for (const taskId of taskIds) {
+		assert(finalTaskIds.has(taskId), 'final export-all missing concurrently created task', {
+			taskId,
+		});
+	}
+
+	const sqliteValidation = verifySqliteReliability(authoritativeDbPath, sessionId, taskIds);
+
+	return {
+		scenario: 'concurrent-writers-and-readers',
+		type: 'reliability',
+		dbPath: authoritativeDbPath,
+		concurrentTaskCount,
+		concurrentReadCount,
+		readTaskCounts,
+		sqliteValidation,
+		assertion: 'parallel create-task and export-all operations succeed with deterministic final row counts and SQLite integrity_check=ok',
+	};
+}
+
+async function main() {
 	const keepTemp = process.argv.includes('--keep-temp');
 	const matrixRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'e3-regression-matrix-'));
 
@@ -380,6 +620,7 @@ function main() {
 			positive: [],
 			negative: [],
 		},
+		reliability: null,
 		tempRoot: matrixRoot,
 	};
 
@@ -391,6 +632,8 @@ function main() {
 		results.matrix.negative.push(runNegativeScenario(matrixRoot, scenario));
 	}
 
+	results.reliability = await runReliabilityScenario(matrixRoot);
+
 	if (!keepTemp) {
 		fs.rmSync(matrixRoot, { recursive: true, force: true });
 		results.tempRoot = null;
@@ -399,8 +642,6 @@ function main() {
 	console.log(JSON.stringify(results, null, 2));
 }
 
-try {
-	main();
-} catch {
+main().catch(() => {
 	process.exit(1);
-}
+});
