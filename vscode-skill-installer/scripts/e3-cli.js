@@ -45,12 +45,18 @@
  *   3. .e3-local/db-path.txt (written by extension on startup)
  *   4. .e3-local/executive3.db (workspace-local default)
  *   5. <cwd>/.e3-local/executive3.db (fallback)
+ *
+ * Conflict guardrail:
+ *   - If non-flag signals disagree (including stale discovery-file signals),
+ *     CLI fails fast with structured diagnostics unless explicit --db is provided.
  */
 
 const Database = require('better-sqlite3');
 const fsMod = require('fs');
 const pathMod = require('path');
 const DB_PATH_CONTRACT_VERSION = 'e3-db-path-v1';
+const DB_PATH_CONFLICT_CODE = 'E_DB_PATH_CONFLICT';
+const DB_PATH_CONFLICT_CLASSIFICATION = 'db-path-signal-conflict';
 const MAX_DISCOVERY_DEPTH = 10;
 const OPTIONAL_DB_COMMANDS = new Set(['ensure-db']);
 
@@ -58,6 +64,165 @@ const OPTIONAL_DB_COMMANDS = new Set(['ensure-db']);
 
 function normalizePath(rawPath, baseDir) {
   return pathMod.resolve(baseDir, rawPath);
+}
+
+function canonicalPath(inputPath) {
+	const normalized = pathMod.normalize(inputPath);
+	return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+}
+
+function describeSignal(signal) {
+	if (!signal) return null;
+	return {
+		source: signal.source,
+		path: signal.path ?? null,
+		targetExists: signal.targetExists ?? null,
+		discoveryFile: signal.discoveryFile ?? null,
+		discoveryRoot: signal.discoveryRoot ?? null,
+		rawValue: signal.rawValue ?? null,
+		notes: signal.notes ?? null,
+	};
+}
+
+function createDbConflictError(cwd, reasonKeys, signals) {
+	const observedSignals = signals
+		.map(describeSignal)
+		.filter(Boolean);
+
+	const remediation = [
+		'Pass --db <path> explicitly to make the target DB authoritative for this invocation.',
+		'Align E3_DB_PATH and .e3-local/db-path.txt so they resolve to the same absolute DB path.',
+		'Remove or rewrite stale .e3-local/db-path.txt, then rerun ensure-db and reuse returned path.',
+	];
+
+	return {
+		error: 'Conflicting DB path signals detected; refusing implicit resolution.',
+		code: DB_PATH_CONFLICT_CODE,
+		classification: DB_PATH_CONFLICT_CLASSIFICATION,
+		contractVersion: DB_PATH_CONTRACT_VERSION,
+		cwd,
+		reasons: reasonKeys,
+		observedSignals,
+		remediation,
+	};
+}
+
+function collectDbSignals(cwd) {
+	const signals = {
+		envSignal: null,
+		discoverySignal: null,
+		workspaceSignal: null,
+	};
+
+	if (process.env.E3_DB_PATH) {
+		const envPath = normalizePath(process.env.E3_DB_PATH, cwd);
+		signals.envSignal = {
+			source: 'env',
+			path: envPath,
+			targetExists: fsMod.existsSync(envPath),
+		};
+	}
+
+	let dir = cwd;
+	for (let i = 0; i < MAX_DISCOVERY_DEPTH; i++) {
+		const dbPathFile = pathMod.join(dir, '.e3-local', 'db-path.txt');
+		if (!signals.discoverySignal && fsMod.existsSync(dbPathFile)) {
+			const rawValue = fsMod.readFileSync(dbPathFile, 'utf-8').trim();
+			if (!rawValue) {
+				signals.discoverySignal = {
+					source: 'discovery-file',
+					path: null,
+					targetExists: null,
+					discoveryFile: dbPathFile,
+					rawValue,
+					notes: 'empty-value',
+				};
+			} else {
+				const normalized = normalizePath(rawValue, pathMod.dirname(dbPathFile));
+				signals.discoverySignal = {
+					source: 'discovery-file',
+					path: normalized,
+					targetExists: fsMod.existsSync(normalized),
+					discoveryFile: dbPathFile,
+					rawValue,
+				};
+			}
+		}
+
+		const directDb = pathMod.join(dir, '.e3-local', 'executive3.db');
+		const localDir = pathMod.join(dir, '.e3-local');
+
+		if (fsMod.existsSync(directDb)) {
+			signals.workspaceSignal = {
+				source: 'workspace-default',
+				path: directDb,
+				targetExists: true,
+				discoveryRoot: dir,
+			};
+			break;
+		}
+
+		if (fsMod.existsSync(localDir)) {
+			signals.workspaceSignal = {
+				source: 'workspace-default',
+				path: directDb,
+				targetExists: false,
+				discoveryRoot: dir,
+			};
+			break;
+		}
+
+		const parent = pathMod.dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
+	}
+
+	return signals;
+}
+
+function detectDbSignalConflict(cwd, signals) {
+	const reasonKeys = [];
+	const comparableSignals = [signals.envSignal, signals.discoverySignal, signals.workspaceSignal]
+		.filter(signal => signal && signal.path);
+
+	const uniquePaths = new Map();
+	for (const signal of comparableSignals) {
+		const key = canonicalPath(signal.path);
+		if (!uniquePaths.has(key)) {
+			uniquePaths.set(key, []);
+		}
+		uniquePaths.get(key).push(signal.source);
+	}
+
+	if (uniquePaths.size > 1) {
+		reasonKeys.push('signal-path-disagreement');
+	}
+
+	if (signals.discoverySignal?.notes === 'empty-value') {
+		reasonKeys.push('discovery-file-empty');
+	}
+
+	const discovery = signals.discoverySignal;
+	if (discovery?.path && discovery.targetExists === false) {
+		const comparedSignals = [signals.envSignal, signals.workspaceSignal]
+			.filter(signal => signal && signal.path);
+		const disagreesWithOtherSignal = comparedSignals.some(
+			signal => canonicalPath(signal.path) !== canonicalPath(discovery.path)
+		);
+		if (disagreesWithOtherSignal) {
+			reasonKeys.push('stale-discovery-file');
+		}
+	}
+
+	if (reasonKeys.length === 0) {
+		return null;
+	}
+
+	return createDbConflictError(cwd, Array.from(new Set(reasonKeys)), [
+		signals.envSignal,
+		signals.discoverySignal,
+		signals.workspaceSignal,
+	]);
 }
 
 function findDbPath(args) {
@@ -74,59 +239,45 @@ function findDbPath(args) {
 		};
 	}
 
+	const signals = collectDbSignals(cwd);
+	const conflict = detectDbSignalConflict(cwd, signals);
+	if (conflict) {
+		const err = new Error(conflict.error);
+		err.code = DB_PATH_CONFLICT_CODE;
+		err.details = conflict;
+		throw err;
+	}
+
 	// 2. Environment variable
-	if (process.env.E3_DB_PATH) {
+	if (signals.envSignal?.path) {
 		return {
-			path: normalizePath(process.env.E3_DB_PATH, cwd),
-			source: 'env',
+			path: signals.envSignal.path,
+			source: signals.envSignal.source,
 			contractVersion: DB_PATH_CONTRACT_VERSION,
 			cwd,
 		};
 	}
 
-	// 3. Walk up from cwd to find .e3-local/
-	let dir = cwd;
-	for (let i = 0; i < MAX_DISCOVERY_DEPTH; i++) {
-		const dbPathFile = pathMod.join(dir, '.e3-local', 'db-path.txt');
-		if (fsMod.existsSync(dbPathFile)) {
-			const resolved = fsMod.readFileSync(dbPathFile, 'utf-8').trim();
-			const normalized = normalizePath(resolved, pathMod.dirname(dbPathFile));
-			if (fsMod.existsSync(normalized)) {
-				return {
-					path: normalized,
-					source: 'discovery-file',
-					contractVersion: DB_PATH_CONTRACT_VERSION,
-					cwd,
-					discoveryFile: dbPathFile,
-				};
-			}
-		}
+	// 3. Discovery file
+	if (signals.discoverySignal?.path && signals.discoverySignal.targetExists) {
+		return {
+			path: signals.discoverySignal.path,
+			source: signals.discoverySignal.source,
+			contractVersion: DB_PATH_CONTRACT_VERSION,
+			cwd,
+			discoveryFile: signals.discoverySignal.discoveryFile,
+		};
+	}
 
-		const directDb = pathMod.join(dir, '.e3-local', 'executive3.db');
-		if (fsMod.existsSync(directDb)) {
-			return {
-				path: directDb,
-				source: 'workspace-default',
-				contractVersion: DB_PATH_CONTRACT_VERSION,
-				cwd,
-				discoveryRoot: dir,
-			};
-		}
-
-		const localDir = pathMod.join(dir, '.e3-local');
-		if (fsMod.existsSync(localDir)) {
-			return {
-				path: directDb,
-				source: 'workspace-default',
-				contractVersion: DB_PATH_CONTRACT_VERSION,
-				cwd,
-				discoveryRoot: dir,
-			};
-		}
-
-		const parent = pathMod.dirname(dir);
-		if (parent === dir) break;
-		dir = parent;
+	// 4. Workspace-local default
+	if (signals.workspaceSignal?.path) {
+		return {
+			path: signals.workspaceSignal.path,
+			source: signals.workspaceSignal.source,
+			contractVersion: DB_PATH_CONTRACT_VERSION,
+			cwd,
+			discoveryRoot: signals.workspaceSignal.discoveryRoot,
+		};
 	}
 
 	// 5. Default: create in cwd
@@ -204,7 +355,11 @@ function jsonOut(data) {
 }
 
 function errorOut(msg) {
-	console.log(JSON.stringify({ error: msg }));
+	if (typeof msg === 'string') {
+		console.log(JSON.stringify({ error: msg }));
+	} else {
+		console.log(JSON.stringify(msg, null, 2));
+	}
 	process.exit(1);
 }
 
@@ -558,7 +713,16 @@ Output: JSON to stdout. Errors: JSON with { "error": "..." }
 		errorOut(missingDbMessage(command));
 	}
 
-	const dbResolution = findDbPath(rawArgs);
+	let dbResolution;
+	try {
+		dbResolution = findDbPath(rawArgs);
+	} catch (err) {
+		if (err.code === DB_PATH_CONFLICT_CODE && err.details) {
+			errorOut(err.details);
+		}
+		errorOut(`Failed to resolve DB path: ${err.message}`);
+	}
+
 	const dbPath = dbResolution.path;
 	process.stderr.write(`[E3 CLI] DB (${dbResolution.source}): ${dbPath}\n`);
 
