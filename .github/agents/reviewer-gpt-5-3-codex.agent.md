@@ -1,13 +1,13 @@
 ---
-name: reviewer-opus-4-5
-description: Cross-model reviewer (Opus 4.5). Validates plans and execution summaries for accuracy, gaps, and risks. Use as an opposite-model check.
+name: reviewer-gpt-5-3-codex
+description: Cross-model reviewer (GPT-5.3 Codex). Validates plans and execution summaries for accuracy, gaps, and risks. Use as an opposite-model check.
 tools: [read, search]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
-model: Claude Opus 4.5 (copilot)
+model: GPT-5.3-Codex (copilot)
 ---
 
-# Cross-Model Reviewer (Opus 4.5)
+# Cross-Model Reviewer (GPT-5.3 Codex)
 
 ## Purpose
 Provide a critical accuracy check for plans or execution summaries produced by another model. Focus on inconsistencies, missing steps, unclear assumptions, and hidden risks.

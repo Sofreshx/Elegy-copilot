@@ -3,7 +3,7 @@
  * migrate-infer-to-new-fields.js
  *
  * Scans `.github/agents/*.agent.md` files and replaces deprecated `infer:`
- * front-matter entries with the new `user-invokable:` and
+ * front-matter entries with the new `user-invocable:` and
  * `disable-model-invocation:` keys. The script is idempotent and supports
  * --apply to write changes (default is dry-run).
  *
@@ -73,8 +73,8 @@ function parseFrontMatter(text) {
 
 function buildFrontMatter(fm) {
   const keys = Object.keys(fm);
-  // Keep a stable order: name, description, tools, user-invokable, disable-model-invocation, ...
-  const preferredOrder = ['name', 'description', 'tools', 'user-invokable', 'disable-model-invocation'];
+  // Keep a stable order: name, description, tools, user-invocable, disable-model-invocation, ...
+  const preferredOrder = ['name', 'description', 'tools', 'user-invocable', 'disable-model-invocation'];
   keys.sort((a, b) => {
     const ai = preferredOrder.indexOf(a);
     const bi = preferredOrder.indexOf(b);
@@ -117,26 +117,26 @@ function normalizeInferValue(raw) {
 
 function mapInferToNewFields(inferVal) {
   // returns object with keys to set
-  // default conservative: not user-invokable, disable model invocation
+  // default conservative: not user-invocable, disable model invocation
   const result = {};
   if (inferVal === undefined) return result;
   switch (inferVal) {
     case 'agent':
-      result['user-invokable'] = false;
+      result['user-invocable'] = false;
       result['disable-model-invocation'] = false; // allow model invocation for subagents
       break;
     case 'user':
     case 'true':
-      result['user-invokable'] = true; // visible to users
+      result['user-invocable'] = true; // visible to users
       result['disable-model-invocation'] = true; // do NOT allow model invocation unless explicitly agent
       break;
     case 'false':
-      result['user-invokable'] = false;
+      result['user-invocable'] = false;
       result['disable-model-invocation'] = true;
       break;
     default:
       // unknown - be safe
-      result['user-invokable'] = false;
+      result['user-invocable'] = false;
       result['disable-model-invocation'] = true;
       break;
   }
@@ -150,7 +150,7 @@ function updateAgentFile(filePath, apply) {
   const { fm, rest, raw } = parsed;
   if (!('infer' in fm)) {
     // Nothing to migrate, but check if new fields present
-    if (!('user-invokable' in fm) && !('disable-model-invocation' in fm)) {
+    if (!('user-invocable' in fm) && !('disable-model-invocation' in fm)) {
       return { changed: false, reason: 'no infer, no new fields' };
     }
     return { changed: false, reason: 'already migrated' };
@@ -160,7 +160,7 @@ function updateAgentFile(filePath, apply) {
   const mapped = mapInferToNewFields(inferVal);
 
   // If new fields already exist, don't overwrite them
-  for (const key of ['user-invokable', 'disable-model-invocation']) {
+  for (const key of ['user-invocable', 'disable-model-invocation']) {
     if (!(key in fm) && (key in mapped)) {
       fm[key] = mapped[key];
     }
