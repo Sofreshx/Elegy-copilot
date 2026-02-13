@@ -141,7 +141,7 @@ After generating the report, you must sync with the backlog.
 
 ### 1) Locate the backlog
 - Find the nearest `.instructions/` folder in the workspace.
-- If no `.instructions/` exists: delegate to `@onboarding` to initialize the project, then continue.
+- If no `.instructions/` exists: create a minimal structure (`.instructions/contexts/`, `.instructions/tasks/`, and `.instructions/architecture.md`) and then continue.
 
 ### 2) Determine the task system
 - If `.instructions/tasks/` exists (folder-based): treat each `*.md` file as one task.

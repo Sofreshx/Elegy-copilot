@@ -29,7 +29,7 @@ git submodule add https://github.com/Sofreshx/instruction-engine.git instruction
 
 In VS Code Copilot Chat:
 ```
-@onboarding Initialize this project
+Initialize this project by creating the `.instructions/` structure for tasks, architecture, and contexts.
 ```
 
 This creates your `.instructions/` folder with:
@@ -107,7 +107,6 @@ instruction-engine/.github/          # Global Engine (shared)
 │   ├── assistant.agent.md           # @helper
 │   ├── debugger.agent.md            # @debugger
 │   ├── auditor.agent.md             # @auditor
-│   ├── onboarding.agent.md          # @onboarding
 │   ├── skill-builder.agent.md       # @skill-builder
 │   └── merger.agent.md              # @merger
 ├── skills/                          # Skills (Copilot loads from here)

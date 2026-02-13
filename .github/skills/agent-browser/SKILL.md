@@ -1,3 +1,12 @@
+---
+name: agent-browser
+description: >
+	Browser automation CLI for AI agents. Uses Playwright under the hood with a
+	snapshot-ref workflow optimized for deterministic UI exploration and E2E
+	validation. Triggers on: agent-browser, browser automation CLI, snapshot refs,
+	UI exploration, E2E browser testing.
+---
+
 # agent-browser Skill
 
 Browser automation CLI for AI agents. Uses Playwright under the hood with a client-daemon architecture optimized for LLM workflows.

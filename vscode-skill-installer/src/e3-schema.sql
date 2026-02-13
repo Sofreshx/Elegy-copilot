@@ -35,6 +35,45 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 
 ------------------------------------------------------------------------
+-- Todos (root orchestration container from prompt)
+------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS todos (
+  id           TEXT    PRIMARY KEY,
+  session_id   TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  title        TEXT    NOT NULL,
+  summary      TEXT,
+  status       TEXT    NOT NULL DEFAULT 'active'
+                       CHECK(status IN ('active','completed','archived')),
+  created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS todo_tasks (
+  todo_id      TEXT    NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
+  task_id      TEXT    NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  ordering     INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (todo_id, task_id)
+);
+
+------------------------------------------------------------------------
+-- Task Plans (nested planning attached to todo/task)
+------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS task_plans (
+  id              TEXT    PRIMARY KEY,
+  session_id      TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  todo_id         TEXT    REFERENCES todos(id) ON DELETE CASCADE,
+  parent_plan_id  TEXT    REFERENCES task_plans(id) ON DELETE CASCADE,
+  task_id         TEXT    REFERENCES tasks(id) ON DELETE SET NULL,
+  title           TEXT    NOT NULL,
+  summary         TEXT,
+  level           INTEGER NOT NULL DEFAULT 0,
+  status          TEXT    NOT NULL DEFAULT 'active'
+                          CHECK(status IN ('active','completed','superseded','archived')),
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+------------------------------------------------------------------------
 -- Tasks
 ------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS tasks (
@@ -136,6 +175,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status        ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_plan           ON tasks(plan_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_session        ON tasks(session_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_group          ON tasks(group_id, group_order);
+CREATE INDEX IF NOT EXISTS idx_tasks_session_status ON tasks(session_id, status);
 CREATE INDEX IF NOT EXISTS idx_exec_log_session     ON execution_log(session_id);
 CREATE INDEX IF NOT EXISTS idx_exec_log_task        ON execution_log(task_id);
 CREATE INDEX IF NOT EXISTS idx_context_scope        ON context_notes(scope, scope_id);
@@ -143,3 +183,9 @@ CREATE INDEX IF NOT EXISTS idx_context_links_source ON context_links(source_note
 CREATE INDEX IF NOT EXISTS idx_context_links_target ON context_links(target_note_id);
 CREATE INDEX IF NOT EXISTS idx_context_embeddings_note ON context_embeddings(note_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_status      ON sessions(status);
+CREATE INDEX IF NOT EXISTS idx_todos_session        ON todos(session_id);
+CREATE INDEX IF NOT EXISTS idx_todos_status         ON todos(status);
+CREATE INDEX IF NOT EXISTS idx_todo_tasks_task      ON todo_tasks(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_plans_session   ON task_plans(session_id);
+CREATE INDEX IF NOT EXISTS idx_task_plans_todo      ON task_plans(todo_id);
+CREATE INDEX IF NOT EXISTS idx_task_plans_parent    ON task_plans(parent_plan_id);

@@ -48,6 +48,7 @@
     "onView:skillInstaller.permissionsView",
     "onCommand:skillInstaller.refresh",
     "onCommand:skillInstaller.runE2E",
+    "onCommand:skillInstaller.openE3WebUI",
     "onCommand:skillInstaller.runAudit",
     "onCommand:skillInstaller.refreshAudit",
     "onCommand:skillInstaller.enableSkill",
@@ -71,7 +72,12 @@
     "onCommand:executive3.updateTask",
     "onCommand:executive3.logExecution",
     "onCommand:executive3.getSession",
+    "onCommand:executive3.getSessions",
     "onCommand:executive3.createSession",
+    "onCommand:executive3.createTodo",
+    "onCommand:executive3.getTodos",
+    "onCommand:executive3.createTaskPlan",
+    "onCommand:executive3.getTaskPlans",
     "onCommand:executive3.storeContext",
     "onCommand:executive3.getContext",
     "onCommand:executive3.getNextTask",
@@ -82,6 +88,7 @@
     "onCommand:executive3.incrementReplanCount",
     "onCommand:executive3.exportAll",
     "onCommand:executive3.reset",
+    "onCommand:executive3.getDbHealth",
     "onCommand:executive3.diagnostics"
   ],
   "main": "./dist/extension.js",
@@ -173,6 +180,10 @@
       {
         "command": "skillInstaller.runE2E",
         "title": "Open E2E Dashboard"
+      },
+      {
+        "command": "skillInstaller.openE3WebUI",
+        "title": "Open Executive3 Browser Dashboard"
       },
       {
         "command": "skillInstaller.enableSkill",
@@ -295,8 +306,33 @@
         "category": "Executive3"
       },
       {
+        "command": "executive3.getSessions",
+        "title": "E3: Get Sessions",
+        "category": "Executive3"
+      },
+      {
         "command": "executive3.createSession",
         "title": "E3: Create Session",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.createTodo",
+        "title": "E3: Create Todo",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.getTodos",
+        "title": "E3: Get Todos",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.createTaskPlan",
+        "title": "E3: Create Task Plan",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.getTaskPlans",
+        "title": "E3: Get Task Plans",
         "category": "Executive3"
       },
       {
@@ -347,6 +383,11 @@
       {
         "command": "executive3.reset",
         "title": "E3: Reset Database",
+        "category": "Executive3"
+      },
+      {
+        "command": "executive3.getDbHealth",
+        "title": "E3: DB Health",
         "category": "Executive3"
       },
       {
@@ -410,6 +451,11 @@
           "group": "navigation"
         },
         {
+          "command": "skillInstaller.openE3WebUI",
+          "when": "view == skillInstaller.workflowView",
+          "group": "navigation"
+        },
+        {
           "command": "skillInstaller.archiveDoneTasks",
           "when": "view == skillInstaller.workflowView",
           "group": "navigation"
@@ -458,6 +504,11 @@
           "type": "object",
           "default": {},
           "description": "Map of repo paths to disabled skill names. Persisted alongside the repo registry file."
+        },
+        "skillInstaller.skills.showDefaultHandled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show low-signal skills that are typically handled by the base model (debug/docs/refactor/design)."
         },
         "skillInstaller.agents.disabledByRepo": {
           "type": "object",

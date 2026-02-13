@@ -11,6 +11,9 @@ type NodeKind =
 	| 'e3-session'
 	| 'e3-summary'
 	| 'e3-graph'
+	| 'e3-planning'
+	| 'e3-todo'
+	| 'e3-plan'
 	| 'e3-group'
 	| 'e3-task'
 	| 'e3-edge'
@@ -63,6 +66,18 @@ interface E3GraphNode extends BaseNode {
 	kind: 'e3-graph';
 }
 
+interface E3PlanningNode extends BaseNode {
+	kind: 'e3-planning';
+}
+
+interface E3TodoNode extends BaseNode {
+	kind: 'e3-todo';
+}
+
+interface E3PlanNode extends BaseNode {
+	kind: 'e3-plan';
+}
+
 interface E3GroupNode extends BaseNode {
 	kind: 'e3-group';
 }
@@ -89,6 +104,9 @@ type Node =
 	| E3SessionNode
 	| E3SummaryNode
 	| E3GraphNode
+	| E3PlanningNode
+	| E3TodoNode
+	| E3PlanNode
 	| E3GroupNode
 	| E3TaskNode
 	| E3EdgeNode
@@ -102,6 +120,7 @@ interface E3Session {
 	started_at: string;
 	ended_at?: string;
 	replan_count: number;
+	open_task_count?: number;
 }
 
 interface E3Task {
@@ -116,6 +135,31 @@ interface E3Task {
 	depends_on: string;
 	attempt_count: number;
 	error_summary?: string;
+}
+
+interface E3Todo {
+	id: string;
+	session_id: string;
+	title: string;
+	summary?: string;
+	status: 'active' | 'completed' | 'archived';
+	task_ids: string;
+	created_at: string;
+	updated_at: string;
+}
+
+interface E3TaskPlan {
+	id: string;
+	session_id: string;
+	todo_id?: string;
+	parent_plan_id?: string;
+	task_id?: string;
+	title: string;
+	summary?: string;
+	level: number;
+	status: 'active' | 'completed' | 'superseded' | 'archived';
+	created_at: string;
+	updated_at: string;
 }
 
 interface E3TaskSummary {
@@ -150,11 +194,18 @@ interface E3GraphData {
 }
 
 interface E3Snapshot {
-	session: E3Session | null;
+	activeSessions: E3SessionSnapshot[];
+	resumableSessions: E3Session[];
+}
+
+interface E3SessionSnapshot {
+	session: E3Session;
 	tasks: E3Task[];
 	summary: E3TaskSummary | null;
 	nextTask: E3NextTask | null;
 	graph: E3GraphData;
+	todos: E3Todo[];
+	taskPlans: E3TaskPlan[];
 }
 
 const knownStatusOrder = ['in-progress', 'blocked', 'not-started', 'done', 'archived', 'unknown'] as const;
@@ -266,6 +317,21 @@ function parseDependsOn(raw: string | undefined): string[] {
 	}
 }
 
+function parseStringArrayJson(raw: string | undefined): string[] {
+	if (!raw?.trim()) {
+		return [];
+	}
+	try {
+		const parsed = JSON.parse(raw);
+		if (!Array.isArray(parsed)) {
+			return [];
+		}
+		return parsed.filter((value): value is string => typeof value === 'string' && value.length > 0);
+	} catch {
+		return [];
+	}
+}
+
 export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 	private _onDidChangeTreeData = new vscode.EventEmitter<Node | undefined | null | void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
@@ -331,6 +397,8 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 			|| element.kind === 'e3-session'
 			|| element.kind === 'e3-summary'
 			|| element.kind === 'e3-graph'
+			|| element.kind === 'e3-planning'
+			|| element.kind === 'e3-todo'
 			|| element.kind === 'e3-group';
 	}
 
@@ -375,24 +443,37 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 	}
 
 	private buildE3Section(snapshot: E3Snapshot): SectionNode {
-		const hasActiveSession = Boolean(snapshot.session && snapshot.session.status === 'active');
-		const sectionDescription = hasActiveSession
-			? snapshot.session!.id
-			: 'idle';
+		const activeCount = snapshot.activeSessions.length;
+		const resumableCount = snapshot.resumableSessions.length;
+		const sectionDescription = activeCount > 0
+			? `${activeCount} active`
+			: `${resumableCount} resumable`;
 
 		const children: Node[] = [];
-		if (!hasActiveSession || !snapshot.session) {
+		if (activeCount === 0) {
 			children.push({
 				kind: 'e3-info',
 				key: 'e3-idle',
 				label: 'No active Executive3 session',
-				description: 'Start or resume a session to populate this view',
+				description: 'Unfinished sessions are listed below',
 				iconPath: new vscode.ThemeIcon('circle-outline')
 			});
-		} else {
-			children.push(this.buildE3SessionNode(snapshot));
-			children.push(this.buildE3SummaryNode(snapshot));
-			children.push(this.buildE3GraphNode(snapshot));
+		}
+
+		for (const sessionSnapshot of snapshot.activeSessions) {
+			children.push(this.buildE3SessionNode(sessionSnapshot));
+		}
+
+		if (snapshot.resumableSessions.length > 0) {
+			for (const session of snapshot.resumableSessions) {
+				children.push({
+					kind: 'e3-info',
+					key: `e3-resumable::${session.id}`,
+					label: `Resumable ${session.id}`,
+					description: `${session.open_task_count ?? 0} open tasks`,
+					iconPath: new vscode.ThemeIcon('history')
+				});
+			}
 		}
 
 		return {
@@ -405,8 +486,8 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 		};
 	}
 
-	private buildE3SessionNode(snapshot: E3Snapshot): E3SessionNode {
-		const session = snapshot.session!;
+	private buildE3SessionNode(snapshot: E3SessionSnapshot): E3SessionNode {
+		const session = snapshot.session;
 		const started = session.started_at ? new Date(session.started_at).toLocaleString() : undefined;
 		const nextTask = snapshot.nextTask?.task?.title;
 		const nextTaskStatus = snapshot.nextTask?.task?.status;
@@ -448,6 +529,10 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 			});
 		}
 
+		details.push(this.buildE3SummaryNode(snapshot));
+		details.push(this.buildE3PlanningNode(snapshot));
+		details.push(this.buildE3GraphNode(snapshot));
+
 		return {
 			kind: 'e3-session',
 			key: session.id,
@@ -458,7 +543,7 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 		};
 	}
 
-	private buildE3SummaryNode(snapshot: E3Snapshot): E3SummaryNode {
+	private buildE3SummaryNode(snapshot: E3SessionSnapshot): E3SummaryNode {
 		const summary = snapshot.summary;
 		if (!summary) {
 			return {
@@ -502,7 +587,72 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 		};
 	}
 
-	private buildE3GraphNode(snapshot: E3Snapshot): E3GraphNode {
+	private buildE3PlanningNode(snapshot: E3SessionSnapshot): E3PlanningNode {
+		if (!snapshot.todos.length && !snapshot.taskPlans.length) {
+			return {
+				kind: 'e3-planning',
+				key: `e3-planning::${snapshot.session.id}`,
+				label: 'Planning',
+				description: 'No todo/plans attached to session',
+				iconPath: new vscode.ThemeIcon('list-tree'),
+				children: []
+			};
+		}
+
+		const plansByTodo = new Map<string, E3TaskPlan[]>();
+		for (const plan of snapshot.taskPlans) {
+			const key = plan.todo_id ?? 'unassigned';
+			const arr = plansByTodo.get(key) ?? [];
+			arr.push(plan);
+			plansByTodo.set(key, arr);
+		}
+
+		const todoNodes: Node[] = snapshot.todos.map((todo) => {
+			const linkedTaskIds = parseStringArrayJson(todo.task_ids);
+			const plans = plansByTodo.get(todo.id) ?? [];
+			plans.sort((a, b) => a.level - b.level || a.title.localeCompare(b.title));
+
+			const planNodes: E3PlanNode[] = plans.map((plan) => ({
+				kind: 'e3-plan',
+				key: `e3-plan::${plan.id}`,
+				label: plan.title,
+				description: `${plan.status} • level ${plan.level}${plan.task_id ? ` • task ${plan.task_id}` : ''}`,
+				iconPath: new vscode.ThemeIcon('symbol-method'),
+			}));
+
+			return {
+				kind: 'e3-todo',
+				key: `e3-todo::${todo.id}`,
+				label: todo.title,
+				description: `${todo.status} • ${linkedTaskIds.length} tasks • ${plans.length} plans`,
+				iconPath: new vscode.ThemeIcon('checklist'),
+				children: planNodes,
+			};
+		});
+
+		const unassignedPlans = (plansByTodo.get('unassigned') ?? [])
+			.sort((a, b) => a.level - b.level || a.title.localeCompare(b.title))
+			.map<E3PlanNode>((plan) => ({
+				kind: 'e3-plan',
+				key: `e3-plan::${plan.id}`,
+				label: plan.title,
+				description: `${plan.status} • level ${plan.level}`,
+				iconPath: new vscode.ThemeIcon('symbol-method'),
+			}));
+
+		const children = [...todoNodes, ...unassignedPlans];
+
+		return {
+			kind: 'e3-planning',
+			key: `e3-planning::${snapshot.session.id}`,
+			label: 'Planning',
+			description: `${snapshot.todos.length} todos • ${snapshot.taskPlans.length} plans`,
+			iconPath: new vscode.ThemeIcon('list-tree'),
+			children,
+		};
+	}
+
+	private buildE3GraphNode(snapshot: E3SessionSnapshot): E3GraphNode {
 		if (!snapshot.graph.groups.length) {
 			return {
 				kind: 'e3-graph',
@@ -647,38 +797,60 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 	}
 
 	private async scanE3Snapshot(): Promise<E3Snapshot> {
-		const session = await this.executeE3Command<E3Session | null>('executive3.getSession');
-		if (!session || session.status !== 'active') {
-			return {
-				session: null,
-				tasks: [],
-				summary: null,
-				nextTask: null,
-				graph: this.buildGraphData([])
-			};
-		}
-
-		const tasks = (await this.executeE3Command<E3Task[]>(
-			'executive3.getTasks',
-			JSON.stringify({ session_id: session.id })
+		const activeSessions = (await this.executeE3Command<E3Session[]>(
+			'executive3.getSessions',
+			JSON.stringify({ statuses: ['active'], limit: 10 })
 		)) ?? [];
 
-		const summary = await this.executeE3Command<E3TaskSummary>(
-			'executive3.getTaskSummary',
-			session.id
-		);
+		const activeSnapshots: E3SessionSnapshot[] = [];
+		for (const session of activeSessions) {
+			const tasks = (await this.executeE3Command<E3Task[]>(
+				'executive3.getTasks',
+				JSON.stringify({ session_id: session.id })
+			)) ?? [];
 
-		const nextTask = await this.executeE3Command<E3NextTask>(
-			'executive3.getNextTask',
-			session.id
-		);
+			const summary = await this.executeE3Command<E3TaskSummary>(
+				'executive3.getTaskSummary',
+				session.id
+			);
+
+			const nextTask = await this.executeE3Command<E3NextTask>(
+				'executive3.getNextTask',
+				session.id
+			);
+
+			const todos = (await this.executeE3Command<E3Todo[]>(
+				'executive3.getTodos',
+				JSON.stringify({ session_id: session.id, limit: 100 })
+			)) ?? [];
+
+			const taskPlans = (await this.executeE3Command<E3TaskPlan[]>(
+				'executive3.getTaskPlans',
+				JSON.stringify({ session_id: session.id })
+			)) ?? [];
+
+			activeSnapshots.push({
+				session,
+				tasks,
+				summary: summary ?? null,
+				nextTask: nextTask ?? null,
+				graph: this.buildGraphData(tasks),
+				todos,
+				taskPlans,
+			});
+		}
+
+		const resumableSessions = (await this.executeE3Command<E3Session[]>(
+			'executive3.getSessions',
+			JSON.stringify({ resumableOnly: true, limit: 10 })
+		)) ?? [];
+
+		const activeIds = new Set(activeSnapshots.map((snapshot) => snapshot.session.id));
+		const resumableOnly = resumableSessions.filter((session) => !activeIds.has(session.id));
 
 		return {
-			session,
-			tasks,
-			summary: summary ?? null,
-			nextTask: nextTask ?? null,
-			graph: this.buildGraphData(tasks)
+			activeSessions: activeSnapshots,
+			resumableSessions: resumableOnly,
 		};
 	}
 
@@ -843,11 +1015,8 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 	private logSnapshot(snapshot: TaskDiscoverySnapshot, e3Snapshot: E3Snapshot): void {
 		this.output.appendLine('[Skill Installer] Task workflow snapshot');
 		this.output.appendLine(`repos: ${snapshot.repos.length}`);
-		if (e3Snapshot.session) {
-			this.output.appendLine(`e3 session: ${e3Snapshot.session.id} (${e3Snapshot.tasks.length} tasks)`);
-		} else {
-			this.output.appendLine('e3 session: idle');
-		}
+		this.output.appendLine(`e3 active sessions: ${e3Snapshot.activeSessions.length}`);
+		this.output.appendLine(`e3 resumable sessions: ${e3Snapshot.resumableSessions.length}`);
 	}
 
 	private findMatchingNode(nodes: Node[], target: Node): Node | undefined {

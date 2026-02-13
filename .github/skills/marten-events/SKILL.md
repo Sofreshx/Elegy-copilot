@@ -1,6 +1,6 @@
 ---
 name: marten-events
-description: "Marten event sourcing. PostgreSQL event store with projections. Use this when asked to implement event sourcing, work with Marten events, create projections, or build event store functionality. Triggers on:"event sourcing", "Marten events", "event stream"."
+description: "Marten event sourcing. PostgreSQL event store with projections. Use this when asked to implement event sourcing, work with Marten events, create projections, or build event store functionality. Triggers on: event sourcing, Marten events, event stream."
 ---
 
 # Marten Event Sourcing Skill
@@ -308,8 +308,6 @@ await session.SaveChangesAsync();
 - **Serialization**: Events must be JSON serializable
 - **Stream Identity**: Use meaningful IDs (aggregate ID, not random)
 - **No Default Constructor**: Marten creates uninitialized objects if no default constructor
-
-````
 
 
 

@@ -4,7 +4,7 @@ description: Executive2 Orchestrator. Executes strictly from an existing plan + 
 tools: [execute/runInTerminal, read, edit, search, agent, todo, agent/runSubagent, vscode/askQuestions]
 user-invocable: true
 disable-model-invocation: true
-agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-2-codex, reviewer-opus-4-5, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-live-observer, plan-artefact-writer, executive2-planner]
+agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-3-codex, reviewer-opus-4-6, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-live-observer, plan-artefact-writer, executive2-planner]
 handoffs:
    - label: Back to planning
       agent: executive2-planner
@@ -54,7 +54,7 @@ If present in the target repo:
 3. `.instructions/contexts/*.md`
 4. `.instructions/project.index.md` (routing hints + active skills)
 
-If `.instructions/` is missing and the user is asking for substantial work, delegate to `onboarding`.
+If `.instructions/` is missing and the user is asking for substantial work, create a minimal `.instructions/` structure before continuing.
 
 ### 2) Skill discoverability contract (search order)
 When you decide a skill is needed, find and read its `SKILL.md` using this precedence:

@@ -1,6 +1,6 @@
 ---
 name: planning-feature
-description: "7-phase workflow for planning large or complex features. Triggers on: plan a feature, design a feature, break down requirements, feature plan."
+description: "7-phase workflow for planning large or complex features and refactors. Triggers on: plan a feature, design a feature, break down requirements, feature plan, plan refactor, restructure, refactor plan, technical debt plan."
 ---
 
 # Feature Planning Skill (7-Phase Workflow)

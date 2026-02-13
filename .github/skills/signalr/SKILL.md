@@ -1,6 +1,10 @@
 ---
 name: signalr
-description: "ASP.NET Core SignalR real-time communication. Creates hubs, clients, and WebSocket connections. Use this when asked to create SignalR hubs, implement real-time features, work with WebSockets, or build live update functionality. Triggers on:"SignalR", "real-time", "websocket", "web sockets"."
+description: >
+    ASP.NET Core SignalR real-time communication. Creates hubs, clients, and
+    WebSocket connections. Use this when asked to create SignalR hubs, implement
+    real-time features, work with WebSockets, or build live update functionality.
+    Triggers on: SignalR, real-time, websocket, web sockets.
 ---
 
 # SignalR Real-Time Communication Skill
@@ -345,8 +349,6 @@ public class ChatHub : Hub
 - **Exceptions Hidden by Default**: Only HubException messages sent to client
 - **await Required**: Always await SendAsync to ensure delivery
 - **Scaling**: Use Redis backplane for multi-server deployments
-
-````
 
 
 

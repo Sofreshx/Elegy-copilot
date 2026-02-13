@@ -41,7 +41,7 @@ description: "Instruction drift detection. Analyzes failed tasks to find systema
 | "Missing context" in failure reasons | Context gap | Create new context file |
 | Tasks always escalate to deep mode | Shallow instructions weak | Strengthen shallow-mode guidance |
 | Same warning keeps appearing | Unresolved systemic issue | Prioritize fix or accept as known limitation |
-| New stack detected but no agent | Coverage gap | Generate new agent via onboarding |
+| New stack detected but no agent | Coverage gap | Generate a new agent from existing `.github/agents/*.agent.md` patterns |
 | User overrides agent selection often | Routing logic incorrect | Update kernel routing rules |
 
 ## Output

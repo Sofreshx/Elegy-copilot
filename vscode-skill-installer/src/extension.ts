@@ -23,6 +23,7 @@ import { McpProviderInfo, syncMcpConfigForRepo, syncMcpConfigForWorkspace } from
 import { RelayAuthBridge } from './relayAuthBridge';
 import { RelayClient } from './relayClient';
 import { E3Database } from './e3Database';
+import { buildE3DashboardHtml } from './e3WebReport';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -72,6 +73,15 @@ function getRepoPathFromCommand(arg: unknown): string | undefined {
 		return typeof repoPath === 'string' ? repoPath : undefined;
 	}
 	return undefined;
+}
+
+function isInstructionEngineFolder(folder: vscode.WorkspaceFolder): boolean {
+	const name = folder.name.toLowerCase();
+	if (name === 'instruction-engine') {
+		return true;
+	}
+	const folderPath = folder.uri.fsPath.replace(/\\/g, '/').toLowerCase();
+	return folderPath.endsWith('/instruction-engine');
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -248,18 +258,21 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	// Resolve workspace-local DB path: prefer first workspace folder's .e3-local/
 	// This makes the DB discoverable by CLI tools and agents via run_in_terminal
-	const e3WorkspaceDir = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+	const e3WorkspaceFolder = workspaceFolders.find(isInstructionEngineFolder) ?? workspaceFolders[0];
+	const e3WorkspaceDir = e3WorkspaceFolder?.uri.fsPath;
 	const e3StorageDir = e3WorkspaceDir
 		? path.join(e3WorkspaceDir, '.e3-local')
 		: (context.storageUri?.fsPath ?? context.globalStorageUri.fsPath);
 	try {
 		const resolvedPath = e3db.open(e3StorageDir);
-		// Write db-path.txt so CLI tools can discover the DB location
-		if (e3WorkspaceDir) {
-			const e3LocalDir = path.join(e3WorkspaceDir, '.e3-local');
+		// Write db-path.txt so CLI tools in any workspace folder can discover one canonical DB.
+		for (const folder of workspaceFolders) {
+			const e3LocalDir = path.join(folder.uri.fsPath, '.e3-local');
 			fs.mkdirSync(e3LocalDir, { recursive: true });
-			fs.writeFileSync(path.join(e3LocalDir, 'db-path.txt'), resolvedPath, 'utf-8');
-			output.appendLine(`[E3 DB] Discovery file written: ${path.join(e3LocalDir, 'db-path.txt')}`);
+			const discoveryPath = path.join(e3LocalDir, 'db-path.txt');
+			fs.writeFileSync(discoveryPath, resolvedPath, 'utf-8');
+			output.appendLine(`[E3 DB] Discovery file written: ${discoveryPath}`);
 		}
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -378,6 +391,77 @@ export function activate(context: vscode.ExtensionContext): void {
 				const session = JSON.parse(sessionJson);
 				const created = e3db.createSession(session);
 				return JSON.stringify(created);
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.getSessions', (filterJson?: string) => {
+			try {
+				const filter = filterJson ? JSON.parse(filterJson) : undefined;
+				return JSON.stringify(e3db.getSessions(filter));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.createTodo', (todoJson: string) => {
+			try {
+				const todo = JSON.parse(todoJson);
+				return JSON.stringify(e3db.createTodo(todo));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.getTodos', (filterJson?: string) => {
+			try {
+				const filter = filterJson ? JSON.parse(filterJson) : undefined;
+				return JSON.stringify(e3db.getTodos(filter));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.createTaskPlan', (planJson: string) => {
+			try {
+				const plan = JSON.parse(planJson);
+				return JSON.stringify(e3db.createTaskPlan(plan));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.getTaskPlans', (filterJson?: string) => {
+			try {
+				const filter = filterJson ? JSON.parse(filterJson) : undefined;
+				return JSON.stringify(e3db.getTaskPlans(filter));
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				return JSON.stringify({ error: msg });
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('executive3.getDbHealth', () => {
+			try {
+				return JSON.stringify(e3db.getDbHealth());
 			} catch (err) {
 				const msg = err instanceof Error ? err.message : 'Unknown error';
 				return JSON.stringify({ error: msg });
@@ -757,6 +841,25 @@ export function activate(context: vscode.ExtensionContext): void {
 				url = `https://${url}`;
 			}
 			await vscode.commands.executeCommand('simpleBrowser.show', url);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.openE3WebUI', async () => {
+			try {
+				const data = e3db.exportAll();
+				const html = buildE3DashboardHtml(data);
+				const outputDir = path.join(e3StorageDir, 'reports');
+				fs.mkdirSync(outputDir, { recursive: true });
+				const reportPath = path.join(outputDir, 'e3-dashboard.html');
+				fs.writeFileSync(reportPath, html, 'utf-8');
+
+				await vscode.env.openExternal(vscode.Uri.file(reportPath));
+				void vscode.window.showInformationMessage('Opened Executive3 browser dashboard.');
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Unknown error';
+				void vscode.window.showErrorMessage(`Failed to open Executive3 dashboard: ${msg}`);
+			}
 		})
 	);
 

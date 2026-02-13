@@ -14,7 +14,7 @@ description: "Instruction file editor. Updates agent instructions, contexts, and
 1. Identify the change needed (new agent, context tweak, pipeline adjustment, pattern update).
 2. Read `../../.instructions/contexts/project.memory.md` and recent task files (check `## Failures` sections) to understand prior issues�avoid reintroducing known problems.
 3. **Version tracking**: Before editing, note current schema-version; increment patch version for minor fixes, minor version for new capabilities.
-4. Apply updates to instructions/contexts; keep style consistent and follow Agent Template Schema from `onboarding.agent.md`.
+4. Apply updates to instructions/contexts; keep style consistent and follow frontmatter/schema patterns from existing agent files in `.github/agents/`.
 5. **Backup**: Create backup of modified files in `.backup/` before applying changes.
 6. If change impacts task flow, add/update tasks to document new behavior.
 7. Add `../../warnings.md` entry if risk or debt is discovered.

@@ -222,3 +222,110 @@ test('reset blocks canonical local DB path unless --allow-canonical-reset is pas
 		assert.equal(allowed.json?.success, true);
 	});
 });
+
+test('create-session-bundle persists session, tasks, todo, and task plans in one DB transaction', () => {
+	withTempWorkspace((tempRoot) => {
+		const dbPath = path.join(tempRoot, 'db', 'bundle.db');
+		const planId = 'plan-bundle-001';
+		const sessionId = 'session-bundle-001';
+		const taskA = 'e3t-bundle-001';
+		const taskB = 'e3t-bundle-002';
+		const todoId = 'todo-bundle-001';
+		const taskPlanId = 'taskplan-bundle-001';
+
+		const ensure = runCli({
+			cwd: tempRoot,
+			args: ['ensure-db', '--db', dbPath],
+		});
+
+		assert.equal(ensure.status, 0);
+
+		const payload = {
+			plan: { id: planId, title: 'Bundle Plan', summary: 'transactional bundle' },
+			session: { id: sessionId, request_summary: 'bundle test' },
+			tasks: [
+				{ id: taskA, title: 'Task A', status: 'not-started', priority: 2, depends_on: [], skills: [] },
+				{ id: taskB, title: 'Task B', status: 'not-started', priority: 1, depends_on: [taskA], skills: ['debug'] },
+			],
+			todo: { id: todoId, title: 'Root Todo', task_ids: [taskA, taskB] },
+			task_plans: [
+				{ id: taskPlanId, title: 'Plan for Task B', task_id: taskB, level: 1 },
+			],
+			options: { idempotent: true },
+		};
+
+		const bundle = runCli({
+			cwd: tempRoot,
+			args: ['create-session-bundle', JSON.stringify(payload), '--db', dbPath],
+		});
+
+		assert.equal(bundle.status, 0);
+		assert.equal(bundle.json?.success, true);
+
+		const exportAll = runCli({
+			cwd: tempRoot,
+			args: ['export-all', '--db', dbPath],
+		});
+
+		assert.equal(exportAll.status, 0);
+		assert.ok(exportAll.json?.plans?.some((p) => p.id === planId));
+		assert.ok(exportAll.json?.sessions?.some((s) => s.id === sessionId));
+		assert.ok(exportAll.json?.tasks?.some((t) => t.id === taskA));
+		assert.ok(exportAll.json?.tasks?.some((t) => t.id === taskB));
+		assert.ok(exportAll.json?.todos?.some((t) => t.id === todoId));
+		assert.ok(exportAll.json?.task_plans?.some((tp) => tp.id === taskPlanId));
+	});
+});
+
+test('db-health returns deterministic diagnostics payload', () => {
+	withTempWorkspace((tempRoot) => {
+		const dbPath = path.join(tempRoot, 'db', 'health.db');
+
+		const ensure = runCli({
+			cwd: tempRoot,
+			args: ['ensure-db', '--db', dbPath],
+		});
+
+		assert.equal(ensure.status, 0);
+
+		const health = runCli({
+			cwd: tempRoot,
+			args: ['db-health', '--db', dbPath],
+		});
+
+		assert.equal(health.status, 0);
+		assert.equal(typeof health.json?.quick_check, 'string');
+		assert.equal(typeof health.json?.foreign_key_violations, 'number');
+		assert.equal(typeof health.json?.open_tasks_without_active_session, 'number');
+		assert.equal(typeof health.json?.sessions_total, 'number');
+		assert.equal(typeof health.json?.tasks_total, 'number');
+	});
+});
+
+test('discovery redirect in sibling repo resolves to canonical DB without conflict', () => {
+	withTempWorkspace((tempRoot) => {
+		const rootA = path.join(tempRoot, 'instruction-engine');
+		const rootB = path.join(tempRoot, 'GenericInfrastructure');
+		const canonicalDb = path.join(rootA, '.e3-local', 'executive3.db');
+
+		fs.mkdirSync(path.join(rootA, '.e3-local'), { recursive: true });
+		fs.mkdirSync(path.join(rootB, '.e3-local'), { recursive: true });
+		fs.writeFileSync(path.join(rootB, '.e3-local', 'db-path.txt'), canonicalDb, 'utf8');
+
+		const ensureCanonical = runCli({
+			cwd: rootA,
+			args: ['ensure-db', '--db', canonicalDb],
+		});
+
+		assert.equal(ensureCanonical.status, 0);
+
+		const fromSibling = runCli({
+			cwd: rootB,
+			args: ['ensure-db'],
+		});
+
+		assert.equal(fromSibling.status, 0);
+		assert.equal(path.normalize(fromSibling.json?.path), path.normalize(canonicalDb));
+		assert.equal(fromSibling.json?.resolution?.source, 'discovery-file');
+	});
+});

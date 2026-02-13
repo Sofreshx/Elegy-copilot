@@ -12,14 +12,21 @@
  * Commands:
  *   ensure-db                          Open/create the DB, print status JSON
  *   get-session [sessionId]            Get active session or specific session
+ *   get-sessions [filterJson]          List sessions with optional status/resumable filters
  *   create-session <json>              Create a new session
+ *   create-session-bundle <json>       Atomic create plan/session/tasks/todo/task-plans bundle
  *   update-session-status <id> <status>  Update session status
  *   create-plan <json>                 Create a new plan
  *   get-tasks [filterJson]             List tasks (optional filter)
  *   create-task <json>                 Create a new task
+ *   create-todo <json>                 Create root todo and optional task links
+ *   get-todos [filterJson]             List todos
+ *   create-task-plan <json>            Create nested task plan
+ *   get-task-plans [filterJson]        List task plans
  *   update-task <id> <status> [error]  Update task status
  *   get-next-task [sessionId]          Get next actionable task
  *   get-task-summary [sessionId] [planId]  Get progress summary
+ *   db-health                          Run quick DB consistency diagnostics
  *   log-execution <json>               Log an execution entry
  *   get-execution-log [filterJson]     Get execution log entries
  *   increment-task-attempt <taskId>    Increment attempt count
@@ -212,7 +219,15 @@ function detectDbSignalConflict(cwd, signals) {
 		uniquePaths.get(key).push(signal.source);
 	}
 
-	if (uniquePaths.size > 1) {
+	const onlyDiscoveryAndWorkspace = comparableSignals.length === 2
+		&& Boolean(signals.discoverySignal?.path)
+		&& Boolean(signals.workspaceSignal?.path)
+		&& !signals.envSignal?.path;
+	const workspaceRedirect = onlyDiscoveryAndWorkspace
+		&& signals.workspaceSignal?.targetExists === false
+		&& canonicalPath(signals.discoverySignal.path) !== canonicalPath(signals.workspaceSignal.path);
+
+	if (uniquePaths.size > 1 && !workspaceRedirect) {
 		reasonKeys.push('signal-path-disagreement');
 	}
 
@@ -221,7 +236,7 @@ function detectDbSignalConflict(cwd, signals) {
 	}
 
 	const discovery = signals.discoverySignal;
-	if (discovery?.path && discovery.targetExists === false) {
+	if (discovery?.path && discovery.targetExists === false && !workspaceRedirect) {
 		const comparedSignals = [signals.envSignal, signals.workspaceSignal]
 			.filter(signal => signal && signal.path);
 		const disagreesWithOtherSignal = comparedSignals.some(
@@ -632,6 +647,7 @@ function openDb(dbPath) {
 	const db = new Database(dbPath);
 	db.pragma('journal_mode = WAL');
 	db.pragma('foreign_keys = ON');
+	db.pragma('busy_timeout = 5000');
 
 	// Apply schema if tables don't exist
 	const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
@@ -655,6 +671,132 @@ function openDb(dbPath) {
 	ensureSmartContextSchema(db);
 
 	return db;
+}
+
+function sleepMs(ms) {
+	const duration = Math.max(0, Number(ms) || 0);
+	if (duration === 0) return;
+	const shared = new SharedArrayBuffer(4);
+	const view = new Int32Array(shared);
+	Atomics.wait(view, 0, 0, duration);
+}
+
+function isSqliteBusyError(err) {
+	const message = String(err?.message ?? '');
+	return message.includes('SQLITE_BUSY') || message.includes('database is locked');
+}
+
+function runWithSqliteRetry(command, operation, options = {}) {
+	const maxAttempts = Number.isInteger(options.maxAttempts) ? options.maxAttempts : 4;
+	const baseDelayMs = Number.isInteger(options.baseDelayMs) ? options.baseDelayMs : 50;
+
+	let lastError;
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		try {
+			return operation();
+		} catch (err) {
+			lastError = err;
+			if (!isSqliteBusyError(err) || attempt >= maxAttempts) {
+				throw err;
+			}
+			sleepMs(baseDelayMs * attempt);
+		}
+	}
+
+	throw lastError ?? new Error(`Failed command after retries: ${command}`);
+}
+
+function normalizeArrayJson(value) {
+	if (Array.isArray(value)) {
+		return JSON.stringify(value.filter((entry) => typeof entry === 'string' && entry.length > 0));
+	}
+
+	if (value == null) {
+		return '[]';
+	}
+
+	const raw = String(value).trim();
+	if (!raw) {
+		return '[]';
+	}
+
+	try {
+		const parsed = JSON.parse(raw);
+		if (!Array.isArray(parsed)) {
+			return '[]';
+		}
+		return JSON.stringify(parsed.filter((entry) => typeof entry === 'string' && entry.length > 0));
+	} catch {
+		return '[]';
+	}
+}
+
+function ensurePlanExists(db, planId) {
+	if (!planId) return;
+	const exists = db.prepare('SELECT 1 FROM plans WHERE id = ?').get(planId);
+	if (!exists) {
+		throw new Error(`Plan not found: ${planId}`);
+	}
+}
+
+function ensureSessionExists(db, sessionId) {
+	if (!sessionId) return;
+	const exists = db.prepare('SELECT 1 FROM sessions WHERE id = ?').get(sessionId);
+	if (!exists) {
+		throw new Error(`Session not found: ${sessionId}`);
+	}
+}
+
+function ensureTaskExists(db, taskId) {
+	if (!taskId) return;
+	const exists = db.prepare('SELECT 1 FROM tasks WHERE id = ?').get(taskId);
+	if (!exists) {
+		throw new Error(`Task not found: ${taskId}`);
+	}
+}
+
+function ensureTodoExists(db, todoId) {
+	if (!todoId) return;
+	const exists = db.prepare('SELECT 1 FROM todos WHERE id = ?').get(todoId);
+	if (!exists) {
+		throw new Error(`Todo not found: ${todoId}`);
+	}
+}
+
+function ensureTaskPlanExists(db, taskPlanId) {
+	if (!taskPlanId) return;
+	const exists = db.prepare('SELECT 1 FROM task_plans WHERE id = ?').get(taskPlanId);
+	if (!exists) {
+		throw new Error(`Task plan not found: ${taskPlanId}`);
+	}
+}
+
+function createTaskRecord(db, taskInput) {
+	ensureSessionExists(db, taskInput.session_id ?? null);
+	ensurePlanExists(db, taskInput.plan_id ?? null);
+
+	db.prepare(
+		`INSERT INTO tasks (id, plan_id, session_id, title, description, acceptance_criteria,
+		                    status, group_id, group_title, group_order, priority, depends_on, skills)
+		 VALUES (@id, @plan_id, @session_id, @title, @description, @acceptance_criteria,
+		         @status, @group_id, @group_title, @group_order, @priority, @depends_on, @skills)`
+	).run({
+		id: taskInput.id,
+		plan_id: taskInput.plan_id ?? null,
+		session_id: taskInput.session_id ?? null,
+		title: taskInput.title,
+		description: taskInput.description ?? null,
+		acceptance_criteria: taskInput.acceptance_criteria ?? null,
+		status: taskInput.status ?? 'not-started',
+		group_id: taskInput.group_id ?? 'ungrouped',
+		group_title: taskInput.group_title ?? 'Ungrouped',
+		group_order: taskInput.group_order ?? 9999,
+		priority: taskInput.priority ?? 0,
+		depends_on: normalizeArrayJson(taskInput.depends_on),
+		skills: normalizeArrayJson(taskInput.skills),
+	});
+
+	return db.prepare('SELECT * FROM tasks WHERE id = ?').get(taskInput.id);
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -714,8 +856,51 @@ const commands = {
 		}
 	},
 
+	'get-sessions': (db, args) => {
+		const filter = args[0] ? parseJsonArg(args[0], 'filter') : {};
+		const conditions = [];
+		const params = {};
+
+		if (Array.isArray(filter.statuses) && filter.statuses.length > 0) {
+			const placeholders = filter.statuses.map((_, index) => `@status${index}`);
+			conditions.push(`s.status IN (${placeholders.join(', ')})`);
+			filter.statuses.forEach((status, index) => {
+				params[`status${index}`] = status;
+			});
+		}
+
+		if (filter.resumableOnly) {
+			conditions.push(`EXISTS (
+				SELECT 1 FROM tasks t
+				WHERE t.session_id = s.id
+				  AND t.status IN ('not-started', 'in-progress', 'blocked', 'failed')
+			)`);
+		}
+
+		const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+		const limit = Number.isInteger(filter.limit) && filter.limit > 0 ? filter.limit : 25;
+
+		const rows = db.prepare(
+			`SELECT
+				s.*,
+				(
+					SELECT COUNT(*)
+					FROM tasks t
+					WHERE t.session_id = s.id
+					  AND t.status IN ('not-started', 'in-progress', 'blocked', 'failed')
+				) AS open_task_count
+			 FROM sessions s
+			 ${where}
+			 ORDER BY s.started_at DESC
+			 LIMIT @limit`
+		).all({ ...params, limit });
+
+		jsonOut(rows);
+	},
+
 	'create-session': (db, args) => {
 		const session = parseJsonArg(args[0], 'session');
+		ensurePlanExists(db, session.plan_id ?? null);
 		db.prepare(
 			`INSERT INTO sessions (id, plan_id, request_summary, context_snapshot)
 			 VALUES (@id, @plan_id, @request_summary, @context_snapshot)`
@@ -765,27 +950,7 @@ const commands = {
 
 	'create-task': (db, args) => {
 		const task = parseJsonArg(args[0], 'task');
-		db.prepare(
-			`INSERT INTO tasks (id, plan_id, session_id, title, description, acceptance_criteria,
-			                    status, group_id, group_title, group_order, priority, depends_on, skills)
-			 VALUES (@id, @plan_id, @session_id, @title, @description, @acceptance_criteria,
-			         @status, @group_id, @group_title, @group_order, @priority, @depends_on, @skills)`
-		).run({
-			id: task.id,
-			plan_id: task.plan_id ?? null,
-			session_id: task.session_id ?? null,
-			title: task.title,
-			description: task.description ?? null,
-			acceptance_criteria: task.acceptance_criteria ?? null,
-			status: task.status ?? 'not-started',
-			group_id: task.group_id ?? null,
-			group_title: task.group_title ?? null,
-			group_order: task.group_order ?? null,
-			priority: task.priority ?? 0,
-			depends_on: task.depends_on ?? '[]',
-			skills: task.skills ?? '[]',
-		});
-		const created = db.prepare('SELECT * FROM tasks WHERE id = ?').get(task.id);
+		const created = createTaskRecord(db, task);
 		jsonOut(created);
 	},
 
@@ -832,14 +997,18 @@ const commands = {
 		}
 
 		// Check for in-progress
-		const inProgress = db.prepare("SELECT * FROM tasks WHERE status = 'in-progress' LIMIT 1").get();
+		const inProgressConditions = ["status = 'in-progress'"];
+		if (sessionId) {
+			inProgressConditions.push('session_id = @session_id');
+		}
+		const inProgress = db.prepare(`SELECT * FROM tasks WHERE ${inProgressConditions.join(' AND ')} LIMIT 1`).get(params);
 		if (inProgress) {
 			jsonOut({ task: inProgress, reason: 'Resuming in-progress task' });
 			return;
 		}
 
-		const blocked = db.prepare("SELECT COUNT(*) as c FROM tasks WHERE status = 'blocked'").get().c;
-		const failed = db.prepare("SELECT COUNT(*) as c FROM tasks WHERE status = 'failed'").get().c;
+		const blocked = db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE status = 'blocked'${sessionId ? ' AND session_id = @session_id' : ''}`).get(params).c;
+		const failed = db.prepare(`SELECT COUNT(*) as c FROM tasks WHERE status = 'failed'${sessionId ? ' AND session_id = @session_id' : ''}`).get(params).c;
 
 		if (blocked > 0 || failed > 0) {
 			jsonOut({ task: null, reason: `No actionable tasks. ${blocked} blocked, ${failed} failed.` });
@@ -922,6 +1091,282 @@ const commands = {
 		db.prepare('UPDATE sessions SET replan_count = replan_count + 1 WHERE id = ?').run(sessionId);
 		const session = db.prepare('SELECT replan_count FROM sessions WHERE id = ?').get(sessionId);
 		jsonOut({ replan_count: session?.replan_count ?? 0 });
+	},
+
+	'create-todo': (db, args) => {
+		const input = parseJsonArg(args[0], 'todo');
+		ensureSessionExists(db, input.session_id);
+
+		const tx = db.transaction(() => {
+			db.prepare(
+				`INSERT INTO todos (id, session_id, title, summary, status)
+				 VALUES (@id, @session_id, @title, @summary, @status)`
+			).run({
+				id: input.id,
+				session_id: input.session_id,
+				title: input.title,
+				summary: input.summary ?? null,
+				status: input.status ?? 'active',
+			});
+
+			for (const [index, taskId] of (Array.isArray(input.task_ids) ? input.task_ids : []).entries()) {
+				ensureTaskExists(db, taskId);
+				db.prepare(
+					`INSERT INTO todo_tasks (todo_id, task_id, ordering)
+					 VALUES (@todo_id, @task_id, @ordering)`
+				).run({ todo_id: input.id, task_id: taskId, ordering: index });
+			}
+		});
+
+		tx();
+
+		const created = db.prepare(
+			`SELECT
+				t.id,
+				t.session_id,
+				t.title,
+				t.summary,
+				t.status,
+				COALESCE((SELECT json_group_array(task_id) FROM (SELECT task_id FROM todo_tasks WHERE todo_id = t.id ORDER BY ordering ASC)), '[]') AS task_ids,
+				t.created_at,
+				t.updated_at
+			 FROM todos t WHERE t.id = ?`
+		).get(input.id);
+		jsonOut(created);
+	},
+
+	'get-todos': (db, args) => {
+		const filter = args[0] ? parseJsonArg(args[0], 'filter') : {};
+		const conditions = [];
+		const params = {};
+
+		if (filter.session_id) {
+			conditions.push('t.session_id = @session_id');
+			params.session_id = filter.session_id;
+		}
+		if (filter.status) {
+			conditions.push('t.status = @status');
+			params.status = filter.status;
+		}
+
+		const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+		const limit = Number.isInteger(filter.limit) && filter.limit > 0 ? `LIMIT ${filter.limit}` : '';
+
+		const rows = db.prepare(
+			`SELECT
+				t.id,
+				t.session_id,
+				t.title,
+				t.summary,
+				t.status,
+				COALESCE((SELECT json_group_array(task_id) FROM (SELECT task_id FROM todo_tasks WHERE todo_id = t.id ORDER BY ordering ASC)), '[]') AS task_ids,
+				t.created_at,
+				t.updated_at
+			 FROM todos t
+			 ${where}
+			 ORDER BY t.created_at ASC
+			 ${limit}`
+		).all(params);
+		jsonOut(rows);
+	},
+
+	'create-task-plan': (db, args) => {
+		const input = parseJsonArg(args[0], 'taskPlan');
+		ensureSessionExists(db, input.session_id);
+		ensureTodoExists(db, input.todo_id ?? null);
+		ensureTaskPlanExists(db, input.parent_plan_id ?? null);
+		ensureTaskExists(db, input.task_id ?? null);
+
+		db.prepare(
+			`INSERT INTO task_plans (id, session_id, todo_id, parent_plan_id, task_id, title, summary, level, status)
+			 VALUES (@id, @session_id, @todo_id, @parent_plan_id, @task_id, @title, @summary, @level, @status)`
+		).run({
+			id: input.id,
+			session_id: input.session_id,
+			todo_id: input.todo_id ?? null,
+			parent_plan_id: input.parent_plan_id ?? null,
+			task_id: input.task_id ?? null,
+			title: input.title,
+			summary: input.summary ?? null,
+			level: input.level ?? 0,
+			status: input.status ?? 'active',
+		});
+
+		const created = db.prepare('SELECT * FROM task_plans WHERE id = ?').get(input.id);
+		jsonOut(created);
+	},
+
+	'get-task-plans': (db, args) => {
+		const filter = args[0] ? parseJsonArg(args[0], 'filter') : {};
+		const conditions = [];
+		const params = {};
+
+		if (filter.session_id) {
+			conditions.push('session_id = @session_id');
+			params.session_id = filter.session_id;
+		}
+		if (filter.todo_id) {
+			conditions.push('todo_id = @todo_id');
+			params.todo_id = filter.todo_id;
+		}
+		if (filter.status) {
+			conditions.push('status = @status');
+			params.status = filter.status;
+		}
+
+		const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+		const rows = db.prepare(`SELECT * FROM task_plans ${where} ORDER BY level ASC, created_at ASC`).all(params);
+		jsonOut(rows);
+	},
+
+	'create-session-bundle': (db, args) => {
+		const input = parseJsonArg(args[0], 'bundle');
+		const plan = input.plan ?? null;
+		const session = input.session;
+		const tasks = Array.isArray(input.tasks) ? input.tasks : [];
+		const todo = input.todo ?? null;
+		const taskPlans = Array.isArray(input.task_plans) ? input.task_plans : [];
+		const options = input.options ?? {};
+		const idempotent = Boolean(options.idempotent);
+
+		if (!session || !session.id) {
+			errorOut('create-session-bundle requires bundle.session with an id');
+		}
+
+		const tx = db.transaction(() => {
+			if (plan) {
+				const existingPlan = db.prepare('SELECT id FROM plans WHERE id = ?').get(plan.id);
+				if (!existingPlan) {
+					db.prepare('INSERT INTO plans (id, title, summary) VALUES (@id, @title, @summary)').run({
+						id: plan.id,
+						title: plan.title,
+						summary: plan.summary ?? null,
+					});
+				}
+			}
+
+			const sessionPlanId = session.plan_id ?? plan?.id ?? null;
+			ensurePlanExists(db, sessionPlanId);
+			const existingSession = db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id);
+			if (!existingSession) {
+				db.prepare(
+					`INSERT INTO sessions (id, plan_id, request_summary, context_snapshot)
+					 VALUES (@id, @plan_id, @request_summary, @context_snapshot)`
+				).run({
+					id: session.id,
+					plan_id: sessionPlanId,
+					request_summary: session.request_summary ?? null,
+					context_snapshot: session.context_snapshot ?? null,
+				});
+			} else if (!idempotent) {
+				throw new Error(`Session already exists: ${session.id}`);
+			}
+
+			for (const task of tasks) {
+				const existingTask = db.prepare('SELECT id FROM tasks WHERE id = ?').get(task.id);
+				if (existingTask) {
+					if (!idempotent) {
+						throw new Error(`Task already exists: ${task.id}`);
+					}
+					continue;
+				}
+				createTaskRecord(db, { ...task, session_id: task.session_id ?? session.id, plan_id: task.plan_id ?? sessionPlanId });
+			}
+
+			if (todo) {
+				const existingTodo = db.prepare('SELECT id FROM todos WHERE id = ?').get(todo.id);
+				if (!existingTodo) {
+					db.prepare(
+						`INSERT INTO todos (id, session_id, title, summary, status)
+						 VALUES (@id, @session_id, @title, @summary, @status)`
+					).run({
+						id: todo.id,
+						session_id: todo.session_id ?? session.id,
+						title: todo.title,
+						summary: todo.summary ?? null,
+						status: todo.status ?? 'active',
+					});
+				}
+
+				for (const [index, taskId] of (Array.isArray(todo.task_ids) ? todo.task_ids : []).entries()) {
+					ensureTaskExists(db, taskId);
+					db.prepare(
+						`INSERT INTO todo_tasks (todo_id, task_id, ordering)
+						 VALUES (@todo_id, @task_id, @ordering)
+						 ON CONFLICT(todo_id, task_id) DO UPDATE SET ordering = excluded.ordering`
+					).run({ todo_id: todo.id, task_id: taskId, ordering: index });
+				}
+			}
+
+			for (const taskPlan of taskPlans) {
+				const existingTaskPlan = db.prepare('SELECT id FROM task_plans WHERE id = ?').get(taskPlan.id);
+				if (existingTaskPlan) {
+					if (!idempotent) {
+						throw new Error(`Task plan already exists: ${taskPlan.id}`);
+					}
+					continue;
+				}
+				ensureTaskPlanExists(db, taskPlan.parent_plan_id ?? null);
+				ensureTaskExists(db, taskPlan.task_id ?? null);
+				ensureTodoExists(db, taskPlan.todo_id ?? todo?.id ?? null);
+				db.prepare(
+					`INSERT INTO task_plans (id, session_id, todo_id, parent_plan_id, task_id, title, summary, level, status)
+					 VALUES (@id, @session_id, @todo_id, @parent_plan_id, @task_id, @title, @summary, @level, @status)`
+				).run({
+					id: taskPlan.id,
+					session_id: taskPlan.session_id ?? session.id,
+					todo_id: taskPlan.todo_id ?? todo?.id ?? null,
+					parent_plan_id: taskPlan.parent_plan_id ?? null,
+					task_id: taskPlan.task_id ?? null,
+					title: taskPlan.title,
+					summary: taskPlan.summary ?? null,
+					level: taskPlan.level ?? 0,
+					status: taskPlan.status ?? 'active',
+				});
+			}
+		});
+
+		tx();
+
+		jsonOut({
+			success: true,
+			session: db.prepare('SELECT * FROM sessions WHERE id = ?').get(session.id),
+			task_count: db.prepare('SELECT COUNT(*) as c FROM tasks WHERE session_id = ?').get(session.id).c,
+			todo_count: db.prepare('SELECT COUNT(*) as c FROM todos WHERE session_id = ?').get(session.id).c,
+			task_plan_count: db.prepare('SELECT COUNT(*) as c FROM task_plans WHERE session_id = ?').get(session.id).c,
+		});
+	},
+
+	'db-health': (db) => {
+		const quickRow = db.prepare('PRAGMA quick_check').get();
+		const quickCheck = quickRow?.quick_check ?? Object.values(quickRow ?? {})[0] ?? 'unknown';
+		const fkViolations = db.prepare('PRAGMA foreign_key_check').all();
+		const orphanTasks = db.prepare(
+			`SELECT t.session_id AS session_id, COUNT(*) AS count
+			 FROM tasks t
+			 LEFT JOIN sessions s ON s.id = t.session_id
+			 WHERE t.session_id IS NOT NULL AND s.id IS NULL
+			 GROUP BY t.session_id`
+		).all();
+		const openTasksWithoutActiveSession = db.prepare(
+			`SELECT COUNT(*) as c
+			 FROM tasks t
+			 LEFT JOIN sessions s ON s.id = t.session_id
+			 WHERE t.status IN ('not-started', 'in-progress', 'blocked', 'failed')
+			   AND (s.id IS NULL OR s.status <> 'active')`
+		).get().c;
+
+		const sessionsTotal = db.prepare('SELECT COUNT(*) as c FROM sessions').get().c;
+		const tasksTotal = db.prepare('SELECT COUNT(*) as c FROM tasks').get().c;
+
+		jsonOut({
+			quick_check: quickCheck,
+			foreign_key_violations: fkViolations.length,
+			orphan_tasks_by_session: orphanTasks,
+			open_tasks_without_active_session: openTasksWithoutActiveSession,
+			sessions_total: sessionsTotal,
+			tasks_total: tasksTotal,
+		});
 	},
 
 	'store-context': (db, args) => {
@@ -1257,6 +1702,9 @@ const commands = {
 		jsonOut({
 			plans: db.prepare('SELECT * FROM plans').all(),
 			sessions: db.prepare('SELECT * FROM sessions').all(),
+			todos: db.prepare('SELECT * FROM todos ORDER BY created_at ASC').all(),
+			todo_tasks: db.prepare('SELECT * FROM todo_tasks ORDER BY todo_id, ordering').all(),
+			task_plans: db.prepare('SELECT * FROM task_plans ORDER BY level ASC, created_at ASC').all(),
 			tasks: db.prepare('SELECT * FROM tasks ORDER BY group_order ASC, priority DESC').all(),
 			execution_log: db.prepare('SELECT * FROM execution_log ORDER BY timestamp DESC LIMIT 200').all(),
 			context_notes: db.prepare('SELECT * FROM context_notes ORDER BY created_at DESC').all(),
@@ -1269,6 +1717,9 @@ const commands = {
 	'reset': (db) => {
 		db.exec(`
 			DELETE FROM execution_log;
+			DELETE FROM task_plans;
+			DELETE FROM todo_tasks;
+			DELETE FROM todos;
 			DELETE FROM context_embeddings;
 			DELETE FROM context_links;
 			DELETE FROM context_notes;
@@ -1303,14 +1754,21 @@ Usage: node e3-cli.js <command> [args...]
 Commands:
   ensure-db                           Check/create DB, print status
   get-session [sessionId]             Get active or specific session
+	get-sessions [filterJson]           List sessions with optional filter
   create-session <json>               Create session
+	create-session-bundle <json>        Atomic create of session/task planning data
   update-session-status <id> <status> Update session status
   create-plan <json>                  Create plan
   get-tasks [filterJson]              List tasks with optional filter
   create-task <json>                  Create task
+	create-todo <json>                  Create root todo with optional task links
+	get-todos [filterJson]              List todos
+	create-task-plan <json>             Create nested task plan
+	get-task-plans [filterJson]         List task plans
   update-task <id> <status> [error]   Update task status
   get-next-task [sessionId]           Get next actionable task
   get-task-summary [sessionId] [planId] Get progress summary
+	db-health                           Run DB consistency diagnostics
   log-execution <json>                Add execution log entry
   get-execution-log [filterJson]      Get execution log
   increment-task-attempt <taskId>     Increment attempt count
@@ -1375,7 +1833,7 @@ Output: JSON to stdout. Errors: JSON with { "error": "..." }
 	}
 
 	try {
-		handler(db, args, dbPath, dbResolution, smartContextGate);
+		runWithSqliteRetry(command, () => handler(db, args, dbPath, dbResolution, smartContextGate));
 	} catch (err) {
 		if (err.code === SMART_CONTEXT_DISABLED_CODE && err.details) {
 			errorOut(err.details);

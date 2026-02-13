@@ -1,6 +1,6 @@
 ---
 name: wolverine-http
-description: "Wolverine HTTP endpoints. Creates minimal API-style HTTP endpoints with Wolverine. Use this when asked to create a Wolverine endpoint, add an HTTP handler, or work on API endpoints using Wolverine HTTP. Triggers on:"Wolverine endpoint", "Wolverine API", "minimal API", "HTTP handler"."
+description: "Wolverine HTTP endpoints. Creates minimal API-style HTTP endpoints with Wolverine. Use this when asked to create a Wolverine endpoint, add an HTTP handler, or work on API endpoints using Wolverine HTTP. Triggers on: Wolverine endpoint, Wolverine API, minimal API, HTTP handler."
 ---
 
 # Wolverine HTTP Endpoints Skill
@@ -226,8 +226,6 @@ app.MapWolverineEndpoints(opts =>
 - **MapWolverineEndpoints()**: Don't forget to call this in Program.cs
 - **Async Preferred**: Use `async Task<T>` for any I/O operations
 - **No [FromBody]**: Wolverine handles binding automatically - don't use ASP.NET Core attributes
-
-````
 
 
 

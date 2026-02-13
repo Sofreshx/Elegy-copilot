@@ -1,6 +1,10 @@
 ---
 name: semantic-kernel-agents
-description: "Semantic Kernel multi-agent orchestration. Creates AI agents with plugins and planners. Use this when asked to implement Semantic Kernel agents, build AI orchestration, or work with SK agent patterns. Triggers on:"Semantic Kernel", "SK agents", "semantic kernel agents"."
+description: >
+    Semantic Kernel multi-agent orchestration. Creates AI agents with plugins and
+    planners. Use this when asked to implement Semantic Kernel agents, build AI
+    orchestration, or work with SK agent patterns. Triggers on: Semantic Kernel,
+    SK agents, semantic kernel agents.
 ---
 
 # Semantic Kernel Agent Framework Skill
@@ -165,7 +169,7 @@ Kernel agentKernel = kernel.Clone();
 var functionFromMethod = agentKernel.CreateFunctionFromMethod(
     ([Description("Number to double")] int x) => x * 2,
     functionName: "DoubleNumber",
-    description: "Semantic Kernel multi-agent orchestration. Creates AI agents with plugins and planners. Use this when asked to implement Semantic Kernel agents, build AI orchestration, or work with SK agent patterns. Triggers on:");
+    description: "Doubles a number using a simple Semantic Kernel function example.");
 
 // From prompt
 var functionFromPrompt = agentKernel.CreateFunctionFromPrompt(
@@ -367,8 +371,6 @@ await foreach (StreamingChatMessageContent chunk in
 - **Thread Cleanup**: Assistant threads persist in OpenAI - delete when done
 - **Kernel Cloning**: Direct Kernel sharing between agents causes plugin conflicts
 - **Service ID Required**: When multiple AI services exist, specify which to use
-
-````
 
 
 

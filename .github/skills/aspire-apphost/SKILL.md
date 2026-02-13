@@ -1,6 +1,6 @@
 ---
 name: aspire-apphost
-description: ".NET Aspire AppHost orchestration. Configures service discovery, dependencies, and local development. Use this when asked to configure Aspire, add a service to AppHost, set up orchestration, or work on Aspire AppHost configuration. Triggers on:"AppHost", "Aspire AppHost", "Aspire orchestration", "Aspire"."
+description: ".NET Aspire AppHost orchestration. Configures service discovery, dependencies, and local development. Use this when asked to configure Aspire, add a service to AppHost, set up orchestration, or work on Aspire AppHost configuration. Triggers on: AppHost, Aspire AppHost, Aspire orchestration, Aspire."
 ---
 
 # .NET Aspire AppHost Skill
@@ -246,8 +246,6 @@ Access at: `https://localhost:15888` (default)
 - **Port Conflicts**: Let Aspire assign ports unless you need specific ones
 - **Docker Required**: Container resources need Docker Desktop running
 - **Health Checks**: Implement health checks for `WaitFor()` to work properly
-
-````
 
 
 

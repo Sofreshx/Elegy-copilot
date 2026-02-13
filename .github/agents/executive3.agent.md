@@ -4,7 +4,7 @@ description: Unified orchestrator for complex multi-step work. Single entry poin
 tools: [read, search, edit, execute/runInTerminal, execute/runTask, agent/runSubagent, vscode/askQuestions, web/fetch, todo, agent/runSubagent, agent]
 user-invocable: true
 disable-model-invocation: true
-agents: [e3-planner, e3-task-creator, e3-git-manager, task-runner, code-explorer, code-architect, code-reviewer, unit-test-runner, integration-test-runner, test-coverage-scanner, research-ideation, reviewer-gpt-5-2-codex, reviewer-opus-4-5, e2e-browser, e2e-live-observer]
+agents: [e3-planner, e3-task-creator, e3-git-manager, task-runner, code-explorer, code-architect, code-reviewer, unit-test-runner, integration-test-runner, test-coverage-scanner, research-ideation, reviewer-gpt-5-3-codex, reviewer-opus-4-6, e2e-browser, e2e-live-observer]
 ---
 
 # Executive3 — Unified Orchestrator
@@ -69,13 +69,20 @@ For deterministic single-path behavior across entry points and cwd changes:
 | `ensure-db` | — | `{status, path, schemaVersion, resolution}` |
 | `create-plan` | `'<json>'` | plan object |
 | `create-session` | `'<json>'` | session object |
+| `get-sessions` | `['<filterJson>']` | session array with `open_task_count` |
+| `create-session-bundle` | `'<json>'` | atomic create result for plan/session/tasks/todo/task-plans |
 | `get-session` | `[sessionId]` | session or null |
 | `update-session-status` | `<id> <status>` | `{success}` |
 | `create-task` | `'<json>'` | created task |
 | `get-tasks` | `['<filterJson>']` | task array |
+| `create-todo` | `'<json>'` | created todo |
+| `get-todos` | `['<filterJson>']` | todo array |
+| `create-task-plan` | `'<json>'` | created task plan |
+| `get-task-plans` | `['<filterJson>']` | task plan array |
 | `update-task` | `<id> <status> [error]` | `{success}` |
 | `get-next-task` | `[sessionId]` | `{task, reason}` |
 | `get-task-summary` | `[sessionId] [planId]` | summary object |
+| `db-health` | — | deterministic DB integrity summary |
 | `log-execution` | `'<json>'` | `{success}` |
 | `get-execution-log` | `['<filterJson>']` | log entries |
 | `increment-task-attempt` | `<taskId>` | `{attempt_count}` |
@@ -200,13 +207,15 @@ Every invocation starts here:
 
 ## Phase 1 — Planning
 
+Before invoking planner output, create a **root todo** for the user request. The root todo is the top-level orchestration container; plans are optional and can be layered under todo/task only when needed.
+
 1. **Delegate to `e3-planner`** with:
    - The user's request (verbatim)
    - The compressed project context summary
    - The classification
    - Any relevant skill instructions (pre-loaded from `SKILL.md` files)
 
-2. **Parse the planner's output.** It returns a structured plan:
+2. **Parse the planner's output.** It returns a structured plan (or subplan):
    ```
    E3_PLAN
    - plan_id: <id>
@@ -241,10 +250,12 @@ Every invocation starts here:
    - On "Revise": ask for feedback, re-run Phase 1 with feedback.
    - On "Cancel": end session.
 
-5. **Persist plan to DB:**
-   - `executive3.createPlan` with the plan metadata.
-   - `executive3.createSession` with plan_id, request_summary (user's original request), and context_snapshot (compressed project context as JSON).
-   - Delegate to `e3-task-creator` with the plan's task list and the session/plan IDs. The task creator calls `executive3.createTask` for tasks only and must not create plan/session records.
+5. **Persist todo + plan to DB:**
+   - Always create a root todo for the request (`executive3.createTodo`) and map generated tasks to that todo.
+   - Persist session/task data using `executive3.createSessionBundle` when creating plan + session + task graph in one operation.
+   - Create a top-level plan only when useful (`executive3.createPlan`).
+   - For complex tasks, add nested task plans via `executive3.createTaskPlan`.
+   - Delegate to `e3-task-creator` for task creation when not using bundle mode.
    - `executive3.logExecution` with action `created` for the planning step.
 
 ## Phase 2 — Execution Loop

@@ -1,0 +1,54 @@
+# Skill Governance and Drift Prevention
+
+## Purpose
+Keep skills high-signal and avoid overfitting generic behavior into heavy skills.
+
+## Triage model
+Classify each skill as one of:
+- **Core**: required project-specific patterns and hard constraints.
+- **Specialized**: external framework/runtime rules that are easy to misuse.
+- **Default-handled**: generic reasoning tasks already well handled by base models.
+- **Deprecated**: kept for compatibility, hidden by default.
+
+## Current default-handled set
+These are hidden in extension skill discovery by default:
+- `debug`
+- `docs`
+- `refactor`
+- `design`
+
+Setting to show them:
+- `skillInstaller.skills.showDefaultHandled = true`
+
+## Recurrence detection for generalized issues
+When an issue repeats across sessions, capture:
+1. Trigger pattern (symptom)
+2. Root cause
+3. Deterministic remediation
+4. Validation command
+
+Store this either as:
+- a focused skill update (if domain-specific), or
+- an orchestration rule (if workflow/systemic).
+
+## Skill quality bar
+A skill should include:
+- explicit when-to-use triggers,
+- concrete constraints and anti-patterns,
+- deterministic validation steps,
+- minimal but realistic examples.
+
+## Canonical docs policy
+For specialized skills, include a `Canonical References` section with official docs links and version notes.
+Use references conditionally:
+- when runtime behavior differs by version,
+- when APIs changed recently,
+- when security/compliance details are critical.
+
+## Pruning policy
+A skill is a prune/deprecate candidate if:
+- it duplicates base-model behavior,
+- it has no project-specific constraints,
+- it is rarely invoked and yields no quality delta.
+
+Prefer **hide/deprecate** before deletion to preserve backward compatibility.

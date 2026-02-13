@@ -92,6 +92,55 @@ export interface E3TaskFilter {
 	session_id?: string;
 }
 
+export interface E3SessionFilter {
+	statuses?: Array<E3Session['status']>;
+	resumableOnly?: boolean;
+	limit?: number;
+}
+
+export interface E3SessionListItem extends E3Session {
+	open_task_count: number;
+}
+
+export interface E3Todo {
+	id: string;
+	session_id: string;
+	title: string;
+	summary?: string;
+	status: 'active' | 'completed' | 'archived';
+	task_ids: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface E3TaskPlan {
+	id: string;
+	session_id: string;
+	todo_id?: string;
+	parent_plan_id?: string;
+	task_id?: string;
+	title: string;
+	summary?: string;
+	level: number;
+	status: 'active' | 'completed' | 'superseded' | 'archived';
+	created_at: string;
+	updated_at: string;
+}
+
+export interface E3DbHealth {
+	quick_check: string;
+	foreign_key_violations: number;
+	orphan_tasks_by_session: Array<{ session_id: string; count: number }>;
+	open_tasks_without_active_session: number;
+	sessions_total: number;
+	tasks_total: number;
+}
+
+type E3TaskCreateInput = Omit<E3Task, 'created_at' | 'updated_at' | 'completed_at' | 'attempt_count'> & {
+	depends_on?: string | string[];
+	skills?: string | string[];
+};
+
 // ─── Database Service ────────────────────────────────────────────────────────
 
 export class E3Database implements vscode.Disposable {
@@ -124,6 +173,7 @@ export class E3Database implements vscode.Disposable {
 		this.db = new Database(this.dbPath);
 		this.db.pragma('journal_mode = WAL');
 		this.db.pragma('foreign_keys = ON');
+		this.db.pragma('busy_timeout = 5000');
 
 		// Run schema
 		const schemaPath = path.join(__dirname, 'e3-schema.sql');
@@ -174,6 +224,38 @@ export class E3Database implements vscode.Disposable {
 		return this.db !== undefined;
 	}
 
+	private normalizeArrayJson(value: string | string[] | undefined): string {
+		if (Array.isArray(value)) {
+			return JSON.stringify(value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0));
+		}
+		if (!value || !value.trim()) {
+			return '[]';
+		}
+		try {
+			const parsed = JSON.parse(value);
+			if (!Array.isArray(parsed)) {
+				return '[]';
+			}
+			return JSON.stringify(parsed.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0));
+		} catch {
+			return '[]';
+		}
+	}
+
+	private ensureSessionExists(sessionId: string): void {
+		const session = this.getSession(sessionId);
+		if (!session) {
+			throw new Error(`Session not found: ${sessionId}`);
+		}
+	}
+
+	private ensurePlanExists(planId: string): void {
+		const plan = this.getPlan(planId);
+		if (!plan) {
+			throw new Error(`Plan not found: ${planId}`);
+		}
+	}
+
 	// ── Plans ────────────────────────────────────────────────────────────
 
 	createPlan(plan: Pick<E3Plan, 'id' | 'title' | 'summary'>): E3Plan {
@@ -208,6 +290,9 @@ export class E3Database implements vscode.Disposable {
 
 	createSession(session: Pick<E3Session, 'id' | 'plan_id' | 'request_summary' | 'context_snapshot'>): E3Session {
 		const db = this.ensureOpen();
+		if (session.plan_id) {
+			this.ensurePlanExists(session.plan_id);
+		}
 		db.prepare(
 			`INSERT INTO sessions (id, plan_id, request_summary, context_snapshot)
 			 VALUES (@id, @plan_id, @request_summary, @context_snapshot)`
@@ -218,6 +303,48 @@ export class E3Database implements vscode.Disposable {
 			context_snapshot: session.context_snapshot ?? null,
 		});
 		return this.getSession(session.id)!;
+	}
+
+	getSessions(filter?: E3SessionFilter): E3SessionListItem[] {
+		const db = this.ensureOpen();
+		const conditions: string[] = [];
+		const params: Record<string, unknown> = {};
+
+		if (filter?.statuses && filter.statuses.length > 0) {
+			const names = filter.statuses.map((_, index) => `@status${index}`);
+			conditions.push(`s.status IN (${names.join(', ')})`);
+			for (const [index, status] of filter.statuses.entries()) {
+				params[`status${index}`] = status;
+			}
+		}
+
+		if (filter?.resumableOnly) {
+			conditions.push(`EXISTS (
+				SELECT 1 FROM tasks t
+				WHERE t.session_id = s.id
+				  AND t.status IN ('not-started', 'in-progress', 'blocked', 'failed')
+			)`);
+		}
+
+		const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+		const limitValue = filter?.limit && filter.limit > 0 ? filter.limit : 25;
+
+		return db
+			.prepare(
+				`SELECT
+					s.*,
+					(
+						SELECT COUNT(*)
+						FROM tasks t
+						WHERE t.session_id = s.id
+						  AND t.status IN ('not-started', 'in-progress', 'blocked', 'failed')
+					) AS open_task_count
+				 FROM sessions s
+				 ${where}
+				 ORDER BY s.started_at DESC
+				 LIMIT @limit`
+			)
+			.all({ ...params, limit: limitValue }) as E3SessionListItem[];
 	}
 
 	getSession(id: string): E3Session | undefined {
@@ -253,8 +380,14 @@ export class E3Database implements vscode.Disposable {
 
 	// ── Tasks ────────────────────────────────────────────────────────────
 
-	createTask(task: Omit<E3Task, 'created_at' | 'updated_at' | 'completed_at' | 'attempt_count'>): E3Task {
+	createTask(task: E3TaskCreateInput): E3Task {
 		const db = this.ensureOpen();
+		if (task.session_id) {
+			this.ensureSessionExists(task.session_id);
+		}
+		if (task.plan_id) {
+			this.ensurePlanExists(task.plan_id);
+		}
 		db.prepare(
 			`INSERT INTO tasks (id, plan_id, session_id, title, description, acceptance_criteria,
 			                    status, group_id, group_title, group_order, priority, depends_on, skills)
@@ -268,12 +401,12 @@ export class E3Database implements vscode.Disposable {
 			description: task.description ?? null,
 			acceptance_criteria: task.acceptance_criteria ?? null,
 			status: task.status ?? 'not-started',
-			group_id: task.group_id ?? null,
-			group_title: task.group_title ?? null,
-			group_order: task.group_order ?? null,
+			group_id: task.group_id ?? 'ungrouped',
+			group_title: task.group_title ?? 'Ungrouped',
+			group_order: task.group_order ?? 9999,
 			priority: task.priority ?? 0,
-			depends_on: task.depends_on ?? '[]',
-			skills: task.skills ?? '[]',
+			depends_on: this.normalizeArrayJson(task.depends_on),
+			skills: this.normalizeArrayJson(task.skills),
 		});
 		return this.getTask(task.id)!;
 	}
@@ -365,9 +498,10 @@ export class E3Database implements vscode.Disposable {
 		}
 
 		// Check if there are blocked/failed tasks
-		const blocked = this.getTasks({ status: 'blocked' });
-		const failed = this.getTasks({ status: 'failed' });
-		const inProgress = this.getTasks({ status: 'in-progress' });
+		const statusScope = sessionId ? { session_id: sessionId } : {};
+		const blocked = this.getTasks({ ...statusScope, status: 'blocked' });
+		const failed = this.getTasks({ ...statusScope, status: 'failed' });
+		const inProgress = this.getTasks({ ...statusScope, status: 'in-progress' });
 
 		if (inProgress.length > 0) {
 			return { task: inProgress[0], reason: 'Resuming in-progress task' };
@@ -435,6 +569,217 @@ export class E3Database implements vscode.Disposable {
 		}
 
 		return summary;
+	}
+
+	createTodo(todo: {
+		id: string;
+		session_id: string;
+		title: string;
+		summary?: string;
+		status?: E3Todo['status'];
+		task_ids?: string[];
+	}): E3Todo {
+		const db = this.ensureOpen();
+		this.ensureSessionExists(todo.session_id);
+
+		const tx = db.transaction(() => {
+			db.prepare(
+				`INSERT INTO todos (id, session_id, title, summary, status)
+				 VALUES (@id, @session_id, @title, @summary, @status)`
+			).run({
+				id: todo.id,
+				session_id: todo.session_id,
+				title: todo.title,
+				summary: todo.summary ?? null,
+				status: todo.status ?? 'active',
+			});
+
+			for (const [index, taskId] of (todo.task_ids ?? []).entries()) {
+				if (!this.getTask(taskId)) {
+					throw new Error(`Task not found for todo link: ${taskId}`);
+				}
+				db.prepare(
+					`INSERT INTO todo_tasks (todo_id, task_id, ordering)
+					 VALUES (@todo_id, @task_id, @ordering)`
+				).run({ todo_id: todo.id, task_id: taskId, ordering: index });
+			}
+		});
+
+		tx();
+		return this.getTodo(todo.id)!;
+	}
+
+	getTodo(id: string): E3Todo | undefined {
+		const db = this.ensureOpen();
+		const row = db.prepare(
+			`SELECT
+				t.id,
+				t.session_id,
+				t.title,
+				t.summary,
+				t.status,
+				COALESCE(
+					(
+						SELECT json_group_array(task_id)
+						FROM (
+							SELECT task_id
+							FROM todo_tasks
+							WHERE todo_id = t.id
+							ORDER BY ordering ASC
+						)
+					),
+					'[]'
+				) AS task_ids,
+				t.created_at,
+				t.updated_at
+			 FROM todos t
+			 WHERE t.id = ?`
+		).get(id) as E3Todo | undefined;
+		return row;
+	}
+
+	getTodos(filter?: { session_id?: string; status?: E3Todo['status']; limit?: number }): E3Todo[] {
+		const db = this.ensureOpen();
+		const conditions: string[] = [];
+		const params: Record<string, unknown> = {};
+
+		if (filter?.session_id) {
+			conditions.push('t.session_id = @session_id');
+			params.session_id = filter.session_id;
+		}
+		if (filter?.status) {
+			conditions.push('t.status = @status');
+			params.status = filter.status;
+		}
+
+		const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+		const limit = filter?.limit && filter.limit > 0 ? `LIMIT ${filter.limit}` : '';
+
+		return db.prepare(
+			`SELECT
+				t.id,
+				t.session_id,
+				t.title,
+				t.summary,
+				t.status,
+				COALESCE(
+					(
+						SELECT json_group_array(task_id)
+						FROM (
+							SELECT task_id
+							FROM todo_tasks
+							WHERE todo_id = t.id
+							ORDER BY ordering ASC
+						)
+					),
+					'[]'
+				) AS task_ids,
+				t.created_at,
+				t.updated_at
+			 FROM todos t
+			 ${where}
+			 ORDER BY t.created_at ASC
+			 ${limit}`
+		).all(params) as E3Todo[];
+	}
+
+	createTaskPlan(plan: {
+		id: string;
+		session_id: string;
+		todo_id?: string;
+		parent_plan_id?: string;
+		task_id?: string;
+		title: string;
+		summary?: string;
+		level?: number;
+		status?: E3TaskPlan['status'];
+	}): E3TaskPlan {
+		const db = this.ensureOpen();
+		this.ensureSessionExists(plan.session_id);
+		if (plan.todo_id && !this.getTodo(plan.todo_id)) {
+			throw new Error(`Todo not found: ${plan.todo_id}`);
+		}
+		if (plan.parent_plan_id && !this.getTaskPlan(plan.parent_plan_id)) {
+			throw new Error(`Parent task plan not found: ${plan.parent_plan_id}`);
+		}
+		if (plan.task_id && !this.getTask(plan.task_id)) {
+			throw new Error(`Task not found for plan link: ${plan.task_id}`);
+		}
+
+		db.prepare(
+			`INSERT INTO task_plans (id, session_id, todo_id, parent_plan_id, task_id, title, summary, level, status)
+			 VALUES (@id, @session_id, @todo_id, @parent_plan_id, @task_id, @title, @summary, @level, @status)`
+		).run({
+			id: plan.id,
+			session_id: plan.session_id,
+			todo_id: plan.todo_id ?? null,
+			parent_plan_id: plan.parent_plan_id ?? null,
+			task_id: plan.task_id ?? null,
+			title: plan.title,
+			summary: plan.summary ?? null,
+			level: plan.level ?? 0,
+			status: plan.status ?? 'active',
+		});
+		return this.getTaskPlan(plan.id)!;
+	}
+
+	getTaskPlan(id: string): E3TaskPlan | undefined {
+		const db = this.ensureOpen();
+		return db.prepare('SELECT * FROM task_plans WHERE id = ?').get(id) as E3TaskPlan | undefined;
+	}
+
+	getTaskPlans(filter?: { session_id?: string; todo_id?: string; status?: E3TaskPlan['status'] }): E3TaskPlan[] {
+		const db = this.ensureOpen();
+		const conditions: string[] = [];
+		const params: Record<string, unknown> = {};
+		if (filter?.session_id) {
+			conditions.push('session_id = @session_id');
+			params.session_id = filter.session_id;
+		}
+		if (filter?.todo_id) {
+			conditions.push('todo_id = @todo_id');
+			params.todo_id = filter.todo_id;
+		}
+		if (filter?.status) {
+			conditions.push('status = @status');
+			params.status = filter.status;
+		}
+		const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+		return db
+			.prepare(`SELECT * FROM task_plans ${where} ORDER BY level ASC, created_at ASC`)
+			.all(params) as E3TaskPlan[];
+	}
+
+	getDbHealth(): E3DbHealth {
+		const db = this.ensureOpen();
+		const quickRow = db.prepare('PRAGMA quick_check').get() as Record<string, string>;
+		const quickCheck = quickRow.quick_check ?? Object.values(quickRow)[0] ?? 'unknown';
+		const fkViolations = db.prepare('PRAGMA foreign_key_check').all() as Array<Record<string, unknown>>;
+		const orphanTasks = db.prepare(
+			`SELECT t.session_id AS session_id, COUNT(*) AS count
+			 FROM tasks t
+			 LEFT JOIN sessions s ON s.id = t.session_id
+			 WHERE t.session_id IS NOT NULL AND s.id IS NULL
+			 GROUP BY t.session_id`
+		).all() as Array<{ session_id: string; count: number }>;
+		const openTasksWithoutActiveSession = db.prepare(
+			`SELECT COUNT(*) as c
+			 FROM tasks t
+			 LEFT JOIN sessions s ON s.id = t.session_id
+			 WHERE t.status IN ('not-started', 'in-progress', 'blocked', 'failed')
+			   AND (s.id IS NULL OR s.status <> 'active')`
+		).get() as { c: number };
+		const sessionCount = db.prepare('SELECT COUNT(*) as c FROM sessions').get() as { c: number };
+		const taskCount = db.prepare('SELECT COUNT(*) as c FROM tasks').get() as { c: number };
+
+		return {
+			quick_check: quickCheck,
+			foreign_key_violations: fkViolations.length,
+			orphan_tasks_by_session: orphanTasks,
+			open_tasks_without_active_session: openTasksWithoutActiveSession.c,
+			sessions_total: sessionCount.c,
+			tasks_total: taskCount.c,
+		};
 	}
 
 	// ── Execution Log ────────────────────────────────────────────────────
@@ -516,9 +861,14 @@ export class E3Database implements vscode.Disposable {
 		return {
 			plans: db.prepare('SELECT * FROM plans').all(),
 			sessions: db.prepare('SELECT * FROM sessions').all(),
+			todos: db.prepare('SELECT * FROM todos ORDER BY created_at ASC').all(),
+			todo_tasks: db.prepare('SELECT * FROM todo_tasks ORDER BY todo_id, ordering').all(),
+			task_plans: db.prepare('SELECT * FROM task_plans ORDER BY level ASC, created_at ASC').all(),
 			tasks: db.prepare('SELECT * FROM tasks ORDER BY group_order ASC, priority DESC').all(),
 			execution_log: db.prepare('SELECT * FROM execution_log ORDER BY timestamp DESC LIMIT 200').all(),
 			context_notes: db.prepare('SELECT * FROM context_notes ORDER BY created_at DESC').all(),
+			context_links: db.prepare('SELECT * FROM context_links ORDER BY created_at DESC').all(),
+			context_embeddings: db.prepare('SELECT * FROM context_embeddings ORDER BY updated_at DESC').all(),
 			schema_version: db.prepare('SELECT * FROM schema_version').all(),
 		};
 	}
@@ -530,6 +880,11 @@ export class E3Database implements vscode.Disposable {
 		const db = this.ensureOpen();
 		db.exec(`
 			DELETE FROM execution_log;
+			DELETE FROM task_plans;
+			DELETE FROM todo_tasks;
+			DELETE FROM todos;
+			DELETE FROM context_embeddings;
+			DELETE FROM context_links;
 			DELETE FROM context_notes;
 			DELETE FROM tasks;
 			DELETE FROM sessions;

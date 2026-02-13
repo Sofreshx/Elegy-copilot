@@ -1,6 +1,6 @@
 ---
 name: quality-auditor
-description: "Code quality scanning. Detects code smells, hardcoded strings, console logs, and maintenance issues. Use this when asked to check code quality, find code smells, audit lint issues, or scan for quality problems. Triggers on:"audit quality", "code smell", "quality audit", "quality auditor"."
+description: "Code quality and tech-debt scanning. Detects code smells, hardcoded strings, console logs, and maintenance issues. Use this when asked to check code quality, find code smells, audit lint issues, clean tech debt, remove dead code, or simplify code. Triggers on: audit quality, code smell, quality audit, quality auditor, tech debt, clean up, remove dead code."
 ---
 
 # Code Quality Auditor Skill

@@ -64,7 +64,7 @@ Before structural changes, consult in this order:
 - If contexts grow too large, use `@context-curator` to condense them without losing critical facts.
 
 ## Workspace Organization (Where Things Go)
-- **Engine (shared)**: `instruction-engine/.github/` (agents + templates), `instruction-engine/..github/skills` (reference skills/docs)
+- **Engine (shared)**: `instruction-engine/.github/` (agents + templates), `instruction-engine/.github/skills` (reference skills/docs)
 - **Project (per-repo)**: `.instructions/` (tasks, architecture, context/memory)
 - **Local output**: `.instructions-output/` (generated reports/logs; keep developer-local)
 

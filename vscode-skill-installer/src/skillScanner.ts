@@ -5,6 +5,8 @@ import { RepoSkills, SkillDiscoverySnapshot, SkillEntry } from './types';
 import { getRepoDisabledSet } from './enablementStore';
 import { existsDir, existsFile } from './utils/fs';
 
+const DEFAULT_HANDLED_SKILLS = new Set(['debug', 'docs', 'refactor', 'design']);
+
 function normalizeSkillNameFromFile(filename: string): string {
 	return filename.replace(/\.md$/i, '');
 }
@@ -114,6 +116,11 @@ function dedupeSkills(entries: SkillEntry[]): SkillEntry[] {
 
 export async function scanSkills(): Promise<SkillDiscoverySnapshot> {
 	const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+	const showDefaultHandled = vscode.workspace
+		.getConfiguration()
+		.get<boolean>('skillInstaller.skills.showDefaultHandled', false);
+	const includeSkill = (skill: SkillEntry): boolean =>
+		showDefaultHandled || !DEFAULT_HANDLED_SKILLS.has(normalizeKey(skill.name));
 
 	const engineFolder = workspaceFolders.find(isInstructionEngineFolder);
 	const engineRoot = engineFolder?.uri.fsPath;
@@ -126,7 +133,7 @@ export async function scanSkills(): Promise<SkillDiscoverySnapshot> {
 		engineSkillsRoots.flatMap((root) =>
 			listSkillsInDir(root, 'instruction-engine', engineRoot, engineDisabled)
 		)
-	);
+	).filter(includeSkill);
 
 	const targetRepos: RepoSkills[] = [];
 
@@ -144,7 +151,7 @@ export async function scanSkills(): Promise<SkillDiscoverySnapshot> {
 			repoName: folder.name,
 			repoPath,
 			skillsDirPath: existsDir(skillsDir) ? skillsDir : undefined,
-			skills
+			skills: skills.filter(includeSkill)
 		});
 	}
 

@@ -1,4 +1,3 @@
-```skill
 ---
 name: playwright-mcp
 description: "Browser E2E via Playwright MCP. Official Playwright-based browser automation through MCP. Triggers on: playwright, playwright mcp, E2E testing, browser automation, headless testing."
@@ -208,7 +207,5 @@ verify(process.argv[2]);
     ├── login-basic.png
     ├── home.png
     └── console-logs.json
-```
-
 ```
 

@@ -1,6 +1,6 @@
 ---
 name: logging-observability
-description: "Logging and OpenTelemetry observability setup across local dev and production, including Grafana Cloud wiring. Use this when asked to configure logs/traces/metrics, OpenTelemetry exporters, or Grafana integration. Triggers on:"logging", "observability", "opentelemetry", "otel", "grafana", "traces", "metrics", "logs"."
+description: "Logging and OpenTelemetry observability setup across local dev and production, including Grafana Cloud wiring. Use this when asked to configure logs/traces/metrics, OpenTelemetry exporters, or Grafana integration. Triggers on: logging, observability, opentelemetry, otel, grafana, traces, metrics, logs."
 ---
 
 # Logging & Observability Skill
