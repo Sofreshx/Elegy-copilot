@@ -2,7 +2,7 @@
 name: context-curator
 description: Condenses and refreshes project context in .instructions/contexts/*.md to keep memory small and high-signal. Use when contexts grow too large or need cleanup.
 tools: ['read', 'search', 'edit']
-user-invokable: true
+user-invocable: true
 disable-model-invocation: true
 ---
 

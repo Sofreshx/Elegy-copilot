@@ -2,7 +2,7 @@
 name: e2e-browser
 description: Runs end-to-end browser automation using agent-browser CLI. Supports three execution modes (stealth/report/live). Replaces the Playwright MCP approach with a CLI-based workflow using snapshot refs for AI-optimized element selection.
 tools: [execute/runInTerminal, read/readFile, read/terminalLastCommand, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, edit/createFile, edit/createDirectory, vscode/askQuestions]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

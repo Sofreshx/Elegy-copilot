@@ -2,7 +2,7 @@
 name: helper
 description: "General assistant for questions, explanations, and guidance. Use for 'how does X work', 'explain this code', 'what is the best way to', or any learning/clarification request. Read-only - does not modify code."
 tools: ['read/getNotebookSummary', 'read/problems', 'read/readFile', 'read/terminalSelection', 'read/terminalLastCommand', 'read/getTaskOutput', 'search/changes', 'search/codebase', 'search/fileSearch', 'search/listDirectory', 'search/searchResults', 'search/textSearch', 'search/usages', 'search/searchSubagent', 'web/fetch', 'web/githubRepo']
-user-invokable: true
+user-invocable: true
 disable-model-invocation: true
 ---
 

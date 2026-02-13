@@ -2,7 +2,7 @@
 name: ui-ux
 description: Interactive UI/UX iteration agent for client apps (React/Vue/etc). Uses vscode/askQuestions heavily to clarify visual direction and iterate on components.
 tools: ['read', 'search', 'edit', 'vscode/askQuestions', 'vscode/openSimpleBrowser']
-user-invokable: true
+user-invocable: true
 disable-model-invocation: true
 ---
 

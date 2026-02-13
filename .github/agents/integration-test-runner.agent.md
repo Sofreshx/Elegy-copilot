@@ -2,7 +2,7 @@
 name: integration-test-runner
 description: Runs integration tests safely with timeouts, environment setup, and hang prevention. Designed for long-running suites.
 tools: [read, search, read/readFile, read/problems, read/terminalLastCommand, execute/runInTerminal, execute/runTask, execute/createAndRunTask, read/getTaskOutput]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

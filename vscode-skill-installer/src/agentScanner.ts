@@ -93,13 +93,14 @@ export async function scanAgents(): Promise<AgentDiscoverySnapshot> {
 				const fileName = path.basename(filePath);
 				const enabled = !disabledSet.has(normalizeKey(fileName));
 
-				// Determine new-style fields, falling back to legacy `infer` when needed
+				// Determine new-style fields, falling back to legacy keys/`infer` when needed
 				const rawInfer = fm['infer'];
 				let inferStr: string | undefined;
 				if (typeof rawInfer === 'boolean') inferStr = rawInfer ? 'true' : 'false';
 				else if (typeof rawInfer === 'string') inferStr = rawInfer.trim().toLowerCase();
 
-				const userInvokable =
+				const userInvocable =
+					normalizeBoolean(fm['user-invocable']) ??
 					normalizeBoolean(fm['user-invokable']) ??
 					(inferStr === 'true' || inferStr === 'user');
 
@@ -121,7 +122,8 @@ export async function scanAgents(): Promise<AgentDiscoverySnapshot> {
 					role: normalizeString(fm['role']),
 					visibility: normalizeString(fm['visibility']),
 					infer: normalizeBoolean(fm['infer']), // legacy
-					userInvokable,
+					userInvocable,
+					userInvokable: userInvocable,
 					disableModelInvocation,
 					repoPath,
 					enabled

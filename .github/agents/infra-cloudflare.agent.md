@@ -2,7 +2,7 @@
 name: infra-cloudflare
 description: Infrastructure agent for Cloudflare client deployments and safe configuration. Use for Cloudflare Pages, Workers, or deployment workflows.
 tools: [read, edit, search, web/fetch]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

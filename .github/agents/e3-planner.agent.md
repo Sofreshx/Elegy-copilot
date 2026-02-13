@@ -2,7 +2,7 @@
 name: e3-planner
 description: Planning subagent for Executive3. Produces structured plans with task lists, groups, dependencies, and risk assessment. Read-only — never edits production code.
 tools: [read, search, web/fetch]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

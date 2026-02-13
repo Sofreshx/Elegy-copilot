@@ -26,7 +26,15 @@ tmpclaude-*
 *.vsix
 *.tsbuildinfo
 
+# E3 local database artifacts
+.e3-local/
+**/.e3-local/
+*.db-shm
+*.db-wal
+
 .instructions/
+
 # Instruction Engine task logs (tasks belong to target repos)
 .instructions/tasks/
 .instructions/tasks.archive/
+.e3-local/executive3.db
