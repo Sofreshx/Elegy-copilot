@@ -2,7 +2,7 @@
 name: plan-artefact-writer
 description: "Creates/updates the plan artefact and task progress tracker for Executive2 sessions. Writes ONLY under .instructions/artefacts/."
 tools: ['read', 'search', 'edit']
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

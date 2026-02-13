@@ -2,7 +2,7 @@
 name: executive2
 description: Executive2 Orchestrator. Executes strictly from an existing plan + persisted tasks (optionally by task group), delegating each major step to explicit subagents. Use after planning has produced the task graph and plan artefact.
 tools: [execute/runInTerminal, read, edit, search, agent, todo, agent/runSubagent, vscode/askQuestions]
-user-invokable: true
+user-invocable: true
 disable-model-invocation: true
 agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-2-codex, reviewer-opus-4-5, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-live-observer, plan-artefact-writer, executive2-planner]
 handoffs:

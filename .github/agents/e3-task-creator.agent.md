@@ -2,7 +2,7 @@
 name: e3-task-creator
 description: Task persistence subagent for Executive3. Receives a structured plan from e3-planner and persists each task to the SQLite database via the E3 CLI. Never implements code.
 tools: [execute/runInTerminal, read]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

@@ -2,7 +2,7 @@
 name: executive3
 description: Unified orchestrator for complex multi-step work. Single entry point for planning, implementation, testing, review, and replanning — backed by SQLite state for session continuity. Delegates all leaf work to subagents; never implements code directly.
 tools: [read, search, edit, execute/runInTerminal, execute/runTask, agent/runSubagent, vscode/askQuestions, web/fetch, todo, agent/runSubagent, agent]
-user-invokable: true
+user-invocable: true
 disable-model-invocation: true
 agents: [e3-planner, e3-task-creator, e3-git-manager, task-runner, code-explorer, code-architect, code-reviewer, unit-test-runner, integration-test-runner, test-coverage-scanner, research-ideation, reviewer-gpt-5-2-codex, reviewer-opus-4-5, e2e-browser, e2e-live-observer]
 ---

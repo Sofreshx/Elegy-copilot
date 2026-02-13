@@ -2,7 +2,7 @@
 name: code-smell-auditor
 description: Scans for backend code smells and maintenance risks using the quality-auditor skill.
 tools: [read, search, edit]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

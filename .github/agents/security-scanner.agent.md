@@ -2,7 +2,7 @@
 name: security-scanner
 description: Scans the codebase for security vulnerabilities, focusing on endpoints and OWASP risks.
 tools: [read, edit, search, web]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

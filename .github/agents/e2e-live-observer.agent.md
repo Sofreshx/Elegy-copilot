@@ -2,7 +2,7 @@
 name: e2e-live-observer
 description: Live mode E2E subagent. Visible browser via agent-browser --headed, real-time narration, REAL screenshots shown to user as they happen. Maximum visibility for debugging and demos.
 tools: [execute/runInTerminal, read/readFile, read/terminalLastCommand, search/listDirectory, edit/createFile, edit/createDirectory, vscode/askQuestions]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: true
 ---
 

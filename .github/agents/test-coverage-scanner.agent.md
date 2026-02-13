@@ -2,7 +2,7 @@
 name: test-coverage-scanner
 description: Scans for untested areas and maps gaps to unit, integration, or E2E coverage needs.
 tools: [read, search, edit]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

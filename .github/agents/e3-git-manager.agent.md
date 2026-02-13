@@ -2,7 +2,7 @@
 name: e3-git-manager
 description: Git branch management subagent for Executive3. Creates feature branches, commits work at milestones, and manages branch lifecycle. Never implements code — only git operations.
 tools: [read, search, execute/runInTerminal, read/terminalLastCommand]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

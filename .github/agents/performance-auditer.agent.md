@@ -2,7 +2,7 @@
 name: performance-auditer
 description: Performance optimization and bottleneck analysis. Identifies slow code, optimizes queries, reduces memory usage.
 tools: [read, search, edit]
-user-invokable: true
+user-invocable: true
 disable-model-invocation: true
 ---
 

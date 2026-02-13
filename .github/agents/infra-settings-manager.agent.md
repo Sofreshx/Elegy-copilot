@@ -2,7 +2,7 @@
 name: infra-settings-manager
 description: Manages infrastructure and MCP provider settings for Instruction Engine. Use for MCP provider enablement, settings edits, or syncing MCP config files.
 tools: [read, edit, search]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

@@ -33,8 +33,8 @@ tmpclaude-*
 *.db-wal
 
 .instructions/
+
 # Instruction Engine task logs (tasks belong to target repos)
 .instructions/tasks/
 .instructions/tasks.archive/
-.e3-local/executive3.db
 .e3-local/executive3.db

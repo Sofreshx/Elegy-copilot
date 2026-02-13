@@ -2,7 +2,7 @@
 name: issue-audit-executive
 description: Executive issue auditor. Orchestrates code smell, security, and framework consistency scans.
 tools: [read, search, edit, agent, agent/runSubagent, vscode/askQuestions]
-user-invokable: true
+user-invocable: true
 disable-model-invocation: true
 ---
 

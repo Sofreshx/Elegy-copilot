@@ -2,7 +2,7 @@
 name: infra-supabase
 description: Infrastructure agent for Supabase projects, MCP setup, and safe project operations. Use for Supabase infra tasks, MCP integration, or Supabase project workflows.
 tools: [read, edit, search, web/fetch]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

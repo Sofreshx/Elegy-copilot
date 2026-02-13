@@ -2,7 +2,7 @@
 name: stack-auditor
 description: Tech stack pattern validator. Detects frameworks using stack-detector, loads relevant skills, and runs pattern-based compliance checks for common runtime failures and best practice violations.
 tools: [read, search, terminal]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

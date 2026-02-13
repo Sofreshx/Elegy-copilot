@@ -2,7 +2,7 @@
 name: addtodo
 description: "Task intake specialist that reformulates user-dumped todos into structured, workable task files. Use when creating tasks under .instructions/tasks/ or .instructions/test-tasks/, or refining raw.tasks.md. Does not execute commands or edit code - only manages task files."
 tools: ['read', 'search', 'edit']
-user-invokable: true
+user-invocable: true
 disable-model-invocation: true
 ---
 

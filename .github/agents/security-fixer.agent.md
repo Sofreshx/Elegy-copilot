@@ -2,7 +2,7 @@
 name: security-fixer
 description: Implements security fixes for identified vulnerabilities.
 tools: [read, edit, search]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

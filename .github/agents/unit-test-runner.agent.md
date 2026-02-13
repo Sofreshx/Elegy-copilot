@@ -2,7 +2,7 @@
 name: unit-test-runner
 description: Runs unit tests safely with timeouts and non-interactive flags. Focused on unit-level validation for backend and frontend.
 tools: [read, search, read/readFile, read/problems, read/terminalLastCommand, execute/runInTerminal, execute/runTask, execute/createAndRunTask, read/getTaskOutput]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

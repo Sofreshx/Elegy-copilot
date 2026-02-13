@@ -2,7 +2,7 @@
 name: e2e-reporter
 description: Report mode E2E subagent. Captures REAL screenshots, console logs, and network traces via Playwright MCP. Generates structured reports with actual evidence.
 tools: [playwright/browser_take_screenshot, playwright/browser_snapshot, playwright/browser_console_messages, playwright/browser_network_requests, playwright/browser_navigate, playwright/browser_click, playwright/browser_fill_form, playwright/browser_type, playwright/browser_wait_for, playwright/browser_press_key, playwright/browser_select_option, playwright/browser_close, edit/createFile, edit/createDirectory, edit/editFiles, read/readFile, search/listDirectory]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: true
 ---
 

@@ -2,7 +2,7 @@
 name: executive2-task-creator
 description: Executive2 task creation agent. Generates structured task files for planner task graphs.
 tools: ['read', 'search', 'edit']
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

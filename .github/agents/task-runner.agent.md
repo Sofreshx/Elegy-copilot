@@ -2,7 +2,7 @@
 name: task-runner
 description: Executes a single .instructions/tasks task end-to-end. Reads the task file (and optional plan artefact), uses context supplied by executive2 (e.g., code-explorer findings), runs validation, and updates the task log/status. Can request replanning or propose new tasks.
 tools: [read, search, edit, execute/runInTerminal, vscode/openSimpleBrowser]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 

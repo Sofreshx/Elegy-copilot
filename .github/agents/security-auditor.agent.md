@@ -2,7 +2,7 @@
 name: security-auditor
 description: Security Executive. Orchestrates scanning and fixing of security vulnerabilities.
 tools: [read, search, edit, agent, execute/runInTerminal]
-user-invokable: true
+user-invocable: true
 disable-model-invocation: true
 ---
 

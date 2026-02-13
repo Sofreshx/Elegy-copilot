@@ -2,7 +2,7 @@
 name: app-runtime-manager
 description: Starts, monitors, and stops local app runtimes for API, UI, integration tests, and E2E. Prefers dotnet watch and Aspire for hot reload and deterministic startup.
 tools: [read, search, execute/runTask, execute/runInTerminal, read/getTaskOutput, read/terminalLastCommand, search/listDirectory, search/fileSearch, search/textSearch]
-user-invokable: false
+user-invocable: false
 disable-model-invocation: false
 ---
 
