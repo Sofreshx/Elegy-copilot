@@ -1,47 +1,62 @@
 # 🤖 Instruction Engine
 
-> **A structured agent orchestration system for GitHub Copilot Chat**
+> Structured Copilot agent orchestration for multi-repo development.
 
 [![Copilot Compatible](https://img.shields.io/badge/Copilot-Compatible-blue?logo=github)](https://docs.github.com/en/copilot)
-[![Agents & Skills](https://img.shields.io/badge/Agents_%26_Skills-blue)](/.codex/skills)
-[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
-## What is this?
+Instruction Engine provides shared agents, skills, templates, and workflow conventions that can be reused across repositories. It is designed to keep planning, execution, testing, and task memory consistent when working with GitHub Copilot Chat.
 
-Instruction Engine is a **workspace model** that extends GitHub Copilot Chat with:
+## What lives here
 
-- 🎯 **20 Executive & Utility Agents** - High-level task routing and specialized roles (planner, debugger, merger, onboarding, etc.)
-- 🛠️ **36 Skill Agents** - Domain-specific capabilities (ASP.NET, React, Firebase, Terraform, etc.)
-- 📋 **Task Pipeline** - Structured planning → execution → maintenance loop
-- 🧠 **Project Memory** - Lessons learned, patterns, and warnings persist across sessions
+### Core engine assets
 
-## Quick Start
+- `.github/agents/` — custom agents (executive, testing, security, infra, review)
+- `.github/skills/` — domain skills (`SKILL.md` per skill)
+- `.github/templates/` — task/progress and hook templates
+- `.github/copilot-instructions.md` — shared operating rules used across repos
 
-### 1. Add to Your Project
+### Runtime/tooling components
 
-Copy the `.github/` folder to your project (optional: include `.codex/` for browsable reference docs), or add this repo as a submodule:
+- `vscode-skill-installer/` — VS Code extension (Instruction Engine host)
+- `cloud-relay/` — relay service for remote/mobile connectivity
+- `mobile-companion/` — web companion client
+- `local-tracker/` — local daemon for session/task tracking
+
+## Quick start
+
+### 1) Add the engine to your workspace
 
 ```bash
 git submodule add https://github.com/Sofreshx/instruction-engine.git instruction-engine
 ```
 
-### 2. Initialize Your Project
+Or copy `.github/` into your target repo if you do not want a submodule.
 
-In VS Code Copilot Chat:
+### 2) Enable subagent delegation in VS Code
+
+```json
+{
+  "chat.customAgentInSubagent.enabled": true
+}
 ```
-Initialize this project by creating the `.instructions/` structure for tasks, architecture, and contexts.
+
+### 3) Initialize project-local memory/task structure
+
+In Copilot Chat, run:
+
+```text
+Initialize this project by creating the .instructions structure for tasks, architecture, and contexts.
 ```
 
-This creates your `.instructions/` folder with:
-- `tasks/` - One task per file (with attempts/failures as durable memory)
-- `architecture.md` - Project structure
-- `project.index.md` - Active skills registry
-- `contexts/` - Patterns and memory
+Typical project-local folders:
 
-### 2.1 Recommended `.gitignore`
+- `.instructions/tasks/`
+- `.instructions/tasks.archive/`
+- `.instructions/tasks.history.md`
+- `.instructions/architecture.md`
+- `.instructions/contexts/`
 
-Tasks are meant to be tracked in git now (so teams can collaborate and resume work).
-The only common developer-local items are session RAM and generated outputs:
+### 4) Recommended `.gitignore`
 
 ```gitignore
 # Instruction Engine session RAM (developer-local)
@@ -51,180 +66,66 @@ The only common developer-local items are session RAM and generated outputs:
 .instructions-output/
 ```
 
-### 3. Start Using
+## Execution patterns
 
-| Example | Uses | Purpose |
-|---------|------|---------|
-| "Plan this feature" | Plan Mode or `@executive2-planner` | Produce a structured plan before edits |
-| "Archive completed tasks" | `system-cleanup` skill | Move done task files to `tasks.archive/` and append to `tasks.history.md` |
-| `@helper How does X work?` | Custom agent | Explanations (read-only) |
-| `@e2e-ux-auditor Run an E2E UX audit` | Custom agent + `agent-browser` CLI | Drive a browser, report UX/feature gaps, sync to tasks |
-| `@debugger Why is this failing?` | Custom agent | Investigate errors |
-| `@auditor Check security` | Custom agent | Run quality/security scans |
+- **Fast execution:** `@executive2-fast` (no durable task graph)
+- **Durable execution:** `@executive2-planner` → `@executive2` (task graph + progress tracker)
+- **Task creation:** `@addtodo`
+- **Validation/testing:** `@unit-test-runner`, `@integration-test-runner`, `@testing-executive`
+- **Quality/security:** `@code-reviewer`, `@issue-audit-executive`, `@security-scanner`, `@security-fixer`
 
-### Executive2 (Composable Workflow)
+## Current inventory (repo snapshot)
 
-Executive2 supports two clean “start implementing” paths:
+As of this README update:
 
-- **Fast path (no persistence):**
-  - `@executive2-fast` (implement directly, no `.instructions/` state)
+- 47 custom agent definitions in `.github/agents/*.agent.md`
+- 48 skills in `.github/skills/*/SKILL.md`
 
-- **Task-graph path (durable execution):**
-  - `@executive2-planner` (always persists task graph + plan artefact + task progress tracker) → `@executive2` (orchestrate via `task-runner`)
+To re-check counts locally:
 
-Agent roles:
-- `@executive2-planner`: planning + durable execution setup. Always persists tasks + plan artefact + task progress tracker via `executive2-task-creator` + `plan-artefact-writer`, then hands off to `@executive2`.
-- `@executive2`: orchestration-only. Requires an existing task graph and delegates execution to `task-runner`, unit testing to `unit-test-runner`, and governance review to `code-reviewer`.
-- `@executive2-fast`: implements directly with good judgment, but never persists `.instructions/` state.
-
-Optional subagents:
-- `@research-ideation`: research and ideation notes under `.instructions/research/` (no code design/implementation).
-- `@reviewer-gpt-5-2-codex` / `@reviewer-opus-4-5`: cross-model accuracy checks for plans and execution summaries.
-
-Testing & audit execs:
-- `@testing-executive`: coverage scan + unit tests, with optional integration/E2E (user-confirmed).
-- `@issue-audit-executive`: code smell, security, and stack consistency scans.
-
-### Task Groups (Parallel Execution)
-When `executive2-planner` persists tasks, it also creates a plan artefact and a task progress tracker that groups related tasks (group 1, group 2, etc.) and links dependencies. You can ask `@executive2` to run a specific group (for example, "run task group 3") so that group runs in an isolated context and can be parallelized with other groups.
-
-### Hiding Internal Agents (Copilot UI)
-
-Most non-executive agents in `.github/agents/` are meant to be invoked as **subagents** by the executive agents.
-VS Code’s agent picker hiding is currently **per-user**, so this repo uses a convention:
-
-- Agent frontmatter includes `role:` and `visibility:`.
-- Internal-only agents use `visibility: internal`.
-
-Recommended: use VS Code “Configure Custom Agents” to hide internal agents from the picker.
-
-## Architecture
-
-```
-instruction-engine/.github/          # Global Engine (shared)
-├── copilot-instructions.md          # Shared guidance (global conventions)
-├── agents/                          # Optional custom agents
-│   ├── assistant.agent.md           # @helper
-│   ├── debugger.agent.md            # @debugger
-│   ├── auditor.agent.md             # @auditor
-│   ├── skill-builder.agent.md       # @skill-builder
-│   └── merger.agent.md              # @merger
-├── skills/                          # Skills (Copilot loads from here)
-├── templates/                       # Project scaffolding
-└── patterns/                        # Reusable patterns
-
-instruction-engine/.codex/           # Reference docs (mirrors / indexes)
-└── skills/                          # Skill index + reference copies
-
-your-project/.instructions/          # Local Project (per-repo)
-├── project.index.md                 # Active skills registry
-├── tasks/                           # One task per file
-├── tasks.archive/                   # Archived completed tasks
-├── tasks.history.md                 # Append-only recap log
-├── architecture.md                  # Project overview
-├── research/                        # Research notes and ideation outputs
-└── contexts/                        # Project-specific knowledge
-  └── project.memory.md            # Lessons, gotchas, active warnings/risks
+```bash
+find .github/agents -maxdepth 1 -name '*.agent.md' | wc -l
+find .github/skills -mindepth 1 -maxdepth 1 -type d | wc -l
 ```
 
-## The Loop
+## Repository layout
 
+```text
+instruction-engine/
+├── .github/
+│   ├── agents/
+│   ├── skills/
+│   ├── templates/
+│   └── copilot-instructions.md
+├── .instructions/           # this repo's own task/context memory
+├── .instructions-output/    # generated artifacts/logs
+├── docs/
+├── cloud-relay/
+├── local-tracker/
+├── mobile-companion/
+└── vscode-skill-installer/
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  1. PLAN: Plan Mode + planner agents                          │
-├─────────────────────────────────────────────────────────────┤
-│  2. IMPLEMENT: Default agent + subagents as needed            │
-├─────────────────────────────────────────────────────────────┤
-│  3. REVIEW: governance + quality review                        │
-├─────────────────────────────────────────────────────────────┤
-│  4. ORGANIZE: cleanup agents keep backlog tidy                │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Available Skills
-
-This repository currently includes skills under `.codex/skills/` (see `.codex/skills/index.md` for a full list).
-
-### Core Development
-`feature-creator` · `frontend` · `refactor` · `migration`
-
-### Auth & Security  
-`auth` · `firebase-auth` · `security` · `secrets-auditor`
-
-### Quality & Testing
-`testing` · `code-review` · `csharp-expert` · `quality-typescript` · `performance`
-
-### Infrastructure
-`terraform` · `deployment-compose` · `cloudflare-storage` · `cloudflare-deploy` · `supabase-mcp` · `vultr-mcp` · `firebase-mcp` · `infra-settings`
-
-### .NET Ecosystem
-`aspire-apphost` · `aspire-deployment` · `wolverine-core` · `wolverine-http` · `marten-documents` · `marten-events` · `orleans` · `signalr`
-
-### AI/ML
-`semantic-kernel-agents` · `openai-api` · `ms-agent-framework`
-
-[View all skills →](/.codex/skills/index.md)
-
-## Copilot Integration
-
-This system is designed to work **with** GitHub Copilot, not against it:
-
-- ✅ All agents have `description:` for auto-routing
-- ✅ Runner uses `runSubagent` tool to delegate to skills
-- ✅ Skills can't spawn subagents (enforced via `tools:`)
-- ✅ Destructive agents marked as non-user-invokable and model-invocation disabled (front-matter: `user-invokable: false`, `disable-model-invocation: true`)
-- ✅ Follows official [custom agents spec](https://code.visualstudio.com/docs/copilot/customization/custom-agents)
-
-### Required Settings
-
-To enable skill subagent delegation, add this to your VS Code `settings.json`:
-
-```json
-{
-  "chat.customAgentInSubagent.enabled": true
-}
-```
-
-> ⚠️ **Experimental**: This setting enables custom agents to be invoked as subagents. Without it, the runner cannot delegate tasks to skill agents.
 
 ## Documentation
 
-- [Installation Guide](INSTALLATION_GUIDE.md)
-- [Upgrade Guide](UPGRADE_GUIDE.md)  
-- [Example Workflow](EXAMPLE_WORKFLOW.md)
-- [MCP Workflow Guide](docs/mcp-workflow.md)
-- [Lazy Loading Pattern](.github/patterns/lazy-loading.pattern.md)
-- [Skill Index](.codex/skills/index.md)
+- [Agents vs Skills](docs/agents-vs-skills.md)
+- [Agent Architecture Simplicity](docs/agent-architecture-simplicity.md)
+- [Agent Hooks](docs/agent-hooks.md)
+- [Skills Governance](docs/skills-governance.md)
+- [MCP Workflow](docs/mcp-workflow.md)
 - [E2E Setup Guide](docs/e2e-setup-guide.md)
+- [E3 DB Reliability](docs/e3-db-reliability.md)
+- [E3 VM Isolation](docs/e3-vm-isolation.md)
+- [Relay API Reference](docs/relay-api-reference.md)
+- [Relay Deployment](docs/relay-deployment.md)
+- [Mobile Companion Setup](docs/mobile-companion-setup.md)
+- [Mobile Local Testing](docs/mobile-local-testing.md)
+- [Security Model](docs/security-model.md)
+- [Instruction Changelog](docs/instruction-changelog.md)
 
 ## Contributing
 
-1. Fork this repository
-2. Create a skill in `.codex/skills/`
-3. Follow the [agent schema](#agent-schema)
-4. Submit a PR
-
-### Agent Schema
-
-Skills follow the [GitHub Copilot Agent Skills](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills) specification:
-
-```yaml
----
-name: my-skill
-description: "What this skill does. Use this when asked to do X, Y, or Z."
----
-
-# Skill Name
-
-## When NOT to Use
-- For X → use `other-skill`
-
-## Purpose
-...
-```
-
-> **Note**: The `tools:` and `sources:` fields are NOT part of the GitHub spec. Skills are matched by `description` keywords.
-
-## License
-
-MIT © [Sofreshx](https://github.com/Sofreshx)
+1. Add/update agent files in `.github/agents/`.
+2. Add/update skills in `.github/skills/<skill>/SKILL.md`.
+3. Keep shared operating guidance in `.github/copilot-instructions.md` concise and stable.
+4. Update docs under `docs/` when behavior/workflows change.
