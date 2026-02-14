@@ -56,6 +56,14 @@ The relay reads its configuration from an `.env` file on the server. Required va
 | `VAPID_PRIVATE_KEY` | VAPID private key for push notifications | If push enabled |
 | `VAPID_SUBJECT` | VAPID subject (email or URL) | If push enabled |
 
+If you deploy via GitHub Actions, the workflow writes the server `.env` for you. In that case, ensure these repository **Secrets** exist:
+
+| Secret (GitHub Actions) | Used to populate | Notes |
+|---|---|---|
+| `OAUTH_CLIENT_ID` | `GITHUB_CLIENT_ID` | GitHub OAuth app client ID |
+| `OAUTH_CLIENT_SECRET` | `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret |
+| `RELAY_GITHUB_REDIRECT_URI` | `GITHUB_REDIRECT_URI` | Must match the OAuth app callback URL |
+
 The compose file also sets these defaults (override via `.env` if needed):
 
 | Variable | Default | Description |
@@ -157,6 +165,12 @@ curl -sf https://relay.sfrsh.xyz/health/ready
 
 # If readiness fails, it returns 503 with a JSON body that includes which
 # required env vars are missing (for example: GITHUB_CLIENT_SECRET).
+
+# Note: Traefik's Docker provider will typically ignore containers that are
+# marked as (unhealthy). If you see `404 page not found` from Traefik for
+# relay.sfrsh.xyz, check:
+# - `docker ps` shows `instruction-engine-relay` as healthy
+# - `/health/ready` returns 200 (and if it returns 503, fix the missing env var)
 
 # Full health endpoint (includes metrics)
 curl -s https://relay.sfrsh.xyz/health | jq .
