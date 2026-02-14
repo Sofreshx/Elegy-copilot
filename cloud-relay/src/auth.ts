@@ -96,9 +96,11 @@ export function createAuthRouter(tokenService: TokenService): Router {
 
   // CORS middleware — restrict to configured origins
   router.use((req, res, next) => {
-    const origin = req.headers.origin;
+    const originHeader = req.headers.origin;
+    const origin = typeof originHeader === "string" ? originHeader.trim().replace(/\/+$/, "") : undefined;
     if (origin && allowedOrigins.includes(origin)) {
       res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
     }
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");

@@ -85,7 +85,7 @@ The compose file also sets these defaults (override via `.env` if needed):
 
 ```bash
 # On the VPS
-cd /srv/apps/relay
+cd /srv/apps/instruction-engine-relay
 
 # Ensure the traefik-proxy network exists
 docker network ls | grep traefik-proxy || docker network create traefik-proxy
@@ -105,7 +105,7 @@ docker compose -f docker-compose.prod.yml up -d
 This is the standard procedure for deploying a new version:
 
 ```bash
-cd /srv/apps/relay
+cd /srv/apps/instruction-engine-relay
 
 # 1. Back up the database BEFORE any changes
 ./relay-backup.sh /srv/backups/relay
@@ -124,7 +124,7 @@ docker compose -f docker-compose.prod.yml up -d --no-build
 ### Rebuild from Source (if not using pre-built image)
 
 ```bash
-cd /srv/apps/relay
+cd /srv/apps/instruction-engine-relay
 
 # 1. Back up
 ./relay-backup.sh /srv/backups/relay
@@ -251,7 +251,7 @@ Example cron job (add to server's crontab):
 
 ```cron
 # Daily relay backup at 03:00 UTC, keep last 7
-0 3 * * * /srv/apps/relay/relay-backup.sh /srv/backups/relay && find /srv/backups/relay -name "relay-*.db" -mtime +7 -delete
+0 3 * * * /srv/apps/instruction-engine-relay/relay-backup.sh /srv/backups/relay && find /srv/backups/relay -name "relay-*.db" -mtime +7 -delete
 ```
 
 ### Verify a Backup
@@ -275,7 +275,7 @@ sqlite3 backup-file.db "SELECT COUNT(*) FROM push_subscriptions;"
 If a new relay version introduces bugs, roll back to the previous image:
 
 ```bash
-cd /srv/apps/relay
+cd /srv/apps/instruction-engine-relay
 
 # 1. Check available image versions
 docker image ls ghcr.io/sofreshx/instruction-engine-cloud-relay
@@ -306,7 +306,7 @@ docker images --digests ghcr.io/sofreshx/instruction-engine-cloud-relay
 If a deployment corrupts the database or a migration goes wrong:
 
 ```bash
-cd /srv/apps/relay
+cd /srv/apps/instruction-engine-relay
 
 # 1. Stop the relay
 docker compose -f docker-compose.prod.yml down
