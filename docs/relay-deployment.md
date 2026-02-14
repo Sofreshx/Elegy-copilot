@@ -155,6 +155,9 @@ curl -sf https://relay.sfrsh.xyz/health/live
 curl -sf https://relay.sfrsh.xyz/health/ready
 # Expected: 200 OK
 
+# If readiness fails, it returns 503 with a JSON body that includes which
+# required env vars are missing (for example: GITHUB_CLIENT_SECRET).
+
 # Full health endpoint (includes metrics)
 curl -s https://relay.sfrsh.xyz/health | jq .
 
@@ -188,7 +191,7 @@ for i in {1..30}; do
 done
 
 # External health check
-HTTP_CODE=$(curl -so /dev/null -w '%{http_code}' https://relay.sfrsh.xyz/health/live)
+HTTP_CODE=$(curl -so /dev/null -w '%{http_code}' https://relay.sfrsh.xyz/health/ready)
 if [[ "$HTTP_CODE" != "200" ]]; then
   echo "ERROR: Health endpoint returned $HTTP_CODE"
   exit 1
@@ -389,7 +392,20 @@ docker logs instruction-engine-relay
 # - Missing .env file or missing required env vars
 # - Port 3000 conflict (unlikely with Traefik routing)
 # - SQLite file permissions (volume owned by wrong UID)
+
 ```
+
+### `/auth/callback` Returns 500
+
+If the mobile sign-in flow fails with an HTTP 500 from `POST /auth/callback`, the most common cause is missing GitHub OAuth credentials in the relay runtime environment.
+
+Verify readiness and missing keys:
+
+```bash
+curl -s https://relay.sfrsh.xyz/health/ready | jq .
+```
+
+If it shows `ready: false`, ensure the server `.env` contains `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`, then redeploy.
 
 ### Database Locked / Corruption
 

@@ -57,6 +57,21 @@ function createMockRegistration(
 // Tests
 // ---------------------------------------------------------------------------
 
+const ORIGINAL_NAVIGATOR_SERVICE_WORKER = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
+const ORIGINAL_WINDOW_PUSH_MANAGER = Object.getOwnPropertyDescriptor(window, 'PushManager');
+const ORIGINAL_WINDOW_NOTIFICATION = Object.getOwnPropertyDescriptor(window, 'Notification');
+
+function restoreGlobalProperty(target: object, key: string, original?: PropertyDescriptor) {
+  if (original) {
+    Object.defineProperty(target, key, original);
+    return;
+  }
+  // If there was no own property originally, remove our stub to fall back
+  // to the environment default (prototype chain).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  delete (target as any)[key];
+}
+
 describe('PushNotificationService', () => {
   let service: PushNotificationService;
 
@@ -70,6 +85,10 @@ describe('PushNotificationService', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+
+    restoreGlobalProperty(navigator, 'serviceWorker', ORIGINAL_NAVIGATOR_SERVICE_WORKER);
+    restoreGlobalProperty(window, 'PushManager', ORIGINAL_WINDOW_PUSH_MANAGER);
+    restoreGlobalProperty(window, 'Notification', ORIGINAL_WINDOW_NOTIFICATION);
   });
 
   // -----------------------------------------------------------------------
@@ -99,19 +118,17 @@ describe('PushNotificationService', () => {
         value: { ready: Promise.resolve({}) },
         configurable: true,
       });
-      // Remove PushManager
-      const original = Object.getOwnPropertyDescriptor(window, 'PushManager');
-      Object.defineProperty(window, 'PushManager', {
-        value: undefined,
+      Object.defineProperty(window, 'Notification', {
+        value: { permission: 'default', requestPermission: vi.fn() },
         configurable: true,
       });
 
-      expect(service.isSupported()).toBe(false);
+      // `isSupported()` uses `'PushManager' in window`, so the property must
+      // be removed entirely (not just set to undefined).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).PushManager;
 
-      // Restore
-      if (original) {
-        Object.defineProperty(window, 'PushManager', original);
-      }
+      expect(service.isSupported()).toBe(false);
     });
   });
 
@@ -236,8 +253,10 @@ describe('PushNotificationService', () => {
         applicationServerKey: expect.any(Uint8Array),
       });
       expect(mockPost).toHaveBeenCalledWith('/api/push/subscribe', {
-        endpoint: 'https://push.example.com/sub/abc123',
-        keys: { p256dh: 'test-p256dh', auth: 'test-auth' },
+        subscription: {
+          endpoint: 'https://push.example.com/sub/abc123',
+          keys: { p256dh: 'test-p256dh', auth: 'test-auth' },
+        },
       });
     });
 
@@ -280,7 +299,9 @@ describe('PushNotificationService', () => {
 
       expect(await service.unsubscribe()).toBe(true);
       expect(sub.unsubscribe).toHaveBeenCalled();
-      expect(mockDelete).toHaveBeenCalledWith('/api/push/unsubscribe');
+      expect(mockDelete).toHaveBeenCalledWith('/api/push/unsubscribe', {
+        endpoint: 'https://push.example.com/sub/abc123',
+      });
     });
 
     it('succeeds even when relay DELETE fails', async () => {
@@ -344,9 +365,9 @@ describe('urlBase64ToUint8Array', () => {
   });
 
   it('converts url-safe chars (- and _) back to + and /', () => {
-    // Standard base64 "a+b/c=" → url-safe "a-b_c"
-    const result = urlBase64ToUint8Array('a-b_c');
-    const standardResult = Uint8Array.from(atob('a+b/c='), (c) => c.charCodeAt(0));
+    // Standard base64 "a+b/" → url-safe "a-b_"
+    const result = urlBase64ToUint8Array('a-b_');
+    const standardResult = Uint8Array.from(atob('a+b/'), (c) => c.charCodeAt(0));
     expect(result).toEqual(standardResult);
   });
 });

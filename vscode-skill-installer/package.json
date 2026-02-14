@@ -404,6 +404,16 @@
           "group": "navigation"
         },
         {
+          "command": "skillInstaller.archiveDoneTasks",
+          "when": "view == skillInstaller.workflowView && viewItem == skillInstaller.workflow.status.done",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.purgeArchivedTasks",
+          "when": "view == skillInstaller.workflowView && viewItem == skillInstaller.workflow.status.archived",
+          "group": "inline"
+        },
+        {
           "command": "skillInstaller.disableSkill",
           "when": "view == skillInstaller.skillsView && viewItem == skillInstaller.skill.enabled",
           "group": "inline"

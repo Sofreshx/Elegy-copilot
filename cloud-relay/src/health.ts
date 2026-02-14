@@ -5,6 +5,28 @@
 import { Router, Request, Response } from "express";
 import { ConnectionManager } from "./connectionManager";
 
+function getMissingEnv(keys: string[]): string[] {
+  const missing: string[] = [];
+  for (const key of keys) {
+    const value = process.env[key];
+    if (!value || value.trim().length === 0) {
+      missing.push(key);
+    }
+  }
+  return missing;
+}
+
+function getReadinessStatus(): { ready: boolean; missing: string[] } {
+  const requireAuth = process.env.REQUIRE_AUTH !== "false";
+  if (!requireAuth) {
+    return { ready: true, missing: [] };
+  }
+
+  // When auth is required, the mobile OAuth callback flow needs these.
+  const missing = getMissingEnv(["GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"]);
+  return { ready: missing.length === 0, missing };
+}
+
 export function createHealthRouter(
   connectionManager: ConnectionManager,
   startTime: Date
@@ -18,9 +40,14 @@ export function createHealthRouter(
   router.get("/health", (_req: Request, res: Response) => {
     const extendedStats = connectionManager.getExtendedStats();
     const uptimeMs = Date.now() - startTime.getTime();
+    const readiness = getReadinessStatus();
 
     res.json({
       status: "healthy",
+      readiness: {
+        ready: readiness.ready,
+        missing: readiness.missing,
+      },
       version: process.env.npm_package_version || "1.0.0",
       uptime: {
         ms: uptimeMs,
@@ -88,6 +115,11 @@ export function createHealthRouter(
    * Kubernetes readiness probe
    */
   router.get("/health/ready", (_req: Request, res: Response) => {
+    const readiness = getReadinessStatus();
+    if (!readiness.ready) {
+      res.status(503).json({ ready: false, missing: readiness.missing });
+      return;
+    }
     res.status(200).json({ ready: true });
   });
 

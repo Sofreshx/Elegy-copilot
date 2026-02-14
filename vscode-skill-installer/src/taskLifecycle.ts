@@ -185,9 +185,15 @@ async function archiveTaskFile(
 	return { result: 'archived', destPath };
 }
 
-export async function archiveDoneTasks(output: vscode.OutputChannel): Promise<void> {
+export async function archiveDoneTasks(
+	output: vscode.OutputChannel,
+	repoPath?: string
+): Promise<void> {
 	const folders = vscode.workspace.workspaceFolders ?? [];
-	if (folders.length === 0) {
+	const repoPaths = repoPath
+		? [repoPath]
+		: folders.map((f) => f.uri.fsPath);
+	if (repoPaths.length === 0) {
 		void vscode.window.showInformationMessage('No workspace folders found.');
 		return;
 	}
@@ -195,8 +201,7 @@ export async function archiveDoneTasks(output: vscode.OutputChannel): Promise<vo
 	let archivedCount = 0;
 	let skippedCount = 0;
 
-	for (const folder of folders) {
-		const repoPath = folder.uri.fsPath;
+	for (const repoPath of repoPaths) {
 		const tasksDir = path.join(repoPath, '.instructions', 'tasks');
 		if (!existsDir(tasksDir)) {
 			continue;
@@ -225,26 +230,30 @@ export async function archiveDoneTasks(output: vscode.OutputChannel): Promise<vo
 	);
 }
 
-export async function purgeArchivedTasks(output: vscode.OutputChannel): Promise<void> {
+export async function purgeArchivedTasks(
+	output: vscode.OutputChannel,
+	repoPath?: string
+): Promise<void> {
 	const folders = vscode.workspace.workspaceFolders ?? [];
-	if (folders.length === 0) {
+	const repoPaths = repoPath
+		? [repoPath]
+		: folders.map((f) => f.uri.fsPath);
+	if (repoPaths.length === 0) {
 		void vscode.window.showInformationMessage('No workspace folders found.');
 		return;
 	}
 
-	const confirm = await vscode.window.showWarningMessage(
-		'Delete all archived task files from .instructions/tasks.archive?',
-		{ modal: true },
-		'Delete'
-	);
+	const prompt = repoPath
+		? `Delete archived task files from ${path.basename(repoPath)}/.instructions/tasks.archive?`
+		: 'Delete all archived task files from .instructions/tasks.archive?';
+	const confirm = await vscode.window.showWarningMessage(prompt, { modal: true }, 'Delete');
 	if (confirm !== 'Delete') {
 		return;
 	}
 
 	let deletedCount = 0;
 
-	for (const folder of folders) {
-		const repoPath = folder.uri.fsPath;
+	for (const repoPath of repoPaths) {
 		const archiveDir = path.join(repoPath, '.instructions', 'tasks.archive');
 		if (!existsDir(archiveDir)) {
 			continue;

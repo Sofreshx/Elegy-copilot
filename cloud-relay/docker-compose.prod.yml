@@ -26,7 +26,7 @@ services:
       - "traefik.http.routers.relay.tls.certresolver=myresolver"
       - "traefik.http.services.relay.loadbalancer.server.port=3000"
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health/live').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3

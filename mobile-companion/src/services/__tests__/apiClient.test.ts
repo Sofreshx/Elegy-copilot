@@ -150,8 +150,9 @@ describe('ApiClient', () => {
       new Response('Unauthorized', { status: 401 }),
     );
 
-    await expect(client.get('/protected')).rejects.toThrow(ApiError);
-    await expect(client.get('/protected')).rejects.toThrow(/session expired/i);
+    const err = await client.get('/protected').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect((err as ApiError).message).toMatch(/session expired/i);
 
     expect(mockLogout).toHaveBeenCalled();
   });

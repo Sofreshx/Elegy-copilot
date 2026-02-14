@@ -47,6 +47,7 @@ interface RepoNode extends BaseNode {
 interface StatusNode extends BaseNode {
 	kind: 'status';
 	statusKey: string;
+	repo?: RepoTasks;
 }
 
 interface TaskNode extends BaseNode {
@@ -983,6 +984,11 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 
 		return statuses.map((statusKey) => {
 			const tasks = buckets.get(statusKey) ?? [];
+			const contextValue = statusKey === 'done'
+				? 'skillInstaller.workflow.status.done'
+				: statusKey === 'archived'
+					? 'skillInstaller.workflow.status.archived'
+					: undefined;
 			return {
 				kind: 'status',
 				key: `${repo.repoPath}::${keyPrefix}::${statusKey}`,
@@ -990,6 +996,8 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 				label: statusKey,
 				description: tasks.length.toString(),
 				iconPath: statusIcon(statusKey),
+				contextValue,
+				repo,
 				children: tasks.map((t) => this.toTaskNode(t, statusKey))
 			};
 		});

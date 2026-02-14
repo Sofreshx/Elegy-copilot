@@ -864,15 +864,37 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.archiveDoneTasks', async () => {
-			await archiveDoneTasks(output);
+		vscode.commands.registerCommand('skillInstaller.archiveDoneTasks', async (arg?: unknown) => {
+			let repoPath: string | undefined;
+			if (arg && typeof arg === 'object' && 'repoPath' in (arg as Record<string, unknown>)) {
+				const maybe = (arg as { repoPath?: unknown }).repoPath;
+				repoPath = typeof maybe === 'string' ? maybe : undefined;
+			} else if (arg && typeof arg === 'object' && 'repo' in (arg as Record<string, unknown>)) {
+				const repoObj = (arg as { repo?: unknown }).repo;
+				if (repoObj && typeof repoObj === 'object' && 'repoPath' in (repoObj as Record<string, unknown>)) {
+					const maybe = (repoObj as { repoPath?: unknown }).repoPath;
+					repoPath = typeof maybe === 'string' ? maybe : undefined;
+				}
+			}
+			await archiveDoneTasks(output, repoPath);
 			workflowProvider.invalidateCache();
 		})
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.purgeArchivedTasks', async () => {
-			await purgeArchivedTasks(output);
+		vscode.commands.registerCommand('skillInstaller.purgeArchivedTasks', async (arg?: unknown) => {
+			let repoPath: string | undefined;
+			if (arg && typeof arg === 'object' && 'repoPath' in (arg as Record<string, unknown>)) {
+				const maybe = (arg as { repoPath?: unknown }).repoPath;
+				repoPath = typeof maybe === 'string' ? maybe : undefined;
+			} else if (arg && typeof arg === 'object' && 'repo' in (arg as Record<string, unknown>)) {
+				const repoObj = (arg as { repo?: unknown }).repo;
+				if (repoObj && typeof repoObj === 'object' && 'repoPath' in (repoObj as Record<string, unknown>)) {
+					const maybe = (repoObj as { repoPath?: unknown }).repoPath;
+					repoPath = typeof maybe === 'string' ? maybe : undefined;
+				}
+			}
+			await purgeArchivedTasks(output, repoPath);
 			workflowProvider.invalidateCache();
 		})
 	);

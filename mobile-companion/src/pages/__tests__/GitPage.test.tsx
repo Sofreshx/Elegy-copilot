@@ -4,17 +4,24 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import GitPage from '../GitPage';
 
-// Mock apiClient — include ApiError so instanceof checks work
-class MockApiError extends Error {
-  readonly status: number;
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
+// NOTE: vi.mock() factories are hoisted in Vitest.
+// Define any referenced values via vi.hoisted() to avoid TDZ errors.
+const { mockGet, MockApiError } = vi.hoisted(() => {
+  // Mock apiClient — include ApiError so instanceof checks work
+  class MockApiError extends Error {
+    readonly status: number;
+    constructor(message: string, status: number) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+    }
   }
-}
 
-const mockGet = vi.fn();
+  return {
+    mockGet: vi.fn(),
+    MockApiError,
+  };
+});
 
 vi.mock('../../services/apiClient', () => ({
   getApiClient: () => ({
