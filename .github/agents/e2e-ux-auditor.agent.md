@@ -55,7 +55,7 @@ If running on Windows and MCP startup is flaky:
 You must discover how to start and reach the app:
 - Search for a base URL and start command in `README.md`, `docs/`, `package.json`, `.env*`, `launchSettings.json`, `docker-compose.yml`, CI workflows.
 - If there is an obvious, standard command (e.g., `npm run dev`, `pnpm dev`, `dotnet run`, `docker compose up`), you may start it.
-  - Prefer starting it as a background terminal process.
+  - Prefer deterministic foreground execution (never background) with explicit timeouts.
   - If there are multiple candidates or any ambiguity, DO NOT stop immediately. Use the “Non-blocking discovery” section below first.
 
 ### Non-blocking discovery (never stay blocked)

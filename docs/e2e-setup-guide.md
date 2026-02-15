@@ -113,7 +113,8 @@ async function verify(url) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     check('Page creation', true);
 
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    // Avoid 'networkidle' for apps that keep long-lived connections (SignalR/SSE).
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     check('Page navigation', true, url);
 
     const title = await page.title();
@@ -149,6 +150,10 @@ verify(url);
 
 Run from mobile-companion: `npm run e2e:verify -- http://localhost:5173`
 or `E2E_BASE_URL=http://localhost:5173 npm run e2e:verify`.
+
+Hang-proofing:
+- All helper scripts enforce a global deadline via `E2E_DEADLINE_MS` (default: 60000).
+- Set `E2E_DEADLINE_MS=180000` for slower machines or first-run browser installs.
 
 To exercise the external OAuth redirect during `e2e:login`, set `E2E_ALLOW_EXTERNAL=1`.
 

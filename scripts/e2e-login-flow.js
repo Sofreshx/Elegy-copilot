@@ -7,6 +7,32 @@ const outputDir = path.join(repoRoot, '.instructions-output', 'e2e-health');
 const reportPath = path.join(outputDir, 'login-flow-report.json');
 const screenshotPath = path.join(outputDir, 'login-flow-screenshot.png');
 
+const DEADLINE_MS = Number.parseInt(process.env.E2E_DEADLINE_MS ?? '60000', 10);
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function closeBrowserBestEffort(browser) {
+  if (!browser) return;
+  try {
+    await Promise.race([browser.close(), sleep(5000)]);
+  } catch {
+    // Best effort only
+  }
+}
+
+async function withDeadline(fn) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`E2E deadline exceeded (${DEADLINE_MS}ms)`)), DEADLINE_MS);
+  });
+
+  try {
+    return await Promise.race([fn(), timeoutPromise]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function ensureOutputDir() {
   fs.mkdirSync(outputDir, { recursive: true });
 }
@@ -26,11 +52,11 @@ async function run(url) {
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     check('Page navigation', true, url);
 
     const loginButton = page.getByRole('button', { name: /sign in with github/i });
-    const loginVisible = await loginButton.isVisible();
+    const loginVisible = await loginButton.isVisible({ timeout: 5000 }).catch(() => false);
     check('Login button visible', loginVisible);
 
     const allowExternal = process.env.E2E_ALLOW_EXTERNAL === '1';
@@ -49,9 +75,7 @@ async function run(url) {
   } catch (error) {
     check('Error', false, error?.message ?? String(error));
   } finally {
-    if (browser) {
-      await browser.close();
-    }
+    await closeBrowserBestEffort(browser);
   }
 
   const passed = checks.filter((c) => c.passed).length;
@@ -65,7 +89,12 @@ async function run(url) {
   fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
   console.log(`\n${passed}/${checks.length} checks passed`);
   console.log(`Report written to ${reportPath}`);
+
+  process.exitCode = passed === checks.length ? 0 : 1;
 }
 
 const url = process.argv[2] || process.env.E2E_BASE_URL || 'http://localhost:5173';
-run(url);
+withDeadline(() => run(url)).catch((error) => {
+  console.error(error?.message ?? String(error));
+  process.exitCode = 1;
+});

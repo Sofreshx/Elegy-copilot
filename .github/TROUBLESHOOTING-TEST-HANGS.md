@@ -49,6 +49,15 @@ run_in_terminal({
 })
 ```
 
+#### Hard enforcement (recommended)
+If hooks are enabled for the repo, the pre-tool hook will **deny** terminal commands that:
+- omit `timeout` or set `timeout=0`
+- set `isBackground=true`
+- use watch/interactive test modes
+- run `dotnet test` without `--no-restore`
+
+See: `docs/agent-hooks.md`.
+
 ### 3. Build/Restore Hangs
 **Symptom**: Test command starts but never shows test output.
 
@@ -95,6 +104,15 @@ When executing tests via agents, ensure ALL of these:
 - [ ] **Logger flag** for capturing results (`--logger trx`)
 - [ ] **Environment variables** set when required (e.g., `RUN_INTEGRATION_TESTS=1`)
 - [ ] **Explicit timeout** always set on `run_in_terminal`
+
+### If Hooks Are Enabled
+If `.github/hooks/*.json` is enabled for the repo/session, the pre-tool hook will **deny** terminal test/E2E commands that:
+- omit a timeout (or set it to 0)
+- attempt background execution
+- use watch/interactive modes
+- run `dotnet test` without `--no-restore`
+
+This is intentional: it prevents a hang from ever starting.
 
 ## Agent Configuration
 
@@ -149,6 +167,14 @@ dotnet test SAASTools.AppHost.Tests/SAASTools.AppHost.Tests.csproj \
   --logger trx
 
 # With timeout in agent: 600000ms (10 min) to 1200000ms (20 min)
+```
+
+### Playwright helper scripts deadline
+The Node Playwright helper scripts in `scripts/e2e-*.js` enforce a global deadline.
+Override via:
+
+```bash
+E2E_DEADLINE_MS=180000 npm run e2e:verify
 ```
 
 ### Frontend Tests

@@ -6,12 +6,19 @@ Hooks are disabled by default to avoid interfering with Ask mode. Enable them on
 ## What Hooks Do
 - Create JSONL audit logs in `.instructions-output/hooks/`
 - Enforce policy gates (no secrets in `.env*`, production access is read-only unless explicitly approved)
+- Enforce hang-prevention for terminal commands (non-zero timeouts, no background, no watch/interactive test modes)
 - Optionally start or stop local infrastructure via repo-local scripts
 
 ## How To Enable In Another Repo
 1. Copy `.github/templates/hooks.bash.json` or `.github/templates/hooks.powershell.json` to `.github/hooks/<name>.json` in the target repo.
 2. Copy `scripts/hooks/` into the target repo.
 3. Commit to the default branch. Copilot coding agent only loads hooks from the default branch.
+
+### Quick enable scripts (from instruction-engine)
+- PowerShell: `pwsh ./scripts/enable-agent-hooks.ps1 -TargetRepo <path>`
+- Bash: `./scripts/enable-agent-hooks.sh <path> bash`
+
+Note: Hook enforcement applies to `execute/runInTerminal` (and compatible legacy tool names).
 
 If your environment does not have PowerShell, use the bash template to avoid `spawn powershell.exe ENOENT` errors.
 

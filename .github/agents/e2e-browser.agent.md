@@ -23,6 +23,7 @@ Supported fields:
 - Do not prompt the user; decisions are provided by the caller.
 - Never delete or modify existing Playwright test scripts unless explicitly requested.
 - **MANDATORY**: Capture evidence at every critical step (see Evidence Requirements below).
+- **MANDATORY**: Every `run_in_terminal` call must set a non-zero `timeout` and must not run in the background.
 
 ## Tool: agent-browser CLI
 
@@ -303,6 +304,8 @@ agent-browser get text @e<N>      # Verify content
 ```bash
 agent-browser close
 ```
+
+If any step fails or times out, still run `agent-browser close` as best-effort cleanup.
 
 ### 5. Report Generation
 Write structured report to `.instructions-output/e2e/e2e-report-<date>.md`

@@ -66,7 +66,7 @@ For each flow:
   
   For each step:
     1. Execute action via Playwright MCP
-    2. Wait for network idle or explicit condition
+    2. Prefer explicit conditions (URL/text/selector). Avoid relying on network idle for apps with long-lived connections (SignalR/SSE).
     3. Capture REAL screenshot: browser_take_screenshot
        → Save to: screenshots/{flow}-step-{n}.png
     4. Capture REAL console: browser_console_messages
@@ -173,3 +173,4 @@ networkErrors: {count from real network}
 3. **Use stable selectors** — prefer `data-testid`, `aria-label`, `role`
 4. **Report everything** — include all captured data in the report
 5. **Continue on error** — complete all flows even if some fail
+6. **Always close the browser** — call `playwright/browser_close` on completion and after failures.

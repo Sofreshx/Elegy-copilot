@@ -47,9 +47,9 @@ Use this agent for:
    - Common defaults: `http://localhost:3000`, `:5173`, `:8080`, `:5000`
 
 3. **Start app** (if not already running):
-   - Run start command as background process
-   - Wait up to 60 seconds for readiness
-   - Probe base URL until responsive
+   - Do NOT start long-running dev servers via `runInTerminal` background processes.
+   - Prefer that the orchestrator starts runtimes via `app-runtime-manager` (VS Code tasks), or require `serverManaged: true`.
+   - If the app is not running and you cannot start it safely, record the missing runtime info in the report and mark the run `INCONCLUSIVE`.
 
 ### Phase 2: Health Endpoint Checks
 Probe common health endpoints and record results:
@@ -74,7 +74,7 @@ Delegate to `e2e-browser` for browser checks (uses agent-browser CLI):
 
 1. **Home Page**
    - Navigate to base URL
-   - Wait for page load (network idle or specific selector)
+   - Wait for page load using explicit conditions (text/URL/selector); avoid network-idle semantics on apps with long-lived connections
    - Check for JavaScript console errors
    - Verify page renders (not blank, no error message)
    - Record load time

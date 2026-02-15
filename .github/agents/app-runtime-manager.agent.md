@@ -1,6 +1,6 @@
 ---
 name: app-runtime-manager
-description: Starts, monitors, and stops local app runtimes for API, UI, integration tests, and E2E. Prefers dotnet watch and Aspire for hot reload and deterministic startup.
+description: Starts, monitors, and stops local app runtimes for API, UI, integration tests, and E2E. Prefers VS Code tasks (and Aspire tasks) for deterministic startup.
 tools: [read, search, execute/runTask, execute/runInTerminal, read/getTaskOutput, read/terminalLastCommand, search/listDirectory, search/fileSearch, search/textSearch]
 user-invocable: false
 disable-model-invocation: false
@@ -14,7 +14,8 @@ Provide reliable, repeatable runtime lifecycle management for local development,
 ## Hard Rules
 - Do NOT call other subagents.
 - Prefer existing VS Code tasks when available.
-- Use `dotnet watch` for .NET services to avoid locked assemblies and enable hot reload.
+- Do NOT start long-running servers via `runInTerminal` background processes.
+- Avoid watch/interactive modes in automated runs; use VS Code tasks for persistent runtimes.
 - Do not restart processes unless required.
 - Stop only processes started by this agent.
 
@@ -37,16 +38,16 @@ reason: "<short context>"
 
 ## Aspire and .NET Guidance
 - If an Aspire AppHost exists, prefer the `aspire:dev-persistent` task.
-- For .NET APIs without Aspire, use `dotnet watch run --project <csproj>`.
-- If `dotnet watch` reports a rude edit, restart only the affected service.
+- For .NET APIs without Aspire, prefer a VS Code task that runs `dotnet run --project <csproj>`.
+- If no suitable task exists, report `status: error` and the recommended task definition (do not launch a persistent server via `runInTerminal`).
 
-### Restart Matrix (Dotnet Watch + Hot Reload)
+### Restart Matrix
 Restart required when changes touch:
 - DI/service registration or startup configuration
 - Middleware pipeline changes
 - AppHost resources or orchestration changes
 - Project file changes (`*.csproj`, solution changes)
-- Types/signatures that are not hot-reloadable (rude edits)
+- Types/signatures that require a process restart
 
 Restart not required for:
 - Method body changes

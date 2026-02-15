@@ -23,6 +23,40 @@ if ($data.toolArgs) {
     }
 }
 
+function Test-IsRunInTerminalTool([string]$name) {
+    if ([string]::IsNullOrWhiteSpace($name)) { return $false }
+    $low = $name.ToLowerInvariant()
+    return $low -eq "execute/runinterminal" -or $low.EndsWith("/runinterminal") -or $low.Contains("runinterminal") -or $low -in @("execute", "terminal", "shell", "bash")
+}
+
+function Test-IsWatchOrInteractiveCommand([string]$command) {
+    if ([string]::IsNullOrWhiteSpace($command)) { return $false }
+    $low = $command.ToLower()
+    $watchMarkers = @(
+        "dotnet watch",
+        "vitest --watch",
+        "vitest -w",
+        "jest --watch",
+        "jest --watchall",
+        "npm run watch",
+        "pnpm run watch",
+        "yarn watch",
+        "playwright test --ui",
+        "playwright --ui"
+    )
+    return ($watchMarkers | Where-Object { $low.Contains($_) }).Count -gt 0
+}
+
+function Test-IsDotNetTestCommand([string]$command) {
+    if ([string]::IsNullOrWhiteSpace($command)) { return $false }
+    return $command -match "(?i)(^|\s)dotnet(\s|$).*?(^|\s)test(\s|$)"
+}
+
+function Test-HasNoRestore([string]$command) {
+    if ([string]::IsNullOrWhiteSpace($command)) { return $false }
+    return $command -match "(?i)(^|\s)--no-restore(\s|$)"
+}
+
 function Test-EnvPath([string]$path) {
     $base = [System.IO.Path]::GetFileName($path)
     return $base -like ".env*"
@@ -64,7 +98,7 @@ function Get-ToolArgsSummary {
         }
         return [ordered]@{ path = $path; contentLength = ($content | Out-String).Length }
     }
-    if ($toolName -in @("bash", "shell", "terminal", "execute")) {
+    if (Test-IsRunInTerminalTool $toolName) {
         $command = $toolArgs.command
         if (-not $command -and $toolArgs.args) {
             if ($toolArgs.args -is [System.Collections.IEnumerable] -and -not ($toolArgs.args -is [string])) {
@@ -73,7 +107,9 @@ function Get-ToolArgsSummary {
                 $command = [string]$toolArgs.args
             }
         }
-        return [ordered]@{ command = (Convert-CommandForLog $command) }
+        $timeout = $toolArgs.timeout
+        $isBackground = $toolArgs.isBackground
+        return [ordered]@{ command = (Convert-CommandForLog $command); timeout = $timeout; isBackground = $isBackground }
     }
     $keys = @()
     if ($toolArgs) { $keys = $toolArgs.PSObject.Properties.Name }
@@ -113,7 +149,7 @@ if ($toolName -in @("edit", "create", "create_file", "edit_file")) {
     }
 }
 
-if (-not $decision -and $toolName -in @("bash", "shell", "terminal", "execute")) {
+if (-not $decision -and (Test-IsRunInTerminalTool $toolName)) {
     $command = $toolArgs.command
     if (-not $command -and $toolArgs.args) {
         if ($toolArgs.args -is [System.Collections.IEnumerable] -and -not ($toolArgs.args -is [string])) {
@@ -122,6 +158,40 @@ if (-not $decision -and $toolName -in @("bash", "shell", "terminal", "execute"))
             $command = [string]$toolArgs.args
         }
     }
+
+    # Hard anti-hang enforcement for terminal execution:
+    # - timeout must be present and > 0 (no infinite waits)
+    # - isBackground must be false (background commands get cancelled / can deadlock agent)
+        $timeout = $toolArgs.timeout
+        $isBackground = $toolArgs.isBackground
+
+        $timeoutInt = $null
+        try { $timeoutInt = [int]$timeout } catch { $timeoutInt = $null }
+        $isBackgroundBool = $isBackground -eq $true -or ([string]$isBackground -match '^(?i:true|1|yes)$')
+
+        if ($null -eq $timeoutInt -or $timeoutInt -le 0) {
+        $decision = "deny"
+        $reason = "Terminal commands must set a non-zero timeout (ms). Infinite waits are not allowed."
+        } elseif ($isBackgroundBool) {
+        $decision = "deny"
+        $reason = "Terminal commands must not run in the background (isBackground=true). Use foreground execution only."
+    } elseif (Test-IsWatchOrInteractiveCommand $command) {
+        $decision = "deny"
+        $reason = "Watch/interactive commands are not allowed in agent runs (they can hang). Use non-interactive equivalents."
+    } elseif ($command -match "(?i)\bvitest\b") {
+        $hasRun = $command -match "(?i)\bvitest\s+run\b" -or $command -match "(?i)(^|\s)--run(\s|$)"
+        if (-not $hasRun) {
+            $decision = "deny"
+            $reason = "Vitest must be run in non-interactive mode (use vitest run or add --run)."
+        }
+    } elseif ($command -match "(?i)\bplaywright\b" -and $command -match "(?i)(^|\s)--ui(\s|$)") {
+        $decision = "deny"
+        $reason = "Playwright UI mode (--ui) is interactive and can hang automation runs."
+    } elseif (Test-IsDotNetTestCommand $command -and -not (Test-HasNoRestore $command)) {
+        $decision = "deny"
+        $reason = "dotnet test must include --no-restore to avoid restore prompts/hangs. Build/restore separately if needed."
+    }
+
     if (Test-ProdCommand $command) {
         $allowReadonly = $env:ALLOW_PROD_READONLY -eq "1"
         $approved = $env:PROD_APPROVED -eq "1"

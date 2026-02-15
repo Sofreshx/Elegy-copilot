@@ -78,7 +78,7 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
   
   // Navigate
-  await page.goto('http://localhost:5174', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:5174', { waitUntil: 'domcontentloaded', timeout: 30000 });
   
   // Interact
   await page.fill('input[type="email"]', 'user@example.com');
@@ -158,7 +158,7 @@ async function verify(url = 'http://localhost:5174') {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     check('Page creation', true);
     
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     check('Page navigation', true);
     
     const title = await page.title();
@@ -182,12 +182,13 @@ verify(process.argv[2]);
 
 ## Best Practices
 
-1. **Always use `waitUntil: 'networkidle'`** for reliable page loads
+1. **Avoid `waitUntil: 'networkidle'` for apps with long-lived connections** (SignalR/SSE). Prefer `domcontentloaded` plus explicit waits (URL/text/selector).
 2. **Set fixed viewport** for consistent screenshots: `{ width: 1280, height: 720 }`
 3. **Handle modals/overlays** before interacting with page elements
 4. **Use `force: true`** for clicks when elements might be covered
 5. **Capture evidence** (screenshots, console logs, network) before assertions
 6. **Use specific selectors** to avoid flaky tests
+7. **Always enforce an overall deadline** for the run (agent/tool timeout + internal test timeouts)
 
 ## Common Failure Modes
 

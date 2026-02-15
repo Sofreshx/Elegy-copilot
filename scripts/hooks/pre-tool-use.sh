@@ -7,6 +7,7 @@ import os
 import re
 import sys
 
+
 raw = sys.stdin.read()
 if not raw.strip():
     sys.exit(0)
@@ -19,7 +20,7 @@ os.makedirs(log_dir, exist_ok=True)
 tool_name = data.get("toolName") or ""
 raw_args = data.get("toolArgs") or ""
 try:
-    tool_args = json.loads(raw_args) if isinstance(raw_args, str) else raw_args
+    tool_args = json.loads(raw_args) if isinstance(raw_args, str) else (raw_args or {})
 except Exception:
     tool_args = {}
 
@@ -30,7 +31,7 @@ def is_env_path(path: str) -> bool:
 
 
 def is_placeholder(value: str) -> bool:
-    low = value.lower()
+    low = (value or "").lower()
     return any(token in low for token in ["changeme", "example", "your", "placeholder", "xxxx", "todo", "sample"])
 
 
@@ -56,6 +57,11 @@ def redact_command(value: str) -> str:
     return value
 
 
+def is_terminal_tool(name: str) -> bool:
+    low = (name or "").lower()
+    return low in {"bash", "shell", "terminal", "execute", "execute/runinterminal"} or low.endswith("/runinterminal")
+
+
 def summarize_tool_args() -> dict:
     if tool_name in {"edit", "create", "create_file", "edit_file"}:
         path = tool_args.get("path") or tool_args.get("filePath") or tool_args.get("file_path") or ""
@@ -63,12 +69,18 @@ def summarize_tool_args() -> dict:
         if isinstance(content, list):
             content = "\n".join(str(x) for x in content)
         return {"path": path, "contentLength": len(content)}
-    if tool_name in {"bash", "shell", "terminal", "execute"}:
+
+    if is_terminal_tool(tool_name):
         command = tool_args.get("command") or ""
         args = tool_args.get("args")
         if not command and args:
             command = " ".join(str(x) for x in args) if isinstance(args, list) else str(args)
-        return {"command": redact_command(command)}
+        return {
+            "command": redact_command(command),
+            "timeout": tool_args.get("timeout"),
+            "isBackground": tool_args.get("isBackground"),
+        }
+
     return {"keys": list(tool_args.keys())}
 
 
@@ -103,9 +115,50 @@ def is_write_command(command: str) -> bool:
     return any(m in low for m in write_markers)
 
 
+def is_watch_or_interactive_command(command: str) -> bool:
+    if not command:
+        return False
+    low = command.lower()
+    watch_markers = [
+        "dotnet watch",
+        "vitest --watch",
+        "vitest -w",
+        "jest --watch",
+        "jest --watchall",
+        "npm run watch",
+        "pnpm run watch",
+        "yarn watch",
+        "playwright test --ui",
+        "playwright --ui",
+    ]
+    return any(m in low for m in watch_markers)
+
+
+def is_dotnet_test_command(command: str) -> bool:
+    if not command:
+        return False
+    return re.search(r"(?i)\bdotnet\s+test\b", command) is not None
+
+
+def has_no_restore(command: str) -> bool:
+    if not command:
+        return False
+    return re.search(r"(?i)(^|\s)--no-restore(\s|$)", command) is not None
+
+
+def is_vitest_non_run(command: str) -> bool:
+    if not command:
+        return False
+    if re.search(r"(?i)\bvitest\b", command) is None:
+        return False
+    has_run = re.search(r"(?i)\bvitest\s+run\b", command) is not None or re.search(r"(?i)(^|\s)--run(\s|$)", command) is not None
+    return not has_run
+
+
 decision = None
 reason = None
 
+# Secrets gate (.env*)
 if tool_name in {"edit", "create", "create_file", "edit_file"}:
     path = tool_args.get("path") or tool_args.get("filePath") or tool_args.get("file_path") or ""
     content = tool_args.get("content") or tool_args.get("newCode") or ""
@@ -115,12 +168,41 @@ if tool_name in {"edit", "create", "create_file", "edit_file"}:
         decision = "deny"
         reason = "Secrets are not allowed in .env files. Use GitHub Secrets or local secret storage."
 
-if not decision and tool_name in {"bash", "shell", "terminal", "execute"}:
+# Terminal anti-hang enforcement
+if not decision and is_terminal_tool(tool_name):
     command = tool_args.get("command") or ""
     args = tool_args.get("args")
     if not command and args:
         command = " ".join(str(x) for x in args) if isinstance(args, list) else str(args)
-    if is_prod_command(command):
+
+    timeout = tool_args.get("timeout")
+    is_background = tool_args.get("isBackground")
+
+    is_background_bool = is_background is True or str(is_background).lower() in {"true", "1", "yes"}
+
+    try:
+        timeout_int = int(timeout) if timeout is not None else None
+    except Exception:
+        timeout_int = None
+
+    if timeout_int is None or timeout_int <= 0:
+        decision = "deny"
+        reason = "Terminal commands must set a non-zero timeout (ms). Infinite waits are not allowed."
+    elif is_background_bool:
+        decision = "deny"
+        reason = "Terminal commands must not run in the background (isBackground=true). Use foreground execution only."
+    elif is_watch_or_interactive_command(command):
+        decision = "deny"
+        reason = "Watch/interactive commands are not allowed in agent runs (they can hang). Use non-interactive equivalents."
+    elif is_vitest_non_run(command):
+        decision = "deny"
+        reason = "Vitest must be run in non-interactive mode (use vitest run or add --run)."
+    elif is_dotnet_test_command(command) and not has_no_restore(command):
+        decision = "deny"
+        reason = "dotnet test must include --no-restore to avoid restore prompts/hangs. Build/restore separately if needed."
+
+    # Prod policy (applies to terminal tools only)
+    if not decision and is_prod_command(command):
         allow_readonly = os.environ.get("ALLOW_PROD_READONLY") == "1"
         approved = os.environ.get("PROD_APPROVED") == "1"
         if not (allow_readonly and approved):
@@ -130,6 +212,7 @@ if not decision and tool_name in {"bash", "shell", "terminal", "execute"}:
             decision = "deny"
             reason = "Production access is read-only. Write operations require explicit approval."
 
+
 log_entry = {
     "event": "preToolUse",
     "timestamp": data.get("timestamp"),
@@ -138,6 +221,7 @@ log_entry = {
     "decision": decision,
     "reason": reason,
 }
+
 with open(os.path.join(log_dir, "pre-tool-use.jsonl"), "a", encoding="utf-8") as f:
     json.dump(log_entry, f, separators=(",", ":"))
     f.write("\n")
