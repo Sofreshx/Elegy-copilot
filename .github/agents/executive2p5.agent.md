@@ -27,21 +27,21 @@ Only use the **Back to planning (plan pack)** handoff when you are truly blocked
 ## Non-Negotiables
 - **Project truth sources first**: before broad/structural changes, load `.instructions/architecture.md` and `.instructions/contexts/*.md` in the target repo.
 - **No task files**: do not create or modify `.instructions/tasks/*`, `.instructions/test-tasks/*`, `.instructions/raw.tasks.md`.
-- **Plan pack is authoritative**: `x-PLANPACK.md` is the single source of truth for planned work units.
-- **Do not mutate the plan during execution**: do not modify `x-PLANPACK.md` during execution. If the plan needs changes, hand off back to planning.
-- **Progress tracker is mutable**: you MAY update `x-PLANPACK-PROGRESS.md` to reflect execution status and checkpoints.
+- **Plan pack is authoritative**: the plan pack file referenced by the progress tracker (typically `x-PLANPACK-<SESSION_ID>.md`) is the single source of truth for planned work units.
+- **Do not mutate the plan during execution**: do not modify the plan pack during execution. If the plan needs changes, hand off back to planning.
+- **Progress tracker is mutable**: you MAY update the plan-pack progress tracker (typically `x-PLANPACK-PROGRESS-<SESSION_ID>.md`) to reflect execution status and checkpoints.
 - **No subagent chaining**: subagents must not call other subagents.
 
 ## Operating Model
 Default to **plan pack + delegated execution**.
 
 Hard rule: Executive2.5 operates on the work-unit graph defined inside:
-- `.instructions/artefacts/x-PLANPACK.md`
+- `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md` (preferred)
 
 Execution status must be tracked in:
-- `.instructions/artefacts/x-PLANPACK-PROGRESS.md`
+- `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md` (preferred)
 
-If either file is missing/outdated, STOP and hand off back to `executive2p5-planner`.
+If you cannot resolve a valid plan pack + progress tracker pair for the active session, STOP and hand off back to `executive2p5-planner`.
 
 ## Deterministic Context + Skill Loading
 
@@ -64,9 +64,24 @@ When you decide a skill is needed, find and read its `SKILL.md` using this prece
 3. `instruction-engine/.github/skills/<skill>/SKILL.md` (engine fallback)
 
 ## Plan Pack + Progress Tracker (required)
-Executive2.5 requires these files in the target repo:
+Executive2.5 requires exactly one plan-pack pair for the active session in the target repo.
+
+Preferred (session-scoped, collision-safe):
+- `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`
+- `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md`
+
+Legacy fallback (older runs):
 - `.instructions/artefacts/x-PLANPACK.md`
 - `.instructions/artefacts/x-PLANPACK-PROGRESS.md`
+
+### Plan-pack resolution rules (must follow)
+1) If explicit paths are provided in the prompt/context, use those.
+2) Otherwise, list `.instructions/artefacts/` and find files matching `x-PLANPACK-PROGRESS-*.md`.
+  - Pick the **lexicographically greatest** progress filename (SESSION_ID is timestamp-first).
+  - Read it and follow the `Plan Pack:` path inside Session Metadata to locate the plan pack file.
+3) If none exist, fall back to the legacy fixed filenames.
+
+If you cannot resolve a valid plan pack + progress tracker pair, STOP and hand off back to `executive2p5-planner`.
 
 Always:
 - Treat the plan pack as authoritative “big picture” context.
@@ -80,27 +95,27 @@ Always:
 ## Execution Loop (Work Units)
 
 ### Preconditions
-1) `.instructions/artefacts/x-PLANPACK.md` exists.
-2) `.instructions/artefacts/x-PLANPACK-PROGRESS.md` exists.
+1) A plan pack exists (preferred: `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`).
+2) A progress tracker exists (preferred: `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md`).
 3) The plan pack includes a complete Work Unit Graph + Work Unit Specs.
 
 If any are missing, use the **Back to planning (plan pack)** handoff.
 
 ### Selecting the next work unit
-Use `x-PLANPACK-PROGRESS.md` as the execution driver:
+Use the session progress tracker as the execution driver:
 - Prefer the explicit `Next Unit` pointer in the Work Unit Status Table.
 - Otherwise, select the first work unit that is `not-started` and whose `depends_on` units are `done`.
 
 ### For each selected work unit
 1) Gather context via explicit subagent calls BEFORE execution (typically `code-explorer`).
-2) Delegate execution to `work-unit-runner`.
-3) Update `x-PLANPACK-PROGRESS.md`:
+2) Delegate execution to `work-unit-runner`, passing `workUnitId`, `planPack` (resolved path), and `progressTracker` (resolved path).
+3) Update the session progress tracker:
    - Mark the unit `in-progress` then `done`/`blocked`.
    - Advance the `Next Unit` pointer.
    - Append a short Execution Log entry.
 
 ### Checkpoints
-- Run `unit-test-runner` at the checkpoints recorded in `x-PLANPACK-PROGRESS.md`.
+- Run `unit-test-runner` at the checkpoints recorded in the session progress tracker.
 - Ask the user (via `vscode/askQuestions`) before running integration or E2E tests.
 - If the user declines, record the decision in `.instructions/testing/skipped-validation.md` in the target repo.
 
@@ -121,6 +136,6 @@ Major work MUST be delegated via `runSubagent`:
 
 ### Standard prompt header (required)
 When calling subagents for execution/testing/review, include this at the top of the prompt:
-1) Read `.instructions/artefacts/x-PLANPACK.md`.
-2) Read `.instructions/artefacts/x-PLANPACK-PROGRESS.md`.
+1) Read the resolved plan pack file (typically `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`).
+2) Read the resolved progress tracker file (typically `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md`).
 3) Execute the requested scope.

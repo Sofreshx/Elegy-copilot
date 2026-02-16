@@ -8,7 +8,7 @@ agents: [research-ideation, code-explorer, code-architect, reviewer-gpt-5-3-code
 handoffs:
   - label: Start implementation (plan pack)
     agent: executive2p5
-    prompt: Start implementation using the persisted plan pack and plan-pack progress tracker.
+    prompt: Start implementation using the persisted session-scoped plan pack and plan-pack progress tracker (prefer the latest x-PLANPACK-PROGRESS-*.md).
     send: false
 ---
 
@@ -26,8 +26,15 @@ Your output is:
 You do **not** implement production code.
 
 Executive2.5 state is **not optional**. You must always persist exactly **two** plan-pack artefacts in the target repo:
-- `.instructions/artefacts/x-PLANPACK.md`
-- `.instructions/artefacts/x-PLANPACK-PROGRESS.md`
+- `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`
+- `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md`
+
+`SESSION_ID` must be unique per planning run to avoid plan-pack collisions.
+Use: `YYYYMMDD_HHMMSS_<RAND4>` (example: `20260216_135012_4831`).
+
+When invoking `planpack-writer`, explicitly include:
+- `SESSION_ID: <...>`
+- The exact two output file paths you expect it to write.
 
 Important difference vs Executive2:
 - Executive2 uses `.instructions/tasks/*` as the task graph.
@@ -69,8 +76,8 @@ Requirements:
 Create/update the plan-pack artefacts by invoking `planpack-writer`.
 
 Hard rules:
-- Do not create additional artefacts.
-- Keep the plan pack self-contained: include documentation/explanations/potential issues inside `x-PLANPACK.md` sections.
+- Do not create any other artefacts beyond the two session-scoped plan-pack files.
+- Keep the plan pack self-contained: include documentation/explanations/potential issues inside the plan pack sections.
 
 ## Cross-Model Review (recommended for non-trivial plans)
 For non-trivial scope:
@@ -95,4 +102,4 @@ For non-trivial scope:
   - unit-test-runner checkpoints
   - optional integration/E2E (user-confirmed)
 
-After persisting `.instructions/artefacts/x-PLANPACK.md` and `.instructions/artefacts/x-PLANPACK-PROGRESS.md`, hand off to `executive2p5`.
+After persisting `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md` and `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md`, hand off to `executive2p5`.

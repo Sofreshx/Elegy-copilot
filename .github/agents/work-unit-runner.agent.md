@@ -9,14 +9,14 @@ disable-model-invocation: false
 # Work Unit Runner Agent (Executive2.5)
 
 ## Purpose
-Execute **one work unit** (e.g., `WU-003`) defined in `.instructions/artefacts/x-PLANPACK.md` end-to-end.
+Execute **one work unit** (e.g., `WU-003`) defined in a persisted plan pack (typically `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`) end-to-end.
 
 This agent is designed to be called explicitly by `executive2p5`.
 
 ## Inputs (expected in prompt)
 - `workUnitId`: e.g., `WU-003` (required)
-- `planPack`: path to `.instructions/artefacts/x-PLANPACK.md` (required)
-- `progressTracker`: path to `.instructions/artefacts/x-PLANPACK-PROGRESS.md` (optional)
+- `planPack`: path to the resolved plan pack (preferred: `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`; legacy: `.instructions/artefacts/x-PLANPACK.md`) (required)
+- `progressTracker`: path to the resolved progress tracker (preferred: `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md`; legacy: `.instructions/artefacts/x-PLANPACK-PROGRESS.md`) (optional)
 - `targetRepo`: repo/workspace root to operate on (if ambiguous)
 - `explorationContext`: a short, structured summary produced by executive2p5 (optional but strongly recommended)
 

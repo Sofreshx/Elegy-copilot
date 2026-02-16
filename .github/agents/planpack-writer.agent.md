@@ -19,11 +19,19 @@ You may ONLY edit files under:
 
 Do NOT edit production code.
 Do NOT edit `.instructions/tasks/*`.
-Do NOT create additional artefacts.
+Do NOT create additional artefact types (only the plan pack + its progress tracker for the active session).
 
 ## Output Files (exactly two)
-- `.instructions/artefacts/x-PLANPACK.md`
-- `.instructions/artefacts/x-PLANPACK-PROGRESS.md`
+You must create/update exactly **two** session-scoped files (and no other file types):
+- `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`
+- `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md`
+
+### SESSION_ID rules (collision avoidance)
+- Use a unique `SESSION_ID` to avoid plan-pack collisions across concurrent runs.
+- Prefer an explicit session ID passed in the prompt (e.g., `Session ID: ...`).
+- Otherwise, generate one in this format: `YYYYMMDD_HHMMSS_<RAND4>` (example: `20260216_135012_4831`).
+- Once chosen, the `SESSION_ID` must be consistent across both output files and within the progress tracker metadata.
+- Only create/update the two files for the active `SESSION_ID`; do not overwrite, rename, or delete other sessions' plan packs.
 
 ## Inputs
 - Goal + acceptance criteria

@@ -51,7 +51,7 @@
 -
 
 ## Execution Notes
-- The plan pack is read-only during execution. Update progress only in `x-PLANPACK-PROGRESS.md`.
+- The plan pack is read-only during execution. Update progress only in the session progress tracker (typically `x-PLANPACK-PROGRESS-<SESSION_ID>.md`).
 - Each work unit is executed via `work-unit-runner`.
 
 ## Risks / Rollback

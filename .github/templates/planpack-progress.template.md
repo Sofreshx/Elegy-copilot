@@ -4,7 +4,7 @@
 - Session ID:
 - Date:
 - Owner:
-- Plan Pack: .instructions/artefacts/x-PLANPACK.md
+- Plan Pack: .instructions/artefacts/x-PLANPACK-<SESSION_ID>.md
 
 ## Work Unit Groups Overview
 | Group | Title | Status | Depends On |
