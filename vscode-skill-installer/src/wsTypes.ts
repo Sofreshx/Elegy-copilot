@@ -110,9 +110,16 @@ export interface ResolvePermissionParams {
 }
 
 /** Extension status response */
+export interface WorkspaceFolderInfo {
+	name: string;
+	path: string;
+}
+
 export interface ExtensionStatus {
 	version: string;
 	activeWorkspaces: string[];
+	/** Optional richer workspace info for connected-mode UX (backward-compatible). */
+	activeWorkspaceFolders?: WorkspaceFolderInfo[];
 	connectedClients: number;
 	uptime: number;
 }

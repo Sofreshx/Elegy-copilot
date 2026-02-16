@@ -70,6 +70,7 @@ Typical project-local folders:
 
 - **Fast execution:** `@executive2-fast` (no durable task graph)
 - **Durable execution:** `@executive2-planner` → `@executive2` (task graph + progress tracker)
+- **Durable execution (no tasks):** `@executive2p5-planner` → `@executive2p5` (plan pack + progress tracker, no `.instructions/tasks/*`)
 - **Task creation:** `@addtodo`
 - **Validation/testing:** `@unit-test-runner`, `@integration-test-runner`, `@testing-executive`
 - **Quality/security:** `@code-reviewer`, `@issue-audit-executive`, `@security-scanner`, `@security-fixer`

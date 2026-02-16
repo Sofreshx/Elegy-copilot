@@ -12,6 +12,11 @@ The tracker monitors:
 
 It also exposes a local WebSocket server (default port `9821`) for the VS Code extension to connect to.
 
+## Messaging Gateway
+
+For the Discord-first Messaging Gateway (remote control surface), see:
+- [docs/messaging-gateway.md](docs/messaging-gateway.md)
+
 ## Setup
 
 ```bash

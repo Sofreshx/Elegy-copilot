@@ -66,6 +66,8 @@
     "onCommand:skillInstaller.clearAllRepoContexts",
     "onCommand:skillInstaller.relayStatus",
     "onCommand:skillInstaller.relay.testAuth",
+    "onCommand:skillInstaller.ws.showPort",
+    "onCommand:skillInstaller.ws.pairGateway",
     "onCommand:executive3.ensureDb",
     "onCommand:executive3.getTasks",
     "onCommand:executive3.createTask",
@@ -274,6 +276,16 @@
         "command": "skillInstaller.relay.testAuth",
         "title": "Test Relay Authentication",
         "category": "Skill Installer"
+      },
+      {
+        "command": "skillInstaller.ws.showPort",
+        "title": "WS: Show Port (Copy URL)",
+        "category": "Instruction Engine"
+      },
+      {
+        "command": "skillInstaller.ws.pairGateway",
+        "title": "WS: Pair Gateway (Copy Token)",
+        "category": "Instruction Engine"
       },
       {
         "command": "executive3.ensureDb",

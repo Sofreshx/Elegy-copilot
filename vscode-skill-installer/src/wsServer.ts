@@ -4,6 +4,8 @@
  */
 import * as vscode from 'vscode';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 import { WebSocketServer, WebSocket, RawData } from 'ws';
 import { WsAuthManager } from './wsAuth';
 import {
@@ -161,6 +163,7 @@ export class WsServer implements vscode.Disposable {
 					const port = typeof addr === 'object' && addr ? addr.port : config.port;
 					this.startTime = Date.now();
 					this.output.appendLine(`[WS Server] Listening on ws://127.0.0.1:${port}`);
+					this.writePortDiscoveryFiles(port);
 					this.updateStatusBar(port);
 
 					// Start heartbeat and cleanup timers
@@ -187,6 +190,25 @@ export class WsServer implements vscode.Disposable {
 				reject(err);
 			}
 		});
+	}
+
+	/**
+	 * Write a stable, local-only port discovery file under each workspace root.
+	 * The file contains only the numeric port (no secrets) so external tooling can find the WS endpoint.
+	 */
+	private writePortDiscoveryFiles(port: number): void {
+		try {
+			const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+			for (const folder of workspaceFolders) {
+				const e3LocalDir = path.join(folder.uri.fsPath, '.e3-local');
+				fs.mkdirSync(e3LocalDir, { recursive: true });
+				const discoveryPath = path.join(e3LocalDir, 'ws-port.txt');
+				fs.writeFileSync(discoveryPath, String(port), 'utf-8');
+			}
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Unknown error';
+			this.output.appendLine(`[WS Server] Failed to write ws-port discovery file(s): ${msg}`);
+		}
 	}
 
 	/**
@@ -430,10 +452,15 @@ export class WsServer implements vscode.Disposable {
 	 * Handle get_status request.
 	 */
 	private handleGetStatus(request: WsRequest): WsResponse {
-		const workspaces = vscode.workspace.workspaceFolders?.map(f => f.name) ?? [];
+		const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
+		const workspaces = workspaceFolders.map((f) => f.name);
 		const status: ExtensionStatus = {
 			version: this.getVersion(),
 			activeWorkspaces: workspaces,
+			activeWorkspaceFolders: workspaceFolders.map((f) => ({
+				name: f.name,
+				path: f.uri.fsPath,
+			})),
 			connectedClients: this.clientRegistry.getActiveCount(),
 			uptime: Date.now() - this.startTime,
 		};
