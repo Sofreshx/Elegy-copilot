@@ -4,6 +4,8 @@ These are the lightweight, **global** conventions for using Instruction Engine a
 
 - Prefer small, verifiable changes.
 
+- never use the terminal tool with background: true
+
 ## CRITICAL: run_in_terminal MUST NEVER USE isBackground=true
 
 ** NEVER DO THIS:**

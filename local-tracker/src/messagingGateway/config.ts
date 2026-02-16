@@ -29,6 +29,14 @@ export function getDefaultMessagingGatewayConfigPath(): string {
 	return path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.config.json');
 }
 
+export function resolveMessagingGatewayConfigPath(configPathFromCli?: string): string {
+	return (
+		configPathFromCli?.trim() ||
+		process.env[CONFIG_PATH_ENV]?.trim() ||
+		getDefaultMessagingGatewayConfigPath()
+	);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null;
 }
@@ -160,15 +168,13 @@ export function loadMessagingGatewayConfig(configPathFromCli?: string): LoadedMe
 	const fromEnvJson = readConfigFromEnvJson();
 	if (fromEnvJson) return fromEnvJson;
 
-	const configPath =
-		configPathFromCli?.trim() ||
-		process.env[CONFIG_PATH_ENV]?.trim() ||
-		getDefaultMessagingGatewayConfigPath();
+	const configPath = resolveMessagingGatewayConfigPath(configPathFromCli);
 
 	if (!fs.existsSync(configPath)) {
 		throw new Error(
 			`[Gateway] Missing config file: ${configPath}\n` +
-				`[Gateway] Set ${CONFIG_PATH_ENV} to a JSON config file path, or set ${CONFIG_JSON_ENV} to inline JSON.`,
+				`[Gateway] Set ${CONFIG_PATH_ENV} to a JSON config file path, or set ${CONFIG_JSON_ENV} to inline JSON.\n` +
+				`[Gateway] See local-tracker/docs/messaging-gateway.md (Step 3) for an example config.`,
 		);
 	}
 

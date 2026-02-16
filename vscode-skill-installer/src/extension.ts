@@ -24,6 +24,16 @@ import { RelayAuthBridge } from './relayAuthBridge';
 import { RelayClient } from './relayClient';
 import { E3Database } from './e3Database';
 import { buildE3DashboardHtml } from './e3WebReport';
+import {
+	setupMessagingGatewayWizard,
+	storeDiscordBotTokenCommand,
+	storeExtensionWsJwtCommand,
+	editDiscordCommand,
+	manageWorkspacesCommand,
+	syncWorkspacesCommand,
+	viewConfigCommand,
+	openConfigCommand,
+} from './gatewaySetup';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -240,6 +250,48 @@ export function activate(context: vscode.ExtensionContext): void {
 			const url = `ws://127.0.0.1:${port}`;
 			await vscode.env.clipboard.writeText(url);
 			void vscode.window.showInformationMessage(`WS listening on ${port}. Copied URL to clipboard.`);
+		})
+	);
+
+	// ── Messaging Gateway Setup (Discord config + keychain helpers) ───────
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.gateway.setup', async () => {
+			await setupMessagingGatewayWizard(output, authManager, wsServer);
+		})
+	);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.gateway.storeDiscordBotToken', async () => {
+			await storeDiscordBotTokenCommand(output);
+		})
+	);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.gateway.storeExtensionWsJwt', async () => {
+			await storeExtensionWsJwtCommand(output, authManager, wsServer);
+		})
+	);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.gateway.editDiscord', async () => {
+			await editDiscordCommand(output);
+		})
+	);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.gateway.manageWorkspaces', async () => {
+			await manageWorkspacesCommand(output);
+		})
+	);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.gateway.syncWorkspaces', async () => {
+			await syncWorkspacesCommand(output);
+		})
+	);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.gateway.viewConfig', async () => {
+			await viewConfigCommand(output);
+		})
+	);
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.gateway.openConfig', async () => {
+			await openConfigCommand();
 		})
 	);
 

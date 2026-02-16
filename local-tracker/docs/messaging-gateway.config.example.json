@@ -1,0 +1,15 @@
+{
+  "mode": "auto",
+  "discord": {
+    "allowlistedUserIds": ["<YOUR_DISCORD_USER_ID>"],
+    "guildId": "<YOUR_DISCORD_GUILD_ID>",
+    "channelId": "<YOUR_DISCORD_CHANNEL_ID>"
+  },
+  "workspaces": {
+    "allowedRoots": [
+      "<ABSOLUTE_WORKSPACE_ROOT_1>",
+      "<ABSOLUTE_WORKSPACE_ROOT_2>"
+    ],
+    "activeRoot": "<ABSOLUTE_WORKSPACE_ROOT_1>"
+  }
+}

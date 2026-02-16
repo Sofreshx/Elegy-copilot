@@ -65,6 +65,10 @@ Notes:
 
 ## 3) Create gateway config (non-secret)
 
+Tip (easiest): you can generate this config from VS Code:
+- Run the command: `Gateway: Setup Messaging Gateway`
+- It writes the config to `$HOME/.instruction-engine/messaging-gateway.config.json`
+
 ### Location
 
 By default, the gateway reads config from:
@@ -75,6 +79,9 @@ You can override via:
 - or inline JSON with `INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON=<json>`
 
 ### Example config
+
+There is also a copy/paste template checked into the repo:
+- `local-tracker/docs/messaging-gateway.config.example.json`
 
 ```json
 {
@@ -96,12 +103,65 @@ Important:
 - `workspaces.activeRoot` must be included in `workspaces.allowedRoots`.
 - `workspaces.activeRoot` must exist and be a directory.
 
+### Why are `guildId` and `channelId` required?
+
+They are a **security scope**. The gateway fails closed and only accepts commands from:
+- the one Discord server (guild) you intended, and
+- the one Discord channel you intended
+
+This prevents accidental/unsafe command execution if the bot is added to other servers/channels, or if someone tries to invoke it outside your dedicated private channel.
+
+### Where do the Discord IDs come from?
+
+In Discord, enable **Developer Mode**, then right-click → **Copy ID**:
+- Your user: right-click your profile/avatar → Copy ID → goes in `discord.allowlistedUserIds`
+- Your server/guild: right-click the server icon → Copy ID → goes in `discord.guildId`
+- The channel: right-click the channel → Copy ID → goes in `discord.channelId`
+
+Alternative (often easier): right-click the target channel → **Copy Link**.
+The link looks like:
+- `https://discord.com/channels/<guildId>/<channelId>`
+
+Those two numbers are exactly what the config needs.
+
+### Windows quick create (PowerShell)
+
+This creates the default config file location. Replace the placeholders.
+
+```powershell
+$dir = Join-Path $HOME ".instruction-engine"
+New-Item -ItemType Directory -Force -Path $dir | Out-Null
+
+$configPath = Join-Path $dir "messaging-gateway.config.json"
+@'
+{
+  "mode": "auto",
+  "discord": {
+    "allowlistedUserIds": ["<YOUR_DISCORD_USER_ID>"],
+    "guildId": "<YOUR_DISCORD_GUILD_ID>",
+    "channelId": "<YOUR_DISCORD_CHANNEL_ID>"
+  },
+  "workspaces": {
+    "allowedRoots": [
+      "<ABSOLUTE_WORKSPACE_ROOT_1>",
+      "<ABSOLUTE_WORKSPACE_ROOT_2>"
+    ],
+    "activeRoot": "<ABSOLUTE_WORKSPACE_ROOT_1>"
+  }
+}
+'@ | Set-Content -Encoding UTF8 -Path $configPath
+
+Write-Host "Wrote config:" $configPath
+```
+
 ## 4) Store secrets (Discord bot token + extension WS JWT)
 
 The gateway prefers the **OS credential store** (Windows Credential Manager / macOS Keychain / libsecret).
 It can also read from env vars as a fallback.
 
 ### 4.1 Store the Discord bot token
+
+The Discord bot token is created in the **Discord Developer Portal** for your bot application. Treat it as a secret.
 
 1) Set an env var (choose one):
 - `INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN=<DISCORD_BOT_TOKEN>`

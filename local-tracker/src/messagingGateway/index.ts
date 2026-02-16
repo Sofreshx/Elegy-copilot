@@ -1,7 +1,7 @@
 import fs from 'fs';
 
 import type { MessagingGatewayMode } from './config';
-import { loadMessagingGatewayConfig } from './config';
+import { getDefaultMessagingGatewayConfigPath, loadMessagingGatewayConfig, resolveMessagingGatewayConfigPath } from './config';
 import { AuditLogger } from './auditLogger';
 import { CommandRouter, WU002_POLICY_CONTRACT } from './commandRouter';
 import { DiscordPlatform } from './discordPlatform';
@@ -31,6 +31,9 @@ function printHelp() {
 
 Usage:
   npm run dev:gateway -- [--config <path>] [--mode auto|connected|disconnected]
+
+Utility:
+	--print-config-path     Print the resolved config path (or env JSON source) and exit
 
 Config:
   INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path> (default: ~/.instruction-engine/messaging-gateway.config.json)
@@ -119,13 +122,19 @@ async function main() {
 		return;
 	}
 
+	if (args.printConfigPath) {
+		if ((process.env.INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON || '').trim().length > 0) {
+			console.log('(env:INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON)');
+			return;
+		}
+		console.log(resolveMessagingGatewayConfigPath(args.configPath || process.env.INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH));
+		console.log(`(default: ${getDefaultMessagingGatewayConfigPath()})`);
+		return;
+	}
+
 	if (await handleSecretUtilityFlags(args)) return;
 
 	const loaded = loadMessagingGatewayConfig(args.configPath);
-	if (args.printConfigPath) {
-		console.log(loaded.configPath);
-		return;
-	}
 
 	const requestedMode = resolveRequestedMode(args.mode, loaded.config.mode);
 	let activeWorkspaceRoot = loaded.config.workspaces.activeRoot;
