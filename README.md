@@ -18,8 +18,6 @@ Instruction Engine provides shared agents, skills, templates, and workflow conve
 ### Runtime/tooling components
 
 - `vscode-skill-installer/` — VS Code extension (Instruction Engine host)
-- `cloud-relay/` — relay service for remote/mobile connectivity
-- `mobile-companion/` — web companion client
 - `local-tracker/` — local daemon for session/task tracking
 
 ## Quick start
@@ -101,9 +99,7 @@ instruction-engine/
 ├── .instructions/           # this repo's own task/context memory
 ├── .instructions-output/    # generated artifacts/logs
 ├── docs/
-├── cloud-relay/
 ├── local-tracker/
-├── mobile-companion/
 └── vscode-skill-installer/
 ```
 
@@ -114,13 +110,8 @@ instruction-engine/
 - [Agent Hooks](docs/agent-hooks.md)
 - [Skills Governance](docs/skills-governance.md)
 - [MCP Workflow](docs/mcp-workflow.md)
-- [E2E Setup Guide](docs/e2e-setup-guide.md)
 - [E3 DB Reliability](docs/e3-db-reliability.md)
 - [E3 VM Isolation](docs/e3-vm-isolation.md)
-- [Relay API Reference](docs/relay-api-reference.md)
-- [Relay Deployment](docs/relay-deployment.md)
-- [Mobile Companion Setup](docs/mobile-companion-setup.md)
-- [Mobile Local Testing](docs/mobile-local-testing.md)
 - [Security Model](docs/security-model.md)
 - [Instruction Changelog](docs/instruction-changelog.md)
 

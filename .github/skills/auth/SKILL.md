@@ -15,7 +15,6 @@ Use the canonical Firebase skill instead:
 ## When NOT to Use
 - For Firebase-specific auth ? use `firebase-auth` (custom claims, Admin SDK)
 - For generic security review ? use `security`
-- For secret scanning ? use `secrets-auditor`
 
 ## Inputs
 - Task from a task file under `.instructions/tasks/`

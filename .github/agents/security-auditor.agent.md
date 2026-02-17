@@ -11,9 +11,6 @@ disable-model-invocation: true
 ## Purpose
 You are the **Security Executive**. You manage the security posture of the application by orchestrating scanning and remediation tasks across multiple security domains.
 
-## Skills
-- **`secrets-auditor`**: Load for credential and sensitive data detection.
-
 ## Delegated Agents
 - **`security-scanner`**: Identifies code-level vulnerabilities and generates reports.
 - **`security-fixer`**: Implements fixes for identified issues.
@@ -49,7 +46,6 @@ Run **`security-scanner`** to analyze source code for vulnerabilities.
 3.  Categorize by OWASP Top 10 classification.
 
 ### Phase 2: Secrets Scanning
-Load and apply the **`secrets-auditor`** skill.
 
 1.  **Environment Files**:
     - Check `.gitignore` includes `.env` patterns.

@@ -5,8 +5,7 @@ This document explains how to set up GitHub OAuth authentication for the Instruc
 ## Overview
 
 GitHub OAuth enables secure authentication for:
-- Mobile companion app connections
-- Cloud relay service communication
+- The VS Code extension
 - GitHub API access (Models, Copilot features)
 
 ## Prerequisites
@@ -71,19 +70,6 @@ GITHUB_OAUTH_CLIENT_SECRET=your_client_secret
 3. Your browser will open to GitHub's authorization page
 4. Click **"Authorize"** to grant access
 5. You'll be redirected back to VS Code automatically
-
-## Multi-Platform Configuration
-
-If you're also using the mobile companion app, you'll need multiple callback URLs:
-
-### GitHub OAuth App Settings
-
-Add these callback URLs (one per line):
-```
-vscode://sofreshx.skill-installer/auth/callback
-http://localhost:5173/auth/callback
-https://your-mobile-domain/auth/callback
-```
 
 ## Security Considerations
 
@@ -173,9 +159,7 @@ If you see an error page after clicking "Authorize" on GitHub:
 
 Once authenticated, the extension can:
 
-1. **Generate WebSocket tokens** for mobile companion connections
-2. **Access GitHub APIs** using the stored access token
-3. **Emit authenticated events** through the relay service
+1. **Access GitHub APIs** using the stored access token
 
 ### Accessing the OAuth Manager (Extension Development)
 
@@ -209,18 +193,7 @@ This clears:
 - Cached user information
 - All pending OAuth states
 
-## For Mobile Companion App
-
-The mobile app uses the same OAuth flow but with different redirect URIs:
-
-1. Configure the relay service URL in the app
-2. The relay service handles token exchange
-3. App stores tokens securely using platform APIs (Keychain/Keystore)
-
-See the [Mobile Companion documentation](../mobile-companion/README.md) for mobile-specific setup.
-
 ## Related Documentation
 
 - [Relay Protocol Specification](./relay-protocol.md) - Authentication flow details
 - [WebSocket Server](./ws-server.md) - Token validation and client authentication
-- [Mobile Companion](../mobile-companion/README.md) - Mobile app setup

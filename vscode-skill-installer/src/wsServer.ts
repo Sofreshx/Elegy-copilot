@@ -1,5 +1,5 @@
 /**
- * WebSocket server for mobile companion communication.
+ * WebSocket server for local remote-client communication.
  * Provides bidirectional JSON-RPC messaging with JWT authentication.
  */
 import * as vscode from 'vscode';
@@ -46,7 +46,7 @@ interface PackageInfo {
 }
 
 /**
- * WebSocket server for remote mobile companion control.
+ * WebSocket server for local remote control.
  */
 export class WsServer implements vscode.Disposable {
 	private readonly output: vscode.OutputChannel;
@@ -333,25 +333,17 @@ export class WsServer implements vscode.Disposable {
 
 	/**
 	 * Internal request routing — returns response without sending.
-	 * Used by both local WS handler and relay bridge.
 	 */
-	private async routeRequestInternal(
-		request: WsRequest,
-		context?: { clientInfo?: ClientInfo; ws?: WebSocket }
-	): Promise<WsResponse> {
+	private async routeRequestInternal(request: WsRequest, clientInfo: ClientInfo, ws: WebSocket): Promise<WsResponse> {
 		switch (request.method) {
 			case 'execute_command':
 				return this.handleExecuteCommand(request);
 			case 'get_status':
 				return this.handleGetStatus(request);
 			case 'subscribe_events':
-				return context?.clientInfo
-					? this.handleSubscribeEvents(request, context.clientInfo)
-					: createErrorResponse(request.id, WsErrorCodes.INVALID_REQUEST, 'subscribe_events not available via relay');
+				return this.handleSubscribeEvents(request, clientInfo);
 			case 'unsubscribe_events':
-				return context?.clientInfo
-					? this.handleUnsubscribeEvents(request, context.clientInfo)
-					: createErrorResponse(request.id, WsErrorCodes.INVALID_REQUEST, 'unsubscribe_events not available via relay');
+				return this.handleUnsubscribeEvents(request, clientInfo);
 			case 'invoke_agent':
 				return this.handleInvokeAgent(request);
 			case 'get_sessions':
@@ -363,7 +355,7 @@ export class WsServer implements vscode.Disposable {
 			case 'get_event_history':
 				return this.handleGetEventHistory(request);
 			case 'resolve_permission':
-				return this.handleResolvePermission(request, context?.clientInfo);
+				return this.handleResolvePermission(request, clientInfo);
 			case 'get_pending_permissions':
 				return this.handleGetPendingPermissions(request);
 			case 'list_clients':
@@ -373,9 +365,7 @@ export class WsServer implements vscode.Disposable {
 			case 'disconnect_client':
 				return this.handleDisconnectClient(request);
 			case 'pong':
-				return context?.ws
-					? this.handlePong(request, context.ws)
-					: createSuccessResponse(request.id, { acknowledged: true });
+				return this.handlePong(request, ws);
 			default:
 				return createErrorResponse(
 					request.id,
@@ -391,28 +381,13 @@ export class WsServer implements vscode.Disposable {
 	private async routeRequest(ws: WebSocket, clientInfo: ClientInfo, request: WsRequest): Promise<void> {
 		let response: WsResponse;
 		try {
-			response = await this.routeRequestInternal(request, { clientInfo, ws });
+			response = await this.routeRequestInternal(request, clientInfo, ws);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'Internal error';
 			this.output.appendLine(`[WS Server] Handler error: ${message}`);
 			response = createErrorResponse(request.id, WsErrorCodes.INTERNAL_ERROR, message);
 		}
 		this.send(ws, response);
-	}
-
-	/**
-	 * Handle a request from the cloud relay (no local WebSocket).
-	 * Used by RelayClient to route incoming relay envelopes through the same handlers.
-	 */
-	async handleRelayRequest(request: WsRequest): Promise<WsResponse> {
-		this.output.appendLine(`[WS Server] Relay request: ${request.method}`);
-		try {
-			return await this.routeRequestInternal(request);
-		} catch (err) {
-			const message = err instanceof Error ? err.message : 'Internal error';
-			this.output.appendLine(`[WS Server] Relay handler error: ${message}`);
-			return createErrorResponse(request.id, WsErrorCodes.INTERNAL_ERROR, message);
-		}
 	}
 
 	/**
@@ -711,7 +686,7 @@ export class WsServer implements vscode.Disposable {
 			);
 		}
 
-		const resolvedBy = params.resolvedBy ?? clientInfo?.userId ?? clientInfo?.id ?? 'relay-client';
+		const resolvedBy = params.resolvedBy ?? clientInfo?.userId ?? clientInfo?.id ?? 'client';
 		const success = this.eventEmitter.resolvePermission(params.callbackId, params.approved, resolvedBy);
 
 		if (!success) {

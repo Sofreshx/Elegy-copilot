@@ -38,6 +38,29 @@ Start by clearly stating what you're reviewing. For each high-confidence issue, 
 
 Group issues by severity (Critical vs Important). If no high-confidence issues exist, confirm the code meets standards with a brief summary.
 
+## Formal Review Status (3-Status Output)
+When invoked by an orchestrator or executive agent, conclude your review with exactly one of these statuses:
+
+```text
+REVIEW_STATUS: APPROVED
+```
+No high-confidence issues found. Code meets standards.
+
+```text
+REVIEW_STATUS: NEEDS_REVISION
+- <file:line> — <issue description>
+- <file:line> — <issue description>
+```
+High-confidence issues found that should be fixed before proceeding. List each issue with location.
+
+```text
+REVIEW_STATUS: FAILED
+- <critical issue description>
+```
+Critical issues found (security vulnerabilities, data loss risks, broken core logic). The orchestrator should present these to the user.
+
+The orchestrator uses this status to decide next steps: APPROVED → continue, NEEDS_REVISION → create fix WUs and re-run, FAILED → escalate to user.
+
 ## Executive2 Governance Review (when explicitly requested)
 If the requester asks for **Executive2 governance review**, you must also perform the following checks and (only if required) task cleanup.
 

@@ -90,3 +90,17 @@ Checkpoint defaults must include:
 - Every WU ID in the Work Unit Graph appears in the Work Unit Index.
 - Every group in the plan exists in the Groups Overview.
 - Checkpoints reference valid WU IDs or group milestones.
+
+## Quality Gate (Self-Check Before Writing)
+Before writing the final (Phase 2) plan pack, verify content quality:
+- [ ] Every WU has at least 2 specific, verifiable acceptance criteria (not generic).
+- [ ] Every WU references concrete file paths (not placeholders or guesses).
+- [ ] Every WU has concrete validation steps (specific commands, not "run tests").
+- [ ] No WU contains generic boilerplate like "ensure quality" or "follow best practices".
+- [ ] The work unit graph has no orphan WUs (every WU is reachable from the start).
+- [ ] Checkpoints reference valid group milestones.
+- [ ] Group dependencies are acyclic.
+
+If any check fails, include a `## Plan Quality Warnings` section at the end of the plan pack listing the gaps. The executive2p5-planner must address warnings before proceeding to execution.
+
+Note: This gate applies only to Phase 2 (refined) plan packs. Phase 1 skeletons (marked with `Phase: skeleton` in the planpack-writer invocation) are exempt.

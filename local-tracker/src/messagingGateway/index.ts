@@ -12,6 +12,7 @@ import { SessionThreadManager } from './sessionThreadManager';
 import { deleteGatewaySecret, getGatewaySecret, getGatewaySecretsStatus, storeGatewaySecretFromEnv } from './secrets';
 import { detectModeAuto, resolveExtensionWsPort } from './workspaceDetection';
 import { printGatewayStatusSummary } from './status';
+import { MessagingGatewayStatusWriter, resolveMessagingGatewayStatusPath, type MessagingGatewayStatusV1 } from './statusFile';
 
 type CliMode = MessagingGatewayMode;
 
@@ -169,6 +170,7 @@ async function main() {
 		allowlistedDiscordUsersCount: loaded.config.discord.allowlistedUserIds.length,
 		discordGuildId: loaded.config.discord.guildId,
 		discordChannelId: loaded.config.discord.channelId,
+		discordPermissionsChannelId: loaded.config.discord.permissionsChannelId,
 		secrets: secretsStatus,
 		extensionWsPort,
 	});
@@ -205,6 +207,69 @@ async function main() {
 		},
 	});
 
+	const statusWriter = new MessagingGatewayStatusWriter(
+		resolveMessagingGatewayStatusPath(loaded.configPath),
+		{
+			schemaVersion: 1,
+			lastUpdatedUtc: new Date().toISOString(),
+			config: {
+				configPath: loaded.configPath,
+				mode,
+				discord: {
+					guildId: loaded.config.discord.guildId,
+					channelId: loaded.config.discord.channelId,
+					permissionsChannelId: loaded.config.discord.permissionsChannelId,
+				},
+				allowlists: {
+					discordUsersCount: loaded.config.discord.allowlistedUserIds.length,
+					workspaceRootsCount: loaded.config.workspaces.allowedRoots.length,
+				},
+				workspaces: {
+					activeRoot: activeWorkspaceRoot,
+				},
+			},
+			secrets: {
+				discordBotToken: {
+					present: secretsStatus.discordBotToken.present,
+					fromKeychain: secretsStatus.discordBotToken.source === 'keychain',
+					fromEnv: secretsStatus.discordBotToken.source === 'env',
+				},
+				extensionWsJwt: {
+					present: secretsStatus.extensionWsJwt.present,
+					fromKeychain: secretsStatus.extensionWsJwt.source === 'keychain',
+					fromEnv: secretsStatus.extensionWsJwt.source === 'env',
+				},
+			},
+			runtime: {
+				discord: {
+					connected: false,
+					ready: false,
+				},
+				extensionWs: mode === 'connected' ? { connected: false } : undefined,
+				sessions: {
+					activeSessionThreadCount: 0,
+				},
+			},
+		} satisfies MessagingGatewayStatusV1,
+	);
+
+	let extensionWsConnected = false;
+	function refreshDynamicStatusFields(status: MessagingGatewayStatusV1): void {
+		status.config.workspaces.activeRoot = activeWorkspaceRoot;
+		if (status.runtime.sessions) {
+			status.runtime.sessions.activeSessionThreadCount = sessionThreads.getActiveSessionThreadCount();
+		}
+		if (mode === 'connected') {
+			if (!status.runtime.extensionWs) status.runtime.extensionWs = { connected: false };
+			status.runtime.extensionWs.connected = extensionWsConnected;
+		}
+	}
+
+	// Write once on startup after config + secrets resolved.
+	statusWriter.update((s) => refreshDynamicStatusFields(s));
+	// Heartbeat: refresh timestamp + dynamic fields.
+	statusWriter.startHeartbeat(15_000, (s) => refreshDynamicStatusFields(s));
+
 	let extensionClient: ExtensionBridgeClient | undefined;
 	let permissionOrchestrator: PermissionOrchestrator | undefined;
 	if (mode === 'connected' && extensionWsJwtValue) {
@@ -223,6 +288,12 @@ async function main() {
 			},
 			onStatusChanged: (status) => {
 				console.log(`[Gateway] Extension WS status: ${status}`);
+				extensionWsConnected = status === 'connected';
+				statusWriter.update((s) => {
+					if (!s.runtime.extensionWs) s.runtime.extensionWs = { connected: false };
+					s.runtime.extensionWs.connected = extensionWsConnected;
+					refreshDynamicStatusFields(s);
+				});
 			},
 		});
 		permissionOrchestrator.setClient(extensionClient);
@@ -236,6 +307,10 @@ async function main() {
 		if (configIsPersistable) {
 			fs.writeFileSync(loaded.configPath, JSON.stringify(loaded.config, null, 2), 'utf8');
 		}
+		statusWriter.update((s) => {
+			s.config.workspaces.activeRoot = nextWorkspaceRoot;
+			refreshDynamicStatusFields(s);
+		});
 	}
 
 	const router = new CommandRouter({
@@ -315,6 +390,11 @@ async function main() {
 	});
 
 	await discord.start();
+	statusWriter.update((s) => {
+		s.runtime.discord.connected = true;
+		s.runtime.discord.ready = true;
+		refreshDynamicStatusFields(s);
+	});
 
 	console.log('[Gateway] Status OK. Waiting for shutdown (Ctrl+C)...');
 
@@ -329,6 +409,13 @@ async function main() {
 				await permissionOrchestrator?.stop();
 				await extensionClient?.stop();
 				await discord.stop();
+				statusWriter.stopHeartbeat();
+				statusWriter.update((s) => {
+					s.runtime.discord.connected = false;
+					s.runtime.discord.ready = false;
+					if (s.runtime.extensionWs) s.runtime.extensionWs.connected = false;
+					if (s.runtime.sessions) s.runtime.sessions.activeSessionThreadCount = 0;
+				});
 			} finally {
 				process.exit(0);
 			}

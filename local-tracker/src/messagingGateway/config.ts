@@ -10,6 +10,7 @@ export interface MessagingGatewayConfig {
 		allowlistedUserIds: string[];
 		guildId: string;
 		channelId: string;
+		permissionsChannelId?: string;
 	};
 	workspaces: {
 		allowedRoots: string[];
@@ -114,6 +115,14 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 	if (!/^\d+$/.test(guildId)) throw new Error('[Gateway] Invalid config: discord.guildId must be numeric');
 	if (!/^\d+$/.test(channelId)) throw new Error('[Gateway] Invalid config: discord.channelId must be numeric');
 
+	let permissionsChannelId: string | undefined;
+	if (discordRaw.permissionsChannelId !== undefined && discordRaw.permissionsChannelId !== null) {
+		permissionsChannelId = asNonEmptyString(discordRaw.permissionsChannelId, 'discord.permissionsChannelId');
+		if (!/^\d+$/.test(permissionsChannelId)) {
+			throw new Error('[Gateway] Invalid config: discord.permissionsChannelId must be numeric');
+		}
+	}
+
 	const workspacesRaw = raw.workspaces;
 	if (!isRecord(workspacesRaw)) {
 		throw new Error('[Gateway] Invalid config: workspaces must be an object');
@@ -139,6 +148,7 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 			allowlistedUserIds,
 			guildId,
 			channelId,
+			permissionsChannelId,
 		},
 		workspaces: {
 			allowedRoots,

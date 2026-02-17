@@ -9,7 +9,7 @@ description: "Code quality and tech-debt scanning. Detects code smells, hardcode
 Detect code smells, pollution, and maintenance burdens across the codebase.
 
 ## When NOT to Use
-- For security-specific issues ? use `security` or `secrets-auditor`
+- For security-specific issues ? use `security`
 - For performance bottlenecks ? use `performance-auditer`
 - For language-specific patterns ? use `csharp-expert` (alias: `quality-csharp`)
 

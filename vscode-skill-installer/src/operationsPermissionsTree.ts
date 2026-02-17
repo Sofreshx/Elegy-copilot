@@ -138,8 +138,8 @@ export class PermissionsTreeProvider implements vscode.TreeDataProvider<Node> {
 				{
 					kind: 'detail',
 					key: 'example-what',
-					label: 'What: Permission request appears here and on mobile',
-					iconPath: new vscode.ThemeIcon('device-mobile')
+					label: 'What: Permission request appears here and on connected clients',
+					iconPath: new vscode.ThemeIcon('broadcast')
 				},
 				{
 					kind: 'detail',

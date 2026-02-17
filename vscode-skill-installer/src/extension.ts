@@ -12,7 +12,6 @@ import { WsServer } from './wsServer';
 import { WsAuthManager } from './wsAuth';
 import { SessionManager } from './sessionManager';
 import { RemoteControlParticipant } from './chatParticipant';
-import { GitHubOAuthManager, OAuthUriHandler } from './oauthManager';
 import { ConnectionsTreeProvider } from './operationsConnectionsTree';
 import { RequestsTreeProvider } from './operationsRequestsTree';
 import { PermissionsTreeProvider } from './operationsPermissionsTree';
@@ -20,8 +19,7 @@ import { archiveDoneTasks, purgeArchivedTasks } from './taskLifecycle';
 import { initializeSkills } from './skillInitializer';
 import { McpProvidersTreeProvider } from './mcpProvidersTree';
 import { McpProviderInfo, syncMcpConfigForRepo, syncMcpConfigForWorkspace } from './mcpConfig';
-import { RelayAuthBridge } from './relayAuthBridge';
-import { RelayClient } from './relayClient';
+import { DumpCleanerTreeProvider } from './dumpCleanerTree';
 import { E3Database } from './e3Database';
 import { buildE3DashboardHtml } from './e3WebReport';
 import {
@@ -95,114 +93,12 @@ function isInstructionEngineFolder(folder: vscode.WorkspaceFolder): boolean {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-	const output = vscode.window.createOutputChannel('Skill Installer');
+	const output = vscode.window.createOutputChannel('RannIA');
 	context.subscriptions.push(output);
 
 	// Initialize session manager
 	const sessionManager = new SessionManager(output);
 	context.subscriptions.push(sessionManager);
-
-	// Initialize GitHub OAuth manager
-	const oauthManager = new GitHubOAuthManager(context.secrets, output);
-	context.subscriptions.push(oauthManager);
-	
-	// Initialize OAuth manager in background (non-blocking)
-	oauthManager.initialize().catch((err) => {
-		const message = err instanceof Error ? err.message : 'Unknown error';
-		output.appendLine(`[OAuth] Failed to initialize: ${message}`);
-	});
-	
-	// Register URI handler for OAuth callback
-	const uriHandler = new OAuthUriHandler(oauthManager, output);
-	context.subscriptions.push(vscode.window.registerUriHandler(uriHandler));
-	
-	// Register login command
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.login', async () => {
-			await oauthManager.login();
-		})
-	);
-	
-	// Register logout command
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.logout', async () => {
-			if (!oauthManager.isLoggedIn()) {
-				void vscode.window.showInformationMessage('Not currently logged in.');
-				return;
-			}
-			
-			const confirm = await vscode.window.showWarningMessage(
-				`Are you sure you want to logout from GitHub (${oauthManager.getUser()?.login})?`,
-				{ modal: true },
-				'Logout'
-			);
-			
-			if (confirm === 'Logout') {
-				await oauthManager.logout();
-			}
-		})
-	);
-
-	// Register relay status command
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.relayStatus', () => {
-			if (!relayClient) {
-				void vscode.window.showInformationMessage(
-					'Cloud Relay is not enabled. Enable it in settings (skillInstaller.relay.enabled).'
-				);
-				return;
-			}
-
-			const status = relayClient.getStatus();
-			const clientId = relayClient.getClientId();
-			const userId = relayClient.getUserId();
-			const parts = [`Cloud Relay: ${status}`];
-			if (clientId) { parts.push(`Client: ${clientId.slice(0, 8)}`); }
-			if (userId) { parts.push(`User: ${userId}`); }
-
-			void vscode.window.showInformationMessage(parts.join(' | '));
-		})
-	);
-
-	// Register relay auth test command
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.relay.testAuth', async () => {
-			if (!relayAuthBridge) {
-				void vscode.window.showInformationMessage(
-					'Cloud Relay is not enabled. Enable it in settings (skillInstaller.relay.enabled).'
-				);
-				return;
-			}
-
-			output.appendLine('[RelayAuth Test] Starting auth test...');
-			const tokens = await relayAuthBridge.getRelayTokens();
-
-			if (!tokens) {
-				output.appendLine('[RelayAuth Test] Authentication failed — no tokens returned');
-				void vscode.window.showWarningMessage('Relay Auth Test: FAILED — could not obtain tokens');
-				return;
-			}
-
-			const claims = relayAuthBridge.decodeJwtClaims(tokens.accessToken);
-			const expirySeconds = tokens.expiresAt - Math.floor(Date.now() / 1000);
-			const expiryMinutes = Math.round(expirySeconds / 60);
-
-			if (claims) {
-				output.appendLine(`[RelayAuth Test] sub: ${claims.sub ?? 'N/A'}`);
-				output.appendLine(`[RelayAuth Test] client_type: ${claims.client_type ?? 'N/A'}`);
-				output.appendLine(`[RelayAuth Test] scopes: ${claims.scopes ?? claims.scope ?? 'N/A'}`);
-				output.appendLine(`[RelayAuth Test] expires in: ${expiryMinutes}m (${expirySeconds}s)`);
-				output.appendLine(`[RelayAuth Test] full claims: ${JSON.stringify(claims, null, 2)}`);
-			} else {
-				output.appendLine('[RelayAuth Test] Could not decode JWT claims');
-			}
-
-			const sub = claims?.sub ? String(claims.sub) : 'unknown';
-			void vscode.window.showInformationMessage(
-				`Relay Auth Test: OK | sub: ${sub} | expires in: ${expiryMinutes}m`
-			);
-		})
-	);
 
 	// Initialize chat participant for remote agent invocation
 	const chatParticipant = new RemoteControlParticipant(output, sessionManager);
@@ -342,44 +238,6 @@ export function activate(context: vscode.ExtensionContext): void {
 			}
 		})
 	);
-
-	// Initialize relay client for cloud connectivity (if enabled)
-	const relayConfig = vscode.workspace.getConfiguration('skillInstaller.relay');
-	const relayEnabled = relayConfig.get<boolean>('enabled', false);
-
-	let relayClient: RelayClient | undefined;
-	let relayAuthBridge: RelayAuthBridge | undefined;
-
-	if (relayEnabled) {
-		relayAuthBridge = new RelayAuthBridge(context.secrets, output);
-		context.subscriptions.push(relayAuthBridge);
-
-		const rc = new RelayClient(relayAuthBridge, output);
-		relayClient = rc;
-		context.subscriptions.push(rc);
-
-		// Route incoming relay requests through the WsServer handlers
-		rc.setRequestHandler((request) => wsServer.handleRelayRequest(request));
-
-		// Forward extension events to relay for remote mobile clients
-		const eventEmitter = wsServer.getEventEmitter();
-		eventEmitter.onEvent((event) => {
-			if (rc.getStatus() === 'connected') {
-				rc.sendEvent(event);
-			}
-		});
-
-		// Connect to relay (async, non-blocking)
-		rc.connect().catch((err) => {
-			const message = err instanceof Error ? err.message : 'Unknown error';
-			output.appendLine(`[Relay] Failed to connect: ${message}`);
-		});
-
-		// Log relay connection status changes
-		rc.onStatusChanged((status) => {
-			output.appendLine(`[Relay] Status changed: ${status}`);
-		});
-	}
 
 	// ── Executive3 Database ──────────────────────────────────────────────
 	const e3db = new E3Database(output);
@@ -716,67 +574,16 @@ export function activate(context: vscode.ExtensionContext): void {
 		})
 	);
 
-	// Register command to show connected clients
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.showClientList', async () => {
-			const registry = wsServer.getClientRegistry();
-			const clients = registry.listClientsDto();
-
-			if (clients.length === 0) {
-				void vscode.window.showInformationMessage('No mobile companion clients connected.');
-				return;
-			}
-
-			const items = clients.map(c => ({
-				label: `${c.deviceType} (${c.os})`,
-				description: c.clientId.substring(0, 8),
-				detail: `Connected: ${new Date(c.connectionTime).toLocaleString()} | Last seen: ${new Date(c.lastSeen).toLocaleString()}`,
-				client: c,
-			}));
-
-			const selected = await vscode.window.showQuickPick(items, {
-				placeHolder: `${clients.length} client(s) connected`,
-				title: 'Connected Mobile Companion Clients',
-			});
-
-			if (selected) {
-				const action = await vscode.window.showQuickPick(
-					[
-						{ label: 'View Details', action: 'details' },
-						{ label: 'Disconnect', action: 'disconnect' },
-					],
-					{ placeHolder: `Action for ${selected.label}` }
-				);
-
-				if (action?.action === 'disconnect') {
-					registry.disconnectClient(selected.client.clientId);
-					void vscode.window.showInformationMessage(`Disconnected client ${selected.client.clientId.substring(0, 8)}`);
-				} else if (action?.action === 'details') {
-					const details = [
-						`Client ID: ${selected.client.clientId}`,
-						`Device Type: ${selected.client.deviceType}`,
-						`OS: ${selected.client.os}`,
-						`App Version: ${selected.client.appVersion}`,
-						`User ID: ${selected.client.userId ?? 'N/A'}`,
-						`Connected: ${new Date(selected.client.connectionTime).toLocaleString()}`,
-						`Last Seen: ${new Date(selected.client.lastSeen).toLocaleString()}`,
-						`State: ${selected.client.state}`,
-					].join('\n');
-					output.appendLine(`[Client Details]\n${details}`);
-					output.show();
-				}
-			}
-		})
-	);
 
 	const skillProvider = new SkillDiscoveryTreeProvider(output);
 	const agentProvider = new AgentDiscoveryTreeProvider(output);
 	const workflowProvider = new WorkflowTaskTreeProvider(output);
 	const auditProvider = new AuditTreeProvider(output);
-	const connectionsProvider = new ConnectionsTreeProvider(wsServer, relayClient);
+	const connectionsProvider = new ConnectionsTreeProvider(wsServer);
 	const requestsProvider = new RequestsTreeProvider(sessionManager);
 	const permissionsProvider = new PermissionsTreeProvider(wsServer.getEventEmitter());
 	const mcpProvider = new McpProvidersTreeProvider(output);
+	const dumpCleanerProvider = new DumpCleanerTreeProvider(output);
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.skillsView', skillProvider)
 	);
@@ -801,6 +608,9 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('skillInstaller.mcpView', mcpProvider)
 	);
+	context.subscriptions.push(
+		vscode.window.registerTreeDataProvider('skillInstaller.dumpCleanerView', dumpCleanerProvider)
+	);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('skillInstaller.refresh', () => {
@@ -812,6 +622,13 @@ export function activate(context: vscode.ExtensionContext): void {
 			requestsProvider.invalidateCache();
 			permissionsProvider.invalidateCache();
 			mcpProvider.invalidateCache();
+			dumpCleanerProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.dumpCleaner.delete', async (arg?: unknown) => {
+			await dumpCleanerProvider.deleteCandidate(arg);
 		})
 	);
 

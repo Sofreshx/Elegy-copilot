@@ -13,6 +13,8 @@ handoffs:
 
 # Executive2 Fast (No-Persistence)
 
+> **DEPRECATED**: This agent is deprecated. Use `@orchestrator` instead — trivial requests are automatically routed to the fast path (no planning, no persistence). This agent remains functional for backward compatibility.
+
 ## Mission
 Execute quickly with good judgment, but **do not** persist work state.
 

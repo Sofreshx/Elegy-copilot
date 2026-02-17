@@ -163,6 +163,14 @@ export class SessionThreadManager {
 		this.sessions.clear();
 	}
 
+	getActiveSessionThreadCount(): number {
+		let count = 0;
+		for (const state of this.sessions.values()) {
+			if (state.thread) count++;
+		}
+		return count;
+	}
+
 	private ensureSession(sessionId: string): SessionState {
 		const existing = this.sessions.get(sessionId);
 		if (existing) return existing;

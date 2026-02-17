@@ -1,7 +1,7 @@
 {
   "name": "skill-installer",
-  "displayName": "Instruction Engine",
-  "description": "Workspace management for Instruction Engine: skills, agents, tasks, remote mobile companion, and AI session control.",
+  "displayName": "RannIA",
+  "description": "Skills, agents, tasks, and Discord gateway remote control for your workspace.",
   "version": "0.1.0",
   "publisher": "sofreshx",
   "license": "SEE LICENSE IN LICENSE.txt",
@@ -25,7 +25,6 @@
     "agents",
     "tasks",
     "remote",
-    "mobile",
     "instruction-engine"
   ],
   "engines": {
@@ -37,7 +36,6 @@
   ],
   "extensionDependencies": [],
   "activationEvents": [
-    "onUri",
     "onView:skillInstaller.skillsView",
     "onView:skillInstaller.workflowView",
     "onView:skillInstaller.agentsView",
@@ -46,7 +44,9 @@
     "onView:skillInstaller.mcpView",
     "onView:skillInstaller.requestsView",
     "onView:skillInstaller.permissionsView",
+    "onView:skillInstaller.dumpCleanerView",
     "onCommand:skillInstaller.refresh",
+    "onCommand:skillInstaller.dumpCleaner.delete",
     "onCommand:skillInstaller.runE2E",
     "onCommand:skillInstaller.openE3WebUI",
     "onCommand:skillInstaller.runAudit",
@@ -64,8 +64,6 @@
     "onCommand:skillInstaller.purgeArchivedTasks",
     "onCommand:skillInstaller.clearRepoContext",
     "onCommand:skillInstaller.clearAllRepoContexts",
-    "onCommand:skillInstaller.relayStatus",
-    "onCommand:skillInstaller.relay.testAuth",
     "onCommand:skillInstaller.ws.showPort",
     "onCommand:skillInstaller.ws.pairGateway",
   	"onCommand:skillInstaller.gateway.setup",
@@ -134,12 +132,7 @@
       "activitybar": [
         {
           "id": "skillInstaller",
-          "title": "Skills",
-          "icon": "resources/icon.svg"
-        },
-        {
-          "id": "skillInstallerOps",
-          "title": "Operations",
+          "title": "RannIA",
           "icon": "resources/icon.svg"
         }
       ]
@@ -161,9 +154,7 @@
         {
           "id": "skillInstaller.auditView",
           "name": "Audit Results"
-        }
-      ],
-      "skillInstallerOps": [
+        },
         {
           "id": "skillInstaller.connectionsView",
           "name": "Connections"
@@ -177,15 +168,29 @@
           "name": "Permissions"
         },
         {
+          "id": "skillInstaller.dumpCleanerView",
+          "name": "Dump Cleaner"
+        },
+        {
           "id": "skillInstaller.mcpView",
           "name": "MCP Providers"
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "skillInstaller.connectionsView",
+        "contents": "Run **Gateway: Setup Messaging Gateway** to enable Discord remote control.\n[Run setup](command:skillInstaller.gateway.setup)"
+      }
+    ],
     "commands": [
       {
         "command": "skillInstaller.refresh",
         "title": "Refresh Views"
+      },
+      {
+        "command": "skillInstaller.dumpCleaner.delete",
+        "title": "Dump Cleaner: Delete"
       },
       {
         "command": "skillInstaller.runE2E",
@@ -259,31 +264,6 @@
         "command": "skillInstaller.refreshAudit",
         "title": "Refresh Audit Results",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "skillInstaller.showClientList",
-        "title": "Show Connected Clients"
-      },
-      {
-        "command": "skillInstaller.login",
-        "title": "Login with GitHub",
-        "icon": "$(sign-in)"
-      },
-      {
-        "command": "skillInstaller.logout",
-        "title": "Logout from GitHub",
-        "icon": "$(sign-out)"
-      },
-      {
-        "command": "skillInstaller.relayStatus",
-        "title": "Relay Status",
-        "category": "Instruction Engine",
-        "icon": "$(cloud)"
-      },
-      {
-        "command": "skillInstaller.relay.testAuth",
-        "title": "Test Relay Authentication",
-        "category": "Skill Installer"
       },
       {
         "command": "skillInstaller.ws.showPort",
@@ -507,6 +487,11 @@
           "command": "skillInstaller.syncMcpConfig",
           "when": "view == skillInstaller.mcpView && viewItem == skillInstaller.mcpRepo",
           "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.dumpCleaner.delete",
+          "when": "view == skillInstaller.dumpCleanerView && viewItem == skillInstaller.dumpCleaner.item",
+          "group": "inline"
         }
       ],
       "view/title": [
@@ -547,7 +532,7 @@
         },
         {
           "command": "skillInstaller.refresh",
-          "when": "view == skillInstaller.connectionsView || view == skillInstaller.requestsView || view == skillInstaller.permissionsView",
+          "when": "view == skillInstaller.connectionsView || view == skillInstaller.requestsView || view == skillInstaller.permissionsView || view == skillInstaller.dumpCleanerView",
           "group": "navigation"
         },
         {
@@ -563,7 +548,7 @@
       ]
     },
     "configuration": {
-      "title": "Instruction Engine",
+      "title": "RannIA",
       "properties": {
         "skillInstaller.registry.fileName": {
           "type": "string",
@@ -673,7 +658,7 @@
         "skillInstaller.ws.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable WebSocket server for mobile companion communication."
+          "description": "Enable local WebSocket server for remote client communication (e.g., messaging gateway)."
         },
         "skillInstaller.ws.port": {
           "type": "number",
@@ -712,35 +697,15 @@
           "minimum": 1024,
           "description": "Maximum size (in bytes) for response/result data in session logs. Default: 100KB."
         },
-        "skillInstaller.oauth.clientId": {
-          "type": "string",
-          "default": "",
-          "description": "GitHub OAuth App Client ID. Create an OAuth App at https://github.com/settings/developers"
-        },
-        "skillInstaller.oauth.clientSecret": {
-          "type": "string",
-          "default": "",
-          "description": "GitHub OAuth App Client Secret. WARNING: For development only. In production, use a token exchange proxy."
-        },
-        "skillInstaller.oauth.redirectUri": {
-          "type": "string",
-          "default": "vscode://sofreshx.skill-installer/auth/callback",
-          "description": "OAuth redirect URI. Must match the callback URL configured in your GitHub OAuth App."
-        },
-        "skillInstaller.relay.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable outbound connection to the cloud relay for remote mobile control."
-        },
-        "skillInstaller.relay.url": {
-          "type": "string",
-          "default": "wss://relay.sfrsh.xyz/v1/ws",
-          "description": "Cloud relay WebSocket URL for mobile companion connectivity."
-        },
-        "skillInstaller.relay.httpUrl": {
-          "type": "string",
-          "default": "https://relay.sfrsh.xyz",
-          "description": "Cloud relay HTTP URL for auth token exchange."
+        "skillInstaller.dumpCleaner.patterns": {
+          "type": "array",
+          "default": [
+            "tmpclaude-*"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Basename glob patterns (workspace root only) used by Dump Cleaner to find dump artefacts."
         }
       }
     }

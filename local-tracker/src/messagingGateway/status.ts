@@ -9,6 +9,7 @@ export interface GatewayStatusSummary {
 	allowlistedDiscordUsersCount: number;
 	discordGuildId: string;
 	discordChannelId: string;
+	discordPermissionsChannelId?: string;
 	secrets: GatewaySecretsStatus;
 	extensionWsPort?: { port: number; source: 'env' | 'file' };
 }
@@ -20,7 +21,7 @@ export function printGatewayStatusSummary(loaded: LoadedMessagingGatewayConfig, 
 	console.log(`[Gateway] Active workspace: ${summary.activeWorkspaceRoot}`);
 	console.log(`[Gateway] Workspace allowlist: ${summary.allowedWorkspaceRootsCount} roots`);
 	console.log(`[Gateway] Discord allowlist: ${summary.allowlistedDiscordUsersCount} users`);
-	console.log(`[Gateway] Discord scope: guild=${summary.discordGuildId} channel=${summary.discordChannelId}`);
+	console.log(`[Gateway] Discord scope: guild=${summary.discordGuildId} channel=${summary.discordChannelId}${summary.discordPermissionsChannelId ? ` permissions=${summary.discordPermissionsChannelId}` : ''}`);
 	if (summary.extensionWsPort) {
 		console.log(`[Gateway] Extension WS port: ${summary.extensionWsPort.port} (${summary.extensionWsPort.source})`);
 	} else {

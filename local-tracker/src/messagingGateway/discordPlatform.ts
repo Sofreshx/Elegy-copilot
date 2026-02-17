@@ -286,8 +286,11 @@ export class DiscordPlatform implements MessagePlatform {
 		if (!params.guildId || params.guildId !== this.config.guildId) return false;
 		if (!params.channelId) return false;
 
-		// Allow either the configured channel itself OR any thread whose parent is the configured channel.
-		if (params.channelId === this.config.channelId) return true;
+		// Allow the main channel, the optional permissions channel, or any thread whose parent is either.
+		const allowedParentIds = new Set([this.config.channelId]);
+		if (this.config.permissionsChannelId) allowedParentIds.add(this.config.permissionsChannelId);
+
+		if (allowedParentIds.has(params.channelId)) return true;
 
 		const channel =
 			(params.channel as any) ?? (await this.client.channels.fetch(params.channelId).catch(() => null));
@@ -295,7 +298,7 @@ export class DiscordPlatform implements MessagePlatform {
 		const isThreadFn = (channel as any).isThread;
 		if (typeof isThreadFn === 'function' && isThreadFn.call(channel) === true) {
 			const parentId = (channel as any).parentId;
-			return typeof parentId === 'string' && parentId === this.config.channelId;
+			return typeof parentId === 'string' && allowedParentIds.has(parentId);
 		}
 		return false;
 	}
@@ -449,10 +452,14 @@ export class DiscordPlatform implements MessagePlatform {
 
 	async sendPermissionPrompt(params: { threadId: string; callbackId: string; summary: string }): Promise<void> {
 		if (!this.client.isReady()) throw new Error('[Gateway] Discord client not ready');
-		const channel = await this.client.channels.fetch(params.threadId);
-		if (!channel) throw new Error('[Gateway] Discord thread not found');
-		const thread = channel as any;
-		if (typeof thread.send !== 'function') throw new Error('[Gateway] Channel is not message-capable');
+
+		// Use the dedicated permissions channel when configured; otherwise fall back to the session thread.
+		const targetChannelId = this.config.permissionsChannelId ?? params.threadId;
+
+		const channel = await this.client.channels.fetch(targetChannelId);
+		if (!channel) throw new Error('[Gateway] Discord channel/thread not found');
+		const target = channel as any;
+		if (typeof target.send !== 'function') throw new Error('[Gateway] Channel is not message-capable');
 
 		const approve = new ButtonBuilder()
 			.setCustomId(`${PERMISSION_BUTTON_PREFIX}approve:${params.callbackId}`)
@@ -468,12 +475,12 @@ export class DiscordPlatform implements MessagePlatform {
 			maxLength: 1800,
 		});
 
-		const sent = (await thread.send({
+		const sent = (await target.send({
 			content,
 			components: [row],
 			allowedMentions: discordAllowedMentions(),
 		})) as Message;
-		this.permissionPromptByCallbackId.set(params.callbackId, { threadId: params.threadId, messageId: sent.id });
+		this.permissionPromptByCallbackId.set(params.callbackId, { threadId: targetChannelId, messageId: sent.id });
 	}
 
 	async markPermissionPromptResolved(params: {

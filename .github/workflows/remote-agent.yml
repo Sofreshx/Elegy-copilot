@@ -1,8 +1,8 @@
 # Remote Agent Dispatch Workflow
-# Enables mobile companion app to trigger agent sessions in cloud environments
+# Enables manually-triggered agent sessions in cloud environments
 # 
 # Security: Uses workflow_dispatch with strict input validation
-# Rate limiting: Enforced via relay service (max 10 dispatches/user/hour)
+# Rate limiting: Enforce via the caller / webhook integration (outside this workflow)
 
 name: Remote Agent Session
 
@@ -33,7 +33,7 @@ on:
         required: false
         type: string
       session_id:
-        description: 'Session ID from mobile app'
+        description: 'Session ID from caller'
         required: true
         type: string
       webhook_url:

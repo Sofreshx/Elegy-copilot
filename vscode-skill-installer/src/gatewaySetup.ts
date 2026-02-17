@@ -14,6 +14,7 @@ interface GatewayConfig {
 		allowlistedUserIds: string[];
 		guildId: string;
 		channelId: string;
+		permissionsChannelId?: string;
 	};
 	workspaces: {
 		allowedRoots: string[];
@@ -251,6 +252,30 @@ async function promptWorkspaceRoots(existing?: GatewayConfig['workspaces']): Pro
 	return { allowedRoots, activeRoot: activeRootPick.label };
 }
 
+async function promptOptionalPermissionsChannelId(existing?: string): Promise<string | undefined> {
+	const input = await vscode.window.showInputBox({
+		title: 'Discord: permissions channel ID (optional)',
+		prompt:
+			'Separate channel for permission prompts? Leave blank to use the main channel. Enter a numeric channel ID or paste a channel link.',
+		value: existing ?? '',
+		ignoreFocusOut: true,
+	});
+	if (input === undefined) return existing; // cancelled — keep existing
+	const trimmed = input.trim();
+	if (!trimmed) return undefined; // cleared — no dedicated permissions channel
+
+	// Try parsing as a channel link
+	const parsed = parseDiscordChannelLink(trimmed);
+	if (parsed) return parsed.channelId;
+
+	// Otherwise expect a raw numeric ID
+	if (!isNumericId(trimmed)) {
+		void vscode.window.showErrorMessage('Invalid channel ID. Expected a numeric Discord snowflake.');
+		return existing;
+	}
+	return trimmed;
+}
+
 async function promptMode(existing?: string): Promise<string | undefined> {
 	const modes = [
 		{ label: 'auto', description: 'Auto-detect connected/disconnected based on extension WS discovery file' },
@@ -290,12 +315,16 @@ export async function setupMessagingGatewayWizard(
 	const allowlistedUserIds = await promptAllowlistedUserIds(existing?.discord.allowlistedUserIds);
 	if (!allowlistedUserIds) return;
 
+	// Optional: permissions channel
+	const permissionsChannelId = await promptOptionalPermissionsChannelId(existing?.discord.permissionsChannelId);
+
 	const config: GatewayConfig = {
 		mode,
 		discord: {
 			allowlistedUserIds,
 			guildId: discordIds.guildId,
 			channelId: discordIds.channelId,
+			...(permissionsChannelId ? { permissionsChannelId } : {}),
 		},
 		workspaces,
 	};
@@ -381,6 +410,7 @@ export async function editDiscordCommand(output: vscode.OutputChannel): Promise<
 		[
 			{ label: 'Change channel (guild + channel)', id: 'channel' },
 			{ label: 'Manage allowlisted user IDs', id: 'users' },
+			{ label: 'Change permissions channel', id: 'permissions' },
 			{ label: 'Change mode', id: 'mode' },
 			{ label: 'Edit all Discord settings', id: 'all' },
 		],
@@ -402,6 +432,16 @@ export async function editDiscordCommand(output: vscode.OutputChannel): Promise<
 		const ids = await promptAllowlistedUserIds(config.discord.allowlistedUserIds);
 		if (!ids) return;
 		config.discord.allowlistedUserIds = ids;
+		changed = true;
+	}
+
+	if (action.id === 'permissions' || action.id === 'all') {
+		const permissionsChannelId = await promptOptionalPermissionsChannelId(config.discord.permissionsChannelId);
+		if (permissionsChannelId) {
+			config.discord.permissionsChannelId = permissionsChannelId;
+		} else {
+			delete config.discord.permissionsChannelId;
+		}
 		changed = true;
 	}
 
@@ -526,6 +566,7 @@ export async function viewConfigCommand(output: vscode.OutputChannel): Promise<v
 		`Mode: ${config.mode ?? 'auto'}`,
 		`Guild (server): ${config.discord.guildId}`,
 		`Channel: ${config.discord.channelId}`,
+		...(config.discord.permissionsChannelId ? [`Permissions channel: ${config.discord.permissionsChannelId}`] : []),
 		`Allowlisted users: ${config.discord.allowlistedUserIds.length} (${config.discord.allowlistedUserIds.join(', ')})`,
 		`Workspace roots: ${config.workspaces.allowedRoots.length}`,
 		`Active root: ${config.workspaces.activeRoot}`,

@@ -14,6 +14,8 @@ handoffs:
 
 # Executive2 (Orchestrator)
 
+> **DEPRECATED**: This agent is deprecated. Use `@orchestrator` instead — it provides the same task-graph execution model with automatic complexity routing, fast paths for trivial work, and a follow-up loop. This agent remains functional for backward compatibility.
+
 ## Mission
 You are the **implementation/orchestration** phase of the Executive2 system.
 

@@ -96,3 +96,71 @@ NEW_WORK_UNIT_REQUEST
 - validation:
   - <command or check>
 ```
+
+## Alternative: Group Execution Mode
+When invoked by executive2p5 or orchestrator for a full group, the prompt may contain multiple WU specs instead of a single `workUnitId`.
+
+### Inputs (group mode)
+- `workUnitIds`: list of WU IDs to execute sequentially (e.g., `[WU-003, WU-004]`)
+- `wuSpecs`: inline WU specs (extracted from plan pack by the orchestrator, NOT the full plan pack)
+- `progressTracker`: path to progress tracker (optional)
+- `explorationContext`: combined exploration summary for all WUs in the group
+
+### Execution rules
+- Execute WUs in the listed order.
+- Each WU follows the same workflow as single-WU mode (load context → feasibility check → implement → validate).
+- If a WU fails or needs replanning, STOP and return results for all completed WUs plus the failure.
+
+### Structured output (group mode)
+Return one `WORK_UNIT_RESULT` block per WU:
+
+```text
+WORK_UNIT_RESULT
+- work_unit: WU-003
+- status: done
+- changes: ...
+
+WORK_UNIT_RESULT
+- work_unit: WU-004
+- status: done
+- changes: ...
+```
+
+For partial failure:
+
+```text
+WORK_UNIT_RESULT
+- work_unit: WU-003
+- status: done
+- changes: ...
+
+REPLAN_REQUESTED
+- work_unit: WU-004
+- reasons: ...
+```
+
+## Alternative: Fast-Path Mode (No Plan Pack)
+When invoked by the orchestrator for trivial requests, there is no plan pack. The prompt contains an inline spec instead.
+
+### Inputs (fast-path mode)
+- `spec`: inline work specification (scope, type, acceptance criteria — from @o-reframer output)
+- `projectContext`: compressed project context (~150 lines)
+- `skillInstructions`: relevant skill content (optional)
+
+### Execution rules (fast-path)
+- No plan pack to read — the inline spec IS your work unit.
+- Follow the same workflow: feasibility check → implement → validate.
+- Return the same structured output (`WORK_UNIT_RESULT`, `REPLAN_REQUESTED`, or `NEW_WORK_UNIT_REQUEST`).
+- Use `work_unit: FAST-PATH` as the work unit identifier.
+
+### Structured output (fast-path)
+
+```text
+WORK_UNIT_RESULT
+- work_unit: FAST-PATH
+- status: done
+- changes: <1-3 bullets>
+- validation: <commands + results>
+- tests_requested: <test scope or none>
+- notes: <any key follow-ups>
+```

@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { WsServer } from './wsServer';
 import { ClientInfoDto } from './clientRegistry';
-import { RelayClient, ConnectionStatus } from './relayClient';
 
 type NodeKind = 'section' | 'status' | 'client' | 'detail';
 
@@ -33,6 +35,47 @@ interface DetailNode extends BaseNode {
 
 type Node = SectionNode | StatusNode | ClientNode | DetailNode;
 
+interface MessagingGatewayStatusV1 {
+	schemaVersion: 1;
+	lastUpdatedUtc: string;
+	runtime?: {
+		discord?: { connected?: boolean; ready?: boolean };
+		extensionWs?: { connected?: boolean };
+		sessions?: { activeSessionThreadCount?: number };
+	};
+}
+
+function getDefaultMessagingGatewayStatusPath(): string {
+	return path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.status.json');
+}
+
+function capText(input: string, max = 120): string {
+	const t = input.trim();
+	if (t.length <= max) return t;
+	return `${t.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+function tryReadMessagingGatewayStatus():
+	| { kind: 'missing'; statusPath: string }
+	| { kind: 'invalid'; statusPath: string; error: string }
+	| { kind: 'ok'; statusPath: string; status: MessagingGatewayStatusV1 } {
+	const statusPath = getDefaultMessagingGatewayStatusPath();
+	if (!fs.existsSync(statusPath)) return { kind: 'missing', statusPath };
+
+	try {
+		const raw = fs.readFileSync(statusPath, 'utf8');
+		const parsed = JSON.parse(raw) as unknown;
+		const anyParsed = parsed as any;
+		if (!anyParsed || anyParsed.schemaVersion !== 1 || typeof anyParsed.lastUpdatedUtc !== 'string') {
+			return { kind: 'invalid', statusPath, error: 'Unsupported or missing schemaVersion/lastUpdatedUtc (expected schemaVersion=1)' };
+		}
+		return { kind: 'ok', statusPath, status: anyParsed as MessagingGatewayStatusV1 };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { kind: 'invalid', statusPath, error: message };
+	}
+}
+
 function formatTimestamp(value: string): string {
 	try {
 		return new Date(value).toLocaleString();
@@ -61,14 +104,7 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 	private _onDidChangeTreeData = new vscode.EventEmitter<Node | undefined | null | void>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-	constructor(
-		private readonly wsServer: WsServer,
-		private readonly relayClient?: RelayClient,
-	) {
-		if (this.relayClient) {
-			this.relayClient.onStatusChanged(() => this.invalidateCache());
-		}
-	}
+	constructor(private readonly wsServer: WsServer) {}
 
 	refresh(): void {
 		this._onDidChangeTreeData.fire();
@@ -100,6 +136,8 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 	}
 
 	private buildRootNodes(): Node[] {
+		const gatewaySection: SectionNode = this.buildMessagingGatewaySection();
+
 		const config = vscode.workspace.getConfiguration('skillInstaller.ws');
 		const enabled = config.get<boolean>('enabled', false);
 		const running = this.wsServer.isRunning();
@@ -131,7 +169,7 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 				kind: 'status',
 				key: 'server-clients',
 				label: `Clients: ${clients.length}`,
-				iconPath: new vscode.ThemeIcon('device-mobile')
+				iconPath: new vscode.ThemeIcon('plug')
 			}
 		];
 
@@ -166,131 +204,140 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 		const clientsSection: SectionNode = {
 			kind: 'section',
 			key: 'clients',
-			label: 'Connected Clients',
+			label: 'Connected WS Clients',
 			description: clients.length.toString(),
-			iconPath: new vscode.ThemeIcon('device-mobile'),
+			iconPath: new vscode.ThemeIcon('plug'),
 			children: clientNodes
 		};
 
-		return [serverSection, clientsSection, ...this.buildRelaySection()];
+		return [gatewaySection, serverSection, clientsSection];
 	}
 
-	private buildRelaySection(): Node[] {
-		const relayEnabled = vscode.workspace
-			.getConfiguration('skillInstaller.relay')
-			.get<boolean>('enabled', false);
+	private buildMessagingGatewaySection(): SectionNode {
+		const result = tryReadMessagingGatewayStatus();
+		const children: Node[] = [];
 
-		if (!relayEnabled && !this.relayClient) {
-			return [];
-		}
-
-		if (!this.relayClient) {
-			return [{
-				kind: 'section',
-				key: 'relay',
-				label: 'Cloud Relay',
-				description: 'not initialized',
-				iconPath: new vscode.ThemeIcon('cloud', new vscode.ThemeColor('disabledForeground')),
-				children: [{
+		if (result.kind === 'missing') {
+			children.push(
+				{
 					kind: 'status',
-					key: 'relay-status',
-					label: 'Status: not initialized',
+					key: 'gw-status-file',
+					label: 'Status file: missing',
+					description: result.statusPath,
 					iconPath: new vscode.ThemeIcon('circle-slash')
-				}]
-			}];
+				},
+				{
+					kind: 'status',
+					key: 'gw-status-help',
+					label: 'Start the gateway to generate it',
+					description: 'npm --prefix local-tracker run dev:gateway',
+					iconPath: new vscode.ThemeIcon('play')
+				}
+			);
+
+			return {
+				kind: 'section',
+				key: 'messaging-gateway',
+				label: 'Messaging Gateway',
+				description: 'status missing',
+				iconPath: new vscode.ThemeIcon('hubot'),
+				children
+			};
 		}
 
-		const status = this.relayClient.getStatus();
-		const clientId = this.relayClient.getClientId();
-		const userId = this.relayClient.getUserId();
-		const reconnectInfo = this.relayClient.getReconnectInfo();
+		if (result.kind === 'invalid') {
+			children.push(
+				{
+					kind: 'status',
+					key: 'gw-status-file',
+					label: 'Status file: unreadable',
+					description: result.statusPath,
+					iconPath: new vscode.ThemeIcon('warning')
+				},
+				{
+					kind: 'status',
+					key: 'gw-status-error',
+					label: 'Error',
+					description: capText(result.error),
+					iconPath: new vscode.ThemeIcon('error')
+				},
+				{
+					kind: 'status',
+					key: 'gw-status-fix',
+					label: 'Fix: delete the file and restart the gateway',
+					description: 'writes are atomic; corruption usually means an older schema or manual edit',
+					iconPath: new vscode.ThemeIcon('trash')
+				}
+			);
 
-		const children: Node[] = [
+			return {
+				kind: 'section',
+				key: 'messaging-gateway',
+				label: 'Messaging Gateway',
+				description: 'status invalid',
+				iconPath: new vscode.ThemeIcon('hubot'),
+				children
+			};
+		}
+
+		const status = result.status;
+		const discordReady = status.runtime?.discord?.ready;
+		const extensionWsConnected = status.runtime?.extensionWs?.connected;
+		const activeSessions = status.runtime?.sessions?.activeSessionThreadCount;
+
+		children.push(
 			{
 				kind: 'status',
-				key: 'relay-status',
-				label: `Status: ${status}`,
-				iconPath: new vscode.ThemeIcon(
-					this.getRelayStatusIcon(status),
-					this.getRelayStatusColor(status)
-				)
+				key: 'gw-status-file',
+				label: 'Status file: present',
+				description: result.statusPath,
+				iconPath: new vscode.ThemeIcon('check')
+			},
+			{
+				kind: 'status',
+				key: 'gw-last-updated',
+				label: `Last updated: ${formatTimestamp(status.lastUpdatedUtc)}`,
+				iconPath: new vscode.ThemeIcon('clock')
+			},
+			{
+				kind: 'status',
+				key: 'gw-discord-ready',
+				label: `Discord ready: ${discordReady === true ? 'yes' : discordReady === false ? 'no' : 'unknown'}`,
+				iconPath: new vscode.ThemeIcon(discordReady === true ? 'check' : 'circle-outline')
+			},
+			{
+				kind: 'status',
+				key: 'gw-extension-ws',
+				label:
+					extensionWsConnected === undefined
+						? 'Extension WS bridge: n/a'
+						: `Extension WS bridge: ${extensionWsConnected ? 'connected' : 'disconnected'}`,
+				description: extensionWsConnected === undefined ? 'gateway running in disconnected mode or not reporting bridge status' : undefined,
+				iconPath: new vscode.ThemeIcon(extensionWsConnected ? 'plug' : 'circle-slash')
+			},
+			{
+				kind: 'status',
+				key: 'gw-active-sessions',
+				label: `Active sessions: ${typeof activeSessions === 'number' ? activeSessions : 'n/a'}`,
+				iconPath: new vscode.ThemeIcon('list-unordered')
 			}
-		];
+		);
 
-		if (clientId) {
-			children.push({
-				kind: 'status',
-				key: 'relay-client-id',
-				label: `Client ID: ${clientId.slice(0, 8)}`,
-				iconPath: new vscode.ThemeIcon('id-badge')
-			});
-		}
-
-		if (userId) {
-			children.push({
-				kind: 'status',
-				key: 'relay-user-id',
-				label: `User: ${userId}`,
-				iconPath: new vscode.ThemeIcon('account')
-			});
-		}
-
-		if (status === 'reconnecting' && reconnectInfo) {
-			children.push({
-				kind: 'status',
-				key: 'relay-reconnect',
-				label: `Reconnect: ${reconnectInfo.attempts}/${reconnectInfo.maxAttempts}`,
-				iconPath: new vscode.ThemeIcon('sync')
-			});
-		}
-
-		const relayUrl = vscode.workspace
-			.getConfiguration('skillInstaller.relay')
-			.get<string>('url', 'wss://relay.sfrsh.xyz/v1/ws');
-
-		children.push({
-			kind: 'status',
-			key: 'relay-url',
-			label: `URL: ${relayUrl}`,
-			iconPath: new vscode.ThemeIcon('globe')
-		});
-
-		return [{
+		const ok = discordReady === true;
+		return {
 			kind: 'section',
-			key: 'relay',
-			label: 'Cloud Relay',
-			description: status,
-			iconPath: new vscode.ThemeIcon(
-				'cloud',
-				this.getRelayStatusColor(status)
-			),
+			key: 'messaging-gateway',
+			label: 'Messaging Gateway',
+			description: ok ? 'ready' : 'not ready',
+			iconPath: new vscode.ThemeIcon('hubot'),
 			children
-		}];
-	}
-
-	private getRelayStatusIcon(status: ConnectionStatus): string {
-		switch (status) {
-			case 'connected': return 'pass-filled';
-			case 'disconnected': return 'circle-slash';
-			case 'connecting': return 'loading~spin';
-			case 'authenticating': return 'shield';
-			case 'reconnecting': return 'sync~spin';
-		}
-	}
-
-	private getRelayStatusColor(status: ConnectionStatus): vscode.ThemeColor | undefined {
-		switch (status) {
-			case 'connected': return new vscode.ThemeColor('testing.iconPassed');
-			case 'disconnected': return new vscode.ThemeColor('testing.iconFailed');
-			case 'reconnecting': return new vscode.ThemeColor('charts.orange');
-			default: return undefined;
-		}
+		};
 	}
 
 	private toClientNode(client: ClientInfoDto): ClientNode {
 		const shortId = client.clientId.slice(0, 8);
-		const label = `${client.deviceType} (${client.os})`;
-		const description = client.userId ? `${shortId} • ${client.userId}` : shortId;
+		const label = `Client (${shortId})`;
+		const description = client.userId ? `${client.os} • ${client.userId}` : client.os;
 
 		const children: Node[] = [
 			{
@@ -339,7 +386,7 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 			key: client.clientId,
 			label,
 			description,
-			iconPath: new vscode.ThemeIcon('device-mobile'),
+			iconPath: new vscode.ThemeIcon('plug'),
 			client,
 			children
 		};

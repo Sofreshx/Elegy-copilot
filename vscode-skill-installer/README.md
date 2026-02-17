@@ -1,6 +1,6 @@
-# Instruction Engine
+# RannIA (Instruction Engine Skill Installer)
 
-> Workspace management for Instruction Engine: skills, agents, tasks, cloud relay, remote mobile companion, and AI session control.
+> Workspace management for Instruction Engine: skills, agents, tasks, dump cleanup, and Discord gateway integration.
 
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.85%2B-blue)
@@ -19,11 +19,17 @@ Track tasks from `.instructions/tasks/*.md` with full YAML front matter support:
 - Task Workflow view with "Next Up" and "Active" lanes
 - Archive done tasks and purge archived tasks from the workflow view
 
-### Operations
-Operational visibility for mobile companion flows:
+### Operations & Gateway
+Operational visibility for the Discord messaging gateway and extension bridge:
 - Connection status, ports, and connected clients
-- Running sessions and recent requests
+- Discord gateway status (ready state, active sessions)
 - Copilot permission request queue (pending and recent decisions)
+
+### Dump Cleaner
+Safe cleanup utility for workspace dump files (e.g., `tmpclaude-*`):
+- Scans workspace roots shallowly for matching glob patterns
+- Trash-only deletion with modal confirmation
+- Refuses symlinks and paths outside workspace roots
 
 ### Remote Control
 The `@remote-control` chat participant enables programmatic agent invocation:
@@ -31,21 +37,6 @@ The `@remote-control` chat participant enables programmatic agent invocation:
 - `/cancel` - Cancel a running session by ID
 - `/list` - List available agents in the workspace
 - `/invoke` - Invoke an agent with a prompt
-
-### Mobile Companion
-Real-time connectivity for mobile companion PWA via local WebSocket server or cloud relay:
-- Remote session monitoring from anywhere
-- Idea drafting on-the-go
-- Push notifications for session events
-- GitHub OAuth authentication
-
-### Cloud Relay
-Outbound WebSocket connection to the cloud relay for remote mobile access:
-- Connects through NAT/firewalls without port forwarding
-- Live relay status in the Operations panel (Cloud Relay section)
-- Automatic reconnection with exponential backoff
-- Relay-minted JWT authentication via GitHub OAuth
-- Use `Relay Status` command to check connection state
 
 ## Installation
 
@@ -71,9 +62,11 @@ Then use **Developer: Install Extension from Location...** and select the folder
 | **Agents** | Agents across workspace repos |
 | **Task Workflow** | Queue and prioritize tasks |
 | **Audit Results** | Code quality audit results |
-| **Connections** | WebSocket server and mobile clients |
+| **Connections** | Extension bridge, connected clients, and Discord gateway status |
 | **Requests** | Active and recent agent sessions |
 | **Permissions** | Copilot permission requests and decisions |
+| **Dump Cleaner** | Workspace dump file scanner and safe cleanup |
+| **MCP** | MCP server management |
 
 ## Commands
 
@@ -86,8 +79,6 @@ Then use **Developer: Install Extension from Location...** and select the folder
 | Enable/Disable Agent | Toggle agent availability |
 | Initialize Skills | Copy selected skills into `.github/skills` |
 | Clear Repo Context | Reset context for a repo |
-| Login with GitHub | Authenticate for mobile companion |
-| Relay Status | Show cloud relay connection status |
 | Archive Done Tasks | Move completed tasks to `.instructions/tasks.archive` |
 | Purge Archived Tasks | Delete archived task files |
 
@@ -98,15 +89,10 @@ Then use **Developer: Install Extension from Location...** and select the folder
 - `skillInstaller.tasks.onlyOwner` - Show only your tasks
 - `skillInstaller.workflow.nextUpLimit` - Max items in "Next Up" lane
 
-### WebSocket Server (Mobile Companion)
+### WebSocket Server
 - `skillInstaller.ws.enabled` - Enable WebSocket server
 - `skillInstaller.ws.port` - Server port (0 = random)
 - `skillInstaller.ws.heartbeatInterval` - Ping interval in ms
-
-### Cloud Relay
-- `skillInstaller.relay.enabled` - Enable outbound cloud relay connection
-- `skillInstaller.relay.url` - Cloud relay WebSocket URL
-- `skillInstaller.relay.httpUrl` - Cloud relay HTTP URL for auth token exchange
 
 ### Session Logging
 - `skillInstaller.session.loggingEnabled` - Enable session logs

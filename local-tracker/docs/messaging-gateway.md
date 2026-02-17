@@ -102,7 +102,22 @@ Important:
 - Discord IDs must be **numeric strings** (Discord “snowflakes”).
 - `workspaces.activeRoot` must be included in `workspaces.allowedRoots`.
 - `workspaces.activeRoot` must exist and be a directory.
+### Optional: `discord.permissionsChannelId`
 
+You can optionally add `"permissionsChannelId": "<CHANNEL_ID>"` inside the `discord` block. When set, permission prompts (approve/deny buttons) are posted to that separate channel instead of the session thread. This keeps your main channel cleaner if you prefer a dedicated permissions-only view.
+
+```json
+{
+  "discord": {
+    "allowlistedUserIds": ["111111111111111111"],
+    "guildId": "222222222222222222",
+    "channelId": "333333333333333333",
+    "permissionsChannelId": "444444444444444444"
+  }
+}
+```
+
+If omitted, permission prompts go to the session thread (default). The gateway also authorizes button interactions from the permissions channel, so approve/deny clicks work in either location.
 ### Why are `guildId` and `channelId` required?
 
 They are a **security scope**. The gateway fails closed and only accepts commands from:

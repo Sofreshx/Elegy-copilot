@@ -58,7 +58,6 @@ export class ClientRegistry implements vscode.Disposable {
 	
 	private heartbeatTimer: NodeJS.Timeout | undefined;
 	private cleanupTimer: NodeJS.Timeout | undefined;
-	private statusBarItem: vscode.StatusBarItem | undefined;
 	private disposed = false;
 
 	// Callbacks for external integration
@@ -71,18 +70,11 @@ export class ClientRegistry implements vscode.Disposable {
 	}
 
 	/**
-	 * Initialize the registry and start heartbeat/cleanup timers.
+	 * Initialize the registry.
 	 */
 	initialize(extensionContext: vscode.ExtensionContext): void {
-		// Create status bar item for client count
-		this.statusBarItem = vscode.window.createStatusBarItem(
-			vscode.StatusBarAlignment.Right,
-			99 // Slightly lower priority than WS server status
-		);
-		this.statusBarItem.command = 'skillInstaller.showClientList';
-		extensionContext.subscriptions.push(this.statusBarItem);
-
-		this.updateStatusBar();
+		// No status bar or command wiring (mobile companion UI removed).
+		void extensionContext;
 	}
 
 	/**
@@ -157,7 +149,6 @@ export class ClientRegistry implements vscode.Disposable {
 		this.wsToClientId.set(ws, clientId);
 
 		this.output.appendLine(`[ClientRegistry] Client registered: ${clientId} (${metadata.deviceType}/${metadata.os})`);
-		this.updateStatusBar();
 		this.onClientConnected?.(clientInfo);
 		this.onCountChanged?.(this.clients.size);
 
@@ -413,7 +404,6 @@ export class ClientRegistry implements vscode.Disposable {
 			this.clients.delete(clientId);
 
 			this.output.appendLine(`[ClientRegistry] Client removed: ${clientId}`);
-			this.updateStatusBar();
 			this.onClientDisconnected?.(clientId);
 			this.onCountChanged?.(this.clients.size);
 		}
@@ -503,24 +493,6 @@ export class ClientRegistry implements vscode.Disposable {
 	}
 
 	/**
-	 * Update the status bar item with current client count.
-	 */
-	private updateStatusBar(): void {
-		if (!this.statusBarItem) {
-			return;
-		}
-
-		const count = this.getActiveCount();
-		if (count === 0) {
-			this.statusBarItem.hide();
-		} else {
-			this.statusBarItem.text = `$(device-mobile) ${count} client${count !== 1 ? 's' : ''}`;
-			this.statusBarItem.tooltip = `${count} mobile companion client${count !== 1 ? 's' : ''} connected`;
-			this.statusBarItem.show();
-		}
-	}
-
-	/**
 	 * Set callback for when a client connects.
 	 */
 	setOnClientConnected(callback: (client: RegisteredClientInfo) => void): void {
@@ -554,7 +526,6 @@ export class ClientRegistry implements vscode.Disposable {
 		}
 		this.clients.clear();
 		this.wsToClientId.clear();
-		this.updateStatusBar();
 	}
 
 	/**
@@ -568,7 +539,6 @@ export class ClientRegistry implements vscode.Disposable {
 
 		this.stopTimers();
 		this.clear();
-		this.statusBarItem?.dispose();
 		this.output.appendLine('[ClientRegistry] Disposed');
 	}
 }

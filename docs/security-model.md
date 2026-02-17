@@ -520,19 +520,6 @@ These are intentional trade-offs for v1. Each has been evaluated and accepted wi
 
 ---
 
-## Auth Diagnostics
-
-The VS Code extension provides a built-in auth diagnostics command for troubleshooting relay authentication issues:
-
-- **Command**: `skillInstaller.relay.testAuth` (accessible via the Command Palette as "Test Relay Auth")
-- **What it does**: Obtains relay tokens via the `RelayAuthBridge`, decodes the JWT claims, and reports the `sub`, `client_type`, `scopes`, and expiry time
-- **Output**: Results are logged to the Skill Installer output channel and shown as an information message
-- **Security**: The command does not transmit tokens externally — it decodes the JWT locally and only displays non-sensitive claim metadata (`sub`, `client_type`, scopes, expiry)
-
-The mobile companion app includes an `AuthCallback` page that handles the OAuth redirect flow, extracting `code` and `state` parameters and exchanging them for relay tokens.
-
----
-
 ## Best Practices
 
 ### For Users
