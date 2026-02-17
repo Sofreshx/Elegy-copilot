@@ -7,14 +7,14 @@
 Draft — pending review
 
 ## Overview
-The Orchestrator is the next-generation unified agent that replaces Executive (v1), Executive2, Executive2.5, Executive3, and Executive2-Fast with a single, clean entry point. It consolidates the best patterns from our executive lineage and external systems (GSD, Copilot Orchestra, Wrapzii Orchestration) while eliminating the complexity that plagued previous versions.
+The Orchestrator is the next-generation unified agent that replaces Executive (v1), Executive2, Executive2.5, and Executive2-Fast with a single, clean entry point. It consolidates the best patterns from our executive lineage and external systems (GSD, Copilot Orchestra, Wrapzii Orchestration) while eliminating the complexity that plagued previous versions.
 
 **Design Philosophy**: The orchestrator is a thin routing and context-curation layer. It does NO leaf work. It delegates EVERYTHING. Its value is in understanding what's needed, routing to the right specialist, and curating context so each specialist gets exactly what it needs.
 
 ## Principles
 
 ### P1: Single Entry Point
-The user only needs to invoke `@orchestrator`. Everything else is internal delegation. No more choosing between executive, executive2, executive2p5, executive3, or executive2-fast.
+The user only needs to invoke `@orchestrator`. Everything else is internal delegation. No more choosing between executive, executive2, executive2p5, or executive2-fast.
 
 ### P2: Thin Coordinator
 The orchestrator NEVER:
@@ -296,8 +296,6 @@ Research notes from @research-ideation go to `.instructions/research/*.md` (temp
 | executive2-planner | @o-planner |
 | executive2p5 | @orchestrator (plan-pack execution) |
 | executive2p5-planner | @o-planner |
-| executive3 | @orchestrator (unified lifecycle) |
-| e3-planner | @o-planner |
 | executive2-fast | @orchestrator trivial fast path |
 | task-runner | @work-unit-runner (unchanged) |
 | planpack-writer | Merged into @o-planner or kept as-is |
@@ -310,7 +308,7 @@ All executive agents become deprecated. They remain in the repo for reference bu
 1. **Seamless Agent availability**: Extension may not be installed. Must fall back gracefully to vscode/askQuestions.
 2. **Reframer accuracy**: Wrong classification → wrong path. Mitigation: reframer can say "uncertain" and the orchestrator asks the user.
 3. **Context window limits**: Orchestrator must stay lean. If it accumulates too much context, quality degrades. Mitigation: delegate aggressively, keep main context for routing only.
-4. **Migration**: Users familiar with executive2/e3 workflows need clear guidance on switching. Mitigation: keep old agents, add deprecation notices.
+4. **Migration**: Users familiar with older executive workflows need clear guidance on switching. Mitigation: keep old agents, add deprecation notices.
 5. **Plan pack format**: Maintaining backward compatibility with executive2.5 plan packs. Plan packs should use the same format.
 
 ## Open Questions

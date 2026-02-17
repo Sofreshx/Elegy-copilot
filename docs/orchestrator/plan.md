@@ -68,10 +68,10 @@ Create the new Orchestrator agent system in the instruction-engine repo.
 - How to use @orchestrator
 - When to use fast path vs full planning
 - Seamless Agent setup (optional)
-- Migration from executive2/e3
+- Migration from older executive variants
 
 #### 3.2 Add deprecation notices to old agents
-- Update executive.agent.md, executive2.agent.md, executive2p5.agent.md, executive3.agent.md
+- Update executive.agent.md, executive2.agent.md, executive2p5.agent.md
 - Add deprecation notice in description pointing to @orchestrator
 - Keep them functional for backward compatibility
 

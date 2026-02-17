@@ -8,12 +8,12 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'vscode-skill-installer/**'
+      - 'RannIA/**'
       - '.github/workflows/extension-ci.yml'
 
 defaults:
   run:
-    working-directory: vscode-skill-installer
+    working-directory: RannIA
 
 jobs:
   build:
@@ -31,7 +31,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-          cache-dependency-path: vscode-skill-installer/package-lock.json
+          cache-dependency-path: RannIA/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -55,7 +55,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: skill-installer-vsix
-          path: vscode-skill-installer/skill-installer.vsix
+          path: RannIA/skill-installer.vsix
           retention-days: 30
 
   release:

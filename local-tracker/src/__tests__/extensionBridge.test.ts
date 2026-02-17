@@ -259,7 +259,7 @@ describe("ExtensionBridge", () => {
       await welcome;
 
       const events: TrackerEvent[] = [
-        makeSampleEvent("session_update"),
+        makeSampleEvent("file_change"),
         makeSampleEvent("git_update"),
         makeSampleEvent("task_update"),
       ];

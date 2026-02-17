@@ -29,10 +29,10 @@ Append-only log of completed tasks.
 - `.github/agents/security-auditor.agent.md` (enhanced)
 - `.github/skills/stack-detector/SKILL.md` (new)
 - `.github/templates/audit-report.schema.md` (new)
-- `vscode-skill-installer/src/auditTree.ts` (new)
-- `vscode-skill-installer/src/types.ts` (updated)
-- `vscode-skill-installer/src/extension.ts` (updated)
-- `vscode-skill-installer/package.json` (updated)
+- `RannIA/src/auditTree.ts` (new)
+- `RannIA/src/types.ts` (updated)
+- `RannIA/src/extension.ts` (updated)
+- `RannIA/package.json` (updated)
 
 **Validation**: TypeScript compilation passed, all acceptance criteria met.
 

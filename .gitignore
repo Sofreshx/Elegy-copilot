@@ -22,19 +22,17 @@ yarn-error.log*
 .DS_Store
 tmpclaude-*
 .vscode-test/
+**/.vscode-test/
 .vscode/mcp.json
 *.vsix
 *.tsbuildinfo
 
-# E3 local database artifacts
-.e3-local/
-**/.e3-local/
-*.db-shm
-*.db-wal
+# Skill installer local artifacts
+.skill-installer/
+**/.skill-installer/
 
 .instructions/
 
 # Instruction Engine task logs (tasks belong to target repos)
 .instructions/tasks/
 .instructions/tasks.archive/
-.e3-local/executive3.db

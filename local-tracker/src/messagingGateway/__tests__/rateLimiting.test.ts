@@ -31,7 +31,6 @@ describe('CommandRouter rate limiting (per-tier)', () => {
 				getAllowedWorkspaceRoots: () => ['/ws/active'],
 			},
 			auditLogger: { log: jest.fn() } as any,
-			e3Cli: {} as any,
 			permissionOrchestrator: {
 				approve: jest.fn(async () => undefined),
 				deny: jest.fn(async () => undefined),

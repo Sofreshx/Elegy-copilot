@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 export function getWsPortFilePath(workspaceRoot: string): string {
-	return path.join(workspaceRoot, '.e3-local', 'ws-port.txt');
+	return path.join(workspaceRoot, '.skill-installer', 'ws-port.txt');
 }
 
 export function resolveExtensionWsPort(workspaceRoot: string): { port: number; source: 'env' | 'file' } {

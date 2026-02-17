@@ -53,15 +53,15 @@ This system bridges the gap between desktop development and mobile accessibility
 ## Context Loaded
 
 ### Existing Files (Source of Truth)
-- `vscode-skill-installer/package.json` - Extension manifest, dependencies, activation events
-- `vscode-skill-installer/src/extension.ts` - Extension entry point and lifecycle
-- `vscode-skill-installer/src/types.ts` - Shared TypeScript types and interfaces
+- `RannIA/package.json` - Extension manifest, dependencies, activation events
+- `RannIA/src/extension.ts` - Extension entry point and lifecycle
+- `RannIA/src/types.ts` - Shared TypeScript types and interfaces
 - `.github/copilot-instructions.md` - Project conventions and agent delegation patterns
 
 ### New Components (To Be Created)
-- `vscode-skill-installer/src/websocket/` - WebSocket server implementation
-- `vscode-skill-installer/src/chat/` - Chat participant API for agent control
-- `vscode-skill-installer/src/session/` - Session tracking and event emission
+- `RannIA/src/websocket/` - WebSocket server implementation
+- `RannIA/src/chat/` - Chat participant API for agent control
+- `RannIA/src/session/` - Session tracking and event emission
 - `mobile-companion/` - React PWA application
 - `cloud-relay/` - Azure SignalR or Node.js relay service
 - `.github/workflows/extension-publish.yml` - CI/CD for extension packaging

@@ -38,18 +38,6 @@ jest.mock("chokidar", () => ({
   }),
 }));
 
-// Mock better-sqlite3
-const mockGet = jest.fn();
-const mockPrepare = jest.fn(() => ({ get: mockGet }));
-const mockClose = jest.fn();
-
-jest.mock("better-sqlite3", () => {
-  return jest.fn(() => ({
-    prepare: mockPrepare,
-    close: mockClose,
-  }));
-});
-
 // ---------- Helpers ----------
 
 function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
@@ -67,9 +55,6 @@ function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
 beforeEach(() => {
   jest.useFakeTimers();
   mockWatcherInstances.length = 0;
-  mockGet.mockReset();
-  mockPrepare.mockReset().mockReturnValue({ get: mockGet });
-  mockClose.mockReset();
 });
 
 afterEach(() => {
@@ -102,18 +87,8 @@ describe("FileWatcher", () => {
       const chokidar = require("chokidar");
       const watcher = new FileWatcher(makeConfig({ workspacePaths: ["/a", "/b"] }));
       watcher.start();
-      // 2 workspaces × 2 watchers each (e3 db + tasks) = 4
-      expect(chokidar.watch).toHaveBeenCalledTimes(4);
-    });
-
-    it("watches the E3 database path", () => {
-      const chokidar = require("chokidar");
-      const watcher = new FileWatcher(makeConfig());
-      watcher.start();
-
-      const firstCallPath = chokidar.watch.mock.calls[0][0];
-      expect(firstCallPath).toContain(".e3-local");
-      expect(firstCallPath).toContain("executive3.db");
+      // 2 workspaces × 1 watcher each (tasks) = 2
+      expect(chokidar.watch).toHaveBeenCalledTimes(2);
     });
 
     it("watches .instructions/tasks/*.md", () => {
@@ -121,63 +96,23 @@ describe("FileWatcher", () => {
       const watcher = new FileWatcher(makeConfig());
       watcher.start();
 
-      const secondCallPath = chokidar.watch.mock.calls[1][0];
-      expect(secondCallPath).toContain(".instructions");
-      expect(secondCallPath).toContain("tasks");
-      expect(secondCallPath).toContain("*.md");
-    });
-
-    it("uses custom e3DbPath from config when provided", () => {
-      const chokidar = require("chokidar");
-      const watcher = new FileWatcher(makeConfig({ e3DbPath: "/custom/path/e3.db" }));
-      watcher.start();
-
       const firstCallPath = chokidar.watch.mock.calls[0][0];
-      expect(firstCallPath).toBe("/custom/path/e3.db");
+      expect(firstCallPath).toContain(".instructions");
+      expect(firstCallPath).toContain("tasks");
+      expect(firstCallPath).toContain("*.md");
     });
+
   });
 
   describe("debounced event emission", () => {
-    it("emits session_update when E3 DB changes", () => {
-      const handler = jest.fn();
-      const watcher = new FileWatcher(makeConfig(), 100);
-      watcher.on(handler);
-      watcher.start();
-
-      // Mock DB returns an active session + task summary
-      mockGet
-        .mockReturnValueOnce({ id: "s1", status: "active", plan_id: "p1" })
-        .mockReturnValueOnce({ total: 5, done: 2, in_progress: 1 });
-
-      // The first mockWatcherInstance is the E3 DB watcher
-      const e3Watcher = mockWatcherInstances[0];
-      e3Watcher.simulateEvent("change");
-
-      // Before debounce fires, handler should NOT be called
-      expect(handler).not.toHaveBeenCalled();
-
-      // Advance timers past the debounce window
-      jest.advanceTimersByTime(150);
-
-      expect(handler).toHaveBeenCalledTimes(1);
-      const event: TrackerEvent = handler.mock.calls[0][0];
-      expect(event.type).toBe("session_update");
-      expect(event.data).toMatchObject({
-        id: "s1",
-        status: "active",
-        planId: "p1",
-        taskSummary: { total: 5, done: 2, inProgress: 1 },
-      });
-    });
-
     it("emits task_update when a task file changes", () => {
       const handler = jest.fn();
       const watcher = new FileWatcher(makeConfig(), 100);
       watcher.on(handler);
       watcher.start();
 
-      // The second mockWatcherInstance is the task file watcher
-      const taskWatcher = mockWatcherInstances[1];
+      // The first mockWatcherInstance is the task file watcher
+      const taskWatcher = mockWatcherInstances[0];
       taskWatcher.simulateEvent("all", "change", "/test/workspace/.instructions/tasks/t-001.md");
 
       jest.advanceTimersByTime(150);
@@ -197,7 +132,7 @@ describe("FileWatcher", () => {
       watcher.on(handler);
       watcher.start();
 
-      const taskWatcher = mockWatcherInstances[1];
+      const taskWatcher = mockWatcherInstances[0];
       const filePath = "/test/workspace/.instructions/tasks/t-001.md";
 
       // Fire 5 events in quick succession for the SAME file
@@ -222,7 +157,7 @@ describe("FileWatcher", () => {
       watcher.on(handler);
       watcher.start();
 
-      const taskWatcher = mockWatcherInstances[1];
+      const taskWatcher = mockWatcherInstances[0];
 
       taskWatcher.simulateEvent("all", "change", "/test/workspace/.instructions/tasks/t-001.md");
       taskWatcher.simulateEvent("all", "change", "/test/workspace/.instructions/tasks/t-002.md");
@@ -233,41 +168,6 @@ describe("FileWatcher", () => {
       expect(handler).toHaveBeenCalledTimes(2);
     });
 
-    it("does not emit session_update when no active session in DB", () => {
-      const handler = jest.fn();
-      const watcher = new FileWatcher(makeConfig(), 50);
-      watcher.on(handler);
-      watcher.start();
-
-      mockGet.mockReturnValueOnce(undefined); // no session
-
-      const e3Watcher = mockWatcherInstances[0];
-      e3Watcher.simulateEvent("change");
-
-      jest.advanceTimersByTime(100);
-
-      expect(handler).not.toHaveBeenCalled();
-    });
-
-    it("does not emit session_update when DB read throws", () => {
-      const handler = jest.fn();
-      const watcher = new FileWatcher(makeConfig(), 50);
-      watcher.on(handler);
-      watcher.start();
-
-      // Make better-sqlite3 constructor throw
-      const Database = require("better-sqlite3");
-      Database.mockImplementationOnce(() => {
-        throw new Error("DB locked");
-      });
-
-      const e3Watcher = mockWatcherInstances[0];
-      e3Watcher.simulateEvent("change");
-
-      jest.advanceTimersByTime(100);
-
-      expect(handler).not.toHaveBeenCalled();
-    });
   });
 
   describe("handler error isolation", () => {
@@ -282,7 +182,7 @@ describe("FileWatcher", () => {
       watcher.on(goodHandler);
       watcher.start();
 
-      const taskWatcher = mockWatcherInstances[1];
+      const taskWatcher = mockWatcherInstances[0];
       taskWatcher.simulateEvent("all", "add", "/test/workspace/.instructions/tasks/t-001.md");
 
       jest.advanceTimersByTime(100);
@@ -297,14 +197,12 @@ describe("FileWatcher", () => {
       const watcher = new FileWatcher(makeConfig());
       watcher.start();
 
-      expect(mockWatcherInstances).toHaveLength(2);
+      expect(mockWatcherInstances).toHaveLength(1);
       expect(mockWatcherInstances[0].closed).toBe(false);
-      expect(mockWatcherInstances[1].closed).toBe(false);
 
       await watcher.stop();
 
       expect(mockWatcherInstances[0].closed).toBe(true);
-      expect(mockWatcherInstances[1].closed).toBe(true);
     });
 
     it("clears pending debounce timers", async () => {
@@ -313,7 +211,7 @@ describe("FileWatcher", () => {
       watcher.on(handler);
       watcher.start();
 
-      const taskWatcher = mockWatcherInstances[1];
+      const taskWatcher = mockWatcherInstances[0];
       taskWatcher.simulateEvent("all", "change", "/test/workspace/.instructions/tasks/t-001.md");
 
       // Stop before debounce fires

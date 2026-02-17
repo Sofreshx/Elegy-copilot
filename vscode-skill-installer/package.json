@@ -1,0 +1,585 @@
+{
+  "name": "skill-installer",
+  "displayName": "RannIA",
+  "description": "Skills, agents, tasks, and Discord gateway remote control for your workspace.",
+  "version": "0.1.0",
+  "publisher": "sofreshx",
+  "license": "SEE LICENSE IN LICENSE.txt",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sofreshx/instruction-engine.git"
+  },
+  "homepage": "https://github.com/Sofreshx/instruction-engine#readme",
+  "bugs": {
+    "url": "https://github.com/Sofreshx/instruction-engine/issues"
+  },
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "keywords": [
+    "copilot",
+    "ai",
+    "skills",
+    "agents",
+    "tasks",
+    "remote",
+    "instruction-engine"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "extensionDependencies": [],
+  "activationEvents": [
+    "onView:skillInstaller.skillsView",
+    "onView:skillInstaller.workflowView",
+    "onView:skillInstaller.agentsView",
+    "onView:skillInstaller.auditView",
+    "onView:skillInstaller.connectionsView",
+    "onView:skillInstaller.mcpView",
+    "onView:skillInstaller.requestsView",
+    "onView:skillInstaller.permissionsView",
+    "onView:skillInstaller.dumpCleanerView",
+    "onCommand:skillInstaller.refresh",
+    "onCommand:skillInstaller.dumpCleaner.delete",
+    "onCommand:skillInstaller.runE2E",
+    "onCommand:skillInstaller.runAudit",
+    "onCommand:skillInstaller.refreshAudit",
+    "onCommand:skillInstaller.enableSkill",
+    "onCommand:skillInstaller.disableSkill",
+    "onCommand:skillInstaller.enableMcpProvider",
+    "onCommand:skillInstaller.disableMcpProvider",
+    "onCommand:skillInstaller.syncMcpConfig",
+    "onCommand:skillInstaller.openMcpSettings",
+    "onCommand:skillInstaller.enableAgent",
+    "onCommand:skillInstaller.disableAgent",
+    "onCommand:skillInstaller.initializeSkills",
+    "onCommand:skillInstaller.archiveDoneTasks",
+    "onCommand:skillInstaller.purgeArchivedTasks",
+    "onCommand:skillInstaller.clearRepoContext",
+    "onCommand:skillInstaller.clearAllRepoContexts",
+    "onCommand:skillInstaller.ws.showPort",
+    "onCommand:skillInstaller.ws.pairGateway",
+  	"onCommand:skillInstaller.gateway.setup",
+  	"onCommand:skillInstaller.gateway.storeDiscordBotToken",
+  	"onCommand:skillInstaller.gateway.storeExtensionWsJwt",
+  	"onCommand:skillInstaller.gateway.editDiscord",
+  	"onCommand:skillInstaller.gateway.manageWorkspaces",
+  	"onCommand:skillInstaller.gateway.syncWorkspaces",
+  	"onCommand:skillInstaller.gateway.viewConfig",
+	"onCommand:skillInstaller.gateway.openConfig"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "chatParticipants": [
+      {
+        "id": "instruction-engine.remote-control",
+        "fullName": "Remote Control",
+        "name": "remote-control",
+        "description": "Remote control for Copilot agent sessions. Invoke agents programmatically and manage sessions.",
+        "isSticky": false,
+        "commands": [
+          {
+            "name": "status",
+            "description": "Show active and recent sessions"
+          },
+          {
+            "name": "cancel",
+            "description": "Cancel a running session by ID"
+          },
+          {
+            "name": "list",
+            "description": "List available agents in the workspace"
+          },
+          {
+            "name": "invoke",
+            "description": "Invoke an agent with a prompt"
+          }
+        ]
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "skillInstaller",
+          "title": "RannIA",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "skillInstaller": [
+        {
+          "id": "skillInstaller.skillsView",
+          "name": "Skill Discovery"
+        },
+        {
+          "id": "skillInstaller.agentsView",
+          "name": "Agents"
+        },
+        {
+          "id": "skillInstaller.workflowView",
+          "name": "Task Workflow"
+        },
+        {
+          "id": "skillInstaller.auditView",
+          "name": "Audit Results"
+        },
+        {
+          "id": "skillInstaller.connectionsView",
+          "name": "Connections"
+        },
+        {
+          "id": "skillInstaller.requestsView",
+          "name": "Requests"
+        },
+        {
+          "id": "skillInstaller.permissionsView",
+          "name": "Permissions"
+        },
+        {
+          "id": "skillInstaller.dumpCleanerView",
+          "name": "Dump Cleaner"
+        },
+        {
+          "id": "skillInstaller.mcpView",
+          "name": "MCP Providers"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "skillInstaller.connectionsView",
+        "contents": "Run **Gateway: Setup Messaging Gateway** to enable Discord remote control.\n[Run setup](command:skillInstaller.gateway.setup)"
+      }
+    ],
+    "commands": [
+      {
+        "command": "skillInstaller.refresh",
+        "title": "Refresh Views"
+      },
+      {
+        "command": "skillInstaller.dumpCleaner.delete",
+        "title": "Dump Cleaner: Delete"
+      },
+      {
+        "command": "skillInstaller.runE2E",
+        "title": "Open E2E Dashboard"
+      },
+      {
+        "command": "skillInstaller.enableSkill",
+        "title": "Enable Skill"
+      },
+      {
+        "command": "skillInstaller.disableSkill",
+        "title": "Disable Skill"
+      },
+      {
+        "command": "skillInstaller.initializeSkills",
+        "title": "Initialize Skills",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "skillInstaller.enableAgent",
+        "title": "Enable Agent"
+      },
+      {
+        "command": "skillInstaller.disableAgent",
+        "title": "Disable Agent"
+      },
+      {
+        "command": "skillInstaller.enableMcpProvider",
+        "title": "Enable MCP Provider"
+      },
+      {
+        "command": "skillInstaller.disableMcpProvider",
+        "title": "Disable MCP Provider"
+      },
+      {
+        "command": "skillInstaller.syncMcpConfig",
+        "title": "Sync MCP Config"
+      },
+      {
+        "command": "skillInstaller.openMcpSettings",
+        "title": "Open MCP Settings"
+      },
+      {
+        "command": "skillInstaller.clearRepoContext",
+        "title": "Clear Repo Context"
+      },
+      {
+        "command": "skillInstaller.clearAllRepoContexts",
+        "title": "Clear Context for All Repos"
+      },
+      {
+        "command": "skillInstaller.archiveDoneTasks",
+        "title": "Archive Done Tasks",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "skillInstaller.purgeArchivedTasks",
+        "title": "Purge Archived Tasks",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "skillInstaller.runAudit",
+        "title": "Run Audit",
+        "icon": "$(play)"
+      },
+      {
+        "command": "skillInstaller.refreshAudit",
+        "title": "Refresh Audit Results",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "skillInstaller.ws.showPort",
+        "title": "WS: Show Port (Copy URL)",
+        "category": "Instruction Engine"
+      },
+      {
+        "command": "skillInstaller.ws.pairGateway",
+        "title": "WS: Pair Gateway (Copy Token)",
+        "category": "Instruction Engine"
+      },
+    {
+    "command": "skillInstaller.gateway.setup",
+    "title": "Gateway: Setup Messaging Gateway",
+    "category": "Instruction Engine"
+    },
+    {
+    "command": "skillInstaller.gateway.storeDiscordBotToken",
+    "title": "Gateway: Store Discord Bot Token (Keychain)",
+    "category": "Instruction Engine"
+    },
+    {
+    "command": "skillInstaller.gateway.storeExtensionWsJwt",
+    "title": "Gateway: Store Extension WS JWT (Keychain)",
+    "category": "Instruction Engine"
+    },
+    {
+    "command": "skillInstaller.gateway.editDiscord",
+    "title": "Gateway: Edit Discord Settings",
+    "category": "Instruction Engine"
+    },
+    {
+    "command": "skillInstaller.gateway.manageWorkspaces",
+    "title": "Gateway: Manage Allowed Workspaces",
+    "category": "Instruction Engine"
+    },
+    {
+    "command": "skillInstaller.gateway.syncWorkspaces",
+    "title": "Gateway: Sync Workspaces from VS Code",
+    "category": "Instruction Engine"
+    },
+    {
+    "command": "skillInstaller.gateway.viewConfig",
+    "title": "Gateway: View Config",
+    "category": "Instruction Engine"
+    },
+      {
+        "command": "skillInstaller.gateway.openConfig",
+        "title": "Gateway: Open Config in Editor",
+        "category": "Instruction Engine"
+      }
+    ],
+    "menus": {
+      "view/item/context": [
+        {
+          "command": "skillInstaller.clearRepoContext",
+          "when": "view == skillInstaller.agentsView && viewItem == skillInstaller.repo",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.archiveDoneTasks",
+          "when": "view == skillInstaller.workflowView && viewItem == skillInstaller.workflow.status.done",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.purgeArchivedTasks",
+          "when": "view == skillInstaller.workflowView && viewItem == skillInstaller.workflow.status.archived",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.disableSkill",
+          "when": "view == skillInstaller.skillsView && viewItem == skillInstaller.skill.enabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.enableSkill",
+          "when": "view == skillInstaller.skillsView && viewItem == skillInstaller.skill.disabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.disableAgent",
+          "when": "view == skillInstaller.agentsView && viewItem == skillInstaller.agent.enabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.enableAgent",
+          "when": "view == skillInstaller.agentsView && viewItem == skillInstaller.agent.disabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.disableMcpProvider",
+          "when": "view == skillInstaller.mcpView && viewItem == skillInstaller.mcpProvider.enabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.enableMcpProvider",
+          "when": "view == skillInstaller.mcpView && viewItem == skillInstaller.mcpProvider.disabled",
+          "group": "inline"
+        },
+        {
+          "command": "skillInstaller.syncMcpConfig",
+          "when": "view == skillInstaller.mcpView && viewItem == skillInstaller.mcpRepo",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.dumpCleaner.delete",
+          "when": "view == skillInstaller.dumpCleanerView && viewItem == skillInstaller.dumpCleaner.item",
+          "group": "inline"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "skillInstaller.initializeSkills",
+          "when": "view == skillInstaller.skillsView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.runE2E",
+          "when": "view == skillInstaller.workflowView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.archiveDoneTasks",
+          "when": "view == skillInstaller.workflowView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.purgeArchivedTasks",
+          "when": "view == skillInstaller.workflowView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.runAudit",
+          "when": "view == skillInstaller.auditView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.refreshAudit",
+          "when": "view == skillInstaller.auditView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.refresh",
+          "when": "view == skillInstaller.connectionsView || view == skillInstaller.requestsView || view == skillInstaller.permissionsView || view == skillInstaller.dumpCleanerView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.syncMcpConfig",
+          "when": "view == skillInstaller.mcpView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.openMcpSettings",
+          "when": "view == skillInstaller.mcpView",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "RannIA",
+      "properties": {
+        "skillInstaller.registry.fileName": {
+          "type": "string",
+          "default": ".instructions/registry.json",
+          "description": "Relative path (from repo root) used to store skill/agent enablement metadata."
+        },
+        "skillInstaller.skills.disabledByRepo": {
+          "type": "object",
+          "default": {},
+          "description": "Map of repo paths to disabled skill names. Persisted alongside the repo registry file."
+        },
+        "skillInstaller.skills.showDefaultHandled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show low-signal skills that are typically handled by the base model (debug/docs/refactor/design)."
+        },
+        "skillInstaller.agents.disabledByRepo": {
+          "type": "object",
+          "default": {},
+          "description": "Map of repo paths to disabled agent file names. Persisted alongside the repo registry file."
+        },
+        "skillInstaller.mcp.providers.disabledByRepo": {
+          "type": "object",
+          "default": {},
+          "description": "Map of repo paths to disabled MCP provider IDs. Persisted alongside the repo registry file."
+        },
+        "skillInstaller.mcp.configPath": {
+          "type": "string",
+          "default": ".vscode/mcp.json",
+          "description": "Relative path (from repo root) to write the MCP server configuration."
+        },
+        "skillInstaller.mcp.autoSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "When enabled, regenerate MCP config files whenever MCP settings change."
+        },
+        "skillInstaller.mcp.providers": {
+          "type": "object",
+          "default": {
+            "supabase": {
+              "label": "Supabase",
+              "transport": "http",
+              "url": "https://mcp.supabase.com/mcp"
+            },
+            "firebase": {
+              "label": "Firebase",
+              "transport": "stdio",
+              "command": "npx",
+              "args": [
+                "-y",
+                "firebase-tools@latest",
+                "mcp"
+              ]
+            },
+            "vultr": {
+              "label": "Vultr",
+              "transport": "stdio",
+              "command": "vultr-mcp-server",
+              "args": [],
+              "env": {
+                "VULTR_API_KEY": "${env:VULTR_API_KEY}"
+              }
+            },
+            "cloudflare": {
+              "label": "Cloudflare",
+              "transport": "custom",
+              "notes": "Add a Cloudflare MCP server config when selected."
+            }
+          },
+          "description": "MCP provider definitions (command/url/env/headers)."
+        },
+        "skillInstaller.e2e.url": {
+          "type": "string",
+          "default": "",
+          "description": "URL to open when running E2E tests in the integrated browser."
+        },
+        "skillInstaller.workflow.nextUpLimit": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "description": "How many tasks to surface in the Task Workflow 'Next Up' lane."
+        },
+        "skillInstaller.tasks.onlyOwner": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, only show tasks whose YAML front matter 'owner' matches 'skillInstaller.tasks.owner' (case-insensitive)."
+        },
+        "skillInstaller.tasks.owner": {
+          "type": "string",
+          "default": "",
+          "description": "Owner/dev handle used to filter tasks when 'skillInstaller.tasks.onlyOwner' is enabled. Example: 'lolzi'."
+        },
+        "skillInstaller.audit.autoStack": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-detect and enable stack-specific skills based on audit results."
+        },
+        "skillInstaller.audit.e2eMode": {
+          "type": "string",
+          "enum": [
+            "headless",
+            "headed"
+          ],
+          "default": "headless",
+          "description": "Mode to run E2E validation audits."
+        },
+        "skillInstaller.ws.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable local WebSocket server for remote client communication (e.g., messaging gateway)."
+        },
+        "skillInstaller.ws.port": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "WebSocket server port. Use 0 for random available port (recommended for security)."
+        },
+        "skillInstaller.ws.secret": {
+          "type": "string",
+          "default": "",
+          "description": "Custom JWT secret for authentication. Leave empty to auto-generate and store securely."
+        },
+        "skillInstaller.ws.heartbeatInterval": {
+          "type": "number",
+          "default": 30000,
+          "minimum": 5000,
+          "maximum": 300000,
+          "description": "Heartbeat ping interval in milliseconds. Default: 30000 (30 seconds)."
+        },
+        "skillInstaller.ws.staleTimeout": {
+          "type": "number",
+          "default": 120000,
+          "minimum": 30000,
+          "maximum": 600000,
+          "description": "Stale connection timeout in milliseconds. Clients not responding within this time are disconnected. Default: 120000 (2 minutes)."
+        },
+        "skillInstaller.session.loggingEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable session logging to .instructions-output/sessions/ directory."
+        },
+        "skillInstaller.session.maxLogSize": {
+          "type": "number",
+          "default": 102400,
+          "minimum": 1024,
+          "description": "Maximum size (in bytes) for response/result data in session logs. Default: 100KB."
+        },
+        "skillInstaller.dumpCleaner.patterns": {
+          "type": "array",
+          "default": [
+            "tmpclaude-*"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Basename glob patterns (workspace root only) used by Dump Cleaner to find dump artefacts."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint \"src/**/*.ts\"",
+    "vscode:prepublish": "npm run compile",
+    "package": "npx @vscode/vsce package",
+    "test": "npm run compile && node ./dist/test/runTest.js"
+  },
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^20.11.30",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "@typescript-eslint/eslint-plugin": "^8.19.1",
+    "@typescript-eslint/parser": "^8.19.1",
+    "@vscode/test-electron": "^2.3.9",
+    "@vscode/vsce": "^3.2.2",
+    "eslint": "^9.18.0",
+    "mocha": "^10.3.0",
+    "typescript": "^5.6.3"
+  }
+}

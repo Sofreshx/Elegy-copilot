@@ -1,7 +1,7 @@
 import http from "http";
 import { StatusServer, TrackerStatus } from "../statusServer";
 import { TrackerConfig } from "../config";
-import { SessionSnapshot, GitSnapshot, TrackerEvent } from "../types";
+import { GitSnapshot, TrackerEvent } from "../types";
 
 function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
   return {
@@ -18,15 +18,6 @@ function makeEvent(type: TrackerEvent["type"] = "file_change"): TrackerEvent {
     type,
     timestamp: new Date().toISOString(),
     data: { path: "/tmp/test/file.ts" },
-  };
-}
-
-function makeSession(id: string, status = "active"): SessionSnapshot {
-  return {
-    id,
-    status,
-    taskSummary: { total: 5, done: 2, inProgress: 1 },
-    lastUpdated: new Date().toISOString(),
   };
 }
 
@@ -81,26 +72,14 @@ describe("StatusServer", () => {
 
       const data: TrackerStatus = JSON.parse(res.body);
       expect(data).toHaveProperty("uptime");
-      expect(data).toHaveProperty("sessions");
       expect(data).toHaveProperty("gitSnapshots");
       expect(data).toHaveProperty("connectedExtensions");
       expect(data).toHaveProperty("recentEvents");
       expect(data).toHaveProperty("startedAt");
       expect(typeof data.uptime).toBe("number");
-      expect(Array.isArray(data.sessions)).toBe(true);
       expect(Array.isArray(data.gitSnapshots)).toBe(true);
       expect(Array.isArray(data.recentEvents)).toBe(true);
       expect(typeof data.connectedExtensions).toBe("number");
-    });
-
-    it("reflects updated sessions", async () => {
-      server.updateSessions([makeSession("s-1"), makeSession("s-2", "done")]);
-
-      const res = await fetch(`${baseUrl}/api/status`);
-      const data: TrackerStatus = JSON.parse(res.body);
-      expect(data.sessions).toHaveLength(2);
-      expect(data.sessions[0].id).toBe("s-1");
-      expect(data.sessions[1].status).toBe("done");
     });
 
     it("reflects updated git snapshots", async () => {

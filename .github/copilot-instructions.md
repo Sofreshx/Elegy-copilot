@@ -104,7 +104,7 @@ Use subagents to keep work high-signal and consistent. Prefer only the ones that
 - Runtime: `@app-runtime-manager` to start/stop local services for integration/E2E/UI exploration.
 - Use other agents when their specialty is directly relevant.
 
-> **Deprecation notice**: `@executive`, `@executive2`, `@executive2p5`, `@executive3`, and `@executive2-fast` are deprecated. Use `@orchestrator` instead. The old agents remain functional but are no longer recommended.
+> **Deprecation notice**: `@executive`, `@executive2`, `@executive2p5`, and `@executive2-fast` are deprecated. Use `@orchestrator` instead.
 
 Subagents must NOT call other subagents; only top-level orchestrators should delegate work.
 
@@ -145,7 +145,7 @@ If a task maps to a known domain, treat skills as the default path:
 - `.env*` files are allowed only for non-secret configuration. If unsure, treat the value as a secret and keep it out of `.env*`.
 
 ## Hooks (Deterministic Automation)
-- Hooks are opt-in. Keep `.github/hooks/` empty unless you are intentionally running automation like Executive3.
+- Hooks are opt-in. Keep `.github/hooks/` empty unless you are intentionally running automation.
 - Use `.github/hooks/*.json` to run deterministic hooks (logging, infra start/stop, policy gates).
 - Write hook logs to `.instructions-output/hooks/*.jsonl`.
 - Keep hooks fast (under 5 seconds) and never log secrets.

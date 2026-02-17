@@ -6,7 +6,6 @@ The gateway is a local Node.js process that:
 - Authenticates a Discord bot
 - Enforces an allowlist + guild/channel scope
 - (Connected mode) connects to the VS Code extension WebSocket server (loopback) to invoke agents and stream progress
-- (Disconnected mode) provides read-only status/sessions and supports offline queueing via Executive3 CLI
 
 ## Prereqs
 
@@ -43,7 +42,7 @@ Run the VS Code command:
 This copies a URL like `ws://127.0.0.1:<PORT>` to your clipboard.
 
 The extension also writes a local-only discovery file under each open workspace root:
-- `<workspaceRoot>/.e3-local/ws-port.txt`
+- `<workspaceRoot>/.skill-installer/ws-port.txt`
 
 That file contains only the numeric port (no secrets). The gateway uses it to find the WS endpoint.
 
@@ -236,7 +235,7 @@ Fix:
 - Re-run `skillInstaller.ws.pairGateway` in VS Code
 - Store the new token again with `npm run dev:gateway -- --store-extension-ws-jwt`
 
-### Missing `.e3-local/ws-port.txt`
+### Missing `.skill-installer/ws-port.txt`
 
 Symptoms:
 - Gateway errors that connected mode requires the WS port discovery file.
@@ -251,7 +250,7 @@ Fix:
 If `skillInstaller.ws.port` is `0`, the port can change after a VS Code restart.
 
 Expected behavior:
-- The extension rewrites `<workspaceRoot>/.e3-local/ws-port.txt`
+- The extension rewrites `<workspaceRoot>/.skill-installer/ws-port.txt`
 - The gateway re-reads the file and reconnects
 
 If it doesn’t recover:

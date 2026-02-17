@@ -5,7 +5,6 @@ import { getDefaultMessagingGatewayConfigPath, loadMessagingGatewayConfig, resol
 import { AuditLogger } from './auditLogger';
 import { CommandRouter, WU002_POLICY_CONTRACT } from './commandRouter';
 import { DiscordPlatform } from './discordPlatform';
-import { E3CliBridge } from './e3CliBridge';
 import { ExtensionBridgeClient } from './extensionBridgeClient';
 import { PermissionOrchestrator } from './permissionOrchestrator';
 import { SessionThreadManager } from './sessionThreadManager';
@@ -176,7 +175,6 @@ async function main() {
 	});
 
 	const auditLogger = new AuditLogger({ workspaceRoot: activeWorkspaceRoot });
-	const e3Cli = new E3CliBridge();
 	const discord = new DiscordPlatform(loaded.config.discord);
 
 	const sessionThreads = new SessionThreadManager({
@@ -329,7 +327,6 @@ async function main() {
 			setActiveWorkspaceRoot,
 		},
 		auditLogger,
-		e3Cli,
 		extensionClient,
 		permissionOrchestrator,
 	});

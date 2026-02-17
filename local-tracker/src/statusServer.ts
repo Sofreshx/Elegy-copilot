@@ -1,10 +1,9 @@
 import http from "http";
 import { TrackerConfig } from "./config";
-import { SessionSnapshot, GitSnapshot, TrackerEvent } from "./types";
+import { GitSnapshot, TrackerEvent } from "./types";
 
 export interface TrackerStatus {
   uptime: number;
-  sessions: SessionSnapshot[];
   gitSnapshots: GitSnapshot[];
   connectedExtensions: number;
   recentEvents: TrackerEvent[];
@@ -20,17 +19,11 @@ export class StatusServer {
     this.config = config;
     this.status = {
       uptime: 0,
-      sessions: [],
       gitSnapshots: [],
       connectedExtensions: 0,
       recentEvents: [],
       startedAt: new Date().toISOString(),
     };
-  }
-
-  /** Update status data (called by main to push state) */
-  updateSessions(sessions: SessionSnapshot[]): void {
-    this.status.sessions = sessions;
   }
 
   updateGitSnapshots(snapshots: GitSnapshot[]): void {
@@ -132,16 +125,6 @@ export class StatusServer {
         h += '<div class="stat"><div class="stat-value">' + d.connectedExtensions + '</div><div class="stat-label">Extensions</div></div>';
         h += '<div class="stat"><div class="stat-value">' + d.recentEvents.length + '</div><div class="stat-label">Events</div></div>';
         h += '</div>';
-        // Sessions
-        if (d.sessions.length > 0) {
-          h += '<div class="card"><h2>Sessions</h2><table><tr><th>ID</th><th>Status</th><th>Tasks</th></tr>';
-          d.sessions.forEach(function(s) {
-            var ts = s.taskSummary;
-            h += '<tr><td>' + s.id + '</td><td><span class="badge badge-' + s.status + '">' + s.status + '</span></td>';
-            h += '<td>' + (ts ? ts.done + '/' + ts.total : '-') + '</td></tr>';
-          });
-          h += '</table></div>';
-        }
         // Git
         if (d.gitSnapshots.length > 0) {
           h += '<div class="card"><h2>Git</h2><table><tr><th>Repo</th><th>Branch</th><th>Mod</th><th>Ahead</th></tr>';

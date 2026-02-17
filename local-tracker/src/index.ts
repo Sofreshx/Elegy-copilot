@@ -10,15 +10,15 @@ async function main() {
   console.log(`[Tracker] Watching: ${config.workspacePaths.join(", ")}`);
   console.log(`[Tracker] Relay: ${config.relayUrl || "not configured"}`);
 
-  // Initialize extension bridge (e3t-017)
+  // Initialize extension bridge
   const bridge = new ExtensionBridge(config);
   bridge.start();
 
-  // Initialize status dashboard (e3t-018)
+  // Initialize status dashboard
   const statusServer = new StatusServer(config);
   await statusServer.start();
 
-  // Initialize watchers (e3t-015)
+  // Initialize watchers
   const watcher = new FileWatcher(config);
   watcher.on((event) => {
     console.log(`[Tracker] Event: ${event.type}`, JSON.stringify(event.data));
@@ -28,7 +28,7 @@ async function main() {
   });
   watcher.start();
 
-  // Initialize git monitor (e3t-016)
+  // Initialize git monitor
   const gitMonitor = new GitMonitor(config);
   gitMonitor.on((event) => {
     console.log(`[Tracker] Git event:`, JSON.stringify(event.data));

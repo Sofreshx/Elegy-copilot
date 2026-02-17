@@ -1,11 +1,3 @@
-export interface SessionSnapshot {
-  id: string;
-  status: string;
-  planId?: string;
-  taskSummary?: { total: number; done: number; inProgress: number };
-  lastUpdated: string;
-}
-
 export interface GitSnapshot {
   repo: string;
   branch: string;
@@ -17,7 +9,7 @@ export interface GitSnapshot {
 }
 
 export interface TrackerEvent {
-  type: "session_update" | "git_update" | "task_update" | "file_change";
+  type: "git_update" | "task_update" | "file_change";
   timestamp: string;
-  data: SessionSnapshot | GitSnapshot | unknown;
+  data: GitSnapshot | unknown;
 }

@@ -71,18 +71,11 @@ function getDefaultGatewayCommandSpecs(): PlatformCommandSpec[] {
 			tier: 'read',
 			options: [
 				{ name: 'limit', description: 'Max sessions to list (1-200)', type: 'integer' },
-				{ name: 'resumableonly', description: 'Only show resumable sessions', type: 'boolean' },
 				{ name: 'statuses', description: 'Comma-separated statuses filter', type: 'string' },
 			],
 		},
 		{ name: '/git', description: 'Show git status for active workspace', tier: 'read' },
 		{ name: '/workspaces', description: 'List allowlisted workspaces', tier: 'read' },
-		{
-			name: '/queue',
-			description: 'Queue work for later (offline-safe)',
-			tier: 'invoke',
-			options: [{ name: 'prompt', description: 'Prompt to queue', type: 'string', required: true }],
-		},
 		{
 			name: '/task',
 			description: 'Run a task (connected-only)',
@@ -94,12 +87,6 @@ function getDefaultGatewayCommandSpecs(): PlatformCommandSpec[] {
 			description: 'Plan work (connected-only)',
 			tier: 'invoke',
 			options: [{ name: 'prompt', description: 'Planning prompt', type: 'string', required: true }],
-		},
-		{
-			name: '/resume',
-			description: 'Resume a session (connected-only)',
-			tier: 'invoke',
-			options: [{ name: 'sessionid', description: 'Session id', type: 'string', required: true }],
 		},
 		{
 			name: '/stop',
@@ -179,17 +166,14 @@ function parseSlashCommandArgs(interaction: ChatInputCommandInteraction): unknow
 			return {};
 		case 'sessions': {
 			const limit = interaction.options.getInteger('limit') ?? undefined;
-			const resumableOnly = interaction.options.getBoolean('resumableonly') ?? undefined;
 			const statuses = interaction.options.getString('statuses') ?? undefined;
-			return { limit, resumableOnly, statuses };
+			return { limit, statuses };
 		}
-		case 'queue':
 		case 'task':
 		case 'plan': {
 			const prompt = interaction.options.getString('prompt', true);
 			return { prompt };
 		}
-		case 'resume':
 		case 'stop': {
 			const sessionId = interaction.options.getString('sessionid', true);
 			return { sessionId };

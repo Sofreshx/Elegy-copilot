@@ -2,17 +2,17 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Skill Installer: Run Extension",
+			"name": "RannIA: Run Extension",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}/vscode-skill-installer"
+				"--extensionDevelopmentPath=${workspaceFolder}/RannIA"
 			],
 			"outFiles": [
-				"${workspaceFolder}/vscode-skill-installer/dist/**/*.js"
+				"${workspaceFolder}/RannIA/dist/**/*.js"
 			],
-			"preLaunchTask": "skill-installer: compile"
+			"preLaunchTask": "RannIA: compile"
 		}
 	]
 }

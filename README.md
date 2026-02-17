@@ -17,8 +17,70 @@ Instruction Engine provides shared agents, skills, templates, and workflow conve
 
 ### Runtime/tooling components
 
-- `vscode-skill-installer/` — VS Code extension (Instruction Engine host)
+- `RannIA/` — VS Code extension (Instruction Engine host)
 - `local-tracker/` — local daemon for session/task tracking
+
+## Discord remote control (Messaging Gateway)
+
+Run Copilot agent sessions from Discord and stream session updates back into a Discord thread.
+
+**How it works (local-only):**
+- Discord → `local-tracker` Messaging Gateway
+- Messaging Gateway → VS Code extension (RannIA) over `ws://127.0.0.1:<port>`
+- Extension → Copilot Chat (invokes `@orchestrator`, reports session events)
+
+### Prerequisites
+- Node.js (for `local-tracker`)
+- VS Code with the RannIA extension installed/running
+- A Discord bot token + a server (guild) where the bot is installed
+- Discord IDs (numeric): guild ID, channel ID, allowlisted user IDs
+
+### Setup (recommended path)
+
+0) **Create a Discord bot + gather IDs**
+- Create a Discord application + bot in the Discord Developer Portal
+- Install the bot into your guild (server)
+- Enable Discord **Developer Mode** and copy the numeric IDs you’ll need:
+  - Guild ID, Channel ID, your User ID
+
+1) **Enable the extension WebSocket server**
+- In VS Code settings set `skillInstaller.ws.enabled` to `true`
+- Reload VS Code
+- When the WS server starts it writes `<workspaceRoot>/.skill-installer/ws-port.txt`
+
+2) **Create the gateway config**
+- Run VS Code command: **Gateway: Setup Messaging Gateway**
+- This creates/updates: `~/.instruction-engine/messaging-gateway.config.json`
+- Ensure it contains:
+  - `discord.allowlistedUserIds` (your Discord user ID(s))
+  - `discord.guildId`, `discord.channelId`
+  - `workspaces.allowedRoots` (absolute paths), `workspaces.activeRoot`
+
+3) **Store secrets in OS credential store**
+- Run: **Gateway: Store Discord Bot Token (Keychain)**
+- Run: **Gateway: Store Extension WS JWT (Keychain)** (defaults `sub=gateway`)
+
+4) **Start the Messaging Gateway**
+```bash
+cd local-tracker
+npm install
+npm run build
+npm run start:gateway -- --mode connected
+```
+
+For a deeper reference (config fields, auth model, troubleshooting), see `local-tracker/docs/messaging-gateway.md`.
+
+### Using it from Discord
+- `/status` — gateway + extension connection status
+- `/sessions` — list recent sessions (connected mode)
+- `/task prompt:<text>` — run work via `@orchestrator` (creates a thread + streams updates)
+- `/plan prompt:<text>` — plan-only via `@orchestrator`
+- `/stop sessionid:<id>` — cancel a running session
+- `/git`, `/workspaces`, `/switch` — workspace/gitrepo utilities
+
+**Notes**
+- The gateway must run on the same machine as VS Code for connected mode.
+- Never commit tokens; use the keychain commands (or env vars as a fallback for local dev only).
 
 ## Quick start
 
@@ -100,7 +162,7 @@ instruction-engine/
 ├── .instructions-output/    # generated artifacts/logs
 ├── docs/
 ├── local-tracker/
-└── vscode-skill-installer/
+├── RannIA/
 ```
 
 ## Documentation
@@ -110,8 +172,6 @@ instruction-engine/
 - [Agent Hooks](docs/agent-hooks.md)
 - [Skills Governance](docs/skills-governance.md)
 - [MCP Workflow](docs/mcp-workflow.md)
-- [E3 DB Reliability](docs/e3-db-reliability.md)
-- [E3 VM Isolation](docs/e3-vm-isolation.md)
 - [Security Model](docs/security-model.md)
 - [Instruction Changelog](docs/instruction-changelog.md)
 

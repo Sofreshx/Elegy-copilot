@@ -14,11 +14,11 @@ The system has three components:
 |-----------|------|---------|--------|
 | Cloud Relay | Node.js, Express, `ws` library | `relay.sfrsh.xyz` (Docker/Traefik) | Deployed, accepts connections |
 | Mobile Companion | React PWA (Vite, VitePWA) | Cloudflare Pages | Deployed, connects to relay |
-| VS Code Extension | `vscode-skill-installer` | Local (user's machine) | Runs a **local** WS server, **does NOT connect to relay** |
+| VS Code Extension | `RannIA` | Local (user's machine) | Runs a **local** WS server, **does NOT connect to relay** |
 
 ### The Critical Gap
 
-The relay's architecture diagram shows `Mobile ↔ Relay ↔ Extension`, but the extension ([wsServer.ts](vscode-skill-installer/src/wsServer.ts)) only starts a **local** `WebSocketServer` on `127.0.0.1`. It has no outbound client connection to `wss://relay.sfrsh.xyz`. The mobile app authenticates and connects to the relay, but messages addressed to `target.type = "extension"` have nowhere to go — the relay's `ConnectionManager` has zero extension clients registered.
+The relay's architecture diagram shows `Mobile ↔ Relay ↔ Extension`, but the extension ([wsServer.ts](RannIA/src/wsServer.ts)) only starts a **local** `WebSocketServer` on `127.0.0.1`. It has no outbound client connection to `wss://relay.sfrsh.xyz`. The mobile app authenticates and connects to the relay, but messages addressed to `target.type = "extension"` have nowhere to go — the relay's `ConnectionManager` has zero extension clients registered.
 
 The relay already has:
 - Full routing logic (`routeMessage` in [connectionManager.ts](cloud-relay/src/connectionManager.ts))
@@ -28,9 +28,9 @@ The relay already has:
 - JWT-based auth with `AccessTokenClaims` that includes `client_type: "mobile" | "extension"` and `client_id`
 
 The extension already has:
-- A rich JSON-RPC handler ([wsServer.ts](vscode-skill-installer/src/wsServer.ts)) with methods: `execute_command`, `invoke_agent`, `get_sessions`, `list_agents`, etc.
-- Local JWT auth (`WsAuthManager` in [wsAuth.ts](vscode-skill-installer/src/wsAuth.ts))
-- `GitHubOAuthManager` ([oauthManager.ts](vscode-skill-installer/src/oauthManager.ts)) for GitHub login
+- A rich JSON-RPC handler ([wsServer.ts](RannIA/src/wsServer.ts)) with methods: `execute_command`, `invoke_agent`, `get_sessions`, `list_agents`, etc.
+- Local JWT auth (`WsAuthManager` in [wsAuth.ts](RannIA/src/wsAuth.ts))
+- `GitHubOAuthManager` ([oauthManager.ts](RannIA/src/oauthManager.ts)) for GitHub login
 - Session management, permission gating, event emitter
 
 The missing piece is a **relay client** inside the extension that connects outbound to the relay, authenticates, and bridges relay messages to the local handler.
@@ -101,9 +101,9 @@ But the relay's `verifyToken` ([relay.ts](cloud-relay/src/relay.ts)) calls `jwt.
 
 ### The Extension's Auth Problem
 
-The extension has its own `WsAuthManager` ([wsAuth.ts](vscode-skill-installer/src/wsAuth.ts)) that generates JWTs signed with a **locally-generated secret** stored in VS Code's `SecretStorage`. This is fine for local connections but these tokens are meaningless to the relay (different secret, different claims format).
+The extension has its own `WsAuthManager` ([wsAuth.ts](RannIA/src/wsAuth.ts)) that generates JWTs signed with a **locally-generated secret** stored in VS Code's `SecretStorage`. This is fine for local connections but these tokens are meaningless to the relay (different secret, different claims format).
 
-The extension also has `GitHubOAuthManager` ([oauthManager.ts](vscode-skill-installer/src/oauthManager.ts)) which can do a GitHub OAuth flow and store the user's GitHub identity. But it also stores the raw GitHub token, not a relay JWT.
+The extension also has `GitHubOAuthManager` ([oauthManager.ts](RannIA/src/oauthManager.ts)) which can do a GitHub OAuth flow and store the user's GitHub identity. But it also stores the raw GitHub token, not a relay JWT.
 
 ### Recommended Auth Flow
 

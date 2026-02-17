@@ -11,5 +11,5 @@ This note captures the practical takeaways from a recent architecture review tha
 
 ## How We Apply This
 - Hooks write JSONL audit logs under `.instructions-output/hooks/`.
-- Executive3 stays serial by default and only parallelizes independent tasks.
+- Orchestrator stays serial by default and only parallelizes independent tasks.
 - Agent-browser uses snapshot-first workflows for UI exploration and E2E.

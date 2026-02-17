@@ -8,9 +8,6 @@ import { formatSummary } from './formatSummary';
 import { getWorkspaceGitSnapshot } from './gitSnapshot';
 import type { PermissionOrchestrator } from './permissionOrchestrator';
 import { sanitizeInboundPrompt, sanitizeOutboundText } from './sanitizer';
-import { E3CliBridge } from './e3CliBridge';
-import { getE3SessionsSnapshot } from './e3Sessions';
-import { queueE3SessionViaCli } from './e3Queue';
 import { FixedWindowRateLimiter } from './rateLimiter';
 import { ArtefactsMonitor } from './artefactsMonitor';
 
@@ -95,7 +92,6 @@ export interface CommandRouterDeps {
 	policy: CommandRouterPolicy;
 	workspaces: CommandRouterWorkspaceState;
 	auditLogger: AuditLogger;
-	e3Cli: E3CliBridge;
 	extensionClient?: ExtensionBridgeClient;
 	permissionOrchestrator?: PermissionOrchestrator;
 	nowMs?: () => number;
@@ -157,17 +153,6 @@ const OptionalIntSchema = (min: number, max: number) =>
 			return v;
 		}, z.number().int().min(min).max(max))
 		.optional();
-
-const OptionalBoolSchema = z
-	.preprocess((v: unknown) => {
-		if (typeof v === 'string') {
-			const t = v.trim().toLowerCase();
-			if (t === 'true' || t === '1' || t === 'yes') return true;
-			if (t === 'false' || t === '0' || t === 'no') return false;
-		}
-		return v;
-	}, z.boolean())
-	.optional();
 
 const OptionalStringArraySchema = z
 	.preprocess((v: unknown) => {
@@ -350,14 +335,10 @@ export class CommandRouter {
 				return { messages: await this.handleGit(argsUnknown) };
 			case '/workspaces':
 				return { messages: await this.handleWorkspaces(argsUnknown) };
-			case '/queue':
-				return { messages: await this.handleQueue(argsUnknown, ctx) };
 			case '/task':
 				return await this.handleTaskLike('task', argsUnknown);
 			case '/plan':
 				return await this.handleTaskLike('plan', argsUnknown);
-			case '/resume':
-				return await this.handleResume(argsUnknown, ctx);
 			case '/stop':
 				return { messages: await this.handleStop(argsUnknown) };
 			case '/switch':
@@ -381,9 +362,8 @@ export class CommandRouter {
 		const extensionStatus = this.deps.extensionClient?.getStatus() ?? 'idle';
 		const connected = extensionStatus === 'connected';
 
-		const [git, sessions, artefacts] = await Promise.all([
+		const [git, artefacts] = await Promise.all([
 			getWorkspaceGitSnapshot(workspaceRoot),
-			getE3SessionsSnapshot({ workspaceRoot, cli: this.deps.e3Cli, filter: { limit: 5 } }).catch(() => null),
 			this.getArtefactsSnapshot(workspaceRoot).catch(() => []),
 		]);
 
@@ -395,7 +375,6 @@ export class CommandRouter {
 				{ key: 'repo', value: git?.repoName ?? null },
 				{ key: 'branch', value: git?.branch ?? null },
 				{ key: 'dirty', value: git ? git.modified + git.untracked + git.staged : null },
-				{ key: 'sessions(top5)', value: sessions ? sessions.sessions.length : null },
 				{ key: 'artefacts', value: artefacts.length },
 			],
 			{ title: 'Status' },
@@ -457,7 +436,6 @@ export class CommandRouter {
 		const args = z
 			.object({
 				limit: OptionalIntSchema(1, 200),
-				resumableOnly: OptionalBoolSchema,
 				statuses: OptionalStringArraySchema,
 			})
 			.strict()
@@ -499,59 +477,7 @@ export class CommandRouter {
 			return sanitizeAndChunk(lines.join('\n'));
 		}
 
-		const snapshot = await getE3SessionsSnapshot({
-			workspaceRoot,
-			cli: this.deps.e3Cli,
-			filter: {
-				limit: args.limit,
-				resumableOnly: args.resumableOnly,
-				statuses: args.statuses,
-			},
-			includeTaskSummaries: true,
-		});
-
-		const lines: string[] = [];
-		lines.push(`Sessions (${snapshot.sessions.length})`);
-		for (const session of snapshot.sessions.slice(0, 12)) {
-			const taskSummary = snapshot.taskSummariesBySessionId[session.id];
-			const taskStr = taskSummary ? ` tasks:${taskSummary.done}/${taskSummary.total}` : '';
-			lines.push(`- ${session.id} [${session.status}]${taskStr}`);
-		}
-
-		return sanitizeAndChunk(lines.join('\n'));
-	}
-
-	private async handleQueue(argsUnknown: unknown, ctx: CommandScopeContext): Promise<string[]> {
-		const args = z
-			.object({
-				prompt: PromptSchema(this.deps.policy.maxPromptChars),
-			})
-			.strict()
-			.parse(argsUnknown);
-
-		const workspaceRoot = this.deps.workspaces.getActiveWorkspaceRoot();
-		this.assertWorkspaceAllowed(workspaceRoot);
-
-		const result = await queueE3SessionViaCli({
-			cli: this.deps.e3Cli,
-			request: {
-				workspaceRoot,
-				prompt: args.prompt,
-				requestedBy: ctx.userId,
-			},
-		});
-
-		const summaryText = formatSummary(
-			[
-				{ key: 'workspace', value: result.workspaceRoot },
-				{ key: 'sessionId', value: result.sessionId },
-				{ key: 'planId', value: result.planId },
-				{ key: 'todoId', value: result.todoId },
-				{ key: 'taskId', value: result.taskId },
-			],
-			{ title: 'Queued' },
-		);
-		return sanitizeAndChunk(summaryText);
+		return sanitizeAndChunk('sessions is connected-only (extension WS not connected).');
 	}
 
 	private async handleTaskLike(kind: 'task' | 'plan', argsUnknown: unknown): Promise<CommandExecutionResult> {
@@ -572,57 +498,17 @@ export class CommandRouter {
 				? sanitizeInboundPrompt(`PLAN ONLY:\n${args.prompt}`, { maxLength: this.deps.policy.maxPromptChars })
 				: args.prompt;
 
-		const result = await client.invoke_agent({ agentName: 'executive3', prompt });
+		const result = await client.invoke_agent({ agentName: 'orchestrator', prompt });
 		const sessionId = this.tryExtractSessionId(result);
 		const summaryText = formatSummary(
 			[
-				{ key: 'agent', value: 'executive3' },
+				{ key: 'agent', value: 'orchestrator' },
 				{ key: 'kind', value: kind },
 				{ key: 'sessionId', value: sessionId },
 			],
 			{ title: 'Invoked' },
 		);
 		return { messages: sanitizeAndChunk(summaryText), meta: sessionId ? { sessionId } : undefined };
-	}
-
-	private async handleResume(argsUnknown: unknown, ctx: CommandScopeContext): Promise<CommandExecutionResult> {
-		const args = z
-			.object({
-				sessionId: SessionIdSchema,
-			})
-			.strict()
-			.parse(argsUnknown);
-
-		const client = this.deps.extensionClient;
-		if (client && client.getStatus() === 'connected') {
-			const prompt = sanitizeInboundPrompt(`Resume session ${args.sessionId}`, { maxLength: this.deps.policy.maxPromptChars });
-			const result = await client.invoke_agent({ agentName: 'executive3', prompt });
-			const sessionId = this.tryExtractSessionId(result);
-			return { messages: sanitizeAndChunk(`Resume requested. sessionId=${sessionId ?? '—'}`), meta: sessionId ? { sessionId } : undefined };
-		}
-
-		// Disconnected mode: queue a resumptive prompt via E3 CLI (offline-safe).
-		const workspaceRoot = this.deps.workspaces.getActiveWorkspaceRoot();
-		this.assertWorkspaceAllowed(workspaceRoot);
-		const queued = await queueE3SessionViaCli({
-			cli: this.deps.e3Cli,
-			request: {
-				workspaceRoot,
-				prompt: sanitizeInboundPrompt(`Resume session ${args.sessionId}`, { maxLength: this.deps.policy.maxPromptChars }),
-				requestedBy: ctx.userId,
-			},
-		});
-		const summaryText = formatSummary(
-			[
-				{ key: 'workspace', value: queued.workspaceRoot },
-				{ key: 'sessionId', value: queued.sessionId },
-				{ key: 'planId', value: queued.planId },
-				{ key: 'todoId', value: queued.todoId },
-				{ key: 'taskId', value: queued.taskId },
-			],
-			{ title: 'Resumed (queued)' },
-		);
-		return { messages: sanitizeAndChunk(summaryText), meta: { queued: true, sessionId: queued.sessionId } };
 	}
 
 	private async handleStop(argsUnknown: unknown): Promise<string[]> {
@@ -732,9 +618,9 @@ export class CommandRouter {
 }
 
 const READ_COMMANDS = new Set<string>(['/status', '/sessions', '/git', '/workspaces']);
-const INVOKE_COMMANDS = new Set<string>(['/task', '/plan', '/stop', '/queue', '/resume']);
+const INVOKE_COMMANDS = new Set<string>(['/task', '/plan', '/stop']);
 // Admin includes /switch and permission decisions.
 const ADMIN_COMMANDS = new Set<string>(['/switch', '/approve', '/deny']);
 
 // Commands that should consume the "max active invoke sessions per user" slot.
-const INVOKE_SLOT_COMMANDS = new Set<string>(['/task', '/plan', '/resume']);
+const INVOKE_SLOT_COMMANDS = new Set<string>(['/task', '/plan']);

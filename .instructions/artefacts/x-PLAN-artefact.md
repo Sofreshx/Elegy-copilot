@@ -29,12 +29,12 @@
 - `.instructions/research/relay-architecture-audit.md`
 
 ### Extension (Group 2)
-- `vscode-skill-installer/src/wsServer.ts`
-- `vscode-skill-installer/src/wsAuth.ts`
-- `vscode-skill-installer/src/wsTypes.ts`
-- `vscode-skill-installer/src/extension.ts`
-- `vscode-skill-installer/src/eventEmitter.ts`
-- `vscode-skill-installer/package.json`
+- `RannIA/src/wsServer.ts`
+- `RannIA/src/wsAuth.ts`
+- `RannIA/src/wsTypes.ts`
+- `RannIA/src/extension.ts`
+- `RannIA/src/eventEmitter.ts`
+- `RannIA/package.json`
 
 ### Mobile (Group 3)
 - `mobile-companion/src/services/authService.ts`
@@ -44,12 +44,12 @@
 
 ### Quality (Group 4)
 - `mobile-companion/src/services/` (all IndexedDB files)
-- `vscode-skill-installer/src/tasksTree.ts`
-- `vscode-skill-installer/src/activeTasksTree.ts`
+- `RannIA/src/tasksTree.ts`
+- `RannIA/src/activeTasksTree.ts`
 
 ### Polish (Group 6)
 - `docs/security-model.md`
-- `vscode-skill-installer/package.json`
+- `RannIA/package.json`
 - `mobile-companion/public/manifest.json`
 
 ## Decisions

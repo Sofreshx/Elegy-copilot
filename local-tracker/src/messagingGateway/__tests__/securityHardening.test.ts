@@ -35,7 +35,6 @@ function makeRouter(overrides?: { policy?: Partial<typeof BASE_POLICY>; workspac
 			setActiveWorkspaceRoot: jest.fn(async () => undefined),
 		},
 		auditLogger: { log: jest.fn() } as any,
-		e3Cli: {} as any,
 		permissionOrchestrator: {
 			approve: jest.fn(async () => undefined),
 			deny: jest.fn(async () => undefined),
@@ -324,7 +323,6 @@ describe('Invoke concurrency limit', () => {
 				getAllowedWorkspaceRoots: () => ['/ws/allowed-1'],
 			},
 			auditLogger: { log: jest.fn() } as any,
-			e3Cli: {} as any,
 			extensionClient,
 			nowMs: () => 0,
 		});

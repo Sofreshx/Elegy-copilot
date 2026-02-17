@@ -32,17 +32,6 @@ Analyze orchestration patterns across our executive versions and external system
 - **Strength**: Simpler state (2 files vs many), session isolation, progressive persistence
 - **Weakness**: Still file-based state, plan pack can be hard to modify mid-execution, no fast path for trivial work
 
-### Executive3 — SQLite-Backed Unified Orchestrator
-- Single entry point (user only invokes executive3)
-- SQLite database for all state (sessions, tasks, plans, execution logs, context)
-- E3 CLI for database operations
-- 6-phase lifecycle: Bootstrap → Planning → Execution → Testing → Review → Follow-Up Loop
-- Request classification (feature/bugfix/refactor/testing/review/research/ad-hoc)
-- Context curator role (passes only relevant context to each subagent)
-- Smart-context opt-in (Phase B)
-- **Strength**: Robust state, session continuity, context curation, follow-up loop (never stops)
-- **Weakness**: Complex (SQLite + CLI + many commands), heavy bootstrap, DB reliability concerns, overkill for small tasks
-
 ### Executive2-Fast — No-Persistence Variant  
 - Quick execution with no persistent state
 - Can hand off to planner if scope expands
@@ -96,32 +85,32 @@ Analyze orchestration patterns across our executive versions and external system
 
 ## Cross-Cutting Patterns (Consensus)
 
-| Pattern | GSD | Orchestra | Wrapzii | Our E2.5 | Our E3 |
-|---------|-----|-----------|---------|----------|--------|
-| Orchestrator never codes | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Plan approval before execution | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Subagents get focused context | ✓ | ✓ | ✓ | partial | ✓ |
-| File-based state | ✓ | ✓ | ✓ | ✓ | DB |
-| Request classification | Quick mode | - | FastCoder split | - | ✓ |
-| Parallelization | Waves | None | Coder+FastCoder | WU Groups | Policy-based |
-| Session continuity | pause/resume | Manual | None | Progress tracker | SQLite |
-| TDD enforcement | No | Strict | No | No | No |
-| Code review gate | No | Per-phase | No | Optional | Per-task |
+| Pattern | GSD | Orchestra | Wrapzii | Our E2.5 |
+|---------|-----|-----------|---------|----------|
+| Orchestrator never codes | ✓ | ✓ | ✓ | ✓ |
+| Plan approval before execution | ✓ | ✓ | ✓ | ✓ |
+| Subagents get focused context | ✓ | ✓ | ✓ | partial |
+| File-based state | ✓ | ✓ | ✓ | ✓ |
+| Request classification | Quick mode | - | FastCoder split | - |
+| Parallelization | Waves | None | Coder+FastCoder | WU Groups |
+| Session continuity | pause/resume | Manual | None | Progress tracker |
+| TDD enforcement | No | Strict | No | No |
+| Code review gate | No | Per-phase | No | Optional |
 
 ## Key Conclusions
 
 ### What Works
-1. **Single entry point** — user shouldn't need to choose between orchestrators (E3 philosophy)
-2. **Request classification** — route by complexity and type before doing anything (E3 + GSD Quick mode + Wrapzii FastCoder)
-3. **Context curation** — pass ONLY relevant context to each subagent (E3's strongest principle)
+1. **Single entry point** — user shouldn't need to choose between orchestrators
+2. **Request classification** — route by complexity and type before doing anything
+3. **Context curation** — pass ONLY relevant context to each subagent
 4. **Progressive persistence** — persist early/often, refine later (E2.5 skeleton → refined)
 5. **Plan approval with structured feedback** — Seamless Agent's planReview is the gold standard
 6. **Discuss/clarify before planning** — GSD's discuss phase reduces misunderstanding
 7. **Fast path for trivial work** — skip full planning overhead for small tasks
-8. **Follow-up loop** — never auto-stop, let user choose next action (E3)
+8. **Follow-up loop** — never auto-stop, let user choose next action
 
 ### What Doesn't Work
-1. **SQLite for state** — adds complexity (CLI, bootstrap, DB reliability) without proportional benefit for VS Code agent workflows
+1. **SQLite for state** — adds complexity (bootstrap, DB reliability) without proportional benefit for VS Code agent workflows
 2. **Heavy file systems** — many task files (E2) or elaborate hierarchies (GSD) create noise
 3. **Rigid lifecycle** — forcing every request through 6 phases even for a typo fix
 4. **No subagent chaining** — correct principle but needs clear enforcement
