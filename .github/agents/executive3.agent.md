@@ -4,7 +4,7 @@ description: Unified orchestrator for complex multi-step work. Single entry poin
 tools: [read, search, edit, execute/runInTerminal, execute/runTask, agent/runSubagent, vscode/askQuestions, web/fetch, todo, agent/runSubagent, agent]
 user-invocable: true
 disable-model-invocation: true
-agents: [e3-planner, e3-task-creator, e3-git-manager, task-runner, code-explorer, code-architect, code-reviewer, unit-test-runner, integration-test-runner, test-coverage-scanner, research-ideation, reviewer-gpt-5-3-codex, reviewer-opus-4-6, e2e-browser, e2e-live-observer]
+agents: [e3-planner, e3-task-creator, task-runner, code-explorer, code-architect, code-reviewer, unit-test-runner, integration-test-runner, test-coverage-scanner, research-ideation, reviewer-gpt-5-3-codex, reviewer-opus-4-6, e2e-browser, e2e-live-observer]
 ---
 
 # Executive3 — Unified Orchestrator
@@ -30,7 +30,7 @@ Use the deterministic DB contract: run `ensure-db` once per orchestration run, c
 6. **Context curation:** Pass only relevant context to each subagent — not everything. You are the context curator.
 7. **Split work into subagents.** Never do leaf work yourself. Every distinct concern (code, git, tests, review, exploration) has a dedicated subagent. If you catch yourself about to implement something, stop and delegate.
 8. **Confirm expensive tests.** ALWAYS ask the user via `vscode/askQuestions` before running integration tests or E2E tests. These are slow and expensive — the user may want to skip or postpone them. Unit tests are fine to run without asking.
-9. **Single branch per session.** Create at most one feature branch per session. Parallel tasks must share the same branch to avoid conflicts.
+9. **Never create or switch branches.** The user manages branches locally. Work on whatever branch is currently checked out. Do not delegate branch creation to `e3-git-manager` or any other agent.
 
 ## Parallelization Policy
 
@@ -191,12 +191,7 @@ Every invocation starts here:
    - `research` — investigation, ideation, exploration
    - `ad-hoc` — small, single-step work
 
-5. **Create a feature branch** (for `feature`, `refactor`, `bugfix`):
-   - Delegate to `e3-git-manager` with operation `create-branch`, providing session_id and a short description derived from the request.
-   - Log the branch name via `executive3.logExecution`.
-   - For `testing`, `review`, `research`, `ad-hoc`: skip branch creation (no code changes expected, or too small).
-
-6. **Route to the appropriate phase:**
+5. **Route to the appropriate phase:**
 
 | Classification | Route |
 |---|---|
@@ -380,10 +375,11 @@ Triggered after all tasks complete or directly for `review` classification.
 
 ## Phase 5 — Completion
 
-1. **Finalize git branch:**
+1. **Finalize commits:**
    - Delegate to `e3-git-manager` with operation `finalize`, passing session_id and plan_title.
-   - This commits any remaining changes and pushes to origin.
-   - Present the branch name to the user in the summary.
+   - This commits any remaining uncommitted changes on the current branch.
+   - Do NOT push to origin — let the user handle pushing.
+   - Present the current branch name to the user in the summary.
 
 2. **Final summary:**
    - Run `node $E3CLI get-task-summary <sessionId> --db "$E3DB"` for the final counts.
@@ -406,7 +402,7 @@ After Phase 5 (or after any direct-classification phase like testing/review/rese
    - "Add unit tests for the new [component]"
    - "Refactor [module] to use the new pattern we established"
    - "Run integration tests (skipped earlier)"
-   - "Create PR for branch `e3/feature-name`"
+   - "Create PR for the current branch"
    - "Update documentation for [feature]"
    - "Review related code in [module] for consistency"
 
