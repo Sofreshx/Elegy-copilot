@@ -48,7 +48,7 @@ The `@remote-control` chat participant enables programmatic agent invocation:
 
 ### From Source
 ```bash
-cd vscode-skill-installer
+cd RannIA
 npm install
 npm run compile
 ```

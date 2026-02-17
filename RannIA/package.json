@@ -48,7 +48,6 @@
     "onCommand:skillInstaller.refresh",
     "onCommand:skillInstaller.dumpCleaner.delete",
     "onCommand:skillInstaller.runE2E",
-    "onCommand:skillInstaller.openE3WebUI",
     "onCommand:skillInstaller.runAudit",
     "onCommand:skillInstaller.refreshAudit",
     "onCommand:skillInstaller.enableSkill",
@@ -73,31 +72,7 @@
   	"onCommand:skillInstaller.gateway.manageWorkspaces",
   	"onCommand:skillInstaller.gateway.syncWorkspaces",
   	"onCommand:skillInstaller.gateway.viewConfig",
-  	"onCommand:skillInstaller.gateway.openConfig",
-    "onCommand:executive3.ensureDb",
-    "onCommand:executive3.getTasks",
-    "onCommand:executive3.createTask",
-    "onCommand:executive3.updateTask",
-    "onCommand:executive3.logExecution",
-    "onCommand:executive3.getSession",
-    "onCommand:executive3.getSessions",
-    "onCommand:executive3.createSession",
-    "onCommand:executive3.createTodo",
-    "onCommand:executive3.getTodos",
-    "onCommand:executive3.createTaskPlan",
-    "onCommand:executive3.getTaskPlans",
-    "onCommand:executive3.storeContext",
-    "onCommand:executive3.getContext",
-    "onCommand:executive3.getNextTask",
-    "onCommand:executive3.createPlan",
-    "onCommand:executive3.getTaskSummary",
-    "onCommand:executive3.getExecutionLog",
-    "onCommand:executive3.incrementTaskAttempt",
-    "onCommand:executive3.incrementReplanCount",
-    "onCommand:executive3.exportAll",
-    "onCommand:executive3.reset",
-    "onCommand:executive3.getDbHealth",
-    "onCommand:executive3.diagnostics"
+	"onCommand:skillInstaller.gateway.openConfig"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -195,10 +170,6 @@
       {
         "command": "skillInstaller.runE2E",
         "title": "Open E2E Dashboard"
-      },
-      {
-        "command": "skillInstaller.openE3WebUI",
-        "title": "Open Executive3 Browser Dashboard"
       },
       {
         "command": "skillInstaller.enableSkill",
@@ -310,130 +281,10 @@
     "title": "Gateway: View Config",
     "category": "Instruction Engine"
     },
-    {
-    "command": "skillInstaller.gateway.openConfig",
-    "title": "Gateway: Open Config in Editor",
-    "category": "Instruction Engine"
-    },
       {
-        "command": "executive3.ensureDb",
-        "title": "E3: Ensure Database",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.getTasks",
-        "title": "E3: Get Tasks",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.createTask",
-        "title": "E3: Create Task",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.updateTask",
-        "title": "E3: Update Task",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.logExecution",
-        "title": "E3: Log Execution",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.getSession",
-        "title": "E3: Get Session",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.getSessions",
-        "title": "E3: Get Sessions",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.createSession",
-        "title": "E3: Create Session",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.createTodo",
-        "title": "E3: Create Todo",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.getTodos",
-        "title": "E3: Get Todos",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.createTaskPlan",
-        "title": "E3: Create Task Plan",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.getTaskPlans",
-        "title": "E3: Get Task Plans",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.storeContext",
-        "title": "E3: Store Context",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.getContext",
-        "title": "E3: Get Context",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.getNextTask",
-        "title": "E3: Get Next Task",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.createPlan",
-        "title": "E3: Create Plan",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.getTaskSummary",
-        "title": "E3: Get Task Summary",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.getExecutionLog",
-        "title": "E3: Get Execution Log",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.incrementTaskAttempt",
-        "title": "E3: Increment Task Attempt",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.incrementReplanCount",
-        "title": "E3: Increment Replan Count",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.exportAll",
-        "title": "E3: Export All Data",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.reset",
-        "title": "E3: Reset Database",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.getDbHealth",
-        "title": "E3: DB Health",
-        "category": "Executive3"
-      },
-      {
-        "command": "executive3.diagnostics",
-        "title": "Executive3: Diagnostics",
-        "category": "Executive3"
+        "command": "skillInstaller.gateway.openConfig",
+        "title": "Gateway: Open Config in Editor",
+        "category": "Instruction Engine"
       }
     ],
     "menus": {
@@ -502,11 +353,6 @@
         },
         {
           "command": "skillInstaller.runE2E",
-          "when": "view == skillInstaller.workflowView",
-          "group": "navigation"
-        },
-        {
-          "command": "skillInstaller.openE3WebUI",
           "when": "view == skillInstaller.workflowView",
           "group": "navigation"
         },
@@ -716,21 +562,13 @@
     "lint": "eslint \"src/**/*.ts\"",
     "vscode:prepublish": "npm run compile",
     "package": "npx @vscode/vsce package",
-    "test": "npm run compile && node ./dist/test/runTest.js",
-    "e3:init": "node scripts/e3-init.js",
-    "e3:reset": "node scripts/e3-init.js --reset",
-    "e3:cli": "node scripts/e3-cli.js",
-    "e3:export": "node scripts/e3-export.js",
-    "e3:matrix": "node scripts/e3-regression-matrix.js",
-    "e3:test-cli": "node --test scripts/tests/e3-cli-db-contract.test.js"
+    "test": "npm run compile && node ./dist/test/runTest.js"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2",
     "jsonwebtoken": "^9.0.2",
     "ws": "^8.16.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "@types/jsonwebtoken": "^9.0.5",
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.30",

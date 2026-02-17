@@ -200,9 +200,9 @@ export class WsServer implements vscode.Disposable {
 		try {
 			const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
 			for (const folder of workspaceFolders) {
-				const e3LocalDir = path.join(folder.uri.fsPath, '.e3-local');
-				fs.mkdirSync(e3LocalDir, { recursive: true });
-				const discoveryPath = path.join(e3LocalDir, 'ws-port.txt');
+				const localDir = path.join(folder.uri.fsPath, '.skill-installer');
+				fs.mkdirSync(localDir, { recursive: true });
+				const discoveryPath = path.join(localDir, 'ws-port.txt');
 				fs.writeFileSync(discoveryPath, String(port), 'utf-8');
 			}
 		} catch (err) {
