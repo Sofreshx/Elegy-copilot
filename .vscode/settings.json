@@ -2,5 +2,20 @@
     "chat.tools.terminal.autoApprove": {
         "npm run compile": true
     },
-    "chat.customAgentInSubagent.enabled": true
+    "chat.customAgentInSubagent.enabled": true,
+
+    // ── Performance / Copilot indexing exclusions ──────────────────────────────
+    "search.exclude": {
+        "**/node_modules/**": true,
+        "**/dist/**": true,
+        "**/out/**": true,
+        "**/package-lock.json": true,
+        "**/yarn.lock": true,
+        "**/pnpm-lock.yaml": true
+    },
+    "files.watcherExclude": {
+        "**/node_modules/**": true,
+        "**/dist/**": true,
+        "**/out/**": true
+    }
 }
