@@ -4,8 +4,6 @@
  */
 import * as vscode from 'vscode';
 import * as http from 'http';
-import * as fs from 'fs';
-import * as path from 'path';
 import { WebSocketServer, WebSocket, RawData } from 'ws';
 import { WsAuthManager } from './wsAuth';
 import {
@@ -163,7 +161,6 @@ export class WsServer implements vscode.Disposable {
 					const port = typeof addr === 'object' && addr ? addr.port : config.port;
 					this.startTime = Date.now();
 					this.output.appendLine(`[WS Server] Listening on ws://127.0.0.1:${port}`);
-					this.writePortDiscoveryFiles(port);
 					this.updateStatusBar(port);
 
 					// Start heartbeat and cleanup timers
@@ -190,25 +187,6 @@ export class WsServer implements vscode.Disposable {
 				reject(err);
 			}
 		});
-	}
-
-	/**
-	 * Write a stable, local-only port discovery file under each workspace root.
-	 * The file contains only the numeric port (no secrets) so external tooling can find the WS endpoint.
-	 */
-	private writePortDiscoveryFiles(port: number): void {
-		try {
-			const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
-			for (const folder of workspaceFolders) {
-				const localDir = path.join(folder.uri.fsPath, '.skill-installer');
-				fs.mkdirSync(localDir, { recursive: true });
-				const discoveryPath = path.join(localDir, 'ws-port.txt');
-				fs.writeFileSync(discoveryPath, String(port), 'utf-8');
-			}
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : 'Unknown error';
-			this.output.appendLine(`[WS Server] Failed to write ws-port discovery file(s): ${msg}`);
-		}
 	}
 
 	/**

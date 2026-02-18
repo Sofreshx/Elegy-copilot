@@ -26,12 +26,12 @@ Run Copilot agent sessions from Discord and stream session updates back into a D
 
 **How it works (local-only):**
 - Discord → `local-tracker` Messaging Gateway
-- Messaging Gateway → VS Code extension (RannIA) over `ws://127.0.0.1:<port>`
-- Extension → Copilot Chat (invokes `@orchestrator`, reports session events)
+- Messaging Gateway → Copilot CLI ACP server (`copilot --acp --port <PORT>`)
+- Gateway streams session progress + permission prompts back into Discord threads
 
 ### Prerequisites
 - Node.js (for `local-tracker`)
-- VS Code with the RannIA extension installed/running
+- Copilot CLI installed and authenticated
 - A Discord bot token + a server (guild) where the bot is installed
 - Discord IDs (numeric): guild ID, channel ID, allowlisted user IDs
 
@@ -47,8 +47,10 @@ Run Copilot agent sessions from Discord and stream session updates back into a D
 - Create/update: `~/.instruction-engine/messaging-gateway.config.json`
 - Use `local-tracker/docs/messaging-gateway.config.example.json` as a template
 - Ensure it contains:
+  - `acp.port` (must match the `copilot --acp --port <PORT>` you start)
   - `discord.allowlistedUserIds` (your Discord user ID(s))
   - `discord.guildId`, `discord.channelId`
+  - Optional: `discord.permissionsChannelId` (permission prompts in a separate channel)
   - `workspaces.allowedRoots` (absolute paths), `workspaces.activeRoot`
 
 2) **Store secrets in OS credential store**
@@ -168,6 +170,7 @@ instruction-engine/
 
 ## Documentation
 
+- [Copilot CLI Adoption Playbook](docs/copilot-cli-playbook.md)
 - [Agents vs Skills](docs/agents-vs-skills.md)
 - [Agent Architecture Simplicity](docs/agent-architecture-simplicity.md)
 - [Agent Hooks](docs/agent-hooks.md)
