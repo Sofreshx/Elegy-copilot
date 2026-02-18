@@ -28,10 +28,26 @@ You are called by `@orchestrator` only.
 - **Replan context**: if this is a re-planning pass, includes what worked, what failed, and reviewer feedback (optional)
 - **SESSION_ID**: unique session identifier (format: `YYYYMMDD_HHMMSS_<RAND4>`)
 
-## Output Files (exactly two)
+## Output Files (exactly two, plus session index update)
 You must create/update exactly **two** session-scoped files:
 - `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`
 - `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md`
+
+And **register** the session in the session index:
+- `.instructions/artefacts/x-SESSIONS-INDEX.md`
+
+### Session Index Registration
+After writing both plan pack files, add a row to `x-SESSIONS-INDEX.md`:
+```markdown
+| <SESSION_ID> | <Plan Title> | active | <YYYY-MM-DD> | <YYYY-MM-DD> | x-PLANPACK-<SESSION_ID>.md | x-PLANPACK-PROGRESS-<SESSION_ID>.md |
+```
+If the session index file doesn't exist, create it with the header:
+```markdown
+# Session Index
+
+| Session ID | Title | Status | Created | Updated | Plan Pack | Progress Tracker |
+|---|---|---|---|---|---|---|
+```
 
 ### SESSION_ID rules
 - Use the SESSION_ID provided in the prompt.
@@ -106,16 +122,47 @@ Use this exact heading order and include all sections:
 # Plan-Pack Progress Tracker
 
 > **Session ID**: `<SESSION_ID>`
+> **Session Status**: `active`
+> **Last Updated**: `YYYY-MM-DDTHH:MM:SS`
 
 ## Session Metadata
 ## Work Unit Groups Overview
 ## Work Unit Status Table
+## Next Unit
 ## Checkpoints
 ## Execution Log
 ```
 
+### Mandatory Fields
+
+#### Session Status (top-level, required)
+One of: `active` | `paused` | `done`
+- `active`: work is in progress or ready to resume
+- `paused`: work stopped intentionally, will resume later
+- `done`: all WUs completed, session finished
+The orchestrator sets this. The planner initializes it to `active`.
+
+#### Last Updated (top-level, required)
+ISO 8601 timestamp (`YYYY-MM-DDTHH:MM:SS`). Updated by the orchestrator on every progress change.
+
+#### Next Unit (dedicated section, required)
+A dedicated `## Next Unit` section containing:
+- The WU ID to execute next (e.g., `WU-003`)
+- A one-line rationale (e.g., "first unblocked WU in G-02 after G-01 completion")
+- Set to `NONE — all complete` when all WUs are done
+
+### Status Value Vocabulary (strict)
+Use these exact lowercase values everywhere — WU status, group status:
+- `not-started` — work not yet begun
+- `in-progress` — currently being executed
+- `done` — completed successfully
+- `blocked` — cannot proceed (dependency or external blocker)
+- `skipped` — intentionally skipped (with reason in Notes)
+
+Do NOT use: `DONE`, `NOT STARTED`, `completed`, `todo`, `pending`, or any other variants.
+
 ### Required Tables
-- **Groups Overview**: Group | Title | Status | Depends On
+- **Groups Overview**: Group | Title | Status | WUs Done | WUs Total | Depends On
 - **Status Table**: Group | Work Unit ID | Status | Next Unit | Notes
 - **Checkpoints**: Group | Checkpoint | Trigger | Notes
 

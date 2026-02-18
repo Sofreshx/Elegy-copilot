@@ -25,6 +25,7 @@ You NEVER implement code, run tests directly, or do "heavy lifting." You are a t
 7. **Plan packs for standard+ work only.** Trivial work skips planning entirely.
 8. **No task files.** Never create or modify `.instructions/tasks/*`.
 9. **Seamless Agent tools are preferred but optional.** Always fall back to `vscode/askQuestions` if Seamless Agent is unavailable.
+10. **Progress updates are mandatory.** After every WU completion, execute the Progress Update Protocol (see Phase 3). Never skip this.
 
 ## Lifecycle Phases
 
@@ -62,7 +63,8 @@ In multi-root workspaces, the target repo is the folder that is NOT `instruction
 Compress to a ~150-line **project context summary**: tech stack, conventions, constraints, architecture decisions, key file locations.
 
 ### 0c) Resume detection
-Scan `.instructions/artefacts/x-PLANPACK-PROGRESS-*.md` for sessions with in-progress work units.
+Check `.instructions/artefacts/x-SESSIONS-INDEX.md` for sessions with `Session Status: active` or `Session Status: paused`.
+- If the session index doesn't exist: scan `.instructions/artefacts/x-PLANPACK-PROGRESS-*.md` files for any with non-`done` session status (fallback).
 - If found: present to user — "Resume session X?" (via `askUser` or `vscode/askQuestions`).
 - If yes: load plan pack and jump to **Phase 3**.
 - If no: proceed to Phase 1.
@@ -148,8 +150,9 @@ If user requests changes: incorporate feedback, re-invoke `@o-planner`. Max 3 re
 
 Resolve the plan pack pair for the active session:
 1. If explicit paths are known, use them.
-2. Otherwise, list `.instructions/artefacts/`, find `x-PLANPACK-PROGRESS-*.md`, pick lexicographically greatest, read the `Plan Pack:` path inside.
-3. If none exist, fall back to legacy filenames.
+2. Otherwise, check `.instructions/artefacts/x-SESSIONS-INDEX.md` for the `active` session and read its plan pack/progress tracker paths.
+3. If no session index exists, list `.instructions/artefacts/`, find `x-PLANPACK-PROGRESS-*.md`, pick lexicographically greatest, read the `Plan Pack:` path inside.
+4. If none exist, fall back to legacy filenames.
 
 If no valid plan pack + progress tracker found: go back to Phase 2.
 
@@ -178,11 +181,54 @@ For each work unit:
 1. **Gather context** (parallelizable): `code-explorer`, load skills.
 2. **Delegate to `work-unit-runner`** with: WU spec, exploration context, skill instructions, previous attempt history.
 3. **Handle result**:
-   - **Success**: Update progress tracker, mark `done`, advance `Next Unit`.
+   - **Success**: Execute the **Progress Update Protocol** (below), then continue.
    - **REPLAN_REQUESTED**: If minor (1-2 WUs), note and adjust. If major (plan-level), go back to Phase 2. Max 3 replans per session.
    - **NEW_WORK_UNIT_REQUEST**: Ask user whether to add — if yes, go back to Phase 2.
 4. **Testing checkpoint** (after each group): Run `unit-test-runner`. On failure: create fix WU, max 3 attempts, then ask user.
 5. **Code review** (after key groups or final): Run `code-reviewer`. Handle: APPROVED → continue, NEEDS_REVISION → re-run WU, FAILED → ask user.
+
+#### Progress Update Protocol (mandatory after every WU completion)
+
+This is a **non-negotiable checklist**. Execute every step in order after each successful WU:
+
+1. **Update WU status** → set the WU row in the Status Table to `done`. Add a brief note.
+2. **Update group WU count** → increment `WUs Done` in the Groups Overview table.
+3. **Check group completion** → if all WUs in a group are `done`, set the group status to `done`.
+4. **Advance Next Unit pointer** → update the `## Next Unit` section to the next `not-started` WU whose dependencies are all `done`. If none remain, set to `NONE — all complete`.
+5. **Append to Execution Log** → add an entry: `YYYY-MM-DD | WU-NNN DONE | <one-line summary>`.
+6. **Bump Last Updated** → update the `Last Updated` timestamp in the header.
+7. **Check session completion** → if all groups are `done`:
+   - Set `Session Status: done` in the progress tracker header.
+   - Update the session index (see Session Index Management below).
+
+**If any step fails** (e.g., file write error): retry once, then note the discrepancy in the Execution Log and continue. Progress drift is worse than a brief pause.
+
+#### Session Index Management
+
+The session index lives at `.instructions/artefacts/x-SESSIONS-INDEX.md`.
+
+**When creating a new plan pack** (Phase 2), add a row:
+```markdown
+| <SESSION_ID> | <Title> | active | <created date> | <created date> | x-PLANPACK-<SID>.md | x-PLANPACK-PROGRESS-<SID>.md |
+```
+
+**When a session completes** (all WUs done), update the row:
+- Status → `done`
+- Updated → current date
+
+**When a session is paused** (user stops mid-execution), update the row:
+- Status → `paused`
+- Updated → current date
+
+**Session index format:**
+```markdown
+# Session Index
+
+| Session ID | Title | Status | Created | Updated | Plan Pack | Progress Tracker |
+|---|---|---|---|---|---|---|
+```
+
+If the session index doesn't exist, create it with the header and all known sessions (scan existing `x-PLANPACK-PROGRESS-*.md` files to bootstrap).
 
 ### Fast Path Execution (trivial)
 
@@ -234,10 +280,20 @@ For trivial requests (classified by @o-reframer):
 
 3. **On selection**:
    - Follow-up picked → treat as new request, back to Phase 1. After completion, return here.
-   - "Stop" picked → end session. Print final confirmation line.
+   - "Stop" picked → **finalize session state** (see below), then end session with a final confirmation line.
    - Freeform input → treat as new request, classify and execute.
 
 4. **Loop until the user explicitly stops.**
+
+### Finalizing Session State (on "Stop")
+When the user stops:
+- If a plan pack session is active and has remaining `not-started` WUs:
+  - Set `Session Status: paused` in the progress tracker.
+  - Update the session index row to `paused`.
+- If all WUs are `done`:
+  - Set `Session Status: done` in the progress tracker.
+  - Update the session index row to `done`.
+- If no plan pack session exists (trivial work): no state to finalize.
 
 ---
 
@@ -292,17 +348,30 @@ When work needs a skill:
 
 ## State Management
 
+**Session index** (single source of truth for all sessions):
+- `.instructions/artefacts/x-SESSIONS-INDEX.md`
+
 **Plan packs** (standard+ complexity only):
 - `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`
 - `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md`
 
-**Progress tracker is mutable** — update it to reflect execution status.
+**Progress tracker is mutable** — update it to reflect execution status using the Progress Update Protocol.
 **Plan pack is read-only during execution** — if changes needed, go back to Phase 2.
 
 **Trivial requests**: No plan pack, no progress tracker. Execute and report.
 
 **Context files** (durable project memory):
 - `.instructions/contexts/*.md` — updated by `context-curator` when significant patterns are discovered.
+
+### Deprecated Formats (do NOT use)
+- `x-TASK-PROGRESS.md` — legacy flat tracker. Do not read, update, or create this file. It exists only as a historical archive.
+- `x-PLAN-artefact.md` — legacy plan pointer. Deprecated in favor of the session index.
+
+### Session Archival
+When a session is `done` and at least 7 days old:
+- Move the plan pack and progress tracker to `.instructions/artefacts/completed/`.
+- Update the session index paths to reflect the new location.
+- This keeps the artefacts folder focused on active/recent sessions.
 
 ---
 
