@@ -3,9 +3,17 @@ import os from 'os';
 import path from 'path';
 
 export type MessagingGatewayMode = 'auto' | 'connected' | 'disconnected';
+export type MessagingGatewayConnectedBridge = 'extension-ws' | 'acp';
 
 export interface MessagingGatewayConfig {
 	mode?: MessagingGatewayMode;
+	/** Connected mode bridge implementation. Defaults to 'extension-ws'. */
+	connectedBridge?: MessagingGatewayConnectedBridge;
+	/** ACP (Copilot CLI `--acp --port <N>`) settings. Used when connectedBridge='acp'. */
+	acp?: {
+		host?: string;
+		port?: number;
+	};
 	discord: {
 		allowlistedUserIds: string[];
 		guildId: string;
@@ -57,6 +65,14 @@ function asStringArray(value: unknown, field: string): string[] {
 	return strings;
 }
 
+function asOptionalPort(value: unknown, field: string): number | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 1 || value > 65535) {
+		throw new Error(`[Gateway] Invalid config: ${field} must be an integer port (1-65535)`);
+	}
+	return value;
+}
+
 function assertAllNumericIds(ids: string[], field: string) {
 	for (const id of ids) {
 		if (!/^\d+$/.test(id)) {
@@ -97,6 +113,23 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 		modeRaw !== 'disconnected'
 	) {
 		throw new Error('[Gateway] Invalid config: mode must be one of auto|connected|disconnected');
+	}
+
+	const connectedBridgeRaw = raw.connectedBridge;
+	if (
+		connectedBridgeRaw !== undefined &&
+		connectedBridgeRaw !== 'extension-ws' &&
+		connectedBridgeRaw !== 'acp'
+	) {
+		throw new Error('[Gateway] Invalid config: connectedBridge must be one of extension-ws|acp');
+	}
+
+	let acp: MessagingGatewayConfig['acp'] | undefined;
+	if (raw.acp !== undefined && raw.acp !== null) {
+		if (!isRecord(raw.acp)) throw new Error('[Gateway] Invalid config: acp must be an object');
+		const host = raw.acp.host !== undefined && raw.acp.host !== null ? asNonEmptyString(raw.acp.host, 'acp.host') : undefined;
+		const port = asOptionalPort(raw.acp.port, 'acp.port');
+		acp = { host, port };
 	}
 
 	const discordRaw = raw.discord;
@@ -144,6 +177,8 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 
 	return {
 		mode: modeRaw,
+		connectedBridge: connectedBridgeRaw,
+		acp,
 		discord: {
 			allowlistedUserIds,
 			guildId,

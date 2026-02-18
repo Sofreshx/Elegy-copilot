@@ -169,6 +169,15 @@ dotnet test SAASTools.AppHost.Tests/SAASTools.AppHost.Tests.csproj \
 # With timeout in agent: 600000ms (10 min) to 1200000ms (20 min)
 ```
 
+### Playwright (E2E, non-UI)
+```bash
+# Headless / one-shot (avoid --ui/--debug)
+npx playwright test --headed=false
+npx playwright test --project=chromium --headed=false
+
+# With timeout in agent: 600000ms+ depending on suite size
+```
+
 ### Playwright helper scripts deadline
 The Node Playwright helper scripts in `scripts/e2e-*.js` enforce a global deadline.
 Override via:

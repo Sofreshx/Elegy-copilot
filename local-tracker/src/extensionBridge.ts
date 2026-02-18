@@ -6,6 +6,7 @@ export class ExtensionBridge {
   private wss: WebSocketServer | null = null;
   private clients: Set<WebSocket> = new Set();
   private config: TrackerConfig;
+  private stopping = false;
 
   constructor(config: TrackerConfig) {
     this.config = config;
@@ -13,6 +14,7 @@ export class ExtensionBridge {
 
   /** Start the local WebSocket server */
   start(): void {
+    this.stopping = false;
     this.wss = new WebSocketServer({ port: this.config.localWsPort });
 
     this.wss.on("connection", (ws, req) => {
@@ -21,7 +23,7 @@ export class ExtensionBridge {
 
       ws.on("close", () => {
         this.clients.delete(ws);
-        console.log("[Bridge] Extension disconnected");
+        if (!this.stopping) console.log("[Bridge] Extension disconnected");
       });
 
       ws.on("error", (err) => {
@@ -61,6 +63,7 @@ export class ExtensionBridge {
 
   /** Stop the WebSocket server */
   async stop(): Promise<void> {
+    this.stopping = true;
     // Close all clients
     for (const client of this.clients) {
       client.close(1001, "Server shutting down");

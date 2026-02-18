@@ -5,11 +5,7 @@ tools: [execute/runInTerminal, read, edit, search, agent, todo, agent/runSubagen
 user-invocable: true
 disable-model-invocation: true
 agents: [task-runner, code-explorer, code-architect, code-reviewer, reviewer-gpt-5-3-codex, reviewer-opus-4-6, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-live-observer, plan-artefact-writer, executive2-planner]
-handoffs:
-   - label: Back to planning
-      agent: executive2-planner
-      prompt: Return to planning and update the plan based on the latest findings or blockers.
-      send: false
+
 ---
 
 # Executive2 (Orchestrator)

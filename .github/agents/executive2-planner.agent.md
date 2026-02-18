@@ -1,10 +1,10 @@
 ---
 name: executive2-planner
 description: Planner for Executive2. Produces an actionable plan and always persists the Executive2 state (task graph + plan artefact + task progress tracker), then hands off to executive2.
-tools: [vscode/getProjectSetupInfo, vscode/openSimpleBrowser, vscode/runCommand, vscode/askQuestions, read/problems, read/readFile, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, web/fetch, web/githubRepo, todo, agent, agent/runSubagent, edit]
+tools: [vscode/getProjectSetupInfo, vscode/runCommand, vscode/askQuestions, read/problems, read/readFile, read/terminalSelection, read/terminalLastCommand, read/getTaskOutput, agent/runSubagent, search/changes, search/codebase, search/fileSearch, search/listDirectory, search/searchResults, search/textSearch, search/usages, web/fetch, web/githubRepo, todo, agent, agent/runSubagent, edit]
 user-invocable: true
 disable-model-invocation: true
-agents: [research-ideation, code-explorer, code-architect, reviewer-opus-4-5, reviewer-gpt-5-2-codex, executive2-task-creator, plan-artefact-writer]
+agents: [research-ideation, code-explorer, code-architect, reviewer-opus-4-6, reviewer-gpt-5-3-codex, executive2-task-creator, plan-artefact-writer]
 handoffs:
   - label: Start implementation (task graph)
     agent: executive2

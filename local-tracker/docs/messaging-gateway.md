@@ -5,7 +5,7 @@ This runbook describes how to operate the **Messaging Gateway** in `local-tracke
 The gateway is a local Node.js process that:
 - Authenticates a Discord bot
 - Enforces an allowlist + guild/channel scope
-- (Connected mode) connects to the VS Code extension WebSocket server (loopback) to invoke agents and stream progress
+- (Connected mode) connects to the VS Code extension WebSocket server (loopback) **or** a Copilot CLI ACP server to invoke agents and stream progress
 
 ## Prereqs
 
@@ -61,6 +61,18 @@ WS_TOKEN=<JWT>
 Notes:
 - The token is a JWT signed by the extension’s local secret.
 - Default expiry is **7 days**; after expiry (or if the extension secret is regenerated), you’ll need to re-pair.
+
+### 2.3 Optional: Use Copilot CLI via ACP (instead of extension WS)
+
+Start Copilot CLI in ACP TCP mode:
+
+```bash
+copilot --acp --port 3000
+```
+
+Then configure the gateway to use ACP:
+- Config: `"connectedBridge": "acp"` and `"acp": { "port": 3000 }`
+- Or env vars: `INSTRUCTION_ENGINE_GATEWAY_CONNECTED_BRIDGE=acp` and `INSTRUCTION_ENGINE_ACP_PORT=3000` (optional `INSTRUCTION_ENGINE_ACP_HOST`)
 
 ## 3) Create gateway config (non-secret)
 

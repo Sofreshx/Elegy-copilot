@@ -5,15 +5,19 @@ import { getDefaultMessagingGatewayConfigPath, loadMessagingGatewayConfig, resol
 import { AuditLogger } from './auditLogger';
 import { CommandRouter, WU002_POLICY_CONTRACT } from './commandRouter';
 import { DiscordPlatform } from './discordPlatform';
+import type { BridgeClient } from './bridgeClient';
+import { AcpBridgeClient } from './acpBridgeClient';
 import { ExtensionBridgeClient } from './extensionBridgeClient';
 import { PermissionOrchestrator } from './permissionOrchestrator';
 import { SessionThreadManager } from './sessionThreadManager';
+import { formatSessionLine, isActiveSessionStatus, parseBridgeSessions } from './sessionsHelpers';
 import { deleteGatewaySecret, getGatewaySecret, getGatewaySecretsStatus, storeGatewaySecretFromEnv } from './secrets';
 import { detectModeAuto, resolveExtensionWsPort } from './workspaceDetection';
 import { printGatewayStatusSummary } from './status';
 import { MessagingGatewayStatusWriter, resolveMessagingGatewayStatusPath, type MessagingGatewayStatusV1 } from './statusFile';
 
 type CliMode = MessagingGatewayMode;
+type ConnectedBridge = 'extension-ws' | 'acp';
 
 interface CliArgs {
 	configPath?: string;
@@ -42,6 +46,13 @@ Config:
 Secrets (preferred: OS keychain; fallback: env vars):
   Discord bot token env fallbacks: INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN, DISCORD_BOT_TOKEN
   Extension WS JWT env fallbacks: INSTRUCTION_ENGINE_EXTENSION_WS_JWT, INSTRUCTION_ENGINE_WS_JWT, EXTENSION_WS_JWT
+
+Connected bridge selection:
+  INSTRUCTION_ENGINE_GATEWAY_CONNECTED_BRIDGE=extension-ws|acp (default: extension-ws)
+
+ACP (Copilot CLI \`copilot --acp --port <N>\`) env overrides:
+  INSTRUCTION_ENGINE_ACP_HOST=127.0.0.1
+  INSTRUCTION_ENGINE_ACP_PORT=3000
 
 Keychain utilities (reads token from env and stores in OS credential store):
   --store-discord-bot-token
@@ -77,6 +88,24 @@ function resolveRequestedMode(cli: CliMode | undefined, configMode: CliMode | un
 		throw new Error('[Gateway] Invalid mode (expected auto|connected|disconnected)');
 	}
 	return requested;
+}
+
+function resolveConnectedBridge(configBridge: unknown): ConnectedBridge {
+	const env = (process.env.INSTRUCTION_ENGINE_GATEWAY_CONNECTED_BRIDGE || '').trim();
+	const raw = (env || (typeof configBridge === 'string' ? configBridge : '') || 'extension-ws').trim().toLowerCase();
+	if (raw === 'extension-ws' || raw === 'extension' || raw === 'ws') return 'extension-ws';
+	if (raw === 'acp') return 'acp';
+	throw new Error('[Gateway] Invalid connected bridge (expected extension-ws|acp)');
+}
+
+function parseOptionalEnvPort(envValue: string | undefined): number | undefined {
+	const raw = (envValue || '').trim();
+	if (!raw) return undefined;
+	const n = Number(raw);
+	if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1 || n > 65535) {
+		throw new Error('[Gateway] Invalid INSTRUCTION_ENGINE_ACP_PORT (expected integer 1-65535)');
+	}
+	return n;
 }
 
 async function handleSecretUtilityFlags(args: CliArgs): Promise<boolean> {
@@ -139,6 +168,7 @@ async function main() {
 	const requestedMode = resolveRequestedMode(args.mode, loaded.config.mode);
 	let activeWorkspaceRoot = loaded.config.workspaces.activeRoot;
 	const mode = requestedMode === 'auto' ? detectModeAuto(activeWorkspaceRoot) : requestedMode;
+	const connectedBridge = resolveConnectedBridge(loaded.config.connectedBridge);
 	const secretsStatus = await getGatewaySecretsStatus();
 
 	const discordBotToken = await getGatewaySecret('discordBotToken');
@@ -150,7 +180,7 @@ async function main() {
 
 	let extensionWsPort: { port: number; source: 'env' | 'file' } | undefined;
 	let extensionWsJwtValue: string | undefined;
-	if (mode === 'connected') {
+	if (mode === 'connected' && connectedBridge === 'extension-ws') {
 		extensionWsPort = resolveExtensionWsPort(activeWorkspaceRoot);
 		const extensionWsJwt = await getGatewaySecret('extensionWsJwt');
 		extensionWsJwtValue = extensionWsJwt.value;
@@ -268,32 +298,67 @@ async function main() {
 	// Heartbeat: refresh timestamp + dynamic fields.
 	statusWriter.startHeartbeat(15_000, (s) => refreshDynamicStatusFields(s));
 
-	let extensionClient: ExtensionBridgeClient | undefined;
+	let extensionClient: BridgeClient | undefined;
 	let permissionOrchestrator: PermissionOrchestrator | undefined;
-	if (mode === 'connected' && extensionWsJwtValue) {
+	if (mode === 'connected') {
 		permissionOrchestrator = new PermissionOrchestrator({
 			auditLogger,
 			permissionTimeoutMs: 120_000,
 			defaultResolvedBy: 'messaging-gateway',
 		});
 
-		extensionClient = new ExtensionBridgeClient({
-			resolvePort: () => resolveExtensionWsPort(activeWorkspaceRoot).port,
-			getJwt: () => extensionWsJwtValue!,
-			onEvent: (event) => {
-				permissionOrchestrator?.handleExtensionEvent(event);
-				sessionThreads.handleExtensionEvent(event);
-			},
-			onStatusChanged: (status) => {
-				console.log(`[Gateway] Extension WS status: ${status}`);
-				extensionWsConnected = status === 'connected';
-				statusWriter.update((s) => {
-					if (!s.runtime.extensionWs) s.runtime.extensionWs = { connected: false };
-					s.runtime.extensionWs.connected = extensionWsConnected;
-					refreshDynamicStatusFields(s);
-				});
-			},
-		});
+		if (connectedBridge === 'extension-ws') {
+			if (!extensionWsJwtValue) {
+				throw new Error(
+					'[Gateway] Missing required secret for connected mode: extension WS JWT. Store it in the OS credential store (preferred) or set INSTRUCTION_ENGINE_EXTENSION_WS_JWT, or run with --mode disconnected.',
+				);
+			}
+
+			extensionClient = new ExtensionBridgeClient({
+				resolvePort: () => resolveExtensionWsPort(activeWorkspaceRoot).port,
+				getJwt: () => extensionWsJwtValue!,
+				onEvent: (event) => {
+					permissionOrchestrator?.handleExtensionEvent(event);
+					sessionThreads.handleExtensionEvent(event);
+				},
+				onStatusChanged: (status) => {
+					console.log(`[Gateway] Extension WS status: ${status}`);
+					extensionWsConnected = status === 'connected';
+					statusWriter.update((s) => {
+						if (!s.runtime.extensionWs) s.runtime.extensionWs = { connected: false };
+						s.runtime.extensionWs.connected = extensionWsConnected;
+						refreshDynamicStatusFields(s);
+					});
+				},
+			});
+		} else {
+			const host = (process.env.INSTRUCTION_ENGINE_ACP_HOST || loaded.config.acp?.host || '127.0.0.1').trim();
+			const port = parseOptionalEnvPort(process.env.INSTRUCTION_ENGINE_ACP_PORT) ?? loaded.config.acp?.port;
+			if (!port) {
+				throw new Error(
+					'[Gateway] ACP bridge requires a port. Set INSTRUCTION_ENGINE_ACP_PORT or config acp.port, and start Copilot CLI with `copilot --acp --port <PORT>`',
+				);
+			}
+
+			extensionClient = new AcpBridgeClient({
+				host,
+				port,
+				resolveCwd: () => activeWorkspaceRoot,
+				onEvent: (event) => {
+					permissionOrchestrator?.handleExtensionEvent(event);
+					sessionThreads.handleExtensionEvent(event);
+				},
+				onStatusChanged: (status) => {
+					console.log(`[Gateway] ACP status: ${status}`);
+					extensionWsConnected = status === 'connected';
+					statusWriter.update((s) => {
+						if (!s.runtime.extensionWs) s.runtime.extensionWs = { connected: false };
+						s.runtime.extensionWs.connected = extensionWsConnected;
+						refreshDynamicStatusFields(s);
+					});
+				},
+			});
+		}
 		permissionOrchestrator.setClient(extensionClient);
 		extensionClient.start();
 	}
@@ -393,6 +458,37 @@ async function main() {
 		refreshDynamicStatusFields(s);
 	});
 
+	// Best-effort: keep a single top-level "Sessions summary" message updated in the main channel.
+	const sessionsSummary = discord.startSessionsSummary({
+		intervalMs: 30_000,
+		buildContent: async () => {
+			const pending = permissionOrchestrator?.getPending() ?? [];
+			const pendingBySessionId = new Map<string, number>();
+			for (const p of pending) {
+				const sessionId = typeof p.sessionId === 'string' ? p.sessionId : '';
+				if (!sessionId) continue;
+				pendingBySessionId.set(sessionId, (pendingBySessionId.get(sessionId) ?? 0) + 1);
+			}
+
+			const client = extensionClient;
+			const connected = client?.getStatus() === 'connected';
+			const sessions = connected ? parseBridgeSessions(await client!.get_sessions().catch(() => null)) : [];
+			const active = sessions.filter((s) => isActiveSessionStatus(s.status));
+
+			const lines: string[] = [];
+			lines.push('Sessions summary');
+			lines.push(`Bridge: ${connected ? 'connected' : 'disconnected'}`);
+			lines.push(`Pending approvals: ${pending.length}`);
+			lines.push(`Active sessions: ${active.length}`);
+
+			for (const s of active.slice(0, 10)) {
+				lines.push(formatSessionLine(s, pendingBySessionId.get(s.id)));
+			}
+
+			return lines.join('\n');
+		},
+	});
+
 	console.log('[Gateway] Status OK. Waiting for shutdown (Ctrl+C)...');
 
 	let shuttingDown = false;
@@ -403,6 +499,7 @@ async function main() {
 		void (async () => {
 			try {
 				sessionThreads.stop();
+				sessionsSummary.stop();
 				await permissionOrchestrator?.stop();
 				await extensionClient?.stop();
 				await discord.stop();

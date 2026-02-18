@@ -7,6 +7,7 @@ Hooks are disabled by default to avoid interfering with Ask mode. Enable them on
 - Create JSONL audit logs in `.instructions-output/hooks/`
 - Enforce policy gates (no secrets in `.env*`, production access is read-only unless explicitly approved)
 - Enforce hang-prevention for terminal commands (non-zero timeouts, no background, no watch/interactive test modes)
+- Enforce a baseline command safety policy (deny a small set of high-risk git/GitHub/OS commands to reduce accidental data loss)
 - Optionally start or stop local infrastructure via repo-local scripts
 
 ## How To Enable In Another Repo
@@ -48,3 +49,35 @@ Even with approval, commands that look like write operations are blocked. Use MC
 - Do not store secrets in `.env*` files.
 - If a `.env*` edit looks like it contains secrets, hooks will deny the change.
 - Use GitHub Secrets for CI and local secret storage (OS keychain, dotnet user-secrets, or environment variables set outside the repo).
+
+## Baseline Command Safety Policy (deny list)
+These hooks add a **small, conservative deny list** for commands that are frequently destructive (data loss, history rewrite, repo deletion) and are rarely needed in automated agent runs.
+This is intentionally **not** a general “block all deletes” policy — common dev/test commands should continue to work.
+
+### Denied git / GitHub CLI commands (high-risk)
+- `git push ...` (includes `--force`, `--force-with-lease`, etc.)
+- `git reset --hard ...`
+- `git clean -fdx ...` (or equivalent flag combinations that include `-f`, `-d`, and `-x`)
+- `git checkout -f ...` / `git switch -f ...` (or `--force`)
+- `git rebase --onto ...` and interactive rebases (`git rebase -i` / `--interactive`)
+- `gh repo delete ...`
+
+### Denied destructive OS commands (obvious “break the machine” cases)
+- `rm -rf /`, `rm -rf /*`, `rm -rf ~`, `rm -rf ~/*`
+- `shutdown`, `reboot`, `poweroff`, `halt`
+- `dd ...`, `mkfs* ...`, `format ...`, `diskpart ...`
+- `Remove-Item -Recurse -Force C:\` (and similar root-drive deletes)
+- `rmdir /s /q C:\` / `rd /s /q C:\`
+- `del /s /q C:\` / `erase /s /q C:\`
+
+### Explicitly allowed examples (should pass baseline policy)
+- `git status`, `git diff`, `git log`, `git show`
+- `npm test`
+- `dotnet test --no-restore`
+- `npx playwright test` (non-UI; `--ui` is denied by the anti-hang policy)
+
+### Quick reasoning proof (examples)
+The pre-tool-use hook only outputs JSON when it **denies** a command; allowed commands produce no output.
+Examples:
+- ✅ Allowed: `git status` (no output)
+- ❌ Denied: `git push origin main` (outputs `{"permissionDecision":"deny",...}` with a “High-risk git command” reason)

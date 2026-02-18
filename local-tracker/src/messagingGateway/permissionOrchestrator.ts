@@ -1,8 +1,10 @@
 import { AuditLogger } from './auditLogger';
-import type { ExtensionBridgeClient } from './extensionBridgeClient';
+import type { BridgeClient } from './bridgeClient';
 
 export interface PendingPermission {
 	callbackId: string;
+	/** Best-effort session id (when present on the inbound event). */
+	sessionId?: string;
 	receivedAt: string;
 	expiresAt: string;
 	/** Best-effort extracted text for UI; already sanitized for outbound display. */
@@ -42,6 +44,21 @@ function extractEventType(input: unknown): string | undefined {
 	return undefined;
 }
 
+function extractSessionId(input: unknown): string | undefined {
+	if (!isRecord(input)) return undefined;
+	const direct = readString(input, ['sessionId', 'session_id']);
+	if (direct) return direct;
+	if (isRecord(input.data)) {
+		const nested = readString(input.data, ['sessionId', 'session_id']);
+		if (nested) return nested;
+	}
+	if (isRecord(input.payload)) {
+		const nested = readString(input.payload, ['sessionId', 'session_id']);
+		if (nested) return nested;
+	}
+	return undefined;
+}
+
 function isPermissionRequestedEvent(input: unknown): boolean {
 	const t = (extractEventType(input) ?? '').toLowerCase();
 	return t === 'permission_requested' || t === 'permission-requested' || t === 'permissionrequested';
@@ -71,7 +88,7 @@ function safeSummaryFromEvent(eventRoot: Record<string, unknown>): string {
 }
 
 export interface PermissionOrchestratorOptions {
-	client?: ExtensionBridgeClient;
+	client?: BridgeClient;
 	auditLogger?: AuditLogger;
 	permissionTimeoutMs?: number;
 	defaultResolvedBy?: string;
@@ -79,7 +96,7 @@ export interface PermissionOrchestratorOptions {
 }
 
 export class PermissionOrchestrator {
-	private client: ExtensionBridgeClient | undefined;
+	private client: BridgeClient | undefined;
 	private readonly auditLogger: AuditLogger | undefined;
 	private readonly permissionTimeoutMs: number;
 	private readonly defaultResolvedBy: string;
@@ -100,7 +117,7 @@ export class PermissionOrchestrator {
 		}
 	}
 
-	setClient(client: ExtensionBridgeClient | undefined): void {
+	setClient(client: BridgeClient | undefined): void {
 		this.client = client;
 	}
 
@@ -123,6 +140,7 @@ export class PermissionOrchestrator {
 			const now = Date.now();
 			const pending: PendingPermission = {
 				callbackId,
+				sessionId: extractSessionId(event),
 				receivedAt: new Date(now).toISOString(),
 				expiresAt: new Date(now + this.permissionTimeoutMs).toISOString(),
 				summary: safeSummaryFromEvent(root),
@@ -208,7 +226,7 @@ export class PermissionOrchestrator {
 	private async resolve(callbackId: string, approved: boolean, resolvedBy?: string): Promise<void> {
 		const client = this.client;
 		if (!client || client.getStatus() !== 'connected') {
-			throw new Error('[Gateway] Cannot resolve permission: extension WS not connected');
+			throw new Error('[Gateway] Cannot resolve permission: bridge not connected');
 		}
 		if (!this.pendingByCallbackId.has(callbackId)) {
 			throw new Error('[Gateway] Cannot resolve permission: callbackId is not pending');

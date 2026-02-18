@@ -196,6 +196,9 @@ export class DiscordPlatform implements MessagePlatform {
 	private listenersAttached = false;
 	private started = false;
 	private readonly permissionPromptByCallbackId = new Map<string, { threadId: string; messageId: string }>();
+	private sessionsSummaryTimer: NodeJS.Timeout | null = null;
+	private sessionsSummaryMessage: Message | null = null;
+	private sessionsSummaryLastContent: string | null = null;
 
 	constructor(config: DiscordConfig) {
 		this.config = config;
@@ -242,8 +245,102 @@ export class DiscordPlatform implements MessagePlatform {
 
 	async stop(): Promise<void> {
 		if (!this.started) return;
+		this.stopSessionsSummary();
 		this.started = false;
 		await this.client.destroy();
+	}
+
+	startSessionsSummary(params: { buildContent: () => string | Promise<string>; intervalMs?: number }): { stop: () => void } {
+		const intervalMs = params.intervalMs ?? 30_000;
+		this.stopSessionsSummary();
+
+		const stop = () => this.stopSessionsSummary();
+
+		void (async () => {
+			if (!this.client.isReady()) return;
+			const channel = await this.client.channels.fetch(this.config.channelId).catch(() => null);
+			if (!channel) return;
+			const target = channel as any;
+			if (typeof target.send !== 'function') return;
+
+			// Best-effort: re-use an existing summary message from this bot to avoid channel spam on restarts.
+			let existing: Message | null = null;
+			try {
+				if (target.messages?.fetch && this.client.user?.id) {
+					const recent = await target.messages.fetch({ limit: 20 });
+					for (const msg of recent.values()) {
+						if (msg.author?.id !== this.client.user.id) continue;
+						const content = typeof msg.content === 'string' ? msg.content : '';
+						if (content.startsWith('Sessions summary')) {
+							existing = msg;
+							break;
+						}
+					}
+				}
+			} catch {
+				// ignore (missing history perms, etc)
+			}
+
+			let initialContent: string;
+			try {
+				initialContent = await params.buildContent();
+			} catch {
+				initialContent = 'Sessions summary\n(error generating content)';
+			}
+
+			const sanitized = sanitizeOutboundText(initialContent, { maxLength: 1800 });
+			try {
+				this.sessionsSummaryMessage =
+					existing ??
+					((await target.send({
+						content: sanitized,
+						allowedMentions: discordAllowedMentions(),
+					})) as Message);
+				this.sessionsSummaryLastContent = sanitized;
+			} catch {
+				// If we can't post/edit (missing perms / rate limit), silently disable.
+				this.stopSessionsSummary();
+				return;
+			}
+
+			this.sessionsSummaryTimer = setInterval(() => {
+				void this.refreshSessionsSummary(params.buildContent);
+			}, intervalMs);
+		})();
+
+		return { stop };
+	}
+
+	private stopSessionsSummary(): void {
+		if (this.sessionsSummaryTimer) {
+			clearInterval(this.sessionsSummaryTimer);
+			this.sessionsSummaryTimer = null;
+		}
+		this.sessionsSummaryMessage = null;
+		this.sessionsSummaryLastContent = null;
+	}
+
+	private async refreshSessionsSummary(buildContent: () => string | Promise<string>): Promise<void> {
+		const msg = this.sessionsSummaryMessage;
+		if (!msg) return;
+
+		let nextRaw: string;
+		try {
+			nextRaw = await buildContent();
+		} catch {
+			return;
+		}
+
+		const next = sanitizeOutboundText(nextRaw, { maxLength: 1800 });
+		if (this.sessionsSummaryLastContent === next) return;
+
+		try {
+			await msg.edit({ content: next, allowedMentions: discordAllowedMentions() });
+			this.sessionsSummaryLastContent = next;
+		} catch {
+			// If we can't edit anymore (archived channel, perms, rate limit), silently stop.
+			this.stopSessionsSummary();
+		}
 	}
 
 	async registerCommands(commands: ReadonlyArray<PlatformCommandSpec> = getDefaultGatewayCommandSpecs()): Promise<void> {

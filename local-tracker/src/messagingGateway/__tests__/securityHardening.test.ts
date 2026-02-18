@@ -267,15 +267,15 @@ describe('Malformed payloads', () => {
 		expect(empty.meta?.reason).toBe('unknown_command');
 	});
 
-	it('rejects /queue with missing prompt', async () => {
+	it('rejects /task with missing prompt', async () => {
 		const router = makeRouter();
-		const res = await router.route({ name: '/queue', args: {} }, authorizedCtx());
+		const res = await router.route({ name: '/task', args: {} }, authorizedCtx());
 		expect(res.kind).toBe('error');
 	});
 
-	it('rejects /queue with non-string prompt', async () => {
+	it('rejects /task with non-string prompt', async () => {
 		const router = makeRouter();
-		const res = await router.route({ name: '/queue', args: { prompt: 12345 } }, authorizedCtx());
+		const res = await router.route({ name: '/task', args: { prompt: 12345 } }, authorizedCtx());
 		expect(res.kind).toBe('error');
 	});
 

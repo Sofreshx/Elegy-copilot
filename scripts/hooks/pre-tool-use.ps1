@@ -32,6 +32,7 @@ function Test-IsRunInTerminalTool([string]$name) {
 function Test-IsWatchOrInteractiveCommand([string]$command) {
     if ([string]::IsNullOrWhiteSpace($command)) { return $false }
     $low = $command.ToLower()
+    if ($low -match "\bplaywright\b" -and ($low -match "(^|\s)--ui(\s|$)" -or $low -match "(^|\s)--debug(\s|$)" -or $low -match "(^|\s)pwdebug=1(\s|$)")) { return $true }
     $watchMarkers = @(
         "dotnet watch",
         "vitest --watch",
@@ -40,9 +41,7 @@ function Test-IsWatchOrInteractiveCommand([string]$command) {
         "jest --watchall",
         "npm run watch",
         "pnpm run watch",
-        "yarn watch",
-        "playwright test --ui",
-        "playwright --ui"
+        "yarn watch"
     )
     return ($watchMarkers | Where-Object { $low.Contains($_) }).Count -gt 0
 }
@@ -131,6 +130,62 @@ function Test-WriteCommand([string]$command) {
     return ($writeMarkers | Where-Object { $low.Contains($_) }).Count -gt 0
 }
 
+function Get-HighRiskCommandReason([string]$command) {
+    if ([string]::IsNullOrWhiteSpace($command)) { return $null }
+    $trim = $command.Trim()
+
+    if ($trim -match '^(?i)\s*git\s+push(\s|$)') {
+        return "High-risk git command blocked by baseline policy: git push (use a PR workflow instead)."
+    }
+    if ($trim -match '^(?i)\s*git\s+reset\b' -and $trim -match '(?i)(^|\s)--hard(\s|$)') {
+        return "High-risk git command blocked by baseline policy: git reset --hard (can destroy local changes)."
+    }
+    if ($trim -match '^(?i)\s*git\s+clean\b') {
+        $hasForce = $trim -match '(?i)(^|\s)--force(\s|$)|(^|\s)-[a-z]*f[a-z]*(\s|$)'
+        $hasDirs = $trim -match '(?i)(^|\s)--directories(\s|$)|(^|\s)-[a-z]*d[a-z]*(\s|$)'
+        $hasIgnored = $trim -match '(?i)(^|\s)--ignored(\s|$)|(^|\s)-[a-z]*x[a-z]*(\s|$)'
+        if ($hasForce -and $hasDirs -and $hasIgnored) {
+            return "High-risk git command blocked by baseline policy: git clean -fdx (or equivalent) (can delete untracked/ignored files)."
+        }
+    }
+    if ($trim -match '^(?i)\s*git\s+(checkout|switch)\b' -and $trim -match '(?i)(^|\s)(-f|--force)(\s|$)') {
+        return "High-risk git command blocked by baseline policy: git checkout/switch -f/--force (can discard work)."
+    }
+    if ($trim -match '^(?i)\s*git\s+rebase\b' -and $trim -match '(?i)(^|\s)(--onto|--interactive|-i)(\s|$)') {
+        return "High-risk git command blocked by baseline policy: git rebase --onto/-i (history rewriting and often interactive)."
+    }
+    if ($trim -match '^(?i)\s*gh\s+repo\s+delete(\s|$)') {
+        return "High-risk GitHub CLI command blocked by baseline policy: gh repo delete."
+    }
+
+    if ($trim -match '^(?i)\s*(sudo\s+)?rm\s+' -and $trim -match '(?i)(^|\s)-[^\s]*r[^\s]*f[^\s]*(\s|$)' -and $trim -match '(?i)(\s|^)(/|/\*|~|~\/\*)(\s|$)') {
+        return "Destructive OS command blocked by baseline policy: rm -rf targeting / or ~."
+    }
+    if ($trim -match '^(?i)\s*(shutdown|reboot|poweroff|halt)(\s|$)') {
+        return "Destructive OS command blocked by baseline policy: shutdown/reboot/poweroff."
+    }
+    if ($trim -match '^(?i)\s*(sudo\s+)?dd(\s|$)') {
+        return "Destructive OS command blocked by baseline policy: dd (raw disk write risk)."
+    }
+    if ($trim -match '^(?i)\s*(sudo\s+)?mkfs(\.|(\s|$))') {
+        return "Destructive OS command blocked by baseline policy: mkfs* (filesystem format risk)."
+    }
+    if ($trim -match '^(?i)\s*(format|diskpart)(\s|$)') {
+        return "Destructive OS command blocked by baseline policy: format/diskpart."
+    }
+    if ($trim -match '^(?i)\s*(remove-item|rm|ri)\b' -and $trim -match '(?i)(^|\s)-recurse(\s|$)' -and $trim -match '(?i)(^|\s)-force(\s|$)' -and $trim -match '(?i)(\s|^)(c:\\|c:/)(\s|$)') {
+        return "Destructive OS command blocked by baseline policy: Remove-Item -Recurse -Force targeting C:\."
+    }
+    if ($trim -match '^(?i)\s*(rmdir|rd)\b' -and $trim -match '(?i)(^|\s)/s(\s|$)' -and $trim -match '(?i)(^|\s)/q(\s|$)' -and $trim -match '(?i)(\s|^)(c:\\|c:/)(\s|$)') {
+        return "Destructive OS command blocked by baseline policy: rmdir/rd /s /q targeting C:\."
+    }
+    if ($trim -match '^(?i)\s*(del|erase)\b' -and $trim -match '(?i)(^|\s)/s(\s|$)' -and $trim -match '(?i)(^|\s)/q(\s|$)' -and $trim -match '(?i)(\s|^)(c:\\|c:/)(\s|$)') {
+        return "Destructive OS command blocked by baseline policy: del/erase /s /q targeting C:\."
+    }
+
+    return $null
+}
+
 $decision = $null
 $reason = $null
 
@@ -184,12 +239,18 @@ if (-not $decision -and (Test-IsRunInTerminalTool $toolName)) {
             $decision = "deny"
             $reason = "Vitest must be run in non-interactive mode (use vitest run or add --run)."
         }
-    } elseif ($command -match "(?i)\bplaywright\b" -and $command -match "(?i)(^|\s)--ui(\s|$)") {
+    } elseif ($command -match "(?i)\bplaywright\b" -and ($command -match "(?i)(^|\s)--ui(\s|$)" -or $command -match "(?i)(^|\s)--debug(\s|$)" -or $command -match "(?i)(^|\s)pwdebug=1(\s|$)")) {
         $decision = "deny"
-        $reason = "Playwright UI mode (--ui) is interactive and can hang automation runs."
+        $reason = "Playwright UI/debug mode (--ui/--debug, PWDEBUG=1) is interactive and can hang automation runs."
     } elseif (Test-IsDotNetTestCommand $command -and -not (Test-HasNoRestore $command)) {
         $decision = "deny"
         $reason = "dotnet test must include --no-restore to avoid restore prompts/hangs. Build/restore separately if needed."
+    } else {
+        $highRiskReason = Get-HighRiskCommandReason $command
+        if ($highRiskReason) {
+            $decision = "deny"
+            $reason = $highRiskReason
+        }
     }
 
     if (Test-ProdCommand $command) {

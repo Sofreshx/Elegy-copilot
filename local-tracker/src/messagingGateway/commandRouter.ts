@@ -3,13 +3,14 @@ import { z } from 'zod';
 
 import { AuditLogger } from './auditLogger';
 import { chunkText } from './chunking';
-import type { ExtensionBridgeClient } from './extensionBridgeClient';
+import type { BridgeClient } from './bridgeClient';
 import { formatSummary } from './formatSummary';
 import { getWorkspaceGitSnapshot } from './gitSnapshot';
 import type { PermissionOrchestrator } from './permissionOrchestrator';
 import { sanitizeInboundPrompt, sanitizeOutboundText } from './sanitizer';
 import { FixedWindowRateLimiter } from './rateLimiter';
 import { ArtefactsMonitor } from './artefactsMonitor';
+import { formatSessionLine, parseBridgeSessions } from './sessionsHelpers';
 
 export type CommandTier = 'read' | 'invoke' | 'admin';
 
@@ -92,7 +93,7 @@ export interface CommandRouterDeps {
 	policy: CommandRouterPolicy;
 	workspaces: CommandRouterWorkspaceState;
 	auditLogger: AuditLogger;
-	extensionClient?: ExtensionBridgeClient;
+	extensionClient?: BridgeClient;
 	permissionOrchestrator?: PermissionOrchestrator;
 	nowMs?: () => number;
 }
@@ -447,37 +448,33 @@ export class CommandRouter {
 		this.assertWorkspaceAllowed(workspaceRoot);
 
 		const client = this.deps.extensionClient;
+		const pending = this.deps.permissionOrchestrator?.getPending() ?? [];
+		const pendingBySessionId = new Map<string, number>();
+		for (const p of pending) {
+			const sessionId = typeof p.sessionId === 'string' ? p.sessionId : '';
+			if (!sessionId) continue;
+			pendingBySessionId.set(sessionId, (pendingBySessionId.get(sessionId) ?? 0) + 1);
+		}
 		if (client && client.getStatus() === 'connected') {
 			const resUnknown = await client.get_sessions();
-			const sessionsUnknown =
-				typeof resUnknown === 'object' && resUnknown !== null
-					? (resUnknown as Record<string, unknown>).sessions
-					: undefined;
-
-			const sessions = Array.isArray(sessionsUnknown) ? sessionsUnknown : [];
+			const sessions = parseBridgeSessions(resUnknown);
 			const normalizedStatuses = (args.statuses ?? []).map((s) => s.toLowerCase()).filter((s) => s.length > 0);
-			const filtered = sessions
-				.filter((s) => typeof s === 'object' && s !== null)
-				.map((s) => s as Record<string, unknown>)
-				.filter((s) => {
-					if (normalizedStatuses.length === 0) return true;
-					const st = typeof s.status === 'string' ? s.status.toLowerCase() : '';
-					return normalizedStatuses.includes(st);
-				});
+			const filtered = sessions.filter((s) => {
+				if (normalizedStatuses.length === 0) return true;
+				return normalizedStatuses.includes((s.status ?? '').toLowerCase());
+			});
 
 			const limit = args.limit ?? 50;
 			const lines: string[] = [];
 			lines.push(`Sessions (connected) (${Math.min(filtered.length, limit)})`);
+			lines.push(`Pending approvals: ${pending.length}`);
 			for (const s of filtered.slice(0, Math.min(limit, 12))) {
-				const id = typeof s.id === 'string' ? s.id : '—';
-				const status = typeof s.status === 'string' ? s.status : '—';
-				const agentName = typeof s.agentName === 'string' ? s.agentName : undefined;
-				lines.push(`- ${id} [${status}]${agentName ? ` @${agentName}` : ''}`);
+				lines.push(formatSessionLine(s, pendingBySessionId.get(s.id)));
 			}
 			return sanitizeAndChunk(lines.join('\n'));
 		}
 
-		return sanitizeAndChunk('sessions is connected-only (extension WS not connected).');
+		return sanitizeAndChunk(`sessions is connected-only (bridge not connected). Pending approvals: ${pending.length}`);
 	}
 
 	private async handleTaskLike(kind: 'task' | 'plan', argsUnknown: unknown): Promise<CommandExecutionResult> {

@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+from typing import Optional
 
 
 raw = sys.stdin.read()
@@ -119,6 +120,12 @@ def is_watch_or_interactive_command(command: str) -> bool:
     if not command:
         return False
     low = command.lower()
+    if "playwright" in low and (
+        re.search(r"(?i)(^|\s)--ui(\s|$)", command)
+        or re.search(r"(?i)(^|\s)--debug(\s|$)", command)
+        or re.search(r"(?i)(^|\s)pwdebug=1(\s|$)", command)
+    ):
+        return True
     watch_markers = [
         "dotnet watch",
         "vitest --watch",
@@ -128,8 +135,6 @@ def is_watch_or_interactive_command(command: str) -> bool:
         "npm run watch",
         "pnpm run watch",
         "yarn watch",
-        "playwright test --ui",
-        "playwright --ui",
     ]
     return any(m in low for m in watch_markers)
 
@@ -153,6 +158,50 @@ def is_vitest_non_run(command: str) -> bool:
         return False
     has_run = re.search(r"(?i)\bvitest\s+run\b", command) is not None or re.search(r"(?i)(^|\s)--run(\s|$)", command) is not None
     return not has_run
+
+
+def high_risk_command_reason(command: str) -> Optional[str]:
+    if not command:
+        return None
+    cmd = command.strip()
+    if not cmd:
+        return None
+
+    if re.match(r"(?i)^\s*(?:sudo\s+)?(?:\w+=\S+\s+)*git\s+push(\s|$)", cmd):
+        return "High-risk git command blocked by baseline policy: git push (use a PR workflow instead)."
+    if re.match(r"(?i)^\s*(?:sudo\s+)?(?:\w+=\S+\s+)*git\s+reset\b", cmd) and re.search(r"(?i)(^|\s)--hard(\s|$)", cmd):
+        return "High-risk git command blocked by baseline policy: git reset --hard (can destroy local changes)."
+    if re.match(r"(?i)^\s*(?:sudo\s+)?(?:\w+=\S+\s+)*git\s+clean\b", cmd):
+        has_force = re.search(r"(?i)(^|\s)--force(\s|$)|(^|\s)-[a-z]*f[a-z]*(\s|$)", cmd) is not None
+        has_dirs = re.search(r"(?i)(^|\s)--directories(\s|$)|(^|\s)-[a-z]*d[a-z]*(\s|$)", cmd) is not None
+        has_ignored = re.search(r"(?i)(^|\s)--ignored(\s|$)|(^|\s)-[a-z]*x[a-z]*(\s|$)", cmd) is not None
+        if has_force and has_dirs and has_ignored:
+            return "High-risk git command blocked by baseline policy: git clean -fdx (or equivalent) (can delete untracked/ignored files)."
+    if re.match(r"(?i)^\s*(?:sudo\s+)?(?:\w+=\S+\s+)*git\s+(?:checkout|switch)\b", cmd) and re.search(r"(?i)(^|\s)(-f|--force)(\s|$)", cmd):
+        return "High-risk git command blocked by baseline policy: git checkout/switch -f/--force (can discard work)."
+    if re.match(r"(?i)^\s*(?:sudo\s+)?(?:\w+=\S+\s+)*git\s+rebase\b", cmd) and re.search(r"(?i)(^|\s)(--onto|--interactive|-i)(\s|$)", cmd):
+        return "High-risk git command blocked by baseline policy: git rebase --onto/-i (history rewriting and often interactive)."
+    if re.match(r"(?i)^\s*gh\s+repo\s+delete(\s|$)", cmd):
+        return "High-risk GitHub CLI command blocked by baseline policy: gh repo delete."
+
+    if re.match(r"(?i)^\s*(?:sudo\s+)?rm\s+", cmd) and re.search(r"(?i)(^|\s)-[^\s]*r[^\s]*f[^\s]*(\s|$)", cmd) and re.search(r"(?i)(\s|^)(/|/\*|~|~\/\*)(\s|$)", cmd):
+        return "Destructive OS command blocked by baseline policy: rm -rf targeting / or ~."
+    if re.match(r"(?i)^\s*(shutdown|reboot|poweroff|halt)(\s|$)", cmd):
+        return "Destructive OS command blocked by baseline policy: shutdown/reboot/poweroff."
+    if re.match(r"(?i)^\s*(?:sudo\s+)?dd(\s|$)", cmd):
+        return "Destructive OS command blocked by baseline policy: dd (raw disk write risk)."
+    if re.match(r"(?i)^\s*(?:sudo\s+)?mkfs(\.|(\s|$))", cmd):
+        return "Destructive OS command blocked by baseline policy: mkfs* (filesystem format risk)."
+    if re.match(r"(?i)^\s*(format|diskpart)(\s|$)", cmd):
+        return "Destructive OS command blocked by baseline policy: format/diskpart."
+    if re.match(r"(?i)^\s*(remove-item|rm|ri)\b", cmd) and re.search(r"(?i)(^|\s)-recurse(\s|$)", cmd) and re.search(r"(?i)(^|\s)-force(\s|$)", cmd) and re.search(r"(?i)(\s|^)(c:\\\\|c:/)(\s|$)", cmd):
+        return "Destructive OS command blocked by baseline policy: Remove-Item -Recurse -Force targeting C:\\."
+    if re.match(r"(?i)^\s*(rmdir|rd)\b", cmd) and re.search(r"(?i)(^|\s)/s(\s|$)", cmd) and re.search(r"(?i)(^|\s)/q(\s|$)", cmd) and re.search(r"(?i)(\s|^)(c:\\\\|c:/)(\s|$)", cmd):
+        return "Destructive OS command blocked by baseline policy: rmdir/rd /s /q targeting C:\\."
+    if re.match(r"(?i)^\s*(del|erase)\b", cmd) and re.search(r"(?i)(^|\s)/s(\s|$)", cmd) and re.search(r"(?i)(^|\s)/q(\s|$)", cmd) and re.search(r"(?i)(\s|^)(c:\\\\|c:/)(\s|$)", cmd):
+        return "Destructive OS command blocked by baseline policy: del/erase /s /q targeting C:\\."
+
+    return None
 
 
 decision = None
@@ -200,6 +249,11 @@ if not decision and is_terminal_tool(tool_name):
     elif is_dotnet_test_command(command) and not has_no_restore(command):
         decision = "deny"
         reason = "dotnet test must include --no-restore to avoid restore prompts/hangs. Build/restore separately if needed."
+    else:
+        risk_reason = high_risk_command_reason(command)
+        if risk_reason:
+            decision = "deny"
+            reason = risk_reason
 
     # Prod policy (applies to terminal tools only)
     if not decision and is_prod_command(command):

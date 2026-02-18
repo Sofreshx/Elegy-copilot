@@ -81,6 +81,7 @@ For a deeper reference (config fields, auth model, troubleshooting), see `local-
 **Notes**
 - The gateway must run on the same machine as VS Code for connected mode.
 - Never commit tokens; use the keychain commands (or env vars as a fallback for local dev only).
+- For safety, `/task` and `/plan` currently enforce **one active invoke session per user** (`maxActiveInvokeSessionsPerUser=1`, WU-002 contract). If you need true multi-session invoking, a safe default is `2` (update the WU-002 contract + tests accordingly).
 
 ## Quick start
 
