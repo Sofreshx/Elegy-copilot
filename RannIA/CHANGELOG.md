@@ -72,11 +72,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Configurable via `skillInstaller.dumpCleaner.patterns` setting.
 
 ### Added — Discord Messaging Gateway Integration
-- **Status file reader**: Connections view now shows Discord gateway status (ready state, extension bridge connection, active sessions) read from `~/.instruction-engine/messaging-gateway.status.json`.
+- **Status file reader**: Connections view now shows Discord gateway status (ready state, active sessions) read from `~/.instruction-engine/messaging-gateway.status.json`.
 - **Status file writer**: `local-tracker` gateway emits an atomic heartbeat status file with schema version, config summary, secrets presence, and runtime state.
 - **Optional permissions channel**: `discord.permissionsChannelId` config field — routes permission prompts to a dedicated Discord channel instead of the session thread.
-- **Setup wizard**: Gateway setup wizard now supports optional permissions channel ID configuration.
-- **Edit Discord settings**: New "Change permissions channel" option in the edit Discord settings command.
 
 ### Added — Security Hardening
 - 22 negative/hardening tests covering: allowlist enforcement (user IDs, guild/channel scope), workspace boundary enforcement, cross-tier rate limiting, replayed approval rejection, malformed payload handling, and invoke concurrency limiting.

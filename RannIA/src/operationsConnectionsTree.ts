@@ -40,7 +40,6 @@ interface MessagingGatewayStatusV1 {
 	lastUpdatedUtc: string;
 	runtime?: {
 		discord?: { connected?: boolean; ready?: boolean };
-		extensionWs?: { connected?: boolean };
 		sessions?: { activeSessionThreadCount?: number };
 	};
 }
@@ -282,7 +281,6 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 
 		const status = result.status;
 		const discordReady = status.runtime?.discord?.ready;
-		const extensionWsConnected = status.runtime?.extensionWs?.connected;
 		const activeSessions = status.runtime?.sessions?.activeSessionThreadCount;
 
 		children.push(
@@ -304,16 +302,6 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 				key: 'gw-discord-ready',
 				label: `Discord ready: ${discordReady === true ? 'yes' : discordReady === false ? 'no' : 'unknown'}`,
 				iconPath: new vscode.ThemeIcon(discordReady === true ? 'check' : 'circle-outline')
-			},
-			{
-				kind: 'status',
-				key: 'gw-extension-ws',
-				label:
-					extensionWsConnected === undefined
-						? 'Extension WS bridge: n/a'
-						: `Extension WS bridge: ${extensionWsConnected ? 'connected' : 'disconnected'}`,
-				description: extensionWsConnected === undefined ? 'gateway running in disconnected mode or not reporting bridge status' : undefined,
-				iconPath: new vscode.ThemeIcon(extensionWsConnected ? 'plug' : 'circle-slash')
 			},
 			{
 				kind: 'status',

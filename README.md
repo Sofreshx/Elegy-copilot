@@ -43,22 +43,22 @@ Run Copilot agent sessions from Discord and stream session updates back into a D
 - Enable Discord **Developer Mode** and copy the numeric IDs you’ll need:
   - Guild ID, Channel ID, your User ID
 
-1) **Enable the extension WebSocket server**
-- In VS Code settings set `skillInstaller.ws.enabled` to `true`
-- Reload VS Code
-- When the WS server starts it writes `<workspaceRoot>/.skill-installer/ws-port.txt`
-
-2) **Create the gateway config**
-- Run VS Code command: **Gateway: Setup Messaging Gateway**
-- This creates/updates: `~/.instruction-engine/messaging-gateway.config.json`
+1) **Create the gateway config (non-secret)**
+- Create/update: `~/.instruction-engine/messaging-gateway.config.json`
+- Use `local-tracker/docs/messaging-gateway.config.example.json` as a template
 - Ensure it contains:
   - `discord.allowlistedUserIds` (your Discord user ID(s))
   - `discord.guildId`, `discord.channelId`
   - `workspaces.allowedRoots` (absolute paths), `workspaces.activeRoot`
 
-3) **Store secrets in OS credential store**
-- Run: **Gateway: Store Discord Bot Token (Keychain)**
-- Run: **Gateway: Store Extension WS JWT (Keychain)** (defaults `sub=gateway`)
+2) **Store secrets in OS credential store**
+- Store the Discord bot token:
+  - `npm --prefix local-tracker run dev:gateway -- --store-discord-bot-token`
+
+3) **Start Copilot CLI in ACP mode (connected mode)**
+```bash
+copilot --acp --port 3000
+```
 
 4) **Start the Messaging Gateway**
 ```bash
@@ -71,7 +71,7 @@ npm run start:gateway -- --mode connected
 For a deeper reference (config fields, auth model, troubleshooting), see `local-tracker/docs/messaging-gateway.md`.
 
 ### Using it from Discord
-- `/status` — gateway + extension connection status
+- `/status` — gateway status
 - `/sessions` — list recent sessions (connected mode)
 - `/task prompt:<text>` — run work via `@orchestrator` (creates a thread + streams updates)
 - `/plan prompt:<text>` — plan-only via `@orchestrator`
@@ -79,7 +79,7 @@ For a deeper reference (config fields, auth model, troubleshooting), see `local-
 - `/git`, `/workspaces`, `/switch` — workspace/gitrepo utilities
 
 **Notes**
-- The gateway must run on the same machine as VS Code for connected mode.
+- Connected mode requires a local ACP server (Copilot CLI `--acp`).
 - Never commit tokens; use the keychain commands (or env vars as a fallback for local dev only).
 - For safety, `/task` and `/plan` currently enforce **one active invoke session per user** (`maxActiveInvokeSessionsPerUser=1`, WU-002 contract). If you need true multi-session invoking, a safe default is `2` (update the WU-002 contract + tests accordingly).
 

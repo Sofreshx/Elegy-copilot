@@ -3,13 +3,10 @@ import os from 'os';
 import path from 'path';
 
 export type MessagingGatewayMode = 'auto' | 'connected' | 'disconnected';
-export type MessagingGatewayConnectedBridge = 'extension-ws' | 'acp';
 
 export interface MessagingGatewayConfig {
 	mode?: MessagingGatewayMode;
-	/** Connected mode bridge implementation. Defaults to 'extension-ws'. */
-	connectedBridge?: MessagingGatewayConnectedBridge;
-	/** ACP (Copilot CLI `--acp --port <N>`) settings. Used when connectedBridge='acp'. */
+	/** ACP (Copilot CLI `--acp --port <N>`) settings. */
 	acp?: {
 		host?: string;
 		port?: number;
@@ -115,15 +112,6 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 		throw new Error('[Gateway] Invalid config: mode must be one of auto|connected|disconnected');
 	}
 
-	const connectedBridgeRaw = raw.connectedBridge;
-	if (
-		connectedBridgeRaw !== undefined &&
-		connectedBridgeRaw !== 'extension-ws' &&
-		connectedBridgeRaw !== 'acp'
-	) {
-		throw new Error('[Gateway] Invalid config: connectedBridge must be one of extension-ws|acp');
-	}
-
 	let acp: MessagingGatewayConfig['acp'] | undefined;
 	if (raw.acp !== undefined && raw.acp !== null) {
 		if (!isRecord(raw.acp)) throw new Error('[Gateway] Invalid config: acp must be an object');
@@ -177,7 +165,6 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 
 	return {
 		mode: modeRaw,
-		connectedBridge: connectedBridgeRaw,
 		acp,
 		discord: {
 			allowlistedUserIds,

@@ -1,0 +1,9 @@
+{
+  "extends": "../RannIA/tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "../RannIA/src"
+  },
+  "include": ["../RannIA/src/**/*.ts"],
+  "exclude": ["node_modules", ".vscode-test", "dist"]
+}

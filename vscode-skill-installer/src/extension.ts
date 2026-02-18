@@ -20,16 +20,6 @@ import { initializeSkills } from './skillInitializer';
 import { McpProvidersTreeProvider } from './mcpProvidersTree';
 import { McpProviderInfo, syncMcpConfigForRepo, syncMcpConfigForWorkspace } from './mcpConfig';
 import { DumpCleanerTreeProvider } from './dumpCleanerTree';
-import {
-	setupMessagingGatewayWizard,
-	storeDiscordBotTokenCommand,
-	storeExtensionWsJwtCommand,
-	editDiscordCommand,
-	manageWorkspacesCommand,
-	syncWorkspacesCommand,
-	viewConfigCommand,
-	openConfigCommand,
-} from './gatewaySetup';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -118,7 +108,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		output.appendLine(`[WS Server] Failed to start: ${message}`);
 	});
 
-	// ── WS Pairing / Port Discovery (Gateway bootstrap) ───────────────────
+	// ── WS Port Discovery ─────────────────────────────────────────────────
 	context.subscriptions.push(
 		vscode.commands.registerCommand('skillInstaller.ws.showPort', async () => {
 			const wsConfig = vscode.workspace.getConfiguration('skillInstaller.ws');
@@ -127,7 +117,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 			if (!wsEnabled) {
 				const choice = await vscode.window.showWarningMessage(
-					'WebSocket server is disabled. Enable skillInstaller.ws.enabled to use gateway pairing.',
+					'WebSocket server is disabled. Enable skillInstaller.ws.enabled to use the WS server.',
 					'Open Settings'
 				);
 				if (choice === 'Open Settings') {
@@ -144,96 +134,6 @@ export function activate(context: vscode.ExtensionContext): void {
 			const url = `ws://127.0.0.1:${port}`;
 			await vscode.env.clipboard.writeText(url);
 			void vscode.window.showInformationMessage(`WS listening on ${port}. Copied URL to clipboard.`);
-		})
-	);
-
-	// ── Messaging Gateway Setup (Discord config + keychain helpers) ───────
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.gateway.setup', async () => {
-			await setupMessagingGatewayWizard(output, authManager, wsServer);
-		})
-	);
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.gateway.storeDiscordBotToken', async () => {
-			await storeDiscordBotTokenCommand(output);
-		})
-	);
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.gateway.storeExtensionWsJwt', async () => {
-			await storeExtensionWsJwtCommand(output, authManager, wsServer);
-		})
-	);
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.gateway.editDiscord', async () => {
-			await editDiscordCommand(output);
-		})
-	);
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.gateway.manageWorkspaces', async () => {
-			await manageWorkspacesCommand(output);
-		})
-	);
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.gateway.syncWorkspaces', async () => {
-			await syncWorkspacesCommand(output);
-		})
-	);
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.gateway.viewConfig', async () => {
-			await viewConfigCommand(output);
-		})
-	);
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.gateway.openConfig', async () => {
-			await openConfigCommand();
-		})
-	);
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand('skillInstaller.ws.pairGateway', async () => {
-			const wsConfig = vscode.workspace.getConfiguration('skillInstaller.ws');
-			const wsEnabled = wsConfig.get<boolean>('enabled', false);
-			const port = wsServer.getPort();
-
-			if (!wsEnabled) {
-				const choice = await vscode.window.showWarningMessage(
-					'WebSocket server is disabled. Enable skillInstaller.ws.enabled to pair a gateway.',
-					'Open Settings'
-				);
-				if (choice === 'Open Settings') {
-					await vscode.commands.executeCommand('workbench.action.openSettings', 'skillInstaller.ws.enabled');
-				}
-				return;
-			}
-
-			if (!wsServer.isRunning() || !port) {
-				void vscode.window.showInformationMessage('WebSocket server is not running yet. Try again in a moment.');
-				return;
-			}
-
-			const userIdInput = await vscode.window.showInputBox({
-				prompt: 'Gateway userId (token subject)',
-				value: 'gateway',
-				ignoreFocusOut: true,
-			});
-			const userId = (userIdInput ?? '').trim();
-			if (!userId) {
-				return;
-			}
-
-			try {
-				if (!authManager.getSecret()) {
-					await authManager.initialize();
-				}
-				const token = authManager.generateToken(userId);
-				const url = `ws://127.0.0.1:${port}`;
-				const pairing = `WS_URL=${url}\nWS_TOKEN=${token}`;
-				await vscode.env.clipboard.writeText(pairing);
-				void vscode.window.showInformationMessage('Gateway pairing info copied to clipboard.');
-			} catch (err) {
-				const msg = err instanceof Error ? err.message : 'Unknown error';
-				void vscode.window.showErrorMessage(`Failed to generate pairing token: ${msg}`);
-			}
 		})
 	);
 	const skillProvider = new SkillDiscoveryTreeProvider(output);

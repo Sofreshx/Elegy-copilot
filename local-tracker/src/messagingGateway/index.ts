@@ -7,25 +7,21 @@ import { CommandRouter, WU002_POLICY_CONTRACT } from './commandRouter';
 import { DiscordPlatform } from './discordPlatform';
 import type { BridgeClient } from './bridgeClient';
 import { AcpBridgeClient } from './acpBridgeClient';
-import { ExtensionBridgeClient } from './extensionBridgeClient';
 import { PermissionOrchestrator } from './permissionOrchestrator';
 import { SessionThreadManager } from './sessionThreadManager';
 import { formatSessionLine, isActiveSessionStatus, parseBridgeSessions } from './sessionsHelpers';
 import { deleteGatewaySecret, getGatewaySecret, getGatewaySecretsStatus, storeGatewaySecretFromEnv } from './secrets';
-import { detectModeAuto, resolveExtensionWsPort } from './workspaceDetection';
+import { detectModeAuto } from './workspaceDetection';
 import { printGatewayStatusSummary } from './status';
 import { MessagingGatewayStatusWriter, resolveMessagingGatewayStatusPath, type MessagingGatewayStatusV1 } from './statusFile';
 
 type CliMode = MessagingGatewayMode;
-type ConnectedBridge = 'extension-ws' | 'acp';
 
 interface CliArgs {
 	configPath?: string;
 	mode?: CliMode;
 	storeDiscordBotToken?: boolean;
-	storeExtensionWsJwt?: boolean;
 	deleteDiscordBotToken?: boolean;
-	deleteExtensionWsJwt?: boolean;
 	printConfigPath?: boolean;
 	help?: boolean;
 }
@@ -45,10 +41,6 @@ Config:
 
 Secrets (preferred: OS keychain; fallback: env vars):
   Discord bot token env fallbacks: INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN, DISCORD_BOT_TOKEN
-  Extension WS JWT env fallbacks: INSTRUCTION_ENGINE_EXTENSION_WS_JWT, INSTRUCTION_ENGINE_WS_JWT, EXTENSION_WS_JWT
-
-Connected bridge selection:
-  INSTRUCTION_ENGINE_GATEWAY_CONNECTED_BRIDGE=extension-ws|acp (default: extension-ws)
 
 ACP (Copilot CLI \`copilot --acp --port <N>\`) env overrides:
   INSTRUCTION_ENGINE_ACP_HOST=127.0.0.1
@@ -56,9 +48,7 @@ ACP (Copilot CLI \`copilot --acp --port <N>\`) env overrides:
 
 Keychain utilities (reads token from env and stores in OS credential store):
   --store-discord-bot-token
-  --store-extension-ws-jwt
   --delete-discord-bot-token
-  --delete-extension-ws-jwt
 `);
 }
 
@@ -72,9 +62,7 @@ function parseArgs(argv: string[]): CliArgs {
 		else if (arg === '--mode') out.mode = argv[++i] as CliMode;
 		else if (arg.startsWith('--mode=')) out.mode = arg.slice('--mode='.length) as CliMode;
 		else if (arg === '--store-discord-bot-token') out.storeDiscordBotToken = true;
-		else if (arg === '--store-extension-ws-jwt') out.storeExtensionWsJwt = true;
 		else if (arg === '--delete-discord-bot-token') out.deleteDiscordBotToken = true;
-		else if (arg === '--delete-extension-ws-jwt') out.deleteExtensionWsJwt = true;
 		else if (arg === '--print-config-path') out.printConfigPath = true;
 		else throw new Error(`[Gateway] Unknown argument: ${arg}`);
 	}
@@ -90,14 +78,6 @@ function resolveRequestedMode(cli: CliMode | undefined, configMode: CliMode | un
 	return requested;
 }
 
-function resolveConnectedBridge(configBridge: unknown): ConnectedBridge {
-	const env = (process.env.INSTRUCTION_ENGINE_GATEWAY_CONNECTED_BRIDGE || '').trim();
-	const raw = (env || (typeof configBridge === 'string' ? configBridge : '') || 'extension-ws').trim().toLowerCase();
-	if (raw === 'extension-ws' || raw === 'extension' || raw === 'ws') return 'extension-ws';
-	if (raw === 'acp') return 'acp';
-	throw new Error('[Gateway] Invalid connected bridge (expected extension-ws|acp)');
-}
-
 function parseOptionalEnvPort(envValue: string | undefined): number | undefined {
 	const raw = (envValue || '').trim();
 	if (!raw) return undefined;
@@ -111,9 +91,7 @@ function parseOptionalEnvPort(envValue: string | undefined): number | undefined 
 async function handleSecretUtilityFlags(args: CliArgs): Promise<boolean> {
 	const flags = [
 		args.storeDiscordBotToken,
-		args.storeExtensionWsJwt,
 		args.deleteDiscordBotToken,
-		args.deleteExtensionWsJwt,
 	].filter(Boolean);
 	if (flags.length === 0) return false;
 	if (flags.length > 1) {
@@ -125,19 +103,9 @@ async function handleSecretUtilityFlags(args: CliArgs): Promise<boolean> {
 		console.log('[Gateway] Stored discord bot token in OS credential store');
 		return true;
 	}
-	if (args.storeExtensionWsJwt) {
-		await storeGatewaySecretFromEnv('extensionWsJwt');
-		console.log('[Gateway] Stored extension WS JWT in OS credential store');
-		return true;
-	}
 	if (args.deleteDiscordBotToken) {
 		const deleted = await deleteGatewaySecret('discordBotToken');
 		console.log(`[Gateway] Deleted discord bot token from OS credential store: ${deleted ? 'ok' : 'not found'}`);
-		return true;
-	}
-	if (args.deleteExtensionWsJwt) {
-		const deleted = await deleteGatewaySecret('extensionWsJwt');
-		console.log(`[Gateway] Deleted extension WS JWT from OS credential store: ${deleted ? 'ok' : 'not found'}`);
 		return true;
 	}
 
@@ -167,8 +135,9 @@ async function main() {
 
 	const requestedMode = resolveRequestedMode(args.mode, loaded.config.mode);
 	let activeWorkspaceRoot = loaded.config.workspaces.activeRoot;
-	const mode = requestedMode === 'auto' ? detectModeAuto(activeWorkspaceRoot) : requestedMode;
-	const connectedBridge = resolveConnectedBridge(loaded.config.connectedBridge);
+	const acpHost = (process.env.INSTRUCTION_ENGINE_ACP_HOST || loaded.config.acp?.host || '127.0.0.1').trim();
+	const acpPort = parseOptionalEnvPort(process.env.INSTRUCTION_ENGINE_ACP_PORT) ?? loaded.config.acp?.port;
+	const mode = requestedMode === 'auto' ? detectModeAuto(acpPort) : requestedMode;
 	const secretsStatus = await getGatewaySecretsStatus();
 
 	const discordBotToken = await getGatewaySecret('discordBotToken');
@@ -178,17 +147,10 @@ async function main() {
 		);
 	}
 
-	let extensionWsPort: { port: number; source: 'env' | 'file' } | undefined;
-	let extensionWsJwtValue: string | undefined;
-	if (mode === 'connected' && connectedBridge === 'extension-ws') {
-		extensionWsPort = resolveExtensionWsPort(activeWorkspaceRoot);
-		const extensionWsJwt = await getGatewaySecret('extensionWsJwt');
-		extensionWsJwtValue = extensionWsJwt.value;
-		if (!extensionWsJwtValue) {
-			throw new Error(
-				'[Gateway] Missing required secret for connected mode: extension WS JWT. Store it in the OS credential store (preferred) or set INSTRUCTION_ENGINE_EXTENSION_WS_JWT, or run with --mode disconnected.',
-			);
-		}
+	if (mode === 'connected' && !acpPort) {
+		throw new Error(
+			'[Gateway] ACP bridge requires a port. Set INSTRUCTION_ENGINE_ACP_PORT or config acp.port, and start Copilot CLI with `copilot --acp --port <PORT>`',
+		);
 	}
 
 	printGatewayStatusSummary(loaded, {
@@ -201,7 +163,8 @@ async function main() {
 		discordChannelId: loaded.config.discord.channelId,
 		discordPermissionsChannelId: loaded.config.discord.permissionsChannelId,
 		secrets: secretsStatus,
-		extensionWsPort,
+		acpHost,
+		acpPort,
 	});
 
 	const auditLogger = new AuditLogger({ workspaceRoot: activeWorkspaceRoot });
@@ -262,18 +225,13 @@ async function main() {
 					fromKeychain: secretsStatus.discordBotToken.source === 'keychain',
 					fromEnv: secretsStatus.discordBotToken.source === 'env',
 				},
-				extensionWsJwt: {
-					present: secretsStatus.extensionWsJwt.present,
-					fromKeychain: secretsStatus.extensionWsJwt.source === 'keychain',
-					fromEnv: secretsStatus.extensionWsJwt.source === 'env',
-				},
 			},
 			runtime: {
 				discord: {
 					connected: false,
 					ready: false,
 				},
-				extensionWs: mode === 'connected' ? { connected: false } : undefined,
+				acp: mode === 'connected' ? { connected: false } : undefined,
 				sessions: {
 					activeSessionThreadCount: 0,
 				},
@@ -281,15 +239,15 @@ async function main() {
 		} satisfies MessagingGatewayStatusV1,
 	);
 
-	let extensionWsConnected = false;
+	let acpConnected = false;
 	function refreshDynamicStatusFields(status: MessagingGatewayStatusV1): void {
 		status.config.workspaces.activeRoot = activeWorkspaceRoot;
 		if (status.runtime.sessions) {
 			status.runtime.sessions.activeSessionThreadCount = sessionThreads.getActiveSessionThreadCount();
 		}
 		if (mode === 'connected') {
-			if (!status.runtime.extensionWs) status.runtime.extensionWs = { connected: false };
-			status.runtime.extensionWs.connected = extensionWsConnected;
+			if (!status.runtime.acp) status.runtime.acp = { connected: false };
+			status.runtime.acp.connected = acpConnected;
 		}
 	}
 
@@ -307,58 +265,24 @@ async function main() {
 			defaultResolvedBy: 'messaging-gateway',
 		});
 
-		if (connectedBridge === 'extension-ws') {
-			if (!extensionWsJwtValue) {
-				throw new Error(
-					'[Gateway] Missing required secret for connected mode: extension WS JWT. Store it in the OS credential store (preferred) or set INSTRUCTION_ENGINE_EXTENSION_WS_JWT, or run with --mode disconnected.',
-				);
-			}
-
-			extensionClient = new ExtensionBridgeClient({
-				resolvePort: () => resolveExtensionWsPort(activeWorkspaceRoot).port,
-				getJwt: () => extensionWsJwtValue!,
-				onEvent: (event) => {
-					permissionOrchestrator?.handleExtensionEvent(event);
-					sessionThreads.handleExtensionEvent(event);
-				},
-				onStatusChanged: (status) => {
-					console.log(`[Gateway] Extension WS status: ${status}`);
-					extensionWsConnected = status === 'connected';
-					statusWriter.update((s) => {
-						if (!s.runtime.extensionWs) s.runtime.extensionWs = { connected: false };
-						s.runtime.extensionWs.connected = extensionWsConnected;
-						refreshDynamicStatusFields(s);
-					});
-				},
-			});
-		} else {
-			const host = (process.env.INSTRUCTION_ENGINE_ACP_HOST || loaded.config.acp?.host || '127.0.0.1').trim();
-			const port = parseOptionalEnvPort(process.env.INSTRUCTION_ENGINE_ACP_PORT) ?? loaded.config.acp?.port;
-			if (!port) {
-				throw new Error(
-					'[Gateway] ACP bridge requires a port. Set INSTRUCTION_ENGINE_ACP_PORT or config acp.port, and start Copilot CLI with `copilot --acp --port <PORT>`',
-				);
-			}
-
-			extensionClient = new AcpBridgeClient({
-				host,
-				port,
-				resolveCwd: () => activeWorkspaceRoot,
-				onEvent: (event) => {
-					permissionOrchestrator?.handleExtensionEvent(event);
-					sessionThreads.handleExtensionEvent(event);
-				},
-				onStatusChanged: (status) => {
-					console.log(`[Gateway] ACP status: ${status}`);
-					extensionWsConnected = status === 'connected';
-					statusWriter.update((s) => {
-						if (!s.runtime.extensionWs) s.runtime.extensionWs = { connected: false };
-						s.runtime.extensionWs.connected = extensionWsConnected;
-						refreshDynamicStatusFields(s);
-					});
-				},
-			});
-		}
+		extensionClient = new AcpBridgeClient({
+			host: acpHost,
+			port: acpPort!,
+			resolveCwd: () => activeWorkspaceRoot,
+			onEvent: (event) => {
+				permissionOrchestrator?.handleExtensionEvent(event);
+				sessionThreads.handleExtensionEvent(event);
+			},
+			onStatusChanged: (status) => {
+				console.log(`[Gateway] ACP status: ${status}`);
+				acpConnected = status === 'connected';
+				statusWriter.update((s) => {
+					if (!s.runtime.acp) s.runtime.acp = { connected: false };
+					s.runtime.acp.connected = acpConnected;
+					refreshDynamicStatusFields(s);
+				});
+			},
+		});
 		permissionOrchestrator.setClient(extensionClient);
 		extensionClient.start();
 	}
@@ -507,7 +431,7 @@ async function main() {
 				statusWriter.update((s) => {
 					s.runtime.discord.connected = false;
 					s.runtime.discord.ready = false;
-					if (s.runtime.extensionWs) s.runtime.extensionWs.connected = false;
+					if (s.runtime.acp) s.runtime.acp.connected = false;
 					if (s.runtime.sessions) s.runtime.sessions.activeSessionThreadCount = 0;
 				});
 			} finally {

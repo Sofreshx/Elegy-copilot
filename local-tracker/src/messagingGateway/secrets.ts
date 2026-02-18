@@ -1,22 +1,19 @@
 import { deletePassword, getPassword, setPassword } from '@napi-rs/keyring/keytar';
 
-export type GatewaySecretKind = 'discordBotToken' | 'extensionWsJwt';
+export type GatewaySecretKind = 'discordBotToken';
 
 export interface GatewaySecretsStatus {
 	serviceName: string;
 	discordBotToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
-	extensionWsJwt: { present: boolean; source: 'keychain' | 'env' | 'missing' };
 }
 
 const SERVICE_NAME = 'instruction-engine.messaging-gateway';
 const SECRET_ACCOUNT: Record<GatewaySecretKind, string> = {
 	discordBotToken: 'discord.botToken',
-	extensionWsJwt: 'extension.wsJwt',
 };
 
 const ENV_FALLBACKS: Record<GatewaySecretKind, string[]> = {
 	discordBotToken: ['INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN', 'DISCORD_BOT_TOKEN'],
-	extensionWsJwt: ['INSTRUCTION_ENGINE_EXTENSION_WS_JWT', 'INSTRUCTION_ENGINE_WS_JWT', 'EXTENSION_WS_JWT'],
 };
 
 function getFromEnv(kind: GatewaySecretKind): string | undefined {
@@ -58,11 +55,9 @@ export async function deleteGatewaySecret(kind: GatewaySecretKind): Promise<bool
 
 export async function getGatewaySecretsStatus(): Promise<GatewaySecretsStatus> {
 	const discord = await getGatewaySecret('discordBotToken');
-	const wsJwt = await getGatewaySecret('extensionWsJwt');
 
 	return {
 		serviceName: SERVICE_NAME,
 		discordBotToken: { present: Boolean(discord.value), source: discord.source },
-		extensionWsJwt: { present: Boolean(wsJwt.value), source: wsJwt.source },
 	};
 }

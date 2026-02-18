@@ -1,6 +1,6 @@
 # RannIA (Instruction Engine Skill Installer)
 
-> Workspace management for Instruction Engine: skills, agents, tasks, dump cleanup, and Discord gateway integration.
+> Workspace management for Instruction Engine: skills, agents, tasks, dump cleanup, and remote control.
 
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
 ![VS Code](https://img.shields.io/badge/VS%20Code-1.85%2B-blue)
@@ -19,10 +19,10 @@ Track tasks from `.instructions/tasks/*.md` with full YAML front matter support:
 - Task Workflow view with "Next Up" and "Active" lanes
 - Archive done tasks and purge archived tasks from the workflow view
 
-### Operations & Gateway
-Operational visibility for the Discord messaging gateway and extension bridge:
-- Connection status, ports, and connected clients
-- Discord gateway status (ready state, active sessions)
+### Operations
+Operational visibility for remote control components:
+- WebSocket server status + connected clients (optional; not required for Discord ACP mode)
+- Messaging gateway status (Discord ready state, active sessions)
 - Copilot permission request queue (pending and recent decisions)
 
 ### Dump Cleaner
@@ -62,7 +62,7 @@ Then use **Developer: Install Extension from Location...** and select the folder
 | **Agents** | Agents across workspace repos |
 | **Task Workflow** | Queue and prioritize tasks |
 | **Audit Results** | Code quality audit results |
-| **Connections** | Extension bridge, connected clients, and Discord gateway status |
+| **Connections** | WebSocket server (optional) and messaging gateway status |
 | **Requests** | Active and recent agent sessions |
 | **Permissions** | Copilot permission requests and decisions |
 | **Dump Cleaner** | Workspace dump file scanner and safe cleanup |

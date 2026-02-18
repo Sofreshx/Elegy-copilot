@@ -11,7 +11,8 @@ export interface GatewayStatusSummary {
 	discordChannelId: string;
 	discordPermissionsChannelId?: string;
 	secrets: GatewaySecretsStatus;
-	extensionWsPort?: { port: number; source: 'env' | 'file' };
+	acpHost?: string;
+	acpPort?: number;
 }
 
 export function printGatewayStatusSummary(loaded: LoadedMessagingGatewayConfig, summary: GatewayStatusSummary) {
@@ -22,14 +23,13 @@ export function printGatewayStatusSummary(loaded: LoadedMessagingGatewayConfig, 
 	console.log(`[Gateway] Workspace allowlist: ${summary.allowedWorkspaceRootsCount} roots`);
 	console.log(`[Gateway] Discord allowlist: ${summary.allowlistedDiscordUsersCount} users`);
 	console.log(`[Gateway] Discord scope: guild=${summary.discordGuildId} channel=${summary.discordChannelId}${summary.discordPermissionsChannelId ? ` permissions=${summary.discordPermissionsChannelId}` : ''}`);
-	if (summary.extensionWsPort) {
-		console.log(`[Gateway] Extension WS port: ${summary.extensionWsPort.port} (${summary.extensionWsPort.source})`);
+	if (summary.acpPort) {
+		console.log(`[Gateway] ACP endpoint: tcp://${summary.acpHost || '127.0.0.1'}:${summary.acpPort}`);
 	} else {
-		console.log('[Gateway] Extension WS port: not configured');
+		console.log('[Gateway] ACP endpoint: not configured');
 	}
 
 	console.log(
-		`[Gateway] Secrets: discordBotToken=${summary.secrets.discordBotToken.present ? 'present' : 'missing'} (${summary.secrets.discordBotToken.source}), ` +
-			`extensionWsJwt=${summary.secrets.extensionWsJwt.present ? 'present' : 'missing'} (${summary.secrets.extensionWsJwt.source})`,
+		`[Gateway] Secrets: discordBotToken=${summary.secrets.discordBotToken.present ? 'present' : 'missing'} (${summary.secrets.discordBotToken.source})`,
 	);
 }

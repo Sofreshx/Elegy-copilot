@@ -1,7 +1,7 @@
 {
   "name": "skill-installer",
   "displayName": "RannIA",
-  "description": "Skills, agents, tasks, and Discord gateway remote control for your workspace.",
+  "description": "Skills, agents, tasks, and remote control for your workspace.",
   "version": "0.1.0",
   "publisher": "sofreshx",
   "license": "SEE LICENSE IN LICENSE.txt",
@@ -113,12 +113,6 @@
         }
       ]
     },
-    "viewsWelcome": [
-      {
-        "view": "skillInstaller.connectionsView",
-        "contents": "Run **Gateway: Setup Messaging Gateway** to enable Discord remote control.\n[Run setup](command:skillInstaller.gateway.setup)"
-      }
-    ],
     "commands": [
       {
         "command": "skillInstaller.refresh",
@@ -200,51 +194,6 @@
       {
         "command": "skillInstaller.ws.showPort",
         "title": "WS: Show Port (Copy URL)",
-        "category": "Instruction Engine"
-      },
-      {
-        "command": "skillInstaller.ws.pairGateway",
-        "title": "WS: Pair Gateway (Copy Token)",
-        "category": "Instruction Engine"
-      },
-    {
-    "command": "skillInstaller.gateway.setup",
-    "title": "Gateway: Setup Messaging Gateway",
-    "category": "Instruction Engine"
-    },
-    {
-    "command": "skillInstaller.gateway.storeDiscordBotToken",
-    "title": "Gateway: Store Discord Bot Token (Keychain)",
-    "category": "Instruction Engine"
-    },
-    {
-    "command": "skillInstaller.gateway.storeExtensionWsJwt",
-    "title": "Gateway: Store Extension WS JWT (Keychain)",
-    "category": "Instruction Engine"
-    },
-    {
-    "command": "skillInstaller.gateway.editDiscord",
-    "title": "Gateway: Edit Discord Settings",
-    "category": "Instruction Engine"
-    },
-    {
-    "command": "skillInstaller.gateway.manageWorkspaces",
-    "title": "Gateway: Manage Allowed Workspaces",
-    "category": "Instruction Engine"
-    },
-    {
-    "command": "skillInstaller.gateway.syncWorkspaces",
-    "title": "Gateway: Sync Workspaces from VS Code",
-    "category": "Instruction Engine"
-    },
-    {
-    "command": "skillInstaller.gateway.viewConfig",
-    "title": "Gateway: View Config",
-    "category": "Instruction Engine"
-    },
-      {
-        "command": "skillInstaller.gateway.openConfig",
-        "title": "Gateway: Open Config in Editor",
         "category": "Instruction Engine"
       }
     ],
@@ -465,7 +414,7 @@
         "skillInstaller.ws.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable local WebSocket server for remote client communication (e.g., messaging gateway)."
+          "description": "Enable local WebSocket server for remote client communication."
         },
         "skillInstaller.ws.port": {
           "type": "number",

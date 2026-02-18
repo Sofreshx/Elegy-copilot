@@ -1,84 +1,206 @@
-# Messaging Gateway (Discord-first) — Setup & Runbook
+# Messaging Gateway (Discord → Copilot CLI ACP)
 
-This runbook describes how to operate the **Messaging Gateway** in `local-tracker/`.
+Control your **Copilot CLI** agent sessions from **Discord** using slash commands, threads, and permission buttons.
 
 The gateway is a local Node.js process that:
 - Authenticates a Discord bot
 - Enforces an allowlist + guild/channel scope
-- (Connected mode) connects to the VS Code extension WebSocket server (loopback) **or** a Copilot CLI ACP server to invoke agents and stream progress
+- Connects to a Copilot CLI ACP (Agent Communication Protocol) server
+- Routes Discord commands to agent sessions and streams progress back
 
-## Prereqs
+---
+
+## Prerequisites
 
 - **Node.js**: `>=20`
-- **VS Code**: running (connected mode requires the extension WS server)
-- **Instruction Engine VS Code extension**: installed and active in the VS Code window you want to control
+- **Copilot CLI**: available on PATH with ACP support (`copilot --acp`)
 - **Discord**:
-  - A private Discord guild + a single dedicated private channel (recommended)
-  - A bot added to that guild/channel
+  - A Discord bot created in the [Discord Developer Portal](https://discord.com/developers/applications)
+  - Bot added to your private guild/channel (recommended: dedicated private channel)
   - Your Discord user ID (for allowlisting)
 
-## 1) Enable the extension WebSocket server
+---
 
-In VS Code Settings (JSON), enable:
+## Setup Checklist
+
+Follow these steps in order to set up Discord control of Copilot CLI sessions:
+
+### ✅ Step 1: Create Discord bot + install to guild/channel
+
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a **New Application** (or use an existing one)
+3. Go to the **Bot** tab and create a bot token (copy and save it securely)
+4. No privileged Gateway Intents are required for this gateway (it uses slash commands / application commands).
+5. Go to **OAuth2 → URL Generator**:
+    - Scopes: `bot`, `applications.commands`
+    - Bot Permissions (recommended): `Send Messages`, `Create Public Threads`, `Send Messages in Threads`, `Read Message History`
+6. Copy the generated URL and open it in your browser to **install the bot** to your Discord server (guild)
+7. Enable **Developer Mode** in Discord (User Settings → Advanced → Developer Mode)
+
+### ✅ Step 2: Gather Discord IDs and create config file
+
+**Config file location**: `$HOME/.instruction-engine/messaging-gateway.config.json`
+
+You can override this path with:
+- `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path>`
+- or inline JSON: `INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON=<json>`
+
+#### How to get Discord IDs
+
+In Discord (with Developer Mode enabled), right-click and **Copy ID**:
+- **Your user ID**: Right-click your profile/avatar → Copy ID → goes in `allowlistedUserIds`
+- **Guild ID**: Right-click the server icon → Copy ID → goes in `guildId`
+- **Channel ID**: Right-click the channel → Copy ID → goes in `channelId`
+
+**Quick trick**: Right-click the target channel → **Copy Link**. The link looks like:
+```
+https://discord.com/channels/<guildId>/<channelId>
+```
+
+#### Create the config file
+
+See the example template below or copy from `local-tracker/docs/messaging-gateway.config.example.json`.
+
+**Required fields**:
 
 ```json
 {
-  "skillInstaller.ws.enabled": true,
-  "skillInstaller.ws.port": 0
+  "mode": "auto",
+  "acp": {
+    "host": "127.0.0.1",
+    "port": 3000
+  },
+  "discord": {
+    "allowlistedUserIds": ["<YOUR_DISCORD_USER_ID>"],
+    "guildId": "<YOUR_DISCORD_GUILD_ID>",
+    "channelId": "<YOUR_DISCORD_CHANNEL_ID>"
+  },
+  "workspaces": {
+    "allowedRoots": ["<ABSOLUTE_WORKSPACE_ROOT>"],
+    "activeRoot": "<ABSOLUTE_WORKSPACE_ROOT>"
+  }
 }
 ```
 
-Notes:
-- `skillInstaller.ws.port: 0` picks a random available port (recommended).
-- After enabling, you may need to **Reload Window** so the WS server starts.
+- **`mode`**: `"auto"` (recommended) or `"connected"`
+- **`acp.host`**: ACP server host (default: `127.0.0.1`)
+- **`acp.port`**: ACP server port (must match Copilot CLI `--port`)
+- **`discord.allowlistedUserIds`**: Array of Discord user IDs (strings) allowed to use commands
+- **`discord.guildId`**: Your Discord server (guild) ID (string)
+- **`discord.channelId`**: Your Discord channel ID (string) where commands are accepted
+- **`workspaces.allowedRoots`**: Array of absolute workspace paths the gateway can access
+- **`workspaces.activeRoot`**: Active workspace (must be in `allowedRoots`)
 
-## 2) Pair the gateway (port + JWT)
+**Optional field**: `"permissionsChannelId"` (inside `discord`) — if set, permission prompts (approve/deny buttons) are posted to this separate channel instead of the session thread.
 
-### 2.1 Confirm the WS port
+#### Windows quick create (PowerShell)
 
-Run the VS Code command:
-- `skillInstaller.ws.showPort`
+Replace the placeholders with your actual IDs:
 
-This copies a URL like `ws://127.0.0.1:<PORT>` to your clipboard.
+```powershell
+$dir = Join-Path $HOME ".instruction-engine"
+New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
-The extension also writes a local-only discovery file under each open workspace root:
-- `<workspaceRoot>/.skill-installer/ws-port.txt`
+$configPath = Join-Path $dir "messaging-gateway.config.json"
+@'
+{
+  "mode": "auto",
+  "acp": {
+    "host": "127.0.0.1",
+    "port": 3000
+  },
+  "discord": {
+    "allowlistedUserIds": ["<YOUR_DISCORD_USER_ID>"],
+    "guildId": "<YOUR_DISCORD_GUILD_ID>",
+    "channelId": "<YOUR_DISCORD_CHANNEL_ID>"
+  },
+  "workspaces": {
+    "allowedRoots": ["<ABSOLUTE_WORKSPACE_ROOT>"],
+    "activeRoot": "<ABSOLUTE_WORKSPACE_ROOT>"
+  }
+}
+'@ | Set-Content -Encoding UTF8 -Path $configPath
 
-That file contains only the numeric port (no secrets). The gateway uses it to find the WS endpoint.
-
-### 2.2 Generate a gateway token
-
-Run the VS Code command:
-- `skillInstaller.ws.pairGateway`
-
-This copies a two-line pairing payload to your clipboard:
-
-```text
-WS_URL=ws://127.0.0.1:<PORT>
-WS_TOKEN=<JWT>
+Write-Host "Wrote config:" $configPath
 ```
 
-Notes:
-- The token is a JWT signed by the extension’s local secret.
-- Default expiry is **7 days**; after expiry (or if the extension secret is regenerated), you’ll need to re-pair.
+### ✅ Step 3: Store Discord bot token in OS credential store
 
-### 2.3 Optional: Use Copilot CLI via ACP (instead of extension WS)
+The gateway uses the **OS credential store** (Windows Credential Manager / macOS Keychain / libsecret) for secure secret storage.
 
-Start Copilot CLI in ACP TCP mode:
+1. **Set an environment variable** with your Discord bot token (temporarily):
+   ```bash
+   export INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN=<YOUR_DISCORD_BOT_TOKEN>
+   # or on Windows PowerShell:
+   # $env:INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN="<YOUR_DISCORD_BOT_TOKEN>"
+   ```
+
+2. **Store it** using the gateway CLI flag (from `local-tracker/`):
+   ```bash
+   npm run dev:gateway -- --store-discord-bot-token
+   ```
+
+   This writes the token to the OS credential store and exits.
+
+### ✅ Step 4: Start Copilot CLI ACP server (TCP mode)
+
+Start the Copilot CLI in ACP mode on the port you configured (default: 3000):
 
 ```bash
 copilot --acp --port 3000
 ```
 
-Then configure the gateway to use ACP:
-- Config: `"connectedBridge": "acp"` and `"acp": { "port": 3000 }`
-- Or env vars: `INSTRUCTION_ENGINE_GATEWAY_CONNECTED_BRIDGE=acp` and `INSTRUCTION_ENGINE_ACP_PORT=3000` (optional `INSTRUCTION_ENGINE_ACP_HOST`)
+**Important**: The `acp.port` in your gateway config **must match** this port.
 
-## 3) Create gateway config (non-secret)
+You can override the config using environment variables:
+- `INSTRUCTION_ENGINE_ACP_PORT=3000`
+- `INSTRUCTION_ENGINE_ACP_HOST=127.0.0.1` (optional)
 
-Tip (easiest): you can generate this config from VS Code:
-- Run the command: `Gateway: Setup Messaging Gateway`
-- It writes the config to `$HOME/.instruction-engine/messaging-gateway.config.json`
+### ✅ Step 5: Start the gateway in connected/auto mode
+
+From `local-tracker/`:
+
+**Dev mode (TypeScript via ts-node)**:
+```bash
+npm run dev:gateway
+```
+
+**Production mode (compiled JS)**:
+```bash
+npm run build
+npm run start:gateway
+```
+
+The gateway will:
+- Load config from `$HOME/.instruction-engine/messaging-gateway.config.json`
+- Retrieve the Discord bot token from OS credential store
+- Connect to the Copilot CLI ACP server at `127.0.0.1:3000`
+- Authenticate with Discord and start listening for commands
+
+### ✅ Step 6: Use Discord commands
+
+In your configured Discord channel, you can now use slash commands:
+
+| Command | Description |
+|---------|-------------|
+| `/status` | Show gateway status and active sessions |
+| `/sessions` | List all active agent sessions |
+| `/task prompt:<text>` | Create a new task session (opens a thread) |
+| `/plan prompt:<text>` | Create a new plan-only session (opens a thread) |
+| `/stop sessionid:<id>` | Stop a session |
+| `/git` | Show git status for active workspace |
+| `/workspaces` | List allowlisted workspaces |
+| `/switch workspaceroot:<path>` | Switch the active workspace root |
+
+**Permission buttons**: When an agent requests permission (e.g., file edits, tool usage), the gateway posts interactive buttons:
+- ✅ **Approve** — allow the action
+- ❌ **Deny** — reject the action
+
+Buttons appear in the session thread (or in a dedicated `permissionsChannelId` if configured).
+
+---
+
+## Configuration Reference
 
 ### Location
 
@@ -97,6 +219,10 @@ There is also a copy/paste template checked into the repo:
 ```json
 {
   "mode": "auto",
+  "acp": {
+    "host": "127.0.0.1",
+    "port": 3000
+  },
   "discord": {
     "allowlistedUserIds": ["111111111111111111"],
     "guildId": "222222222222222222",
@@ -115,7 +241,7 @@ Important:
 - `workspaces.activeRoot` must exist and be a directory.
 ### Optional: `discord.permissionsChannelId`
 
-You can optionally add `"permissionsChannelId": "<CHANNEL_ID>"` inside the `discord` block. When set, permission prompts (approve/deny buttons) are posted to that separate channel instead of the session thread. This keeps your main channel cleaner if you prefer a dedicated permissions-only view.
+You can optionally add `"permissionsChannelId": "<CHANNEL_ID>"` inside the `discord` block. When set, permission prompts (approve/deny buttons) are posted to that separate channel instead of the session thread.
 
 ```json
 {
@@ -128,158 +254,36 @@ You can optionally add `"permissionsChannelId": "<CHANNEL_ID>"` inside the `disc
 }
 ```
 
-If omitted, permission prompts go to the session thread (default). The gateway also authorizes button interactions from the permissions channel, so approve/deny clicks work in either location.
+**Default behavior**: Permission prompts go to the session thread.
 ### Why are `guildId` and `channelId` required?
 
 They are a **security scope**. The gateway fails closed and only accepts commands from:
-- the one Discord server (guild) you intended, and
-- the one Discord channel you intended
+- The one Discord server (guild) you intended
+- The one Discord channel you intended
 
-This prevents accidental/unsafe command execution if the bot is added to other servers/channels, or if someone tries to invoke it outside your dedicated private channel.
+This prevents accidental/unsafe command execution if the bot is added to other servers/channels.
 
-### Where do the Discord IDs come from?
-
-In Discord, enable **Developer Mode**, then right-click → **Copy ID**:
-- Your user: right-click your profile/avatar → Copy ID → goes in `discord.allowlistedUserIds`
-- Your server/guild: right-click the server icon → Copy ID → goes in `discord.guildId`
-- The channel: right-click the channel → Copy ID → goes in `discord.channelId`
-
-Alternative (often easier): right-click the target channel → **Copy Link**.
-The link looks like:
-- `https://discord.com/channels/<guildId>/<channelId>`
-
-Those two numbers are exactly what the config needs.
-
-### Windows quick create (PowerShell)
-
-This creates the default config file location. Replace the placeholders.
-
-```powershell
-$dir = Join-Path $HOME ".instruction-engine"
-New-Item -ItemType Directory -Force -Path $dir | Out-Null
-
-$configPath = Join-Path $dir "messaging-gateway.config.json"
-@'
-{
-  "mode": "auto",
-  "discord": {
-    "allowlistedUserIds": ["<YOUR_DISCORD_USER_ID>"],
-    "guildId": "<YOUR_DISCORD_GUILD_ID>",
-    "channelId": "<YOUR_DISCORD_CHANNEL_ID>"
-  },
-  "workspaces": {
-    "allowedRoots": [
-      "<ABSOLUTE_WORKSPACE_ROOT_1>",
-      "<ABSOLUTE_WORKSPACE_ROOT_2>"
-    ],
-    "activeRoot": "<ABSOLUTE_WORKSPACE_ROOT_1>"
-  }
-}
-'@ | Set-Content -Encoding UTF8 -Path $configPath
-
-Write-Host "Wrote config:" $configPath
-```
-
-## 4) Store secrets (Discord bot token + extension WS JWT)
-
-The gateway prefers the **OS credential store** (Windows Credential Manager / macOS Keychain / libsecret).
-It can also read from env vars as a fallback.
-
-### 4.1 Store the Discord bot token
-
-The Discord bot token is created in the **Discord Developer Portal** for your bot application. Treat it as a secret.
-
-1) Set an env var (choose one):
-- `INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN=<DISCORD_BOT_TOKEN>`
-- or `DISCORD_BOT_TOKEN=<DISCORD_BOT_TOKEN>`
-
-2) Store it in the OS credential store:
-
-```bash
-npm run dev:gateway -- --store-discord-bot-token
-```
-
-### 4.2 Store the extension WS JWT
-
-1) From the pairing payload, take `WS_TOKEN` and set (choose one):
-- `INSTRUCTION_ENGINE_EXTENSION_WS_JWT=<WS_TOKEN>`
-- or `INSTRUCTION_ENGINE_WS_JWT=<WS_TOKEN>`
-- or `EXTENSION_WS_JWT=<WS_TOKEN>`
-
-2) Store it in the OS credential store:
-
-```bash
-npm run dev:gateway -- --store-extension-ws-jwt
-```
-
-Tip: after storing, you can remove the env vars so the secrets are only in the OS credential store.
-
-## 5) Run the gateway
-
-From `local-tracker/`:
-
-- Dev (TypeScript via ts-node):
-
-```bash
-npm run dev:gateway
-```
-
-- Production-like (compiled JS):
-
-```bash
-npm run build
-npm run start:gateway
-```
+---
 
 ## Troubleshooting
 
-### WebSocket 401 Unauthorized
+### ACP not connected
 
 Symptoms:
-- Gateway logs show WS connection failures and/or `401`.
-
-Common causes:
-- Missing/incorrect extension WS JWT in the OS credential store
-- Token expired (default: 7 days)
-- Extension WS secret regenerated (invalidates old tokens)
+- Gateway logs show ACP connection failures.
 
 Fix:
-- Re-run `skillInstaller.ws.pairGateway` in VS Code
-- Store the new token again with `npm run dev:gateway -- --store-extension-ws-jwt`
-
-### Missing `.skill-installer/ws-port.txt`
-
-Symptoms:
-- Gateway errors that connected mode requires the WS port discovery file.
-
-Fix:
-- Ensure VS Code is running and the extension WS server is enabled (`skillInstaller.ws.enabled: true`)
-- Reload VS Code window
-- Confirm you opened the same workspace root that your gateway config uses as `workspaces.activeRoot`
-
-### Port changes between runs
-
-If `skillInstaller.ws.port` is `0`, the port can change after a VS Code restart.
-
-Expected behavior:
-- The extension rewrites `<workspaceRoot>/.skill-installer/ws-port.txt`
-- The gateway re-reads the file and reconnects
-
-If it doesn’t recover:
-- Restart the gateway
-- Run `skillInstaller.ws.showPort` to confirm the extension is listening
-- Optionally set a fixed port via `skillInstaller.ws.port` (and ensure it’s free)
+- Ensure Copilot CLI is running in ACP mode: `copilot --acp --port <PORT>`
+- Ensure the gateway has a matching port configured (`INSTRUCTION_ENGINE_ACP_PORT` or config `acp.port`)
 
 ### Missing secrets
 
 Symptoms:
 - Gateway exits with “Missing required secret: Discord bot token”
-- Or (connected mode) “Missing required secret: extension WS JWT”
 
 Fix:
 - Store secrets using:
   - `npm run dev:gateway -- --store-discord-bot-token`
-  - `npm run dev:gateway -- --store-extension-ws-jwt`
 - Or temporarily set the appropriate env vars (see the help text in the gateway entrypoint)
 
 ## Security notes

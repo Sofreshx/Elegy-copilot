@@ -29,11 +29,6 @@ export interface MessagingGatewayStatusV1 {
 			fromKeychain: boolean;
 			fromEnv: boolean;
 		};
-		extensionWsJwt: {
-			present: boolean;
-			fromKeychain: boolean;
-			fromEnv: boolean;
-		};
 	};
 
 	runtime: {
@@ -41,7 +36,7 @@ export interface MessagingGatewayStatusV1 {
 			connected: boolean;
 			ready: boolean;
 		};
-		extensionWs?: {
+		acp?: {
 			connected: boolean;
 		};
 		sessions?: {

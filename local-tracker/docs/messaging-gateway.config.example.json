@@ -1,5 +1,9 @@
 {
   "mode": "auto",
+  "acp": {
+    "host": "127.0.0.1",
+    "port": 3000
+  },
   "discord": {
     "allowlistedUserIds": ["<YOUR_DISCORD_USER_ID>"],
     "guildId": "<YOUR_DISCORD_GUILD_ID>",
