@@ -220,7 +220,7 @@ If a subagent proposes additional work as `NEW_TASK_REQUEST`:
 - Research and ideation: `research-ideation`
 - Cross-model accuracy check: `reviewer-gpt-5-2-codex` or `reviewer-opus-4-5`
 - Debug failures: `debugger`
-- Resolve migration/merge conflicts: `merger`
+- Resolve migration/merge conflicts: manual / ask user (merger removed)
 - Request new tests via tasks (unit or integration) when needed
 
 Execution routing:

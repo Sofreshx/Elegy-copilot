@@ -103,12 +103,6 @@
       "destination": "agents/integration-test-runner.agent.md"
     },
     {
-      "id": "agent-merger",
-      "type": "agent",
-      "source": "agents/merger.agent.md",
-      "destination": "agents/merger.agent.md"
-    },
-    {
       "id": "agent-remaining-work",
       "type": "agent",
       "source": "agents/remaining-work.agent.md",
