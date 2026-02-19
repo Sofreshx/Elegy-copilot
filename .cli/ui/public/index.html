@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Copilot CLI Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">Copilot CLI Dashboard</div>
+      <nav class="tabs">
+        <button id="tab-sessions" class="tab active" type="button">Sessions</button>
+        <button id="tab-assets" class="tab" type="button">Assets</button>
+      </nav>
+      <div class="spacer"></div>
+      <button id="btn-reload" type="button" class="btn">Reload</button>
+    </header>
+
+    <main class="layout">
+      <section id="view-sessions" class="view">
+        <div class="row">
+          <div class="col">
+            <div class="toolbar">
+              <button id="btn-refresh-sessions" class="btn" type="button">Refresh</button>
+              <span id="sessions-summary" class="muted"></span>
+            </div>
+
+            <h2>Active</h2>
+            <div id="sessions-active" class="list"></div>
+
+            <h2>Past</h2>
+            <div id="sessions-past" class="list"></div>
+          </div>
+
+          <div class="col detail">
+             <h2>Session Detail</h2>
+             <div id="session-detail" class="panel muted">Select a session.</div>
+             <h3>Plan (preview)</h3>
+             <pre id="session-plan" class="pre"></pre>
+             <h3>Agent usage</h3>
+             <div id="session-agent-usage" class="panel muted">(none detected)</div>
+             <h3>Recent events</h3>
+             <div id="session-events" class="events"></div>
+           </div>
+         </div>
+       </section>
+
+      <section id="view-assets" class="view hidden">
+        <div class="toolbar">
+          <button id="btn-refresh-managed" class="btn" type="button">Refresh managed</button>
+          <button id="btn-refresh-installed" class="btn" type="button">Refresh agents/skills</button>
+          <button id="btn-refresh-all" class="btn" type="button">Refresh all</button>
+          <button id="btn-sync-all" class="btn" type="button">Sync all</button>
+          <span id="assets-summary" class="muted"></span>
+        </div>
+
+        <h2>Managed assets</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Type</th>
+              <th>Installed</th>
+              <th>Up-to-date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="managed-table"></tbody>
+        </table>
+
+         <h2>Installed inventory</h2>
+         <div class="row">
+           <div class="col">
+             <h3>Agents</h3>
+             <table class="table">
+              <thead><tr><th>Name</th><th>File</th><th>Actions</th></tr></thead>
+              <tbody id="agents-table"></tbody>
+             </table>
+           </div>
+           <div class="col">
+             <h3>Skills</h3>
+             <table class="table">
+              <thead><tr><th>Name</th><th>Path</th><th>Actions</th></tr></thead>
+              <tbody id="skills-table"></tbody>
+             </table>
+           </div>
+         </div>
+
+        <h2>Viewer</h2>
+        <div id="viewer-meta" class="muted"></div>
+        <pre id="viewer" class="pre"></pre>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div id="status" class="muted">Ready.</div>
+    </footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
+

@@ -32,6 +32,9 @@ This playbook defines the **default operating model** for adopting Copilot CLI a
 
 Our standard approach for Copilot CLI work is:
 
+Useful maintenance helpers:
+- `@remaining-work` — fast “is anything left to do?” checker (uses the free model `gpt-5-mini`)
+
 **Phase 1: Plan-First (Copilot CLI Plan Mode)**
 - Always start with `/plan [goal]` or Shift+Tab to enter plan mode
 - Let Copilot analyze the problem space and propose a structured plan
@@ -757,6 +760,14 @@ Copilot CLI stores session state locally:
 ```
 
 Source: https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-best-practices
+
+### Dashboard (local-only)
+This repo includes a small local dashboard for inspecting Copilot CLI state and installed assets.
+
+- Run: `node .cli/ui/server.js` (or `scripts/cli-ui.ps1` / `./scripts/cli-ui.sh`)
+- Observes: `~/.copilot/session-state/` + `~/.copilot/agents/` + `~/.copilot/skills/` + `~/.copilot` config files
+- Actions: refresh, sync/update assets, delete/remove assets (**guarded**)
+- Safety: local-only, **no auth** — don’t expose the port beyond localhost
 
 ### Sharing Sessions
 

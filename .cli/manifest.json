@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "instruction-engine",
+    "version": "0.1.0",
+    "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
+  },
+  "installDefaults": {
+    "copilotHome": "~/.copilot",
+    "agentsDir": "~/.copilot/agents",
+    "skillsDir": "~/.copilot/skills",
+    "instructionsFile": "~/.copilot/copilot-instructions.md"
+  },
+  "installerHints": {
+    "preferExplicitDestinations": true,
+    "agentsAreFlat": true,
+    "skillsRequireFolderName": true,
+    "notes": "If the installer flattens source folders, it should still write files using each asset.destination path."
+  },
+  "assets": [
+    {
+      "id": "agent-brief",
+      "type": "agent",
+      "source": "agents/brief.agent.md",
+      "destination": "agents/brief.agent.md"
+    },
+    {
+      "id": "agent-addtodo",
+      "type": "agent",
+      "source": "agents/addtodo.agent.md",
+      "destination": "agents/addtodo.agent.md"
+    },
+    {
+      "id": "agent-app-runtime-manager",
+      "type": "agent",
+      "source": "agents/app-runtime-manager.agent.md",
+      "destination": "agents/app-runtime-manager.agent.md"
+    },
+    {
+      "id": "agent-code-architect",
+      "type": "agent",
+      "source": "agents/code-architect.agent.md",
+      "destination": "agents/code-architect.agent.md"
+    },
+    {
+      "id": "agent-code-explorer",
+      "type": "agent",
+      "source": "agents/code-explorer.agent.md",
+      "destination": "agents/code-explorer.agent.md"
+    },
+    {
+      "id": "agent-code-reviewer",
+      "type": "agent",
+      "source": "agents/code-reviewer.agent.md",
+      "destination": "agents/code-reviewer.agent.md"
+    },
+    {
+      "id": "agent-code-smell-auditor",
+      "type": "agent",
+      "source": "agents/code-smell-auditor.agent.md",
+      "destination": "agents/code-smell-auditor.agent.md"
+    },
+    {
+      "id": "agent-context-curator",
+      "type": "agent",
+      "source": "agents/context-curator.agent.md",
+      "destination": "agents/context-curator.agent.md"
+    },
+    {
+      "id": "agent-deploy-auditor",
+      "type": "agent",
+      "source": "agents/deploy-auditor.agent.md",
+      "destination": "agents/deploy-auditor.agent.md"
+    },
+    {
+      "id": "agent-doc-writer",
+      "type": "agent",
+      "source": "agents/doc-writer.agent.md",
+      "destination": "agents/doc-writer.agent.md"
+    },
+    {
+      "id": "agent-e2e-browser",
+      "type": "agent",
+      "source": "agents/e2e-browser.agent.md",
+      "destination": "agents/e2e-browser.agent.md"
+    },
+    {
+      "id": "agent-e2e-validator",
+      "type": "agent",
+      "source": "agents/e2e-validator.agent.md",
+      "destination": "agents/e2e-validator.agent.md"
+    },
+    {
+      "id": "agent-governor",
+      "type": "agent",
+      "source": "agents/agent-governor.agent.md",
+      "destination": "agents/agent-governor.agent.md"
+    },
+    {
+      "id": "agent-integration-test-runner",
+      "type": "agent",
+      "source": "agents/integration-test-runner.agent.md",
+      "destination": "agents/integration-test-runner.agent.md"
+    },
+    {
+      "id": "agent-merger",
+      "type": "agent",
+      "source": "agents/merger.agent.md",
+      "destination": "agents/merger.agent.md"
+    },
+    {
+      "id": "agent-remaining-work",
+      "type": "agent",
+      "source": "agents/remaining-work.agent.md",
+      "destination": "agents/remaining-work.agent.md"
+    },
+    {
+      "id": "agent-reviewer-gpt-5-3-codex",
+      "type": "agent",
+      "source": "agents/reviewer-gpt-5-3-codex.agent.md",
+      "destination": "agents/reviewer-gpt-5-3-codex.agent.md"
+    },
+    {
+      "id": "agent-reviewer-opus-4-6",
+      "type": "agent",
+      "source": "agents/reviewer-opus-4-6.agent.md",
+      "destination": "agents/reviewer-opus-4-6.agent.md"
+    },
+    {
+      "id": "agent-security-fixer",
+      "type": "agent",
+      "source": "agents/security-fixer.agent.md",
+      "destination": "agents/security-fixer.agent.md"
+    },
+    {
+      "id": "agent-security-scanner",
+      "type": "agent",
+      "source": "agents/security-scanner.agent.md",
+      "destination": "agents/security-scanner.agent.md"
+    },
+    {
+      "id": "agent-stack-auditor",
+      "type": "agent",
+      "source": "agents/stack-auditor.agent.md",
+      "destination": "agents/stack-auditor.agent.md"
+    },
+    {
+      "id": "agent-test-coverage-scanner",
+      "type": "agent",
+      "source": "agents/test-coverage-scanner.agent.md",
+      "destination": "agents/test-coverage-scanner.agent.md"
+    },
+    {
+      "id": "agent-unit-test-runner",
+      "type": "agent",
+      "source": "agents/unit-test-runner.agent.md",
+      "destination": "agents/unit-test-runner.agent.md"
+    },
+    {
+      "id": "skill-stack-detector",
+      "type": "skill",
+      "source": "skills/stack-detector/SKILL.md",
+      "destination": "skills/stack-detector/SKILL.md"
+    },
+    {
+      "id": "copilot-instructions",
+      "type": "instructions",
+      "source": "instructions/copilot-instructions.md",
+      "destination": "copilot-instructions.md"
+    }
+  ],
+  "sourcePatterns": [
+    {
+      "type": "agent",
+      "sourceGlob": "agents/*.agent.md",
+      "destinationDir": "agents"
+    },
+    {
+      "type": "skill",
+      "sourceGlob": "skills/*/SKILL.md",
+      "destinationDir": "skills"
+    }
+  ]
+}
+
