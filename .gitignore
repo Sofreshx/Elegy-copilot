@@ -36,3 +36,4 @@ tmpclaude-*
 # Instruction Engine task logs (tasks belong to target repos)
 .instructions/tasks/
 .instructions/tasks.archive/
+messaging-gateway.config.json
