@@ -148,20 +148,136 @@ function readJsonc(filePath) {
 	return parsed;
 }
 
-function ensureArrayIncludes(obj, key, value) {
-	const existing = obj[key];
-	if (existing == null) {
-		obj[key] = [value];
-		return true;
+function toLocationsObject(value) {
+	// VS Code (1.109+) expects location settings in the form:
+	// { "path-or-folder": true, "other": false }
+	// This helper upgrades older formats (string/array) to the object form.
+	// Additionally, VS Code requires keys to be relative or start with '~/' and use '/' separators.
+	// We normalize keys accordingly.
+	if (value == null) {
+		return { locations: {}, changed: false };
 	}
-	if (Array.isArray(existing)) {
-		if (existing.includes(value)) return false;
-		existing.push(value);
-		return true;
+
+	const normalizeKey = (k) => normalizeSettingsLocationKey(k);
+
+	if (Array.isArray(value)) {
+		const out = {};
+		let changed = false;
+		for (const item of value) {
+			if (typeof item === 'string' && item.trim()) {
+				const nk = normalizeKey(item);
+				if (nk) {
+					out[nk] = true;
+					changed = true;
+				}
+				continue;
+			}
+			if (item && typeof item === 'object' && !Array.isArray(item)) {
+				for (const [k, v] of Object.entries(item)) {
+					if (typeof k === 'string' && k.trim()) {
+						const nk = normalizeKey(k);
+						if (nk) {
+							out[nk] = v === false ? false : true;
+							changed = true;
+						}
+					}
+				}
+			}
+		}
+		return { locations: out, changed };
 	}
-	// If user had a non-array, upgrade to array.
-	obj[key] = [existing, value];
-	return true;
+
+	if (typeof value === 'string') {
+		const trimmed = value.trim();
+		if (!trimmed) {
+			return { locations: {}, changed: true };
+		}
+		const nk = normalizeKey(trimmed);
+		return { locations: nk ? { [nk]: true } : {}, changed: true };
+	}
+
+	if (value && typeof value === 'object' && !Array.isArray(value)) {
+		const out = {};
+		let changed = false;
+		for (const [k, v] of Object.entries(value)) {
+			if (typeof k !== 'string' || !k.trim()) {
+				changed = true;
+				continue;
+			}
+			const nk = normalizeKey(k);
+			if (!nk) {
+				// Drop unsupported absolute paths (VS Code requires relative or '~/' keys)
+				changed = true;
+				continue;
+			}
+			if (nk !== k) {
+				changed = true;
+			}
+			out[nk] = v === false ? false : true;
+		}
+		return { locations: out, changed };
+	}
+
+	// Unknown type - reset to object.
+	return { locations: {}, changed: true };
+}
+
+function ensureLocationEnabled(obj, key, location) {
+	const { locations, changed: upgraded } = toLocationsObject(obj[key]);
+	let changed = upgraded;
+
+	const normalized = normalizeSettingsLocationKey(location);
+	if (!normalized) {
+		// VS Code does not accept absolute paths outside ~/, so do not add invalid entries.
+		return changed;
+	}
+
+	if (typeof locations[normalized] !== 'boolean' || locations[normalized] !== true) {
+		locations[normalized] = true;
+		changed = true;
+	}
+
+	if (changed) {
+		obj[key] = locations;
+	}
+
+	return changed;
+}
+
+function normalizeSettingsLocationKey(input) {
+	if (typeof input !== 'string') return null;
+	const raw = input.trim();
+	if (!raw) return null;
+
+	// Already relative or tilde-rooted (VS Code schema requirement)
+	if (raw.startsWith('~/')) {
+		return raw.replace(/\\/g, '/');
+	}
+	if (!path.isAbsolute(raw)) {
+		// Relative key: only normalize slashes.
+		return raw.replace(/\\/g, '/');
+	}
+
+	// Absolute: only allowed if it can be expressed under the user's home as ~/
+	const home = path.resolve(os.homedir());
+	const abs = path.resolve(raw);
+
+	const isWin = process.platform === 'win32';
+	const homeCmp = isWin ? home.toLowerCase() : home;
+	const absCmp = isWin ? abs.toLowerCase() : abs;
+
+	if (absCmp === homeCmp) {
+		return '~/';
+	}
+
+	const homePrefix = homeCmp.endsWith(path.sep) ? homeCmp : homeCmp + path.sep;
+	if (!absCmp.startsWith(homePrefix)) {
+		return null;
+	}
+
+	const rel = path.relative(home, abs);
+	const relPosix = rel.split(path.sep).join('/');
+	return `~/${relPosix}`;
 }
 
 function writeJson(filePath, obj, { dryRun }) {
@@ -290,10 +406,10 @@ function main() {
 		const settings = readJsonc(settingsPath);
 		let changed = false;
 
-		changed = ensureArrayIncludes(settings, 'chat.agentFilesLocations', desired.agents) || changed;
-		changed = ensureArrayIncludes(settings, 'chat.agentSkillsLocations', desired.skills) || changed;
-		changed = ensureArrayIncludes(settings, 'chat.promptFilesLocations', desired.prompts) || changed;
-		changed = ensureArrayIncludes(settings, 'chat.instructionsFilesLocations', desired.instructions) || changed;
+		changed = ensureLocationEnabled(settings, 'chat.agentFilesLocations', desired.agents) || changed;
+		changed = ensureLocationEnabled(settings, 'chat.agentSkillsLocations', desired.skills) || changed;
+		changed = ensureLocationEnabled(settings, 'chat.promptFilesLocations', desired.prompts) || changed;
+		changed = ensureLocationEnabled(settings, 'chat.instructionsFilesLocations', desired.instructions) || changed;
 
 		if (settings['chat.promptFiles'] !== true) {
 			settings['chat.promptFiles'] = true;
