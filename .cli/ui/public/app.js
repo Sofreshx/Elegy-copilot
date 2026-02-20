@@ -186,8 +186,11 @@ async function loadManaged() {
     btnView.className = 'btn small';
     btnView.textContent = 'View';
     btnView.addEventListener('click', async () => {
-      const txt = await api(`/api/assets/view?path=${encodeURIComponent(a.destination)}`).catch((e) => `Error: ${e.message}`);
-      $('viewer-meta').textContent = a.destination;
+      const viewPath = a.type === 'skill' && !String(a.destination || '').toLowerCase().endsWith('/skill.md')
+        ? `${String(a.destination || '').replace(/\\/g, '/').replace(/\/+$/, '')}/SKILL.md`
+        : a.destination;
+      const txt = await api(`/api/assets/view?path=${encodeURIComponent(viewPath)}`).catch((e) => `Error: ${e.message}`);
+      $('viewer-meta').textContent = viewPath;
       $('viewer').textContent = txt;
     });
 

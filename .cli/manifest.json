@@ -9,6 +9,7 @@
     "copilotHome": "~/.copilot",
     "agentsDir": "~/.copilot/agents",
     "skillsDir": "~/.copilot/skills",
+    "promptsDir": "~/.copilot/prompts",
     "instructionsFile": "~/.copilot/copilot-instructions.md"
   },
   "installerHints": {
@@ -21,158 +22,571 @@
     {
       "id": "agent-brief",
       "type": "agent",
-      "source": "agents/brief.agent.md",
+      "source": ".github/agents/brief.agent.md",
       "destination": "agents/brief.agent.md"
     },
     {
       "id": "agent-addtodo",
       "type": "agent",
-      "source": "agents/addtodo.agent.md",
+      "source": ".github/agents/addtodo.agent.md",
       "destination": "agents/addtodo.agent.md"
     },
     {
       "id": "agent-app-runtime-manager",
       "type": "agent",
-      "source": "agents/app-runtime-manager.agent.md",
+      "source": ".github/agents/app-runtime-manager.agent.md",
       "destination": "agents/app-runtime-manager.agent.md"
+    },
+    {
+      "id": "agent-assistant",
+      "type": "agent",
+      "source": ".github/agents/assistant.agent.md",
+      "destination": "agents/assistant.agent.md"
+    },
+    {
+      "id": "agent-audit-executive",
+      "type": "agent",
+      "source": ".github/agents/audit-executive.agent.md",
+      "destination": "agents/audit-executive.agent.md"
     },
     {
       "id": "agent-code-architect",
       "type": "agent",
-      "source": "agents/code-architect.agent.md",
+      "source": ".github/agents/code-architect.agent.md",
       "destination": "agents/code-architect.agent.md"
     },
     {
       "id": "agent-code-explorer",
       "type": "agent",
-      "source": "agents/code-explorer.agent.md",
+      "source": ".github/agents/code-explorer.agent.md",
       "destination": "agents/code-explorer.agent.md"
     },
     {
       "id": "agent-code-reviewer",
       "type": "agent",
-      "source": "agents/code-reviewer.agent.md",
+      "source": ".github/agents/code-reviewer.agent.md",
       "destination": "agents/code-reviewer.agent.md"
     },
     {
       "id": "agent-code-smell-auditor",
       "type": "agent",
-      "source": "agents/code-smell-auditor.agent.md",
+      "source": ".github/agents/code-smell-auditor.agent.md",
       "destination": "agents/code-smell-auditor.agent.md"
     },
     {
       "id": "agent-context-curator",
       "type": "agent",
-      "source": "agents/context-curator.agent.md",
+      "source": ".github/agents/context-curator.agent.md",
       "destination": "agents/context-curator.agent.md"
     },
     {
       "id": "agent-deploy-auditor",
       "type": "agent",
-      "source": "agents/deploy-auditor.agent.md",
+      "source": ".github/agents/deploy-auditor.agent.md",
       "destination": "agents/deploy-auditor.agent.md"
     },
     {
       "id": "agent-doc-writer",
       "type": "agent",
-      "source": "agents/doc-writer.agent.md",
+      "source": ".github/agents/doc-writer.agent.md",
       "destination": "agents/doc-writer.agent.md"
     },
     {
       "id": "agent-e2e-browser",
       "type": "agent",
-      "source": "agents/e2e-browser.agent.md",
+      "source": ".github/agents/e2e-browser.agent.md",
       "destination": "agents/e2e-browser.agent.md"
+    },
+    {
+      "id": "agent-e2e-live-observer",
+      "type": "agent",
+      "source": ".github/agents/e2e-live-observer.agent.md",
+      "destination": "agents/e2e-live-observer.agent.md"
+    },
+    {
+      "id": "agent-e2e-reporter",
+      "type": "agent",
+      "source": ".github/agents/e2e-reporter.agent.md",
+      "destination": "agents/e2e-reporter.agent.md"
+    },
+    {
+      "id": "agent-e2e-ux-auditor",
+      "type": "agent",
+      "source": ".github/agents/e2e-ux-auditor.agent.md",
+      "destination": "agents/e2e-ux-auditor.agent.md"
     },
     {
       "id": "agent-e2e-validator",
       "type": "agent",
-      "source": "agents/e2e-validator.agent.md",
+      "source": ".github/agents/e2e-validator.agent.md",
       "destination": "agents/e2e-validator.agent.md"
+    },
+    {
+      "id": "agent-executive2",
+      "type": "agent",
+      "source": ".github/agents/executive2.agent.md",
+      "destination": "agents/executive2.agent.md"
+    },
+    {
+      "id": "agent-executive2-fast",
+      "type": "agent",
+      "source": ".github/agents/executive2-fast.agent.md",
+      "destination": "agents/executive2-fast.agent.md"
+    },
+    {
+      "id": "agent-executive2-planner",
+      "type": "agent",
+      "source": ".github/agents/executive2-planner.agent.md",
+      "destination": "agents/executive2-planner.agent.md"
+    },
+    {
+      "id": "agent-executive2-task-creator",
+      "type": "agent",
+      "source": ".github/agents/executive2-task-creator.agent.md",
+      "destination": "agents/executive2-task-creator.agent.md"
+    },
+    {
+      "id": "agent-executive2p5",
+      "type": "agent",
+      "source": ".github/agents/executive2p5.agent.md",
+      "destination": "agents/executive2p5.agent.md"
+    },
+    {
+      "id": "agent-executive2p5-planner",
+      "type": "agent",
+      "source": ".github/agents/executive2p5-planner.agent.md",
+      "destination": "agents/executive2p5-planner.agent.md"
     },
     {
       "id": "agent-governor",
       "type": "agent",
-      "source": "agents/agent-governor.agent.md",
+      "source": ".github/agents/agent-governor.agent.md",
       "destination": "agents/agent-governor.agent.md"
     },
     {
       "id": "agent-integration-test-runner",
       "type": "agent",
-      "source": "agents/integration-test-runner.agent.md",
+      "source": ".github/agents/integration-test-runner.agent.md",
       "destination": "agents/integration-test-runner.agent.md"
+    },
+    {
+      "id": "agent-issue-audit-executive",
+      "type": "agent",
+      "source": ".github/agents/issue-audit-executive.agent.md",
+      "destination": "agents/issue-audit-executive.agent.md"
+    },
+    {
+      "id": "agent-merger",
+      "type": "agent",
+      "source": ".github/agents/merger.agent.md",
+      "destination": "agents/merger.agent.md"
+    },
+    {
+      "id": "agent-o-planner",
+      "type": "agent",
+      "source": ".github/agents/o-planner.agent.md",
+      "destination": "agents/o-planner.agent.md"
+    },
+    {
+      "id": "agent-o-reframer",
+      "type": "agent",
+      "source": ".github/agents/o-reframer.agent.md",
+      "destination": "agents/o-reframer.agent.md"
+    },
+    {
+      "id": "agent-orchestrator",
+      "type": "agent",
+      "source": ".github/agents/orchestrator.agent.md",
+      "destination": "agents/orchestrator.agent.md"
+    },
+    {
+      "id": "agent-performance-auditer",
+      "type": "agent",
+      "source": ".github/agents/performance-auditer.agent.md",
+      "destination": "agents/performance-auditer.agent.md"
+    },
+    {
+      "id": "agent-plan-artefact-writer",
+      "type": "agent",
+      "source": ".github/agents/plan-artefact-writer.agent.md",
+      "destination": "agents/plan-artefact-writer.agent.md"
+    },
+    {
+      "id": "agent-planpack-writer",
+      "type": "agent",
+      "source": ".github/agents/planpack-writer.agent.md",
+      "destination": "agents/planpack-writer.agent.md"
+    },
+    {
+      "id": "agent-research-ideation",
+      "type": "agent",
+      "source": ".github/agents/research-ideation.agent.md",
+      "destination": "agents/research-ideation.agent.md"
     },
     {
       "id": "agent-remaining-work",
       "type": "agent",
-      "source": "agents/remaining-work.agent.md",
+      "source": ".github/agents/remaining-work.agent.md",
       "destination": "agents/remaining-work.agent.md"
     },
     {
       "id": "agent-reviewer-gpt-5-3-codex",
       "type": "agent",
-      "source": "agents/reviewer-gpt-5-3-codex.agent.md",
+      "source": ".github/agents/reviewer-gpt-5-3-codex.agent.md",
       "destination": "agents/reviewer-gpt-5-3-codex.agent.md"
     },
     {
       "id": "agent-reviewer-opus-4-6",
       "type": "agent",
-      "source": "agents/reviewer-opus-4-6.agent.md",
+      "source": ".github/agents/reviewer-opus-4-6.agent.md",
       "destination": "agents/reviewer-opus-4-6.agent.md"
+    },
+    {
+      "id": "agent-security-auditor",
+      "type": "agent",
+      "source": ".github/agents/security-auditor.agent.md",
+      "destination": "agents/security-auditor.agent.md"
     },
     {
       "id": "agent-security-fixer",
       "type": "agent",
-      "source": "agents/security-fixer.agent.md",
+      "source": ".github/agents/security-fixer.agent.md",
       "destination": "agents/security-fixer.agent.md"
     },
     {
       "id": "agent-security-scanner",
       "type": "agent",
-      "source": "agents/security-scanner.agent.md",
+      "source": ".github/agents/security-scanner.agent.md",
       "destination": "agents/security-scanner.agent.md"
+    },
+    {
+      "id": "agent-skill-builder",
+      "type": "agent",
+      "source": ".github/agents/skill-builder.agent.md",
+      "destination": "agents/skill-builder.agent.md"
     },
     {
       "id": "agent-stack-auditor",
       "type": "agent",
-      "source": "agents/stack-auditor.agent.md",
+      "source": ".github/agents/stack-auditor.agent.md",
       "destination": "agents/stack-auditor.agent.md"
     },
     {
       "id": "agent-test-coverage-scanner",
       "type": "agent",
-      "source": "agents/test-coverage-scanner.agent.md",
+      "source": ".github/agents/test-coverage-scanner.agent.md",
       "destination": "agents/test-coverage-scanner.agent.md"
+    },
+    {
+      "id": "agent-task-runner",
+      "type": "agent",
+      "source": ".github/agents/task-runner.agent.md",
+      "destination": "agents/task-runner.agent.md"
+    },
+    {
+      "id": "agent-testing-executive",
+      "type": "agent",
+      "source": ".github/agents/testing-executive.agent.md",
+      "destination": "agents/testing-executive.agent.md"
     },
     {
       "id": "agent-unit-test-runner",
       "type": "agent",
-      "source": "agents/unit-test-runner.agent.md",
+      "source": ".github/agents/unit-test-runner.agent.md",
       "destination": "agents/unit-test-runner.agent.md"
+    },
+    {
+      "id": "agent-ui-ux",
+      "type": "agent",
+      "source": ".github/agents/ui-ux.agent.md",
+      "destination": "agents/ui-ux.agent.md"
+    },
+    {
+      "id": "agent-work-unit-runner",
+      "type": "agent",
+      "source": ".github/agents/work-unit-runner.agent.md",
+      "destination": "agents/work-unit-runner.agent.md"
+    },
+    {
+      "id": "skill-alba-integration-tests",
+      "type": "skill",
+      "source": ".github/skills/alba-integration-tests",
+      "destination": "skills/alba-integration-tests"
+    },
+    {
+      "id": "skill-agent-browser",
+      "type": "skill",
+      "source": ".github/skills/agent-browser",
+      "destination": "skills/agent-browser"
+    },
+    {
+      "id": "skill-aspire-apphost",
+      "type": "skill",
+      "source": ".github/skills/aspire-apphost",
+      "destination": "skills/aspire-apphost"
+    },
+    {
+      "id": "skill-aspire-deployment",
+      "type": "skill",
+      "source": ".github/skills/aspire-deployment",
+      "destination": "skills/aspire-deployment"
+    },
+    {
+      "id": "skill-auth",
+      "type": "skill",
+      "source": ".github/skills/auth",
+      "destination": "skills/auth"
+    },
+    {
+      "id": "skill-code-review",
+      "type": "skill",
+      "source": ".github/skills/code-review",
+      "destination": "skills/code-review"
+    },
+    {
+      "id": "skill-critic",
+      "type": "skill",
+      "source": ".github/skills/critic",
+      "destination": "skills/critic"
+    },
+    {
+      "id": "skill-csharp-expert",
+      "type": "skill",
+      "source": ".github/skills/csharp-expert",
+      "destination": "skills/csharp-expert"
+    },
+    {
+      "id": "skill-debug",
+      "type": "skill",
+      "source": ".github/skills/debug",
+      "destination": "skills/debug"
+    },
+    {
+      "id": "skill-deployment-compose",
+      "type": "skill",
+      "source": ".github/skills/deployment-compose",
+      "destination": "skills/deployment-compose"
+    },
+    {
+      "id": "skill-design",
+      "type": "skill",
+      "source": ".github/skills/design",
+      "destination": "skills/design"
+    },
+    {
+      "id": "skill-feature-creator",
+      "type": "skill",
+      "source": ".github/skills/feature-creator",
+      "destination": "skills/feature-creator"
+    },
+    {
+      "id": "skill-firebase-auth",
+      "type": "skill",
+      "source": ".github/skills/firebase-auth",
+      "destination": "skills/firebase-auth"
+    },
+    {
+      "id": "skill-frontend",
+      "type": "skill",
+      "source": ".github/skills/frontend",
+      "destination": "skills/frontend"
+    },
+    {
+      "id": "skill-logging-observability",
+      "type": "skill",
+      "source": ".github/skills/logging-observability",
+      "destination": "skills/logging-observability"
+    },
+    {
+      "id": "skill-marten-documents",
+      "type": "skill",
+      "source": ".github/skills/marten-documents",
+      "destination": "skills/marten-documents"
+    },
+    {
+      "id": "skill-marten-events",
+      "type": "skill",
+      "source": ".github/skills/marten-events",
+      "destination": "skills/marten-events"
+    },
+    {
+      "id": "skill-marten-linq-querying",
+      "type": "skill",
+      "source": ".github/skills/marten-linq-querying",
+      "destination": "skills/marten-linq-querying"
+    },
+    {
+      "id": "skill-openai-compatible",
+      "type": "skill",
+      "source": ".github/skills/openai-compatible",
+      "destination": "skills/openai-compatible"
+    },
+    {
+      "id": "skill-orleans",
+      "type": "skill",
+      "source": ".github/skills/orleans",
+      "destination": "skills/orleans"
+    },
+    {
+      "id": "skill-planning-feature",
+      "type": "skill",
+      "source": ".github/skills/planning-feature",
+      "destination": "skills/planning-feature"
+    },
+    {
+      "id": "skill-planning-refactor",
+      "type": "skill",
+      "source": ".github/skills/planning-refactor",
+      "destination": "skills/planning-refactor"
+    },
+    {
+      "id": "skill-playwright-mcp",
+      "type": "skill",
+      "source": ".github/skills/playwright-mcp",
+      "destination": "skills/playwright-mcp"
+    },
+    {
+      "id": "skill-quality-auditor",
+      "type": "skill",
+      "source": ".github/skills/quality-auditor",
+      "destination": "skills/quality-auditor"
+    },
+    {
+      "id": "skill-react-query",
+      "type": "skill",
+      "source": ".github/skills/react-query",
+      "destination": "skills/react-query"
+    },
+    {
+      "id": "skill-refactor",
+      "type": "skill",
+      "source": ".github/skills/refactor",
+      "destination": "skills/refactor"
+    },
+    {
+      "id": "skill-security",
+      "type": "skill",
+      "source": ".github/skills/security",
+      "destination": "skills/security"
+    },
+    {
+      "id": "skill-semantic-kernel-agents",
+      "type": "skill",
+      "source": ".github/skills/semantic-kernel-agents",
+      "destination": "skills/semantic-kernel-agents"
+    },
+    {
+      "id": "skill-signalr",
+      "type": "skill",
+      "source": ".github/skills/signalr",
+      "destination": "skills/signalr"
     },
     {
       "id": "skill-stack-detector",
       "type": "skill",
-      "source": "skills/stack-detector/SKILL.md",
-      "destination": "skills/stack-detector/SKILL.md"
+      "source": ".github/skills/stack-detector",
+      "destination": "skills/stack-detector"
+    },
+    {
+      "id": "skill-system-cleanup",
+      "type": "skill",
+      "source": ".github/skills/system-cleanup",
+      "destination": "skills/system-cleanup"
+    },
+    {
+      "id": "skill-system-drift",
+      "type": "skill",
+      "source": ".github/skills/system-drift",
+      "destination": "skills/system-drift"
+    },
+    {
+      "id": "skill-system-editor",
+      "type": "skill",
+      "source": ".github/skills/system-editor",
+      "destination": "skills/system-editor"
+    },
+    {
+      "id": "skill-system-health",
+      "type": "skill",
+      "source": ".github/skills/system-health",
+      "destination": "skills/system-health"
+    },
+    {
+      "id": "skill-tech-debt",
+      "type": "skill",
+      "source": ".github/skills/tech-debt",
+      "destination": "skills/tech-debt"
+    },
+    {
+      "id": "skill-terraform",
+      "type": "skill",
+      "source": ".github/skills/terraform",
+      "destination": "skills/terraform"
+    },
+    {
+      "id": "skill-testing-dotnet-unit",
+      "type": "skill",
+      "source": ".github/skills/testing-dotnet-unit",
+      "destination": "skills/testing-dotnet-unit"
+    },
+    {
+      "id": "skill-testing-frontend-unit",
+      "type": "skill",
+      "source": ".github/skills/testing-frontend-unit",
+      "destination": "skills/testing-frontend-unit"
+    },
+    {
+      "id": "skill-wolverine-core",
+      "type": "skill",
+      "source": ".github/skills/wolverine-core",
+      "destination": "skills/wolverine-core"
+    },
+    {
+      "id": "skill-wolverine-http",
+      "type": "skill",
+      "source": ".github/skills/wolverine-http",
+      "destination": "skills/wolverine-http"
+    },
+    {
+      "id": "prompt-instruction-engine-plan",
+      "type": "prompt",
+      "source": ".github/prompts/instruction-engine-plan.prompt.md",
+      "destination": "prompts/instruction-engine-plan.prompt.md"
+    },
+    {
+      "id": "prompt-instruction-engine-fleet",
+      "type": "prompt",
+      "source": ".github/prompts/instruction-engine-fleet.prompt.md",
+      "destination": "prompts/instruction-engine-fleet.prompt.md"
+    },
+    {
+      "id": "prompt-instruction-engine-review",
+      "type": "prompt",
+      "source": ".github/prompts/instruction-engine-review.prompt.md",
+      "destination": "prompts/instruction-engine-review.prompt.md"
     },
     {
       "id": "copilot-instructions",
       "type": "instructions",
-      "source": "instructions/copilot-instructions.md",
+      "source": ".cli/instructions/copilot-instructions.md",
       "destination": "copilot-instructions.md"
     }
   ],
   "sourcePatterns": [
     {
       "type": "agent",
-      "sourceGlob": "agents/*.agent.md",
+      "sourceGlob": ".github/agents/*.agent.md",
       "destinationDir": "agents"
     },
     {
       "type": "skill",
-      "sourceGlob": "skills/*/SKILL.md",
+      "sourceGlob": ".github/skills/*",
       "destinationDir": "skills"
+    },
+    {
+      "type": "prompt",
+      "sourceGlob": ".github/prompts/*.prompt.md",
+      "destinationDir": "prompts"
     }
   ]
 }

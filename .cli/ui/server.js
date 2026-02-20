@@ -40,6 +40,7 @@ function createChangeTracker(copilotHomeAbs) {
   tryWatch(path.join(copilotHomeAbs, 'session-state'));
   tryWatch(path.join(copilotHomeAbs, 'agents'));
   tryWatch(path.join(copilotHomeAbs, 'skills'));
+  tryWatch(path.join(copilotHomeAbs, 'prompts'));
 
   // Periodic bump as a fallback: ensures UI stays roughly current even if fs.watch is flaky.
   const interval = setInterval(() => bump(), 60 * 1000);

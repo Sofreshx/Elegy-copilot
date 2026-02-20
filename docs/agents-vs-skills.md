@@ -12,6 +12,17 @@ This guide clarifies when to choose an agent versus a skill when using MCP-backe
 
 Default recommendation: use agents for multi-step, stateful operations; use skills for repeatable, well-scoped patterns (prefer idempotence and read-only where possible).
 
+## Cross-tool portability (dedupe)
+
+If you want something reusable across **Copilot CLI** and **VS Code**, prefer a **skill**.
+
+Practical rule:
+- Put skills in `.github/skills/<skill>/...` (single source of truth)
+- Install once per machine into `~/.copilot/skills/<skill>/...`
+- Point VS Code at `~/.copilot/skills` via `chat.agentSkillsLocations` (installer does this)
+
+Agents are still useful, but they’re more likely to diverge (tools, UX, capabilities). Keep agents tool-neutral when possible, and only fork into tool-specific variants when you have a real need.
+
 ## Decision Matrix
 
 | Scenario | Choose | Rationale |

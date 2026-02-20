@@ -660,17 +660,88 @@ When a custom agent runs:
 
 ### Installing Agents and Skills
 
-**Manual sync:**
-```bash
-# Copy from instruction-engine repo to user-level
-cp -r instruction-engine/.github/agents/* ~/.copilot/agents/
-cp -r instruction-engine/.github/skills/* ~/.copilot/skills/
+**Recommended: installer script (keeps instruction-engine out of daily workspace)**
+
+PowerShell (Windows):
+```powershell
+pwsh -File scripts/cli-install.ps1 --cli --force
 ```
 
-**Future: Installer script**
-- `scripts/install-cli-assets.sh` (planned)
-- Syncs agents and skills from instruction-engine to user config
-- Keeps instruction-engine out of daily workspace
+bash (macOS/Linux):
+```bash
+./scripts/cli-install.sh --cli --force
+```
+
+To also set up VS Code discovery + install VS Code-only prompt files:
+```powershell
+pwsh -File scripts/cli-install.ps1 --all --force
+```
+
+This installs to `~/.copilot/{agents,skills,copilot-instructions.md}` and (for VS Code) `~/.copilot/prompts`.
+
+Note: VS Code prompt files are VS Code-only; Copilot CLI uses skills + instructions instead.
+
+### Inspecting effective prompts / context
+
+Built-in Copilot CLI system prompts are not shipped as editable files. The parts you control are:
+- `~/.copilot/agents/*.agent.md`
+- `~/.copilot/skills/*/SKILL.md`
+- instruction files (repo + user-level)
+
+To inspect what VS Code actually sent (system prompt + user message + context + tool calls):
+- Open **Chat Debug View** (`Developer: Show Chat Debug View`)
+- Use **Chat customization diagnostics** (Chat view → right-click → Diagnostics)
+
+### LSP (Code Intelligence) for Copilot CLI
+
+Copilot CLI supports Language Server Protocol (LSP) for richer code intelligence. Copilot CLI does **not** bundle language servers; install them separately and configure them.
+
+Install examples:
+```bash
+# TypeScript
+npm install -g typescript typescript-language-server
+
+# C# (one common option)
+dotnet tool install -g csharp-ls
+
+# Rust
+# Install rust-analyzer (via rustup / package manager) and ensure `rust-analyzer` is on PATH
+```
+
+User-level config file: `~/.copilot/lsp-config.json`
+
+Example:
+```json
+{
+  "lspServers": {
+    "typescript": {
+      "command": "typescript-language-server",
+      "args": ["--stdio"],
+      "fileExtensions": {
+        ".ts": "typescript",
+        ".tsx": "typescript"
+      }
+    },
+    "csharp": {
+      "command": "csharp-ls",
+      "args": [],
+      "fileExtensions": {
+        ".cs": "csharp"
+      }
+    },
+    "rust": {
+      "command": "rust-analyzer",
+      "args": [],
+      "fileExtensions": {
+        ".rs": "rust"
+      }
+    }
+  }
+}
+```
+
+Verify in Copilot CLI:
+- Start `copilot` and run `/lsp` to see configured server status.
 
 ---
 
@@ -680,12 +751,14 @@ cp -r instruction-engine/.github/skills/* ~/.copilot/skills/
 
 **Goal:** Get comfortable with CLI basics
 
-1. Install Copilot CLI: `npm install -g @github/copilot-cli`
-2. Authenticate: `copilot auth`
+1. Install Copilot CLI: `npm install -g @github/copilot`
+2. Authenticate: start `copilot` and run `/login` (or use `copilot login`)
 3. Try plan mode: `copilot` then `/plan Create a simple Express API`
 4. Add user-level instructions: Edit `~/.copilot/copilot-instructions.md`
 5. Practice approve/deny workflow with shell commands
 6. Experiment with `/diff`, `/review`, `/share`
+
+Optional: configure LSP for richer code intelligence (see below).
 
 **Success criteria:**
 - Can run plan → implement → review workflow
@@ -889,10 +962,10 @@ This is custom plumbing, not a first-party feature.
 
 ## Open Questions / Future Work
 
-- **Fleet mode stability:** `/fleet` is not fully documented in public docs; treat as experimental
+- **Fleet mode maturity:** `/fleet` is available and evolving; treat as preview and validate behavior after CLI updates
 - **ACP authentication:** Best practices for securing ACP endpoints in production
 - **Multi-session tracking:** Optimal patterns for managing 5+ concurrent sessions
-- **Agent installer:** Automated sync script for user-level agents/skills
+- **Installer ergonomics:** Improve profile detection/patching for VS Code Profiles (if needed)
 - **Discord bot template:** Reference implementation for remote control
 - **Metrics and analytics:** What to track for productivity and safety insights
 
@@ -963,15 +1036,18 @@ copilot --acp --port 3000
 ~/.copilot/copilot-instructions.md      # User-level instructions
 ~/.copilot/agents/*.agent.md            # User-level agents
 ~/.copilot/skills/*/SKILL.md            # User-level skills
+~/.copilot/prompts/*.prompt.md          # VS Code-only prompt files (installed globally)
+~/.copilot/lsp-config.json              # Copilot CLI LSP (user-level)
 ~/.copilot/session-state/               # Session storage
 
 .github/copilot-instructions.md         # Repo instructions
 .github/agents/*.agent.md               # Repo agents
 .github/skills/*/SKILL.md               # Repo skills
+.github/lsp.json                        # Copilot CLI LSP (repo-level)
 ```
 
 ---
 
-**Last Updated:** 2024-12-19  
+**Last Updated:** 2026-02-20  
 **Maintained By:** Instruction Engine Team  
 **Status:** Living document - update as CLI evolves

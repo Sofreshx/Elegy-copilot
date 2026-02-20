@@ -21,7 +21,7 @@ function resolveUnder(baseAbs, relPath) {
 
 function sha256FileHex(absPath) {
   try {
-    const hash = crypto.createHash("sha256");
+    const hash = crypto.createHash('sha256');
     const fd = fs.openSync(absPath, 'r');
     try {
       const buf = Buffer.allocUnsafe(64 * 1024);
@@ -32,6 +32,58 @@ function sha256FileHex(absPath) {
       }
     } finally {
       fs.closeSync(fd);
+    }
+    return hash.digest('hex');
+  } catch {
+    return null;
+  }
+}
+
+function walkFilesRecursive(dirAbs) {
+  const results = [];
+  const stack = [dirAbs];
+
+  while (stack.length) {
+    const cur = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(cur, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      const abs = path.join(cur, e.name);
+      if (e.isDirectory()) {
+        stack.push(abs);
+        continue;
+      }
+      if (e.isFile()) {
+        results.push(abs);
+      }
+    }
+  }
+
+  results.sort((a, b) => a.localeCompare(b));
+  return results;
+}
+
+function sha256PathHex(absPath) {
+  try {
+    const stat = fs.statSync(absPath);
+    if (stat.isFile()) return sha256FileHex(absPath);
+    if (!stat.isDirectory()) return null;
+
+    const base = path.resolve(absPath);
+    const files = walkFilesRecursive(base);
+    const hash = crypto.createHash('sha256');
+    for (const f of files) {
+      const rel = path.relative(base, f).split(path.sep).join('/');
+      const fh = sha256FileHex(f);
+      if (!fh) return null;
+      hash.update(rel);
+      hash.update('\0');
+      hash.update(fh);
+      hash.update('\n');
     }
     return hash.digest('hex');
   } catch {
@@ -83,7 +135,11 @@ function getAssetPaths(engineRoot, copilotHome, asset) {
   const copilotAbs = path.resolve(copilotHome);
   const cliRoot = path.join(engineAbs, '.cli');
 
-  const sourceAbs = resolveUnder(cliRoot, asset.source);
+  // Sources are expected to be relative to the instruction-engine repo root.
+  // e.g. ".github/agents/..." or ".cli/instructions/...".
+  // (We keep cliRoot computed for legacy debugging / future extension.)
+  void cliRoot;
+  const sourceAbs = resolveUnder(engineAbs, asset.source);
   const destinationAbs = resolveUnder(copilotAbs, asset.destination);
 
   return { engineAbs, copilotAbs, cliRoot, sourceAbs, destinationAbs };
@@ -126,9 +182,9 @@ function getManagedAssetStatuses(engineRoot, copilotHome) {
   const manifest = loadManifest(engineRoot);
   return manifest.assets.map((asset) => {
     const { sourceAbs, destinationAbs } = getAssetPaths(engineRoot, copilotHome, asset);
-    const sourceHash = sha256FileHex(sourceAbs);
+    const sourceHash = sha256PathHex(sourceAbs);
     const installed = fs.existsSync(destinationAbs);
-    const destinationHash = installed ? sha256FileHex(destinationAbs) : null;
+    const destinationHash = installed ? sha256PathHex(destinationAbs) : null;
     const upToDate = Boolean(installed && sourceHash && destinationHash && sourceHash === destinationHash);
 
     return {
@@ -151,11 +207,11 @@ function syncAsset(engineRoot, copilotHome, assetId, opts) {
   if (!asset) throw new Error(`Unknown assetId: ${assetId}`);
 
   const { sourceAbs, destinationAbs } = getAssetPaths(engineRoot, copilotHome, asset);
-  const sourceHash = sha256FileHex(sourceAbs);
+  const sourceHash = sha256PathHex(sourceAbs);
   if (!sourceHash) throw new Error(`Source missing/unreadable: ${sourceAbs}`);
 
   const installed = fs.existsSync(destinationAbs);
-  const destinationHash = installed ? sha256FileHex(destinationAbs) : null;
+  const destinationHash = installed ? sha256PathHex(destinationAbs) : null;
 
   if (installed && destinationHash && destinationHash === sourceHash) {
     return {
@@ -205,10 +261,27 @@ function syncAsset(engineRoot, copilotHome, assetId, opts) {
 
   if (!dryRun) {
     fs.mkdirSync(path.dirname(destinationAbs), { recursive: true });
-    fs.copyFileSync(sourceAbs, destinationAbs);
+    const st = fs.statSync(sourceAbs);
+    if (st.isDirectory()) {
+      fs.rmSync(destinationAbs, { recursive: true, force: true });
+      if (typeof fs.cpSync === 'function') {
+        fs.cpSync(sourceAbs, destinationAbs, { recursive: true, force: true });
+      } else {
+        // Fallback for older Node: naive recursive copy.
+        const files = walkFilesRecursive(sourceAbs);
+        for (const f of files) {
+          const rel = path.relative(sourceAbs, f);
+          const out = path.join(destinationAbs, rel);
+          fs.mkdirSync(path.dirname(out), { recursive: true });
+          fs.copyFileSync(f, out);
+        }
+      }
+    } else {
+      fs.copyFileSync(sourceAbs, destinationAbs);
+    }
   }
 
-  const newDestinationHash = dryRun ? destinationHash : sha256FileHex(destinationAbs);
+  const newDestinationHash = dryRun ? destinationHash : sha256PathHex(destinationAbs);
 
   return {
     ...asset,
@@ -286,17 +359,22 @@ function removeAsset(copilotHome, asset, opts) {
   }
 
   const stat = fs.statSync(destinationAbs);
-  if (!stat.isFile()) {
-    return { action: 'blocked', reason: 'not_a_file', destinationAbs };
+  if (!(stat.isFile() || stat.isDirectory())) {
+    return { action: 'blocked', reason: 'not_a_file_or_dir', destinationAbs };
   }
 
-  const currentDestinationHash = sha256FileHex(destinationAbs);
+  const currentDestinationHash = sha256PathHex(destinationAbs);
   if (!force && asset.destinationHash && currentDestinationHash && currentDestinationHash !== asset.destinationHash) {
     return { action: 'blocked', reason: 'destination_changed_since_status', destinationAbs };
   }
 
-  fs.unlinkSync(destinationAbs);
-  tryRemoveEmptyDirsUp(path.dirname(destinationAbs), copilotAbs);
+  if (stat.isDirectory()) {
+    fs.rmSync(destinationAbs, { recursive: true, force: true });
+    tryRemoveEmptyDirsUp(path.dirname(destinationAbs), copilotAbs);
+  } else {
+    fs.unlinkSync(destinationAbs);
+    tryRemoveEmptyDirsUp(path.dirname(destinationAbs), copilotAbs);
+  }
 
   return { action: 'removed', destinationAbs };
 }

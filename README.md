@@ -87,6 +87,26 @@ For a deeper reference (config fields, auth model, troubleshooting), see `local-
 
 ## Quick start
 
+### 0) Install globally (recommended)
+
+Installs agents + skills + CLI-first global instructions into `~/.copilot`, installs VS Code-only prompt files into `~/.copilot/prompts`, and patches VS Code settings so they’re available from **any repo**.
+
+Windows (PowerShell):
+```powershell
+pwsh -File scripts/cli-install.ps1 --all --force
+```
+
+macOS/Linux (bash):
+```bash
+./scripts/cli-install.sh --all --force
+```
+
+Verify in VS Code:
+- Chat view → right-click → **Diagnostics** (shows loaded agents/skills/prompts and their locations)
+
+Verify in Copilot CLI:
+- Start `copilot` and run `/agents`, `/skills`
+
 ### 1) Add the engine to your workspace
 
 ```bash
