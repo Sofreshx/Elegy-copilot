@@ -59,10 +59,15 @@
 
       <section id="view-assets" class="view hidden">
         <div class="toolbar">
+          <div class="tabs" style="gap: 6px;">
+            <button id="tab-assets-cli" class="tab active" type="button">CLI</button>
+            <button id="tab-assets-vscode" class="tab" type="button">VS Code</button>
+          </div>
           <button id="btn-refresh-managed" class="btn" type="button">Refresh managed</button>
           <button id="btn-refresh-installed" class="btn" type="button">Refresh agents/skills</button>
           <button id="btn-refresh-all" class="btn" type="button">Refresh all</button>
           <button id="btn-sync-all" class="btn" type="button">Sync all</button>
+          <button id="btn-vscode-patch-settings" class="btn" type="button" disabled>Patch VS Code settings</button>
           <span id="assets-summary" class="muted"></span>
         </div>
 
@@ -95,6 +100,16 @@
               <thead><tr><th>Name</th><th>Path</th><th>Actions</th></tr></thead>
               <tbody id="skills-table"></tbody>
              </table>
+           </div>
+           <div class="col">
+             <h3>Prompts</h3>
+             <table class="table">
+              <thead><tr><th>Name</th><th>File</th><th>Actions</th></tr></thead>
+              <tbody id="prompts-table"></tbody>
+             </table>
+
+             <h3>Instructions</h3>
+             <div id="instructions-panel" class="panel muted">(VS Code target only)</div>
            </div>
          </div>
 

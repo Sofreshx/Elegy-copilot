@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+function normalizeTarget(target) {
+  const t = String(target || '').trim().toLowerCase();
+  if (t === 'vscode' || t === 'vs-code' || t === 'vs') return 'vscode';
+  return 'cli';
+}
+
 function resolveUnder(baseAbs, relPath) {
   if (typeof relPath !== 'string' || relPath.length === 0) {
     throw new Error('Path must be a non-empty string');
@@ -130,23 +136,34 @@ function loadManifest(engineRoot) {
   };
 }
 
-function getAssetPaths(engineRoot, copilotHome, asset) {
+function resolveAssetSourceForTarget(asset, target) {
+  const t = normalizeTarget(target);
+  if (t === 'vscode' && asset && asset.type === 'instructions' && asset.id === 'copilot-instructions') {
+    // VS Code installs use the repo’s VS Code instructions source.
+    return '.github/copilot-instructions.md';
+  }
+  return asset.source;
+}
+
+function getAssetPaths(engineRoot, destinationHome, asset, opts) {
+  const target = normalizeTarget(opts && opts.target);
   const engineAbs = path.resolve(engineRoot);
-  const copilotAbs = path.resolve(copilotHome);
+  const homeAbs = path.resolve(destinationHome);
   const cliRoot = path.join(engineAbs, '.cli');
 
   // Sources are expected to be relative to the instruction-engine repo root.
   // e.g. ".github/agents/..." or ".cli/instructions/...".
   // (We keep cliRoot computed for legacy debugging / future extension.)
   void cliRoot;
-  const sourceAbs = resolveUnder(engineAbs, asset.source);
-  const destinationAbs = resolveUnder(copilotAbs, asset.destination);
+  const sourceRel = resolveAssetSourceForTarget(asset, target);
+  const sourceAbs = resolveUnder(engineAbs, sourceRel);
+  const destinationAbs = resolveUnder(homeAbs, asset.destination);
 
-  return { engineAbs, copilotAbs, cliRoot, sourceAbs, destinationAbs };
+  return { engineAbs, homeAbs, cliRoot, sourceAbs, destinationAbs, target, sourceRel };
 }
 
-function listInstalledAgents(copilotHome) {
-  const agentsDir = path.join(path.resolve(copilotHome), 'agents');
+function listInstalledAgents(home) {
+  const agentsDir = path.join(path.resolve(home), 'agents');
   try {
     const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
     return entries
@@ -161,8 +178,8 @@ function listInstalledAgents(copilotHome) {
   }
 }
 
-function listInstalledSkills(copilotHome) {
-  const skillsDir = path.join(path.resolve(copilotHome), 'skills');
+function listInstalledSkills(home) {
+  const skillsDir = path.join(path.resolve(home), 'skills');
   try {
     const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
     return entries
@@ -178,10 +195,37 @@ function listInstalledSkills(copilotHome) {
   }
 }
 
-function getManagedAssetStatuses(engineRoot, copilotHome) {
+function listInstalledPrompts(home) {
+  const promptsDir = path.join(path.resolve(home), 'prompts');
+  try {
+    const entries = fs.readdirSync(promptsDir, { withFileTypes: true });
+    return entries
+      .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.prompt.md'))
+      .map((e) => ({
+        name: e.name.replace(/\.prompt\.md$/i, ''),
+        fileName: e.name,
+        absPath: path.join(promptsDir, e.name),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
+
+function getInstalledInstructions(home) {
+  const absPath = path.join(path.resolve(home), 'copilot-instructions.md');
+  try {
+    return fs.existsSync(absPath) && fs.statSync(absPath).isFile() ? { installed: true, absPath } : { installed: false, absPath };
+  } catch {
+    return { installed: false, absPath };
+  }
+}
+
+function getManagedAssetStatuses(engineRoot, destinationHome, opts) {
+  const target = normalizeTarget(opts && opts.target);
   const manifest = loadManifest(engineRoot);
   return manifest.assets.map((asset) => {
-    const { sourceAbs, destinationAbs } = getAssetPaths(engineRoot, copilotHome, asset);
+    const { sourceAbs, destinationAbs, sourceRel } = getAssetPaths(engineRoot, destinationHome, asset, { target });
     const sourceHash = sha256PathHex(sourceAbs);
     const installed = fs.existsSync(destinationAbs);
     const destinationHash = installed ? sha256PathHex(destinationAbs) : null;
@@ -190,6 +234,8 @@ function getManagedAssetStatuses(engineRoot, copilotHome) {
     return {
       ...asset,
       managed: true,
+      target,
+      source: sourceRel,
       sourceAbs,
       destinationAbs,
       installed,
@@ -200,13 +246,14 @@ function getManagedAssetStatuses(engineRoot, copilotHome) {
   });
 }
 
-function syncAsset(engineRoot, copilotHome, assetId, opts) {
-  const { dryRun = false, force = false } = opts || {};
+function syncAsset(engineRoot, destinationHome, assetId, opts) {
+  const { dryRun = false, force = false, target } = opts || {};
+  const normalizedTarget = normalizeTarget(target);
   const manifest = loadManifest(engineRoot);
   const asset = manifest.assets.find((a) => a.id === assetId);
   if (!asset) throw new Error(`Unknown assetId: ${assetId}`);
 
-  const { sourceAbs, destinationAbs } = getAssetPaths(engineRoot, copilotHome, asset);
+  const { sourceAbs, destinationAbs, sourceRel } = getAssetPaths(engineRoot, destinationHome, asset, { target: normalizedTarget });
   const sourceHash = sha256PathHex(sourceAbs);
   if (!sourceHash) throw new Error(`Source missing/unreadable: ${sourceAbs}`);
 
@@ -217,6 +264,8 @@ function syncAsset(engineRoot, copilotHome, assetId, opts) {
     return {
       ...asset,
       managed: true,
+      target: normalizedTarget,
+      source: sourceRel,
       sourceAbs,
       destinationAbs,
       action: 'noop',
@@ -231,6 +280,8 @@ function syncAsset(engineRoot, copilotHome, assetId, opts) {
     return {
       ...asset,
       managed: true,
+      target: normalizedTarget,
+      source: sourceRel,
       sourceAbs,
       destinationAbs,
       action: 'skipped',
@@ -246,6 +297,8 @@ function syncAsset(engineRoot, copilotHome, assetId, opts) {
     return {
       ...asset,
       managed: true,
+      target: normalizedTarget,
+      source: sourceRel,
       sourceAbs,
       destinationAbs,
       action: 'skipped',
@@ -286,6 +339,8 @@ function syncAsset(engineRoot, copilotHome, assetId, opts) {
   return {
     ...asset,
     managed: true,
+    target: normalizedTarget,
+    source: sourceRel,
     sourceAbs,
     destinationAbs,
     action,
@@ -296,9 +351,9 @@ function syncAsset(engineRoot, copilotHome, assetId, opts) {
   };
 }
 
-function syncAll(engineRoot, copilotHome, opts) {
+function syncAll(engineRoot, destinationHome, opts) {
   const manifest = loadManifest(engineRoot);
-  return manifest.assets.map((a) => syncAsset(engineRoot, copilotHome, a.id, opts));
+  return manifest.assets.map((a) => syncAsset(engineRoot, destinationHome, a.id, opts));
 }
 
 function tryRemoveEmptyDirsUp(startDirAbs, stopDirAbs) {
@@ -318,23 +373,23 @@ function tryRemoveEmptyDirsUp(startDirAbs, stopDirAbs) {
   }
 }
 
-function removeAsset(copilotHome, asset, opts) {
+function removeAsset(destinationHome, asset, opts) {
   const { force = false } = opts || {};
   if (!asset || typeof asset !== 'object') throw new Error('asset must be an object');
 
-  const copilotAbs = path.resolve(copilotHome);
+  const homeAbs = path.resolve(destinationHome);
   let destinationAbs = asset.destinationAbs || asset.destinationPath;
   if (!destinationAbs) {
     const destinationRel = asset.destination || asset.destinationRel;
     if (!destinationRel) throw new Error('asset is missing destination info');
-    destinationAbs = resolveUnder(copilotAbs, destinationRel);
+    destinationAbs = resolveUnder(homeAbs, destinationRel);
   } else {
     destinationAbs = path.resolve(destinationAbs);
   }
 
-  const copilotPrefix = copilotAbs.endsWith(path.sep) ? copilotAbs : copilotAbs + path.sep;
-  if (!destinationAbs.startsWith(copilotPrefix)) {
-    throw new Error('Refusing to delete outside copilotHome');
+  const homePrefix = homeAbs.endsWith(path.sep) ? homeAbs : homeAbs + path.sep;
+  if (!destinationAbs.startsWith(homePrefix)) {
+    throw new Error('Refusing to delete outside destination home');
   }
 
   const isManaged = asset.managed === true;
@@ -370,19 +425,22 @@ function removeAsset(copilotHome, asset, opts) {
 
   if (stat.isDirectory()) {
     fs.rmSync(destinationAbs, { recursive: true, force: true });
-    tryRemoveEmptyDirsUp(path.dirname(destinationAbs), copilotAbs);
+    tryRemoveEmptyDirsUp(path.dirname(destinationAbs), homeAbs);
   } else {
     fs.unlinkSync(destinationAbs);
-    tryRemoveEmptyDirsUp(path.dirname(destinationAbs), copilotAbs);
+    tryRemoveEmptyDirsUp(path.dirname(destinationAbs), homeAbs);
   }
 
   return { action: 'removed', destinationAbs };
 }
 
 module.exports = {
+  normalizeTarget,
   loadManifest,
   listInstalledAgents,
   listInstalledSkills,
+  listInstalledPrompts,
+  getInstalledInstructions,
   getManagedAssetStatuses,
   readTextFileSafe,
   syncAsset,

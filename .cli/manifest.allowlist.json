@@ -8,6 +8,8 @@
     "doc-writer",
     "e2e-browser",
     "e2e-validator",
+    "elegy-direction",
+    "elegy-ideation",
     "elegy-orchestrator",
     "elegy-planner",
     "final-reviewer",

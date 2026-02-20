@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const childProcess = require('child_process');
 
 const sessions = require('./lib/sessions');
 const assets = require('./lib/assets');
@@ -47,6 +48,10 @@ function createChangeTracker(copilotHomeAbs, vscodeHomeAbs) {
     tryWatch(vscodeHomeAbs);
     tryWatch(path.join(vscodeHomeAbs, 'session-state'));
     tryWatch(path.join(vscodeHomeAbs, 'sessions-archive'));
+    // VS Code installed assets (non-recursive watch; best-effort)
+    tryWatch(path.join(vscodeHomeAbs, 'agents'));
+    tryWatch(path.join(vscodeHomeAbs, 'skills'));
+    tryWatch(path.join(vscodeHomeAbs, 'prompts'));
   }
 
   // Periodic bump as a fallback: ensures UI stays roughly current even if fs.watch is flaky.
@@ -257,10 +262,49 @@ function parseNumberQuery(searchParams, key, defaultValue) {
   return n;
 }
 
+function resolveAssetsTarget(u) {
+  const t = (u && u.searchParams && u.searchParams.get('target')) || 'cli';
+  return assets.normalizeTarget(t);
+}
+
+function homeForTarget(target, copilotHomeAbs, vscodeHomeAbs) {
+  if (String(target) === 'vscode') return vscodeHomeAbs;
+  return copilotHomeAbs;
+}
+
+function runVscodeSettingsPatcher({ engineRoot, vscodeHome, settingsPath, dryRun }) {
+  const patcher = path.join(path.resolve(engineRoot), 'scripts', 'vscode-settings-patch.mjs');
+  if (!fs.existsSync(patcher)) {
+    throw new Error(`Missing settings patcher script: ${patcher}`);
+  }
+
+  const args = [patcher, '--vscode-home', String(vscodeHome || '')];
+  if (dryRun) args.push('--dry-run');
+  if (settingsPath) args.push('--settings', String(settingsPath));
+
+  const result = childProcess.spawnSync(process.execPath, args, {
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 2 * 1024 * 1024,
+  });
+
+  return {
+    ok: result.status === 0,
+    exitCode: result.status,
+    signal: result.signal || null,
+    patcher,
+    args: args.slice(1),
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
+  };
+}
+
 function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTracker }) {
   const pathname = u.pathname;
   const copilotHomeAbs = path.resolve(copilotHome);
   const vscodeHomeAbs = path.resolve(vscodeHome);
+  const assetsTarget = resolveAssetsTarget(u);
+  const assetsHomeAbs = homeForTarget(assetsTarget, copilotHomeAbs, vscodeHomeAbs);
 
   if (req.method === 'GET' && pathname === '/api/health') {
     const changes = changeTracker ? changeTracker.get() : null;
@@ -410,14 +454,20 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
   }
 
   if (req.method === 'GET' && pathname === '/api/assets/managed') {
-    const managed = assets.getManagedAssetStatuses(engineRoot, copilotHome);
+    const managed = assets.getManagedAssetStatuses(engineRoot, assetsHomeAbs, { target: assetsTarget });
     sendJson(res, 200, { managed });
     return;
   }
 
   if (req.method === 'GET' && pathname === '/api/assets/installed') {
-    const agents = assets.listInstalledAgents(copilotHome);
-    const skills = assets.listInstalledSkills(copilotHome);
+    const agents = assets.listInstalledAgents(assetsHomeAbs);
+    const skills = assets.listInstalledSkills(assetsHomeAbs);
+    if (assetsTarget === 'vscode') {
+      const prompts = assets.listInstalledPrompts(assetsHomeAbs);
+      const instructions = assets.getInstalledInstructions(assetsHomeAbs);
+      sendJson(res, 200, { agents, skills, prompts, instructions });
+      return;
+    }
     sendJson(res, 200, { agents, skills });
     return;
   }
@@ -425,9 +475,10 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
   if (req.method === 'POST' && pathname === '/api/assets/sync-all') {
     readJsonBody(req)
       .then((body) => {
-        const result = assets.syncAll(engineRoot, copilotHome, {
+        const result = assets.syncAll(engineRoot, assetsHomeAbs, {
           dryRun: Boolean(body.dryRun),
           force: Boolean(body.force),
+          target: assetsTarget,
         });
         sendJson(res, 200, { result });
       })
@@ -440,9 +491,10 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
       .then((body) => {
         const assetId = body.assetId;
         if (typeof assetId !== 'string' || !assetId) throw Object.assign(new Error('assetId is required'), { statusCode: 400 });
-        const result = assets.syncAsset(engineRoot, copilotHome, assetId, {
+        const result = assets.syncAsset(engineRoot, assetsHomeAbs, assetId, {
           dryRun: Boolean(body.dryRun),
           force: Boolean(body.force),
+          target: assetsTarget,
         });
         sendJson(res, 200, { result });
       })
@@ -455,10 +507,10 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
       .then((body) => {
         const assetId = body.assetId;
         if (typeof assetId !== 'string' || !assetId) throw Object.assign(new Error('assetId is required'), { statusCode: 400 });
-        const managed = assets.getManagedAssetStatuses(engineRoot, copilotHome);
+        const managed = assets.getManagedAssetStatuses(engineRoot, assetsHomeAbs, { target: assetsTarget });
         const asset = managed.find((a) => a.id === assetId);
         if (!asset) throw Object.assign(new Error(`Unknown assetId: ${assetId}`), { statusCode: 404 });
-        const result = assets.removeAsset(copilotHome, asset, { force: Boolean(body.force) });
+        const result = assets.removeAsset(assetsHomeAbs, asset, { force: Boolean(body.force) });
         sendJson(res, 200, { result });
       })
       .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
@@ -472,7 +524,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
       return;
     }
     try {
-      const abs = safeResolveUnder(copilotHome, rel);
+      const abs = safeResolveUnder(assetsHomeAbs, rel);
       const text = assets.readTextFileSafe(abs, 512 * 1024);
       if (text == null) {
         sendText(res, 404, 'Not found');
@@ -508,7 +560,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
           throw Object.assign(new Error('Deletion requires force=true'), { statusCode: 400 });
         }
 
-        const abs = safeResolveUnder(copilotHomeAbs, normalized);
+        const abs = safeResolveUnder(assetsHomeAbs, normalized);
         if (!fs.existsSync(abs)) {
           throw Object.assign(new Error('Not found'), { statusCode: 404 });
         }
@@ -521,6 +573,23 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
         }
 
         sendJson(res, 200, { ok: true, deleted: normalized });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/vscode/patch-settings') {
+    readJsonBody(req)
+      .then((body) => {
+        const settingsPath = body && body.settingsPath ? String(body.settingsPath) : null;
+        const dryRun = Boolean(body && body.dryRun);
+
+        if (!vscodeHomeAbs || !String(vscodeHomeAbs).trim()) {
+          throw Object.assign(new Error('vscodeHome is not configured'), { statusCode: 400 });
+        }
+
+        const result = runVscodeSettingsPatcher({ engineRoot, vscodeHome: vscodeHomeAbs, settingsPath, dryRun });
+        sendJson(res, result.ok ? 200 : 400, { result });
       })
       .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
     return;

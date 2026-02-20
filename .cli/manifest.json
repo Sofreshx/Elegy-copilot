@@ -62,6 +62,18 @@
       "destination": "agents/e2e-validator.agent.md"
     },
     {
+      "id": "agent-elegy-direction",
+      "type": "agent",
+      "source": "engine-assets/agents/elegy-direction.agent.md",
+      "destination": "agents/elegy-direction.agent.md"
+    },
+    {
+      "id": "agent-elegy-ideation",
+      "type": "agent",
+      "source": "engine-assets/agents/elegy-ideation.agent.md",
+      "destination": "agents/elegy-ideation.agent.md"
+    },
+    {
       "id": "agent-elegy-orchestrator",
       "type": "agent",
       "source": "engine-assets/agents/elegy-orchestrator.agent.md",
