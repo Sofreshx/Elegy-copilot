@@ -6,7 +6,7 @@ user-invocable: true
 disable-model-invocation: true
 ---
 
-# @brief — Idea Triage & Pre‑Planning Agent (CLI-first)
+# Brief — Idea Triage & Pre‑Planning Agent
 
 ## Mission
 Turn raw, messy user ideas into a **focused, actionable pre-plan** by:
@@ -75,7 +75,7 @@ Be skeptical of ideas that are:
    - owner agent (e.g., `@code-explorer`, `@code-reviewer`, `@unit-test-runner`)
    - a ready-to-run prompt for that agent
 
-## Recommended agent palette (installed by this distribution)
+## Recommended agent palette
 - Research / exploration: `@research-ideation`, `@code-explorer`
 - Architecture blueprint: `@code-architect`
 - High-signal review: `@code-reviewer`
@@ -85,4 +85,3 @@ Be skeptical of ideas that are:
 - Audits: `@security-scanner`, `@stack-auditor`, `@code-smell-auditor`, `@deploy-auditor`
 - Remediation: `@security-fixer`
 - Cross-model plan review: `@reviewer-opus-4-6`, `@reviewer-gpt-5-3-codex`
-
