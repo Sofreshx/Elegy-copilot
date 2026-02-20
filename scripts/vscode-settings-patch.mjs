@@ -289,6 +289,81 @@ function writeJson(filePath, obj, { dryRun }) {
 	fs.writeFileSync(filePath, json, 'utf8');
 }
 
+function readJsonSafe(filePath) {
+	try {
+		if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+		const raw = fs.readFileSync(filePath, 'utf8');
+		return JSON.parse(raw);
+	} catch {
+		return null;
+	}
+}
+
+function ensureToolApprovalEntry(toolApprovals, entry) {
+	if (!Array.isArray(toolApprovals)) return false;
+	if (!entry || typeof entry !== 'object') return false;
+
+	const kind = String(entry.kind || '').trim();
+	if (!kind) return false;
+
+	const canon = JSON.stringify({ ...entry, kind });
+	for (const existing of toolApprovals) {
+		if (!existing || typeof existing !== 'object') continue;
+		const ek = String(existing.kind || '').trim();
+		if (ek !== kind) continue;
+		// For our default approvals, kind alone is enough (write/memory have no extra fields).
+		if (canon === JSON.stringify({ ...existing, kind: ek })) return false;
+		// If same kind and no extra fields, treat as present.
+		if (Object.keys(existing).length === 1 && Object.keys(entry).length === 1) return false;
+	}
+
+	toolApprovals.push(entry);
+	return true;
+}
+
+function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }) {
+	// Copilot tool approvals are stored under ~/.copilot/permissions-config.json.
+	// The goal here is to avoid repeated VS Code agent prompts for file access.
+	const filePath = path.join(path.resolve(copilotHomeAbs), 'permissions-config.json');
+
+	const existing = readJsonSafe(filePath);
+	const root = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {};
+	if (!root.locations || typeof root.locations !== 'object' || Array.isArray(root.locations)) {
+		root.locations = {};
+	}
+
+	const desiredLocations = [path.resolve(copilotHomeAbs), path.resolve(vscodeHomeAbs)].filter(Boolean);
+	let changed = false;
+
+	for (const loc of desiredLocations) {
+		if (!root.locations[loc] || typeof root.locations[loc] !== 'object' || Array.isArray(root.locations[loc])) {
+			root.locations[loc] = {};
+			changed = true;
+		}
+
+		const slot = root.locations[loc];
+		if (!Array.isArray(slot.tool_approvals)) {
+			slot.tool_approvals = [];
+			changed = true;
+		}
+
+		// Default: allow write access and memory operations for these trusted roots.
+		changed = ensureToolApprovalEntry(slot.tool_approvals, { kind: 'write' }) || changed;
+		changed = ensureToolApprovalEntry(slot.tool_approvals, { kind: 'memory' }) || changed;
+	}
+
+	if (!changed) {
+		console.log(`Copilot permissions: ${filePath} (no changes needed)`);
+		return;
+	}
+
+	if (fs.existsSync(filePath)) {
+		backupFile(filePath, { dryRun });
+	}
+	writeJson(filePath, root, { dryRun });
+	console.log(`Copilot permissions: ${filePath} (patched)`);
+}
+
 function backupFile(filePath, { dryRun }) {
 	const dir = path.dirname(filePath);
 	const base = path.basename(filePath);
@@ -376,6 +451,7 @@ function resolveAssetsHome(args) {
 function main() {
 	const args = parseArgs(process.argv.slice(2));
 	const assetsHome = resolveAssetsHome(args);
+	const copilotHome = resolveCopilotHome(args.copilotHome);
 
 	const desired = {
 		agents: path.join(assetsHome, 'agents'),
@@ -423,6 +499,18 @@ function main() {
 
 		writeJson(settingsPath, settings, { dryRun: args.dryRun });
 		console.log('  (patched)');
+	}
+
+	// Also ensure default tool permissions are set for the Copilot home and VS Code asset home.
+	// This reduces repeated prompts when agent mode needs to read/write these folders.
+	try {
+		patchCopilotPermissionsConfig({
+			copilotHomeAbs: copilotHome,
+			vscodeHomeAbs: assetsHome,
+			dryRun: args.dryRun
+		});
+	} catch (e) {
+		console.log(`Copilot permissions: unable to patch (${String(e.message || e)})`);
 	}
 }
 

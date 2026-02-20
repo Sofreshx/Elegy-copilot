@@ -399,6 +399,18 @@ async function patchVscodeSettings() {
   setStatus('VS Code settings patch attempted.');
 }
 
+async function authorizeCopilotFolders() {
+  const ok = window.confirm(
+    'Authorize Copilot tool access for:\n\n- ~/.copilot\n- ~/Documents/instruction-engine\n\nThis updates ~/.copilot/permissions-config.json and creates a backup if needed.'
+  );
+  if (!ok) return;
+  setStatus('Authorizing Copilot folders…');
+  const r = await api('/api/copilot/authorize', { method: 'POST', body: JSON.stringify({ dryRun: false }) }).catch((e) => ({ error: e.message }));
+  $('viewer-meta').textContent = 'Authorize Copilot folders';
+  $('viewer').textContent = JSON.stringify(r, null, 2);
+  setStatus('Authorization setup attempted.');
+}
+
 function bindUi() {
   $('tab-sessions').addEventListener('click', () => switchTab('sessions'));
   $('tab-assets').addEventListener('click', () => switchTab('assets'));
@@ -482,6 +494,7 @@ function bindUi() {
   $('tab-assets-cli').addEventListener('click', () => setAssetsTarget('cli'));
   $('tab-assets-vscode').addEventListener('click', () => setAssetsTarget('vscode'));
   $('btn-vscode-patch-settings').addEventListener('click', () => patchVscodeSettings().catch((e) => setStatus(e.message)));
+  $('btn-copilot-authorize').addEventListener('click', () => authorizeCopilotFolders().catch((e) => setStatus(e.message)));
 }
 
 async function boot() {

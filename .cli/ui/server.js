@@ -299,6 +299,83 @@ function runVscodeSettingsPatcher({ engineRoot, vscodeHome, settingsPath, dryRun
   };
 }
 
+function readJsonFileSafe(filePath) {
+  try {
+    if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function backupFile(filePath) {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backup = path.join(dir, `${base}.bak.${stamp}`);
+  fs.copyFileSync(filePath, backup);
+  return backup;
+}
+
+function ensureApproval(toolApprovals, kind) {
+  if (!Array.isArray(toolApprovals)) return false;
+  const k = String(kind || '').trim();
+  if (!k) return false;
+  if (toolApprovals.some((x) => x && typeof x === 'object' && String(x.kind || '').trim() === k)) {
+    return false;
+  }
+  toolApprovals.push({ kind: k });
+  return true;
+}
+
+function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }) {
+  const copilotHome = path.resolve(copilotHomeAbs);
+  const vscodeHome = path.resolve(vscodeHomeAbs);
+  const filePath = path.join(copilotHome, 'permissions-config.json');
+
+  const existing = readJsonFileSafe(filePath);
+  const root = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {};
+  if (!root.locations || typeof root.locations !== 'object' || Array.isArray(root.locations)) {
+    root.locations = {};
+  }
+
+  const desired = [copilotHome, vscodeHome].filter(Boolean);
+  let changed = false;
+
+  for (const loc of desired) {
+    if (!root.locations[loc] || typeof root.locations[loc] !== 'object' || Array.isArray(root.locations[loc])) {
+      root.locations[loc] = {};
+      changed = true;
+    }
+    const slot = root.locations[loc];
+    if (!Array.isArray(slot.tool_approvals)) {
+      slot.tool_approvals = [];
+      changed = true;
+    }
+
+    changed = ensureApproval(slot.tool_approvals, 'write') || changed;
+    changed = ensureApproval(slot.tool_approvals, 'memory') || changed;
+  }
+
+  if (!changed) {
+    return { ok: true, action: 'noop', filePath, locations: desired };
+  }
+
+  if (dryRun) {
+    return { ok: true, action: 'would_patch', filePath, locations: desired };
+  }
+
+  let backup = null;
+  if (fs.existsSync(filePath)) {
+    backup = backupFile(filePath);
+  } else {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  }
+  fs.writeFileSync(filePath, JSON.stringify(root, null, 2) + '\n', 'utf8');
+
+  return { ok: true, action: 'patched', filePath, backup, locations: desired };
+}
+
 function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTracker }) {
   const pathname = u.pathname;
   const copilotHomeAbs = path.resolve(copilotHome);
@@ -590,6 +667,17 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
 
         const result = runVscodeSettingsPatcher({ engineRoot, vscodeHome: vscodeHomeAbs, settingsPath, dryRun });
         sendJson(res, result.ok ? 200 : 400, { result });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/copilot/authorize') {
+    readJsonBody(req)
+      .then((body) => {
+        const dryRun = Boolean(body && body.dryRun);
+        const result = patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun });
+        sendJson(res, 200, { result });
       })
       .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
     return;
