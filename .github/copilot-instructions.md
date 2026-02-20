@@ -56,29 +56,30 @@ Avoid “handoff-only” endings:
 
 ## Read First (Project Truth)
 Before structural changes, consult in this order:
-1. `.instructions/architecture.md`
-2. `.instructions/contexts/*.md`
-3. Repo docs (`README.md`, `docs/`, `documentation/`, design notes)
+1. Repo docs (`README.md`, `docs/`, `documentation/`, design notes)
+2. `.instructions/architecture.md` (legacy, if present)
+3. `.instructions/contexts/*.md` (legacy, if present)
 
 ## Context & Memory (Durable)
-- Use `.instructions/contexts/*.md` as the durable project memory.
+- Prefer host/session artifacts (Copilot session logs, dashboard) as durable memory.
+- If a repo still uses `.instructions/contexts/*.md`, treat it as legacy durable memory.
 - Record architecture decisions, constraints, recurring gotchas, and operational notes.
 - Keep entries concise and structured; prune stale details when superseded.
-- If contexts grow too large, use `@context-curator` to condense them without losing critical facts.
+- If contexts grow too large, condense them manually (context-curator removed).
 
 ## Workspace Organization (Where Things Go)
-- **Engine (shared)**: `instruction-engine/.github/` (agents + templates), `instruction-engine/.github/skills` (reference skills/docs)
-- **Project (per-repo)**: `.instructions/` (tasks, architecture, context/memory)
-- **Local output**: `.instructions-output/` (generated reports/logs; keep developer-local)
+- **Engine (shared)**: `instruction-engine/engine-assets/` (agents + skills + prompts), `instruction-engine/.github/templates` (templates)
+- **Project (per-repo)**: repo docs and code (avoid repo-local `.instructions/*` unless explicitly opted-in)
+- **Local output**: prefer central host state (e.g., VS Code repo-state/session-state) over repo-local `.instructions-output/`
 
 ## Documentation & Output Routing
 Route written output to the correct location based on content type:
-- **Research & exploration** → `.instructions/research/<slug>.md` — temporary, exploratory notes. Use for brainstorming, option analysis, and investigation.
-- **Architecture decisions & constraints** → `.instructions/contexts/<topic>.md` — durable, curated. Only promote findings here when they represent settled decisions or confirmed constraints.
-- **Plan packs** → `.instructions/artefacts/x-PLANPACK-*.md` — execution artefacts for Executive2.5.
+- **Research & exploration** → return in-chat by default; only write repo files when explicitly requested.
+- **Architecture decisions & constraints** → `docs/` / `documentation/` (or legacy `.instructions/contexts/` if the repo still uses it).
+- **Plan packs** → return in-chat by default; the host/dashboard persists them outside the repo.
 - **User-facing documentation** → `docs/` or `README.md` — end-user and developer guides.
-- **Generated reports & logs** → `.instructions-output/` — local, ephemeral. CI logs, audit reports, hook output.
-- **Task tracking** → `.instructions/tasks/` — durable task files (Executive2 only, NOT Executive2.5).
+- **Generated reports & logs** → avoid `.instructions-output/`; prefer host/session artifacts.
+- **Task tracking** → avoid repo-local task systems; prefer orchestrator + host persistence.
 
 Key distinctions:
 - **Analysis ≠ Documentation**: analysis goes to `.instructions/research/`; only settled decisions get promoted to `.instructions/contexts/`.
@@ -86,25 +87,25 @@ Key distinctions:
 - **Internal context ≠ User docs**: agent-facing context goes to `.instructions/contexts/`; user-facing docs go to `docs/`.
 
 ## Tasks (Durable Tracking)
-- Use `.instructions/tasks/` when work needs a durable log (multi-step, ambiguous, or likely to be revisited).
-- Prefer `@addtodo` to turn a pile of notes into proper task files.
-- When asked to clean up, archive completed tasks to `.instructions/tasks.archive/` and append a short recap to `.instructions/tasks.history.md`.
+- Avoid repo-local task tracking by default; prefer `@orchestrator` + host persistence.
+- Prefer `@orchestrator` to convert notes into a concrete plan and execute it.
+- If a repo still uses `.instructions/tasks/`, treat it as legacy and keep cleanup consistent.
 - Never write task files into the `instruction-engine` repo unless the task is specifically about Instruction Engine itself; tasks otherwise belong in the target repo that is using Instruction Engine.
 
 ## Delegation (Use Subagents)
 Use subagents to keep work high-signal and consistent. Prefer only the ones that clearly apply:
 - **Orchestrator (recommended)**: `@orchestrator` — single entry point for all complex work. Routes by complexity (trivial/standard/complex), delegates to specialized subagents. Replaces all executive variants.
 - Core: `@debugger`, `@code-explorer`, `@code-reviewer`, `@unit-test-runner`, `@integration-test-runner`.
-- Testing exec: `@testing-executive` for coverage scans + validation runs.
-- Issue audit exec: `@issue-audit-executive` for code smell, security, and stack consistency scans.
-- Tasking: `@addtodo` for task files; `@executive2-planner` → `@executive2` for durable, task-graph execution (task groups can run in isolation).
-- Planning: `@orchestrator` (preferred) or `@executive2p5-planner` → `@executive2p5` for plan-pack workflows.
-- Context: `@context-curator` to condense and refresh `.instructions/contexts/*.md` when they get large.
-- UI/UX: `@ui-ux` for iterative client-side visual changes; it relies heavily on `vscode/askQuestions`.
-- Runtime: `@app-runtime-manager` to start/stop local services for integration/E2E/UI exploration.
+- Testing: use `@unit-test-runner` for unit tests; use `@integration-test-runner` only when explicitly requested.
+- Audit: use `@security-auditor`, `@stack-auditor`, and `@deploy-auditor` depending on the change.
+- Tasking: use `@orchestrator` to plan and execute; avoid creating repo-local task files.
+- Planning: `@orchestrator` (preferred) for all planning workflows.
+- Context: keep durable notes in repo docs or host artifacts (context-curator removed).
+- UI/UX: route through `@orchestrator` (it will delegate to code-focused leaf agents as needed).
+- Runtime: start/stop local services using repo-documented commands or VS Code tasks.
 - Use other agents when their specialty is directly relevant.
 
-> **Deprecation notice**: `@executive`, `@executive2`, `@executive2p5`, and `@executive2-fast` are deprecated. Use `@orchestrator` instead.
+> **Removal notice**: legacy executive agents (`@executive2`, `@executive2p5`, etc.) have been removed. Use `@orchestrator`.
 
 Subagents must NOT call other subagents; only top-level orchestrators should delegate work.
 

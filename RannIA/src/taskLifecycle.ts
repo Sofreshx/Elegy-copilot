@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { existsDir, existsFile } from './utils/fs';
+import { getRepoTasksArchiveDir, getRepoTasksDir } from './enginePaths';
 
 interface FrontMatterResult {
 	frontMatter: string;
@@ -202,12 +203,12 @@ export async function archiveDoneTasks(
 	let skippedCount = 0;
 
 	for (const repoPath of repoPaths) {
-		const tasksDir = path.join(repoPath, '.instructions', 'tasks');
+		const tasksDir = getRepoTasksDir(repoPath);
 		if (!existsDir(tasksDir)) {
 			continue;
 		}
 
-		const archiveDir = path.join(repoPath, '.instructions', 'tasks.archive');
+		const archiveDir = getRepoTasksArchiveDir(repoPath);
 		const files = listMarkdownFilesRecursive(tasksDir);
 		for (const filePath of files) {
 			try {
@@ -244,8 +245,8 @@ export async function purgeArchivedTasks(
 	}
 
 	const prompt = repoPath
-		? `Delete archived task files from ${path.basename(repoPath)}/.instructions/tasks.archive?`
-		: 'Delete all archived task files from .instructions/tasks.archive?';
+		? `Delete archived task files for ${path.basename(repoPath)} (central repo-state)?`
+		: 'Delete all archived task files (central repo-state)?';
 	const confirm = await vscode.window.showWarningMessage(prompt, { modal: true }, 'Delete');
 	if (confirm !== 'Delete') {
 		return;
@@ -254,7 +255,7 @@ export async function purgeArchivedTasks(
 	let deletedCount = 0;
 
 	for (const repoPath of repoPaths) {
-		const archiveDir = path.join(repoPath, '.instructions', 'tasks.archive');
+		const archiveDir = getRepoTasksArchiveDir(repoPath);
 		if (!existsDir(archiveDir)) {
 			continue;
 		}

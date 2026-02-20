@@ -2,7 +2,7 @@
 /*
  * migrate-user-invokable-to-user-invocable.js
  *
- * Scans `.github/agents/*.agent.md` files and renames front-matter key
+ * Scans `engine-assets/agents/*.agent.md` files and renames front-matter key
  * `user-invokable:` to `user-invocable:`.
  *
  * Usage:
@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 
 function listAgentFiles(rootDir) {
-  const agentsDir = path.join(rootDir, '.github', 'agents');
+  const agentsDir = path.join(rootDir, 'engine-assets', 'agents');
   if (!fs.existsSync(agentsDir) || !fs.statSync(agentsDir).isDirectory()) {
     return [];
   }
@@ -53,7 +53,7 @@ function main() {
   const files = listAgentFiles(rootDir);
 
   if (files.length === 0) {
-    console.log('No .github/agents/*.agent.md files found.');
+    console.log('No engine-assets/agents/*.agent.md files found.');
     process.exit(0);
   }
 

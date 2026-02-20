@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { AgentDiscoverySnapshot, AgentEntry, RepoAgents } from './types';
 import { getRepoDisabledSet } from './enablementStore';
+import { getUserAgentsDir, resolveStateRoot } from './enginePaths';
 import { existsDir, existsFile } from './utils/fs';
 import { tryParseYamlFrontMatter } from './utils/yaml';
 import { normalizeString } from './utils/strings';
@@ -75,6 +76,68 @@ export async function scanAgents(): Promise<AgentDiscoverySnapshot> {
 	const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
 	const repos: RepoAgents[] = [];
 
+	// Always include the user-level agent store under skillInstaller.state.root.
+	const userRoot = resolveStateRoot();
+	const userAgentsDir = getUserAgentsDir();
+	const userAgentsDirPath = existsDir(userAgentsDir) ? userAgentsDir : undefined;
+	const userDisabledSet = getRepoDisabledSet('agents', userRoot);
+
+	const userAgents: AgentEntry[] = [];
+	if (userAgentsDirPath) {
+		const agentFiles = listAgentFiles(userAgentsDirPath);
+		for (const filePath of agentFiles) {
+			if (!existsFile(filePath)) {
+				continue;
+			}
+			const contentStart = readFileStart(filePath);
+			const fm = tryParseYamlFrontMatter(contentStart)?.fm ?? {};
+			const fileName = path.basename(filePath);
+			const enabled = !userDisabledSet.has(normalizeKey(fileName));
+
+			const rawInfer = fm['infer'];
+			let inferStr: string | undefined;
+			if (typeof rawInfer === 'boolean') inferStr = rawInfer ? 'true' : 'false';
+			else if (typeof rawInfer === 'string') inferStr = rawInfer.trim().toLowerCase();
+
+			const userInvocable =
+				normalizeBoolean(fm['user-invocable']) ??
+				normalizeBoolean(fm['user-invokable']) ??
+				(inferStr === 'true' || inferStr === 'user');
+
+			let disableModelInvocation = normalizeBoolean(fm['disable-model-invocation']);
+			if (disableModelInvocation === undefined) {
+				if (inferStr === 'agent') {
+					disableModelInvocation = false;
+				} else {
+					disableModelInvocation = true;
+				}
+			}
+
+			userAgents.push({
+				path: filePath,
+				fileName,
+				name: normalizeString(fm['name']) ?? fileName,
+				description: normalizeString(fm['description']),
+				role: normalizeString(fm['role']),
+				visibility: normalizeString(fm['visibility']),
+				infer: normalizeBoolean(fm['infer']),
+				userInvocable,
+				userInvokable: userInvocable,
+				disableModelInvocation,
+				repoPath: userRoot,
+				enabled
+			});
+		}
+	}
+
+	repos.push({
+		repoName: 'User Asset Home',
+		repoPath: userRoot,
+		isInstructionEngine: false,
+		agentsDirPath: userAgentsDirPath,
+		agents: userAgents
+	});
+
 	for (const folder of workspaceFolders) {
 		const repoPath = folder.uri.fsPath;
 		const agentsDir = path.join(repoPath, '.github', 'agents');
@@ -140,6 +203,10 @@ export async function scanAgents(): Promise<AgentDiscoverySnapshot> {
 		});
 	}
 
-	repos.sort((a, b) => a.repoName.localeCompare(b.repoName));
+	repos.sort((a, b) => {
+		if (a.repoPath === userRoot) return -1;
+		if (b.repoPath === userRoot) return 1;
+		return a.repoName.localeCompare(b.repoName);
+	});
 	return { repos };
 }

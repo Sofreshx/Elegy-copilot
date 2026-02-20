@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ExtensionEventEmitter } from './eventEmitter';
+import { getRepoStateKey, getSessionDir } from './enginePaths';
 
 /** Session status lifecycle */
 export type SessionStatus = 'pending' | 'active' | 'completed' | 'failed' | 'cancelled';
@@ -89,9 +90,6 @@ export class SessionManager implements vscode.Disposable {
 
 	// Limit total sessions to prevent memory bloat
 	private static readonly MAX_SESSIONS = 100;
-
-	// Session log directory (relative to workspace)
-	private static readonly LOG_DIR = '.instructions-output/sessions';
 
 	constructor(output: vscode.OutputChannel) {
 		this.output = output;
@@ -395,12 +393,13 @@ export class SessionManager implements vscode.Disposable {
 	/**
 	 * Get the workspace folder path for session logs.
 	 */
-	private getLogDirectory(): string | undefined {
-		const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-		if (!workspaceFolder) {
-			return undefined;
+	private getRepoContext(): { repoPath: string | null; repoId: string | null; repoLabel: string | null } {
+		const repoPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? null;
+		if (!repoPath) {
+			return { repoPath: null, repoId: null, repoLabel: null };
 		}
-		return path.join(workspaceFolder.uri.fsPath, SessionManager.LOG_DIR);
+		const key = getRepoStateKey(repoPath);
+		return { repoPath, repoId: key.repoId, repoLabel: key.repoLabel };
 	}
 
 	/**
@@ -417,18 +416,12 @@ export class SessionManager implements vscode.Disposable {
 			return;
 		}
 
-		const logDir = this.getLogDirectory();
-		if (!logDir) {
-			this.output.appendLine('[Session] No workspace folder for session log');
-			return;
-		}
-
-		// Ensure directory exists
-		await fs.promises.mkdir(logDir, { recursive: true });
+		const sessionDir = getSessionDir(session.id);
+		await fs.promises.mkdir(sessionDir, { recursive: true });
 
 		const maxSize = this.getMaxLogSize();
 
-		// Build session log
+		const repo = this.getRepoContext();
 		const log: SessionLog = {
 			session_id: session.id,
 			agent: `@${session.agentName}`,
@@ -452,22 +445,101 @@ export class SessionManager implements vscode.Disposable {
 			error: session.error,
 		};
 
-		const logPath = path.join(logDir, `${session.id}.json`);
-		await fs.promises.writeFile(logPath, JSON.stringify(log, null, 2), 'utf-8');
+		const meta = {
+			id: session.id,
+			source: 'vscode',
+			createdAt: session.startTime.toISOString(),
+			updatedAt: (session.endTime ?? new Date()).toISOString(),
+			status: session.status,
+			agent: `@${session.agentName}`,
+			repoId: repo.repoId,
+			repoLabel: repo.repoLabel,
+			repoPath: repo.repoPath,
+			promptPreview: session.prompt.slice(0, 500),
+			promptLength: session.prompt.length,
+			toolCallCount: session.toolCalls.length,
+			responsePreview: session.response ? session.response.slice(0, 500) : undefined,
+			error: session.error,
+		};
 
-		this.output.appendLine(`[Session] Log written: ${logPath}`);
+		await fs.promises.writeFile(path.join(sessionDir, 'meta.json'), JSON.stringify(meta, null, 2), 'utf-8');
+		await fs.promises.writeFile(path.join(sessionDir, 'session.json'), JSON.stringify(log, null, 2), 'utf-8');
+
+		// Write events in a format the CLI dashboard parser already understands.
+		const cwd = repo.repoPath;
+		const startEvent = {
+			type: 'session.start',
+			ts: session.startTime.getTime(),
+			payload: {
+				repo: repo.repoLabel,
+				branch: null,
+				cwd,
+				startTime: session.startTime.toISOString(),
+			},
+		};
+
+		const events: unknown[] = [startEvent];
+		for (const e of session.events) {
+			events.push({
+				type: `session.${e.type}`,
+				ts: e.timestamp.getTime(),
+				payload: e.data ? { data: this.truncateString(e.data, 2000) } : {},
+			});
+		}
+		for (const tc of session.toolCalls) {
+			events.push({
+				type: 'tool.execution_start',
+				ts: tc.timestamp.getTime(),
+				payload: {
+					toolName: tc.tool,
+					arguments: tc.args,
+				},
+			});
+			events.push({
+				type: 'tool.execution_end',
+				ts: tc.timestamp.getTime(),
+				payload: {
+					toolName: tc.tool,
+					durationMs: tc.durationMs,
+					error: tc.error,
+				},
+			});
+		}
+		if (session.endTime) {
+			events.push({
+				type: `session.${session.status}`,
+				ts: session.endTime.getTime(),
+				payload: {
+					endTime: session.endTime.toISOString(),
+					toolCalls: session.toolCalls.length,
+				},
+			});
+		}
+
+		await fs.promises.writeFile(
+			path.join(sessionDir, 'events.jsonl'),
+			events.map((x) => JSON.stringify(x)).join('\n') + '\n',
+			'utf-8'
+		);
+
+		await fs.promises.writeFile(
+			path.join(sessionDir, 'tool-calls.jsonl'),
+			session.toolCalls.map((x) => JSON.stringify(x)).join('\n') + (session.toolCalls.length ? '\n' : ''),
+			'utf-8'
+		);
+
+		if (session.response) {
+			await fs.promises.writeFile(path.join(sessionDir, 'final.md'), session.response, 'utf-8');
+		}
+
+		this.output.appendLine(`[Session] Log written: ${sessionDir.replace(/\\/g, '/')}`);
 	}
 
 	/**
 	 * Retrieve a persisted session log from disk.
 	 */
 	async getSessionLog(sessionId: string): Promise<SessionLog | undefined> {
-		const logDir = this.getLogDirectory();
-		if (!logDir) {
-			return undefined;
-		}
-
-		const logPath = path.join(logDir, `${sessionId}.json`);
+		const logPath = path.join(getSessionDir(sessionId), 'session.json');
 		try {
 			const content = await fs.promises.readFile(logPath, 'utf-8');
 			return JSON.parse(content) as SessionLog;

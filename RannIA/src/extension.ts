@@ -20,6 +20,7 @@ import { initializeSkills } from './skillInitializer';
 import { McpProvidersTreeProvider } from './mcpProvidersTree';
 import { McpProviderInfo, syncMcpConfigForRepo, syncMcpConfigForWorkspace } from './mcpConfig';
 import { DumpCleanerTreeProvider } from './dumpCleanerTree';
+import { migrateLegacyWorkspaceState } from './legacyMigration';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -218,7 +219,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			const agentMap: Record<string, string> = {
 				deploy: 'deploy-auditor',
 				stack: 'stack-auditor',
-				test: 'test-auditor',
+				test: 'unit-test-runner',
 				e2e: 'e2e-validator',
 				security: 'security-auditor'
 			};
@@ -446,6 +447,16 @@ export function activate(context: vscode.ExtensionContext): void {
 			for (const folder of folders) {
 				await clearRepoContext(folder.uri.fsPath, output, 'force');
 			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.migrateLegacyState', async () => {
+			await migrateLegacyWorkspaceState(output);
+			workflowProvider.invalidateCache();
+			skillProvider.invalidateCache();
+			agentProvider.invalidateCache();
+			auditProvider.invalidateCache();
 		})
 	);
 

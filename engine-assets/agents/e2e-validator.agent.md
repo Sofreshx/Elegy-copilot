@@ -48,7 +48,7 @@ Use this agent for:
 
 3. **Start app** (if not already running):
    - Do NOT start long-running dev servers via `runInTerminal` background processes.
-   - Prefer that the orchestrator starts runtimes via `app-runtime-manager` (VS Code tasks), or require `serverManaged: true`.
+   - Prefer starting runtimes via VS Code tasks (or require `serverManaged: true`).
    - If the app is not running and you cannot start it safely, record the missing runtime info in the report and mark the run `INCONCLUSIVE`.
 
 ### Phase 2: Health Endpoint Checks

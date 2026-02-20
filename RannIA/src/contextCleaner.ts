@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { existsDir, existsFile } from './utils/fs';
+import { getRepoArtefactsDir, getRepoAuditDir, getRepoContextsDir, getRepoStateRootDir } from './enginePaths';
 
 type ClearTargetKind = 'dir' | 'file';
 
@@ -14,38 +15,18 @@ interface ClearTarget {
 const defaultTargets: ClearTarget[] = [
 	{
 		kind: 'dir',
-		relativePath: '.instructions-output',
-		description: 'Generated reports/logs (developer-local)'
-	},
-	{
-		kind: 'file',
-		relativePath: path.join('.instructions', 'active-tasks.md'),
-		description: 'Session RAM (developer-local)'
+		relativePath: 'artefacts',
+		description: 'Central artefact working memory'
 	},
 	{
 		kind: 'dir',
-		relativePath: path.join('.instructions', 'artefacts'),
-		description: 'Artefact working memory (clearable by request)'
+		relativePath: 'contexts',
+		description: 'Central contexts cache'
 	},
 	{
 		kind: 'dir',
-		relativePath: path.join('.instructions', 'fragments'),
-		description: 'Fragment scratch (if used)'
-	},
-	{
-		kind: 'dir',
-		relativePath: path.join('.instructions', 'tmp'),
-		description: 'Temporary scratch (if used)'
-	},
-	{
-		kind: 'dir',
-		relativePath: path.join('.instructions', '.tmp'),
-		description: 'Temporary scratch (if used)'
-	},
-	{
-		kind: 'dir',
-		relativePath: path.join('.instructions', '.cache'),
-		description: 'Cache (if used)'
+		relativePath: 'audit',
+		description: 'Central audit outputs'
 	}
 ];
 
@@ -71,16 +52,24 @@ export async function clearRepoContext(
 	mode: 'prompt' | 'dry-run' | 'force' = 'prompt'
 ): Promise<void> {
 	const repoName = path.basename(repoPath);
+	const repoStateRoot = getRepoStateRootDir(repoPath);
 	const existing: { target: ClearTarget; absPath: string }[] = [];
 	const missing: { target: ClearTarget; absPath: string }[] = [];
 
 	for (const target of defaultTargets) {
-		const absPath = path.join(repoPath, target.relativePath);
+		const absPath =
+			target.relativePath === 'artefacts'
+				? getRepoArtefactsDir(repoPath)
+				: target.relativePath === 'contexts'
+					? getRepoContextsDir(repoPath)
+					: target.relativePath === 'audit'
+						? getRepoAuditDir(repoPath)
+						: path.join(repoStateRoot, target.relativePath);
 		const exists = target.kind === 'dir' ? existsDir(absPath) : existsFile(absPath);
 		(exists ? existing : missing).push({ target, absPath });
 	}
 
-	output.appendLine(`[Skill Installer] Clear context: ${repoName}`);
+	output.appendLine(`[Skill Installer] Clear context (central repo-state): ${repoName}`);
 	output.appendLine('Will remove:');
 	for (const item of existing) {
 		output.appendLine(`- ${safeDisplayPath(item.absPath)} (${item.target.description})`);
@@ -96,7 +85,7 @@ export async function clearRepoContext(
 
 	if (mode === 'prompt') {
 		const choice = await vscode.window.showWarningMessage(
-			`Clear repo context for '${repoName}'? This deletes local outputs/artefacts (not tasks).`,
+			`Clear central repo-state for '${repoName}'? This deletes central artefacts/contexts/audits (not tasks).`,
 			{ modal: true },
 			'Dry Run',
 			'Clear'

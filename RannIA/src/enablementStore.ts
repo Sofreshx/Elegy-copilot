@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { existsFile } from './utils/fs';
+import { getRepoRegistryPath } from './enginePaths';
 
 export type EnablementKind = 'skills' | 'agents' | 'mcpProviders';
 
@@ -24,10 +25,10 @@ function normalizeRepoKey(repoPath: string): string {
 }
 
 function getRegistryPath(repoPath: string, config: vscode.WorkspaceConfiguration): string {
-	const configured = (config.get<string>('skillInstaller.registry.fileName') ?? '').trim();
-	const fallback = '.instructions/registry.json';
-	const fileName = configured || fallback;
-	return path.isAbsolute(fileName) ? fileName : path.join(repoPath, fileName);
+	void config;
+	void path;
+	// Hard cutover: do not write enablement metadata into repos.
+	return getRepoRegistryPath(repoPath);
 }
 
 function readRegistry(repoPath: string, config: vscode.WorkspaceConfiguration): RegistryData {

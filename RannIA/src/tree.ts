@@ -95,7 +95,7 @@ export class SkillDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 	private buildRootNodes(snapshot: SkillDiscoverySnapshot): Node[] {
 		const availableSection: SectionNode = {
 			kind: 'section',
-			label: 'Available (instruction-engine)',
+			label: 'Available (user asset home)',
 			description: snapshot.availableSkills.length.toString(),
 			iconPath: new vscode.ThemeIcon('library'),
 			children: snapshot.availableSkills.map((s) => this.toSkillNode(s))
@@ -117,7 +117,7 @@ export class SkillDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 		return {
 			kind: 'repo',
 			label: repo.repoName,
-			description: hasSkillsDir ? `${repo.skills.length} skills` : 'no .github/skills',
+			description: hasSkillsDir ? `${repo.skills.length} skills` : 'no skills folder',
 			iconPath: new vscode.ThemeIcon(hasSkillsDir ? 'folder' : 'circle-slash'),
 			repo,
 			children: repo.skills.map((s) => this.toSkillNode(s))

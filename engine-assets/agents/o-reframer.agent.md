@@ -71,7 +71,7 @@ risks:
 
 # The orchestrator chooses; you only recommend.
 suggested_next_steps:
-  - <agent-to-call: o-planner|code-explorer|code-architect|research-ideation|unit-test-runner|integration-test-runner|code-reviewer|doc-writer|app-runtime-manager|work-unit-runner>
+  - <agent-to-call: o-planner|code-explorer|code-architect|research-ideation|impl-infra|impl-business|unit-test-runner|integration-test-runner|code-reviewer|doc-writer|work-unit-runner|final-reviewer>
 
 # Optional, only when clearly relevant.
 notes:

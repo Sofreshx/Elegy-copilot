@@ -14,6 +14,27 @@ function Get-EngineRoot {
   return (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 }
 
+function Get-VscodeHome {
+  param(
+    [string]$Explicit
+  )
+
+  if (-not [string]::IsNullOrWhiteSpace($Explicit)) {
+	return [System.IO.Path]::GetFullPath($Explicit)
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($env:INSTRUCTION_ENGINE_VSCODE_HOME)) {
+	return [System.IO.Path]::GetFullPath($env:INSTRUCTION_ENGINE_VSCODE_HOME)
+  }
+
+  if ($IsLinux) {
+    return (Join-Path $HOME '.local/state/instruction-engine')
+  }
+
+  # Windows + macOS
+  return (Join-Path (Join-Path $HOME 'Documents') 'instruction-engine')
+}
+
 function Confirm-NodeAvailable {
   try {
     $null = Get-Command node -ErrorAction Stop
@@ -170,6 +191,7 @@ $Force = $false
 $DoCli = $false
 $DoVscode = $false
 $VscodeSettings = $null
+$VscodeHome = $null
 
 for ($i = 0; $i -lt $args.Length; $i++) {
   $a = $args[$i]
@@ -184,7 +206,12 @@ for ($i = 0; $i -lt $args.Length; $i++) {
       if ($i -ge $args.Length) { throw 'Missing value for --vscode-settings' }
       $VscodeSettings = $args[$i]
     }
-    default { throw "Unknown arg: $a (supported: --dry-run, --force, --cli, --vscode, --all, --vscode-settings <path>)" }
+    '--vscode-home' {
+      $i++
+      if ($i -ge $args.Length) { throw 'Missing value for --vscode-home' }
+      $VscodeHome = $args[$i]
+    }
+    default { throw "Unknown arg: $a (supported: --dry-run, --force, --cli, --vscode, --all, --vscode-settings <path>, --vscode-home <path>)" }
   }
 }
 
@@ -198,10 +225,12 @@ $cliRoot = Join-Path $engineRoot '.cli'
 if (-not (Test-Path -LiteralPath $cliRoot)) {
   throw "Missing folder: $cliRoot"
 }
-$srcAgentsRoot = Join-Path $engineRoot '.github\agents'
-$srcSkillsRoot = Join-Path $engineRoot '.github\skills'
-$srcPromptsRoot = Join-Path $engineRoot '.github\prompts'
+$srcAssetsRoot = Join-Path $engineRoot 'engine-assets'
+$srcAgentsRoot = Join-Path $srcAssetsRoot 'agents'
+$srcSkillsRoot = Join-Path $srcAssetsRoot 'skills'
+$srcPromptsRoot = Join-Path $srcAssetsRoot 'prompts'
 $srcInstructions = Join-Path $cliRoot 'instructions\copilot-instructions.md'
+$srcVscodeInstructions = Join-Path $engineRoot '.github\copilot-instructions.md'
 
 if ($DoCli) {
   if (-not (Test-Path -LiteralPath $srcAgentsRoot)) { throw "Missing agents source: $srcAgentsRoot" }
@@ -210,22 +239,29 @@ if ($DoCli) {
 }
 
 if ($DoVscode) {
-  if (-not (Test-Path -LiteralPath $srcPromptsRoot)) { Write-Host "[WARN] No prompt sources found at $srcPromptsRoot (skipping prompt install)" }
+  if (-not (Test-Path -LiteralPath $srcPromptsRoot)) { throw "Missing prompt sources: $srcPromptsRoot" }
+  if (-not (Test-Path -LiteralPath $srcAgentsRoot)) { throw "Missing agents source: $srcAgentsRoot" }
+  if (-not (Test-Path -LiteralPath $srcSkillsRoot)) { throw "Missing skills source: $srcSkillsRoot" }
+  if (-not (Test-Path -LiteralPath $srcVscodeInstructions)) { throw "Missing VS Code instructions source: $srcVscodeInstructions" }
 }
 
 $copilotHome = Get-CopilotHome
-if ($DryRun) {
-  if (-not (Test-Path -LiteralPath $copilotHome)) { Write-Host "[DRY-RUN] mkdir $copilotHome" }
-} else {
-  New-Item -ItemType Directory -Force -Path $copilotHome | Out-Null
-}
+
+$vscodeHomeResolved = Get-VscodeHome -Explicit $VscodeHome
 
 Write-Host "Copilot home: $copilotHome"
 Write-Host "Engine root:  $engineRoot"
 Write-Host "Modes:        cli=$DoCli vscode=$DoVscode"
+Write-Host "VS Code home: $vscodeHomeResolved"
 
 
 if ($DoCli) {
+  if ($DryRun) {
+    if (-not (Test-Path -LiteralPath $copilotHome)) { Write-Host "[DRY-RUN] mkdir $copilotHome" }
+  } else {
+    New-Item -ItemType Directory -Force -Path $copilotHome | Out-Null
+  }
+
   # .github\agents\*.agent.md -> <copilotHome>\agents\ (flatten)
   Get-ChildItem -LiteralPath $srcAgentsRoot -Filter '*.agent.md' -File | ForEach-Object {
     $dst = Join-Path $copilotHome (Join-Path 'agents' $_.Name)
@@ -244,13 +280,30 @@ if ($DoCli) {
 }
 
 if ($DoVscode) {
-  # Prompt files are VS Code-only, but we store them under ~/.copilot/prompts and point VS Code at that folder.
-  if (Test-Path -LiteralPath $srcPromptsRoot) {
-    Get-ChildItem -LiteralPath $srcPromptsRoot -Filter '*.prompt.md' -File | ForEach-Object {
-      $dst = Join-Path (Join-Path $copilotHome 'prompts') $_.Name
-      Sync-File $_.FullName $dst -DryRun:$DryRun -Force:$Force
-    }
+  if ($DryRun) {
+    if (-not (Test-Path -LiteralPath $vscodeHomeResolved)) { Write-Host "[DRY-RUN] mkdir $vscodeHomeResolved" }
+  } else {
+    New-Item -ItemType Directory -Force -Path $vscodeHomeResolved | Out-Null
   }
+
+  # Install VS Code discoverable assets into the VS Code user asset home (NOT ~/.copilot).
+  Get-ChildItem -LiteralPath $srcAgentsRoot -Filter '*.agent.md' -File | ForEach-Object {
+    $dst = Join-Path (Join-Path $vscodeHomeResolved 'agents') $_.Name
+    Sync-File $_.FullName $dst -DryRun:$DryRun -Force:$Force
+  }
+
+  Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
+    $dstDir = Join-Path (Join-Path $vscodeHomeResolved 'skills') $_.Name
+    Sync-Directory $_.FullName $dstDir -DryRun:$DryRun -Force:$Force
+  }
+
+  Get-ChildItem -LiteralPath $srcPromptsRoot -Filter '*.prompt.md' -File | ForEach-Object {
+    $dst = Join-Path (Join-Path $vscodeHomeResolved 'prompts') $_.Name
+    Sync-File $_.FullName $dst -DryRun:$DryRun -Force:$Force
+  }
+
+  $dstVscodeInstructions = Join-Path $vscodeHomeResolved 'copilot-instructions.md'
+  Sync-File $srcVscodeInstructions $dstVscodeInstructions -DryRun:$DryRun -Force:$Force
 
   if (-not (Confirm-NodeAvailable)) {
     throw 'VS Code setup requires Node.js on PATH (node). Install Node.js, or rerun with --cli to skip VS Code setup.'
@@ -261,7 +314,7 @@ if ($DoVscode) {
     throw "Missing settings patcher script: $patcher"
   }
 
-  $nodeArgs = @($patcher, '--copilot-home', $copilotHome)
+  $nodeArgs = @($patcher, '--vscode-home', $vscodeHomeResolved)
   if ($DryRun) { $nodeArgs += '--dry-run' }
   if ($VscodeSettings) { $nodeArgs += @('--settings', $VscodeSettings) }
 

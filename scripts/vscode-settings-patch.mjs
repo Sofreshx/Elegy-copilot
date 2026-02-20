@@ -9,6 +9,7 @@ function parseArgs(argv) {
 	const args = {
 		settings: null,
 		copilotHome: null,
+		vscodeHome: null,
 		dryRun: false
 	};
 
@@ -38,7 +39,19 @@ function parseArgs(argv) {
 			if (!args.copilotHome) throw new Error('Missing value for --copilot-home');
 			continue;
 		}
-		throw new Error(`Unknown arg: ${a} (supported: --dry-run, --settings <path>, --copilot-home <path>)`);
+		if (a === '--vscode-home') {
+			args.vscodeHome = argv[++i] ?? null;
+			if (!args.vscodeHome) throw new Error('Missing value for --vscode-home');
+			continue;
+		}
+		if (a.startsWith('--vscode-home=')) {
+			args.vscodeHome = a.slice('--vscode-home='.length);
+			if (!args.vscodeHome) throw new Error('Missing value for --vscode-home');
+			continue;
+		}
+		throw new Error(
+			`Unknown arg: ${a} (supported: --dry-run, --settings <path>, --vscode-home <path>, --copilot-home <path> (legacy))`
+		);
 	}
 
 	return args;
@@ -211,15 +224,48 @@ function resolveCopilotHome(explicitCopilotHome) {
 	return path.join(os.homedir(), '.copilot');
 }
 
+function defaultVscodeHome() {
+	const home = os.homedir();
+	if (process.platform === 'win32' || process.platform === 'darwin') {
+		return path.join(home, 'Documents', 'instruction-engine');
+	}
+	return path.join(home, '.local', 'state', 'instruction-engine');
+}
+
+function resolveVscodeHome(explicitVscodeHome) {
+	if (explicitVscodeHome && explicitVscodeHome.trim()) {
+		return path.resolve(explicitVscodeHome);
+	}
+	if (process.env.INSTRUCTION_ENGINE_VSCODE_HOME && process.env.INSTRUCTION_ENGINE_VSCODE_HOME.trim()) {
+		return path.resolve(process.env.INSTRUCTION_ENGINE_VSCODE_HOME);
+	}
+	return defaultVscodeHome();
+}
+
+function resolveAssetsHome(args) {
+	// Prefer the explicit VS Code asset home.
+	if (args.vscodeHome && args.vscodeHome.trim()) {
+		return resolveVscodeHome(args.vscodeHome);
+	}
+
+	// Back-compat: if callers still pass --copilot-home, treat it as the asset root.
+	// This is intentionally NOT the default anymore; ~/.copilot is CLI-only.
+	if (args.copilotHome && args.copilotHome.trim()) {
+		return resolveCopilotHome(args.copilotHome);
+	}
+
+	return resolveVscodeHome(null);
+}
+
 function main() {
 	const args = parseArgs(process.argv.slice(2));
-	const copilotHome = resolveCopilotHome(args.copilotHome);
+	const assetsHome = resolveAssetsHome(args);
 
 	const desired = {
-		agents: path.join(copilotHome, 'agents'),
-		skills: path.join(copilotHome, 'skills'),
-		prompts: path.join(copilotHome, 'prompts'),
-		instructions: copilotHome
+		agents: path.join(assetsHome, 'agents'),
+		skills: path.join(assetsHome, 'skills'),
+		prompts: path.join(assetsHome, 'prompts'),
+		instructions: assetsHome
 	};
 
 	const targets = args.settings ? [path.resolve(args.settings)] : defaultSettingsPaths();

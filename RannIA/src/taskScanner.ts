@@ -5,6 +5,7 @@ import { RepoTasks, TaskDiscoverySnapshot, TaskEntry } from './types';
 import { existsDir, existsFile } from './utils/fs';
 import { tryParseYamlFrontMatter } from './utils/yaml';
 import { normalizeString } from './utils/strings';
+import { getRepoTasksDir } from './enginePaths';
 
 function isInstructionEngineFolder(folder: vscode.WorkspaceFolder): boolean {
 	const name = folder.name.toLowerCase();
@@ -86,7 +87,7 @@ export async function scanTasks(): Promise<TaskDiscoverySnapshot> {
 		// Mirror skill scanner behavior: treat instruction-engine as a special folder.
 		// Tasks are usually tracked in target repos, but we still include engine tasks if present.
 		const repoPath = folder.uri.fsPath;
-		const tasksDir = path.join(repoPath, '.instructions', 'tasks');
+		const tasksDir = getRepoTasksDir(repoPath);
 		const tasksDirPath = existsDir(tasksDir) ? tasksDir : undefined;
 
 		const tasks: TaskEntry[] = [];

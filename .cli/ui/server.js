@@ -8,7 +8,7 @@ const os = require('os');
 const sessions = require('./lib/sessions');
 const assets = require('./lib/assets');
 
-function createChangeTracker(copilotHomeAbs) {
+function createChangeTracker(copilotHomeAbs, vscodeHomeAbs) {
   let version = 0;
   let lastChangedMs = Date.now();
   let timer = null;
@@ -42,6 +42,13 @@ function createChangeTracker(copilotHomeAbs) {
   tryWatch(path.join(copilotHomeAbs, 'skills'));
   tryWatch(path.join(copilotHomeAbs, 'prompts'));
 
+  // VS Code session store (separate root)
+  if (vscodeHomeAbs) {
+    tryWatch(vscodeHomeAbs);
+    tryWatch(path.join(vscodeHomeAbs, 'session-state'));
+    tryWatch(path.join(vscodeHomeAbs, 'sessions-archive'));
+  }
+
   // Periodic bump as a fallback: ensures UI stays roughly current even if fs.watch is flaky.
   const interval = setInterval(() => bump(), 60 * 1000);
 
@@ -64,7 +71,7 @@ function createChangeTracker(copilotHomeAbs) {
 }
 
 function parseArgs(argv) {
-  const args = { port: 3210, copilotHome: null };
+  const args = { port: 3210, copilotHome: null, vscodeHome: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') {
@@ -95,6 +102,16 @@ function parseArgs(argv) {
       if (!args.copilotHome) throw new Error('Missing value for --copilot-home');
       continue;
     }
+    if (a === '--vscode-home') {
+      args.vscodeHome = argv[++i];
+      if (!args.vscodeHome) throw new Error('Missing value for --vscode-home');
+      continue;
+    }
+    if (a.startsWith('--vscode-home=')) {
+      args.vscodeHome = a.slice('--vscode-home='.length);
+      if (!args.vscodeHome) throw new Error('Missing value for --vscode-home');
+      continue;
+    }
   }
   return args;
 }
@@ -108,6 +125,42 @@ function resolveCopilotHome(args) {
   }
   const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
   return path.join(path.resolve(home), '.copilot');
+}
+
+function defaultVscodeHome() {
+  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
+  if (process.platform === 'win32' || process.platform === 'darwin') {
+    return path.join(path.resolve(home), 'Documents', 'instruction-engine');
+  }
+  return path.join(path.resolve(home), '.local', 'state', 'instruction-engine');
+}
+
+function resolveVscodeHome(args) {
+  if (args && typeof args.vscodeHome === 'string' && args.vscodeHome.trim()) {
+    return path.resolve(args.vscodeHome);
+  }
+  return defaultVscodeHome();
+}
+
+function resolveSessionsHome(source, copilotHome, vscodeHome) {
+  const s = String(source || '').trim().toLowerCase();
+  if (s === 'vscode') return { source: 'vscode', home: vscodeHome };
+  return { source: 'cli', home: copilotHome };
+}
+
+function ensureDir(p) {
+  fs.mkdirSync(p, { recursive: true });
+}
+
+function uniqueArchiveDir(baseArchiveDir, id) {
+  const safe = String(id || '').replace(/[^A-Za-z0-9_.-]/g, '_');
+  const first = path.join(baseArchiveDir, safe);
+  if (!fs.existsSync(first)) return first;
+  for (let i = 2; i < 10000; i++) {
+    const candidate = path.join(baseArchiveDir, `${safe}--archived-${i}`);
+    if (!fs.existsSync(candidate)) return candidate;
+  }
+  throw new Error('Unable to allocate archive folder');
 }
 
 function safeResolveUnder(baseAbs, relPath) {
@@ -204,13 +257,14 @@ function parseNumberQuery(searchParams, key, defaultValue) {
   return n;
 }
 
-function handleApi({ req, res, u, copilotHome, engineRoot, changeTracker }) {
+function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTracker }) {
   const pathname = u.pathname;
   const copilotHomeAbs = path.resolve(copilotHome);
+  const vscodeHomeAbs = path.resolve(vscodeHome);
 
   if (req.method === 'GET' && pathname === '/api/health') {
     const changes = changeTracker ? changeTracker.get() : null;
-    sendJson(res, 200, { ok: true, now: Date.now(), engineRoot, copilotHome, changes });
+    sendJson(res, 200, { ok: true, now: Date.now(), engineRoot, copilotHome, vscodeHome, changes });
     return;
   }
 
@@ -222,7 +276,15 @@ function handleApi({ req, res, u, copilotHome, engineRoot, changeTracker }) {
 
   if (req.method === 'GET' && pathname === '/api/sessions') {
     const activeWindowMinutes = parseNumberQuery(u.searchParams, 'activeWindowMinutes', 30);
-    const data = sessions.listSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 });
+    const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+    if (source === 'all') {
+      const cli = sessions.listSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: 'cli' }));
+      const vs = sessions.listSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: 'vscode' }));
+      sendJson(res, 200, { sessions: [...cli, ...vs] });
+      return;
+    }
+    const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+    const data = sessions.listSessions(home.home, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: home.source }));
     sendJson(res, 200, { sessions: data });
     return;
   }
@@ -232,9 +294,11 @@ function handleApi({ req, res, u, copilotHome, engineRoot, changeTracker }) {
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
       const limit = Math.max(1, Math.min(500, Math.floor(parseNumberQuery(u.searchParams, 'limit', 20))));
-      const sessionDir = path.join(path.resolve(copilotHome), 'session-state', id);
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
       const events = sessions.readRecentEvents(sessionDir, limit);
-      sendJson(res, 200, { id, events });
+      sendJson(res, 200, { id, source: home.source, events });
       return;
     }
   }
@@ -244,9 +308,11 @@ function handleApi({ req, res, u, copilotHome, engineRoot, changeTracker }) {
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
       const limit = Math.max(1, Math.min(500, Math.floor(parseNumberQuery(u.searchParams, 'limit', 500))));
-      const sessionDir = path.join(path.resolve(copilotHome), 'session-state', id);
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
       const usage = sessions.getAgentUsage(sessionDir, limit);
-      sendJson(res, 200, { id, usage });
+      sendJson(res, 200, { id, source: home.source, usage });
       return;
     }
   }
@@ -255,13 +321,90 @@ function handleApi({ req, res, u, copilotHome, engineRoot, changeTracker }) {
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/plan$/);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
-      const planPath = path.join(path.resolve(copilotHome), 'session-state', id, 'plan.md');
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const planPath = path.join(path.resolve(home.home), 'session-state', id, 'plan.md');
       const text = assets.readTextFileSafe(planPath, 512 * 1024);
       if (text == null) {
         sendText(res, 404, 'Not found');
         return;
       }
       sendText(res, 200, text, 'text/plain; charset=utf-8');
+      return;
+    }
+  }
+
+  {
+    const m = pathname.match(/^\/api\/sessions\/([^/]+)\/final$/);
+    if (req.method === 'GET' && m) {
+      const id = decodeURIComponent(m[1]);
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const finalPath = path.join(path.resolve(home.home), 'session-state', id, 'final.md');
+      const text = assets.readTextFileSafe(finalPath, 2 * 1024 * 1024);
+      if (text == null) {
+        sendText(res, 404, 'Not found');
+        return;
+      }
+      sendText(res, 200, text, 'text/plain; charset=utf-8');
+      return;
+    }
+  }
+
+  {
+    const m = pathname.match(/^\/api\/sessions\/([^/]+)\/archive$/);
+    if (req.method === 'POST' && m) {
+      const id = decodeURIComponent(m[1]);
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const homeAbs = path.resolve(home.home);
+      const sessionDir = path.join(homeAbs, 'session-state', id);
+      const archiveRoot = path.join(homeAbs, 'sessions-archive');
+      try {
+        if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
+          sendJson(res, 404, { error: 'Session not found', id, source: home.source });
+          return;
+        }
+        ensureDir(archiveRoot);
+        const dest = uniqueArchiveDir(archiveRoot, id);
+        fs.renameSync(sessionDir, dest);
+        sendJson(res, 200, { ok: true, id, source: home.source, archivedTo: dest });
+      } catch (e) {
+        sendJson(res, 400, { error: String(e.message || e), id, source: home.source });
+      }
+      return;
+    }
+  }
+
+  {
+    const m = pathname.match(/^\/api\/sessions\/([^/]+)\/delete$/);
+    if (req.method === 'POST' && m) {
+      const id = decodeURIComponent(m[1]);
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const homeAbs = path.resolve(home.home);
+      const sessionDir = path.join(homeAbs, 'session-state', id);
+
+      readJsonBody(req)
+        .then((body) => {
+          const force = Boolean(body && (body.force || body.confirm));
+          if (!force) throw Object.assign(new Error('Deletion requires {"force": true}'), { statusCode: 400 });
+          if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
+            throw Object.assign(new Error('Session not found'), { statusCode: 404 });
+          }
+
+          // Guardrail: never allow deleting outside the configured session-state root.
+          const expectedRoot = path.join(homeAbs, 'session-state');
+          const resolved = path.resolve(sessionDir);
+          const prefix = expectedRoot.endsWith(path.sep) ? expectedRoot : expectedRoot + path.sep;
+          if (!resolved.startsWith(prefix)) {
+            throw Object.assign(new Error('Refusing to delete path outside session-state'), { statusCode: 400 });
+          }
+
+          fs.rmSync(sessionDir, { recursive: true, force: true });
+          sendJson(res, 200, { ok: true, id, source: home.source, deleted: true });
+        })
+        .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source: home.source }));
       return;
     }
   }
@@ -389,20 +532,21 @@ function handleApi({ req, res, u, copilotHome, engineRoot, changeTracker }) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log('Usage: node .cli\\ui\\server.js [--port 3210] [--copilot-home <path>]');
+    console.log('Usage: node .cli\\ui\\server.js [--port 3210] [--copilot-home <path>] [--vscode-home <path>]');
     process.exit(0);
   }
 
   const engineRoot = path.resolve(__dirname, '..', '..');
   const copilotHome = resolveCopilotHome(args);
-  const changeTracker = createChangeTracker(path.resolve(copilotHome));
+  const vscodeHome = resolveVscodeHome(args);
+  const changeTracker = createChangeTracker(path.resolve(copilotHome), path.resolve(vscodeHome));
   const publicDir = path.join(__dirname, 'public');
 
   const server = http.createServer((req, res) => {
     const u = new URL(req.url || '/', 'http://127.0.0.1');
     try {
       if (u.pathname.startsWith('/api/')) {
-        handleApi({ req, res, u, copilotHome, engineRoot, changeTracker });
+        handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTracker });
         return;
       }
       serveStatic(publicDir, u.pathname, res);
@@ -414,6 +558,7 @@ function main() {
   server.listen(args.port, '127.0.0.1', () => {
     console.log(`CLI UI server: http://127.0.0.1:${args.port}/`);
     console.log(`copilotHome: ${copilotHome}`);
+    console.log(`vscodeHome:  ${vscodeHome}`);
     console.log(`engineRoot:  ${engineRoot}`);
   });
 }

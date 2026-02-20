@@ -273,7 +273,7 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 			kind: 'repo',
 			key: repo.repoPath,
 			label: repo.repoName,
-			description: hasTasksDir ? `${repo.tasks.length} tasks` : 'no .instructions/tasks',
+			description: hasTasksDir ? `${repo.tasks.length} tasks` : 'no central tasks',
 			iconPath: new vscode.ThemeIcon(hasTasksDir ? repoIcon : 'circle-slash'),
 			repo,
 			children,
@@ -288,7 +288,7 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 			kind: 'repo',
 			key: `${repo.repoPath}::active`,
 			label: repo.repoName,
-			description: hasTasksDir ? `${tasks.length} active` : 'no .instructions/tasks',
+			description: hasTasksDir ? `${tasks.length} active` : 'no central tasks',
 			iconPath: new vscode.ThemeIcon(hasTasksDir ? repoIcon : 'circle-slash'),
 			repo,
 			children,
@@ -366,7 +366,7 @@ export class WorkflowTaskTreeProvider implements vscode.TreeDataProvider<Node> {
 		const totalTasks = snapshot.repos.reduce((sum, repo) => sum + repo.tasks.length, 0);
 		const reposWithTasks = snapshot.repos.filter((repo) => Boolean(repo.tasksDirPath)).length;
 		this.output.appendLine('[RannIA] Task workflow snapshot');
-		this.output.appendLine(`repos: ${snapshot.repos.length} (${reposWithTasks} with .instructions/tasks)`);
+		this.output.appendLine(`repos: ${snapshot.repos.length} (${reposWithTasks} with central tasks)`);
 		this.output.appendLine(`tasks: ${totalTasks}`);
 	}
 

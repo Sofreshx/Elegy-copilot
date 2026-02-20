@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { getRepoAuditDir } from './enginePaths';
 
 // Types
 export type AuditType = 'deploy' | 'stack' | 'test' | 'e2e' | 'security';
@@ -139,7 +140,7 @@ function parseYamlValue(value: string): unknown {
 }
 
 function scanAuditReportsForRepo(repoPath: string): AuditReport[] {
-	const outputDir = path.join(repoPath, '.instructions-output');
+	const outputDir = getRepoAuditDir(repoPath);
 	const reports: AuditReport[] = [];
 
 	for (const auditMeta of AUDIT_TYPES) {

@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { RepoSkills, SkillDiscoverySnapshot, SkillEntry } from './types';
 import { getRepoDisabledSet } from './enablementStore';
+import { getUserSkillsDir, resolveStateRoot } from './enginePaths';
 import { existsDir, existsFile } from './utils/fs';
 
 const DEFAULT_HANDLED_SKILLS = new Set(['debug', 'docs', 'refactor', 'design']);
@@ -70,23 +71,18 @@ function isInstructionEngineFolder(folder: vscode.WorkspaceFolder): boolean {
 	return folderPath.endsWith('/instruction-engine');
 }
 
-function getEngineSkillsRoots(engineRoot: string): string[] {
-	// Prefer .github/skills as the canonical source.
-	// .codex/skills exists for Codex compatibility and may duplicate entries.
+function getEngineSkillsRootsFromUserHome(): string[] {
+	// Canonical skills are installed into the VS Code user asset home, under skillInstaller.state.root.
 	const roots: string[] = [];
-	const githubSkills = path.join(engineRoot, '.github', 'skills');
-	if (existsDir(githubSkills)) {
-		roots.push(githubSkills);
-	}
-	const codexSkills = path.join(engineRoot, '.codex', 'skills');
-	if (existsDir(codexSkills)) {
-		roots.push(codexSkills);
+	const userSkills = getUserSkillsDir();
+	if (existsDir(userSkills)) {
+		roots.push(userSkills);
 	}
 	return roots;
 }
 
 function dedupeSkills(entries: SkillEntry[]): SkillEntry[] {
-	// Dedupe by skill name; prefer earlier entries (we'll pass .github/skills first).
+	// Dedupe by skill name; prefer earlier entries.
 	const byName = new Map<string, SkillEntry>();
 	for (const entry of entries) {
 		const key = entry.name.trim().toLowerCase();
@@ -122,13 +118,12 @@ export async function scanSkills(): Promise<SkillDiscoverySnapshot> {
 	const includeSkill = (skill: SkillEntry): boolean =>
 		showDefaultHandled || !DEFAULT_HANDLED_SKILLS.has(normalizeKey(skill.name));
 
-	const engineFolder = workspaceFolders.find(isInstructionEngineFolder);
-	const engineRoot = engineFolder?.uri.fsPath;
-	const engineSkillsRoots = engineRoot ? getEngineSkillsRoots(engineRoot) : [];
+	const engineRoot = resolveStateRoot();
+	const engineSkillsRoots = getEngineSkillsRootsFromUserHome();
 
-	// Merge skill roots with a stable priority order: .github/skills first, then .codex/skills.
-	// De-dupe by name to prevent showing duplicates when both roots exist.
-	const engineDisabled = engineRoot ? getRepoDisabledSet('skills', engineRoot) : new Set<string>();
+	// Merge skill roots with a stable priority order.
+	// De-dupe by name to prevent showing duplicates when multiple roots exist.
+	const engineDisabled = getRepoDisabledSet('skills', engineRoot);
 	const availableSkills = dedupeSkills(
 		engineSkillsRoots.flatMap((root) =>
 			listSkillsInDir(root, 'instruction-engine', engineRoot, engineDisabled)

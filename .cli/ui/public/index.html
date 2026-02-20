@@ -23,6 +23,11 @@
           <div class="col">
             <div class="toolbar">
               <button id="btn-refresh-sessions" class="btn" type="button">Refresh</button>
+              <div class="tabs" style="gap: 6px;">
+                <button id="tab-sessions-cli" class="tab active" type="button">CLI</button>
+                <button id="tab-sessions-vscode" class="tab" type="button">VS Code</button>
+                <button id="tab-sessions-all" class="tab" type="button">All</button>
+              </div>
               <span id="sessions-summary" class="muted"></span>
             </div>
 
@@ -35,9 +40,15 @@
 
           <div class="col detail">
              <h2>Session Detail</h2>
+             <div class="toolbar">
+               <button id="btn-archive-session" class="btn" type="button" disabled>Archive session</button>
+               <button id="btn-delete-session" class="btn danger" type="button" disabled>Delete permanently</button>
+             </div>
              <div id="session-detail" class="panel muted">Select a session.</div>
              <h3>Plan (preview)</h3>
              <pre id="session-plan" class="pre"></pre>
+             <h3>Final output (preview)</h3>
+             <pre id="session-final" class="pre"></pre>
              <h3>Agent usage</h3>
              <div id="session-agent-usage" class="panel muted">(none detected)</div>
              <h3>Recent events</h3>

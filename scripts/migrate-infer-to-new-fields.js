@@ -2,7 +2,7 @@
 /*
  * migrate-infer-to-new-fields.js
  *
- * Scans `.github/agents/*.agent.md` files and replaces deprecated `infer:`
+ * Scans `engine-assets/agents/*.agent.md` files and replaces deprecated `infer:`
  * front-matter entries with the new `user-invocable:` and
  * `disable-model-invocation:` keys. The script is idempotent and supports
  * --apply to write changes (default is dry-run).
@@ -21,11 +21,11 @@ function findAgentsDirs(startDir) {
     let entries;
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch (err) {
+    } catch {
       return;
     }
     for (const e of entries) {
-      if (e.isDirectory() && e.name === '.github') {
+      if (e.isDirectory() && e.name === 'engine-assets') {
         const agents = path.join(dir, e.name, 'agents');
         if (fs.existsSync(agents) && fs.statSync(agents).isDirectory()) {
           results.push(agents);
@@ -185,7 +185,7 @@ function run() {
   console.log(`Scanning from ${cwd} ...`);
   const agentsDirs = findAgentsDirs(cwd);
   if (agentsDirs.length === 0) {
-    console.log('No .github/agents folders found. Exiting.');
+    console.log('No engine-assets/agents folders found. Exiting.');
     return;
   }
   let total = 0;

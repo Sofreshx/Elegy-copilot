@@ -63,6 +63,7 @@
     "onCommand:skillInstaller.purgeArchivedTasks",
     "onCommand:skillInstaller.clearRepoContext",
     "onCommand:skillInstaller.clearAllRepoContexts",
+    "onCommand:skillInstaller.migrateLegacyState",
     "onCommand:skillInstaller.ws.showPort"
   ],
   "main": "./dist/extension.js",
@@ -202,6 +203,11 @@
         "title": "Clear Context for All Repos"
       },
       {
+        "command": "skillInstaller.migrateLegacyState",
+        "title": "Migrate Legacy .instructions State",
+        "icon": "$(database)"
+      },
+      {
         "command": "skillInstaller.archiveDoneTasks",
         "title": "Archive Done Tasks",
         "icon": "$(archive)"
@@ -336,10 +342,15 @@
     "configuration": {
       "title": "RannIA",
       "properties": {
+        "skillInstaller.state.root": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute path to the central Instruction Engine state root for VS Code (sessions, repo-state, tasks). Leave empty to use a platform default (Windows/macOS: ~/Documents/instruction-engine; Linux: ~/.local/state/instruction-engine)."
+        },
         "skillInstaller.registry.fileName": {
           "type": "string",
           "default": ".instructions/registry.json",
-          "description": "Relative path (from repo root) used to store skill/agent enablement metadata."
+          "description": "(Deprecated) Repo-local registry path. RannIA now stores enablement metadata in the central repo-state store and does not write into repos."
         },
         "skillInstaller.skills.disabledByRepo": {
           "type": "object",
@@ -475,7 +486,7 @@
         "skillInstaller.session.loggingEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable session logging to .instructions-output/sessions/ directory."
+          "description": "Enable session logging to the central VS Code session-state store under skillInstaller.state.root."
         },
         "skillInstaller.session.maxLogSize": {
           "type": "number",

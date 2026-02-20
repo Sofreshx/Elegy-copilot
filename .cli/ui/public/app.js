@@ -2,6 +2,9 @@ function $(id) {
   return document.getElementById(id);
 }
 
+let sessionSource = 'cli';
+let selectedSession = null;
+
 async function api(url, opts) {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
@@ -73,7 +76,7 @@ function switchTab(tab) {
 
 async function loadSessions() {
   setStatus('Loading sessions…');
-  const data = await api('/api/sessions?activeWindowMinutes=30');
+  const data = await api(`/api/sessions?activeWindowMinutes=30&source=${encodeURIComponent(sessionSource)}`);
   const sessions = data.sessions || [];
   const active = sessions.filter((s) => s.status === 'active');
   const past = sessions.filter((s) => s.status !== 'active');
@@ -85,7 +88,8 @@ async function loadSessions() {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'item';
-      const title = s.repo ? `${s.repo}` : s.cwd || s.id;
+      const prefix = sessionSource === 'all' ? `[${String(s.source || 'cli').toUpperCase()}] ` : '';
+      const title = prefix + (s.repo ? `${s.repo}` : s.cwd || s.id);
       const sub = `${s.id} • ${s.status} • ${fmtTime(s.lastEventTime || s.startTime)}`;
       btn.innerHTML = `<div class="item-title"></div><div class="item-sub muted"></div>`;
       btn.querySelector('.item-title').textContent = title;
@@ -107,14 +111,20 @@ async function loadSessions() {
 }
 
 async function selectSession(s) {
+  selectedSession = s;
+  $('btn-archive-session').disabled = false;
+  $('btn-delete-session').disabled = false;
+
   $('session-detail').classList.remove('muted');
   $('session-detail').textContent = '';
   $('session-plan').textContent = '';
+  $('session-final').textContent = '';
   $('session-agent-usage').textContent = '';
   $('session-agent-usage').classList.add('muted');
   $('session-events').textContent = '';
   $('session-detail').innerHTML = `
     <div><b>ID:</b> ${s.id}</div>
+    <div><b>Source:</b> ${s.source || sessionSource}</div>
     <div><b>Status:</b> ${s.status}</div>
     <div><b>Repo:</b> ${s.repo || ''}</div>
     <div><b>Branch:</b> ${s.branch || ''}</div>
@@ -124,13 +134,16 @@ async function selectSession(s) {
   `;
 
   setStatus(`Loading plan/events for ${s.id}…`);
-  const [plan, agentUsage, evs] = await Promise.all([
-    api(`/api/sessions/${encodeURIComponent(s.id)}/plan`).catch(() => ''),
-    api(`/api/sessions/${encodeURIComponent(s.id)}/agent-usage?limit=500`).catch(() => ({ usage: {} })),
-    api(`/api/sessions/${encodeURIComponent(s.id)}/events?limit=20`).catch(() => ({ events: [] })),
+  const source = encodeURIComponent(String(s.source || sessionSource || 'cli'));
+  const [plan, finalOut, agentUsage, evs] = await Promise.all([
+    api(`/api/sessions/${encodeURIComponent(s.id)}/plan?source=${source}`).catch(() => ''),
+    api(`/api/sessions/${encodeURIComponent(s.id)}/final?source=${source}`).catch(() => ''),
+    api(`/api/sessions/${encodeURIComponent(s.id)}/agent-usage?limit=500&source=${source}`).catch(() => ({ usage: {} })),
+    api(`/api/sessions/${encodeURIComponent(s.id)}/events?limit=20&source=${source}`).catch(() => ({ events: [] })),
   ]);
 
   $('session-plan').textContent = String(plan || '').slice(0, 5000);
+  $('session-final').textContent = String(finalOut || '').slice(0, 8000);
 
   const usage = (agentUsage && agentUsage.usage) || {};
   const entries = Object.entries(usage).filter(([, v]) => typeof v === 'number' && v > 0);
@@ -308,6 +321,59 @@ function bindUi() {
   $('btn-reload').addEventListener('click', () => window.location.reload());
 
   $('btn-refresh-sessions').addEventListener('click', () => loadSessions().catch((e) => setStatus(e.message)));
+
+  function setSessionsSource(next) {
+    sessionSource = next;
+    $('tab-sessions-cli').classList.toggle('active', next === 'cli');
+    $('tab-sessions-vscode').classList.toggle('active', next === 'vscode');
+    $('tab-sessions-all').classList.toggle('active', next === 'all');
+    selectedSession = null;
+    $('btn-archive-session').disabled = true;
+    $('btn-delete-session').disabled = true;
+    $('session-detail').textContent = 'Select a session.';
+    $('session-detail').classList.add('muted');
+    $('session-plan').textContent = '';
+    $('session-final').textContent = '';
+    $('session-agent-usage').textContent = '';
+    $('session-events').textContent = '';
+    loadSessions().catch((e) => setStatus(e.message));
+  }
+
+  $('tab-sessions-cli').addEventListener('click', () => setSessionsSource('cli'));
+  $('tab-sessions-vscode').addEventListener('click', () => setSessionsSource('vscode'));
+  $('tab-sessions-all').addEventListener('click', () => setSessionsSource('all'));
+
+  $('btn-archive-session').addEventListener('click', async () => {
+    if (!selectedSession || !selectedSession.id) return;
+    const id = encodeURIComponent(selectedSession.id);
+    const src = encodeURIComponent(String(selectedSession.source || sessionSource || 'cli'));
+    const ok = window.confirm(`Archive session ${selectedSession.id} (${src})?`);
+    if (!ok) return;
+    setStatus(`Archiving ${selectedSession.id}…`);
+    await api(`/api/sessions/${id}/archive?source=${src}`, { method: 'POST', body: JSON.stringify({}) });
+    selectedSession = null;
+    $('btn-archive-session').disabled = true;
+    $('btn-delete-session').disabled = true;
+    await loadSessions();
+    setStatus('Session archived.');
+  });
+
+  $('btn-delete-session').addEventListener('click', async () => {
+    if (!selectedSession || !selectedSession.id) return;
+    const id = encodeURIComponent(selectedSession.id);
+    const src = encodeURIComponent(String(selectedSession.source || sessionSource || 'cli'));
+    const ok = window.confirm(
+      `Delete session ${selectedSession.id} (${src}) permanently?\n\nThis cannot be undone.`
+    );
+    if (!ok) return;
+    setStatus(`Deleting ${selectedSession.id}…`);
+    await api(`/api/sessions/${id}/delete?source=${src}`, { method: 'POST', body: JSON.stringify({ force: true }) });
+    selectedSession = null;
+    $('btn-archive-session').disabled = true;
+    $('btn-delete-session').disabled = true;
+    await loadSessions();
+    setStatus('Session deleted.');
+  });
 
   $('btn-refresh-managed').addEventListener('click', () => loadManaged().catch((e) => setStatus(e.message)));
   $('btn-refresh-installed').addEventListener('click', () => loadInstalled().catch((e) => setStatus(e.message)));

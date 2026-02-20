@@ -24,6 +24,15 @@
 			"script": "package",
 			"path": "RannIA",
 			"problemMatcher": []
+		},
+		{
+			"label": "validate: manifest json",
+			"type": "shell",
+			"command": "node",
+			"args": ["scripts/validate-manifest.js"],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
 		}
 	]
 }

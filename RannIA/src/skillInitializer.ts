@@ -104,7 +104,9 @@ export async function initializeSkills(output: vscode.OutputChannel): Promise<vo
 	}
 
 	if (snapshot.availableSkills.length === 0) {
-		void vscode.window.showInformationMessage('No available skills found in instruction-engine.');
+		void vscode.window.showInformationMessage(
+			'No available skills found in the VS Code user asset home (skillInstaller.state.root/skills).'
+		);
 		return;
 	}
 

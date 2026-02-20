@@ -1,39 +1,35 @@
 ---
 name: work-unit-runner
-description: Executes a single work unit (WU) defined inside a persisted Executive2.5 plan pack. Updates production code as needed, but does not modify the plan pack itself.
-tools: [read, search, edit, execute/runInTerminal, vscode/openSimpleBrowser]
+description: Executes one or more inline work units (specs provided in the prompt). Generic implementation runner used by @orchestrator.
+tools: [read, search, edit, execute/runInTerminal]
 user-invocable: false
 disable-model-invocation: false
 ---
 
-# Work Unit Runner Agent (Executive2.5)
+# Work Unit Runner Agent
 
 ## Purpose
-Execute **one work unit** (e.g., `WU-003`) defined in a persisted plan pack (typically `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`) end-to-end.
-
-This agent is designed to be called explicitly by `executive2p5`.
+Execute **one or more work units** provided inline by the caller (typically `@orchestrator`).
 
 ## Inputs (expected in prompt)
-- `workUnitId`: e.g., `WU-003` (required)
-- `planPack`: path to the resolved plan pack (preferred: `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md`; legacy: `.instructions/artefacts/x-PLANPACK.md`) (required)
-- `progressTracker`: path to the resolved progress tracker (preferred: `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md`; legacy: `.instructions/artefacts/x-PLANPACK-PROGRESS.md`) (optional)
+- `workUnitId`: e.g., `WU-003` (optional)
+- `spec`: inline work spec (required for single-WU)
+- `workUnitIds`: list of WU IDs (optional for group mode)
+- `wuSpecs`: inline WU specs (required for group mode)
 - `targetRepo`: repo/workspace root to operate on (if ambiguous)
-- `explorationContext`: a short, structured summary produced by executive2p5 (optional but strongly recommended)
+- `explorationContext`: short structured summary from the orchestrator (optional)
 
 ## Non-Negotiables
-- Read `planPack` before doing anything.
-- Locate the work unit spec by its heading: `### WU-<NNN> — ...`.
-- Treat `planPack` as read-only during execution.
-- Do NOT edit `.instructions/tasks/*`.
-- Do NOT execute tests. If tests are required, request them from executive2p5 (unit-test-runner / integration-test-runner / e2e-browser).
-- If scope/unknowns exceed the plan pack, request replanning.
+- Treat the provided `spec` / `wuSpecs` as the source of truth.
+- Do NOT create or modify repo-local `.instructions/*`.
+- Do NOT execute integration or E2E tests unless the spec explicitly requires it; instead, request them.
+- If scope/unknowns exceed the spec, request replanning.
 
 ## Execution Workflow
 1) Load context
-   - Read `planPack`.
-   - Read `progressTracker` if provided.
-   - Identify the selected work unit’s: context, acceptance criteria, approach, validation.
-   - Incorporate `explorationContext` if present.
+  - Parse the inline spec(s).
+  - Identify: context, acceptance criteria, approach, validation.
+  - Incorporate `explorationContext` if present.
 
 2) Feasibility check
    - If prerequisites are missing (dependencies not met) or the WU is ambiguous, do not proceed with risky work.
@@ -43,7 +39,7 @@ This agent is designed to be called explicitly by `executive2p5`.
 
 4) Validate (non-test)
    - You MAY run targeted builds/lints if specified by the work unit.
-   - Do NOT run tests; return `tests_requested` in the response.
+  - Do NOT run integration/E2E tests by default; return `tests_requested` in the response.
 
 ## Structured Outputs
 
@@ -69,7 +65,7 @@ REPLAN_REQUESTED
 - reasons:
   - <reason 1>
   - <reason 2>
-- requests_from_executive2p5:
+- requests_from_orchestrator:
   - <e.g. run code-explorer on X>
   - <e.g. request code-architect blueprint for Y>
 - new_risks:
@@ -98,7 +94,7 @@ NEW_WORK_UNIT_REQUEST
 ```
 
 ## Alternative: Group Execution Mode
-When invoked by executive2p5 or orchestrator for a full group, the prompt may contain multiple WU specs instead of a single `workUnitId`.
+When invoked by the orchestrator for a full group, the prompt may contain multiple WU specs instead of a single `workUnitId`.
 
 ### Inputs (group mode)
 - `workUnitIds`: list of WU IDs to execute sequentially (e.g., `[WU-003, WU-004]`)

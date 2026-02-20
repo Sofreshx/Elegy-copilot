@@ -10,8 +10,9 @@ Instruction Engine provides shared agents, skills, templates, and workflow conve
 
 ### Core engine assets
 
-- `.github/agents/` — custom agents (executive, testing, security, infra, review)
-- `.github/skills/` — domain skills (`SKILL.md` per skill)
+- `engine-assets/agents/` — custom agents (orchestrator, testing, security, infra, review)
+- `engine-assets/skills/` — domain skills (`SKILL.md` per skill)
+- `engine-assets/prompts/` — VS Code prompt files (`*.prompt.md`)
 - `.github/templates/` — task/progress and hook templates
 - `.github/copilot-instructions.md` — shared operating rules used across repos
 
@@ -89,7 +90,11 @@ For a deeper reference (config fields, auth model, troubleshooting), see `local-
 
 ### 0) Install globally (recommended)
 
-Installs agents + skills + CLI-first global instructions into `~/.copilot`, installs VS Code-only prompt files into `~/.copilot/prompts`, and patches VS Code settings so they’re available from **any repo**.
+Installs:
+- **Copilot CLI assets** into `~/.copilot` (CLI-only)
+- **VS Code Copilot Chat assets** into the **VS Code user asset home** (default: `~/Documents/instruction-engine` on Windows/macOS; `~/.local/state/instruction-engine` on Linux)
+
+Then patches VS Code settings (`chat.*Locations`) so agents/skills/prompts/instructions are discoverable from **any repo**, without adding this repo to your workspace.
 
 Windows (PowerShell):
 ```powershell
@@ -109,11 +114,9 @@ Verify in Copilot CLI:
 
 ### 1) Add the engine to your workspace
 
-```bash
-git submodule add https://github.com/Sofreshx/instruction-engine.git instruction-engine
-```
+Not required for day-to-day usage.
 
-Or copy `.github/` into your target repo if you do not want a submodule.
+If you want to **contribute** to agents/skills/prompts, add it as a submodule (or open this repo directly) and edit `engine-assets/*`.
 
 ### 2) Enable subagent delegation in VS Code
 
@@ -128,48 +131,48 @@ Or copy `.github/` into your target repo if you do not want a submodule.
 In Copilot Chat, run:
 
 ```text
-Initialize this project by creating the .instructions structure for tasks, architecture, and contexts.
+Legacy note: repo-local .instructions/.instructions-output are being phased out.
+
+VS Code (RannIA) now stores sessions + repo-state (tasks/enablement/audits) in a central folder
+outside your repos (default: ~/Documents/instruction-engine).
 ```
 
-Typical project-local folders:
+Central VS Code state (default):
 
-- `.instructions/tasks/`
-- `.instructions/tasks.archive/`
-- `.instructions/tasks.history.md`
-- `.instructions/architecture.md`
-- `.instructions/contexts/`
+- `~/Documents/instruction-engine/session-state/<id>/...`
+- `~/Documents/instruction-engine/repo-state/<repoId>/...`
+- `~/Documents/instruction-engine/sessions-archive/...`
 
-### 4) Recommended `.gitignore`
+VS Code user assets (default):
+
+- `~/Documents/instruction-engine/agents/*.agent.md`
+- `~/Documents/instruction-engine/skills/<skill>/SKILL.md`
+- `~/Documents/instruction-engine/prompts/*.prompt.md`
+- `~/Documents/instruction-engine/copilot-instructions.md`
+
+### 4) Recommended `.gitignore` (legacy)
 
 ```gitignore
-# Instruction Engine session RAM (developer-local)
-.instructions/active-tasks.md
-
-# Instruction Engine generated outputs (developer-local)
+# Legacy repo-local state (deprecated)
+.instructions/
 .instructions-output/
 ```
 
 ## Execution patterns
 
-- **Fast execution:** `@executive2-fast` (no durable task graph)
-- **Durable execution:** `@executive2-planner` → `@executive2` (task graph + progress tracker)
-- **Durable execution (no tasks):** `@executive2p5-planner` → `@executive2p5` (plan pack + progress tracker, no `.instructions/tasks/*`)
-- **Task creation:** `@addtodo`
-- **Validation/testing:** `@unit-test-runner`, `@integration-test-runner`, `@testing-executive`
-- **Quality/security:** `@code-reviewer`, `@issue-audit-executive`, `@security-scanner`, `@security-fixer`
+- **Unified execution:** `@orchestrator` (plan → implement → verify)
+- **Validation/testing:** `@unit-test-runner`, `@integration-test-runner`, `@e2e-browser`
+- **Quality/security:** `@code-reviewer`, `@security-auditor`, `@security-scanner`, `@security-fixer`
 
 ## Current inventory (repo snapshot)
 
-As of this README update:
-
-- 47 custom agent definitions in `.github/agents/*.agent.md`
-- 48 skills in `.github/skills/*/SKILL.md`
+Canonical assets live under `engine-assets/*`.
 
 To re-check counts locally:
 
 ```bash
-find .github/agents -maxdepth 1 -name '*.agent.md' | wc -l
-find .github/skills -mindepth 1 -maxdepth 1 -type d | wc -l
+find engine-assets/agents -maxdepth 1 -name '*.agent.md' | wc -l
+find engine-assets/skills -mindepth 1 -maxdepth 1 -type d | wc -l
 ```
 
 ## Repository layout
@@ -177,12 +180,14 @@ find .github/skills -mindepth 1 -maxdepth 1 -type d | wc -l
 ```text
 instruction-engine/
 ├── .github/
-│   ├── agents/
-│   ├── skills/
 │   ├── templates/
 │   └── copilot-instructions.md
+├── engine-assets/
+│   ├── agents/
+│   ├── skills/
+│   └── prompts/
 ├── .instructions/           # this repo's own task/context memory
-├── .instructions-output/    # generated artifacts/logs
+├── .instructions-output/    # legacy generated artifacts/logs (deprecated)
 ├── docs/
 ├── local-tracker/
 ├── RannIA/
@@ -201,7 +206,7 @@ instruction-engine/
 
 ## Contributing
 
-1. Add/update agent files in `.github/agents/`.
-2. Add/update skills in `.github/skills/<skill>/SKILL.md`.
+1. Add/update agent files in `engine-assets/agents/`.
+2. Add/update skills in `engine-assets/skills/<skill>/SKILL.md`.
 3. Keep shared operating guidance in `.github/copilot-instructions.md` concise and stable.
 4. Update docs under `docs/` when behavior/workflows change.

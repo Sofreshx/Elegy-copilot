@@ -122,7 +122,7 @@ export class AgentDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 			kind: 'repo',
 			key: repo.repoPath,
 			label: repo.repoName,
-			description: hasAgentsDir ? `${repo.agents.length} agents` : 'no .github/agents',
+			description: hasAgentsDir ? `${repo.agents.length} agents` : 'no agents folder',
 			iconPath: new vscode.ThemeIcon(hasAgentsDir ? repoIcon : 'circle-slash'),
 			contextValue: 'skillInstaller.repo',
 			repo,
