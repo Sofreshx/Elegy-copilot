@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-SERVER_JS="$ENGINE_ROOT/.cli/ui/server.js"
+SERVER_JS="$ENGINE_ROOT/copilot-ui/server.js"
 
 if [[ ! -f "$SERVER_JS" ]]; then
   echo "Missing server entrypoint: $SERVER_JS" >&2

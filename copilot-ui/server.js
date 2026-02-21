@@ -135,10 +135,7 @@ function resolveCopilotHome(args) {
 
 function defaultVscodeHome() {
   const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  if (process.platform === 'win32' || process.platform === 'darwin') {
-    return path.join(path.resolve(home), 'Documents', 'instruction-engine');
-  }
-  return path.join(path.resolve(home), '.local', 'state', 'instruction-engine');
+  return path.join(path.resolve(home), '.copilot');
 }
 
 function resolveVscodeHome(args) {
@@ -261,16 +258,6 @@ function parseNumberQuery(searchParams, key, defaultValue) {
   const n = Number(v);
   if (!Number.isFinite(n)) return defaultValue;
   return n;
-}
-
-function resolveAssetsTarget(u) {
-  const t = (u && u.searchParams && u.searchParams.get('target')) || 'cli';
-  return assets.normalizeTarget(t);
-}
-
-function homeForTarget(target, copilotHomeAbs, vscodeHomeAbs) {
-  if (String(target) === 'vscode') return vscodeHomeAbs;
-  return copilotHomeAbs;
 }
 
 function runVscodeSettingsPatcher({ engineRoot, vscodeHome, settingsPath, dryRun }) {
@@ -519,9 +506,8 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
 function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTracker }) {
   const pathname = u.pathname;
   const copilotHomeAbs = path.resolve(copilotHome);
-  const vscodeHomeAbs = path.resolve(vscodeHome);
-  const assetsTarget = resolveAssetsTarget(u);
-  const assetsHomeAbs = homeForTarget(assetsTarget, copilotHomeAbs, vscodeHomeAbs);
+  const vscodeHomeAbs = copilotHomeAbs;
+  const assetsHomeAbs = copilotHomeAbs;
 
   if (req.method === 'GET' && pathname === '/api/health') {
     const changes = changeTracker ? changeTracker.get() : null;
@@ -710,7 +696,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
   }
 
   if (req.method === 'GET' && pathname === '/api/assets/managed') {
-    const managed = assets.getManagedAssetStatuses(engineRoot, assetsHomeAbs, { target: assetsTarget });
+    const managed = assets.getManagedAssetStatuses(engineRoot, assetsHomeAbs);
     sendJson(res, 200, { managed });
     return;
   }
@@ -718,13 +704,9 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
   if (req.method === 'GET' && pathname === '/api/assets/installed') {
     const agents = assets.listInstalledAgents(assetsHomeAbs);
     const skills = assets.listInstalledSkills(assetsHomeAbs);
-    if (assetsTarget === 'vscode') {
-      const prompts = assets.listInstalledPrompts(assetsHomeAbs);
-      const instructions = assets.getInstalledInstructions(assetsHomeAbs);
-      sendJson(res, 200, { agents, skills, prompts, instructions });
-      return;
-    }
-    sendJson(res, 200, { agents, skills });
+    const prompts = assets.listInstalledPrompts(assetsHomeAbs);
+    const instructions = assets.getInstalledInstructions(assetsHomeAbs);
+    sendJson(res, 200, { agents, skills, prompts, instructions });
     return;
   }
 
@@ -734,7 +716,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
         const result = assets.syncAll(engineRoot, assetsHomeAbs, {
           dryRun: Boolean(body.dryRun),
           force: Boolean(body.force),
-          target: assetsTarget,
+          
         });
         sendJson(res, 200, { result });
       })
@@ -750,7 +732,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
         const result = assets.syncAsset(engineRoot, assetsHomeAbs, assetId, {
           dryRun: Boolean(body.dryRun),
           force: Boolean(body.force),
-          target: assetsTarget,
+          
         });
         sendJson(res, 200, { result });
       })
@@ -763,7 +745,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
       .then((body) => {
         const assetId = body.assetId;
         if (typeof assetId !== 'string' || !assetId) throw Object.assign(new Error('assetId is required'), { statusCode: 400 });
-        const managed = assets.getManagedAssetStatuses(engineRoot, assetsHomeAbs, { target: assetsTarget });
+        const managed = assets.getManagedAssetStatuses(engineRoot, assetsHomeAbs);
         const asset = managed.find((a) => a.id === assetId);
         if (!asset) throw Object.assign(new Error(`Unknown assetId: ${assetId}`), { statusCode: 404 });
         const result = assets.removeAsset(assetsHomeAbs, asset, { force: Boolean(body.force) });
@@ -905,11 +887,11 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log('Usage: node .cli\\ui\\server.js [--port 3210] [--copilot-home <path>] [--vscode-home <path>]');
+    console.log('Usage: node copilot-ui/server.js [--port 3210] [--copilot-home <path>]');
     process.exit(0);
   }
 
-  const engineRoot = path.resolve(__dirname, '..', '..');
+  const engineRoot = path.resolve(__dirname, '..');
   const copilotHome = resolveCopilotHome(args);
   const vscodeHome = resolveVscodeHome(args);
   const changeTracker = createChangeTracker(path.resolve(copilotHome), path.resolve(vscodeHome));

@@ -4,7 +4,6 @@ function $(id) {
 
 let sessionSource = 'all';
 let selectedSession = null;
-let assetsTarget = 'cli';
 
 async function api(url, opts) {
   const res = await fetch(url, {
@@ -21,19 +20,12 @@ async function api(url, opts) {
   return res.text();
 }
 
-function withTarget(url) {
-  const u = String(url || '');
-  if (!u) return u;
-  const join = u.includes('?') ? '&' : '?';
-  return `${u}${join}target=${encodeURIComponent(assetsTarget)}`;
-}
-
 function setStatus(msg) {
   $('status').textContent = msg;
 }
 
 async function viewRel(relPath, label) {
-  const txt = await api(withTarget(`/api/assets/view?path=${encodeURIComponent(relPath)}`)).catch((e) => `Error: ${e.message}`);
+  const txt = await api(`/api/assets/view?path=${encodeURIComponent(relPath)}`).catch((e) => `Error: ${e.message}`);
   $('viewer-meta').textContent = label || relPath;
   $('viewer').textContent = txt;
 }
@@ -43,7 +35,7 @@ async function deleteRel(relPath, label) {
   if (!ok) return;
 
   setStatus(`Deleting ${relPath}…`);
-  const r = await api(withTarget('/api/assets/delete'), { method: 'POST', body: JSON.stringify({ path: relPath, force: true }) }).catch((e) => ({
+  const r = await api('/api/assets/delete', { method: 'POST', body: JSON.stringify({ path: relPath, force: true }) }).catch((e) => ({
     error: e.message,
   }));
   $('viewer-meta').textContent = label || `Delete ${relPath}`;
@@ -228,7 +220,7 @@ async function selectSession(s) {
 
 async function loadManaged() {
   setStatus('Loading managed assets…');
-  const data = await api(withTarget('/api/assets/managed'));
+  const data = await api('/api/assets/managed');
   const managed = data.managed || [];
   $('assets-summary').textContent = `${managed.length} managed`;
 
@@ -259,7 +251,7 @@ async function loadManaged() {
         : a.destination;
       const txt = await api(`/api/assets/view?path=${encodeURIComponent(viewPath)}`).catch((e) => `Error: ${e.message}`);
       $('viewer-meta').textContent = viewPath;
-      $('viewer').textContent = txt;
+      $('viewer').textContent = txt;    
     });
 
     const btnSync = document.createElement('button');
@@ -268,7 +260,7 @@ async function loadManaged() {
     btnSync.textContent = 'Sync';
     btnSync.addEventListener('click', async () => {
       setStatus(`Syncing ${a.id}…`);
-      await api(withTarget('/api/assets/sync'), { method: 'POST', body: JSON.stringify({ assetId: a.id }) });
+      await api('/api/assets/sync', { method: 'POST', body: JSON.stringify({ assetId: a.id }) });
       await loadManaged();
       await loadInstalled();
       setStatus(`Synced ${a.id}.`);
@@ -280,7 +272,7 @@ async function loadManaged() {
     btnRemove.textContent = 'Remove';
     btnRemove.addEventListener('click', async () => {
       setStatus(`Removing ${a.id}…`);
-      const r = await api(withTarget('/api/assets/remove'), { method: 'POST', body: JSON.stringify({ assetId: a.id }) }).catch((e) => ({ error: e.message }));
+      const r = await api('/api/assets/remove', { method: 'POST', body: JSON.stringify({ assetId: a.id }) }).catch((e) => ({ error: e.message }));
       $('viewer-meta').textContent = `Remove ${a.id}`;
       $('viewer').textContent = JSON.stringify(r, null, 2);
       await loadManaged();
@@ -298,7 +290,7 @@ async function loadManaged() {
 
 async function loadInstalled() {
   setStatus('Loading installed agents/skills…');
-  const data = await api(withTarget('/api/assets/installed'));
+  const data = await api('/api/assets/installed');
   const agents = data.agents || [];
   const skills = data.skills || [];
   const prompts = data.prompts || [];
@@ -361,17 +353,8 @@ async function loadInstalled() {
 
   setStatus('Installed inventory loaded.');
 
-  // Prompts + instructions are only meaningful for the VS Code assets target.
   const pt = $('prompts-table');
   const ip = $('instructions-panel');
-  if (assetsTarget !== 'vscode') {
-    if (pt) pt.innerHTML = '<tr><td class="muted" colspan="3">(VS Code target only)</td></tr>';
-    if (ip) {
-      ip.classList.add('muted');
-      ip.textContent = '(VS Code target only)';
-    }
-    return;
-  }
 
   if (pt) {
     pt.textContent = '';
@@ -425,7 +408,7 @@ async function loadInstalled() {
 
 async function syncAll() {
   setStatus('Syncing all assets…');
-  const r = await api(withTarget('/api/assets/sync-all'), { method: 'POST', body: JSON.stringify({ dryRun: false, force: false }) });
+  const r = await api('/api/assets/sync-all', { method: 'POST', body: JSON.stringify({ dryRun: false, force: false }) });
   $('viewer-meta').textContent = 'Sync all';
   $('viewer').textContent = JSON.stringify(r, null, 2);
   await loadManaged();
@@ -433,10 +416,21 @@ async function syncAll() {
   setStatus('Sync all complete.');
 }
 
+async function freshAll() {
+  const ok = window.confirm('Force-overwrite ALL managed assets into ~/.copilot?\n\nThis replaces any local modifications.');
+  if (!ok) return;
+  setStatus('Force-syncing all assets…');
+  const r = await api('/api/assets/sync-all', { method: 'POST', body: JSON.stringify({ dryRun: false, force: true }) });
+  $('viewer-meta').textContent = 'Fresh all (force)';
+  $('viewer').textContent = JSON.stringify(r, null, 2);
+  await loadManaged();
+  await loadInstalled();
+  setStatus('Fresh all complete.');
+}
+
 async function patchVscodeSettings() {
-  if (assetsTarget !== 'vscode') return;
   const ok = window.confirm(
-    'Patch VS Code user settings (chat.*Locations) to point at the VS Code asset home?\n\nThis edits settings.json and creates a backup.'
+    'Patch VS Code user settings (chat.*Locations) to point at ~/.copilot?\n\nThis edits settings.json and creates a backup.'
   );
   if (!ok) return;
   setStatus('Patching VS Code settings…');
@@ -564,12 +558,7 @@ function bindUi() {
     }
   });
   $('btn-sync-all').addEventListener('click', () => syncAll().catch((e) => setStatus(e.message)));
-
-  function setAssetsTarget(next) {
-    assetsTarget = next;
-    loadManaged().catch((e) => setStatus(e.message));
-    loadInstalled().catch((e) => setStatus(e.message));
-  }
+  $('btn-fresh-all').addEventListener('click', () => freshAll().catch((e) => setStatus(e.message)));
   $('btn-copilot-authorize').addEventListener('click', () => authorizeCopilotFolders().catch((e) => setStatus(e.message)));
 
   $('btn-refresh-lsp').addEventListener('click', () => loadLspConfig().catch((e) => setStatus(e.message)));

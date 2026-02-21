@@ -52,26 +52,15 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CLI_ROOT="$ENGINE_ROOT/.cli"
 SRC_ASSETS_ROOT="$ENGINE_ROOT/engine-assets"
 SRC_AGENTS_ROOT="$SRC_ASSETS_ROOT/agents"
 SRC_SKILLS_ROOT="$SRC_ASSETS_ROOT/skills"
 SRC_PROMPTS_ROOT="$SRC_ASSETS_ROOT/prompts"
-SRC_INSTRUCTIONS="$CLI_ROOT/instructions/copilot-instructions.md"
+SRC_INSTRUCTIONS="$SRC_ASSETS_ROOT/copilot-instructions.md"
 SRC_VSCODE_INSTRUCTIONS="$ENGINE_ROOT/.github/copilot-instructions.md"
 
-if [[ ! -d "$CLI_ROOT" ]]; then
-  echo "Missing folder: $CLI_ROOT" >&2
-  exit 1
-fi
-
 default_vscode_home() {
-  local uname_s
-  uname_s="$(uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]' || echo '')"
-  case "$uname_s" in
-    linux*) echo "$HOME/.local/state/instruction-engine" ;;
-    *) echo "$HOME/Documents/instruction-engine" ;;
-  esac
+  echo "$HOME/.copilot"
 }
 
 resolve_vscode_home() {
@@ -305,7 +294,7 @@ if $DO_CLI; then
     sync_dir "$src_dir" "$COPILOT_HOME/skills/$skill_name"
   done
 
-  # .cli/instructions/copilot-instructions.md -> <copilotHome>/copilot-instructions.md
+  # engine-assets/copilot-instructions.md -> <copilotHome>/copilot-instructions.md
   sync_file "$SRC_INSTRUCTIONS" "$COPILOT_HOME/copilot-instructions.md"
 fi
 

@@ -416,11 +416,7 @@ function resolveCopilotHome(explicitCopilotHome) {
 }
 
 function defaultVscodeHome() {
-	const home = os.homedir();
-	if (process.platform === 'win32' || process.platform === 'darwin') {
-		return path.join(home, 'Documents', 'instruction-engine');
-	}
-	return path.join(home, '.local', 'state', 'instruction-engine');
+	return path.join(os.homedir(), '.copilot');
 }
 
 function resolveVscodeHome(explicitVscodeHome) {
@@ -434,18 +430,43 @@ function resolveVscodeHome(explicitVscodeHome) {
 }
 
 function resolveAssetsHome(args) {
-	// Prefer the explicit VS Code asset home.
+	// Assets always live under ~/.copilot (unified source for CLI and VS Code).
+	// Explicit --vscode-home or --copilot-home args override the default.
 	if (args.vscodeHome && args.vscodeHome.trim()) {
 		return resolveVscodeHome(args.vscodeHome);
 	}
-
-	// Back-compat: if callers still pass --copilot-home, treat it as the asset root.
-	// This is intentionally NOT the default anymore; ~/.copilot is CLI-only.
 	if (args.copilotHome && args.copilotHome.trim()) {
 		return resolveCopilotHome(args.copilotHome);
 	}
-
 	return resolveVscodeHome(null);
+}
+
+// Keys that represent the old Documents/instruction-engine location (any variant).
+function isStaleLocationKey(k) {
+	const norm = k.replace(/\\/g, '/').toLowerCase();
+	return norm.includes('documents/instruction-engine') || norm.includes('.local/state/instruction-engine');
+}
+
+function removeStaleLocations(settings) {
+	const keys = [
+		'chat.agentFilesLocations',
+		'chat.agentSkillsLocations',
+		'chat.promptFilesLocations',
+		'chat.instructionsFilesLocations'
+	];
+	let changed = false;
+	for (const key of keys) {
+		const val = settings[key];
+		if (!val || typeof val !== 'object' || Array.isArray(val)) continue;
+		for (const k of Object.keys(val)) {
+			if (isStaleLocationKey(k)) {
+				delete val[k];
+				changed = true;
+				console.log(`  (removed stale location: ${k})`);
+			}
+		}
+	}
+	return changed;
 }
 
 function main() {
@@ -481,6 +502,9 @@ function main() {
 
 		const settings = readJsonc(settingsPath);
 		let changed = false;
+
+		// Remove stale Documents/instruction-engine entries before adding the correct ~/.copilot paths.
+		changed = removeStaleLocations(settings) || changed;
 
 		changed = ensureLocationEnabled(settings, 'chat.agentFilesLocations', desired.agents) || changed;
 		changed = ensureLocationEnabled(settings, 'chat.agentSkillsLocations', desired.skills) || changed;

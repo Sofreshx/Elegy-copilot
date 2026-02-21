@@ -345,7 +345,7 @@
         "skillInstaller.state.root": {
           "type": "string",
           "default": "",
-          "description": "Absolute path to the central Instruction Engine state root for VS Code (sessions, repo-state, tasks). Leave empty to use a platform default (Windows/macOS: ~/Documents/instruction-engine; Linux: ~/.local/state/instruction-engine)."
+          "description": "Absolute path to the central Instruction Engine state root for VS Code (sessions, repo-state, tasks). Leave empty to use the platform default (~/.copilot)."
         },
         "skillInstaller.registry.fileName": {
           "type": "string",

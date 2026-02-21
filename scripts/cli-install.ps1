@@ -27,12 +27,7 @@ function Get-VscodeHome {
 	return [System.IO.Path]::GetFullPath($env:INSTRUCTION_ENGINE_VSCODE_HOME)
   }
 
-  if ($IsLinux) {
-    return (Join-Path $HOME '.local/state/instruction-engine')
-  }
-
-  # Windows + macOS
-  return (Join-Path (Join-Path $HOME 'Documents') 'instruction-engine')
+  return (Join-Path $HOME '.copilot')
 }
 
 function Confirm-NodeAvailable {
@@ -221,15 +216,11 @@ if (-not $DoCli -and -not $DoVscode) {
 }
 
 $engineRoot = Get-EngineRoot
-$cliRoot = Join-Path $engineRoot '.cli'
-if (-not (Test-Path -LiteralPath $cliRoot)) {
-  throw "Missing folder: $cliRoot"
-}
 $srcAssetsRoot = Join-Path $engineRoot 'engine-assets'
 $srcAgentsRoot = Join-Path $srcAssetsRoot 'agents'
 $srcSkillsRoot = Join-Path $srcAssetsRoot 'skills'
 $srcPromptsRoot = Join-Path $srcAssetsRoot 'prompts'
-$srcInstructions = Join-Path $cliRoot 'instructions\copilot-instructions.md'
+$srcInstructions = Join-Path $srcAssetsRoot 'copilot-instructions.md'
 $srcVscodeInstructions = Join-Path $engineRoot '.github\copilot-instructions.md'
 
 if ($DoCli) {
@@ -274,7 +265,7 @@ if ($DoCli) {
     Sync-Directory $_.FullName $dstDir -DryRun:$DryRun -Force:$Force
   }
 
-  # .cli\instructions\copilot-instructions.md -> <copilotHome>\copilot-instructions.md
+  # engine-assets/copilot-instructions.md -> <copilotHome>\copilot-instructions.md
   $dstInstructions = Join-Path $copilotHome 'copilot-instructions.md'
   Sync-File $srcInstructions $dstInstructions -DryRun:$DryRun -Force:$Force
 }

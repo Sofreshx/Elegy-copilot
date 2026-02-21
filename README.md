@@ -1,124 +1,36 @@
-# 🤖 Instruction Engine
+# Instruction Engine
 
-> Structured Copilot agent orchestration for multi-repo development.
+Shared GitHub Copilot agents, skills, and workflow conventions for multi-repo development. Provides structured orchestration so planning, implementation, testing, and reviews stay consistent across all your projects.
 
-[![Copilot Compatible](https://img.shields.io/badge/Copilot-Compatible-blue?logo=github)](https://docs.github.com/en/copilot)
+## How it works
 
-Instruction Engine provides shared agents, skills, templates, and workflow conventions that can be reused across repositories. It is designed to keep planning, execution, testing, and task memory consistent when working with GitHub Copilot Chat.
+All assets (agents, skills, prompts, instructions) are installed from `engine-assets/` into `~/.copilot`. Both **VS Code Copilot Chat** and the **Copilot CLI** discover assets from that single location — no per-repo setup needed.
 
-## What lives here
-
-### Core engine assets
-
-- `engine-assets/agents/` — custom agents (orchestrator, testing, security, infra, review)
-- `engine-assets/skills/` — domain skills (`SKILL.md` per skill)
-- `engine-assets/prompts/` — VS Code prompt files (`*.prompt.md`)
-- `.github/templates/` — task/progress and hook templates
-- `.github/copilot-instructions.md` — shared operating rules used across repos
-
-### Runtime/tooling components
-
-- `RannIA/` — VS Code extension (Instruction Engine host)
-- `local-tracker/` — local daemon for session/task tracking
-
-## Discord remote control (Messaging Gateway)
-
-Run Copilot agent sessions from Discord and stream session updates back into a Discord thread.
-
-**How it works (local-only):**
-- Discord → `local-tracker` Messaging Gateway
-- Messaging Gateway → Copilot CLI ACP server (`copilot --acp --port <PORT>`)
-- Gateway streams session progress + permission prompts back into Discord threads
-
-### Prerequisites
-- Node.js (for `local-tracker`)
-- Copilot CLI installed and authenticated
-- A Discord bot token + a server (guild) where the bot is installed
-- Discord IDs (numeric): guild ID, channel ID, allowlisted user IDs
-
-### Setup (recommended path)
-
-0) **Create a Discord bot + gather IDs**
-- Create a Discord application + bot in the Discord Developer Portal
-- Install the bot into your guild (server)
-- Enable Discord **Developer Mode** and copy the numeric IDs you’ll need:
-  - Guild ID, Channel ID, your User ID
-
-1) **Create the gateway config (non-secret)**
-- Create/update: `~/.instruction-engine/messaging-gateway.config.json`
-- Use `local-tracker/docs/messaging-gateway.config.example.json` as a template
-- Ensure it contains:
-  - `acp.port` (must match the `copilot --acp --port <PORT>` you start)
-  - `discord.allowlistedUserIds` (your Discord user ID(s))
-  - `discord.guildId`, `discord.channelId`
-  - Optional: `discord.permissionsChannelId` (permission prompts in a separate channel)
-  - `workspaces.allowedRoots` (absolute paths), `workspaces.activeRoot`
-
-2) **Store secrets in OS credential store**
-- Store the Discord bot token:
-  - `npm --prefix local-tracker run dev:gateway -- --store-discord-bot-token`
-
-3) **Start Copilot CLI in ACP mode (connected mode)**
-```bash
-copilot --acp --port 3000
 ```
-
-4) **Start the Messaging Gateway**
-```bash
-cd local-tracker
-npm install
-npm run build
-npm run start:gateway -- --mode connected
+engine-assets/  →  ~/.copilot/
+  agents/           agents/
+  skills/           skills/
+  prompts/          prompts/
+  copilot-instructions.md   copilot-instructions.md
 ```
-
-For a deeper reference (config fields, auth model, troubleshooting), see `local-tracker/docs/messaging-gateway.md`.
-
-### Using it from Discord
-- `/status` — gateway status
-- `/sessions` — list recent sessions (connected mode)
-- `/task prompt:<text>` — run work via `@orchestrator` (creates a thread + streams updates)
-- `/plan prompt:<text>` — plan-only via `@orchestrator`
-- `/stop sessionid:<id>` — cancel a running session
-- `/git`, `/workspaces`, `/switch` — workspace/gitrepo utilities
-
-**Notes**
-- Connected mode requires a local ACP server (Copilot CLI `--acp`).
-- Never commit tokens; use the keychain commands (or env vars as a fallback for local dev only).
-- For safety, `/task` and `/plan` currently enforce **one active invoke session per user** (`maxActiveInvokeSessionsPerUser=1`, WU-002 contract). If you need true multi-session invoking, a safe default is `2` (update the WU-002 contract + tests accordingly).
 
 ## Quick start
 
-### 0) Install globally (recommended)
+### Install assets
 
-Installs:
-- **Copilot CLI assets** into `~/.copilot` (CLI-only)
-- **VS Code Copilot Chat assets** into the **VS Code user asset home** (default: `~/Documents/instruction-engine` on Windows/macOS; `~/.local/state/instruction-engine` on Linux)
-
-Then patches VS Code settings (`chat.*Locations`) so agents/skills/prompts/instructions are discoverable from **any repo**, without adding this repo to your workspace.
-
-Windows (PowerShell):
+**Windows (PowerShell):**
 ```powershell
 pwsh -File scripts/cli-install.ps1 --all --force
 ```
 
-macOS/Linux (bash):
+**macOS / Linux:**
 ```bash
 ./scripts/cli-install.sh --all --force
 ```
 
-Verify in VS Code:
-- Chat view → right-click → **Diagnostics** (shows loaded agents/skills/prompts and their locations)
+This copies all agents, skills, prompts, and the global instructions file into `~/.copilot`.
 
-Verify in Copilot CLI:
-- Start `copilot` and run `/agents`, `/skills`
-
-### 1) Add the engine to your workspace
-
-Not required for day-to-day usage.
-
-If you want to **contribute** to agents/skills/prompts, add it as a submodule (or open this repo directly) and edit `engine-assets/*`.
-
-### 2) Enable subagent delegation in VS Code
+### Enable subagent delegation in VS Code
 
 ```json
 {
@@ -126,87 +38,139 @@ If you want to **contribute** to agents/skills/prompts, add it as a submodule (o
 }
 ```
 
-### 3) Initialize project-local memory/task structure
+### Verify
 
-In Copilot Chat, run:
+- VS Code Chat → right-click → **Diagnostics** (shows loaded agents/skills/prompts)
+- Copilot CLI: run `/agents`, `/skills`
 
-```text
-Legacy note: repo-local .instructions/.instructions-output are being phased out.
+---
 
-VS Code (RannIA) now stores sessions + repo-state (tasks/enablement/audits) in a central folder
-outside your repos (default: ~/Documents/instruction-engine).
+## Asset inventory
+
+| Type | Count | Location |
+|------|-------|----------|
+| Agents | 32 | `engine-assets/agents/*.agent.md` |
+| Skills | 40 | `engine-assets/skills/<name>/SKILL.md` |
+| Prompts | 3 | `engine-assets/prompts/*.prompt.md` |
+| Instructions | 1 | `engine-assets/copilot-instructions.md` |
+| Manifest | — | `engine-assets/manifest.json` |
+
+---
+
+## Key agents
+
+| Agent | Purpose |
+|-------|---------|
+| `@orchestrator` | Main entry point — routes tasks by complexity, delegates to specialised agents |
+| `@code-explorer` | Read-only codebase analysis and Q&A |
+| `@code-architect` | Designs feature architectures from existing patterns |
+| `@impl-business` | Implements app/domain work units (endpoints, services, UI) |
+| `@impl-infra` | Implements infra work units (CI, Docker, config, deployments) |
+| `@elegy-planner` | Hierarchical planning — calls `@elegy-direction` (high-level) + `@elegy-subplanner` (parallel work units) |
+| `@code-reviewer` | Bug, logic, and security review |
+| `@unit-test-runner` | Runs unit tests safely with timeouts |
+| `@security-scanner` | Scans for OWASP/endpoint vulnerabilities |
+| `@agent-governor` | Creates/audits agent `.agent.md` files |
+
+---
+
+## State location
+
+Everything lives under `~/.copilot`:
+
+```
+~/.copilot/
+  agents/               installed agent files
+  skills/               installed skill folders
+  prompts/              installed prompt files
+  copilot-instructions.md
+  session-state/        Copilot session logs and plans
+  sessions-archive/     archived sessions
+  repo-state/           per-repo task/artefact state
 ```
 
-Central VS Code state (default):
+Override the default location with `skillInstaller.state.root` in VS Code settings, or pass `--copilot-home` to the dashboard server.
 
-- `~/Documents/instruction-engine/session-state/<id>/...`
-- `~/Documents/instruction-engine/repo-state/<repoId>/...`
-- `~/Documents/instruction-engine/sessions-archive/...`
+---
 
-VS Code user assets (default):
+## Dashboard (local UI)
 
-- `~/Documents/instruction-engine/agents/*.agent.md`
-- `~/Documents/instruction-engine/skills/<skill>/SKILL.md`
-- `~/Documents/instruction-engine/prompts/*.prompt.md`
-- `~/Documents/instruction-engine/copilot-instructions.md`
-
-### 4) Recommended `.gitignore` (legacy)
-
-```gitignore
-# Legacy repo-local state (deprecated)
-.instructions/
-.instructions-output/
-```
-
-## Execution patterns
-
-- **Unified execution:** `@orchestrator` (plan → implement → verify)
-- **Validation/testing:** `@unit-test-runner`, `@integration-test-runner`, `@e2e-browser`
-- **Quality/security:** `@code-reviewer`, `@security-auditor`, `@security-scanner`, `@security-fixer`
-
-## Current inventory (repo snapshot)
-
-Canonical assets live under `engine-assets/*`.
-
-To re-check counts locally:
+A local Node.js dashboard to view sessions, sync assets, and manage your `~/.copilot` installation.
 
 ```bash
-find engine-assets/agents -maxdepth 1 -name '*.agent.md' | wc -l
-find engine-assets/skills -mindepth 1 -maxdepth 1 -type d | wc -l
+# Direct
+node copilot-ui/server.js
+
+# Via helper scripts
+scripts/cli-ui.ps1          # Windows
+./scripts/cli-ui.sh         # macOS/Linux
 ```
 
-## Repository layout
+Open: http://127.0.0.1:3210
 
-```text
+The server binds to `127.0.0.1` only — do not expose to untrusted networks.
+
+---
+
+## Repo layout
+
+```
 instruction-engine/
-├── .github/
-│   ├── templates/
-│   └── copilot-instructions.md
 ├── engine-assets/
-│   ├── agents/
-│   ├── skills/
-│   └── prompts/
-├── .instructions/           # this repo's own task/context memory
-├── .instructions-output/    # legacy generated artifacts/logs (deprecated)
-├── docs/
-├── local-tracker/
-├── RannIA/
+│   ├── agents/             agent .agent.md files (source of truth)
+│   ├── skills/             skill folders with SKILL.md
+│   ├── prompts/            *.prompt.md files
+│   ├── copilot-instructions.md
+│   └── manifest.json       installable asset list
+├── copilot-ui/             local dashboard (Node.js, not installed)
+├── local-tracker/          session/task tracking daemon + Discord gateway
+├── RannIA/                 VS Code extension (Instruction Engine host)
+├── scripts/
+│   ├── cli-install.ps1/.sh install scripts
+│   └── cli-ui.ps1/.sh      dashboard launch scripts
+├── docs/                   architecture docs and playbooks
+└── .github/
+    ├── copilot-instructions.md  (repo-level instructions for this repo)
+    └── templates/
 ```
+
+---
+
+## Discord remote control
+
+Run Copilot sessions from Discord via the Messaging Gateway in `local-tracker/`.
+
+**Quick setup:**
+1. Create a Discord bot and gather guild/channel/user IDs
+2. Configure `~/.copilot/messaging-gateway.config.json` (use `local-tracker/docs/messaging-gateway.config.example.json` as template)
+3. Store bot token: `npm --prefix local-tracker run dev:gateway -- --store-discord-bot-token`
+4. Start Copilot CLI in ACP mode: `copilot --acp --port 3000`
+5. Start gateway: `cd local-tracker && npm run start:gateway -- --mode connected`
+
+Key Discord commands: `/task`, `/plan`, `/sessions`, `/stop`, `/status`
+
+See `local-tracker/docs/messaging-gateway.md` for full reference.
+
+---
+
+## Contributing
+
+1. Edit agents in `engine-assets/agents/` (flat `.agent.md` files)
+2. Edit skills in `engine-assets/skills/<name>/SKILL.md`
+3. Update `engine-assets/manifest.json` if adding new assets
+4. Keep `engine-assets/copilot-instructions.md` concise — it loads into every Copilot session
+5. Document behaviour changes in `docs/`
+
+---
 
 ## Documentation
 
-- [Copilot CLI Adoption Playbook](docs/copilot-cli-playbook.md)
+- [Copilot CLI Playbook](docs/copilot-cli-playbook.md)
 - [Agents vs Skills](docs/agents-vs-skills.md)
 - [Agent Architecture Simplicity](docs/agent-architecture-simplicity.md)
 - [Agent Hooks](docs/agent-hooks.md)
 - [Skills Governance](docs/skills-governance.md)
 - [MCP Workflow](docs/mcp-workflow.md)
 - [Security Model](docs/security-model.md)
+- [Elegy Model Audit](docs/elegy-model-audit.md)
 - [Instruction Changelog](docs/instruction-changelog.md)
-
-## Contributing
-
-1. Add/update agent files in `engine-assets/agents/`.
-2. Add/update skills in `engine-assets/skills/<skill>/SKILL.md`.
-3. Keep shared operating guidance in `.github/copilot-instructions.md` concise and stable.
-4. Update docs under `docs/` when behavior/workflows change.

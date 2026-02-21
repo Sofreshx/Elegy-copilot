@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$server = Join-Path $repoRoot '.cli\ui\server.js'
+$server = Join-Path $repoRoot 'copilot-ui\server.js'
 
 if (-not (Test-Path -LiteralPath $server)) {
   throw "Missing server entrypoint: $server"

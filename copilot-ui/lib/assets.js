@@ -2,12 +2,6 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-function normalizeTarget(target) {
-  const t = String(target || '').trim().toLowerCase();
-  if (t === 'vscode' || t === 'vs-code' || t === 'vs') return 'vscode';
-  return 'cli';
-}
-
 function resolveUnder(baseAbs, relPath) {
   if (typeof relPath !== 'string' || relPath.length === 0) {
     throw new Error('Path must be a non-empty string');
@@ -121,7 +115,7 @@ function readTextFileSafe(absPath, maxBytes) {
 
 function loadManifest(engineRoot) {
   const rootAbs = path.resolve(engineRoot);
-  const manifestPath = path.join(rootAbs, '.cli', 'manifest.json');
+  const manifestPath = path.join(rootAbs, 'engine-assets', 'manifest.json');
   const raw = fs.readFileSync(manifestPath, 'utf8');
   const manifest = JSON.parse(raw);
 
@@ -132,34 +126,18 @@ function loadManifest(engineRoot) {
     ...manifest,
     _manifestPath: manifestPath,
     _engineRoot: rootAbs,
-    _cliRoot: path.join(rootAbs, '.cli'),
   };
 }
 
-function resolveAssetSourceForTarget(asset, target) {
-  const t = normalizeTarget(target);
-  if (t === 'vscode' && asset && asset.type === 'instructions' && asset.id === 'copilot-instructions') {
-    // VS Code installs use the repo’s VS Code instructions source.
-    return '.github/copilot-instructions.md';
-  }
-  return asset.source;
-}
-
 function getAssetPaths(engineRoot, destinationHome, asset, opts) {
-  const target = normalizeTarget(opts && opts.target);
   const engineAbs = path.resolve(engineRoot);
   const homeAbs = path.resolve(destinationHome);
-  const cliRoot = path.join(engineAbs, '.cli');
 
-  // Sources are expected to be relative to the instruction-engine repo root.
-  // e.g. ".github/agents/..." or ".cli/instructions/...".
-  // (We keep cliRoot computed for legacy debugging / future extension.)
-  void cliRoot;
-  const sourceRel = resolveAssetSourceForTarget(asset, target);
+  const sourceRel = asset.source;
   const sourceAbs = resolveUnder(engineAbs, sourceRel);
   const destinationAbs = resolveUnder(homeAbs, asset.destination);
 
-  return { engineAbs, homeAbs, cliRoot, sourceAbs, destinationAbs, target, sourceRel };
+  return { engineAbs, homeAbs, sourceAbs, destinationAbs, sourceRel };
 }
 
 function listInstalledAgents(home) {
@@ -221,11 +199,10 @@ function getInstalledInstructions(home) {
   }
 }
 
-function getManagedAssetStatuses(engineRoot, destinationHome, opts) {
-  const target = normalizeTarget(opts && opts.target);
+function getManagedAssetStatuses(engineRoot, destinationHome) {
   const manifest = loadManifest(engineRoot);
   return manifest.assets.map((asset) => {
-    const { sourceAbs, destinationAbs, sourceRel } = getAssetPaths(engineRoot, destinationHome, asset, { target });
+    const { sourceAbs, destinationAbs, sourceRel } = getAssetPaths(engineRoot, destinationHome, asset);
     const sourceHash = sha256PathHex(sourceAbs);
     const installed = fs.existsSync(destinationAbs);
     const destinationHash = installed ? sha256PathHex(destinationAbs) : null;
@@ -234,7 +211,7 @@ function getManagedAssetStatuses(engineRoot, destinationHome, opts) {
     return {
       ...asset,
       managed: true,
-      target,
+      
       source: sourceRel,
       sourceAbs,
       destinationAbs,
@@ -247,13 +224,12 @@ function getManagedAssetStatuses(engineRoot, destinationHome, opts) {
 }
 
 function syncAsset(engineRoot, destinationHome, assetId, opts) {
-  const { dryRun = false, force = false, target } = opts || {};
-  const normalizedTarget = normalizeTarget(target);
+  const { dryRun = false, force = false } = opts || {};
   const manifest = loadManifest(engineRoot);
   const asset = manifest.assets.find((a) => a.id === assetId);
   if (!asset) throw new Error(`Unknown assetId: ${assetId}`);
 
-  const { sourceAbs, destinationAbs, sourceRel } = getAssetPaths(engineRoot, destinationHome, asset, { target: normalizedTarget });
+  const { sourceAbs, destinationAbs, sourceRel } = getAssetPaths(engineRoot, destinationHome, asset);
   const sourceHash = sha256PathHex(sourceAbs);
   if (!sourceHash) throw new Error(`Source missing/unreadable: ${sourceAbs}`);
 
@@ -264,7 +240,7 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
     return {
       ...asset,
       managed: true,
-      target: normalizedTarget,
+      
       source: sourceRel,
       sourceAbs,
       destinationAbs,
@@ -280,7 +256,7 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
     return {
       ...asset,
       managed: true,
-      target: normalizedTarget,
+      
       source: sourceRel,
       sourceAbs,
       destinationAbs,
@@ -297,7 +273,7 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
     return {
       ...asset,
       managed: true,
-      target: normalizedTarget,
+      
       source: sourceRel,
       sourceAbs,
       destinationAbs,
@@ -339,7 +315,7 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
   return {
     ...asset,
     managed: true,
-    target: normalizedTarget,
+    
     source: sourceRel,
     sourceAbs,
     destinationAbs,
@@ -435,7 +411,7 @@ function removeAsset(destinationHome, asset, opts) {
 }
 
 module.exports = {
-  normalizeTarget,
+  
   loadManifest,
   listInstalledAgents,
   listInstalledSkills,

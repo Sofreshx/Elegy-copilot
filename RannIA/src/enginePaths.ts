@@ -28,12 +28,7 @@ function expandHome(p: string): string {
 }
 
 function defaultStateRoot(): string {
-	const home = os.homedir();
-	if (process.platform === 'win32' || process.platform === 'darwin') {
-		return path.join(home, 'Documents', 'instruction-engine');
-	}
-	// Linux and everything else: prefer XDG-ish state dir.
-	return path.join(home, '.local', 'state', 'instruction-engine');
+	return path.join(os.homedir(), '.copilot');
 }
 
 export function resolveStateRoot(): string {
