@@ -14,4 +14,8 @@ Then request plan review from BOTH:
 - @reviewer-opus-4-6
 - @reviewer-gpt-5-3-codex
 
-Revise the plan until both reviewers explicitly say APPROVED.
+Review loop rules:
+- Reviewers MUST return a strict line: `Verdict: APPROVED | NEEDS_REVISION | BLOCKED`.
+- Revise the plan until both reviewers return `Verdict: APPROVED`.
+- If a reviewer returns `Verdict: BLOCKED`, ask the user the smallest set of clarifying questions (batch via `vscode/askQuestions`) to unblock — then revise.
+- If the plan is not 100% confident (missing info, tradeoffs, risky assumptions), ask the user whether to proceed anyway, rather than looping forever.

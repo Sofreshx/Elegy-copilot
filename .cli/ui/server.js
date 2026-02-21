@@ -25,10 +25,11 @@ function createChangeTracker(copilotHomeAbs, vscodeHomeAbs) {
     timer = setTimeout(bump, 150);
   }
 
-  function tryWatch(dirAbs) {
+  function tryWatch(dirAbs, opts = {}) {
     try {
       if (!fs.existsSync(dirAbs) || !fs.statSync(dirAbs).isDirectory()) return;
-      const w = fs.watch(dirAbs, { persistent: false }, () => scheduleBump());
+      const recursive = Boolean(opts.recursive);
+      const w = fs.watch(dirAbs, { persistent: false, recursive }, () => scheduleBump());
       watchers.push(w);
     } catch {
       // best-effort
@@ -38,7 +39,7 @@ function createChangeTracker(copilotHomeAbs, vscodeHomeAbs) {
   // Watch the primary folders users care about.
   // Also watch the Copilot home root so newly created folders (agents/skills) trigger updates.
   tryWatch(copilotHomeAbs);
-  tryWatch(path.join(copilotHomeAbs, 'session-state'));
+  tryWatch(path.join(copilotHomeAbs, 'session-state'), { recursive: true });
   tryWatch(path.join(copilotHomeAbs, 'agents'));
   tryWatch(path.join(copilotHomeAbs, 'skills'));
   tryWatch(path.join(copilotHomeAbs, 'prompts'));
@@ -46,8 +47,8 @@ function createChangeTracker(copilotHomeAbs, vscodeHomeAbs) {
   // VS Code session store (separate root)
   if (vscodeHomeAbs) {
     tryWatch(vscodeHomeAbs);
-    tryWatch(path.join(vscodeHomeAbs, 'session-state'));
-    tryWatch(path.join(vscodeHomeAbs, 'sessions-archive'));
+    tryWatch(path.join(vscodeHomeAbs, 'session-state'), { recursive: true });
+    tryWatch(path.join(vscodeHomeAbs, 'sessions-archive'), { recursive: true });
     // VS Code installed assets (non-recursive watch; best-effort)
     tryWatch(path.join(vscodeHomeAbs, 'agents'));
     tryWatch(path.join(vscodeHomeAbs, 'skills'));
@@ -308,6 +309,145 @@ function readJsonFileSafe(filePath) {
   }
 }
 
+function looksLikePlanText(text) {
+  const t = String(text || '');
+  return (
+    t.includes('# Plan Pack') ||
+    t.includes('Plan Pack —') ||
+    t.includes('# Plan-Pack Progress Tracker') ||
+    t.includes('## Work Unit Specs')
+  );
+}
+
+function extractPlanFromText(text) {
+  const t = String(text || '');
+  if (!looksLikePlanText(t)) return null;
+  // Store/display the full blob; avoid brittle slicing/parsing.
+  return t;
+}
+
+function readTextFileIfExists(absPath, maxBytes) {
+  return assets.readTextFileSafe(absPath, maxBytes);
+}
+
+function listPlanArtifacts(sessionDirAbs) {
+  const sessionDir = path.resolve(sessionDirAbs);
+  const results = [];
+
+  const planPath = path.join(sessionDir, 'plan.md');
+  const finalPath = path.join(sessionDir, 'final.md');
+  const plansDir = path.join(sessionDir, 'plans');
+  const indexPath = path.join(plansDir, 'index.json');
+  const metaPath = path.join(sessionDir, 'meta.json');
+
+  const meta = readJsonFileSafe(metaPath);
+  const sessionStatus = meta && typeof meta.status === 'string' ? meta.status : null;
+
+  if (fs.existsSync(planPath) && fs.statSync(planPath).isFile()) {
+    const st = fs.statSync(planPath);
+    results.push({
+      id: 'latest',
+      kind: 'latest',
+      status: null,
+      source: 'plan.md',
+      bytes: st.size,
+      updatedMs: st.mtimeMs,
+      sessionStatus,
+    });
+  }
+
+  // Prefer an explicit plans index if present.
+  const index = readJsonFileSafe(indexPath);
+  if (index && typeof index === 'object' && !Array.isArray(index) && Array.isArray(index.plans)) {
+    for (const p of index.plans) {
+      if (!p || typeof p !== 'object') continue;
+      const id = p.id;
+      const file = p.file;
+      if (typeof id !== 'string' || !id) continue;
+      if (typeof file !== 'string' || !file) continue;
+      const abs = path.join(plansDir, file);
+      if (!fs.existsSync(abs) || !fs.statSync(abs).isFile()) continue;
+      const st = fs.statSync(abs);
+      results.push({
+        id,
+        kind: 'revision',
+        status: typeof p.status === 'string' ? p.status : null,
+        verdict: typeof p.verdict === 'string' ? p.verdict : null,
+        source: `plans/${file}`,
+        bytes: st.size,
+        updatedMs: st.mtimeMs,
+        sessionStatus,
+      });
+    }
+    return results;
+  }
+
+  // Fallback: list plans/*.md if present.
+  try {
+    if (fs.existsSync(plansDir) && fs.statSync(plansDir).isDirectory()) {
+      const entries = fs.readdirSync(plansDir, { withFileTypes: true });
+      for (const e of entries) {
+        if (!e.isFile() || !e.name.toLowerCase().endsWith('.md')) continue;
+        const abs = path.join(plansDir, e.name);
+        const st = fs.statSync(abs);
+        results.push({
+          id: e.name.replace(/\.md$/i, ''),
+          kind: 'revision',
+          status: null,
+          source: `plans/${e.name}`,
+          bytes: st.size,
+          updatedMs: st.mtimeMs,
+          sessionStatus,
+        });
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // If no plan.md exists, offer a derived plan from final.md (display-only).
+  if (!results.some((r) => r.id === 'latest')) {
+    const finalText = readTextFileIfExists(finalPath, 2 * 1024 * 1024);
+    const derived = finalText ? extractPlanFromText(finalText) : null;
+    if (derived) {
+      results.push({
+        id: 'derived-from-final',
+        kind: 'derived',
+        status: sessionStatus && sessionStatus !== 'completed' ? 'dropped' : null,
+        source: 'final.md',
+        bytes: Buffer.byteLength(derived, 'utf8'),
+        updatedMs: fs.existsSync(finalPath) ? fs.statSync(finalPath).mtimeMs : null,
+        sessionStatus,
+      });
+    }
+  }
+
+  return results;
+}
+
+function readPlanArtifact(sessionDirAbs, planId) {
+  const sessionDir = path.resolve(sessionDirAbs);
+  const id = String(planId || '').trim();
+  if (!id) return null;
+
+  const planPath = path.join(sessionDir, 'plan.md');
+  const finalPath = path.join(sessionDir, 'final.md');
+  const plansDir = path.join(sessionDir, 'plans');
+
+  if (id === 'latest') {
+    return readTextFileIfExists(planPath, 2 * 1024 * 1024);
+  }
+
+  if (id === 'derived-from-final') {
+    const finalText = readTextFileIfExists(finalPath, 2 * 1024 * 1024);
+    return finalText ? extractPlanFromText(finalText) : null;
+  }
+
+  // revision id: map to plans/<id>.md
+  const abs = path.join(plansDir, `${id}.md`);
+  return readTextFileIfExists(abs, 2 * 1024 * 1024);
+}
+
 function backupFile(filePath) {
   const dir = path.dirname(filePath);
   const base = path.basename(filePath);
@@ -446,6 +586,45 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
       const home = resolveSessionsHome(source, copilotHome, vscodeHome);
       const planPath = path.join(path.resolve(home.home), 'session-state', id, 'plan.md');
       const text = assets.readTextFileSafe(planPath, 512 * 1024);
+      if (text == null) {
+        sendText(res, 404, 'Not found');
+        return;
+      }
+      sendText(res, 200, text, 'text/plain; charset=utf-8');
+      return;
+    }
+  }
+
+  {
+    const m = pathname.match(/^\/api\/sessions\/([^/]+)\/plans$/);
+    if (req.method === 'GET' && m) {
+      const id = decodeURIComponent(m[1]);
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
+      try {
+        if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
+          sendJson(res, 404, { error: 'Session not found', id, source: home.source });
+          return;
+        }
+        const plans = listPlanArtifacts(sessionDir);
+        sendJson(res, 200, { id, source: home.source, plans });
+      } catch (e) {
+        sendJson(res, 400, { error: String(e.message || e), id, source: home.source });
+      }
+      return;
+    }
+  }
+
+  {
+    const m = pathname.match(/^\/api\/sessions\/([^/]+)\/plans\/([^/]+)$/);
+    if (req.method === 'GET' && m) {
+      const id = decodeURIComponent(m[1]);
+      const planId = decodeURIComponent(m[2]);
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
+      const text = readPlanArtifact(sessionDir, planId);
       if (text == null) {
         sendText(res, 404, 'Not found');
         return;

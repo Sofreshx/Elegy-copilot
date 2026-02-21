@@ -88,6 +88,11 @@ export class SessionManager implements vscode.Disposable {
 	private readonly output: vscode.OutputChannel;
 	private eventEmitter?: ExtensionEventEmitter;
 
+	// Best-effort artifact persistence (plan snapshots) during a running session.
+	private readonly artifactWriteTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	private readonly lastPlanSha256BySession = new Map<string, string>();
+	private readonly lastPlanWriteMsBySession = new Map<string, number>();
+
 	// Limit total sessions to prevent memory bloat
 	private static readonly MAX_SESSIONS = 100;
 
@@ -172,6 +177,9 @@ export class SessionManager implements vscode.Disposable {
 			type: 'response',
 			data,
 		});
+
+		// Persist plan artifacts opportunistically during the session so they aren't lost on cancellation/crash.
+		this.scheduleArtifactWrite(sessionId);
 	}
 
 	/**
@@ -270,6 +278,9 @@ export class SessionManager implements vscode.Disposable {
 
 		this.output.appendLine(`[Session] Completed: ${sessionId}`);
 
+		// Finalize artifacts (plan verdict/status) before writing the session log.
+		this.flushArtifactWrite(sessionId, { finalize: true });
+
 		// Write session log to disk (non-blocking)
 		this.writeSessionLog(sessionId).catch((err) => {
 			this.output.appendLine(`[Session] Failed to write log: ${err}`);
@@ -300,6 +311,9 @@ export class SessionManager implements vscode.Disposable {
 
 		this.output.appendLine(`[Session] Failed: ${sessionId} - ${error}`);
 
+		// Finalize artifacts (mark as dropped/not-approved) before writing the session log.
+		this.flushArtifactWrite(sessionId, { finalize: true });
+
 		// Write session log to disk (non-blocking)
 		this.writeSessionLog(sessionId).catch((err) => {
 			this.output.appendLine(`[Session] Failed to write log: ${err}`);
@@ -325,7 +339,170 @@ export class SessionManager implements vscode.Disposable {
 		this.addEvent(sessionId, { timestamp: new Date(), type: 'cancelled' });
 		this.output.appendLine(`[Session] Cancelled: ${sessionId}`);
 
+		// Persist whatever we have so far (including partial plan output).
+		this.flushArtifactWrite(sessionId, { finalize: true });
+		this.writeSessionLog(sessionId).catch((err) => {
+			this.output.appendLine(`[Session] Failed to write log (cancelled): ${err}`);
+		});
+
 		return true;
+	}
+
+	private scheduleArtifactWrite(sessionId: string): void {
+		const session = this.sessions.get(sessionId);
+		if (!session) return;
+		if (!session.response || session.response.length < 200) return;
+
+		// Only attempt artifact persistence for responses that plausibly contain a plan.
+		const agentHint = (session.agentName || '').toLowerCase();
+		const responseHint = this.looksLikePlanText(session.response);
+		if (!(responseHint || agentHint.includes('planner'))) return;
+
+		const existing = this.artifactWriteTimers.get(sessionId);
+		if (existing) clearTimeout(existing);
+
+		const t = setTimeout(() => {
+			this.artifactWriteTimers.delete(sessionId);
+			this.flushArtifactWrite(sessionId, { finalize: false });
+		}, 400);
+		this.artifactWriteTimers.set(sessionId, t);
+	}
+
+	private flushArtifactWrite(sessionId: string, opts: { finalize: boolean }): void {
+		const session = this.sessions.get(sessionId);
+		if (!session || !session.response) return;
+
+		try {
+			const planText = this.extractPlanArtifactText(session.response);
+			if (!planText) return;
+
+			const sha = crypto.createHash('sha256').update(planText, 'utf8').digest('hex');
+			const lastSha = this.lastPlanSha256BySession.get(sessionId);
+			const now = Date.now();
+			const lastWrite = this.lastPlanWriteMsBySession.get(sessionId) ?? 0;
+
+			// Throttle writes: avoid hammering the disk on rapid streaming chunks.
+			if (!opts.finalize && lastSha === sha && now - lastWrite < 1500) return;
+
+			const sessionDir = getSessionDir(session.id);
+			fs.mkdirSync(sessionDir, { recursive: true });
+
+			this.writePlanArtifacts(sessionId, sessionDir, planText, { finalize: opts.finalize });
+			this.lastPlanSha256BySession.set(sessionId, sha);
+			this.lastPlanWriteMsBySession.set(sessionId, now);
+		} catch {
+			// best-effort persistence only
+		}
+	}
+
+	private looksLikePlanText(text: string): boolean {
+		const t = text;
+		return (
+			t.includes('# Plan Pack') ||
+			t.includes('Plan Pack —') ||
+			t.includes('# Plan-Pack Progress Tracker') ||
+			t.includes('## Work Unit Specs')
+		);
+	}
+
+	private extractPlanArtifactText(fullResponse: string): string | null {
+		if (!this.looksLikePlanText(fullResponse)) return null;
+		// For now: store the full response. The planner output is expected to be "Plan Pack" + "Progress Tracker" + handoff.
+		// (We avoid brittle parsing here; the dashboard can still render a full markdown blob.)
+		const maxBytes = 2 * 1024 * 1024; // 2MB cap
+		const buf = Buffer.from(fullResponse, 'utf8');
+		if (buf.length <= maxBytes) return fullResponse;
+		return buf.subarray(0, maxBytes).toString('utf8') + '\n\n…(truncated)\n';
+	}
+
+	private extractPlanReviewVerdict(planText: string): string | null {
+		const m = planText.match(/^[ \t]*Plan Review Verdict:[ \t]*([A-Z_\-]+)[ \t]*$/m);
+		if (m && m[1]) return String(m[1]).trim();
+
+		// Fallback heuristics.
+		const approvedCount = (planText.match(/^[ \t]*Verdict:[ \t]*APPROVED\b/mg) || []).length;
+		const blockedCount = (planText.match(/^[ \t]*Verdict:[ \t]*BLOCKED\b/mg) || []).length;
+		const needsCount = (planText.match(/^[ \t]*Verdict:[ \t]*NEEDS_REVISION\b/mg) || []).length;
+		if (approvedCount >= 2 && blockedCount === 0 && needsCount === 0) return 'APPROVED';
+		if (blockedCount > 0) return 'NOT_APPROVED';
+		if (needsCount > 0) return 'NOT_APPROVED';
+		return null;
+	}
+
+	private writePlanArtifacts(sessionId: string, sessionDir: string, planText: string, opts: { finalize: boolean }): void {
+		// Latest plan pointer
+		try {
+			fs.writeFileSync(path.join(sessionDir, 'plan.md'), planText, 'utf-8');
+		} catch {
+			// ignore
+		}
+
+		// Revisioned plan snapshots (for UI browsing / dropped plan recovery)
+		const plansDir = path.join(sessionDir, 'plans');
+		try {
+			fs.mkdirSync(plansDir, { recursive: true });
+		} catch {
+			return;
+		}
+
+		const indexPath = path.join(plansDir, 'index.json');
+		let index: any = null;
+		try {
+			if (fs.existsSync(indexPath) && fs.statSync(indexPath).isFile()) {
+				index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+			}
+		} catch {
+			index = null;
+		}
+		if (!index || typeof index !== 'object' || Array.isArray(index)) {
+			index = { schemaVersion: 1, sessionId, updatedAt: new Date().toISOString(), plans: [] as any[] };
+		}
+		if (!Array.isArray(index.plans)) index.plans = [];
+
+		let active = index.plans.find((p: any) => p && p.status === 'active');
+		if (!active) {
+			const id = `rev-0001`;
+			active = {
+				id,
+				file: `${id}.md`,
+				status: 'active',
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+				bytes: 0,
+				sha256: null,
+				verdict: null,
+			};
+			index.plans.push(active);
+		}
+
+		const outPath = path.join(plansDir, String(active.file || `${active.id}.md`));
+		try {
+			fs.writeFileSync(outPath, planText, 'utf-8');
+			const sha = crypto.createHash('sha256').update(planText, 'utf8').digest('hex');
+			active.sha256 = sha;
+			active.bytes = Buffer.byteLength(planText, 'utf8');
+			active.updatedAt = new Date().toISOString();
+			if (opts.finalize) {
+				const verdict = this.extractPlanReviewVerdict(planText);
+				active.verdict = verdict;
+				if (verdict === 'APPROVED') {
+					active.status = 'approved';
+				} else if (verdict === 'USER_APPROVED_WITH_RISKS') {
+					active.status = 'user-approved-with-risks';
+				} else {
+					active.status = 'dropped';
+				}
+			}
+		} catch {
+			// ignore
+		}
+
+		index.updatedAt = new Date().toISOString();
+		try {
+			fs.writeFileSync(indexPath, JSON.stringify(index, null, 2) + '\n', 'utf-8');
+		} catch {
+			// ignore
+		}
 	}
 
 	/**
@@ -530,6 +707,16 @@ export class SessionManager implements vscode.Disposable {
 
 		if (session.response) {
 			await fs.promises.writeFile(path.join(sessionDir, 'final.md'), session.response, 'utf-8');
+
+			// Best-effort: also persist a plan artifact if the response contains one.
+			try {
+				const planText = this.extractPlanArtifactText(session.response);
+				if (planText) {
+					this.writePlanArtifacts(sessionId, sessionDir, planText, { finalize: true });
+				}
+			} catch {
+				// ignore
+			}
 		}
 
 		this.output.appendLine(`[Session] Log written: ${sessionDir.replace(/\\/g, '/')}`);

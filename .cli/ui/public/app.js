@@ -125,6 +125,7 @@ async function selectSession(s) {
 
   $('session-detail').classList.remove('muted');
   $('session-detail').textContent = '';
+  $('session-plans').textContent = '';
   $('session-plan').textContent = '';
   $('session-final').textContent = '';
   $('session-agent-usage').textContent = '';
@@ -143,14 +144,52 @@ async function selectSession(s) {
 
   setStatus(`Loading plan/events for ${s.id}…`);
   const source = encodeURIComponent(String(s.source || sessionSource || 'cli'));
-  const [plan, finalOut, agentUsage, evs] = await Promise.all([
-    api(`/api/sessions/${encodeURIComponent(s.id)}/plan?source=${source}`).catch(() => ''),
+  const [plansIndex, finalOut, agentUsage, evs] = await Promise.all([
+    api(`/api/sessions/${encodeURIComponent(s.id)}/plans?source=${source}`).catch(() => ({ plans: [] })),
     api(`/api/sessions/${encodeURIComponent(s.id)}/final?source=${source}`).catch(() => ''),
     api(`/api/sessions/${encodeURIComponent(s.id)}/agent-usage?limit=500&source=${source}`).catch(() => ({ usage: {} })),
     api(`/api/sessions/${encodeURIComponent(s.id)}/events?limit=20&source=${source}`).catch(() => ({ events: [] })),
   ]);
 
-  $('session-plan').textContent = String(plan || '').slice(0, 5000);
+  const plans = (plansIndex && plansIndex.plans) || [];
+  function planLabel(p) {
+    const status = p && p.status ? String(p.status) : '';
+    const verdict = p && p.verdict ? String(p.verdict) : '';
+    const parts = [p.id];
+    if (status) parts.push(status);
+    if (verdict && verdict !== status) parts.push(verdict);
+    return parts.join(' • ');
+  }
+
+  async function loadPlan(planId) {
+    const txt = await api(`/api/sessions/${encodeURIComponent(s.id)}/plans/${encodeURIComponent(planId)}?source=${source}`).catch(() => '');
+    $('session-plan').textContent = String(txt || '');
+  }
+
+  $('session-plans').textContent = '';
+  for (const p of plans) {
+    if (!p || !p.id) continue;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'item';
+    btn.innerHTML = `<div class="item-title"></div><div class="item-sub muted"></div>`;
+    btn.querySelector('.item-title').textContent = planLabel(p);
+    const meta = [p.kind, p.source, p.bytes ? `${p.bytes} bytes` : null].filter(Boolean).join(' • ');
+    btn.querySelector('.item-sub').textContent = meta;
+    btn.addEventListener('click', () => loadPlan(p.id));
+    $('session-plans').appendChild(btn);
+  }
+  if (!plans.length) {
+    const d = document.createElement('div');
+    d.className = 'muted';
+    d.textContent = '(no plan artifacts found)';
+    $('session-plans').appendChild(d);
+  } else {
+    // Auto-load the best default: latest > first.
+    const preferred = plans.find((p) => p.id === 'latest') || plans[0];
+    if (preferred && preferred.id) await loadPlan(preferred.id);
+  }
+
   $('session-final').textContent = String(finalOut || '').slice(0, 8000);
 
   const usage = (agentUsage && agentUsage.usage) || {};
@@ -428,6 +467,7 @@ function bindUi() {
     $('btn-delete-session').disabled = true;
     $('session-detail').textContent = 'Select a session.';
     $('session-detail').classList.add('muted');
+    $('session-plans').textContent = '';
     $('session-plan').textContent = '';
     $('session-final').textContent = '';
     $('session-agent-usage').textContent = '';

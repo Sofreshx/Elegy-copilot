@@ -82,6 +82,7 @@ Use this exact heading order and include all sections:
 ## Context Loaded
 ## Assumptions + Constraints
 ## Decisions
+## Dropped / Deferred
 ## Work Unit Groups
 ## Work Unit Graph
 ## Work Unit Index
@@ -97,6 +98,12 @@ Use this exact heading order and include all sections:
 ## Risks / Rollback
 ## Validation
 ```
+
+### Dropped / Deferred (required)
+Under `## Dropped / Deferred`, include 0+ bullets. Each bullet MUST include:
+- the idea/option that was considered
+- why it was dropped/deferred
+- whether it is safe to revisit later (and what would need to change)
 
 ### Required Tables
 - **Work Unit Graph**: Group | Work Unit ID | Title | Depends On | Next Units | Parallel Safe
