@@ -76,10 +76,18 @@ function evTime(ev) {
 
 function switchTab(tab) {
   const sessions = tab === 'sessions';
+  const assets = tab === 'assets';
+  const lsp = tab === 'lsp';
   $('tab-sessions').classList.toggle('active', sessions);
-  $('tab-assets').classList.toggle('active', !sessions);
+  $('tab-assets').classList.toggle('active', assets);
+  $('tab-lsp').classList.toggle('active', lsp);
   $('view-sessions').classList.toggle('hidden', !sessions);
-  $('view-assets').classList.toggle('hidden', sessions);
+  $('view-assets').classList.toggle('hidden', !assets);
+  $('view-lsp').classList.toggle('hidden', !lsp);
+  
+  if (lsp) {
+    loadLspConfig();
+  }
 }
 
 async function loadSessions() {
@@ -450,9 +458,48 @@ async function authorizeCopilotFolders() {
   setStatus('Authorization setup attempted.');
 }
 
+async function loadLspConfig() {
+  setStatus('Loading LSP config…');
+  try {
+    const data = await api('/api/lsp/config');
+    $('lsp-config-viewer').textContent = JSON.stringify(data.config, null, 2);
+    $('lsp-config-meta').textContent = 'Loaded successfully.';
+    setStatus('LSP config loaded.');
+  } catch (e) {
+    $('lsp-config-viewer').textContent = String(e);
+    $('lsp-config-meta').textContent = 'Error loading config.';
+    setStatus('Error loading LSP config.');
+  }
+}
+
+async function installLsp() {
+  const ok = window.confirm('This will run the installation script for C#, Rust, and TypeScript language servers. Continue?');
+  if (!ok) return;
+  
+  setStatus('Installing LSPs (this may take a minute)…');
+  $('lsp-install-logs').textContent = 'Installing...';
+  $('lsp-install-logs').classList.remove('muted');
+  
+  try {
+    const res = await api('/api/lsp/install', { method: 'POST', body: JSON.stringify({}) });
+    let logs = '';
+    if (res.stdout) logs += res.stdout + '\n';
+    if (res.stderr) logs += res.stderr + '\n';
+    if (res.error) logs += 'ERROR: ' + res.error + '\n';
+    
+    $('lsp-install-logs').textContent = logs || 'Done.';
+    setStatus('LSP installation finished.');
+    await loadLspConfig();
+  } catch (e) {
+    $('lsp-install-logs').textContent = String(e);
+    setStatus('Error installing LSPs.');
+  }
+}
+
 function bindUi() {
   $('tab-sessions').addEventListener('click', () => switchTab('sessions'));
   $('tab-assets').addEventListener('click', () => switchTab('assets'));
+  $('tab-lsp').addEventListener('click', () => switchTab('lsp'));
   $('btn-reload').addEventListener('click', () => window.location.reload());
 
   $('btn-refresh-sessions').addEventListener('click', () => loadSessions().catch((e) => setStatus(e.message)));
@@ -535,6 +582,9 @@ function bindUi() {
   $('tab-assets-vscode').addEventListener('click', () => setAssetsTarget('vscode'));
   $('btn-vscode-patch-settings').addEventListener('click', () => patchVscodeSettings().catch((e) => setStatus(e.message)));
   $('btn-copilot-authorize').addEventListener('click', () => authorizeCopilotFolders().catch((e) => setStatus(e.message)));
+
+  $('btn-refresh-lsp').addEventListener('click', () => loadLspConfig().catch((e) => setStatus(e.message)));
+  $('btn-install-lsp').addEventListener('click', () => installLsp().catch((e) => setStatus(e.message)));
 }
 
 async function boot() {

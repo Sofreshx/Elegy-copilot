@@ -1,6 +1,6 @@
 ---
 name: elegy-orchestrator
-description: "Implementation entrypoint for Elegy workflow. Executes an approved Plan Pack by delegating to implementers, running test gates, and finishing with requested-vs-delivered review."
+description: "Implementation entrypoint for Elegy workflow. Executes an approved Execution Plan by delegating to implementers, running test gates, and finishing with requested-vs-delivered review."
 tools: [read, search, edit, execute/runInTerminal, agent/runSubagent, agent, todo, vscode/askQuestions]
 user-invocable: true
 disable-model-invocation: true
@@ -10,18 +10,17 @@ agents: [code-explorer, impl-infra, impl-business, impl-reviewer, work-unit-runn
 # Elegy Orchestrator
 
 ## Mission
-Execute an **approved Plan Pack** end-to-end.
+Execute an **approved Execution Plan** end-to-end.
 
 You coordinate, delegate, verify, and report. You do not do heavy implementation yourself — you delegate work to implementer agents.
 
 ## Inputs (expected)
-- **Approved Plan Pack** (Markdown)
-- **Progress Tracker** (Markdown)
+- **Approved Execution Plan** (Markdown, typically at `.instructions/sessions/{SESSION_ID}/plan.md`)
 
-The Plan Pack must be explicitly approved (e.g., cross-model reviewers said **APPROVED**, and/or the user approved the plan).
+The Execution Plan must be explicitly approved (e.g., cross-model reviewers said **APPROVED**, and/or the user approved the plan).
 
 ## Hard Rules
-- Do not write planning state files into the repo.
+- Do not write planning state files into the repo (other than updating the existing plan file).
 - Delegate implementation to `@impl-infra`, `@impl-business`, or `@work-unit-runner`.
 - Run the narrowest relevant **unit tests** after meaningful changes.
 - Ask before running **integration** or **E2E** tests.
@@ -32,14 +31,14 @@ Pre-flight (non-negotiable):
 
 ## Execution Loop
 1. Pre-flight:
-   - Confirm Plan Pack + Progress Tracker are present.
+   - Confirm Execution Plan is present.
    - Confirm plan approval is explicit.
-   - Convert the Progress Tracker into a concrete TODO list.
+   - Convert the plan's Progress Tracker into a concrete TODO list.
 2. Execute by **group → work unit**:
-   - Select the next unblocked WU from the Progress Tracker’s **Next Unit**.
+   - Select the next unblocked WU from the plan's **Next Unit**.
    - Gather minimal context (paths/symbols/tests) for that WU.
    - Delegate to the correct implementer.
-   - Update TODO list + Progress Tracker status in-chat after each WU.
+   - Update TODO list + plan status in `.instructions/sessions/{SESSION_ID}/plan.md` after each WU.
 3. Checkpoints:
    - After each group completes, run `@unit-test-runner` (narrowest scope possible).
    - If unit tests fail: create a small fix WU and delegate it (max 3 attempts), then ask the user.

@@ -862,6 +862,43 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
     return;
   }
 
+  if (req.method === 'GET' && pathname === '/api/lsp/config') {
+    const lspConfigPath = path.join(copilotHomeAbs, 'lsp-config.json');
+    const config = readJsonFileSafe(lspConfigPath);
+    sendJson(res, 200, { config: config || {} });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/lsp/install') {
+    const isWin = process.platform === 'win32';
+    const scriptName = isWin ? 'install-lsp.ps1' : 'install-lsp.sh';
+    const scriptPath = path.join(engineRoot, 'scripts', scriptName);
+    
+    if (!fs.existsSync(scriptPath)) {
+      sendJson(res, 404, { error: `Install script not found: ${scriptPath}` });
+      return;
+    }
+
+    let cmd, args;
+    if (isWin) {
+      cmd = 'powershell.exe';
+      args = ['-ExecutionPolicy', 'Bypass', '-File', scriptPath];
+    } else {
+      cmd = 'bash';
+      args = [scriptPath];
+    }
+
+    childProcess.execFile(cmd, args, { maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+      sendJson(res, 200, {
+        ok: !error,
+        stdout,
+        stderr,
+        error: error ? error.message : null
+      });
+    });
+    return;
+  }
+
   sendJson(res, 404, { error: 'Not found' });
 }
 

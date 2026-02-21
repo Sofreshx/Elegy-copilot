@@ -12,6 +12,7 @@
       <nav class="tabs">
         <button id="tab-sessions" class="tab active" type="button">Sessions</button>
         <button id="tab-assets" class="tab" type="button">Assets</button>
+        <button id="tab-lsp" class="tab" type="button">LSP</button>
       </nav>
       <div class="spacer"></div>
       <button id="btn-reload" type="button" class="btn">Reload</button>
@@ -118,6 +119,19 @@
         <h2>Viewer</h2>
         <div id="viewer-meta" class="muted"></div>
         <pre id="viewer" class="pre"></pre>
+      </section>
+
+      <section id="view-lsp" class="view hidden">
+        <div class="toolbar">
+          <button id="btn-refresh-lsp" class="btn" type="button">Refresh LSP Config</button>
+          <button id="btn-install-lsp" class="btn" type="button">Install Default LSPs (C#, Rust, TS)</button>
+        </div>
+        <h2>LSP Configuration (~/.copilot/lsp-config.json)</h2>
+        <div id="lsp-config-meta" class="muted"></div>
+        <pre id="lsp-config-viewer" class="pre"></pre>
+        
+        <h2>Install Logs</h2>
+        <pre id="lsp-install-logs" class="pre muted">No logs yet.</pre>
       </section>
     </main>
 

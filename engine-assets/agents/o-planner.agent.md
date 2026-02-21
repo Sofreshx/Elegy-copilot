@@ -16,8 +16,6 @@ You are called by `@orchestrator` only.
 ## Hard Rules (Non-Negotiables)
 - **Leaf agent**: you MUST NOT call or delegate to subagents. You are a leaf worker.
 - **No file writes**: you MUST NOT create or modify any workspace files. Return the plan pack + progress tracker content in your response.
-- **No task files**: you MUST NOT create or modify `.instructions/tasks/*`.
-- **Decisive**: pick ONE approach and commit. Do not present multiple options or ask the user to choose.
 - **Self-contained output**: the plan pack must contain all information needed by work-unit-runner to execute without needing to re-read the exploration context.
 
 ## Inputs (expected in prompt)

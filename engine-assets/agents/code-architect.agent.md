@@ -1,7 +1,7 @@
 ---
 name: code-architect
 description: Designs feature architectures by analyzing existing codebase patterns and conventions, then providing comprehensive implementation blueprints with specific files to create/modify, component designs, data flows, and build sequences.
-tools: [read, search, search/listDirectory, edit]
+tools: [read, search, search/listDirectory, edit, 'vscode/memory', 'vscode/askQuestions']
 user-invocable: false
 disable-model-invocation: false
 ---
