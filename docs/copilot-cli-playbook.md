@@ -450,7 +450,10 @@ playwright test --headed=false
 - Test data is seeded and isolated
 - Ports are available and not conflicting
 
-**Example setup script:**
+**Example setup script (illustrative only):**
+
+This repo does not ship `scripts/start-e2e-env.sh` / `scripts/stop-e2e-env.sh` because E2E environment setup is project-specific.
+For browser automation defaults and routing, see [e2e-setup-guide.md](./e2e-setup-guide.md).
 
 ```bash
 #!/bin/bash
@@ -474,8 +477,10 @@ echo "E2E environment ready"
 ## E2E Testing
 Before running E2E tests:
 1. Run `./scripts/start-e2e-env.sh`
-2. Run `npx playwright test --headed=false`
-3. After tests: `./scripts/stop-e2e-env.sh`
+2. Run either:
+  - Agent-driven UI smoke checks: `@e2e-validator` (agent-browser CLI), or
+  - Scripted regression suite: `npx playwright test --headed=false`
+3. After tests (if applicable): `./scripts/stop-e2e-env.sh`
 ```
 
 ### Command Policy Integration

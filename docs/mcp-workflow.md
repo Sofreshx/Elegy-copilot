@@ -133,8 +133,8 @@ discovery or targeted updates.
 
 - Copilot coding agents can only use MCP tools (no unattended external browsing
   or OAuth flows). See GitHub docs: https://docs.github.com/en/copilot/concepts/agents/coding-agent/mcp-and-coding-agent
-- Playwright MCP setups assume a local MCP/test server (for example, localhost).
-  See the Playwright/E2E guidance in [e2e-setup-guide.md](e2e-setup-guide.md).
+- Browser E2E automation in this repo is CLI-first (agent-browser for agent-driven smoke/validation, and Playwright CLI/test runner for scripted suites), not MCP-first.
+  See: [e2e-setup-guide.md](e2e-setup-guide.md).
 - Remote OAuth flows are not reliably automatable for remote agents. Prefer
   CI PATs or pre-authorized non-interactive tokens for CI or remote use.
 

@@ -26,6 +26,11 @@ The Execution Plan must be explicitly approved (e.g., cross-model reviewers said
 - Ask before running **integration** or **E2E** tests.
 - Always end by running `@final-reviewer` (requested vs delivered).
 
+## Testing & E2E Routing
+
+- **UI smoke / health validation** → delegate to `@e2e-validator` (agent-browser CLI via `@e2e-browser`).
+- **Run an existing Playwright test suite** → delegate to `@integration-test-runner` (headless, non-interactive, bounded timeout).
+
 Pre-flight (non-negotiable):
 - If the input plan is not clearly marked as **approved**, stop and ask for approval confirmation (or return to planning).
 

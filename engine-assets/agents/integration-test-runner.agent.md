@@ -41,6 +41,16 @@ Execute integration tests safely with explicit timeouts and environment guards. 
 
 ## Recommended Commands
 
+### Playwright (E2E Suite)
+```bash
+# Headless / one-shot (avoid --ui/--debug)
+npx playwright test --headed=false
+
+# Or constrain to Chromium
+npx playwright test --project=chromium --headed=false
+```
+Timeout: 600000ms+ (adjust to suite size)
+
 ### .NET (Integration)
 ```bash
 RUN_INTEGRATION_TESTS=1 ALLOW_TEST_AUTH=true ASPNETCORE_ENVIRONMENT=Test \

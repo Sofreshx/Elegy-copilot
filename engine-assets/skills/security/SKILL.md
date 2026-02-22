@@ -19,15 +19,8 @@ description: "Security review and vulnerability detection. Checks secure coding 
 - Auth feature implementation ? `auth.agent.md`
 - Performance issues ? `performance-auditer.agent.md`
 
-## Inputs
-- Code to review for security.
-- `../../contexts/auth.context.md` (if auth-related).
-- `../../contexts/security.context.md` (Secrets management standards).
-- `../../warnings.md` (known security issues).
-- Dependency list (for known vulnerabilities).
-
 ## Steps
-1. Read security-relevant contexts (`../../contexts/security.context.md`) and existing warnings.
+1. Read security-relevant contexts in /docs or /documentation and existing warnings.
 2. **Audit Secrets Infrastructure**:
    - **Git**: Verify `.env` is in `.gitignore`.
    - **.NET**: Check `.csproj` for `<UserSecretsId>` (enforce User Secrets).
@@ -46,7 +39,6 @@ description: "Security review and vulnerability detection. Checks secure coding 
    - **Medium**: Limited exploitability or impact
    - **Low**: Theoretical or minimal impact
 5. Provide specific remediation for each finding.
-6. For critical/high, add to `.instructions/raw.tasks.md` with priority flag.
 
 ## Security Review Output Format
 ```markdown

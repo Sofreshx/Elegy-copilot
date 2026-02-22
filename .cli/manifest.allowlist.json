@@ -32,13 +32,12 @@
     "work-unit-runner"
   ],
   "skills": [
+    "agent-browser",
     "alba-integration-tests",
     "aspire-apphost",
     "aspire-deployment",
     "code-review",
     "csharp-expert",
-    "debug",
-    "deployment-compose",
     "frontend",
     "marten-documents",
     "marten-linq-querying",
@@ -46,7 +45,6 @@
     "react-query",
     "security",
     "stack-detector",
-    "terraform",
     "testing-dotnet-unit",
     "testing-frontend-unit",
     "wolverine-core",

@@ -436,7 +436,7 @@ async function syncAll() {
 async function patchVscodeSettings() {
   if (assetsTarget !== 'vscode') return;
   const ok = window.confirm(
-    'Patch VS Code user settings (chat.*Locations) to point at the VS Code asset home?\n\nThis edits settings.json and creates a backup.'
+    'Patch VS Code user settings (chat.*Locations) to point at the VS Code asset home and install safe terminal auto-approvals (chat.tools.terminal.autoApprove)?\n\nThis edits settings.json and creates a backup.'
   );
   if (!ok) return;
   setStatus('Patching VS Code settings…');
@@ -448,7 +448,7 @@ async function patchVscodeSettings() {
 
 async function authorizeCopilotFolders() {
   const ok = window.confirm(
-    'Authorize Copilot tool access for:\n\n- ~/.copilot\n\nThis updates ~/.copilot/permissions-config.json and creates a backup if needed.'
+    'Authorize Copilot tool access for:\n\n- ~/.copilot (and common subfolders)\n\nThis updates ~/.copilot/permissions-config.json (read/write/memory) and creates a backup if needed.'
   );
   if (!ok) return;
   setStatus('Authorizing Copilot folders…');

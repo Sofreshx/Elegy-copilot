@@ -81,7 +81,7 @@ To make GitHub login work locally for Mobile Companion, you will need:
 ## Recommended Local Testing Strategy (Near-Term)
 - Use desktop browser testing with the Mobile dev server for UI flows.
 - For connectivity, implement a pairing/token issuance path in the extension, or add a relay adapter that translates Mobile messages into extension JSON-RPC.
-- Use Playwright E2E for UI smoke checks (see [docs/e2e-setup-guide.md](docs/e2e-setup-guide.md)).
+- Use E2E browser smoke checks (CLI-first; agent-browser default) — see [e2e-setup-guide.md](e2e-setup-guide.md).
 
 ## Questions to Resolve Before Full Local E2E
 - Should Mobile speak directly to the extension (same protocol), or should relay be the strict integration point?

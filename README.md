@@ -53,7 +53,7 @@ This copies all agents, skills, prompts, and the global instructions file into `
 | Skills | 40 | `engine-assets/skills/<name>/SKILL.md` |
 | Prompts | 3 | `engine-assets/prompts/*.prompt.md` |
 | Instructions | 1 | `engine-assets/copilot-instructions.md` |
-| Manifest | — | `engine-assets/manifest.json` |
+| Manifest (install/shipping) | — | `.cli/manifest.json` |
 
 ---
 
@@ -110,6 +110,18 @@ Open: http://127.0.0.1:3210
 
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.
 
+### Reducing Copilot permission prompts
+
+If VS Code/Copilot keeps prompting to “allow access” for `~/.copilot`, it’s usually one of two things:
+
+- **Custom assets location** (agents/skills/prompts/instructions): VS Code reads these via `chat.*Locations` settings (e.g. `chat.agentSkillsLocations`).
+- **Agent tool access** (reading/writing outside the workspace): approvals are stored in `~/.copilot/permissions-config.json`.
+
+The dashboard buttons map to those two mechanisms:
+
+- **Patch VS Code settings**: sets `chat.agentFilesLocations`, `chat.agentSkillsLocations`, `chat.promptFilesLocations`, `chat.instructionsFilesLocations`, and also installs a conservative `chat.tools.terminal.autoApprove` set.
+- **Authorize Copilot folders**: patches `~/.copilot/permissions-config.json` to pre-approve read/write/memory for `~/.copilot` and common subfolders.
+
 ---
 
 ## Repo layout
@@ -121,7 +133,9 @@ instruction-engine/
 │   ├── skills/             skill folders with SKILL.md
 │   ├── prompts/            *.prompt.md files
 │   ├── copilot-instructions.md
-│   └── manifest.json       installable asset list
+├── .cli/
+│   ├── manifest.allowlist.json  shipped agents/skills/prompts allowlist
+│   └── manifest.json            generated install/shipping manifest
 ├── copilot-ui/             local dashboard (Node.js, not installed)
 ├── local-tracker/          session/task tracking daemon + Discord gateway
 ├── RannIA/                 VS Code extension (Instruction Engine host)
@@ -157,7 +171,7 @@ See `local-tracker/docs/messaging-gateway.md` for full reference.
 
 1. Edit agents in `engine-assets/agents/` (flat `.agent.md` files)
 2. Edit skills in `engine-assets/skills/<name>/SKILL.md`
-3. Update `engine-assets/manifest.json` if adding new assets
+3. If adding new assets to ship by default, update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`
 4. Keep `engine-assets/copilot-instructions.md` concise — it loads into every Copilot session
 5. Document behaviour changes in `docs/`
 

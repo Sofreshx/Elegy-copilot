@@ -466,7 +466,22 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
     root.locations = {};
   }
 
-  const desired = [copilotHome, vscodeHome].filter(Boolean);
+  const subdirs = ['agents', 'skills', 'prompts', 'session-state', 'repo-state', 'sessions-archive'];
+  const desired = [];
+  const seen = new Set();
+  for (const base of [copilotHome, vscodeHome].filter(Boolean)) {
+    const baseAbs = path.resolve(base);
+    if (!seen.has(baseAbs)) {
+      seen.add(baseAbs);
+      desired.push(baseAbs);
+    }
+    for (const sub of subdirs) {
+      const abs = path.join(baseAbs, sub);
+      if (seen.has(abs)) continue;
+      seen.add(abs);
+      desired.push(abs);
+    }
+  }
   let changed = false;
 
   for (const loc of desired) {
@@ -480,6 +495,7 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
       changed = true;
     }
 
+    changed = ensureApproval(slot.tool_approvals, 'read') || changed;
     changed = ensureApproval(slot.tool_approvals, 'write') || changed;
     changed = ensureApproval(slot.tool_approvals, 'memory') || changed;
   }

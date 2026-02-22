@@ -1,12 +1,8 @@
 ---
 name: agent-browser
-description: >
-	Browser automation CLI for AI agents. Uses Playwright under the hood with a
-	snapshot-ref workflow optimized for deterministic UI exploration and E2E
-	validation. Triggers on: agent-browser, browser automation CLI, snapshot refs,
-	UI exploration, E2E browser testing.
+description: Browser automation CLI for AI agents. Uses Playwright under the hood with a snapshot-ref workflow optimized for deterministic UI exploration and E2E validation. Triggers on: agent-browser, browser automation CLI, snapshot refs, UI exploration, E2E browser testing.
 ---
-
+	
 # agent-browser Skill
 
 Browser automation CLI for AI agents. Uses Playwright under the hood with a client-daemon architecture optimized for LLM workflows.
@@ -174,4 +170,4 @@ agent-browser open "http://localhost:5173/workspace?ws=eyJhY3RpdmVWaWV3Ijoid29ya
 - ❌ Don't use `wait --load networkidle` with SignalR apps
 - ❌ Don't skip `--ignore-https-errors` with Aspire-hosted apps
 - ❌ Don't create `.js` test scripts — agent-browser is CLI-driven, not script-driven
-- ❌ Don't take screenshots at every step unless investigating a failure — follow the screenshot policy in `e2e.config.md`
+- ❌ Don't take screenshots at every step unless investigating a failure — follow the project screenshot policy in `.instructions/e2e.config.md` (if present)

@@ -71,7 +71,7 @@ function main() {
 	const assetsAgents = path.join(assetsRoot, 'agents');
 	const assetsSkills = path.join(assetsRoot, 'skills');
 	const assetsPrompts = path.join(assetsRoot, 'prompts');
-	const cliInstructions = path.join(engineRoot, '.cli', 'instructions', 'copilot-instructions.md');
+	const cliInstructions = path.join(assetsRoot, 'copilot-instructions.md');
 	const allow = loadAllowlist(engineRoot, args);
 
 	if (!fs.existsSync(manifestPath)) {
@@ -135,12 +135,12 @@ function main() {
 		}
 	}
 
-	// Global CLI-first instructions (file)
+	// Global instructions (file)
 	if (fs.existsSync(cliInstructions)) {
 		assets.push({
 			id: 'copilot-instructions',
 			type: 'instructions',
-			source: '.cli/instructions/copilot-instructions.md',
+			source: 'engine-assets/copilot-instructions.md',
 			destination: 'copilot-instructions.md'
 		});
 	}

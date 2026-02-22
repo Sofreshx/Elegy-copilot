@@ -211,7 +211,7 @@ public static async Task Handle(
 - **Sync vs Async**: Prefer `HandleAsync` for I/O operations
 - **Transaction Scope**: `AutoApplyTransactions()` commits Marten session on handler success
 - **Message Types**: Keep messages simple POCOs or records - avoid complex inheritance
-
+- **Official documentation**: https://wolverinefx.net/guide/basics.html entry point for the official documentation if you need to look up more specifics feature or informations
 
 
 

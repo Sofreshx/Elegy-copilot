@@ -321,6 +321,78 @@ function ensureToolApprovalEntry(toolApprovals, entry) {
 	return true;
 }
 
+function ensureTerminalAutoApprove(settings) {
+	const key = 'chat.tools.terminal.autoApprove';
+	const defaults = {
+		// Read-only git commands (safe to approve broadly)
+		"/^git (status|log|rev-parse|ls-files)( .*)?$/": {
+			approve: true,
+			matchCommandLine: true
+		},
+
+		// Version/info commands
+		'git --version': true,
+		'node -v': true,
+		'node --version': true,
+		'npm -v': true,
+		'npm --version': true,
+		'python --version': true,
+		'dotnet --info': true,
+
+		// Common build/test commands (exact match only)
+		'npm run compile': true,
+		'npm run build': true,
+		'npm run test': true,
+		'npm run lint': true,
+		'npx tsc': true,
+		'dotnet build': true,
+		'dotnet test': true
+	};
+
+	let changed = false;
+	if (!settings[key] || typeof settings[key] !== 'object' || Array.isArray(settings[key])) {
+		settings[key] = {};
+		changed = true;
+	}
+
+	const target = settings[key];
+	for (const [k, v] of Object.entries(defaults)) {
+		if (Object.prototype.hasOwnProperty.call(target, k)) continue;
+		target[k] = v;
+		changed = true;
+	}
+
+	return changed;
+}
+
+function uniqueStrings(items) {
+	const out = [];
+	const seen = new Set();
+	for (const item of items) {
+		const s = typeof item === 'string' ? item : null;
+		if (!s) continue;
+		if (seen.has(s)) continue;
+		seen.add(s);
+		out.push(s);
+	}
+	return out;
+}
+
+function defaultCopilotPermissionLocations(copilotHomeAbs, vscodeHomeAbs) {
+	const bases = uniqueStrings([copilotHomeAbs, vscodeHomeAbs].filter(Boolean).map((p) => path.resolve(p)));
+	const subdirs = ['agents', 'skills', 'prompts', 'session-state', 'repo-state', 'sessions-archive'];
+
+	const locations = [];
+	for (const base of bases) {
+		locations.push(base);
+		for (const sub of subdirs) {
+			locations.push(path.join(base, sub));
+		}
+	}
+
+	return uniqueStrings(locations);
+}
+
 function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }) {
 	// Copilot tool approvals are stored under ~/.copilot/permissions-config.json.
 	// The goal here is to avoid repeated VS Code agent prompts for file access.
@@ -332,7 +404,7 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
 		root.locations = {};
 	}
 
-	const desiredLocations = [path.resolve(copilotHomeAbs), path.resolve(vscodeHomeAbs)].filter(Boolean);
+	const desiredLocations = defaultCopilotPermissionLocations(copilotHomeAbs, vscodeHomeAbs);
 	let changed = false;
 
 	for (const loc of desiredLocations) {
@@ -347,7 +419,8 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
 			changed = true;
 		}
 
-		// Default: allow write access and memory operations for these trusted roots.
+		// Default: allow read/write + memory operations for these trusted roots.
+		changed = ensureToolApprovalEntry(slot.tool_approvals, { kind: 'read' }) || changed;
 		changed = ensureToolApprovalEntry(slot.tool_approvals, { kind: 'write' }) || changed;
 		changed = ensureToolApprovalEntry(slot.tool_approvals, { kind: 'memory' }) || changed;
 	}
@@ -510,6 +583,9 @@ function main() {
 		changed = ensureLocationEnabled(settings, 'chat.agentSkillsLocations', desired.skills) || changed;
 		changed = ensureLocationEnabled(settings, 'chat.promptFilesLocations', desired.prompts) || changed;
 		changed = ensureLocationEnabled(settings, 'chat.instructionsFilesLocations', desired.instructions) || changed;
+
+		// Add a conservative auto-approval list for common safe terminal commands.
+		changed = ensureTerminalAutoApprove(settings) || changed;
 
 		if (settings['chat.promptFiles'] !== true) {
 			settings['chat.promptFiles'] = true;

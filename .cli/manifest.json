@@ -224,6 +224,12 @@
       "destination": "prompts/instruction-engine-review.prompt.md"
     },
     {
+      "id": "skill-agent-browser",
+      "type": "skill",
+      "source": "engine-assets/skills/agent-browser",
+      "destination": "skills/agent-browser"
+    },
+    {
       "id": "skill-alba-integration-tests",
       "type": "skill",
       "source": "engine-assets/skills/alba-integration-tests",
@@ -252,18 +258,6 @@
       "type": "skill",
       "source": "engine-assets/skills/csharp-expert",
       "destination": "skills/csharp-expert"
-    },
-    {
-      "id": "skill-debug",
-      "type": "skill",
-      "source": "engine-assets/skills/debug",
-      "destination": "skills/debug"
-    },
-    {
-      "id": "skill-deployment-compose",
-      "type": "skill",
-      "source": "engine-assets/skills/deployment-compose",
-      "destination": "skills/deployment-compose"
     },
     {
       "id": "skill-frontend",
@@ -306,12 +300,6 @@
       "type": "skill",
       "source": "engine-assets/skills/stack-detector",
       "destination": "skills/stack-detector"
-    },
-    {
-      "id": "skill-terraform",
-      "type": "skill",
-      "source": "engine-assets/skills/terraform",
-      "destination": "skills/terraform"
     },
     {
       "id": "skill-testing-dotnet-unit",

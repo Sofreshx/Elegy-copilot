@@ -269,7 +269,9 @@ agent-browser state load .instructions-output/e2e/auth-state.json
 - Identify target project
 - Find base URL and start command
 - Load `.instructions/e2e.config.md` if present
-- Read the `agent-browser` skill: `.github/skills/agent-browser/SKILL.md`
+- Ensure `agent-browser` CLI is available on PATH. If it is missing, stop and report a hard failure with install steps:
+	- `npm install -g agent-browser`
+	- `agent-browser install`
 
 ### 2. Server Phase
 - Check if app is already running (curl base URL)

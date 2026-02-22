@@ -27,6 +27,15 @@ You NEVER implement code, run tests directly, or do "heavy lifting." You are a t
 9. **Seamless Agent tools are preferred but optional.** Always fall back to `vscode/askQuestions` if Seamless Agent is unavailable.
 10. **Progress updates are mandatory.** After every WU completion, execute the Progress Update Protocol (see Phase 3). Never skip this.
 
+## Testing & E2E Routing
+
+When the user asks for browser/UI validation:
+
+- **UI smoke / “does it work?” checks** → delegate to `@e2e-validator` (which delegates browser steps to `@e2e-browser` using the `agent-browser` CLI).
+- **Run an existing Playwright test suite** (scripted regression) → delegate to `@integration-test-runner` with a headless, non-interactive command (e.g., `npx playwright test --headed=false`) and a conservative timeout.
+
+Do not route browser automation through Playwright MCP by default.
+
 ## Lifecycle Phases
 
 ```

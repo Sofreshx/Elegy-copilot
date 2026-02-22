@@ -227,6 +227,9 @@ app.MapWolverineEndpoints(opts =>
 - **Async Preferred**: Use `async Task<T>` for any I/O operations
 - **No [FromBody]**: Wolverine handles binding automatically - don't use ASP.NET Core attributes
 
+- **Official documentation**: https://wolverinefx.net/guide/http/ entry point for the official documentation if you need to look up more specifics feature or informations
+
+
 
 
 

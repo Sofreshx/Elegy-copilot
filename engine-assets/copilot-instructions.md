@@ -6,6 +6,27 @@ This file is intended to be installed to:
 These instructions are optimized for **Copilot CLI** stock modes (**/plan** and **/fleet**) while remaining compatible with VS Code Copilot Chat.
 Assume **both** user-level and repo-level instructions apply; conflicts can be non-deterministic, so explicitly reconcile them (see “Conflicts” below).
 
+## CRITICAL: run_in_terminal MUST NEVER USE isBackground=true
+
+** NEVER DO THIS:**
+```
+run_in_terminal(command: "make build", isBackground: true)  # WRONG! Causes silent failures
+run_in_terminal(command: "git commit", isBackground: true)   # WRONG! Command gets cancelled
+```
+## ALWAYS USE vscode/askQuestion
+When you need clarification from the user, use `vscode/askQuestion` to ask a single, targeted question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
+
+** ALWAYS DO THIS:**
+```
+run_in_terminal(command: "make build", isBackground: false)  # CORRECT
+run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
+```
+**WHY:**
+- `isBackground=true` causes commands to be cancelled/interrupted
+- You won't see output or know if command succeeded
+- Git commits, builds, and all other commands REQUIRE `isBackground=false`
+- This is a HARD REQUIREMENT - violations cause session failure
+
 ## Operating rules (global)
 - Prefer small, verifiable changes.
 - Do **not** change git branches unless explicitly asked.
@@ -13,7 +34,7 @@ Assume **both** user-level and repo-level instructions apply; conflicts can be n
 - If instructions conflict, choose the **safer** interpretation and state what you’re doing.
 
 ## /plan (required workflow)
-When I use **/plan**, you MUST:
+When I use **/plan** OR custom plan agent, you MUST:
 1. Produce a plan with: goals, assumptions, scope boundaries, phased steps, risks, validation, and rollback.
 2. Submit the plan for cross-model review by **BOTH** reviewers:
    - `@reviewer-opus-4-6`
@@ -58,4 +79,8 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   2) then apply the **most specific** instructions for the file/area,
   3) and default to the **safer** option for anything involving security, data loss, or destructive actions.
 - When in doubt, briefly call out the conflict and the resolution you chose, then proceed.
+
+## Main context sources
+- **Repo docs**: `README.md`, `docs/`, `documentation/`,
+assume those might be outdated sometimes, still do check them for high level guidance and constraints.
 
