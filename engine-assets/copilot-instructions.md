@@ -13,8 +13,8 @@ Assume **both** user-level and repo-level instructions apply; conflicts can be n
 run_in_terminal(command: "make build", isBackground: true)  # WRONG! Causes silent failures
 run_in_terminal(command: "git commit", isBackground: true)   # WRONG! Command gets cancelled
 ```
-## ALWAYS USE vscode/askQuestion
-When you need clarification from the user, use `vscode/askQuestion` to ask a single, targeted question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
+## ALWAYS USE vscode/askQuestions
+When you need clarification from the user, use `vscode/askQuestions` to ask a single, targeted question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
 
 ** ALWAYS DO THIS:**
 ```
