@@ -2,6 +2,133 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+function toPosixRelPath(p) {
+  return String(p || '').replace(/\\/g, '/');
+}
+
+function safeReadDir(dirAbs, opts) {
+  try {
+    return fs.readdirSync(dirAbs, opts);
+  } catch {
+    return [];
+  }
+}
+
+function deriveAssetId(type, fileOrDirName) {
+  const n = String(fileOrDirName || '').trim();
+  if (!n) return null;
+  if (type === 'agent') {
+    const base = n.replace(/\.agent\.md$/i, '').replace(/^agent-/, '');
+    return `agent-${base}`;
+  }
+  if (type === 'prompt') {
+    const base = n.replace(/\.prompt\.md$/i, '');
+    return `prompt-${base}`;
+  }
+  if (type === 'skill') {
+    return `skill-${n}`;
+  }
+  return null;
+}
+
+function expandAssetsFromSourcePatterns(manifest, engineRootAbs) {
+  if (!manifest || typeof manifest !== 'object') return manifest;
+
+  const patterns = Array.isArray(manifest.sourcePatterns) ? manifest.sourcePatterns : [];
+  if (!patterns.length) return manifest;
+
+  const assets = Array.isArray(manifest.assets) ? [...manifest.assets] : [];
+  const bySource = new Set();
+  const byDestination = new Set();
+
+  for (const a of assets) {
+    if (!a || typeof a !== 'object') continue;
+    if (typeof a.source === 'string' && a.source.trim()) bySource.add(toPosixRelPath(a.source.trim()));
+    if (typeof a.destination === 'string' && a.destination.trim()) byDestination.add(toPosixRelPath(a.destination.trim()));
+  }
+
+  for (const p of patterns) {
+    if (!p || typeof p !== 'object') continue;
+    const type = String(p.type || '').trim();
+    const sourceGlob = toPosixRelPath(String(p.sourceGlob || '').trim());
+    const destinationDir = toPosixRelPath(String(p.destinationDir || '').trim()).replace(/\/$/, '');
+    if (!type || !sourceGlob || !destinationDir) continue;
+
+    // This is intentionally a minimal glob implementation: it supports only the simple
+    // patterns we publish in engine-assets/manifest.json (flat "*" in final segment).
+    if (sourceGlob === 'engine-assets/agents/*.agent.md' && type === 'agent') {
+      const dirAbs = path.join(engineRootAbs, 'engine-assets', 'agents');
+      const entries = safeReadDir(dirAbs, { withFileTypes: true });
+      for (const e of entries) {
+        if (!e.isFile()) continue;
+        if (!e.name.toLowerCase().endsWith('.agent.md')) continue;
+        const fileName = e.name;
+
+        const source = `engine-assets/agents/${fileName}`;
+        const destination = `${destinationDir}/${fileName}`;
+        if (bySource.has(source) || byDestination.has(destination)) continue;
+
+        const id = deriveAssetId(type, fileName);
+        if (!id) continue;
+        assets.push({ id, type, source, destination });
+        bySource.add(source);
+        byDestination.add(destination);
+      }
+      continue;
+    }
+
+    if (sourceGlob === 'engine-assets/prompts/*.prompt.md' && type === 'prompt') {
+      const dirAbs = path.join(engineRootAbs, 'engine-assets', 'prompts');
+      const entries = safeReadDir(dirAbs, { withFileTypes: true });
+      for (const e of entries) {
+        if (!e.isFile()) continue;
+        if (!e.name.toLowerCase().endsWith('.prompt.md')) continue;
+        const fileName = e.name;
+
+        const source = `engine-assets/prompts/${fileName}`;
+        const destination = `${destinationDir}/${fileName}`;
+        if (bySource.has(source) || byDestination.has(destination)) continue;
+
+        const id = deriveAssetId(type, fileName);
+        if (!id) continue;
+        assets.push({ id, type, source, destination });
+        bySource.add(source);
+        byDestination.add(destination);
+      }
+      continue;
+    }
+
+    if (sourceGlob === 'engine-assets/skills/*' && type === 'skill') {
+      const dirAbs = path.join(engineRootAbs, 'engine-assets', 'skills');
+      const entries = safeReadDir(dirAbs, { withFileTypes: true });
+      for (const e of entries) {
+        if (!e.isDirectory()) continue;
+        const name = e.name;
+        const source = `engine-assets/skills/${name}`;
+        const destination = `${destinationDir}/${name}`;
+        if (bySource.has(source) || byDestination.has(destination)) continue;
+        const id = deriveAssetId(type, name);
+        if (!id) continue;
+        assets.push({ id, type, source, destination });
+        bySource.add(source);
+        byDestination.add(destination);
+      }
+      continue;
+    }
+  }
+
+  assets.sort((a, b) => {
+    const at = String(a.type || '');
+    const bt = String(b.type || '');
+    if (at !== bt) return at.localeCompare(bt);
+    const ad = String(a.destination || '');
+    const bd = String(b.destination || '');
+    return ad.localeCompare(bd);
+  });
+
+  return { ...manifest, assets };
+}
+
 function resolveUnder(baseAbs, relPath) {
   if (typeof relPath !== 'string' || relPath.length === 0) {
     throw new Error('Path must be a non-empty string');
@@ -122,8 +249,9 @@ function loadManifest(engineRoot) {
   if (!manifest || typeof manifest !== 'object') throw new Error('Invalid manifest JSON');
   if (!Array.isArray(manifest.assets)) throw new Error('Manifest missing assets[]');
 
+  const expanded = expandAssetsFromSourcePatterns(manifest, rootAbs);
   return {
-    ...manifest,
+    ...expanded,
     _manifestPath: manifestPath,
     _engineRoot: rootAbs,
   };

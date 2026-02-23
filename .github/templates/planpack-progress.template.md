@@ -4,7 +4,7 @@
 - Session ID:
 - Date:
 - Owner:
-- Plan Pack: .instructions/artefacts/x-PLANPACK-<SESSION_ID>.md
+- Plan Pack: ~/.copilot/session-state/<SESSION_ID>/plan.md
 
 ## Work Unit Groups Overview
 | Group | Title | Status | Depends On |

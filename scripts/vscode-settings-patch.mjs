@@ -455,26 +455,51 @@ function defaultSettingsPaths() {
 	const appData = process.env.APPDATA;
 	const platform = process.platform;
 
+	function profileSettingsUnder(userDir) {
+		try {
+			const profilesDir = path.join(userDir, 'profiles');
+			if (!fs.existsSync(profilesDir) || !fs.statSync(profilesDir).isDirectory()) return [];
+			const entries = fs.readdirSync(profilesDir, { withFileTypes: true });
+			return entries
+				.filter((e) => e.isDirectory())
+				.map((e) => path.join(profilesDir, e.name, 'settings.json'));
+		} catch {
+			return [];
+		}
+	}
+
 	if (platform === 'win32' && appData) {
+		const codeUser = path.join(appData, 'Code', 'User');
+		const insidersUser = path.join(appData, 'Code - Insiders', 'User');
 		return [
-			path.join(appData, 'Code', 'User', 'settings.json'),
-			path.join(appData, 'Code - Insiders', 'User', 'settings.json')
+			path.join(codeUser, 'settings.json'),
+			...profileSettingsUnder(codeUser),
+			path.join(insidersUser, 'settings.json'),
+			...profileSettingsUnder(insidersUser)
 		];
 	}
 
 	if (platform === 'darwin') {
 		const base = path.join(home, 'Library', 'Application Support');
+		const codeUser = path.join(base, 'Code', 'User');
+		const insidersUser = path.join(base, 'Code - Insiders', 'User');
 		return [
-			path.join(base, 'Code', 'User', 'settings.json'),
-			path.join(base, 'Code - Insiders', 'User', 'settings.json')
+			path.join(codeUser, 'settings.json'),
+			...profileSettingsUnder(codeUser),
+			path.join(insidersUser, 'settings.json'),
+			...profileSettingsUnder(insidersUser)
 		];
 	}
 
 	// linux + everything else
 	const base = path.join(home, '.config');
+	const codeUser = path.join(base, 'Code', 'User');
+	const insidersUser = path.join(base, 'Code - Insiders', 'User');
 	return [
-		path.join(base, 'Code', 'User', 'settings.json'),
-		path.join(base, 'Code - Insiders', 'User', 'settings.json')
+		path.join(codeUser, 'settings.json'),
+		...profileSettingsUnder(codeUser),
+		path.join(insidersUser, 'settings.json'),
+		...profileSettingsUnder(insidersUser)
 	];
 }
 
@@ -566,7 +591,8 @@ function main() {
 	if (!existing.length) {
 		console.log('No VS Code settings.json found to patch.');
 		console.log('Pass --settings <path> to patch a specific settings.json.');
-		process.exit(0);
+		// Still patch Copilot tool permissions below (permissions-config.json), as that
+		// is independent from VS Code's chat.*Locations settings file discovery.
 	}
 
 	for (const settingsPath of existing) {
