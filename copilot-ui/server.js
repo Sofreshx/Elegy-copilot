@@ -8,6 +8,7 @@ const childProcess = require('child_process');
 
 const sessions = require('./lib/sessions');
 const assets = require('./lib/assets');
+const planState = require('./lib/planState');
 
 function createChangeTracker(copilotHomeAbs, vscodeHomeAbs) {
   let version = 0;
@@ -649,6 +650,65 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
         return;
       }
       sendText(res, 200, text, 'text/plain; charset=utf-8');
+      return;
+    }
+  }
+
+  {
+    const m = pathname.match(/^\/api\/sessions\/([^/]+)\/structured-state$/);
+    if (req.method === 'GET' && m) {
+      const id = decodeURIComponent(m[1]);
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const planId = u.searchParams.get('planId') || 'latest';
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
+      
+      try {
+        if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
+          sendJson(res, 404, { error: 'Session not found', id, source: home.source });
+          return;
+        }
+        
+        const planText = readPlanArtifact(sessionDir, planId);
+        if (!planText) {
+          sendJson(res, 404, { error: 'Plan artifact not found', id, source: home.source, planId });
+          return;
+        }
+        
+        const structured = planState.parseStructuredState(planText);
+        sendJson(res, 200, {
+          id,
+          source: home.source,
+          planId,
+          ...structured,
+        });
+      } catch (e) {
+        sendJson(res, 400, { error: String(e.message || e), id, source: home.source });
+      }
+      return;
+    }
+  }
+
+  {
+    const m = pathname.match(/^\/api\/sessions\/([^/]+)\/proposition$/);
+    if (req.method === 'GET' && m) {
+      const id = decodeURIComponent(m[1]);
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
+      const propositionPath = path.join(sessionDir, 'proposition.md');
+      
+      const text = assets.readTextFileSafe(propositionPath, 512 * 1024);
+      if (text == null) {
+        sendJson(res, 404, { error: 'Proposition not found', id, source: home.source });
+        return;
+      }
+      
+      sendJson(res, 200, {
+        id,
+        source: home.source,
+        content: text,
+      });
       return;
     }
   }

@@ -54,6 +54,25 @@ function fmtTime(ms) {
   }
 }
 
+function escapeHtml(v) {
+  return String(v ?? '').replace(/[&<>"']/g, (ch) => {
+    switch (ch) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      case "'":
+        return '&#39;';
+      default:
+        return ch;
+    }
+  });
+}
+
 function evType(ev) {
   return (ev && (ev.type || ev.event || ev.name || ev.kind)) || '(unknown)';
 }
@@ -130,6 +149,10 @@ async function selectSession(s) {
   $('session-final').textContent = '';
   $('session-agent-usage').textContent = '';
   $('session-agent-usage').classList.add('muted');
+  $('session-progress').textContent = '';
+  $('session-progress').classList.add('muted');
+  $('session-proposition').textContent = '';
+  $('session-proposition').classList.add('muted');
   $('session-events').textContent = '';
   $('session-detail').innerHTML = `
     <div><b>ID:</b> ${s.id}</div>
@@ -144,11 +167,17 @@ async function selectSession(s) {
 
   setStatus(`Loading plan/events for ${s.id}…`);
   const source = encodeURIComponent(String(s.source || sessionSource || 'cli'));
-  const [plansIndex, finalOut, agentUsage, evs] = await Promise.all([
+  const [plansIndex, finalOut, agentUsage, evs, structuredState, proposition] = await Promise.all([
     api(`/api/sessions/${encodeURIComponent(s.id)}/plans?source=${source}`).catch(() => ({ plans: [] })),
     api(`/api/sessions/${encodeURIComponent(s.id)}/final?source=${source}`).catch(() => ''),
     api(`/api/sessions/${encodeURIComponent(s.id)}/agent-usage?limit=500&source=${source}`).catch(() => ({ usage: {} })),
     api(`/api/sessions/${encodeURIComponent(s.id)}/events?limit=20&source=${source}`).catch(() => ({ events: [] })),
+    api(`/api/sessions/${encodeURIComponent(s.id)}/structured-state?source=${source}`).catch(() => null),
+    api(`/api/sessions/${encodeURIComponent(s.id)}/proposition?source=${source}`).catch((e) => {
+      const msg = String((e && e.message) || '');
+      if (msg.startsWith('404')) return null;
+      return { error: msg };
+    }),
   ]);
 
   const plans = (plansIndex && plansIndex.plans) || [];
@@ -191,6 +220,56 @@ async function selectSession(s) {
   }
 
   $('session-final').textContent = String(finalOut || '').slice(0, 8000);
+
+  // Render progress (WU-008)
+  if (structuredState && structuredState.groups) {
+    $('session-progress').classList.remove('muted');
+    let progressHtml = '';
+    
+    // Groups overview
+     if (Array.isArray(structuredState.groups) && structuredState.groups.length > 0) {
+       progressHtml += '<div class="progress-section"><b>Work Unit Groups:</b></div>';
+       for (const g of structuredState.groups) {
+         const status = g.status || 'unknown';
+         const done = g.wusDone || 0;
+         const total = g.wusTotal || 0;
+         const statusClass = status === 'done' ? 'status-done' : status === 'in-progress' ? 'status-in-progress' : 'status-pending';
+         progressHtml += `<div class="progress-item"><span class="badge ${statusClass}">${escapeHtml(status)}</span> ${escapeHtml(g.group || '?')}: ${escapeHtml(g.title || '(untitled)')} (${escapeHtml(done)}/${escapeHtml(total)})</div>`;
+       }
+     }
+     
+     // Next unit
+     if (structuredState.nextUnit && typeof structuredState.nextUnit === 'object' && structuredState.nextUnit.workUnitId) {
+       const nu = structuredState.nextUnit;
+       const rationale = nu.rationale ? ` — ${escapeHtml(nu.rationale)}` : '';
+       progressHtml += `<div class="progress-section"><b>Next Unit:</b> ${escapeHtml(nu.workUnitId)}${rationale}</div>`;
+     }
+     
+     // Checkpoints
+     if (Array.isArray(structuredState.checkpoints) && structuredState.checkpoints.length > 0) {
+       progressHtml += '<div class="progress-section"><b>Checkpoints:</b></div>';
+       for (const cp of structuredState.checkpoints) {
+         const cpStatus = String(cp.status || 'pending').toLowerCase();
+         const statusClass = cpStatus === 'passed' ? 'status-done' : cpStatus === 'failed' ? 'status-failed' : cpStatus === 'skipped' ? 'status-skipped' : 'status-pending';
+         progressHtml += `<div class="progress-item"><span class="badge ${statusClass}">${escapeHtml(cpStatus)}</span> ${escapeHtml(cp.checkpoint || '?')} (${escapeHtml(cp.trigger || 'manual')})</div>`;
+       }
+     }
+    
+    $('session-progress').innerHTML = progressHtml || '(no progress data)';
+  } else {
+    $('session-progress').textContent = '(no progress data)';
+  }
+
+  // Render proposition (WU-009)
+  if (proposition && proposition.error) {
+    $('session-proposition').textContent = `Error: ${proposition.error}`;
+  } else if (proposition && proposition.content) {
+    $('session-proposition').classList.remove('muted');
+    $('session-proposition').innerHTML = '<pre class="proposition-content"></pre>';
+    $('session-proposition').querySelector('.proposition-content').textContent = String(proposition.content).slice(0, 8000);
+  } else {
+    $('session-proposition').textContent = '(none)';
+  }
 
   const usage = (agentUsage && agentUsage.usage) || {};
   const entries = Object.entries(usage).filter(([, v]) => typeof v === 'number' && v > 0);
@@ -510,6 +589,10 @@ function bindUi() {
     $('session-plan').textContent = '';
     $('session-final').textContent = '';
     $('session-agent-usage').textContent = '';
+    $('session-progress').textContent = '';
+    $('session-progress').classList.add('muted');
+    $('session-proposition').textContent = '';
+    $('session-proposition').classList.add('muted');
     $('session-events').textContent = '';
     loadSessions().catch((e) => setStatus(e.message));
   }
@@ -559,6 +642,7 @@ function bindUi() {
   });
   $('btn-sync-all').addEventListener('click', () => syncAll().catch((e) => setStatus(e.message)));
   $('btn-fresh-all').addEventListener('click', () => freshAll().catch((e) => setStatus(e.message)));
+  $('btn-patch-vscode-settings').addEventListener('click', () => patchVscodeSettings().catch((e) => setStatus(e.message)));
   $('btn-copilot-authorize').addEventListener('click', () => authorizeCopilotFolders().catch((e) => setStatus(e.message)));
 
   $('btn-refresh-lsp').addEventListener('click', () => loadLspConfig().catch((e) => setStatus(e.message)));

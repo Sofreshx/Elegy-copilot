@@ -85,11 +85,17 @@ Everything lives under `~/.copilot`:
   prompts/              installed prompt files
   copilot-instructions.md
   session-state/        Copilot session logs and plans
+    <SESSION_ID>/
+      plan.md           Elegy plan + progress tracker
+      proposition.md    append-only guidance (after planning + execution)
+      plans/            plan revisions
   sessions-archive/     archived sessions
   repo-state/           per-repo task/artefact state
 ```
 
 Override the default location with `skillInstaller.state.root` in VS Code settings, or pass `--copilot-home` to the dashboard server.
+
+**Elegy plans** are persisted to `~/.copilot/session-state/<SESSION_ID>/plan.md` (not the legacy `.instructions/sessions` folder). The dashboard reads this location automatically.
 
 ---
 
@@ -110,17 +116,24 @@ Open: http://127.0.0.1:3210
 
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.
 
-### Reducing Copilot permission prompts
+### One-time VS Code setup (reducing permission prompts)
 
 If VS Code/Copilot keeps prompting to “allow access” for `~/.copilot`, it’s usually one of two things:
 
 - **Custom assets location** (agents/skills/prompts/instructions): VS Code reads these via `chat.*Locations` settings (e.g. `chat.agentSkillsLocations`).
 - **Agent tool access** (reading/writing outside the workspace): approvals are stored in `~/.copilot/permissions-config.json`.
 
-The dashboard buttons map to those two mechanisms:
 
-- **Patch VS Code settings**: sets `chat.agentFilesLocations`, `chat.agentSkillsLocations`, `chat.promptFilesLocations`, `chat.instructionsFilesLocations`, and also installs a conservative `chat.tools.terminal.autoApprove` set.
-- **Authorize Copilot folders**: patches `~/.copilot/permissions-config.json` to pre-approve read/write/memory for `~/.copilot` and common subfolders.
+**Recommended one-time setup** (in the copilot-ui dashboard):
+
+1. **Assets tab** → **Patch VS Code settings** button (calls `POST /api/vscode/patch-settings`)
+   - Sets `chat.agentFilesLocations`, `chat.agentSkillsLocations`, `chat.promptFilesLocations`, `chat.instructionsFilesLocations`
+   - Installs a conservative `chat.tools.terminal.autoApprove` set
+2. **Assets tab** → **Authorize Copilot folders** button (calls `POST /api/copilot/authorize`)
+   - Patches `~/.copilot/permissions-config.json` to pre-approve read/write/memory for `~/.copilot` and common subfolders
+3. **Restart VS Code**
+
+After this, permission prompts for `~/.copilot` should stop (or significantly reduce).
 
 ---
 

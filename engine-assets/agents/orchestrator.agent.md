@@ -192,7 +192,14 @@ For each work unit:
    - **REPLAN_REQUESTED**: If minor (1-2 WUs), note and adjust. If major (plan-level), go back to Phase 2. Max 3 replans per session.
    - **NEW_WORK_UNIT_REQUEST**: Ask user whether to add — if yes, go back to Phase 2.
 4. **Testing checkpoint** (after each group): Run `unit-test-runner`. On failure: create fix WU, max 3 attempts, then ask user.
-5. **Code review** (after key groups or final): Run `code-reviewer`. Handle: APPROVED → continue, NEEDS_REVISION → re-run WU, FAILED → ask user.
+5. **Integration/E2E checkpoint** (user-confirmed): Ask the user before running integration or E2E tests. If user confirms, run `integration-test-runner` and/or delegate to `e2e-validator`. Record result in Progress Tracker `## Checkpoints` table Notes using `status: passed|failed|skipped`.
+6. **Code review** (after key groups or final): Run `code-reviewer`. Handle: APPROVED → continue, NEEDS_REVISION → re-run WU, FAILED → ask user.
+7. **doc-update checkpoint** (user-confirmed, if present in plan):
+   - Ask user before executing (never run automatically).
+   - If user confirms: invoke `@doc-writer` with scope (changed files summary + plan goal + recommended docs: README + touched files under `docs/`).
+   - Record checkpoint result in Progress Tracker `## Checkpoints` table Notes using `status: passed`, `status: failed`, `status: pending`, or `status: skipped`.
+   - If user declines: mark `status: skipped` and continue to finalization.
+   - If doc update fails: mark `status: failed` and ask user for next step (do not silently ignore).
 
 #### Progress Update Protocol (mandatory after every WU completion)
 

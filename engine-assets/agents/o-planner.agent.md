@@ -160,6 +160,10 @@ Do NOT use: `DONE`, `NOT STARTED`, `completed`, `todo`, `pending`, or any other 
 ### Checkpoint defaults
 - A `unit-test-runner` checkpoint after each group completes.
 - A final checkpoint offering optional integration/E2E testing (user-confirmed).
+- A final optional `doc-update` checkpoint (user-confirmed; never automatic):
+  - Recommended scope: README + any touched files under `docs/`.
+  - Routes to `@doc-writer` when executed.
+  - Checkpoint Notes use `status: passed|failed|skipped` tokens to record outcome.
 
 ## Quality Gate (Self-Check Before Writing)
 Before writing the final plan pack, verify:

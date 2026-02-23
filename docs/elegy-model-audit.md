@@ -14,7 +14,7 @@ The Elegy model is a hierarchical, plan-first agent architecture designed for co
 - **Session Bleed**: Agents (especially the planner) might accidentally read or reference plans from past sessions if the session state directory (`~/.copilot/session-state/`) is not properly isolated. *Mitigation: Enforce strict `SESSION_ID` scoping and explicit instructions to ignore other sessions.*
 - **Reviewer Deadlocks**: Cross-model reviewers might disagree or get stuck in a loop of `NEEDS_REVISION`. *Mitigation: Implement a strict revision budget (e.g., max 3 rounds) and an escape hatch to ask the user for an override.*
 - **Context Overflow in Sub-Planners**: Passing the entire codebase context to parallel sub-planners can lead to token limits or hallucinated dependencies. *Mitigation: Provide only the High-Level Plan and specific workstream context to each sub-planner.*
-- **Loss of State During Handoff**: If the orchestrator loses track of the plan file, execution halts. *Mitigation: Always persist the plan to disk (`.instructions/sessions/{SESSION_ID}/plan.md`) and pass the exact file path during handoff.*
+- **Loss of State During Handoff**: If the orchestrator loses track of the plan file, execution halts. *Mitigation: Always persist the plan to disk (`~/.copilot/session-state/{SESSION_ID}/plan.md`) and pass the exact file path during handoff.*
 
 ## Proposed Structure & Tips (Aligning with Official Copilot Docs)
 1. **Leverage Agent Hooks**:
@@ -28,4 +28,4 @@ The Elegy model is a hierarchical, plan-first agent architecture designed for co
 4. **Parallel Execution**:
    - Use parallel sub-agents for independent workstreams during planning, but enforce sequential execution during implementation to avoid git conflicts or race conditions.
 5. **Durable Memory**:
-   - Use the host/session artifacts for durable memory rather than cluttering the repo with `.instructions/` files, except for the active session plan.
+   - Use the unified `~/.copilot/session-state/` directory for durable session artifacts (plans, propositions, revisions) rather than cluttering the repo with temporary state files.

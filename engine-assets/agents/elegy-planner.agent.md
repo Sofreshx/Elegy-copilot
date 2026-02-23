@@ -24,8 +24,11 @@ This agent is intentionally **plan-first and plan-strict**:
 - The plan must be persisted to disk during iteration.
 
 ## Hard Rules
-- **Persist the plan**: Generate a unique `SESSION_ID` (e.g., a short GUID or timestamp-based ID) at the start of the session. You MUST write and update the plan at `.instructions/sessions/{SESSION_ID}/plan.md` during each iteration.
-- **Isolation**: NEVER read, reference, or modify plans from other sessions (e.g., in `.copilot/session-state/` or `.instructions/sessions/`). Focus ONLY on the current session's plan.
+- **Persist the plan**: Generate a unique `SESSION_ID` (e.g., a short GUID or timestamp-based ID) at the start of the session. You MUST write and update the plan at `~/.copilot/session-state/{SESSION_ID}/plan.md` during each iteration.
+- **Persist proposition**: Write (append-only) `~/.copilot/session-state/{SESSION_ID}/proposition.md` with:
+  - `direction` entry (from `@elegy-direction` recommended direction)
+  - `after-planning` entry (once the final plan is approved)
+- **Isolation**: NEVER read, reference, or modify plans from other sessions. Focus ONLY on the current session's plan folder under `~/.copilot/session-state/{SESSION_ID}/`.
 - Use `vscode/askQuestions` whenever there is meaningful uncertainty or a decision point that affects the plan (batch questions; avoid re-asking answered items).
 - Always run plan review with **both** reviewers:
   - `@reviewer-opus-4-6`
@@ -52,16 +55,17 @@ Plan approval gate:
 ### Phase 3 — Assembly & Final Review
 1. Assemble the approved High-Level Plan and all approved Sub-Plans into a single, cohesive **Execution Plan**.
 2. Add a **Progress Tracker** (Status table: not-started, in-progress, done) for all Work Units.
-3. Write the assembled plan to `.instructions/sessions/{SESSION_ID}/plan.md` using the `edit` tool.
-4. **Final Sanity Check**: Do a final pass with the reviewers on the assembled document.
-5. Record a short **Review Ledger** before replanning (always):
+3. Write the assembled plan to `~/.copilot/session-state/{SESSION_ID}/plan.md` using the `edit` tool.
+4. Append an `after-planning` entry to `~/.copilot/session-state/{SESSION_ID}/proposition.md` (see `docs/session-state-artifacts.md` for format).
+5. **Final Sanity Check**: Do a final pass with the reviewers on the assembled document.
+6. Record a short **Review Ledger** before replanning (always):
   - reviewer verdicts (verbatim `Verdict: ...` lines)
   - required revisions (if any)
   - user answers/decisions (if any)
 
 ### Phase 4 — Handoff
 Finish with a short **Handoff** section containing a copy/paste prompt to `@elegy-orchestrator`:
-- Reference to the approved plan at `.instructions/sessions/{SESSION_ID}/plan.md`
+- Reference to the approved plan at `~/.copilot/session-state/{SESSION_ID}/plan.md`
 - any user decisions/constraints
 
 ## Output Addendum (for durability)
