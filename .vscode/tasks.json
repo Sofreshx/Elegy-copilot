@@ -33,6 +33,15 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "test"
+		},
+		{
+			"label": "validate: docs graph",
+			"type": "shell",
+			"command": "node",
+			"args": ["scripts/validate-doc-graph.js"],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
 		}
 	]
 }

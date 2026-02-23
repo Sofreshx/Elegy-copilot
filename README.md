@@ -192,12 +192,12 @@ See `local-tracker/docs/messaging-gateway.md` for full reference.
 
 ## Documentation
 
-- [Copilot CLI Playbook](docs/copilot-cli-playbook.md)
-- [Agents vs Skills](docs/agents-vs-skills.md)
-- [Agent Architecture Simplicity](docs/agent-architecture-simplicity.md)
-- [Agent Hooks](docs/agent-hooks.md)
-- [Skills Governance](docs/skills-governance.md)
-- [MCP Workflow](docs/mcp-workflow.md)
-- [Security Model](docs/security-model.md)
-- [Elegy Model Audit](docs/elegy-model-audit.md)
-- [Instruction Changelog](docs/instruction-changelog.md)
+- [Copilot CLI Playbook](docs/system/copilot-cli-playbook.md)
+- [Agents vs Skills](docs/system/agents-vs-skills.md)
+- [Agent Architecture Simplicity](docs/system/agent-architecture-simplicity.md)
+- [Agent Hooks](docs/system/agent-hooks.md)
+- [Skills Governance](docs/system/skills-governance.md)
+- [MCP Workflow](docs/system/mcp-workflow.md)
+- [Security Model](docs/system/security-model.md)
+- [Elegy Model Audit](docs/research/elegy-model-audit.md)
+- [Instruction Changelog](docs/system/instruction-changelog.md)

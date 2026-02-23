@@ -4,7 +4,7 @@ description: "Implementation entrypoint for Elegy workflow. Executes an approved
 tools: [read, search, edit, execute/runInTerminal, agent/runSubagent, agent, todo, vscode/askQuestions]
 user-invocable: true
 disable-model-invocation: true
-agents: [code-explorer, impl-infra, impl-business, impl-reviewer, work-unit-runner, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, code-reviewer, final-reviewer]
+agents: [code-explorer, impl-infra, impl-business, impl-reviewer, work-unit-runner, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, code-reviewer, final-reviewer]
 ---
 
 # Elegy Orchestrator
@@ -51,7 +51,11 @@ Pre-flight (non-negotiable):
    - If unit tests fail: create a small fix WU and delegate it (max 3 attempts), then ask the user.
    - **doc-update checkpoint** (user-confirmed):
      - If the plan includes a `doc-update` checkpoint (typically final), ask the user before executing.
-     - If user confirms: invoke `@doc-writer` with scope (changed files summary + plan goal + recommended docs: README + touched files under `docs/`).
+       - If user confirms: invoke `@doc-writer` with scope:
+          - changed files summary + plan goal
+          - doc graph entrypoint: `docs/system/index.md`
+          - relevant MOCs under `docs/system/mocs/`
+          - recommended docs: README + touched files under `docs/system/` and `docs/research/`
      - If user declines: mark checkpoint `status: skipped` in Notes and continue to finalization.
      - If doc update fails: mark checkpoint `status: failed` in Notes and ask user for next step (do not silently ignore).
 4. Repeat until all work units are done.
@@ -66,4 +70,4 @@ Finalization order:
 1) `@code-reviewer` (on changed files)
 2) Optional cross-model review (if changes are non-trivial)
 3) `@final-reviewer`
-4) Append an `after-execution` entry to `~/.copilot/session-state/{SESSION_ID}/proposition.md` (append-only; see `docs/session-state-artifacts.md` for format)
+4) Append an `after-execution` entry to `~/.copilot/session-state/{SESSION_ID}/proposition.md` (append-only; see `docs/system/session-state-artifacts.md` for format)

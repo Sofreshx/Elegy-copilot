@@ -4,7 +4,8 @@ description: "Unified orchestrator — single entry point for all complex work. 
 tools: [read, search, edit, execute/runInTerminal, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-planner, impl-infra, impl-business, impl-reviewer, final-reviewer, work-unit-runner, code-explorer, code-architect, code-reviewer, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, stack-auditor, deploy-auditor, security-auditor, reviewer-gpt-5-3-codex, reviewer-opus-4-6]
+agents: [o-reframer, o-planner, impl-infra, impl-business, impl-reviewer, final-reviewer, work-unit-runner, code-explorer, code-architect, code-reviewer, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, reviewer-gpt-5-3-codex, reviewer-opus-4-6]
+
 ---
 
 # Orchestrator — Unified Agent
@@ -196,7 +197,11 @@ For each work unit:
 6. **Code review** (after key groups or final): Run `code-reviewer`. Handle: APPROVED → continue, NEEDS_REVISION → re-run WU, FAILED → ask user.
 7. **doc-update checkpoint** (user-confirmed, if present in plan):
    - Ask user before executing (never run automatically).
-   - If user confirms: invoke `@doc-writer` with scope (changed files summary + plan goal + recommended docs: README + touched files under `docs/`).
+   - If user confirms: invoke `@doc-writer` with scope:
+     - changed files summary + plan goal
+     - doc graph entrypoint: `docs/system/index.md`
+     - relevant MOCs under `docs/system/mocs/`
+     - recommended docs: README + touched files under `docs/system/` and `docs/research/`
    - Record checkpoint result in Progress Tracker `## Checkpoints` table Notes using `status: passed`, `status: failed`, `status: pending`, or `status: skipped`.
    - If user declines: mark `status: skipped` and continue to finalization.
    - If doc update fails: mark `status: failed` and ask user for next step (do not silently ignore).

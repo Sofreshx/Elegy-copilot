@@ -1,0 +1,384 @@
+/* eslint-disable no-console */
+
+const fs = require('fs');
+const path = require('path');
+
+const repoRoot = path.resolve(__dirname, '..');
+const docsRoot = path.join(repoRoot, 'docs');
+
+const allowedCategory = new Set(['system', 'research', 'adr', 'meta']);
+const allowedStatus = new Set(['current', 'stale', 'draft', 'archived']);
+const allowedDocKind = new Set(['index', 'moc', 'node', 'redirect']);
+
+const requiredKeys = ['created', 'updated', 'category', 'status', 'doc_kind'];
+const allowlistedNonRedirectKeys = new Set([
+	...requiredKeys,
+	'id',
+	'summary',
+	'tags',
+	'related',
+	'applies_to',
+	'keywords',
+	'last_validated',
+	'expires_after_days',
+	'schema_version',
+]);
+const allowlistedRedirectKeys = new Set([...requiredKeys, 'redirect_to']);
+
+const idRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function toPosix(filePath) {
+	return filePath.split(path.sep).join('/');
+}
+
+function isAsciiOnly(text) {
+	for (let index = 0; index < text.length; index++) {
+		if (text.charCodeAt(index) > 0x7f) return false;
+	}
+	return true;
+}
+
+function walkDir(dir) {
+	/** @type {string[]} */
+	const results = [];
+	const entries = fs.readdirSync(dir, { withFileTypes: true });
+	for (const entry of entries) {
+		const fullPath = path.join(dir, entry.name);
+		if (entry.isDirectory()) {
+			results.push(...walkDir(fullPath));
+			continue;
+		}
+		if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+			results.push(fullPath);
+		}
+	}
+	return results;
+}
+
+function matchFrontmatter(text) {
+	if (!text.startsWith('---')) return null;
+	const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+	if (!match) return null;
+	return { full: match[0], yaml: match[1] };
+}
+
+function parseInlineList(value) {
+	const trimmed = value.trim();
+	if (!trimmed.startsWith('[') || !trimmed.endsWith(']')) return null;
+	const inner = trimmed.slice(1, -1).trim();
+	if (!inner) return [];
+	return inner
+		.split(',')
+		.map((part) => part.trim())
+		.filter(Boolean)
+		.map((item) => item.replace(/^['"]|['"]$/g, ''));
+}
+
+function parseFrontmatterYaml(yamlText) {
+	/** @type {Record<string, any>} */
+	const meta = {};
+	const lines = yamlText.split(/\r?\n/);
+	for (let index = 0; index < lines.length; index++) {
+		const rawLine = lines[index];
+		const line = rawLine.trim();
+		if (!line) continue;
+		if (line.startsWith('#')) continue;
+		const colonIndex = line.indexOf(':');
+		if (colonIndex <= 0) {
+			throw new Error(`Invalid YAML line (expected key: value): ${rawLine}`);
+		}
+		const key = line.slice(0, colonIndex).trim();
+		let value = line.slice(colonIndex + 1).trim();
+		if (!key) throw new Error(`Invalid YAML key: ${rawLine}`);
+		if (Object.prototype.hasOwnProperty.call(meta, key)) {
+			throw new Error(`Duplicate YAML key: ${key}`);
+		}
+
+		if (value === '') {
+			/** @type {string[]} */
+			const items = [];
+			while (index + 1 < lines.length) {
+				const nextRaw = lines[index + 1];
+				const next = nextRaw.trim();
+				if (!next) {
+					index++;
+					continue;
+				}
+				if (!next.startsWith('-')) break;
+				const item = next.replace(/^-\s*/, '').trim().replace(/^['"]|['"]$/g, '');
+				if (item) items.push(item);
+				index++;
+			}
+			if (items.length === 0) {
+				throw new Error(`YAML key '${key}' has empty value but no dash list items`);
+			}
+			meta[key] = items;
+			continue;
+		}
+
+		const inlineList = parseInlineList(value);
+		if (inlineList !== null) {
+			meta[key] = inlineList;
+			continue;
+		}
+
+		if (/^-?\d+$/.test(value)) {
+			meta[key] = Number.parseInt(value, 10);
+			continue;
+		}
+
+		value = value.replace(/^['"]|['"]$/g, '');
+		meta[key] = value;
+	}
+	return meta;
+}
+
+function stripFencedAndInlineCode(lines) {
+	/** @type {string[]} */
+	const cleaned = [];
+	let inFence = false;
+	for (const line of lines) {
+		const trimmed = line.trim();
+		if (trimmed.startsWith('```')) {
+			inFence = !inFence;
+			cleaned.push('');
+			continue;
+		}
+		if (inFence) {
+			cleaned.push('');
+			continue;
+		}
+		cleaned.push(line.replace(/`[^`]*`/g, ''));
+	}
+	return cleaned;
+}
+
+function findWikiLinksInLine(line) {
+	/** @type {{ id: string; raw: string }[]} */
+	const results = [];
+	const regex = /\[\[([^\]]+)\]\]/g;
+	let match;
+	while ((match = regex.exec(line))) {
+		const rawInner = match[1];
+		const inner = rawInner.trim();
+		results.push({ id: inner, raw: match[0] });
+	}
+	return results;
+}
+
+function ensure(condition, message, errors) {
+	if (condition) return;
+	errors.push(message);
+}
+
+function main() {
+	/** @type {string[]} */
+	const errors = [];
+	/** @type {string[]} */
+	const warnings = [];
+
+	if (!fs.existsSync(docsRoot)) {
+		console.error('ERROR: docs/ folder not found');
+		process.exitCode = 1;
+		return;
+	}
+
+	const docFiles = walkDir(docsRoot);
+
+	/** @type {Map<string, { rel: string; abs: string; meta: any; body: string; lines: string[] }>} */
+	const docsByRel = new Map();
+	/** @type {Map<string, string>} */
+	const idToRel = new Map();
+	/** @type {Map<string, string>} */
+	const caseFoldToId = new Map();
+
+	for (const abs of docFiles) {
+		const rel = toPosix(path.relative(repoRoot, abs));
+		const text = fs.readFileSync(abs, 'utf8');
+		const frontmatter = matchFrontmatter(text);
+		if (!frontmatter) {
+			errors.push(`${rel}: Missing YAML frontmatter (must start with --- and end with ---).`);
+			continue;
+		}
+		const rawYaml = frontmatter.yaml;
+		let meta;
+		try {
+			meta = parseFrontmatterYaml(rawYaml);
+		} catch (error) {
+			errors.push(`${rel}: Frontmatter YAML parse error: ${error.message}`);
+			continue;
+		}
+		const body = text.slice(frontmatter.full.length);
+		const lines = text.split(/\r?\n/);
+		docsByRel.set(rel, { rel, abs, meta, body, lines });
+
+		for (const key of requiredKeys) {
+			ensure(meta[key] !== undefined && meta[key] !== '', `${rel}: Missing required frontmatter key: ${key}`, errors);
+		}
+
+		if (meta.category && !allowedCategory.has(meta.category)) {
+			errors.push(`${rel}: Invalid category '${meta.category}'.`);
+		}
+		if (meta.status && !allowedStatus.has(meta.status)) {
+			errors.push(`${rel}: Invalid status '${meta.status}'.`);
+		}
+		if (meta.doc_kind && !allowedDocKind.has(meta.doc_kind)) {
+			errors.push(`${rel}: Invalid doc_kind '${meta.doc_kind}'.`);
+		}
+
+		const docKind = meta.doc_kind;
+		const allowedKeys = docKind === 'redirect' ? allowlistedRedirectKeys : allowlistedNonRedirectKeys;
+		for (const key of Object.keys(meta)) {
+			if (!allowedKeys.has(key)) {
+				errors.push(`${rel}: Disallowed frontmatter key '${key}'.`);
+			}
+		}
+	}
+
+	for (const [rel, doc] of docsByRel) {
+		const meta = doc.meta;
+		const docKind = meta.doc_kind;
+
+		if (rel.startsWith('docs/system/') && meta.category !== 'system') {
+			errors.push(`${rel}: docs/system/** must have category: system.`);
+		}
+		if (rel.startsWith('docs/research/') && meta.category !== 'research') {
+			errors.push(`${rel}: docs/research/** must have category: research.`);
+		}
+		if (rel.startsWith('docs/') && !rel.slice('docs/'.length).includes('/') && docKind !== 'redirect') {
+			errors.push(`${rel}: Top-level docs/*.md must be doc_kind: redirect.`);
+		}
+
+		const isSystemOrResearch = rel.startsWith('docs/system/') || rel.startsWith('docs/research/');
+		if (docKind !== 'redirect' && isSystemOrResearch) {
+			if (!meta.id) {
+				errors.push(`${rel}: Missing id (required for non-redirect docs under docs/system/** or docs/research/**).`);
+			} else {
+				const id = meta.id;
+				if (typeof id !== 'string') {
+					errors.push(`${rel}: id must be a string.`);
+				} else {
+					if (!isAsciiOnly(id) || !idRegex.test(id)) {
+						errors.push(`${rel}: Invalid id '${id}' (must match ${idRegex}).`);
+					}
+					const fold = id.toLowerCase();
+					if (caseFoldToId.has(fold)) {
+						const existing = caseFoldToId.get(fold);
+						errors.push(`${rel}: id '${id}' collides case-insensitively with '${existing}'.`);
+					} else {
+						caseFoldToId.set(fold, id);
+					}
+					if (idToRel.has(id)) {
+						errors.push(`${rel}: Duplicate id '${id}' also used by ${idToRel.get(id)}.`);
+					} else {
+						idToRel.set(id, rel);
+					}
+				}
+			}
+		}
+
+		if (docKind === 'redirect') {
+			if (meta.id) {
+				errors.push(`${rel}: Redirect docs must not have id.`);
+			}
+			if (!meta.redirect_to || typeof meta.redirect_to !== 'string') {
+				errors.push(`${rel}: Redirect docs must have redirect_to: <repo-relative path>.`);
+			} else {
+				const redirectTo = meta.redirect_to;
+				if (!redirectTo.startsWith('docs/')) {
+					errors.push(`${rel}: redirect_to must start with 'docs/'. Got '${redirectTo}'.`);
+				}
+				if (redirectTo.includes('\\') || redirectTo.includes('instruction-engine/')) {
+					errors.push(`${rel}: redirect_to must be repo-relative (no backslashes, no instruction-engine/ prefix).`);
+				}
+				const targetAbs = path.join(repoRoot, redirectTo);
+				if (!fs.existsSync(targetAbs)) {
+					errors.push(`${rel}: redirect_to target does not exist: ${redirectTo}`);
+				} else {
+					const targetRel = toPosix(path.relative(repoRoot, targetAbs));
+					const targetDoc = docsByRel.get(targetRel);
+					if (!targetDoc) {
+						errors.push(`${rel}: redirect_to target is not in docs scan scope: ${redirectTo}`);
+					} else if (targetDoc.meta.doc_kind === 'redirect') {
+						errors.push(`${rel}: redirect_to target must not be doc_kind: redirect (no chains). Target: ${redirectTo}`);
+					}
+				}
+			}
+			if (doc.body.includes('[[')) {
+				errors.push(`${rel}: Redirect docs must not contain wikilinks.`);
+			}
+		}
+
+		if (docKind !== 'redirect' && !meta.summary) {
+			warnings.push(`${rel}: Missing summary.`);
+		}
+	}
+
+	// Validate related ids and wikilinks + dual-link rule
+	for (const [rel, doc] of docsByRel) {
+		const meta = doc.meta;
+		const docKind = meta.doc_kind;
+		if (docKind !== 'redirect' && meta.related) {
+			if (!Array.isArray(meta.related)) {
+				errors.push(`${rel}: related must be a YAML list.`);
+			} else {
+				for (const relatedId of meta.related) {
+					if (typeof relatedId !== 'string') {
+						errors.push(`${rel}: related contains a non-string id.`);
+						continue;
+					}
+					if (!idToRel.has(relatedId)) {
+						errors.push(`${rel}: related id does not resolve: ${relatedId}`);
+					}
+				}
+			}
+		}
+
+		if (docKind === 'redirect') continue;
+
+		const rawLines = doc.lines;
+		const cleanedLines = stripFencedAndInlineCode(rawLines);
+		for (let i = 0; i < cleanedLines.length; i++) {
+			const line = cleanedLines[i];
+			if (!line.includes('[[')) continue;
+			const links = findWikiLinksInLine(line);
+			if (links.length === 0) continue;
+
+			const nextLine = i + 1 < cleanedLines.length ? cleanedLines[i + 1] : '';
+			for (const link of links) {
+				if (!idRegex.test(link.id)) {
+					errors.push(`${rel}: Invalid wikilink syntax '${link.raw}' (must be [[id]] with kebab-case id).`);
+					continue;
+				}
+				const targetRel = idToRel.get(link.id);
+				if (!targetRel) {
+					errors.push(`${rel}: Unresolved wikilink ${link.raw}`);
+					continue;
+				}
+				const targetPath = targetRel;
+				const hasMarkdownLink =
+					line.includes(`(${targetPath}`) || nextLine.includes(`(${targetPath}`);
+				if (!hasMarkdownLink) {
+					errors.push(`${rel}: Dual-link rule violated for ${link.raw}. Missing Markdown link to (${targetPath}) on same/next line.`);
+				}
+			}
+		}
+	}
+
+	if (warnings.length > 0) {
+		console.warn('Warnings:');
+		for (const warning of warnings) console.warn(`- ${warning}`);
+		console.warn('');
+	}
+
+	if (errors.length > 0) {
+		console.error('Errors:');
+		for (const error of errors) console.error(`- ${error}`);
+		process.exitCode = 1;
+		return;
+	}
+
+	console.log(`OK: docs graph validation passed (${docsByRel.size} markdown files).`);
+}
+
+main();

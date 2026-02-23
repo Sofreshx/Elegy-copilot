@@ -1,15 +1,17 @@
 ---
 created: 2026-02-23
 updated: 2026-02-23
-category: meta
+category: research
 status: current
-doc_kind: redirect
-redirect_to: docs/research/mobile-local-testing.md
+doc_kind: node
+id: mobile-local-testing
+summary: Audit and notes for local testing the Mobile Companion and its integration path to the VS Code extension.
+tags: [mobile, testing, audit]
 ---
 
-This page moved to `docs/research/mobile-local-testing.md`.
+# Mobile Local Testing and Integration Audit
 
-- New location: [docs/research/mobile-local-testing.md](docs/research/mobile-local-testing.md)
+This document outlines how to test the Mobile Companion locally, audits the current integration path to the VS Code extension, and summarizes what is required to make local testing and GitHub login reliable.
 
 ## Goals
 - Validate Mobile Companion behavior locally (UI, API calls, session lists, permissions).
@@ -90,7 +92,7 @@ To make GitHub login work locally for Mobile Companion, you will need:
 ## Recommended Local Testing Strategy (Near-Term)
 - Use desktop browser testing with the Mobile dev server for UI flows.
 - For connectivity, implement a pairing/token issuance path in the extension, or add a relay adapter that translates Mobile messages into extension JSON-RPC.
-- Use E2E browser smoke checks (CLI-first; agent-browser default) — see [e2e-setup-guide.md](e2e-setup-guide.md).
+- Use E2E browser smoke checks (CLI-first; agent-browser default) — see [docs/system/e2e-setup-guide.md](docs/system/e2e-setup-guide.md).
 
 ## Questions to Resolve Before Full Local E2E
 - Should Mobile speak directly to the extension (same protocol), or should relay be the strict integration point?

@@ -16,24 +16,47 @@ Create and maintain high-signal Markdown documentation that is:
 - and internally link-safe (best-effort).
 
 ## Required Documentation Frontmatter (MUST)
-Every documentation file you create or update MUST start with this YAML frontmatter (at the very top of the file):
+Every documentation file you create or update MUST start with YAML frontmatter (at the very top of the file).
+
+If the repo contains `docs/system/doc-graph-spec.md`, treat that file as the **canonical spec** and follow it.
+
+Otherwise, use the baseline schema below.
 
 ```yaml
 ---
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
-category: system | research | planning | adr | meta
+category: system | research | adr | meta
 status: current | stale | draft | archived
+doc_kind: index | moc | node | redirect
+
+# Optional (allowlisted)
+id: optional-kebab-case-id
+summary: Optional one-sentence summary.
 tags: [optional]
-related: [optional]
+related: [optional, list, of, ids]
+keywords: [optional]
+applies_to: [optional]
+last_validated: YYYY-MM-DD
+expires_after_days: 90
+schema_version: 2
+
+# Redirect-only (allowlisted only when doc_kind: redirect)
+redirect_to: docs/system/some-doc.md
 ---
 ```
 
 ### Frontmatter Rules
 - `created` MUST be set on first creation and MUST NOT change afterward.
 - `updated` MUST be set on creation and MUST be bumped to **today** on every content edit.
-- `category` and `status` MUST be one of the allowed values above.
-- `tags` and `related` are optional; when present they MUST be YAML lists.
+- `category`, `status`, and `doc_kind` MUST be one of the allowed values above.
+- Only allowlisted optional keys are permitted.
+- `tags`, `related`, `keywords`, and `applies_to` are optional; when present they MUST be YAML lists.
+- `id` is optional unless a repo’s doc-graph spec requires it.
+
+### Redirect Rules
+- For `doc_kind: redirect`, `redirect_to` MUST be present.
+- Redirect docs MUST be short, must NOT contain wikilinks, and must NOT include an `id`.
 
 ## Capabilities
 1) **Create new docs** with correct frontmatter and consistent structure.
@@ -48,7 +71,7 @@ related: [optional]
 ## Hard Rules
 - Documentation-only: create/update **Markdown (`.md`) files** only.
 - Do not change production code, build files, or dependencies.
-- Do not invent new frontmatter keys beyond the required standard.
+- Do not invent new frontmatter keys beyond the allowlisted set.
 
 ## Staleness Rules (Audit)
 - If the user provides a staleness threshold, use it.
@@ -57,6 +80,21 @@ related: [optional]
   - `updated` is older than **30 days**.
 
 ## Workflow
+### Graph-First Navigation (when doc graph exists)
+
+If the repo contains a doc graph entrypoint (commonly `docs/system/index.md`):
+
+1. Start from the entrypoint index.
+2. Choose the most relevant MOC.
+3. Open 1–3 nodes based on summary/keywords.
+4. Traverse links to depth 1–2 only.
+5. Stop reading once you have enough to act.
+
+When updating docs:
+- Prefer updating 1 existing node + 1 MOC.
+- Create a new node only if no suitable node exists.
+- Avoid bulk rewrites or bulk moves unless explicitly requested.
+
 ### Create
 - Choose a file path under the documentation area requested.
 - Write required frontmatter (today for both `created` and `updated`).
@@ -76,6 +114,13 @@ related: [optional]
   - docs flagged stale,
   - broken relative file links and clearly invalid anchors.
 - Do NOT rewrite files unless the user explicitly asks for auto-fix.
+
+## Wikilinks (optional)
+
+If a repo uses wikilinks (e.g., `[[some-id]]`) as semantic edges:
+- Use `[[id]]` only.
+- Keep a nearby Markdown link for GitHub/human navigation.
+- Never introduce a wikilink edge unless its target exists and is unambiguous.
 
 ## Output
 - **Create/Update**: modified Markdown file(s) with compliant frontmatter.

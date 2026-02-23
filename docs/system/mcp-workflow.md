@@ -1,15 +1,17 @@
 ---
 created: 2026-02-23
 updated: 2026-02-23
-category: meta
+category: system
 status: current
-doc_kind: redirect
-redirect_to: docs/system/mcp-workflow.md
+doc_kind: node
+id: mcp-workflow
+summary: Workflow for enabling MCP providers per repo, keeping secrets out of source, and using providers safely.
+tags: [mcp]
 ---
 
-This page moved to `docs/system/mcp-workflow.md`.
+# MCP Workflow Guide
 
-- New location: [docs/system/mcp-workflow.md](docs/system/mcp-workflow.md)
+This guide explains how Instruction Engine integrates MCP providers without loading them all the time.
 
 ## Core Idea
 
@@ -143,7 +145,7 @@ discovery or targeted updates.
 - Copilot coding agents can only use MCP tools (no unattended external browsing
   or OAuth flows). See GitHub docs: https://docs.github.com/en/copilot/concepts/agents/coding-agent/mcp-and-coding-agent
 - Browser E2E automation in this repo is CLI-first (agent-browser for agent-driven smoke/validation, and Playwright CLI/test runner for scripted suites), not MCP-first.
-  See: [e2e-setup-guide.md](e2e-setup-guide.md).
+  See: [docs/system/e2e-setup-guide.md](docs/system/e2e-setup-guide.md).
 - Remote OAuth flows are not reliably automatable for remote agents. Prefer
   CI PATs or pre-authorized non-interactive tokens for CI or remote use.
 
@@ -196,7 +198,7 @@ infrastructure changes; use manual, conservative review for production-impacting
 operations.
 
 For choosing between an agent and a skill when using MCP, see
-[agents-vs-skills.md](agents-vs-skills.md).
+[docs/system/agents-vs-skills.md](docs/system/agents-vs-skills.md).
 
 Examples:
 
@@ -228,4 +230,3 @@ Examples:
 - Manual tool approval guidance is stated explicitly.
 - Copilot coding agent constraints and OAuth limitations are documented.
 - Decision guide is present.
-- Local vs CI secrets guidance is included.
