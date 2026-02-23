@@ -177,7 +177,7 @@ describe('Permission orchestrator — replayed/stale approval', () => {
 		jest.useRealTimers();
 	});
 
-	it('rejects approve for a callbackId that was never pending', async () => {
+	it('silently no-ops approve for a callbackId that was never pending', async () => {
 		const client = {
 			getStatus: () => 'connected',
 			resolve_permission: jest.fn(async () => ({ ok: true })),
@@ -189,7 +189,8 @@ describe('Permission orchestrator — replayed/stale approval', () => {
 			defaultResolvedBy: 'test',
 		});
 
-		await expect(orch.approve('unknown-cb')).rejects.toThrow('not pending');
+		// First-writer-wins: unknown callbackId is a silent no-op
+		await orch.approve('unknown-cb');
 		expect(client.resolve_permission).not.toHaveBeenCalled();
 	});
 
@@ -215,8 +216,8 @@ describe('Permission orchestrator — replayed/stale approval', () => {
 		await orch.approve('cb-1');
 		expect(client.resolve_permission).toHaveBeenCalledTimes(1);
 
-		// Second call should fail: callbackId is no longer pending
-		await expect(orch.approve('cb-1')).rejects.toThrow('not pending');
+		// Second call is a silent no-op (first-writer-wins idempotency)
+		await orch.approve('cb-1');
 		expect(client.resolve_permission).toHaveBeenCalledTimes(1);
 	});
 
@@ -246,8 +247,10 @@ describe('Permission orchestrator — replayed/stale approval', () => {
 			expect.objectContaining({ callbackId: 'cb-timeout', approved: false }),
 		);
 
-		// Subsequent approve attempt must fail
-		await expect(orch.approve('cb-timeout')).rejects.toThrow('not pending');
+		// Subsequent approve attempt is a silent no-op (first-writer-wins)
+		await orch.approve('cb-timeout');
+		// resolve_permission was only called for the auto-deny
+		expect(client.resolve_permission).toHaveBeenCalledTimes(1);
 	});
 });
 

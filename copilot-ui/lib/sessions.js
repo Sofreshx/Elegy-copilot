@@ -425,6 +425,88 @@ function watchSessions(copilotHome, onChange) {
   };
 }
 
+function listSandboxSessions(sandboxesHome, options = {}) {
+  const home = path.resolve(sandboxesHome);
+  let dirents;
+  try {
+    dirents = fs.readdirSync(home, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const allSessions = [];
+  for (const d of dirents) {
+    if (!d.isDirectory()) continue;
+    const sandboxId = d.name;
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/.test(sandboxId)) continue;
+    const sandboxSessionHome = path.join(home, sandboxId);
+    const sessionStateDir = path.join(sandboxSessionHome, 'session-state');
+    const stat = safeStat(sessionStateDir);
+    if (!stat || !stat.isDirectory()) continue;
+
+    const sessions = listSessions(sandboxSessionHome, options);
+    for (const s of sessions) {
+      allSessions.push({ ...s, source: 'sandbox', sandbox: sandboxId });
+    }
+  }
+
+  allSessions.sort((a, b) => (b.lastEventTime || b.startTime || 0) - (a.lastEventTime || a.startTime || 0));
+  return allSessions;
+}
+
+function watchSandboxSessions(sandboxesHome, onChange) {
+  const home = path.resolve(sandboxesHome);
+  let watcher = null;
+  let timer = null;
+  let closed = false;
+
+  function safeEmit() {
+    if (closed) return;
+    try {
+      onChange(listSandboxSessions(home));
+    } catch {
+      // swallow callback errors
+    }
+  }
+
+  function scheduleEmit() {
+    if (closed) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(safeEmit, 200);
+  }
+
+  function startWatch() {
+    if (closed) return;
+    try {
+      fs.mkdirSync(home, { recursive: true });
+    } catch {
+      // ignore
+    }
+    try {
+      watcher = fs.watch(home, { recursive: true }, scheduleEmit);
+      watcher.on('error', () => {
+        if (closed) return;
+        try { watcher.close(); } catch { /* ignore */ }
+        watcher = null;
+        setTimeout(startWatch, 500);
+      });
+    } catch {
+      watcher = null;
+    }
+    scheduleEmit(); // initial scan
+  }
+
+  startWatch();
+
+  return {
+    close: () => {
+      closed = true;
+      if (timer) clearTimeout(timer);
+      if (watcher) try { watcher.close(); } catch { /* ignore */ }
+    },
+  };
+}
+
 module.exports = {
   listSessions,
   readRecentEvents,
@@ -432,5 +514,7 @@ module.exports = {
   extractAgentUsage,
   computeStatus,
   watchSessions,
+  listSandboxSessions,
+  watchSandboxSessions,
 };
 

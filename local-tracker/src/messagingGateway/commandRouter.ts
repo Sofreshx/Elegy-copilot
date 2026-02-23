@@ -7,6 +7,7 @@ import type { BridgeClient } from './bridgeClient';
 import { formatSummary } from './formatSummary';
 import { getWorkspaceGitSnapshot } from './gitSnapshot';
 import type { PermissionOrchestrator } from './permissionOrchestrator';
+import type { SandboxRegistry } from './sandboxRegistry';
 import { sanitizeInboundPrompt, sanitizeOutboundText } from './sanitizer';
 import { FixedWindowRateLimiter } from './rateLimiter';
 import { ArtefactsMonitor } from './artefactsMonitor';
@@ -20,6 +21,7 @@ export interface CommandScopeContext {
 	guildId?: string;
 	channelId?: string;
 	platform?: string;
+	sandboxId?: string;
 }
 
 export interface CommandRequest {
@@ -48,6 +50,8 @@ export interface CommandRouterPolicy {
 		admin: number;
 	};
 	maxActiveInvokeSessionsPerUser: number;
+	/** Per-sandbox limit. When set and sandboxId is present, enforced per-sandbox instead of globally per-user. Default: same as maxActiveInvokeSessionsPerUser */
+	maxActiveInvokeSessionsPerSandbox?: number;
 	permissionTimeoutMs: number;
 	maxPromptChars: number;
 }
@@ -59,6 +63,7 @@ export interface CommandRouterPolicy {
 export const WU002_POLICY_CONTRACT = {
 	rateLimitsPerMinute: { read: 30, invoke: 6, admin: 3 },
 	maxActiveInvokeSessionsPerUser: 1,
+	maxActiveInvokeSessionsPerSandbox: 1,
 	permissionTimeoutMs: 120_000,
 	maxPromptChars: 4000,
 } as const;
@@ -81,6 +86,10 @@ function assertPolicyContract(policy: CommandRouterPolicy): void {
 	if (policy.maxPromptChars !== expected.maxPromptChars) {
 		throw new Error('[Gateway] CommandRouter policy mismatch: maxPromptChars must match WU-002 contract');
 	}
+	if (policy.maxActiveInvokeSessionsPerSandbox !== undefined &&
+		policy.maxActiveInvokeSessionsPerSandbox !== expected.maxActiveInvokeSessionsPerSandbox) {
+		throw new Error('[Gateway] CommandRouter policy mismatch: maxActiveInvokeSessionsPerSandbox must match WU-002 contract');
+	}
 }
 
 export interface CommandRouterWorkspaceState {
@@ -95,6 +104,7 @@ export interface CommandRouterDeps {
 	auditLogger: AuditLogger;
 	extensionClient?: BridgeClient;
 	permissionOrchestrator?: PermissionOrchestrator;
+	sandboxRegistry?: SandboxRegistry;
 	nowMs?: () => number;
 }
 
@@ -169,7 +179,9 @@ const OptionalStringArraySchema = z
 export class CommandRouter {
 	private readonly deps: CommandRouterDeps;
 	private readonly limiterByTier: Record<CommandTier, FixedWindowRateLimiter>;
-	private readonly invokeInFlightCountByUser = new Map<string, number>();
+	// When sandboxId is provided: tracks per-user-per-sandbox (allows multi-sandbox concurrency)
+	// When sandboxId is absent ("__default__"): tracks per-user globally (backward compat)
+	private readonly invokeInFlightByUser = new Map<string, Map<string, number>>();
 
 	constructor(deps: CommandRouterDeps) {
 		assertPolicyContract(deps.policy);
@@ -252,8 +264,16 @@ export class CommandRouter {
 
 		const consumesInvokeSlot = tier === 'invoke' && INVOKE_SLOT_COMMANDS.has(command);
 		if (consumesInvokeSlot) {
-			const max = this.deps.policy.maxActiveInvokeSessionsPerUser;
-			const current = this.invokeInFlightCountByUser.get(ctx.userId) ?? 0;
+			const sandboxId = ctx.sandboxId ?? '__default__';
+			const perSandbox = this.deps.policy.maxActiveInvokeSessionsPerSandbox;
+			const max = perSandbox !== undefined ? perSandbox : this.deps.policy.maxActiveInvokeSessionsPerUser;
+
+			let userMap = this.invokeInFlightByUser.get(ctx.userId);
+			if (!userMap) {
+				userMap = new Map();
+				this.invokeInFlightByUser.set(ctx.userId, userMap);
+			}
+			const current = userMap.get(sandboxId) ?? 0;
 			if (current >= max) {
 				this.deps.auditLogger.log({
 					...baseAudit,
@@ -268,7 +288,7 @@ export class CommandRouter {
 					meta: { reason: 'invoke_concurrency_limit' },
 				};
 			}
-			this.invokeInFlightCountByUser.set(ctx.userId, current + 1);
+			userMap.set(sandboxId, current + 1);
 		}
 
 		try {
@@ -300,9 +320,17 @@ export class CommandRouter {
 			};
 		} finally {
 			if (consumesInvokeSlot) {
-				const current = this.invokeInFlightCountByUser.get(ctx.userId) ?? 0;
-				if (current <= 1) this.invokeInFlightCountByUser.delete(ctx.userId);
-				else this.invokeInFlightCountByUser.set(ctx.userId, current - 1);
+				const sandboxId = ctx.sandboxId ?? '__default__';
+				const userMap = this.invokeInFlightByUser.get(ctx.userId);
+				if (userMap) {
+					const current = userMap.get(sandboxId) ?? 0;
+					if (current <= 1) {
+						userMap.delete(sandboxId);
+						if (userMap.size === 0) this.invokeInFlightByUser.delete(ctx.userId);
+					} else {
+						userMap.set(sandboxId, current - 1);
+					}
+				}
 			}
 		}
 	}
@@ -344,6 +372,8 @@ export class CommandRouter {
 				return { messages: await this.handleStop(argsUnknown) };
 			case '/switch':
 				return { messages: await this.handleSwitch(argsUnknown) };
+			case '/sandbox':
+				return { messages: await this.handleSandbox(argsUnknown) };
 			case '/approve':
 				return { messages: await this.handlePermissionDecision(true, argsUnknown) };
 			case '/deny':
@@ -593,6 +623,26 @@ export class CommandRouter {
 		return sanitizeAndChunk(`${approved ? 'Approved' : 'Denied'} permission ${args.callbackId}.`);
 	}
 
+	private async handleSandbox(argsUnknown: unknown): Promise<string[]> {
+		EmptyArgsSchema.optional().parse(argsUnknown);
+
+		const registry = this.deps.sandboxRegistry;
+		if (!registry) {
+			return sanitizeAndChunk('Sandbox registry not available.');
+		}
+
+		const entries = registry.getAll();
+		if (entries.length === 0) {
+			return sanitizeAndChunk('No sandboxes registered.');
+		}
+
+		const lines: string[] = [`Sandboxes (${entries.length}):`];
+		for (const entry of entries) {
+			lines.push(`\u2022 ${entry.meta.sandboxId} \u2014 port ${entry.meta.hostPort} \u2014 ${entry.meta.status} \u2014 registered ${entry.meta.registeredAt}`);
+		}
+		return sanitizeAndChunk(lines.join('\n'));
+	}
+
 	private assertWorkspaceAllowed(workspaceRoot: string): void {
 		const allowed = this.deps.workspaces.getAllowedWorkspaceRoots();
 		if (!allowed.some((r) => pathsEqual(r, workspaceRoot))) {
@@ -614,7 +664,7 @@ export class CommandRouter {
 	}
 }
 
-const READ_COMMANDS = new Set<string>(['/status', '/sessions', '/git', '/workspaces']);
+const READ_COMMANDS = new Set<string>(['/status', '/sessions', '/git', '/workspaces', '/sandbox']);
 const INVOKE_COMMANDS = new Set<string>(['/task', '/plan', '/stop']);
 // Admin includes /switch and permission decisions.
 const ADMIN_COMMANDS = new Set<string>(['/switch', '/approve', '/deny']);

@@ -5,12 +5,13 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const childProcess = require('child_process');
+const crypto = require('crypto');
 
 const sessions = require('./lib/sessions');
 const assets = require('./lib/assets');
 const planState = require('./lib/planState');
 
-function createChangeTracker(copilotHomeAbs, vscodeHomeAbs) {
+function createChangeTracker(copilotHomeAbs, vscodeHomeAbs, sandboxesHomeAbs) {
   let version = 0;
   let lastChangedMs = Date.now();
   let timer = null;
@@ -56,6 +57,11 @@ function createChangeTracker(copilotHomeAbs, vscodeHomeAbs) {
     tryWatch(path.join(vscodeHomeAbs, 'prompts'));
   }
 
+  // Watch sandbox directories.
+  if (sandboxesHomeAbs) {
+    tryWatch(sandboxesHomeAbs, { recursive: true });
+  }
+
   // Periodic bump as a fallback: ensures UI stays roughly current even if fs.watch is flaky.
   const interval = setInterval(() => bump(), 60 * 1000);
 
@@ -78,7 +84,7 @@ function createChangeTracker(copilotHomeAbs, vscodeHomeAbs) {
 }
 
 function parseArgs(argv) {
-  const args = { port: 3210, copilotHome: null, vscodeHome: null };
+  const args = { port: 3210, host: '127.0.0.1', token: null, copilotHome: null, vscodeHome: null, sandboxesHome: null, trackerUrl: null, trackerToken: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--help' || a === '-h') {
@@ -119,8 +125,92 @@ function parseArgs(argv) {
       if (!args.vscodeHome) throw new Error('Missing value for --vscode-home');
       continue;
     }
+    if (a === '--host') {
+      args.host = argv[++i];
+      if (!args.host) throw new Error('Missing value for --host');
+      continue;
+    }
+    if (a.startsWith('--host=')) {
+      args.host = a.slice('--host='.length);
+      if (!args.host) throw new Error('Missing value for --host');
+      continue;
+    }
+    if (a === '--token') {
+      args.token = argv[++i];
+      if (!args.token) throw new Error('Missing value for --token');
+      continue;
+    }
+    if (a.startsWith('--token=')) {
+      args.token = a.slice('--token='.length);
+      if (!args.token) throw new Error('Missing value for --token');
+      continue;
+    }
+    if (a === '--sandboxes-home') {
+      args.sandboxesHome = argv[++i];
+      if (!args.sandboxesHome) throw new Error('Missing value for --sandboxes-home');
+      continue;
+    }
+    if (a.startsWith('--sandboxes-home=')) {
+      args.sandboxesHome = a.slice('--sandboxes-home='.length);
+      if (!args.sandboxesHome) throw new Error('Missing value for --sandboxes-home');
+      continue;
+    }
+    if (a === '--tracker-url') {
+      args.trackerUrl = argv[++i];
+      if (!args.trackerUrl) throw new Error('Missing value for --tracker-url');
+      continue;
+    }
+    if (a.startsWith('--tracker-url=')) {
+      args.trackerUrl = a.slice('--tracker-url='.length);
+      if (!args.trackerUrl) throw new Error('Missing value for --tracker-url');
+      continue;
+    }
+    if (a === '--tracker-token') {
+      args.trackerToken = argv[++i];
+      if (!args.trackerToken) throw new Error('Missing value for --tracker-token');
+      continue;
+    }
+    if (a.startsWith('--tracker-token=')) {
+      args.trackerToken = a.slice('--tracker-token='.length);
+      if (!args.trackerToken) throw new Error('Missing value for --tracker-token');
+      continue;
+    }
   }
   return args;
+}
+
+function isNonLoopback(host) {
+  return host !== '127.0.0.1' && host !== '::1' && host !== 'localhost';
+}
+
+function isLoopbackRequest(req) {
+  const addr = req.socket.remoteAddress || '';
+  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+}
+
+// Bearer-only auth. No cookies, no query-param tokens, no CSRF surface.
+function checkAuth(req, token) {
+  // No token configured → pass (only possible on loopback bind)
+  if (!token) return true;
+  // Loopback requests always pass
+  if (isLoopbackRequest(req)) return true;
+  // Extract bearer token from Authorization header
+  const authHeader = req.headers['authorization'] || '';
+  if (!authHeader.startsWith('Bearer ')) return false;
+  const provided = authHeader.slice('Bearer '.length);
+  // Constant-time comparison to prevent timing attacks
+  const a = Buffer.from(token);
+  const b = Buffer.from(provided);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+function resolveToken(args, host) {
+  // 3-tier precedence: --token CLI arg > COPILOT_UI_TOKEN env var > auto-generated
+  if (args.token) return args.token;
+  if (process.env.COPILOT_UI_TOKEN) return process.env.COPILOT_UI_TOKEN;
+  if (isNonLoopback(host)) return crypto.randomBytes(32).toString('hex');
+  return null;
 }
 
 function resolveCopilotHome(args) {
@@ -146,9 +236,30 @@ function resolveVscodeHome(args) {
   return defaultVscodeHome();
 }
 
-function resolveSessionsHome(source, copilotHome, vscodeHome) {
+function resolveSandboxesHome(args) {
+  if (args && typeof args.sandboxesHome === 'string' && args.sandboxesHome.trim()) {
+    return path.resolve(args.sandboxesHome);
+  }
+  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
+  return path.join(path.resolve(home), '.copilot', 'sandboxes');
+}
+
+function resolveTrackerUrl(args) {
+  if (args && typeof args.trackerUrl === 'string' && args.trackerUrl.trim()) return args.trackerUrl.trim();
+  if (process.env.INSTRUCTION_ENGINE_TRACKER_URL) return process.env.INSTRUCTION_ENGINE_TRACKER_URL.trim();
+  return 'http://127.0.0.1:4100';
+}
+
+function resolveTrackerToken(args) {
+  if (args && typeof args.trackerToken === 'string' && args.trackerToken.trim()) return args.trackerToken.trim();
+  if (process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN) return process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.trim();
+  return null;
+}
+
+function resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome) {
   const s = String(source || '').trim().toLowerCase();
   if (s === 'vscode') return { source: 'vscode', home: vscodeHome };
+  if (s === 'sandbox') return { source: 'sandbox', home: sandboxesHome };
   return { source: 'cli', home: copilotHome };
 }
 
@@ -520,7 +631,101 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
   return { ok: true, action: 'patched', filePath, backup, locations: desired };
 }
 
-function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTracker }) {
+function proxyToTracker(trackerUrl, trackerToken, targetPath, method, req, res) {
+  if (!trackerToken) {
+    sendJson(res, 502, { error: 'Tracker token not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.' });
+    return;
+  }
+
+  const parsed = new URL(targetPath, trackerUrl);
+  const options = {
+    hostname: parsed.hostname,
+    port: parsed.port,
+    path: parsed.pathname + parsed.search,
+    method: method,
+    headers: {
+      'Authorization': `Bearer ${trackerToken}`,
+      'Accept': 'application/json',
+    },
+    timeout: 10000,
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    const ct = proxyRes.headers['content-type'] || 'application/json';
+    res.writeHead(proxyRes.statusCode || 502, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    if (!res.headersSent) {
+      sendJson(res, 502, { error: `Tracker unreachable: ${err.message}` });
+    }
+  });
+
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy();
+    if (!res.headersSent) {
+      sendJson(res, 504, { error: 'Tracker request timed out' });
+    }
+  });
+
+  if (method === 'POST') {
+    req.pipe(proxyReq);
+  } else {
+    proxyReq.end();
+  }
+}
+
+function relayTrackerSSE(trackerUrl, trackerToken, req, res) {
+  if (!trackerToken) {
+    sendJson(res, 502, { error: 'Tracker token not configured' });
+    return;
+  }
+
+  const parsed = new URL('/api/events', trackerUrl);
+  const options = {
+    hostname: parsed.hostname,
+    port: parsed.port,
+    path: parsed.pathname,
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${trackerToken}`,
+      'Accept': 'text/event-stream',
+    },
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    if (proxyRes.statusCode !== 200) {
+      sendJson(res, 502, { error: `Tracker returned ${proxyRes.statusCode}` });
+      return;
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    proxyRes.pipe(res);
+
+    req.on('close', () => {
+      proxyReq.destroy();
+    });
+  });
+
+  proxyReq.on('error', (err) => {
+    if (!res.headersSent) {
+      sendJson(res, 502, { error: `Tracker SSE unreachable: ${err.message}` });
+    }
+  });
+
+  proxyReq.end();
+}
+
+function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken }) {
+  // Auth scope: single-session only. Multi-session aggregate views are deferred.
+  // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
   const copilotHomeAbs = path.resolve(copilotHome);
   const vscodeHomeAbs = copilotHomeAbs;
@@ -544,10 +749,16 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
     if (source === 'all') {
       const cli = sessions.listSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: 'cli' }));
       const vs = sessions.listSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: 'vscode' }));
-      sendJson(res, 200, { sessions: [...cli, ...vs] });
+      const sandbox = sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 });
+      sendJson(res, 200, { sessions: [...cli, ...vs, ...sandbox] });
       return;
     }
-    const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+    if (source === 'sandbox') {
+      const data = sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 });
+      sendJson(res, 200, { sessions: data });
+      return;
+    }
+    const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
     const data = sessions.listSessions(home.home, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: home.source }));
     sendJson(res, 200, { sessions: data });
     return;
@@ -559,7 +770,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
       const id = decodeURIComponent(m[1]);
       const limit = Math.max(1, Math.min(500, Math.floor(parseNumberQuery(u.searchParams, 'limit', 20))));
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
       const events = sessions.readRecentEvents(sessionDir, limit);
       sendJson(res, 200, { id, source: home.source, events });
@@ -573,7 +784,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
       const id = decodeURIComponent(m[1]);
       const limit = Math.max(1, Math.min(500, Math.floor(parseNumberQuery(u.searchParams, 'limit', 500))));
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
       const usage = sessions.getAgentUsage(sessionDir, limit);
       sendJson(res, 200, { id, source: home.source, usage });
@@ -586,7 +797,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const planPath = path.join(path.resolve(home.home), 'session-state', id, 'plan.md');
       const text = assets.readTextFileSafe(planPath, 512 * 1024);
       if (text == null) {
@@ -603,7 +814,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
       try {
         if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
@@ -625,7 +836,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
       const id = decodeURIComponent(m[1]);
       const planId = decodeURIComponent(m[2]);
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
       const text = readPlanArtifact(sessionDir, planId);
       if (text == null) {
@@ -642,7 +853,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const finalPath = path.join(path.resolve(home.home), 'session-state', id, 'final.md');
       const text = assets.readTextFileSafe(finalPath, 2 * 1024 * 1024);
       if (text == null) {
@@ -660,7 +871,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
       const id = decodeURIComponent(m[1]);
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const planId = u.searchParams.get('planId') || 'latest';
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
       
       try {
@@ -694,7 +905,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
       const propositionPath = path.join(sessionDir, 'proposition.md');
       
@@ -718,7 +929,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
     if (req.method === 'POST' && m) {
       const id = decodeURIComponent(m[1]);
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const homeAbs = path.resolve(home.home);
       const sessionDir = path.join(homeAbs, 'session-state', id);
       const archiveRoot = path.join(homeAbs, 'sessions-archive');
@@ -743,7 +954,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
     if (req.method === 'POST' && m) {
       const id = decodeURIComponent(m[1]);
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome);
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const homeAbs = path.resolve(home.home);
       const sessionDir = path.join(homeAbs, 'session-state', id);
 
@@ -957,27 +1168,67 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTra
     return;
   }
 
+  // --- Tracker proxy endpoints ---
+  if (req.method === 'GET' && pathname === '/api/tracker/sessions') {
+    proxyToTracker(trackerUrl, trackerToken, '/api/sessions/live', 'GET', req, res);
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/tracker/permissions') {
+    proxyToTracker(trackerUrl, trackerToken, '/api/permissions/pending', 'GET', req, res);
+    return;
+  }
+
+  {
+    const m = pathname.match(/^\/api\/tracker\/permissions\/([^/]+)\/(approve|deny)$/);
+    if (req.method === 'POST' && m) {
+      const callbackId = decodeURIComponent(m[1]);
+      const action = m[2];
+      if (!/^[a-zA-Z0-9_-]{1,128}$/.test(callbackId)) {
+        sendJson(res, 400, { error: 'Invalid callbackId format' });
+        return;
+      }
+      proxyToTracker(trackerUrl, trackerToken, `/api/permissions/${encodeURIComponent(callbackId)}/${action}`, 'POST', req, res);
+      return;
+    }
+  }
+
+  if (req.method === 'GET' && pathname === '/api/tracker/events') {
+    relayTrackerSSE(trackerUrl, trackerToken, req, res);
+    return;
+  }
+
   sendJson(res, 404, { error: 'Not found' });
 }
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log('Usage: node copilot-ui/server.js [--port 3210] [--copilot-home <path>]');
+    console.log('Usage: node copilot-ui/server.js [--port 3210] [--host 127.0.0.1] [--token <token>] [--copilot-home <path>] [--tracker-url <url>] [--tracker-token <token>]');
     process.exit(0);
   }
 
   const engineRoot = path.resolve(__dirname, '..');
   const copilotHome = resolveCopilotHome(args);
   const vscodeHome = resolveVscodeHome(args);
-  const changeTracker = createChangeTracker(path.resolve(copilotHome), path.resolve(vscodeHome));
+  const sandboxesHome = resolveSandboxesHome(args);
+  const trackerUrl = resolveTrackerUrl(args);
+  const trackerToken = resolveTrackerToken(args);
+  const changeTracker = createChangeTracker(path.resolve(copilotHome), path.resolve(vscodeHome), path.resolve(sandboxesHome));
   const publicDir = path.join(__dirname, 'public');
+  const host = args.host;
+  const token = resolveToken(args, host);
 
   const server = http.createServer((req, res) => {
+    if (!checkAuth(req, token)) {
+      res.writeHead(401);
+      res.end();
+      return;
+    }
     const u = new URL(req.url || '/', 'http://127.0.0.1');
     try {
       if (u.pathname.startsWith('/api/')) {
-        handleApi({ req, res, u, copilotHome, vscodeHome, engineRoot, changeTracker });
+        handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken });
         return;
       }
       serveStatic(publicDir, u.pathname, res);
@@ -986,11 +1237,21 @@ function main() {
     }
   });
 
-  server.listen(args.port, '127.0.0.1', () => {
-    console.log(`CLI UI server: http://127.0.0.1:${args.port}/`);
-    console.log(`copilotHome: ${copilotHome}`);
-    console.log(`vscodeHome:  ${vscodeHome}`);
-    console.log(`engineRoot:  ${engineRoot}`);
+  server.listen(args.port, host, () => {
+    console.log(`CLI UI server: http://${host}:${args.port}/`);
+    console.log(`copilotHome:    ${copilotHome}`);
+    console.log(`vscodeHome:     ${vscodeHome}`);
+    console.log(`sandboxesHome:  ${sandboxesHome}`);
+    console.log(`engineRoot:     ${engineRoot}`);
+    console.log(`trackerUrl:     ${trackerUrl}`);
+    if (trackerToken) console.log(`trackerAuth:    configured`);
+    if (token) {
+      console.log(`auth token:  ${token}`);
+    }
+    if (isNonLoopback(host)) {
+      console.error('[WARN] Binding to non-loopback address without HTTPS. Auth token is transmitted in cleartext.');
+      console.error('[WARN] Use a reverse proxy with TLS termination for production use.');
+    }
   });
 }
 

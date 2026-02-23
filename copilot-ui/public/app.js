@@ -4,6 +4,8 @@ function $(id) {
 
 let sessionSource = 'all';
 let selectedSession = null;
+let trackerEventSource = null;
+let trackerPendingCount = 0;
 
 async function api(url, opts) {
   const res = await fetch(url, {
@@ -89,22 +91,86 @@ function switchTab(tab) {
   const sessions = tab === 'sessions';
   const assets = tab === 'assets';
   const lsp = tab === 'lsp';
+  const tracker = tab === 'tracker';
   $('tab-sessions').classList.toggle('active', sessions);
   $('tab-assets').classList.toggle('active', assets);
   $('tab-lsp').classList.toggle('active', lsp);
+  $('tab-tracker').classList.toggle('active', tracker);
   $('view-sessions').classList.toggle('hidden', !sessions);
   $('view-assets').classList.toggle('hidden', !assets);
   $('view-lsp').classList.toggle('hidden', !lsp);
+  $('view-tracker').classList.toggle('hidden', !tracker);
   
   if (lsp) {
     loadLspConfig();
   }
+  
+  // SSE lifecycle: start when viewing tracker, stop otherwise
+  if (tracker) {
+    loadTracker();
+    startTrackerSSE();
+  } else {
+    stopTrackerSSE();
+  }
+}
+
+function mergeSessionsWithTracker(fsSessions, acpSessions) {
+  const acpMap = new Map();
+  for (const s of acpSessions) {
+    const id = s.id || s.sessionId;
+    if (id) acpMap.set(id, s);
+  }
+
+  const merged = [];
+  const seen = new Set();
+
+  for (const fs of fsSessions) {
+    seen.add(fs.id);
+    const acp = acpMap.get(fs.id);
+    if (acp) {
+      merged.push({
+        ...fs,
+        status: acp.status || fs.status,
+        authority: 'acp',
+        acpData: acp,
+      });
+    } else {
+      merged.push({
+        ...fs,
+        authority: 'fs',
+      });
+    }
+  }
+
+  for (const [id, acp] of acpMap) {
+    if (seen.has(id)) continue;
+    merged.push({
+      id,
+      status: acp.status || 'active',
+      source: 'acp',
+      authority: 'acp',
+      acpData: acp,
+      repo: null,
+      branch: null,
+      cwd: null,
+      mode: null,
+      startTime: null,
+      lastEventTime: null,
+    });
+  }
+
+  return merged;
 }
 
 async function loadSessions() {
   setStatus('Loading sessions…');
-  const data = await api(`/api/sessions?activeWindowMinutes=30&source=${encodeURIComponent(sessionSource)}`);
-  const sessions = data.sessions || [];
+  const [fsData, acpData] = await Promise.all([
+    api(`/api/sessions?activeWindowMinutes=30&source=${encodeURIComponent(sessionSource)}`),
+    api('/api/tracker/sessions').catch(() => []),
+  ]);
+  const fsSessions = fsData.sessions || [];
+  const acpSessions = Array.isArray(acpData) ? acpData : (acpData.sessions || []);
+  const sessions = mergeSessionsWithTracker(fsSessions, acpSessions);
   const active = sessions.filter((s) => s.status === 'active');
   const past = sessions.filter((s) => s.status !== 'active');
   $('sessions-summary').textContent = `${active.length} active, ${past.length} past`;
@@ -115,7 +181,9 @@ async function loadSessions() {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'item';
-      const prefix = sessionSource === 'all' ? `[${String(s.source || 'cli').toUpperCase()}] ` : '';
+      const sourceLabel = sessionSource === 'all' ? `[${String(s.source || 'cli').toUpperCase()}] ` : '';
+      const authorityBadge = s.authority === 'acp' ? '[ACP] ' : s.authority === 'fs' ? '[FS] ' : '';
+      const prefix = authorityBadge + sourceLabel;
       const title = prefix + (s.repo ? `${s.repo}` : s.cwd || s.id);
       const sub = `${s.id} • ${s.status} • ${fmtTime(s.lastEventTime || s.startTime)}`;
       btn.innerHTML = `<div class="item-title"></div><div class="item-sub muted"></div>`;
@@ -155,13 +223,14 @@ async function selectSession(s) {
   $('session-proposition').classList.add('muted');
   $('session-events').textContent = '';
   $('session-detail').innerHTML = `
-    <div><b>ID:</b> ${s.id}</div>
-    <div><b>Source:</b> ${s.source || sessionSource}</div>
-    <div><b>Status:</b> ${s.status}</div>
-    <div><b>Repo:</b> ${s.repo || ''}</div>
-    <div><b>Branch:</b> ${s.branch || ''}</div>
-    <div><b>CWD:</b> ${s.cwd || ''}</div>
-    <div><b>Mode:</b> ${s.mode || ''}</div>
+    <div><b>ID:</b> ${escapeHtml(s.id)}</div>
+    <div><b>Source:</b> ${escapeHtml(s.source || sessionSource)}</div>
+    <div><b>Authority:</b> ${s.authority === 'acp' ? 'ACP (live)' : 'Filesystem'}</div>
+    <div><b>Status:</b> ${escapeHtml(s.status)}</div>
+    <div><b>Repo:</b> ${escapeHtml(s.repo || '')}</div>
+    <div><b>Branch:</b> ${escapeHtml(s.branch || '')}</div>
+    <div><b>CWD:</b> ${escapeHtml(s.cwd || '')}</div>
+    <div><b>Mode:</b> ${escapeHtml(s.mode || '')}</div>
     <div><b>Last event:</b> ${fmtTime(s.lastEventTime)}</div>
   `;
 
@@ -295,6 +364,171 @@ async function selectSession(s) {
   }
   if (!events.length) $('session-events').textContent = '(no events found)';
   setStatus(`Loaded ${s.id}.`);
+}
+
+async function loadTrackerPermissions() {
+  try {
+    const data = await api('/api/tracker/permissions');
+    const perms = data.permissions || [];
+    trackerPendingCount = perms.length;
+    updateTrackerBadge();
+    const container = $('tracker-permissions');
+    container.textContent = '';
+    if (!perms.length) {
+      const d = document.createElement('div');
+      d.className = 'muted';
+      d.textContent = '(no pending permissions)';
+      container.appendChild(d);
+      return;
+    }
+    for (const p of perms) {
+      const row = document.createElement('div');
+      row.className = 'item';
+      const callbackId = escapeHtml(p.callbackId || p.id || '');
+      const summary = escapeHtml(p.summary || p.description || p.title || '(no summary)');
+      const sessionId = escapeHtml(p.sessionId || '');
+      const sandboxId = p.sandboxId ? escapeHtml(p.sandboxId) : '';
+      
+      row.innerHTML = `
+        <div class="item-title">${summary}</div>
+        <div class="item-sub muted">ID: ${callbackId}${sessionId ? ' \u2022 Session: ' + sessionId : ''}${sandboxId ? ' \u2022 Sandbox: ' + sandboxId : ''}</div>
+        <div class="actions" style="margin-top: 4px;">
+          <button class="btn small approve-btn" type="button" data-id="${callbackId}">Approve</button>
+          <button class="btn small danger deny-btn" type="button" data-id="${callbackId}">Deny</button>
+        </div>
+      `;
+      
+      row.querySelector('.approve-btn').addEventListener('click', async (e) => {
+        const id = e.target.dataset.id;
+        setStatus('Approving\u2026');
+        try {
+          await api('/api/tracker/permissions/' + encodeURIComponent(id) + '/approve', { method: 'POST', body: '{}' });
+          setStatus('Approved.');
+          await loadTrackerPermissions();
+        } catch (err) {
+          setStatus('Approve failed: ' + err.message);
+        }
+      });
+      
+      row.querySelector('.deny-btn').addEventListener('click', async (e) => {
+        const id = e.target.dataset.id;
+        setStatus('Denying\u2026');
+        try {
+          await api('/api/tracker/permissions/' + encodeURIComponent(id) + '/deny', { method: 'POST', body: '{}' });
+          setStatus('Denied.');
+          await loadTrackerPermissions();
+        } catch (err) {
+          setStatus('Deny failed: ' + err.message);
+        }
+      });
+      
+      container.appendChild(row);
+    }
+  } catch (e) {
+    $('tracker-permissions').textContent = 'Error: ' + e.message;
+    trackerPendingCount = 0;
+    updateTrackerBadge();
+  }
+}
+
+async function loadTrackerSessions() {
+  try {
+    const data = await api('/api/tracker/sessions');
+    const sessions = Array.isArray(data) ? data : (data.sessions || []);
+    const container = $('tracker-sessions');
+    container.textContent = '';
+    if (!sessions.length) {
+      const d = document.createElement('div');
+      d.className = 'muted';
+      d.textContent = '(no live sessions)';
+      container.appendChild(d);
+      return;
+    }
+    for (const s of sessions) {
+      const row = document.createElement('div');
+      row.className = 'item';
+      const title = escapeHtml(s.id || s.sessionId || '(unknown)');
+      const status = escapeHtml(s.status || '');
+      row.innerHTML = `<div class="item-title">${title}</div><div class="item-sub muted">Status: ${status}</div>`;
+      container.appendChild(row);
+    }
+  } catch (e) {
+    $('tracker-sessions').textContent = 'Error: ' + e.message;
+  }
+}
+
+async function loadTracker() {
+  setStatus('Loading tracker data\u2026');
+  await Promise.all([loadTrackerPermissions(), loadTrackerSessions()]);
+  setStatus('Tracker loaded.');
+}
+
+function updateTrackerBadge() {
+  const badge = $('tracker-badge');
+  if (!badge) return;
+  if (trackerPendingCount > 0) {
+    badge.textContent = String(trackerPendingCount);
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function startTrackerSSE() {
+  if (trackerEventSource) return; // already running
+  
+  const statusEl = $('tracker-status');
+  const eventsEl = $('tracker-events');
+  
+  try {
+    trackerEventSource = new EventSource('/api/tracker/events');
+  } catch (e) {
+    if (statusEl) statusEl.textContent = 'SSE error: ' + e.message;
+    return;
+  }
+  
+  trackerEventSource.addEventListener('connected', () => {
+    if (statusEl) statusEl.textContent = 'Connected (live)';
+    if (statusEl) statusEl.classList.remove('muted');
+  });
+  
+  trackerEventSource.addEventListener('live', (e) => {
+    // Real-time event — refresh permissions and add to event log
+    loadTrackerPermissions().catch(() => {});
+    
+    if (eventsEl) {
+      const row = document.createElement('div');
+      row.className = 'event';
+      let parsed;
+      try { parsed = JSON.parse(e.data); } catch { parsed = { raw: e.data }; }
+      const type = (parsed && parsed.type) || 'live';
+      const now = new Date().toLocaleTimeString();
+      row.innerHTML = '<div class="event-top"><span class="badge"></span><span class="muted"></span></div><pre class="event-body"></pre>';
+      row.querySelector('.badge').textContent = type;
+      row.querySelector('.event-top .muted').textContent = now;
+      row.querySelector('.event-body').textContent = JSON.stringify(parsed, null, 2).slice(0, 2000);
+      eventsEl.prepend(row);
+      // Keep max 50 events visible
+      while (eventsEl.children.length > 50) {
+        eventsEl.removeChild(eventsEl.lastChild);
+      }
+    }
+  });
+  
+  trackerEventSource.onerror = () => {
+    if (statusEl) statusEl.textContent = 'Disconnected (reconnecting\u2026)';
+    if (statusEl) statusEl.classList.add('muted');
+  };
+}
+
+function stopTrackerSSE() {
+  if (trackerEventSource) {
+    trackerEventSource.close();
+    trackerEventSource = null;
+  }
+  const statusEl = $('tracker-status');
+  if (statusEl) statusEl.textContent = 'Disconnected';
+  if (statusEl) statusEl.classList.add('muted');
 }
 
 async function loadManaged() {
@@ -647,6 +881,9 @@ function bindUi() {
 
   $('btn-refresh-lsp').addEventListener('click', () => loadLspConfig().catch((e) => setStatus(e.message)));
   $('btn-install-lsp').addEventListener('click', () => installLsp().catch((e) => setStatus(e.message)));
+
+  $('tab-tracker').addEventListener('click', () => switchTab('tracker'));
+  $('btn-refresh-tracker').addEventListener('click', () => loadTracker().catch((e) => setStatus(e.message)));
 }
 
 async function boot() {
@@ -659,6 +896,16 @@ async function boot() {
   await loadSessions().catch((e) => setStatus(e.message));
   await loadManaged().catch((e) => setStatus(e.message));
   await loadInstalled().catch((e) => setStatus(e.message));
+
+  // Tracker: 3s permission poll fallback when SSE not connected
+  setInterval(async () => {
+    try {
+      if (trackerEventSource && trackerEventSource.readyState === EventSource.OPEN) return; // SSE is delivering, no need to poll
+      await loadTrackerPermissions();
+    } catch {
+      // ignore polling failures
+    }
+  }, 3000);
 
   // Best-effort "watch": poll a version counter the server bumps on fs.watch events.
   let lastVersion = null;

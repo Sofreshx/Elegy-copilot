@@ -34,6 +34,10 @@ A single structured brief that:
 - Flags risks and why they matter
 - Recommends the orchestrator’s next delegation steps
 
+## Target Context Guidance
+- If Target Context is provided as input, use it to surface more specific ambiguities (e.g., "Desktop app detected — does this change affect both the desktop client and the backend?").
+- Include `target_context` in the output only when it was provided as input.
+
 ## Classification Guidance
 - `classification`:
   - `trivial`: 1–2 small, localized changes; minimal ambiguity; low blast radius
@@ -76,6 +80,10 @@ suggested_next_steps:
 # Optional, only when clearly relevant.
 notes:
   - <constraints, assumptions, or success criteria you inferred>
+
+# Optional — only when Target Context was provided as input.
+# Helps surface context-aware ambiguities.
+target_context: api|desktop|frontend|infra|unknown
 ```
 
 ## Output Style Requirements

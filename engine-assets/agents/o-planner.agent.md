@@ -177,6 +177,14 @@ Before writing the final plan pack, verify:
 
 If any check fails, include a `## Plan Quality Warnings` section listing the gaps.
 
+### Schema Validation (opt-in)
+1. Verify all 12 required H2 sections are present in order
+2. Verify each WU spec has Context, Acceptance Criteria, Plan/Approach, and Validation subsections
+3. Verify WU-ID format (`^WU-\d{3}$`) and Group-ID format (`^G-\d{2}-[a-z0-9-]+$`)
+4. Report any failures in a `## Plan Quality Warnings` section
+
+This validation is opt-in. When the marker is absent, skip all schema checks.
+
 ## Progressive Refinement
 The orchestrator may invoke you twice per planning session:
 

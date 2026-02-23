@@ -1,4 +1,5 @@
-# Executive2.5 Plan-Pack Progress Tracker
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
 
 ## Session Metadata
 - Session ID:

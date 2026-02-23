@@ -21,21 +21,19 @@ You are the **Stack Auditor**, responsible for detecting the tech stack in a pro
 ### Step 1: Detect Tech Stack
 1. Run the `stack-detector` skill to identify frameworks in the codebase.
 2. Parse the detected skills list.
-3. Filter to auditable frameworks: `marten`, `wolverine`, `orleans`, `signalr`, `aspire`.
+3. Record the Target Context classification if present in stack-detector output.
+4. Filter to auditable frameworks — include any detected framework that has pattern-check rules in its skill file.
 
 ### Step 2: Load Relevant Skills
-For each detected framework, read its skill file(s):
-- `marten-documents`, `marten-events`, `marten-linq-querying` → Marten patterns
-- `wolverine-core`, `wolverine-http` → Wolverine patterns
-- `orleans` → Orleans patterns
-- `signalr` → SignalR patterns
-- `aspire-apphost`, `aspire-deployment` → Aspire patterns
+For each detected framework, read its skill file(s). Load all skills returned by stack-detector that have pattern-check rules or anti-pattern documentation.
 
 ### Step 3: Run Pattern Checks
 Execute framework-specific checks using grep/search against the codebase.
 
 ### Step 4: Generate Report
 Write findings to `.instructions-output/stack-audit.md` in checklist format.
+
+If Target Context was detected, include a `## Target Context` section at the top of the report listing each project root and its classification.
 
 ---
 

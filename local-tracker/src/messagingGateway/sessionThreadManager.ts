@@ -18,6 +18,7 @@ function readNumber(obj: Record<string, unknown>, key: string): number | undefin
 export interface ExtensionEventLike {
 	type: string;
 	sessionId?: string;
+	sandboxId?: string;
 	timestamp?: string;
 	payload?: unknown;
 }
@@ -27,9 +28,10 @@ function parseExtensionEventLike(input: unknown): ExtensionEventLike | null {
 	const type = readString(input, 'type') ?? readString(input, 'eventType') ?? readString(input, 'name');
 	if (!type) return null;
 	const sessionId = readString(input, 'sessionId') ?? readString(input, 'session_id');
+	const sandboxId = readString(input, 'sandboxId') ?? readString(input, 'sandbox_id');
 	const timestamp = readString(input, 'timestamp');
 	const payload = input.payload;
-	return { type, sessionId, timestamp, payload };
+	return { type, sessionId, sandboxId, timestamp, payload };
 }
 
 function capTail<T>(items: T[], max: number): T[] {
@@ -64,6 +66,7 @@ export interface SessionThreadManagerOptions {
 
 interface SessionState {
 	sessionId: string;
+	sandboxId?: string;
 	thread?: PlatformThreadHandle;
 	liveMessage?: PlatformMessageHandle;
 	createdAtIso: string;
@@ -96,8 +99,9 @@ export class SessionThreadManager {
 		this.markPermissionResolved = options.markPermissionResolved;
 	}
 
-	attachThread(params: { sessionId: string; thread: PlatformThreadHandle; liveMessage: PlatformMessageHandle }): void {
+	attachThread(params: { sessionId: string; sandboxId?: string; thread: PlatformThreadHandle; liveMessage: PlatformMessageHandle }): void {
 		const state = this.ensureSession(params.sessionId);
+		if (params.sandboxId) state.sandboxId = params.sandboxId;
 		state.thread = params.thread;
 		state.liveMessage = params.liveMessage;
 
@@ -121,6 +125,7 @@ export class SessionThreadManager {
 		if (!ev?.sessionId) return;
 
 		const state = this.ensureSession(ev.sessionId);
+		if (ev.sandboxId && !state.sandboxId) state.sandboxId = ev.sandboxId;
 		const line = this.formatEventLine(ev);
 		if (line) {
 			state.eventLines.push(line);
@@ -215,7 +220,9 @@ export class SessionThreadManager {
 
 	private buildLiveMessage(state: SessionState): string {
 		const lines: string[] = [];
-		lines.push(`Session ${state.sessionId}`);
+		const prefix = state.sandboxId ? `[${state.sandboxId}] ` : '';
+		lines.push(`${prefix}Session ${state.sessionId}`);
+		if (state.sandboxId) lines.push(`Sandbox: ${state.sandboxId}`);
 		lines.push(`Status: ${state.lastStatus ?? 'unknown'}`);
 		lines.push(`Updated: ${new Date(this.nowMs()).toISOString()}`);
 		lines.push('');

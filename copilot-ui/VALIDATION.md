@@ -151,3 +151,53 @@ Both endpoints support:
 - [ ] `GET /proposition` returns content when file exists
 - [ ] Both endpoints handle invalid session ID (404)
 - [ ] Endpoints work with `source=cli` and `source=vscode`
+
+## Auth Gate Validation
+
+### Prerequisites
+- Server running with `node copilot-ui/server.js`
+
+### Test Scenarios
+
+#### 1. Loopback without auth (backward-compatible)
+```bash
+curl http://127.0.0.1:3210/api/health
+```
+Expected: 200 OK with health JSON
+
+#### 2. Non-loopback with auto-generated token
+```bash
+node copilot-ui/server.js --host 0.0.0.0
+# Note the auth token printed at startup
+curl -H "Authorization: Bearer <token>" http://localhost:3210/api/health
+```
+Expected: 200 OK with health JSON
+
+#### 3. Non-loopback without token
+```bash
+curl http://<non-loopback-ip>:3210/api/health
+```
+Expected: 401 empty body
+
+#### 4. Non-loopback with wrong token
+```bash
+curl -H "Authorization: Bearer wrong-token" http://<non-loopback-ip>:3210/api/health
+```
+Expected: 401 empty body
+
+#### 5. Non-loopback with Basic auth (should fail)
+```bash
+curl -H "Authorization: Basic dXNlcjpwYXNz" http://<non-loopback-ip>:3210/api/health
+```
+Expected: 401 empty body (only Bearer is accepted)
+
+#### 6. Query-string token attempt (should fail)
+```bash
+curl "http://<non-loopback-ip>:3210/api/health?token=<token>"
+```
+Expected: 401 empty body (query-param auth not supported)
+
+### Scope Notes
+- Auth is single-session scope only
+- Multi-session aggregate views are deferred
+- Token auto-generated for non-loopback binds; `--token` or `COPILOT_UI_TOKEN` env var for explicit control

@@ -29,6 +29,11 @@ export interface MessagingGatewayStatusV1 {
 			fromKeychain: boolean;
 			fromEnv: boolean;
 		};
+		gatewayHttpToken: {
+			present: boolean;
+			fromKeychain: boolean;
+			fromEnv: boolean;
+		};
 	};
 
 	runtime: {

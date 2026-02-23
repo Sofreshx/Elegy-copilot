@@ -77,6 +77,13 @@ Compress to a ~150-line **project context summary**: tech stack, conventions, co
 ### 0d) Skill pre-scan
 Based on the user's request, identify likely skills. DO NOT load them yet — just note which ones may be needed.
 
+### 0e) Detect operational context (optional)
+If the `stack-detector` skill is available, invoke it to classify the workspace's operational context (api, desktop, frontend, infra, unknown). Record the Target Context for passing to downstream agents.
+
+- If Target Context is `unknown` or unavailable, skip — do not prompt the user.
+- Target Context is **informational only**: it never overrides explicit user intent.
+- Precedence: user intent > Target Context > fallback to skill-based inference.
+
 ---
 
 ## Phase 1 — Understand
@@ -290,7 +297,7 @@ This is your most important responsibility.
 
 | Subagent | Receives |
 |----------|----------|
-| **@o-reframer** | User request (verbatim), project context (~150 lines) |
+| **@o-reframer** | User request (verbatim), project context (~150 lines), Target Context (if available) |
 | **@o-planner** | Enriched brief, exploration findings, skill instructions, project context, SESSION_ID |
 | **@work-unit-runner** | WU spec, exploration context, skill instructions, previous attempts |
 | **@code-explorer** | Scope description, relevant file paths, specific questions |

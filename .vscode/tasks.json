@@ -42,6 +42,23 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "test"
+		},
+		{
+			"label": "validate: plan pack",
+			"type": "shell",
+			"command": "node",
+			"args": ["scripts/validate-planpack.js", "${input:planpackPath}"],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		}
+	],
+	"inputs": [
+		{
+			"id": "planpackPath",
+			"type": "promptString",
+			"description": "Path to plan pack file",
+			"default": "plan.md"
 		}
 	]
 }

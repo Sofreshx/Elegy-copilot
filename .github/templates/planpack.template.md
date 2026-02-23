@@ -1,4 +1,5 @@
-# Executive2.5 Plan Pack
+# Plan Pack
+<!-- IE_PLAN_PACK_VERSION: 1 -->
 
 ## Goal + Success Criteria
 - Goal:
@@ -12,6 +13,9 @@
 -
 
 ## Decisions (with rationale)
+-
+
+## Dropped / Deferred
 -
 
 ## Work Unit Groups

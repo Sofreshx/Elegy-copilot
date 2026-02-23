@@ -15,12 +15,14 @@
   "dependencies": {
     "@napi-rs/keyring": "^1.2.0",
     "chokidar": "^4.0.0",
+    "dockerode": "^4.0.6",
     "discord.js": "^14.0.0",
     "dotenv": "^16.4.7",
     "zod": "^3.24.2",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@types/dockerode": "^3.3.32",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.0.0",
     "@types/ws": "^8.5.14",

@@ -56,6 +56,7 @@ Plan approval gate:
 1. Assemble the approved High-Level Plan and all approved Sub-Plans into a single, cohesive **Execution Plan**.
 2. Add a **Progress Tracker** (Status table: not-started, in-progress, done) for all Work Units.
 3. Write the assembled plan to `~/.copilot/session-state/{SESSION_ID}/plan.md` using the `edit` tool.
+
 4. Append an `after-planning` entry to `~/.copilot/session-state/{SESSION_ID}/proposition.md` (see `docs/session-state-artifacts.md` for format).
 5. **Final Sanity Check**: Do a final pass with the reviewers on the assembled document.
 6. Record a short **Review Ledger** before replanning (always):

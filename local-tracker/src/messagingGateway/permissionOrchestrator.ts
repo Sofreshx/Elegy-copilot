@@ -5,6 +5,8 @@ export interface PendingPermission {
 	callbackId: string;
 	/** Best-effort session id (when present on the inbound event). */
 	sessionId?: string;
+	/** Best-effort sandbox id (when present on the inbound event). */
+	sandboxId?: string;
 	receivedAt: string;
 	expiresAt: string;
 	/** Best-effort extracted text for UI; already sanitized for outbound display. */
@@ -89,6 +91,7 @@ function safeSummaryFromEvent(eventRoot: Record<string, unknown>): string {
 
 export interface PermissionOrchestratorOptions {
 	client?: BridgeClient;
+	clientResolver?: (sandboxId?: string) => BridgeClient | undefined;
 	auditLogger?: AuditLogger;
 	permissionTimeoutMs?: number;
 	defaultResolvedBy?: string;
@@ -97,6 +100,7 @@ export interface PermissionOrchestratorOptions {
 
 export class PermissionOrchestrator {
 	private client: BridgeClient | undefined;
+	private clientResolver: ((sandboxId?: string) => BridgeClient | undefined) | undefined;
 	private readonly auditLogger: AuditLogger | undefined;
 	private readonly permissionTimeoutMs: number;
 	private readonly defaultResolvedBy: string;
@@ -107,6 +111,7 @@ export class PermissionOrchestrator {
 
 	constructor(options: PermissionOrchestratorOptions = {}) {
 		this.client = options.client;
+		this.clientResolver = options.clientResolver;
 		this.auditLogger = options.auditLogger;
 		this.permissionTimeoutMs = options.permissionTimeoutMs ?? 120_000;
 		this.defaultResolvedBy = options.defaultResolvedBy ?? 'messaging-gateway';
@@ -121,8 +126,20 @@ export class PermissionOrchestrator {
 		this.client = client;
 	}
 
+	/**
+	 * Set a resolver that returns the correct BridgeClient for a given sandboxId.
+	 * When set, this takes precedence over the static client set via setClient().
+	 */
+	setClientResolver(resolver: ((sandboxId?: string) => BridgeClient | undefined) | undefined): void {
+		this.clientResolver = resolver;
+	}
+
 	getPending(): PendingPermission[] {
 		return [...this.pendingByCallbackId.values()].sort((a, b) => a.receivedAt.localeCompare(b.receivedAt));
+	}
+
+	getPendingBySandbox(sandboxId: string): PendingPermission[] {
+		return this.getPending().filter(p => p.sandboxId === sandboxId);
 	}
 
 	/**
@@ -138,9 +155,11 @@ export class PermissionOrchestrator {
 			if (!callbackId) return;
 
 			const now = Date.now();
+			const sandboxId = isRecord(event) ? readString(event, ['sandboxId', 'sandbox_id']) : undefined;
 			const pending: PendingPermission = {
 				callbackId,
 				sessionId: extractSessionId(event),
+				sandboxId,
 				receivedAt: new Date(now).toISOString(),
 				expiresAt: new Date(now + this.permissionTimeoutMs).toISOString(),
 				summary: safeSummaryFromEvent(root),
@@ -223,13 +242,27 @@ export class PermissionOrchestrator {
 		}
 	}
 
+	private resolveClient(sandboxId?: string): BridgeClient | undefined {
+		if (this.clientResolver) {
+			return this.clientResolver(sandboxId);
+		}
+		return this.client;
+	}
+
 	private async resolve(callbackId: string, approved: boolean, resolvedBy?: string): Promise<void> {
-		const client = this.client;
+		const pending = this.pendingByCallbackId.get(callbackId);
+		const client = this.resolveClient(pending?.sandboxId);
 		if (!client || client.getStatus() !== 'connected') {
 			throw new Error('[Gateway] Cannot resolve permission: bridge not connected');
 		}
 		if (!this.pendingByCallbackId.has(callbackId)) {
-			throw new Error('[Gateway] Cannot resolve permission: callbackId is not pending');
+			this.auditLogger?.log({
+				kind: 'permission_resolve_noop',
+				callbackId,
+				approved,
+				resolvedBy: resolvedBy ?? this.defaultResolvedBy,
+			});
+			return;
 		}
 
 		// Clear pending first to prevent double-submit from adapters.

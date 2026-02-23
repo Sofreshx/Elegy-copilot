@@ -13,6 +13,7 @@
         <button id="tab-sessions" class="tab active" type="button">Sessions</button>
         <button id="tab-assets" class="tab" type="button">Assets</button>
         <button id="tab-lsp" class="tab" type="button">LSP</button>
+        <button id="tab-tracker" class="tab" type="button">Tracker <span id="tracker-badge" class="badge-count" style="display:none"></span></button>
       </nav>
       <div class="spacer"></div>
       <button id="btn-reload" type="button" class="btn">Reload</button>
@@ -131,6 +132,22 @@
         
         <h2>Install Logs</h2>
         <pre id="lsp-install-logs" class="pre muted">No logs yet.</pre>
+      </section>
+
+      <section id="view-tracker" class="view hidden">
+        <div class="toolbar">
+          <button id="btn-refresh-tracker" class="btn" type="button">Refresh</button>
+          <span id="tracker-status" class="muted">Disconnected</span>
+        </div>
+
+        <h2>Pending Permissions</h2>
+        <div id="tracker-permissions" class="list">(loading…)</div>
+
+        <h2>Live Sessions (ACP)</h2>
+        <div id="tracker-sessions" class="list">(loading…)</div>
+
+        <h2>Event Log</h2>
+        <div id="tracker-events" class="events" style="max-height: 300px; overflow-y: auto;"></div>
       </section>
     </main>
 

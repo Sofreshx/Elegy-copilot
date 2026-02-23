@@ -1,6 +1,7 @@
 import fs from 'fs';
 
 import type { MessagingGatewayMode } from './config';
+import { GatewayHttpServer } from './gatewayHttpServer';
 import { getDefaultMessagingGatewayConfigPath, loadMessagingGatewayConfig, resolveMessagingGatewayConfigPath } from './config';
 import { AuditLogger } from './auditLogger';
 import { CommandRouter, WU002_POLICY_CONTRACT } from './commandRouter';
@@ -10,10 +11,12 @@ import { AcpBridgeClient } from './acpBridgeClient';
 import { PermissionOrchestrator } from './permissionOrchestrator';
 import { SessionThreadManager } from './sessionThreadManager';
 import { formatSessionLine, isActiveSessionStatus, parseBridgeSessions } from './sessionsHelpers';
-import { deleteGatewaySecret, getGatewaySecret, getGatewaySecretsStatus, storeGatewaySecretFromEnv } from './secrets';
+import { deleteGatewaySecret, ensureGatewayHttpToken, getGatewaySecret, getGatewaySecretsStatus, storeGatewaySecretFromEnv } from './secrets';
 import { detectModeAuto } from './workspaceDetection';
 import { printGatewayStatusSummary } from './status';
 import { MessagingGatewayStatusWriter, resolveMessagingGatewayStatusPath, type MessagingGatewayStatusV1 } from './statusFile';
+import { ContainerManager } from './containerManager';
+import { SandboxRegistry } from './sandboxRegistry';
 
 type CliMode = MessagingGatewayMode;
 
@@ -22,6 +25,8 @@ interface CliArgs {
 	mode?: CliMode;
 	storeDiscordBotToken?: boolean;
 	deleteDiscordBotToken?: boolean;
+	storeGatewayHttpToken?: boolean;
+	deleteGatewayHttpToken?: boolean;
 	printConfigPath?: boolean;
 	help?: boolean;
 }
@@ -49,6 +54,8 @@ ACP (Copilot CLI \`copilot --acp --port <N>\`) env overrides:
 Keychain utilities (reads token from env and stores in OS credential store):
   --store-discord-bot-token
   --delete-discord-bot-token
+  --store-gateway-http-token
+  --delete-gateway-http-token
 `);
 }
 
@@ -63,6 +70,8 @@ function parseArgs(argv: string[]): CliArgs {
 		else if (arg.startsWith('--mode=')) out.mode = arg.slice('--mode='.length) as CliMode;
 		else if (arg === '--store-discord-bot-token') out.storeDiscordBotToken = true;
 		else if (arg === '--delete-discord-bot-token') out.deleteDiscordBotToken = true;
+		else if (arg === '--store-gateway-http-token') out.storeGatewayHttpToken = true;
+		else if (arg === '--delete-gateway-http-token') out.deleteGatewayHttpToken = true;
 		else if (arg === '--print-config-path') out.printConfigPath = true;
 		else throw new Error(`[Gateway] Unknown argument: ${arg}`);
 	}
@@ -92,6 +101,8 @@ async function handleSecretUtilityFlags(args: CliArgs): Promise<boolean> {
 	const flags = [
 		args.storeDiscordBotToken,
 		args.deleteDiscordBotToken,
+		args.storeGatewayHttpToken,
+		args.deleteGatewayHttpToken,
 	].filter(Boolean);
 	if (flags.length === 0) return false;
 	if (flags.length > 1) {
@@ -106,6 +117,16 @@ async function handleSecretUtilityFlags(args: CliArgs): Promise<boolean> {
 	if (args.deleteDiscordBotToken) {
 		const deleted = await deleteGatewaySecret('discordBotToken');
 		console.log(`[Gateway] Deleted discord bot token from OS credential store: ${deleted ? 'ok' : 'not found'}`);
+		return true;
+	}
+	if (args.storeGatewayHttpToken) {
+		await storeGatewaySecretFromEnv('gatewayHttpToken');
+		console.log('[Gateway] Stored gateway HTTP token in OS credential store');
+		return true;
+	}
+	if (args.deleteGatewayHttpToken) {
+		const deleted = await deleteGatewaySecret('gatewayHttpToken');
+		console.log(`[Gateway] Deleted gateway HTTP token from OS credential store: ${deleted ? 'ok' : 'not found'}`);
 		return true;
 	}
 
@@ -225,6 +246,11 @@ async function main() {
 					fromKeychain: secretsStatus.discordBotToken.source === 'keychain',
 					fromEnv: secretsStatus.discordBotToken.source === 'env',
 				},
+				gatewayHttpToken: {
+					present: secretsStatus.gatewayHttpToken.present,
+					fromKeychain: secretsStatus.gatewayHttpToken.source === 'keychain',
+					fromEnv: secretsStatus.gatewayHttpToken.source === 'env',
+				},
 			},
 			runtime: {
 				discord: {
@@ -240,6 +266,7 @@ async function main() {
 	);
 
 	let acpConnected = false;
+	let gatewayHttpServer: GatewayHttpServer | undefined;
 	function refreshDynamicStatusFields(status: MessagingGatewayStatusV1): void {
 		status.config.workspaces.activeRoot = activeWorkspaceRoot;
 		if (status.runtime.sessions) {
@@ -255,6 +282,29 @@ async function main() {
 	statusWriter.update((s) => refreshDynamicStatusFields(s));
 	// Heartbeat: refresh timestamp + dynamic fields.
 	statusWriter.startHeartbeat(15_000, (s) => refreshDynamicStatusFields(s));
+
+	// --- Sandbox Container Manager ---
+	// Initialize early so reconcile() cleans orphaned containers before accepting commands.
+	const containerManager = new ContainerManager();
+	try {
+		await containerManager.reconcile();
+		console.log('[Gateway] Sandbox container reconciliation complete (orphans cleaned)');
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(`[Gateway] Sandbox container reconciliation failed (non-fatal): ${message}`);
+	}
+
+	// --- Sandbox Registry ---
+	const sandboxRegistry = new SandboxRegistry({
+		onSandboxEvent: (sandboxEvent) => {
+			permissionOrchestrator?.handleExtensionEvent(sandboxEvent.event);
+			sessionThreads.handleExtensionEvent(sandboxEvent.event);
+			gatewayHttpServer?.pushLiveEvent({ type: String((sandboxEvent.event as any)?.type ?? 'sandbox-event'), data: { sandboxId: sandboxEvent.sandboxId, event: sandboxEvent.event } });
+		},
+		onSandboxStatusChanged: (change) => {
+			console.log(`[Gateway] Sandbox ${change.sandboxId} status: ${change.status}`);
+		},
+	});
 
 	let extensionClient: BridgeClient | undefined;
 	let permissionOrchestrator: PermissionOrchestrator | undefined;
@@ -272,6 +322,7 @@ async function main() {
 			onEvent: (event) => {
 				permissionOrchestrator?.handleExtensionEvent(event);
 				sessionThreads.handleExtensionEvent(event);
+				gatewayHttpServer?.pushLiveEvent({ type: String((event as any)?.type ?? 'acp-event'), data: event });
 			},
 			onStatusChanged: (status) => {
 				console.log(`[Gateway] ACP status: ${status}`);
@@ -284,8 +335,46 @@ async function main() {
 			},
 		});
 		permissionOrchestrator.setClient(extensionClient);
+
+		// Multi-sandbox: resolve the correct BridgeClient per sandbox
+		permissionOrchestrator.setClientResolver((sandboxId) => {
+			if (sandboxId) {
+				const entry = sandboxRegistry.get(sandboxId);
+				return entry?.client;
+			}
+			return extensionClient;
+		});
+
 		extensionClient.start();
 	}
+
+	// --- Gateway HTTP Server ---
+	const httpTokenResult = await ensureGatewayHttpToken();
+	const gatewayHttpToken = httpTokenResult.value;
+	console.log(`[Gateway] HTTP API token source: ${httpTokenResult.source}`);
+
+	gatewayHttpServer = new GatewayHttpServer({
+		bearerToken: gatewayHttpToken,
+		getSessions: async () => {
+			if (!extensionClient || extensionClient.getStatus() !== 'connected') {
+				return [];
+			}
+			const raw = await extensionClient.get_sessions();
+			return parseBridgeSessions(raw);
+		},
+		getPendingPermissions: () => permissionOrchestrator?.getPending() ?? [],
+		approvePermission: async (callbackId, resolvedBy) => {
+			if (!permissionOrchestrator) throw new Error('No permission orchestrator available');
+			await permissionOrchestrator.approve(callbackId, resolvedBy);
+		},
+		denyPermission: async (callbackId, resolvedBy) => {
+			if (!permissionOrchestrator) throw new Error('No permission orchestrator available');
+			await permissionOrchestrator.deny(callbackId, resolvedBy);
+		},
+	});
+
+	await gatewayHttpServer.start();
+	console.log(`[Gateway] HTTP API token (first 8 chars): ${gatewayHttpToken.slice(0, 8)}...`);
 
 	const configIsPersistable = !loaded.configPath.startsWith('(env:');
 	async function setActiveWorkspaceRoot(nextWorkspaceRoot: string): Promise<void> {
@@ -318,6 +407,7 @@ async function main() {
 		auditLogger,
 		extensionClient,
 		permissionOrchestrator,
+		sandboxRegistry,
 	});
 
 	discord.setCommandHandler(async (interaction) => {
@@ -427,6 +517,9 @@ async function main() {
 				await permissionOrchestrator?.stop();
 				await extensionClient?.stop();
 				await discord.stop();
+				await gatewayHttpServer?.stop();
+				await sandboxRegistry.stopAll();
+				await containerManager.stopAll();
 				statusWriter.stopHeartbeat();
 				statusWriter.update((s) => {
 					s.runtime.discord.connected = false;
