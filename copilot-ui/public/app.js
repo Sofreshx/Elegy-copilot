@@ -228,6 +228,8 @@ async function selectSession(s) {
   $('session-progress').classList.add('muted');
   $('session-proposition').textContent = '';
   $('session-proposition').classList.add('muted');
+  $('session-verification-guide').textContent = '';
+  $('session-verification-guide').classList.add('muted');
   $('session-events').textContent = '';
   $('session-detail').innerHTML = `
     <div><b>ID:</b> ${escapeHtml(s.id)}</div>
@@ -243,13 +245,18 @@ async function selectSession(s) {
 
   setStatus(`Loading plan/events for ${s.id}…`);
   const source = encodeURIComponent(String(s.source || sessionSource || 'cli'));
-  const [plansIndex, finalOut, agentUsage, evs, structuredState, proposition] = await Promise.all([
+  const [plansIndex, finalOut, agentUsage, evs, structuredState, proposition, verificationGuide] = await Promise.all([
     api(`/api/sessions/${encodeURIComponent(s.id)}/plans?source=${source}`).catch(() => ({ plans: [] })),
     api(`/api/sessions/${encodeURIComponent(s.id)}/final?source=${source}`).catch(() => ''),
     api(`/api/sessions/${encodeURIComponent(s.id)}/agent-usage?limit=500&source=${source}`).catch(() => ({ usage: {} })),
     api(`/api/sessions/${encodeURIComponent(s.id)}/events?limit=20&source=${source}`).catch(() => ({ events: [] })),
     api(`/api/sessions/${encodeURIComponent(s.id)}/structured-state?source=${source}`).catch(() => null),
     api(`/api/sessions/${encodeURIComponent(s.id)}/proposition?source=${source}`).catch((e) => {
+      const msg = String((e && e.message) || '');
+      if (msg.startsWith('404')) return null;
+      return { error: msg };
+    }),
+    api(`/api/sessions/${encodeURIComponent(s.id)}/verification-guide?source=${source}`).catch((e) => {
       const msg = String((e && e.message) || '');
       if (msg.startsWith('404')) return null;
       return { error: msg };
@@ -345,6 +352,17 @@ async function selectSession(s) {
     $('session-proposition').querySelector('.proposition-content').textContent = String(proposition.content).slice(0, 8000);
   } else {
     $('session-proposition').textContent = '(none)';
+  }
+
+  // Render verification guide
+  if (verificationGuide && verificationGuide.error) {
+    $('session-verification-guide').textContent = `Error: ${verificationGuide.error}`;
+  } else if (verificationGuide && verificationGuide.content) {
+    $('session-verification-guide').classList.remove('muted');
+    $('session-verification-guide').innerHTML = '<pre class="proposition-content"></pre>';
+    $('session-verification-guide').querySelector('.proposition-content').textContent = String(verificationGuide.content).slice(0, 8000);
+  } else {
+    $('session-verification-guide').textContent = '(none)';
   }
 
   const usage = (agentUsage && agentUsage.usage) || {};

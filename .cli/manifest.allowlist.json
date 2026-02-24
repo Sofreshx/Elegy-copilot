@@ -29,6 +29,7 @@
     "security-scanner",
     "stack-auditor",
     "unit-test-runner",
+    "verification-guide",
     "work-unit-runner"
   ],
   "skills": [

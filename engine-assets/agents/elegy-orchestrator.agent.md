@@ -4,7 +4,7 @@ description: "Implementation entrypoint for Elegy workflow. Executes an approved
 tools: [read, search, edit, execute/runInTerminal, agent/runSubagent, agent, todo, vscode/askQuestions]
 user-invocable: true
 disable-model-invocation: true
-agents: [code-explorer, impl-infra, impl-business, impl-reviewer, work-unit-runner, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, code-reviewer, final-reviewer]
+agents: [code-explorer, impl-infra, impl-business, impl-reviewer, work-unit-runner, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, code-reviewer, final-reviewer, verification-guide]
 ---
 
 # Elegy Orchestrator
@@ -70,4 +70,21 @@ Finalization order:
 1) `@code-reviewer` (on changed files)
 2) Optional cross-model review (if changes are non-trivial)
 3) `@final-reviewer`
-4) Append an `after-execution` entry to `~/.copilot/session-state/{SESSION_ID}/proposition.md` (append-only; see `docs/system/session-state-artifacts.md` for format)
+4) `@verification-guide` → gather changed files + final-review output + plan summary; write `verification-guide.md`
+5) Append an `after-execution` entry to `~/.copilot/session-state/{SESSION_ID}/proposition.md` (append-only; see `docs/system/session-state-artifacts.md` for format)
+
+### Verification Guide (step 4 detail)
+
+After `@final-reviewer` completes (step 3), generate a verification guide:
+
+1. **Changed-files extraction**: Parse `## Execution Log` entries matching the pattern `<timestamp> — WU-XXX completed` — extract file paths mentioned in those entries. De-duplicate, preserve chronological order. If no file paths are found, pass `["No files recorded in execution log"]`.
+2. **Input assembly**: Pass three inputs to `@verification-guide`:
+   - `final_review`: the FINAL_REVIEW text block returned by `@final-reviewer` (step 3 output)
+   - `changed_files`: the de-duplicated file path list from above
+   - `plan_summary`: the plan title + WU group titles from `plan.md`
+3. **Delegation**: invoke `@verification-guide` with these inputs.
+4. **Output write**: Write the agent's returned markdown content to `~/.copilot/session-state/{SESSION_ID}/verification-guide.md` using **overwrite** semantics (replace entire file if it exists).
+5. **Graceful degradation**: If `@verification-guide` fails or times out:
+   - Log the failure in `## Execution Log`: `<timestamp> — Verification guide generation failed: <reason>. Continuing finalization.`
+   - Do NOT create or modify `verification-guide.md`
+   - Proceed to step 5 (proposition append) — finalization is not blocked

@@ -1,11 +1,11 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-02-24
 category: system
 status: current
 doc_kind: node
 id: session-state-artifacts
-summary: Canonical contract for Elegy session-state artifacts (plan.md + proposition.md) and progress tracker structure.
+summary: Canonical contract for Elegy session-state artifacts (plan.md, proposition.md, verification-guide.md) and progress tracker structure.
 tags: [session-state, elegy]
 ---
 
@@ -34,6 +34,7 @@ A typical session directory contains:
 ~/.copilot/session-state/<SESSION_ID>/
   plan.md              # Plan Pack + Progress Tracker (canonical)
   proposition.md       # Append-only guidance artifact
+  verification-guide.md  # Structured verification guide (optional)
   plans/               # Plan revisions
     index.json         # Revision metadata
     rev-0001.md        # First revision
@@ -68,6 +69,36 @@ Each entry uses an H2 heading:
 ### Details
 The plan prioritizes foundational changes before UI work to minimize rework...
 ```
+
+### Verification Guide Artifact (`verification-guide.md`)
+
+A structured guide for verifying changes made during a session's execution phase.
+
+| Property | Value |
+|---|---|
+| **Write semantics** | Overwrite (full replace on each write) |
+| **Lifecycle** | Written by `@elegy-orchestrator` at finalization, after `@final-reviewer` completes |
+| **Optional** | Yes — not created if `@verification-guide` agent fails or is skipped |
+
+#### Format
+
+The file is Markdown with these top-level sections:
+
+1. **Summary** — One-paragraph overview of what was changed and why
+2. **Changed Files** — List of files modified/created/deleted during execution
+3. **Where to Verify** — Pointers to the areas the reviewer should inspect (type-prefixed: UI, Terminal, Browser, File, API, Config)
+4. **Verification Steps** — Ordered checklist of manual or automated steps to confirm correctness
+5. **Expected Outcomes** — What the reviewer should observe when verification succeeds
+
+#### API Access
+
+The copilot-ui dashboard exposes this artifact via:
+
+```
+GET /api/sessions/:id/verification-guide
+```
+
+Returns `{ id, source, content }` with the raw Markdown content, or `404` if the artifact was not generated for the session.
 
 ## Progress Tracker Structure (v1)
 

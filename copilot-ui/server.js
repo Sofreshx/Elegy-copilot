@@ -925,6 +925,30 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   }
 
   {
+    const m = pathname.match(/^\/api\/sessions\/([^/]+)\/verification-guide$/);
+    if (req.method === 'GET' && m) {
+      const id = decodeURIComponent(m[1]);
+      const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
+      const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
+      const guidePath = path.join(sessionDir, 'verification-guide.md');
+
+      const text = assets.readTextFileSafe(guidePath, 512 * 1024);
+      if (text == null) {
+        sendJson(res, 404, { error: 'Verification guide not found', id, source: home.source });
+        return;
+      }
+
+      sendJson(res, 200, {
+        id,
+        source: home.source,
+        content: text,
+      });
+      return;
+    }
+  }
+
+  {
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/archive$/);
     if (req.method === 'POST' && m) {
       const id = decodeURIComponent(m[1]);

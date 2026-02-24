@@ -194,6 +194,12 @@
       "destination": "agents/unit-test-runner.agent.md"
     },
     {
+      "id": "agent-verification-guide",
+      "type": "agent",
+      "source": "engine-assets/agents/verification-guide.agent.md",
+      "destination": "agents/verification-guide.agent.md"
+    },
+    {
       "id": "agent-work-unit-runner",
       "type": "agent",
       "source": "engine-assets/agents/work-unit-runner.agent.md",
