@@ -122,6 +122,12 @@
       "destination": "agents/integration-test-runner.agent.md"
     },
     {
+      "id": "agent-instruction-auditor",
+      "type": "agent",
+      "source": "engine-assets/agents/instruction-auditor.agent.md",
+      "destination": "agents/instruction-auditor.agent.md"
+    },
+    {
       "id": "agent-o-planner",
       "type": "agent",
       "source": "engine-assets/agents/o-planner.agent.md",
@@ -248,6 +254,12 @@
       "destination": "skills/aspire-deployment"
     },
     {
+      "id": "skill-audit-report-formats",
+      "type": "skill",
+      "source": "engine-assets/skills/audit-report-formats",
+      "destination": "skills/audit-report-formats"
+    },
+    {
       "id": "skill-code-review",
       "type": "skill",
       "source": "engine-assets/skills/code-review",
@@ -272,10 +284,22 @@
       "destination": "skills/deployment-compose"
     },
     {
+      "id": "skill-e2e-workflow",
+      "type": "skill",
+      "source": "engine-assets/skills/e2e-workflow",
+      "destination": "skills/e2e-workflow"
+    },
+    {
       "id": "skill-frontend",
       "type": "skill",
       "source": "engine-assets/skills/frontend",
       "destination": "skills/frontend"
+    },
+    {
+      "id": "skill-instruction-quality",
+      "type": "skill",
+      "source": "engine-assets/skills/instruction-quality",
+      "destination": "skills/instruction-quality"
     },
     {
       "id": "skill-marten-documents",
@@ -296,6 +320,12 @@
       "destination": "skills/openai-compatible"
     },
     {
+      "id": "skill-planpack-authoring",
+      "type": "skill",
+      "source": "engine-assets/skills/planpack-authoring",
+      "destination": "skills/planpack-authoring"
+    },
+    {
       "id": "skill-react-query",
       "type": "skill",
       "source": "engine-assets/skills/react-query",
@@ -306,6 +336,12 @@
       "type": "skill",
       "source": "engine-assets/skills/security",
       "destination": "skills/security"
+    },
+    {
+      "id": "skill-stack-audit-patterns",
+      "type": "skill",
+      "source": "engine-assets/skills/stack-audit-patterns",
+      "destination": "skills/stack-audit-patterns"
     },
     {
       "id": "skill-stack-detector",
