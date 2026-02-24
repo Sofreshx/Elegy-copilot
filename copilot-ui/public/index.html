@@ -14,6 +14,7 @@
         <button id="tab-assets" class="tab" type="button">Assets</button>
         <button id="tab-lsp" class="tab" type="button">LSP</button>
         <button id="tab-tracker" class="tab" type="button">Tracker <span id="tracker-badge" class="badge-count" style="display:none"></span></button>
+        <button id="tab-gateway" class="tab" type="button">Gateway</button>
       </nav>
       <div class="spacer"></div>
       <button id="btn-reload" type="button" class="btn">Reload</button>
@@ -148,6 +149,83 @@
 
         <h2>Event Log</h2>
         <div id="tracker-events" class="events" style="max-height: 300px; overflow-y: auto;"></div>
+      </section>
+      <section id="view-gateway" class="view hidden">
+        <h2>Discord Messaging Gateway</h2>
+        <div class="panel">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="muted">Config file:</span>
+            <code id="gateway-config-path" class="mono muted"></code>
+            <span id="gateway-config-badge" class="badge badge-missing">not found</span>
+          </div>
+        </div>
+
+        <div class="row" style="align-items:flex-start;gap:16px;">
+          <div class="col">
+            <h3>Connection</h3>
+            <div class="panel">
+              <div class="gateway-field">
+                <label for="gateway-mode">Mode</label>
+                <select id="gateway-mode" class="gateway-input">
+                  <option value="auto">auto (recommended)</option>
+                  <option value="connected">connected</option>
+                  <option value="disconnected">disconnected</option>
+                </select>
+              </div>
+              <div class="gateway-field">
+                <label for="gateway-acp-host">ACP Host</label>
+                <input id="gateway-acp-host" type="text" class="gateway-input" value="127.0.0.1" placeholder="127.0.0.1" />
+              </div>
+              <div class="gateway-field">
+                <label for="gateway-acp-port">ACP Port</label>
+                <input id="gateway-acp-port" type="number" class="gateway-input" value="3000" min="1" max="65535" placeholder="3000" />
+              </div>
+            </div>
+
+            <h3>Discord</h3>
+            <div class="panel">
+              <div class="gateway-field">
+                <label for="gateway-discord-guild">Guild ID <span class="muted">(numeric snowflake)</span></label>
+                <input id="gateway-discord-guild" type="text" class="gateway-input" placeholder="222222222222222222" />
+              </div>
+              <div class="gateway-field">
+                <label for="gateway-discord-channel">Channel ID <span class="muted">(numeric snowflake)</span></label>
+                <input id="gateway-discord-channel" type="text" class="gateway-input" placeholder="333333333333333333" />
+              </div>
+              <div class="gateway-field">
+                <label for="gateway-discord-users">Allowed User IDs <span class="muted">(comma-separated)</span></label>
+                <input id="gateway-discord-users" type="text" class="gateway-input" placeholder="111111111111111111, 444444444444444444" />
+              </div>
+              <div class="gateway-field">
+                <label for="gateway-discord-perms-channel">Permissions Channel ID <span class="muted">(optional — leave blank to use session thread)</span></label>
+                <input id="gateway-discord-perms-channel" type="text" class="gateway-input" placeholder="(optional)" />
+              </div>
+            </div>
+          </div>
+
+          <div class="col">
+            <h3>Workspace Roots</h3>
+            <div class="toolbar">
+              <button id="btn-gateway-scan" class="btn" type="button">Scan repos</button>
+              <input id="gateway-custom-path" type="text" class="gateway-input" style="flex:1" placeholder="Custom path to scan…" />
+              <button id="btn-gateway-scan-custom" class="btn" type="button">Scan custom</button>
+            </div>
+            <div id="gateway-repo-list" class="repo-list panel">
+              <span class="muted">(click Scan repos to discover projects)</span>
+            </div>
+            <div class="gateway-field" style="margin-top:10px;">
+              <label for="gateway-active-root">Active root</label>
+              <select id="gateway-active-root" class="gateway-input">
+                <option value="">(check repos above first)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar" style="margin-top:12px;">
+          <button id="btn-gateway-save" class="btn" type="button">Save config</button>
+        </div>
+        <pre id="gateway-status" class="pre muted">Config not yet saved.</pre>
       </section>
     </main>
 

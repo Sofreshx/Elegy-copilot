@@ -92,14 +92,17 @@ function switchTab(tab) {
   const assets = tab === 'assets';
   const lsp = tab === 'lsp';
   const tracker = tab === 'tracker';
+  const gateway = tab === 'gateway';
   $('tab-sessions').classList.toggle('active', sessions);
   $('tab-assets').classList.toggle('active', assets);
   $('tab-lsp').classList.toggle('active', lsp);
   $('tab-tracker').classList.toggle('active', tracker);
+  $('tab-gateway').classList.toggle('active', gateway);
   $('view-sessions').classList.toggle('hidden', !sessions);
   $('view-assets').classList.toggle('hidden', !assets);
   $('view-lsp').classList.toggle('hidden', !lsp);
   $('view-tracker').classList.toggle('hidden', !tracker);
+  $('view-gateway').classList.toggle('hidden', !gateway);
   
   if (lsp) {
     loadLspConfig();
@@ -111,6 +114,10 @@ function switchTab(tab) {
     startTrackerSSE();
   } else {
     stopTrackerSSE();
+  }
+
+  if (gateway) {
+    loadGatewayConfig();
   }
 }
 
@@ -803,6 +810,206 @@ async function installLsp() {
   }
 }
 
+// --- Gateway config ---
+let gatewayAllowedRoots = new Set();
+let gatewayActiveRoot = '';
+let gatewayScanResults = null;
+
+async function loadGatewayConfig() {
+  setStatus('Loading gateway config\u2026');
+  try {
+    const data = await api('/api/gateway/config');
+    $('gateway-config-path').textContent = data.configPath || '';
+    const badge = $('gateway-config-badge');
+    if (data.exists) {
+      badge.textContent = 'exists';
+      badge.className = 'badge badge-exists';
+    } else {
+      badge.textContent = 'not found';
+      badge.className = 'badge badge-missing';
+    }
+    const cfg = data.config || {};
+    const acp = cfg.acp || {};
+    const discord = cfg.discord || {};
+    const ws = cfg.workspaces || {};
+    $('gateway-mode').value = cfg.mode || 'auto';
+    $('gateway-acp-host').value = acp.host || '127.0.0.1';
+    $('gateway-acp-port').value = String(acp.port || 3000);
+    $('gateway-discord-guild').value = discord.guildId || '';
+    $('gateway-discord-channel').value = discord.channelId || '';
+    $('gateway-discord-users').value = (discord.allowlistedUserIds || []).join(', ');
+    $('gateway-discord-perms-channel').value = discord.permissionsChannelId || '';
+    // Restore checked roots from saved config
+    gatewayAllowedRoots = new Set(ws.allowedRoots || []);
+    gatewayActiveRoot = ws.activeRoot || '';
+    if (gatewayAllowedRoots.size > 0) renderGatewayRepoList(null);
+    setStatus('Gateway config loaded.');
+  } catch (e) {
+    setStatus('Error loading gateway config: ' + e.message);
+  }
+}
+
+function renderGatewayRepoList(scanData) {
+  if (scanData !== null) gatewayScanResults = scanData;
+  const container = $('gateway-repo-list');
+  container.textContent = '';
+  const displayedPaths = new Set();
+
+  if (gatewayScanResults && gatewayScanResults.roots && gatewayScanResults.roots.length) {
+    for (const root of gatewayScanResults.roots) {
+      const heading = document.createElement('div');
+      heading.className = 'gateway-scan-root muted';
+      heading.textContent = root.scanRoot;
+      container.appendChild(heading);
+      for (const repo of root.repos) {
+        displayedPaths.add(repo.absPath);
+        appendRepoCheckbox(container, repo.absPath, repo.name, gatewayAllowedRoots.has(repo.absPath));
+      }
+    }
+  }
+
+  const orphans = [...gatewayAllowedRoots].filter((p) => !displayedPaths.has(p));
+  if (orphans.length) {
+    const heading = document.createElement('div');
+    heading.className = 'gateway-scan-root muted';
+    heading.textContent = '\u2014 Previously saved (not in scan) \u2014';
+    container.appendChild(heading);
+    for (const p of orphans) appendRepoCheckbox(container, p, p, true);
+  }
+
+  if (!container.children.length) {
+    const d = document.createElement('div');
+    d.className = 'muted';
+    d.textContent = '(no repos found \u2014 click Scan repos above)';
+    container.appendChild(d);
+  }
+  refreshActiveRootSelect();
+}
+
+function appendRepoCheckbox(container, absPath, label, checked) {
+  const row = document.createElement('label');
+  row.className = 'repo-row';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.value = absPath;
+  cb.checked = checked;
+  cb.addEventListener('change', () => {
+    if (cb.checked) {
+      gatewayAllowedRoots.add(absPath);
+    } else {
+      gatewayAllowedRoots.delete(absPath);
+      if (gatewayActiveRoot === absPath) gatewayActiveRoot = '';
+    }
+    refreshActiveRootSelect();
+  });
+  const span = document.createElement('span');
+  span.textContent = label;
+  row.appendChild(cb);
+  row.appendChild(span);
+  container.appendChild(row);
+}
+
+function refreshActiveRootSelect() {
+  const sel = $('gateway-active-root');
+  const prev = sel.value || gatewayActiveRoot;
+  sel.textContent = '';
+  const roots = [...gatewayAllowedRoots];
+  if (!roots.length) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(check repos above first)';
+    sel.appendChild(opt);
+    gatewayActiveRoot = '';
+    return;
+  }
+  for (const r of roots) {
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = r;
+    sel.appendChild(opt);
+  }
+  if (roots.includes(prev)) {
+    sel.value = prev;
+    gatewayActiveRoot = prev;
+  } else {
+    sel.value = roots[0];
+    gatewayActiveRoot = roots[0];
+  }
+}
+
+async function scanGatewayRepos(extraPath) {
+  setStatus('Scanning repos\u2026');
+  try {
+    const url = extraPath ? `/api/gateway/scan-repos?extra=${encodeURIComponent(extraPath)}` : '/api/gateway/scan-repos';
+    const data = await api(url);
+    const total = (data.roots || []).reduce((acc, r) => acc + (r.repos || []).length, 0);
+    renderGatewayRepoList(data);
+    setStatus(`Found ${total} repo(s) across ${(data.roots || []).length} scan root(s).`);
+  } catch (e) {
+    setStatus('Scan error: ' + e.message);
+  }
+}
+
+async function saveGatewayConfig() {
+  const mode = $('gateway-mode').value || 'auto';
+  const acpHost = $('gateway-acp-host').value.trim() || '127.0.0.1';
+  const acpPort = parseInt($('gateway-acp-port').value, 10) || 3000;
+  const guildId = $('gateway-discord-guild').value.trim();
+  const channelId = $('gateway-discord-channel').value.trim();
+  const usersRaw = $('gateway-discord-users').value.trim();
+  const permsChannel = $('gateway-discord-perms-channel').value.trim();
+  const activeRoot = $('gateway-active-root').value || gatewayActiveRoot;
+  const allowlistedUserIds = usersRaw ? usersRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  const allowedRoots = [...gatewayAllowedRoots];
+  const statusEl = $('gateway-status');
+
+  if (!guildId || !channelId) {
+    statusEl.textContent = 'Validation error: Discord Guild ID and Channel ID are required.';
+    statusEl.className = 'pre';
+    return;
+  }
+  if (!allowlistedUserIds.length) {
+    statusEl.textContent = 'Validation error: At least one Discord User ID is required.';
+    statusEl.className = 'pre';
+    return;
+  }
+  if (!allowedRoots.length) {
+    statusEl.textContent = 'Validation error: Select at least one workspace root.';
+    statusEl.className = 'pre';
+    return;
+  }
+  if (!activeRoot) {
+    statusEl.textContent = 'Validation error: Select an active workspace root.';
+    statusEl.className = 'pre';
+    return;
+  }
+
+  const body = {
+    mode,
+    acp: { host: acpHost, port: acpPort },
+    discord: {
+      allowlistedUserIds,
+      guildId,
+      channelId,
+      ...(permsChannel ? { permissionsChannelId: permsChannel } : {}),
+    },
+    workspaces: { allowedRoots, activeRoot },
+  };
+
+  setStatus('Saving gateway config\u2026');
+  try {
+    const r = await api('/api/gateway/config', { method: 'POST', body: JSON.stringify(body) });
+    statusEl.textContent = `Saved \u2192 ${r.configPath}`;
+    statusEl.className = 'pre status-saved';
+    await loadGatewayConfig();
+    setStatus('Gateway config saved.');
+  } catch (e) {
+    statusEl.textContent = 'Save error: ' + e.message;
+    statusEl.className = 'pre';
+    setStatus('Failed to save gateway config.');
+  }
+}
+
 function bindUi() {
   $('tab-sessions').addEventListener('click', () => switchTab('sessions'));
   $('tab-assets').addEventListener('click', () => switchTab('assets'));
@@ -884,6 +1091,21 @@ function bindUi() {
 
   $('tab-tracker').addEventListener('click', () => switchTab('tracker'));
   $('btn-refresh-tracker').addEventListener('click', () => loadTracker().catch((e) => setStatus(e.message)));
+
+  $('tab-gateway').addEventListener('click', () => switchTab('gateway'));
+  $('btn-gateway-scan').addEventListener('click', () => scanGatewayRepos(null).catch((e) => setStatus(e.message)));
+  $('btn-gateway-scan-custom').addEventListener('click', () => {
+    const extra = $('gateway-custom-path').value.trim();
+    scanGatewayRepos(extra || null).catch((e) => setStatus(e.message));
+  });
+  $('gateway-active-root').addEventListener('change', () => {
+    gatewayActiveRoot = $('gateway-active-root').value;
+  });
+  $('btn-gateway-save').addEventListener('click', () => saveGatewayConfig().catch((e) => {
+    $('gateway-status').textContent = 'Error: ' + e.message;
+    $('gateway-status').className = 'pre';
+    setStatus('Failed to save gateway config.');
+  }));
 }
 
 async function boot() {

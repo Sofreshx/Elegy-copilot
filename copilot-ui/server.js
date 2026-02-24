@@ -1168,6 +1168,105 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     return;
   }
 
+  // --- Gateway config endpoints ---
+  if (req.method === 'GET' && pathname === '/api/gateway/config') {
+    const configPath = path.join(copilotHomeAbs, 'messaging-gateway.config.json');
+    const config = readJsonFileSafe(configPath);
+    sendJson(res, 200, { exists: config !== null, configPath, config: config || null });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/gateway/config') {
+    readJsonBody(req)
+      .then((body) => {
+        const discord = body && body.discord;
+        if (!discord || typeof discord.guildId !== 'string' || typeof discord.channelId !== 'string' || !Array.isArray(discord.allowlistedUserIds)) {
+          throw Object.assign(new Error('discord.guildId, discord.channelId, discord.allowlistedUserIds are required'), { statusCode: 400 });
+        }
+        const ws = body && body.workspaces;
+        if (!ws || !Array.isArray(ws.allowedRoots) || ws.allowedRoots.length === 0 || typeof ws.activeRoot !== 'string') {
+          throw Object.assign(new Error('workspaces.allowedRoots (non-empty) and workspaces.activeRoot are required'), { statusCode: 400 });
+        }
+        const normalizedActive = path.resolve(ws.activeRoot);
+        const normalizedRoots = ws.allowedRoots.map((r) => path.resolve(String(r)));
+        const isWinPlatform = process.platform === 'win32';
+        const inAllowed = normalizedRoots.some((r) =>
+          isWinPlatform ? r.toLowerCase() === normalizedActive.toLowerCase() : r === normalizedActive
+        );
+        if (!inAllowed) {
+          throw Object.assign(new Error('workspaces.activeRoot must be one of workspaces.allowedRoots'), { statusCode: 400 });
+        }
+        const normalized = {
+          mode: body.mode || 'auto',
+          acp: { host: (body.acp && body.acp.host) || '127.0.0.1', port: Number((body.acp && body.acp.port) || 3000) },
+          discord: {
+            allowlistedUserIds: discord.allowlistedUserIds.map(String),
+            guildId: String(discord.guildId),
+            channelId: String(discord.channelId),
+            ...(discord.permissionsChannelId ? { permissionsChannelId: String(discord.permissionsChannelId) } : {}),
+          },
+          workspaces: { allowedRoots: normalizedRoots, activeRoot: normalizedActive },
+        };
+        const configPath = path.join(copilotHomeAbs, 'messaging-gateway.config.json');
+        const tmpPath = `${configPath}.tmp.${Date.now()}`;
+        ensureDir(copilotHomeAbs);
+        fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2), 'utf8');
+        fs.renameSync(tmpPath, configPath);
+        sendJson(res, 200, { ok: true, configPath });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/gateway/scan-repos') {
+    const extraParam = u.searchParams.get('extra');
+    const home = os.homedir();
+    const isWin = process.platform === 'win32';
+    const candidateRoots = [
+      isWin ? path.join(home, 'Documents', 'GitHub') : null,
+      isWin ? path.join(home, 'source', 'repos') : null,
+      path.join(home, 'GitHub'),
+      path.join(home, 'projects'),
+      path.join(home, 'dev'),
+      path.join(home, 'workspace'),
+      path.join(home, 'code'),
+      path.join(home, 'repos'),
+    ].filter(Boolean);
+    if (extraParam && extraParam.trim()) {
+      candidateRoots.push(path.resolve(extraParam.trim()));
+    }
+    function isDir(p) {
+      try { return fs.statSync(p).isDirectory(); } catch { return false; }
+    }
+    function hasGit(p) {
+      return isDir(path.join(p, '.git'));
+    }
+    function listSubdirs(p) {
+      try { return fs.readdirSync(p).map((n) => path.join(p, n)).filter(isDir); } catch { return []; }
+    }
+    const roots = [];
+    for (const scanRoot of candidateRoots) {
+      if (!isDir(scanRoot)) continue;
+      const repos = [];
+      const level1 = listSubdirs(scanRoot);
+      for (const l1 of level1) {
+        if (hasGit(l1)) {
+          repos.push({ absPath: l1, name: path.basename(l1), isGit: true });
+        } else {
+          const level2 = listSubdirs(l1);
+          for (const l2 of level2) {
+            if (hasGit(l2)) {
+              repos.push({ absPath: l2, name: path.join(path.basename(l1), path.basename(l2)), isGit: true });
+            }
+          }
+        }
+      }
+      if (repos.length > 0) roots.push({ scanRoot, repos });
+    }
+    sendJson(res, 200, { roots });
+    return;
+  }
+
   // --- Tracker proxy endpoints ---
   if (req.method === 'GET' && pathname === '/api/tracker/sessions') {
     proxyToTracker(trackerUrl, trackerToken, '/api/sessions/live', 'GET', req, res);
