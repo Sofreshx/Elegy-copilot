@@ -57,6 +57,7 @@
 ## Execution Notes
 - The plan pack is read-only during execution. Update progress only in the session progress tracker (typically `x-PLANPACK-PROGRESS-<SESSION_ID>.md`).
 - Each work unit is executed via `work-unit-runner`.
+- For versioned planpacks, ensure the progress tracker includes `## Stream Evidence` rows for `G-01`..`G-04` and corresponding completion evidence.
 
 ## Risks / Rollback
 -

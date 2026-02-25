@@ -70,6 +70,15 @@ See the example template below or copy from `local-tracker/docs/messaging-gatewa
     "host": "127.0.0.1",
     "port": 3000
   },
+  "sandboxLifecycle": {
+    "maxSandboxes": 10,
+    "portRange": {
+      "start": 13000,
+      "end": 13099
+    },
+    "cleanupOnStartup": false,
+    "staleTtlMs": 86400000
+  },
   "discord": {
     "allowlistedUserIds": ["<YOUR_DISCORD_USER_ID>"],
     "guildId": "<YOUR_DISCORD_GUILD_ID>",
@@ -85,6 +94,10 @@ See the example template below or copy from `local-tracker/docs/messaging-gatewa
 - **`mode`**: `"auto"` (recommended) or `"connected"`
 - **`acp.host`**: ACP server host (default: `127.0.0.1`)
 - **`acp.port`**: ACP server port (must match Copilot CLI `--port`)
+- **`sandboxLifecycle.maxSandboxes`**: Max concurrent sandboxes (1-100, default: `10`)
+- **`sandboxLifecycle.portRange`**: Host port range for ACP sidecars (`start`/`end`, 1-65535, `start <= end`, default: `13000-13099`)
+- **`sandboxLifecycle.cleanupOnStartup`**: Whether to run startup sandbox directory orphan/stale cleanup (default: `false`)
+- **`sandboxLifecycle.staleTtlMs`**: Stale directory threshold in milliseconds for non-active sandboxes (default: `86400000`)
 - **`discord.allowlistedUserIds`**: Array of Discord user IDs (strings) allowed to use commands
 - **`discord.guildId`**: Your Discord server (guild) ID (string)
 - **`discord.channelId`**: Your Discord channel ID (string) where commands are accepted
@@ -223,6 +236,15 @@ There is also a copy/paste template checked into the repo:
     "host": "127.0.0.1",
     "port": 3000
   },
+  "sandboxLifecycle": {
+    "maxSandboxes": 10,
+    "portRange": {
+      "start": 13000,
+      "end": 13099
+    },
+    "cleanupOnStartup": false,
+    "staleTtlMs": 86400000
+  },
   "discord": {
     "allowlistedUserIds": ["111111111111111111"],
     "guildId": "222222222222222222",
@@ -295,3 +317,20 @@ Fix:
   - only allowlisted Discord users are permitted
   - only the configured guild/channel is accepted
   - workspace access is restricted to configured allowlisted roots
+
+## Sandbox lifecycle authorization matrix (G-04-WU-01)
+
+The gateway-level policy for sandbox actions is:
+
+| Action | Local UI (authenticated) | Discord allowlisted user | Any other caller |
+|---|---|---|---|
+| `create` | allow | allow | deny |
+| `start` | allow | allow | deny |
+| `stop` | allow | allow | deny |
+| `open-terminal` | allow (local-machine only) | deny | deny |
+| `pr-open` | allow (host token only) | allow (host token only) | deny |
+
+Operational notes:
+- `open-terminal` remains restricted to local machine scope even when Discord control is enabled.
+- PR tokens remain host-only and are not passed into sandbox environment variables.
+- Policy evaluation is fail-closed for unauthorized or malformed requests.

@@ -4,6 +4,10 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const { resolvePermissionLocations } = require('../copilot-ui/lib/permissionLocationsResolver');
 
 function parseArgs(argv) {
 	const args = {
@@ -365,34 +369,6 @@ function ensureTerminalAutoApprove(settings) {
 	return changed;
 }
 
-function uniqueStrings(items) {
-	const out = [];
-	const seen = new Set();
-	for (const item of items) {
-		const s = typeof item === 'string' ? item : null;
-		if (!s) continue;
-		if (seen.has(s)) continue;
-		seen.add(s);
-		out.push(s);
-	}
-	return out;
-}
-
-function defaultCopilotPermissionLocations(copilotHomeAbs, vscodeHomeAbs) {
-	const bases = uniqueStrings([copilotHomeAbs, vscodeHomeAbs].filter(Boolean).map((p) => path.resolve(p)));
-	const subdirs = ['agents', 'skills', 'prompts', 'session-state', 'repo-state', 'sessions-archive'];
-
-	const locations = [];
-	for (const base of bases) {
-		locations.push(base);
-		for (const sub of subdirs) {
-			locations.push(path.join(base, sub));
-		}
-	}
-
-	return uniqueStrings(locations);
-}
-
 function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }) {
 	// Copilot tool approvals are stored under ~/.copilot/permissions-config.json.
 	// The goal here is to avoid repeated VS Code agent prompts for file access.
@@ -404,7 +380,11 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
 		root.locations = {};
 	}
 
-	const desiredLocations = defaultCopilotPermissionLocations(copilotHomeAbs, vscodeHomeAbs);
+	const { locations: desiredLocations } = resolvePermissionLocations({
+		baseRoots: [copilotHomeAbs, vscodeHomeAbs],
+		includeDefaultSubdirs: true,
+		scanExistingSubdirs: true
+	});
 	let changed = false;
 
 	for (const loc of desiredLocations) {

@@ -11,6 +11,14 @@ tags: [changelog]
 
 # Instruction Changelog
 
+## 2026-02-25 — G-05-WU-05 final gate + waiver precedence enforced
+
+- Added deterministic `Final Gate Controls` validation to `scripts/validate-planpack.js`.
+- Final required controls now enforced per-control: `evidencePredicates`, `finalGateWaiverPrecedence`, `trustedEvidenceBindingRetention`.
+- Waivers now apply only to explicitly scoped controls; scope mismatch is a hard failure.
+- Waived controls now require release-linked audit trail fields (`Waiver Release`, `Waiver Audit`) for traceability.
+- Documented the table contract and algorithm in `docs/system/planpack-spec.md`.
+
 ## 2026-02-25 — Temp File Safety Controls added
 
 - Added `## Temp File Safety Controls` section with anchor `temp-file-safety-controls-v1`.

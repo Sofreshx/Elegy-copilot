@@ -11,6 +11,7 @@
       <div class="brand">Copilot CLI Dashboard</div>
       <nav class="tabs">
         <button id="tab-sessions" class="tab active" type="button">Sessions</button>
+        <button id="tab-sandboxes" class="tab" type="button">Sandboxes</button>
         <button id="tab-assets" class="tab" type="button">Assets</button>
         <button id="tab-lsp" class="tab" type="button">LSP</button>
         <button id="tab-tracker" class="tab" type="button">Tracker <span id="tracker-badge" class="badge-count" style="display:none"></span></button>
@@ -67,6 +68,30 @@
            </div>
          </div>
        </section>
+
+      <section id="view-sandboxes" class="view hidden">
+        <div class="toolbar">
+          <input id="sandbox-id" type="text" class="gateway-input sandbox-input" placeholder="sandboxId" />
+          <button id="btn-sandbox-create" class="btn" type="button">Create</button>
+          <button id="btn-sandbox-start" class="btn" type="button">Start</button>
+          <button id="btn-sandbox-stop" class="btn" type="button">Stop</button>
+          <button id="btn-sandbox-open-terminal" class="btn" type="button">Open terminal</button>
+          <button id="btn-sandbox-follow" class="btn" type="button">Follow</button>
+        </div>
+        <div class="toolbar">
+          <input id="sandbox-base-branch" type="text" class="gateway-input sandbox-input" placeholder="baseBranch" />
+          <input id="sandbox-head-branch" type="text" class="gateway-input sandbox-input" placeholder="headBranch" />
+          <button id="btn-sandbox-pr-open" class="btn" type="button">Open PR</button>
+        </div>
+
+        <div class="toolbar">
+          <button id="btn-refresh-sandboxes" class="btn" type="button">Refresh</button>
+          <span id="sandboxes-summary" class="muted"></span>
+        </div>
+
+        <h2>Discovered sandbox sessions</h2>
+        <div id="sandboxes-list" class="list sandbox-list-compact"></div>
+      </section>
 
       <section id="view-assets" class="view hidden">
         <div class="toolbar">

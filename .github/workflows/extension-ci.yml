@@ -9,6 +9,9 @@ on:
     branches: [main]
     paths:
       - 'RannIA/**'
+      - 'engine-assets/policy/**'
+      - '.cli/policy/**'
+      - 'scripts/validate-policy-lockfiles.js'
       - '.github/workflows/extension-ci.yml'
 
 defaults:
@@ -35,6 +38,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Validate policy lockfiles
+        run: node ../scripts/validate-policy-lockfiles.js
 
       - name: Lint
         run: npm run lint --if-present

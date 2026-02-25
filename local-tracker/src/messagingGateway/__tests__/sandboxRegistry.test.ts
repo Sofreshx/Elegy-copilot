@@ -80,6 +80,19 @@ describe('SandboxRegistry', () => {
 		it('throws for invalid sandboxId — starts with hyphen', () => {
 			expect(() => registry.register('-sandbox', new FakeBridgeClient(), 9000)).toThrow('Invalid sandboxId');
 		});
+
+		it('getOrRegister() returns existing entry without creating a second client', () => {
+			const firstClient = new FakeBridgeClient();
+			const first = registry.getOrRegister('sandbox-1', () => firstClient, 9000);
+
+			const createClient = jest.fn(() => new FakeBridgeClient());
+			const second = registry.getOrRegister('sandbox-1', createClient, 9001);
+
+			expect(first.created).toBe(true);
+			expect(second.created).toBe(false);
+			expect(second.entry).toBe(first.entry);
+			expect(createClient).not.toHaveBeenCalled();
+		});
 	});
 
 	describe('unregister()', () => {

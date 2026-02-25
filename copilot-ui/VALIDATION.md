@@ -255,3 +255,154 @@ Expected: 401 empty body (query-param auth not supported)
 - [ ] ACP-only rows appear with muted styling
 - [ ] Console has no `[session-dedupe]` warnings under normal operation
 - [ ] `session-source.js` loaded before `app.js` (check Elements/Sources tab)
+
+## WS3 — Runtime Compatibility Contract (G-01-WU-03)
+
+### Purpose
+Verify deterministic runtime contract behavior for repo vs packaged mode and capability fallback states (Docker, WSL2, sandbox).
+
+### 1) Default mode check (repo fallback)
+```bash
+node copilot-ui/server.js --host 127.0.0.1 --port 3210
+curl http://127.0.0.1:3210/api/health
+```
+
+Expected in response JSON:
+- `runtime.contractVersion` is present
+- `runtime.mode` is `repo` unless overridden
+- `runtime.capabilities` includes `docker`, `wsl2`, `sandbox`
+
+### 2) Forced packaged + unavailable matrix
+```bash
+INSTRUCTION_ENGINE_RUNTIME_MODE=packaged \
+INSTRUCTION_ENGINE_FORCE_DOCKER_STATE=unavailable \
+INSTRUCTION_ENGINE_FORCE_WSL2_STATE=unavailable \
+INSTRUCTION_ENGINE_FORCE_SANDBOX_STATE=unavailable \
+node copilot-ui/server.js --host 127.0.0.1 --port 3210
+
+curl http://127.0.0.1:3210/api/health
+```
+
+Expected in response JSON:
+- `runtime.mode` is `packaged`
+- `runtime.capabilities.docker` is `unavailable`
+- `runtime.capabilities.wsl2` is `unavailable`
+- `runtime.capabilities.sandbox` is `unavailable`
+
+### 3) Stable payload contract assertions
+For repeated calls to `GET /api/health`, assert:
+- top-level keys still include `ok`, `now`, `engineRoot`, `copilotHome`, `vscodeHome`, `changes`, `runtime`
+- `runtime` object shape remains stable: `contractVersion`, `mode`, `capabilities`
+- no missing capability keys even when unavailable (`docker`, `wsl2`, `sandbox` always present)
+
+## WS4 — Electron Packaging Baseline (G-02-WU-02)
+
+### Build baseline
+
+```bash
+cd copilot-ui
+npm install
+npm run build:electron
+```
+
+Expected:
+- `dist-electron/main.js` and `dist-electron/preload.js` are generated.
+
+### Desktop preview package smoke
+
+```bash
+cd copilot-ui
+npm run package:preview
+```
+
+Expected:
+- unpacked app artifact is generated under `copilot-ui/release/`.
+- launched app opens dashboard UI backed by the same local API behavior.
+
+### Windows package smoke
+
+```bash
+cd copilot-ui
+npm run package:win
+```
+
+Expected:
+- Windows installer artifact appears under `copilot-ui/release/`.
+- app launches and renders the same dashboard tabs/content as `node copilot-ui/server.js`.
+
+## WS5 — Update Channel Isolation (G-02-WU-03)
+
+### Policy behavior
+
+- Stable channel must not accept prerelease candidates.
+- Prerelease channel may accept prerelease candidates.
+
+### Manual checks
+
+1. Launch desktop app with `INSTRUCTION_ENGINE_UPDATE_CHANNEL=stable` and app version without prerelease suffix.
+  - Verify logs include blocked reason when prerelease update candidate is discovered.
+2. Launch desktop app with `INSTRUCTION_ENGINE_UPDATE_CHANNEL=prerelease`.
+  - Verify prerelease update candidates are not blocked by channel policy.
+3. Launch without explicit channel override.
+  - Channel resolves from app version (`x.y.z` => stable, `x.y.z-...` => prerelease).
+
+## WS5A — Rollback + Kill Switch Controls (G-02-WU-05)
+
+### Policy behavior
+
+- Rollback policy source is fail-closed (`rollback_policy_source_unavailable` / `rollback_policy_malformed`).
+- Global kill switch blocks update checks and candidates (`updates_disabled_globally`).
+- Minimum-safe thresholds block unsafe current/candidate versions.
+- Channel version ceilings block candidates above rollback target ceiling.
+
+### Game-day scenarios
+
+1. Kill switch enabled:
+  - Set `INSTRUCTION_ENGINE_DISABLE_UPDATES=true`.
+  - Expected logs include `updates_disabled_globally` and no update check request is sent.
+
+2. Policy source unavailable:
+  - Unset `INSTRUCTION_ENGINE_ROLLBACK_POLICY_JSON` and set `INSTRUCTION_ENGINE_DISABLE_UPDATES=false`.
+  - Expected logs include `rollback_policy_source_unavailable` and checks are blocked.
+
+3. Policy malformed:
+  - Set `INSTRUCTION_ENGINE_ROLLBACK_POLICY_JSON={"updatesEnabled":"bad"}`.
+  - Expected logs include `rollback_policy_malformed` and checks are blocked.
+
+4. Minimum-safe threshold:
+  - Set policy `minimumSafeVersion` higher than current app version.
+  - Expected blocked reason: `current_version_below_minimum_safe`.
+
+5. Channel ceiling rollback:
+  - Set policy `channelVersionCeilings.stable` below discovered stable candidate.
+  - Expected blocked reason: `candidate_version_above_channel_ceiling`.
+
+## WS6 — Desktop Signing Trust Chain (G-02-WU-04)
+
+### CI release gate expectations
+
+- Workflow: `.github/workflows/desktop-release.yml`
+- Trigger with a desktop tag (`desktop-vx.y.z` or `desktop-vx.y.z-rc.1`) or manual dispatch with `release_tag`.
+
+### Required repo configuration
+
+- Variable: `DESKTOP_SIGNING_SERVICE_URL` (required, fail closed if absent)
+- Variable: `DESKTOP_SIGNING_SERVICE_AUDIENCE` (optional)
+- Secret: `DESKTOP_SIGNING_SERVICE_API_KEY` (optional)
+
+### Manual checks
+
+1. Run workflow without `DESKTOP_SIGNING_SERVICE_URL` configured.
+  - Expected: workflow fails at signing contract with a clear fail-closed message.
+2. Run workflow with signing endpoint configured and valid service response.
+  - Expected: Windows signed installer + `signature-manifest.json` + `provenance.attestation.json` are required before draft release.
+3. Confirm Linux metadata signature verification step passes.
+  - Expected: `linux-preview-metadata.sha256` is verified against service-issued signature/certificate before publish.
+4. Confirm macOS preview label is present.
+  - Expected: `MAC_PREVIEW_UNSIGNED.txt` exists and release still stays draft.
+5. Confirm prerelease inference.
+  - `desktop-v1.2.3` => draft stable release (`prerelease: false`)
+  - `desktop-v1.2.3-rc.1` => draft prerelease (`prerelease: true`)
+6. Confirm attestation mismatch blocks release.
+  - In a non-production test run, tamper either `artifacts/windows/windows-signed-installer.exe` or `artifacts/windows/provenance.attestation.json` before publish.
+  - Expected: publish gate fails with a provenance mismatch/malformed attestation error and `Publish desktop draft release` does not execute.

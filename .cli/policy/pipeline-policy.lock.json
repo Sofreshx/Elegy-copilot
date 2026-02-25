@@ -1,0 +1,12 @@
+{
+  "lockSchemaVersion": "1.0.0",
+  "policy": {
+    "name": "pipeline-policy",
+    "source": "engine-assets/policy/pipeline-policy.json",
+    "schemaSource": "engine-assets/policy/policy.schema.json",
+    "policyVersion": "1.0.0",
+    "schemaVersion": "1.0.0",
+    "policySha256": "a172b31922682a06d11d93e513b9fb9b8a7b62b17745293cef880e6682f39a26",
+    "schemaSha256": "7542a7b854822924d25f15fec8293a797908b1adb80e6882ad7218d7baf71eee"
+  }
+}

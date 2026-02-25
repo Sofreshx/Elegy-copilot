@@ -79,6 +79,26 @@ export class SandboxRegistry {
 	}
 
 	/**
+	 * Idempotent register helper.
+	 * Returns the existing entry if present; otherwise creates/registers a new entry.
+	 */
+	getOrRegister(
+		sandboxId: string,
+		createClient: () => BridgeClient,
+		hostPort: number,
+	): { entry: SandboxEntry; created: boolean } {
+		this.validateSandboxId(sandboxId);
+		const existing = this.sandboxes.get(sandboxId);
+		if (existing) {
+			return { entry: existing, created: false };
+		}
+
+		const client = createClient();
+		const entry = this.register(sandboxId, client, hostPort);
+		return { entry, created: true };
+	}
+
+	/**
 	 * Unregister a sandbox. Stops the client before removing.
 	 * Returns true if the sandbox existed; false otherwise.
 	 */

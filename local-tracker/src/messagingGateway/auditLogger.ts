@@ -121,6 +121,14 @@ export class AuditLogger {
 		fs.appendFileSync(logFilePath, `${line}\n`, { encoding: 'utf8' });
 	}
 
+	logSecurityEvent(eventType: string, details: AuditLogRecord = {}): void {
+		this.log({
+			category: 'security',
+			eventType,
+			...details,
+		});
+	}
+
 	private rotateIfNeeded(logFilePath: string): void {
 		try {
 			if (!fs.existsSync(logFilePath)) return;

@@ -1,5 +1,6 @@
 ---
 created: 2026-02-23
+updated: 2026-02-25
 category: system
 status: current
 doc_kind: node
@@ -24,6 +25,21 @@ Docker socket (`/var/run/docker.sock`) access is effectively root-equivalent on 
 | Docker API is unix socket only (never network-exposed) | Eliminates remote unauthenticated Docker API attacks |
 | Only containers labeled `ie.sandbox=true` are managed | `reconcile()` only touches labeled containers — no accidental interference |
 | Container names follow `ie-sandbox-<sandboxId>` pattern | Validated alphanumeric + hyphens; prevents injection via crafted sandbox IDs |
+
+## Sandbox Action Authorization Matrix (G-04-WU-01)
+
+| Action | Local UI operator (authenticated) | Discord allowlisted operator | Untrusted caller |
+|---|---|---|---|
+| `create` | allow | allow | deny |
+| `start` | allow | allow | deny |
+| `stop` | allow | allow | deny |
+| `open-terminal` | allow (local-machine only) | deny | deny |
+| `pr-open` | allow (host token only) | allow (host token only) | deny |
+
+Matrix rules:
+- `open-terminal` is restricted to local-machine initiation only.
+- `pr-open` uses host-owned token material; token data is never injected into sandbox containers.
+- All denied actions are fail-closed.
 
 ## Mitigations
 

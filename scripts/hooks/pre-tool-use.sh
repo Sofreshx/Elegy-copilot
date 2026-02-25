@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+import hashlib
 from typing import Optional
 
 
@@ -204,8 +205,134 @@ def high_risk_command_reason(command: str) -> Optional[str]:
     return None
 
 
+def get_required_early_controls() -> list[str]:
+    raw = (os.environ.get("HOOK_EARLY_CONTROLS_REQUIRED") or "").strip()
+    if not raw:
+        return ["safetyTokenParity", "hookEnforcement", "telemetrySchemaValidation"]
+    controls = [part.strip() for part in raw.split(",") if part.strip()]
+    return controls or ["safetyTokenParity", "hookEnforcement", "telemetrySchemaValidation"]
+
+
+def get_privileged_tool_names() -> list[str]:
+    raw = (os.environ.get("HOOK_PRIVILEGED_TOOLS") or "").strip()
+    if not raw:
+        return ["execute/runinterminal", "run_in_terminal", "edit", "create", "create_file", "edit_file", "apply_patch"]
+    values = [part.strip().lower() for part in raw.split(",") if part.strip()]
+    return values or ["execute/runinterminal", "run_in_terminal", "edit", "create", "create_file", "edit_file", "apply_patch"]
+
+
+def is_privileged_tool(name: str) -> bool:
+    low = (name or "").lower()
+    if not low:
+        return False
+    if low in set(get_privileged_tool_names()):
+        return True
+    return "runinterminal" in low
+
+
+def resolve_early_control_state_path(cwd: str) -> str:
+    configured = (os.environ.get("HOOK_EARLY_CONTROLS_STATE_FILE") or "").strip()
+    if not configured:
+        return os.path.join(cwd, ".instructions-output", "hooks", "early-controls.json")
+    if os.path.isabs(configured):
+        return configured
+    return os.path.join(cwd, configured)
+
+
+def verify_safety_token_parity(state: dict) -> tuple[bool, str]:
+    control_data = state.get("controlData") if isinstance(state, dict) else None
+    if not isinstance(control_data, dict):
+        return False, "control_data_missing"
+
+    safety_token = str(control_data.get("safetyToken") or "").strip()
+    safety_parity = str(control_data.get("safetyTokenParity") or "").strip().lower()
+    if not safety_token or not safety_parity:
+        return False, "token_or_parity_missing"
+
+    expected = hashlib.sha256(safety_token.encode("utf-8")).hexdigest().lower()
+    if expected != safety_parity:
+        return False, "token_parity_mismatch"
+
+    return True, "token_parity_valid"
+
+
+def get_early_control_gate_result(cwd: str, required_controls: list[str]) -> dict:
+    state_path = resolve_early_control_state_path(cwd)
+    if not os.path.isfile(state_path):
+        return {
+            "allowed": False,
+            "statePath": state_path,
+            "failedControls": list(required_controls),
+            "reason": "Privileged action blocked: early controls unavailable (state file missing).",
+        }
+
+    try:
+        with open(state_path, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    except Exception:
+        return {
+            "allowed": False,
+            "statePath": state_path,
+            "failedControls": list(required_controls),
+            "reason": "Privileged action blocked: early controls unavailable (state file unreadable).",
+        }
+
+    if not isinstance(state, dict):
+        return {
+            "allowed": False,
+            "statePath": state_path,
+            "failedControls": list(required_controls),
+            "reason": "Privileged action blocked: early controls unavailable (state invalid).",
+        }
+
+    controls = state.get("controls") or {}
+    failed_details: list[str] = []
+    for control_id in required_controls:
+        control_state = controls.get(control_id) if isinstance(controls, dict) else None
+        status = ""
+        detail = "missing"
+        if isinstance(control_state, dict):
+            status = str(control_state.get("status") or "")
+            detail_value = str(control_state.get("detail") or "").strip()
+            if detail_value:
+                detail = detail_value
+
+        if control_id == "safetyTokenParity":
+            parity_ok, parity_detail = verify_safety_token_parity(state)
+            if not parity_ok:
+                failed_details.append(f"{control_id}:{parity_detail}")
+                continue
+
+        if status != "pass":
+            failed_details.append(f"{control_id}:{detail}")
+
+    if failed_details:
+        return {
+            "allowed": False,
+            "statePath": state_path,
+            "failedControls": failed_details,
+            "reason": f"Privileged action blocked: early controls not satisfied ({', '.join(failed_details)}).",
+        }
+
+    return {
+        "allowed": True,
+        "statePath": state_path,
+        "failedControls": [],
+        "reason": None,
+    }
+
+
 decision = None
 reason = None
+is_privileged = is_privileged_tool(tool_name)
+required_early_controls = get_required_early_controls()
+early_control_gate = None
+
+if is_privileged:
+    early_control_gate = get_early_control_gate_result(cwd, required_early_controls)
+    if not early_control_gate.get("allowed"):
+        decision = "deny"
+        reason = early_control_gate.get("reason")
 
 # Secrets gate (.env*)
 if tool_name in {"edit", "create", "create_file", "edit_file"}:
@@ -271,6 +398,10 @@ log_entry = {
     "event": "preToolUse",
     "timestamp": data.get("timestamp"),
     "toolName": tool_name,
+    "isPrivilegedTool": is_privileged,
+    "earlyControlsRequired": required_early_controls,
+    "earlyControlsStatePath": (early_control_gate or {}).get("statePath"),
+    "earlyControlsFailed": (early_control_gate or {}).get("failedControls", []),
     "toolArgsSummary": summarize_tool_args(),
     "decision": decision,
     "reason": reason,

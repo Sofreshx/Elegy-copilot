@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-24
+updated: 2026-02-25
 category: system
 status: current
 doc_kind: node
@@ -140,7 +140,58 @@ Markdown table with columns:
 - `Trigger` — When to run (e.g., `After G-01`, `Before finalization`)
 - `Notes` — Checkpoint state + results
 
-#### 5. Execution Log
+#### 5. Stream Evidence
+Markdown table with columns:
+- `Group` — Required stream ID (`G-01`, `G-02`, `G-03`, `G-04`)
+- `Predicate` — Predicate contract used for this stream (`execution-log and/or stream-marker`)
+- `Evidence` — Optional pointer to artifact/log line/checkpoint entry
+- `Status` — `pending`, `passed`, or `failed`
+- `Notes` — Free-form details; if used for machine-readable marker, include `status: passed|failed|pending`
+
+Required rows:
+- `G-01`
+- `G-02`
+- `G-03`
+- `G-04`
+
+#### 6. Final Gate Controls
+Markdown table with columns:
+- `Control`
+- `Status`
+- `Waiver Scope`
+- `Waiver Release`
+- `Waiver Audit`
+
+Required control rows:
+- `evidencePredicates`
+- `finalGateWaiverPrecedence`
+- `trustedEvidenceBindingRetention`
+
+#### 7. Trusted Evidence Binding
+Markdown table with columns:
+- `Commit SHA`
+- `Release Tag`
+- `Channel`
+- `Producer Identity`
+- `Attestation Status`
+- `Evidence Timestamp`
+- `Evidence` (optional but recommended)
+
+When `trustedEvidenceBindingRetention` has `Status=passed`, validator requires all fields above except `Evidence` to be non-empty.
+
+#### 8. Evidence Retention
+Markdown table with columns:
+- `Policy`
+- `Retention Days`
+- `Retained`
+- `Release Tag`
+- `Evidence`
+
+Required policy rows:
+- `opsLogs`
+- `perReleaseEvidence`
+
+#### 9. Execution Log
 Append-only text capturing key execution events:
 ```markdown
 ## Execution Log
@@ -164,6 +215,66 @@ status: passed; unit-test-runner; duration=42s
 status: failed; integration-tests; see: execution log 2026-02-23T14:45
 status: skipped; user declined doc update
 ```
+
+### Required Stream Predicate Contract (G-01..G-04)
+
+For planpacks with `<!-- IE_PLAN_PACK_VERSION: N -->`, `scripts/validate-planpack.js` enforces evidence predicates for these streams:
+- `G-01`
+- `G-02`
+- `G-03`
+- `G-04`
+
+A stream is considered satisfied if **either** condition is met:
+1. `## Execution Log` contains an entry that references the stream ID and a completion token (`completed`, `done`, or `status: passed`), **or**
+2. `## Stream Evidence` contains a row for that stream with `Status = passed` (or `Notes` containing `status: passed`).
+
+If any required stream lacks both forms of evidence, validation fails deterministically with a non-zero exit code.
+
+Examples:
+
+```markdown
+## Stream Evidence
+| Group | Predicate | Evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | execution-log and/or stream-marker | execution-log:2026-02-25T14:55Z | passed | status: passed |
+| G-02 | execution-log and/or stream-marker | checkpoint:cp-g02-tests | passed | status: passed |
+| G-03 | execution-log and/or stream-marker | execution-log:2026-02-25T15:21Z | passed | status: passed |
+| G-04 | execution-log and/or stream-marker | execution-log:2026-02-25T16:49Z | passed | status: passed |
+
+## Execution Log
+2026-02-25T14:55:11Z — G-01 completed (status: passed)
+2026-02-25T15:21:29Z — G-03 completed (status: passed)
+```
+
+Compatibility behavior:
+- If `IE_PLAN_PACK_VERSION` marker is missing, validator remains in legacy best-effort mode and skips enforcement.
+- Versioned planpacks enforce stream evidence predicates.
+
+### Trusted Evidence Binding + Retention Contract (G-05-WU-06)
+
+For versioned planpacks where `trustedEvidenceBindingRetention` is marked `passed`, `scripts/validate-planpack.js` enforces trusted evidence and retention checks before final gate success:
+
+1. `## Trusted Evidence Binding` must include a parseable row with:
+  - Commit SHA
+  - Release Tag
+  - Channel
+  - Producer Identity
+  - Attestation Status (`true/yes/passed/attested` only)
+  - Evidence Timestamp (ISO-8601)
+2. Missing fields, attestation=false, or malformed timestamp fail deterministically.
+3. Replay/staleness protection:
+  - evidence is stale when age exceeds `--max-evidence-age-hours` (default `168h`).
+4. Deterministic CI binding checks can pass expected values via:
+  - `--expected-commit <SHA>`
+  - `--expected-release <TAG>`
+  - `--expected-channel <CHANNEL>`
+  - optional deterministic time pinning with `--now <ISO_TIMESTAMP>`
+5. `## Evidence Retention` must include parseable rows for:
+  - `opsLogs`: `Retention Days >= 30`, `Retained=true`, and non-empty `Evidence`
+  - `perReleaseEvidence`: `Retained=true`, non-empty `Release Tag`, and non-empty `Evidence`
+6. Any missing/mismatch/stale/retention failure yields:
+  - `final gate control failed: trustedEvidenceBindingRetention (...)`
+  - non-zero validator exit code.
 
 ### Format Version Marker
 

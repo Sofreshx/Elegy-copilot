@@ -10,6 +10,12 @@ const crypto = require('crypto');
 const sessions = require('./lib/sessions');
 const assets = require('./lib/assets');
 const planState = require('./lib/planState');
+const { resolvePermissionLocations } = require('./lib/permissionLocationsResolver');
+const {
+  CAPABILITY_STATES,
+  normalizeCapabilityState,
+  buildCompatibilityRuntimeContract,
+} = require('./lib/runtimeContracts');
 
 function createChangeTracker(copilotHomeAbs, vscodeHomeAbs, sandboxesHomeAbs) {
   let version = 0;
@@ -256,6 +262,95 @@ function resolveTrackerToken(args) {
   return null;
 }
 
+function resolveForcedCapabilityState(capabilityName) {
+  const key = `INSTRUCTION_ENGINE_FORCE_${String(capabilityName || '').trim().toUpperCase()}_STATE`;
+  const raw = process.env[key];
+  if (!raw || !raw.trim()) return null;
+  return normalizeCapabilityState(raw);
+}
+
+function probeCapability(command, args, timeoutMs = 1500) {
+  try {
+    const result = childProcess.spawnSync(command, args, {
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: timeoutMs,
+      maxBuffer: 256 * 1024,
+    });
+    return result.status === 0 ? CAPABILITY_STATES.AVAILABLE : CAPABILITY_STATES.UNAVAILABLE;
+  } catch {
+    return CAPABILITY_STATES.UNAVAILABLE;
+  }
+}
+
+function detectDockerCapability() {
+  const forced = resolveForcedCapabilityState('docker');
+  if (forced) return forced;
+  return probeCapability('docker', ['version', '--format', '{{.Server.Version}}']);
+}
+
+function detectWsl2Capability() {
+  const forced = resolveForcedCapabilityState('wsl2');
+  if (forced) return forced;
+  if (process.platform !== 'win32') return CAPABILITY_STATES.UNKNOWN;
+  return probeCapability('wsl.exe', ['--status']);
+}
+
+function detectSandboxCapability(dockerCapability, sandboxesHome) {
+  const forced = resolveForcedCapabilityState('sandbox');
+  if (forced) return forced;
+
+  if (dockerCapability !== CAPABILITY_STATES.AVAILABLE) {
+    return CAPABILITY_STATES.UNAVAILABLE;
+  }
+
+  if (typeof sandboxesHome !== 'string' || !sandboxesHome.trim()) {
+    return CAPABILITY_STATES.UNAVAILABLE;
+  }
+
+  try {
+    const sandboxesHomeAbs = path.resolve(sandboxesHome);
+    fs.mkdirSync(sandboxesHomeAbs, { recursive: true });
+    fs.accessSync(sandboxesHomeAbs, fs.constants.R_OK | fs.constants.W_OK);
+    return CAPABILITY_STATES.AVAILABLE;
+  } catch {
+    return CAPABILITY_STATES.UNAVAILABLE;
+  }
+}
+
+let runtimeHealthCache = {
+  expiresAtMs: 0,
+  value: null,
+};
+
+function getRuntimeHealth({ engineRoot, sandboxesHome }) {
+  const now = Date.now();
+  if (runtimeHealthCache.value && now < runtimeHealthCache.expiresAtMs) {
+    return runtimeHealthCache.value;
+  }
+
+  const docker = detectDockerCapability();
+  const wsl2 = detectWsl2Capability();
+  const sandbox = detectSandboxCapability(docker, sandboxesHome);
+
+  const runtime = buildCompatibilityRuntimeContract({
+    mode: process.env.INSTRUCTION_ENGINE_RUNTIME_MODE,
+    engineRoot,
+    capabilities: {
+      docker,
+      wsl2,
+      sandbox,
+    },
+  });
+
+  runtimeHealthCache = {
+    value: runtime,
+    expiresAtMs: now + 15_000,
+  };
+
+  return runtime;
+}
+
 function resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome) {
   const s = String(source || '').trim().toLowerCase();
   if (s === 'vscode') return { source: 'vscode', home: vscodeHome };
@@ -334,6 +429,119 @@ async function readJsonBody(req, maxBytes = 256 * 1024) {
   });
 }
 
+const OPEN_TERMINAL_ALLOWED_LAUNCHERS = new Set(['auto', 'pwsh', 'terminal', 'x-terminal-emulator']);
+const OPEN_TERMINAL_ALLOWED_PROFILES = new Set(['default']);
+const SHELL_META_CHAR_RE = /[;&|`<>]/;
+const SHELL_EXPANSION_RE = /(\$\(|\$\{|\$[A-Za-z_][A-Za-z0-9_]*|%[^%\r\n\s]+%|![^!\r\n\s]+!)/;
+const SANDBOX_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/;
+
+function containsUnsafeShellSyntax(input) {
+  const value = String(input || '');
+  return SHELL_META_CHAR_RE.test(value) || SHELL_EXPANSION_RE.test(value);
+}
+
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeKey(key) {
+  return String(key || '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+}
+
+function isForbiddenEnvKey(key) {
+  const normalized = normalizeKey(key);
+  return normalized === 'env'
+    || normalized === 'environment'
+    || normalized === 'processenv'
+    || normalized === 'shellenv'
+    || normalized === 'environmentvariables';
+}
+
+function findForbiddenEnvPath(value, prefix = '') {
+  if (!isPlainObject(value)) return null;
+  for (const [key, child] of Object.entries(value)) {
+    const next = prefix ? `${prefix}.${key}` : key;
+    if (isForbiddenEnvKey(key)) return next;
+    const nested = findForbiddenEnvPath(child, next);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function validateOpenTerminalLifecyclePayload(payload) {
+  if (!isPlainObject(payload)) {
+    return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'payload_not_object' } };
+  }
+
+  const forbiddenEnvPath = findForbiddenEnvPath(payload);
+  if (forbiddenEnvPath) {
+    return { ok: false, error: { code: 'env_injection_denied', reason: `forbidden_field:${forbiddenEnvPath}` } };
+  }
+
+  for (const key of Object.keys(payload)) {
+    if (key !== 'sandboxId' && key !== 'launcher' && key !== 'profile') {
+      return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: `unexpected_field:${key}` } };
+    }
+  }
+
+  if (typeof payload.sandboxId !== 'string' || !payload.sandboxId.trim()) {
+    return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'missing_or_invalid_sandbox_id' } };
+  }
+  const sandboxId = payload.sandboxId.trim();
+  if (containsUnsafeShellSyntax(sandboxId)) {
+    return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'unsafe_shell_syntax:sandboxId' } };
+  }
+  if (!SANDBOX_ID_RE.test(sandboxId)) {
+    return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'invalid_sandbox_id_format' } };
+  }
+
+  let launcher;
+  if (payload.launcher !== undefined) {
+    if (typeof payload.launcher !== 'string' || !payload.launcher.trim()) {
+      return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'invalid_launcher' } };
+    }
+    launcher = payload.launcher.trim();
+    if (containsUnsafeShellSyntax(launcher)) {
+      return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'unsafe_shell_syntax:launcher' } };
+    }
+    if (!OPEN_TERMINAL_ALLOWED_LAUNCHERS.has(launcher)) {
+      return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'invalid_launcher' } };
+    }
+  }
+
+  let profile;
+  if (payload.profile !== undefined) {
+    if (typeof payload.profile !== 'string' || !payload.profile.trim()) {
+      return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'invalid_profile' } };
+    }
+    profile = payload.profile.trim();
+    if (containsUnsafeShellSyntax(profile)) {
+      return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'unsafe_shell_syntax:profile' } };
+    }
+    if (!OPEN_TERMINAL_ALLOWED_PROFILES.has(profile)) {
+      return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'invalid_profile' } };
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      sandboxId,
+      ...(launcher ? { launcher } : {}),
+      ...(profile ? { profile } : {}),
+    },
+  };
+}
+
+function sendLifecyclePayloadError(res, action, failure) {
+  sendJson(res, 400, {
+    error: 'Invalid lifecycle payload',
+    code: String(failure && failure.code ? failure.code : 'invalid_lifecycle_payload'),
+    action,
+    reason: String(failure && failure.reason ? failure.reason : 'validation_failed'),
+  });
+}
+
 function contentTypeFor(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === '.html') return 'text/html; charset=utf-8';
@@ -403,6 +611,70 @@ function runVscodeSettingsPatcher({ engineRoot, vscodeHome, settingsPath, dryRun
     stdout: result.stdout || '',
     stderr: result.stderr || '',
   };
+}
+
+let policyPreflightCache = {
+  expiresAtMs: 0,
+  value: null,
+};
+
+function evaluatePolicyPreflight(engineRoot) {
+  const validatorPath = path.join(path.resolve(engineRoot), 'scripts', 'validate-policy-lockfiles.js');
+  const checkedAt = new Date().toISOString();
+
+  if (!fs.existsSync(validatorPath)) {
+    return {
+      ok: false,
+      status: 'unavailable',
+      reason: 'validator_missing',
+      checkedAt,
+      validatorPath,
+    };
+  }
+
+  const result = childProcess.spawnSync(process.execPath, [validatorPath], {
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 512 * 1024,
+  });
+
+  const stdout = String(result.stdout || '').trim();
+  const stderr = String(result.stderr || '').trim();
+
+  if (result.status === 0) {
+    return {
+      ok: true,
+      status: 'passed',
+      checkedAt,
+      validatorPath,
+      message: stdout || 'Policy lockfile validation passed',
+    };
+  }
+
+  return {
+    ok: false,
+    status: 'failed',
+    reason: 'validation_failed',
+    checkedAt,
+    validatorPath,
+    exitCode: result.status,
+    message: stderr || stdout || 'Policy lockfile validation failed',
+  };
+}
+
+function getPolicyPreflight(engineRoot, { refresh = false } = {}) {
+  const now = Date.now();
+  if (!refresh && policyPreflightCache.value && now < policyPreflightCache.expiresAtMs) {
+    return policyPreflightCache.value;
+  }
+
+  const value = evaluatePolicyPreflight(engineRoot);
+  policyPreflightCache = {
+    value,
+    expiresAtMs: now + 10_000,
+  };
+
+  return value;
 }
 
 function readJsonFileSafe(filePath) {
@@ -584,22 +856,11 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
     root.locations = {};
   }
 
-  const subdirs = ['agents', 'skills', 'prompts', 'session-state', 'repo-state', 'sessions-archive'];
-  const desired = [];
-  const seen = new Set();
-  for (const base of [copilotHome, vscodeHome].filter(Boolean)) {
-    const baseAbs = path.resolve(base);
-    if (!seen.has(baseAbs)) {
-      seen.add(baseAbs);
-      desired.push(baseAbs);
-    }
-    for (const sub of subdirs) {
-      const abs = path.join(baseAbs, sub);
-      if (seen.has(abs)) continue;
-      seen.add(abs);
-      desired.push(abs);
-    }
-  }
+  const { locations: desired } = resolvePermissionLocations({
+    baseRoots: [copilotHome, vscodeHome],
+    includeDefaultSubdirs: true,
+    scanExistingSubdirs: true,
+  });
   let changed = false;
 
   for (const loc of desired) {
@@ -682,6 +943,52 @@ function proxyToTracker(trackerUrl, trackerToken, targetPath, method, req, res) 
   }
 }
 
+function postJsonToTracker(trackerUrl, trackerToken, targetPath, payload, res) {
+  if (!trackerToken) {
+    sendJson(res, 502, { error: 'Tracker token not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.' });
+    return;
+  }
+
+  const parsed = new URL(targetPath, trackerUrl);
+  const rawBody = JSON.stringify(payload == null ? {} : payload);
+
+  const options = {
+    hostname: parsed.hostname,
+    port: parsed.port,
+    path: parsed.pathname + parsed.search,
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${trackerToken}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(rawBody),
+    },
+    timeout: 10000,
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    const ct = proxyRes.headers['content-type'] || 'application/json';
+    res.writeHead(proxyRes.statusCode || 502, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    if (!res.headersSent) {
+      sendJson(res, 502, { error: `Tracker unreachable: ${err.message}` });
+    }
+  });
+
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy();
+    if (!res.headersSent) {
+      sendJson(res, 504, { error: 'Tracker request timed out' });
+    }
+  });
+
+  proxyReq.write(rawBody);
+  proxyReq.end();
+}
+
 function relayTrackerSSE(trackerUrl, trackerToken, req, res) {
   if (!trackerToken) {
     sendJson(res, 502, { error: 'Tracker token not configured' });
@@ -737,9 +1044,31 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   const vscodeHomeAbs = copilotHomeAbs;
   const assetsHomeAbs = copilotHomeAbs;
 
+  if (req.method === 'GET' && pathname === '/api/policy/preflight') {
+    const refresh = (u.searchParams.get('refresh') || '').trim() === '1';
+    const policy = getPolicyPreflight(engineRoot, { refresh });
+    sendJson(res, 200, policy);
+    return;
+  }
+
+  const isMutatingRequest = req.method && !['GET', 'HEAD', 'OPTIONS'].includes(req.method.toUpperCase());
+  if (isMutatingRequest) {
+    const policy = getPolicyPreflight(engineRoot);
+    if (!policy.ok) {
+      sendJson(res, 503, {
+        error: 'Policy gate blocked mutating request',
+        code: 'policy_gate_blocked',
+        policy,
+      });
+      return;
+    }
+  }
+
   if (req.method === 'GET' && pathname === '/api/health') {
     const changes = changeTracker ? changeTracker.get() : null;
-    sendJson(res, 200, { ok: true, now: Date.now(), engineRoot, copilotHome, vscodeHome, changes });
+    const runtime = getRuntimeHealth({ engineRoot, sandboxesHome });
+    const policy = getPolicyPreflight(engineRoot);
+    sendJson(res, 200, { ok: true, now: Date.now(), engineRoot, copilotHome, vscodeHome, changes, runtime, policy });
     return;
   }
 
@@ -1338,6 +1667,37 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     }
   }
 
+  {
+    const m = pathname.match(/^\/api\/tracker\/lifecycle\/([^/]+)$/);
+    if (req.method === 'POST' && m) {
+      const action = decodeURIComponent(m[1]);
+      const targetPath = `/api/lifecycle/${encodeURIComponent(action)}`;
+
+      if (action === 'open-terminal') {
+        readJsonBody(req)
+          .then((payload) => {
+            const validation = validateOpenTerminalLifecyclePayload(payload);
+            if (!validation.ok) {
+              sendLifecyclePayloadError(res, action, validation.error);
+              return;
+            }
+            postJsonToTracker(trackerUrl, trackerToken, targetPath, validation.value, res);
+          })
+          .catch((e) => {
+            sendJson(res, e.statusCode || 400, {
+              error: String(e.message || e),
+              code: 'invalid_json',
+              action,
+            });
+          });
+        return;
+      }
+
+      proxyToTracker(trackerUrl, trackerToken, targetPath, 'POST', req, res);
+      return;
+    }
+  }
+
   if (req.method === 'GET' && pathname === '/api/tracker/events') {
     relayTrackerSSE(trackerUrl, trackerToken, req, res);
     return;
@@ -1346,13 +1706,19 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   sendJson(res, 404, { error: 'Not found' });
 }
 
-function main() {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help) {
-    console.log('Usage: node copilot-ui/server.js [--port 3210] [--host 127.0.0.1] [--token <token>] [--copilot-home <path>] [--tracker-url <url>] [--tracker-token <token>]');
-    process.exit(0);
-  }
+function startServer(options = {}) {
+  const args = {
+    port: Number.isFinite(options.port) ? Number(options.port) : 3210,
+    host: typeof options.host === 'string' && options.host.trim() ? options.host.trim() : '127.0.0.1',
+    token: typeof options.token === 'string' && options.token.trim() ? options.token.trim() : null,
+    copilotHome: typeof options.copilotHome === 'string' && options.copilotHome.trim() ? options.copilotHome.trim() : null,
+    vscodeHome: typeof options.vscodeHome === 'string' && options.vscodeHome.trim() ? options.vscodeHome.trim() : null,
+    sandboxesHome: typeof options.sandboxesHome === 'string' && options.sandboxesHome.trim() ? options.sandboxesHome.trim() : null,
+    trackerUrl: typeof options.trackerUrl === 'string' && options.trackerUrl.trim() ? options.trackerUrl.trim() : null,
+    trackerToken: typeof options.trackerToken === 'string' && options.trackerToken.trim() ? options.trackerToken.trim() : null,
+  };
 
+  const quiet = options.quiet === true;
   const engineRoot = path.resolve(__dirname, '..');
   const copilotHome = resolveCopilotHome(args);
   const vscodeHome = resolveVscodeHome(args);
@@ -1382,23 +1748,76 @@ function main() {
     }
   });
 
-  server.listen(args.port, host, () => {
-    console.log(`CLI UI server: http://${host}:${args.port}/`);
-    console.log(`copilotHome:    ${copilotHome}`);
-    console.log(`vscodeHome:     ${vscodeHome}`);
-    console.log(`sandboxesHome:  ${sandboxesHome}`);
-    console.log(`engineRoot:     ${engineRoot}`);
-    console.log(`trackerUrl:     ${trackerUrl}`);
-    if (trackerToken) console.log(`trackerAuth:    configured`);
-    if (token) {
-      console.log(`auth token:  ${token}`);
-    }
-    if (isNonLoopback(host)) {
-      console.error('[WARN] Binding to non-loopback address without HTTPS. Auth token is transmitted in cleartext.');
-      console.error('[WARN] Use a reverse proxy with TLS termination for production use.');
-    }
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    server.once('error', (error) => {
+      if (settled) return;
+      settled = true;
+      changeTracker.close();
+      reject(error);
+    });
+
+    server.listen(args.port, host, () => {
+      if (settled) return;
+      settled = true;
+      const addr = server.address();
+      const actualPort = addr && typeof addr === 'object' ? addr.port : args.port;
+      if (!quiet) {
+        console.log(`CLI UI server: http://${host}:${actualPort}/`);
+        console.log(`copilotHome:    ${copilotHome}`);
+        console.log(`vscodeHome:     ${vscodeHome}`);
+        console.log(`sandboxesHome:  ${sandboxesHome}`);
+        console.log(`engineRoot:     ${engineRoot}`);
+        console.log(`trackerUrl:     ${trackerUrl}`);
+        if (trackerToken) console.log(`trackerAuth:    configured`);
+        if (token) {
+          console.log(`auth token:  ${token}`);
+        }
+        if (isNonLoopback(host)) {
+          console.error('[WARN] Binding to non-loopback address without HTTPS. Auth token is transmitted in cleartext.');
+          console.error('[WARN] Use a reverse proxy with TLS termination for production use.');
+        }
+      }
+
+      resolve({
+        server,
+        host,
+        port: actualPort,
+        token,
+        copilotHome,
+        vscodeHome,
+        sandboxesHome,
+        trackerUrl,
+        close: () => new Promise((closeResolve) => {
+          changeTracker.close();
+          server.close(() => closeResolve());
+        }),
+      });
+    });
   });
 }
 
-main();
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (args.help) {
+    console.log('Usage: node copilot-ui/server.js [--port 3210] [--host 127.0.0.1] [--token <token>] [--copilot-home <path>] [--tracker-url <url>] [--tracker-token <token>]');
+    process.exit(0);
+  }
+
+  await startServer(args);
+}
+
+if (require.main === module) {
+  main().catch((e) => {
+    console.error(String(e && e.message ? e.message : e));
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  startServer,
+  parseArgs,
+  containsUnsafeShellSyntax,
+  validateOpenTerminalLifecyclePayload,
+};
 

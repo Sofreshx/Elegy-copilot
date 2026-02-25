@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-02-25
 category: system
 status: current
 doc_kind: node
@@ -24,3 +24,8 @@ This note captures the practical takeaways from a recent architecture review tha
 - Hooks write JSONL audit logs under `.instructions-output/hooks/`.
 - Orchestrator stays serial by default and only parallelizes independent tasks.
 - Agent-browser uses snapshot-first workflows for UI exploration and E2E.
+
+## Desktop Runtime Simplicity Guardrails (G-02-WU-01)
+- Keep desktop runtime as a thin shell around existing Node/HTTP behavior; avoid parallel feature logic in both app shell and server.
+- Treat signing, update-channel policy, and rollback controls as separate policy layers instead of embedding ad-hoc checks in UI components.
+- Prefer explicit capability contracts (`runtime`, `permissions`) over implicit environment branching.

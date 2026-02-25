@@ -1,0 +1,22 @@
+appId: dev.instructionengine.desktop
+productName: Instruction Engine
+directories:
+  output: release
+  buildResources: resources
+files:
+  - dist-electron/**
+  - server.js
+  - lib/**
+  - public/**
+  - package.json
+extraMetadata:
+  main: dist-electron/main.js
+win:
+  target:
+    - nsis
+  artifactName: instruction-engine-${version}-${os}-${arch}.${ext}
+publish:
+  provider: github
+  owner: ${env.GITHUB_REPOSITORY_OWNER}
+  repo: ${env.GITHUB_REPOSITORY_NAME}
+  releaseType: draft

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-02-25
 category: system
 status: draft
 doc_kind: node
@@ -209,6 +209,38 @@ The Plan Pack itself is **read-only** after approval. Execution progress is trac
 - Checkpoint log
 
 The progress tracker file is typically named `x-PLANPACK-PROGRESS-<SESSION_ID>.md` or appended directly to `plan.md` under a `# Plan-Pack Progress Tracker` heading.
+
+### Final Gate Controls Contract (G-05-WU-05)
+
+For versioned plan packs (`<!-- IE_PLAN_PACK_VERSION: 1 -->`), the progress tracker must include a parseable `## Final Gate Controls` markdown table.
+
+Required columns:
+- `Control`
+- `Status`
+- `Waiver Scope`
+- `Waiver Release`
+- `Waiver Audit`
+
+Required control rows (exact control IDs):
+- `evidencePredicates`
+- `finalGateWaiverPrecedence`
+- `trustedEvidenceBindingRetention`
+
+Deterministic gate algorithm:
+1. Each required control is evaluated independently.
+2. A control passes only when `Status=passed` (or equivalent true marker).
+3. If `Status=waived`, that control passes only when:
+	- `Waiver Scope` explicitly includes that same control ID, and
+	- both `Waiver Release` and `Waiver Audit` are non-empty.
+4. Any required control that is missing, failed, or invalidly waived fails the final gate.
+
+Waiver precedence and scope rules:
+- Waivers apply only to controls explicitly listed in `Waiver Scope`.
+- A waiver for one control must not imply waiver for any other required control.
+- Scope mismatch is a hard validation error.
+
+Audit linkage requirement:
+- Every waiver use must include release-linked audit trail fields (`Waiver Release` + `Waiver Audit`) to maintain traceability.
 
 ---
 

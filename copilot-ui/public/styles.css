@@ -346,6 +346,14 @@ select.gateway-input {
   color: #d29922;
 }
 
+.sandbox-input {
+  max-width: 220px;
+}
+
+.sandbox-list-compact .item {
+  padding: 8px;
+}
+
 .proposition-content {
   margin: 0;
   padding: 10px;

@@ -6,6 +6,10 @@
         "type": "command",
         "bash": "./session-start.sh",
         "cwd": "scripts/hooks",
+        "env": {
+          "HOOK_EARLY_CONTROLS_REQUIRED": "safetyTokenParity,hookEnforcement,telemetrySchemaValidation",
+          "HOOK_EARLY_CONTROLS_STATE_FILE": ".instructions-output/hooks/early-controls.json"
+        },
         "timeoutSec": 10
       }
     ],
@@ -30,6 +34,11 @@
         "type": "command",
         "bash": "./pre-tool-use.sh",
         "cwd": "scripts/hooks",
+        "env": {
+          "HOOK_EARLY_CONTROLS_REQUIRED": "safetyTokenParity,hookEnforcement,telemetrySchemaValidation",
+          "HOOK_EARLY_CONTROLS_STATE_FILE": ".instructions-output/hooks/early-controls.json",
+          "HOOK_PRIVILEGED_TOOLS": "execute/runinterminal,run_in_terminal,edit,create,create_file,edit_file,apply_patch"
+        },
         "timeoutSec": 10
       }
     ],

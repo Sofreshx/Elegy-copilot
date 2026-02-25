@@ -3,7 +3,536 @@
 const fs = require('fs');
 const path = require('path');
 
-const filePath = process.argv[2] || path.join(process.cwd(), 'plan.md');
+function escapeRegExp(value) {
+	return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractH2Section(content, headingPrefix) {
+	const headingRe = new RegExp(`^##\\s+${escapeRegExp(headingPrefix)}(?:\\b.*)?$`, 'mi');
+	const startMatch = headingRe.exec(content);
+	if (!startMatch) {
+		return '';
+	}
+
+	const start = startMatch.index + startMatch[0].length;
+	const rest = content.slice(start);
+	const nextHeadingMatch = rest.match(/^##\s+/m);
+	const end = nextHeadingMatch ? start + nextHeadingMatch.index : content.length;
+	return content.slice(start, end);
+}
+
+function parseMarkdownTable(sectionText) {
+	if (!sectionText) {
+		return null;
+	}
+
+	function parseRowCells(line) {
+		return line
+			.replace(/^\|/, '')
+			.replace(/\|$/, '')
+			.split('|')
+			.map(cell => cell.trim());
+	}
+
+	const lines = sectionText
+		.split(/\r?\n/)
+		.map(line => line.trim())
+		.filter(Boolean);
+
+	const firstTableLine = lines.findIndex(line => line.startsWith('|'));
+	if (firstTableLine === -1 || firstTableLine + 1 >= lines.length) {
+		return null;
+	}
+
+	const tableLines = [];
+	for (let i = firstTableLine; i < lines.length; i++) {
+		if (!lines[i].startsWith('|')) {
+			break;
+		}
+		tableLines.push(lines[i]);
+	}
+
+	if (tableLines.length < 2) {
+		return null;
+	}
+
+	const headers = parseRowCells(tableLines[0]);
+
+	const rows = [];
+	for (let i = 2; i < tableLines.length; i++) {
+		const cells = parseRowCells(tableLines[i]);
+		if (cells.length === 0) {
+			continue;
+		}
+
+		const row = {};
+		for (let j = 0; j < headers.length; j++) {
+			row[headers[j]] = cells[j] || '';
+		}
+		rows.push(row);
+	}
+
+	return { headers, rows };
+}
+
+function normalizeFieldName(value) {
+	return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getRowValue(row, fieldNames) {
+	if (!row || typeof row !== 'object') {
+		return '';
+	}
+
+	const candidateKeys = Array.isArray(fieldNames) ? fieldNames.map(normalizeFieldName) : [];
+	for (const [key, value] of Object.entries(row)) {
+		if (candidateKeys.includes(normalizeFieldName(key))) {
+			return String(value || '').trim();
+		}
+	}
+
+	return '';
+}
+
+function hasGroupToken(value, groupId) {
+	if (!value) {
+		return false;
+	}
+	const tokenRe = new RegExp(`(^|[^A-Z0-9])${escapeRegExp(groupId)}([^0-9]|$)`, 'i');
+	return tokenRe.test(String(value));
+}
+
+function rowHasPassedStatus(row) {
+	const status = (row.Status || row.status || '').trim().toLowerCase();
+	if (status === 'passed') {
+		return true;
+	}
+	const notes = (row.Notes || row.notes || '').toLowerCase();
+	return /status\s*:\s*passed/.test(notes);
+}
+
+function hasPassedMarkerForGroup(table, groupId) {
+	if (!table) {
+		return false;
+	}
+
+	for (const row of table.rows) {
+		const groupCell = row.Group || row.group || '';
+		if (!hasGroupToken(groupCell, groupId)) {
+			continue;
+		}
+		if (rowHasPassedStatus(row)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function hasPassedStreamEvidenceForGroup(table, groupId) {
+	if (!table) {
+		return false;
+	}
+
+	for (const row of table.rows) {
+		const groupCell = row.Group || row.group || '';
+		if (!hasGroupToken(groupCell, groupId)) {
+			continue;
+		}
+
+		if (!rowHasPassedStatus(row)) {
+			continue;
+		}
+
+		const evidenceCell = String(row.Evidence || row.evidence || '').trim();
+		if (!evidenceCell) {
+			continue;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+function hasExecutionLogCompletion(executionLogSection, groupId) {
+	if (!executionLogSection) {
+		return false;
+	}
+
+	const lines = executionLogSection
+		.split(/\r?\n/)
+		.map(line => line.trim())
+		.filter(Boolean);
+
+	for (const line of lines) {
+		if (!hasGroupToken(line, groupId)) {
+			continue;
+		}
+		if (/\b(failed|blocked|status\s*:\s*failed)\b/i.test(line)) {
+			continue;
+		}
+		if (/\b(completed|complete|done|status\s*:\s*passed|status\s*=\s*passed)\b/i.test(line)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function hasControlScopeToken(value, controlId) {
+	if (!value || !controlId) {
+		return false;
+	}
+
+	const tokenRe = new RegExp(`(^|[\\s,;\\[\\]"'])${escapeRegExp(controlId)}($|[\\s,;\\[\\]"'])`, 'i');
+	return tokenRe.test(String(value));
+}
+
+function parseCliArgs(argv) {
+	const options = {
+		filePath: '',
+		expectedCommit: '',
+		expectedRelease: '',
+		expectedChannel: '',
+		maxEvidenceAgeHours: 168,
+		maxFutureSkewMinutes: 5,
+		nowIso: '',
+		allowLegacyBestEffort: false,
+	};
+
+	for (let index = 0; index < argv.length; index++) {
+		const arg = String(argv[index] || '');
+
+		if (arg.startsWith('--expected-commit=')) {
+			options.expectedCommit = arg.slice('--expected-commit='.length).trim();
+			continue;
+		}
+		if (arg === '--expected-commit' && index + 1 < argv.length) {
+			options.expectedCommit = String(argv[index + 1] || '').trim();
+			index++;
+			continue;
+		}
+
+		if (arg.startsWith('--expected-release=')) {
+			options.expectedRelease = arg.slice('--expected-release='.length).trim();
+			continue;
+		}
+		if (arg === '--expected-release' && index + 1 < argv.length) {
+			options.expectedRelease = String(argv[index + 1] || '').trim();
+			index++;
+			continue;
+		}
+
+		if (arg.startsWith('--expected-channel=')) {
+			options.expectedChannel = arg.slice('--expected-channel='.length).trim();
+			continue;
+		}
+		if (arg === '--expected-channel' && index + 1 < argv.length) {
+			options.expectedChannel = String(argv[index + 1] || '').trim();
+			index++;
+			continue;
+		}
+
+		if (arg.startsWith('--max-evidence-age-hours=')) {
+			const parsed = Number.parseFloat(arg.slice('--max-evidence-age-hours='.length));
+			if (Number.isFinite(parsed) && parsed > 0) {
+				options.maxEvidenceAgeHours = parsed;
+			}
+			continue;
+		}
+		if (arg === '--max-evidence-age-hours' && index + 1 < argv.length) {
+			const parsed = Number.parseFloat(String(argv[index + 1] || ''));
+			if (Number.isFinite(parsed) && parsed > 0) {
+				options.maxEvidenceAgeHours = parsed;
+			}
+			index++;
+			continue;
+		}
+
+		if (arg.startsWith('--now=')) {
+			options.nowIso = arg.slice('--now='.length).trim();
+			continue;
+		}
+		if (arg === '--now' && index + 1 < argv.length) {
+			options.nowIso = String(argv[index + 1] || '').trim();
+			index++;
+			continue;
+		}
+
+		if (arg.startsWith('--max-future-skew-minutes=')) {
+			const parsed = Number.parseFloat(arg.slice('--max-future-skew-minutes='.length));
+			if (Number.isFinite(parsed) && parsed >= 0) {
+				options.maxFutureSkewMinutes = parsed;
+			}
+			continue;
+		}
+		if (arg === '--max-future-skew-minutes' && index + 1 < argv.length) {
+			const parsed = Number.parseFloat(String(argv[index + 1] || ''));
+			if (Number.isFinite(parsed) && parsed >= 0) {
+				options.maxFutureSkewMinutes = parsed;
+			}
+			index++;
+			continue;
+		}
+
+		if (arg === '--allow-legacy-best-effort') {
+			options.allowLegacyBestEffort = true;
+			continue;
+		}
+
+		if (arg.startsWith('--')) {
+			continue;
+		}
+
+		if (!options.filePath) {
+			options.filePath = arg;
+		}
+	}
+
+	return options;
+}
+
+function normalizeComparable(value) {
+	return String(value || '').trim().toLowerCase();
+}
+
+function isTruthyValue(value) {
+	const normalized = normalizeComparable(value);
+	return normalized === 'true'
+		|| normalized === 'yes'
+		|| normalized === 'passed'
+		|| normalized === 'attested'
+		|| normalized === '1';
+}
+
+function findPolicyRow(table, policyAliases) {
+	if (!table || !Array.isArray(table.rows)) {
+		return null;
+	}
+
+	const normalizedAliases = policyAliases.map(normalizeComparable);
+	for (const row of table.rows) {
+		const policyValue = getRowValue(row, ['Policy', 'Artifact', 'Record']);
+		if (normalizedAliases.includes(normalizeComparable(policyValue))) {
+			return row;
+		}
+	}
+
+	return null;
+}
+
+function validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions) {
+	const validationErrors = [];
+	const nowTimestampMs = cliOptions.nowIso ? Date.parse(cliOptions.nowIso) : Date.now();
+
+	if (cliOptions.nowIso && Number.isNaN(nowTimestampMs)) {
+		validationErrors.push(`invalid --now timestamp: ${cliOptions.nowIso}`);
+	}
+
+	const trustedBindingSection = extractH2Section(progressContent, 'Trusted Evidence Binding');
+	const trustedBindingTable = parseMarkdownTable(trustedBindingSection);
+
+	if (!trustedBindingTable) {
+		validationErrors.push('missing required progress section: ## Trusted Evidence Binding (markdown table required)');
+	} else {
+		const normalizedHeaders = trustedBindingTable.headers.map(normalizeFieldName);
+		const hasCommitHeader = normalizedHeaders.includes('commitsha') || normalizedHeaders.includes('commit') || normalizedHeaders.includes('commitid');
+		const hasReleaseHeader = normalizedHeaders.includes('releasetag') || normalizedHeaders.includes('release') || normalizedHeaders.includes('releaseid');
+		const hasChannelHeader = normalizedHeaders.includes('channel') || normalizedHeaders.includes('releasechannel');
+		const hasProducerHeader = normalizedHeaders.includes('produceridentity') || normalizedHeaders.includes('producer') || normalizedHeaders.includes('attestedproduceridentity');
+		const hasAttestationHeader = normalizedHeaders.includes('attestationstatus') || normalizedHeaders.includes('attestation') || normalizedHeaders.includes('attested');
+		const hasTimestampHeader = normalizedHeaders.includes('evidencetimestamp') || normalizedHeaders.includes('timestamp') || normalizedHeaders.includes('observedat') || normalizedHeaders.includes('capturedat');
+
+		if (!hasCommitHeader) {
+			validationErrors.push('invalid Trusted Evidence Binding table: missing Commit SHA column');
+		}
+		if (!hasReleaseHeader) {
+			validationErrors.push('invalid Trusted Evidence Binding table: missing Release Tag column');
+		}
+		if (!hasChannelHeader) {
+			validationErrors.push('invalid Trusted Evidence Binding table: missing Channel column');
+		}
+		if (!hasProducerHeader) {
+			validationErrors.push('invalid Trusted Evidence Binding table: missing Producer Identity column');
+		}
+		if (!hasAttestationHeader) {
+			validationErrors.push('invalid Trusted Evidence Binding table: missing Attestation Status column');
+		}
+		if (!hasTimestampHeader) {
+			validationErrors.push('invalid Trusted Evidence Binding table: missing Evidence Timestamp column');
+		}
+
+		if (trustedBindingTable.rows.length === 0) {
+			validationErrors.push('trusted evidence binding missing row data');
+		} else {
+			let rowCandidates = trustedBindingTable.rows;
+			if (cliOptions.expectedRelease) {
+				const matchingReleaseRows = trustedBindingTable.rows.filter((row) => {
+					const releaseValue = getRowValue(row, ['Release Tag', 'Release', 'Release ID', 'ReleaseId']);
+					return normalizeComparable(releaseValue) === normalizeComparable(cliOptions.expectedRelease);
+				});
+
+				if (matchingReleaseRows.length === 0) {
+					validationErrors.push(
+						`trusted evidence release mismatch: expected ${cliOptions.expectedRelease}, found no matching Trusted Evidence Binding row`
+					);
+				} else {
+					if (matchingReleaseRows.length > 1) {
+						validationErrors.push(
+							`trusted evidence release match is ambiguous: expected ${cliOptions.expectedRelease}, found ${matchingReleaseRows.length} matching rows`
+						);
+					}
+					rowCandidates = matchingReleaseRows;
+				}
+			}
+
+			const trustedRow = rowCandidates[0] || trustedBindingTable.rows[0];
+			const commitValue = getRowValue(trustedRow, ['Commit SHA', 'Commit', 'Commit ID', 'CommitId']);
+			const releaseValue = getRowValue(trustedRow, ['Release Tag', 'Release', 'Release ID', 'ReleaseId']);
+			const channelValue = getRowValue(trustedRow, ['Channel', 'Release Channel']);
+			const producerIdentityValue = getRowValue(trustedRow, ['Producer Identity', 'Producer', 'Attested Producer Identity']);
+			const attestationValue = getRowValue(trustedRow, ['Attestation Status', 'Attestation', 'Attested']);
+			const timestampValue = getRowValue(trustedRow, ['Evidence Timestamp', 'Timestamp', 'Observed At', 'Captured At']);
+
+			if (!commitValue) {
+				validationErrors.push('trusted evidence missing required field: Commit SHA');
+			}
+			if (!releaseValue) {
+				validationErrors.push('trusted evidence missing required field: Release Tag');
+			}
+			if (!channelValue) {
+				validationErrors.push('trusted evidence missing required field: Channel');
+			}
+			if (!producerIdentityValue) {
+				validationErrors.push('trusted evidence missing required field: Producer Identity');
+			}
+			if (!attestationValue) {
+				validationErrors.push('trusted evidence missing required field: Attestation Status');
+			} else if (!isTruthyValue(attestationValue)) {
+				validationErrors.push(`trusted evidence attestation must be true; got ${attestationValue}`);
+			}
+
+			if (cliOptions.expectedCommit && commitValue && normalizeComparable(commitValue) !== normalizeComparable(cliOptions.expectedCommit)) {
+				validationErrors.push(`trusted evidence commit mismatch: expected ${cliOptions.expectedCommit}, got ${commitValue}`);
+			}
+			if (cliOptions.expectedRelease && releaseValue && normalizeComparable(releaseValue) !== normalizeComparable(cliOptions.expectedRelease)) {
+				validationErrors.push(`trusted evidence release mismatch: expected ${cliOptions.expectedRelease}, got ${releaseValue}`);
+			}
+			if (cliOptions.expectedChannel && channelValue && normalizeComparable(channelValue) !== normalizeComparable(cliOptions.expectedChannel)) {
+				validationErrors.push(`trusted evidence channel mismatch: expected ${cliOptions.expectedChannel}, got ${channelValue}`);
+			}
+
+			if (!timestampValue) {
+				validationErrors.push('trusted evidence missing required field: Evidence Timestamp');
+			} else {
+				const evidenceTimestampMs = Date.parse(timestampValue);
+				if (Number.isNaN(evidenceTimestampMs)) {
+					validationErrors.push(`trusted evidence timestamp is invalid: ${timestampValue}`);
+				} else if (!Number.isNaN(nowTimestampMs)) {
+					const evidenceAgeHours = (nowTimestampMs - evidenceTimestampMs) / (1000 * 60 * 60);
+					const futureSkewHours = Math.max(0, Number(cliOptions.maxFutureSkewMinutes || 0)) / 60;
+					if (evidenceAgeHours < (-1 * futureSkewHours)) {
+						validationErrors.push(
+							`trusted evidence timestamp is in the future: age ${evidenceAgeHours.toFixed(2)}h exceeds allowed skew ${futureSkewHours.toFixed(2)}h`
+						);
+					} else if (evidenceAgeHours > cliOptions.maxEvidenceAgeHours) {
+						validationErrors.push(
+							`trusted evidence is stale/replayed: age ${evidenceAgeHours.toFixed(2)}h exceeds max ${cliOptions.maxEvidenceAgeHours}h`
+						);
+					}
+				}
+			}
+		}
+	}
+
+	const evidenceRetentionSection = extractH2Section(progressContent, 'Evidence Retention');
+	const evidenceRetentionTable = parseMarkdownTable(evidenceRetentionSection);
+
+	if (!evidenceRetentionTable) {
+		validationErrors.push('missing required progress section: ## Evidence Retention (markdown table required)');
+	} else {
+		const normalizedHeaders = evidenceRetentionTable.headers.map(normalizeFieldName);
+		const hasPolicyHeader = normalizedHeaders.includes('policy') || normalizedHeaders.includes('artifact') || normalizedHeaders.includes('record');
+		const hasRetentionDaysHeader = normalizedHeaders.includes('retentiondays') || normalizedHeaders.includes('days');
+		const hasRetainedHeader = normalizedHeaders.includes('retained') || normalizedHeaders.includes('present') || normalizedHeaders.includes('status');
+		const hasEvidenceHeader = normalizedHeaders.includes('evidence') || normalizedHeaders.includes('evidenceref') || normalizedHeaders.includes('artifactref');
+
+		if (!hasPolicyHeader) {
+			validationErrors.push('invalid Evidence Retention table: missing Policy column');
+		}
+		if (!hasRetentionDaysHeader) {
+			validationErrors.push('invalid Evidence Retention table: missing Retention Days column');
+		}
+		if (!hasRetainedHeader) {
+			validationErrors.push('invalid Evidence Retention table: missing Retained column');
+		}
+		if (!hasEvidenceHeader) {
+			validationErrors.push('invalid Evidence Retention table: missing Evidence column');
+		}
+
+		const opsLogsRow = findPolicyRow(evidenceRetentionTable, [
+			'opsLogs',
+			'ops-logs',
+			'operationLogs',
+			'operationsLogs',
+		]);
+		if (!opsLogsRow) {
+			validationErrors.push('missing required Evidence Retention row: opsLogs');
+		} else {
+			const retentionDaysRaw = getRowValue(opsLogsRow, ['Retention Days', 'RetentionDays', 'Days']);
+			const retentionDays = Number.parseInt(retentionDaysRaw, 10);
+			if (!Number.isFinite(retentionDays)) {
+				validationErrors.push(`ops logs retention days must be numeric; got ${retentionDaysRaw || 'missing'}`);
+			} else if (retentionDays < 30) {
+				validationErrors.push(`ops logs retention policy must be >= 30d; got ${retentionDays}d`);
+			}
+
+			const retainedRaw = getRowValue(opsLogsRow, ['Retained', 'Present', 'Status']);
+			if (!isTruthyValue(retainedRaw)) {
+				validationErrors.push(`ops logs retention must be present/true; got ${retainedRaw || 'missing'}`);
+			}
+
+			const evidenceRaw = getRowValue(opsLogsRow, ['Evidence', 'Evidence Ref', 'EvidenceRef', 'Artifact Ref', 'ArtifactRef']);
+			if (!evidenceRaw) {
+				validationErrors.push('ops logs retention row missing Evidence reference');
+			}
+		}
+
+		const perReleaseRow = findPolicyRow(evidenceRetentionTable, [
+			'perReleaseEvidence',
+			'per-release-evidence',
+			'releaseEvidence',
+		]);
+		if (!perReleaseRow) {
+			validationErrors.push('missing required Evidence Retention row: perReleaseEvidence');
+		} else {
+			const retainedRaw = getRowValue(perReleaseRow, ['Retained', 'Present', 'Status']);
+			if (!isTruthyValue(retainedRaw)) {
+				validationErrors.push(`per-release evidence must be retained/present; got ${retainedRaw || 'missing'}`);
+			}
+
+			const releaseValue = getRowValue(perReleaseRow, ['Release Tag', 'Release', 'Release ID', 'ReleaseId']);
+			if (!releaseValue) {
+				validationErrors.push('per-release evidence row missing Release Tag');
+			}
+
+			if (cliOptions.expectedRelease && releaseValue && normalizeComparable(releaseValue) !== normalizeComparable(cliOptions.expectedRelease)) {
+				validationErrors.push(`per-release evidence release mismatch: expected ${cliOptions.expectedRelease}, got ${releaseValue}`);
+			}
+
+			const evidenceRaw = getRowValue(perReleaseRow, ['Evidence', 'Evidence Ref', 'EvidenceRef', 'Artifact Ref', 'ArtifactRef']);
+			if (!evidenceRaw) {
+				validationErrors.push('per-release evidence row missing Evidence reference');
+			}
+		}
+	}
+
+	return validationErrors;
+}
+
+const cliOptions = parseCliArgs(process.argv.slice(2));
+const filePath = cliOptions.filePath || path.join(process.cwd(), 'plan.md');
 
 if (!fs.existsSync(filePath)) {
 	console.error(`planpack invalid:\n  file not found: ${filePath}`);
@@ -16,13 +545,18 @@ const content = fs.readFileSync(filePath, 'utf8');
 const stopMarker = '# Plan-Pack Progress Tracker';
 const stopIdx = content.indexOf(stopMarker);
 const body = stopIdx !== -1 ? content.slice(0, stopIdx) : content;
+const progressContent = stopIdx !== -1 ? content.slice(stopIdx) : '';
 
 // Version marker check
 const versionRe = /<!--\s*IE_PLAN_PACK_VERSION:\s*(\d+)\s*-->/;
 const versionMatch = body.match(versionRe);
 if (!versionMatch) {
-	console.log('planpack warning: no version marker found (v0 best-effort, skipping validation)');
-	process.exit(0);
+	if (cliOptions.allowLegacyBestEffort) {
+		console.log('planpack warning: no version marker found (legacy best-effort override active)');
+		process.exit(0);
+	}
+	console.error('planpack invalid:\n  missing required version marker: <!-- IE_PLAN_PACK_VERSION: N -->');
+	process.exit(1);
 }
 
 const lines = body.split(/\r?\n/);
@@ -164,6 +698,124 @@ for (const wuId of specWUs) {
 		errors.push(`orphan WU spec (not in graph): ${wuId}`);
 	}
 }
+
+// --- 8. Evidence predicates (required streams G-01..G-04) ---
+const requiredStreams = ['G-01', 'G-02', 'G-03', 'G-04'];
+const executionLogSection = extractH2Section(progressContent, 'Execution Log');
+const streamEvidenceTable = parseMarkdownTable(extractH2Section(progressContent, 'Stream Evidence'));
+
+for (const streamId of requiredStreams) {
+	const hasExecutionEvidence = hasExecutionLogCompletion(executionLogSection, streamId);
+	const hasStreamTableEvidence = hasPassedStreamEvidenceForGroup(streamEvidenceTable, streamId);
+
+	if (!(hasExecutionEvidence && hasStreamTableEvidence)) {
+		errors.push(
+			`missing required stream evidence: ${streamId} (requires BOTH Execution Log completion evidence and Stream Evidence row with Status=passed plus non-empty Evidence)`
+		);
+	}
+}
+
+// --- 9. Final gate controls (required controls + waiver precedence) ---
+const finalRequiredControls = [
+	'evidencePredicates',
+	'finalGateWaiverPrecedence',
+	'trustedEvidenceBindingRetention',
+];
+const finalGateSection = extractH2Section(progressContent, 'Final Gate Controls');
+const finalGateTable = parseMarkdownTable(finalGateSection);
+
+if (!finalGateTable) {
+	errors.push('missing required progress section: ## Final Gate Controls (markdown table required)');
+} else {
+	const normalizedHeaders = finalGateTable.headers.map(normalizeFieldName);
+	const hasControlHeader = normalizedHeaders.includes('control') || normalizedHeaders.includes('controlid');
+	const hasStatusHeader = normalizedHeaders.includes('status');
+	const hasWaiverScopeHeader = normalizedHeaders.includes('waiverscope') || normalizedHeaders.includes('waivercontrols');
+	const hasWaiverReleaseHeader = normalizedHeaders.includes('waiverrelease') || normalizedHeaders.includes('release') || normalizedHeaders.includes('releaseid');
+	const hasWaiverAuditHeader = normalizedHeaders.includes('waiveraudit') || normalizedHeaders.includes('waiveraudittrail') || normalizedHeaders.includes('audittrail') || normalizedHeaders.includes('auditreference') || normalizedHeaders.includes('auditref') || normalizedHeaders.includes('auditlink');
+
+	if (!hasControlHeader) {
+		errors.push('invalid Final Gate Controls table: missing Control column');
+	}
+	if (!hasStatusHeader) {
+		errors.push('invalid Final Gate Controls table: missing Status column');
+	}
+	if (!hasWaiverScopeHeader) {
+		errors.push('invalid Final Gate Controls table: missing Waiver Scope column');
+	}
+	if (!hasWaiverReleaseHeader) {
+		errors.push('invalid Final Gate Controls table: missing Waiver Release column');
+	}
+	if (!hasWaiverAuditHeader) {
+		errors.push('invalid Final Gate Controls table: missing Waiver Audit column');
+	}
+
+	for (const controlId of finalRequiredControls) {
+		const matchingRows = finalGateTable.rows.filter((row) => {
+			const rowControlId = getRowValue(row, ['Control', 'Control ID', 'ControlId']);
+			return rowControlId.toLowerCase() === controlId.toLowerCase();
+		});
+
+		if (matchingRows.length === 0) {
+			errors.push(`missing required final gate control row: ${controlId}`);
+			continue;
+		}
+
+		if (matchingRows.length > 1) {
+			errors.push(`duplicate final gate control rows: ${controlId}`);
+			continue;
+		}
+
+		const row = matchingRows[0];
+		const statusValue = getRowValue(row, ['Status']).toLowerCase();
+		const isPassed = ['passed', 'true', 'yes'].includes(statusValue);
+
+		if (isPassed) {
+			if (controlId.toLowerCase() === 'trustedevidencebindingretention') {
+				const trustedEvidenceErrors = validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions);
+				for (const trustedEvidenceError of trustedEvidenceErrors) {
+					errors.push(`final gate control failed: trustedEvidenceBindingRetention (${trustedEvidenceError})`);
+				}
+			}
+			continue;
+		}
+
+		if (statusValue !== 'waived') {
+			errors.push(
+				`final gate control failed: ${controlId} (Status must be passed or waived; got ${statusValue || 'missing'})`
+			);
+			continue;
+		}
+
+		const waiverScope = getRowValue(row, [
+			'Waiver Scope',
+			'Scoped Controls',
+			'Waiver Controls',
+			'Waiver Control Scope',
+		]);
+		if (!hasControlScopeToken(waiverScope, controlId)) {
+			errors.push(
+				`final gate waiver scope mismatch: ${controlId} (Waiver Scope must explicitly include ${controlId})`
+			);
+		}
+
+		const waiverRelease = getRowValue(row, ['Waiver Release', 'Release', 'Release ID', 'ReleaseId']);
+		const waiverAudit = getRowValue(row, [
+			'Waiver Audit',
+			'Waiver Audit Trail',
+			'Audit Trail',
+			'Audit Reference',
+			'Audit Ref',
+			'Audit Link',
+		]);
+		if (!waiverRelease || !waiverAudit) {
+			errors.push(
+				`final gate waiver missing release-linked audit trail: ${controlId} (Waiver Release and Waiver Audit are required when Status=waived)`
+			);
+		}
+	}
+}
+
 for (const wuId of graphWUs) {
 	if (!seenWuIds.has(wuId)) {
 		errors.push(`orphan WU in graph (no spec heading): ${wuId}`);

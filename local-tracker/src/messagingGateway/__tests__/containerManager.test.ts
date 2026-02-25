@@ -154,7 +154,7 @@ describe('ContainerManager', () => {
 		process.env = originalEnv;
 	});
 
-	it('spawn() creates a labeled container with correct name, port binding, and env', async () => {
+	it('spawn() creates a labeled container with correct name, port binding, and host-safe env', async () => {
 		process.env.GH_TOKEN = 'ghp_test_should_not_leak';
 		const docker = new FakeDocker();
 		const mgr = new ContainerManager({ docker: docker as unknown as Docker, image: 'my-image:tag' });
@@ -180,9 +180,10 @@ describe('ContainerManager', () => {
 			'3000/tcp': [{ HostIp: '127.0.0.1', HostPort: '13001' }],
 		});
 
-		expect(opts.Env).toEqual(
-			expect.arrayContaining(['HOME=/home/copilot', 'ACP_PORT=3000', 'GH_TOKEN=ghp_test_should_not_leak']),
-		);
+		expect(opts.Env).toEqual(['HOME=/home/copilot', 'ACP_PORT=3000']);
+		expect(opts.Env).toEqual(expect.not.arrayContaining([expect.stringMatching(/^GH_TOKEN=/)]));
+		expect(opts.Env).toEqual(expect.not.arrayContaining([expect.stringMatching(/^GITHUB_TOKEN=/)]));
+		expect(opts.Env).toEqual(expect.not.arrayContaining([expect.stringMatching(/^COPILOT_GITHUB_TOKEN=/)]));
 	});
 
 	it('get() returns null when no container exists for sandboxId', async () => {
@@ -190,6 +191,19 @@ describe('ContainerManager', () => {
 		const mgr = new ContainerManager({ docker: docker as unknown as Docker });
 
 		await expect(mgr.get('missing')).resolves.toBeNull();
+	});
+
+	it('getOrSpawn() is idempotent for existing sandbox container', async () => {
+		const docker = new FakeDocker();
+		const mgr = new ContainerManager({ docker: docker as unknown as Docker });
+
+		const first = await mgr.getOrSpawn('g1', 13001);
+		const second = await mgr.getOrSpawn('g1', 13001);
+
+		expect(first.created).toBe(true);
+		expect(second.created).toBe(false);
+		expect(second.info.containerId).toBe(first.info.containerId);
+		expect(docker.created).toHaveLength(1);
 	});
 
 	it('list() returns only ie.sandbox=true containers', async () => {

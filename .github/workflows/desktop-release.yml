@@ -1,0 +1,506 @@
+name: Desktop Release
+
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Desktop tag to release (desktop-v*)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.meta.outputs.release_tag }}
+      release_version: ${{ steps.meta.outputs.release_version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - name: Resolve release tag and channel
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME:-}"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.release_tag }}"
+          fi
+
+          if [[ -z "${tag}" ]]; then
+            echo "Release tag is required. Use desktop-v* tags or set workflow_dispatch input release_tag." >&2
+            exit 1
+          fi
+
+          if [[ ! "${tag}" =~ ^desktop-v ]]; then
+            echo "Invalid tag '${tag}'. Expected prefix desktop-v." >&2
+            exit 1
+          fi
+
+          version="${tag#desktop-v}"
+          if [[ -z "${version}" ]]; then
+            echo "Could not derive release version from tag '${tag}'." >&2
+            exit 1
+          fi
+
+          prerelease="false"
+          if [[ "${version}" == *-* ]]; then
+            prerelease="true"
+          fi
+
+          echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "release_version=${version}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+
+  build-windows:
+    needs: resolve-release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+
+      - name: Install desktop dependencies
+        working-directory: copilot-ui
+        run: npm install --no-audit --no-fund
+
+      - name: Build Windows package (unsigned)
+        working-directory: copilot-ui
+        run: npm run package:win
+
+      - name: Upload unsigned Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows-unsigned
+          path: copilot-ui/release/*.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  sign-windows:
+    needs:
+      - resolve-release
+      - build-windows
+    runs-on: windows-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      SIGNING_SERVICE_URL: ${{ vars.DESKTOP_SIGNING_SERVICE_URL }}
+      SIGNING_SERVICE_AUDIENCE: ${{ vars.DESKTOP_SIGNING_SERVICE_AUDIENCE || 'instruction-engine-desktop-release' }}
+      SIGNING_SERVICE_API_KEY: ${{ secrets.DESKTOP_SIGNING_SERVICE_API_KEY }}
+    steps:
+      - name: Download unsigned Windows package
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-windows-unsigned
+          path: copilot-ui/release
+
+      - name: Enforce signing endpoint configuration (fail closed)
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SIGNING_SERVICE_URL)) {
+            Write-Error "DESKTOP_SIGNING_SERVICE_URL is not configured. Refusing to publish unsigned desktop artifacts."
+            exit 1
+          }
+
+      - name: OIDC signing contract (Windows Authenticode)
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path 'copilot-ui/release' -Filter '*.exe' -Recurse | Select-Object -First 1
+          if (-not $installer) {
+            Write-Error "No unsigned Windows installer (.exe) was found in copilot-ui/release."
+            exit 1
+          }
+
+          $audience = if ([string]::IsNullOrWhiteSpace($env:SIGNING_SERVICE_AUDIENCE)) { 'instruction-engine-desktop-release' } else { $env:SIGNING_SERVICE_AUDIENCE }
+          $oidcUri = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)&audience=$([uri]::EscapeDataString($audience))"
+          $oidcHeaders = @{ Authorization = "Bearer $($env:ACTIONS_ID_TOKEN_REQUEST_TOKEN)" }
+          $oidcResponse = Invoke-RestMethod -Method Get -Uri $oidcUri -Headers $oidcHeaders
+
+          if (-not $oidcResponse.value) {
+            Write-Error "OIDC token exchange failed; signing request cannot proceed."
+            exit 1
+          }
+
+          $payload = @{
+            operation = 'windows-authenticode'
+            repository = '${{ github.repository }}'
+            releaseTag = '${{ needs.resolve-release.outputs.release_tag }}'
+            artifactPath = $installer.FullName
+            expectedOutputs = @{
+              signedArtifactPath = 'copilot-ui/release/windows-signed-installer.exe'
+              signatureManifestPath = 'copilot-ui/release/signature-manifest.json'
+              provenanceAttestationPath = 'copilot-ui/release/provenance.attestation.json'
+            }
+          }
+
+          $requestHeaders = @{
+            Authorization = "Bearer $($oidcResponse.value)"
+            'Content-Type' = 'application/json'
+          }
+
+          if (-not [string]::IsNullOrWhiteSpace($env:SIGNING_SERVICE_API_KEY)) {
+            $requestHeaders['X-Signing-Api-Key'] = $env:SIGNING_SERVICE_API_KEY
+          }
+
+          $response = Invoke-RestMethod -Method Post -Uri $env:SIGNING_SERVICE_URL -Headers $requestHeaders -Body ($payload | ConvertTo-Json -Depth 6)
+          $response | ConvertTo-Json -Depth 10 | Out-File -FilePath 'copilot-ui/release/signing-response.json' -Encoding utf8
+
+          $requiredKeys = @('signedArtifactPath', 'signatureManifestPath', 'provenanceAttestationPath')
+          foreach ($key in $requiredKeys) {
+            if (-not $response.$key) {
+              Write-Error "Signing service response is missing required field '$key'."
+              exit 1
+            }
+          }
+
+          function Resolve-ContractPath([string] $value) {
+            if ([System.IO.Path]::IsPathRooted($value)) {
+              return $value
+            }
+
+            return Join-Path $env:GITHUB_WORKSPACE $value
+          }
+
+          $signedInstaller = Resolve-ContractPath $response.signedArtifactPath
+          $signatureManifest = Resolve-ContractPath $response.signatureManifestPath
+          $provenanceAttestation = Resolve-ContractPath $response.provenanceAttestationPath
+
+          foreach ($path in @($signedInstaller, $signatureManifest, $provenanceAttestation)) {
+            if (-not (Test-Path $path)) {
+              Write-Error "Required signing evidence is missing: $path"
+              exit 1
+            }
+          }
+
+          New-Item -ItemType Directory -Path 'release-artifacts/windows' -Force | Out-Null
+          Copy-Item $signedInstaller 'release-artifacts/windows/windows-signed-installer.exe' -Force
+          Copy-Item $signatureManifest 'release-artifacts/windows/signature-manifest.json' -Force
+          Copy-Item $provenanceAttestation 'release-artifacts/windows/provenance.attestation.json' -Force
+          Copy-Item 'copilot-ui/release/signing-response.json' 'release-artifacts/windows/signing-response.json' -Force
+
+      - name: Upload signed Windows artifacts and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows-signed
+          path: release-artifacts/windows
+          if-no-files-found: error
+          retention-days: 30
+
+  build-linux-preview:
+    needs: resolve-release
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      SIGNING_SERVICE_URL: ${{ vars.DESKTOP_SIGNING_SERVICE_URL }}
+      SIGNING_SERVICE_AUDIENCE: ${{ vars.DESKTOP_SIGNING_SERVICE_AUDIENCE || 'instruction-engine-desktop-release' }}
+      SIGNING_SERVICE_API_KEY: ${{ secrets.DESKTOP_SIGNING_SERVICE_API_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+
+      - name: Install desktop dependencies
+        working-directory: copilot-ui
+        run: npm install --no-audit --no-fund
+
+      - name: Build Linux preview package (unsigned)
+        working-directory: copilot-ui
+        run: npm run package:preview
+
+      - name: Package Linux preview artifact and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts/linux
+          tar -czf release-artifacts/linux/linux-preview-unsigned.tar.gz -C copilot-ui/release .
+          sha256sum release-artifacts/linux/linux-preview-unsigned.tar.gz > release-artifacts/linux/linux-preview-metadata.sha256
+
+      - name: Sign Linux metadata via OIDC contract
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SIGNING_SERVICE_URL:-}" ]]; then
+            echo "DESKTOP_SIGNING_SERVICE_URL is not configured. Refusing to publish unsigned desktop metadata." >&2
+            exit 1
+          fi
+
+          audience="${SIGNING_SERVICE_AUDIENCE:-instruction-engine-desktop-release}"
+          oidc_token="$(curl -fsS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}" | python -c "import json,sys; print(json.load(sys.stdin).get('value',''))")"
+          if [[ -z "${oidc_token}" ]]; then
+            echo "OIDC token exchange failed for Linux metadata signing." >&2
+            exit 1
+          fi
+
+          api_key_header=()
+          if [[ -n "${SIGNING_SERVICE_API_KEY:-}" ]]; then
+            api_key_header=(-H "X-Signing-Api-Key: ${SIGNING_SERVICE_API_KEY}")
+          fi
+
+          signing_payload="$(cat <<'JSON'
+          {
+            "operation": "linux-metadata-signature",
+            "repository": "${{ github.repository }}",
+            "releaseTag": "${{ needs.resolve-release.outputs.release_tag }}",
+            "metadataPath": "release-artifacts/linux/linux-preview-metadata.sha256",
+            "expectedOutputs": {
+              "metadataSignaturePath": "release-artifacts/linux/linux-preview-metadata.sig",
+              "metadataCertificatePath": "release-artifacts/linux/linux-preview-signing-cert.pem"
+            }
+          }
+          JSON
+          )"
+
+          response="$(curl -fsS -X POST "${SIGNING_SERVICE_URL}" -H "Authorization: Bearer ${oidc_token}" -H "Content-Type: application/json" "${api_key_header[@]}" --data "${signing_payload}")"
+          printf '%s\n' "${response}" > release-artifacts/linux/linux-signing-response.json
+
+          python - <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          data = json.loads(pathlib.Path("release-artifacts/linux/linux-signing-response.json").read_text(encoding="utf-8"))
+          required = ["metadataSignaturePath", "metadataCertificatePath"]
+          missing = [key for key in required if not data.get(key)]
+          if missing:
+              print(f"Signing service response missing required fields: {', '.join(missing)}", file=sys.stderr)
+              raise SystemExit(1)
+
+          workspace = pathlib.Path(os.environ["GITHUB_WORKSPACE"])
+          for key in required:
+              candidate = pathlib.Path(data[key])
+              target = candidate if candidate.is_absolute() else workspace / candidate
+              if not target.exists():
+                  print(f"Required Linux signing evidence not found: {target}", file=sys.stderr)
+                  raise SystemExit(1)
+          PY
+
+      - name: Verify Linux signed metadata (fail closed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl x509 -in release-artifacts/linux/linux-preview-signing-cert.pem -pubkey -noout > release-artifacts/linux/linux-preview-signing-pubkey.pem
+          openssl dgst -sha256 -verify release-artifacts/linux/linux-preview-signing-pubkey.pem -signature release-artifacts/linux/linux-preview-metadata.sig release-artifacts/linux/linux-preview-metadata.sha256
+
+      - name: Upload Linux preview artifacts and signed metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-preview
+          path: release-artifacts/linux
+          if-no-files-found: error
+          retention-days: 30
+
+  build-macos-preview:
+    needs: resolve-release
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+
+      - name: Install desktop dependencies
+        working-directory: copilot-ui
+        run: npm install --no-audit --no-fund
+
+      - name: Build macOS preview package (unsigned)
+        working-directory: copilot-ui
+        run: npm run package:preview
+
+      - name: Stage macOS preview artifact with unsigned label
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts/macos
+          tar -czf release-artifacts/macos/macos-preview-unsigned.tar.gz -C copilot-ui/release .
+          cat > release-artifacts/macos/MAC_PREVIEW_UNSIGNED.txt <<'EOF'
+          macOS desktop preview artifacts are intentionally unsigned in this phase.
+          Do not treat this package as GA distribution.
+          EOF
+
+      - name: Upload macOS preview artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos-preview
+          path: release-artifacts/macos
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-draft-release:
+    needs:
+      - resolve-release
+      - sign-windows
+      - build-linux-preview
+      - build-macos-preview
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download signed Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-windows-signed
+          path: artifacts/windows
+
+      - name: Download Linux preview artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-linux-preview
+          path: artifacts/linux
+
+      - name: Download macOS preview artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-macos-preview
+          path: artifacts/macos
+
+      - name: Verify signing evidence + provenance gate before publish (fail closed)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f artifacts/windows/windows-signed-installer.exe || { echo "Missing signed Windows installer." >&2; exit 1; }
+          test -f artifacts/windows/signature-manifest.json || { echo "Missing signature manifest." >&2; exit 1; }
+          test -f artifacts/windows/provenance.attestation.json || { echo "Missing provenance attestation." >&2; exit 1; }
+
+          windows_installer="artifacts/windows/windows-signed-installer.exe"
+          windows_attestation="artifacts/windows/provenance.attestation.json"
+          installer_digest="$(sha256sum "${windows_installer}" | awk '{print $1}')"
+          echo "Computed Windows installer SHA256: ${installer_digest}"
+
+          python - "${windows_attestation}" "${windows_installer}" "${installer_digest}" <<'PY'
+          import base64
+          import json
+          import pathlib
+          import sys
+
+          attestation_path = pathlib.Path(sys.argv[1])
+          installer_name = pathlib.Path(sys.argv[2]).name
+          computed_digest = sys.argv[3].lower()
+
+          try:
+            attestation_doc = json.loads(attestation_path.read_text(encoding="utf-8"))
+          except FileNotFoundError:
+            print(f"Provenance gate failed: attestation file not found at {attestation_path}.", file=sys.stderr)
+            raise SystemExit(1)
+          except json.JSONDecodeError as exc:
+            print(f"Provenance gate failed: attestation JSON is malformed ({exc}).", file=sys.stderr)
+            raise SystemExit(1)
+
+          statement = attestation_doc
+          if isinstance(attestation_doc, dict) and "payload" in attestation_doc:
+            payload = attestation_doc.get("payload")
+            if not isinstance(payload, str) or not payload.strip():
+              print("Provenance gate failed: DSSE attestation payload is missing or empty.", file=sys.stderr)
+              raise SystemExit(1)
+
+            try:
+              normalized_payload = payload.strip()
+              payload_padding = "=" * (-len(normalized_payload) % 4)
+              decoded_payload = base64.b64decode(normalized_payload + payload_padding, validate=True).decode("utf-8")
+              statement = json.loads(decoded_payload)
+            except Exception as exc:
+              print(f"Provenance gate failed: could not decode DSSE payload ({exc}).", file=sys.stderr)
+              raise SystemExit(1)
+
+          if not isinstance(statement, dict):
+            print("Provenance gate failed: attestation statement must be a JSON object.", file=sys.stderr)
+            raise SystemExit(1)
+
+          subjects = statement.get("subject")
+          if not isinstance(subjects, list) or len(subjects) == 0:
+            print("Provenance gate failed: attestation subject list is missing or empty.", file=sys.stderr)
+            raise SystemExit(1)
+
+          digests = []
+          named_digests = []
+          for subject in subjects:
+            if not isinstance(subject, dict):
+              continue
+            digest_obj = subject.get("digest")
+            if not isinstance(digest_obj, dict):
+              continue
+
+            sha256 = digest_obj.get("sha256")
+            if isinstance(sha256, str) and sha256.strip():
+              normalized = sha256.strip().lower()
+              name = subject.get("name")
+              digests.append(normalized)
+              if isinstance(name, str) and name.strip():
+                named_digests.append((name.strip(), normalized))
+
+          if len(digests) == 0:
+            print("Provenance gate failed: no subject.digest.sha256 values were found in attestation.", file=sys.stderr)
+            raise SystemExit(1)
+
+          installer_specific = [
+            digest
+            for name, digest in named_digests
+            if name == installer_name or name.endswith("/" + installer_name) or name.endswith("\\" + installer_name)
+          ]
+          expected_digests = installer_specific if len(installer_specific) > 0 else digests
+
+          if computed_digest not in expected_digests:
+            print("Provenance gate failed: Windows installer digest does not match attestation subject digest.", file=sys.stderr)
+            print(f"Computed digest: {computed_digest}", file=sys.stderr)
+            print(f"Attested digests: {', '.join(expected_digests)}", file=sys.stderr)
+            raise SystemExit(1)
+
+          print("Provenance gate passed: Windows installer digest matches attestation subject digest.")
+          PY
+
+          test -f artifacts/linux/linux-preview-metadata.sha256 || { echo "Missing Linux preview metadata." >&2; exit 1; }
+          test -f artifacts/linux/linux-preview-metadata.sig || { echo "Missing Linux metadata signature." >&2; exit 1; }
+          test -f artifacts/linux/linux-preview-signing-cert.pem || { echo "Missing Linux metadata signing certificate." >&2; exit 1; }
+          openssl x509 -in artifacts/linux/linux-preview-signing-cert.pem -pubkey -noout > artifacts/linux/linux-preview-signing-pubkey.pem
+          openssl dgst -sha256 -verify artifacts/linux/linux-preview-signing-pubkey.pem -signature artifacts/linux/linux-preview-metadata.sig artifacts/linux/linux-preview-metadata.sha256
+
+          test -f artifacts/macos/MAC_PREVIEW_UNSIGNED.txt || { echo "Missing macOS preview unsigned label." >&2; exit 1; }
+          grep -qi "intentionally unsigned" artifacts/macos/MAC_PREVIEW_UNSIGNED.txt || { echo "macOS unsigned preview label is invalid." >&2; exit 1; }
+
+      - name: Publish desktop draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve-release.outputs.release_tag }}
+          name: Desktop ${{ needs.resolve-release.outputs.release_version }}
+          draft: true
+          prerelease: ${{ needs.resolve-release.outputs.prerelease == 'true' }}
+          generate_release_notes: true
+          files: |
+            artifacts/windows/windows-signed-installer.exe
+            artifacts/windows/signature-manifest.json
+            artifacts/windows/provenance.attestation.json
+            artifacts/windows/signing-response.json
+            artifacts/linux/linux-preview-unsigned.tar.gz
+            artifacts/linux/linux-preview-metadata.sha256
+            artifacts/linux/linux-preview-metadata.sig
+            artifacts/linux/linux-preview-signing-cert.pem
+            artifacts/linux/linux-signing-response.json
+            artifacts/macos/macos-preview-unsigned.tar.gz
+            artifacts/macos/MAC_PREVIEW_UNSIGNED.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

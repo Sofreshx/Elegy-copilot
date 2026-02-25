@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-02-25
 category: system
 status: current
 doc_kind: node
@@ -59,6 +59,23 @@ Ordered from “most local / foundational” to “most remote / easiest to misu
 | TB-1 | ACP localhost | `local-tracker` ↔ Copilot CLI (`copilot --acp`) | “Only local processes can reach ACP” | loopback bind + host firewall (no token) |
 | TB-2 | Discord bot token | `local-tracker` ↔ Discord API | “This process is the bot” | bot token possession + channel/guild scoping |
 | TB-3 | UI↔Gateway shared secret | `copilot-ui` ↔ `local-tracker` | “This request came from the trusted UI server” | shared secret in HTTP header |
+
+## Canonical role-action matrix (G-04-WU-01)
+
+This matrix is authoritative for sandbox lifecycle actions exposed by the control plane:
+
+| Action | Local UI operator (authn passed) | Discord allowlisted operator | Unauthenticated / out-of-scope caller |
+|---|---|---|---|
+| `create` | allow | allow | deny |
+| `start` | allow | allow | deny |
+| `stop` | allow | allow | deny |
+| `open-terminal` | allow (local-machine only) | deny | deny |
+| `pr-open` | allow (host-only token mediation) | allow (host-only token mediation) | deny |
+
+Rules:
+- `open-terminal` is never granted via remote Discord-only initiation.
+- `pr-open` uses host-side credentials only; credentials are never injected into sandbox containers.
+- Deny decisions are fail-closed and return deterministic error contracts.
 
 ## Threats & mitigations (by boundary)
 

@@ -1,0 +1,22 @@
+{
+  "name": "instruction-engine-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Instruction Engine desktop wrapper for copilot-ui",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "electron:dev": "npm run build:electron && electron .",
+    "package:preview": "npm run build:electron && electron-builder --dir",
+    "package:win": "npm run build:electron && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.8.2"
+  }
+}

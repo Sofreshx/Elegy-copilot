@@ -3,6 +3,18 @@ import os from 'os';
 import path from 'path';
 
 export type MessagingGatewayMode = 'auto' | 'connected' | 'disconnected';
+export const LIFECYCLE_ACTIONS = ['create', 'start', 'stop', 'open-terminal', 'pr-open'] as const;
+export type LifecycleAction = (typeof LIFECYCLE_ACTIONS)[number];
+
+export const DEFAULT_SANDBOX_MAX_SANDBOXES = 10;
+export const DEFAULT_SANDBOX_PORT_RANGE_START = 13_000;
+export const DEFAULT_SANDBOX_PORT_RANGE_END = 13_099;
+export const DEFAULT_SANDBOX_CLEANUP_ON_STARTUP = false;
+export const DEFAULT_SANDBOX_STALE_TTL_MS = 24 * 60 * 60 * 1000;
+
+const LIFECYCLE_ACTION_SET = new Set<string>(LIFECYCLE_ACTIONS);
+const DEFAULT_ENABLED_LIFECYCLE_ACTIONS: LifecycleAction[] = [...LIFECYCLE_ACTIONS];
+const DEFAULT_LOCAL_MACHINE_ONLY_ACTIONS: LifecycleAction[] = ['open-terminal'];
 
 export interface MessagingGatewayConfig {
 	mode?: MessagingGatewayMode;
@@ -10,6 +22,15 @@ export interface MessagingGatewayConfig {
 	acp?: {
 		host?: string;
 		port?: number;
+	};
+	sandboxLifecycle?: {
+		maxSandboxes?: number;
+		portRange?: {
+			start: number;
+			end: number;
+		};
+		cleanupOnStartup?: boolean;
+		staleTtlMs?: number;
 	};
 	discord: {
 		allowlistedUserIds: string[];
@@ -21,11 +42,27 @@ export interface MessagingGatewayConfig {
 		allowedRoots: string[];
 		activeRoot: string;
 	};
+	gatewayHttp?: {
+		lifecycleAuthz?: {
+			enabledActions: LifecycleAction[];
+			localMachineOnlyActions: LifecycleAction[];
+		};
+	};
 }
 
 export interface LoadedMessagingGatewayConfig {
 	configPath: string;
 	config: MessagingGatewayConfig;
+}
+
+export interface ResolvedSandboxLifecycleConfig {
+	maxSandboxes: number;
+	portRange: {
+		start: number;
+		end: number;
+	};
+	cleanupOnStartup: boolean;
+	staleTtlMs: number;
 }
 
 const CONFIG_PATH_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH';
@@ -62,10 +99,40 @@ function asStringArray(value: unknown, field: string): string[] {
 	return strings;
 }
 
+function asLifecycleActionsArray(value: unknown, field: string): LifecycleAction[] {
+	const actions = asStringArray(value, field);
+	const output: LifecycleAction[] = [];
+
+	for (const action of actions) {
+		if (!LIFECYCLE_ACTION_SET.has(action)) {
+			throw new Error(`[Gateway] Invalid config: ${field} contains unsupported action '${action}'`);
+		}
+		output.push(action as LifecycleAction);
+	}
+
+	return output;
+}
+
 function asOptionalPort(value: unknown, field: string): number | undefined {
 	if (value === undefined || value === null) return undefined;
 	if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < 1 || value > 65535) {
 		throw new Error(`[Gateway] Invalid config: ${field} must be an integer port (1-65535)`);
+	}
+	return value;
+}
+
+function asOptionalIntegerInRange(value: unknown, field: string, min: number, max: number): number | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value < min || value > max) {
+		throw new Error(`[Gateway] Invalid config: ${field} must be an integer (${min}-${max})`);
+	}
+	return value;
+}
+
+function asOptionalBoolean(value: unknown, field: string): boolean | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== 'boolean') {
+		throw new Error(`[Gateway] Invalid config: ${field} must be a boolean`);
 	}
 	return value;
 }
@@ -120,6 +187,46 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 		acp = { host, port };
 	}
 
+	let sandboxLifecycle: MessagingGatewayConfig['sandboxLifecycle'] | undefined;
+	if (raw.sandboxLifecycle !== undefined && raw.sandboxLifecycle !== null) {
+		if (!isRecord(raw.sandboxLifecycle)) {
+			throw new Error('[Gateway] Invalid config: sandboxLifecycle must be an object');
+		}
+
+		const maxSandboxes = asOptionalIntegerInRange(raw.sandboxLifecycle.maxSandboxes, 'sandboxLifecycle.maxSandboxes', 1, 100);
+		const cleanupOnStartup = asOptionalBoolean(raw.sandboxLifecycle.cleanupOnStartup, 'sandboxLifecycle.cleanupOnStartup');
+		const staleTtlMs = asOptionalIntegerInRange(
+			raw.sandboxLifecycle.staleTtlMs,
+			'sandboxLifecycle.staleTtlMs',
+			0,
+			365 * 24 * 60 * 60 * 1000,
+		);
+
+		let portRange: { start: number; end: number } | undefined;
+		if (raw.sandboxLifecycle.portRange !== undefined && raw.sandboxLifecycle.portRange !== null) {
+			if (!isRecord(raw.sandboxLifecycle.portRange)) {
+				throw new Error('[Gateway] Invalid config: sandboxLifecycle.portRange must be an object');
+			}
+
+			const start = asOptionalPort(raw.sandboxLifecycle.portRange.start, 'sandboxLifecycle.portRange.start');
+			const end = asOptionalPort(raw.sandboxLifecycle.portRange.end, 'sandboxLifecycle.portRange.end');
+			if (start === undefined || end === undefined) {
+				throw new Error('[Gateway] Invalid config: sandboxLifecycle.portRange must include integer start and end (1-65535)');
+			}
+			if (start > end) {
+				throw new Error('[Gateway] Invalid config: sandboxLifecycle.portRange.start must be <= sandboxLifecycle.portRange.end');
+			}
+			portRange = { start, end };
+		}
+
+		sandboxLifecycle = {
+			maxSandboxes,
+			portRange,
+			cleanupOnStartup,
+			staleTtlMs,
+		};
+	}
+
 	const discordRaw = raw.discord;
 	if (!isRecord(discordRaw)) {
 		throw new Error('[Gateway] Invalid config: discord must be an object');
@@ -163,9 +270,37 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 		throw new Error('[Gateway] Invalid config: workspaces.activeRoot must exist and be a directory');
 	}
 
+	let gatewayHttp: MessagingGatewayConfig['gatewayHttp'] | undefined;
+	if (raw.gatewayHttp !== undefined && raw.gatewayHttp !== null) {
+		if (!isRecord(raw.gatewayHttp)) {
+			throw new Error('[Gateway] Invalid config: gatewayHttp must be an object');
+		}
+
+		const lifecycleAuthzRaw = raw.gatewayHttp.lifecycleAuthz;
+		if (lifecycleAuthzRaw !== undefined && lifecycleAuthzRaw !== null && !isRecord(lifecycleAuthzRaw)) {
+			throw new Error('[Gateway] Invalid config: gatewayHttp.lifecycleAuthz must be an object');
+		}
+
+		const enabledActions = lifecycleAuthzRaw?.enabledActions
+			? asLifecycleActionsArray(lifecycleAuthzRaw.enabledActions, 'gatewayHttp.lifecycleAuthz.enabledActions')
+			: [...DEFAULT_ENABLED_LIFECYCLE_ACTIONS];
+
+		const localMachineOnlyActions = lifecycleAuthzRaw?.localMachineOnlyActions
+			? asLifecycleActionsArray(lifecycleAuthzRaw.localMachineOnlyActions, 'gatewayHttp.lifecycleAuthz.localMachineOnlyActions')
+			: [...DEFAULT_LOCAL_MACHINE_ONLY_ACTIONS];
+
+		gatewayHttp = {
+			lifecycleAuthz: {
+				enabledActions,
+				localMachineOnlyActions,
+			},
+		};
+	}
+
 	return {
 		mode: modeRaw,
 		acp,
+		sandboxLifecycle,
 		discord: {
 			allowlistedUserIds,
 			guildId,
@@ -176,6 +311,21 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 			allowedRoots,
 			activeRoot,
 		},
+		gatewayHttp,
+	};
+}
+
+export function resolveSandboxLifecycleConfig(
+	config: MessagingGatewayConfig['sandboxLifecycle'] | undefined,
+): ResolvedSandboxLifecycleConfig {
+	const start = config?.portRange?.start ?? DEFAULT_SANDBOX_PORT_RANGE_START;
+	const end = config?.portRange?.end ?? DEFAULT_SANDBOX_PORT_RANGE_END;
+
+	return {
+		maxSandboxes: config?.maxSandboxes ?? DEFAULT_SANDBOX_MAX_SANDBOXES,
+		portRange: { start, end },
+		cleanupOnStartup: config?.cleanupOnStartup ?? DEFAULT_SANDBOX_CLEANUP_ON_STARTUP,
+		staleTtlMs: config?.staleTtlMs ?? DEFAULT_SANDBOX_STALE_TTL_MS,
 	};
 }
 

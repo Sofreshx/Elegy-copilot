@@ -1,0 +1,101 @@
+#!/usr/bin/env node
+
+import assert from 'assert';
+import childProcess from 'child_process';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const scriptPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'vscode-settings-patch.mjs');
+
+let passed = 0;
+function test(name, fn) {
+  try {
+    fn();
+    passed++;
+    console.log(`  PASS: ${name}`);
+  } catch (e) {
+    console.error(`  FAIL: ${name}`);
+    console.error(`    ${e.message}`);
+    process.exitCode = 1;
+  }
+}
+
+function withTempDir(fn) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-vscode-patch-'));
+  try {
+    fn(dir);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function runPatch({ settingsPath, copilotHome, vscodeHome }) {
+  childProcess.execFileSync(process.execPath, [
+    scriptPath,
+    '--settings',
+    settingsPath,
+    '--copilot-home',
+    copilotHome,
+    '--vscode-home',
+    vscodeHome,
+  ], {
+    stdio: 'pipe',
+  });
+}
+
+test('patcher authorizes dynamic first-level .copilot subfolders', () => {
+  withTempDir((root) => {
+    const copilotHome = path.join(root, '.copilot');
+    const vscodeHome = path.join(root, '.copilot-vscode');
+    const settingsPath = path.join(root, 'settings.json');
+
+    fs.mkdirSync(copilotHome, { recursive: true });
+    fs.mkdirSync(vscodeHome, { recursive: true });
+    fs.mkdirSync(path.join(copilotHome, 'dynamic-alpha'));
+    fs.mkdirSync(path.join(vscodeHome, 'dynamic-beta'));
+    fs.writeFileSync(settingsPath, '{}\n', 'utf8');
+
+    runPatch({ settingsPath, copilotHome, vscodeHome });
+
+    const permissionsPath = path.join(copilotHome, 'permissions-config.json');
+    const config = JSON.parse(fs.readFileSync(permissionsPath, 'utf8'));
+    const locations = config && config.locations ? config.locations : {};
+
+    assert.ok(Object.prototype.hasOwnProperty.call(locations, path.join(copilotHome, 'dynamic-alpha')));
+    assert.ok(Object.prototype.hasOwnProperty.call(locations, path.join(vscodeHome, 'dynamic-beta')));
+  });
+});
+
+test('patcher is idempotent for permissions-config approvals', () => {
+  withTempDir((root) => {
+    const copilotHome = path.join(root, '.copilot');
+    const vscodeHome = path.join(root, '.copilot-vscode');
+    const settingsPath = path.join(root, 'settings.json');
+
+    fs.mkdirSync(copilotHome, { recursive: true });
+    fs.mkdirSync(vscodeHome, { recursive: true });
+    fs.mkdirSync(path.join(copilotHome, 'custom-tools'));
+    fs.writeFileSync(settingsPath, '{}\n', 'utf8');
+
+    runPatch({ settingsPath, copilotHome, vscodeHome });
+    const permissionsPath = path.join(copilotHome, 'permissions-config.json');
+    const first = JSON.parse(fs.readFileSync(permissionsPath, 'utf8'));
+
+    runPatch({ settingsPath, copilotHome, vscodeHome });
+    const second = JSON.parse(fs.readFileSync(permissionsPath, 'utf8'));
+
+    assert.deepStrictEqual(second, first);
+    const approvals = second.locations[path.join(copilotHome, 'custom-tools')].tool_approvals;
+    const kinds = approvals.map((item) => item && item.kind).sort();
+    assert.deepStrictEqual(kinds, ['memory', 'read', 'write']);
+  });
+});
+
+console.log(`\n${passed} tests passed`);
+if (process.exitCode) {
+  console.error('Some tests FAILED');
+} else {
+  console.log('All tests passed');
+}

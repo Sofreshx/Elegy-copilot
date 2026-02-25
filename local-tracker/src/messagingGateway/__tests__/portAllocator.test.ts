@@ -9,6 +9,18 @@ function createDeterministicAllocator(rangeStart: number, rangeEnd: number, unav
 }
 
 describe('PortAllocator', () => {
+	it('validates constructor port range boundaries', () => {
+		expect(() => new PortAllocator({ rangeStart: 0, rangeEnd: 13001 })).toThrow(
+			'[PortAllocator] Invalid rangeStart (expected integer 1-65535)',
+		);
+		expect(() => new PortAllocator({ rangeStart: 13000, rangeEnd: 70000 })).toThrow(
+			'[PortAllocator] Invalid rangeEnd (expected integer 1-65535)',
+		);
+		expect(() => new PortAllocator({ rangeStart: 14000, rangeEnd: 13000 })).toThrow(
+			'[PortAllocator] Invalid port range (rangeStart must be <= rangeEnd)',
+		);
+	});
+
 	it('allocates an available port and reserves it in-process', async () => {
 		const start = 13_000;
 		const end = 13_002;

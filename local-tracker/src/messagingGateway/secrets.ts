@@ -1,23 +1,43 @@
 import { deletePassword, getPassword, setPassword } from '@napi-rs/keyring/keytar';
+import crypto from 'crypto';
 
-export type GatewaySecretKind = 'discordBotToken' | 'gatewayHttpToken';
+export type GatewaySecretKind = 'discordBotToken' | 'gatewayHttpToken' | 'githubPrToken';
+
+export interface PrTokenLease {
+	leaseId: string;
+	scope: string;
+	expiresAtMs: number;
+}
 
 export interface GatewaySecretsStatus {
 	serviceName: string;
 	discordBotToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
 	gatewayHttpToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
+	githubPrToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
 }
 
 const SERVICE_NAME = 'instruction-engine.messaging-gateway';
 const SECRET_ACCOUNT: Record<GatewaySecretKind, string> = {
 	discordBotToken: 'discord.botToken',
 	gatewayHttpToken: 'gateway.httpToken',
+	githubPrToken: 'github.prToken',
 };
 
 const ENV_FALLBACKS: Record<GatewaySecretKind, string[]> = {
 	discordBotToken: ['INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN', 'DISCORD_BOT_TOKEN'],
 	gatewayHttpToken: ['INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN'],
+	githubPrToken: ['INSTRUCTION_ENGINE_GITHUB_PR_TOKEN', 'GITHUB_PR_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'],
 };
+
+const DEFAULT_PR_TOKEN_TTL_MS = 15 * 60 * 1000;
+
+const prTokenLeases = new Map<string, {
+	token: string;
+	scope: string;
+	expiresAtMs: number;
+	issuedAtMs: number;
+	revoked: boolean;
+}>();
 
 function getFromEnv(kind: GatewaySecretKind): string | undefined {
 	for (const envKey of ENV_FALLBACKS[kind]) {
@@ -59,11 +79,13 @@ export async function deleteGatewaySecret(kind: GatewaySecretKind): Promise<bool
 export async function getGatewaySecretsStatus(): Promise<GatewaySecretsStatus> {
 	const discord = await getGatewaySecret('discordBotToken');
 	const httpToken = await getGatewaySecret('gatewayHttpToken');
+	const githubPrToken = await getGatewaySecret('githubPrToken');
 
 	return {
 		serviceName: SERVICE_NAME,
 		discordBotToken: { present: Boolean(discord.value), source: discord.source },
 		gatewayHttpToken: { present: Boolean(httpToken.value), source: httpToken.source },
+		githubPrToken: { present: Boolean(githubPrToken.value), source: githubPrToken.source },
 	};
 }
 
@@ -92,4 +114,65 @@ export async function ensureGatewayHttpToken(): Promise<{ value: string; source:
 		// The token won't persist across restarts without keychain, but env var fallback is available.
 	}
 	return { value: generated, source: 'generated' };
+}
+
+export function issuePrTokenLease(options: { token: string; ttlMs?: number; scope?: string }, nowMs: number = Date.now()): PrTokenLease {
+	const token = String(options.token || '').trim();
+	if (!token) throw new Error('[Gateway] Cannot issue PR token lease: token is required');
+
+	const ttl = Number.isFinite(options.ttlMs) ? Number(options.ttlMs) : DEFAULT_PR_TOKEN_TTL_MS;
+	if (!Number.isFinite(ttl) || ttl <= 0 || ttl > 24 * 60 * 60 * 1000) {
+		throw new Error('[Gateway] Cannot issue PR token lease: ttlMs must be between 1 and 86400000');
+	}
+
+	const scope = String(options.scope || 'pr-open').trim() || 'pr-open';
+	const leaseId = crypto.randomUUID();
+	const expiresAtMs = nowMs + ttl;
+
+	prTokenLeases.set(leaseId, {
+		token,
+		scope,
+		expiresAtMs,
+		issuedAtMs: nowMs,
+		revoked: false,
+	});
+
+	return { leaseId, scope, expiresAtMs };
+}
+
+export function resolvePrTokenLease(leaseId: string, nowMs: number = Date.now()): string | undefined {
+	const id = String(leaseId || '').trim();
+	if (!id) return undefined;
+
+	const lease = prTokenLeases.get(id);
+	if (!lease) return undefined;
+	if (lease.revoked) return undefined;
+	if (lease.expiresAtMs <= nowMs) {
+		prTokenLeases.delete(id);
+		return undefined;
+	}
+
+	return lease.token;
+}
+
+export function revokePrTokenLease(leaseId: string): boolean {
+	const id = String(leaseId || '').trim();
+	if (!id) return false;
+
+	const lease = prTokenLeases.get(id);
+	if (!lease) return false;
+	lease.revoked = true;
+	prTokenLeases.set(id, lease);
+	return true;
+}
+
+export function getPrTokenLeaseStatus(leaseId: string, nowMs: number = Date.now()): { state: 'missing' | 'active' | 'expired' | 'revoked'; scope?: string; expiresAtMs?: number } {
+	const id = String(leaseId || '').trim();
+	if (!id) return { state: 'missing' };
+
+	const lease = prTokenLeases.get(id);
+	if (!lease) return { state: 'missing' };
+	if (lease.revoked) return { state: 'revoked', scope: lease.scope, expiresAtMs: lease.expiresAtMs };
+	if (lease.expiresAtMs <= nowMs) return { state: 'expired', scope: lease.scope, expiresAtMs: lease.expiresAtMs };
+	return { state: 'active', scope: lease.scope, expiresAtMs: lease.expiresAtMs };
 }

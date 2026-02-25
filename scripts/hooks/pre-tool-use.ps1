@@ -186,8 +186,172 @@ function Get-HighRiskCommandReason([string]$command) {
     return $null
 }
 
+function Get-RequiredEarlyControls {
+    $raw = $env:HOOK_EARLY_CONTROLS_REQUIRED
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        return @("safetyTokenParity", "hookEnforcement", "telemetrySchemaValidation")
+    }
+
+    return @($raw.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function Get-PrivilegedToolNames {
+    $raw = $env:HOOK_PRIVILEGED_TOOLS
+    if ([string]::IsNullOrWhiteSpace($raw)) {
+        return @("execute/runinterminal", "run_in_terminal", "edit", "create", "create_file", "edit_file", "apply_patch")
+    }
+
+    return @($raw.Split(",") | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function Test-IsPrivilegedTool([string]$name) {
+    if ([string]::IsNullOrWhiteSpace($name)) { return $false }
+
+    $low = $name.ToLowerInvariant()
+    $configured = Get-PrivilegedToolNames
+    if ($configured -contains $low) { return $true }
+
+    if ($low.Contains("runinterminal")) { return $true }
+    return $false
+}
+
+function Get-EarlyControlStatePath([string]$cwd) {
+    $configured = $env:HOOK_EARLY_CONTROLS_STATE_FILE
+    if ([string]::IsNullOrWhiteSpace($configured)) {
+        return Join-Path $cwd ".instructions-output\hooks\early-controls.json"
+    }
+
+    if ([System.IO.Path]::IsPathRooted($configured)) {
+        return $configured
+    }
+
+    return Join-Path $cwd $configured
+}
+
+function Test-SafetyTokenParity($state) {
+    if (-not $state) {
+        return [ordered]@{ ok = $false; detail = 'state_missing' }
+    }
+
+    $controlData = $state.controlData
+    if (-not $controlData) {
+        return [ordered]@{ ok = $false; detail = 'control_data_missing' }
+    }
+
+    $safetyToken = [string]$controlData.safetyToken
+    $safetyParity = [string]$controlData.safetyTokenParity
+    if ([string]::IsNullOrWhiteSpace($safetyToken) -or [string]::IsNullOrWhiteSpace($safetyParity)) {
+        return [ordered]@{ ok = $false; detail = 'token_or_parity_missing' }
+    }
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $expectedParity = ($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($safetyToken)) | ForEach-Object { $_.ToString('x2') }) -join ''
+    } finally {
+        $sha256.Dispose()
+    }
+
+    if ($expectedParity.ToLowerInvariant() -ne $safetyParity.ToLowerInvariant()) {
+        return [ordered]@{ ok = $false; detail = 'token_parity_mismatch' }
+    }
+
+    return [ordered]@{ ok = $true; detail = 'token_parity_valid' }
+}
+
+function Get-EarlyControlGateResult([string]$cwd, [string[]]$requiredControls) {
+    $statePath = Get-EarlyControlStatePath -cwd $cwd
+    if (-not (Test-Path $statePath)) {
+        return [ordered]@{
+            allowed = $false
+            statePath = $statePath
+            failedControls = @($requiredControls)
+            reason = "Privileged action blocked: early controls unavailable (state file missing)."
+        }
+    }
+
+    $state = $null
+    try {
+        $state = Get-Content -Raw -Path $statePath | ConvertFrom-Json
+    } catch {
+        return [ordered]@{
+            allowed = $false
+            statePath = $statePath
+            failedControls = @($requiredControls)
+            reason = "Privileged action blocked: early controls unavailable (state file unreadable)."
+        }
+    }
+
+    if (-not $state) {
+        return [ordered]@{
+            allowed = $false
+            statePath = $statePath
+            failedControls = @($requiredControls)
+            reason = "Privileged action blocked: early controls unavailable (state missing)."
+        }
+    }
+
+    $controlsNode = $state.controls
+    $failedDetails = @()
+    foreach ($controlId in $requiredControls) {
+        $controlNode = $null
+        if ($controlsNode -and $controlsNode.PSObject.Properties[$controlId]) {
+            $controlNode = $controlsNode.PSObject.Properties[$controlId].Value
+        }
+
+        $status = $null
+        $detail = "missing"
+        if ($controlNode) {
+            if ($controlNode.PSObject.Properties["status"]) {
+                $status = [string]$controlNode.PSObject.Properties["status"].Value
+            }
+            if ($controlNode.PSObject.Properties["detail"] -and -not [string]::IsNullOrWhiteSpace([string]$controlNode.PSObject.Properties["detail"].Value)) {
+                $detail = [string]$controlNode.PSObject.Properties["detail"].Value
+            }
+        }
+
+        if ($controlId -eq 'safetyTokenParity') {
+            $parity = Test-SafetyTokenParity $state
+            if (-not $parity.ok) {
+                $failedDetails += "${controlId}:$($parity.detail)"
+                continue
+            }
+        }
+
+        if ($status -ne "pass") {
+            $failedDetails += "${controlId}:$detail"
+        }
+    }
+
+    if ($failedDetails.Count -gt 0) {
+        return [ordered]@{
+            allowed = $false
+            statePath = $statePath
+            failedControls = $failedDetails
+            reason = "Privileged action blocked: early controls not satisfied ($($failedDetails -join ', '))."
+        }
+    }
+
+    return [ordered]@{
+        allowed = $true
+        statePath = $statePath
+        failedControls = @()
+        reason = $null
+    }
+}
+
 $decision = $null
 $reason = $null
+$isPrivilegedTool = Test-IsPrivilegedTool $toolName
+$requiredEarlyControls = Get-RequiredEarlyControls
+$earlyControlGate = $null
+
+if ($isPrivilegedTool) {
+    $earlyControlGate = Get-EarlyControlGateResult -cwd $cwd -requiredControls $requiredEarlyControls
+    if (-not $earlyControlGate.allowed) {
+        $decision = "deny"
+        $reason = $earlyControlGate.reason
+    }
+}
 
 if ($toolName -in @("edit", "create", "create_file", "edit_file")) {
     $path = $toolArgs.path
@@ -270,6 +434,10 @@ $logEntry = [ordered]@{
     event = "preToolUse"
     timestamp = $data.timestamp
     toolName = $toolName
+    isPrivilegedTool = $isPrivilegedTool
+    earlyControlsRequired = $requiredEarlyControls
+    earlyControlsStatePath = if ($earlyControlGate) { $earlyControlGate.statePath } else { $null }
+    earlyControlsFailed = if ($earlyControlGate) { $earlyControlGate.failedControls } else { @() }
     toolArgsSummary = (Get-ToolArgsSummary)
     decision = $decision
     reason = $reason

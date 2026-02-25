@@ -6,8 +6,58 @@ let sessionSource = 'all';
 let selectedSession = null;
 let trackerEventSource = null;
 let trackerPendingCount = 0;
+let policyGateBlocked = false;
+let policyGateReason = '';
+let sandboxSessions = [];
+
+function isMutatingMethod(method) {
+  const m = String(method || 'GET').toUpperCase();
+  return !(m === 'GET' || m === 'HEAD' || m === 'OPTIONS');
+}
+
+function applyPolicyGateUi() {
+  const ids = [
+    'btn-sync-all',
+    'btn-fresh-all',
+    'btn-patch-vscode-settings',
+    'btn-copilot-authorize',
+    'btn-install-lsp',
+    'btn-gateway-save',
+    'btn-sandbox-create',
+    'btn-sandbox-start',
+    'btn-sandbox-stop',
+    'btn-sandbox-open-terminal',
+    'btn-sandbox-pr-open',
+  ];
+
+  for (const id of ids) {
+    const el = $(id);
+    if (!el) continue;
+    el.disabled = policyGateBlocked;
+  }
+
+  if (policyGateBlocked) {
+    $('btn-archive-session').disabled = true;
+    $('btn-delete-session').disabled = true;
+    setStatus(`Policy gate active: ${policyGateReason || 'mutating actions are blocked'}`);
+  }
+}
+
+async function refreshPolicyPreflight(forceRefresh) {
+  const suffix = forceRefresh ? '?refresh=1' : '';
+  const data = await api(`/api/policy/preflight${suffix}`);
+  policyGateBlocked = !Boolean(data && data.ok);
+  policyGateReason = String((data && (data.message || data.reason)) || '').trim();
+  applyPolicyGateUi();
+  return data;
+}
 
 async function api(url, opts) {
+  const method = String((opts && opts.method) || 'GET').toUpperCase();
+  if (isMutatingMethod(method) && policyGateBlocked) {
+    throw new Error(`Policy gate blocked mutating request: ${policyGateReason || 'policy preflight failed'}`);
+  }
+
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     cache: 'no-store',
@@ -89,16 +139,19 @@ function evTime(ev) {
 
 function switchTab(tab) {
   const sessions = tab === 'sessions';
+  const sandboxes = tab === 'sandboxes';
   const assets = tab === 'assets';
   const lsp = tab === 'lsp';
   const tracker = tab === 'tracker';
   const gateway = tab === 'gateway';
   $('tab-sessions').classList.toggle('active', sessions);
+  $('tab-sandboxes').classList.toggle('active', sandboxes);
   $('tab-assets').classList.toggle('active', assets);
   $('tab-lsp').classList.toggle('active', lsp);
   $('tab-tracker').classList.toggle('active', tracker);
   $('tab-gateway').classList.toggle('active', gateway);
   $('view-sessions').classList.toggle('hidden', !sessions);
+  $('view-sandboxes').classList.toggle('hidden', !sandboxes);
   $('view-assets').classList.toggle('hidden', !assets);
   $('view-lsp').classList.toggle('hidden', !lsp);
   $('view-tracker').classList.toggle('hidden', !tracker);
@@ -118,6 +171,38 @@ function switchTab(tab) {
 
   if (gateway) {
     loadGatewayConfig();
+  }
+
+  if (sandboxes) {
+    loadSandboxes().catch((e) => setStatus(e.message));
+  }
+}
+
+function setSessionsSource(next, options = {}) {
+  const reload = options.reload !== false;
+  sessionSource = next;
+  $('tab-sessions-all').classList.toggle('active', next === 'all');
+  $('tab-sessions-cli').classList.toggle('active', next === 'cli');
+  $('tab-sessions-vscode').classList.toggle('active', next === 'vscode');
+  $('tab-sessions-sandbox').classList.toggle('active', next === 'sandbox');
+  selectedSession = null;
+  $('btn-archive-session').disabled = true;
+  $('btn-delete-session').disabled = true;
+  $('session-detail').textContent = 'Select a session.';
+  $('session-detail').classList.add('muted');
+  $('session-plans').textContent = '';
+  $('session-plan').textContent = '';
+  $('session-final').textContent = '';
+  $('session-agent-usage').textContent = '';
+  $('session-progress').textContent = '';
+  $('session-progress').classList.add('muted');
+  $('session-proposition').textContent = '';
+  $('session-proposition').classList.add('muted');
+  $('session-verification-guide').textContent = '';
+  $('session-verification-guide').classList.add('muted');
+  $('session-events').textContent = '';
+  if (reload) {
+    loadSessions().catch((e) => setStatus(e.message));
   }
 }
 
@@ -227,12 +312,106 @@ async function loadSessions() {
   renderList($('sessions-active'), active);
   renderList($('sessions-past'), past);
   setStatus('Sessions loaded.');
+  return sessions;
+}
+
+function requireSandboxId(actionLabel) {
+  const sandboxId = String(($('sandbox-id') && $('sandbox-id').value) || '').trim();
+  if (sandboxId) return sandboxId;
+  setStatus(`Sandbox ${actionLabel} requires sandboxId.`);
+  return null;
+}
+
+function findSandboxSessionMatch(list, sandboxId) {
+  const target = String(sandboxId || '').trim().toLowerCase();
+  if (!target) return null;
+  const bySandbox = list.find((s) => String((s && s.sandbox) || '').trim().toLowerCase() === target);
+  if (bySandbox) return bySandbox;
+  return list.find((s) => String((s && s.id) || '').trim().toLowerCase() === target) || null;
+}
+
+async function followSandboxSession(sandboxId) {
+  const target = String(sandboxId || '').trim();
+  if (!target) {
+    setStatus('Follow requires sandboxId.');
+    return;
+  }
+
+  switchTab('sessions');
+  setSessionsSource('sandbox', { reload: false });
+  const sessions = await loadSessions();
+  const match = findSandboxSessionMatch(sessions, target);
+  if (!match) {
+    setStatus(`Sandbox ${target} not found in Sessions.`);
+    return;
+  }
+
+  await selectSession(match);
+  setStatus(`Following sandbox ${target}.`);
+}
+
+async function runSandboxLifecycleAction(action, payload, sandboxId) {
+  setStatus(`Running sandbox ${action}…`);
+  await api(`/api/tracker/lifecycle/${encodeURIComponent(action)}`, {
+    method: 'POST',
+    body: JSON.stringify(payload || {}),
+  });
+  await followSandboxSession(sandboxId);
+}
+
+async function loadSandboxes() {
+  setStatus('Loading sandboxes…');
+  const data = await api('/api/sessions?activeWindowMinutes=30&source=sandbox');
+  sandboxSessions = (data && data.sessions) || [];
+  $('sandboxes-summary').textContent = `${sandboxSessions.length} discovered`;
+
+  const container = $('sandboxes-list');
+  container.textContent = '';
+
+  for (const s of sandboxSessions) {
+    const sandboxId = String((s && s.sandbox) || (s && s.id) || '').trim();
+    const row = document.createElement('div');
+    row.className = 'item';
+    row.innerHTML = '<div class="item-title"></div><div class="item-sub muted"></div><div class="actions" style="margin-top: 6px;"></div>';
+    const title = sandboxId || '(unknown sandbox)';
+    const detail = [s.id, s.status, fmtTime(s.lastEventTime || s.startTime)].filter(Boolean).join(' • ');
+    row.querySelector('.item-title').textContent = title;
+    row.querySelector('.item-sub').textContent = detail;
+
+    row.addEventListener('click', () => {
+      if ($('sandbox-id')) $('sandbox-id').value = sandboxId;
+    });
+
+    const followBtn = document.createElement('button');
+    followBtn.type = 'button';
+    followBtn.className = 'btn small';
+    followBtn.textContent = 'Follow';
+    followBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        await followSandboxSession(sandboxId);
+      } catch (err) {
+        setStatus(`Follow failed: ${err.message}`);
+      }
+    });
+    row.querySelector('.actions').appendChild(followBtn);
+    container.appendChild(row);
+  }
+
+  if (!sandboxSessions.length) {
+    const d = document.createElement('div');
+    d.className = 'muted';
+    d.textContent = '(none)';
+    container.appendChild(d);
+  }
+
+  setStatus('Sandboxes loaded.');
 }
 
 async function selectSession(s) {
   selectedSession = s;
-  $('btn-archive-session').disabled = false;
-  $('btn-delete-session').disabled = false;
+  $('btn-archive-session').disabled = policyGateBlocked;
+  $('btn-delete-session').disabled = policyGateBlocked;
 
   $('session-detail').classList.remove('muted');
   $('session-detail').textContent = '';
@@ -797,7 +976,7 @@ async function patchVscodeSettings() {
 
 async function authorizeCopilotFolders() {
   const ok = window.confirm(
-    'Authorize Copilot tool access for:\n\n- ~/.copilot (and common subfolders)\n\nThis updates ~/.copilot/permissions-config.json (read/write/memory) and creates a backup if needed.'
+    'Authorize Copilot tool access for:\n\n- ~/.copilot\n- default subfolders\n- discovered first-level subfolders\n\nThis updates ~/.copilot/permissions-config.json (read/write/memory) and creates a backup if needed.'
   );
   if (!ok) return;
   setStatus('Authorizing Copilot folders…');
@@ -1047,39 +1226,81 @@ async function saveGatewayConfig() {
 
 function bindUi() {
   $('tab-sessions').addEventListener('click', () => switchTab('sessions'));
+  $('tab-sandboxes').addEventListener('click', () => switchTab('sandboxes'));
   $('tab-assets').addEventListener('click', () => switchTab('assets'));
   $('tab-lsp').addEventListener('click', () => switchTab('lsp'));
   $('btn-reload').addEventListener('click', () => window.location.reload());
 
   $('btn-refresh-sessions').addEventListener('click', () => loadSessions().catch((e) => setStatus(e.message)));
 
-  function setSessionsSource(next) {
-    sessionSource = next;
-    $('tab-sessions-all').classList.toggle('active', next === 'all');
-    $('tab-sessions-cli').classList.toggle('active', next === 'cli');
-    $('tab-sessions-vscode').classList.toggle('active', next === 'vscode');
-    $('tab-sessions-sandbox').classList.toggle('active', next === 'sandbox');
-    selectedSession = null;
-    $('btn-archive-session').disabled = true;
-    $('btn-delete-session').disabled = true;
-    $('session-detail').textContent = 'Select a session.';
-    $('session-detail').classList.add('muted');
-    $('session-plans').textContent = '';
-    $('session-plan').textContent = '';
-    $('session-final').textContent = '';
-    $('session-agent-usage').textContent = '';
-    $('session-progress').textContent = '';
-    $('session-progress').classList.add('muted');
-    $('session-proposition').textContent = '';
-    $('session-proposition').classList.add('muted');
-    $('session-events').textContent = '';
-    loadSessions().catch((e) => setStatus(e.message));
-  }
-
   $('tab-sessions-all').addEventListener('click', () => setSessionsSource('all'));
   $('tab-sessions-cli').addEventListener('click', () => setSessionsSource('cli'));
   $('tab-sessions-vscode').addEventListener('click', () => setSessionsSource('vscode'));
   $('tab-sessions-sandbox').addEventListener('click', () => setSessionsSource('sandbox'));
+
+  $('btn-refresh-sandboxes').addEventListener('click', () => loadSandboxes().catch((e) => setStatus(e.message)));
+  $('btn-sandbox-create').addEventListener('click', async () => {
+    const sandboxId = requireSandboxId('create');
+    if (!sandboxId) return;
+    try {
+      await runSandboxLifecycleAction('create', { sandboxId }, sandboxId);
+    } catch (e) {
+      setStatus(`Sandbox create failed: ${e.message}`);
+    }
+  });
+  $('btn-sandbox-start').addEventListener('click', async () => {
+    const sandboxId = requireSandboxId('start');
+    if (!sandboxId) return;
+    try {
+      await runSandboxLifecycleAction('start', { sandboxId }, sandboxId);
+    } catch (e) {
+      setStatus(`Sandbox start failed: ${e.message}`);
+    }
+  });
+  $('btn-sandbox-stop').addEventListener('click', async () => {
+    const sandboxId = requireSandboxId('stop');
+    if (!sandboxId) return;
+    try {
+      await runSandboxLifecycleAction('stop', { sandboxId }, sandboxId);
+    } catch (e) {
+      setStatus(`Sandbox stop failed: ${e.message}`);
+    }
+  });
+  $('btn-sandbox-open-terminal').addEventListener('click', async () => {
+    const sandboxId = requireSandboxId('open-terminal');
+    if (!sandboxId) return;
+    try {
+      await runSandboxLifecycleAction('open-terminal', { sandboxId }, sandboxId);
+    } catch (e) {
+      setStatus(`Sandbox open-terminal failed: ${e.message}`);
+    }
+  });
+  $('btn-sandbox-follow').addEventListener('click', async () => {
+    const sandboxId = requireSandboxId('follow');
+    if (!sandboxId) return;
+    try {
+      await followSandboxSession(sandboxId);
+    } catch (e) {
+      setStatus(`Follow failed: ${e.message}`);
+    }
+  });
+  $('btn-sandbox-pr-open').addEventListener('click', async () => {
+    const sandboxId = requireSandboxId('pr-open');
+    if (!sandboxId) return;
+
+    const baseBranch = String(($('sandbox-base-branch') && $('sandbox-base-branch').value) || '').trim();
+    const headBranch = String(($('sandbox-head-branch') && $('sandbox-head-branch').value) || '').trim();
+    if (!baseBranch || !headBranch) {
+      setStatus('Sandbox pr-open requires baseBranch and headBranch.');
+      return;
+    }
+
+    try {
+      await runSandboxLifecycleAction('pr-open', { sandboxId, baseBranch, headBranch }, sandboxId);
+    } catch (e) {
+      setStatus(`Sandbox pr-open failed: ${e.message}`);
+    }
+  });
 
   $('btn-archive-session').addEventListener('click', async () => {
     if (!selectedSession || !selectedSession.id) return;
@@ -1156,6 +1377,13 @@ async function boot() {
   } catch {
     setStatus('Server not healthy.');
   }
+
+  await refreshPolicyPreflight(true).catch((e) => {
+    policyGateBlocked = true;
+    policyGateReason = e.message;
+    applyPolicyGateUi();
+  });
+
   await loadSessions().catch((e) => setStatus(e.message));
   await loadManaged().catch((e) => setStatus(e.message));
   await loadInstalled().catch((e) => setStatus(e.message));
@@ -1187,6 +1415,14 @@ async function boot() {
       // ignore polling failures (UI stays manual-refreshable)
     }
   }, 2000);
+
+  setInterval(() => {
+    refreshPolicyPreflight(false).catch(() => {
+      policyGateBlocked = true;
+      policyGateReason = 'policy preflight unavailable';
+      applyPolicyGateUi();
+    });
+  }, 5000);
 }
 
 boot();

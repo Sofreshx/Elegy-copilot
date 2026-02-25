@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-02-25
 category: system
 status: current
 doc_kind: moc
@@ -15,6 +15,7 @@ related: [system-docs-index]
 ## Start here
 
 - Security model: `docs/system/security-model.md`
+- Runtime + permissions contracts: `docs/system/runtime-permissions-contracts.md`
 
 ## See also
 

@@ -116,6 +116,13 @@ Open: http://127.0.0.1:3210
 
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.
 
+### Desktop distribution policy (locked)
+
+- Packaging runtime: Electron (`electron-builder`) with in-app updates (`electron-updater`)
+- Release scope: Windows GA first; Linux/macOS preview until signing parity
+- Signing custody: managed external signing service via OIDC (no private keys in repo)
+- Rollback authority: Release Engineering owns channel rollback + kill switch decisions
+
 ### One-time VS Code setup (reducing permission prompts)
 
 If VS Code/Copilot keeps prompting to “allow access” for `~/.copilot`, it’s usually one of two things:
@@ -130,7 +137,7 @@ If VS Code/Copilot keeps prompting to “allow access” for `~/.copilot`, it’
    - Sets `chat.agentFilesLocations`, `chat.agentSkillsLocations`, `chat.promptFilesLocations`, `chat.instructionsFilesLocations`
    - Installs a conservative `chat.tools.terminal.autoApprove` set
 2. **Assets tab** → **Authorize Copilot folders** button (calls `POST /api/copilot/authorize`)
-   - Patches `~/.copilot/permissions-config.json` to pre-approve read/write/memory for `~/.copilot` and common subfolders
+  - Patches `~/.copilot/permissions-config.json` to pre-approve read/write/memory for `~/.copilot`, default folders, and dynamically discovered first-level subfolders
 3. **Restart VS Code**
 
 After this, permission prompts for `~/.copilot` should stop (or significantly reduce).

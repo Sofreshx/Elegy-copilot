@@ -47,6 +47,9 @@ describe('GatewayHttpServer', () => {
     ]);
     const mockApprovePermission = jest.fn<Promise<void>, [string, string]>().mockResolvedValue(undefined);
     const mockDenyPermission = jest.fn<Promise<void>, [string, string]>().mockResolvedValue(undefined);
+    const mockAuthorizeLifecycleAction = jest.fn().mockReturnValue({ allowed: true });
+    const mockHandleLifecycleAction = jest.fn<Promise<unknown>, [string, unknown, http.IncomingMessage]>().mockResolvedValue({ status: 'queued' });
+    const mockGetPolicyGateStatus = jest.fn().mockReturnValue({ ok: true });
 
     beforeAll(async () => {
         server = new GatewayHttpServer({
@@ -57,6 +60,9 @@ describe('GatewayHttpServer', () => {
             getPendingPermissions: mockGetPendingPermissions,
             approvePermission: mockApprovePermission,
             denyPermission: mockDenyPermission,
+            authorizeLifecycleAction: mockAuthorizeLifecycleAction,
+            handleLifecycleAction: mockHandleLifecycleAction,
+            getPolicyGateStatus: mockGetPolicyGateStatus,
         });
         await server.start();
         port = server.getPort()!;
@@ -77,6 +83,9 @@ describe('GatewayHttpServer', () => {
         ]);
         mockApprovePermission.mockResolvedValue(undefined);
         mockDenyPermission.mockResolvedValue(undefined);
+        mockAuthorizeLifecycleAction.mockReturnValue({ allowed: true });
+        mockHandleLifecycleAction.mockResolvedValue({ status: 'queued' });
+        mockGetPolicyGateStatus.mockReturnValue({ ok: true });
     });
 
     it('returns 401 when no auth header', async () => {
@@ -227,6 +236,148 @@ describe('GatewayHttpServer', () => {
         const res = await makeRequest(port, { path: '/api/nonexistent', token: TEST_TOKEN });
         expect(res.statusCode).toBe(404);
         expect(JSON.parse(res.body)).toEqual({ error: 'Not found' });
+    });
+
+    it('POST /api/lifecycle/:action executes lifecycle action when authorized', async () => {
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/create',
+            token: TEST_TOKEN,
+            body: JSON.stringify({ sandboxId: 'sb-1' }),
+        });
+
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body);
+        expect(body).toEqual({ ok: true, action: 'create', result: { status: 'queued' } });
+        expect(mockAuthorizeLifecycleAction).toHaveBeenCalled();
+        expect(mockHandleLifecycleAction).toHaveBeenCalledWith('create', { sandboxId: 'sb-1' }, expect.anything());
+    });
+
+    it('POST /api/lifecycle/open-terminal returns deterministic 403 when action is forbidden', async () => {
+        mockAuthorizeLifecycleAction.mockImplementation((action: string) => {
+            if (action === 'open-terminal') return { allowed: false, reason: 'local_machine_only' };
+            return { allowed: true };
+        });
+
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/open-terminal',
+            token: TEST_TOKEN,
+            body: JSON.stringify({ sandboxId: 'sb-1' }),
+        });
+
+        expect(res.statusCode).toBe(403);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Forbidden',
+            code: 'action_not_allowed',
+            action: 'open-terminal',
+            reason: 'local_machine_only',
+        });
+        expect(mockHandleLifecycleAction).not.toHaveBeenCalled();
+    });
+
+    it('POST /api/lifecycle/:action returns 400 for invalid json', async () => {
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/pr-open',
+            token: TEST_TOKEN,
+            body: '{invalid-json',
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Invalid JSON body',
+            code: 'invalid_json',
+            action: 'pr-open',
+        });
+    });
+
+    it('POST /api/lifecycle/open-terminal returns deterministic 400 for invalid payload schema', async () => {
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/open-terminal',
+            token: TEST_TOKEN,
+            body: JSON.stringify({ launcher: 'pwsh' }),
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Invalid lifecycle payload',
+            code: 'invalid_lifecycle_payload',
+            action: 'open-terminal',
+            reason: 'missing_or_invalid_sandbox_id',
+        });
+        expect(mockHandleLifecycleAction).not.toHaveBeenCalled();
+    });
+
+    it('POST /api/lifecycle/open-terminal denies env injection fields with deterministic 400', async () => {
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/open-terminal',
+            token: TEST_TOKEN,
+            body: JSON.stringify({ sandboxId: 'sb-1', env: { PATH: '/tmp' } }),
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Invalid lifecycle payload',
+            code: 'env_injection_denied',
+            action: 'open-terminal',
+            reason: 'forbidden_field:env',
+        });
+        expect(mockHandleLifecycleAction).not.toHaveBeenCalled();
+    });
+
+    it('POST /api/lifecycle/open-terminal rejects shell metacharacter fuzz inputs', async () => {
+        const fuzzInputs = [
+            'sb-1;whoami',
+            'sb-1&&echo bad',
+            'sb-1|cat /etc/passwd',
+            'sb-1${HOME}',
+            'sb-1$(whoami)',
+        ];
+
+        for (const sandboxId of fuzzInputs) {
+            const res = await makeRequest(port, {
+                method: 'POST',
+                path: '/api/lifecycle/open-terminal',
+                token: TEST_TOKEN,
+                body: JSON.stringify({ sandboxId }),
+            });
+
+            expect(res.statusCode).toBe(400);
+            expect(JSON.parse(res.body)).toEqual({
+                error: 'Invalid lifecycle payload',
+                code: 'invalid_lifecycle_payload',
+                action: 'open-terminal',
+                reason: 'unsafe_shell_syntax:sandboxId',
+            });
+        }
+
+        expect(mockHandleLifecycleAction).not.toHaveBeenCalled();
+    });
+
+    it('blocks mutating routes when policy gate fails closed', async () => {
+        mockGetPolicyGateStatus.mockReturnValue({
+            ok: false,
+            reason: 'validation_failed',
+            message: 'policy lock mismatch',
+        });
+
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/permissions/perm-1/approve',
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(503);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Policy gate blocked mutating request',
+            code: 'policy_gate_blocked',
+            reason: 'validation_failed',
+            message: 'policy lock mismatch',
+        });
+        expect(mockApprovePermission).not.toHaveBeenCalled();
     });
 
     it('returns 401 with malformed Authorization header (no Bearer prefix)', async () => {

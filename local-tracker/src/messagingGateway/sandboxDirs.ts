@@ -16,6 +16,21 @@ export interface SandboxDirPaths {
 	logs: string;
 }
 
+export interface CleanupSandboxDirsOptions {
+	sandboxesHome?: string;
+	knownSandboxIds?: Iterable<string>;
+	activeSandboxIds?: Iterable<string>;
+	staleTtlMs: number;
+	nowMs?: number;
+}
+
+export interface CleanupSandboxDirsResult {
+	removedSandboxIds: string[];
+	failedSandboxIds: string[];
+	skippedActiveSandboxIds: string[];
+	skippedFreshSandboxIds: string[];
+}
+
 /**
  * Resolves the canonical directory paths for a sandbox.
  * sandboxId is validated: must be 1-64 chars, alphanumeric + hyphens only.
@@ -67,4 +82,81 @@ export function listSandboxIds(sandboxesHome?: string): string[] {
 	return fs.readdirSync(home, { withFileTypes: true })
 		.filter(d => d.isDirectory() && /^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/.test(d.name))
 		.map(d => d.name);
+}
+
+/**
+ * Best-effort cleanup for sandbox directories.
+ *
+ * - Orphan: directory sandboxId not found in knownSandboxIds.
+ * - Stale: directory mtime older than staleTtlMs and sandboxId not active.
+ *
+ * Safety: only validates/targets sandbox IDs returned by listSandboxIds().
+ * Never throws; logs failures and returns a summary.
+ */
+export function cleanupSandboxDirs(options: CleanupSandboxDirsOptions): CleanupSandboxDirsResult {
+	const home = options.sandboxesHome?.trim() || getDefaultSandboxesHome();
+	const knownSandboxIds = new Set<string>(options.knownSandboxIds ?? []);
+	const activeSandboxIds = new Set<string>(options.activeSandboxIds ?? []);
+	const nowMs = options.nowMs ?? Date.now();
+
+	const removedSandboxIds: string[] = [];
+	const failedSandboxIds: string[] = [];
+	const skippedActiveSandboxIds: string[] = [];
+	const skippedFreshSandboxIds: string[] = [];
+
+	let sandboxIds: string[];
+	try {
+		sandboxIds = listSandboxIds(home).sort((a, b) => a.localeCompare(b));
+	} catch (err) {
+		const msg = err instanceof Error ? err.message : String(err);
+		console.error(`[sandboxDirs] Failed to list sandbox directories for cleanup: ${msg}`);
+		return {
+			removedSandboxIds,
+			failedSandboxIds,
+			skippedActiveSandboxIds,
+			skippedFreshSandboxIds,
+		};
+	}
+
+	for (const sandboxId of sandboxIds) {
+		if (activeSandboxIds.has(sandboxId)) {
+			skippedActiveSandboxIds.push(sandboxId);
+			continue;
+		}
+
+		const sandboxRoot = resolveSandboxDirs(sandboxId, home).root;
+		const isOrphan = !knownSandboxIds.has(sandboxId);
+
+		let isStale = false;
+		try {
+			const stat = fs.statSync(sandboxRoot);
+			isStale = nowMs - stat.mtimeMs >= options.staleTtlMs;
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			console.error(`[sandboxDirs] Failed to stat sandbox dir ${sandboxId}: ${msg}`);
+			failedSandboxIds.push(sandboxId);
+			continue;
+		}
+
+		if (!isOrphan && !isStale) {
+			skippedFreshSandboxIds.push(sandboxId);
+			continue;
+		}
+
+		try {
+			fs.rmSync(sandboxRoot, { recursive: true, force: true });
+			removedSandboxIds.push(sandboxId);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : String(err);
+			console.error(`[sandboxDirs] Failed to cleanup sandbox dir ${sandboxId}: ${msg}`);
+			failedSandboxIds.push(sandboxId);
+		}
+	}
+
+	return {
+		removedSandboxIds,
+		failedSandboxIds,
+		skippedActiveSandboxIds,
+		skippedFreshSandboxIds,
+	};
 }

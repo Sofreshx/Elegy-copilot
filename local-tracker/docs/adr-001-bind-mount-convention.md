@@ -40,6 +40,12 @@ Set:
 
 so `~/.copilot/session-state/` inside the container maps to `/home/copilot/.copilot/session-state/`.
 
+## Isolation boundary lock (G-04-WU-01)
+
+- Sandbox containers are isolated execution surfaces and MUST NOT receive host Docker socket access.
+- Terminal access is initiated from the host control plane and remains local-machine scoped.
+- PR actions are host-mediated and use host-owned credentials only.
+
 ## Allowed bind-mount strategies
 
 ### A) Direct session-state bind mount (preferred)

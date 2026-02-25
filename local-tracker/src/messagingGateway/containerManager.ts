@@ -185,6 +185,20 @@ export class ContainerManager {
 		return info;
 	}
 
+	/**
+	 * Idempotent helper for lifecycle operations.
+	 * Returns existing sandbox container when present, otherwise spawns a new one.
+	 */
+	async getOrSpawn(sandboxId: string, hostPort: number): Promise<{ info: SandboxContainerInfo; created: boolean }> {
+		const existing = await this.get(sandboxId);
+		if (existing) {
+			return { info: existing, created: false };
+		}
+
+		const created = await this.spawn(sandboxId, hostPort);
+		return { info: created, created: true };
+	}
+
 	async stop(sandboxId: string): Promise<boolean> {
 		assertNonEmptyString(sandboxId, 'sandboxId');
 		const info = await this.get(sandboxId);
@@ -299,27 +313,9 @@ export class ContainerManager {
 	}
 
 	private buildContainerEnv(): string[] {
-		const env: string[] = [
+		return [
 			'HOME=/home/copilot',
 			`ACP_PORT=${CONTAINER_PORT}`,
 		];
-
-		const auth = this.resolveAuthEnv();
-		if (auth) env.push(auth);
-
-		return env;
-	}
-
-	private resolveAuthEnv(): string | undefined {
-		const ghToken = (process.env.GH_TOKEN || '').trim();
-		if (ghToken) return `GH_TOKEN=${ghToken}`;
-
-		const githubToken = (process.env.GITHUB_TOKEN || '').trim();
-		if (githubToken) return `GITHUB_TOKEN=${githubToken}`;
-
-		const copilotToken = (process.env.COPILOT_GITHUB_TOKEN || '').trim();
-		if (copilotToken) return `COPILOT_GITHUB_TOKEN=${copilotToken}`;
-
-		return undefined;
 	}
 }

@@ -18,6 +18,41 @@
     "skillsRequireFolderName": true,
     "notes": "If the installer flattens source folders, it should still write files using each asset.destination path."
   },
+  "governance": {
+    "g05": {
+      "schemaVersion": "1.0.0",
+      "requiredControls": {
+        "early": [
+          {
+            "id": "safetyTokenParity",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "hookEnforcement",
+            "owner": "Platform Engineering"
+          },
+          {
+            "id": "telemetrySchemaValidation",
+            "owner": "Observability Engineering"
+          }
+        ],
+        "final": [
+          {
+            "id": "evidencePredicates",
+            "owner": "Release Engineering"
+          },
+          {
+            "id": "finalGateWaiverPrecedence",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "trustedEvidenceBindingRetention",
+            "owner": "Release Engineering"
+          }
+        ]
+      }
+    }
+  },
   "assets": [
     {
       "id": "agent-code-architect",

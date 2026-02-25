@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-02-25
 category: system
 status: current
 doc_kind: node
@@ -14,6 +14,72 @@ tags: [security]
 > **Last updated**: 2026-02-11
 >
 > This document describes the **actual, implemented** security architecture of the Instruction Engine relay ecosystem (cloud relay, mobile companion PWA, VS Code extension). Claims are verified against source code. Planned-but-unimplemented features are clearly marked as **v2 Planned**.
+
+## Desktop Distribution Trust Chain — Decision Lock (G-02-WU-01)
+
+These decisions are locked for the desktop-distributed `instruction-engine` runtime:
+
+| Topic | Decision | Owner |
+|---|---|---|
+| Runtime packaging | Electron app shell with `electron-builder`; update client via `electron-updater` | Release Engineering |
+| Channel scope | Windows = GA; Linux/macOS = preview until signing parity is complete | Product + Release Engineering |
+| Signing custody | Signing material remains external (OIDC -> managed signing service/HSM/KMS); no private keys in repo or runner filesystem | Security Engineering |
+| Key/cert rotation authority | Rotation cadence and emergency rotation owned by Security Engineering, executed with Release Engineering | Security Engineering |
+| Rollback / kill-switch authority | Release Engineering can pause channels, roll back feed pointers, and force minimum-safe-version blocks | Release Engineering |
+
+Operational constraints:
+- Stable channel never consumes prerelease artifacts.
+- Promotion requires matching provenance/attestation evidence.
+- Missing or invalid signing evidence is release-blocking (fail closed).
+
+### CI Enforcement — Signing Trust Chain (G-02-WU-04)
+
+Desktop release CI is enforced by `.github/workflows/desktop-release.yml`:
+
+- Trigger: `desktop-v*` tags and manual dispatch (`release_tag`).
+- Windows GA artifact flow:
+  - Build unsigned installer on `windows-latest`.
+  - Exchange GitHub OIDC token (`id-token: write`) for signing identity.
+  - Call managed signing endpoint (`DESKTOP_SIGNING_SERVICE_URL`) with no private keys in repo/runner.
+  - Require signing evidence from service response:
+    - `signature-manifest.json`
+    - `provenance.attestation.json`
+  - Fail closed if endpoint/evidence is missing.
+- Linux preview flow:
+  - Build preview artifact and metadata digest.
+  - Sign metadata via the managed signing endpoint using OIDC.
+  - Verify metadata signature in CI before publish.
+- macOS preview flow:
+  - Publish preview artifact only with explicit unsigned label (`MAC_PREVIEW_UNSIGNED.txt`).
+- Publish gate:
+  - Draft GitHub release is created only after all verification checks pass.
+  - Prerelease flag is inferred from desktop tag semver suffix (`desktop-vx.y.z-*` => prerelease).
+
+Required repository configuration (placeholders, not committed secrets):
+
+- Repository variable: `DESKTOP_SIGNING_SERVICE_URL` (required)
+- Repository variable: `DESKTOP_SIGNING_SERVICE_AUDIENCE` (optional; default `instruction-engine-desktop-release`)
+- Repository secret: `DESKTOP_SIGNING_SERVICE_API_KEY` (optional, service-specific)
+
+### Final Gate Trusted Evidence Binding + Retention (G-05-WU-06)
+
+Planpack final-gate validation (`scripts/validate-planpack.js`) requires release evidence to be bound to deployment context before `trustedEvidenceBindingRetention` can pass:
+
+- Trusted binding must include commit SHA, release tag, channel, producer identity, attestation status, and evidence timestamp.
+- Missing fields, attestation false, stale evidence, or expected binding mismatch fail closed.
+- CI can enforce deterministic binding with `--expected-commit`, `--expected-release`, and `--expected-channel`.
+- Retention policy is enforced in the same control:
+  - ops logs retention must be at least 30 days,
+  - per-release evidence must be retained and present.
+- Validation failures force `required=false/fail` behavior for the control and block final gate success.
+
+## Canonical Policy Source (G-03-WU-01)
+
+Policy truth is now centralized under:
+- `engine-assets/policy/policy.schema.json`
+- `engine-assets/policy/pipeline-policy.json`
+
+Policy and scanner work must treat these files as the only canonical source for versioned policy semantics (`schemaVersion`, `policyVersion`).
 
 ---
 

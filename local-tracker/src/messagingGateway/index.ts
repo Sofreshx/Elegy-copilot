@@ -1,8 +1,15 @@
 import fs from 'fs';
+import childProcess from 'child_process';
+import path from 'path';
 
-import type { MessagingGatewayMode } from './config';
+import type { LifecycleAction, MessagingGatewayConfig, MessagingGatewayMode, ResolvedSandboxLifecycleConfig } from './config';
 import { GatewayHttpServer } from './gatewayHttpServer';
-import { getDefaultMessagingGatewayConfigPath, loadMessagingGatewayConfig, resolveMessagingGatewayConfigPath } from './config';
+import {
+	getDefaultMessagingGatewayConfigPath,
+	loadMessagingGatewayConfig,
+	resolveMessagingGatewayConfigPath,
+	resolveSandboxLifecycleConfig,
+} from './config';
 import { AuditLogger } from './auditLogger';
 import { CommandRouter, WU002_POLICY_CONTRACT } from './commandRouter';
 import { DiscordPlatform } from './discordPlatform';
@@ -15,8 +22,37 @@ import { deleteGatewaySecret, ensureGatewayHttpToken, getGatewaySecret, getGatew
 import { detectModeAuto } from './workspaceDetection';
 import { printGatewayStatusSummary } from './status';
 import { MessagingGatewayStatusWriter, resolveMessagingGatewayStatusPath, type MessagingGatewayStatusV1 } from './statusFile';
-import { ContainerManager } from './containerManager';
-import { SandboxRegistry } from './sandboxRegistry';
+import { ContainerManager, type ContainerManagerOptions } from './containerManager';
+import { PortAllocator, type PortAllocatorOptions } from './portAllocator';
+import { createLifecycleOperationsHandler } from './lifecycleOperations';
+import { createSandboxEventRouter, SandboxRegistry } from './sandboxRegistry';
+import { cleanupSandboxDirs, resolveSandboxDirs } from './sandboxDirs';
+import {
+	assertValidOpenTerminalPayload,
+	buildTerminalLaunchTemplate,
+	isLifecyclePayloadValidationError,
+	LifecyclePayloadValidationError,
+	type OpenTerminalPayload,
+} from './lifecycleOpenTerminal';
+
+function isLoopbackAddress(address: string | undefined): boolean {
+	if (!address) return false;
+	return address === '127.0.0.1' || address === '::1' || address === '::ffff:127.0.0.1';
+}
+
+function resolvePolicyValidatorPath(): string | null {
+	const candidates = [
+		path.resolve(process.cwd(), '../scripts/validate-policy-lockfiles.js'),
+		path.resolve(process.cwd(), 'scripts/validate-policy-lockfiles.js'),
+		path.resolve(__dirname, '../../../scripts/validate-policy-lockfiles.js'),
+	];
+
+	for (const candidate of candidates) {
+		if (fs.existsSync(candidate)) return candidate;
+	}
+
+	return null;
+}
 
 type CliMode = MessagingGatewayMode;
 
@@ -29,6 +65,39 @@ interface CliArgs {
 	deleteGatewayHttpToken?: boolean;
 	printConfigPath?: boolean;
 	help?: boolean;
+}
+
+export interface SandboxLifecycleRuntime {
+	lifecycleConfig: ResolvedSandboxLifecycleConfig;
+	containerManager: ContainerManager;
+	portAllocator: PortAllocator;
+}
+
+export interface SandboxLifecycleRuntimeFactory {
+	createContainerManager: (options: ContainerManagerOptions) => ContainerManager;
+	createPortAllocator: (options: PortAllocatorOptions) => PortAllocator;
+}
+
+const DEFAULT_SANDBOX_LIFECYCLE_RUNTIME_FACTORY: SandboxLifecycleRuntimeFactory = {
+	createContainerManager: (options) => new ContainerManager(options),
+	createPortAllocator: (options) => new PortAllocator(options),
+};
+
+export function createSandboxLifecycleRuntime(
+	sandboxLifecycleConfig: MessagingGatewayConfig['sandboxLifecycle'],
+	factory: SandboxLifecycleRuntimeFactory = DEFAULT_SANDBOX_LIFECYCLE_RUNTIME_FACTORY,
+): SandboxLifecycleRuntime {
+	const lifecycleConfig = resolveSandboxLifecycleConfig(sandboxLifecycleConfig);
+	return {
+		lifecycleConfig,
+		containerManager: factory.createContainerManager({
+			maxSandboxes: lifecycleConfig.maxSandboxes,
+		}),
+		portAllocator: factory.createPortAllocator({
+			rangeStart: lifecycleConfig.portRange.start,
+			rangeEnd: lifecycleConfig.portRange.end,
+		}),
+	};
 }
 
 function printHelp() {
@@ -285,13 +354,56 @@ async function main() {
 
 	// --- Sandbox Container Manager ---
 	// Initialize early so reconcile() cleans orphaned containers before accepting commands.
-	const containerManager = new ContainerManager();
+	const sandboxLifecycleRuntime = createSandboxLifecycleRuntime(loaded.config.sandboxLifecycle);
+	const { containerManager, portAllocator, lifecycleConfig: sandboxLifecycleConfig } = sandboxLifecycleRuntime;
 	try {
 		await containerManager.reconcile();
 		console.log('[Gateway] Sandbox container reconciliation complete (orphans cleaned)');
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		console.error(`[Gateway] Sandbox container reconciliation failed (non-fatal): ${message}`);
+	}
+
+	let knownSandboxIds = new Set<string>();
+	let activeSandboxIds = new Set<string>();
+	let hasContainerSnapshot = true;
+	try {
+		const containers = await containerManager.list();
+		knownSandboxIds = new Set(
+			containers
+				.map((container) => container.sandboxId)
+				.filter((sandboxId): sandboxId is string => typeof sandboxId === 'string' && sandboxId.trim().length > 0),
+		);
+		activeSandboxIds = new Set(
+			containers
+				.filter((container) => container.state === 'running')
+				.map((container) => container.sandboxId)
+				.filter((sandboxId): sandboxId is string => typeof sandboxId === 'string' && sandboxId.trim().length > 0),
+		);
+	} catch (err) {
+		hasContainerSnapshot = false;
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(`[Gateway] Sandbox container listing failed before dir cleanup (non-fatal): ${message}`);
+	}
+
+	if (sandboxLifecycleConfig.cleanupOnStartup) {
+		if (!hasContainerSnapshot) {
+			console.error('[Gateway] Sandbox dir cleanup skipped (non-fatal): container snapshot unavailable');
+		} else {
+		try {
+			const cleanupResult = cleanupSandboxDirs({
+				knownSandboxIds,
+				activeSandboxIds,
+				staleTtlMs: sandboxLifecycleConfig.staleTtlMs,
+			});
+			console.log(
+				`[Gateway] Sandbox dir cleanup complete (removed=${cleanupResult.removedSandboxIds.length}, failed=${cleanupResult.failedSandboxIds.length}, active_skipped=${cleanupResult.skippedActiveSandboxIds.length}, fresh_skipped=${cleanupResult.skippedFreshSandboxIds.length})`,
+			);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			console.error(`[Gateway] Sandbox dir cleanup failed (non-fatal): ${message}`);
+		}
+		}
 	}
 
 	// --- Sandbox Registry ---
@@ -352,6 +464,24 @@ async function main() {
 	const httpTokenResult = await ensureGatewayHttpToken();
 	const gatewayHttpToken = httpTokenResult.value;
 	console.log(`[Gateway] HTTP API token source: ${httpTokenResult.source}`);
+	const lifecycleOperations = createLifecycleOperationsHandler({
+		auditLogger,
+		containerManager,
+		sandboxRegistry,
+		portAllocator,
+		createSandboxBridgeClient: mode === 'connected'
+			? ({ sandboxId, hostPort }) => {
+				const eventRouter = createSandboxEventRouter(sandboxRegistry, sandboxId);
+				return new AcpBridgeClient({
+					host: '127.0.0.1',
+					port: hostPort,
+					resolveCwd: () => resolveSandboxDirs(sandboxId).root,
+					onEvent: eventRouter.onEvent,
+					onStatusChanged: eventRouter.onStatusChanged,
+				});
+			}
+			: undefined,
+	});
 
 	gatewayHttpServer = new GatewayHttpServer({
 		bearerToken: gatewayHttpToken,
@@ -370,6 +500,178 @@ async function main() {
 		denyPermission: async (callbackId, resolvedBy) => {
 			if (!permissionOrchestrator) throw new Error('No permission orchestrator available');
 			await permissionOrchestrator.deny(callbackId, resolvedBy);
+		},
+		handleLifecycleAction: async (action, payload, req) => {
+			if (action !== 'open-terminal') {
+				return await lifecycleOperations.handle(action, payload, req);
+			}
+
+			const actor = String(req.headers['x-ie-actor'] ?? '').trim() || 'unknown';
+			let parsedPayload: OpenTerminalPayload;
+			try {
+				parsedPayload = assertValidOpenTerminalPayload(payload);
+			} catch (err) {
+				if (isLifecyclePayloadValidationError(err)) {
+					auditLogger.logSecurityEvent('gateway.lifecycle.open_terminal.denied', {
+						action,
+						code: err.code,
+						reason: err.reason,
+						actor,
+						remoteAddress: req.socket.remoteAddress,
+					});
+				}
+				throw err;
+			}
+
+			const sandboxDirs = resolveSandboxDirs(parsedPayload.sandboxId);
+			if (!fs.existsSync(sandboxDirs.root) || !fs.statSync(sandboxDirs.root).isDirectory()) {
+				const validationError = new LifecyclePayloadValidationError({
+					code: 'invalid_lifecycle_payload',
+					reason: `sandbox_not_found:${parsedPayload.sandboxId}`,
+				});
+				auditLogger.logSecurityEvent('gateway.lifecycle.open_terminal.denied', {
+					action,
+					code: validationError.code,
+					reason: validationError.reason,
+					sandboxId: parsedPayload.sandboxId,
+					actor,
+					remoteAddress: req.socket.remoteAddress,
+				});
+				throw validationError;
+			}
+
+			try {
+				const template = buildTerminalLaunchTemplate({
+					sandboxRoot: sandboxDirs.root,
+					launcher: parsedPayload.launcher,
+				});
+
+				const child = childProcess.spawn(template.command, template.args, {
+					cwd: template.cwd,
+					detached: true,
+					shell: false,
+					stdio: 'ignore',
+					windowsHide: false,
+				});
+
+				await new Promise<void>((resolve, reject) => {
+					let settled = false;
+					const finishOk = () => {
+						if (settled) return;
+						settled = true;
+						resolve();
+					};
+					const finishErr = (error: Error) => {
+						if (settled) return;
+						settled = true;
+						reject(error);
+					};
+
+					child.once('spawn', finishOk);
+					child.once('error', finishErr);
+				});
+
+				child.unref();
+
+				auditLogger.logSecurityEvent('gateway.lifecycle.open_terminal.allowed', {
+					action,
+					sandboxId: parsedPayload.sandboxId,
+					launcher: template.launcher,
+					profile: parsedPayload.profile ?? 'default',
+					actor,
+					remoteAddress: req.socket.remoteAddress,
+					pid: child.pid ?? null,
+				});
+
+				return {
+					launched: true,
+					sandboxId: parsedPayload.sandboxId,
+					launcher: template.launcher,
+					profile: parsedPayload.profile ?? 'default',
+					pid: child.pid ?? null,
+				};
+			} catch (err) {
+				if (isLifecyclePayloadValidationError(err)) {
+					throw err;
+				}
+
+				const message = err instanceof Error ? err.message : String(err);
+				auditLogger.logSecurityEvent('gateway.lifecycle.open_terminal.error', {
+					action,
+					reason: 'launcher_spawn_failed',
+					message,
+					sandboxId: parsedPayload.sandboxId,
+					actor,
+					remoteAddress: req.socket.remoteAddress,
+				});
+				throw err;
+			}
+		},
+		getPolicyGateStatus: (() => {
+			let cache: { expiresAt: number; value: { ok: boolean; reason?: string; message?: string } } = {
+				expiresAt: 0,
+				value: { ok: false, reason: 'policy_gate_uninitialized' },
+			};
+
+			return () => {
+				const now = Date.now();
+				if (now < cache.expiresAt) return cache.value;
+
+				const validatorPath = resolvePolicyValidatorPath();
+				if (!validatorPath) {
+					cache = {
+						expiresAt: now + 10_000,
+						value: { ok: false, reason: 'validator_missing', message: 'validate-policy-lockfiles.js not found' },
+					};
+					return cache.value;
+				}
+
+				const result = childProcess.spawnSync(process.execPath, [validatorPath], {
+					encoding: 'utf8',
+					windowsHide: true,
+					maxBuffer: 512 * 1024,
+				});
+
+				if (result.status === 0) {
+					cache = {
+						expiresAt: now + 10_000,
+						value: { ok: true, message: String(result.stdout || '').trim() || 'policy gate passed' },
+					};
+					return cache.value;
+				}
+
+				cache = {
+					expiresAt: now + 10_000,
+					value: {
+						ok: false,
+						reason: 'validation_failed',
+						message: String(result.stderr || result.stdout || '').trim() || 'policy lockfile validation failed',
+					},
+				};
+				return cache.value;
+			};
+		})(),
+		authorizeLifecycleAction: (action: LifecycleAction, req) => {
+			const lifecycleAuthz = loaded.config.gatewayHttp?.lifecycleAuthz;
+			const enabledActions = new Set<LifecycleAction>(lifecycleAuthz?.enabledActions ?? ['create', 'start', 'stop', 'open-terminal', 'pr-open']);
+			const localMachineOnlyActions = new Set<LifecycleAction>(lifecycleAuthz?.localMachineOnlyActions ?? ['open-terminal']);
+
+			if (!enabledActions.has(action)) {
+				return { allowed: false, reason: 'action_disabled' };
+			}
+
+			if (localMachineOnlyActions.has(action) && !isLoopbackAddress(req.socket.remoteAddress)) {
+				return { allowed: false, reason: 'local_machine_only' };
+			}
+
+			if (action === 'open-terminal') {
+				const actor = String(req.headers['x-ie-actor'] ?? '').trim().toLowerCase();
+				if (actor && actor !== 'local-ui') {
+					return { allowed: false, reason: 'local_ui_required' };
+				}
+			}
+
+			return { allowed: true };
 		},
 	});
 
@@ -538,8 +840,10 @@ async function main() {
 	});
 }
 
-main().catch((err: unknown) => {
-	const message = err instanceof Error ? err.message : String(err);
-	console.error(message);
-	process.exit(1);
-});
+if (require.main === module) {
+	main().catch((err: unknown) => {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(message);
+		process.exit(1);
+	});
+}

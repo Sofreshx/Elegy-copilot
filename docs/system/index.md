@@ -29,6 +29,10 @@ related: [doc-graph-spec]
 - [[moc-skills-governance]] [docs/system/mocs/skills-governance.md](docs/system/mocs/skills-governance.md)
 - [[moc-software-design-concepts]] [docs/system/mocs/software-design-concepts.md](docs/system/mocs/software-design-concepts.md)
 
+## Runbooks
+
+- [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md)
+
 ## Precedence
 
 - Canonical: `docs/system/**`

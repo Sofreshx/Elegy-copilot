@@ -7,6 +7,7 @@ import {
 	ensureSandboxDirs,
 	removeSandboxDirs,
 	listSandboxIds,
+	cleanupSandboxDirs,
 } from '../sandboxDirs';
 
 let tmpHome: string;
@@ -90,5 +91,76 @@ describe('listSandboxIds', () => {
 	it('returns empty array when home does not exist', () => {
 		const missing = path.join(tmpHome, 'no-such-dir');
 		expect(listSandboxIds(missing)).toEqual([]);
+	});
+});
+
+describe('cleanupSandboxDirs', () => {
+	it('removes orphan sandbox dirs and keeps known fresh dirs', () => {
+		ensureSandboxDirs('known', tmpHome);
+		ensureSandboxDirs('orphan', tmpHome);
+
+		const result = cleanupSandboxDirs({
+			sandboxesHome: tmpHome,
+			knownSandboxIds: ['known'],
+			activeSandboxIds: [],
+			staleTtlMs: 60_000,
+			nowMs: Date.now(),
+		});
+
+		expect(result.removedSandboxIds).toEqual(['orphan']);
+		expect(result.failedSandboxIds).toEqual([]);
+		expect(result.skippedFreshSandboxIds).toEqual(['known']);
+		expect(fs.existsSync(resolveSandboxDirs('orphan', tmpHome).root)).toBe(false);
+		expect(fs.existsSync(resolveSandboxDirs('known', tmpHome).root)).toBe(true);
+	});
+
+	it('removes stale non-active dirs and keeps active dirs', () => {
+		const stale = ensureSandboxDirs('stale-1', tmpHome);
+		const active = ensureSandboxDirs('active-1', tmpHome);
+
+		const now = Date.now();
+		fs.utimesSync(stale.root, new Date(now - 120_000), new Date(now - 120_000));
+		fs.utimesSync(active.root, new Date(now - 120_000), new Date(now - 120_000));
+
+		const result = cleanupSandboxDirs({
+			sandboxesHome: tmpHome,
+			knownSandboxIds: ['stale-1', 'active-1'],
+			activeSandboxIds: ['active-1'],
+			staleTtlMs: 60_000,
+			nowMs: now,
+		});
+
+		expect(result.removedSandboxIds).toEqual(['stale-1']);
+		expect(result.skippedActiveSandboxIds).toEqual(['active-1']);
+		expect(fs.existsSync(stale.root)).toBe(false);
+		expect(fs.existsSync(active.root)).toBe(true);
+	});
+
+	it('is fail-safe when a remove fails and ignores invalid directory names', () => {
+		ensureSandboxDirs('remove-fail', tmpHome);
+		const invalidDir = path.join(tmpHome, 'bad dir');
+		fs.mkdirSync(invalidDir, { recursive: true });
+
+		const realRmSync = fs.rmSync;
+		const rmSpy = jest.spyOn(fs, 'rmSync').mockImplementation((targetPath, options) => {
+			if (String(targetPath).includes('remove-fail')) {
+				throw new Error('rm failed');
+			}
+			return realRmSync(targetPath, options as any);
+		});
+
+		const result = cleanupSandboxDirs({
+			sandboxesHome: tmpHome,
+			knownSandboxIds: [],
+			activeSandboxIds: [],
+			staleTtlMs: 0,
+			nowMs: Date.now(),
+		});
+
+		rmSpy.mockRestore();
+
+		expect(result.removedSandboxIds).toEqual([]);
+		expect(result.failedSandboxIds).toEqual(['remove-fail']);
+		expect(fs.existsSync(invalidDir)).toBe(true);
 	});
 });
