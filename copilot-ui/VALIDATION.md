@@ -201,3 +201,57 @@ Expected: 401 empty body (query-param auth not supported)
 - Auth is single-session scope only
 - Multi-session aggregate views are deferred
 - Token auto-generated for non-loopback binds; `--token` or `COPILOT_UI_TOKEN` env var for explicit control
+
+---
+
+## WS2 — UI Source Handling Alignment (WU-201 through WU-206)
+
+### Prerequisites
+1. Server running: `node copilot-ui/server.js`
+2. Open `http://127.0.0.1:3210` in a browser
+3. Have at least one CLI session and one VS Code session on disk
+
+### 1. Filter Cycle Test
+1. Default view: **All** tab is active, both CLI and VS Code sessions visible.
+2. Click **CLI** → only sessions with `source=cli` or `canonicalSource=cli` appear.
+3. Click **VS Code** → only VS Code-sourced sessions appear.
+4. Click **Sandbox** → only sandbox-sourced sessions appear (may be empty).
+5. Click **All** → all sessions return.
+6. Each click changes the active tab highlight correctly (only one active at a time).
+
+### 2. No Duplicate Rows
+- In **All** view with `dedupe=on` (default), each canonical session appears exactly once.
+- Open browser console — no `[session-dedupe] Duplicate canonicalKey detected` warnings.
+- If duplicates somehow appear, the warning is logged and only the first occurrence is kept.
+
+### 3. Action Routing Uses Resolved Source
+- Select a merged `[MULTI]` session in All view.
+- Click **Archive session** → confirm dialog shows the resolved `canonicalSource` (not `all`).
+- The archive API call uses the resolved source in `?source=` param (verify in Network tab).
+- Repeat for **Delete permanently** — same resolved source in the API call.
+- Select a single-source session → archive/delete use that session's `source` or `canonicalSource`.
+
+### 4. [MULTI] Badge Behavior
+- In **All** view: sessions merged from multiple sources show `[MULTI]` prefix.
+- In **All** view: single-source sessions show `[CLI]`, `[VSCODE]`, or `[SANDBOX]` prefix.
+- In **CLI** / **VS Code** / **Sandbox** views: no source badge is shown (prefix is empty).
+
+### 5. ACP-Only Rows
+- If the ACP tracker reports a session that has no filesystem counterpart, it appears with `[ACP-ONLY]` badge.
+- ACP-only rows have a visually muted appearance (`acp-only-muted` class).
+- ACP-only rows are still clickable and display session detail.
+
+### 6. Session Detail Source Display
+- Select any session → Session Detail panel shows **Source:** with the correct resolved source.
+- Plans, events, final output, and structured state all load using the resolved source.
+
+### Validation Checklist
+- [ ] Filter cycle: All → CLI → VS Code → Sandbox → All works correctly
+- [ ] No duplicate rows in any filter view
+- [ ] Archive action uses `resolveSessionSource()` (check Network tab)
+- [ ] Delete action uses `resolveSessionSource()` (check Network tab)
+- [ ] `[MULTI]` badge appears only in All view for multi-source sessions
+- [ ] Source badges hidden when a specific filter is active
+- [ ] ACP-only rows appear with muted styling
+- [ ] Console has no `[session-dedupe]` warnings under normal operation
+- [ ] `session-source.js` loaded before `app.js` (check Elements/Sources tab)

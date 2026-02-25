@@ -140,6 +140,11 @@ body {
   font-size: 12px;
 }
 
+.acp-only-muted {
+  opacity: 0.55;
+  border-style: dashed;
+}
+
 .pre {
   padding: 10px;
   border: 1px solid var(--border);

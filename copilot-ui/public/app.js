@@ -155,7 +155,7 @@ function mergeSessionsWithTracker(fsSessions, acpSessions) {
       id,
       status: acp.status || 'active',
       source: 'acp',
-      authority: 'acp',
+      authority: 'acp-only',
       acpData: acp,
       repo: null,
       branch: null,
@@ -177,7 +177,23 @@ async function loadSessions() {
   ]);
   const fsSessions = fsData.sessions || [];
   const acpSessions = Array.isArray(acpData) ? acpData : (acpData.sessions || []);
-  const sessions = mergeSessionsWithTracker(fsSessions, acpSessions);
+  const merged = mergeSessionsWithTracker(fsSessions, acpSessions);
+
+  // WU-203: Duplicate guard — dedupe by canonicalKey on client side
+  const seenKeys = new Map();
+  const sessions = [];
+  for (const s of merged) {
+    const key = s.canonicalKey || null;
+    if (key) {
+      if (seenKeys.has(key)) {
+        console.warn('[session-dedupe] Duplicate canonicalKey detected, keeping first:', key);
+        continue;
+      }
+      seenKeys.set(key, true);
+    }
+    sessions.push(s);
+  }
+
   const active = sessions.filter((s) => s.status === 'active');
   const past = sessions.filter((s) => s.status !== 'active');
   $('sessions-summary').textContent = `${active.length} active, ${past.length} past`;
@@ -188,9 +204,10 @@ async function loadSessions() {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'item';
-      const sourceLabel = sessionSource === 'all' ? `[${String(s.source || 'cli').toUpperCase()}] ` : '';
-      const authorityBadge = s.authority === 'acp' ? '[ACP] ' : s.authority === 'fs' ? '[FS] ' : '';
+      const sourceLabel = getSessionDisplayLabel(s, sessionSource);
+      const authorityBadge = s.authority === 'acp' ? '[ACP] ' : s.authority === 'acp-only' ? '[ACP-ONLY] ' : s.authority === 'fs' ? '[FS] ' : '';
       const prefix = authorityBadge + sourceLabel;
+      if (s.authority === 'acp-only') btn.classList.add('acp-only-muted');
       const title = prefix + (s.repo ? `${s.repo}` : s.cwd || s.id);
       const sub = `${s.id} • ${s.status} • ${fmtTime(s.lastEventTime || s.startTime)}`;
       btn.innerHTML = `<div class="item-title"></div><div class="item-sub muted"></div>`;
@@ -234,7 +251,7 @@ async function selectSession(s) {
   $('session-detail').innerHTML = `
     <div><b>ID:</b> ${escapeHtml(s.id)}</div>
     <div><b>Source:</b> ${escapeHtml(s.source || sessionSource)}</div>
-    <div><b>Authority:</b> ${s.authority === 'acp' ? 'ACP (live)' : 'Filesystem'}</div>
+    <div><b>Authority:</b> ${s.authority === 'acp' ? 'ACP (live)' : s.authority === 'acp-only' ? 'ACP-only' : 'Filesystem'}</div>
     <div><b>Status:</b> ${escapeHtml(s.status)}</div>
     <div><b>Repo:</b> ${escapeHtml(s.repo || '')}</div>
     <div><b>Branch:</b> ${escapeHtml(s.branch || '')}</div>
@@ -244,7 +261,7 @@ async function selectSession(s) {
   `;
 
   setStatus(`Loading plan/events for ${s.id}…`);
-  const source = encodeURIComponent(String(s.source || sessionSource || 'cli'));
+  const source = encodeURIComponent(String(resolveSessionSource(s)));
   const [plansIndex, finalOut, agentUsage, evs, structuredState, proposition, verificationGuide] = await Promise.all([
     api(`/api/sessions/${encodeURIComponent(s.id)}/plans?source=${source}`).catch(() => ({ plans: [] })),
     api(`/api/sessions/${encodeURIComponent(s.id)}/final?source=${source}`).catch(() => ''),
@@ -1039,6 +1056,9 @@ function bindUi() {
   function setSessionsSource(next) {
     sessionSource = next;
     $('tab-sessions-all').classList.toggle('active', next === 'all');
+    $('tab-sessions-cli').classList.toggle('active', next === 'cli');
+    $('tab-sessions-vscode').classList.toggle('active', next === 'vscode');
+    $('tab-sessions-sandbox').classList.toggle('active', next === 'sandbox');
     selectedSession = null;
     $('btn-archive-session').disabled = true;
     $('btn-delete-session').disabled = true;
@@ -1057,11 +1077,14 @@ function bindUi() {
   }
 
   $('tab-sessions-all').addEventListener('click', () => setSessionsSource('all'));
+  $('tab-sessions-cli').addEventListener('click', () => setSessionsSource('cli'));
+  $('tab-sessions-vscode').addEventListener('click', () => setSessionsSource('vscode'));
+  $('tab-sessions-sandbox').addEventListener('click', () => setSessionsSource('sandbox'));
 
   $('btn-archive-session').addEventListener('click', async () => {
     if (!selectedSession || !selectedSession.id) return;
     const id = encodeURIComponent(selectedSession.id);
-    const src = encodeURIComponent(String(selectedSession.source || sessionSource || 'cli'));
+    const src = encodeURIComponent(String(resolveSessionSource(selectedSession)));
     const ok = window.confirm(`Archive session ${selectedSession.id} (${src})?`);
     if (!ok) return;
     setStatus(`Archiving ${selectedSession.id}…`);
@@ -1076,7 +1099,7 @@ function bindUi() {
   $('btn-delete-session').addEventListener('click', async () => {
     if (!selectedSession || !selectedSession.id) return;
     const id = encodeURIComponent(selectedSession.id);
-    const src = encodeURIComponent(String(selectedSession.source || sessionSource || 'cli'));
+    const src = encodeURIComponent(String(resolveSessionSource(selectedSession)));
     const ok = window.confirm(
       `Delete session ${selectedSession.id} (${src}) permanently?\n\nThis cannot be undone.`
     );

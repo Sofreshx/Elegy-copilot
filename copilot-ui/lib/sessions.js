@@ -507,6 +507,112 @@ function watchSandboxSessions(sandboxesHome, onChange) {
   };
 }
 
+// --- Session aggregation / deduplication (WU-101 through WU-103) ---
+
+const SOURCE_RANK = { vscode: 0, cli: 1, sandbox: 2 };
+
+function buildSessionIdentity(session) {
+  if (!session || typeof session.id !== 'string' || !session.id.trim()) {
+    return { canonicalKey: null, dedupeEligible: false };
+  }
+  return { canonicalKey: session.id.trim().toLowerCase(), dedupeEligible: true };
+}
+
+function countNonNull(obj) {
+  let n = 0;
+  for (const k of Object.keys(obj)) {
+    if (obj[k] != null) n++;
+  }
+  return n;
+}
+
+function mergeSessionGroup(sessionsWithSameKey) {
+  if (!Array.isArray(sessionsWithSameKey) || sessionsWithSameKey.length === 0) return null;
+  if (sessionsWithSameKey.length === 1) {
+    const s = sessionsWithSameKey[0];
+    const identity = buildSessionIdentity(s);
+    return {
+      ...s,
+      ...identity,
+      sources: [s.source || 'cli'],
+      canonicalSource: s.source || 'cli',
+      mergedCount: 1,
+    };
+  }
+
+  const sorted = sessionsWithSameKey.slice().sort((a, b) => {
+    // 1. Most recent lastEventTime
+    const ta = parseTime(a.lastEventTime) || 0;
+    const tb = parseTime(b.lastEventTime) || 0;
+    if (tb !== ta) return tb - ta;
+    // 2. Completeness (more non-null fields wins)
+    const ca = countNonNull(a);
+    const cb = countNonNull(b);
+    if (cb !== ca) return cb - ca;
+    // 3. Source rank
+    const ra = SOURCE_RANK[a.source] ?? 99;
+    const rb = SOURCE_RANK[b.source] ?? 99;
+    if (ra !== rb) return ra - rb;
+    // 4. Stable lexical tie-break
+    const sa = JSON.stringify(a);
+    const sb = JSON.stringify(b);
+    return sa < sb ? -1 : sa > sb ? 1 : 0;
+  });
+
+  const winner = sorted[0];
+  const identity = buildSessionIdentity(winner);
+  const allSources = [];
+  const seen = new Set();
+  for (const s of sessionsWithSameKey) {
+    const src = s.source || 'cli';
+    if (!seen.has(src)) { seen.add(src); allSources.push(src); }
+  }
+
+  return {
+    ...winner,
+    ...identity,
+    sources: allSources,
+    canonicalSource: winner.source || 'cli',
+    mergedCount: sessionsWithSameKey.length,
+  };
+}
+
+function dedupeAllSources(allSessions) {
+  const groups = new Map();
+  const nonEligible = [];
+
+  for (const s of allSessions) {
+    const identity = buildSessionIdentity(s);
+    if (!identity.dedupeEligible) {
+      nonEligible.push({
+        ...s,
+        ...identity,
+        dedupeReason: 'no-id',
+        sources: [s.source || 'cli'],
+        canonicalSource: s.source || 'cli',
+        provenance: s.source || 'cli',
+        mergedCount: 1,
+      });
+      continue;
+    }
+    const key = identity.canonicalKey;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  }
+
+  const result = [];
+  for (const [, group] of groups) {
+    const merged = mergeSessionGroup(group);
+    if (!merged) continue;
+    merged.dedupeEligible = true;
+    merged.dedupeReason = group.length > 1 ? `merged-${group.length}-sources` : 'unique';
+    merged.provenance = merged.source || 'cli';
+    result.push(merged);
+  }
+
+  return [...result, ...nonEligible];
+}
+
 module.exports = {
   listSessions,
   readRecentEvents,
@@ -516,5 +622,8 @@ module.exports = {
   watchSessions,
   listSandboxSessions,
   watchSandboxSessions,
+  buildSessionIdentity,
+  mergeSessionGroup,
+  dedupeAllSources,
 };
 

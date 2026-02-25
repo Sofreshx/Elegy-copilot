@@ -21,6 +21,7 @@ related: [system-docs-index]
 - Agents vs skills: `docs/system/agents-vs-skills.md`
 - Agent architecture simplicity: `docs/system/agent-architecture-simplicity.md`
 - Agent hooks: `docs/system/agent-hooks.md`
+- Software design concepts: [[moc-software-design-concepts]] [docs/system/mocs/software-design-concepts.md](docs/system/mocs/software-design-concepts.md)
 
 ## Depends on
 

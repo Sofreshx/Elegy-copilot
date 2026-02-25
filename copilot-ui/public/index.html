@@ -27,7 +27,10 @@
             <div class="toolbar">
               <button id="btn-refresh-sessions" class="btn" type="button">Refresh</button>
               <div class="tabs" style="gap: 6px;">
-                <button id="tab-sessions-all" class="tab active" type="button">All Sessions</button>
+                <button id="tab-sessions-all" class="tab active" type="button">All</button>
+                <button id="tab-sessions-cli" class="tab" type="button">CLI</button>
+                <button id="tab-sessions-vscode" class="tab" type="button">VS Code</button>
+                <button id="tab-sessions-sandbox" class="tab" type="button">Sandbox</button>
               </div>
               <span id="sessions-summary" class="muted"></span>
             </div>
@@ -235,6 +238,7 @@
       <div id="status" class="muted">Ready.</div>
     </footer>
 
+    <script src="/session-source.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

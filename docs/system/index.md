@@ -27,6 +27,7 @@ related: [doc-graph-spec]
 - [[security-model-and-safety]] [docs/system/mocs/security-model-and-safety.md](docs/system/mocs/security-model-and-safety.md)
 - [[session-state]] [docs/system/mocs/session-state.md](docs/system/mocs/session-state.md)
 - [[moc-skills-governance]] [docs/system/mocs/skills-governance.md](docs/system/mocs/skills-governance.md)
+- [[moc-software-design-concepts]] [docs/system/mocs/software-design-concepts.md](docs/system/mocs/software-design-concepts.md)
 
 ## Precedence
 

@@ -263,6 +263,12 @@ function resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome) {
   return { source: 'cli', home: copilotHome };
 }
 
+function isValidSessionId(id) {
+  if (typeof id !== 'string' || id.length === 0 || id.length > 256) return false;
+  if (id.includes('..') || id.includes('/') || id.includes('\\')) return false;
+  return true;
+}
+
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
@@ -747,10 +753,15 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const activeWindowMinutes = parseNumberQuery(u.searchParams, 'activeWindowMinutes', 30);
     const source = (u.searchParams.get('source') || 'cli').toLowerCase();
     if (source === 'all') {
+      const dedupe = (u.searchParams.get('dedupe') || 'on').toLowerCase();
       const cli = sessions.listSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: 'cli' }));
       const vs = sessions.listSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: 'vscode' }));
       const sandbox = sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 });
-      sendJson(res, 200, { sessions: [...cli, ...vs, ...sandbox] });
+      const all = [...cli, ...vs, ...sandbox];
+      const result = (dedupe === 'off')
+        ? all.map(s => ({ ...s, ...sessions.buildSessionIdentity(s) }))
+        : sessions.dedupeAllSources(all);
+      sendJson(res, 200, { sessions: result });
       return;
     }
     if (source === 'sandbox') {
@@ -768,6 +779,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/events$/);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const limit = Math.max(1, Math.min(500, Math.floor(parseNumberQuery(u.searchParams, 'limit', 20))));
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
@@ -782,6 +794,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/agent-usage$/);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const limit = Math.max(1, Math.min(500, Math.floor(parseNumberQuery(u.searchParams, 'limit', 500))));
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
@@ -796,6 +809,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/plan$/);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const planPath = path.join(path.resolve(home.home), 'session-state', id, 'plan.md');
@@ -813,6 +827,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/plans$/);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
@@ -834,6 +849,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/plans\/([^/]+)$/);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const planId = decodeURIComponent(m[2]);
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
@@ -852,6 +868,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/final$/);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const finalPath = path.join(path.resolve(home.home), 'session-state', id, 'final.md');
@@ -869,6 +886,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/structured-state$/);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const planId = u.searchParams.get('planId') || 'latest';
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
@@ -904,6 +922,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/proposition$/);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
@@ -928,6 +947,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/verification-guide$/);
     if (req.method === 'GET' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
@@ -952,6 +972,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/archive$/);
     if (req.method === 'POST' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const homeAbs = path.resolve(home.home);
@@ -977,6 +998,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const m = pathname.match(/^\/api\/sessions\/([^/]+)\/delete$/);
     if (req.method === 'POST' && m) {
       const id = decodeURIComponent(m[1]);
+      if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
       const source = (u.searchParams.get('source') || 'cli').toLowerCase();
       const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
       const homeAbs = path.resolve(home.home);

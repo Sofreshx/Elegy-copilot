@@ -159,3 +159,50 @@ If a task maps to a known domain, treat skills as the default path:
 - **Integration test authoring**: Prefer Alba (`alba-integration-tests`).
 - **Executive2**: Ask the user before running long E2E/integration tests and log declines to `.instructions/testing/skipped-validation.md`.
 - **Segment large test suites** into smaller batches (e.g., by test class filter).
+
+## Temp File Safety Controls
+<a id="temp-file-safety-controls-v1"></a>
+
+When generating or working with temporary files for LLM workflows, follow these mandatory controls:
+
+### TMP-CTRL-001: Use sanctioned temp directories
+Always write temporary files to one of these locations:
+- `${REPO_ROOT}/.tmp/llm-input/` — input staging
+- `${REPO_ROOT}/.tmp/llm-output/` — output collection
+- `${REPO_ROOT}/.tmp/llm-work/` — scratch/working files
+- `${TMPDIR:-/tmp}/llm-session-<id>/` — OS temp dir (ephemeral)
+- OS temp dir via `mktemp -d` or platform equivalent
+
+### TMP-CTRL-002: Never write to null devices or pseudo-file sinks
+The following targets are **strictly prohibited** for any file write, redirect, or output:
+- **Null devices**: `/dev/null`, `NUL`, `NUL:`
+- **Pseudo-devices**: `/dev/zero`, `/dev/random`, `/dev/urandom`
+- **Kernel pseudo-filesystems**: `/proc/*`, `/sys/*`
+- **Windows reserved device names**: `CON`, `PRN`, `AUX`, `COM1`..`COM9`, `LPT1`..`LPT9`
+
+**Good** (do this):
+```
+echo "output" > ${REPO_ROOT}/.tmp/llm-work/scratch.txt
+echo "log" > ${TMPDIR:-/tmp}/llm-session-abc123/output.log
+mktemp -d  # create a proper temp directory
+```
+
+**Bad** (never do this):
+```
+> /dev/null
+Out-File NUL
+echo "" > /proc/self/...
+command 2>/dev/null  # suppresses errors unsafely
+```
+
+### TMP-CTRL-003: Ensure .gitignore coverage
+All sanctioned temp roots (`/.tmp/llm-input/`, `/.tmp/llm-output/`, `/.tmp/llm-work/`) must be listed in the repo's `.gitignore`.
+
+### TMP-CTRL-004: Clean up after use
+Temporary files should be removed after the workflow completes. Do not leave stale temp files across sessions.
+
+### TMP-CTRL-005: Never store secrets in temp files
+Temp files must never contain API keys, tokens, passwords, or other secrets. Use environment variables or OS keychains instead.
+
+### TMP-CTRL-006: Prefer real files over streams for auditable workflows
+When an audit trail is needed, write to a real file in a sanctioned temp directory rather than piping through memory-only streams.

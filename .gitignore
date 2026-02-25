@@ -37,3 +37,8 @@ tmpclaude-*
 .instructions/tasks/
 .instructions/tasks.archive/
 messaging-gateway.config.json
+
+# LLM temp file sanctioned roots
+/.tmp/llm-input/
+/.tmp/llm-output/
+/.tmp/llm-work/

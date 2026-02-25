@@ -365,6 +365,70 @@ function main() {
 		}
 	}
 
+	// ── Temp File Safety Controls parity check (TMPSEC_*) ──────────────
+	{
+		const canonicalPath = path.join(repoRoot, 'engine-assets', 'copilot-instructions.md');
+		const mirrorPath = path.join(repoRoot, '.github', 'copilot-instructions.md');
+		const sectionHeading = '## Temp File Safety Controls';
+		const anchor = '<a id="temp-file-safety-controls-v1"></a>';
+		const controlTokens = [
+			'TMP-CTRL-001',
+			'TMP-CTRL-002',
+			'TMP-CTRL-003',
+			'TMP-CTRL-004',
+			'TMP-CTRL-005',
+			'TMP-CTRL-006',
+		];
+
+		function extractSection(text, heading) {
+			const idx = text.indexOf(heading);
+			if (idx === -1) return null;
+			return text.slice(idx);
+		}
+
+		const filesToCheck = [
+			{ label: 'engine-assets/copilot-instructions.md', abs: canonicalPath },
+			{ label: '.github/copilot-instructions.md', abs: mirrorPath },
+		];
+
+		/** @type {string|null} */
+		let canonicalSection = null;
+		/** @type {string|null} */
+		let mirrorSection = null;
+
+		for (const file of filesToCheck) {
+			if (!fs.existsSync(file.abs)) {
+				errors.push(`TMPSEC_MISSING_SECTION ${file.label}: file not found.`);
+				continue;
+			}
+			const text = fs.readFileSync(file.abs, 'utf8');
+
+			if (!text.includes(sectionHeading)) {
+				errors.push(`TMPSEC_MISSING_SECTION ${file.label}: missing '${sectionHeading}'.`);
+			}
+			if (!text.includes(anchor)) {
+				errors.push(`TMPSEC_MISSING_ANCHOR ${file.label}: missing anchor '${anchor}'.`);
+			}
+			for (let i = 0; i < controlTokens.length; i++) {
+				const token = controlTokens[i];
+				if (!text.includes(token)) {
+					const pad = String(i + 1).padStart(3, '0');
+					errors.push(`TMPSEC_MISSING_TOKEN_${pad} ${file.label}: missing control token '${token}'.`);
+				}
+			}
+
+			const section = extractSection(text, sectionHeading);
+			if (file.abs === canonicalPath) canonicalSection = section;
+			if (file.abs === mirrorPath) mirrorSection = section;
+		}
+
+		if (canonicalSection !== null && mirrorSection !== null) {
+			if (canonicalSection.trimEnd() !== mirrorSection.trimEnd()) {
+				errors.push('TMPSEC_PARITY_DRIFT The Temp File Safety Controls section differs between engine-assets/copilot-instructions.md and .github/copilot-instructions.md.');
+			}
+		}
+	}
+
 	if (warnings.length > 0) {
 		console.warn('Warnings:');
 		for (const warning of warnings) console.warn(`- ${warning}`);
