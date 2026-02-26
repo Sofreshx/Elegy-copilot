@@ -1,9 +1,23 @@
 'use strict';
 
 const crypto = require('crypto');
+const {
+  DEFAULT_RUNTIME_PROVIDER,
+  RUNTIME_PROVIDER_SELECTION_SOURCES,
+  normalizeRuntimeProvider,
+} = require('./runtimeContracts');
 
 const PLANNING_PERSISTENCE_HEALTH_CONTRACT_VERSION = '1';
+const PLANNING_PROVIDER_STATE_CONTRACT_VERSION = '1';
 const DEFAULT_SCHEMA_TABLE = 'ie_schema_versions';
+const PLANNING_PERSISTENCE_HEALTH_STATUSES = Object.freeze(new Set([
+  'ready',
+  'invalid_config',
+  'disabled',
+  'configured_no_client',
+  'drift_detected',
+  'migration_error',
+]));
 
 const RAW_PLANNING_MIGRATIONS = Object.freeze([
   Object.freeze({
@@ -65,6 +79,16 @@ CREATE TABLE IF NOT EXISTS ie_planning_backfill_items_ledger (
 `,
   }),
 ]);
+
+const MIGRATION_CHECKSUM_OUTCOME = Object.freeze({
+  PASS: 'pass',
+  FAIL: 'fail',
+});
+
+const MIGRATION_CHECKSUM_REASON = Object.freeze({
+  VERIFIED: 'all_manifest_checksums_match',
+  DRIFT_DETECTED: 'manifest_checksum_drift_detected',
+});
 
 function parseBooleanFlag(value) {
   const raw = String(value == null ? '' : value).trim().toLowerCase();
@@ -226,6 +250,240 @@ function normalizeToken(value, { lowerCase = true } = {}) {
   const normalized = value.trim();
   if (!normalized) return null;
   return lowerCase ? normalized.toLowerCase() : normalized;
+}
+
+function normalizeDeterministicStringArray(values) {
+  const list = Array.isArray(values) ? values : [];
+  const normalized = [];
+
+  for (const value of list) {
+    const token = normalizeToken(value, { lowerCase: false });
+    if (!token) continue;
+    normalized.push(token);
+  }
+
+  return [...new Set(normalized)].sort((a, b) => a.localeCompare(b));
+}
+
+function normalizePlanningPersistenceStatus(status, validation) {
+  const normalizedStatus = normalizeToken(status);
+  if (normalizedStatus && PLANNING_PERSISTENCE_HEALTH_STATUSES.has(normalizedStatus)) {
+    return normalizedStatus;
+  }
+
+  if (validation && validation.usable) {
+    return 'ready';
+  }
+
+  if (validation && validation.configured) {
+    return 'invalid_config';
+  }
+
+  return 'disabled';
+}
+
+function normalizeIsoTimestamp(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms).toISOString();
+}
+
+function normalizePositiveInteger(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  const floored = Math.floor(numeric);
+  return floored >= 0 ? floored : 0;
+}
+
+function firstValidRuntimeProvider(candidates) {
+  const list = Array.isArray(candidates) ? candidates : [];
+  for (const candidate of list) {
+    const normalized = normalizeRuntimeProvider(candidate);
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
+function hasNonEmptyToken(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function normalizeReasonCodes(values) {
+  const list = Array.isArray(values) ? values : [];
+  const normalized = [];
+
+  for (const value of list) {
+    const token = normalizeToken(value);
+    if (!token) continue;
+    normalized.push(token);
+  }
+
+  return [...new Set(normalized)].sort((a, b) => a.localeCompare(b));
+}
+
+function buildPlanningProviderStatePersistencePayload(input = {}) {
+  const source = isPlainObject(input) ? input : {};
+  const defaultProvider = normalizeRuntimeProvider(source.defaultProvider) || DEFAULT_RUNTIME_PROVIDER;
+  const explicitSelected = normalizeRuntimeProvider(source.selectedProvider);
+  const selectedProvider = explicitSelected || defaultProvider;
+  const requestedSelectionSource = normalizeToken(source.selectionSource);
+
+  let selectionSource = explicitSelected
+    ? RUNTIME_PROVIDER_SELECTION_SOURCES.EXPLICIT
+    : RUNTIME_PROVIDER_SELECTION_SOURCES.DEFAULT;
+
+  if (requestedSelectionSource === RUNTIME_PROVIDER_SELECTION_SOURCES.DEFAULT) {
+    selectionSource = RUNTIME_PROVIDER_SELECTION_SOURCES.DEFAULT;
+  }
+
+  if (
+    requestedSelectionSource === RUNTIME_PROVIDER_SELECTION_SOURCES.EXPLICIT
+    && explicitSelected
+  ) {
+    selectionSource = RUNTIME_PROVIDER_SELECTION_SOURCES.EXPLICIT;
+  }
+
+  return {
+    contractVersion: PLANNING_PROVIDER_STATE_CONTRACT_VERSION,
+    selectedProvider,
+    defaultProvider,
+    selectionSource,
+  };
+}
+
+function readPlanningProviderState(input = {}) {
+  const source = isPlainObject(input) ? input : {};
+  const persisted = isPlainObject(source.persistedState) ? source.persistedState : null;
+  const env = isPlainObject(source.env) ? source.env : {};
+  const reasons = [];
+
+  const persistedContractVersion = persisted && hasNonEmptyToken(persisted.contractVersion)
+    ? String(persisted.contractVersion).trim()
+    : null;
+
+  const persistedSelectionSource = persisted
+    ? normalizeToken(persisted.selectionSource)
+    : null;
+
+  const persistedSelected = persisted
+    ? normalizeRuntimeProvider(persisted.selectedProvider)
+    : null;
+
+  const persistedDefault = persisted
+    ? normalizeRuntimeProvider(persisted.defaultProvider)
+    : null;
+
+  const persistedLegacySelected = persisted
+    ? firstValidRuntimeProvider([
+      persisted.runtimeProviderSelected,
+      persisted.runtimeProvider,
+      persisted.provider,
+    ])
+    : null;
+
+  const persistedLegacyDefault = persisted
+    ? firstValidRuntimeProvider([
+      persisted.runtimeProviderDefault,
+      persisted.providerDefault,
+    ])
+    : null;
+
+  const envSelected = firstValidRuntimeProvider([
+    env.INSTRUCTION_ENGINE_RUNTIME_PROVIDER_SELECTED,
+    env.INSTRUCTION_ENGINE_RUNTIME_PROVIDER,
+  ]);
+
+  const envDefault = normalizeRuntimeProvider(env.INSTRUCTION_ENGINE_RUNTIME_PROVIDER_DEFAULT);
+
+  let resolvedSelected = null;
+  let selectedSource = 'none';
+
+  if (persistedSelected) {
+    resolvedSelected = persistedSelected;
+    selectedSource = persistedSelectionSource === RUNTIME_PROVIDER_SELECTION_SOURCES.DEFAULT
+      ? 'persisted_default_selected'
+      : 'persisted_selected';
+  } else if (persistedLegacySelected) {
+    resolvedSelected = persistedLegacySelected;
+    selectedSource = 'persisted_legacy_selected';
+    reasons.push('legacy_selected_provider_migrated');
+  } else if (envSelected) {
+    resolvedSelected = envSelected;
+    selectedSource = 'env_selected';
+    reasons.push('env_selected_provider_migrated');
+  }
+
+  let resolvedDefault = null;
+  let defaultSource = 'none';
+
+  if (persistedDefault) {
+    resolvedDefault = persistedDefault;
+    defaultSource = 'persisted_default';
+  } else if (persistedLegacyDefault) {
+    resolvedDefault = persistedLegacyDefault;
+    defaultSource = 'persisted_legacy_default';
+    reasons.push('legacy_default_provider_migrated');
+  } else if (envDefault) {
+    resolvedDefault = envDefault;
+    defaultSource = 'env_default';
+    reasons.push('env_default_provider_migrated');
+  } else {
+    resolvedDefault = DEFAULT_RUNTIME_PROVIDER;
+    defaultSource = 'fallback_default';
+    reasons.push('default_provider_applied');
+  }
+
+  if (!resolvedSelected) {
+    resolvedSelected = resolvedDefault;
+    selectedSource = 'default_provider';
+  }
+
+  if (!persisted) {
+    reasons.push('provider_state_absent');
+  }
+
+  if (persisted && persistedContractVersion !== PLANNING_PROVIDER_STATE_CONTRACT_VERSION) {
+    reasons.push('provider_state_contract_mismatch');
+  }
+
+  if (persisted && hasNonEmptyToken(persisted.selectedProvider) && !persistedSelected) {
+    reasons.push('invalid_selected_provider');
+  }
+
+  if (persisted && hasNonEmptyToken(persisted.defaultProvider) && !persistedDefault) {
+    reasons.push('invalid_default_provider');
+  }
+
+  const canonical = buildPlanningProviderStatePersistencePayload({
+    selectedProvider: resolvedSelected,
+    defaultProvider: resolvedDefault,
+    selectionSource: selectedSource === 'default_provider' || selectedSource === 'persisted_default_selected'
+      ? RUNTIME_PROVIDER_SELECTION_SOURCES.DEFAULT
+      : RUNTIME_PROVIDER_SELECTION_SOURCES.EXPLICIT,
+  });
+
+  const reasonCodes = normalizeReasonCodes(reasons);
+  const selectedFromPersisted = selectedSource === 'persisted_selected'
+    || selectedSource === 'persisted_default_selected';
+
+  const migrationRequired = reasonCodes.length > 0
+    || !selectedFromPersisted
+    || defaultSource !== 'persisted_default';
+
+  return {
+    ...canonical,
+    migration: {
+      required: migrationRequired,
+      reasonCodes,
+      selectedSource,
+      defaultSource,
+    },
+  };
 }
 
 function deriveBackfillSourceIdempotencyKey(input = {}) {
@@ -620,7 +878,29 @@ function createChecksumDriftError({ version, expectedChecksum, actualChecksum })
   error.version = version;
   error.expectedChecksum = expectedChecksum;
   error.actualChecksum = actualChecksum;
+  error.checksumValidation = {
+    outcome: MIGRATION_CHECKSUM_OUTCOME.FAIL,
+    reason: MIGRATION_CHECKSUM_REASON.DRIFT_DETECTED,
+    driftDetected: true,
+    failure: {
+      version,
+      expectedChecksum,
+      actualChecksum,
+    },
+  };
   return error;
+}
+
+function buildChecksumPassResult({ checkedVersions }) {
+  const versions = Array.isArray(checkedVersions) ? checkedVersions : [];
+  return {
+    outcome: MIGRATION_CHECKSUM_OUTCOME.PASS,
+    reason: MIGRATION_CHECKSUM_REASON.VERIFIED,
+    driftDetected: false,
+    checkedVersionCount: versions.length,
+    checkedVersions: versions,
+    failure: null,
+  };
 }
 
 async function runPlanningMigrations(client, options = {}) {
@@ -658,7 +938,9 @@ ORDER BY version ASC
   }
 
   const missingMigrations = [];
+  const checkedVersions = [];
   for (const migration of manifest) {
+    checkedVersions.push(migration.version);
     const existingChecksum = existingByVersion.get(migration.version);
     if (existingChecksum && existingChecksum !== migration.checksum) {
       throw createChecksumDriftError({
@@ -674,6 +956,7 @@ ORDER BY version ASC
   }
 
   if (!missingMigrations.length) {
+    const checksumValidation = buildChecksumPassResult({ checkedVersions });
     return {
       schemaTable,
       latestVersion,
@@ -681,6 +964,7 @@ ORDER BY version ASC
       appliedCount: 0,
       appliedVersions: [],
       driftDetected: false,
+      checksumValidation,
     };
   }
 
@@ -704,6 +988,7 @@ ORDER BY version ASC
     throw error;
   }
 
+  const checksumValidation = buildChecksumPassResult({ checkedVersions });
   return {
     schemaTable,
     latestVersion,
@@ -711,6 +996,7 @@ ORDER BY version ASC
     appliedCount: missingMigrations.length,
     appliedVersions: missingMigrations.map((migration) => migration.version),
     driftDetected: false,
+    checksumValidation,
   };
 }
 
@@ -723,9 +1009,7 @@ function getPlanningPersistenceHealth(config, state = {}) {
     ? state.migrations
     : {};
 
-  const status = typeof state.status === 'string' && state.status.trim()
-    ? state.status.trim()
-    : (validation.usable ? 'ready' : validation.configured ? 'invalid_config' : 'disabled');
+  const status = normalizePlanningPersistenceStatus(state.status, validation);
 
   return {
     contractVersion: PLANNING_PERSISTENCE_HEALTH_CONTRACT_VERSION,
@@ -733,16 +1017,224 @@ function getPlanningPersistenceHealth(config, state = {}) {
     configured: Boolean(validation.configured),
     usable: Boolean(validation.usable),
     status,
-    errors: Array.isArray(validation.errors) ? [...validation.errors] : [],
-    lastError: state.lastError ? String(state.lastError) : null,
+    errors: normalizeDeterministicStringArray(validation.errors),
+    lastError: normalizeToken(state.lastError, { lowerCase: false }),
     migrations: {
-      schemaTable: migrationState.schemaTable || DEFAULT_SCHEMA_TABLE,
+      schemaTable: normalizeToken(migrationState.schemaTable, { lowerCase: false }) || DEFAULT_SCHEMA_TABLE,
       latestVersion,
-      appliedCount: Number.isFinite(migrationState.appliedCount) ? migrationState.appliedCount : 0,
-      appliedVersions: Array.isArray(migrationState.appliedVersions) ? [...migrationState.appliedVersions] : [],
+      appliedCount: normalizePositiveInteger(migrationState.appliedCount),
+      appliedVersions: normalizeDeterministicStringArray(migrationState.appliedVersions),
       driftDetected: Boolean(migrationState.driftDetected),
-      lastRunAt: migrationState.lastRunAt || null,
+      lastRunAt: normalizeIsoTimestamp(migrationState.lastRunAt),
     },
+  };
+}
+
+function normalizePlanningText(value) {
+  const normalized = normalizeToken(value, { lowerCase: false });
+  return normalized || '';
+}
+
+function normalizePlanningNumericScore(value) {
+  if (value == null) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function normalizeRecordTimestamp(value) {
+  if (value instanceof Date) {
+    return normalizeIsoTimestamp(value.toISOString());
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return normalizeIsoTimestamp(new Date(value).toISOString());
+  }
+
+  return normalizeIsoTimestamp(typeof value === 'string' ? value : null);
+}
+
+function normalizePlanningRecordForPersistence(record = {}) {
+  const source = isPlainObject(record) ? record : {};
+  const recordId = normalizeToken(source.recordId, { lowerCase: false });
+  const scope = normalizeScope(source.scope);
+  const ownerId = normalizeIdentity(source.ownerId);
+  const repoId = normalizeIdentity(source.repoId);
+  const state = normalizeToken(source.state) || 'thought';
+  const createdAt = normalizeRecordTimestamp(source.createdAt) || new Date(0).toISOString();
+  const updatedAt = normalizeRecordTimestamp(source.updatedAt) || createdAt;
+
+  if (!recordId || !scope || !ownerId) {
+    return null;
+  }
+
+  if (scope === 'repo' && !repoId) {
+    return null;
+  }
+
+  return {
+    recordId,
+    scope,
+    ownerId,
+    repoId: scope === 'repo' ? repoId : null,
+    title: normalizePlanningText(source.title),
+    summary: normalizePlanningText(source.summary),
+    state,
+    score: normalizePlanningNumericScore(source.score),
+    createdAt,
+    updatedAt,
+  };
+}
+
+function mapPersistedPlanningRecordRow(row) {
+  if (!isPlainObject(row)) return null;
+
+  const persistedState = isPlainObject(row.state) ? row.state : {};
+  const record = normalizePlanningRecordForPersistence({
+    recordId: normalizeToken(row.record_id, { lowerCase: false })
+      || normalizeToken(persistedState.recordId, { lowerCase: false }),
+    scope: normalizeScope(row.scope) || normalizeScope(persistedState.scope),
+    ownerId: normalizeIdentity(row.owner_id) || normalizeIdentity(persistedState.ownerId),
+    repoId: normalizeIdentity(row.repo_id) || normalizeIdentity(persistedState.repoId),
+    title: Object.prototype.hasOwnProperty.call(persistedState, 'title') ? persistedState.title : row.title,
+    summary: Object.prototype.hasOwnProperty.call(persistedState, 'summary') ? persistedState.summary : row.summary,
+    state: Object.prototype.hasOwnProperty.call(persistedState, 'state') ? persistedState.state : row.state_token,
+    score: Object.prototype.hasOwnProperty.call(persistedState, 'score') ? persistedState.score : row.score,
+    createdAt: row.created_at || persistedState.createdAt,
+    updatedAt: row.updated_at || persistedState.updatedAt,
+  });
+
+  return record;
+}
+
+function deriveNextPlanningRecordNumber(records = []) {
+  let maxRecordNumber = 0;
+  const source = Array.isArray(records) ? records : [];
+
+  for (const record of source) {
+    if (!record || typeof record !== 'object') continue;
+    const match = /^planning-(\d+)$/.exec(String(record.recordId || '').trim());
+    if (!match) continue;
+    const numeric = Number.parseInt(match[1], 10);
+    if (Number.isFinite(numeric) && numeric > maxRecordNumber) {
+      maxRecordNumber = numeric;
+    }
+  }
+
+  return maxRecordNumber + 1;
+}
+
+async function listPersistedPlanningRecords(client, input = {}) {
+  ensureQueryClient(client);
+
+  const actorId = normalizeIdentity(input.actorId || input.userId || input.ownerId);
+  if (!actorId) {
+    return {
+      ok: false,
+      error: {
+        code: 'scope_visibility_denied',
+        reason: 'missing_user_context',
+      },
+      records: [],
+      nextRecordNumber: 1,
+    };
+  }
+
+  const requestedScopes = Array.isArray(input.scopes) && input.scopes.length
+    ? [...new Set(input.scopes.map((scope) => normalizeScope(scope)).filter(Boolean))]
+    : ['repo', 'user', 'global'];
+
+  const repoId = normalizeIdentity(input.repoId);
+  const result = await client.query(
+    `
+SELECT record_id, owner_id, repo_id, scope, state, created_at, updated_at
+FROM ie_planning_records
+WHERE owner_id = $1
+ORDER BY updated_at DESC, created_at DESC, record_id ASC
+`,
+    [actorId],
+  );
+
+  const rows = Array.isArray(result && result.rows) ? result.rows : [];
+  const records = [];
+
+  for (const row of rows) {
+    const mapped = mapPersistedPlanningRecordRow(row);
+    if (!mapped) continue;
+    if (!requestedScopes.includes(mapped.scope)) continue;
+    if (mapped.scope === 'repo' && repoId && mapped.repoId !== repoId) continue;
+    records.push(mapped);
+  }
+
+  return {
+    ok: true,
+    records,
+    nextRecordNumber: deriveNextPlanningRecordNumber(records),
+  };
+}
+
+async function persistPlanningRecord(client, input = {}) {
+  ensureQueryClient(client);
+
+  const actorId = normalizeIdentity(input.actorId || input.userId || input.ownerId);
+  const normalizedRecord = normalizePlanningRecordForPersistence(input.record);
+
+  if (!normalizedRecord) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_planning_record',
+        reason: 'record_shape_invalid',
+      },
+    };
+  }
+
+  const writeContext = validatePlanningReadWriteContext({
+    action: 'write',
+    scope: normalizedRecord.scope,
+    actorId,
+    ownerId: normalizedRecord.ownerId,
+    repoId: normalizedRecord.repoId,
+  });
+
+  if (!writeContext.ok) {
+    return {
+      ok: false,
+      error: writeContext.error,
+    };
+  }
+
+  const persistedPayload = {
+    ...normalizedRecord,
+  };
+
+  const result = await client.query(
+    `
+INSERT INTO ie_planning_records (record_id, owner_id, repo_id, scope, state, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5::jsonb, $6::timestamptz, $7::timestamptz)
+ON CONFLICT (record_id)
+DO UPDATE SET
+  owner_id = EXCLUDED.owner_id,
+  repo_id = EXCLUDED.repo_id,
+  scope = EXCLUDED.scope,
+  state = EXCLUDED.state,
+  updated_at = EXCLUDED.updated_at
+RETURNING record_id, owner_id, repo_id, scope, state, created_at, updated_at
+`,
+    [
+      normalizedRecord.recordId,
+      normalizedRecord.ownerId,
+      normalizedRecord.repoId,
+      normalizedRecord.scope,
+      JSON.stringify(persistedPayload),
+      normalizedRecord.createdAt,
+      normalizedRecord.updatedAt,
+    ],
+  );
+
+  const row = Array.isArray(result && result.rows) ? result.rows[0] : null;
+  return {
+    ok: true,
+    record: mapPersistedPlanningRecordRow(row) || normalizedRecord,
   };
 }
 
@@ -751,14 +1243,22 @@ module.exports = {
   BACKFILL_RECOVERY_MARKERS,
   DEFAULT_SCHEMA_TABLE,
   PLANNING_PERSISTENCE_HEALTH_CONTRACT_VERSION,
+  PLANNING_PROVIDER_STATE_CONTRACT_VERSION,
   PLANNING_MIGRATION_MANIFEST,
+  buildPlanningProviderStatePersistencePayload,
   buildPlanningScopeIsolationPredicate,
   computeMigrationChecksum,
   deriveBackfillRecoveryMarker,
   deriveBackfillSourceIdempotencyKey,
   evaluatePlanningOptimisticConcurrencyGuard,
+  readPlanningProviderState,
   readPlanningPersistenceConfig,
   reconcileBackfillItemStatusTransition,
+  normalizePlanningRecordForPersistence,
+  mapPersistedPlanningRecordRow,
+  deriveNextPlanningRecordNumber,
+  listPersistedPlanningRecords,
+  persistPlanningRecord,
   validatePlanningPersistenceConfig,
   validatePlanningReadWriteContext,
   getPlanningPersistenceHealth,

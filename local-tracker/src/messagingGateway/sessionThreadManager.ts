@@ -120,6 +120,17 @@ export class SessionThreadManager {
 		this.scheduleFlush(state);
 	}
 
+	/**
+	 * Attach a session in inline mode (no thread). Used by threadless platforms like Telegram.
+	 * Events and status will be sent as edits to the liveMessage.
+	 */
+	attachInline(params: { sessionId: string; sandboxId?: string; liveMessage: PlatformMessageHandle }): void {
+		const state = this.ensureSession(params.sessionId);
+		if (params.sandboxId) state.sandboxId = params.sandboxId;
+		state.liveMessage = params.liveMessage;
+		this.scheduleFlush(state);
+	}
+
 	handleExtensionEvent(eventUnknown: unknown): void {
 		const ev = parseExtensionEventLike(eventUnknown);
 		if (!ev?.sessionId) return;
@@ -176,6 +187,10 @@ export class SessionThreadManager {
 		return count;
 	}
 
+	getActiveSessionCount(): number {
+		return this.sessions.size;
+	}
+
 	private ensureSession(sessionId: string): SessionState {
 		const existing = this.sessions.get(sessionId);
 		if (existing) return existing;
@@ -193,7 +208,7 @@ export class SessionThreadManager {
 	}
 
 	private scheduleFlush(state: SessionState): void {
-		if (!state.thread || !state.liveMessage) return;
+		if (!state.liveMessage) return;
 		if (state.flushTimer) return;
 
 		const now = this.nowMs();
@@ -207,7 +222,7 @@ export class SessionThreadManager {
 
 	private async flush(sessionId: string): Promise<void> {
 		const state = this.sessions.get(sessionId);
-		if (!state?.thread || !state.liveMessage) return;
+		if (!state?.liveMessage) return;
 
 		const content = this.buildLiveMessage(state);
 		try {

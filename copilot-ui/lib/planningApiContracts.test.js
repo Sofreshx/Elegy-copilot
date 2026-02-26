@@ -7,7 +7,21 @@ const path = require('path');
 
 const {
   DEFAULT_CREATE_IDEMPOTENCY_TTL_MS,
+  FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION,
+  FINISH_COMPATIBILITY_RECEIPT_CONTRACT_VERSION,
+  FINISH_COMPATIBILITY_SUPPORTED_PROVIDERS,
+  FINISH_COMPATIBILITY_RECEIPT_REQUIRED_FIELDS,
+  FINISH_COMPATIBILITY_RECEIPT_OPTIONAL_FIELDS,
+  PLANNING_API_CONTRACT_VERSION,
+  PLANNING_PERSISTENCE_HEALTH_KIND,
+  PROVIDER_LIFECYCLE_CAPABILITY_CONTRACT_VERSION,
+  SHARED_PROVIDER_LIFECYCLE_CAPABILITIES,
+  buildPlanningPersistenceHealthEnvelope,
+  buildFinishCompatibilityHookContract,
+  evaluateProviderLifecycleCapability,
+  buildLifecycleUnsupportedCapabilityMarker,
   createPlanningApiState,
+  replacePlanningProjectionFromPersistedRecords,
   createPlanningRecordOperation,
   comparePlanningRecordsOperation,
 } = require('./planningApiContracts');
@@ -143,6 +157,10 @@ test('compare is deterministic for repeated runs and tie cases', () => {
 
   assert.strictEqual(firstCompare.statusCode, 200);
   assert.strictEqual(secondCompare.statusCode, 200);
+  assert.strictEqual(firstCompare.body.precedence.deterministic, true);
+  assert.ok(Array.isArray(firstCompare.body.precedence.rules));
+  assert.ok(firstCompare.body.precedence.rules.length >= 1);
+  assert.deepStrictEqual(secondCompare.body.precedence, firstCompare.body.precedence);
 
   const firstOrder = firstCompare.body.matches.map((entry) => entry.recordId);
   const secondOrder = secondCompare.body.matches.map((entry) => entry.recordId);
@@ -151,6 +169,215 @@ test('compare is deterministic for repeated runs and tie cases', () => {
     createA.body.record.recordId,
     createB.body.record.recordId,
   ]);
+});
+
+test('projection replacement from persisted records updates cache deterministically', () => {
+  const state = createPlanningApiState();
+
+  const first = replacePlanningProjectionFromPersistedRecords(state, {
+    records: [
+      {
+        recordId: 'planning-000002',
+        scope: 'user',
+        ownerId: 'user-1',
+        title: 'B',
+        summary: 'beta',
+        state: 'research',
+        score: 0.5,
+        createdAt: '2026-02-26T00:00:00.000Z',
+        updatedAt: '2026-02-26T00:00:01.000Z',
+      },
+      {
+        recordId: 'planning-000001',
+        scope: 'repo',
+        ownerId: 'user-1',
+        repoId: 'repo-1',
+        title: 'A',
+        summary: 'alpha',
+        state: 'queued',
+        score: 0.7,
+        createdAt: '2026-02-26T00:00:00.000Z',
+        updatedAt: '2026-02-26T00:00:02.000Z',
+      },
+    ],
+    nextRecordNumber: 3,
+  });
+
+  assert.strictEqual(first.changed, true);
+  assert.strictEqual(first.recordsCount, 2);
+  assert.strictEqual(first.nextRecordNumber, 3);
+  assert.strictEqual(state.recordsById.size, 2);
+  assert.strictEqual(first.precedence.deterministic, true);
+  assert.ok(Array.isArray(first.precedence.rules));
+
+  const second = replacePlanningProjectionFromPersistedRecords(state, {
+    records: [
+      {
+        recordId: 'planning-000002',
+        scope: 'user',
+        ownerId: 'user-1',
+        title: 'B',
+        summary: 'beta',
+        state: 'research',
+        score: 0.5,
+        createdAt: '2026-02-26T00:00:00.000Z',
+        updatedAt: '2026-02-26T00:00:01.000Z',
+      },
+      {
+        recordId: 'planning-000001',
+        scope: 'repo',
+        ownerId: 'user-1',
+        repoId: 'repo-1',
+        title: 'A',
+        summary: 'alpha',
+        state: 'queued',
+        score: 0.7,
+        createdAt: '2026-02-26T00:00:00.000Z',
+        updatedAt: '2026-02-26T00:00:02.000Z',
+      },
+    ],
+    nextRecordNumber: 3,
+  });
+
+  assert.strictEqual(second.changed, false);
+  assert.strictEqual(second.recordsVersion, first.recordsVersion);
+});
+
+test('projection hydration after crash drops non-durable in-memory records and restores deterministically on restart', () => {
+  const state = createPlanningApiState();
+  const context = { userId: 'user-1', repoId: 'repo-1' };
+
+  const durableRecords = [
+    {
+      recordId: 'planning-000050',
+      scope: 'repo',
+      ownerId: 'user-1',
+      repoId: 'repo-1',
+      title: 'Durable baseline',
+      summary: 'persisted authority row',
+      state: 'queued',
+      score: 0.8,
+      createdAt: '2026-02-26T04:00:00.000Z',
+      updatedAt: '2026-02-26T04:05:00.000Z',
+    },
+  ];
+
+  replacePlanningProjectionFromPersistedRecords(state, {
+    records: durableRecords,
+    nextRecordNumber: 51,
+  });
+
+  const nonDurableCreate = createPlanningRecordOperation(state, {
+    context,
+    request: {
+      scope: 'repo',
+      title: 'Non-durable local create',
+      summary: 'simulated crash before write-through commit acknowledgement zzzxqtoken123',
+      state: 'research',
+      score: 0.4,
+      idempotencyKey: 'crash-local-create',
+    },
+    nowMs: Date.parse('2026-02-26T04:10:00.000Z'),
+  });
+
+  assert.strictEqual(nonDurableCreate.statusCode, 200);
+
+  const preRecoveryList = state.recordsById.size;
+  assert.strictEqual(preRecoveryList, 2);
+
+  const recovered = replacePlanningProjectionFromPersistedRecords(state, {
+    records: durableRecords,
+    nextRecordNumber: 51,
+  });
+
+  assert.strictEqual(typeof recovered.changed, 'boolean');
+  assert.strictEqual(recovered.recordsCount, 1);
+  assert.strictEqual(state.recordsById.has('planning-000050'), true);
+  assert.strictEqual(state.recordsById.has(nonDurableCreate.body.record.recordId), false);
+
+  const compareAfterRecovery = comparePlanningRecordsOperation(state, {
+    context,
+    request: {
+      scopes: ['repo'],
+      query: 'zzzxqtoken123',
+      idempotencyKey: 'cmp-post-recovery',
+    },
+    nowMs: Date.parse('2026-02-26T04:12:00.000Z'),
+    implementedOutcomesRootAbs: process.cwd(),
+  });
+
+  assert.strictEqual(compareAfterRecovery.statusCode, 200);
+  assert.deepStrictEqual(
+    compareAfterRecovery.body.matches.map((entry) => entry.recordId),
+    ['planning-000050'],
+  );
+
+  const restarted = createPlanningApiState();
+  const restartedProjection = replacePlanningProjectionFromPersistedRecords(restarted, {
+    records: durableRecords,
+    nextRecordNumber: 51,
+  });
+  assert.strictEqual(restartedProjection.recordsCount, 1);
+
+  const compareAfterRestart = comparePlanningRecordsOperation(restarted, {
+    context,
+    request: {
+      scopes: ['repo'],
+      query: 'durable baseline',
+      idempotencyKey: 'cmp-post-restart',
+    },
+    nowMs: Date.parse('2026-02-26T04:13:00.000Z'),
+    implementedOutcomesRootAbs: process.cwd(),
+  });
+
+  assert.strictEqual(compareAfterRestart.statusCode, 200);
+  assert.deepStrictEqual(
+    compareAfterRestart.body.matches.map((entry) => entry.recordId),
+    ['planning-000050'],
+  );
+});
+
+test('projection replacement resolves duplicate recordId deterministically via precedence then hash tiebreak', () => {
+  const state = createPlanningApiState();
+
+  const duplicateA = {
+    recordId: 'planning-000100',
+    scope: 'repo',
+    ownerId: 'user-1',
+    repoId: 'repo-1',
+    title: 'Duplicate A',
+    summary: 'alpha',
+    state: 'research',
+    score: 0.5,
+    createdAt: '2026-02-26T00:00:00.000Z',
+    updatedAt: '2026-02-26T00:00:01.000Z',
+  };
+
+  const duplicateB = {
+    ...duplicateA,
+    scope: 'user',
+    title: 'Duplicate B',
+    summary: 'beta',
+  };
+
+  const first = replacePlanningProjectionFromPersistedRecords(state, {
+    records: [duplicateA, duplicateB],
+    nextRecordNumber: 101,
+  });
+
+  const second = replacePlanningProjectionFromPersistedRecords(state, {
+    records: [duplicateB, duplicateA],
+    nextRecordNumber: 101,
+  });
+
+  assert.strictEqual(first.recordsCount, 1);
+  assert.strictEqual(second.recordsCount, 1);
+  assert.strictEqual(first.projectionHash, second.projectionHash);
+
+  const winner = state.recordsById.get('planning-000100');
+  assert.ok(winner);
+  assert.strictEqual(winner.scope, 'user');
+  assert.strictEqual(winner.title, 'Duplicate B');
 });
 
 test('compare pins snapshot version and reports newerDataAvailable on mid-flight updates', () => {
@@ -245,10 +472,206 @@ test('implemented-outcomes ingestion emits stale/unavailable/invalid markers wit
 
     const byId = new Map(markers.map((marker) => [marker.sourceId, marker]));
     assert.strictEqual(byId.get('stale-plan').status, 'stale');
+    assert.strictEqual(byId.get('stale-plan').stale, true);
+    assert.strictEqual(byId.get('stale-plan').conflict, false);
+    assert.strictEqual(byId.get('stale-plan').marker, 'stale');
+    assert.strictEqual(byId.get('stale-plan').reasonCode, 'source_stale');
     assert.strictEqual(byId.get('missing-final').status, 'unavailable');
+    assert.strictEqual(byId.get('missing-final').conflict, true);
+    assert.strictEqual(byId.get('missing-final').marker, 'conflict');
     assert.strictEqual(byId.get('invalid-index').status, 'invalid');
+    assert.strictEqual(byId.get('invalid-index').conflict, true);
+    assert.strictEqual(byId.get('invalid-index').marker, 'conflict');
     assert.strictEqual(byId.get('traversal-denied').reason, 'path_traversal_denied');
+    assert.strictEqual(byId.get('traversal-denied').conflict, true);
+
+    assert.strictEqual(compare.body.implementedOutcomes.staleMarkers.length, 1);
+    assert.strictEqual(compare.body.implementedOutcomes.staleMarkers[0].sourceId, 'stale-plan');
+    assert.strictEqual(compare.body.implementedOutcomes.staleMarkers[0].reason, 'source_stale');
+
+    const conflictMarkerIds = compare.body.implementedOutcomes.conflictMarkers.map((marker) => marker.sourceId);
+    assert.deepStrictEqual(conflictMarkerIds, ['invalid-index', 'missing-final', 'traversal-denied']);
+
+    assert.deepStrictEqual(compare.body.implementedOutcomes.reasonCodes, [
+      'path_traversal_denied',
+      'schema_validation_failed',
+      'source_missing',
+      'source_stale',
+    ]);
   });
+});
+
+test('implemented-outcomes stale/conflict marker collections remain deterministic across repeated compares', () => {
+  withTempDir((root) => {
+    const sessionDir = path.join(root, 'session-state', 'session-deterministic');
+    const plansDir = path.join(sessionDir, 'plans');
+    fs.mkdirSync(plansDir, { recursive: true });
+
+    const stalePlanPath = path.join(sessionDir, 'plan.md');
+    fs.writeFileSync(stalePlanPath, '# Plan Pack\n\n## Work Unit Specs\n', 'utf8');
+    fs.utimesSync(stalePlanPath, new Date('2024-01-01T00:00:00.000Z'), new Date('2024-01-01T00:00:00.000Z'));
+
+    const invalidIndexPath = path.join(plansDir, 'index.json');
+    fs.writeFileSync(invalidIndexPath, '{"plans":"not-an-array"}', 'utf8');
+
+    const state = createPlanningApiState();
+    const context = { userId: 'user-1' };
+
+    const request = {
+      scopes: ['user'],
+      query: 'outcomes',
+      staleAfterMs: 1,
+      implementedOutcomeSources: [
+        { sourceType: 'plans-index', path: 'session-state/session-deterministic/plans/index.json', sourceId: 'invalid-index' },
+        { sourceType: 'final-md', path: 'session-state/session-deterministic/final.md', sourceId: 'missing-final' },
+        { sourceType: 'plan-md', path: 'session-state/session-deterministic/plan.md', sourceId: 'stale-plan' },
+      ],
+    };
+
+    const first = comparePlanningRecordsOperation(state, {
+      context,
+      request: {
+        ...request,
+        idempotencyKey: 'cmp-deterministic-1',
+      },
+      nowMs: Date.parse('2026-02-26T00:00:00.000Z'),
+      implementedOutcomesRootAbs: root,
+    });
+
+    const second = comparePlanningRecordsOperation(state, {
+      context,
+      request: {
+        ...request,
+        idempotencyKey: 'cmp-deterministic-2',
+      },
+      nowMs: Date.parse('2026-02-26T00:00:01.000Z'),
+      implementedOutcomesRootAbs: root,
+    });
+
+    assert.strictEqual(first.statusCode, 200);
+    assert.strictEqual(second.statusCode, 200);
+
+    assert.deepStrictEqual(
+      second.body.implementedOutcomes.staleMarkers,
+      first.body.implementedOutcomes.staleMarkers,
+    );
+    assert.deepStrictEqual(
+      second.body.implementedOutcomes.conflictMarkers,
+      first.body.implementedOutcomes.conflictMarkers,
+    );
+    assert.deepStrictEqual(
+      second.body.implementedOutcomes.reasonCodes,
+      first.body.implementedOutcomes.reasonCodes,
+    );
+  });
+});
+
+test('planning persistence health envelope remains deterministic and backward compatible', () => {
+  const envelope = buildPlanningPersistenceHealthEnvelope({
+    contractVersion: '1',
+    required: 1,
+    configured: true,
+    usable: false,
+    status: ' configured_no_client ',
+    errors: ['zeta', 'alpha', 'zeta'],
+    lastError: '  planning_persistence_client_unavailable  ',
+    migrations: {
+      schemaTable: ' ie_schema_versions ',
+      latestVersion: '003_planning_backfill_items_ledger_init',
+      appliedCount: '4.5',
+      appliedVersions: ['003', '001', '002', '002'],
+      driftDetected: 0,
+      lastRunAt: '2026-02-26T00:00:00.000Z',
+    },
+  });
+
+  assert.strictEqual(envelope.contractVersion, '1');
+  assert.strictEqual(envelope.kind, PLANNING_PERSISTENCE_HEALTH_KIND);
+  assert.strictEqual(envelope.deterministic, true);
+  assert.strictEqual(envelope.apiContractVersion, PLANNING_API_CONTRACT_VERSION);
+  assert.strictEqual(envelope.required, true);
+  assert.strictEqual(envelope.configured, true);
+  assert.strictEqual(envelope.usable, false);
+  assert.strictEqual(envelope.status, 'configured_no_client');
+  assert.deepStrictEqual(envelope.errors, ['alpha', 'zeta']);
+  assert.strictEqual(envelope.lastError, 'planning_persistence_client_unavailable');
+  assert.strictEqual(envelope.migrations.schemaTable, 'ie_schema_versions');
+  assert.strictEqual(envelope.migrations.latestVersion, '003_planning_backfill_items_ledger_init');
+  assert.strictEqual(envelope.migrations.appliedCount, 4);
+  assert.deepStrictEqual(envelope.migrations.appliedVersions, ['001', '002', '003']);
+  assert.strictEqual(envelope.migrations.driftDetected, false);
+  assert.strictEqual(envelope.migrations.lastRunAt, '2026-02-26T00:00:00.000Z');
+});
+
+test('provider lifecycle shared capabilities are contract-equivalent across providers', () => {
+  const providers = ['non-docker', 'docker'];
+
+  for (const provider of providers) {
+    for (const action of SHARED_PROVIDER_LIFECYCLE_CAPABILITIES) {
+      const capability = evaluateProviderLifecycleCapability({ provider, action });
+      assert.strictEqual(capability.contractVersion, PROVIDER_LIFECYCLE_CAPABILITY_CONTRACT_VERSION);
+      assert.strictEqual(capability.apiContractVersion, PLANNING_API_CONTRACT_VERSION);
+      assert.strictEqual(capability.deterministic, true);
+      assert.strictEqual(capability.provider, provider);
+      assert.strictEqual(capability.action, action);
+      assert.strictEqual(capability.shared, true);
+      assert.strictEqual(capability.supported, true);
+      assert.strictEqual(capability.marker, 'supported');
+      assert.strictEqual(capability.reason, 'shared_capability_supported');
+      assert.ok(capability.finishCompatibilityHook);
+      assert.strictEqual(capability.finishCompatibilityHook.kind, 'lifecycle.finish.compatibility-hook');
+      assert.strictEqual(capability.finishCompatibilityHook.providerAgnostic, true);
+    }
+  }
+});
+
+test('finish compatibility hook contract is deterministic and provider-agnostic for WS4 consumption', () => {
+  const hook = buildFinishCompatibilityHookContract();
+
+  assert.strictEqual(hook.contractVersion, FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION);
+  assert.strictEqual(hook.apiContractVersion, PLANNING_API_CONTRACT_VERSION);
+  assert.strictEqual(hook.kind, 'lifecycle.finish.compatibility-hook');
+  assert.strictEqual(hook.deterministic, true);
+  assert.strictEqual(hook.action, 'finish');
+  assert.strictEqual(hook.providerAgnostic, true);
+  assert.deepStrictEqual(hook.supportedProviders, FINISH_COMPATIBILITY_SUPPORTED_PROVIDERS);
+  assert.strictEqual(hook.scopeBoundary, 'ws2_contract_hook_only');
+  assert.strictEqual(hook.ws4Ownership, 'finish_behavior_and_ux');
+  assert.ok(hook.receipt);
+  assert.strictEqual(hook.receipt.contractVersion, FINISH_COMPATIBILITY_RECEIPT_CONTRACT_VERSION);
+  assert.strictEqual(hook.receipt.kind, 'lifecycle.finish.receipt');
+  assert.strictEqual(hook.receipt.deterministic, true);
+  assert.strictEqual(hook.receipt.providerAgnostic, true);
+  assert.deepStrictEqual(hook.receipt.requiredFields, FINISH_COMPATIBILITY_RECEIPT_REQUIRED_FIELDS);
+  assert.deepStrictEqual(hook.receipt.optionalFields, FINISH_COMPATIBILITY_RECEIPT_OPTIONAL_FIELDS);
+});
+
+test('provider lifecycle unsupported capability returns deterministic marker envelope', () => {
+  const expectedHook = buildFinishCompatibilityHookContract();
+  const unsupported = buildLifecycleUnsupportedCapabilityMarker({
+    provider: 'non-docker',
+    action: 'pr-open',
+  });
+
+  assert.ok(unsupported);
+  assert.strictEqual(unsupported.error, 'Lifecycle capability unsupported');
+  assert.strictEqual(unsupported.code, 'lifecycle_capability_unsupported');
+  assert.strictEqual(unsupported.action, 'pr-open');
+  assert.strictEqual(unsupported.reason, 'provider_capability_unsupported');
+  assert.strictEqual(unsupported.deterministic, true);
+  assert.strictEqual(unsupported.unsupported.marker, 'unsupported');
+  assert.strictEqual(unsupported.unsupported.provider, 'non-docker');
+  assert.strictEqual(unsupported.unsupported.shared, false);
+  assert.ok(unsupported.finishCompatibilityHook);
+  assert.deepStrictEqual(unsupported.finishCompatibilityHook, expectedHook);
+  assert.strictEqual(unsupported.capability.supported, false);
+  assert.strictEqual(unsupported.capability.contractVersion, PROVIDER_LIFECYCLE_CAPABILITY_CONTRACT_VERSION);
+  assert.deepStrictEqual(unsupported.capability.finishCompatibilityHook, expectedHook);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(unsupported, 'prPrompt'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(unsupported, 'closeAllowed'), false);
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(unsupported, 'finishBehavior'), false);
+  assert.strictEqual(unsupported.finishCompatibilityHook.scopeBoundary, 'ws2_contract_hook_only');
+  assert.strictEqual(unsupported.finishCompatibilityHook.ws4Ownership, 'finish_behavior_and_ux');
 });
 
 console.log(`\n${passed} tests passed`);

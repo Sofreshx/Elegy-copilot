@@ -26,7 +26,7 @@ import { ContainerManager, type ContainerManagerOptions } from './containerManag
 import { PortAllocator, type PortAllocatorOptions } from './portAllocator';
 import { createLifecycleOperationsHandler } from './lifecycleOperations';
 import { createSandboxEventRouter, SandboxRegistry } from './sandboxRegistry';
-import { cleanupSandboxDirs, resolveSandboxDirs } from './sandboxDirs';
+import { cleanupSandboxDirs, resolveSandboxDirs, shouldAllowOrphanSandboxCleanup } from './sandboxDirs';
 import {
 	assertValidOpenTerminalPayload,
 	buildTerminalLaunchTemplate,
@@ -78,6 +78,11 @@ export interface SandboxLifecycleRuntimeFactory {
 	createPortAllocator: (options: PortAllocatorOptions) => PortAllocator;
 }
 
+export interface SandboxStartupSnapshot {
+	knownSandboxIds: Set<string>;
+	activeSandboxIds: Set<string>;
+}
+
 const DEFAULT_SANDBOX_LIFECYCLE_RUNTIME_FACTORY: SandboxLifecycleRuntimeFactory = {
 	createContainerManager: (options) => new ContainerManager(options),
 	createPortAllocator: (options) => new PortAllocator(options),
@@ -97,6 +102,32 @@ export function createSandboxLifecycleRuntime(
 			rangeStart: lifecycleConfig.portRange.start,
 			rangeEnd: lifecycleConfig.portRange.end,
 		}),
+	};
+}
+
+function isActiveContainerState(state: string | undefined): boolean {
+	if (typeof state !== 'string') return false;
+	const normalized = state.trim().toLowerCase();
+	return normalized === 'running' || normalized === 'restarting';
+}
+
+export function createSandboxStartupSnapshot(containers: Array<{ sandboxId?: string; state?: string }>): SandboxStartupSnapshot {
+	const knownSandboxIds = new Set<string>();
+	const activeSandboxIds = new Set<string>();
+
+	for (const container of containers) {
+		const sandboxId = typeof container.sandboxId === 'string' ? container.sandboxId.trim() : '';
+		if (!sandboxId) continue;
+
+		knownSandboxIds.add(sandboxId);
+		if (isActiveContainerState(container.state)) {
+			activeSandboxIds.add(sandboxId);
+		}
+	}
+
+	return {
+		knownSandboxIds,
+		activeSandboxIds,
 	};
 }
 
@@ -356,6 +387,20 @@ async function main() {
 	// Initialize early so reconcile() cleans orphaned containers before accepting commands.
 	const sandboxLifecycleRuntime = createSandboxLifecycleRuntime(loaded.config.sandboxLifecycle);
 	const { containerManager, portAllocator, lifecycleConfig: sandboxLifecycleConfig } = sandboxLifecycleRuntime;
+	let knownSandboxIds = new Set<string>();
+	let activeSandboxIds = new Set<string>();
+	let hasContainerSnapshot = true;
+	try {
+		const containers = await containerManager.list();
+		const snapshot = createSandboxStartupSnapshot(containers);
+		knownSandboxIds = snapshot.knownSandboxIds;
+		activeSandboxIds = snapshot.activeSandboxIds;
+	} catch (err) {
+		hasContainerSnapshot = false;
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(`[Gateway] Sandbox container listing failed before startup reconciliation (non-fatal): ${message}`);
+	}
+
 	try {
 		await containerManager.reconcile();
 		console.log('[Gateway] Sandbox container reconciliation complete (orphans cleaned)');
@@ -364,40 +409,20 @@ async function main() {
 		console.error(`[Gateway] Sandbox container reconciliation failed (non-fatal): ${message}`);
 	}
 
-	let knownSandboxIds = new Set<string>();
-	let activeSandboxIds = new Set<string>();
-	let hasContainerSnapshot = true;
-	try {
-		const containers = await containerManager.list();
-		knownSandboxIds = new Set(
-			containers
-				.map((container) => container.sandboxId)
-				.filter((sandboxId): sandboxId is string => typeof sandboxId === 'string' && sandboxId.trim().length > 0),
-		);
-		activeSandboxIds = new Set(
-			containers
-				.filter((container) => container.state === 'running')
-				.map((container) => container.sandboxId)
-				.filter((sandboxId): sandboxId is string => typeof sandboxId === 'string' && sandboxId.trim().length > 0),
-		);
-	} catch (err) {
-		hasContainerSnapshot = false;
-		const message = err instanceof Error ? err.message : String(err);
-		console.error(`[Gateway] Sandbox container listing failed before dir cleanup (non-fatal): ${message}`);
-	}
-
 	if (sandboxLifecycleConfig.cleanupOnStartup) {
 		if (!hasContainerSnapshot) {
 			console.error('[Gateway] Sandbox dir cleanup skipped (non-fatal): container snapshot unavailable');
 		} else {
+		const allowOrphanRemoval = shouldAllowOrphanSandboxCleanup(knownSandboxIds);
 		try {
 			const cleanupResult = cleanupSandboxDirs({
 				knownSandboxIds,
 				activeSandboxIds,
+				allowOrphanRemoval,
 				staleTtlMs: sandboxLifecycleConfig.staleTtlMs,
 			});
 			console.log(
-				`[Gateway] Sandbox dir cleanup complete (removed=${cleanupResult.removedSandboxIds.length}, failed=${cleanupResult.failedSandboxIds.length}, active_skipped=${cleanupResult.skippedActiveSandboxIds.length}, fresh_skipped=${cleanupResult.skippedFreshSandboxIds.length})`,
+				`[Gateway] Sandbox dir cleanup complete (removed=${cleanupResult.removedSandboxIds.length}, failed=${cleanupResult.failedSandboxIds.length}, active_skipped=${cleanupResult.skippedActiveSandboxIds.length}, fresh_skipped=${cleanupResult.skippedFreshSandboxIds.length}, orphan_cleanup=${allowOrphanRemoval ? 'enabled' : 'deferred'})`,
 			);
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
@@ -653,7 +678,7 @@ async function main() {
 		})(),
 		authorizeLifecycleAction: (action: LifecycleAction, req) => {
 			const lifecycleAuthz = loaded.config.gatewayHttp?.lifecycleAuthz;
-			const enabledActions = new Set<LifecycleAction>(lifecycleAuthz?.enabledActions ?? ['create', 'start', 'stop', 'open-terminal', 'pr-open']);
+			const enabledActions = new Set<LifecycleAction>(lifecycleAuthz?.enabledActions ?? ['create', 'start', 'stop', 'open-terminal', 'pr-open', 'finish']);
 			const localMachineOnlyActions = new Set<LifecycleAction>(lifecycleAuthz?.localMachineOnlyActions ?? ['open-terminal']);
 
 			if (!enabledActions.has(action)) {

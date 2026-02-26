@@ -6,8 +6,25 @@ const path = require('path');
 
 const planState = require('./planState');
 const { sortPlanningCandidates } = require('./planningSemantic');
+const {
+  DEFAULT_RUNTIME_PROVIDER,
+  RUNTIME_PROVIDERS,
+  normalizeRuntimeProvider,
+} = require('./runtimeContracts');
+
+function deterministicStringCompare(a, b) {
+  const left = String(a == null ? '' : a);
+  const right = String(b == null ? '' : b);
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
 
 const PLANNING_API_CONTRACT_VERSION = 'planning_api_v1';
+const PLANNING_PERSISTENCE_HEALTH_KIND = 'planning.persistence.health';
+const PROVIDER_LIFECYCLE_CAPABILITY_CONTRACT_VERSION = '1';
+const FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION = '1';
+const FINISH_COMPATIBILITY_RECEIPT_CONTRACT_VERSION = '1';
 const DEFAULT_CREATE_IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_COMPARE_IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_IMPLEMENTED_OUTCOMES_STALE_MS = 6 * 60 * 60 * 1000;
@@ -19,7 +36,61 @@ const IMPLEMENTED_OUTCOME_SOURCE_TYPES = Object.freeze([
   'plans-index',
 ]);
 
+const SHARED_PROVIDER_LIFECYCLE_CAPABILITIES = Object.freeze([
+  'create',
+  'open-terminal',
+  'start',
+  'stop',
+]);
+
+const PROVIDER_LIFECYCLE_CAPABILITY_MATRIX = Object.freeze({
+  [RUNTIME_PROVIDERS.NON_DOCKER]: Object.freeze([
+    ...SHARED_PROVIDER_LIFECYCLE_CAPABILITIES,
+  ]),
+  [RUNTIME_PROVIDERS.DOCKER]: Object.freeze([
+    ...SHARED_PROVIDER_LIFECYCLE_CAPABILITIES,
+    'pr-open',
+  ]),
+});
+
+const ALLOWLISTED_PROVIDER_LIFECYCLE_CAPABILITIES = Object.freeze([
+  ...new Set([
+    ...PROVIDER_LIFECYCLE_CAPABILITY_MATRIX[RUNTIME_PROVIDERS.NON_DOCKER],
+    ...PROVIDER_LIFECYCLE_CAPABILITY_MATRIX[RUNTIME_PROVIDERS.DOCKER],
+  ]),
+]);
+
+const FINISH_COMPATIBILITY_SUPPORTED_PROVIDERS = Object.freeze(
+  Object.values(RUNTIME_PROVIDERS).slice().sort(deterministicStringCompare),
+);
+
+const FINISH_COMPATIBILITY_RECEIPT_REQUIRED_FIELDS = Object.freeze([
+  'deterministic',
+  'hookContractVersion',
+  'issuedAt',
+  'outcome',
+  'provider',
+  'receiptId',
+  'resolvedAt',
+  'status',
+]);
+
+const FINISH_COMPATIBILITY_RECEIPT_OPTIONAL_FIELDS = Object.freeze([
+  'metadata',
+  'reason',
+]);
+
 const IMPLEMENTED_OUTCOME_SOURCE_SET = new Set(IMPLEMENTED_OUTCOME_SOURCE_TYPES);
+
+function buildPlanningPrecedenceMetadata() {
+  return {
+    contractVersion: planState.PLANNING_PRECEDENCE_CONTRACT_VERSION,
+    rules: Array.isArray(planState.PLANNING_RECORD_PRECEDENCE_RULES)
+      ? planState.PLANNING_RECORD_PRECEDENCE_RULES.slice()
+      : [],
+    deterministic: true,
+  };
+}
 
 function isPlainObject(value) {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -43,7 +114,7 @@ function stableStringify(value) {
   }
 
   if (typeof value === 'object') {
-    const keys = Object.keys(value).sort((a, b) => a.localeCompare(b));
+    const keys = Object.keys(value).sort(deterministicStringCompare);
     const entries = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`);
     return `{${entries.join(',')}}`;
   }
@@ -66,15 +137,106 @@ function normalizeString(value) {
   return value.trim();
 }
 
+function normalizeLifecycleCapabilityAction(value) {
+  return normalizeString(value).toLowerCase();
+}
+
 function normalizeNowMs(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : Date.now();
+}
+
+function normalizePositiveInteger(value, fallback = 0) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  const floored = Math.floor(numeric);
+  if (floored < 0) return fallback;
+  return floored;
 }
 
 function normalizeIso(value) {
   const ms = Date.parse(String(value || ''));
   if (!Number.isFinite(ms)) return null;
   return new Date(ms).toISOString();
+}
+
+function normalizeDeterministicStringArray(values) {
+  const list = Array.isArray(values) ? values : [];
+  const normalized = [];
+
+  for (const value of list) {
+    const token = normalizeString(value);
+    if (!token) continue;
+    normalized.push(token);
+  }
+
+  return [...new Set(normalized)].sort(deterministicStringCompare);
+}
+
+function normalizeImplementedOutcomeMarkerStatus(value) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (normalized === 'available') return 'available';
+  if (normalized === 'stale') return 'stale';
+  if (normalized === 'invalid') return 'invalid';
+  if (normalized === 'unavailable') return 'unavailable';
+  return 'unavailable';
+}
+
+function finalizeImplementedOutcomeMarker(input = {}) {
+  const marker = isPlainObject(input) ? { ...input } : {};
+  const status = normalizeImplementedOutcomeMarkerStatus(marker.status);
+  const reason = normalizeString(marker.reason)
+    || (status === 'available'
+      ? 'source_available'
+      : status === 'stale'
+        ? 'source_stale'
+        : 'source_unavailable');
+  const stale = status === 'stale';
+  const conflict = status === 'unavailable' || status === 'invalid';
+
+  return {
+    ...marker,
+    status,
+    reason,
+    reasonCode: reason,
+    stale,
+    conflict,
+    marker: stale ? 'stale' : conflict ? 'conflict' : 'none',
+  };
+}
+
+function buildImplementedOutcomeMarkerCollections(markers) {
+  const sourceMarkers = Array.isArray(markers) ? markers : [];
+  const staleMarkers = [];
+  const conflictMarkers = [];
+  const reasonCodes = [];
+
+  for (const marker of sourceMarkers) {
+    const finalized = finalizeImplementedOutcomeMarker(marker);
+    const summary = {
+      sourceId: finalized.sourceId,
+      sourceType: finalized.sourceType,
+      path: finalized.path,
+      status: finalized.status,
+      reason: finalized.reasonCode,
+      marker: finalized.marker,
+    };
+
+    if (finalized.stale) staleMarkers.push(summary);
+    if (finalized.conflict) conflictMarkers.push(summary);
+    if (finalized.stale || finalized.conflict) {
+      reasonCodes.push(finalized.reasonCode);
+    }
+  }
+
+  staleMarkers.sort((a, b) => deterministicStringCompare(String(a.sourceId || ''), String(b.sourceId || '')));
+  conflictMarkers.sort((a, b) => deterministicStringCompare(String(a.sourceId || ''), String(b.sourceId || '')));
+
+  return {
+    staleMarkers,
+    conflictMarkers,
+    reasonCodes: normalizeDeterministicStringArray(reasonCodes),
+  };
 }
 
 function normalizeScopeList(input, defaultScopes = []) {
@@ -200,15 +362,231 @@ function buildErrorBody(kind, code, reason, extras = {}) {
   };
 }
 
+function buildPlanningPersistenceHealthEnvelope(input = {}) {
+  const source = isPlainObject(input) ? input : {};
+  const migrations = isPlainObject(source.migrations) ? source.migrations : {};
+
+  return {
+    contractVersion: normalizeString(source.contractVersion) || '1',
+    kind: PLANNING_PERSISTENCE_HEALTH_KIND,
+    deterministic: true,
+    apiContractVersion: PLANNING_API_CONTRACT_VERSION,
+    required: Boolean(source.required),
+    configured: Boolean(source.configured),
+    usable: Boolean(source.usable),
+    status: normalizeString(source.status) || 'disabled',
+    errors: normalizeDeterministicStringArray(source.errors),
+    lastError: normalizeString(source.lastError) || null,
+    migrations: {
+      schemaTable: normalizeString(migrations.schemaTable) || 'ie_schema_versions',
+      latestVersion: normalizeString(migrations.latestVersion) || null,
+      appliedCount: normalizePositiveInteger(migrations.appliedCount, 0),
+      appliedVersions: normalizeDeterministicStringArray(migrations.appliedVersions),
+      driftDetected: Boolean(migrations.driftDetected),
+      lastRunAt: normalizeIso(migrations.lastRunAt),
+    },
+  };
+}
+
+function buildFinishCompatibilityHookContract() {
+  return {
+    contractVersion: FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION,
+    apiContractVersion: PLANNING_API_CONTRACT_VERSION,
+    kind: 'lifecycle.finish.compatibility-hook',
+    deterministic: true,
+    action: 'finish',
+    providerAgnostic: true,
+    supportedProviders: FINISH_COMPATIBILITY_SUPPORTED_PROVIDERS.slice(),
+    scopeBoundary: 'ws2_contract_hook_only',
+    ws4Ownership: 'finish_behavior_and_ux',
+    receipt: {
+      contractVersion: FINISH_COMPATIBILITY_RECEIPT_CONTRACT_VERSION,
+      kind: 'lifecycle.finish.receipt',
+      deterministic: true,
+      providerAgnostic: true,
+      requiredFields: FINISH_COMPATIBILITY_RECEIPT_REQUIRED_FIELDS.slice(),
+      optionalFields: FINISH_COMPATIBILITY_RECEIPT_OPTIONAL_FIELDS.slice(),
+    },
+  };
+}
+
+function evaluateProviderLifecycleCapability(input = {}) {
+  const source = isPlainObject(input) ? input : {};
+  const provider = normalizeRuntimeProvider(source.provider) || DEFAULT_RUNTIME_PROVIDER;
+  const action = normalizeLifecycleCapabilityAction(source.action);
+  const finishCompatibilityHook = buildFinishCompatibilityHookContract();
+  const sharedActions = SHARED_PROVIDER_LIFECYCLE_CAPABILITIES.slice().sort(deterministicStringCompare);
+
+  const providerActions = Array.isArray(PROVIDER_LIFECYCLE_CAPABILITY_MATRIX[provider])
+    ? PROVIDER_LIFECYCLE_CAPABILITY_MATRIX[provider]
+    : SHARED_PROVIDER_LIFECYCLE_CAPABILITIES;
+  const supportedActions = providerActions.slice().sort(deterministicStringCompare);
+
+  if (!action) {
+    return {
+      contractVersion: PROVIDER_LIFECYCLE_CAPABILITY_CONTRACT_VERSION,
+      apiContractVersion: PLANNING_API_CONTRACT_VERSION,
+      deterministic: true,
+      provider,
+      action: null,
+      shared: false,
+      supported: false,
+      marker: 'unsupported',
+      reason: 'action_missing',
+      sharedActions,
+      supportedActions,
+      finishCompatibilityHook,
+    };
+  }
+
+  if (!ALLOWLISTED_PROVIDER_LIFECYCLE_CAPABILITIES.includes(action)) {
+    return {
+      contractVersion: PROVIDER_LIFECYCLE_CAPABILITY_CONTRACT_VERSION,
+      apiContractVersion: PLANNING_API_CONTRACT_VERSION,
+      deterministic: true,
+      provider,
+      action,
+      shared: false,
+      supported: false,
+      marker: 'unsupported',
+      reason: 'action_not_allowlisted',
+      sharedActions,
+      supportedActions,
+      finishCompatibilityHook,
+    };
+  }
+
+  const shared = SHARED_PROVIDER_LIFECYCLE_CAPABILITIES.includes(action);
+  const supported = supportedActions.includes(action);
+  const reason = supported
+    ? (shared ? 'shared_capability_supported' : 'provider_capability_supported')
+    : (shared ? 'shared_capability_contract_violation' : 'provider_capability_unsupported');
+
+  return {
+    contractVersion: PROVIDER_LIFECYCLE_CAPABILITY_CONTRACT_VERSION,
+    apiContractVersion: PLANNING_API_CONTRACT_VERSION,
+    deterministic: true,
+    provider,
+    action,
+    shared,
+    supported,
+    marker: supported ? 'supported' : 'unsupported',
+    reason,
+    sharedActions,
+    supportedActions,
+    finishCompatibilityHook,
+  };
+}
+
+function buildLifecycleUnsupportedCapabilityMarker(input = {}) {
+  const source = isPlainObject(input) ? input : {};
+  const capability = evaluateProviderLifecycleCapability(source);
+  const finishCompatibilityHook = buildFinishCompatibilityHookContract();
+  if (capability.supported) {
+    return null;
+  }
+
+  return {
+    error: 'Lifecycle capability unsupported',
+    code: 'lifecycle_capability_unsupported',
+    action: capability.action || normalizeLifecycleCapabilityAction(source.action) || null,
+    reason: capability.reason,
+    deterministic: true,
+    unsupported: {
+      marker: 'unsupported',
+      provider: capability.provider,
+      shared: capability.shared,
+      reason: capability.reason,
+    },
+    finishCompatibilityHook,
+    capability,
+  };
+}
+
 function createPlanningApiState() {
   return {
     recordsById: new Map(),
     nextRecordNumber: 1,
     recordsVersion: 0,
+    recordsProjectionHash: null,
     idempotency: {
       create: new Map(),
       compare: new Map(),
     },
+  };
+}
+
+function normalizeProjectionNextRecordNumber(value, fallback = 1) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  const floored = Math.floor(numeric);
+  return floored > 0 ? floored : fallback;
+}
+
+function replacePlanningProjectionFromPersistedRecords(state, input = {}) {
+  const source = isPlainObject(input) ? input : {};
+  const records = Array.isArray(source.records) ? source.records : [];
+  const deduped = new Map();
+
+  for (const entry of records) {
+    if (!isPlainObject(entry)) continue;
+    const recordId = normalizeString(entry.recordId);
+    if (!recordId) continue;
+    const candidate = cloneJson(entry);
+    const existing = deduped.get(recordId);
+
+    if (!existing) {
+      deduped.set(recordId, candidate);
+      continue;
+    }
+
+    const precedenceDiff = planState.comparePlanningRecords(candidate, existing);
+    if (precedenceDiff < 0) {
+      deduped.set(recordId, candidate);
+      continue;
+    }
+
+    if (precedenceDiff > 0) {
+      continue;
+    }
+
+    const candidateHash = hashPayload(candidate);
+    const existingHash = hashPayload(existing);
+    if (deterministicStringCompare(candidateHash, existingHash) < 0) {
+      deduped.set(recordId, candidate);
+    }
+  }
+
+  const normalizedRecords = [...deduped.values()].sort(planState.comparePlanningRecords);
+  const projectionHash = hashPayload(normalizedRecords);
+  const changed = String(state.recordsProjectionHash || '') !== projectionHash;
+
+  state.recordsById = new Map(
+    normalizedRecords.map((record) => [String(record.recordId), cloneJson(record)]),
+  );
+
+  state.nextRecordNumber = normalizeProjectionNextRecordNumber(
+    source.nextRecordNumber,
+    normalizeProjectionNextRecordNumber(state.nextRecordNumber, 1),
+  );
+
+  if (Number.isFinite(source.recordsVersion)) {
+    state.recordsVersion = normalizePositiveInteger(source.recordsVersion, state.recordsVersion || 0);
+  } else if (changed) {
+    state.recordsVersion = normalizePositiveInteger((state.recordsVersion || 0) + 1, 0);
+  } else {
+    state.recordsVersion = normalizePositiveInteger(state.recordsVersion, 0);
+  }
+
+  state.recordsProjectionHash = projectionHash;
+
+  return {
+    changed,
+    recordsCount: normalizedRecords.length,
+    recordsVersion: state.recordsVersion,
+    nextRecordNumber: state.nextRecordNumber,
+    projectionHash,
+    precedence: buildPlanningPrecedenceMetadata(),
   };
 }
 
@@ -544,6 +922,7 @@ function listPlanningRecordsOperation(state, input = {}) {
       contractVersion: PLANNING_API_CONTRACT_VERSION,
       kind: 'planning.list',
       deterministic: true,
+      precedence: buildPlanningPrecedenceMetadata(),
       requestedScopes: selected.requestedScopes,
       deniedScopes: selected.deniedScopes,
       versionVector: {
@@ -602,6 +981,7 @@ function searchPlanningRecordsOperation(state, input = {}) {
       contractVersion: PLANNING_API_CONTRACT_VERSION,
       kind: 'planning.search',
       deterministic: true,
+      precedence: buildPlanningPrecedenceMetadata(),
       query,
       requestedScopes: selected.requestedScopes,
       deniedScopes: selected.deniedScopes,
@@ -848,7 +1228,7 @@ function readImplementedOutcomeSource(rootDirAbs, source, options = {}) {
     marker.stale = false;
   }
 
-  records.sort((a, b) => String(a.recordId).localeCompare(String(b.recordId)));
+  records.sort((a, b) => deterministicStringCompare(String(a.recordId), String(b.recordId)));
 
   return {
     marker,
@@ -871,12 +1251,14 @@ function ingestImplementedOutcomeSources(rootDirAbs, input = {}) {
       staleAfterMs: input.staleAfterMs,
       maxBytes: input.maxBytes,
     });
-    markers.push(ingested.marker);
+    markers.push(finalizeImplementedOutcomeMarker(ingested.marker));
     records.push(...ingested.records);
   }
 
-  markers.sort((a, b) => String(a.sourceId || '').localeCompare(String(b.sourceId || '')));
-  records.sort((a, b) => String(a.recordId || '').localeCompare(String(b.recordId || '')));
+  markers.sort((a, b) => deterministicStringCompare(String(a.sourceId || ''), String(b.sourceId || '')));
+  records.sort((a, b) => deterministicStringCompare(String(a.recordId || ''), String(b.recordId || '')));
+
+  const markerCollections = buildImplementedOutcomeMarkerCollections(markers);
 
   const implementedOutcomesVersion = hashPayload(
     markers.map((marker) => ({
@@ -885,6 +1267,9 @@ function ingestImplementedOutcomeSources(rootDirAbs, input = {}) {
       path: marker.path,
       status: marker.status,
       reason: marker.reason,
+      reasonCode: marker.reasonCode,
+      conflict: marker.conflict,
+      marker: marker.marker,
       stale: marker.stale,
       ingestedCount: marker.ingestedCount,
       updatedAt: marker.updatedAt,
@@ -893,6 +1278,9 @@ function ingestImplementedOutcomeSources(rootDirAbs, input = {}) {
 
   return {
     sources: markers,
+    staleMarkers: markerCollections.staleMarkers,
+    conflictMarkers: markerCollections.conflictMarkers,
+    reasonCodes: markerCollections.reasonCodes,
     records,
     versionVector: {
       implementedOutcomesVersion,
@@ -1030,12 +1418,16 @@ function comparePlanningRecordsOperation(state, input = {}) {
         contractVersion: PLANNING_API_CONTRACT_VERSION,
         kind: 'planning.compare',
         deterministic: true,
+        precedence: buildPlanningPrecedenceMetadata(),
         query,
         requestedScopes: selected.requestedScopes,
         deniedScopes: selected.deniedScopes,
         planningRecords: planningSnapshot,
         implementedOutcomes: {
           sources: implementedStart.sources,
+          staleMarkers: implementedStart.staleMarkers,
+          conflictMarkers: implementedStart.conflictMarkers,
+          reasonCodes: implementedStart.reasonCodes,
         },
         matches,
         versionVector: {
@@ -1073,11 +1465,25 @@ function comparePlanningRecordsOperation(state, input = {}) {
 
 module.exports = {
   PLANNING_API_CONTRACT_VERSION,
+  PLANNING_PERSISTENCE_HEALTH_KIND,
+  PROVIDER_LIFECYCLE_CAPABILITY_CONTRACT_VERSION,
+  FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION,
+  FINISH_COMPATIBILITY_RECEIPT_CONTRACT_VERSION,
+  FINISH_COMPATIBILITY_SUPPORTED_PROVIDERS,
+  FINISH_COMPATIBILITY_RECEIPT_REQUIRED_FIELDS,
+  FINISH_COMPATIBILITY_RECEIPT_OPTIONAL_FIELDS,
+  SHARED_PROVIDER_LIFECYCLE_CAPABILITIES,
+  PROVIDER_LIFECYCLE_CAPABILITY_MATRIX,
   DEFAULT_CREATE_IDEMPOTENCY_TTL_MS,
   DEFAULT_COMPARE_IDEMPOTENCY_TTL_MS,
   DEFAULT_IMPLEMENTED_OUTCOMES_STALE_MS,
   IMPLEMENTED_OUTCOME_SOURCE_TYPES,
+  buildPlanningPersistenceHealthEnvelope,
+  buildFinishCompatibilityHookContract,
+  evaluateProviderLifecycleCapability,
+  buildLifecycleUnsupportedCapabilityMarker,
   createPlanningApiState,
+  replacePlanningProjectionFromPersistedRecords,
   createPlanningRecordOperation,
   listPlanningRecordsOperation,
   searchPlanningRecordsOperation,

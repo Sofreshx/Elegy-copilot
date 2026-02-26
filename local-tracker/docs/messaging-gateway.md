@@ -334,3 +334,57 @@ Operational notes:
 - `open-terminal` remains restricted to local machine scope even when Discord control is enabled.
 - PR tokens remain host-only and are not passed into sandbox environment variables.
 - Policy evaluation is fail-closed for unauthorized or malformed requests.
+
+## Sandbox lifecycle contract freeze (G-01-WU-01)
+
+This section freezes lifecycle behavior expected by downstream implementation work.
+
+### Create ID contract
+
+- `create` accepts an optional `sandboxId` input.
+- If `sandboxId` is not supplied by the caller, the client flow MUST auto-generate a valid draft sandbox ID before submission.
+- Auto-generated draft IDs MUST remain editable by the user until the create request is submitted.
+- The first successful create response defines the canonical sandbox ID.
+- After canonicalization, retries and finish paths MUST reuse the canonical sandbox ID and MUST NOT regenerate or rewrite it.
+
+### Runtime provider contract
+
+- Non-Docker runtime is the primary path for sandbox lifecycle operations.
+- Docker runtime remains supported as an optional path.
+- Lifecycle request/response semantics are provider-agnostic; provider choice MUST NOT change lifecycle contract shape.
+
+### Mixed-version lifecycle compatibility gate (G-06-WU-02)
+
+Lifecycle routes now enforce deterministic mixed-version compatibility checks so old/new client-tracker pairs fail closed predictably.
+
+Required request headers on `POST /api/lifecycle/:action`:
+- `X-Instruction-Engine-Lifecycle-Contract-Version: 1`
+- `X-Instruction-Engine-Lifecycle-Capability: mixed-version-lifecycle-v1`
+
+Gateway behavior:
+- Missing or unsupported header values return `501` with deterministic marker envelope:
+  - `error = "Lifecycle compatibility unsupported"`
+  - `code = "lifecycle_compatibility_unsupported"`
+  - `deterministic = true`
+  - `unsupported.marker = "unsupported"`
+  - `unsupported.direction = "old_client_new_tracker"`
+- Supported lifecycle requests keep existing success envelope shape (`{ ok, action, result }`).
+
+Lifecycle responses include compatibility headers so newer clients can fail closed when talking to older trackers that do not publish the gate.
+
+### Finish flow contract
+
+Finish sequence is deterministic and always allows closure:
+
+1. Prompt for optional PR action first (`open-pr` or `skip-pr`).
+2. Process the chosen PR branch.
+3. Allow session closure in all branches.
+
+Decision table:
+
+| PR branch outcome | Close allowed | Required behavior |
+|---|---|---|
+| `skip-pr` | yes | Close path available immediately |
+| `open-pr:success` | yes | Close path available after PR result is surfaced |
+| `open-pr:failure` | yes | Surface PR error and keep close path available |
+| `open-pr:canceled` | yes | No PR side effect is committed; close path remains available |

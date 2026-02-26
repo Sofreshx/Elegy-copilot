@@ -1,5 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const {
+  resolveSessionReconciliationAuthority,
+} = require('./runtimeContracts');
 
 function safeStat(p) {
   try {
@@ -511,6 +514,80 @@ function watchSandboxSessions(sandboxesHome, onChange) {
 
 const SOURCE_RANK = { vscode: 0, cli: 1, sandbox: 2 };
 
+function normalizeSourceSet(values) {
+  const normalized = [];
+  const seen = new Set();
+  for (const value of values) {
+    const source = String(value || '').trim().toLowerCase();
+    if (!source || seen.has(source)) continue;
+    seen.add(source);
+    normalized.push(source);
+  }
+  normalized.sort((a, b) => a.localeCompare(b));
+  return normalized;
+}
+
+function resolveSessionSourceSet(session, options = {}) {
+  const fromOptions = Array.isArray(options.sourceSet) ? options.sourceSet : null;
+  const fromSession = Array.isArray(session && session.sources)
+    ? session.sources
+    : [session && session.canonicalSource, session && session.source];
+  return normalizeSourceSet(fromOptions || fromSession || []);
+}
+
+function normalizeSessionResolvedStatus(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized || 'missing';
+}
+
+function buildSessionReconciliationReason(hasRuntimeState, hasArtifactState) {
+  if (hasRuntimeState && hasArtifactState) return 'runtime_and_artifact';
+  if (hasRuntimeState) return 'runtime_only';
+  if (hasArtifactState) return 'artifact_only';
+  return 'artifact_fallback';
+}
+
+function applySessionReconciliation(session, options = {}) {
+  const hasRuntimeState = options.hasRuntimeState === true;
+  const hasArtifactState = options.hasArtifactState !== false;
+  const resolvedStatus = normalizeSessionResolvedStatus(
+    options.resolvedStatus != null
+      ? options.resolvedStatus
+      : (session && session.resolvedStatus != null ? session.resolvedStatus : session && session.status)
+  );
+  const sourceSet = resolveSessionSourceSet(session, options);
+
+  const authorityState = resolveSessionReconciliationAuthority({
+    hasRuntimeState,
+    hasArtifactState,
+  });
+  const reason = String(
+    options.reason || buildSessionReconciliationReason(hasRuntimeState, hasArtifactState)
+  ).trim().toLowerCase();
+
+  const reconciliation = {
+    contractVersion: authorityState.contractVersion,
+    deterministic: true,
+    authority: authorityState.authority,
+    reason,
+    resolvedStatus,
+    sourceSet,
+    sourceOfTruth: authorityState.sourceOfTruth,
+    sourcePrecedence: authorityState.sourcePrecedence,
+    hasRuntimeState: authorityState.hasRuntimeState,
+    hasArtifactState: authorityState.hasArtifactState,
+  };
+
+  return {
+    ...session,
+    authority: authorityState.authority,
+    reconciliation,
+    reconciliationReason: reason,
+    resolvedStatus,
+    resolvedSourceSet: sourceSet,
+  };
+}
+
 function buildSessionIdentity(session) {
   if (!session || typeof session.id !== 'string' || !session.id.trim()) {
     return { canonicalKey: null, dedupeEligible: false };
@@ -531,13 +608,13 @@ function mergeSessionGroup(sessionsWithSameKey) {
   if (sessionsWithSameKey.length === 1) {
     const s = sessionsWithSameKey[0];
     const identity = buildSessionIdentity(s);
-    return {
+    return applySessionReconciliation({
       ...s,
       ...identity,
       sources: [s.source || 'cli'],
       canonicalSource: s.source || 'cli',
       mergedCount: 1,
-    };
+    });
   }
 
   const sorted = sessionsWithSameKey.slice().sort((a, b) => {
@@ -568,13 +645,13 @@ function mergeSessionGroup(sessionsWithSameKey) {
     if (!seen.has(src)) { seen.add(src); allSources.push(src); }
   }
 
-  return {
+  return applySessionReconciliation({
     ...winner,
     ...identity,
     sources: allSources,
     canonicalSource: winner.source || 'cli',
     mergedCount: sessionsWithSameKey.length,
-  };
+  });
 }
 
 function dedupeAllSources(allSessions) {
@@ -584,7 +661,7 @@ function dedupeAllSources(allSessions) {
   for (const s of allSessions) {
     const identity = buildSessionIdentity(s);
     if (!identity.dedupeEligible) {
-      nonEligible.push({
+      nonEligible.push(applySessionReconciliation({
         ...s,
         ...identity,
         dedupeReason: 'no-id',
@@ -592,7 +669,7 @@ function dedupeAllSources(allSessions) {
         canonicalSource: s.source || 'cli',
         provenance: s.source || 'cli',
         mergedCount: 1,
-      });
+      }));
       continue;
     }
     const key = identity.canonicalKey;
@@ -625,5 +702,6 @@ module.exports = {
   buildSessionIdentity,
   mergeSessionGroup,
   dedupeAllSources,
+  applySessionReconciliation,
 };
 

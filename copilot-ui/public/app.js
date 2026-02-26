@@ -29,6 +29,11 @@ const PLANNING_SCOPE_PRECEDENCE = Object.freeze({
 
 const PLANNING_INTENT_MAX_TTL_MS = 15 * 60 * 1000;
 const PLANNING_INTENT_DEFAULT_TTL_MS = 5 * 60 * 1000;
+const PLANNING_CONTEXT_RESTORE_CONTRACT_VERSION = '1';
+const PLANNING_CONTEXT_STORAGE_KEY = 'copilot-ui:planning-context:v1';
+const PLANNING_CONTEXT_SCOPE_ORDER = Object.freeze(['user', 'repo', 'global']);
+const PLANNING_CONTEXT_FIELD_MAX_LENGTH = 512;
+const SANDBOX_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/;
 
 let planningViewState = {
   records: [],
@@ -76,6 +81,7 @@ function applyPolicyGateUi() {
   }
 
   if (hasDom) {
+    refreshPlanningCreateControls();
     refreshPlanningMergeControls();
   }
 }
@@ -166,6 +172,14 @@ function evType(ev) {
   return (ev && (ev.type || ev.event || ev.name || ev.kind)) || '(unknown)';
 }
 
+function deterministicStringCompare(a, b) {
+  const left = String(a == null ? '' : a);
+  const right = String(b == null ? '' : b);
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 function evTime(ev) {
   const v = ev && (ev.time || ev.timestamp || ev.ts || ev.createdAt || (ev.meta && (ev.meta.time || ev.meta.timestamp || ev.meta.ts)));
   const n = typeof v === 'string' ? Number(v) : v;
@@ -201,6 +215,12 @@ function planningScopeRank(scope) {
 }
 
 function parseIsoMs(value) {
+  if (value == null) return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (value instanceof Date) {
+    const ms = value.getTime();
+    return Number.isFinite(ms) ? ms : 0;
+  }
   if (typeof value !== 'string' || !value.trim()) return 0;
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -216,7 +236,7 @@ function comparePlanningConflictEntries(a, b) {
   const createdDiff = parseIsoMs(b.createdAt) - parseIsoMs(a.createdAt);
   if (createdDiff !== 0) return createdDiff;
 
-  return String(a.recordId || '').localeCompare(String(b.recordId || ''));
+  return deterministicStringCompare(String(a.recordId || ''), String(b.recordId || ''));
 }
 
 function resolveConflictWinner(entries) {
@@ -293,7 +313,7 @@ function buildPlanningConflictRows(records) {
     });
   }
 
-  rows.sort((a, b) => String(a.field).localeCompare(String(b.field)));
+  rows.sort((a, b) => deterministicStringCompare(String(a.field), String(b.field)));
   return rows;
 }
 
@@ -312,7 +332,7 @@ function stableNormalize(value) {
   }
   if (value && typeof value === 'object') {
     const out = {};
-    const keys = Object.keys(value).sort((a, b) => a.localeCompare(b));
+    const keys = Object.keys(value).sort(deterministicStringCompare);
     for (const key of keys) {
       out[key] = stableNormalize(value[key]);
     }
@@ -345,7 +365,7 @@ function buildSourceIdsHash(sourceIds) {
   const normalized = [...new Set((Array.isArray(sourceIds) ? sourceIds : [])
     .map((id) => String(id || '').trim())
     .filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b));
+    .sort(deterministicStringCompare);
   return stableHash(normalized);
 }
 
@@ -437,12 +457,99 @@ function validatePlanningIntentToken(token, context = {}) {
   };
 }
 
+function normalizePlanningGateReasonCodes(values) {
+  const list = Array.isArray(values) ? values : [];
+  const normalized = [];
+  for (const value of list) {
+    const reason = String(value || '').trim();
+    if (!reason) continue;
+    normalized.push(reason);
+  }
+  return [...new Set(normalized)].sort(deterministicStringCompare);
+}
+
+function normalizePlanningDowngradeMarker(marker, fallbackMarker) {
+  const input = marker && typeof marker === 'object' ? marker : {};
+  const markerType = String(input.marker || fallbackMarker || '').trim().toLowerCase();
+  const normalizedMarker = markerType === 'stale'
+    ? 'stale'
+    : markerType === 'conflict'
+      ? 'conflict'
+      : fallbackMarker;
+
+  return {
+    sourceId: String(input.sourceId || '').trim() || null,
+    sourceType: String(input.sourceType || '').trim() || null,
+    path: String(input.path || '').trim() || null,
+    status: String(input.status || (normalizedMarker === 'stale' ? 'stale' : 'invalid')).trim().toLowerCase(),
+    reason: String(
+      input.reason
+      || input.reasonCode
+      || (normalizedMarker === 'stale' ? 'source_stale' : 'source_conflict')
+    ).trim() || (normalizedMarker === 'stale' ? 'source_stale' : 'source_conflict'),
+    marker: normalizedMarker,
+  };
+}
+
+function buildPlanningDowngradeMetadata(input = {}) {
+  const sourceMarkers = Array.isArray(input.sourceMarkers) ? input.sourceMarkers : [];
+  const explicit = input.downgrade && typeof input.downgrade === 'object' ? input.downgrade : {};
+
+  let staleMarkers = Array.isArray(explicit.staleMarkers)
+    ? explicit.staleMarkers.map((marker) => normalizePlanningDowngradeMarker(marker, 'stale'))
+    : [];
+  let conflictMarkers = Array.isArray(explicit.conflictMarkers)
+    ? explicit.conflictMarkers.map((marker) => normalizePlanningDowngradeMarker(marker, 'conflict'))
+    : [];
+
+  const deriveStaleFromSources = staleMarkers.length === 0;
+  const deriveConflictFromSources = conflictMarkers.length === 0;
+
+  if (deriveStaleFromSources || deriveConflictFromSources) {
+    for (const marker of sourceMarkers) {
+      const status = String(marker && marker.status || '').trim().toLowerCase();
+      const reason = String(marker && (marker.reasonCode || marker.reason) || '').trim();
+      if (deriveStaleFromSources && status === 'stale') {
+        staleMarkers.push(normalizePlanningDowngradeMarker({ ...marker, reason }, 'stale'));
+      }
+      if (deriveConflictFromSources && (status === 'invalid' || status === 'unavailable')) {
+        conflictMarkers.push(normalizePlanningDowngradeMarker({ ...marker, reason }, 'conflict'));
+      }
+    }
+  }
+
+  if (input.newerDataAvailable === true) {
+    staleMarkers.push(normalizePlanningDowngradeMarker({
+      sourceId: 'version-vector',
+      sourceType: 'version-vector',
+      status: 'stale',
+      reason: 'newer_data_available',
+      marker: 'stale',
+    }, 'stale'));
+  }
+
+  staleMarkers.sort((a, b) => deterministicStringCompare(String(a.sourceId || ''), String(b.sourceId || '')));
+  conflictMarkers.sort((a, b) => deterministicStringCompare(String(a.sourceId || ''), String(b.sourceId || '')));
+
+  return {
+    staleMarkers,
+    conflictMarkers,
+    reasonCodes: normalizePlanningGateReasonCodes([
+      ...(Array.isArray(explicit.reasonCodes) ? explicit.reasonCodes : []),
+      ...staleMarkers.map((marker) => marker.reason),
+      ...conflictMarkers.map((marker) => marker.reason),
+    ]),
+    primaryReason: String(explicit.primaryReason || '').trim(),
+  };
+}
+
 function mapPlanningGateState(input = {}) {
+  const downgrade = buildPlanningDowngradeMetadata(input);
   const explicit = normalizePlanningGateState(input.gateState);
   if (input.gateState) {
     return {
       state: explicit,
-      reason: String(input.reason || '').trim() || explicit,
+      reason: String(input.reason || downgrade.primaryReason || '').trim() || explicit,
     };
   }
 
@@ -472,20 +579,26 @@ function mapPlanningGateState(input = {}) {
   }
 
   const matches = Array.isArray(input.matches) ? input.matches : [];
-  const sourceMarkers = Array.isArray(input.sourceMarkers) ? input.sourceMarkers : [];
-  const hasDegradedSources = sourceMarkers.some((marker) => String(marker && marker.status || '').toLowerCase() !== 'available');
+  const hasDegradedSources = downgrade.staleMarkers.length > 0 || downgrade.conflictMarkers.length > 0;
 
-  if (!matches.length && !sourceMarkers.length) {
+  if (!matches.length) {
     return {
       state: PLANNING_GATE_STATES.INSUFFICIENT_DATA,
-      reason: String(input.reason || 'No compare matches and no source markers available').trim(),
+      reason: String(input.reason || 'no_compare_matches').trim(),
     };
   }
 
   if (hasDegradedSources || deniedScopes.length > 0 || input.newerDataAvailable === true) {
+    const fallbackReason = input.newerDataAvailable === true
+      ? 'newer_data_available'
+      : downgrade.conflictMarkers[0] && downgrade.conflictMarkers[0].reason
+        ? downgrade.conflictMarkers[0].reason
+        : downgrade.staleMarkers[0] && downgrade.staleMarkers[0].reason
+          ? downgrade.staleMarkers[0].reason
+          : downgrade.primaryReason || downgrade.reasonCodes[0] || 'compare_downgraded';
     return {
       state: PLANNING_GATE_STATES.DEGRADED,
-      reason: String(input.reason || 'Compare has denied scopes, degraded sources, or stale snapshot').trim(),
+      reason: String(input.reason || fallbackReason).trim(),
     };
   }
 
@@ -517,6 +630,65 @@ function parsePlanningApiError(error) {
   }
 
   return { message, httpStatus, errorCode, reason, body };
+}
+
+function getSandboxDraftEntropy() {
+  if (typeof crypto !== 'undefined' && crypto && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2, 14);
+}
+
+function createSandboxDraftId(options = {}) {
+  const nowMs = Number.isFinite(options.nowMs) ? Number(options.nowMs) : Date.now();
+  const timePart = Math.max(0, Math.floor(nowMs)).toString(36);
+  const providedEntropy = typeof options.entropy === 'string' ? options.entropy : '';
+
+  let entropyPart = String(providedEntropy || getSandboxDraftEntropy())
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/^-+/, '')
+    .slice(0, 24);
+
+  if (!entropyPart) entropyPart = 'draft';
+
+  let sandboxId = `sb-${timePart}-${entropyPart}`.slice(0, 64);
+  if (!SANDBOX_ID_PATTERN.test(sandboxId)) {
+    sandboxId = `sb-${Math.random().toString(36).slice(2, 14)}`;
+  }
+
+  return SANDBOX_ID_PATTERN.test(sandboxId) ? sandboxId : 'sb-draft-1';
+}
+
+function ensureSandboxDraftId() {
+  const input = $('sandbox-id');
+  if (!input) return '';
+
+  const currentValue = String(input.value || '').trim();
+  if (currentValue) return currentValue;
+
+  const draftSandboxId = createSandboxDraftId();
+  input.value = draftSandboxId;
+  return draftSandboxId;
+}
+
+function buildCreateSandboxPayload(value) {
+  const sandboxId = String(value || '').trim();
+  return sandboxId ? { sandboxId } : {};
+}
+
+function resolveCanonicalSandboxId(response, fallbackSandboxId, payload) {
+  const result = response && typeof response === 'object' && response.result && typeof response.result === 'object'
+    ? response.result
+    : null;
+
+  return String(
+    (result && result.sandboxId)
+      || (response && response.sandboxId)
+      || fallbackSandboxId
+      || (payload && payload.sandboxId)
+      || ''
+  ).trim();
 }
 
 function switchTab(tab) {
@@ -563,6 +735,7 @@ function switchTab(tab) {
   }
 
   if (sandboxes) {
+    ensureSandboxDraftId();
     loadSandboxes().catch((e) => setStatus(e.message));
   }
 }
@@ -596,6 +769,156 @@ function setSessionsSource(next, options = {}) {
 }
 
 function mergeSessionsWithTracker(fsSessions, acpSessions) {
+  function normalizeSourceSet(values) {
+    const set = new Set();
+    for (const value of values || []) {
+      const source = String(value || '').trim().toLowerCase();
+      if (!source) continue;
+      set.add(source);
+    }
+    return Array.from(set).sort(deterministicStringCompare);
+  }
+
+  function getSessionCanonicalAuthority(session) {
+    const reconciliation = session && session.reconciliation && typeof session.reconciliation === 'object'
+      ? session.reconciliation
+      : null;
+    return String(
+      (reconciliation && reconciliation.authority)
+      || session.authority
+      || 'fs'
+    ).trim().toLowerCase() || 'fs';
+  }
+
+  function getSessionCanonicalStatus(session) {
+    const reconciliation = session && session.reconciliation && typeof session.reconciliation === 'object'
+      ? session.reconciliation
+      : null;
+    return String(
+      (reconciliation && reconciliation.resolvedStatus)
+      || session.resolvedStatus
+      || session.status
+      || 'missing'
+    ).trim().toLowerCase() || 'missing';
+  }
+
+  function getSessionCanonicalReason(session) {
+    const reconciliation = session && session.reconciliation && typeof session.reconciliation === 'object'
+      ? session.reconciliation
+      : null;
+    return String(
+      (reconciliation && reconciliation.reason)
+      || session.reconciliationReason
+      || ''
+    ).trim().toLowerCase();
+  }
+
+  function getSessionCanonicalSourceSet(session) {
+    const reconciliation = session && session.reconciliation && typeof session.reconciliation === 'object'
+      ? session.reconciliation
+      : null;
+    const sourceSet = Array.isArray(reconciliation && reconciliation.sourceSet)
+      ? reconciliation.sourceSet
+      : (Array.isArray(session.resolvedSourceSet)
+        ? session.resolvedSourceSet
+        : (Array.isArray(session.sources) ? session.sources : [session.canonicalSource || session.source]));
+    return normalizeSourceSet(sourceSet);
+  }
+
+  function normalizeSessionStatusToken(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function buildSessionReconciliationMarkers(input = {}) {
+    const authority = String(input.authority || '').trim().toLowerCase();
+    const runtimeStatus = normalizeSessionStatusToken(input.runtimeStatus);
+    const artifactStatus = normalizeSessionStatusToken(input.artifactStatus);
+    const staleMarkers = [];
+    const conflictMarkers = [];
+
+    if (authority === 'acp-only') {
+      staleMarkers.push({
+        marker: 'stale',
+        reason: 'artifact_state_missing',
+        runtimeStatus: runtimeStatus || null,
+        artifactStatus: null,
+      });
+    }
+
+    if (authority === 'acp' && runtimeStatus && artifactStatus && runtimeStatus !== artifactStatus) {
+      conflictMarkers.push({
+        marker: 'conflict',
+        reason: 'runtime_artifact_status_mismatch',
+        runtimeStatus,
+        artifactStatus,
+      });
+    }
+
+    staleMarkers.sort((a, b) => deterministicStringCompare(String(a.reason || ''), String(b.reason || '')));
+    conflictMarkers.sort((a, b) => deterministicStringCompare(String(a.reason || ''), String(b.reason || '')));
+
+    const reasonCodes = [...new Set([
+      ...staleMarkers.map((marker) => marker.reason),
+      ...conflictMarkers.map((marker) => marker.reason),
+    ])].sort(deterministicStringCompare);
+
+    return {
+      staleMarkers,
+      conflictMarkers,
+      reasonCodes,
+    };
+  }
+
+  function normalizeSessionForDisplay(session, overrides = {}) {
+    const authority = String(overrides.authority || getSessionCanonicalAuthority(session)).trim().toLowerCase() || 'fs';
+    const resolvedStatus = String(overrides.resolvedStatus || getSessionCanonicalStatus(session)).trim().toLowerCase() || 'missing';
+    const sourceSet = normalizeSourceSet(Array.isArray(overrides.sourceSet)
+      ? overrides.sourceSet
+      : getSessionCanonicalSourceSet(session));
+    const reason = String(
+      overrides.reason
+      || getSessionCanonicalReason(session)
+      || (authority === 'acp' ? 'runtime_and_artifact' : authority === 'acp-only' ? 'runtime_only' : 'artifact_only')
+    ).trim().toLowerCase();
+    const reconciliationMarkers = buildSessionReconciliationMarkers({
+      authority,
+      runtimeStatus: overrides.runtimeStatus || (session && session.acpData && session.acpData.status) || resolvedStatus,
+      artifactStatus: overrides.artifactStatus || (session && session.resolvedStatus) || (session && session.status),
+    });
+
+    const existing = session && session.reconciliation && typeof session.reconciliation === 'object'
+      ? session.reconciliation
+      : {};
+    const reconciliation = {
+      contractVersion: String(existing.contractVersion || '1'),
+      deterministic: true,
+      authority,
+      reason,
+      resolvedStatus,
+      sourceSet,
+      sourceOfTruth: existing.sourceOfTruth || (authority === 'fs' ? 'artifact' : 'runtime'),
+      sourcePrecedence: Array.isArray(existing.sourcePrecedence) && existing.sourcePrecedence.length
+        ? existing.sourcePrecedence
+        : (authority === 'acp' ? ['runtime', 'artifact'] : authority === 'acp-only' ? ['runtime'] : ['artifact']),
+      hasRuntimeState: typeof existing.hasRuntimeState === 'boolean' ? existing.hasRuntimeState : authority !== 'fs',
+      hasArtifactState: typeof existing.hasArtifactState === 'boolean' ? existing.hasArtifactState : authority !== 'acp-only',
+      staleMarkers: reconciliationMarkers.staleMarkers,
+      conflictMarkers: reconciliationMarkers.conflictMarkers,
+      downgradeReasonCodes: reconciliationMarkers.reasonCodes,
+      downgraded: reconciliationMarkers.reasonCodes.length > 0,
+    };
+
+    return {
+      ...session,
+      authority,
+      status: resolvedStatus,
+      reconciliation,
+      reconciliationReason: reason,
+      resolvedStatus,
+      resolvedSourceSet: sourceSet,
+    };
+  }
+
   const acpMap = new Map();
   for (const s of acpSessions) {
     const id = s.id || s.sessionId;
@@ -609,23 +932,34 @@ function mergeSessionsWithTracker(fsSessions, acpSessions) {
     seen.add(fs.id);
     const acp = acpMap.get(fs.id);
     if (acp) {
-      merged.push({
+      merged.push(normalizeSessionForDisplay({
         ...fs,
         status: acp.status || fs.status,
         authority: 'acp',
         acpData: acp,
-      });
+      }, {
+        authority: 'acp',
+        reason: 'runtime_and_artifact',
+        resolvedStatus: acp.status || fs.resolvedStatus || fs.status,
+        sourceSet: [...getSessionCanonicalSourceSet(fs), 'acp'],
+        runtimeStatus: acp.status,
+        artifactStatus: fs.resolvedStatus || fs.status,
+      }));
     } else {
-      merged.push({
+      merged.push(normalizeSessionForDisplay({
         ...fs,
         authority: 'fs',
-      });
+      }, {
+        authority: getSessionCanonicalAuthority(fs),
+        reason: getSessionCanonicalReason(fs) || 'artifact_only',
+        artifactStatus: fs.resolvedStatus || fs.status,
+      }));
     }
   }
 
   for (const [id, acp] of acpMap) {
     if (seen.has(id)) continue;
-    merged.push({
+    merged.push(normalizeSessionForDisplay({
       id,
       status: acp.status || 'active',
       source: 'acp',
@@ -637,7 +971,13 @@ function mergeSessionsWithTracker(fsSessions, acpSessions) {
       mode: null,
       startTime: null,
       lastEventTime: null,
-    });
+    }, {
+      authority: 'acp-only',
+      reason: 'runtime_only',
+      resolvedStatus: acp.status || 'active',
+      sourceSet: ['acp'],
+      runtimeStatus: acp.status,
+    }));
   }
 
   return merged;
@@ -668,8 +1008,30 @@ async function loadSessions() {
     sessions.push(s);
   }
 
-  const active = sessions.filter((s) => s.status === 'active');
-  const past = sessions.filter((s) => s.status !== 'active');
+  const active = sessions.filter((s) => {
+    const reconciliation = s && s.reconciliation && typeof s.reconciliation === 'object'
+      ? s.reconciliation
+      : null;
+    const resolvedStatus = String(
+      (reconciliation && reconciliation.resolvedStatus)
+      || s.resolvedStatus
+      || s.status
+      || 'missing'
+    ).trim().toLowerCase();
+    return resolvedStatus === 'active';
+  });
+  const past = sessions.filter((s) => {
+    const reconciliation = s && s.reconciliation && typeof s.reconciliation === 'object'
+      ? s.reconciliation
+      : null;
+    const resolvedStatus = String(
+      (reconciliation && reconciliation.resolvedStatus)
+      || s.resolvedStatus
+      || s.status
+      || 'missing'
+    ).trim().toLowerCase();
+    return resolvedStatus !== 'active';
+  });
   $('sessions-summary').textContent = `${active.length} active, ${past.length} past`;
 
   function renderList(target, list) {
@@ -679,11 +1041,16 @@ async function loadSessions() {
       btn.type = 'button';
       btn.className = 'item';
       const sourceLabel = getSessionDisplayLabel(s, sessionSource);
-      const authorityBadge = s.authority === 'acp' ? '[ACP] ' : s.authority === 'acp-only' ? '[ACP-ONLY] ' : s.authority === 'fs' ? '[FS] ' : '';
+      const reconciliation = s && s.reconciliation && typeof s.reconciliation === 'object'
+        ? s.reconciliation
+        : null;
+      const authority = String((reconciliation && reconciliation.authority) || s.authority || '').trim().toLowerCase();
+      const resolvedStatus = String((reconciliation && reconciliation.resolvedStatus) || s.resolvedStatus || s.status || 'missing').trim().toLowerCase();
+      const authorityBadge = authority === 'acp' ? '[ACP] ' : authority === 'acp-only' ? '[ACP-ONLY] ' : authority === 'fs' ? '[FS] ' : '';
       const prefix = authorityBadge + sourceLabel;
-      if (s.authority === 'acp-only') btn.classList.add('acp-only-muted');
+      if (authority === 'acp-only') btn.classList.add('acp-only-muted');
       const title = prefix + (s.repo ? `${s.repo}` : s.cwd || s.id);
-      const sub = `${s.id} • ${s.status} • ${fmtTime(s.lastEventTime || s.startTime)}`;
+      const sub = `${s.id} • ${resolvedStatus} • ${fmtTime(s.lastEventTime || s.startTime)}`;
       btn.innerHTML = `<div class="item-title"></div><div class="item-sub muted"></div>`;
       btn.querySelector('.item-title').textContent = title;
       btn.querySelector('.item-sub').textContent = sub;
@@ -741,11 +1108,20 @@ async function followSandboxSession(sandboxId) {
 
 async function runSandboxLifecycleAction(action, payload, sandboxId) {
   setStatus(`Running sandbox ${action}…`);
-  await api(`/api/tracker/lifecycle/${encodeURIComponent(action)}`, {
+  const response = await api(`/api/tracker/lifecycle/${encodeURIComponent(action)}`, {
     method: 'POST',
     body: JSON.stringify(payload || {}),
   });
-  await followSandboxSession(sandboxId);
+
+  const canonicalSandboxId = resolveCanonicalSandboxId(response, sandboxId, payload);
+
+  if (canonicalSandboxId && $('sandbox-id')) {
+    $('sandbox-id').value = canonicalSandboxId;
+  }
+
+  if (canonicalSandboxId) {
+    await followSandboxSession(canonicalSandboxId);
+  }
 }
 
 async function loadSandboxes() {
@@ -816,11 +1192,19 @@ async function selectSession(s) {
   $('session-verification-guide').textContent = '';
   $('session-verification-guide').classList.add('muted');
   $('session-events').textContent = '';
+  const reconciliation = s && s.reconciliation && typeof s.reconciliation === 'object'
+    ? s.reconciliation
+    : null;
+  const authority = String((reconciliation && reconciliation.authority) || s.authority || 'fs').trim().toLowerCase();
+  const resolvedStatus = String((reconciliation && reconciliation.resolvedStatus) || s.resolvedStatus || s.status || 'missing').trim().toLowerCase();
+  const reconciliationReason = String((reconciliation && reconciliation.reason) || s.reconciliationReason || '').trim();
+
   $('session-detail').innerHTML = `
     <div><b>ID:</b> ${escapeHtml(s.id)}</div>
     <div><b>Source:</b> ${escapeHtml(s.source || sessionSource)}</div>
-    <div><b>Authority:</b> ${s.authority === 'acp' ? 'ACP (live)' : s.authority === 'acp-only' ? 'ACP-only' : 'Filesystem'}</div>
-    <div><b>Status:</b> ${escapeHtml(s.status)}</div>
+    <div><b>Authority:</b> ${authority === 'acp' ? 'ACP (live)' : authority === 'acp-only' ? 'ACP-only' : 'Filesystem'}</div>
+    <div><b>Status:</b> ${escapeHtml(resolvedStatus)}</div>
+    <div><b>Reconciliation:</b> ${escapeHtml(reconciliationReason || 'n/a')}</div>
     <div><b>Repo:</b> ${escapeHtml(s.repo || '')}</div>
     <div><b>Branch:</b> ${escapeHtml(s.branch || '')}</div>
     <div><b>CWD:</b> ${escapeHtml(s.cwd || '')}</div>
@@ -952,7 +1336,7 @@ async function selectSession(s) {
 
   const usage = (agentUsage && agentUsage.usage) || {};
   const entries = Object.entries(usage).filter(([, v]) => typeof v === 'number' && v > 0);
-  entries.sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])));
+  entries.sort((a, b) => b[1] - a[1] || deterministicStringCompare(String(a[0]), String(b[0])));
   if (!entries.length) {
     $('session-agent-usage').textContent = '(none detected)';
   } else {
@@ -1621,14 +2005,267 @@ function getPlanningSelectedScopes() {
   return scopes;
 }
 
-function readPlanningContextFromUi() {
+function normalizePlanningScopeList(values) {
+  const list = Array.isArray(values) ? values : [];
+  const accepted = new Set();
+  for (const value of list) {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!PLANNING_CONTEXT_SCOPE_ORDER.includes(normalized)) continue;
+    accepted.add(normalized);
+  }
+  return PLANNING_CONTEXT_SCOPE_ORDER.filter((scope) => accepted.has(scope));
+}
+
+function normalizePlanningContextField(value) {
+  const normalized = String(value == null ? '' : value).trim();
+  if (!normalized) return '';
+  return normalized.slice(0, PLANNING_CONTEXT_FIELD_MAX_LENGTH);
+}
+
+function normalizePlanningContextSnapshot(input = {}, options = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const scopeSpecified = typeof options.scopeSpecified === 'boolean'
+    ? options.scopeSpecified
+    : Object.prototype.hasOwnProperty.call(source, 'scopes');
+
   return {
+    userId: normalizePlanningContextField(source.userId),
+    repoId: normalizePlanningContextField(source.repoId),
+    query: normalizePlanningContextField(source.query),
+    sessionId: normalizePlanningContextField(source.sessionId),
+    scopes: normalizePlanningScopeList(source.scopes),
+    scopeSpecified,
+  };
+}
+
+function stripPlanningContextMeta(context = {}) {
+  return {
+    userId: normalizePlanningContextField(context.userId),
+    repoId: normalizePlanningContextField(context.repoId),
+    query: normalizePlanningContextField(context.query),
+    sessionId: normalizePlanningContextField(context.sessionId),
+    scopes: normalizePlanningScopeList(context.scopes),
+  };
+}
+
+function mergePlanningContextSnapshots(sources, options = {}) {
+  const normalizedSources = Array.isArray(sources)
+    ? sources.map((entry) => {
+      const explicitScopeSpecified = entry && typeof entry === 'object' && typeof entry.scopeSpecified === 'boolean'
+        ? entry.scopeSpecified
+        : undefined;
+      return normalizePlanningContextSnapshot(entry, { scopeSpecified: explicitScopeSpecified });
+    })
+    : [];
+  const merged = {
+    userId: '',
+    repoId: '',
+    query: '',
+    sessionId: '',
+    scopes: [],
+    scopeSpecified: false,
+  };
+
+  for (const field of ['userId', 'repoId', 'query', 'sessionId']) {
+    for (const source of normalizedSources) {
+      const value = normalizePlanningContextField(source[field]);
+      if (!value) continue;
+      merged[field] = value;
+      break;
+    }
+  }
+
+  for (const source of normalizedSources) {
+    if (!source.scopeSpecified) continue;
+    merged.scopes = normalizePlanningScopeList(source.scopes);
+    merged.scopeSpecified = true;
+    break;
+  }
+
+  if (!merged.scopeSpecified) {
+    merged.scopes = normalizePlanningScopeList(options.defaultScopes);
+  }
+
+  return merged;
+}
+
+function readPlanningContextFromUrlSearch(search) {
+  const queryString = typeof search === 'string'
+    ? search
+    : (hasDom && window && window.location ? window.location.search : '');
+  const params = new URLSearchParams(queryString || '');
+  return normalizePlanningContextSnapshot({
+    userId: params.get('userId') || '',
+    repoId: params.get('repoId') || '',
+    query: params.get('q') || params.get('query') || '',
+    sessionId: params.get('sessionId') || '',
+    scopes: params.getAll('scope'),
+  }, {
+    scopeSpecified: params.has('scope'),
+  });
+}
+
+function getPlanningContextStorage(storage) {
+  if (storage) return storage;
+  if (!hasDom) return null;
+  try {
+    return window && window.localStorage ? window.localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+function readPlanningContextFromStorage(options = {}) {
+  const storage = getPlanningContextStorage(options.storage);
+  if (!storage || typeof storage.getItem !== 'function') return null;
+
+  try {
+    const raw = storage.getItem(PLANNING_CONTEXT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const context = parsed.context && typeof parsed.context === 'object' ? parsed.context : parsed;
+    return normalizePlanningContextSnapshot(context, {
+      scopeSpecified: Object.prototype.hasOwnProperty.call(context, 'scopes'),
+    });
+  } catch {
+    return null;
+  }
+}
+
+function persistPlanningContextSnapshot(context, options = {}) {
+  const storage = getPlanningContextStorage(options.storage);
+  if (!storage || typeof storage.setItem !== 'function') return false;
+
+  try {
+    const snapshot = stripPlanningContextMeta(context);
+    storage.setItem(PLANNING_CONTEXT_STORAGE_KEY, JSON.stringify({
+      contractVersion: PLANNING_CONTEXT_RESTORE_CONTRACT_VERSION,
+      deterministic: true,
+      context: snapshot,
+    }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolvePlanningContextRestore(input = {}) {
+  const uiContext = normalizePlanningContextSnapshot(input.uiContext || {}, { scopeSpecified: true });
+  const urlScopeSpecified = input.urlContext && typeof input.urlContext.scopeSpecified === 'boolean'
+    ? input.urlContext.scopeSpecified
+    : undefined;
+  const storedScopeSpecified = input.storedContext && typeof input.storedContext.scopeSpecified === 'boolean'
+    ? input.storedContext.scopeSpecified
+    : undefined;
+  const urlContext = normalizePlanningContextSnapshot(input.urlContext || {}, {
+    scopeSpecified: urlScopeSpecified,
+  });
+  const storedContext = normalizePlanningContextSnapshot(input.storedContext || {}, {
+    scopeSpecified: storedScopeSpecified,
+  });
+
+  const merged = mergePlanningContextSnapshots([
+    urlContext,
+    storedContext,
+    uiContext,
+  ], {
+    defaultScopes: uiContext.scopes,
+  });
+
+  return {
+    contractVersion: PLANNING_CONTEXT_RESTORE_CONTRACT_VERSION,
+    deterministic: true,
+    precedence: ['url', 'storage', 'ui'],
+    context: stripPlanningContextMeta(merged),
+  };
+}
+
+function applyPlanningContextToUi(context) {
+  if (!hasDom) return;
+  const normalized = stripPlanningContextMeta(context);
+
+  if ($('planning-user-id')) $('planning-user-id').value = normalized.userId;
+  if ($('planning-repo-id')) $('planning-repo-id').value = normalized.repoId;
+  if ($('planning-query')) $('planning-query').value = normalized.query;
+  if ($('planning-session-id')) $('planning-session-id').value = normalized.sessionId;
+
+  const scopeSet = new Set(normalized.scopes);
+  if ($('planning-scope-user')) $('planning-scope-user').checked = scopeSet.has('user');
+  if ($('planning-scope-repo')) $('planning-scope-repo').checked = scopeSet.has('repo');
+  if ($('planning-scope-global')) $('planning-scope-global').checked = scopeSet.has('global');
+}
+
+function restorePlanningContextAfterReload(options = {}) {
+  if (!hasDom) {
+    return resolvePlanningContextRestore({
+      uiContext: { scopes: [] },
+      urlContext: null,
+      storedContext: null,
+    });
+  }
+
+  const storage = getPlanningContextStorage(options.storage);
+  const restore = resolvePlanningContextRestore({
+    uiContext: readPlanningContextFromUi(),
+    urlContext: readPlanningContextFromUrlSearch(options.search),
+    storedContext: readPlanningContextFromStorage({ storage }),
+  });
+
+  applyPlanningContextToUi(restore.context);
+  persistPlanningContextSnapshot(restore.context, { storage });
+  return restore;
+}
+
+function bindPlanningContextPersistence() {
+  if (!hasDom) return;
+  const ids = [
+    'planning-user-id',
+    'planning-repo-id',
+    'planning-query',
+    'planning-session-id',
+    'planning-scope-user',
+    'planning-scope-repo',
+    'planning-scope-global',
+  ];
+
+  const persist = () => {
+    persistPlanningContextSnapshot(readPlanningContextFromUi());
+  };
+
+  for (const id of ids) {
+    const el = $(id);
+    if (!el) continue;
+    el.addEventListener('input', persist);
+    el.addEventListener('change', persist);
+  }
+}
+
+function readPlanningContextFromUi() {
+  return stripPlanningContextMeta({
     userId: String(($('planning-user-id') && $('planning-user-id').value) || '').trim(),
     repoId: String(($('planning-repo-id') && $('planning-repo-id').value) || '').trim(),
     query: String(($('planning-query') && $('planning-query').value) || '').trim(),
     sessionId: String(($('planning-session-id') && $('planning-session-id').value) || '').trim(),
     scopes: getPlanningSelectedScopes(),
-  };
+  });
+}
+
+function normalizePlanningRecordSummary(value) {
+  return String(value == null ? '' : value)
+    .replace(/\r\n?/g, '\n')
+    .trim();
+}
+
+function planningCreateHasTitle() {
+  const titleEl = $('planning-create-title');
+  return Boolean(titleEl && String(titleEl.value || '').trim());
+}
+
+function refreshPlanningCreateControls() {
+  const createButton = $('btn-planning-create');
+  if (!createButton) return;
+  createButton.disabled = policyGateBlocked || !planningCreateHasTitle();
 }
 
 function nextPlanningIdempotencyKey(prefix) {
@@ -1989,7 +2626,14 @@ async function comparePlanningRecords() {
     planningViewState.conflicts = buildPlanningConflictRows(Array.isArray(data.planningRecords) ? data.planningRecords : []);
     planningViewState.reviewedConflictKeys = new Set();
 
+    const compareReceipt = data && typeof data.compareReceipt === 'object'
+      ? data.compareReceipt
+      : null;
+
     const gate = mapPlanningGateState({
+      gateState: data.gateState || (compareReceipt && compareReceipt.gateState),
+      reason: data.reason || (compareReceipt && compareReceipt.reason),
+      downgrade: data.downgrade || (compareReceipt && compareReceipt.downgrade),
       policyGateBlocked,
       requestedScopes: Array.isArray(data.requestedScopes) ? data.requestedScopes : context.scopes,
       deniedScopes: Array.isArray(data.deniedScopes) ? data.deniedScopes : [],
@@ -2035,7 +2679,7 @@ async function createPlanningRecord() {
   const scope = String(($('planning-create-scope') && $('planning-create-scope').value) || 'user').trim();
   const state = String(($('planning-create-state') && $('planning-create-state').value) || 'thought').trim();
   const title = String(($('planning-create-title') && $('planning-create-title').value) || '').trim();
-  const summary = String(($('planning-create-summary') && $('planning-create-summary').value) || '').trim();
+  const summary = normalizePlanningRecordSummary(($('planning-create-summary') && $('planning-create-summary').value) || '');
 
   if (!title) {
     setStatus('Create record requires a title.');
@@ -2232,10 +2876,11 @@ function bindUi() {
 
   $('btn-refresh-sandboxes').addEventListener('click', () => loadSandboxes().catch((e) => setStatus(e.message)));
   $('btn-sandbox-create').addEventListener('click', async () => {
-    const sandboxId = requireSandboxId('create');
-    if (!sandboxId) return;
+    const sandboxInput = $('sandbox-id');
+    const payload = buildCreateSandboxPayload(sandboxInput && sandboxInput.value);
+    const sandboxId = payload && payload.sandboxId ? payload.sandboxId : null;
     try {
-      await runSandboxLifecycleAction('create', { sandboxId }, sandboxId);
+      await runSandboxLifecycleAction('create', payload, sandboxId);
     } catch (e) {
       setStatus(`Sandbox create failed: ${e.message}`);
     }
@@ -2351,6 +2996,11 @@ function bindUi() {
   $('btn-planning-search').addEventListener('click', () => searchPlanningRecords().catch((e) => setStatus(e.message)));
   $('btn-planning-compare').addEventListener('click', () => comparePlanningRecords().catch((e) => setStatus(e.message)));
   $('btn-planning-create').addEventListener('click', () => createPlanningRecord().catch((e) => setStatus(e.message)));
+  if ($('planning-create-title')) {
+    $('planning-create-title').addEventListener('input', refreshPlanningCreateControls);
+    $('planning-create-title').addEventListener('change', refreshPlanningCreateControls);
+  }
+  refreshPlanningCreateControls();
   $('btn-planning-prepare-intent').addEventListener('click', () => preparePlanningMergeIntent().catch((e) => {
     const parsed = parsePlanningApiError(e);
     setPlanningOutput({ error: parsed }, false);
@@ -2361,6 +3011,7 @@ function bindUi() {
     setPlanningOutput({ error: parsed }, false);
     setStatus(`Planning merge failed: ${parsed.reason}`);
   }));
+  bindPlanningContextPersistence();
 
   $('tab-gateway').addEventListener('click', () => switchTab('gateway'));
   $('btn-gateway-scan').addEventListener('click', () => scanGatewayRepos(null).catch((e) => setStatus(e.message)));
@@ -2380,6 +3031,7 @@ function bindUi() {
 
 async function boot() {
   bindUi();
+  restorePlanningContextAfterReload();
   try {
     await api('/api/health');
   } catch {
@@ -2444,10 +3096,19 @@ const planningTestExports = {
   resolveConflictWinner,
   buildPlanningConflictRows,
   hasReviewedAllConflicts,
+  normalizePlanningContextSnapshot,
+  mergePlanningContextSnapshots,
+  resolvePlanningContextRestore,
+  restorePlanningContextAfterReload,
   buildCompareSnapshotHash,
   buildSourceIdsHash,
   createPlanningIntentToken,
   validatePlanningIntentToken,
+  SANDBOX_ID_PATTERN,
+  createSandboxDraftId,
+  buildCreateSandboxPayload,
+  resolveCanonicalSandboxId,
+  normalizePlanningRecordSummary,
 };
 
 if (typeof module !== 'undefined' && module.exports) {

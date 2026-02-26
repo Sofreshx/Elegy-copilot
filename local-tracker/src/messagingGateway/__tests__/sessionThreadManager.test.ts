@@ -99,3 +99,51 @@ describe('SessionThreadManager sandbox-aware naming', () => {
 		mgr.stop();
 	});
 });
+
+describe('attachInline (threadless, WU-006)', () => {
+	beforeEach(() => jest.useFakeTimers());
+	afterEach(() => jest.useRealTimers());
+
+	it('attachInline sets liveMessage without thread', () => {
+		const mgr = new SessionThreadManager({ minUpdateIntervalMs: 0 });
+		const msg = fakeMessage();
+		mgr.attachInline({ sessionId: 'inline-1', liveMessage: msg });
+
+		// Session exists, thread count should be 0
+		expect(mgr.getActiveSessionThreadCount()).toBe(0);
+		expect(mgr.getActiveSessionCount()).toBe(1);
+
+		mgr.stop();
+	});
+
+	it('events flush to liveMessage without a thread', async () => {
+		const mgr = new SessionThreadManager({ minUpdateIntervalMs: 0 });
+		const msg = fakeMessage();
+		mgr.attachInline({ sessionId: 'inline-2', sandboxId: 'sbx-inline', liveMessage: msg });
+
+		mgr.handleExtensionEvent(sessionEvent('inline-2', 'session_started'));
+		jest.advanceTimersByTime(0);
+		await Promise.resolve();
+
+		const editFn = msg.edit as jest.Mock;
+		expect(editFn).toHaveBeenCalled();
+		const content: string = editFn.mock.calls[editFn.mock.calls.length - 1][0];
+		expect(content).toContain('Session inline-2');
+		expect(content).toContain('[sbx-inline]');
+		expect(content).toContain('started');
+
+		mgr.stop();
+	});
+
+	it('getActiveSessionCount returns total sessions', () => {
+		const mgr = new SessionThreadManager();
+		mgr.attachThread({ sessionId: 's1', thread: fakeThread('t1'), liveMessage: fakeMessage() });
+		mgr.attachInline({ sessionId: 's2', liveMessage: fakeMessage() });
+		mgr.attachInline({ sessionId: 's3', liveMessage: fakeMessage() });
+
+		expect(mgr.getActiveSessionCount()).toBe(3);
+		expect(mgr.getActiveSessionThreadCount()).toBe(1);
+
+		mgr.stop();
+	});
+});

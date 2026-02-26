@@ -7,8 +7,8 @@ export interface GatewayStatusSummary {
 	activeWorkspaceRoot: string;
 	allowedWorkspaceRootsCount: number;
 	allowlistedDiscordUsersCount: number;
-	discordGuildId: string;
-	discordChannelId: string;
+	discordGuildId?: string;
+	discordChannelId?: string;
 	discordPermissionsChannelId?: string;
 	secrets: GatewaySecretsStatus;
 	acpHost?: string;
@@ -22,7 +22,7 @@ export function printGatewayStatusSummary(loaded: LoadedMessagingGatewayConfig, 
 	console.log(`[Gateway] Active workspace: ${summary.activeWorkspaceRoot}`);
 	console.log(`[Gateway] Workspace allowlist: ${summary.allowedWorkspaceRootsCount} roots`);
 	console.log(`[Gateway] Discord allowlist: ${summary.allowlistedDiscordUsersCount} users`);
-	console.log(`[Gateway] Discord scope: guild=${summary.discordGuildId} channel=${summary.discordChannelId}${summary.discordPermissionsChannelId ? ` permissions=${summary.discordPermissionsChannelId}` : ''}`);
+	console.log(`[Gateway] Discord scope: guild=${summary.discordGuildId ?? 'n/a'} channel=${summary.discordChannelId ?? 'n/a'}${summary.discordPermissionsChannelId ? ` permissions=${summary.discordPermissionsChannelId}` : ''}`);
 	if (summary.acpPort) {
 		console.log(`[Gateway] ACP endpoint: tcp://${summary.acpHost || '127.0.0.1'}:${summary.acpPort}`);
 	} else {

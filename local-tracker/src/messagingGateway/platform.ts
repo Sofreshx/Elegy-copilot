@@ -1,4 +1,4 @@
-export type PlatformKind = 'discord';
+export type PlatformKind = 'discord' | 'telegram';
 
 export type CommandTier = 'read' | 'invoke' | 'admin';
 
@@ -51,11 +51,16 @@ export interface PlatformCommandInteraction {
 	/** Sends a non-ephemeral message in the interaction channel. */
 	sendMessage: (content: string) => Promise<PlatformMessageHandle>;
 
-	/** Creates a thread under the configured channel (guild-only). */
-	createThread: (name: string) => Promise<PlatformThreadHandle>;
+	/** Creates a thread under the configured channel (guild-only). May be undefined for threadless platforms. */
+	createThread?: (name: string) => Promise<PlatformThreadHandle>;
 }
 
 export type PlatformCommandHandler = (interaction: PlatformCommandInteraction) => void | Promise<void>;
+
+export interface AdapterHealthProbeResult {
+	state: 'healthy' | 'degraded' | 'disconnected';
+	detail?: string;
+}
 
 export interface MessagePlatform {
 	kind: PlatformKind;
@@ -63,4 +68,6 @@ export interface MessagePlatform {
 	stop: () => Promise<void>;
 	registerCommands: (commands: ReadonlyArray<PlatformCommandSpec>) => Promise<void>;
 	setCommandHandler: (handler: PlatformCommandHandler) => void;
+	/** Optional health probe. Returns current adapter health state. */
+	getHealthProbe?: () => Promise<AdapterHealthProbeResult>;
 }

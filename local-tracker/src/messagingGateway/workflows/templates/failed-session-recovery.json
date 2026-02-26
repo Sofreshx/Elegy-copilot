@@ -1,0 +1,41 @@
+{
+  "id": "failed-session-recovery",
+  "name": "Failed Session Recovery",
+  "description": "Recovers from a failed coding session by checking status, collecting logs, and restarting.",
+  "version": "1.0.0",
+  "steps": [
+    {
+      "id": "check-status",
+      "name": "Check Session Status",
+      "action": "session.getStatus",
+      "params": { "includeErrors": true }
+    },
+    {
+      "id": "collect-logs",
+      "name": "Collect Error Logs",
+      "action": "session.collectLogs",
+      "params": { "tail": 100 },
+      "dependsOn": ["check-status"]
+    },
+    {
+      "id": "stop-session",
+      "name": "Stop Failed Session",
+      "action": "session.stop",
+      "dependsOn": ["collect-logs"]
+    },
+    {
+      "id": "restart-session",
+      "name": "Restart Session",
+      "action": "session.start",
+      "params": { "recovery": true },
+      "dependsOn": ["stop-session"]
+    },
+    {
+      "id": "notify-operator",
+      "name": "Notify Operator",
+      "action": "notify.operator",
+      "params": { "template": "session-recovered" },
+      "dependsOn": ["restart-session"]
+    }
+  ]
+}

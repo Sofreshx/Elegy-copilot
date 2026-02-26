@@ -8,10 +8,12 @@ const {
   isMergeEnabled,
   buildPlanningConflictRows,
   hasReviewedAllConflicts,
+  resolvePlanningContextRestore,
   createPlanningIntentToken,
   validatePlanningIntentToken,
   buildCompareSnapshotHash,
   buildSourceIdsHash,
+  normalizePlanningRecordSummary,
 } = require('./app');
 
 let passed = 0;
@@ -61,6 +63,54 @@ function run() {
       sourceMarkers: [],
     });
     assert.strictEqual(gate.state, PLANNING_GATE_STATES.INSUFFICIENT_DATA);
+  });
+
+  test('mapPlanningGateState keeps insufficient-data when matches are empty even with available markers', () => {
+    const gate = mapPlanningGateState({
+      requestedScopes: ['user'],
+      deniedScopes: [],
+      matches: [],
+      sourceMarkers: [{ sourceId: 's1', status: 'available', reason: 'source_available' }],
+    });
+    assert.strictEqual(gate.state, PLANNING_GATE_STATES.INSUFFICIENT_DATA);
+    assert.strictEqual(gate.reason, 'no_compare_matches');
+  });
+
+  test('mapPlanningGateState resolves explicit gate using deterministic downgrade primary reason', () => {
+    const gate = mapPlanningGateState({
+      gateState: 'degraded',
+      downgrade: {
+        deterministic: true,
+        primaryReason: 'newer_data_available',
+      },
+    });
+
+    assert.deepStrictEqual(gate, {
+      state: PLANNING_GATE_STATES.DEGRADED,
+      reason: 'newer_data_available',
+    });
+  });
+
+  test('mapPlanningGateState derives degraded reason from stale/conflict markers deterministically', () => {
+    const staleGate = mapPlanningGateState({
+      requestedScopes: ['user'],
+      deniedScopes: [],
+      matches: [{ recordId: 'r1' }],
+      sourceMarkers: [{ sourceId: 's1', status: 'stale', reason: 'source_stale' }],
+      newerDataAvailable: false,
+    });
+    assert.strictEqual(staleGate.state, PLANNING_GATE_STATES.DEGRADED);
+    assert.strictEqual(staleGate.reason, 'source_stale');
+
+    const conflictGate = mapPlanningGateState({
+      requestedScopes: ['user'],
+      deniedScopes: [],
+      matches: [{ recordId: 'r1' }],
+      sourceMarkers: [{ sourceId: 's1', status: 'invalid', reason: 'schema_validation_failed' }],
+      newerDataAvailable: false,
+    });
+    assert.strictEqual(conflictGate.state, PLANNING_GATE_STATES.DEGRADED);
+    assert.strictEqual(conflictGate.reason, 'schema_validation_failed');
   });
 
   test('mapPlanningGateState resolves policy-blocked and auth-denied', () => {
@@ -118,11 +168,122 @@ function run() {
     assert.strictEqual(titleRow.winnerValue, 'User title');
   });
 
+  test('buildPlanningConflictRows uses deterministic recordId tiebreak within the same scope', () => {
+    const rows = buildPlanningConflictRows([
+      {
+        recordId: 'repo-b',
+        scope: 'repo',
+        title: 'Repo Title B',
+        summary: 'Repo Summary B',
+        state: 'research',
+        updatedAt: '2026-02-26T00:02:00.000Z',
+        createdAt: '2026-02-26T00:00:00.000Z',
+      },
+      {
+        recordId: 'repo-a',
+        scope: 'repo',
+        title: 'Repo Title A',
+        summary: 'Repo Summary A',
+        state: 'research',
+        updatedAt: '2026-02-26T00:02:00.000Z',
+        createdAt: '2026-02-26T00:00:00.000Z',
+      },
+      {
+        recordId: 'global-1',
+        scope: 'global',
+        title: 'Global Title',
+        summary: 'Global Summary',
+        state: 'thought',
+        updatedAt: '2026-02-26T00:02:00.000Z',
+        createdAt: '2026-02-26T00:00:00.000Z',
+      },
+    ]);
+
+    const titleRow = rows.find((row) => row.field === 'title');
+    assert.ok(titleRow);
+    assert.strictEqual(titleRow.valuesByScope.repo.recordId, 'repo-a');
+    assert.strictEqual(titleRow.winnerScope, 'repo');
+    assert.strictEqual(titleRow.winnerRecordId, 'repo-a');
+  });
+
+  test('resolvePlanningContextRestore applies deterministic precedence url > storage > ui', () => {
+    const restored = resolvePlanningContextRestore({
+      urlContext: {
+        userId: ' url-user ',
+        scopes: ['repo'],
+        scopeSpecified: true,
+      },
+      storedContext: {
+        userId: 'storage-user',
+        repoId: 'storage-repo',
+        query: 'storage-query',
+        sessionId: 'storage-session',
+        scopes: ['global'],
+        scopeSpecified: true,
+      },
+      uiContext: {
+        userId: 'ui-user',
+        repoId: 'ui-repo',
+        query: 'ui-query',
+        sessionId: 'ui-session',
+        scopes: ['user', 'repo', 'global'],
+      },
+    });
+
+    assert.deepStrictEqual(restored.precedence, ['url', 'storage', 'ui']);
+    assert.strictEqual(restored.deterministic, true);
+    assert.deepStrictEqual(restored.context, {
+      userId: 'url-user',
+      repoId: 'storage-repo',
+      query: 'storage-query',
+      sessionId: 'storage-session',
+      scopes: ['repo'],
+    });
+  });
+
+  test('resolvePlanningContextRestore keeps explicit empty stored scopes and normalizes field safety', () => {
+    const restored = resolvePlanningContextRestore({
+      urlContext: {
+        userId: '',
+        scopeSpecified: false,
+      },
+      storedContext: {
+        userId: ` ${'x'.repeat(700)} `,
+        repoId: ' repo-1 ',
+        query: ' q ',
+        sessionId: ' session-1 ',
+        scopes: [],
+        scopeSpecified: true,
+      },
+      uiContext: {
+        userId: 'ui-user',
+        repoId: 'ui-repo',
+        query: 'ui-query',
+        sessionId: 'ui-session',
+        scopes: ['user', 'repo', 'global'],
+      },
+    });
+
+    assert.strictEqual(restored.context.userId.length, 512);
+    assert.strictEqual(restored.context.repoId, 'repo-1');
+    assert.strictEqual(restored.context.query, 'q');
+    assert.strictEqual(restored.context.sessionId, 'session-1');
+    assert.deepStrictEqual(restored.context.scopes, []);
+  });
+
   test('hasReviewedAllConflicts enforces explicit review requirement', () => {
     const conflicts = [{ conflictKey: 'title' }, { conflictKey: 'summary' }];
     assert.strictEqual(hasReviewedAllConflicts(conflicts, new Set()), false);
     assert.strictEqual(hasReviewedAllConflicts(conflicts, new Set(['title'])), false);
     assert.strictEqual(hasReviewedAllConflicts(conflicts, new Set(['title', 'summary'])), true);
+  });
+
+  test('normalizePlanningRecordSummary preserves multiline note content deterministically', () => {
+    const normalized = normalizePlanningRecordSummary('  first line\r\nsecond line\r\n\r\nthird line  ');
+    assert.strictEqual(normalized, 'first line\nsecond line\n\nthird line');
+
+    const blank = normalizePlanningRecordSummary('   \r\n   ');
+    assert.strictEqual(blank, '');
   });
 
   test('validatePlanningIntentToken accepts valid token and rejects mismatch/expiry/replay', () => {

@@ -21,7 +21,7 @@ describe('CommandRouter rate limiting (per-tier)', () => {
 		maxPromptChars: WU002_POLICY_CONTRACT.maxPromptChars,
 	};
 
-	const ctx = { userId: 'u1', platform: 'test' };
+	const ctx = { userId: 'u1', platform: 'discord' as const };
 
 	function makeRouter() {
 		return new CommandRouter({

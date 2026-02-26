@@ -44,7 +44,7 @@ function makeRouter(overrides?: { policy?: Partial<typeof BASE_POLICY>; workspac
 }
 
 function authorizedCtx(userId = 'u-allow-1') {
-	return { userId, guildId: 'g-req', channelId: 'c-req', platform: 'test' };
+	return { userId, guildId: 'g-req', channelId: 'c-req', platform: 'discord' as const };
 }
 
 // ── 1) Allowlist enforcement (user IDs) ──────────────────────────────────
@@ -52,14 +52,14 @@ function authorizedCtx(userId = 'u-allow-1') {
 describe('Allowlist enforcement — user IDs', () => {
 	it('denies a non-allowlisted user', async () => {
 		const router = makeRouter();
-		const res = await router.route({ name: '/status' }, { userId: 'u-attacker', guildId: 'g-req', channelId: 'c-req', platform: 'test' });
+		const res = await router.route({ name: '/status' }, { userId: 'u-attacker', guildId: 'g-req', channelId: 'c-req', platform: 'discord' });
 		expect(res.kind).toBe('denied');
 		expect(res.meta?.reason).toBe('user_not_allowlisted');
 	});
 
 	it('denies an empty userId', async () => {
 		const router = makeRouter();
-		const res = await router.route({ name: '/status' }, { userId: '', guildId: 'g-req', channelId: 'c-req', platform: 'test' });
+		const res = await router.route({ name: '/status' }, { userId: '', guildId: 'g-req', channelId: 'c-req', platform: 'discord' });
 		expect(res.kind).toBe('denied');
 		expect(res.meta?.reason).toBe('user_not_allowlisted');
 	});
@@ -76,28 +76,28 @@ describe('Allowlist enforcement — user IDs', () => {
 describe('Allowlist enforcement — guild & channel scope', () => {
 	it('denies wrong guildId', async () => {
 		const router = makeRouter();
-		const res = await router.route({ name: '/status' }, { userId: 'u-allow-1', guildId: 'g-wrong', channelId: 'c-req', platform: 'test' });
+		const res = await router.route({ name: '/status' }, { userId: 'u-allow-1', guildId: 'g-wrong', channelId: 'c-req', platform: 'discord' });
 		expect(res.kind).toBe('denied');
 		expect(res.meta?.reason).toBe('guild_scope_mismatch');
 	});
 
 	it('denies missing guildId', async () => {
 		const router = makeRouter();
-		const res = await router.route({ name: '/status' }, { userId: 'u-allow-1', channelId: 'c-req', platform: 'test' });
+		const res = await router.route({ name: '/status' }, { userId: 'u-allow-1', channelId: 'c-req', platform: 'discord' });
 		expect(res.kind).toBe('denied');
 		expect(res.meta?.reason).toBe('guild_scope_mismatch');
 	});
 
 	it('denies wrong channelId', async () => {
 		const router = makeRouter();
-		const res = await router.route({ name: '/status' }, { userId: 'u-allow-1', guildId: 'g-req', channelId: 'c-wrong', platform: 'test' });
+		const res = await router.route({ name: '/status' }, { userId: 'u-allow-1', guildId: 'g-req', channelId: 'c-wrong', platform: 'discord' });
 		expect(res.kind).toBe('denied');
 		expect(res.meta?.reason).toBe('channel_scope_mismatch');
 	});
 
 	it('denies missing channelId', async () => {
 		const router = makeRouter();
-		const res = await router.route({ name: '/status' }, { userId: 'u-allow-1', guildId: 'g-req', platform: 'test' });
+		const res = await router.route({ name: '/status' }, { userId: 'u-allow-1', guildId: 'g-req', platform: 'discord' });
 		expect(res.kind).toBe('denied');
 		expect(res.meta?.reason).toBe('channel_scope_mismatch');
 	});

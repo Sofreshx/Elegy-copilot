@@ -123,6 +123,18 @@ The server binds to `127.0.0.1` only — do not expose to untrusted networks.
 - Signing custody: managed external signing service via OIDC (no private keys in repo)
 - Rollback authority: Release Engineering owns channel rollback + kill switch decisions
 
+Release-safety rules (G-06-WU-03):
+- Migration checksum safety is explicit: `pass` only when persisted migration checksums match manifest checksums; checksum drift is release-blocking (`PLANNING_MIGRATION_CHECKSUM_DRIFT`).
+- Rollback threshold `R1`: any single deterministic safety failure (`PLANNING_MIGRATION_CHECKSUM_DRIFT`, `current_version_below_minimum_safe`, `candidate_version_above_channel_ceiling`) triggers immediate channel rollback actions.
+- Rollback threshold `R2`: two consecutive fail-closed policy load cycles (`rollback_policy_source_unavailable` / `rollback_policy_malformed`) after remediation trigger escalation.
+- Kill-switch ownership remains Release Engineering, with incident-commander approval for activation/deactivation and Security co-approval for trust-chain incidents.
+
+### Workstream sequencing + ownership (locked)
+
+- WS6 is a post-WS1 gate: execute WS6 compatibility/release-safety work only after the WS1 contract freeze (`G-01-WU-04`).
+- WS2 owns the primary non-Docker default runtime behavior.
+- WS6 non-Docker scope is compatibility/upgrade safety only (mixed-version compatibility, rollback, release safety), not primary default behavior changes.
+
 ### One-time VS Code setup (reducing permission prompts)
 
 If VS Code/Copilot keeps prompting to “allow access” for `~/.copilot`, it’s usually one of two things:

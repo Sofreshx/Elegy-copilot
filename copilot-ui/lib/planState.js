@@ -40,9 +40,27 @@ const PLANNING_SCOPE_PRECEDENCE = Object.freeze({
   global: 1,
 });
 
+const PLANNING_PRECEDENCE_CONTRACT_VERSION = '1';
+
+const PLANNING_RECORD_PRECEDENCE_RULES = Object.freeze([
+  'scope-precedence:user>repo>global',
+  'score-desc:null-invalid=-1',
+  'updatedAt-desc:null-invalid=epoch',
+  'createdAt-desc:null-invalid=epoch',
+  'recordId-asc',
+]);
+
 const PLANNING_SCOPES = Object.freeze(['user', 'repo', 'global']);
 
 const PLANNING_STATE_SET = new Set(PLANNING_STATES);
+
+function deterministicStringCompare(a, b) {
+  const left = String(a == null ? '' : a);
+  const right = String(b == null ? '' : b);
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
 
 function normalizePlanningState(state) {
   if (typeof state !== 'string') {
@@ -148,7 +166,7 @@ function comparePlanningRecords(a, b) {
     return createdAtDiff;
   }
 
-  return normalizePlanningRecordId(a).localeCompare(normalizePlanningRecordId(b));
+  return deterministicStringCompare(normalizePlanningRecordId(a), normalizePlanningRecordId(b));
 }
 
 /**
@@ -422,12 +440,16 @@ function parseCheckpoints(text, warnings) {
 }
 
 module.exports = {
+  PLANNING_PRECEDENCE_CONTRACT_VERSION,
   PLANNING_STATES,
   PLANNING_SCOPES,
+  PLANNING_SCOPE_PRECEDENCE,
+  PLANNING_RECORD_PRECEDENCE_RULES,
   TERMINAL_PLANNING_STATES,
   PLANNING_TRANSITION_MATRIX,
   normalizePlanningState,
   normalizePlanningScope,
+  getPlanningScopePrecedence,
   isValidPlanningTransition,
   comparePlanningRecords,
   parseStructuredState,

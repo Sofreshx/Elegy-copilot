@@ -295,6 +295,100 @@ For repeated calls to `GET /api/health`, assert:
 - `runtime` object shape remains stable: `contractVersion`, `mode`, `capabilities`
 - no missing capability keys even when unavailable (`docker`, `wsl2`, `sandbox` always present)
 
+### G-01-WU-04 Contract Regression Gate Commands
+
+Run these from repository root (`instruction-engine`) to validate the frozen contracts from G-01 WU-01..WU-03:
+
+```bash
+node copilot-ui/lib/runtimeContracts.test.js
+node copilot-ui/server.runtime-health.test.js
+node copilot-ui/server.lifecycle-proxy.test.js
+npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts
+```
+
+Expected gate result:
+- each command exits with code `0`
+- no failed assertions in runtime/provider/planning health envelope tests
+- lifecycle create/open-terminal contract assertions pass for both `copilot-ui` and `local-tracker`
+
+## WS2 — Provider SSOT + Parity Guardrails (G-02-WU-04)
+
+Run this narrow gate from repository root (`instruction-engine`) whenever validating WS2 provider-state/parity scope:
+
+```bash
+node copilot-ui/lib/planningPersistence.test.js
+node copilot-ui/lib/planningApiContracts.test.js
+node copilot-ui/server.runtime-health.test.js
+```
+
+WS2 guardrails verified by this gate:
+- non-Docker default remains canonical when selection is absent/invalid
+- provider selection SSOT remains deterministic when canonical persisted provider state exists
+- unsupported capability paths remain capability-gated with deterministic marker envelopes
+- finish compatibility hook remains additive contract-only (`scopeBoundary=ws2_contract_hook_only`, `ws4Ownership=finish_behavior_and_ux`)
+- WS6 compatibility/release-safety checks must not redefine WS2-owned primary non-Docker default behavior
+
+Expected narrow gate result:
+- each command exits with code `0`
+- all assertions pass with no WS4 UX behavior fields introduced in WS2 capability responses
+
+## WS6 — Compatibility + Upgrade Safety Scope Gate (G-06-WU-01)
+
+### Scope + sequencing lock
+
+- WS6 starts only after WS1 contract freeze is complete (`G-01-WU-04`).
+- WS2 remains owner of primary non-Docker default behavior.
+- WS6 non-Docker scope is compatibility/upgrade safety only (mixed-version safeguards, rollback controls, release-safety gating).
+
+### Manual checks
+
+1. Confirm [docs/system/runtime-permissions-contracts.md](../docs/system/runtime-permissions-contracts.md) includes:
+  - explicit post-WS1 sequencing gate for WS6
+  - explicit WS2 vs WS6 non-Docker ownership boundary
+2. Confirm [README.md](../README.md) includes the same WS6 sequencing + ownership lock language.
+3. Run docs graph validation:
+
+```bash
+node scripts/validate-doc-graph.js
+```
+
+Expected gate result:
+- command exits with code `0`
+- no WS6 guidance reassigns non-Docker primary default ownership away from WS2
+
+## WS6 — Release Readiness Evidence Gate (G-06-WU-04)
+
+### Required command pack
+
+Run this command pack from repository root (`instruction-engine`) and retain outputs as release evidence:
+
+```bash
+node scripts/validate-doc-graph.js
+node copilot-ui/server.lifecycle-proxy.test.js
+npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/gatewayHttpServer.test.ts
+node copilot-ui/lib/planningPersistence.test.js
+node copilot-ui/server.runtime-health.test.js
+node copilot-ui/dist-electron/rollbackPolicy.test.js
+node copilot-ui/dist-electron/updatePolicy.rollback.test.js
+node copilot-ui/dist-electron/updater.rollback.test.js
+```
+
+### Gate checklist (all required)
+
+| Gate item | Required evidence artifact | Pass expectation | Fail expectation |
+|---|---|---|---|
+| Scope + ownership lock | `WS6-E1 ScopeOwnership`: links or excerpts proving WS6 sequencing and WS2 ownership boundary in `docs/system/runtime-permissions-contracts.md` and `README.md` | Both docs explicitly keep WS6 as post-WS1 compatibility/release-safety scope only; WS2 remains owner of primary non-Docker default behavior | Missing/contradictory scope language, or any text that reassigns WS2 ownership |
+| Mixed-version matrix | `WS6-E2 MixedVersionMatrix`: command outputs from `server.lifecycle-proxy.test.js` and `gatewayHttpServer.test.ts` | Outputs include deterministic unsupported marker path (`code=lifecycle_compatibility_unsupported`) and deterministic supported path (`reason=compatibility_supported`) for old/new client-tracker directions | Missing unsupported or supported path evidence, nondeterministic reasons/markers, or any failing test |
+| Checksum safety | `WS6-E3 ChecksumSafety`: output from `planningPersistence.test.js` and `server.runtime-health.test.js` | Migration checksum path proves `pass`/`all_manifest_checksums_match`; drift path hard-fails with `PLANNING_MIGRATION_CHECKSUM_DRIFT`; health payload keeps deterministic `planningPersistence.migrations.driftDetected` state | Checksum drift does not fail closed, pass path missing, or migration drift state not deterministic |
+| Rollback trigger thresholds | `WS6-E4 RollbackTriggers`: output from `rollbackPolicy.test.js` and `updatePolicy.rollback.test.js` | Outputs include machine-readable reasons for threshold triggers (`rollback_policy_source_unavailable`, `rollback_policy_malformed`, `current_version_below_minimum_safe`, `candidate_version_above_channel_ceiling`) and allowed path marker (`allowed_by_rollback_policy`) | Any trigger reason missing/changed, or trigger behavior not fail-closed |
+| Kill-switch activation evidence | `WS6-E5 KillSwitch`: output from `updater.rollback.test.js` plus ops approval note referencing release authority | Output includes `updates_disabled_globally` blocking update checks; release record confirms Release Engineering execution with incident commander approval and Security co-approval for trust-chain incidents | Kill-switch does not block checks, missing `updates_disabled_globally` evidence, or missing required ownership/approval record |
+
+### Gate decision
+
+- WS6 release readiness is **pass** only when all five artifacts (`WS6-E1`..`WS6-E5`) are present and all command results exit `0`.
+- WS6 release readiness is **fail** when any artifact is missing, any required marker/reason is absent, or any command fails.
+- A failed WS6 gate blocks release progression until corrected evidence is regenerated.
+
 ## WS4 — Electron Packaging Baseline (G-02-WU-02)
 
 ### Build baseline
@@ -377,7 +471,7 @@ Expected:
   - Set policy `channelVersionCeilings.stable` below discovered stable candidate.
   - Expected blocked reason: `candidate_version_above_channel_ceiling`.
 
-## WS6 — Desktop Signing Trust Chain (G-02-WU-04)
+## WS6A — Desktop Signing Trust Chain (Release Safety Stream)
 
 ### CI release gate expectations
 
@@ -406,3 +500,77 @@ Expected:
 6. Confirm attestation mismatch blocks release.
   - In a non-production test run, tamper either `artifacts/windows/windows-signed-installer.exe` or `artifacts/windows/provenance.attestation.json` before publish.
   - Expected: publish gate fails with a provenance mismatch/malformed attestation error and `Publish desktop draft release` does not execute.
+
+## G-03 — Reconciliation Invariants Checkpoint (G-03-WU-05)
+
+Run this checkpoint from repository root (`instruction-engine`) whenever validating state authority/reconciliation hardening:
+
+```bash
+node copilot-ui/lib/sessionAggregation.test.js
+node copilot-ui/lib/runtimeContracts.test.js
+node copilot-ui/lib/planningApiContracts.test.js
+node copilot-ui/server.lifecycle-proxy.test.js
+node copilot-ui/server.runtime-health.test.js
+```
+
+Expected checkpoint result:
+- each command exits with code `0`
+- authority precedence remains deterministic (`runtime > artifact`, with explicit `acp|acp-only|fs` authority outcomes)
+- stale/conflict downgrade markers and reason-code arrays are deterministic (sorted + deduped across equivalent inputs)
+- recovery-visible outputs remain explicit and deterministic (`recovery_checkpoint_only|recovery_ledger_only|recovery_missing_both`)
+- sessions API merged view exposes reconciliation metadata (`authority`, `sourceOfTruth`, `sourcePrecedence`, `sourceSet`)
+
+## G-04 — Finish Proxy Parity + Canonical Sandbox ID Invariant Checkpoint (G-04-WU-04)
+
+Run this checkpoint from repository root (`instruction-engine`) whenever validating cross-WS finish proxy behavior and canonical sandbox ID invariants:
+
+```bash
+node copilot-ui/server.lifecycle-proxy.test.js
+npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts
+```
+
+Expected checkpoint result:
+- each command exits with code `0`
+- finish proxy payload parity is enforced for both finish branches (`skip-pr` and `open-pr`)
+- canonical edited sandbox IDs remain stable across finish responses (`result.sandboxId` and `result.close.result.sandboxId`)
+- invariant violations fail deterministically with HTTP `409`, `code=canonical_sandbox_id_invariant_violation`, and `invariant.marker=conflict`
+- provider-state migration metadata is surfaced as deterministic context only and cannot rewrite persisted canonical sandbox IDs
+
+## G-05 — WS3 Authority Dependency Gate Checkpoint (G-05-WU-01)
+
+Run this checkpoint from repository root (`instruction-engine`) whenever validating planning durability dependency gating behavior:
+
+```bash
+node copilot-ui/server.lifecycle-proxy.test.js
+node copilot-ui/server.runtime-health.test.js
+```
+
+Expected checkpoint result:
+- each command exits with code `0`
+- WS3 authority dependency gate reports deterministic readiness metadata in `GET /api/health` (`planningDurabilityDependencyGate`)
+- when gate readiness is not satisfied, planning durability routes fail closed with HTTP `503`, `code=planning_durability_dependency_gate_blocked`, and `dependencyGate.marker=dependency-blocked`
+- non-durability routes (for example `GET /api/sessions`) remain backward compatible and continue to succeed while the durability gate is blocked
+
+## G-05 — Crash Write-Through + Restart Durability Pack (G-05-WU-05)
+
+Run this narrow durability pack from repository root (`instruction-engine`) to validate crash/restart persistence behavior and deterministic recovery markers:
+
+```bash
+node copilot-ui/lib/planningPersistence.test.js
+node copilot-ui/lib/planningApiContracts.test.js
+node copilot-ui/server.lifecycle-proxy.test.js
+```
+
+Expected durability outcomes:
+- `planningPersistence.test.js` proves write-through crash modes are explicit: pre-write crash leaves no persisted row; post-write crash is recoverable by persisted read-back after restart simulation.
+- `planningApiContracts.test.js` proves projection hydration after crash never assumes silent partial writes: non-durable in-memory records are dropped, and restart state converges to persisted authority.
+- `server.lifecycle-proxy.test.js` proves restart recovery markers are deterministic for checkpoint-only, ledger-only, and reconciled states.
+
+Reproducible sequence (single pass):
+1. Run all three commands in order as shown above.
+2. Confirm each command exits `0`.
+3. Verify output includes PASS lines for the new durability scenarios:
+  - `write-through crash before DB mutation fails without silent partial write assumptions`
+  - `write-through crash after DB mutation is restart-recoverable via persisted authority read-back`
+  - `projection hydration after crash drops non-durable in-memory records and restores deterministically on restart`
+  - `deriveBackfillRecoveryMarker models crash write-through and restart recovery sequence deterministically`

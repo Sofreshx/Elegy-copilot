@@ -13,15 +13,26 @@ const planState = require('./lib/planState');
 const { resolvePermissionLocations } = require('./lib/permissionLocationsResolver');
 const {
   CAPABILITY_STATES,
+  RUNTIME_PROVIDER_SELECTION_SOURCES,
+  SESSION_RECONCILIATION_CONTRACT_VERSION,
+  SESSION_RECONCILIATION_SOURCES,
+  SESSION_RECONCILIATION_SOURCE_PRECEDENCE,
+  SESSION_RECONCILIATION_SOURCE_OF_TRUTH,
+  SESSION_STATE_AUTHORITIES,
   normalizeCapabilityState,
   buildCompatibilityRuntimeContract,
 } = require('./lib/runtimeContracts');
 const {
   buildPlanningScopeIsolationPredicate,
+  deriveNextPlanningRecordNumber,
   deriveBackfillRecoveryMarker,
   deriveBackfillSourceIdempotencyKey,
+  buildPlanningProviderStatePersistencePayload,
   evaluatePlanningOptimisticConcurrencyGuard,
+  listPersistedPlanningRecords,
+  persistPlanningRecord,
   readPlanningPersistenceConfig,
+  readPlanningProviderState,
   reconcileBackfillItemStatusTransition,
   validatePlanningPersistenceConfig,
   validatePlanningReadWriteContext,
@@ -38,12 +49,143 @@ const {
 } = require('./lib/planningSemantic');
 const {
   PLANNING_API_CONTRACT_VERSION,
+  buildPlanningPersistenceHealthEnvelope,
+  buildFinishCompatibilityHookContract,
+  evaluateProviderLifecycleCapability,
+  buildLifecycleUnsupportedCapabilityMarker,
   createPlanningApiState,
+  replacePlanningProjectionFromPersistedRecords,
   createPlanningRecordOperation,
   listPlanningRecordsOperation,
   searchPlanningRecordsOperation,
   comparePlanningRecordsOperation,
 } = require('./lib/planningApiContracts');
+
+const WS3_AUTHORITY_DEPENDENCY_GATE_CONTRACT_VERSION = '1';
+const WS3_AUTHORITY_DEPENDENCY_NAME = 'ws3_authority_reconciliation_contract';
+const WS3_AUTHORITY_DEPENDENCY_BLOCK_CODE = 'planning_durability_dependency_gate_blocked';
+const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION = '1';
+const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY = 'mixed-version-lifecycle-v1';
+const LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION = 'x-instruction-engine-lifecycle-contract-version';
+const LIFECYCLE_COMPATIBILITY_HEADER_CAPABILITY = 'x-instruction-engine-lifecycle-capability';
+
+function normalizeLifecycleCompatibilityToken(value) {
+  if (Array.isArray(value)) {
+    return normalizeLifecycleCompatibilityToken(value.length > 0 ? value[0] : '');
+  }
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim().toLowerCase();
+}
+
+function readLifecycleCompatibilityHeaderToken(headers, headerName) {
+  const source = headers && typeof headers === 'object' ? headers : {};
+  const token = source[String(headerName || '').toLowerCase()];
+  return normalizeLifecycleCompatibilityToken(token);
+}
+
+function createLifecycleCompatibilityRequestHeaders() {
+  return {
+    'X-Instruction-Engine-Lifecycle-Contract-Version': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+    'X-Instruction-Engine-Lifecycle-Capability': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+  };
+}
+
+function buildLifecycleMixedVersionUnsupportedMarker(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const directionToken = String(source.direction || '').trim().toLowerCase();
+  const direction = directionToken === 'old_client_new_tracker'
+    ? 'old_client_new_tracker'
+    : 'new_client_old_tracker';
+
+  return {
+    error: 'Lifecycle compatibility unsupported',
+    code: 'lifecycle_compatibility_unsupported',
+    action: String(source.action || '').trim() || null,
+    reason: String(source.reason || '').trim() || 'compatibility_check_failed',
+    deterministic: true,
+    unsupported: {
+      marker: 'unsupported',
+      direction,
+      expected: {
+        contractVersion: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+        capability: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+      },
+      received: {
+        contractVersion: String(source.receivedContractVersion || '').trim() || null,
+        capability: String(source.receivedCapability || '').trim() || null,
+      },
+    },
+    compatibility: {
+      contractVersion: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+      capability: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+      direction,
+    },
+  };
+}
+
+function evaluateLifecycleMixedVersionCompatibility(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const directionToken = String(source.direction || '').trim().toLowerCase();
+  const direction = directionToken === 'old_client_new_tracker'
+    ? 'old_client_new_tracker'
+    : 'new_client_old_tracker';
+  const reasonPrefix = direction === 'old_client_new_tracker' ? 'client' : 'tracker';
+
+  const receivedContractVersion = readLifecycleCompatibilityHeaderToken(
+    source.headers,
+    LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION
+  );
+  const receivedCapability = readLifecycleCompatibilityHeaderToken(
+    source.headers,
+    LIFECYCLE_COMPATIBILITY_HEADER_CAPABILITY
+  );
+
+  const expectedContractVersion = normalizeLifecycleCompatibilityToken(
+    LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION
+  );
+  const expectedCapability = normalizeLifecycleCompatibilityToken(
+    LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY
+  );
+
+  let reason = '';
+  if (!receivedContractVersion) {
+    reason = `${reasonPrefix}_contract_version_missing`;
+  } else if (receivedContractVersion !== expectedContractVersion) {
+    reason = `${reasonPrefix}_contract_version_unsupported`;
+  } else if (!receivedCapability) {
+    reason = `${reasonPrefix}_capability_missing`;
+  } else if (receivedCapability !== expectedCapability) {
+    reason = `${reasonPrefix}_capability_unsupported`;
+  }
+
+  if (!reason) {
+    return {
+      compatible: true,
+      direction,
+      reason: 'compatibility_supported',
+      receivedContractVersion: receivedContractVersion || null,
+      receivedCapability: receivedCapability || null,
+    };
+  }
+
+  return {
+    compatible: false,
+    statusCode: 501,
+    direction,
+    reason,
+    receivedContractVersion: receivedContractVersion || null,
+    receivedCapability: receivedCapability || null,
+    body: buildLifecycleMixedVersionUnsupportedMarker({
+      action: source.action,
+      direction,
+      reason,
+      receivedContractVersion,
+      receivedCapability,
+    }),
+  };
+}
 
 function createChangeTracker(copilotHomeAbs, vscodeHomeAbs, sandboxesHomeAbs) {
   let version = 0;
@@ -359,7 +501,7 @@ let runtimeHealthCache = {
   value: null,
 };
 
-function getRuntimeHealth({ engineRoot, sandboxesHome }) {
+function getRuntimeHealth({ engineRoot, sandboxesHome, providerState }) {
   const now = Date.now();
   if (runtimeHealthCache.value && now < runtimeHealthCache.expiresAtMs) {
     return runtimeHealthCache.value;
@@ -368,9 +510,18 @@ function getRuntimeHealth({ engineRoot, sandboxesHome }) {
   const docker = detectDockerCapability();
   const wsl2 = detectWsl2Capability();
   const sandbox = detectSandboxCapability(docker, sandboxesHome);
+  const resolvedProviderState = readPlanningProviderState({
+    persistedState: providerState,
+    env: process.env,
+  });
+  const canonicalProviderState = buildPlanningProviderStatePersistencePayload(resolvedProviderState);
 
   const runtime = buildCompatibilityRuntimeContract({
     mode: process.env.INSTRUCTION_ENGINE_RUNTIME_MODE,
+    selectedProvider: canonicalProviderState.selectionSource === RUNTIME_PROVIDER_SELECTION_SOURCES.EXPLICIT
+      ? canonicalProviderState.selectedProvider
+      : null,
+    defaultProvider: canonicalProviderState.defaultProvider,
     engineRoot,
     capabilities: {
       docker,
@@ -378,6 +529,8 @@ function getRuntimeHealth({ engineRoot, sandboxesHome }) {
       sandbox,
     },
   });
+
+  runtime.finishCompatibilityHook = buildFinishCompatibilityHookContract();
 
   runtimeHealthCache = {
     value: runtime,
@@ -467,9 +620,11 @@ async function readJsonBody(req, maxBytes = 256 * 1024) {
 
 const OPEN_TERMINAL_ALLOWED_LAUNCHERS = new Set(['auto', 'pwsh', 'terminal', 'x-terminal-emulator']);
 const OPEN_TERMINAL_ALLOWED_PROFILES = new Set(['default']);
+const FINISH_PR_ACTIONS = new Set(['skip-pr', 'open-pr', 'open-pr:canceled']);
 const SHELL_META_CHAR_RE = /[;&|`<>]/;
 const SHELL_EXPANSION_RE = /(\$\(|\$\{|\$[A-Za-z_][A-Za-z0-9_]*|%[^%\r\n\s]+%|![^!\r\n\s]+!)/;
 const SANDBOX_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/;
+const BRANCH_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,127}$/;
 
 function containsUnsafeShellSyntax(input) {
   const value = String(input || '');
@@ -567,6 +722,235 @@ function validateOpenTerminalLifecyclePayload(payload) {
       ...(profile ? { profile } : {}),
     },
   };
+}
+
+function validateLifecycleBranchToken(value, fieldName) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_lifecycle_payload',
+        reason: `missing_or_invalid_${fieldName}`,
+      },
+    };
+  }
+
+  const branch = value.trim();
+  if (containsUnsafeShellSyntax(branch)) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_lifecycle_payload',
+        reason: `unsafe_shell_syntax:${fieldName}`,
+      },
+    };
+  }
+
+  if (!BRANCH_NAME_RE.test(branch)) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_lifecycle_payload',
+        reason: `invalid_${fieldName}_format`,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    value: branch,
+  };
+}
+
+function validateFinishLifecyclePayload(payload) {
+  if (!isPlainObject(payload)) {
+    return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'payload_not_object' } };
+  }
+
+  const forbiddenEnvPath = findForbiddenEnvPath(payload);
+  if (forbiddenEnvPath) {
+    return { ok: false, error: { code: 'env_injection_denied', reason: `forbidden_field:${forbiddenEnvPath}` } };
+  }
+
+  for (const key of Object.keys(payload)) {
+    if (key !== 'sandboxId' && key !== 'prAction' && key !== 'baseBranch' && key !== 'headBranch') {
+      return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: `unexpected_field:${key}` } };
+    }
+  }
+
+  if (typeof payload.sandboxId !== 'string' || !payload.sandboxId.trim()) {
+    return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'missing_or_invalid_sandbox_id' } };
+  }
+
+  const sandboxId = payload.sandboxId.trim();
+  if (containsUnsafeShellSyntax(sandboxId)) {
+    return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'unsafe_shell_syntax:sandboxId' } };
+  }
+  if (!SANDBOX_ID_RE.test(sandboxId)) {
+    return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'invalid_sandbox_id_format' } };
+  }
+
+  const prActionToken = payload.prAction === undefined || payload.prAction === null
+    ? 'skip-pr'
+    : String(payload.prAction).trim();
+
+  if (!FINISH_PR_ACTIONS.has(prActionToken)) {
+    return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'invalid_finish_pr_action' } };
+  }
+
+  if (prActionToken !== 'open-pr' && (payload.baseBranch !== undefined || payload.headBranch !== undefined)) {
+    return { ok: false, error: { code: 'invalid_lifecycle_payload', reason: 'pr_branches_require_open_pr_action' } };
+  }
+
+  if (prActionToken === 'open-pr') {
+    const baseBranch = validateLifecycleBranchToken(payload.baseBranch, 'baseBranch');
+    if (!baseBranch.ok) return baseBranch;
+
+    const headBranch = validateLifecycleBranchToken(payload.headBranch, 'headBranch');
+    if (!headBranch.ok) return headBranch;
+
+    return {
+      ok: true,
+      value: {
+        sandboxId,
+        prAction: prActionToken,
+        baseBranch: baseBranch.value,
+        headBranch: headBranch.value,
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    value: {
+      sandboxId,
+      prAction: prActionToken,
+    },
+  };
+}
+
+function collectFinishResponseSandboxObservations(body) {
+  if (!isPlainObject(body)) return [];
+
+  const observations = [];
+  const seen = new Set();
+
+  const appendObservation = (pathToken, value) => {
+    if (typeof value !== 'string') return;
+    const sandboxId = value.trim();
+    if (!sandboxId) return;
+    const dedupeKey = `${pathToken}:${sandboxId}`;
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    observations.push({ path: pathToken, sandboxId });
+  };
+
+  appendObservation('sandboxId', body.sandboxId);
+
+  const result = isPlainObject(body.result) ? body.result : null;
+  if (result) {
+    appendObservation('result.sandboxId', result.sandboxId);
+    const close = isPlainObject(result.close) ? result.close : null;
+    const closeResult = close && isPlainObject(close.result) ? close.result : null;
+    if (closeResult) {
+      appendObservation('result.close.result.sandboxId', closeResult.sandboxId);
+    }
+  }
+
+  const close = isPlainObject(body.close) ? body.close : null;
+  const closeResult = close && isPlainObject(close.result) ? close.result : null;
+  if (closeResult) {
+    appendObservation('close.result.sandboxId', closeResult.sandboxId);
+  }
+
+  return observations;
+}
+
+function buildLifecycleInvariantViolationBody({ expectedSandboxId, observed, prAction, providerState }) {
+  const migration = providerState && isPlainObject(providerState.migration)
+    ? providerState.migration
+    : {};
+  const migrationReasonCodes = normalizeDeterministicReasonCodes(
+    Array.isArray(migration.reasonCodes) ? migration.reasonCodes : []
+  );
+  const reasonCodes = normalizeDeterministicReasonCodes([
+    'canonical_sandbox_id_mismatch',
+    'canonical_sandbox_id_persisted_invariant',
+    prAction === 'open-pr' ? 'finish_pr_open_path' : 'finish_pr_skip_path',
+    migration.required ? 'provider_state_migration_present' : '',
+    ...migrationReasonCodes,
+  ]);
+
+  return {
+    error: 'Lifecycle canonical sandboxId invariant violated',
+    code: 'canonical_sandbox_id_invariant_violation',
+    action: 'finish',
+    reason: 'canonical_sandbox_id_mismatch',
+    deterministic: true,
+    invariant: {
+      marker: 'conflict',
+      scope: 'cross_ws_canonical_id',
+      expectedSandboxId,
+      receivedSandboxId: observed.sandboxId,
+      receivedPath: observed.path,
+      reasonCodes,
+      providerState: {
+        selectedProvider: providerState && typeof providerState.selectedProvider === 'string'
+          ? providerState.selectedProvider
+          : null,
+        defaultProvider: providerState && typeof providerState.defaultProvider === 'string'
+          ? providerState.defaultProvider
+          : null,
+        migration: {
+          required: Boolean(migration.required),
+          reasonCodes: migrationReasonCodes,
+        },
+      },
+    },
+  };
+}
+
+function validateFinishCanonicalSandboxIdInvariant({ canonicalSandboxId, prAction, trackerBody, providerState }) {
+  if (typeof canonicalSandboxId !== 'string' || !canonicalSandboxId.trim()) {
+    return {
+      ok: false,
+      statusCode: 409,
+      body: {
+        error: 'Lifecycle canonical sandboxId invariant violated',
+        code: 'canonical_sandbox_id_invariant_violation',
+        action: 'finish',
+        reason: 'missing_canonical_sandbox_id',
+        deterministic: true,
+        invariant: {
+          marker: 'conflict',
+          scope: 'cross_ws_canonical_id',
+          expectedSandboxId: null,
+          receivedSandboxId: null,
+          receivedPath: null,
+          reasonCodes: ['missing_canonical_sandbox_id'],
+        },
+      },
+    };
+  }
+
+  const expectedSandboxId = canonicalSandboxId.trim();
+  const observations = collectFinishResponseSandboxObservations(trackerBody);
+  for (const observation of observations) {
+    if (observation.sandboxId !== expectedSandboxId) {
+      return {
+        ok: false,
+        statusCode: 409,
+        body: buildLifecycleInvariantViolationBody({
+          expectedSandboxId,
+          observed: observation,
+          prAction,
+          providerState,
+        }),
+      };
+    }
+  }
+
+  return { ok: true };
 }
 
 function normalizeScopeList(scopes) {
@@ -716,6 +1100,254 @@ function resolveRequestIdempotencyKey(req, body = null) {
   );
 }
 
+function resolvePlanningPersistenceAuthorityState(planningPersistenceConfig, planningPersistenceState) {
+  const state = planningPersistenceState && typeof planningPersistenceState === 'object'
+    ? planningPersistenceState
+    : {};
+  const validation = state.validation || validatePlanningPersistenceConfig(planningPersistenceConfig || {});
+  const client = state.client && typeof state.client.query === 'function'
+    ? state.client
+    : null;
+
+  const persistedAuthority = Boolean(validation.usable);
+  const ready = persistedAuthority && Boolean(client) && String(state.status || '') === 'ready';
+
+  return {
+    persistedAuthority,
+    ready,
+    client,
+    status: String(state.status || ''),
+    validation,
+    lastError: String(state.lastError || '').trim() || null,
+  };
+}
+
+function buildPlanningPersistenceFailure(pathname, method, input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const reason = String(source.reason || '').trim() || 'planning_persistence_unavailable';
+  const code = String(source.code || '').trim() || 'planning_persistence_unavailable';
+  const statusCode = Number.isFinite(source.statusCode) ? Number(source.statusCode) : 503;
+
+  return {
+    statusCode,
+    body: {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: resolvePlanningDurabilityGateKind(pathname, method),
+      deterministic: true,
+      error: String(source.error || 'Planning persistence unavailable'),
+      code,
+      reason,
+      planningPersistence: {
+        authority: 'db',
+        configured: Boolean(source.configured),
+        usable: Boolean(source.usable),
+        required: Boolean(source.required),
+        ready: Boolean(source.ready),
+        status: String(source.status || '').trim() || null,
+      },
+    },
+  };
+}
+
+async function hydratePlanningProjectionFromPersistence(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const authority = resolvePlanningPersistenceAuthorityState(
+    source.planningPersistenceConfig,
+    source.planningPersistenceState,
+  );
+
+  if (!authority.persistedAuthority) {
+    return {
+      ok: true,
+      persistedAuthority: false,
+      ready: false,
+      client: null,
+    };
+  }
+
+  if (!authority.ready) {
+    return {
+      ok: false,
+      failure: buildPlanningPersistenceFailure(source.pathname, source.method, {
+        statusCode: 503,
+        code: 'planning_persistence_unavailable',
+        error: 'Planning persistence unavailable',
+        reason: authority.lastError || 'planning_persistence_not_ready',
+        configured: authority.validation.configured,
+        usable: authority.validation.usable,
+        required: authority.validation.required,
+        ready: authority.ready,
+        status: authority.status,
+      }),
+    };
+  }
+
+  const context = source.context && typeof source.context === 'object' ? source.context : {};
+  if (!normalizeIdentity(context.userId)) {
+    return {
+      ok: true,
+      persistedAuthority: true,
+      ready: true,
+      client: authority.client,
+    };
+  }
+
+  try {
+    const projection = await listPersistedPlanningRecords(authority.client, {
+      actorId: context.userId,
+      repoId: context.repoId,
+      scopes: source.scopes,
+    });
+
+    if (!projection.ok) {
+      const reason = projection.error && projection.error.reason
+        ? projection.error.reason
+        : 'planning_persistence_read_denied';
+      const code = projection.error && projection.error.code
+        ? projection.error.code
+        : 'planning_persistence_read_failed';
+
+      return {
+        ok: false,
+        failure: buildPlanningPersistenceFailure(source.pathname, source.method, {
+          statusCode: code === 'scope_visibility_denied' ? 403 : 503,
+          code,
+          error: 'Planning persistence read failed',
+          reason,
+          configured: authority.validation.configured,
+          usable: authority.validation.usable,
+          required: authority.validation.required,
+          ready: authority.ready,
+          status: authority.status,
+        }),
+      };
+    }
+
+    replacePlanningProjectionFromPersistedRecords(source.planningApiState, {
+      records: projection.records,
+      nextRecordNumber: deriveNextPlanningRecordNumber(projection.records),
+    });
+
+    return {
+      ok: true,
+      persistedAuthority: true,
+      ready: true,
+      client: authority.client,
+      projection,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      failure: buildPlanningPersistenceFailure(source.pathname, source.method, {
+        statusCode: 503,
+        code: 'planning_persistence_read_failed',
+        error: 'Planning persistence read failed',
+        reason: 'planning_persistence_read_failed',
+        configured: authority.validation.configured,
+        usable: authority.validation.usable,
+        required: authority.validation.required,
+        ready: authority.ready,
+        status: authority.status,
+        detail: String(error && error.message ? error.message : error),
+      }),
+    };
+  }
+}
+
+async function persistPlanningRecordToAuthority(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const authority = resolvePlanningPersistenceAuthorityState(
+    source.planningPersistenceConfig,
+    source.planningPersistenceState,
+  );
+
+  if (!authority.persistedAuthority) {
+    return {
+      ok: true,
+      persistedAuthority: false,
+      record: source.record,
+    };
+  }
+
+  if (!authority.ready) {
+    return {
+      ok: false,
+      failure: buildPlanningPersistenceFailure(source.pathname, source.method, {
+        statusCode: 503,
+        code: 'planning_persistence_unavailable',
+        error: 'Planning persistence unavailable',
+        reason: authority.lastError || 'planning_persistence_not_ready',
+        configured: authority.validation.configured,
+        usable: authority.validation.usable,
+        required: authority.validation.required,
+        ready: authority.ready,
+        status: authority.status,
+      }),
+    };
+  }
+
+  try {
+    const persisted = await persistPlanningRecord(authority.client, {
+      actorId: source.context && source.context.userId,
+      record: source.record,
+    });
+
+    if (!persisted.ok) {
+      const reason = persisted.error && persisted.error.reason
+        ? persisted.error.reason
+        : 'planning_persistence_write_failed';
+      const code = persisted.error && persisted.error.code
+        ? persisted.error.code
+        : 'planning_persistence_write_failed';
+
+      return {
+        ok: false,
+        failure: buildPlanningPersistenceFailure(source.pathname, source.method, {
+          statusCode: code === 'scope_visibility_denied' ? 403 : 503,
+          code,
+          error: 'Planning persistence write failed',
+          reason,
+          configured: authority.validation.configured,
+          usable: authority.validation.usable,
+          required: authority.validation.required,
+          ready: authority.ready,
+          status: authority.status,
+        }),
+      };
+    }
+
+    return {
+      ok: true,
+      persistedAuthority: true,
+      record: persisted.record || source.record,
+    };
+  } catch {
+    return {
+      ok: false,
+      failure: buildPlanningPersistenceFailure(source.pathname, source.method, {
+        statusCode: 503,
+        code: 'planning_persistence_write_failed',
+        error: 'Planning persistence write failed',
+        reason: 'planning_persistence_write_failed',
+        configured: authority.validation.configured,
+        usable: authority.validation.usable,
+        required: authority.validation.required,
+        ready: authority.ready,
+        status: authority.status,
+      }),
+    };
+  }
+}
+
+function parseDeterministicBooleanFlag(input) {
+  if (typeof input !== 'string') return null;
+  const value = input.trim().toLowerCase();
+  if (!value) return null;
+  if (value === '1' || value === 'true' || value === 'yes' || value === 'on') return true;
+  if (value === '0' || value === 'false' || value === 'no' || value === 'off') return false;
+  return null;
+}
+
 const PLANNING_MERGE_MAX_TOKEN_TTL_MS = 15 * 60 * 1000;
 const PLANNING_MERGE_DEFAULT_TOKEN_TTL_MS = 5 * 60 * 1000;
 const PLANNING_COMPARE_RECEIPT_TTL_MS = 10 * 60 * 1000;
@@ -783,26 +1415,386 @@ function buildPlanningSourceIdsHash(sourceIds = []) {
   return legacyStableHash(normalized);
 }
 
+function normalizeDeterministicReasonCodes(values) {
+  const list = Array.isArray(values) ? values : [];
+  const normalized = [];
+  for (const value of list) {
+    const reason = String(value || '').trim();
+    if (!reason) continue;
+    normalized.push(reason);
+  }
+  return [...new Set(normalized)].sort((a, b) => a.localeCompare(b));
+}
+
+function evaluatePlanningDurabilityDependencyGate(input = {}) {
+  const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  const env = source.env && typeof source.env === 'object' ? source.env : process.env;
+  const reasonCodes = [];
+
+  if (parseDeterministicBooleanFlag(env.INSTRUCTION_ENGINE_FORCE_WS3_AUTHORITY_GATE_BLOCKED) === true) {
+    reasonCodes.push('ws3_authority_gate_forced_blocked');
+  }
+
+  const sessionReconciliationContractVersion = String(SESSION_RECONCILIATION_CONTRACT_VERSION || '').trim();
+  if (!sessionReconciliationContractVersion) {
+    reasonCodes.push('ws3_reconciliation_contract_version_missing');
+  }
+
+  const planningPrecedenceContractVersion = String(planState.PLANNING_PRECEDENCE_CONTRACT_VERSION || '').trim();
+  if (!planningPrecedenceContractVersion) {
+    reasonCodes.push('ws3_planning_precedence_contract_version_missing');
+  }
+
+  const requiredAuthorities = [
+    String(SESSION_STATE_AUTHORITIES.RUNTIME || '').trim(),
+    String(SESSION_STATE_AUTHORITIES.RUNTIME_ONLY || '').trim(),
+    String(SESSION_STATE_AUTHORITIES.ARTIFACT || '').trim(),
+  ].filter(Boolean);
+  const availableAuthorities = new Set(
+    Object.values(SESSION_STATE_AUTHORITIES || {})
+      .map((value) => String(value || '').trim())
+      .filter(Boolean),
+  );
+
+  if (!availableAuthorities.has(SESSION_STATE_AUTHORITIES.RUNTIME)) {
+    reasonCodes.push('ws3_authority_acp_missing');
+  }
+  if (!availableAuthorities.has(SESSION_STATE_AUTHORITIES.RUNTIME_ONLY)) {
+    reasonCodes.push('ws3_authority_acp_only_missing');
+  }
+  if (!availableAuthorities.has(SESSION_STATE_AUTHORITIES.ARTIFACT)) {
+    reasonCodes.push('ws3_authority_fs_missing');
+  }
+
+  const runtimeSourcePrecedence = Number(
+    SESSION_RECONCILIATION_SOURCE_PRECEDENCE[SESSION_RECONCILIATION_SOURCES.RUNTIME] || 0,
+  );
+  const artifactSourcePrecedence = Number(
+    SESSION_RECONCILIATION_SOURCE_PRECEDENCE[SESSION_RECONCILIATION_SOURCES.ARTIFACT] || 0,
+  );
+
+  if (!(runtimeSourcePrecedence > artifactSourcePrecedence)) {
+    reasonCodes.push('ws3_source_precedence_not_runtime_over_artifact');
+  }
+
+  if (
+    SESSION_RECONCILIATION_SOURCE_OF_TRUTH[SESSION_STATE_AUTHORITIES.RUNTIME]
+    !== SESSION_RECONCILIATION_SOURCES.RUNTIME
+  ) {
+    reasonCodes.push('ws3_source_of_truth_runtime_mismatch');
+  }
+  if (
+    SESSION_RECONCILIATION_SOURCE_OF_TRUTH[SESSION_STATE_AUTHORITIES.RUNTIME_ONLY]
+    !== SESSION_RECONCILIATION_SOURCES.RUNTIME
+  ) {
+    reasonCodes.push('ws3_source_of_truth_runtime_only_mismatch');
+  }
+  if (
+    SESSION_RECONCILIATION_SOURCE_OF_TRUTH[SESSION_STATE_AUTHORITIES.ARTIFACT]
+    !== SESSION_RECONCILIATION_SOURCES.ARTIFACT
+  ) {
+    reasonCodes.push('ws3_source_of_truth_artifact_mismatch');
+  }
+
+  const userScopePrecedence = Number(planState.PLANNING_SCOPE_PRECEDENCE.user || 0);
+  const repoScopePrecedence = Number(planState.PLANNING_SCOPE_PRECEDENCE.repo || 0);
+  const globalScopePrecedence = Number(planState.PLANNING_SCOPE_PRECEDENCE.global || 0);
+  if (!(userScopePrecedence > repoScopePrecedence && repoScopePrecedence > globalScopePrecedence)) {
+    reasonCodes.push('ws3_scope_precedence_invalid');
+  }
+
+  const normalizedReasonCodes = normalizeDeterministicReasonCodes(reasonCodes);
+  const ready = normalizedReasonCodes.length === 0;
+
+  return {
+    contractVersion: WS3_AUTHORITY_DEPENDENCY_GATE_CONTRACT_VERSION,
+    dependency: WS3_AUTHORITY_DEPENDENCY_NAME,
+    deterministic: true,
+    required: true,
+    ready,
+    marker: ready ? 'ready' : 'dependency-blocked',
+    reason: ready ? 'ws3_authority_contract_ready' : normalizedReasonCodes[0],
+    reasonCodes: ready ? ['ws3_authority_contract_ready'] : normalizedReasonCodes,
+    ws3: {
+      sessionReconciliationContractVersion: sessionReconciliationContractVersion || null,
+      planningPrecedenceContractVersion: planningPrecedenceContractVersion || null,
+      authorities: requiredAuthorities,
+      sourcePrecedence: {
+        runtime: runtimeSourcePrecedence,
+        artifact: artifactSourcePrecedence,
+      },
+      sourceOfTruth: {
+        runtime: SESSION_RECONCILIATION_SOURCE_OF_TRUTH[SESSION_STATE_AUTHORITIES.RUNTIME] || null,
+        runtimeOnly: SESSION_RECONCILIATION_SOURCE_OF_TRUTH[SESSION_STATE_AUTHORITIES.RUNTIME_ONLY] || null,
+        artifact: SESSION_RECONCILIATION_SOURCE_OF_TRUTH[SESSION_STATE_AUTHORITIES.ARTIFACT] || null,
+      },
+      planningScopePrecedence: {
+        user: userScopePrecedence,
+        repo: repoScopePrecedence,
+        global: globalScopePrecedence,
+      },
+    },
+  };
+}
+
+function isPlanningDurabilityRoute(pathname) {
+  const route = String(pathname || '').trim();
+  return (
+    route === '/api/planning/records'
+    || route === '/api/planning/search'
+    || route === '/api/planning/compare'
+    || route === '/api/planning/merge-intent'
+    || route === '/api/planning/merge'
+  );
+}
+
+function resolvePlanningDurabilityGateKind(pathname, method) {
+  const route = String(pathname || '').trim();
+  const normalizedMethod = String(method || 'GET').trim().toUpperCase();
+
+  if (route === '/api/planning/records') {
+    return normalizedMethod === 'POST' ? 'planning.create' : 'planning.list';
+  }
+  if (route === '/api/planning/search') {
+    return 'planning.search';
+  }
+  if (route === '/api/planning/compare') {
+    return 'planning.compare';
+  }
+  if (route === '/api/planning/merge-intent') {
+    return 'planning.merge-intent';
+  }
+  if (route === '/api/planning/merge') {
+    return 'planning.merge';
+  }
+
+  return 'planning.unknown';
+}
+
+function buildPlanningDurabilityDependencyGateFailure(pathname, method, gateState) {
+  const gate = gateState && typeof gateState === 'object' ? gateState : {};
+  const reason = String(gate.reason || '').trim() || 'ws3_authority_contract_not_ready';
+
+  return {
+    statusCode: 503,
+    body: {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: resolvePlanningDurabilityGateKind(pathname, method),
+      deterministic: true,
+      error: 'Planning durability dependency gate blocked',
+      code: WS3_AUTHORITY_DEPENDENCY_BLOCK_CODE,
+      reason,
+      dependencyGate: {
+        marker: 'dependency-blocked',
+        dependency: String(gate.dependency || WS3_AUTHORITY_DEPENDENCY_NAME),
+        required: true,
+        ready: false,
+        contractVersion: String(gate.contractVersion || WS3_AUTHORITY_DEPENDENCY_GATE_CONTRACT_VERSION),
+        reasonCodes: normalizeDeterministicReasonCodes(gate.reasonCodes && gate.reasonCodes.length
+          ? gate.reasonCodes
+          : [reason]),
+        ws3: gate.ws3 || null,
+      },
+    },
+  };
+}
+
+function normalizePlanningDowngradeMarker(input = {}, fallbackMarker = 'conflict') {
+  const marker = input && typeof input === 'object' ? input : {};
+  const markerToken = String(marker.marker || fallbackMarker).trim().toLowerCase();
+  const normalizedMarker = markerToken === 'stale'
+    ? 'stale'
+    : markerToken === 'conflict'
+      ? 'conflict'
+      : fallbackMarker;
+
+  const statusToken = String(marker.status || (normalizedMarker === 'stale' ? 'stale' : 'invalid')).trim().toLowerCase();
+  const status = statusToken || (normalizedMarker === 'stale' ? 'stale' : 'invalid');
+  const reason = String(
+    marker.reason
+    || marker.reasonCode
+    || (normalizedMarker === 'stale' ? 'source_stale' : 'source_conflict')
+  ).trim() || (normalizedMarker === 'stale' ? 'source_stale' : 'source_conflict');
+
+  return {
+    sourceId: String(marker.sourceId || '').trim() || null,
+    sourceType: String(marker.sourceType || '').trim() || null,
+    path: String(marker.path || '').trim() || null,
+    scope: String(marker.scope || '').trim() || null,
+    status,
+    reason,
+    marker: normalizedMarker,
+  };
+}
+
+function sortPlanningDowngradeMarkers(markers) {
+  return markers.sort((a, b) => {
+    const sourceDiff = String(a.sourceId || '').localeCompare(String(b.sourceId || ''));
+    if (sourceDiff !== 0) return sourceDiff;
+    const scopeDiff = String(a.scope || '').localeCompare(String(b.scope || ''));
+    if (scopeDiff !== 0) return scopeDiff;
+    return String(a.reason || '').localeCompare(String(b.reason || ''));
+  });
+}
+
+function dedupePlanningDowngradeMarkers(markers) {
+  const deduped = new Map();
+  for (const marker of markers) {
+    const normalized = normalizePlanningDowngradeMarker(marker, marker && marker.marker === 'stale' ? 'stale' : 'conflict');
+    const key = [
+      String(normalized.marker || ''),
+      String(normalized.sourceId || ''),
+      String(normalized.scope || ''),
+      String(normalized.reason || ''),
+      String(normalized.status || ''),
+    ].join('|');
+    if (!deduped.has(key)) {
+      deduped.set(key, normalized);
+    }
+  }
+  return sortPlanningDowngradeMarkers(Array.from(deduped.values()));
+}
+
+function derivePlanningDowngradeMarkers(compareBody = {}) {
+  const implementedOutcomes = compareBody && typeof compareBody.implementedOutcomes === 'object'
+    ? compareBody.implementedOutcomes
+    : {};
+  const sourceMarkers = Array.isArray(implementedOutcomes.sources)
+    ? implementedOutcomes.sources
+    : [];
+
+  let staleMarkers = Array.isArray(implementedOutcomes.staleMarkers)
+    ? implementedOutcomes.staleMarkers.map((marker) => normalizePlanningDowngradeMarker(marker, 'stale'))
+    : [];
+  let conflictMarkers = Array.isArray(implementedOutcomes.conflictMarkers)
+    ? implementedOutcomes.conflictMarkers.map((marker) => normalizePlanningDowngradeMarker(marker, 'conflict'))
+    : [];
+
+  const deriveStaleFromSources = staleMarkers.length === 0;
+  const deriveConflictFromSources = conflictMarkers.length === 0;
+
+  if (deriveStaleFromSources || deriveConflictFromSources) {
+    for (const marker of sourceMarkers) {
+      const normalized = normalizePlanningDowngradeMarker(marker, 'conflict');
+      if (deriveStaleFromSources && normalized.status === 'stale') {
+        staleMarkers.push({ ...normalized, marker: 'stale' });
+      }
+      if (deriveConflictFromSources && (normalized.status === 'invalid' || normalized.status === 'unavailable')) {
+        conflictMarkers.push({ ...normalized, marker: 'conflict' });
+      }
+    }
+  }
+
+  if (compareBody.newerDataAvailable === true) {
+    staleMarkers.push(normalizePlanningDowngradeMarker({
+      sourceId: 'version-vector',
+      sourceType: 'version-vector',
+      status: 'stale',
+      reason: 'newer_data_available',
+      marker: 'stale',
+    }, 'stale'));
+  }
+
+  const deniedScopes = [...new Set((Array.isArray(compareBody.deniedScopes) ? compareBody.deniedScopes : [])
+    .map((scope) => String(scope || '').trim().toLowerCase())
+    .filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+
+  for (const scope of deniedScopes) {
+    conflictMarkers.push(normalizePlanningDowngradeMarker({
+      sourceId: `scope:${scope}`,
+      sourceType: 'scope',
+      scope,
+      status: 'invalid',
+      reason: 'denied_scope_present',
+      marker: 'conflict',
+    }, 'conflict'));
+  }
+
+  staleMarkers = dedupePlanningDowngradeMarkers(staleMarkers);
+  conflictMarkers = dedupePlanningDowngradeMarkers(conflictMarkers);
+
+  const reasonCodes = normalizeDeterministicReasonCodes([
+    ...staleMarkers.map((marker) => marker.reason),
+    ...conflictMarkers.map((marker) => marker.reason),
+    ...(Array.isArray(implementedOutcomes.reasonCodes) ? implementedOutcomes.reasonCodes : []),
+  ]);
+
+  return {
+    deterministic: true,
+    staleMarkers,
+    conflictMarkers,
+    reasonCodes,
+    hasStaleMarkers: staleMarkers.length > 0,
+    hasConflictMarkers: conflictMarkers.length > 0,
+  };
+}
+
 function evaluatePlanningMergeGateState(compareBody = {}) {
   const deniedScopes = Array.isArray(compareBody.deniedScopes) ? compareBody.deniedScopes : [];
   const matches = Array.isArray(compareBody.matches) ? compareBody.matches : [];
-  const sourceMarkers = compareBody.implementedOutcomes && Array.isArray(compareBody.implementedOutcomes.sources)
-    ? compareBody.implementedOutcomes.sources
-    : [];
+  const downgradeBase = derivePlanningDowngradeMarkers(compareBody);
+  const conditionReasonCodes = normalizeDeterministicReasonCodes([
+    deniedScopes.length ? 'denied_scopes_present' : '',
+    !matches.length ? 'no_compare_matches' : '',
+    compareBody.newerDataAvailable === true ? 'newer_data_available' : '',
+    downgradeBase.hasConflictMarkers ? 'implemented_source_conflict' : '',
+    downgradeBase.hasStaleMarkers ? 'implemented_source_stale' : '',
+  ]);
+
+  function buildDowngrade(primaryReason, downgraded) {
+    const reasonCodes = normalizeDeterministicReasonCodes([
+      ...downgradeBase.reasonCodes,
+      ...conditionReasonCodes,
+      primaryReason,
+    ]);
+
+    return {
+      ...downgradeBase,
+      primaryReason,
+      downgraded,
+      reasonCodes,
+    };
+  }
 
   if (deniedScopes.length) {
-    return { gateState: 'auth-denied', mergeEligible: false, reason: 'denied_scopes_present' };
+    return {
+      gateState: 'auth-denied',
+      mergeEligible: false,
+      reason: 'denied_scopes_present',
+      downgrade: buildDowngrade('denied_scopes_present', true),
+    };
   }
   if (!matches.length) {
-    return { gateState: 'insufficient-data', mergeEligible: false, reason: 'no_compare_matches' };
+    return {
+      gateState: 'insufficient-data',
+      mergeEligible: false,
+      reason: 'no_compare_matches',
+      downgrade: buildDowngrade('no_compare_matches', true),
+    };
   }
   if (compareBody.newerDataAvailable === true) {
-    return { gateState: 'degraded', mergeEligible: false, reason: 'newer_data_available' };
+    return {
+      gateState: 'degraded',
+      mergeEligible: false,
+      reason: 'newer_data_available',
+      downgrade: buildDowngrade('newer_data_available', true),
+    };
   }
-  if (sourceMarkers.some((marker) => String(marker && marker.status || '') !== 'available')) {
-    return { gateState: 'degraded', mergeEligible: false, reason: 'implemented_source_not_available' };
+  if (downgradeBase.hasConflictMarkers || downgradeBase.hasStaleMarkers) {
+    return {
+      gateState: 'degraded',
+      mergeEligible: false,
+      reason: 'implemented_source_not_available',
+      downgrade: buildDowngrade('implemented_source_not_available', true),
+    };
   }
-  return { gateState: 'pass', mergeEligible: true, reason: 'gate_pass' };
+  return {
+    gateState: 'pass',
+    mergeEligible: true,
+    reason: 'gate_pass',
+    downgrade: buildDowngrade('gate_pass', false),
+  };
 }
 
 function ensurePlanningMergeState(planningApiState) {
@@ -903,6 +1895,7 @@ function recordPlanningCompareReceipt(planningApiState, context, compareBody, no
     gateState: gate.gateState,
     mergeEligible: gate.mergeEligible,
     reason: gate.reason,
+    downgrade: gate.downgrade,
     issuedAt: new Date(nowMs).toISOString(),
     expiresAt: new Date(expiresAtMs).toISOString(),
   };
@@ -1134,6 +2127,8 @@ function issuePlanningMergeIntent(planningApiState, input = {}) {
         kind: 'planning.merge-intent',
         deterministic: true,
         error: { code: 'merge_gate_blocked', reason: receiptLookup.receipt.reason || 'gate_not_pass' },
+        gateState: receiptLookup.receipt.gateState,
+        downgrade: receiptLookup.receipt.downgrade || null,
       },
     };
   }
@@ -1292,6 +2287,8 @@ function executePlanningMerge(planningApiState, input = {}) {
         kind: 'planning.merge',
         deterministic: true,
         error: { code: 'merge_gate_blocked', reason: receiptLookup.receipt.reason || 'gate_not_pass' },
+        gateState: receiptLookup.receipt.gateState,
+        downgrade: receiptLookup.receipt.downgrade || null,
       },
     };
   }
@@ -1479,6 +2476,36 @@ function executePlanningMerge(planningApiState, input = {}) {
   };
 }
 
+function rollbackMergeCommitAfterPersistenceFailure(planningApiState, operationBody = {}) {
+  const mergeState = ensurePlanningMergeState(planningApiState);
+  const body = operationBody && typeof operationBody === 'object' ? operationBody : {};
+
+  const idempotency = body.idempotency && typeof body.idempotency === 'object'
+    ? body.idempotency
+    : null;
+  const mergeEvent = body.mergeEvent && typeof body.mergeEvent === 'object'
+    ? body.mergeEvent
+    : null;
+
+  const idempotencyKey = idempotency && typeof idempotency.key === 'string'
+    ? idempotency.key.trim()
+    : '';
+  if (idempotencyKey) {
+    mergeState.mergeIdempotencyRecords.delete(idempotencyKey);
+  }
+
+  const tokenId = mergeEvent && typeof mergeEvent.tokenId === 'string'
+    ? mergeEvent.tokenId.trim()
+    : '';
+  if (tokenId) {
+    const token = mergeState.mergeIntentTokens.get(tokenId);
+    if (token && typeof token === 'object') {
+      token.consumedAt = null;
+      mergeState.mergeIntentTokens.set(tokenId, token);
+    }
+  }
+}
+
 function sendLifecyclePayloadError(res, action, failure) {
   sendJson(res, 400, {
     error: 'Invalid lifecycle payload',
@@ -1486,6 +2513,63 @@ function sendLifecyclePayloadError(res, action, failure) {
     action,
     reason: String(failure && failure.reason ? failure.reason : 'validation_failed'),
   });
+}
+
+function resolveLifecycleCapabilityGate(action, providerState) {
+  const normalizedAction = String(action || '').trim().toLowerCase();
+  const providerSelection = providerState && typeof providerState === 'object'
+    ? (providerState.selectedProvider || providerState.defaultProvider)
+    : null;
+
+  const finishCompatibilityHook = buildFinishCompatibilityHookContract();
+
+  if (normalizedAction === 'finish') {
+    const providerCapability = evaluateProviderLifecycleCapability({
+      provider: providerSelection,
+      action: 'stop',
+    });
+
+    return {
+      allowed: true,
+      capability: {
+        ...providerCapability,
+        action: 'finish',
+        shared: true,
+        supported: true,
+        marker: 'supported',
+        reason: 'finish_sequence_supported',
+        finishCompatibilityHook,
+      },
+      finishCompatibilityHook,
+    };
+  }
+
+  const capability = evaluateProviderLifecycleCapability({
+    provider: providerSelection,
+    action: normalizedAction,
+  });
+
+  if (capability.supported) {
+    return {
+      allowed: true,
+      capability,
+      finishCompatibilityHook,
+    };
+  }
+
+  return {
+    allowed: false,
+    statusCode: 501,
+    capability,
+    finishCompatibilityHook,
+    body: {
+      ...buildLifecycleUnsupportedCapabilityMarker({
+      provider: capability.provider,
+      action,
+      }),
+      finishCompatibilityHook,
+    },
+  };
 }
 
 function contentTypeFor(filePath) {
@@ -1844,7 +2928,7 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
   return { ok: true, action: 'patched', filePath, backup, locations: desired };
 }
 
-function proxyToTracker(trackerUrl, trackerToken, targetPath, method, req, res) {
+function proxyToTracker(trackerUrl, trackerToken, targetPath, method, req, res, lifecycleAction = null) {
   if (!trackerToken) {
     sendJson(res, 502, { error: 'Tracker token not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.' });
     return;
@@ -1859,11 +2943,25 @@ function proxyToTracker(trackerUrl, trackerToken, targetPath, method, req, res) 
     headers: {
       'Authorization': `Bearer ${trackerToken}`,
       'Accept': 'application/json',
+      ...(lifecycleAction ? createLifecycleCompatibilityRequestHeaders() : {}),
     },
     timeout: 10000,
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
+    if (lifecycleAction) {
+      const compatibility = evaluateLifecycleMixedVersionCompatibility({
+        action: lifecycleAction,
+        direction: 'new_client_old_tracker',
+        headers: proxyRes.headers,
+      });
+      if (!compatibility.compatible) {
+        proxyRes.resume();
+        sendJson(res, compatibility.statusCode, compatibility.body);
+        return;
+      }
+    }
+
     const ct = proxyRes.headers['content-type'] || 'application/json';
     res.writeHead(proxyRes.statusCode || 502, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
     proxyRes.pipe(res);
@@ -1889,7 +2987,7 @@ function proxyToTracker(trackerUrl, trackerToken, targetPath, method, req, res) 
   }
 }
 
-function postJsonToTracker(trackerUrl, trackerToken, targetPath, payload, res) {
+function postJsonToTracker(trackerUrl, trackerToken, targetPath, payload, res, action = null) {
   if (!trackerToken) {
     sendJson(res, 502, { error: 'Tracker token not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.' });
     return;
@@ -1908,14 +3006,120 @@ function postJsonToTracker(trackerUrl, trackerToken, targetPath, payload, res) {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(rawBody),
+      ...createLifecycleCompatibilityRequestHeaders(),
     },
     timeout: 10000,
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
+    const compatibility = evaluateLifecycleMixedVersionCompatibility({
+      action,
+      direction: 'new_client_old_tracker',
+      headers: proxyRes.headers,
+    });
+    if (!compatibility.compatible) {
+      proxyRes.resume();
+      sendJson(res, compatibility.statusCode, compatibility.body);
+      return;
+    }
+
     const ct = proxyRes.headers['content-type'] || 'application/json';
     res.writeHead(proxyRes.statusCode || 502, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
     proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    if (!res.headersSent) {
+      sendJson(res, 502, { error: `Tracker unreachable: ${err.message}` });
+    }
+  });
+
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy();
+    if (!res.headersSent) {
+      sendJson(res, 504, { error: 'Tracker request timed out' });
+    }
+  });
+
+  proxyReq.write(rawBody);
+  proxyReq.end();
+}
+
+function postJsonToTrackerWithFinishInvariant(trackerUrl, trackerToken, targetPath, payload, res, providerState, action = 'finish') {
+  if (!trackerToken) {
+    sendJson(res, 502, { error: 'Tracker token not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.' });
+    return;
+  }
+
+  const parsed = new URL(targetPath, trackerUrl);
+  const rawBody = JSON.stringify(payload == null ? {} : payload);
+
+  const options = {
+    hostname: parsed.hostname,
+    port: parsed.port,
+    path: parsed.pathname + parsed.search,
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${trackerToken}`,
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(rawBody),
+      ...createLifecycleCompatibilityRequestHeaders(),
+    },
+    timeout: 10000,
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    const compatibility = evaluateLifecycleMixedVersionCompatibility({
+      action,
+      direction: 'new_client_old_tracker',
+      headers: proxyRes.headers,
+    });
+    if (!compatibility.compatible) {
+      proxyRes.resume();
+      sendJson(res, compatibility.statusCode, compatibility.body);
+      return;
+    }
+
+    const ct = String(proxyRes.headers['content-type'] || 'application/json');
+    const statusCode = proxyRes.statusCode || 502;
+    const chunks = [];
+
+    proxyRes.on('data', (chunk) => chunks.push(chunk));
+    proxyRes.on('end', () => {
+      const responseBodyText = Buffer.concat(chunks).toString('utf8');
+
+      const isJson = ct.toLowerCase().includes('application/json');
+      if (!isJson) {
+        res.writeHead(statusCode, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
+        res.end(responseBodyText);
+        return;
+      }
+
+      let parsedBody;
+      try {
+        parsedBody = responseBodyText.trim() ? JSON.parse(responseBodyText) : {};
+      } catch {
+        res.writeHead(statusCode, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
+        res.end(responseBodyText);
+        return;
+      }
+
+      if (statusCode >= 200 && statusCode < 300) {
+        const invariant = validateFinishCanonicalSandboxIdInvariant({
+          canonicalSandboxId: payload && typeof payload.sandboxId === 'string' ? payload.sandboxId : '',
+          prAction: payload && typeof payload.prAction === 'string' ? payload.prAction : 'skip-pr',
+          trackerBody: parsedBody,
+          providerState,
+        });
+        if (!invariant.ok) {
+          sendJson(res, invariant.statusCode, invariant.body);
+          return;
+        }
+      }
+
+      sendJson(res, statusCode, parsedBody);
+    });
   });
 
   proxyReq.on('error', (err) => {
@@ -1982,13 +3186,17 @@ function relayTrackerSSE(trackerUrl, trackerToken, req, res) {
   proxyReq.end();
 }
 
-function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext }) {
+function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate }) {
   // Auth scope: single-session only. Multi-session aggregate views are deferred.
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
   const copilotHomeAbs = path.resolve(copilotHome);
   const vscodeHomeAbs = copilotHomeAbs;
   const assetsHomeAbs = copilotHomeAbs;
+  const activePlanningDurabilityDependencyGate = planningDurabilityDependencyGate
+    && typeof planningDurabilityDependencyGate === 'object'
+    ? planningDurabilityDependencyGate
+    : evaluatePlanningDurabilityDependencyGate({ env: process.env });
 
   if (req.method === 'GET' && pathname === '/api/policy/preflight') {
     const refresh = (u.searchParams.get('refresh') || '').trim() === '1';
@@ -2010,12 +3218,30 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     }
   }
 
+  if (isPlanningDurabilityRoute(pathname) && activePlanningDurabilityDependencyGate.ready !== true) {
+    const gateFailure = buildPlanningDurabilityDependencyGateFailure(pathname, req.method, activePlanningDurabilityDependencyGate);
+    sendJson(res, gateFailure.statusCode, gateFailure.body);
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/health') {
     const changes = changeTracker ? changeTracker.get() : null;
-    const runtime = getRuntimeHealth({ engineRoot, sandboxesHome });
+    const runtime = getRuntimeHealth({ engineRoot, sandboxesHome, providerState });
     const policy = getPolicyPreflight(engineRoot);
-    const planningPersistence = getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState);
-    sendJson(res, 200, { ok: true, now: Date.now(), engineRoot, copilotHome, vscodeHome, changes, runtime, policy, planningPersistence });
+    const planningPersistenceRaw = getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState);
+    const planningPersistence = buildPlanningPersistenceHealthEnvelope(planningPersistenceRaw);
+    sendJson(res, 200, {
+      ok: true,
+      now: Date.now(),
+      engineRoot,
+      copilotHome,
+      vscodeHome,
+      changes,
+      runtime,
+      policy,
+      planningPersistence,
+      planningDurabilityDependencyGate: activePlanningDurabilityDependencyGate,
+    });
     return;
   }
 
@@ -2027,10 +3253,24 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
 
   if (req.method === 'POST' && pathname === '/api/planning/records') {
     readJsonBody(req)
-      .then((body) => {
+      .then(async (body) => {
         const payload = body && typeof body === 'object' ? body : {};
         const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
         const recordInput = payload.record && typeof payload.record === 'object' ? payload.record : payload;
+
+        const projectionSync = await hydratePlanningProjectionFromPersistence({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          planningApiState,
+          context,
+        });
+
+        if (!projectionSync.ok) {
+          sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+          return;
+        }
 
         const operation = createPlanningRecordOperation(planningApiState, {
           context,
@@ -2041,6 +3281,32 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
           nowMs: Date.now(),
         });
 
+        if (operation.ok && operation.body && operation.body.record) {
+          const persistedWrite = await persistPlanningRecordToAuthority({
+            pathname,
+            method: req.method,
+            planningPersistenceConfig,
+            planningPersistenceState,
+            context,
+            record: operation.body.record,
+          });
+
+          if (!persistedWrite.ok) {
+            await hydratePlanningProjectionFromPersistence({
+              pathname,
+              method: req.method,
+              planningPersistenceConfig,
+              planningPersistenceState,
+              planningApiState,
+              context,
+            });
+            sendJson(res, persistedWrite.failure.statusCode, persistedWrite.failure.body);
+            return;
+          }
+
+          operation.body.record = persistedWrite.record;
+        }
+
         sendJson(res, operation.statusCode, operation.body);
       })
       .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
@@ -2050,11 +3316,28 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   if (req.method === 'GET' && pathname === '/api/planning/records') {
     const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
     const scopes = parsePlanningScopesFromRequest(u);
-    const operation = listPlanningRecordsOperation(planningApiState, {
+    hydratePlanningProjectionFromPersistence({
+      pathname,
+      method: req.method,
+      planningPersistenceConfig,
+      planningPersistenceState,
+      planningApiState,
       context,
       scopes: scopes.length ? scopes : undefined,
-    });
-    sendJson(res, operation.statusCode, operation.body);
+    })
+      .then((projectionSync) => {
+        if (!projectionSync.ok) {
+          sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+          return;
+        }
+
+        const operation = listPlanningRecordsOperation(planningApiState, {
+          context,
+          scopes: scopes.length ? scopes : undefined,
+        });
+        sendJson(res, operation.statusCode, operation.body);
+      })
+      .catch((e) => sendJson(res, e.statusCode || 503, { error: String(e.message || e) }));
     return;
   }
 
@@ -2062,26 +3345,60 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
     const scopes = parsePlanningScopesFromRequest(u);
     const query = firstStringValue(u.searchParams.get('q'));
-    const operation = searchPlanningRecordsOperation(planningApiState, {
+    hydratePlanningProjectionFromPersistence({
+      pathname,
+      method: req.method,
+      planningPersistenceConfig,
+      planningPersistenceState,
+      planningApiState,
       context,
       scopes: scopes.length ? scopes : undefined,
-      query,
-      limit: parseNumberQuery(u.searchParams, 'limit', 20),
-    });
-    sendJson(res, operation.statusCode, operation.body);
+    })
+      .then((projectionSync) => {
+        if (!projectionSync.ok) {
+          sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+          return;
+        }
+
+        const operation = searchPlanningRecordsOperation(planningApiState, {
+          context,
+          scopes: scopes.length ? scopes : undefined,
+          query,
+          limit: parseNumberQuery(u.searchParams, 'limit', 20),
+        });
+        sendJson(res, operation.statusCode, operation.body);
+      })
+      .catch((e) => sendJson(res, e.statusCode || 503, { error: String(e.message || e) }));
     return;
   }
 
   if (req.method === 'POST' && pathname === '/api/planning/compare') {
     readJsonBody(req)
-      .then((body) => {
+      .then(async (body) => {
         const payload = body && typeof body === 'object' ? body : {};
         const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+        const scopes = Array.isArray(payload.scopes) ? payload.scopes : [];
+
+        const projectionSync = await hydratePlanningProjectionFromPersistence({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          planningApiState,
+          context,
+          scopes,
+        });
+
+        if (!projectionSync.ok) {
+          sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+          return;
+        }
+
         const operation = comparePlanningRecordsOperation(planningApiState, {
           context,
           request: {
             ...payload,
-            scopes: Array.isArray(payload.scopes) ? payload.scopes : [],
+            scopes,
             query: typeof payload.query === 'string' ? payload.query : '',
             implementedOutcomeSources: Array.isArray(payload.implementedOutcomeSources)
               ? payload.implementedOutcomeSources
@@ -2096,6 +3413,10 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
           const nowMs = Date.now();
           const compareReceipt = recordPlanningCompareReceipt(planningApiState, context, operation.body, nowMs);
           operation.body.compareReceipt = compareReceipt;
+          operation.body.gateState = compareReceipt.gateState;
+          operation.body.mergeEligible = compareReceipt.mergeEligible;
+          operation.body.reason = compareReceipt.reason;
+          operation.body.downgrade = compareReceipt.downgrade;
         }
 
         sendJson(res, operation.statusCode, operation.body);
@@ -2122,14 +3443,65 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
 
   if (req.method === 'POST' && pathname === '/api/planning/merge') {
     readJsonBody(req)
-      .then((body) => {
+      .then(async (body) => {
         const payload = body && typeof body === 'object' ? body : {};
         const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+
+        const projectionSync = await hydratePlanningProjectionFromPersistence({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          planningApiState,
+          context,
+        });
+
+        if (!projectionSync.ok) {
+          sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+          return;
+        }
+
         const operation = executePlanningMerge(planningApiState, {
           context,
           payload,
           nowMs: Date.now(),
         });
+
+        const mergeRecord = operation
+          && operation.statusCode === 200
+          && operation.body
+          && operation.body.mergeRecord
+          && !(operation.body.idempotency && operation.body.idempotency.replay)
+          ? operation.body.mergeRecord
+          : null;
+
+        if (mergeRecord) {
+          const persistedWrite = await persistPlanningRecordToAuthority({
+            pathname,
+            method: req.method,
+            planningPersistenceConfig,
+            planningPersistenceState,
+            context,
+            record: mergeRecord,
+          });
+
+          if (!persistedWrite.ok) {
+            rollbackMergeCommitAfterPersistenceFailure(planningApiState, operation.body);
+            await hydratePlanningProjectionFromPersistence({
+              pathname,
+              method: req.method,
+              planningPersistenceConfig,
+              planningPersistenceState,
+              planningApiState,
+              context,
+            });
+            sendJson(res, persistedWrite.failure.statusCode, persistedWrite.failure.body);
+            return;
+          }
+
+          operation.body.mergeRecord = persistedWrite.record;
+        }
+
         sendJson(res, operation.statusCode, operation.body);
       })
       .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
@@ -2146,18 +3518,23 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
       const sandbox = sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 });
       const all = [...cli, ...vs, ...sandbox];
       const result = (dedupe === 'off')
-        ? all.map(s => ({ ...s, ...sessions.buildSessionIdentity(s) }))
+        ? all.map((s) => sessions.applySessionReconciliation({
+          ...s,
+          ...sessions.buildSessionIdentity(s),
+        }))
         : sessions.dedupeAllSources(all);
       sendJson(res, 200, { sessions: result });
       return;
     }
     if (source === 'sandbox') {
-      const data = sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 });
+      const data = sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 })
+        .map((s) => sessions.applySessionReconciliation(s));
       sendJson(res, 200, { sessions: data });
       return;
     }
     const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-    const data = sessions.listSessions(home.home, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: home.source }));
+    const data = sessions.listSessions(home.home, { activeWindowMinutes, recentLimit: 250 })
+      .map((s) => sessions.applySessionReconciliation({ ...s, source: home.source }));
     sendJson(res, 200, { sessions: data });
     return;
   }
@@ -2731,6 +4108,12 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
       const action = decodeURIComponent(m[1]);
       const targetPath = `/api/lifecycle/${encodeURIComponent(action)}`;
 
+      const capabilityGate = resolveLifecycleCapabilityGate(action, providerState);
+      if (!capabilityGate.allowed) {
+        sendJson(res, capabilityGate.statusCode, capabilityGate.body);
+        return;
+      }
+
       if (action === 'open-terminal') {
         readJsonBody(req)
           .then((payload) => {
@@ -2739,7 +4122,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
               sendLifecyclePayloadError(res, action, validation.error);
               return;
             }
-            postJsonToTracker(trackerUrl, trackerToken, targetPath, validation.value, res);
+            postJsonToTracker(trackerUrl, trackerToken, targetPath, validation.value, res, action);
           })
           .catch((e) => {
             sendJson(res, e.statusCode || 400, {
@@ -2751,7 +4134,35 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
         return;
       }
 
-      proxyToTracker(trackerUrl, trackerToken, targetPath, 'POST', req, res);
+      if (action === 'finish') {
+        readJsonBody(req)
+          .then((payload) => {
+            const validation = validateFinishLifecyclePayload(payload);
+            if (!validation.ok) {
+              sendLifecyclePayloadError(res, action, validation.error);
+              return;
+            }
+            postJsonToTrackerWithFinishInvariant(
+              trackerUrl,
+              trackerToken,
+              targetPath,
+              validation.value,
+              res,
+              providerState,
+              action
+            );
+          })
+          .catch((e) => {
+            sendJson(res, e.statusCode || 400, {
+              error: String(e.message || e),
+              code: 'invalid_json',
+              action,
+            });
+          });
+        return;
+      }
+
+      proxyToTracker(trackerUrl, trackerToken, targetPath, 'POST', req, res, action);
       return;
     }
   }
@@ -2785,10 +4196,21 @@ async function startServer(options = {}) {
   const trackerToken = resolveTrackerToken(args);
   const planningPersistenceConfig = readPlanningPersistenceConfig(process.env);
   const planningValidation = validatePlanningPersistenceConfig(planningPersistenceConfig);
+  const planningDurabilityDependencyGate = evaluatePlanningDurabilityDependencyGate({ env: process.env });
+  const providerState = readPlanningProviderState({
+    persistedState: options.providerState,
+    env: process.env,
+  });
+  const canonicalProviderState = buildPlanningProviderStatePersistencePayload(providerState);
   const planningPersistenceState = {
     validation: planningValidation,
     status: planningValidation.usable ? 'ready' : planningValidation.configured ? 'invalid_config' : 'disabled',
     lastError: null,
+    client: null,
+    providerState: {
+      ...canonicalProviderState,
+      migration: providerState.migration,
+    },
     migrations: {
       appliedCount: 0,
       appliedVersions: [],
@@ -2810,6 +4232,7 @@ async function startServer(options = {}) {
     if (!planningPersistenceClient || typeof planningPersistenceClient.query !== 'function') {
       planningPersistenceState.status = 'configured_no_client';
       planningPersistenceState.lastError = 'planning_persistence_client_unavailable';
+      planningPersistenceState.client = null;
 
       if (planningValidation.required) {
         throw new Error('Planning persistence is required but no planning persistence client was provided');
@@ -2820,6 +4243,7 @@ async function startServer(options = {}) {
           schemaTable: planningPersistenceConfig.schemaTable,
         });
         planningPersistenceState.status = 'ready';
+        planningPersistenceState.client = planningPersistenceClient;
         planningPersistenceState.migrations = {
           ...migrationResult,
           lastRunAt: new Date().toISOString(),
@@ -2829,6 +4253,7 @@ async function startServer(options = {}) {
           ? 'drift_detected'
           : 'migration_error';
         planningPersistenceState.lastError = String(error && error.message ? error.message : error);
+        planningPersistenceState.client = planningPersistenceClient;
         planningPersistenceState.migrations = {
           ...planningPersistenceState.migrations,
           driftDetected: error && error.code === 'PLANNING_MIGRATION_CHECKSUM_DRIFT',
@@ -2874,6 +4299,8 @@ async function startServer(options = {}) {
           planningPersistenceState,
           planningApiState,
           planningAuthContext,
+          providerState: planningPersistenceState.providerState,
+          planningDurabilityDependencyGate,
         });
         return;
       }
@@ -2954,6 +4381,8 @@ module.exports = {
   parseArgs,
   containsUnsafeShellSyntax,
   validateOpenTerminalLifecyclePayload,
+  validateFinishLifecyclePayload,
+  validateFinishCanonicalSandboxIdInvariant,
   canReadPlanningRecord,
   canWritePlanningRecord,
   filterPlanningRecordsForCompare,
@@ -2972,8 +4401,15 @@ module.exports = {
   determineSemanticDegradedMode,
   classifyEmbeddingLifecycle,
   evaluateSemanticGate,
+  evaluatePlanningDurabilityDependencyGate,
+  resolveLifecycleCapabilityGate,
+  LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+  LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+  evaluateLifecycleMixedVersionCompatibility,
+  buildLifecycleMixedVersionUnsupportedMarker,
   recordPlanningCompareReceipt,
   issuePlanningMergeIntent,
   executePlanningMerge,
+  rollbackMergeCommitAfterPersistenceFailure,
 };
 

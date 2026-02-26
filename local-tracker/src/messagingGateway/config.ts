@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 
 export type MessagingGatewayMode = 'auto' | 'connected' | 'disconnected';
-export const LIFECYCLE_ACTIONS = ['create', 'start', 'stop', 'open-terminal', 'pr-open'] as const;
+export const LIFECYCLE_ACTIONS = ['create', 'start', 'stop', 'open-terminal', 'pr-open', 'finish'] as const;
 export type LifecycleAction = (typeof LIFECYCLE_ACTIONS)[number];
 
 export const DEFAULT_SANDBOX_MAX_SANDBOXES = 10;

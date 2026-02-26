@@ -21,7 +21,7 @@ const BASE_POLICY = {
 	maxPromptChars: WU002_POLICY_CONTRACT.maxPromptChars,
 };
 
-const ctx = { userId: 'u1', platform: 'test' };
+const ctx = { userId: 'u1', platform: 'discord' as const };
 
 function makeRouter(sandboxRegistry?: SandboxRegistry) {
 	return new CommandRouter({

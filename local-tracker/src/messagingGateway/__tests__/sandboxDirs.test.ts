@@ -8,6 +8,7 @@ import {
 	removeSandboxDirs,
 	listSandboxIds,
 	cleanupSandboxDirs,
+	shouldAllowOrphanSandboxCleanup,
 } from '../sandboxDirs';
 
 let tmpHome: string;
@@ -95,6 +96,11 @@ describe('listSandboxIds', () => {
 });
 
 describe('cleanupSandboxDirs', () => {
+	it('allows orphan cleanup only when known sandbox IDs are present', () => {
+		expect(shouldAllowOrphanSandboxCleanup([])).toBe(false);
+		expect(shouldAllowOrphanSandboxCleanup(['known-1'])).toBe(true);
+	});
+
 	it('removes orphan sandbox dirs and keeps known fresh dirs', () => {
 		ensureSandboxDirs('known', tmpHome);
 		ensureSandboxDirs('orphan', tmpHome);
@@ -162,5 +168,28 @@ describe('cleanupSandboxDirs', () => {
 		expect(result.removedSandboxIds).toEqual([]);
 		expect(result.failedSandboxIds).toEqual(['remove-fail']);
 		expect(fs.existsSync(invalidDir)).toBe(true);
+	});
+
+	it('defers orphan removal when snapshot is non-authoritative but still removes stale dirs', () => {
+		const fresh = ensureSandboxDirs('fresh-orphan', tmpHome);
+		const stale = ensureSandboxDirs('stale-orphan', tmpHome);
+
+		const now = Date.now();
+		fs.utimesSync(stale.root, new Date(now - 120_000), new Date(now - 120_000));
+
+		const result = cleanupSandboxDirs({
+			sandboxesHome: tmpHome,
+			knownSandboxIds: [],
+			activeSandboxIds: [],
+			allowOrphanRemoval: false,
+			staleTtlMs: 60_000,
+			nowMs: now,
+		});
+
+		expect(result.removedSandboxIds).toEqual(['stale-orphan']);
+		expect(result.failedSandboxIds).toEqual([]);
+		expect(result.skippedFreshSandboxIds).toEqual(['fresh-orphan']);
+		expect(fs.existsSync(stale.root)).toBe(false);
+		expect(fs.existsSync(fresh.root)).toBe(true);
 	});
 });

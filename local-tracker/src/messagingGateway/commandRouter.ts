@@ -12,6 +12,10 @@ import { sanitizeInboundPrompt, sanitizeOutboundText } from './sanitizer';
 import { FixedWindowRateLimiter } from './rateLimiter';
 import { ArtefactsMonitor } from './artefactsMonitor';
 import { formatSessionLine, parseBridgeSessions } from './sessionsHelpers';
+import type { PlatformKind } from './platform';
+import { loadAllWorkflowTemplates } from './workflows/workflowLoader';
+import { executeWorkflow } from './workflows/workflowRuntime';
+import type { WorkflowStep } from './workflows/workflowSchema';
 
 export type CommandTier = 'read' | 'invoke' | 'admin';
 
@@ -20,7 +24,7 @@ export interface CommandScopeContext {
 	userDisplayName?: string;
 	guildId?: string;
 	channelId?: string;
-	platform?: string;
+	platform: PlatformKind;
 	sandboxId?: string;
 }
 
@@ -42,6 +46,7 @@ export interface CommandResult {
 
 export interface CommandRouterPolicy {
 	allowlistedUserIds: ReadonlyArray<string>;
+	allowlistedUserIdsByPlatform?: Partial<Record<PlatformKind, ReadonlyArray<string>>>;
 	requiredGuildId?: string;
 	requiredChannelId?: string;
 	rateLimitsPerMinute: {
@@ -152,6 +157,11 @@ const SessionIdSchema = z.preprocess(
 	z.string().min(1).max(200),
 );
 
+const WorkflowArgsSchema = z.object({
+	subcommand: z.enum(['run', 'list']),
+	name: z.string().min(1).max(64).optional(),
+}).strict();
+
 const WorkspaceRootSchema = z.preprocess(
 	(value: unknown) => (typeof value === 'string' ? value.trim() : value),
 	z.string().min(1).max(600),
@@ -218,7 +228,7 @@ export class CommandRouter {
 			userId: ctx.userId,
 			guildId: ctx.guildId ?? null,
 			channelId: ctx.channelId ?? null,
-			platform: ctx.platform ?? null,
+			platform: ctx.platform,
 			activeWorkspaceRoot: this.deps.workspaces.getActiveWorkspaceRoot(),
 		};
 
@@ -337,17 +347,22 @@ export class CommandRouter {
 
 	private authorize(ctx: CommandScopeContext): { allowed: boolean; reason?: string } {
 		const policy = this.deps.policy;
-		if (!policy.allowlistedUserIds.includes(ctx.userId)) return { allowed: false, reason: 'user_not_allowlisted' };
+		const platformAllowlist = policy.allowlistedUserIdsByPlatform?.[ctx.platform];
+		const effectiveAllowlist = platformAllowlist ?? policy.allowlistedUserIds;
+		if (!effectiveAllowlist.includes(ctx.userId)) return { allowed: false, reason: 'user_not_allowlisted' };
 
-		if (policy.requiredGuildId) {
-			if (!ctx.guildId || ctx.guildId !== policy.requiredGuildId) {
-				return { allowed: false, reason: 'guild_scope_mismatch' };
+		// Guild/channel scope checks apply only to Discord
+		if (ctx.platform === 'discord') {
+			if (policy.requiredGuildId) {
+				if (!ctx.guildId || ctx.guildId !== policy.requiredGuildId) {
+					return { allowed: false, reason: 'guild_scope_mismatch' };
+				}
 			}
-		}
 
-		if (policy.requiredChannelId) {
-			if (!ctx.channelId || ctx.channelId !== policy.requiredChannelId) {
-				return { allowed: false, reason: 'channel_scope_mismatch' };
+			if (policy.requiredChannelId) {
+				if (!ctx.channelId || ctx.channelId !== policy.requiredChannelId) {
+					return { allowed: false, reason: 'channel_scope_mismatch' };
+				}
 			}
 		}
 
@@ -378,6 +393,8 @@ export class CommandRouter {
 				return { messages: await this.handlePermissionDecision(true, argsUnknown) };
 			case '/deny':
 				return { messages: await this.handlePermissionDecision(false, argsUnknown) };
+			case '/workflow':
+				return { messages: await this.handleWorkflow(argsUnknown) };
 			default:
 				// Should be unreachable due to tier check.
 				throw new Error('Unknown command');
@@ -643,6 +660,45 @@ export class CommandRouter {
 		return sanitizeAndChunk(lines.join('\n'));
 	}
 
+	private async handleWorkflow(argsUnknown: unknown): Promise<string[]> {
+		const args = WorkflowArgsSchema.parse(argsUnknown);
+		const templates = loadAllWorkflowTemplates();
+
+		if (args.subcommand === 'list') {
+			if (templates.size === 0) {
+				return sanitizeAndChunk('No workflow templates found.');
+			}
+			const lines = ['**Available Workflows:**'];
+			for (const [id, def] of templates) {
+				lines.push(`\u2022 \`${id}\` \u2014 ${def.name}${def.description ? ` (${def.description})` : ''}`);
+			}
+			return sanitizeAndChunk(lines.join('\n'));
+		}
+
+		// subcommand === 'run'
+		if (!args.name) {
+			return sanitizeAndChunk('Usage: /workflow run <name>. Use /workflow list to see available workflows.');
+		}
+
+		const definition = templates.get(args.name);
+		if (!definition) {
+			return sanitizeAndChunk(`Workflow "${args.name}" not found. Use /workflow list to see available workflows.`);
+		}
+
+		const stubExecutor = async (step: WorkflowStep): Promise<unknown> => {
+			return { step: step.id, action: step.action, status: 'stub' };
+		};
+
+		const result = await executeWorkflow(definition, stubExecutor);
+
+		const lines = [`**Workflow: ${definition.name}** (${result.status})`];
+		for (const sr of result.steps) {
+			const icon = sr.status === 'success' ? '\u2705' : sr.status === 'failed' ? '\u274C' : '\u23ED\uFE0F';
+			lines.push(`${icon} ${sr.stepId}: ${sr.status} (${sr.durationMs}ms)`);
+		}
+		return sanitizeAndChunk(lines.join('\n'));
+	}
+
 	private assertWorkspaceAllowed(workspaceRoot: string): void {
 		const allowed = this.deps.workspaces.getAllowedWorkspaceRoots();
 		if (!allowed.some((r) => pathsEqual(r, workspaceRoot))) {
@@ -667,7 +723,7 @@ export class CommandRouter {
 const READ_COMMANDS = new Set<string>(['/status', '/sessions', '/git', '/workspaces', '/sandbox']);
 const INVOKE_COMMANDS = new Set<string>(['/task', '/plan', '/stop']);
 // Admin includes /switch and permission decisions.
-const ADMIN_COMMANDS = new Set<string>(['/switch', '/approve', '/deny']);
+const ADMIN_COMMANDS = new Set<string>(['/switch', '/approve', '/deny', '/workflow']);
 
 // Commands that should consume the "max active invoke sessions per user" slot.
 const INVOKE_SLOT_COMMANDS = new Set<string>(['/task', '/plan']);

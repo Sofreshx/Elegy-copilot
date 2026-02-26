@@ -1,7 +1,7 @@
 import { deletePassword, getPassword, setPassword } from '@napi-rs/keyring/keytar';
 import crypto from 'crypto';
 
-export type GatewaySecretKind = 'discordBotToken' | 'gatewayHttpToken' | 'githubPrToken';
+export type GatewaySecretKind = 'discordBotToken' | 'telegramBotToken' | 'gatewayHttpToken' | 'githubPrToken';
 
 export interface PrTokenLease {
 	leaseId: string;
@@ -12,6 +12,7 @@ export interface PrTokenLease {
 export interface GatewaySecretsStatus {
 	serviceName: string;
 	discordBotToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
+	telegramBotToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
 	gatewayHttpToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
 	githubPrToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
 }
@@ -19,12 +20,14 @@ export interface GatewaySecretsStatus {
 const SERVICE_NAME = 'instruction-engine.messaging-gateway';
 const SECRET_ACCOUNT: Record<GatewaySecretKind, string> = {
 	discordBotToken: 'discord.botToken',
+	telegramBotToken: 'telegram.botToken',
 	gatewayHttpToken: 'gateway.httpToken',
 	githubPrToken: 'github.prToken',
 };
 
 const ENV_FALLBACKS: Record<GatewaySecretKind, string[]> = {
 	discordBotToken: ['INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN', 'DISCORD_BOT_TOKEN'],
+	telegramBotToken: ['INSTRUCTION_ENGINE_TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_TOKEN'],
 	gatewayHttpToken: ['INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN'],
 	githubPrToken: ['INSTRUCTION_ENGINE_GITHUB_PR_TOKEN', 'GITHUB_PR_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'],
 };
@@ -78,12 +81,14 @@ export async function deleteGatewaySecret(kind: GatewaySecretKind): Promise<bool
 
 export async function getGatewaySecretsStatus(): Promise<GatewaySecretsStatus> {
 	const discord = await getGatewaySecret('discordBotToken');
+	const telegram = await getGatewaySecret('telegramBotToken');
 	const httpToken = await getGatewaySecret('gatewayHttpToken');
 	const githubPrToken = await getGatewaySecret('githubPrToken');
 
 	return {
 		serviceName: SERVICE_NAME,
 		discordBotToken: { present: Boolean(discord.value), source: discord.source },
+		telegramBotToken: { present: Boolean(telegram.value), source: telegram.source },
 		gatewayHttpToken: { present: Boolean(httpToken.value), source: httpToken.source },
 		githubPrToken: { present: Boolean(githubPrToken.value), source: githubPrToken.source },
 	};

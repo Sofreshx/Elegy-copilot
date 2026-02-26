@@ -1,14 +1,27 @@
 import http from 'http';
 
-import { GatewayHttpServer } from '../gatewayHttpServer';
+import {
+    GatewayHttpServer,
+    LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+    LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+} from '../gatewayHttpServer';
 
 const TEST_TOKEN = 'test-secret-token-abc123';
 
 function makeRequest(
     port: number,
-    options: { method?: string; path: string; token?: string; body?: string },
-): Promise<{ statusCode: number; body: string }> {
+    options: {
+        method?: string;
+        path: string;
+        token?: string;
+        body?: string;
+        headers?: Record<string, string>;
+        includeLifecycleCompatibilityHeaders?: boolean;
+    },
+): Promise<{ statusCode: number; body: string; headers: http.IncomingHttpHeaders }> {
     return new Promise((resolve, reject) => {
+        const includeLifecycleCompatibilityHeaders = options.includeLifecycleCompatibilityHeaders !== false
+            && options.path.startsWith('/api/lifecycle/');
         const req = http.request(
             {
                 hostname: '127.0.0.1',
@@ -18,6 +31,13 @@ function makeRequest(
                 headers: {
                     ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
                     ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+                    ...(includeLifecycleCompatibilityHeaders
+                        ? {
+                            'X-Instruction-Engine-Lifecycle-Contract-Version': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+                            'X-Instruction-Engine-Lifecycle-Capability': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+                        }
+                        : {}),
+                    ...(options.headers ?? {}),
                 },
             },
             (res) => {
@@ -25,7 +45,7 @@ function makeRequest(
                 res.on('data', (chunk) => {
                     data += chunk;
                 });
-                res.on('end', () => resolve({ statusCode: res.statusCode!, body: data }));
+                res.on('end', () => resolve({ statusCode: res.statusCode!, body: data, headers: res.headers }));
             },
         );
         req.on('error', reject);
@@ -238,7 +258,9 @@ describe('GatewayHttpServer', () => {
         expect(JSON.parse(res.body)).toEqual({ error: 'Not found' });
     });
 
-    it('POST /api/lifecycle/:action executes lifecycle action when authorized', async () => {
+    it('POST /api/lifecycle/create preserves envelope while returning canonical sandbox metadata', async () => {
+        mockHandleLifecycleAction.mockResolvedValue({ sandboxId: 'sb-1', sandboxIdSource: 'user', status: 'created' });
+
         const res = await makeRequest(port, {
             method: 'POST',
             path: '/api/lifecycle/create',
@@ -248,9 +270,210 @@ describe('GatewayHttpServer', () => {
 
         expect(res.statusCode).toBe(200);
         const body = JSON.parse(res.body);
-        expect(body).toEqual({ ok: true, action: 'create', result: { status: 'queued' } });
+        expect(body).toEqual({
+            ok: true,
+            action: 'create',
+            result: {
+                sandboxId: 'sb-1',
+                sandboxIdSource: 'user',
+                status: 'created',
+            },
+        });
         expect(mockAuthorizeLifecycleAction).toHaveBeenCalled();
         expect(mockHandleLifecycleAction).toHaveBeenCalledWith('create', { sandboxId: 'sb-1' }, expect.anything());
+        expect(res.headers['x-instruction-engine-lifecycle-contract-version']).toBe(LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION);
+        expect(res.headers['x-instruction-engine-lifecycle-capability']).toBe(LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY);
+    });
+
+    it('POST /api/lifecycle/create fails closed with deterministic unsupported marker when compatibility headers are missing', async () => {
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/create',
+            token: TEST_TOKEN,
+            body: JSON.stringify({ sandboxId: 'sb-1' }),
+            includeLifecycleCompatibilityHeaders: false,
+        });
+
+        expect(res.statusCode).toBe(501);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Lifecycle compatibility unsupported',
+            code: 'lifecycle_compatibility_unsupported',
+            action: 'create',
+            reason: 'client_contract_version_missing',
+            deterministic: true,
+            unsupported: {
+                marker: 'unsupported',
+                direction: 'old_client_new_tracker',
+                expected: {
+                    contractVersion: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+                    capability: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+                },
+                received: {
+                    contractVersion: null,
+                    capability: null,
+                },
+            },
+            compatibility: {
+                contractVersion: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+                capability: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+                direction: 'old_client_new_tracker',
+            },
+        });
+        expect(mockHandleLifecycleAction).not.toHaveBeenCalled();
+    });
+
+    it('POST /api/lifecycle/create forwards empty payload when sandboxId is omitted', async () => {
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/create',
+            token: TEST_TOKEN,
+            body: JSON.stringify({}),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(mockHandleLifecycleAction).toHaveBeenCalledWith('create', {}, expect.anything());
+    });
+
+    it('POST /api/lifecycle/create preserves canonical auto-generated sandbox metadata', async () => {
+        mockHandleLifecycleAction.mockResolvedValue({ sandboxId: 'sb-auto-1', sandboxIdSource: 'auto', status: 'created' });
+
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/create',
+            token: TEST_TOKEN,
+            body: JSON.stringify({}),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual({
+            ok: true,
+            action: 'create',
+            result: {
+                sandboxId: 'sb-auto-1',
+                sandboxIdSource: 'auto',
+                status: 'created',
+            },
+        });
+        expect(mockHandleLifecycleAction).toHaveBeenCalledWith('create', {}, expect.anything());
+    });
+
+    it('POST /api/lifecycle/finish preserves deterministic envelope and forwards optional PR payload', async () => {
+        mockHandleLifecycleAction.mockResolvedValue({
+            sandboxId: 'sb-finish-1',
+            status: 'finished',
+            closeAllowed: true,
+        });
+
+        const payload = {
+            sandboxId: 'sb-finish-1',
+            prAction: 'skip-pr',
+        };
+
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/finish',
+            token: TEST_TOKEN,
+            body: JSON.stringify(payload),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual({
+            ok: true,
+            action: 'finish',
+            result: {
+                sandboxId: 'sb-finish-1',
+                status: 'finished',
+                closeAllowed: true,
+            },
+        });
+        expect(mockHandleLifecycleAction).toHaveBeenCalledWith('finish', payload, expect.anything());
+    });
+
+    it('POST /api/lifecycle/finish retry keeps canonical sandboxId envelope stable across repeated requests', async () => {
+        const payload = {
+            sandboxId: 'sb-edited-canonical',
+            prAction: 'skip-pr',
+        };
+
+        mockHandleLifecycleAction
+            .mockResolvedValueOnce({
+                sandboxId: 'sb-edited-canonical',
+                status: 'finished',
+                closeAllowed: true,
+                deduped: true,
+                coalescedCallCount: 2,
+            })
+            .mockResolvedValueOnce({
+                sandboxId: 'sb-edited-canonical',
+                status: 'finished',
+                closeAllowed: true,
+                idempotent: true,
+            });
+
+        const first = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/finish',
+            token: TEST_TOKEN,
+            body: JSON.stringify(payload),
+        });
+
+        const retry = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/finish',
+            token: TEST_TOKEN,
+            body: JSON.stringify(payload),
+        });
+
+        expect(first.statusCode).toBe(200);
+        expect(retry.statusCode).toBe(200);
+        expect(JSON.parse(first.body)).toEqual({
+            ok: true,
+            action: 'finish',
+            result: {
+                sandboxId: 'sb-edited-canonical',
+                status: 'finished',
+                closeAllowed: true,
+                deduped: true,
+                coalescedCallCount: 2,
+            },
+        });
+        expect(JSON.parse(retry.body)).toEqual({
+            ok: true,
+            action: 'finish',
+            result: {
+                sandboxId: 'sb-edited-canonical',
+                status: 'finished',
+                closeAllowed: true,
+                idempotent: true,
+            },
+        });
+        expect(mockHandleLifecycleAction).toHaveBeenNthCalledWith(1, 'finish', payload, expect.anything());
+        expect(mockHandleLifecycleAction).toHaveBeenNthCalledWith(2, 'finish', payload, expect.anything());
+    });
+
+    it('POST /api/lifecycle/finish returns deterministic conflict-fast envelope when idempotency key payload mismatches', async () => {
+        const conflictError = Object.assign(new Error('Invalid lifecycle payload: idempotency_key_payload_mismatch'), {
+            name: 'LifecyclePayloadValidationError',
+            code: 'idempotency_conflict',
+            reason: 'idempotency_key_payload_mismatch',
+            action: 'finish',
+        });
+        mockHandleLifecycleAction.mockRejectedValue(conflictError);
+
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/lifecycle/finish',
+            token: TEST_TOKEN,
+            body: JSON.stringify({ sandboxId: 'sb-finish-1', prAction: 'skip-pr' }),
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Invalid lifecycle payload',
+            code: 'idempotency_conflict',
+            action: 'finish',
+            reason: 'idempotency_key_payload_mismatch',
+        });
     });
 
     it('POST /api/lifecycle/open-terminal returns deterministic 403 when action is forbidden', async () => {

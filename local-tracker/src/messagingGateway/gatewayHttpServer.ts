@@ -6,9 +6,17 @@ import {
     validateOpenTerminalPayload,
 } from './lifecycleOpenTerminal';
 
-export type LifecycleAction = 'create' | 'start' | 'stop' | 'open-terminal' | 'pr-open';
+export type LifecycleAction = 'create' | 'start' | 'stop' | 'open-terminal' | 'pr-open' | 'finish';
 
-const LIFECYCLE_ACTION_SET = new Set<LifecycleAction>(['create', 'start', 'stop', 'open-terminal', 'pr-open']);
+const LIFECYCLE_ACTION_SET = new Set<LifecycleAction>(['create', 'start', 'stop', 'open-terminal', 'pr-open', 'finish']);
+export const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION = '1';
+export const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY = 'mixed-version-lifecycle-v1';
+const LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION = 'x-instruction-engine-lifecycle-contract-version';
+const LIFECYCLE_COMPATIBILITY_HEADER_CAPABILITY = 'x-instruction-engine-lifecycle-capability';
+const LIFECYCLE_COMPATIBILITY_RESPONSE_HEADERS = {
+    'X-Instruction-Engine-Lifecycle-Contract-Version': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+    'X-Instruction-Engine-Lifecycle-Capability': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+};
 
 export interface LifecycleAuthorizationResult {
     allowed: boolean;
@@ -19,6 +27,23 @@ export interface PolicyGateStatus {
     ok: boolean;
     reason?: string;
     message?: string;
+}
+
+interface LifecycleCompatibilityResult {
+    compatible: boolean;
+    reason: string;
+    receivedContractVersion: string | null;
+    receivedCapability: string | null;
+}
+
+function normalizeLifecycleCompatibilityToken(value: unknown): string {
+    if (Array.isArray(value)) {
+        return normalizeLifecycleCompatibilityToken(value.length > 0 ? value[0] : '');
+    }
+    if (typeof value !== 'string') {
+        return '';
+    }
+    return value.trim().toLowerCase();
 }
 
 export interface GatewayHttpServerOptions {
@@ -188,13 +213,97 @@ export class GatewayHttpServer {
         action: LifecycleAction,
         failure: { code: string; reason: string },
     ): void {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.writeHead(400, this.getLifecycleResponseHeaders());
         res.end(JSON.stringify({
             error: 'Invalid lifecycle payload',
             code: failure.code,
             action,
             reason: failure.reason,
         }));
+    }
+
+    private getLifecycleResponseHeaders(): Record<string, string> {
+        return {
+            'Content-Type': 'application/json',
+            ...LIFECYCLE_COMPATIBILITY_RESPONSE_HEADERS,
+        };
+    }
+
+    private evaluateLifecycleCompatibility(req: http.IncomingMessage): LifecycleCompatibilityResult {
+        const expectedContractVersion = normalizeLifecycleCompatibilityToken(LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION);
+        const expectedCapability = normalizeLifecycleCompatibilityToken(LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY);
+        const receivedContractVersion = normalizeLifecycleCompatibilityToken(req.headers[LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION]);
+        const receivedCapability = normalizeLifecycleCompatibilityToken(req.headers[LIFECYCLE_COMPATIBILITY_HEADER_CAPABILITY]);
+
+        if (!receivedContractVersion) {
+            return {
+                compatible: false,
+                reason: 'client_contract_version_missing',
+                receivedContractVersion: null,
+                receivedCapability: receivedCapability || null,
+            };
+        }
+
+        if (receivedContractVersion !== expectedContractVersion) {
+            return {
+                compatible: false,
+                reason: 'client_contract_version_unsupported',
+                receivedContractVersion,
+                receivedCapability: receivedCapability || null,
+            };
+        }
+
+        if (!receivedCapability) {
+            return {
+                compatible: false,
+                reason: 'client_capability_missing',
+                receivedContractVersion,
+                receivedCapability: null,
+            };
+        }
+
+        if (receivedCapability !== expectedCapability) {
+            return {
+                compatible: false,
+                reason: 'client_capability_unsupported',
+                receivedContractVersion,
+                receivedCapability,
+            };
+        }
+
+        return {
+            compatible: true,
+            reason: 'compatibility_supported',
+            receivedContractVersion,
+            receivedCapability,
+        };
+    }
+
+    private buildLifecycleCompatibilityUnsupportedBody(action: LifecycleAction, compatibility: LifecycleCompatibilityResult): Record<string, unknown> {
+        return {
+            error: 'Lifecycle compatibility unsupported',
+            code: 'lifecycle_compatibility_unsupported',
+            action,
+            reason: compatibility.reason,
+            deterministic: true,
+            unsupported: {
+                marker: 'unsupported',
+                direction: 'old_client_new_tracker',
+                expected: {
+                    contractVersion: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+                    capability: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+                },
+                received: {
+                    contractVersion: compatibility.receivedContractVersion,
+                    capability: compatibility.receivedCapability,
+                },
+            },
+            compatibility: {
+                contractVersion: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+                capability: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+                direction: 'old_client_new_tracker',
+            },
+        };
     }
 
     private parseLifecycleAction(input: string): LifecycleAction | null {
@@ -306,9 +415,16 @@ export class GatewayHttpServer {
         req: http.IncomingMessage,
         res: http.ServerResponse,
     ): Promise<void> {
+        const compatibility = this.evaluateLifecycleCompatibility(req);
+        if (!compatibility.compatible) {
+            res.writeHead(501, this.getLifecycleResponseHeaders());
+            res.end(JSON.stringify(this.buildLifecycleCompatibilityUnsupportedBody(action, compatibility)));
+            return;
+        }
+
         const authz = this.authorizeLifecycleAction(action, req);
         if (!authz.allowed) {
-            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.writeHead(403, this.getLifecycleResponseHeaders());
             res.end(JSON.stringify({
                 error: 'Forbidden',
                 code: 'action_not_allowed',
@@ -319,7 +435,7 @@ export class GatewayHttpServer {
         }
 
         if (!this.handleLifecycleAction) {
-            res.writeHead(501, { 'Content-Type': 'application/json' });
+            res.writeHead(501, this.getLifecycleResponseHeaders());
             res.end(JSON.stringify({
                 error: 'Not implemented',
                 code: 'lifecycle_not_implemented',
@@ -332,7 +448,7 @@ export class GatewayHttpServer {
         try {
             payload = await this.readJsonBody(req);
         } catch (err) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.writeHead(400, this.getLifecycleResponseHeaders());
             res.end(JSON.stringify({
                 error: err instanceof Error ? err.message : 'Invalid request body',
                 code: 'invalid_json',
@@ -352,7 +468,7 @@ export class GatewayHttpServer {
 
         try {
             const result = await this.handleLifecycleAction(action, payload, req);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.writeHead(200, this.getLifecycleResponseHeaders());
             res.end(JSON.stringify({ ok: true, action, result }));
         } catch (err) {
             if (isLifecyclePayloadValidationError(err)) {
@@ -363,7 +479,7 @@ export class GatewayHttpServer {
                 return;
             }
             const message = err instanceof Error ? err.message : String(err);
-            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.writeHead(500, this.getLifecycleResponseHeaders());
             res.end(JSON.stringify({ error: message, code: 'lifecycle_action_failed', action }));
         }
     }

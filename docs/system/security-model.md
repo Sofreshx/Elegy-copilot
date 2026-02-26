@@ -32,6 +32,23 @@ Operational constraints:
 - Promotion requires matching provenance/attestation evidence.
 - Missing or invalid signing evidence is release-blocking (fail closed).
 
+### Rollback + Kill-Switch Activation Rules (G-06-WU-03)
+
+Desktop release safety uses deterministic threshold gates:
+
+- `R1` immediate rollback: any single safety failure (`PLANNING_MIGRATION_CHECKSUM_DRIFT`, `current_version_below_minimum_safe`, `candidate_version_above_channel_ceiling`).
+- `R2` rollback escalation: two consecutive fail-closed policy-load cycles (`rollback_policy_source_unavailable` or `rollback_policy_malformed`) after remediation.
+- `K1` immediate kill switch: trust-chain compromise signals (signing/provenance evidence mismatch or unresolved checksum drift in release gating).
+- `K2` global kill switch escalation: `R2` persists and no safe rollback target can be published.
+
+Ownership and approval:
+
+- Release Engineering executes rollback and kill-switch changes.
+- On-call incident commander approves activation/deactivation.
+- Security Engineering co-approves trust-chain compromise responses.
+
+Reference runbook: [Desktop Update Rollback + Kill Switch Runbook](desktop-update-rollback-runbook.md).
+
 ### CI Enforcement — Signing Trust Chain (G-02-WU-04)
 
 Desktop release CI is enforced by `.github/workflows/desktop-release.yml`:

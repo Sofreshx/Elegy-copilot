@@ -9,10 +9,13 @@ export interface MessagingGatewayStatusV1 {
 	config: {
 		configPath: string;
 		mode: 'connected' | 'disconnected';
-		discord: {
+		discord?: {
 			guildId: string;
 			channelId: string;
 			permissionsChannelId?: string;
+		};
+		telegram?: {
+			allowlistedUsersCount: number;
 		};
 		allowlists: {
 			discordUsersCount: number;
@@ -34,10 +37,19 @@ export interface MessagingGatewayStatusV1 {
 			fromKeychain: boolean;
 			fromEnv: boolean;
 		};
+		telegramBotToken: {
+			present: boolean;
+			fromKeychain: boolean;
+			fromEnv: boolean;
+		};
 	};
 
 	runtime: {
 		discord: {
+			connected: boolean;
+			ready: boolean;
+		};
+		telegram?: {
 			connected: boolean;
 			ready: boolean;
 		};
@@ -47,6 +59,14 @@ export interface MessagingGatewayStatusV1 {
 		sessions?: {
 			activeSessionThreadCount: number;
 		};
+		/** Adapter health snapshots from HealthRegistry */
+		adapterHealth?: Array<{
+			adapterId: string;
+			kind: string;
+			state: string;
+			detail?: string;
+			lastCheckedUtc: string;
+		}>;
 	};
 }
 

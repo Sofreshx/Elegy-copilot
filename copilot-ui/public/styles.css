@@ -311,6 +311,27 @@ select.gateway-input {
   cursor: pointer;
 }
 
+.planning-create-panel .toolbar {
+  align-items: stretch;
+}
+
+.planning-create-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.planning-create-label {
+  font-size: 12px;
+}
+
+.planning-notes-input {
+  min-height: 160px;
+  line-height: 1.4;
+  resize: vertical;
+}
+
 .badge-exists {
   background: rgba(63, 185, 80, 0.15);
   border-color: var(--accent);

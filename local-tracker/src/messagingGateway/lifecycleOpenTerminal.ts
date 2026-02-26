@@ -1,8 +1,8 @@
 import path from 'path';
 
 export type OpenTerminalLifecycleAction = 'open-terminal';
-export type LifecyclePayloadAction = 'create' | 'start' | 'stop' | 'open-terminal' | 'pr-open';
-export type LifecyclePayloadErrorCode = 'invalid_lifecycle_payload' | 'env_injection_denied';
+export type LifecyclePayloadAction = 'create' | 'start' | 'stop' | 'open-terminal' | 'pr-open' | 'finish';
+export type LifecyclePayloadErrorCode = 'invalid_lifecycle_payload' | 'env_injection_denied' | 'idempotency_conflict';
 
 export interface LifecyclePayloadValidationFailure {
 	code: LifecyclePayloadErrorCode;
@@ -168,7 +168,7 @@ export class LifecyclePayloadValidationError extends Error {
 	}
 }
 
-const LIFECYCLE_PAYLOAD_ACTIONS = new Set<LifecyclePayloadAction>(['create', 'start', 'stop', 'open-terminal', 'pr-open']);
+const LIFECYCLE_PAYLOAD_ACTIONS = new Set<LifecyclePayloadAction>(['create', 'start', 'stop', 'open-terminal', 'pr-open', 'finish']);
 
 export function isLifecyclePayloadValidationError(value: unknown): value is LifecyclePayloadValidationError {
 	if (!(value instanceof Error)) return false;

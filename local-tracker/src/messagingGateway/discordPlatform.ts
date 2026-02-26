@@ -15,6 +15,7 @@ import {
 } from 'discord.js';
 
 import type { MessagingGatewayConfig } from './config';
+import { getDefaultGatewayCommandSpecs } from './commandSpecs';
 import { getGatewaySecret } from './secrets';
 import { sanitizeOutboundText } from './sanitizer';
 import type {
@@ -27,7 +28,7 @@ import type {
 	PlatformScopeContext,
 } from './platform';
 
-type DiscordConfig = MessagingGatewayConfig['discord'];
+type DiscordConfig = NonNullable<MessagingGatewayConfig['discord']>;
 
 const PERMISSION_BUTTON_PREFIX = 'gw:perm:';
 
@@ -60,47 +61,6 @@ function makeSafeDiscordThreadName(input: string, maxLen = 80): string {
 
 function discordAllowedMentions() {
 	return { parse: [] as const };
-}
-
-function getDefaultGatewayCommandSpecs(): PlatformCommandSpec[] {
-	return [
-		{ name: '/status', description: 'Show gateway status', tier: 'read' },
-		{
-			name: '/sessions',
-			description: 'List recent sessions',
-			tier: 'read',
-			options: [
-				{ name: 'limit', description: 'Max sessions to list (1-200)', type: 'integer' },
-				{ name: 'statuses', description: 'Comma-separated statuses filter', type: 'string' },
-			],
-		},
-		{ name: '/git', description: 'Show git status for active workspace', tier: 'read' },
-		{ name: '/workspaces', description: 'List allowlisted workspaces', tier: 'read' },
-		{
-			name: '/task',
-			description: 'Run a task (connected-only)',
-			tier: 'invoke',
-			options: [{ name: 'prompt', description: 'Task prompt', type: 'string', required: true }],
-		},
-		{
-			name: '/plan',
-			description: 'Plan work (connected-only)',
-			tier: 'invoke',
-			options: [{ name: 'prompt', description: 'Planning prompt', type: 'string', required: true }],
-		},
-		{
-			name: '/stop',
-			description: 'Stop a session (connected-only)',
-			tier: 'invoke',
-			options: [{ name: 'sessionid', description: 'Session id', type: 'string', required: true }],
-		},
-		{
-			name: '/switch',
-			description: 'Switch the active workspace root',
-			tier: 'admin',
-			options: [{ name: 'workspaceroot', description: 'Workspace root path', type: 'string', required: true }],
-		},
-	];
 }
 
 function toDiscordCommandRegistrationData(spec: PlatformCommandSpec) {

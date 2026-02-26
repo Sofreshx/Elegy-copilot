@@ -1,4 +1,4 @@
-import { createSandboxLifecycleRuntime } from '../index';
+import { createSandboxLifecycleRuntime, createSandboxStartupSnapshot } from '../index';
 
 describe('messaging gateway startup sandbox lifecycle runtime composition', () => {
 	it('wires configured maxSandboxes and portRange into constructor options', () => {
@@ -52,5 +52,19 @@ describe('messaging gateway startup sandbox lifecycle runtime composition', () =
 
 		expect(capturedContainerManagerOptions).toEqual({ maxSandboxes: 10 });
 		expect(capturedPortAllocatorOptions).toEqual({ rangeStart: 13000, rangeEnd: 13099 });
+	});
+
+	it('builds deterministic startup snapshot with active sandbox filtering', () => {
+		const snapshot = createSandboxStartupSnapshot([
+			{ sandboxId: ' sb-a ', state: 'running' },
+			{ sandboxId: 'sb-b', state: 'restarting' },
+			{ sandboxId: 'sb-c', state: 'exited' },
+			{ sandboxId: 'sb-a', state: 'running' },
+			{ sandboxId: '', state: 'running' },
+			{ sandboxId: '   ', state: 'running' },
+		]);
+
+		expect([...snapshot.knownSandboxIds]).toEqual(['sb-a', 'sb-b', 'sb-c']);
+		expect([...snapshot.activeSandboxIds]).toEqual(['sb-a', 'sb-b']);
 	});
 });

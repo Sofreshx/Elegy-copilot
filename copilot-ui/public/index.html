@@ -72,7 +72,7 @@
 
       <section id="view-sandboxes" class="view hidden">
         <div class="toolbar">
-          <input id="sandbox-id" type="text" class="gateway-input sandbox-input" placeholder="sandboxId" />
+          <input id="sandbox-id" type="text" class="gateway-input sandbox-input" placeholder="sandboxId (auto-generated, editable)" maxlength="64" autocomplete="off" spellcheck="false" />
           <button id="btn-sandbox-create" class="btn" type="button">Create</button>
           <button id="btn-sandbox-start" class="btn" type="button">Start</button>
           <button id="btn-sandbox-stop" class="btn" type="button">Stop</button>
@@ -213,7 +213,7 @@
         <div class="row">
           <div class="col">
             <h3>Create Planning Record</h3>
-            <div class="panel">
+            <div class="panel planning-create-panel">
               <div class="toolbar">
                 <select id="planning-create-scope" class="gateway-input" style="max-width: 140px;">
                   <option value="user">user</option>
@@ -228,13 +228,15 @@
                   <option value="implemented">implemented</option>
                 </select>
               </div>
-              <div class="toolbar">
-                <input id="planning-create-title" type="text" class="gateway-input" placeholder="title" style="flex:1;" />
-              </div>
-              <div class="toolbar">
-                <input id="planning-create-summary" type="text" class="gateway-input" placeholder="summary" style="flex:1;" />
-              </div>
-              <button id="btn-planning-create" class="btn" type="button">Create record</button>
+              <label class="planning-create-field" for="planning-create-title">
+                <span class="muted planning-create-label">Title</span>
+                <input id="planning-create-title" type="text" class="gateway-input" placeholder="Short title" />
+              </label>
+              <label class="planning-create-field" for="planning-create-summary">
+                <span class="muted planning-create-label">Notes</span>
+                <textarea id="planning-create-summary" class="gateway-input planning-notes-input" placeholder="Multiline notes" rows="7"></textarea>
+              </label>
+              <button id="btn-planning-create" class="btn" type="button" disabled>Create record</button>
             </div>
 
             <h3>Records</h3>

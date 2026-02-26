@@ -167,6 +167,196 @@ Planning APIs expose a deterministic contract envelope:
 - `kind` identifies endpoint contract (`planning.create`, `planning.list`, `planning.search`, `planning.compare`)
 - `deterministic = true` is always present
 
+### Planning Persistence Authority (G-01-WU-01)
+
+The persistence authority for planning records and planning notes is frozen as follows:
+
+1. Canonical persisted store
+  - The existing local DB persistence layer (`copilot-ui/lib/planningPersistence.js`) is the only canonical persisted store for planning records/notes.
+
+2. API read/write source of truth
+  - `POST /api/planning/records`, `GET /api/planning/records`, `GET /api/planning/search`, and `POST /api/planning/compare` MUST read/write persisted planning data through the local DB persistence layer.
+
+3. Artifact non-authority
+  - Session artifacts (`plan.md`, `proposition.md`, `verification-guide.md`) are orchestration artifacts and MUST NOT be treated as canonical planning-record persistence.
+
+4. No file fallback writes
+  - Implementations MUST NOT silently fall back to file-based persistence for planning records/notes when local DB persistence is unavailable.
+  - Persistence failures must remain explicit and deterministic to callers.
+
+### Runtime Provider State Authority (G-02-WU-01)
+
+Provider selection/state is normalized through one canonical path:
+
+1. Canonical model
+  - Provider state is normalized to `{ contractVersion, selectedProvider, defaultProvider, selectionSource }`.
+  - Allowed providers are `non-docker` and `docker` only.
+
+2. Default behavior (non-Docker primary)
+  - If no explicit valid selected provider exists, `selectedProvider` MUST resolve to `defaultProvider`.
+  - If no valid default provider exists, `defaultProvider` MUST resolve to `non-docker`.
+
+3. Migration behavior
+  - Absent provider state and legacy provider fields are migrated into the canonical model deterministically.
+  - Invalid persisted/env provider values are ignored safely and fall back to canonical defaults.
+  - Migration metadata must be deterministic (`required`, sorted `reasonCodes`, source markers).
+
+4. Scope boundary
+  - This authority governs backend/provider resolution only (WS2).
+  - It MUST NOT introduce WS4 UX behavior changes.
+
+### Provider Capability-Gated Parity Contract (G-02-WU-02)
+
+Lifecycle provider capability behavior is frozen as follows:
+
+1. Shared lifecycle capability parity
+  - Shared lifecycle capabilities are `create`, `start`, `stop`, and `open-terminal`.
+  - For all supported providers, shared capabilities MUST be contract-equivalent in request/response behavior.
+  - Provider selection MUST NOT alter the envelope shape for shared lifecycle capability success paths.
+
+2. Non-shared capability handling
+  - Non-shared lifecycle capabilities MAY differ by provider.
+  - When a capability is unsupported for the selected provider, the API MUST fail closed with deterministic explicit markers.
+  - Unsupported marker envelope includes:
+    - `error = "Lifecycle capability unsupported"`
+    - `code = "lifecycle_capability_unsupported"`
+    - `action` (requested lifecycle action)
+    - `deterministic = true`
+    - `unsupported.marker = "unsupported"` and provider/reason metadata
+
+3. Scope boundary
+  - This contract applies to WS2 backend capability gating only.
+  - It does not introduce WS4 finish-flow UX behavior.
+
+### Session Reconciliation Authority and Precedence Contract (G-03-WU-01)
+
+Reconciliation authority between runtime state and filesystem/session artifacts is frozen as a deterministic contract:
+
+1. Canonical authority labels (backward-compatible)
+  - `acp` = both runtime and artifact state are present; runtime is authoritative for reconciliation.
+  - `acp-only` = runtime state present without matching artifact state.
+  - `fs` = artifact state present without runtime state, or no runtime signal is available.
+
+2. Deterministic source precedence
+  - Source precedence is always `runtime > artifact`.
+  - Reconciliation source metadata is normalized to `runtime` and `artifact` only.
+
+3. Source-of-truth resolution matrix
+  - runtime + artifact -> `authority=acp`, `sourceOfTruth=runtime`, `sourcePrecedence=["runtime","artifact"]`
+  - runtime only -> `authority=acp-only`, `sourceOfTruth=runtime`, `sourcePrecedence=["runtime"]`
+  - artifact only (or neither source asserted) -> `authority=fs`, `sourceOfTruth=artifact`, `sourcePrecedence=["artifact"]`
+
+4. Frozen helper/export contract
+  - `copilot-ui/lib/runtimeContracts.js` exports:
+    - `SESSION_RECONCILIATION_CONTRACT_VERSION`
+    - `SESSION_STATE_AUTHORITIES`
+    - `SESSION_RECONCILIATION_SOURCES`
+    - `SESSION_RECONCILIATION_SOURCE_PRECEDENCE`
+    - `SESSION_RECONCILIATION_SOURCE_OF_TRUTH`
+    - `normalizeSessionReconciliationSource(input)`
+    - `getSessionReconciliationSourcePrecedence(input)`
+    - `resolveSessionReconciliationAuthority(input)`
+  - `copilot-ui/lib/planState.js` exports planning precedence contract helpers consumed by deterministic conflict ordering:
+    - `PLANNING_PRECEDENCE_CONTRACT_VERSION`
+    - `PLANNING_SCOPE_PRECEDENCE`
+    - `PLANNING_RECORD_PRECEDENCE_RULES`
+    - `getPlanningScopePrecedence(record)`
+
+5. Compatibility constraints
+  - Existing authority tokens (`acp`, `acp-only`, `fs`) remain unchanged.
+  - Existing consumer behavior remains additive and deterministic; this work freezes contract semantics for reconciliation without changing endpoint envelopes.
+
+### Reconciliation Invariant Checkpoint (G-03-WU-05)
+
+Use this repeatable checkpoint to validate reconciliation authority precedence, stale/conflict determinism, and recovery-visible outputs:
+
+```bash
+node copilot-ui/lib/sessionAggregation.test.js
+node copilot-ui/lib/runtimeContracts.test.js
+node copilot-ui/lib/planningApiContracts.test.js
+node copilot-ui/server.lifecycle-proxy.test.js
+node copilot-ui/server.runtime-health.test.js
+```
+
+Checkpoint pass criteria:
+- all commands exit `0`
+- authority precedence remains deterministic (`runtime > artifact`) with canonical authorities `acp`, `acp-only`, and `fs`
+- stale/conflict downgrade markers are deterministic (sorted + deduped marker collections and reason codes)
+- recovery markers remain explicit and stable (`recovery_checkpoint_only`, `recovery_ledger_only`, `recovery_missing_both`)
+- merged all-source session output includes reconciliation metadata (`authority`, `sourceOfTruth`, `sourcePrecedence`, `sourceSet`)
+
+### Finish Compatibility Hook Contract (G-02-WU-03)
+
+WS2 publishes a deterministic, provider-agnostic finish compatibility hook contract for WS4 consumption.
+
+1. Hook envelope
+  - Hook envelope is additive and backward compatible.
+  - Hook shape:
+    - `contractVersion = "1"`
+    - `apiContractVersion = planning_api_v1`
+    - `kind = "lifecycle.finish.compatibility-hook"`
+    - `deterministic = true`
+    - `action = "finish"`
+    - `providerAgnostic = true`
+    - `supportedProviders = ["docker", "non-docker"]` (sorted deterministically)
+    - `scopeBoundary = "ws2_contract_hook_only"`
+    - `ws4Ownership = "finish_behavior_and_ux"`
+
+2. Receipt contract
+  - Hook includes deterministic receipt schema metadata only (no finish behavior execution in WS2):
+    - `receipt.contractVersion = "1"`
+    - `receipt.kind = "lifecycle.finish.receipt"`
+    - `receipt.deterministic = true`
+    - `receipt.providerAgnostic = true`
+    - `receipt.requiredFields = ["deterministic", "hookContractVersion", "issuedAt", "outcome", "provider", "receiptId", "resolvedAt", "status"]`
+    - `receipt.optionalFields = ["metadata", "reason"]`
+
+3. Publication points
+  - The hook contract is present in lifecycle capability envelopes and lifecycle unsupported-marker envelopes.
+  - Runtime health also exposes the same hook contract as a compatibility publication point for WS4 clients.
+
+4. Scope boundary
+  - WS2 owns publishing this contract/hook only.
+  - WS4 owns finish behavior, finish sequencing, PR prompt UX, and closure UX implementation.
+
+### Cross-WS Canonical Sandbox ID Invariant (G-04-WU-04)
+
+The finish proxy contract must preserve canonical edited sandbox IDs across WS2 provider-state authority and WS4 lifecycle behavior:
+
+1. Canonical ID lock
+  - The first successful create response defines the canonical persisted sandbox ID.
+  - Once persisted, canonical edited sandbox IDs MUST NOT be rewritten by provider SSOT normalization or migration processing.
+  - Provider-state migration metadata may be reported, but it is non-authoritative for sandbox ID rewriting.
+
+2. Finish proxy parity
+  - `POST /api/tracker/lifecycle/finish` supports both deterministic finish paths:
+    - no PR path (`prAction = "skip-pr"`)
+    - PR path (`prAction = "open-pr"` with required `baseBranch` and `headBranch`)
+  - For both paths, canonical sandbox ID must remain consistent across returned finish surfaces (`result.sandboxId`, `result.close.result.sandboxId` when present).
+
+3. Deterministic invariant violation marker
+  - If the finish proxy observes a canonical ID rewrite attempt/mismatch, it fails closed with a deterministic envelope:
+
+```json
+{
+  "error": "Lifecycle canonical sandboxId invariant violated",
+  "code": "canonical_sandbox_id_invariant_violation",
+  "action": "finish",
+  "reason": "canonical_sandbox_id_mismatch",
+  "deterministic": true,
+  "invariant": {
+    "marker": "conflict",
+    "scope": "cross_ws_canonical_id",
+    "expectedSandboxId": "<persisted-canonical-id>",
+    "receivedSandboxId": "<mismatched-id>",
+    "receivedPath": "result.sandboxId|result.close.result.sandboxId",
+    "reasonCodes": ["..."]
+  }
+}
+```
+
+  - Violation status code is `409` and reason-code ordering is deterministic (sorted + deduped).
+
 ### Endpoints
 
 - `POST /api/planning/records` (create)
@@ -485,6 +675,52 @@ Planning merge safety invariants:
 - Confirmation token TTL is capped (15 minutes) and consumed tokens are invalid.
 - Merge requests require an idempotency key; same key + same payload is replay-safe, same key + different payload is a conflict.
 - Atomic envelope contract requires all components to commit or abort together: `targetUpdate`, `sourceTransitions`, `lineageLinks`, `auditEvent`, and `tokenConsumedWrite`.
+
+### WS3 Authority Dependency Gate for Planning Durability (G-05-WU-01)
+
+Planning durability routes require WS3 authority/reconciliation contract readiness before execution.
+
+Dependency gate contract:
+
+- `dependency = ws3_authority_reconciliation_contract`
+- gate is deterministic and fail-closed (`required=true`, `deterministic=true`)
+- readiness requires WS3 contract invariants to be satisfied:
+  - reconciliation contract metadata is present
+  - canonical authority/source mappings remain valid (`acp`, `acp-only`, `fs` with runtime > artifact precedence)
+  - planning scope precedence remains deterministic (`user > repo > global`)
+
+Durability route scope:
+
+- `POST /api/planning/records`
+- `GET /api/planning/records`
+- `GET /api/planning/search`
+- `POST /api/planning/compare`
+- `POST /api/planning/merge-intent`
+- `POST /api/planning/merge`
+
+When readiness is not satisfied, routes fail closed with explicit marker envelope:
+
+```json
+{
+  "contractVersion": "planning_api_v1",
+  "kind": "planning.create|planning.list|planning.search|planning.compare|planning.merge-intent|planning.merge",
+  "deterministic": true,
+  "error": "Planning durability dependency gate blocked",
+  "code": "planning_durability_dependency_gate_blocked",
+  "reason": "<deterministic-primary-reason>",
+  "dependencyGate": {
+    "marker": "dependency-blocked",
+    "dependency": "ws3_authority_reconciliation_contract",
+    "required": true,
+    "ready": false,
+    "contractVersion": "1",
+    "reasonCodes": ["..."],
+    "ws3": { "...": "diagnostic-contract-state" }
+  }
+}
+```
+
+Non-durability paths remain backward compatible and are not blocked by this gate.
 
 ## Planning UI Contract (WS5)
 

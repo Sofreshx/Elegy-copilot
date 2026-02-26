@@ -20,6 +20,11 @@ export interface CleanupSandboxDirsOptions {
 	sandboxesHome?: string;
 	knownSandboxIds?: Iterable<string>;
 	activeSandboxIds?: Iterable<string>;
+	/**
+	 * Whether directories not present in knownSandboxIds should be treated as orphaned and removable.
+	 * Defaults to true for backward compatibility.
+	 */
+	allowOrphanRemoval?: boolean;
 	staleTtlMs: number;
 	nowMs?: number;
 }
@@ -29,6 +34,19 @@ export interface CleanupSandboxDirsResult {
 	failedSandboxIds: string[];
 	skippedActiveSandboxIds: string[];
 	skippedFreshSandboxIds: string[];
+}
+
+/**
+ * Startup orphan cleanup is only considered safe when at least one known sandbox ID exists.
+ * Empty known sets are treated as non-authoritative snapshots.
+ */
+export function shouldAllowOrphanSandboxCleanup(knownSandboxIds: Iterable<string>): boolean {
+	for (const sandboxId of knownSandboxIds) {
+		if (typeof sandboxId === 'string' && sandboxId.trim().length > 0) {
+			return true;
+		}
+	}
+	return false;
 }
 
 /**
@@ -97,6 +115,7 @@ export function cleanupSandboxDirs(options: CleanupSandboxDirsOptions): CleanupS
 	const home = options.sandboxesHome?.trim() || getDefaultSandboxesHome();
 	const knownSandboxIds = new Set<string>(options.knownSandboxIds ?? []);
 	const activeSandboxIds = new Set<string>(options.activeSandboxIds ?? []);
+	const allowOrphanRemoval = options.allowOrphanRemoval ?? true;
 	const nowMs = options.nowMs ?? Date.now();
 
 	const removedSandboxIds: string[] = [];
@@ -125,7 +144,7 @@ export function cleanupSandboxDirs(options: CleanupSandboxDirsOptions): CleanupS
 		}
 
 		const sandboxRoot = resolveSandboxDirs(sandboxId, home).root;
-		const isOrphan = !knownSandboxIds.has(sandboxId);
+		const isOrphan = allowOrphanRemoval && !knownSandboxIds.has(sandboxId);
 
 		let isStale = false;
 		try {

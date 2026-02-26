@@ -2,12 +2,16 @@
 
 const assert = require('assert');
 const {
+  PLANNING_PRECEDENCE_CONTRACT_VERSION,
   PLANNING_STATES,
   PLANNING_SCOPES,
+  PLANNING_SCOPE_PRECEDENCE,
+  PLANNING_RECORD_PRECEDENCE_RULES,
   TERMINAL_PLANNING_STATES,
   PLANNING_TRANSITION_MATRIX,
   normalizePlanningState,
   normalizePlanningScope,
+  getPlanningScopePrecedence,
   isValidPlanningTransition,
   comparePlanningRecords,
 } = require('./planState');
@@ -75,6 +79,27 @@ test('normalizePlanningScope accepts string and record input', () => {
   assert.strictEqual(normalizePlanningScope({ scope: 'GLOBAL' }), 'global');
   assert.strictEqual(normalizePlanningScope({ source: 'user' }), 'user');
   assert.strictEqual(normalizePlanningScope({ scope: 'invalid' }), '');
+});
+
+test('exports frozen planning precedence contract constants and helper', () => {
+  assert.strictEqual(PLANNING_PRECEDENCE_CONTRACT_VERSION, '1');
+  assert.deepStrictEqual(PLANNING_SCOPE_PRECEDENCE, {
+    user: 3,
+    repo: 2,
+    global: 1,
+  });
+  assert.deepStrictEqual(PLANNING_RECORD_PRECEDENCE_RULES, [
+    'scope-precedence:user>repo>global',
+    'score-desc:null-invalid=-1',
+    'updatedAt-desc:null-invalid=epoch',
+    'createdAt-desc:null-invalid=epoch',
+    'recordId-asc',
+  ]);
+
+  assert.strictEqual(getPlanningScopePrecedence({ scope: 'user' }), 3);
+  assert.strictEqual(getPlanningScopePrecedence({ source: 'repo' }), 2);
+  assert.strictEqual(getPlanningScopePrecedence('global'), 1);
+  assert.strictEqual(getPlanningScopePrecedence({ scope: 'unknown' }), 0);
 });
 
 test('comparePlanningRecords sorts by precedence before score', () => {
