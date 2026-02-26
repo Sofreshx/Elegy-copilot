@@ -7,7 +7,11 @@ async function main(): Promise<void> {
 
   await runTests({
     extensionDevelopmentPath,
-    extensionTestsPath
+    extensionTestsPath,
+    extensionTestsEnv: {
+      TEST_INCLUDE_LIST_FILE: process.env.TEST_INCLUDE_LIST_FILE,
+      TEST_LEDGER_RESULTS_FILE: process.env.TEST_LEDGER_RESULTS_FILE
+    }
   });
 }
 

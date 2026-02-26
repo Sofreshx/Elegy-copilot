@@ -117,6 +117,8 @@ async function run() {
           INSTRUCTION_ENGINE_FORCE_DOCKER_STATE: 'unavailable',
           INSTRUCTION_ENGINE_FORCE_WSL2_STATE: 'unavailable',
           INSTRUCTION_ENGINE_FORCE_SANDBOX_STATE: 'unavailable',
+          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
+          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
@@ -137,6 +139,13 @@ async function run() {
         assert.strictEqual(response.body.runtime.capabilities.wsl2, 'unavailable');
         assert.strictEqual(response.body.runtime.capabilities.sandbox, 'unavailable');
         assert.strictEqual(typeof response.body.runtime.contractVersion, 'string');
+        assert.ok(response.body.planningPersistence);
+        assert.strictEqual(typeof response.body.planningPersistence.contractVersion, 'string');
+        assert.strictEqual(typeof response.body.planningPersistence.status, 'string');
+        assert.strictEqual(typeof response.body.planningPersistence.required, 'boolean');
+        assert.strictEqual(typeof response.body.planningPersistence.configured, 'boolean');
+        assert.ok(response.body.planningPersistence.migrations);
+        assert.strictEqual(typeof response.body.planningPersistence.migrations.schemaTable, 'string');
       } finally {
         server.kill();
         await sleep(150);

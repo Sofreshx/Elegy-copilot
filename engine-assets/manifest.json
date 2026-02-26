@@ -409,6 +409,12 @@
       "destination": "skills/wolverine-core"
     },
     {
+      "id": "skill-test-caching-verification",
+      "type": "skill",
+      "source": "engine-assets/skills/test-caching-verification",
+      "destination": "skills/test-caching-verification"
+    },
+    {
       "id": "skill-wolverine-http",
       "type": "skill",
       "source": "engine-assets/skills/wolverine-http",

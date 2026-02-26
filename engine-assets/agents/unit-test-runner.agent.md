@@ -41,6 +41,7 @@ Execute unit tests safely, quickly, and deterministically. This agent is used as
 ## Skill References (Use When Applicable)
 - For C#/.NET unit tests, follow `testing-dotnet-unit`.
 - For frontend unit tests, follow `testing-frontend-unit`.
+- For Node.js test runs using the test ledger wrapper, follow `test-caching-verification` **(mandatory)** — extract and verify evidence files after every run.
 
 ## Recommended Commands
 

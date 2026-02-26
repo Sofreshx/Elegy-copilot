@@ -5,6 +5,7 @@
   "description": "Instruction Engine desktop wrapper for copilot-ui",
   "main": "dist-electron/main.js",
   "scripts": {
+    "test": "node scripts/test-with-ledger.js",
     "build:electron": "tsc -p tsconfig.electron.json",
     "electron:dev": "npm run build:electron && electron .",
     "package:preview": "npm run build:electron && electron-builder --dir",

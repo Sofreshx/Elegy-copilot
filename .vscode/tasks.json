@@ -51,6 +51,86 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "test"
+		},
+		{
+			"label": "test: scripts",
+			"type": "npm",
+			"script": "test",
+			"path": "scripts",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "test: scripts (force)",
+			"type": "shell",
+			"command": "npm",
+			"args": ["test", "--", "--force"],
+			"options": { "cwd": "${workspaceFolder}/scripts" },
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "test: copilot-ui",
+			"type": "npm",
+			"script": "test",
+			"path": "copilot-ui",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "test: copilot-ui (force)",
+			"type": "shell",
+			"command": "npm",
+			"args": ["test", "--", "--force"],
+			"options": { "cwd": "${workspaceFolder}/copilot-ui" },
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "test: local-tracker",
+			"type": "npm",
+			"script": "test",
+			"path": "local-tracker",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "test: local-tracker (force)",
+			"type": "shell",
+			"command": "npm",
+			"args": ["test", "--", "--force"],
+			"options": { "cwd": "${workspaceFolder}/local-tracker" },
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "test: RannIA",
+			"type": "npm",
+			"script": "test",
+			"path": "RannIA",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "test: RannIA (force)",
+			"type": "shell",
+			"command": "npm",
+			"args": ["test", "--", "--force"],
+			"options": { "cwd": "${workspaceFolder}/RannIA" },
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "test: all",
+			"dependsOn": ["test: scripts", "test: copilot-ui", "test: local-tracker", "test: RannIA"],
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "test: all (force)",
+			"dependsOn": ["test: scripts (force)", "test: copilot-ui (force)", "test: local-tracker (force)", "test: RannIA (force)"],
+			"problemMatcher": [],
+			"group": "test"
 		}
 	],
 	"inputs": [

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-25
+updated: 2026-02-26
 category: system
 status: current
 doc_kind: node
@@ -99,6 +99,175 @@ GET /api/sessions/:id/verification-guide
 ```
 
 Returns `{ id, source, content }` with the raw Markdown content, or `404` if the artifact was not generated for the session.
+
+## Planning Semantic Contract (WS3)
+
+Contract-layer semantic scoring and gate evaluation uses a versioned deterministic contract:
+
+- `SEMANTIC_SCORING_CONTRACT_VERSION = semantic_scoring_v1`
+- deterministic candidate scoring shape from `scorePlanningCandidate(input)`
+- stable ordering from `sortPlanningCandidates(candidates)`
+
+### Degraded Lexical Fallback Flags
+
+`determineSemanticDegradedMode(input)` returns:
+
+- `degraded` (boolean)
+- `degradedMode` (`semantic_primary` or `lexical_fallback`)
+- `degradedReasons` (sorted reason-code array)
+- `semanticUsed` (boolean)
+
+Required trigger coverage includes semantic-disabled, semantic timeout/error, embedding availability/lifecycle, and semantic gate insufficient-data/failure conditions.
+
+### Embedding Lifecycle States
+
+`classifyEmbeddingLifecycle(record)` normalizes record state into one of:
+
+- `ready`
+- `needsBackfill`
+- `needsReembed`
+- `poisoned`
+
+Response includes deterministic `reasonCodes` plus retry/backpressure markers:
+
+- `retryMarker` for backfill/re-embed retries
+- `backpressureMarker` when retry/queue pressure thresholds are exceeded
+
+### Semantic Gate States (Fail-Closed)
+
+`evaluateSemanticGate(metrics, thresholds)` evaluates latency/error/quality and enforces fail-closed behavior:
+
+- `pass`
+- `fail`
+- `insufficient-data` (always blocks semantic merge)
+
+`mergeEnabled` is true only when gate state is `pass` and threshold `mergeEnabled` is true.
+
+Override envelope shape is versioned and deterministic:
+
+```json
+{
+  "contractVersion": "semantic_gate_override_v1",
+  "gateStatus": "pass|fail|insufficient-data",
+  "mergeEnabled": false,
+  "overrideRequired": true,
+  "overrideEligible": true,
+  "requested": false,
+  "approved": false,
+  "insufficientData": true,
+  "reasons": ["insufficient_data"]
+}
+```
+
+## Planning API Contract (WS4)
+
+Planning APIs expose a deterministic contract envelope:
+
+- `contractVersion = planning_api_v1`
+- `kind` identifies endpoint contract (`planning.create`, `planning.list`, `planning.search`, `planning.compare`)
+- `deterministic = true` is always present
+
+### Endpoints
+
+- `POST /api/planning/records` (create)
+- `GET /api/planning/records` (list)
+- `GET /api/planning/search` (search)
+- `POST /api/planning/compare` (compare)
+
+### Idempotency Semantics
+
+`POST /api/planning/records` and `POST /api/planning/compare` require idempotency keys.
+
+Response includes deterministic idempotency metadata:
+
+```json
+{
+  "idempotency": {
+    "key": "<idempotency-key>",
+    "scopeKey": "<operation-scope>",
+    "replay": false,
+    "conflict": false,
+    "ttlMs": 600000,
+    "expiresAt": "2026-02-26T00:10:00.000Z",
+    "outcome": "applied|replay|conflict|expired_reapplied"
+  }
+}
+```
+
+Behavior:
+
+- same key + same scope + same canonical payload within TTL → replay-safe response (`outcome=replay`)
+- same key + same scope + different payload within TTL → conflict (`idempotency_conflict`)
+- expired key → treated as a new execution with explicit `expired_reapplied`
+
+### Compare Snapshot / Version Pinning
+
+Compare responses pin request-start snapshots and expose:
+
+```json
+{
+  "versionVector": {
+    "pinned": {
+      "planningRecordsVersion": 12,
+      "implementedOutcomesVersion": "sha256..."
+    },
+    "current": {
+      "planningRecordsVersion": 13,
+      "implementedOutcomesVersion": "sha256..."
+    }
+  },
+  "newerDataAvailable": true
+}
+```
+
+`newerDataAvailable=true` indicates source or planning-record updates occurred after snapshot capture.
+
+Compare responses also include a server-issued receipt used by merge flows:
+
+```json
+{
+  "compareReceipt": {
+    "receiptId": "compare-...",
+    "compareHash": "h...",
+    "sourceIdsHash": "h...",
+    "gateState": "pass|degraded|insufficient-data|auth-denied",
+    "mergeEligible": true,
+    "issuedAt": "...",
+    "expiresAt": "..."
+  }
+}
+```
+
+### Implemented-Outcomes Ingestion Trust Boundaries
+
+Implemented-outcome ingestion is explicit and fail-closed:
+
+- source type must be allowlisted (`plan-md`, `final-md`, `plans-index`)
+- relative paths only; traversal escapes are denied (`path_traversal_denied`)
+- schema validation failures are explicit (`status=invalid`)
+- missing/unreadable sources are explicit (`status=unavailable`)
+- stale but readable sources are explicit (`status=stale`)
+- requested sources are always represented in response markers (no silent omission)
+
+Source marker shape:
+
+```json
+{
+  "sourceId": "session-plan",
+  "sourceType": "plan-md",
+  "path": "session-state/<id>/plan.md",
+  "status": "available|stale|unavailable|invalid",
+  "reason": "source_available",
+  "stale": false,
+  "ingestedCount": 1,
+  "updatedAt": "2026-02-26T00:00:00.000Z"
+}
+```
+
+### Deterministic Ordering
+
+- planning-record precedence and tie-breaking use `planState.comparePlanningRecords`
+- compare/search semantic ranking and tie-breaking use `planningSemantic.sortPlanningCandidates`
 
 ## Progress Tracker Structure (v1)
 
@@ -287,6 +456,87 @@ Add this HTML comment at the top of the Progress Tracker section to make parsing
 Parser behavior:
 - **Marker missing**: Parse as best-effort "v0" (legacy format)
 - **Marker present but unknown version**: Return structured response with warnings
+
+## Planning Lifecycle and Conflict Ordering Contract
+
+Planning lifecycle state machine for planning records:
+- States: `thought`, `research`, `pre-plan`, `queued`, `implemented`, `merged`, `superseded`
+- Terminal states: `merged`, `superseded`
+- Forward transitions: `thought -> research -> pre-plan -> queued -> implemented -> merged`
+- Branch transitions to terminal: any non-terminal state may transition to `merged` or `superseded`
+- Invalid transitions: self-transitions and any transition out of terminal states
+
+Deterministic same-item conflict ordering is applied in this exact sequence:
+1. Scope precedence: `user` > `repo` > `global`
+2. `score` descending, where `null`/invalid/`NaN` scores are treated as `-1`
+3. `updatedAt` descending, where missing/invalid timestamps are treated as Unix epoch (`1970-01-01T00:00:00Z`)
+4. `createdAt` descending, with the same null handling as `updatedAt`
+5. `recordId` ascending as final deterministic tie-breaker
+
+Planning visibility and authorization defaults:
+- Default-deny: missing or invalid identity context denies read/write/compare.
+- Actor identity is server-derived from the authenticated principal; client-provided `userId` is not trusted for authorization decisions.
+- `repo` scope requires both owner match and repository context match.
+- `global` and `user` scopes require owner match.
+- Compare requests must provide explicit requested scopes; unauthorized scopes are denied and surfaced via `deniedScopes` markers.
+
+Planning merge safety invariants:
+- Merge execution requires a confirmation token with `tokenId`, `actorId`, `sourceIdsHash`, `targetId`, `compareHash`, `issuedAt`, and `expiresAt`.
+- Confirmation token TTL is capped (15 minutes) and consumed tokens are invalid.
+- Merge requests require an idempotency key; same key + same payload is replay-safe, same key + different payload is a conflict.
+- Atomic envelope contract requires all components to commit or abort together: `targetUpdate`, `sourceTransitions`, `lineageLinks`, `auditEvent`, and `tokenConsumedWrite`.
+
+## Planning UI Contract (WS5)
+
+The Planning tab in `copilot-ui` maps compare/list/search/create contracts into a deterministic merge UX surface.
+
+### Gate State Enum
+
+Planning gate state is normalized to exactly one of:
+
+- `pass`
+- `degraded`
+- `insufficient-data`
+- `policy-blocked`
+- `auth-denied`
+
+State precedence is deny-dominant: policy/auth denial resolves before degraded/pass.
+
+### Merge Enablement Predicate
+
+UI and handler guard share one predicate:
+
+- `isMergeEnabled(gateState) === true` only when `gateState === pass`
+- all non-pass states hard-disable merge controls and handler returns before any network request is emitted
+
+### Precedence Conflict Review
+
+Compare-driven conflict rows are deterministic and explicit:
+
+- precedence winner ordering: `user > repo > global`
+- tie-break inside same scope: `updatedAt desc`, then `createdAt desc`, then `recordId asc`
+- merge confirmation requires explicit review acknowledgment on each conflict row before confirm is enabled
+
+### Intent-Bound Confirmation Semantics
+
+WS5 confirmation token handling mirrors backend contract patterns:
+
+- server issues intent tokens via `POST /api/planning/merge-intent`
+- server consumes and validates tokens via `POST /api/planning/merge`
+- token bound to actor + target + sourceIds hash + compare snapshot hash + pinned version vector
+- intent issuance requires a valid server compare receipt id (`compareReceiptId`) and `mergeEligible=true`
+- short TTL by default (5m) with max cap (15m)
+- rejection reasons include mismatch (`actor_mismatch`, `target_mismatch`, `compare_hash_mismatch`, `source_ids_hash_mismatch`, `snapshot_version_mismatch`), expiry (`token_expired`), and replay/single-use (`token_consumed`)
+- merge idempotency is enforced server-side (`same key + same payload => replay`, `same key + different payload => conflict`)
+- server recomputes canonical `sourceIdsHash` from request `sourceIds` and rejects mismatch before commit
+
+### Compare Visibility Markers
+
+WS5 surfaces compare response visibility markers without silent omission:
+
+- `deniedScopes` are rendered directly in Planning UI
+- implemented outcome source markers (`available|stale|unavailable|invalid` + reason/path) are rendered directly in Planning UI
+- default-deny behavior is represented as `auth-denied` in the gate-state mapping
 
 ## Legacy Session Migration
 

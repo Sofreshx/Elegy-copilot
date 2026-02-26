@@ -9,6 +9,148 @@
  * Returns partial results on parse errors (never throws).
  */
 
+const PLANNING_STATES = Object.freeze([
+  'thought',
+  'research',
+  'pre-plan',
+  'queued',
+  'implemented',
+  'merged',
+  'superseded',
+]);
+
+const TERMINAL_PLANNING_STATES = Object.freeze([
+  'merged',
+  'superseded',
+]);
+
+const PLANNING_TRANSITION_MATRIX = Object.freeze({
+  thought: Object.freeze(['research', 'merged', 'superseded']),
+  research: Object.freeze(['pre-plan', 'merged', 'superseded']),
+  'pre-plan': Object.freeze(['queued', 'merged', 'superseded']),
+  queued: Object.freeze(['implemented', 'merged', 'superseded']),
+  implemented: Object.freeze(['merged', 'superseded']),
+  merged: Object.freeze([]),
+  superseded: Object.freeze([]),
+});
+
+const PLANNING_SCOPE_PRECEDENCE = Object.freeze({
+  user: 3,
+  repo: 2,
+  global: 1,
+});
+
+const PLANNING_SCOPES = Object.freeze(['user', 'repo', 'global']);
+
+const PLANNING_STATE_SET = new Set(PLANNING_STATES);
+
+function normalizePlanningState(state) {
+  if (typeof state !== 'string') {
+    return null;
+  }
+
+  let normalized = state.trim().toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+
+  normalized = normalized.replace(/[_\s]+/g, '-');
+  if (normalized === 'preplan') {
+    normalized = 'pre-plan';
+  }
+
+  return PLANNING_STATE_SET.has(normalized) ? normalized : null;
+}
+
+function isValidPlanningTransition(fromState, toState) {
+  const from = normalizePlanningState(fromState);
+  const to = normalizePlanningState(toState);
+
+  if (!from || !to || from === to) {
+    return false;
+  }
+
+  const allowedTransitions = PLANNING_TRANSITION_MATRIX[from];
+  return Array.isArray(allowedTransitions) && allowedTransitions.includes(to);
+}
+
+function normalizePlanningScope(valueOrRecord) {
+  let scopeValue = valueOrRecord;
+  if (valueOrRecord && typeof valueOrRecord === 'object') {
+    scopeValue = valueOrRecord.scope != null ? valueOrRecord.scope : valueOrRecord.source;
+  }
+
+  if (typeof scopeValue !== 'string') {
+    return '';
+  }
+
+  const normalized = scopeValue.trim().toLowerCase();
+  return PLANNING_SCOPES.includes(normalized) ? normalized : '';
+}
+
+function getPlanningScopePrecedence(record) {
+  return PLANNING_SCOPE_PRECEDENCE[normalizePlanningScope(record)] || 0;
+}
+
+function normalizePlanningScore(score) {
+  if (score == null) {
+    return -1;
+  }
+
+  const numeric = Number(score);
+  return Number.isFinite(numeric) ? numeric : -1;
+}
+
+function normalizePlanningTimestamp(timestamp) {
+  if (timestamp == null) {
+    return 0;
+  }
+
+  if (timestamp instanceof Date) {
+    const value = timestamp.getTime();
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof timestamp === 'number') {
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  const parsed = Date.parse(timestamp);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizePlanningRecordId(record) {
+  if (!record || typeof record !== 'object' || record.recordId == null) {
+    return '';
+  }
+
+  return String(record.recordId);
+}
+
+function comparePlanningRecords(a, b) {
+  const precedenceDiff = getPlanningScopePrecedence(b) - getPlanningScopePrecedence(a);
+  if (precedenceDiff !== 0) {
+    return precedenceDiff;
+  }
+
+  const scoreDiff = normalizePlanningScore(b && b.score) - normalizePlanningScore(a && a.score);
+  if (scoreDiff !== 0) {
+    return scoreDiff;
+  }
+
+  const updatedAtDiff = normalizePlanningTimestamp(b && b.updatedAt) - normalizePlanningTimestamp(a && a.updatedAt);
+  if (updatedAtDiff !== 0) {
+    return updatedAtDiff;
+  }
+
+  const createdAtDiff = normalizePlanningTimestamp(b && b.createdAt) - normalizePlanningTimestamp(a && a.createdAt);
+  if (createdAtDiff !== 0) {
+    return createdAtDiff;
+  }
+
+  return normalizePlanningRecordId(a).localeCompare(normalizePlanningRecordId(b));
+}
+
 /**
  * Parse a plan artifact and extract structured progress data.
  * 
@@ -280,5 +422,13 @@ function parseCheckpoints(text, warnings) {
 }
 
 module.exports = {
+  PLANNING_STATES,
+  PLANNING_SCOPES,
+  TERMINAL_PLANNING_STATES,
+  PLANNING_TRANSITION_MATRIX,
+  normalizePlanningState,
+  normalizePlanningScope,
+  isValidPlanningTransition,
+  comparePlanningRecords,
   parseStructuredState,
 };

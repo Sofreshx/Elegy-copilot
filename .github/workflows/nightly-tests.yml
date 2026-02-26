@@ -1,0 +1,65 @@
+name: Nightly Tests (Full)
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 3 AM UTC daily
+  workflow_dispatch:
+
+jobs:
+  full-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install scripts dependencies
+        run: npm ci
+        working-directory: scripts
+
+      - name: Run ledger core tests
+        run: node --test test-ledger-core.test.js
+        working-directory: scripts
+
+      - name: Install RannIA dependencies
+        run: npm ci
+        working-directory: RannIA
+
+      - name: Compile RannIA
+        run: npm run compile
+        working-directory: RannIA
+
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Run RannIA tests (force)
+        run: xvfb-run --auto-servernum npm test -- --force
+        working-directory: RannIA
+
+      - name: Install local-tracker dependencies
+        run: npm ci
+        working-directory: local-tracker
+
+      - name: Run local-tracker tests (force)
+        run: npm test -- --force
+        working-directory: local-tracker
+
+      - name: Install copilot-ui dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: copilot-ui
+
+      - name: Run copilot-ui tests (force)
+        run: npm test -- --force
+        working-directory: copilot-ui
+
+      - name: Run scripts tests (force)
+        run: npm test -- --force
+        working-directory: scripts

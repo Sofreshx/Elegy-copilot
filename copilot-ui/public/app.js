@@ -1,4 +1,7 @@
+const hasDom = typeof window !== 'undefined' && typeof document !== 'undefined';
+
 function $(id) {
+  if (!hasDom) return null;
   return document.getElementById(id);
 }
 
@@ -9,6 +12,34 @@ let trackerPendingCount = 0;
 let policyGateBlocked = false;
 let policyGateReason = '';
 let sandboxSessions = [];
+
+const PLANNING_GATE_STATES = Object.freeze({
+  PASS: 'pass',
+  DEGRADED: 'degraded',
+  INSUFFICIENT_DATA: 'insufficient-data',
+  POLICY_BLOCKED: 'policy-blocked',
+  AUTH_DENIED: 'auth-denied',
+});
+
+const PLANNING_SCOPE_PRECEDENCE = Object.freeze({
+  user: 3,
+  repo: 2,
+  global: 1,
+});
+
+const PLANNING_INTENT_MAX_TTL_MS = 15 * 60 * 1000;
+const PLANNING_INTENT_DEFAULT_TTL_MS = 5 * 60 * 1000;
+
+let planningViewState = {
+  records: [],
+  searchResults: [],
+  compareResponse: null,
+  gateState: PLANNING_GATE_STATES.INSUFFICIENT_DATA,
+  gateReason: 'Run compare to evaluate merge gate state.',
+  conflicts: [],
+  reviewedConflictKeys: new Set(),
+  intentToken: null,
+};
 
 function isMutatingMethod(method) {
   const m = String(method || 'GET').toUpperCase();
@@ -23,6 +54,8 @@ function applyPolicyGateUi() {
     'btn-copilot-authorize',
     'btn-install-lsp',
     'btn-gateway-save',
+    'btn-planning-create',
+    'btn-planning-merge',
     'btn-sandbox-create',
     'btn-sandbox-start',
     'btn-sandbox-stop',
@@ -40,6 +73,10 @@ function applyPolicyGateUi() {
     $('btn-archive-session').disabled = true;
     $('btn-delete-session').disabled = true;
     setStatus(`Policy gate active: ${policyGateReason || 'mutating actions are blocked'}`);
+  }
+
+  if (hasDom) {
+    refreshPlanningMergeControls();
   }
 }
 
@@ -137,24 +174,372 @@ function evTime(ev) {
   return Number.isFinite(d.getTime()) ? d.getTime() : null;
 }
 
+function normalizePlanningGateState(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === PLANNING_GATE_STATES.PASS) return PLANNING_GATE_STATES.PASS;
+  if (normalized === PLANNING_GATE_STATES.DEGRADED) return PLANNING_GATE_STATES.DEGRADED;
+  if (normalized === PLANNING_GATE_STATES.INSUFFICIENT_DATA) return PLANNING_GATE_STATES.INSUFFICIENT_DATA;
+  if (normalized === PLANNING_GATE_STATES.POLICY_BLOCKED) return PLANNING_GATE_STATES.POLICY_BLOCKED;
+  if (normalized === PLANNING_GATE_STATES.AUTH_DENIED) return PLANNING_GATE_STATES.AUTH_DENIED;
+  return PLANNING_GATE_STATES.INSUFFICIENT_DATA;
+}
+
+function planningGateBadgeClass(gateState) {
+  const state = normalizePlanningGateState(gateState);
+  if (state === PLANNING_GATE_STATES.PASS) return 'status-done';
+  if (state === PLANNING_GATE_STATES.DEGRADED) return 'status-in-progress';
+  if (state === PLANNING_GATE_STATES.POLICY_BLOCKED || state === PLANNING_GATE_STATES.AUTH_DENIED) return 'status-failed';
+  return 'status-pending';
+}
+
+function isMergeEnabled(gateState) {
+  return normalizePlanningGateState(gateState) === PLANNING_GATE_STATES.PASS;
+}
+
+function planningScopeRank(scope) {
+  return PLANNING_SCOPE_PRECEDENCE[String(scope || '').trim().toLowerCase()] || 0;
+}
+
+function parseIsoMs(value) {
+  if (typeof value !== 'string' || !value.trim()) return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function comparePlanningConflictEntries(a, b) {
+  const scopeDiff = planningScopeRank(b.scope) - planningScopeRank(a.scope);
+  if (scopeDiff !== 0) return scopeDiff;
+
+  const updatedDiff = parseIsoMs(b.updatedAt) - parseIsoMs(a.updatedAt);
+  if (updatedDiff !== 0) return updatedDiff;
+
+  const createdDiff = parseIsoMs(b.createdAt) - parseIsoMs(a.createdAt);
+  if (createdDiff !== 0) return createdDiff;
+
+  return String(a.recordId || '').localeCompare(String(b.recordId || ''));
+}
+
+function resolveConflictWinner(entries) {
+  if (!Array.isArray(entries) || !entries.length) return null;
+  const sorted = entries.slice().sort(comparePlanningConflictEntries);
+  return sorted[0] || null;
+}
+
+function pickTopRecordByScope(records) {
+  const topByScope = new Map();
+  for (const record of Array.isArray(records) ? records : []) {
+    const scope = String(record && record.scope ? record.scope : '').trim().toLowerCase();
+    if (!planningScopeRank(scope)) continue;
+
+    const nextEntry = {
+      scope,
+      recordId: String((record && record.recordId) || ''),
+      updatedAt: record && record.updatedAt,
+      createdAt: record && record.createdAt,
+      raw: record,
+    };
+
+    const existing = topByScope.get(scope);
+    if (!existing || comparePlanningConflictEntries(nextEntry, existing) < 0) {
+      topByScope.set(scope, nextEntry);
+    }
+  }
+  return topByScope;
+}
+
+function buildPlanningConflictRows(records) {
+  const fields = ['title', 'summary', 'state'];
+  const topByScope = pickTopRecordByScope(records);
+  const scopes = ['user', 'repo', 'global'];
+  const rows = [];
+
+  for (const field of fields) {
+    const entries = [];
+    for (const scope of scopes) {
+      const top = topByScope.get(scope);
+      if (!top || !top.raw) continue;
+      const value = String(top.raw[field] || '').trim();
+      if (!value) continue;
+      entries.push({
+        scope,
+        field,
+        value,
+        recordId: String(top.raw.recordId || ''),
+        updatedAt: top.raw.updatedAt,
+        createdAt: top.raw.createdAt,
+      });
+    }
+
+    if (entries.length < 2) continue;
+    const distinctValues = [...new Set(entries.map((entry) => entry.value))];
+    if (distinctValues.length < 2) continue;
+
+    const winner = resolveConflictWinner(entries);
+    if (!winner) continue;
+
+    const byScope = {
+      user: entries.find((entry) => entry.scope === 'user') || null,
+      repo: entries.find((entry) => entry.scope === 'repo') || null,
+      global: entries.find((entry) => entry.scope === 'global') || null,
+    };
+
+    rows.push({
+      conflictKey: field,
+      field,
+      valuesByScope: byScope,
+      winnerScope: winner.scope,
+      winnerRecordId: winner.recordId,
+      winnerValue: winner.value,
+    });
+  }
+
+  rows.sort((a, b) => String(a.field).localeCompare(String(b.field)));
+  return rows;
+}
+
+function hasReviewedAllConflicts(conflicts, reviewedConflictKeys) {
+  const rows = Array.isArray(conflicts) ? conflicts : [];
+  if (!rows.length) return true;
+  const reviewed = reviewedConflictKeys instanceof Set
+    ? reviewedConflictKeys
+    : new Set(Array.isArray(reviewedConflictKeys) ? reviewedConflictKeys : []);
+  return rows.every((row) => reviewed.has(row.conflictKey));
+}
+
+function stableNormalize(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => stableNormalize(entry));
+  }
+  if (value && typeof value === 'object') {
+    const out = {};
+    const keys = Object.keys(value).sort((a, b) => a.localeCompare(b));
+    for (const key of keys) {
+      out[key] = stableNormalize(value[key]);
+    }
+    return out;
+  }
+  return value;
+}
+
+function stableHash(value) {
+  const normalized = JSON.stringify(stableNormalize(value));
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash = ((hash << 5) - hash) + normalized.charCodeAt(i);
+    hash |= 0;
+  }
+  return `h${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+function buildCompareSnapshotHash(compareResponse) {
+  const response = compareResponse && typeof compareResponse === 'object' ? compareResponse : {};
+  return stableHash({
+    requestedScopes: Array.isArray(response.requestedScopes) ? response.requestedScopes : [],
+    deniedScopes: Array.isArray(response.deniedScopes) ? response.deniedScopes : [],
+    pinnedVersion: response.versionVector && response.versionVector.pinned ? response.versionVector.pinned : null,
+    matchIds: Array.isArray(response.matches) ? response.matches.map((entry) => String((entry && entry.recordId) || '')) : [],
+  });
+}
+
+function buildSourceIdsHash(sourceIds) {
+  const normalized = [...new Set((Array.isArray(sourceIds) ? sourceIds : [])
+    .map((id) => String(id || '').trim())
+    .filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  return stableHash(normalized);
+}
+
+function createPlanningIntentToken(input = {}, options = {}) {
+  const nowMs = Number.isFinite(options.nowMs) ? Number(options.nowMs) : Date.now();
+  const rawTtlMs = Number.isFinite(options.ttlMs) ? Number(options.ttlMs) : PLANNING_INTENT_DEFAULT_TTL_MS;
+  const ttlMs = Math.max(1_000, Math.min(rawTtlMs, PLANNING_INTENT_MAX_TTL_MS));
+
+  const issuedAt = new Date(nowMs).toISOString();
+  const expiresAt = new Date(nowMs + ttlMs).toISOString();
+  const tokenId = String(input.tokenId || `intent-${nowMs}-${Math.random().toString(36).slice(2, 8)}`);
+
+  return {
+    tokenId,
+    actorId: String(input.actorId || ''),
+    sourceIdsHash: String(input.sourceIdsHash || ''),
+    targetId: String(input.targetId || ''),
+    compareHash: String(input.compareHash || ''),
+    issuedAt,
+    expiresAt,
+    versionVector: input.versionVector || null,
+    consumedAt: null,
+  };
+}
+
+function validatePlanningIntentToken(token, context = {}) {
+  if (!token || typeof token !== 'object') {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'token_not_object' } };
+  }
+
+  const requiredFields = ['tokenId', 'actorId', 'sourceIdsHash', 'targetId', 'compareHash', 'issuedAt', 'expiresAt'];
+  for (const field of requiredFields) {
+    if (typeof token[field] !== 'string' || !token[field].trim()) {
+      return { ok: false, error: { code: 'invalid_confirmation_token', reason: `missing_or_invalid_${field}` } };
+    }
+  }
+
+  const issuedAtMs = parseIsoMs(token.issuedAt);
+  const expiresAtMs = parseIsoMs(token.expiresAt);
+  if (!issuedAtMs || !expiresAtMs || expiresAtMs <= issuedAtMs) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'invalid_token_time_window' } };
+  }
+  if (expiresAtMs - issuedAtMs > PLANNING_INTENT_MAX_TTL_MS) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'token_ttl_exceeds_max' } };
+  }
+
+  const nowMs = Number.isFinite(context.nowMs) ? Number(context.nowMs) : Date.now();
+  if (nowMs > expiresAtMs) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'token_expired' } };
+  }
+
+  if (token.consumedAt != null) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'token_consumed' } };
+  }
+
+  if (context.actorId && String(context.actorId) !== token.actorId) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'actor_mismatch' } };
+  }
+  if (context.targetId && String(context.targetId) !== token.targetId) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'target_mismatch' } };
+  }
+  if (context.compareHash && String(context.compareHash) !== token.compareHash) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'compare_hash_mismatch' } };
+  }
+  if (context.sourceIdsHash && String(context.sourceIdsHash) !== token.sourceIdsHash) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'source_ids_hash_mismatch' } };
+  }
+
+  if (context.expectedVersionVector != null) {
+    const expected = stableHash(context.expectedVersionVector);
+    const actual = stableHash(token.versionVector || null);
+    if (expected !== actual) {
+      return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'snapshot_version_mismatch' } };
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      tokenId: token.tokenId,
+      actorId: token.actorId,
+      sourceIdsHash: token.sourceIdsHash,
+      targetId: token.targetId,
+      compareHash: token.compareHash,
+      issuedAt: token.issuedAt,
+      expiresAt: token.expiresAt,
+      versionVector: token.versionVector || null,
+    },
+  };
+}
+
+function mapPlanningGateState(input = {}) {
+  const explicit = normalizePlanningGateState(input.gateState);
+  if (input.gateState) {
+    return {
+      state: explicit,
+      reason: String(input.reason || '').trim() || explicit,
+    };
+  }
+
+  if (input.policyGateBlocked) {
+    return {
+      state: PLANNING_GATE_STATES.POLICY_BLOCKED,
+      reason: String(input.reason || policyGateReason || 'Policy gate blocked mutating actions').trim(),
+    };
+  }
+
+  const httpStatus = Number(input.httpStatus || 0);
+  const errorCode = String(input.errorCode || '').trim();
+  const requestedScopes = Array.isArray(input.requestedScopes) ? input.requestedScopes : [];
+  const deniedScopes = Array.isArray(input.deniedScopes) ? input.deniedScopes : [];
+
+  if (
+    httpStatus === 401
+    || httpStatus === 403
+    || errorCode === 'scope_visibility_denied'
+    || errorCode === 'missing_user_context'
+    || (requestedScopes.length > 0 && deniedScopes.length >= requestedScopes.length)
+  ) {
+    return {
+      state: PLANNING_GATE_STATES.AUTH_DENIED,
+      reason: String(input.reason || 'Default-deny scope visibility blocked request').trim(),
+    };
+  }
+
+  const matches = Array.isArray(input.matches) ? input.matches : [];
+  const sourceMarkers = Array.isArray(input.sourceMarkers) ? input.sourceMarkers : [];
+  const hasDegradedSources = sourceMarkers.some((marker) => String(marker && marker.status || '').toLowerCase() !== 'available');
+
+  if (!matches.length && !sourceMarkers.length) {
+    return {
+      state: PLANNING_GATE_STATES.INSUFFICIENT_DATA,
+      reason: String(input.reason || 'No compare matches and no source markers available').trim(),
+    };
+  }
+
+  if (hasDegradedSources || deniedScopes.length > 0 || input.newerDataAvailable === true) {
+    return {
+      state: PLANNING_GATE_STATES.DEGRADED,
+      reason: String(input.reason || 'Compare has denied scopes, degraded sources, or stale snapshot').trim(),
+    };
+  }
+
+  return {
+    state: PLANNING_GATE_STATES.PASS,
+    reason: String(input.reason || 'Compare satisfied gate checks').trim(),
+  };
+}
+
+function parsePlanningApiError(error) {
+  const message = String((error && error.message) || error || 'Unknown error');
+  const statusMatch = message.match(/^(\d{3})\s/);
+  const httpStatus = statusMatch ? Number(statusMatch[1]) : 0;
+
+  const firstBrace = message.indexOf('{');
+  let errorCode = '';
+  let reason = message;
+  let body = null;
+
+  if (firstBrace >= 0) {
+    try {
+      body = JSON.parse(message.slice(firstBrace));
+      const nestedError = body && typeof body.error === 'object' ? body.error : null;
+      errorCode = String(body.code || (nestedError && nestedError.code) || '').trim();
+      reason = String(body.reason || (nestedError && nestedError.reason) || body.error || reason).trim();
+    } catch {
+      // best-effort parse only
+    }
+  }
+
+  return { message, httpStatus, errorCode, reason, body };
+}
+
 function switchTab(tab) {
   const sessions = tab === 'sessions';
   const sandboxes = tab === 'sandboxes';
   const assets = tab === 'assets';
   const lsp = tab === 'lsp';
   const tracker = tab === 'tracker';
+  const planning = tab === 'planning';
   const gateway = tab === 'gateway';
   $('tab-sessions').classList.toggle('active', sessions);
   $('tab-sandboxes').classList.toggle('active', sandboxes);
   $('tab-assets').classList.toggle('active', assets);
   $('tab-lsp').classList.toggle('active', lsp);
   $('tab-tracker').classList.toggle('active', tracker);
+  $('tab-planning').classList.toggle('active', planning);
   $('tab-gateway').classList.toggle('active', gateway);
   $('view-sessions').classList.toggle('hidden', !sessions);
   $('view-sandboxes').classList.toggle('hidden', !sandboxes);
   $('view-assets').classList.toggle('hidden', !assets);
   $('view-lsp').classList.toggle('hidden', !lsp);
   $('view-tracker').classList.toggle('hidden', !tracker);
+  $('view-planning').classList.toggle('hidden', !planning);
   $('view-gateway').classList.toggle('hidden', !gateway);
   
   if (lsp) {
@@ -167,6 +552,10 @@ function switchTab(tab) {
     startTrackerSSE();
   } else {
     stopTrackerSSE();
+  }
+
+  if (planning) {
+    renderPlanningView();
   }
 
   if (gateway) {
@@ -1224,6 +1613,609 @@ async function saveGatewayConfig() {
   }
 }
 
+function getPlanningSelectedScopes() {
+  const scopes = [];
+  if ($('planning-scope-user') && $('planning-scope-user').checked) scopes.push('user');
+  if ($('planning-scope-repo') && $('planning-scope-repo').checked) scopes.push('repo');
+  if ($('planning-scope-global') && $('planning-scope-global').checked) scopes.push('global');
+  return scopes;
+}
+
+function readPlanningContextFromUi() {
+  return {
+    userId: String(($('planning-user-id') && $('planning-user-id').value) || '').trim(),
+    repoId: String(($('planning-repo-id') && $('planning-repo-id').value) || '').trim(),
+    query: String(($('planning-query') && $('planning-query').value) || '').trim(),
+    sessionId: String(($('planning-session-id') && $('planning-session-id').value) || '').trim(),
+    scopes: getPlanningSelectedScopes(),
+  };
+}
+
+function nextPlanningIdempotencyKey(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildPlanningQueryString(context, options = {}) {
+  const params = new URLSearchParams();
+  if (context.userId) params.set('userId', context.userId);
+  if (context.repoId) params.set('repoId', context.repoId);
+  for (const scope of context.scopes || []) params.append('scope', scope);
+  if (options.query) params.set('q', options.query);
+  if (Number.isFinite(options.limit)) params.set('limit', String(options.limit));
+  return params.toString();
+}
+
+function setPlanningOutput(value, muted = false) {
+  const out = $('planning-output');
+  if (!out) return;
+  out.textContent = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+  out.classList.toggle('muted', Boolean(muted));
+}
+
+function renderPlanningGate() {
+  const badge = $('planning-gate-badge');
+  const detail = $('planning-gate-detail');
+  if (!badge || !detail) return;
+
+  const state = normalizePlanningGateState(planningViewState.gateState);
+  badge.textContent = state;
+  badge.className = `badge ${planningGateBadgeClass(state)}`;
+  detail.textContent = planningViewState.gateReason || state;
+}
+
+function renderPlanningRecords() {
+  const container = $('planning-records');
+  if (!container) return;
+  container.textContent = '';
+  container.classList.remove('muted');
+
+  const records = Array.isArray(planningViewState.records) ? planningViewState.records : [];
+  for (const record of records) {
+    const row = document.createElement('div');
+    row.className = 'item';
+    const title = String(record.title || record.recordId || '(untitled)');
+    const sub = [record.recordId, record.scope, record.state, fmtTime(parseIsoMs(record.updatedAt || record.createdAt))]
+      .filter(Boolean)
+      .join(' • ');
+    row.innerHTML = '<div class="item-title"></div><div class="item-sub muted"></div>';
+    row.querySelector('.item-title').textContent = title;
+    row.querySelector('.item-sub').textContent = sub;
+    container.appendChild(row);
+  }
+
+  if (!records.length) {
+    container.classList.add('muted');
+    container.textContent = '(none)';
+  }
+}
+
+function renderPlanningSearchResults() {
+  const container = $('planning-search-results');
+  if (!container) return;
+  container.textContent = '';
+  container.classList.remove('muted');
+
+  const results = Array.isArray(planningViewState.searchResults) ? planningViewState.searchResults : [];
+  for (const entry of results) {
+    const row = document.createElement('div');
+    row.className = 'item';
+    row.innerHTML = '<div class="item-title"></div><div class="item-sub muted"></div>';
+    row.querySelector('.item-title').textContent = `${entry.rank || '?'} • ${entry.recordId || '(unknown)'}`;
+    row.querySelector('.item-sub').textContent = [entry.scope, entry.status, `score=${entry.score}`].filter(Boolean).join(' • ');
+    container.appendChild(row);
+  }
+
+  if (!results.length) {
+    container.classList.add('muted');
+    container.textContent = '(none)';
+  }
+}
+
+function renderPlanningCompare() {
+  const compareContainer = $('planning-compare-matches');
+  const sourceContainer = $('planning-source-markers');
+  const deniedScopes = $('planning-denied-scopes');
+  const mergeTarget = $('planning-merge-target');
+  const compare = planningViewState.compareResponse;
+
+  if (!compareContainer || !sourceContainer || !deniedScopes || !mergeTarget) return;
+
+  compareContainer.textContent = '';
+  sourceContainer.textContent = '';
+  mergeTarget.textContent = '';
+
+  if (!compare) {
+    compareContainer.classList.add('muted');
+    compareContainer.textContent = '(none)';
+    sourceContainer.classList.add('muted');
+    sourceContainer.textContent = '(none)';
+    deniedScopes.textContent = '(none)';
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(compare first)';
+    mergeTarget.appendChild(opt);
+    return;
+  }
+
+  const matches = Array.isArray(compare.matches) ? compare.matches : [];
+  compareContainer.classList.remove('muted');
+  for (const entry of matches) {
+    const row = document.createElement('div');
+    row.className = 'item';
+    row.innerHTML = '<div class="item-title"></div><div class="item-sub muted"></div>';
+    row.querySelector('.item-title').textContent = `${entry.rank || '?'} • ${entry.recordId || '(unknown)'}`;
+    row.querySelector('.item-sub').textContent = [entry.scope, entry.status, `score=${entry.score}`].filter(Boolean).join(' • ');
+    compareContainer.appendChild(row);
+  }
+  if (!matches.length) {
+    compareContainer.classList.add('muted');
+    compareContainer.textContent = '(none)';
+  }
+
+  const markers = compare.implementedOutcomes && Array.isArray(compare.implementedOutcomes.sources)
+    ? compare.implementedOutcomes.sources
+    : [];
+  sourceContainer.classList.remove('muted');
+  for (const marker of markers) {
+    const row = document.createElement('div');
+    row.className = 'item';
+    row.innerHTML = '<div class="item-title"></div><div class="item-sub muted"></div>';
+    row.querySelector('.item-title').textContent = `${marker.sourceId || '(unknown)'} • ${marker.status || 'unavailable'}`;
+    row.querySelector('.item-sub').textContent = [marker.sourceType, marker.reason, marker.path].filter(Boolean).join(' • ');
+    sourceContainer.appendChild(row);
+  }
+  if (!markers.length) {
+    sourceContainer.classList.add('muted');
+    sourceContainer.textContent = '(none)';
+  }
+
+  const denied = Array.isArray(compare.deniedScopes) ? compare.deniedScopes : [];
+  deniedScopes.textContent = denied.length ? denied.join(', ') : '(none)';
+
+  const previousTarget = mergeTarget.value;
+  const candidateTargets = [...new Set(matches.map((entry) => String(entry.recordId || '').trim()).filter(Boolean))];
+  if (!candidateTargets.length && Array.isArray(compare.planningRecords)) {
+    candidateTargets.push(...compare.planningRecords.map((record) => String(record && record.recordId || '').trim()).filter(Boolean));
+  }
+
+  if (!candidateTargets.length) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = '(no target available)';
+    mergeTarget.appendChild(opt);
+  } else {
+    for (const targetId of candidateTargets) {
+      const opt = document.createElement('option');
+      opt.value = targetId;
+      opt.textContent = targetId;
+      mergeTarget.appendChild(opt);
+    }
+    if (candidateTargets.includes(previousTarget)) {
+      mergeTarget.value = previousTarget;
+    }
+  }
+}
+
+function renderPlanningConflictRows() {
+  const body = $('planning-conflict-rows');
+  if (!body) return;
+  body.textContent = '';
+
+  const rows = Array.isArray(planningViewState.conflicts) ? planningViewState.conflicts : [];
+  if (!rows.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.className = 'muted';
+    td.textContent = '(no precedence conflicts)';
+    tr.appendChild(td);
+    body.appendChild(tr);
+    return;
+  }
+
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    const userValue = row.valuesByScope && row.valuesByScope.user ? row.valuesByScope.user.value : '—';
+    const repoValue = row.valuesByScope && row.valuesByScope.repo ? row.valuesByScope.repo.value : '—';
+    const globalValue = row.valuesByScope && row.valuesByScope.global ? row.valuesByScope.global.value : '—';
+    const winnerText = `${row.winnerScope} (${row.winnerRecordId})`;
+
+    const cells = [
+      row.field,
+      userValue,
+      repoValue,
+      globalValue,
+      winnerText,
+    ];
+
+    for (const cellValue of cells) {
+      const td = document.createElement('td');
+      td.textContent = cellValue;
+      tr.appendChild(td);
+    }
+
+    const reviewedTd = document.createElement('td');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = planningViewState.reviewedConflictKeys.has(row.conflictKey);
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) {
+        planningViewState.reviewedConflictKeys.add(row.conflictKey);
+      } else {
+        planningViewState.reviewedConflictKeys.delete(row.conflictKey);
+      }
+      refreshPlanningMergeControls();
+    });
+    reviewedTd.appendChild(checkbox);
+    tr.appendChild(reviewedTd);
+
+    body.appendChild(tr);
+  }
+}
+
+function renderPlanningIntent() {
+  const pre = $('planning-intent');
+  if (!pre) return;
+
+  if (!planningViewState.intentToken) {
+    pre.classList.add('muted');
+    pre.textContent = '(no intent token)';
+    return;
+  }
+
+  pre.classList.remove('muted');
+  pre.textContent = JSON.stringify(planningViewState.intentToken, null, 2);
+}
+
+function refreshPlanningMergeControls() {
+  const mergeButton = $('btn-planning-merge');
+  const requirements = $('planning-merge-requirements');
+  if (!mergeButton || !requirements) return;
+
+  const gateAllowsMerge = isMergeEnabled(planningViewState.gateState);
+  const hasIntent = Boolean(planningViewState.intentToken);
+  const reviewedConflicts = hasReviewedAllConflicts(planningViewState.conflicts, planningViewState.reviewedConflictKeys);
+  const canMerge = gateAllowsMerge && hasIntent && reviewedConflicts && !policyGateBlocked;
+
+  mergeButton.disabled = !canMerge;
+
+  if (!gateAllowsMerge) {
+    requirements.textContent = `Merge disabled: gate state is ${planningViewState.gateState}.`;
+    return;
+  }
+  if (!reviewedConflicts) {
+    requirements.textContent = 'Merge disabled: review every conflict row before confirmation.';
+    return;
+  }
+  if (!hasIntent) {
+    requirements.textContent = 'Merge disabled: prepare an intent token first.';
+    return;
+  }
+  if (policyGateBlocked) {
+    requirements.textContent = `Merge disabled: policy gate active (${policyGateReason || 'blocked'}).`;
+    return;
+  }
+
+  requirements.textContent = 'Merge ready: pass gate, reviewed conflicts, and valid intent token.';
+}
+
+function renderPlanningView() {
+  if (!hasDom) return;
+  renderPlanningGate();
+  renderPlanningRecords();
+  renderPlanningSearchResults();
+  renderPlanningCompare();
+  renderPlanningConflictRows();
+  renderPlanningIntent();
+  refreshPlanningMergeControls();
+}
+
+async function listPlanningRecords() {
+  const context = readPlanningContextFromUi();
+  setStatus('Loading planning records…');
+
+  try {
+    const query = buildPlanningQueryString(context);
+    const data = await api(`/api/planning/records${query ? `?${query}` : ''}`);
+    planningViewState.records = Array.isArray(data.records) ? data.records : [];
+
+    const deniedScopes = Array.isArray(data.deniedScopes) ? data.deniedScopes : [];
+    const deniedEl = $('planning-denied-scopes');
+    if (deniedEl) deniedEl.textContent = deniedScopes.length ? deniedScopes.join(', ') : '(none)';
+
+    setPlanningOutput(data, false);
+    renderPlanningView();
+    setStatus('Planning records loaded.');
+  } catch (error) {
+    const parsed = parsePlanningApiError(error);
+    const gate = mapPlanningGateState({
+      policyGateBlocked,
+      httpStatus: parsed.httpStatus,
+      errorCode: parsed.errorCode,
+      reason: parsed.reason,
+      requestedScopes: context.scopes,
+      deniedScopes: parsed.body && Array.isArray(parsed.body.deniedScopes) ? parsed.body.deniedScopes : [],
+    });
+    planningViewState.gateState = gate.state;
+    planningViewState.gateReason = gate.reason;
+    setPlanningOutput({ error: parsed }, false);
+    renderPlanningView();
+    setStatus(`Planning records failed: ${parsed.reason}`);
+  }
+}
+
+async function searchPlanningRecords() {
+  const context = readPlanningContextFromUi();
+  setStatus('Searching planning records…');
+
+  try {
+    const query = buildPlanningQueryString(context, {
+      query: context.query,
+      limit: 20,
+    });
+    const data = await api(`/api/planning/search${query ? `?${query}` : ''}`);
+    planningViewState.searchResults = Array.isArray(data.results) ? data.results : [];
+    setPlanningOutput(data, false);
+    renderPlanningView();
+    setStatus('Planning search completed.');
+  } catch (error) {
+    const parsed = parsePlanningApiError(error);
+    setPlanningOutput({ error: parsed }, false);
+    setStatus(`Planning search failed: ${parsed.reason}`);
+  }
+}
+
+async function comparePlanningRecords() {
+  const context = readPlanningContextFromUi();
+  setStatus('Comparing planning records…');
+
+  planningViewState.intentToken = null;
+  planningViewState.reviewedConflictKeys = new Set();
+
+  try {
+    const data = await api('/api/planning/compare', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: context.userId,
+        repoId: context.repoId,
+        scopes: context.scopes,
+        query: context.query,
+        sessionId: context.sessionId || undefined,
+        idempotencyKey: nextPlanningIdempotencyKey('planning-compare'),
+      }),
+    });
+
+    planningViewState.compareResponse = data;
+    planningViewState.conflicts = buildPlanningConflictRows(Array.isArray(data.planningRecords) ? data.planningRecords : []);
+    planningViewState.reviewedConflictKeys = new Set();
+
+    const gate = mapPlanningGateState({
+      policyGateBlocked,
+      requestedScopes: Array.isArray(data.requestedScopes) ? data.requestedScopes : context.scopes,
+      deniedScopes: Array.isArray(data.deniedScopes) ? data.deniedScopes : [],
+      matches: Array.isArray(data.matches) ? data.matches : [],
+      sourceMarkers: data.implementedOutcomes && Array.isArray(data.implementedOutcomes.sources)
+        ? data.implementedOutcomes.sources
+        : [],
+      newerDataAvailable: data.newerDataAvailable === true,
+    });
+
+    planningViewState.gateState = gate.state;
+    planningViewState.gateReason = gate.reason;
+
+    setPlanningOutput(data, false);
+    renderPlanningView();
+    setStatus(`Planning compare completed (${gate.state}).`);
+  } catch (error) {
+    const parsed = parsePlanningApiError(error);
+    planningViewState.compareResponse = null;
+    planningViewState.conflicts = [];
+    planningViewState.reviewedConflictKeys = new Set();
+    planningViewState.intentToken = null;
+
+    const gate = mapPlanningGateState({
+      policyGateBlocked,
+      httpStatus: parsed.httpStatus,
+      errorCode: parsed.errorCode,
+      reason: parsed.reason,
+      requestedScopes: context.scopes,
+      deniedScopes: parsed.body && Array.isArray(parsed.body.deniedScopes) ? parsed.body.deniedScopes : [],
+    });
+    planningViewState.gateState = gate.state;
+    planningViewState.gateReason = gate.reason;
+
+    setPlanningOutput({ error: parsed }, false);
+    renderPlanningView();
+    setStatus(`Planning compare failed: ${parsed.reason}`);
+  }
+}
+
+async function createPlanningRecord() {
+  const context = readPlanningContextFromUi();
+  const scope = String(($('planning-create-scope') && $('planning-create-scope').value) || 'user').trim();
+  const state = String(($('planning-create-state') && $('planning-create-state').value) || 'thought').trim();
+  const title = String(($('planning-create-title') && $('planning-create-title').value) || '').trim();
+  const summary = String(($('planning-create-summary') && $('planning-create-summary').value) || '').trim();
+
+  if (!title) {
+    setStatus('Create record requires a title.');
+    return;
+  }
+
+  setStatus('Creating planning record…');
+  try {
+    const data = await api('/api/planning/records', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: context.userId,
+        repoId: context.repoId,
+        idempotencyKey: nextPlanningIdempotencyKey('planning-create'),
+        scope,
+        title,
+        summary,
+        state,
+      }),
+    });
+
+    setPlanningOutput(data, false);
+    await listPlanningRecords();
+    setStatus('Planning record created.');
+  } catch (error) {
+    const parsed = parsePlanningApiError(error);
+    setPlanningOutput({ error: parsed }, false);
+    setStatus(`Planning create failed: ${parsed.reason}`);
+  }
+}
+
+async function preparePlanningMergeIntent() {
+  const context = readPlanningContextFromUi();
+  if (!planningViewState.compareResponse) {
+    setStatus('Prepare intent requires a compare response.');
+    return;
+  }
+  if (!context.userId) {
+    setStatus('Prepare intent requires userId.');
+    return;
+  }
+
+  const targetId = String(($('planning-merge-target') && $('planning-merge-target').value) || '').trim();
+  if (!targetId) {
+    setStatus('Prepare intent requires a merge target.');
+    return;
+  }
+
+  const compareReceipt = planningViewState.compareResponse && planningViewState.compareResponse.compareReceipt
+    ? planningViewState.compareResponse.compareReceipt
+    : null;
+  if (!compareReceipt || !compareReceipt.receiptId) {
+    setStatus('Prepare intent requires a server compare receipt. Run compare again.');
+    return;
+  }
+
+  const sourceIds = (Array.isArray(planningViewState.compareResponse.planningRecords)
+    ? planningViewState.compareResponse.planningRecords
+    : [])
+    .map((entry) => String(entry && entry.recordId || '').trim())
+    .filter(Boolean);
+
+  setStatus('Preparing planning merge intent…');
+  try {
+    const response = await api('/api/planning/merge-intent', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: context.userId,
+        repoId: context.repoId,
+        compareReceiptId: compareReceipt.receiptId,
+        targetId,
+        sourceIds,
+        ttlMs: PLANNING_INTENT_DEFAULT_TTL_MS,
+      }),
+    });
+
+    const token = response && response.intentToken ? response.intentToken : null;
+    if (!token) {
+      throw new Error('merge_intent_token_missing');
+    }
+
+    planningViewState.intentToken = token;
+    renderPlanningIntent();
+    refreshPlanningMergeControls();
+    setPlanningOutput({ mergeIntent: response }, false);
+    setStatus('Planning merge intent prepared.');
+  } catch (error) {
+    const parsed = parsePlanningApiError(error);
+    setPlanningOutput({ error: parsed }, false);
+    setStatus(`Planning intent failed: ${parsed.reason}`);
+  }
+}
+
+async function confirmPlanningMerge() {
+  if (!isMergeEnabled(planningViewState.gateState)) {
+    setStatus(`Merge blocked by gate state: ${planningViewState.gateState}`);
+    return;
+  }
+
+  if (!hasReviewedAllConflicts(planningViewState.conflicts, planningViewState.reviewedConflictKeys)) {
+    setStatus('Merge blocked: review all precedence conflicts first.');
+    return;
+  }
+
+  if (!planningViewState.intentToken) {
+    setStatus('Merge blocked: no intent token prepared.');
+    return;
+  }
+
+  const context = readPlanningContextFromUi();
+  const targetId = String(($('planning-merge-target') && $('planning-merge-target').value) || '').trim();
+  const compare = planningViewState.compareResponse;
+  const compareReceipt = compare && compare.compareReceipt ? compare.compareReceipt : null;
+  if (!compareReceipt || !compareReceipt.receiptId) {
+    setStatus('Merge blocked: missing compare receipt. Run compare again.');
+    return;
+  }
+  const expectedCompareHash = compareReceipt && compareReceipt.compareHash
+    ? String(compareReceipt.compareHash)
+    : buildCompareSnapshotHash(compare);
+  const sourceIds = (Array.isArray(compare && compare.planningRecords) ? compare.planningRecords : [])
+    .map((entry) => String(entry && entry.recordId || '').trim())
+    .filter(Boolean);
+  const expectedSourceIdsHash = compareReceipt && compareReceipt.sourceIdsHash
+    ? String(compareReceipt.sourceIdsHash)
+    : buildSourceIdsHash(sourceIds);
+
+  const validation = validatePlanningIntentToken(planningViewState.intentToken, {
+    nowMs: Date.now(),
+    actorId: context.userId,
+    targetId,
+    compareHash: expectedCompareHash,
+    sourceIdsHash: expectedSourceIdsHash,
+    expectedVersionVector: compare && compare.versionVector ? compare.versionVector.pinned || null : null,
+  });
+
+  if (!validation.ok) {
+    setPlanningOutput({ mergeRejected: validation.error }, false);
+    setStatus(`Merge rejected: ${validation.error.reason}`);
+    return;
+  }
+
+  const winnerSummary = planningViewState.conflicts.length
+    ? planningViewState.conflicts
+      .map((row) => `${row.field}=${row.winnerScope}`)
+      .join(', ')
+    : 'no precedence conflicts';
+
+  setStatus('Confirming planning merge…');
+  const response = await api('/api/planning/merge', {
+    method: 'POST',
+    body: JSON.stringify({
+      userId: context.userId,
+      repoId: context.repoId,
+      idempotencyKey: `merge-${validation.value.tokenId}`,
+      compareReceiptId: compareReceipt && compareReceipt.receiptId ? compareReceipt.receiptId : '',
+      tokenId: validation.value.tokenId,
+      targetId: validation.value.targetId,
+      compareHash: validation.value.compareHash,
+      sourceIdsHash: validation.value.sourceIdsHash,
+      sourceIds,
+      versionVector: compare && compare.versionVector ? compare.versionVector.pinned || null : null,
+      conflictSummary: winnerSummary,
+    }),
+  });
+
+  planningViewState.intentToken = {
+    ...planningViewState.intentToken,
+    consumedAt: response && response.mergeEvent && response.mergeEvent.consumedAt
+      ? response.mergeEvent.consumedAt
+      : new Date().toISOString(),
+  };
+  renderPlanningIntent();
+  refreshPlanningMergeControls();
+
+  setPlanningOutput({ mergeAccepted: response }, false);
+  await listPlanningRecords();
+  setStatus('Planning merge confirmed and recorded.');
+}
+
 function bindUi() {
   $('tab-sessions').addEventListener('click', () => switchTab('sessions'));
   $('tab-sandboxes').addEventListener('click', () => switchTab('sandboxes'));
@@ -1354,6 +2346,22 @@ function bindUi() {
   $('tab-tracker').addEventListener('click', () => switchTab('tracker'));
   $('btn-refresh-tracker').addEventListener('click', () => loadTracker().catch((e) => setStatus(e.message)));
 
+  $('tab-planning').addEventListener('click', () => switchTab('planning'));
+  $('btn-planning-list').addEventListener('click', () => listPlanningRecords().catch((e) => setStatus(e.message)));
+  $('btn-planning-search').addEventListener('click', () => searchPlanningRecords().catch((e) => setStatus(e.message)));
+  $('btn-planning-compare').addEventListener('click', () => comparePlanningRecords().catch((e) => setStatus(e.message)));
+  $('btn-planning-create').addEventListener('click', () => createPlanningRecord().catch((e) => setStatus(e.message)));
+  $('btn-planning-prepare-intent').addEventListener('click', () => preparePlanningMergeIntent().catch((e) => {
+    const parsed = parsePlanningApiError(e);
+    setPlanningOutput({ error: parsed }, false);
+    setStatus(`Planning intent failed: ${parsed.reason}`);
+  }));
+  $('btn-planning-merge').addEventListener('click', () => confirmPlanningMerge().catch((e) => {
+    const parsed = parsePlanningApiError(e);
+    setPlanningOutput({ error: parsed }, false);
+    setStatus(`Planning merge failed: ${parsed.reason}`);
+  }));
+
   $('tab-gateway').addEventListener('click', () => switchTab('gateway'));
   $('btn-gateway-scan').addEventListener('click', () => scanGatewayRepos(null).catch((e) => setStatus(e.message)));
   $('btn-gateway-scan-custom').addEventListener('click', () => {
@@ -1387,6 +2395,7 @@ async function boot() {
   await loadSessions().catch((e) => setStatus(e.message));
   await loadManaged().catch((e) => setStatus(e.message));
   await loadInstalled().catch((e) => setStatus(e.message));
+  renderPlanningView();
 
   // Tracker: 3s permission poll fallback when SSE not connected
   setInterval(async () => {
@@ -1425,5 +2434,28 @@ async function boot() {
   }, 5000);
 }
 
-boot();
+const planningTestExports = {
+  PLANNING_GATE_STATES,
+  normalizePlanningGateState,
+  planningGateBadgeClass,
+  mapPlanningGateState,
+  isMergeEnabled,
+  comparePlanningConflictEntries,
+  resolveConflictWinner,
+  buildPlanningConflictRows,
+  hasReviewedAllConflicts,
+  buildCompareSnapshotHash,
+  buildSourceIdsHash,
+  createPlanningIntentToken,
+  validatePlanningIntentToken,
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = planningTestExports;
+}
+
+if (hasDom) {
+  window.__planningUi = planningTestExports;
+  boot();
+}
 

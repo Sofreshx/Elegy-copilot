@@ -513,7 +513,8 @@
     "lint": "eslint \"src/**/*.ts\"",
     "vscode:prepublish": "npm run compile",
     "package": "npx @vscode/vsce package",
-    "test": "npm run compile && node ./dist/test/runTest.js"
+    "test": "node ./scripts/test-with-ledger.js",
+    "test:force": "npm run compile && node ./dist/test/runTest.js"
   },
   "dependencies": {
     "jsonwebtoken": "^9.0.2",

@@ -15,6 +15,7 @@
         <button id="tab-assets" class="tab" type="button">Assets</button>
         <button id="tab-lsp" class="tab" type="button">LSP</button>
         <button id="tab-tracker" class="tab" type="button">Tracker <span id="tracker-badge" class="badge-count" style="display:none"></span></button>
+        <button id="tab-planning" class="tab" type="button">Planning</button>
         <button id="tab-gateway" class="tab" type="button">Gateway</button>
       </nav>
       <div class="spacer"></div>
@@ -180,6 +181,110 @@
         <h2>Event Log</h2>
         <div id="tracker-events" class="events" style="max-height: 300px; overflow-y: auto;"></div>
       </section>
+
+      <section id="view-planning" class="view hidden">
+        <h2>Planning</h2>
+
+        <div class="toolbar">
+          <input id="planning-user-id" type="text" class="gateway-input" placeholder="userId (required)" style="max-width: 220px;" />
+          <input id="planning-repo-id" type="text" class="gateway-input" placeholder="repoId (optional)" style="max-width: 220px;" />
+          <input id="planning-query" type="text" class="gateway-input" placeholder="search query" style="flex: 1;" />
+          <input id="planning-session-id" type="text" class="gateway-input" placeholder="sessionId (optional for compare sources)" style="max-width: 220px;" />
+        </div>
+
+        <div class="toolbar">
+          <label class="repo-row" style="margin-right: 6px;"><input id="planning-scope-user" type="checkbox" checked /> <span>user</span></label>
+          <label class="repo-row" style="margin-right: 6px;"><input id="planning-scope-repo" type="checkbox" checked /> <span>repo</span></label>
+          <label class="repo-row" style="margin-right: 10px;"><input id="planning-scope-global" type="checkbox" checked /> <span>global</span></label>
+          <button id="btn-planning-list" class="btn" type="button">List records</button>
+          <button id="btn-planning-search" class="btn" type="button">Search</button>
+          <button id="btn-planning-compare" class="btn" type="button">Compare</button>
+        </div>
+
+        <div class="panel">
+          <div class="toolbar" style="margin-bottom: 6px;">
+            <span class="muted">Gate state:</span>
+            <span id="planning-gate-badge" class="badge status-pending">insufficient-data</span>
+          </div>
+          <div id="planning-gate-detail" class="muted">Run compare to evaluate merge gate state.</div>
+          <div style="margin-top: 8px;"><span class="muted">Denied scopes:</span> <span id="planning-denied-scopes" class="mono muted">(none)</span></div>
+        </div>
+
+        <div class="row">
+          <div class="col">
+            <h3>Create Planning Record</h3>
+            <div class="panel">
+              <div class="toolbar">
+                <select id="planning-create-scope" class="gateway-input" style="max-width: 140px;">
+                  <option value="user">user</option>
+                  <option value="repo">repo</option>
+                  <option value="global">global</option>
+                </select>
+                <select id="planning-create-state" class="gateway-input" style="max-width: 160px;">
+                  <option value="thought">thought</option>
+                  <option value="research">research</option>
+                  <option value="pre-plan">pre-plan</option>
+                  <option value="queued">queued</option>
+                  <option value="implemented">implemented</option>
+                </select>
+              </div>
+              <div class="toolbar">
+                <input id="planning-create-title" type="text" class="gateway-input" placeholder="title" style="flex:1;" />
+              </div>
+              <div class="toolbar">
+                <input id="planning-create-summary" type="text" class="gateway-input" placeholder="summary" style="flex:1;" />
+              </div>
+              <button id="btn-planning-create" class="btn" type="button">Create record</button>
+            </div>
+
+            <h3>Records</h3>
+            <div id="planning-records" class="list panel muted">(none)</div>
+
+            <h3>Search Results</h3>
+            <div id="planning-search-results" class="list panel muted">(none)</div>
+          </div>
+
+          <div class="col">
+            <h3>Compare Matches</h3>
+            <div id="planning-compare-matches" class="list panel muted">(none)</div>
+
+            <h3>Implemented Source Markers</h3>
+            <div id="planning-source-markers" class="list panel muted">(none)</div>
+
+            <h3>Conflict Review (user &gt; repo &gt; global)</h3>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>User</th>
+                  <th>Repo</th>
+                  <th>Global</th>
+                  <th>Winner</th>
+                  <th>Reviewed</th>
+                </tr>
+              </thead>
+              <tbody id="planning-conflict-rows"></tbody>
+            </table>
+
+            <h3>Intent-bound Merge</h3>
+            <div class="panel">
+              <div class="toolbar">
+                <select id="planning-merge-target" class="gateway-input" style="max-width: 320px;">
+                  <option value="">(compare first)</option>
+                </select>
+                <button id="btn-planning-prepare-intent" class="btn" type="button">Prepare intent</button>
+                <button id="btn-planning-merge" class="btn" type="button" disabled>Confirm merge</button>
+              </div>
+              <div id="planning-merge-requirements" class="muted">Merge requires pass state and reviewed conflicts.</div>
+              <pre id="planning-intent" class="pre muted">(no intent token)</pre>
+            </div>
+
+            <h3>Planning Output</h3>
+            <pre id="planning-output" class="pre muted">(no activity)</pre>
+          </div>
+        </div>
+      </section>
+
       <section id="view-gateway" class="view hidden">
         <h2>Discord Messaging Gateway</h2>
         <div class="panel">

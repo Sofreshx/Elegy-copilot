@@ -16,6 +16,34 @@ const {
   normalizeCapabilityState,
   buildCompatibilityRuntimeContract,
 } = require('./lib/runtimeContracts');
+const {
+  buildPlanningScopeIsolationPredicate,
+  deriveBackfillRecoveryMarker,
+  deriveBackfillSourceIdempotencyKey,
+  evaluatePlanningOptimisticConcurrencyGuard,
+  readPlanningPersistenceConfig,
+  reconcileBackfillItemStatusTransition,
+  validatePlanningPersistenceConfig,
+  validatePlanningReadWriteContext,
+  getPlanningPersistenceHealth,
+  runPlanningMigrations,
+} = require('./lib/planningPersistence');
+const {
+  SEMANTIC_SCORING_CONTRACT_VERSION,
+  scorePlanningCandidate,
+  sortPlanningCandidates,
+  determineSemanticDegradedMode,
+  classifyEmbeddingLifecycle,
+  evaluateSemanticGate,
+} = require('./lib/planningSemantic');
+const {
+  PLANNING_API_CONTRACT_VERSION,
+  createPlanningApiState,
+  createPlanningRecordOperation,
+  listPlanningRecordsOperation,
+  searchPlanningRecordsOperation,
+  comparePlanningRecordsOperation,
+} = require('./lib/planningApiContracts');
 
 function createChangeTracker(copilotHomeAbs, vscodeHomeAbs, sandboxesHomeAbs) {
   let version = 0;
@@ -195,11 +223,11 @@ function isLoopbackRequest(req) {
 }
 
 // Bearer-only auth. No cookies, no query-param tokens, no CSRF surface.
-function checkAuth(req, token) {
+function checkAuth(req, token, options = {}) {
   // No token configured → pass (only possible on loopback bind)
   if (!token) return true;
-  // Loopback requests always pass
-  if (isLoopbackRequest(req)) return true;
+  const allowLoopbackBypass = options.allowLoopbackBypass !== false;
+  if (allowLoopbackBypass && isLoopbackRequest(req)) return true;
   // Extract bearer token from Authorization header
   const authHeader = req.headers['authorization'] || '';
   if (!authHeader.startsWith('Bearer ')) return false;
@@ -217,6 +245,14 @@ function resolveToken(args, host) {
   if (process.env.COPILOT_UI_TOKEN) return process.env.COPILOT_UI_TOKEN;
   if (isNonLoopback(host)) return crypto.randomBytes(32).toString('hex');
   return null;
+}
+
+function derivePlanningActorId(token) {
+  if (typeof token === 'string' && token.trim()) {
+    const digest = crypto.createHash('sha256').update(token.trim(), 'utf8').digest('hex');
+    return `auth-${digest.slice(0, 16)}`;
+  }
+  return 'local-loopback-user';
 }
 
 function resolveCopilotHome(args) {
@@ -529,6 +565,916 @@ function validateOpenTerminalLifecyclePayload(payload) {
       sandboxId,
       ...(launcher ? { launcher } : {}),
       ...(profile ? { profile } : {}),
+    },
+  };
+}
+
+function normalizeScopeList(scopes) {
+  if (!Array.isArray(scopes)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const scope of scopes) {
+    const normalized = planState.normalizePlanningScope(scope);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    out.push(normalized);
+  }
+  return out;
+}
+
+function normalizeIdentity(value) {
+  if (typeof value !== 'string') return '';
+  const normalized = value.trim();
+  return normalized ? normalized.toLowerCase() : '';
+}
+
+function canReadPlanningRecord(record, context = {}) {
+  if (!record || typeof record !== 'object') return false;
+
+  const scope = planState.normalizePlanningScope(record);
+  const userId = normalizeIdentity(context.userId);
+  const repoId = normalizeIdentity(context.repoId);
+
+  if (!scope || !userId) return false;
+
+  const ownerId = normalizeIdentity(record.ownerId);
+  const recordRepoId = normalizeIdentity(record.repoId);
+
+  if (scope === 'repo') {
+    return Boolean(ownerId && recordRepoId && ownerId === userId && repoId && recordRepoId === repoId);
+  }
+
+  if (scope === 'global' || scope === 'user') {
+    return Boolean(ownerId && ownerId === userId);
+  }
+
+  return false;
+}
+
+function canWritePlanningRecord(record, context = {}) {
+  return canReadPlanningRecord(record, context);
+}
+
+function filterPlanningRecordsForCompare(records, context = {}) {
+  const requestedScopes = normalizeScopeList(context.requestedScopes);
+  const result = { records: [], deniedScopes: [] };
+
+  if (!requestedScopes.length) {
+    return result;
+  }
+
+  const userId = normalizeIdentity(context.userId);
+  const repoId = normalizeIdentity(context.repoId);
+
+  const allowedScopes = new Set();
+  for (const scope of requestedScopes) {
+    if (!userId) {
+      result.deniedScopes.push(scope);
+      continue;
+    }
+    if (scope === 'repo') {
+      if (!repoId) {
+        result.deniedScopes.push(scope);
+        continue;
+      }
+      allowedScopes.add(scope);
+      continue;
+    }
+    if (scope === 'global' || scope === 'user') {
+      allowedScopes.add(scope);
+      continue;
+    }
+    result.deniedScopes.push(scope);
+  }
+
+  if (!Array.isArray(records) || !records.length) {
+    result.deniedScopes = [...new Set(result.deniedScopes)].sort();
+    return result;
+  }
+
+  for (const record of records) {
+    const scope = planState.normalizePlanningScope(record);
+    if (!scope || !allowedScopes.has(scope)) continue;
+    if (canReadPlanningRecord(record, context)) {
+      result.records.push(record);
+    }
+  }
+
+  result.deniedScopes = [...new Set(result.deniedScopes)].sort();
+  return result;
+}
+
+function firstStringValue(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (typeof entry === 'string' && entry.trim()) {
+          return entry.trim();
+        }
+      }
+    }
+  }
+  return '';
+}
+
+function parsePlanningScopesFromRequest(u, body = null) {
+  if (body && Array.isArray(body.scopes)) {
+    return body.scopes;
+  }
+
+  const scopesParam = u.searchParams.get('scopes');
+  if (typeof scopesParam === 'string' && scopesParam.trim()) {
+    return scopesParam.split(',').map((scope) => scope.trim()).filter(Boolean);
+  }
+
+  const repeated = u.searchParams.getAll('scope');
+  if (repeated && repeated.length) {
+    return repeated;
+  }
+
+  return [];
+}
+
+function buildPlanningRequestContext(req, u, body = null, authContext = {}) {
+  const userId = normalizeIdentity(authContext.userId);
+  const repoId = normalizeIdentity(firstStringValue(
+    body && body.repoId,
+    req.headers['x-planning-repo-id'],
+    u.searchParams.get('repoId'),
+  ));
+
+  return { userId, repoId };
+}
+
+function resolveRequestIdempotencyKey(req, body = null) {
+  return firstStringValue(
+    body && body.idempotencyKey,
+    req.headers['idempotency-key'],
+  );
+}
+
+const PLANNING_MERGE_MAX_TOKEN_TTL_MS = 15 * 60 * 1000;
+const PLANNING_MERGE_DEFAULT_TOKEN_TTL_MS = 5 * 60 * 1000;
+const PLANNING_COMPARE_RECEIPT_TTL_MS = 10 * 60 * 1000;
+const PLANNING_MERGE_IDEMPOTENCY_TTL_MS = 60 * 60 * 1000;
+const PLANNING_MERGE_STATE_MAX_ITEMS = 5000;
+
+function stableNormalizeValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => stableNormalizeValue(entry));
+  }
+  if (value && typeof value === 'object') {
+    const out = {};
+    const keys = Object.keys(value).sort((a, b) => a.localeCompare(b));
+    for (const key of keys) {
+      out[key] = stableNormalizeValue(value[key]);
+    }
+    return out;
+  }
+  return value;
+}
+
+function stableHashValue(value) {
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify(stableNormalizeValue(value)), 'utf8')
+    .digest('hex');
+}
+
+function legacyStableHash(value) {
+  const normalized = JSON.stringify(stableNormalizeValue(value));
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash = ((hash << 5) - hash) + normalized.charCodeAt(i);
+    hash |= 0;
+  }
+  return `h${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
+function cloneJsonValue(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function normalizePlanningVersionVectorHash(versionVector) {
+  return stableHashValue(versionVector || null);
+}
+
+function buildPlanningCompareSnapshotHash(compareBody = {}) {
+  return legacyStableHash({
+    requestedScopes: Array.isArray(compareBody.requestedScopes) ? compareBody.requestedScopes : [],
+    deniedScopes: Array.isArray(compareBody.deniedScopes) ? compareBody.deniedScopes : [],
+    pinnedVersion: compareBody.versionVector && compareBody.versionVector.pinned
+      ? compareBody.versionVector.pinned
+      : null,
+    matchIds: Array.isArray(compareBody.matches)
+      ? compareBody.matches.map((entry) => String((entry && entry.recordId) || ''))
+      : [],
+  });
+}
+
+function buildPlanningSourceIdsHash(sourceIds = []) {
+  const normalized = [...new Set((Array.isArray(sourceIds) ? sourceIds : [])
+    .map((id) => String(id || '').trim())
+    .filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+  return legacyStableHash(normalized);
+}
+
+function evaluatePlanningMergeGateState(compareBody = {}) {
+  const deniedScopes = Array.isArray(compareBody.deniedScopes) ? compareBody.deniedScopes : [];
+  const matches = Array.isArray(compareBody.matches) ? compareBody.matches : [];
+  const sourceMarkers = compareBody.implementedOutcomes && Array.isArray(compareBody.implementedOutcomes.sources)
+    ? compareBody.implementedOutcomes.sources
+    : [];
+
+  if (deniedScopes.length) {
+    return { gateState: 'auth-denied', mergeEligible: false, reason: 'denied_scopes_present' };
+  }
+  if (!matches.length) {
+    return { gateState: 'insufficient-data', mergeEligible: false, reason: 'no_compare_matches' };
+  }
+  if (compareBody.newerDataAvailable === true) {
+    return { gateState: 'degraded', mergeEligible: false, reason: 'newer_data_available' };
+  }
+  if (sourceMarkers.some((marker) => String(marker && marker.status || '') !== 'available')) {
+    return { gateState: 'degraded', mergeEligible: false, reason: 'implemented_source_not_available' };
+  }
+  return { gateState: 'pass', mergeEligible: true, reason: 'gate_pass' };
+}
+
+function ensurePlanningMergeState(planningApiState) {
+  const state = planningApiState && typeof planningApiState === 'object'
+    ? planningApiState
+    : {};
+
+  if (!(state.mergeIntentTokens instanceof Map)) {
+    state.mergeIntentTokens = new Map();
+  }
+  if (!(state.mergeIdempotencyRecords instanceof Map)) {
+    state.mergeIdempotencyRecords = new Map();
+  }
+  if (!(state.compareReceipts instanceof Map)) {
+    state.compareReceipts = new Map();
+  }
+
+  return state;
+}
+
+function trimMapToSize(map, maxSize) {
+  if (!(map instanceof Map)) return;
+  while (map.size > maxSize) {
+    const first = map.keys().next();
+    if (first.done) break;
+    map.delete(first.value);
+  }
+}
+
+function reapPlanningMergeState(planningApiState, nowMs = Date.now()) {
+  const state = ensurePlanningMergeState(planningApiState);
+  const now = Number.isFinite(nowMs) ? Number(nowMs) : Date.now();
+
+  for (const [receiptId, receipt] of state.compareReceipts.entries()) {
+    const expiresAtMs = parseIsoMs(receipt && receipt.expiresAt);
+    if (expiresAtMs != null && now > expiresAtMs) {
+      state.compareReceipts.delete(receiptId);
+    }
+  }
+
+  for (const [tokenId, token] of state.mergeIntentTokens.entries()) {
+    const expiresAtMs = parseIsoMs(token && token.expiresAt);
+    const consumedAtMs = parseIsoMs(token && token.consumedAt);
+    const consumedExpired = consumedAtMs != null && now > (consumedAtMs + PLANNING_MERGE_IDEMPOTENCY_TTL_MS);
+    if ((expiresAtMs != null && now > expiresAtMs) || consumedExpired) {
+      state.mergeIntentTokens.delete(tokenId);
+    }
+  }
+
+  for (const [idempotencyKey, record] of state.mergeIdempotencyRecords.entries()) {
+    const expiresAtMs = Number.isFinite(record && record.expiresAtMs)
+      ? Number(record.expiresAtMs)
+      : null;
+    if (expiresAtMs != null && now > expiresAtMs) {
+      state.mergeIdempotencyRecords.delete(idempotencyKey);
+    }
+  }
+
+  trimMapToSize(state.compareReceipts, PLANNING_MERGE_STATE_MAX_ITEMS);
+  trimMapToSize(state.mergeIntentTokens, PLANNING_MERGE_STATE_MAX_ITEMS);
+  trimMapToSize(state.mergeIdempotencyRecords, PLANNING_MERGE_STATE_MAX_ITEMS);
+
+  return state;
+}
+
+function parseIsoMs(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeMergeIdList(sourceIds) {
+  return [...new Set((Array.isArray(sourceIds) ? sourceIds : [])
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function recordPlanningCompareReceipt(planningApiState, context, compareBody, nowMs) {
+  const state = reapPlanningMergeState(planningApiState, nowMs);
+  const actorId = normalizeIdentity(context && context.userId);
+  const repoId = normalizeIdentity(context && context.repoId);
+  const sourceIds = Array.isArray(compareBody && compareBody.planningRecords)
+    ? compareBody.planningRecords.map((entry) => String((entry && entry.recordId) || '').trim()).filter(Boolean)
+    : [];
+  const gate = evaluatePlanningMergeGateState(compareBody);
+
+  const receiptId = `compare-${nowMs}-${crypto.randomBytes(4).toString('hex')}`;
+  const expiresAtMs = nowMs + PLANNING_COMPARE_RECEIPT_TTL_MS;
+  const receipt = {
+    receiptId,
+    actorId,
+    repoId,
+    compareHash: buildPlanningCompareSnapshotHash(compareBody),
+    sourceIdsHash: buildPlanningSourceIdsHash(sourceIds),
+    sourceIds,
+    versionVector: compareBody && compareBody.versionVector ? compareBody.versionVector.pinned || null : null,
+    gateState: gate.gateState,
+    mergeEligible: gate.mergeEligible,
+    reason: gate.reason,
+    issuedAt: new Date(nowMs).toISOString(),
+    expiresAt: new Date(expiresAtMs).toISOString(),
+  };
+
+  state.compareReceipts.set(receiptId, receipt);
+  return receipt;
+}
+
+function resolvePlanningCompareReceipt(planningApiState, receiptId, context, nowMs) {
+  const state = reapPlanningMergeState(planningApiState, nowMs);
+  const id = String(receiptId || '').trim();
+  if (!id) {
+    return { ok: false, error: { code: 'invalid_compare_receipt', reason: 'missing_compare_receipt_id' } };
+  }
+
+  const receipt = state.compareReceipts.get(id);
+  if (!receipt) {
+    return { ok: false, error: { code: 'invalid_compare_receipt', reason: 'compare_receipt_not_found' } };
+  }
+
+  if (Number(nowMs) > parseIsoMs(receipt.expiresAt)) {
+    return { ok: false, error: { code: 'invalid_compare_receipt', reason: 'compare_receipt_expired' } };
+  }
+
+  const actorId = normalizeIdentity(context && context.userId);
+  const repoId = normalizeIdentity(context && context.repoId);
+  if (!actorId || actorId !== normalizeIdentity(receipt.actorId)) {
+    return { ok: false, error: { code: 'invalid_compare_receipt', reason: 'compare_receipt_actor_mismatch' } };
+  }
+
+  const receiptRepoId = normalizeIdentity(receipt.repoId);
+  if (receiptRepoId && receiptRepoId !== repoId) {
+    return { ok: false, error: { code: 'invalid_compare_receipt', reason: 'compare_receipt_repo_mismatch' } };
+  }
+
+  return { ok: true, receipt };
+}
+
+function hashMergePayload(request) {
+  const payload = {
+    actorId: request && request.actorId ? String(request.actorId) : '',
+    targetId: request && request.targetId ? String(request.targetId) : '',
+    sourceIdsHash: request && request.sourceIdsHash ? String(request.sourceIdsHash) : '',
+    compareHash: request && request.compareHash ? String(request.compareHash) : '',
+    operationType: request && request.operationType ? String(request.operationType) : 'merge',
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(payload), 'utf8').digest('hex');
+}
+
+function validatePlanningMergeConfirmationToken(token, context = {}) {
+  if (!token || typeof token !== 'object') {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'token_not_object' } };
+  }
+
+  const requiredFields = ['tokenId', 'actorId', 'sourceIdsHash', 'targetId', 'compareHash', 'issuedAt', 'expiresAt'];
+  for (const field of requiredFields) {
+    if (typeof token[field] !== 'string' || !token[field].trim()) {
+      return { ok: false, error: { code: 'invalid_confirmation_token', reason: `missing_or_invalid_${field}` } };
+    }
+  }
+
+  const issuedAtMs = parseIsoMs(token.issuedAt);
+  const expiresAtMs = parseIsoMs(token.expiresAt);
+  if (issuedAtMs == null || expiresAtMs == null || expiresAtMs <= issuedAtMs) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'invalid_token_time_window' } };
+  }
+
+  if (expiresAtMs - issuedAtMs > PLANNING_MERGE_MAX_TOKEN_TTL_MS) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'token_ttl_exceeds_max' } };
+  }
+
+  const nowMs = Number.isFinite(context.nowMs) ? Number(context.nowMs) : Date.now();
+  if (nowMs > expiresAtMs) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'token_expired' } };
+  }
+
+  if (token.consumedAt != null) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'token_consumed' } };
+  }
+
+  if (context.actorId && String(context.actorId) !== token.actorId) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'actor_mismatch' } };
+  }
+  if (context.targetId && String(context.targetId) !== token.targetId) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'target_mismatch' } };
+  }
+  if (context.compareHash && String(context.compareHash) !== token.compareHash) {
+    return { ok: false, error: { code: 'invalid_confirmation_token', reason: 'compare_hash_mismatch' } };
+  }
+
+  return {
+    ok: true,
+    value: {
+      tokenId: token.tokenId,
+      actorId: token.actorId,
+      sourceIdsHash: token.sourceIdsHash,
+      targetId: token.targetId,
+      compareHash: token.compareHash,
+      issuedAt: token.issuedAt,
+      expiresAt: token.expiresAt,
+    },
+  };
+}
+
+function validatePlanningMergeIdempotency(request, existingRecord = null) {
+  if (!request || typeof request !== 'object') {
+    return { ok: false, error: { code: 'invalid_idempotency', reason: 'request_not_object' } };
+  }
+  if (typeof request.idempotencyKey !== 'string' || !request.idempotencyKey.trim()) {
+    return { ok: false, error: { code: 'invalid_idempotency', reason: 'missing_or_invalid_idempotency_key' } };
+  }
+
+  const payloadHash = hashMergePayload(request);
+  const scopeKey = [
+    String(request.actorId || ''),
+    String(request.targetId || ''),
+    String(request.sourceIdsHash || ''),
+    String(request.operationType || 'merge'),
+  ].join(':');
+
+  if (!existingRecord) {
+    return {
+      ok: true,
+      replay: false,
+      scopeKey,
+      payloadHash,
+      idempotencyKey: request.idempotencyKey.trim(),
+    };
+  }
+
+  if (String(existingRecord.idempotencyKey || '') !== request.idempotencyKey.trim()) {
+    return {
+      ok: true,
+      replay: false,
+      scopeKey,
+      payloadHash,
+      idempotencyKey: request.idempotencyKey.trim(),
+    };
+  }
+
+  if (String(existingRecord.payloadHash || '') !== payloadHash) {
+    return { ok: false, error: { code: 'idempotency_conflict', reason: 'idempotency_key_payload_mismatch' } };
+  }
+
+  return {
+    ok: true,
+    replay: true,
+    scopeKey,
+    payloadHash,
+    idempotencyKey: request.idempotencyKey.trim(),
+  };
+}
+
+function validatePlanningMergeAtomicEnvelope(envelope) {
+  if (!envelope || typeof envelope !== 'object') {
+    return { ok: false, error: { code: 'invalid_atomic_envelope', reason: 'envelope_not_object' } };
+  }
+
+  const required = ['targetUpdate', 'sourceTransitions', 'lineageLinks', 'auditEvent', 'tokenConsumedWrite'];
+  for (const field of required) {
+    if (envelope[field] == null) {
+      return { ok: false, error: { code: 'invalid_atomic_envelope', reason: `missing_${field}` } };
+    }
+  }
+
+  if (!Array.isArray(envelope.sourceTransitions) || envelope.sourceTransitions.length === 0) {
+    return { ok: false, error: { code: 'invalid_atomic_envelope', reason: 'invalid_sourceTransitions' } };
+  }
+
+  if (!Array.isArray(envelope.lineageLinks) || envelope.lineageLinks.length === 0) {
+    return { ok: false, error: { code: 'invalid_atomic_envelope', reason: 'invalid_lineageLinks' } };
+  }
+
+  return { ok: true };
+}
+
+function issuePlanningMergeIntent(planningApiState, input = {}) {
+  const context = input.context && typeof input.context === 'object' ? input.context : {};
+  const payload = input.payload && typeof input.payload === 'object' ? input.payload : {};
+  const nowMs = Number.isFinite(input.nowMs) ? Number(input.nowMs) : Date.now();
+  const state = reapPlanningMergeState(planningApiState, nowMs);
+
+  const actorId = normalizeIdentity(context.userId || payload.actorId || payload.userId);
+  const targetId = String(payload.targetId || '').trim();
+  const compareReceiptId = String(payload.compareReceiptId || '').trim();
+
+  if (!actorId) {
+    return {
+      statusCode: 403,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge-intent',
+        deterministic: true,
+        error: { code: 'scope_visibility_denied', reason: 'missing_user_context' },
+      },
+    };
+  }
+
+  if (!targetId || !compareReceiptId) {
+    return {
+      statusCode: 400,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge-intent',
+        deterministic: true,
+        error: { code: 'invalid_compare_receipt', reason: 'missing_merge_intent_fields' },
+      },
+    };
+  }
+
+  const receiptLookup = resolvePlanningCompareReceipt(state, compareReceiptId, context, nowMs);
+  if (!receiptLookup.ok) {
+    return {
+      statusCode: 409,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge-intent',
+        deterministic: true,
+        error: receiptLookup.error,
+      },
+    };
+  }
+
+  if (!receiptLookup.receipt.mergeEligible) {
+    return {
+      statusCode: 409,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge-intent',
+        deterministic: true,
+        error: { code: 'merge_gate_blocked', reason: receiptLookup.receipt.reason || 'gate_not_pass' },
+      },
+    };
+  }
+
+  const sourceIds = normalizeMergeIdList(payload.sourceIds);
+  const sourceIdsHash = buildPlanningSourceIdsHash(sourceIds);
+  if (sourceIdsHash !== receiptLookup.receipt.sourceIdsHash) {
+    return {
+      statusCode: 409,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge-intent',
+        deterministic: true,
+        error: { code: 'invalid_confirmation_token', reason: 'source_ids_hash_mismatch' },
+      },
+    };
+  }
+
+  const compareHash = receiptLookup.receipt.compareHash;
+
+  const rawTtlMs = Number.isFinite(payload.ttlMs) ? Number(payload.ttlMs) : PLANNING_MERGE_DEFAULT_TOKEN_TTL_MS;
+  const ttlMs = Math.max(1_000, Math.min(rawTtlMs, PLANNING_MERGE_MAX_TOKEN_TTL_MS));
+
+  const issuedAt = new Date(nowMs).toISOString();
+  const expiresAt = new Date(nowMs + ttlMs).toISOString();
+  const tokenId = `intent-${nowMs}-${crypto.randomBytes(4).toString('hex')}`;
+
+  const token = {
+    tokenId,
+    actorId,
+    sourceIdsHash,
+    targetId,
+    compareHash,
+    compareReceiptId,
+    issuedAt,
+    expiresAt,
+    versionVector: receiptLookup.receipt.versionVector || null,
+    versionVectorHash: normalizePlanningVersionVectorHash(receiptLookup.receipt.versionVector || null),
+    consumedAt: null,
+  };
+
+  state.mergeIntentTokens.set(tokenId, token);
+
+  return {
+    statusCode: 200,
+    body: {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.merge-intent',
+      deterministic: true,
+      intentToken: token,
+      ttlMs,
+    },
+  };
+}
+
+function executePlanningMerge(planningApiState, input = {}) {
+  const context = input.context && typeof input.context === 'object' ? input.context : {};
+  const payload = input.payload && typeof input.payload === 'object' ? input.payload : {};
+  const nowMs = Number.isFinite(input.nowMs) ? Number(input.nowMs) : Date.now();
+  const state = reapPlanningMergeState(planningApiState, nowMs);
+
+  const actorId = normalizeIdentity(context.userId || payload.actorId || payload.userId);
+  const repoId = normalizeIdentity(context.repoId || payload.repoId);
+  const tokenId = String(payload.tokenId || '').trim();
+  const compareReceiptId = String(payload.compareReceiptId || '').trim();
+  const targetId = String(payload.targetId || '').trim();
+  const compareHash = String(payload.compareHash || '').trim();
+  const sourceIdsHash = String(payload.sourceIdsHash || '').trim();
+
+  if (!actorId) {
+    return {
+      statusCode: 403,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: { code: 'scope_visibility_denied', reason: 'missing_user_context' },
+      },
+    };
+  }
+
+  if (!tokenId || !compareReceiptId || !targetId || !sourceIdsHash || !compareHash) {
+    return {
+      statusCode: 400,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: { code: 'invalid_confirmation_token', reason: 'missing_merge_confirmation_fields' },
+      },
+    };
+  }
+
+  const idempotencyKey = String(payload.idempotencyKey || '').trim();
+  const existingIdempotencyRecord = idempotencyKey
+    ? state.mergeIdempotencyRecords.get(idempotencyKey) || null
+    : null;
+
+  const idempotencyValidation = validatePlanningMergeIdempotency({
+    idempotencyKey,
+    actorId,
+    targetId,
+    sourceIdsHash,
+    compareHash,
+    operationType: 'merge',
+  }, existingIdempotencyRecord);
+
+  if (!idempotencyValidation.ok) {
+    const statusCode = idempotencyValidation.error && idempotencyValidation.error.code === 'invalid_idempotency'
+      ? 400
+      : 409;
+    return {
+      statusCode,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: idempotencyValidation.error,
+      },
+    };
+  }
+
+  if (idempotencyValidation.replay && existingIdempotencyRecord && existingIdempotencyRecord.response) {
+    return {
+      statusCode: 200,
+      body: {
+        ...cloneJsonValue(existingIdempotencyRecord.response),
+        idempotency: {
+          key: idempotencyValidation.idempotencyKey,
+          replay: true,
+          scopeKey: idempotencyValidation.scopeKey,
+          conflict: false,
+          outcome: 'replay',
+        },
+      },
+    };
+  }
+
+  const receiptLookup = resolvePlanningCompareReceipt(state, compareReceiptId, context, nowMs);
+  if (!receiptLookup.ok) {
+    return {
+      statusCode: 409,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: receiptLookup.error,
+      },
+    };
+  }
+  if (!receiptLookup.receipt.mergeEligible) {
+    return {
+      statusCode: 409,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: { code: 'merge_gate_blocked', reason: receiptLookup.receipt.reason || 'gate_not_pass' },
+      },
+    };
+  }
+
+  const token = state.mergeIntentTokens.get(tokenId);
+  if (!token) {
+    return {
+      statusCode: 400,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: { code: 'invalid_confirmation_token', reason: 'token_not_found' },
+      },
+    };
+  }
+
+  const tokenValidation = validatePlanningMergeConfirmationToken(token, {
+    nowMs,
+    actorId,
+    targetId,
+    compareHash,
+  });
+
+  if (!tokenValidation.ok) {
+    return {
+      statusCode: 409,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: tokenValidation.error,
+      },
+    };
+  }
+
+  if (String(token.compareReceiptId || '') !== compareReceiptId) {
+    return {
+      statusCode: 409,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: { code: 'invalid_confirmation_token', reason: 'compare_receipt_mismatch' },
+      },
+    };
+  }
+
+  if (token.compareHash !== compareHash) {
+    return {
+      statusCode: 409,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: { code: 'invalid_confirmation_token', reason: 'compare_hash_mismatch' },
+      },
+    };
+  }
+
+  const sourceIds = normalizeMergeIdList(payload.sourceIds);
+  const recomputedSourceIdsHash = buildPlanningSourceIdsHash(sourceIds);
+  if (recomputedSourceIdsHash !== sourceIdsHash || token.sourceIdsHash !== sourceIdsHash) {
+    return {
+      statusCode: 409,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: { code: 'invalid_confirmation_token', reason: 'source_ids_hash_mismatch' },
+      },
+    };
+  }
+
+  const expectedVersionHash = normalizePlanningVersionVectorHash(payload.versionVector || null);
+  const tokenVersionHash = String(token.versionVectorHash || normalizePlanningVersionVectorHash(token.versionVector || null));
+  if (expectedVersionHash !== tokenVersionHash) {
+    return {
+      statusCode: 409,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: { code: 'invalid_confirmation_token', reason: 'snapshot_version_mismatch' },
+      },
+    };
+  }
+
+  const atomicEnvelope = payload.atomicEnvelope && typeof payload.atomicEnvelope === 'object'
+    ? payload.atomicEnvelope
+    : {
+      targetUpdate: { targetId },
+      sourceTransitions: sourceIds.map((sourceId) => ({ sourceId, toState: 'merged' })),
+      lineageLinks: sourceIds.map((sourceId) => ({ from: sourceId, to: targetId })),
+      auditEvent: {
+        kind: 'planning_merge',
+        actorId,
+        compareHash,
+        sourceIdsHash,
+      },
+      tokenConsumedWrite: { tokenId: token.tokenId },
+    };
+
+  const envelopeValidation = validatePlanningMergeAtomicEnvelope(atomicEnvelope);
+  if (!envelopeValidation.ok) {
+    return {
+      statusCode: 400,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: envelopeValidation.error,
+      },
+    };
+  }
+
+  const winnerSummary = String(payload.conflictSummary || '').trim() || 'no precedence conflicts';
+  const mergeScope = repoId ? 'repo' : 'user';
+
+  const mergeRecordResult = createPlanningRecordOperation(state, {
+    context: { userId: actorId, repoId },
+    request: {
+      idempotencyKey: `merge-record:${token.tokenId}`,
+      scope: mergeScope,
+      title: `Merge intent ${targetId}`,
+      summary: `Intent ${token.tokenId}; compare=${compareHash}; conflicts=${winnerSummary}`,
+      state: 'queued',
+      score: 1,
+    },
+    nowMs,
+  });
+
+  if (!mergeRecordResult || mergeRecordResult.ok === false) {
+    return {
+      statusCode: 500,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.merge',
+        deterministic: true,
+        error: { code: 'merge_commit_failed', reason: 'record_write_failed' },
+      },
+    };
+  }
+
+  token.consumedAt = new Date(nowMs).toISOString();
+  state.mergeIntentTokens.set(token.tokenId, token);
+
+  const response = {
+    contractVersion: PLANNING_API_CONTRACT_VERSION,
+    kind: 'planning.merge',
+    deterministic: true,
+    mergeAccepted: true,
+    mergeEvent: {
+      tokenId: token.tokenId,
+      actorId,
+      targetId,
+      sourceIdsHash,
+      compareHash,
+      consumedAt: token.consumedAt,
+      versionVector: token.versionVector || null,
+    },
+    mergeRecord: mergeRecordResult.body && mergeRecordResult.body.record ? mergeRecordResult.body.record : null,
+  };
+
+  state.mergeIdempotencyRecords.set(idempotencyValidation.idempotencyKey, {
+    idempotencyKey: idempotencyValidation.idempotencyKey,
+    payloadHash: idempotencyValidation.payloadHash,
+    response: cloneJsonValue(response),
+    createdAtMs: nowMs,
+    expiresAtMs: nowMs + PLANNING_MERGE_IDEMPOTENCY_TTL_MS,
+  });
+
+  return {
+    statusCode: 200,
+    body: {
+      ...response,
+      idempotency: {
+        key: idempotencyValidation.idempotencyKey,
+        replay: false,
+        scopeKey: idempotencyValidation.scopeKey,
+        conflict: false,
+        outcome: 'applied',
+      },
     },
   };
 }
@@ -1036,7 +1982,7 @@ function relayTrackerSSE(trackerUrl, trackerToken, req, res) {
   proxyReq.end();
 }
 
-function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken }) {
+function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext }) {
   // Auth scope: single-session only. Multi-session aggregate views are deferred.
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
@@ -1068,13 +2014,125 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     const changes = changeTracker ? changeTracker.get() : null;
     const runtime = getRuntimeHealth({ engineRoot, sandboxesHome });
     const policy = getPolicyPreflight(engineRoot);
-    sendJson(res, 200, { ok: true, now: Date.now(), engineRoot, copilotHome, vscodeHome, changes, runtime, policy });
+    const planningPersistence = getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState);
+    sendJson(res, 200, { ok: true, now: Date.now(), engineRoot, copilotHome, vscodeHome, changes, runtime, policy, planningPersistence });
     return;
   }
 
   if (req.method === 'GET' && pathname === '/api/version') {
     const changes = changeTracker ? changeTracker.get() : { version: 0, lastChangedMs: null };
     sendJson(res, 200, changes);
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/planning/records') {
+    readJsonBody(req)
+      .then((body) => {
+        const payload = body && typeof body === 'object' ? body : {};
+        const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+        const recordInput = payload.record && typeof payload.record === 'object' ? payload.record : payload;
+
+        const operation = createPlanningRecordOperation(planningApiState, {
+          context,
+          request: {
+            ...recordInput,
+            idempotencyKey: resolveRequestIdempotencyKey(req, payload),
+          },
+          nowMs: Date.now(),
+        });
+
+        sendJson(res, operation.statusCode, operation.body);
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/planning/records') {
+    const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
+    const scopes = parsePlanningScopesFromRequest(u);
+    const operation = listPlanningRecordsOperation(planningApiState, {
+      context,
+      scopes: scopes.length ? scopes : undefined,
+    });
+    sendJson(res, operation.statusCode, operation.body);
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/planning/search') {
+    const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
+    const scopes = parsePlanningScopesFromRequest(u);
+    const query = firstStringValue(u.searchParams.get('q'));
+    const operation = searchPlanningRecordsOperation(planningApiState, {
+      context,
+      scopes: scopes.length ? scopes : undefined,
+      query,
+      limit: parseNumberQuery(u.searchParams, 'limit', 20),
+    });
+    sendJson(res, operation.statusCode, operation.body);
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/planning/compare') {
+    readJsonBody(req)
+      .then((body) => {
+        const payload = body && typeof body === 'object' ? body : {};
+        const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+        const operation = comparePlanningRecordsOperation(planningApiState, {
+          context,
+          request: {
+            ...payload,
+            scopes: Array.isArray(payload.scopes) ? payload.scopes : [],
+            query: typeof payload.query === 'string' ? payload.query : '',
+            implementedOutcomeSources: Array.isArray(payload.implementedOutcomeSources)
+              ? payload.implementedOutcomeSources
+              : [],
+            idempotencyKey: resolveRequestIdempotencyKey(req, payload),
+          },
+          implementedOutcomesRootAbs: copilotHomeAbs,
+          nowMs: Date.now(),
+        });
+
+        if (operation && operation.statusCode === 200 && operation.body && !operation.body.error) {
+          const nowMs = Date.now();
+          const compareReceipt = recordPlanningCompareReceipt(planningApiState, context, operation.body, nowMs);
+          operation.body.compareReceipt = compareReceipt;
+        }
+
+        sendJson(res, operation.statusCode, operation.body);
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/planning/merge-intent') {
+    readJsonBody(req)
+      .then((body) => {
+        const payload = body && typeof body === 'object' ? body : {};
+        const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+        const operation = issuePlanningMergeIntent(planningApiState, {
+          context,
+          payload,
+          nowMs: Date.now(),
+        });
+        sendJson(res, operation.statusCode, operation.body);
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/planning/merge') {
+    readJsonBody(req)
+      .then((body) => {
+        const payload = body && typeof body === 'object' ? body : {};
+        const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+        const operation = executePlanningMerge(planningApiState, {
+          context,
+          payload,
+          nowMs: Date.now(),
+        });
+        sendJson(res, operation.statusCode, operation.body);
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
     return;
   }
 
@@ -1706,7 +2764,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   sendJson(res, 404, { error: 'Not found' });
 }
 
-function startServer(options = {}) {
+async function startServer(options = {}) {
   const args = {
     port: Number.isFinite(options.port) ? Number(options.port) : 3210,
     host: typeof options.host === 'string' && options.host.trim() ? options.host.trim() : '127.0.0.1',
@@ -1725,13 +2783,75 @@ function startServer(options = {}) {
   const sandboxesHome = resolveSandboxesHome(args);
   const trackerUrl = resolveTrackerUrl(args);
   const trackerToken = resolveTrackerToken(args);
+  const planningPersistenceConfig = readPlanningPersistenceConfig(process.env);
+  const planningValidation = validatePlanningPersistenceConfig(planningPersistenceConfig);
+  const planningPersistenceState = {
+    validation: planningValidation,
+    status: planningValidation.usable ? 'ready' : planningValidation.configured ? 'invalid_config' : 'disabled',
+    lastError: null,
+    migrations: {
+      appliedCount: 0,
+      appliedVersions: [],
+      driftDetected: false,
+      lastRunAt: null,
+    },
+  };
+  const planningApiState = createPlanningApiState();
+
+  if (planningValidation.required && !planningValidation.usable) {
+    const detail = planningValidation.errors.length
+      ? planningValidation.errors.join(',')
+      : planningValidation.status;
+    throw new Error(`Planning persistence is required but configuration is invalid: ${detail}`);
+  }
+
+  if (planningValidation.usable) {
+    const planningPersistenceClient = options.planningPersistenceClient;
+    if (!planningPersistenceClient || typeof planningPersistenceClient.query !== 'function') {
+      planningPersistenceState.status = 'configured_no_client';
+      planningPersistenceState.lastError = 'planning_persistence_client_unavailable';
+
+      if (planningValidation.required) {
+        throw new Error('Planning persistence is required but no planning persistence client was provided');
+      }
+    } else {
+      try {
+        const migrationResult = await runPlanningMigrations(planningPersistenceClient, {
+          schemaTable: planningPersistenceConfig.schemaTable,
+        });
+        planningPersistenceState.status = 'ready';
+        planningPersistenceState.migrations = {
+          ...migrationResult,
+          lastRunAt: new Date().toISOString(),
+        };
+      } catch (error) {
+        planningPersistenceState.status = error && error.code === 'PLANNING_MIGRATION_CHECKSUM_DRIFT'
+          ? 'drift_detected'
+          : 'migration_error';
+        planningPersistenceState.lastError = String(error && error.message ? error.message : error);
+        planningPersistenceState.migrations = {
+          ...planningPersistenceState.migrations,
+          driftDetected: error && error.code === 'PLANNING_MIGRATION_CHECKSUM_DRIFT',
+          lastRunAt: new Date().toISOString(),
+        };
+
+        if (planningValidation.required) {
+          throw error;
+        }
+      }
+    }
+  }
+
   const changeTracker = createChangeTracker(path.resolve(copilotHome), path.resolve(vscodeHome), path.resolve(sandboxesHome));
   const publicDir = path.join(__dirname, 'public');
   const host = args.host;
   const token = resolveToken(args, host);
+  const planningAuthContext = {
+    userId: derivePlanningActorId(token),
+  };
 
   const server = http.createServer((req, res) => {
-    if (!checkAuth(req, token)) {
+    if (!checkAuth(req, token, { allowLoopbackBypass: !isNonLoopback(host) })) {
       res.writeHead(401);
       res.end();
       return;
@@ -1739,7 +2859,22 @@ function startServer(options = {}) {
     const u = new URL(req.url || '/', 'http://127.0.0.1');
     try {
       if (u.pathname.startsWith('/api/')) {
-        handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken });
+        handleApi({
+          req,
+          res,
+          u,
+          copilotHome,
+          vscodeHome,
+          sandboxesHome,
+          engineRoot,
+          changeTracker,
+          trackerUrl,
+          trackerToken,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          planningApiState,
+          planningAuthContext,
+        });
         return;
       }
       serveStatic(publicDir, u.pathname, res);
@@ -1819,5 +2954,26 @@ module.exports = {
   parseArgs,
   containsUnsafeShellSyntax,
   validateOpenTerminalLifecyclePayload,
+  canReadPlanningRecord,
+  canWritePlanningRecord,
+  filterPlanningRecordsForCompare,
+  validatePlanningMergeConfirmationToken,
+  validatePlanningMergeIdempotency,
+  validatePlanningMergeAtomicEnvelope,
+  deriveBackfillSourceIdempotencyKey,
+  reconcileBackfillItemStatusTransition,
+  deriveBackfillRecoveryMarker,
+  buildPlanningScopeIsolationPredicate,
+  validatePlanningReadWriteContext,
+  evaluatePlanningOptimisticConcurrencyGuard,
+  SEMANTIC_SCORING_CONTRACT_VERSION,
+  scorePlanningCandidate,
+  sortPlanningCandidates,
+  determineSemanticDegradedMode,
+  classifyEmbeddingLifecycle,
+  evaluateSemanticGate,
+  recordPlanningCompareReceipt,
+  issuePlanningMergeIntent,
+  executePlanningMerge,
 };
 
