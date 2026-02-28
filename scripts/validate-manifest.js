@@ -17,7 +17,10 @@ const REQUIRED_G05_CONTROLS = {
 const REQUIRED_ASSETS = [
 	{ id: 'copilot-instructions', type: 'instructions' },
 	{ id: 'skill-core-guardrails', type: 'skill' },
+	{ id: 'skill-discovery', type: 'skill' },
 ];
+
+const VALID_LOAD_MODES = ['always', 'on-demand'];
 
 let hasFailures = false;
 
@@ -180,6 +183,15 @@ function validateAssets(manifest, manifestRelPath, enforceSourceExists) {
 		if (source.includes('skills-vault') || destination.includes('skills-vault')) {
 			fail(`${manifestRelPath}: asset ${id} must not reference skills-vault path`);
 			continue;
+		}
+
+		// Validate loadMode if present (skills only)
+		if (asset.loadMode !== undefined) {
+			if (type !== 'skill') {
+				fail(`${manifestRelPath}: asset ${id} has loadMode but type is '${type}' (only skills support loadMode)`);
+			} else if (!VALID_LOAD_MODES.includes(asset.loadMode)) {
+				fail(`${manifestRelPath}: asset ${id} has invalid loadMode '${asset.loadMode}' (must be: ${VALID_LOAD_MODES.join(', ')})`);
+			}
 		}
 
 		if (enforceSourceExists) {

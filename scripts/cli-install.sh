@@ -280,6 +280,25 @@ if $DO_VSCODE; then
   mkdir_if_needed "$VSCODE_HOME_RESOLVED"
 fi
 
+# Load manifest to determine loadMode for skills in pointer mode.
+# Skills with loadMode "always" go to skills/ (full); others go vault-only.
+MANIFEST_FILE="$SRC_ASSETS_ROOT/manifest.json"
+get_skill_load_mode() {
+  local skill_name="$1"
+  if [[ ! -f "$MANIFEST_FILE" ]]; then
+    echo "on-demand"
+    return 0
+  fi
+  # Extract loadMode for the matching skill asset from manifest
+  local mode
+  mode="$(node -e "
+    const m = JSON.parse(require('fs').readFileSync('$MANIFEST_FILE','utf8'));
+    const a = (m.assets||[]).find(a => a.type==='skill' && a.source.endsWith('/$skill_name'));
+    console.log((a && a.loadMode) || 'on-demand');
+  " 2>/dev/null || echo "on-demand")"
+  echo "$mode"
+}
+
 if $DO_CLI; then
   # engine-assets/agents/*.agent.md -> <copilotHome>/agents/ (flatten)
   mkdir_if_needed "$COPILOT_HOME/agents"
@@ -295,21 +314,15 @@ if $DO_CLI; then
     for src_dir in "$SRC_SKILLS_ROOT"/*; do
       [[ -d "$src_dir" ]] || continue
       skill_name="$(basename "$src_dir")"
-      # Copy full skill to vault
-      sync_dir "$src_dir" "$COPILOT_HOME/skills-vault/$skill_name"
-      # Write pointer file in scan path
-      mkdir_if_needed "$COPILOT_HOME/skills/$skill_name"
-      if ! $DRY_RUN; then
-        cat > "$COPILOT_HOME/skills/$skill_name/SKILL.md" <<POINTER
----
-schema-version: 1
-vault-ref: $skill_name
----
-# $skill_name
-Triggers on: $skill_name
-POINTER
+      load_mode="$(get_skill_load_mode "$skill_name")"
+      if [[ "$load_mode" == "always" ]]; then
+        # Always-loaded: install full skill to skills/ (scanned by VS Code)
+        sync_dir "$src_dir" "$COPILOT_HOME/skills/$skill_name"
+        # Also copy to vault for search index consistency
+        sync_dir "$src_dir" "$COPILOT_HOME/skills-vault/$skill_name"
       else
-        echo "[DRY-RUN] write pointer: $COPILOT_HOME/skills/$skill_name/SKILL.md"
+        # On-demand: vault only — NOT in skills/ scan path
+        sync_dir "$src_dir" "$COPILOT_HOME/skills-vault/$skill_name"
       fi
     done
   else
@@ -338,19 +351,15 @@ if $DO_VSCODE; then
     for src_dir in "$SRC_SKILLS_ROOT"/*; do
       [[ -d "$src_dir" ]] || continue
       skill_name="$(basename "$src_dir")"
-      sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills-vault/$skill_name"
-      mkdir_if_needed "$VSCODE_HOME_RESOLVED/skills/$skill_name"
-      if ! $DRY_RUN; then
-        cat > "$VSCODE_HOME_RESOLVED/skills/$skill_name/SKILL.md" <<POINTER
----
-schema-version: 1
-vault-ref: $skill_name
----
-# $skill_name
-Triggers on: $skill_name
-POINTER
+      load_mode="$(get_skill_load_mode "$skill_name")"
+      if [[ "$load_mode" == "always" ]]; then
+        # Always-loaded: install full skill to skills/ (scanned by VS Code)
+        sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills/$skill_name"
+        # Also copy to vault for search index consistency
+        sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills-vault/$skill_name"
       else
-        echo "[DRY-RUN] write pointer: $VSCODE_HOME_RESOLVED/skills/$skill_name/SKILL.md"
+        # On-demand: vault only — NOT in skills/ scan path
+        sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills-vault/$skill_name"
       fi
     done
   else

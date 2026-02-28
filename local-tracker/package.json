@@ -15,6 +15,7 @@
     "test:compliance": "jest --testPathPattern compliance --no-cache"
   },
   "dependencies": {
+    "@instruction-engine/contracts": "*",
     "@napi-rs/keyring": "^1.2.0",
     "chokidar": "^4.0.0",
     "discord.js": "^14.0.0",

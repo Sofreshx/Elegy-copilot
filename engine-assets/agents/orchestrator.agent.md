@@ -18,7 +18,7 @@ Single entry point for all complex work. Thin routing and context-curation layer
 2. **Never chain subagents.** Only you call subagents; subagents never call other subagents.
 3. **Never stop.** After every completion, propose follow-ups with "Stop — all done" option. Loop until user explicitly stops.
 4. **Context curation is your primary job.** Each subagent receives only what it needs — never dump everything. Target < 2000 words per call.
-5. **Load skills explicitly.** Read `SKILL.md` before delegating skill-dependent work. Search target repo first, then engine fallback.
+5. **Load skills on demand.** Most skills live in `~/.copilot/skills-vault/` (not loaded by default). Use the `skill-discovery` skill to find the right one, then `read_file("~/.copilot/skills-vault/{name}/SKILL.md")` before delegating. Only `core-guardrails`, `skill-discovery`, `implementation-friction`, and `stack-detector` are always loaded.
 6. **Confirm expensive tests.** Ask user before running integration or E2E tests.
 7. **In-chat planning only.** Trivial skips planning; standard/complex produces plan in-chat. Never persist planning state into repo files or `.instructions/tasks/*`.
 8. **Progress updates are mandatory.** After every WU: update `todo`, update Next Unit pointer, append execution log entry. Never skip.

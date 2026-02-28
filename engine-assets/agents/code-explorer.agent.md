@@ -37,16 +37,30 @@ Get to **sufficient context fast**: identify the smallest set of files/symbols n
 - Edge cases and failure modes.
 - Performance hotspots only if relevant.
 
-## Output Guidance
+## Output Contract (strict)
 
-Provide an exploration report optimized for planning and safe execution. Include:
+Always end your response with this structured block. The freeform analysis above can provide additional narrative, but the structured result is the canonical output that callers rely on.
 
-- **Entry points** (handlers/endpoints/components) with file paths and line ranges when available.
-- **Main flow** (3–8 steps) from entry to output.
-- **Key files/symbols** and their responsibilities.
-- **Data/persistence touchpoints** (DB/doc store, queues, external APIs).
-- **Configuration points** (DI registration, feature flags, settings).
-- **Essential files list** (minimal reading set).
-- **Next best searches** (2–5 queries) if more context is needed.
+```text
+EXPLORATION_RESULT
+- scope: <what was explored — feature/subsystem/question>
+- entry_points:
+  - <file:line — description>
+- key_files:
+  - <file — one-line purpose>
+- data_touchpoints:
+  - <store/API/queue — description>
+- patterns:
+  - <convention or architectural pattern found>
+- next_searches:
+  - <query if more context is needed>
+```
 
-Structure your response for maximum clarity and usefulness. Prefer precision over completeness.
+### Output Guidance
+
+- **Entry points**: handlers/endpoints/components with file paths and line ranges.
+- **Main flow**: 3–8 steps from entry to output (include in narrative above the structured block).
+- **Key files/symbols**: responsibilities and relationships.
+- **Data/persistence touchpoints**: DB/doc store, queues, external APIs.
+- **Configuration points**: DI registration, feature flags, settings.
+- Prefer precision over completeness. Stop early once sufficient context is gathered.

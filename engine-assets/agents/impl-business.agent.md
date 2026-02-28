@@ -12,6 +12,7 @@ disable-model-invocation: false
 Implement business-logic work units end-to-end with clear correctness boundaries, minimal surface area, and fast feedback.
 
 ## Inputs (expected)
+- `work_unit`: WU-ID (e.g., `WU-003`) — echo back in output
 - `spec`: inline work unit spec (scope + acceptance criteria + validation)
 - `repoRoot`: optional
 - `patterns`: optional (existing conventions to follow)
@@ -26,6 +27,7 @@ Return:
 
 ```text
 IMPL_RESULT
+- work_unit: <WU-ID echoed from input>
 - kind: business
 - status: done|blocked|needs-clarification
 - changes:

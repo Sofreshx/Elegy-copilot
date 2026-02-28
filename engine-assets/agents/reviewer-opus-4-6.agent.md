@@ -40,6 +40,8 @@ Then output these sections in order:
 - Optional Improvements (only if truly optional)
 - Confidence (0-100)
 
+When reviewing Plan Packs, reference specific `WU-NNN` or `G-NN` IDs in Required Revisions bullets. Use a `Global:` prefix for plan-wide revisions that don't map to a single WU or group.
+
 Verdict guidance:
 - `APPROVED`: executable as-is; validation/rollback are credible; remaining notes are optional.
 - `NEEDS_REVISION`: fixable gaps with clear edits (no new user info required).

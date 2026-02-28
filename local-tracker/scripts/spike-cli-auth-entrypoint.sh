@@ -23,19 +23,17 @@ if [[ -d "$ASSETS_ROOT" ]]; then
   if [[ "${SKILL_POINTER_MODE:-}" == "true" ]]; then
     mkdir -p "$COPILOT_HOME/skills-vault"
     cp -Rn "$ASSETS_ROOT/skills/." "$COPILOT_HOME/skills-vault/" 2>/dev/null || cp -R "$ASSETS_ROOT/skills/." "$COPILOT_HOME/skills-vault/" || true
-    # Write pointer stubs for each skill
+    # Always-loaded skills go to skills/ (scanned by VS Code); on-demand stay vault-only
+    ALWAYS_LOADED_SKILLS="core-guardrails skill-discovery implementation-friction stack-detector"
     for skill_dir in "$COPILOT_HOME/skills-vault"/*/; do
       [[ -d "$skill_dir" ]] || continue
       skill_name="$(basename "$skill_dir")"
-      mkdir -p "$COPILOT_HOME/skills/$skill_name"
-      cat > "$COPILOT_HOME/skills/$skill_name/SKILL.md" <<POINTER
----
-schema-version: 1
-vault-ref: $skill_name
----
-# $skill_name
-Triggers on: $skill_name
-POINTER
+      case " $ALWAYS_LOADED_SKILLS " in
+        *" $skill_name "*)
+          mkdir -p "$COPILOT_HOME/skills/$skill_name"
+          cp -R "$skill_dir/." "$COPILOT_HOME/skills/$skill_name/" || true
+          ;;
+      esac
     done
   else
     cp -Rn "$ASSETS_ROOT/skills/." "$COPILOT_HOME/skills/" 2>/dev/null || cp -R "$ASSETS_ROOT/skills/." "$COPILOT_HOME/skills/" || true

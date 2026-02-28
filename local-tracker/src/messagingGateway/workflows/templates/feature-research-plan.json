@@ -1,0 +1,51 @@
+{
+  "id": "feature-research-plan",
+  "name": "Feature Research Plan",
+  "description": "Builds a deterministic research-to-plan flow with git state analysis and team handoff.",
+  "version": "1.0.0",
+  "schemaVersion": "2.0",
+  "steps": [
+    {
+      "id": "check-pr-status",
+      "name": "Check PR Status",
+      "action": "git.checkPrStatus"
+    },
+    {
+      "id": "analyze-git-state",
+      "name": "Analyze Git State",
+      "action": "git.state-analysis",
+      "params": { "command": "status" },
+      "dependsOn": ["check-pr-status"]
+    },
+    {
+      "id": "run-research",
+      "name": "Run Research",
+      "action": "dev.research",
+      "params": {
+        "topic": "workflow-engine-gap-analysis",
+        "inputs": ["backlog", "templates", "tests"]
+      },
+      "dependsOn": ["analyze-git-state"]
+    },
+    {
+      "id": "draft-plan",
+      "name": "Draft Plan",
+      "action": "dev.plan",
+      "params": {
+        "goal": "convert-research-to-deliverable-work-units",
+        "source": "{{run-research.action}}"
+      },
+      "dependsOn": ["run-research"]
+    },
+    {
+      "id": "notify-team",
+      "name": "Notify Team",
+      "action": "notify.team",
+      "params": {
+        "channel": "planning",
+        "message": "Feature research plan is ready for review"
+      },
+      "dependsOn": ["draft-plan"]
+    }
+  ]
+}

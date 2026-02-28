@@ -391,6 +391,12 @@
       "destination": "skills/stack-detector"
     },
     {
+      "id": "skill-discovery",
+      "type": "skill",
+      "source": "engine-assets/skills/skill-discovery",
+      "destination": "skills/skill-discovery"
+    },
+    {
       "id": "skill-testing-dotnet-unit",
       "type": "skill",
       "source": "engine-assets/skills/testing-dotnet-unit",

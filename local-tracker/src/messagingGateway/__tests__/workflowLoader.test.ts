@@ -1,5 +1,13 @@
 import { loadWorkflowTemplate, loadAllWorkflowTemplates } from '../workflows/workflowLoader';
 
+const TEMPLATE_IDS = [
+    'code-state-review',
+    'failed-session-recovery',
+    'feature-research-plan',
+    'finalization-validation',
+    'incident-escalation',
+] as const;
+
 describe('loadWorkflowTemplate', () => {
     it('loads failed-session-recovery.json and validates schema', () => {
         const def = loadWorkflowTemplate('failed-session-recovery.json');
@@ -27,6 +35,24 @@ describe('loadWorkflowTemplate', () => {
         expect(def.steps[3].dependsOn).toEqual(['notify-team', 'create-incident']);
     });
 
+    it('loads feature-research-plan.json and validates schema', () => {
+        const def = loadWorkflowTemplate('feature-research-plan.json');
+        expect(def.id).toBe('feature-research-plan');
+        expect(def.name).toBe('Feature Research Plan');
+        expect(def.schemaVersion).toBe('2.0');
+        expect(def.steps).toHaveLength(5);
+        expect(def.steps[3].dependsOn).toEqual(['run-research']);
+    });
+
+    it('loads code-state-review.json and validates schema', () => {
+        const def = loadWorkflowTemplate('code-state-review.json');
+        expect(def.id).toBe('code-state-review');
+        expect(def.name).toBe('Code State Review');
+        expect(def.schemaVersion).toBe('2.0');
+        expect(def.steps).toHaveLength(5);
+        expect(def.steps[2].dependsOn).toEqual(['collect-diagnostics', 'analyze-git-diff']);
+    });
+
     it('throws on non-existent filename', () => {
         expect(() => loadWorkflowTemplate('does-not-exist.json')).toThrow('Template not found');
     });
@@ -37,16 +63,16 @@ describe('loadWorkflowTemplate', () => {
 });
 
 describe('loadAllWorkflowTemplates', () => {
-    it('loads all 3 templates', () => {
+    it('loads all 5 templates', () => {
         const templates = loadAllWorkflowTemplates();
-        expect(templates.size).toBe(3);
+        expect(templates.size).toBe(5);
     });
 
     it('returns Map keyed by workflow ID', () => {
         const templates = loadAllWorkflowTemplates();
-        expect(templates.has('failed-session-recovery')).toBe(true);
-        expect(templates.has('finalization-validation')).toBe(true);
-        expect(templates.has('incident-escalation')).toBe(true);
+        for (const templateId of TEMPLATE_IDS) {
+            expect(templates.has(templateId)).toBe(true);
+        }
     });
 
     it('all loaded templates have valid structure', () => {

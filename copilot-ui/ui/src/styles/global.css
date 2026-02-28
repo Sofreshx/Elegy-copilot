@@ -1,0 +1,54 @@
+html {
+  font-size: 16px;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--color-ink-700);
+  background:
+    radial-gradient(circle at 12% 14%, rgba(47, 165, 157, 0.28), transparent 46%),
+    radial-gradient(circle at 88% 10%, rgba(210, 106, 61, 0.2), transparent 45%),
+    linear-gradient(180deg, #f8fbff 0%, #edf2ff 100%);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.45) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: var(--z-base);
+}
+
+#app {
+  position: relative;
+  z-index: var(--z-content);
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--color-ink-950);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+a {
+  color: var(--color-brand-600);
+}
+
+code {
+  font-family: var(--font-mono);
+  background: var(--color-ink-100);
+  color: var(--color-ink-700);
+  border-radius: var(--radius-sm);
+  padding: 0.125rem 0.375rem;
+}

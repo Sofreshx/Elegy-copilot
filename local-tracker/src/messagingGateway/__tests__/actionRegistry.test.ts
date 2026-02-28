@@ -1,8 +1,10 @@
 import { ActionRegistry, ActionNotFoundError, ActionExecutor } from '../workflows/actionRegistry';
 import type { WorkflowStep } from '../workflows/workflowSchema';
+import { registerDevExecutors } from '../workflows/executors/devExecutors';
+import { registerGitExecutors } from '../workflows/executors/gitExecutors';
 
-function step(id: string, action: string): WorkflowStep {
-    return { id, name: `Step ${id}`, action, dependsOn: [] };
+function step(id: string, action: string, params?: Record<string, unknown>): WorkflowStep {
+    return { id, name: `Step ${id}`, action, type: 'action', streaming: false, dependsOn: [], params };
 }
 
 describe('ActionRegistry', () => {
@@ -71,5 +73,93 @@ describe('ActionRegistry', () => {
         registry.register('a.first', jest.fn());
         registry.register('m.middle', jest.fn());
         expect(registry.getRegisteredActions()).toEqual(['a.first', 'm.middle', 'z.last']);
+    });
+});
+
+describe('registerDevExecutors', () => {
+    it('registers all dev actions and returns deterministic structured output', async () => {
+        const registry = new ActionRegistry();
+        registerDevExecutors(registry);
+
+        expect(registry.has('dev.research')).toBe(true);
+        expect(registry.has('dev.plan')).toBe(true);
+        expect(registry.has('dev.review')).toBe(true);
+
+        const nowMs = 1700000000123;
+        const result = await registry.get('dev.research')(
+            step('s-research', 'dev.research', { topic: 'workflow-gaps' }),
+            {
+                workflowId: 'wf-compat',
+                sessionId: 'ses-42',
+                requestId: 'req-99',
+                nowMs,
+            },
+        );
+
+        expect(result).toEqual({
+            action: 'dev.research',
+            stepId: 's-research',
+            stepName: 'Step s-research',
+            timestampMs: nowMs,
+            params: { topic: 'workflow-gaps' },
+            context: {
+                workflowId: 'wf-compat',
+                sessionId: 'ses-42',
+                requestId: 'req-99',
+            },
+        });
+    });
+});
+
+describe('registerGitExecutors', () => {
+    it('allows whitelisted read-only commands', async () => {
+        const registry = new ActionRegistry();
+        registerGitExecutors(registry);
+
+        const result = await registry.get('git.state-analysis')(
+            step('s-git', 'git.state-analysis', {
+                command: 'status --short',
+                repositoryPath: '/workspace/repo',
+            }),
+            {
+                workflowId: 'wf-review',
+                sessionId: 'ses-7',
+                nowMs: 1710000000000,
+            },
+        );
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                action: 'git.state-analysis',
+                stepId: 's-git',
+                requestedCommand: 'status --short',
+                requestedToken: 'status',
+                blocked: false,
+            }),
+        );
+        expect(result).toEqual(
+            expect.objectContaining({
+                whitelist: ['status', 'log', 'diff', 'branch', 'remote', 'show', 'rev-parse', 'ls-files'],
+            }),
+        );
+    });
+
+    it('blocks non-whitelisted commands with reason', async () => {
+        const registry = new ActionRegistry();
+        registerGitExecutors(registry);
+
+        const result = await registry.get('git.state-analysis')(
+            step('s-git-block', 'git.state-analysis', { command: 'push origin main' }),
+            { nowMs: 1710000000100 },
+        );
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                action: 'git.state-analysis',
+                requestedToken: 'push',
+                blocked: true,
+            }),
+        );
+        expect((result as { reason?: string }).reason).toContain('not in read-only whitelist');
     });
 });

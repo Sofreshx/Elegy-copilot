@@ -139,7 +139,10 @@ Note: The "Completion Gate" rule ("ask one targeted question") applies to genera
 
 ## Skills (Default to Skills)
 If a task maps to a known domain, treat skills as the default path:
-- **Always** load the relevant `SKILL.md` before making changes in that domain.
+- A few transversal skills are always loaded in `~/.copilot/skills/`: `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`.
+- **Most domain skills live in `~/.copilot/skills-vault/`** and are NOT loaded by default (saves tokens).
+- To find the right skill: use the `skill-discovery` skill's keyword map, or run `stack-detector` for project-wide detection.
+- To load an on-demand skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
 - Prefer skill-specific guidance over generic judgment.
 - If multiple skills apply, load the primary one first, then the supporting ones.
 

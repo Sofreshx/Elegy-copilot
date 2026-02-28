@@ -1,9 +1,8 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import { migrateToVault, restoreFromVault } from '../../vaultMigration';
-import { readJournal, writeJournal } from '../../migrationJournal';
+import { readJournal } from '../../migrationJournal';
 import { isPointerSkill } from '../../skillPointer';
 
 /**
@@ -56,41 +55,38 @@ suite('vaultMigration', () => {
 		try { fs.rmSync(vaultSkillDir, { recursive: true, force: true }); } catch { /* ignore */ }
 	});
 
-	test('migrateToVault copies skill to vault and creates pointer', () => {
+	test('migrateToVault copies on-demand skill to vault and removes from scan path', () => {
 		migrateToVault(testSkillName);
 
 		// Vault should have the full skill
 		assert.ok(fs.existsSync(path.join(vaultSkillDir, 'SKILL.md')), 'Vault should contain SKILL.md');
 		assert.ok(fs.existsSync(path.join(vaultSkillDir, 'extra.md')), 'Vault should contain extra.md');
 
-		// Original location should be a pointer
-		assert.ok(isPointerSkill(skillDir), 'Original skill should be a pointer');
-
-		// Extra file should NOT be in the pointer directory
-		assert.ok(!fs.existsSync(path.join(skillDir, 'extra.md')), 'Pointer dir should not have extra.md');
+		// On-demand skill should be removed from scan path entirely
+		assert.ok(!fs.existsSync(skillDir), 'On-demand skill should be removed from scan path');
 	});
 
-	test('migrateToVault records journal entries', () => {
+	test('migrateToVault records journal entries with remove-from-scan-path', () => {
 		migrateToVault(testSkillName);
 
 		const journal = readJournal();
 		const copyEntries = journal.entries.filter(
 			(e) => e.skillName === testSkillName && e.phase === 'copy-to-vault'
 		);
-		const replaceEntries = journal.entries.filter(
-			(e) => e.skillName === testSkillName && e.phase === 'replace-with-pointer'
+		const removeEntries = journal.entries.filter(
+			(e) => e.skillName === testSkillName && e.phase === 'remove-from-scan-path'
 		);
 
 		assert.ok(copyEntries.length > 0, 'Should have copy-to-vault entry');
-		assert.ok(replaceEntries.length > 0, 'Should have replace-with-pointer entry');
+		assert.ok(removeEntries.length > 0, 'Should have remove-from-scan-path entry');
 		assert.strictEqual(copyEntries[copyEntries.length - 1].status, 'done');
-		assert.strictEqual(replaceEntries[replaceEntries.length - 1].status, 'done');
+		assert.strictEqual(removeEntries[removeEntries.length - 1].status, 'done');
 	});
 
-	test('restoreFromVault restores full skill and removes vault entry', () => {
-		// First migrate
+	test('restoreFromVault restores on-demand skill and removes vault entry', () => {
+		// First migrate — skill gets removed from scan path
 		migrateToVault(testSkillName);
-		assert.ok(isPointerSkill(skillDir), 'Should be pointer after migration');
+		assert.ok(!fs.existsSync(skillDir), 'Skill should be removed after migration');
 
 		// Then restore
 		restoreFromVault(testSkillName);
@@ -104,16 +100,16 @@ suite('vaultMigration', () => {
 		assert.ok(!fs.existsSync(vaultSkillDir), 'Vault entry should be removed');
 	});
 
-	test('migrateToVault skips already-pointer skills', () => {
-		// First migrate
+	test('migrateToVault throws for already-removed on-demand skill', () => {
+		// First migrate — removes on-demand skill from scan path
 		migrateToVault(testSkillName);
-		const journalBefore = readJournal();
-		const countBefore = journalBefore.entries.length;
+		assert.ok(!fs.existsSync(skillDir), 'Skill should be removed after migration');
 
-		// Migrate again — should be a no-op
-		migrateToVault(testSkillName);
-		const journalAfter = readJournal();
-
-		assert.strictEqual(journalAfter.entries.length, countBefore, 'No new journal entries for already-migrated skill');
+		// Second migrate — skill dir no longer exists, should throw
+		assert.throws(
+			() => migrateToVault(testSkillName),
+			/Skill directory not found/,
+			'Should throw when skill directory does not exist'
+		);
 	});
 });

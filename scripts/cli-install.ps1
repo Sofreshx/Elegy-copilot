@@ -247,6 +247,21 @@ Write-Host "Engine root:  $engineRoot"
 Write-Host "Modes:        cli=$DoCli vscode=$DoVscode"
 Write-Host "VS Code home: $vscodeHomeResolved"
 
+# Load manifest to determine loadMode for skills in pointer mode.
+# Skills with loadMode "always" go to skills/ (full); others go vault-only.
+$manifestPath = Join-Path $srcAssetsRoot 'manifest.json'
+$manifestData = $null
+if (Test-Path -LiteralPath $manifestPath) {
+  try { $manifestData = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json } catch { }
+}
+
+function Get-SkillLoadMode([string]$skillName) {
+  if (-not $manifestData -or -not $manifestData.assets) { return 'on-demand' }
+  $asset = $manifestData.assets | Where-Object { $_.type -eq 'skill' -and $_.source -and $_.source.EndsWith("/$skillName") } | Select-Object -First 1
+  if ($asset -and $asset.loadMode) { return $asset.loadMode }
+  return 'on-demand'
+}
+
 
 if ($DoCli) {
   if ($DryRun) {
@@ -267,15 +282,17 @@ if ($DoCli) {
     if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $vaultDir | Out-Null }
     Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
       $skillName = $_.Name
+      $loadMode = Get-SkillLoadMode $skillName
       $vaultDst = Join-Path $vaultDir $skillName
-      Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
-      $pointerDir = Join-Path (Join-Path $copilotHome 'skills') $skillName
-      if (-not $DryRun) {
-        New-Item -ItemType Directory -Force -Path $pointerDir | Out-Null
-        $pointerContent = "---`nschema-version: 1`nvault-ref: $skillName`n---`n# $skillName`nTriggers on: $skillName`n"
-        Set-Content -LiteralPath (Join-Path $pointerDir 'SKILL.md') -Value $pointerContent -Encoding UTF8
+      if ($loadMode -eq 'always') {
+        # Always-loaded: install full skill to skills/ (scanned by VS Code)
+        $skillDst = Join-Path (Join-Path $copilotHome 'skills') $skillName
+        Sync-Directory $_.FullName $skillDst -DryRun:$DryRun -Force:$Force
+        # Also copy to vault for search index consistency
+        Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
       } else {
-        Write-Host "[DRY-RUN] write pointer: $(Join-Path $pointerDir 'SKILL.md')"
+        # On-demand: vault only — NOT in skills/ scan path
+        Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
       }
     }
   } else {
@@ -308,15 +325,17 @@ if ($DoVscode) {
     if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $vscodeVault | Out-Null }
     Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
       $skillName = $_.Name
+      $loadMode = Get-SkillLoadMode $skillName
       $vaultDst = Join-Path $vscodeVault $skillName
-      Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
-      $pointerDir = Join-Path (Join-Path $vscodeHomeResolved 'skills') $skillName
-      if (-not $DryRun) {
-        New-Item -ItemType Directory -Force -Path $pointerDir | Out-Null
-        $pointerContent = "---`nschema-version: 1`nvault-ref: $skillName`n---`n# $skillName`nTriggers on: $skillName`n"
-        Set-Content -LiteralPath (Join-Path $pointerDir 'SKILL.md') -Value $pointerContent -Encoding UTF8
+      if ($loadMode -eq 'always') {
+        # Always-loaded: install full skill to skills/ (scanned by VS Code)
+        $skillDst = Join-Path (Join-Path $vscodeHomeResolved 'skills') $skillName
+        Sync-Directory $_.FullName $skillDst -DryRun:$DryRun -Force:$Force
+        # Also copy to vault for search index consistency
+        Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
       } else {
-        Write-Host "[DRY-RUN] write pointer: $(Join-Path $pointerDir 'SKILL.md')"
+        # On-demand: vault only — NOT in skills/ scan path
+        Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
       }
     }
   } else {

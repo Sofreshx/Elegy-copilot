@@ -1,0 +1,24 @@
+{
+  "name": "@instruction-engine/root",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Instruction Engine monorepo root",
+  "workspaces": [
+    "contracts",
+    "copilot-ui",
+    "local-tracker",
+    "RannIA",
+    "scripts"
+  ],
+  "scripts": {
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:publish": "changeset publish",
+    "build:contracts": "npm run build --workspace=contracts",
+    "test:all": "npm run test --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8"
+  }
+}

@@ -5,7 +5,7 @@ export type MigrationPhase = 'disabled' | 'migrating-in' | 'enabled' | 'migratin
 
 export interface MigrationJournalEntry {
 	skillName: string;
-	phase: 'copy-to-vault' | 'replace-with-pointer' | 'restore-from-vault' | 'remove-pointer';
+	phase: 'copy-to-vault' | 'replace-with-pointer' | 'restore-from-vault' | 'remove-pointer' | 'keep-in-scan-path' | 'remove-from-scan-path' | 'remove-vault-copy';
 	status: 'pending' | 'done' | 'failed';
 	timestamp: string;
 	error?: string;

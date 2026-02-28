@@ -22,7 +22,11 @@
     "enabled": false,
     "schemaVersion": 1,
     "vaultDir": "skills-vault",
-    "notes": "When enabled, CLI installers write pointer stubs to skills/ and full content to skills-vault/. Consumers must read vault-ref from pointer frontmatter to resolve full skill content."
+    "loadModes": {
+      "always": "Installed to skills/ (VS Code scans and loads into context). Reserved for meta-skills and transversal skills.",
+      "on-demand": "Installed to skills-vault/ only (NOT scanned by VS Code). Discovered via skill-discovery pattern. Default for domain-specific skills."
+    },
+    "notes": "When enabled, 'always' skills install full content to skills/. 'on-demand' skills install ONLY to skills-vault/ — no pointer stub in skills/. Agents use the skill-discovery skill to find and load on-demand skills at runtime."
   },
   "governance": {
     "g05": {
@@ -277,160 +281,284 @@
       "destination": "prompts/instruction-engine-review.prompt.md"
     },
     {
+      "id": "skill-agent-browser",
+      "type": "skill",
+      "source": "engine-assets/skills/agent-browser",
+      "destination": "skills/agent-browser",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "skill-alba-integration-tests",
       "type": "skill",
       "source": "engine-assets/skills/alba-integration-tests",
-      "destination": "skills/alba-integration-tests"
+      "destination": "skills/alba-integration-tests",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-aspire-apphost",
       "type": "skill",
       "source": "engine-assets/skills/aspire-apphost",
-      "destination": "skills/aspire-apphost"
+      "destination": "skills/aspire-apphost",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-aspire-deployment",
       "type": "skill",
       "source": "engine-assets/skills/aspire-deployment",
-      "destination": "skills/aspire-deployment"
+      "destination": "skills/aspire-deployment",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-audit-report-formats",
       "type": "skill",
       "source": "engine-assets/skills/audit-report-formats",
-      "destination": "skills/audit-report-formats"
+      "destination": "skills/audit-report-formats",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-auth",
+      "type": "skill",
+      "source": "engine-assets/skills/auth",
+      "destination": "skills/auth",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-code-review",
       "type": "skill",
       "source": "engine-assets/skills/code-review",
-      "destination": "skills/code-review"
+      "destination": "skills/code-review",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-core-guardrails",
       "type": "skill",
       "source": "engine-assets/skills/core-guardrails",
-      "destination": "skills/core-guardrails"
+      "destination": "skills/core-guardrails",
+      "loadMode": "always"
+    },
+    {
+      "id": "skill-critic",
+      "type": "skill",
+      "source": "engine-assets/skills/critic",
+      "destination": "skills/critic",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-csharp-expert",
       "type": "skill",
       "source": "engine-assets/skills/csharp-expert",
-      "destination": "skills/csharp-expert"
+      "destination": "skills/csharp-expert",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-debug",
       "type": "skill",
       "source": "engine-assets/skills/debug",
-      "destination": "skills/debug"
+      "destination": "skills/debug",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-deployment-compose",
       "type": "skill",
       "source": "engine-assets/skills/deployment-compose",
-      "destination": "skills/deployment-compose"
+      "destination": "skills/deployment-compose",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-e2e-workflow",
       "type": "skill",
       "source": "engine-assets/skills/e2e-workflow",
-      "destination": "skills/e2e-workflow"
+      "destination": "skills/e2e-workflow",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-firebase-auth",
+      "type": "skill",
+      "source": "engine-assets/skills/firebase-auth",
+      "destination": "skills/firebase-auth",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-frontend",
       "type": "skill",
       "source": "engine-assets/skills/frontend",
-      "destination": "skills/frontend"
+      "destination": "skills/frontend",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-implementation-friction",
+      "type": "skill",
+      "source": "engine-assets/skills/implementation-friction",
+      "destination": "skills/implementation-friction",
+      "loadMode": "always"
     },
     {
       "id": "skill-instruction-quality",
       "type": "skill",
       "source": "engine-assets/skills/instruction-quality",
-      "destination": "skills/instruction-quality"
+      "destination": "skills/instruction-quality",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-logging-observability",
+      "type": "skill",
+      "source": "engine-assets/skills/logging-observability",
+      "destination": "skills/logging-observability",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-marten-documents",
       "type": "skill",
       "source": "engine-assets/skills/marten-documents",
-      "destination": "skills/marten-documents"
+      "destination": "skills/marten-documents",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-marten-events",
+      "type": "skill",
+      "source": "engine-assets/skills/marten-events",
+      "destination": "skills/marten-events",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-marten-linq-querying",
       "type": "skill",
       "source": "engine-assets/skills/marten-linq-querying",
-      "destination": "skills/marten-linq-querying"
+      "destination": "skills/marten-linq-querying",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-microsoft-agent-framework",
+      "type": "skill",
+      "source": "engine-assets/skills/microsoft-agent-framework",
+      "destination": "skills/microsoft-agent-framework",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-openai-compatible",
       "type": "skill",
       "source": "engine-assets/skills/openai-compatible",
-      "destination": "skills/openai-compatible"
+      "destination": "skills/openai-compatible",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-orleans",
+      "type": "skill",
+      "source": "engine-assets/skills/orleans",
+      "destination": "skills/orleans",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-planning-feature",
+      "type": "skill",
+      "source": "engine-assets/skills/planning-feature",
+      "destination": "skills/planning-feature",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-planpack-authoring",
       "type": "skill",
       "source": "engine-assets/skills/planpack-authoring",
-      "destination": "skills/planpack-authoring"
+      "destination": "skills/planpack-authoring",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-react-query",
       "type": "skill",
       "source": "engine-assets/skills/react-query",
-      "destination": "skills/react-query"
+      "destination": "skills/react-query",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-refactor",
+      "type": "skill",
+      "source": "engine-assets/skills/refactor",
+      "destination": "skills/refactor",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-security",
       "type": "skill",
       "source": "engine-assets/skills/security",
-      "destination": "skills/security"
+      "destination": "skills/security",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-signalr",
+      "type": "skill",
+      "source": "engine-assets/skills/signalr",
+      "destination": "skills/signalr",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-discovery",
+      "type": "skill",
+      "source": "engine-assets/skills/skill-discovery",
+      "destination": "skills/skill-discovery",
+      "loadMode": "always"
     },
     {
       "id": "skill-stack-audit-patterns",
       "type": "skill",
       "source": "engine-assets/skills/stack-audit-patterns",
-      "destination": "skills/stack-audit-patterns"
+      "destination": "skills/stack-audit-patterns",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-stack-detector",
       "type": "skill",
       "source": "engine-assets/skills/stack-detector",
-      "destination": "skills/stack-detector"
+      "destination": "skills/stack-detector",
+      "loadMode": "always"
+    },
+    {
+      "id": "skill-system-cleanup",
+      "type": "skill",
+      "source": "engine-assets/skills/system-cleanup",
+      "destination": "skills/system-cleanup",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-terraform",
       "type": "skill",
       "source": "engine-assets/skills/terraform",
-      "destination": "skills/terraform"
-    },
-    {
-      "id": "skill-testing-dotnet-unit",
-      "type": "skill",
-      "source": "engine-assets/skills/testing-dotnet-unit",
-      "destination": "skills/testing-dotnet-unit"
-    },
-    {
-      "id": "skill-testing-frontend-unit",
-      "type": "skill",
-      "source": "engine-assets/skills/testing-frontend-unit",
-      "destination": "skills/testing-frontend-unit"
-    },
-    {
-      "id": "skill-wolverine-core",
-      "type": "skill",
-      "source": "engine-assets/skills/wolverine-core",
-      "destination": "skills/wolverine-core"
+      "destination": "skills/terraform",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-test-caching-verification",
       "type": "skill",
       "source": "engine-assets/skills/test-caching-verification",
-      "destination": "skills/test-caching-verification"
+      "destination": "skills/test-caching-verification",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-testing-dotnet-unit",
+      "type": "skill",
+      "source": "engine-assets/skills/testing-dotnet-unit",
+      "destination": "skills/testing-dotnet-unit",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-testing-frontend-unit",
+      "type": "skill",
+      "source": "engine-assets/skills/testing-frontend-unit",
+      "destination": "skills/testing-frontend-unit",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-wolverine-core",
+      "type": "skill",
+      "source": "engine-assets/skills/wolverine-core",
+      "destination": "skills/wolverine-core",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-wolverine-http",
       "type": "skill",
       "source": "engine-assets/skills/wolverine-http",
-      "destination": "skills/wolverine-http"
+      "destination": "skills/wolverine-http",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": [

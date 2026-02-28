@@ -20,21 +20,30 @@ const mockBridgeClient: BridgeClient = {
 
 describe('workflow execution integration', () => {
     let templates: Map<string, any>;
+    const runtimeContext = {
+        allowMutatingExecutors: true,
+        incidentAcknowledged: true,
+        notifySink: () => undefined,
+    };
 
     beforeAll(() => {
         templates = loadAllWorkflowTemplates();
     });
 
-    it('loads all 3 templates', () => {
-        expect(templates.size).toBe(3);
+    it('loads all 5 templates', () => {
+        expect(templates.size).toBe(5);
         expect([...templates.keys()].sort()).toEqual([
+            'code-state-review',
             'failed-session-recovery',
+            'feature-research-plan',
             'finalization-validation',
             'incident-escalation',
         ]);
     });
 
     for (const templateId of [
+        'code-state-review',
+        'feature-research-plan',
         'incident-escalation',
         'finalization-validation',
         'failed-session-recovery',
@@ -42,7 +51,7 @@ describe('workflow execution integration', () => {
         it(`runs "${templateId}" to completion with all steps succeeding`, async () => {
             const definition = templates.get(templateId)!;
             const registry = createDefaultRegistry(mockBridgeClient);
-            const result = await executeWorkflow(definition, registry.toStepExecutor());
+            const result = await executeWorkflow(definition, registry.toStepExecutor(), runtimeContext);
 
             expect(result.status).toBe('completed');
             expect(result.steps.length).toBeGreaterThan(0);
@@ -54,7 +63,7 @@ describe('workflow execution integration', () => {
         it(`"${templateId}" results contain no stub statuses`, async () => {
             const definition = templates.get(templateId)!;
             const registry = createDefaultRegistry(mockBridgeClient);
-            const result = await executeWorkflow(definition, registry.toStepExecutor());
+            const result = await executeWorkflow(definition, registry.toStepExecutor(), runtimeContext);
 
             const stubs = result.steps.filter(
                 (s: any) => s.status === 'stub' || s.output === 'stub',

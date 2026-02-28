@@ -1,5 +1,8 @@
 import { WorkflowDefinition, WorkflowStep, WorkflowStepResult, WorkflowRunResult } from './workflowSchema';
 import { getWorkflowTracer } from './workflowTracing';
+import { StepOutputStore } from './stepOutputStore';
+import { evaluateStepCondition } from './conditionEvaluator';
+import { evaluateExecutorPolicy } from './executorPolicy';
 
 export type StepExecutor = (step: WorkflowStep, context: Record<string, unknown>) => Promise<unknown>;
 
@@ -81,6 +84,7 @@ export async function executeWorkflow(
     const layers = topologicalSort(definition.steps);
     const results: WorkflowStepResult[] = [];
     const failedSteps = new Set<string>();
+    const outputStore = new StepOutputStore();
     const startedAtMs = Date.now();
 
     for (const layer of layers) {
@@ -93,13 +97,50 @@ export async function executeWorkflow(
                     return { stepId: step.id, status: 'skipped', durationMs: 0 };
                 }
 
+                if (step.condition !== undefined) {
+                    try {
+                        const shouldExecute = evaluateStepCondition(step.condition, outputStore);
+                        if (!shouldExecute) {
+                            return { stepId: step.id, status: 'skipped', durationMs: 0 };
+                        }
+                    } catch (err) {
+                        failedSteps.add(step.id);
+                        return {
+                            stepId: step.id,
+                            status: 'failed',
+                            durationMs: 0,
+                            error: err instanceof Error ? err.message : String(err),
+                        };
+                    }
+                }
+
                 const stepSpan = tracer.startSpan(`step.${step.id}`, {
                     'step.id': step.id,
                     'step.action': step.action,
                 });
                 const stepStart = Date.now();
                 try {
-                    const output = await executor(step, context);
+                    const resolvedStep: WorkflowStep = {
+                        ...step,
+                        params: outputStore.resolveParams(step.params),
+                    };
+
+                    const policyResult = evaluateExecutorPolicy(resolvedStep.action, resolvedStep.params, context);
+                    if (!policyResult.allowed) {
+                        failedSteps.add(step.id);
+                        const reason = policyResult.reason ?? `Executor policy blocked action "${resolvedStep.action}"`;
+                        stepSpan.setStatus('error', reason);
+                        stepSpan.end();
+                        return {
+                            stepId: step.id,
+                            status: 'failed',
+                            durationMs: 0,
+                            error: reason,
+                        };
+                    }
+
+                    const output = await executor(resolvedStep, context);
+                    outputStore.setStepOutput(step.id, output);
                     stepSpan.setStatus('ok');
                     stepSpan.end();
                     return {

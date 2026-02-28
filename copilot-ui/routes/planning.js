@@ -1,0 +1,1348 @@
+'use strict';
+
+function handlePlanningPersistenceInit(ctx, deps) {
+  const { req, res, planningPersistenceConfig, planningPersistenceState } = ctx;
+  const {
+    sendJson,
+    initializePlanningPersistenceAuthority,
+    PLANNING_API_CONTRACT_VERSION,
+    buildPlanningPersistenceHealthEnvelope,
+    getPlanningPersistenceHealth,
+  } = deps;
+
+  initializePlanningPersistenceAuthority(planningPersistenceConfig, planningPersistenceState)
+    .then((result) => sendJson(res, result.statusCode, result.body))
+    .catch((error) => sendJson(res, 503, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.persistence.init',
+      deterministic: true,
+      ready: false,
+      initialized: false,
+      error: {
+        code: 'planning_persistence_init_failed',
+        reason: 'planning_persistence_init_failed',
+        message: String(error && error.message ? error.message : error),
+      },
+      errors: [{
+        code: 'planning_persistence_init_failed',
+        reason: 'planning_persistence_init_failed',
+        message: String(error && error.message ? error.message : error),
+      }],
+      planningPersistence: buildPlanningPersistenceHealthEnvelope(
+        getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+      ),
+    }));
+}
+
+function handlePlanningPersistenceCorruptionScan(ctx, deps) {
+  const { req, res, pathname, planningPersistenceConfig, planningPersistenceState } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    resolvePlanningPersistenceOperationClient,
+    scanPlanningPersistenceCorruption,
+    applyPlanningPersistenceCorruptionScan,
+    PLANNING_API_CONTRACT_VERSION,
+    buildPlanningPersistenceHealthEnvelope,
+    getPlanningPersistenceHealth,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async () => {
+      const operationAuthority = resolvePlanningPersistenceOperationClient({
+        pathname,
+        method: req.method,
+        planningPersistenceConfig,
+        planningPersistenceState,
+      });
+
+      if (!operationAuthority.ok) {
+        sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+        return;
+      }
+
+      const result = await scanPlanningPersistenceCorruption(operationAuthority.authority.client);
+      const corruption = applyPlanningPersistenceCorruptionScan(planningPersistenceState, result);
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.corruption.scan',
+        deterministic: true,
+        code: corruption.code,
+        reason: corruption.reason,
+        blocked: corruption.blocked,
+        recoveryRequired: corruption.recoveryRequired,
+        result,
+        planningPersistence: buildPlanningPersistenceHealthEnvelope(
+          getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+        ),
+        corruption,
+      });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.persistence.corruption.scan',
+      deterministic: true,
+      error: 'Planning persistence corruption scan failed',
+      code: 'planning_persistence_corruption_scan_failed',
+      reason: 'planning_persistence_corruption_scan_failed',
+      detail: String(e && e.message ? e.message : e),
+    }));
+}
+
+function handlePlanningPersistenceRetention(ctx, deps) {
+  const { req, res, pathname, planningPersistenceConfig, planningPersistenceState } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    resolvePlanningPersistenceOperationClient,
+    buildPlanningPersistenceWriteBlockedFailure,
+    runPlanningRetention,
+    scanPlanningPersistenceCorruption,
+    applyPlanningPersistenceCorruptionScan,
+    PLANNING_API_CONTRACT_VERSION,
+    buildPlanningPersistenceHealthEnvelope,
+    getPlanningPersistenceHealth,
+    buildPlanningPersistenceCorruptionEnvelope,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const operationAuthority = resolvePlanningPersistenceOperationClient({
+        pathname,
+        method: req.method,
+        planningPersistenceConfig,
+        planningPersistenceState,
+      });
+
+      if (!operationAuthority.ok) {
+        sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+        return;
+      }
+
+      const modeToken = String(payload.mode || '').trim().toLowerCase();
+      const mode = modeToken === 'execute' ? 'execute' : 'dry-run';
+      if (mode === 'execute') {
+        const blockedFailure = buildPlanningPersistenceWriteBlockedFailure(
+          pathname,
+          req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          operationAuthority.authority,
+        );
+        if (blockedFailure) {
+          sendJson(res, blockedFailure.statusCode, blockedFailure.body);
+          return;
+        }
+      }
+
+      const result = await runPlanningRetention(operationAuthority.authority.client, {
+        ...payload,
+        mode,
+        nowMs: Date.now(),
+      });
+
+      if (mode === 'execute') {
+        const postScan = await scanPlanningPersistenceCorruption(operationAuthority.authority.client);
+        applyPlanningPersistenceCorruptionScan(planningPersistenceState, postScan);
+      }
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.retention',
+        deterministic: true,
+        code: mode === 'execute'
+          ? 'planning_persistence_retention_executed'
+          : 'planning_persistence_retention_dry_run',
+        reason: mode === 'execute'
+          ? 'planning_persistence_retention_executed'
+          : 'planning_persistence_retention_dry_run',
+        result,
+        planningPersistence: buildPlanningPersistenceHealthEnvelope(
+          getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+        ),
+        corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+      });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.persistence.retention',
+      deterministic: true,
+      error: 'Planning persistence retention failed',
+      code: 'planning_persistence_retention_failed',
+      reason: 'planning_persistence_retention_failed',
+      detail: String(e && e.message ? e.message : e),
+    }));
+}
+
+function handlePlanningPersistenceExport(ctx, deps) {
+  const { req, res, pathname, planningPersistenceConfig, planningPersistenceState } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    resolvePlanningPersistenceOperationClient,
+    exportPlanningPersistenceSnapshot,
+    PLANNING_API_CONTRACT_VERSION,
+    buildPlanningPersistenceHealthEnvelope,
+    getPlanningPersistenceHealth,
+    buildPlanningPersistenceCorruptionEnvelope,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const operationAuthority = resolvePlanningPersistenceOperationClient({
+        pathname,
+        method: req.method,
+        planningPersistenceConfig,
+        planningPersistenceState,
+      });
+
+      if (!operationAuthority.ok) {
+        sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+        return;
+      }
+
+      const result = await exportPlanningPersistenceSnapshot(operationAuthority.authority.client, {
+        exportedAt: payload.exportedAt,
+      });
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.export',
+        deterministic: true,
+        code: 'planning_persistence_export_ready',
+        reason: 'planning_persistence_export_ready',
+        result,
+        planningPersistence: buildPlanningPersistenceHealthEnvelope(
+          getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+        ),
+        corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+      });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.persistence.export',
+      deterministic: true,
+      error: 'Planning persistence export failed',
+      code: 'planning_persistence_export_failed',
+      reason: 'planning_persistence_export_failed',
+      detail: String(e && e.message ? e.message : e),
+    }));
+}
+
+function handlePlanningPersistenceImport(ctx, deps) {
+  const { req, res, pathname, planningPersistenceConfig, planningPersistenceState } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    resolvePlanningPersistenceOperationClient,
+    buildPlanningPersistenceWriteBlockedFailure,
+    importPlanningPersistenceSnapshot,
+    scanPlanningPersistenceCorruption,
+    applyPlanningPersistenceCorruptionScan,
+    PLANNING_API_CONTRACT_VERSION,
+    buildPlanningPersistenceHealthEnvelope,
+    getPlanningPersistenceHealth,
+    buildPlanningPersistenceCorruptionEnvelope,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const operationAuthority = resolvePlanningPersistenceOperationClient({
+        pathname,
+        method: req.method,
+        planningPersistenceConfig,
+        planningPersistenceState,
+      });
+
+      if (!operationAuthority.ok) {
+        sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+        return;
+      }
+
+      const blockedFailure = buildPlanningPersistenceWriteBlockedFailure(
+        pathname,
+        req.method,
+        planningPersistenceConfig,
+        planningPersistenceState,
+        operationAuthority.authority,
+      );
+      if (blockedFailure) {
+        sendJson(res, blockedFailure.statusCode, blockedFailure.body);
+        return;
+      }
+
+      const result = await importPlanningPersistenceSnapshot(operationAuthority.authority.client, payload);
+      if (!result.ok) {
+        const statusCode = result.error && (
+          result.error.code === 'planning_persistence_import_invalid_record'
+          || result.error.code === 'planning_persistence_import_conflicting_duplicate'
+        )
+          ? 400
+          : 503;
+
+        sendJson(res, statusCode, {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.persistence.import',
+          deterministic: true,
+          error: 'Planning persistence import failed',
+          code: result.error && result.error.code
+            ? result.error.code
+            : 'planning_persistence_import_failed',
+          reason: result.error && result.error.reason
+            ? result.error.reason
+            : 'planning_persistence_import_failed',
+          detail: result.error || null,
+          planningPersistence: buildPlanningPersistenceHealthEnvelope(
+            getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+          ),
+          corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+        });
+        return;
+      }
+
+      const postScan = await scanPlanningPersistenceCorruption(operationAuthority.authority.client);
+      applyPlanningPersistenceCorruptionScan(planningPersistenceState, postScan);
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.import',
+        deterministic: true,
+        code: 'planning_persistence_import_applied',
+        reason: 'planning_persistence_import_applied',
+        result,
+        planningPersistence: buildPlanningPersistenceHealthEnvelope(
+          getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+        ),
+        corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+      });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.persistence.import',
+      deterministic: true,
+      error: 'Planning persistence import failed',
+      code: 'planning_persistence_import_failed',
+      reason: 'planning_persistence_import_failed',
+      detail: String(e && e.message ? e.message : e),
+    }));
+}
+
+function handlePlanningRecordsCreate(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningApiState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    buildPlanningRequestContext,
+    resolveRequestIdempotencyKey,
+    acquirePlanningMutationRouteLock,
+    hydratePlanningProjectionFromPersistence,
+    resolveExpectedPlanningVersion,
+    evaluatePlanningRouteOptimisticConcurrency,
+    createPlanningRecordOperation,
+    persistPlanningRecordToAuthority,
+    evictPlanningIdempotencyEntry,
+    releasePlanningRouteLock,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+      const recordInput = payload.record && typeof payload.record === 'object' ? payload.record : payload;
+      const idempotencyKey = resolveRequestIdempotencyKey(req, payload);
+
+      const routeLock = acquirePlanningMutationRouteLock({
+        planningApiState,
+        pathname,
+        method: req.method,
+        context,
+        idempotencyKey,
+        requestId: req.headers['x-request-id'],
+        nowMs: Date.now(),
+      });
+
+      if (!routeLock.ok) {
+        sendJson(res, routeLock.statusCode, routeLock.body);
+        return;
+      }
+
+      try {
+        const projectionSync = await hydratePlanningProjectionFromPersistence({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          planningApiState,
+          context,
+        });
+
+        if (!projectionSync.ok) {
+          sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+          return;
+        }
+
+        const expectedVersion = resolveExpectedPlanningVersion(req, payload);
+        const concurrency = evaluatePlanningRouteOptimisticConcurrency({
+          pathname,
+          method: req.method,
+          expectedVersion,
+          actualVersion: planningApiState.recordsVersion,
+        });
+
+        if (!concurrency.ok) {
+          sendJson(res, concurrency.statusCode, concurrency.body);
+          return;
+        }
+
+        const operation = createPlanningRecordOperation(planningApiState, {
+          context,
+          request: {
+            ...recordInput,
+            idempotencyKey,
+          },
+          nowMs: Date.now(),
+        });
+
+        if (operation.ok && operation.body && operation.body.record) {
+          const persistedWrite = await persistPlanningRecordToAuthority({
+            pathname,
+            method: req.method,
+            planningPersistenceConfig,
+            planningPersistenceState,
+            context,
+            record: operation.body.record,
+          });
+
+          if (!persistedWrite.ok) {
+            evictPlanningIdempotencyEntry(planningApiState, {
+              operation: 'create',
+              scopeKey: operation.body
+                && operation.body.idempotency
+                && typeof operation.body.idempotency.scopeKey === 'string'
+                ? operation.body.idempotency.scopeKey
+                : '',
+              idempotencyKey,
+            });
+
+            await hydratePlanningProjectionFromPersistence({
+              pathname,
+              method: req.method,
+              planningPersistenceConfig,
+              planningPersistenceState,
+              planningApiState,
+              context,
+            });
+            sendJson(res, persistedWrite.failure.statusCode, persistedWrite.failure.body);
+            return;
+          }
+
+          operation.body.record = persistedWrite.record;
+        }
+
+        sendJson(res, operation.statusCode, operation.body);
+      } finally {
+        releasePlanningRouteLock(planningApiState, routeLock.lock);
+      }
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+}
+
+function handlePlanningRecordsList(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningApiState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    buildPlanningRequestContext,
+    parsePlanningScopesFromRequest,
+    hydratePlanningProjectionFromPersistence,
+    listPlanningRecordsOperation,
+  } = deps;
+
+  const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
+  const scopes = parsePlanningScopesFromRequest(u);
+  hydratePlanningProjectionFromPersistence({
+    pathname,
+    method: req.method,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningApiState,
+    context,
+    scopes: scopes.length ? scopes : undefined,
+  })
+    .then((projectionSync) => {
+      if (!projectionSync.ok) {
+        sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+        return;
+      }
+
+      const operation = listPlanningRecordsOperation(planningApiState, {
+        context,
+        scopes: scopes.length ? scopes : undefined,
+      });
+      sendJson(res, operation.statusCode, operation.body);
+    })
+    .catch((e) => sendJson(res, e.statusCode || 503, { error: String(e.message || e) }));
+}
+
+function handlePlanningRecordsSearch(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningApiState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    buildPlanningRequestContext,
+    parsePlanningScopesFromRequest,
+    firstStringValue,
+    hydratePlanningProjectionFromPersistence,
+    searchPlanningRecordsOperation,
+    parseNumberQuery,
+  } = deps;
+
+  const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
+  const scopes = parsePlanningScopesFromRequest(u);
+  const query = firstStringValue(u.searchParams.get('q'));
+  hydratePlanningProjectionFromPersistence({
+    pathname,
+    method: req.method,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningApiState,
+    context,
+    scopes: scopes.length ? scopes : undefined,
+  })
+    .then((projectionSync) => {
+      if (!projectionSync.ok) {
+        sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+        return;
+      }
+
+      const operation = searchPlanningRecordsOperation(planningApiState, {
+        context,
+        scopes: scopes.length ? scopes : undefined,
+        query,
+        limit: parseNumberQuery(u.searchParams, 'limit', 20),
+      });
+      sendJson(res, operation.statusCode, operation.body);
+    })
+    .catch((e) => sendJson(res, e.statusCode || 503, { error: String(e.message || e) }));
+}
+
+function handlePlanningCompare(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningApiState,
+    planningAuthContext,
+    copilotHomeAbs,
+  } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    buildPlanningRequestContext,
+    hydratePlanningProjectionFromPersistence,
+    comparePlanningRecordsOperation,
+    resolveRequestIdempotencyKey,
+    recordPlanningCompareReceipt,
+    resolvePlanningDurabilityWriteAuthority,
+    persistPlanningCompareReceipt,
+    buildPlanningDurabilityPersistenceFailure,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+      const scopes = Array.isArray(payload.scopes) ? payload.scopes : [];
+
+      const projectionSync = await hydratePlanningProjectionFromPersistence({
+        pathname,
+        method: req.method,
+        planningPersistenceConfig,
+        planningPersistenceState,
+        planningApiState,
+        context,
+        scopes,
+      });
+
+      if (!projectionSync.ok) {
+        sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+        return;
+      }
+
+      const operation = comparePlanningRecordsOperation(planningApiState, {
+        context,
+        request: {
+          ...payload,
+          scopes,
+          query: typeof payload.query === 'string' ? payload.query : '',
+          implementedOutcomeSources: Array.isArray(payload.implementedOutcomeSources)
+            ? payload.implementedOutcomeSources
+            : [],
+          idempotencyKey: resolveRequestIdempotencyKey(req, payload),
+        },
+        implementedOutcomesRootAbs: copilotHomeAbs,
+        nowMs: Date.now(),
+      });
+
+      if (operation && operation.statusCode === 200 && operation.body && !operation.body.error) {
+        const nowMs = Date.now();
+        const compareReceipt = recordPlanningCompareReceipt(planningApiState, context, operation.body, nowMs);
+
+        const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+        });
+
+        if (!durabilityAuthority.ok) {
+          sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+          return;
+        }
+
+        const persistedCompareReceipt = await persistPlanningCompareReceipt(
+          durabilityAuthority.authority.client,
+          { receipt: compareReceipt },
+        );
+
+        if (!persistedCompareReceipt.ok) {
+          const failure = buildPlanningDurabilityPersistenceFailure({
+            pathname,
+            method: req.method,
+            planningPersistenceConfig,
+            planningPersistenceState,
+            authority: durabilityAuthority.authority,
+            code: persistedCompareReceipt.error && persistedCompareReceipt.error.code,
+            reason: persistedCompareReceipt.error && persistedCompareReceipt.error.reason,
+            error: 'Planning compare receipt persistence failed',
+            statusCode: 503,
+          });
+          sendJson(res, failure.statusCode, failure.body);
+          return;
+        }
+
+        const durableCompareReceipt = persistedCompareReceipt.receipt || compareReceipt;
+        operation.body.compareReceipt = durableCompareReceipt;
+        operation.body.gateState = durableCompareReceipt.gateState;
+        operation.body.mergeEligible = durableCompareReceipt.mergeEligible;
+        operation.body.reason = durableCompareReceipt.reason;
+        operation.body.downgrade = durableCompareReceipt.downgrade;
+      }
+
+      sendJson(res, operation.statusCode, operation.body);
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+}
+
+function handlePlanningMergeIntent(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningApiState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    buildPlanningRequestContext,
+    resolvePlanningDurabilityWriteAuthority,
+    hydratePlanningMergeDurabilityStateFromAuthority,
+    issuePlanningMergeIntent,
+    persistPlanningMergeIntent,
+    buildPlanningDurabilityPersistenceFailure,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+
+      const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+        pathname,
+        method: req.method,
+        planningPersistenceConfig,
+        planningPersistenceState,
+      });
+
+      if (!durabilityAuthority.ok) {
+        sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+        return;
+      }
+
+      const durabilityHydration = await hydratePlanningMergeDurabilityStateFromAuthority({
+        kind: 'planning.merge-intent',
+        pathname,
+        method: req.method,
+        planningApiState,
+        planningPersistenceConfig,
+        planningPersistenceState,
+        authority: durabilityAuthority.authority,
+        payload,
+        nowMs: Date.now(),
+      });
+
+      if (!durabilityHydration.ok) {
+        if (durabilityHydration.failure) {
+          sendJson(res, durabilityHydration.failure.statusCode, durabilityHydration.failure.body);
+          return;
+        }
+
+        sendJson(res, durabilityHydration.statusCode || 409, durabilityHydration.body || {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.merge-intent',
+          deterministic: true,
+          error: { code: 'invalid_compare_receipt', reason: 'compare_receipt_not_found' },
+        });
+        return;
+      }
+
+      const operation = issuePlanningMergeIntent(planningApiState, {
+        context,
+        payload,
+        nowMs: Date.now(),
+      });
+
+      if (operation && operation.statusCode === 200 && operation.body && operation.body.intentToken) {
+        const persistedIntent = await persistPlanningMergeIntent(
+          durabilityAuthority.authority.client,
+          { token: operation.body.intentToken },
+        );
+
+        if (!persistedIntent.ok) {
+          const failure = buildPlanningDurabilityPersistenceFailure({
+            pathname,
+            method: req.method,
+            planningPersistenceConfig,
+            planningPersistenceState,
+            authority: durabilityAuthority.authority,
+            code: persistedIntent.error && persistedIntent.error.code,
+            reason: persistedIntent.error && persistedIntent.error.reason,
+            error: 'Planning merge intent persistence failed',
+            statusCode: 503,
+          });
+          sendJson(res, failure.statusCode, failure.body);
+          return;
+        }
+
+        operation.body.intentToken = persistedIntent.token || operation.body.intentToken;
+      }
+
+      sendJson(res, operation.statusCode, operation.body);
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+}
+
+function handlePlanningMerge(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningApiState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    buildPlanningRequestContext,
+    acquirePlanningMutationRouteLock,
+    hydratePlanningProjectionFromPersistence,
+    resolveExpectedPlanningVersion,
+    evaluatePlanningRouteOptimisticConcurrency,
+    resolvePlanningDurabilityWriteAuthority,
+    hydratePlanningMergeDurabilityStateFromAuthority,
+    executePlanningMerge,
+    persistPlanningRecordToAuthority,
+    rollbackMergeCommitAfterPersistenceFailure,
+    persistPlanningMergeCommitDurabilityArtifacts,
+    compensatePlanningMergeDurabilityFailure,
+    releasePlanningRouteLock,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+      const routeLock = acquirePlanningMutationRouteLock({
+        planningApiState,
+        pathname,
+        method: req.method,
+        context,
+        idempotencyKey: payload.idempotencyKey,
+        requestId: req.headers['x-request-id'],
+        nowMs: Date.now(),
+      });
+
+      if (!routeLock.ok) {
+        sendJson(res, routeLock.statusCode, routeLock.body);
+        return;
+      }
+
+      try {
+        const projectionSync = await hydratePlanningProjectionFromPersistence({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          planningApiState,
+          context,
+        });
+
+        if (!projectionSync.ok) {
+          sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+          return;
+        }
+
+        const expectedVersion = resolveExpectedPlanningVersion(req, payload);
+        const concurrency = evaluatePlanningRouteOptimisticConcurrency({
+          pathname,
+          method: req.method,
+          expectedVersion,
+          actualVersion: planningApiState.recordsVersion,
+        });
+
+        if (!concurrency.ok) {
+          sendJson(res, concurrency.statusCode, concurrency.body);
+          return;
+        }
+
+        const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+        });
+
+        if (!durabilityAuthority.ok) {
+          sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+          return;
+        }
+
+        const mergeNowMs = Date.now();
+        const durabilityHydration = await hydratePlanningMergeDurabilityStateFromAuthority({
+          kind: 'planning.merge',
+          pathname,
+          method: req.method,
+          planningApiState,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          authority: durabilityAuthority.authority,
+          payload,
+          nowMs: mergeNowMs,
+        });
+
+        if (!durabilityHydration.ok) {
+          if (durabilityHydration.failure) {
+            sendJson(res, durabilityHydration.failure.statusCode, durabilityHydration.failure.body);
+            return;
+          }
+
+          sendJson(res, durabilityHydration.statusCode || 409, durabilityHydration.body || {
+            contractVersion: PLANNING_API_CONTRACT_VERSION,
+            kind: 'planning.merge',
+            deterministic: true,
+            error: { code: 'invalid_confirmation_token', reason: 'token_not_found' },
+          });
+          return;
+        }
+
+        const operation = executePlanningMerge(planningApiState, {
+          context,
+          payload,
+          nowMs: mergeNowMs,
+        });
+
+        const mergeRecord = operation
+          && operation.statusCode === 200
+          && operation.body
+          && operation.body.mergeRecord
+          && !(operation.body.idempotency && operation.body.idempotency.replay)
+          ? operation.body.mergeRecord
+          : null;
+
+        if (mergeRecord) {
+          const persistedWrite = await persistPlanningRecordToAuthority({
+            pathname,
+            method: req.method,
+            planningPersistenceConfig,
+            planningPersistenceState,
+            context,
+            record: mergeRecord,
+          });
+
+          if (!persistedWrite.ok) {
+            rollbackMergeCommitAfterPersistenceFailure(planningApiState, operation.body);
+            await hydratePlanningProjectionFromPersistence({
+              pathname,
+              method: req.method,
+              planningPersistenceConfig,
+              planningPersistenceState,
+              planningApiState,
+              context,
+            });
+            sendJson(res, persistedWrite.failure.statusCode, persistedWrite.failure.body);
+            return;
+          }
+
+          operation.body.mergeRecord = persistedWrite.record;
+
+          const durabilityCommit = await persistPlanningMergeCommitDurabilityArtifacts({
+            pathname,
+            method: req.method,
+            planningPersistenceConfig,
+            planningPersistenceState,
+            authority: durabilityAuthority.authority,
+            context,
+            operationBody: operation.body,
+            mergeRecord: persistedWrite.record,
+            nowMs: mergeNowMs,
+          });
+
+          if (!durabilityCommit.ok) {
+            rollbackMergeCommitAfterPersistenceFailure(planningApiState, operation.body);
+            await compensatePlanningMergeDurabilityFailure({
+              authority: durabilityAuthority.authority,
+              context,
+              operationBody: operation.body,
+              mergeRecord: persistedWrite.record,
+            });
+            await hydratePlanningProjectionFromPersistence({
+              pathname,
+              method: req.method,
+              planningPersistenceConfig,
+              planningPersistenceState,
+              planningApiState,
+              context,
+            });
+            sendJson(res, durabilityCommit.failure.statusCode, durabilityCommit.failure.body);
+            return;
+          }
+        }
+
+        sendJson(res, operation.statusCode, operation.body);
+      } finally {
+        releasePlanningRouteLock(planningApiState, routeLock.lock);
+      }
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+}
+
+function handlePlanningSuggestionsPersist(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    buildPlanningRequestContext,
+    resolvePlanningDurabilityWriteAuthority,
+    firstStringValue,
+    persistPlanningSuggestion,
+    resolvePlanningDurabilityArtifactErrorStatusCode,
+    buildPlanningDurabilityArtifactFailureEnvelope,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+
+      const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+        pathname,
+        method: req.method,
+        planningPersistenceConfig,
+        planningPersistenceState,
+      });
+
+      if (!durabilityAuthority.ok) {
+        sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+        return;
+      }
+
+      const scope = firstStringValue(payload.scope) || (context.repoId ? 'repo' : 'user');
+      const persisted = await persistPlanningSuggestion(durabilityAuthority.authority.client, {
+        actorId: context.userId,
+        suggestion: {
+          suggestionId: firstStringValue(payload.suggestionId),
+          actorId: context.userId,
+          repoId: context.repoId,
+          scope,
+          state: payload.state,
+          createdAt: payload.createdAt,
+          updatedAt: payload.updatedAt,
+        },
+      });
+
+      if (!persisted.ok) {
+        const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(persisted.error, {
+          missingReason: 'missing_suggestion_id',
+          invalidCode: 'invalid_planning_suggestion',
+        });
+        const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+          statusCode,
+          error: persisted.error,
+        });
+        sendJson(res, failure.statusCode, failure.body);
+        return;
+      }
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.suggestion.persist',
+        deterministic: true,
+        suggestion: persisted.suggestion,
+      });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+}
+
+function handlePlanningSuggestionsRead(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    buildPlanningRequestContext,
+    firstStringValue,
+    resolvePlanningPersistenceOperationClient,
+    readPlanningSuggestion,
+    resolvePlanningDurabilityArtifactErrorStatusCode,
+    buildPlanningDurabilityArtifactFailureEnvelope,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
+  const suggestionId = firstStringValue(u.searchParams.get('suggestionId'));
+
+  const operationAuthority = resolvePlanningPersistenceOperationClient({
+    pathname,
+    method: req.method,
+    planningPersistenceConfig,
+    planningPersistenceState,
+  });
+
+  if (!operationAuthority.ok) {
+    sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+    return;
+  }
+
+  readPlanningSuggestion(operationAuthority.authority.client, {
+    actorId: context.userId,
+    suggestionId,
+  })
+    .then((result) => {
+      if (!result.ok) {
+        const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(result.error, {
+          missingReason: 'missing_suggestion_id',
+          invalidCode: 'invalid_planning_suggestion',
+        });
+        const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+          statusCode,
+          error: result.error,
+        });
+        sendJson(res, failure.statusCode, failure.body);
+        return;
+      }
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.suggestion.read',
+        deterministic: true,
+        suggestion: result.suggestion,
+      });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 503, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.suggestion.read',
+      deterministic: true,
+      error: {
+        code: 'planning_persistence_read_failed',
+        reason: 'planning_persistence_read_failed',
+      },
+      detail: String(e && e.message ? e.message : e),
+    }));
+}
+
+function handlePlanningRecapsPersist(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    buildPlanningRequestContext,
+    resolvePlanningDurabilityWriteAuthority,
+    firstStringValue,
+    persistPlanningRecap,
+    resolvePlanningDurabilityArtifactErrorStatusCode,
+    buildPlanningDurabilityArtifactFailureEnvelope,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+
+      const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+        pathname,
+        method: req.method,
+        planningPersistenceConfig,
+        planningPersistenceState,
+      });
+
+      if (!durabilityAuthority.ok) {
+        sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+        return;
+      }
+
+      const scope = firstStringValue(payload.scope) || (context.repoId ? 'repo' : 'user');
+      const persisted = await persistPlanningRecap(durabilityAuthority.authority.client, {
+        actorId: context.userId,
+        recap: {
+          recapId: firstStringValue(payload.recapId),
+          actorId: context.userId,
+          repoId: context.repoId,
+          scope,
+          state: payload.state,
+          createdAt: payload.createdAt,
+          updatedAt: payload.updatedAt,
+        },
+      });
+
+      if (!persisted.ok) {
+        const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(persisted.error, {
+          missingReason: 'missing_recap_id',
+          invalidCode: 'invalid_planning_recap',
+        });
+        const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+          statusCode,
+          error: persisted.error,
+        });
+        sendJson(res, failure.statusCode, failure.body);
+        return;
+      }
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.recap.persist',
+        deterministic: true,
+        recap: persisted.recap,
+      });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+}
+
+function handlePlanningRecapsRead(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    buildPlanningRequestContext,
+    firstStringValue,
+    resolvePlanningPersistenceOperationClient,
+    readPlanningRecap,
+    resolvePlanningDurabilityArtifactErrorStatusCode,
+    buildPlanningDurabilityArtifactFailureEnvelope,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
+  const recapId = firstStringValue(u.searchParams.get('recapId'));
+
+  const operationAuthority = resolvePlanningPersistenceOperationClient({
+    pathname,
+    method: req.method,
+    planningPersistenceConfig,
+    planningPersistenceState,
+  });
+
+  if (!operationAuthority.ok) {
+    sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+    return;
+  }
+
+  readPlanningRecap(operationAuthority.authority.client, {
+    actorId: context.userId,
+    recapId,
+  })
+    .then((result) => {
+      if (!result.ok) {
+        const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(result.error, {
+          missingReason: 'missing_recap_id',
+          invalidCode: 'invalid_planning_recap',
+        });
+        const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+          statusCode,
+          error: result.error,
+        });
+        sendJson(res, failure.statusCode, failure.body);
+        return;
+      }
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.recap.read',
+        deterministic: true,
+        recap: result.recap,
+      });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 503, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.recap.read',
+      deterministic: true,
+      error: {
+        code: 'planning_persistence_read_failed',
+        reason: 'planning_persistence_read_failed',
+      },
+      detail: String(e && e.message ? e.message : e),
+    }));
+}
+
+function register(deps = {}) {
+  return [
+    {
+      method: 'POST',
+      path: '/api/planning/persistence/init',
+      handler: (ctx) => handlePlanningPersistenceInit(ctx, deps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/persistence/corruption/scan',
+      handler: (ctx) => handlePlanningPersistenceCorruptionScan(ctx, deps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/persistence/retention',
+      handler: (ctx) => handlePlanningPersistenceRetention(ctx, deps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/persistence/export',
+      handler: (ctx) => handlePlanningPersistenceExport(ctx, deps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/persistence/import',
+      handler: (ctx) => handlePlanningPersistenceImport(ctx, deps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/records',
+      handler: (ctx) => handlePlanningRecordsCreate(ctx, deps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/records',
+      handler: (ctx) => handlePlanningRecordsList(ctx, deps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/search',
+      handler: (ctx) => handlePlanningRecordsSearch(ctx, deps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/compare',
+      handler: (ctx) => handlePlanningCompare(ctx, deps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/merge-intent',
+      handler: (ctx) => handlePlanningMergeIntent(ctx, deps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/merge',
+      handler: (ctx) => handlePlanningMerge(ctx, deps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/suggestions',
+      handler: (ctx) => handlePlanningSuggestionsPersist(ctx, deps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/suggestions',
+      handler: (ctx) => handlePlanningSuggestionsRead(ctx, deps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/recaps',
+      handler: (ctx) => handlePlanningRecapsPersist(ctx, deps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/recaps',
+      handler: (ctx) => handlePlanningRecapsRead(ctx, deps),
+    },
+  ];
+}
+
+module.exports = { register };

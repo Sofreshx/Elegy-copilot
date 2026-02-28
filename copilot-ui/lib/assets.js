@@ -422,10 +422,13 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
     fs.mkdirSync(path.dirname(destinationAbs), { recursive: true });
 
     if (asset.type === 'skill' && opts && opts.pointerMode) {
-      // Pointer mode: copy full content to vault, write pointer in scan path
+      // Pointer mode: respect loadMode from manifest
       const skillBase = path.basename(asset.destination);
+      const loadMode = asset.loadMode || 'on-demand';
       const vaultDir = getVaultDir(destinationHome);
       const vaultDest = path.join(vaultDir, skillBase);
+
+      // Always copy to vault (for search index)
       fs.mkdirSync(vaultDest, { recursive: true });
       const st = fs.statSync(sourceAbs);
       if (st.isDirectory()) {
@@ -444,11 +447,28 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
       } else {
         fs.copyFileSync(sourceAbs, vaultDest);
       }
-      // Write pointer file
-      const vaultRef = skillBase;
-      const pointerContent = generatePointer(skillBase, '', '', vaultRef);
-      fs.mkdirSync(destinationAbs, { recursive: true });
-      fs.writeFileSync(path.join(destinationAbs, 'SKILL.md'), pointerContent, 'utf8');
+
+      if (loadMode === 'always') {
+        // Always-loaded: also install full skill to skills/ (scanned by VS Code)
+        const stSrc = fs.statSync(sourceAbs);
+        if (stSrc.isDirectory()) {
+          fs.rmSync(destinationAbs, { recursive: true, force: true });
+          if (typeof fs.cpSync === 'function') {
+            fs.cpSync(sourceAbs, destinationAbs, { recursive: true, force: true });
+          } else {
+            const files = walkFilesRecursive(sourceAbs);
+            for (const f of files) {
+              const rel = path.relative(sourceAbs, f);
+              const out = path.join(destinationAbs, rel);
+              fs.mkdirSync(path.dirname(out), { recursive: true });
+              fs.copyFileSync(f, out);
+            }
+          }
+        } else {
+          fs.copyFileSync(sourceAbs, destinationAbs);
+        }
+      }
+      // On-demand skills: vault only — no pointer or full copy in skills/
     } else {
       const st = fs.statSync(sourceAbs);
       if (st.isDirectory()) {

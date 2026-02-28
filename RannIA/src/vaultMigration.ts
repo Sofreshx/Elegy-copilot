@@ -2,8 +2,19 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getUserSkillsDir, getSkillVaultDir } from './enginePaths';
 import { readJournal, writeJournal, appendEntry, updateEntryStatus, MigrationJournalEntry } from './migrationJournal';
-import { isPointerSkill, writePointerContent } from './skillPointer';
-import { existsDir, existsFile } from './utils/fs';
+import { isPointerSkill } from './skillPointer';
+import { existsDir } from './utils/fs';
+
+/**
+ * Skills that are always loaded (kept in skills/ even in pointer mode).
+ * Must match engine-assets/manifest.json loadMode: "always" entries.
+ */
+const ALWAYS_LOADED_SKILLS = new Set([
+	'core-guardrails',
+	'skill-discovery',
+	'implementation-friction',
+	'stack-detector',
+]);
 
 function copyDirSync(source: string, dest: string): void {
 	fs.mkdirSync(dest, { recursive: true });
@@ -17,25 +28,6 @@ function copyDirSync(source: string, dest: string): void {
 			fs.copyFileSync(srcPath, destPath);
 		}
 	}
-}
-
-function extractSkillMeta(skillDir: string): { description: string; triggers: string } {
-	const skillMd = path.join(skillDir, 'SKILL.md');
-	if (!existsFile(skillMd)) {
-		return { description: '', triggers: '' };
-	}
-	const content = fs.readFileSync(skillMd, 'utf8');
-
-	// Extract description from skill metadata
-	const descMatch = content.match(/^description:\s*(.+)$/m)
-		?? content.match(/^>\s*(.+)$/m);
-	const description = descMatch ? descMatch[1].trim() : '';
-
-	// Extract triggers
-	const triggerMatch = content.match(/triggers[^:]*:\s*(.+)$/im);
-	const triggers = triggerMatch ? triggerMatch[1].trim() : '';
-
-	return { description, triggers };
 }
 
 /**
@@ -77,41 +69,45 @@ export function migrateToVault(skillName: string): void {
 		throw err;
 	}
 
-	// Phase 2: Replace with pointer
-	const replaceEntry: MigrationJournalEntry = {
-		skillName,
-		phase: 'replace-with-pointer',
-		status: 'pending',
-		timestamp: new Date().toISOString(),
-	};
-	journal = appendEntry(readJournal(), replaceEntry);
-	writeJournal(journal);
-
-	try {
-		const meta = extractSkillMeta(vaultDest);
-		const pointerContent = writePointerContent(
+	// Phase 2: Handle skill in scan path based on loadMode
+	if (ALWAYS_LOADED_SKILLS.has(skillName)) {
+		// Always-loaded: keep full content in skills/ (already there), vault copy is enough
+		const keepEntry: MigrationJournalEntry = {
 			skillName,
-			meta.description,
-			meta.triggers,
-			skillName
-		);
-
-		// Remove the full skill directory and create pointer directory
-		fs.rmSync(skillSource, { recursive: true, force: true });
-		fs.mkdirSync(skillSource, { recursive: true });
-		fs.writeFileSync(path.join(skillSource, 'SKILL.md'), pointerContent, 'utf8');
-
-		journal = updateEntryStatus(readJournal(), skillName, 'replace-with-pointer', 'done');
+			phase: 'keep-in-scan-path',
+			status: 'done',
+			timestamp: new Date().toISOString(),
+		};
+		journal = appendEntry(readJournal(), keepEntry);
 		writeJournal(journal);
-	} catch (err) {
-		journal = updateEntryStatus(readJournal(), skillName, 'replace-with-pointer', 'failed', String(err));
+	} else {
+		// On-demand: remove from skills/ entirely (vault-only)
+		const removeEntry: MigrationJournalEntry = {
+			skillName,
+			phase: 'remove-from-scan-path',
+			status: 'pending',
+			timestamp: new Date().toISOString(),
+		};
+		journal = appendEntry(readJournal(), removeEntry);
 		writeJournal(journal);
-		throw err;
+
+		try {
+			fs.rmSync(skillSource, { recursive: true, force: true });
+
+			journal = updateEntryStatus(readJournal(), skillName, 'remove-from-scan-path', 'done');
+			writeJournal(journal);
+		} catch (err) {
+			journal = updateEntryStatus(readJournal(), skillName, 'remove-from-scan-path', 'failed', String(err));
+			writeJournal(journal);
+			throw err;
+		}
 	}
 }
 
 /**
- * Restore a single skill from vault: copy full content back, remove pointer.
+ * Restore a single skill from vault: copy full content back to scan path, remove vault copy.
+ * Always-loaded skills are already in skills/ — only the vault copy is removed.
+ * On-demand skills were removed from skills/ during migration — restored from vault first.
  */
 export function restoreFromVault(skillName: string): void {
 	const skillsDir = getUserSkillsDir();
@@ -125,31 +121,32 @@ export function restoreFromVault(skillName: string): void {
 
 	let journal = readJournal();
 
-	// Phase 1: Restore from vault
-	const restoreEntry: MigrationJournalEntry = {
-		skillName,
-		phase: 'restore-from-vault',
-		status: 'pending',
-		timestamp: new Date().toISOString(),
-	};
-	journal = appendEntry(journal, restoreEntry);
-	writeJournal(journal);
+	// Phase 1: Restore to scan path (only for on-demand skills that were removed)
+	if (!existsDir(skillDest)) {
+		const restoreEntry: MigrationJournalEntry = {
+			skillName,
+			phase: 'restore-from-vault',
+			status: 'pending',
+			timestamp: new Date().toISOString(),
+		};
+		journal = appendEntry(journal, restoreEntry);
+		writeJournal(journal);
 
-	try {
-		fs.rmSync(skillDest, { recursive: true, force: true });
-		copyDirSync(vaultSource, skillDest);
-		journal = updateEntryStatus(readJournal(), skillName, 'restore-from-vault', 'done');
-		writeJournal(journal);
-	} catch (err) {
-		journal = updateEntryStatus(readJournal(), skillName, 'restore-from-vault', 'failed', String(err));
-		writeJournal(journal);
-		throw err;
+		try {
+			copyDirSync(vaultSource, skillDest);
+			journal = updateEntryStatus(readJournal(), skillName, 'restore-from-vault', 'done');
+			writeJournal(journal);
+		} catch (err) {
+			journal = updateEntryStatus(readJournal(), skillName, 'restore-from-vault', 'failed', String(err));
+			writeJournal(journal);
+			throw err;
+		}
 	}
 
-	// Phase 2: Remove vault entry
+	// Phase 2: Remove vault copy
 	const removeEntry: MigrationJournalEntry = {
 		skillName,
-		phase: 'remove-pointer',
+		phase: 'remove-vault-copy',
 		status: 'pending',
 		timestamp: new Date().toISOString(),
 	};
@@ -158,10 +155,10 @@ export function restoreFromVault(skillName: string): void {
 
 	try {
 		fs.rmSync(vaultSource, { recursive: true, force: true });
-		journal = updateEntryStatus(readJournal(), skillName, 'remove-pointer', 'done');
+		journal = updateEntryStatus(readJournal(), skillName, 'remove-vault-copy', 'done');
 		writeJournal(journal);
 	} catch (err) {
-		journal = updateEntryStatus(readJournal(), skillName, 'remove-pointer', 'failed', String(err));
+		journal = updateEntryStatus(readJournal(), skillName, 'remove-vault-copy', 'failed', String(err));
 		writeJournal(journal);
 		throw err;
 	}
@@ -185,6 +182,7 @@ export function migrateAllToVault(): { migrated: string[]; skipped: string[]; fa
 		if (!entry.isDirectory()) { continue; }
 		const skillPath = path.join(skillsDir, entry.name);
 
+		// Backwards compat: skip legacy pointer stubs from older installs
 		if (isPointerSkill(skillPath)) {
 			skipped.push(entry.name);
 			continue;

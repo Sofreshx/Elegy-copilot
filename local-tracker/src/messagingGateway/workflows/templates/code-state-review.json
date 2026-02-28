@@ -1,0 +1,50 @@
+{
+  "id": "code-state-review",
+  "name": "Code State Review",
+  "description": "Collects diagnostics and read-only git context, then generates a review report.",
+  "version": "1.0.0",
+  "schemaVersion": "2.0",
+  "steps": [
+    {
+      "id": "collect-diagnostics",
+      "name": "Collect Diagnostics",
+      "action": "diagnostics.collect",
+      "params": { "depth": "standard" }
+    },
+    {
+      "id": "analyze-git-diff",
+      "name": "Analyze Git Diff",
+      "action": "git.state-analysis",
+      "params": { "command": "diff" }
+    },
+    {
+      "id": "review-code-state",
+      "name": "Review Code State",
+      "action": "dev.review",
+      "params": {
+        "checklist": ["risks", "regressions", "test-gaps"],
+        "mode": "read-only"
+      },
+      "dependsOn": ["collect-diagnostics", "analyze-git-diff"]
+    },
+    {
+      "id": "generate-review-report",
+      "name": "Generate Review Report",
+      "action": "report.generate",
+      "params": {
+        "type": "code-state",
+        "source": "{{review-code-state.action}}"
+      },
+      "dependsOn": ["review-code-state"]
+    },
+    {
+      "id": "notify-operator",
+      "name": "Notify Operator",
+      "action": "notify.operator",
+      "params": {
+        "template": "code-state-review-complete"
+      },
+      "dependsOn": ["generate-review-report"]
+    }
+  ]
+}

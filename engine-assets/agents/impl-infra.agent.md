@@ -12,6 +12,7 @@ disable-model-invocation: false
 Implement an infra-focused work unit end-to-end with minimal risk: small diffs, reversible changes, explicit validation, and no secret leakage.
 
 ## Inputs (expected)
+- `work_unit`: WU-ID (e.g., `WU-003`) — echo back in output
 - `spec`: inline work unit spec (scope + acceptance criteria + validation)
 - `repoRoot`: optional
 - `constraints`: optional (env, CI, deployment constraints)
@@ -27,6 +28,7 @@ Return:
 
 ```text
 IMPL_RESULT
+- work_unit: <WU-ID echoed from input>
 - kind: infra
 - status: done|blocked|needs-clarification
 - changes:

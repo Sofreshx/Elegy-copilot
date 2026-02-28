@@ -78,7 +78,13 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   - keep summaries under ~300 words per workstream unless I ask for depth.
 
 ## Using Instruction Engine assets
-- When domain-specific behavior matters, load the relevant skill (`SKILL.md`) before implementing changes.
+- A few transversal skills are always loaded (`~/.copilot/skills/`): `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`.
+- **Most domain-specific skills live in the vault** (`~/.copilot/skills-vault/`) and are NOT loaded by default to save tokens.
+- When domain-specific behavior matters, **discover and load the right skill on demand**:
+  1. Match the task domain to a skill name (use the `skill-discovery` skill's keyword map or run `stack-detector` for project-wide detection).
+  2. Load the full skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
+  3. Follow the skill's instructions for the current task.
+- If a skill is not found in the vault, it is not installed — proceed with general knowledge.
 - Keep repo-local memory and tasks under `.instructions/` (not inside this distribution).
 
 ## Implementation Friction Capture

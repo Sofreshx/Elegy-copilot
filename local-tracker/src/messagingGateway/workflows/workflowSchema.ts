@@ -12,6 +12,10 @@ export const WorkflowStepSchema = z.object({
     id: z.string().min(1).max(64).regex(/^[a-zA-Z0-9_-]+$/),
     name: z.string().min(1).max(128),
     action: z.string().min(1).max(128),
+    type: z.string().default('action'),
+    condition: z.string().optional(),
+    outputs: z.record(z.string(), z.unknown()).optional(),
+    streaming: z.boolean().default(false),
     params: z.record(z.string(), z.unknown()).optional(),
     dependsOn: z.array(z.string()).optional().default([]),
 });
@@ -31,6 +35,7 @@ export const WorkflowDefinitionSchema = z.object({
     name: z.string().min(1).max(128),
     description: z.string().max(512).optional(),
     version: z.string().regex(/^\d+\.\d+\.\d+$/).default('1.0.0'),
+    schemaVersion: z.string().default('1.0'),
     steps: z.array(WorkflowStepSchema).min(1),
 });
 
