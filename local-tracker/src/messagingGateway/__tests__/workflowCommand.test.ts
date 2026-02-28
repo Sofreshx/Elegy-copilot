@@ -21,6 +21,7 @@ const mockTemplates = new Map<string, any>();
 
 jest.mock('../workflows/workflowLoader', () => ({
 	loadAllWorkflowTemplates: () => mockTemplates,
+	loadWorkflowTemplate: jest.fn(),
 }));
 
 jest.mock('../workflows/workflowRuntime', () => ({
@@ -33,6 +34,12 @@ jest.mock('../workflows/workflowRuntime', () => ({
 	}),
 }));
 
+jest.mock('../workflows/executors', () => ({
+	createDefaultRegistry: jest.fn(() => ({
+		toStepExecutor: jest.fn(() => jest.fn()),
+	})),
+}));
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 const BASE_POLICY = {
@@ -43,7 +50,7 @@ const BASE_POLICY = {
 	maxPromptChars: WU002_POLICY_CONTRACT.maxPromptChars,
 };
 
-function makeRouter(overrides?: { policy?: Partial<CommandRouterPolicy> }) {
+function makeRouter(overrides?: { policy?: Partial<CommandRouterPolicy>; workflowHistory?: any }) {
 	return new CommandRouter({
 		policy: { ...BASE_POLICY, ...overrides?.policy },
 		workspaces: {
@@ -52,11 +59,21 @@ function makeRouter(overrides?: { policy?: Partial<CommandRouterPolicy> }) {
 			setActiveWorkspaceRoot: jest.fn(async () => undefined),
 		},
 		auditLogger: { log: jest.fn() } as any,
+		extensionClient: {
+			start: jest.fn(),
+			stop: jest.fn(async () => undefined),
+			getStatus: jest.fn(() => 'connected' as const),
+			get_sessions: jest.fn(async () => []),
+			invoke_agent: jest.fn(async () => ({})),
+			cancel_session: jest.fn(async () => ({})),
+			resolve_permission: jest.fn(async () => ({})),
+		} as any,
 		permissionOrchestrator: {
 			approve: jest.fn(async () => undefined),
 			deny: jest.fn(async () => undefined),
 			getPending: jest.fn(() => []),
 		} as any,
+		workflowHistory: overrides?.workflowHistory,
 		nowMs: () => 0,
 	});
 }
@@ -157,6 +174,136 @@ describe('/workflow command', () => {
 		const wf = specs.find(s => s.name === '/workflow');
 		expect(wf).toBeDefined();
 		expect(wf!.tier).toBe('admin');
-		expect(wf!.options).toHaveLength(2);
+		expect(wf!.options).toHaveLength(3);
+	});
+});
+
+describe('/workflow history', () => {
+	it('returns usage hint when no name provided', async () => {
+		const router = makeRouter({ workflowHistory: { readRecent: jest.fn(), append: jest.fn() } });
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'history' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(res.messages.join('\n')).toContain('Usage');
+	});
+
+	it('returns not-enabled when workflowHistory dep is missing', async () => {
+		const router = makeRouter();
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'history', name: 'deploy-prod' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(res.messages.join('\n')).toContain('not enabled');
+	});
+
+	it('returns empty message when no history found', async () => {
+		const mockHistory = { readRecent: jest.fn().mockReturnValue([]), append: jest.fn() };
+		const router = makeRouter({ workflowHistory: mockHistory });
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'history', name: 'deploy-prod' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(res.messages.join('\n')).toContain('No history found');
+	});
+
+	it('returns history entries', async () => {
+		const entries = [
+			{ workflowId: 'deploy-prod', status: 'completed', startedAtMs: 1000, completedAtMs: 2000, steps: [] },
+			{ workflowId: 'deploy-prod', status: 'failed', startedAtMs: 3000, completedAtMs: 4500, steps: [] },
+		];
+		const mockHistory = { readRecent: jest.fn().mockReturnValue(entries), append: jest.fn() };
+		const router = makeRouter({ workflowHistory: mockHistory });
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'history', name: 'deploy-prod' } }, ctx);
+		expect(res.kind).toBe('ok');
+		const text = res.messages.join('\n');
+		expect(text).toContain('Workflow History: deploy-prod');
+		expect(text).toContain('2 recent runs');
+		expect(text).toContain('completed');
+		expect(text).toContain('failed');
+		expect(text).toContain('1000ms');
+	});
+
+	it('passes custom limit to readRecent', async () => {
+		const mockHistory = { readRecent: jest.fn().mockReturnValue([]), append: jest.fn() };
+		const router = makeRouter({ workflowHistory: mockHistory });
+		await router.route({ name: '/workflow', args: { subcommand: 'history', name: 'deploy-prod', limit: 5 } }, ctx);
+		expect(mockHistory.readRecent).toHaveBeenCalledWith('deploy-prod', 5);
+	});
+});
+
+describe('/workflow inspect', () => {
+	it('returns usage hint when no name provided', async () => {
+		const router = makeRouter();
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'inspect' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(res.messages.join('\n')).toContain('Usage');
+	});
+
+	it('returns not-found for unknown workflow', async () => {
+		const router = makeRouter();
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'inspect', name: 'nope' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(res.messages.join('\n')).toContain('not found');
+	});
+
+	it('returns workflow details with steps', async () => {
+		mockTemplates.set('deploy-prod', {
+			id: 'deploy-prod',
+			name: 'Deploy Production',
+			description: 'Full deploy pipeline',
+			version: '2.1.0',
+			steps: [
+				{ id: 'build', name: 'Build', action: 'build', dependsOn: [] },
+				{ id: 'deploy', name: 'Deploy', action: 'deploy', dependsOn: ['build'] },
+			],
+		});
+
+		const router = makeRouter();
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'inspect', name: 'deploy-prod' } }, ctx);
+		expect(res.kind).toBe('ok');
+		const text = res.messages.join('\n');
+		expect(text).toContain('Workflow: Deploy Production');
+		expect(text).toContain('v2.1.0');
+		expect(text).toContain('Full deploy pipeline');
+		expect(text).toContain('Steps');
+		expect(text).toContain('build');
+		expect(text).toContain('deploy');
+		expect(text).toContain('depends on: build');
+	});
+});
+
+describe('/workflow run with history', () => {
+	it('appends to history on successful run', async () => {
+		mockTemplates.set('deploy-prod', {
+			id: 'deploy-prod',
+			name: 'Deploy Production',
+			version: '1.0.0',
+			steps: [{ id: 'build', name: 'Build', action: 'build', dependsOn: [] }],
+		});
+		const mockHistory = { readRecent: jest.fn(), append: jest.fn() };
+		const router = makeRouter({ workflowHistory: mockHistory });
+		await router.route({ name: '/workflow', args: { subcommand: 'run', name: 'deploy-prod' } }, ctx);
+		expect(mockHistory.append).toHaveBeenCalledTimes(1);
+		expect(mockHistory.append).toHaveBeenCalledWith(expect.objectContaining({ workflowId: 'deploy-prod' }));
+	});
+
+	it('does not fail when history append throws', async () => {
+		mockTemplates.set('deploy-prod', {
+			id: 'deploy-prod',
+			name: 'Deploy Production',
+			version: '1.0.0',
+			steps: [{ id: 'build', name: 'Build', action: 'build', dependsOn: [] }],
+		});
+		const mockHistory = { readRecent: jest.fn(), append: jest.fn().mockImplementation(() => { throw new Error('disk full'); }) };
+		const router = makeRouter({ workflowHistory: mockHistory });
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'run', name: 'deploy-prod' } }, ctx);
+		expect(res.kind).toBe('ok');
+	});
+
+	it('does not append when no history dep', async () => {
+		mockTemplates.set('deploy-prod', {
+			id: 'deploy-prod',
+			name: 'Deploy Production',
+			version: '1.0.0',
+			steps: [{ id: 'build', name: 'Build', action: 'build', dependsOn: [] }],
+		});
+		const router = makeRouter();
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'run', name: 'deploy-prod' } }, ctx);
+		expect(res.kind).toBe('ok');
 	});
 });

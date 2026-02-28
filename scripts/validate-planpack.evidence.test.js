@@ -43,6 +43,8 @@ function runValidator(filePath, args = []) {
 
 function buildPlanPack({
 	withVersion = true,
+	planPackVersion = 1,
+	workUnitGroupRows = [],
 	streamRows = [],
 	checkpointRows = [],
 	executionLogLines = [],
@@ -51,9 +53,18 @@ function buildPlanPack({
 	trustedEvidenceRows = [],
 	retentionRows = [],
 }) {
-	const versionLine = withVersion ? '<!-- IE_PLAN_PACK_VERSION: 1 -->\n' : '';
+	const versionLine = withVersion ? `<!-- IE_PLAN_PACK_VERSION: ${planPackVersion} -->\n` : '';
 	const defaultReleaseTag = 'release-2026.02.25.1';
 	const defaultTimestamp = new Date().toISOString();
+
+	const groupsOverviewRows = workUnitGroupRows.length > 0
+		? workUnitGroupRows
+		: [
+			{ group: 'G-01', title: 'Foundation', status: 'in-progress', dependsOn: '—' },
+			{ group: 'G-02', title: 'Stream 2', status: 'not-started', dependsOn: 'G-01' },
+			{ group: 'G-03', title: 'Stream 3', status: 'not-started', dependsOn: 'G-01' },
+			{ group: 'G-04', title: 'Stream 4', status: 'not-started', dependsOn: 'G-01' },
+		];
 
 	const checkpointTableRows = checkpointRows.length > 0
 		? checkpointRows.map(row => `| ${row.group} | ${row.checkpoint} | ${row.trigger} | ${row.notes} |`).join('\n')
@@ -187,10 +198,7 @@ ${versionLine}## Goal + Success Criteria
 ## Work Unit Groups Overview
 | Group | Title | Status | Depends On |
 | --- | --- | --- | --- |
-| G-01 | Foundation | in-progress | — |
-| G-02 | Stream 2 | not-started | G-01 |
-| G-03 | Stream 3 | not-started | G-01 |
-| G-04 | Stream 4 | not-started | G-01 |
+${groupsOverviewRows.map((row) => `| ${row.group} | ${row.title || ''} | ${row.status || 'not-started'} | ${row.dependsOn || '—'} |`).join('\n')}
 
 ## Work Unit Status Table
 | Group | Work Unit ID | Status | Next Unit | Notes |
@@ -238,6 +246,37 @@ test('fails deterministically when any required stream evidence is missing', () 
 		const result = runValidator(filePath);
 		assert.notStrictEqual(result.status, 0, 'validator should fail when G-04 evidence is missing');
 		assert.match(result.stderr, /missing required stream evidence: G-04/i);
+	});
+});
+
+test('fails when Work Unit Groups Overview includes an additional stream without evidence coverage', () => {
+	const planContent = buildPlanPack({
+		withVersion: true,
+		workUnitGroupRows: [
+			{ group: 'G-01', title: 'Foundation', status: 'done', dependsOn: '—' },
+			{ group: 'G-02', title: 'Stream 2', status: 'done', dependsOn: 'G-01' },
+			{ group: 'G-03', title: 'Stream 3', status: 'done', dependsOn: 'G-01' },
+			{ group: 'G-04', title: 'Stream 4', status: 'done', dependsOn: 'G-01' },
+			{ group: 'G-05', title: 'Stream 5', status: 'done', dependsOn: 'G-01' },
+		],
+		streamRows: [
+			{ group: 'G-01', status: 'passed', evidence: 'attestation://g01', notes: 'status: passed' },
+			{ group: 'G-02', status: 'passed', evidence: 'attestation://g02', notes: 'status: passed' },
+			{ group: 'G-03', status: 'passed', evidence: 'attestation://g03', notes: 'status: passed' },
+			{ group: 'G-04', status: 'passed', evidence: 'attestation://g04', notes: 'status: passed' },
+		],
+		executionLogLines: [
+			'2026-02-25T10:00:00Z — G-01 completed (status: passed)',
+			'2026-02-25T10:10:00Z — G-02 completed (status: passed)',
+			'2026-02-25T10:20:00Z — G-03 completed (status: passed)',
+			'2026-02-25T10:30:00Z — G-04 completed (status: passed)',
+		],
+	});
+
+	withTempPlanFile(planContent, (filePath) => {
+		const result = runValidator(filePath);
+		assert.notStrictEqual(result.status, 0, 'validator should fail when derived stream G-05 evidence is missing');
+		assert.match(result.stderr, /missing required stream evidence: G-05/i);
 	});
 });
 
@@ -316,6 +355,31 @@ test('supports explicit legacy best-effort override for unversioned planpacks', 
 		const result = runValidator(filePath, ['--allow-legacy-best-effort']);
 		assert.strictEqual(result.status, 0, `validator should allow legacy override, stderr: ${result.stderr}`);
 		assert.match(result.stdout, /legacy best-effort override active/i);
+	});
+});
+
+test('fails closed for unsupported planpack version marker values', () => {
+	const planContent = buildPlanPack({
+		withVersion: true,
+		planPackVersion: 2,
+		streamRows: [
+			{ group: 'G-01', status: 'passed', evidence: 'attestation://g01', notes: 'status: passed' },
+			{ group: 'G-02', status: 'passed', evidence: 'attestation://g02', notes: 'status: passed' },
+			{ group: 'G-03', status: 'passed', evidence: 'attestation://g03', notes: 'status: passed' },
+			{ group: 'G-04', status: 'passed', evidence: 'attestation://g04', notes: 'status: passed' },
+		],
+		executionLogLines: [
+			'2026-02-25T10:00:00Z — G-01 completed (status: passed)',
+			'2026-02-25T10:10:00Z — G-02 completed (status: passed)',
+			'2026-02-25T10:20:00Z — G-03 completed (status: passed)',
+			'2026-02-25T10:30:00Z — G-04 completed (status: passed)',
+		],
+	});
+
+	withTempPlanFile(planContent, (filePath) => {
+		const result = runValidator(filePath);
+		assert.notStrictEqual(result.status, 0, 'validator should fail for unsupported version marker');
+		assert.match(result.stderr, /unsupported planpack version: 2/i);
 	});
 });
 

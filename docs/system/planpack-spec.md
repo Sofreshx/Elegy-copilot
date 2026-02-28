@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-25
+updated: 2026-02-27
 category: system
 status: draft
 doc_kind: node
@@ -242,28 +242,43 @@ Waiver precedence and scope rules:
 Audit linkage requirement:
 - Every waiver use must include release-linked audit trail fields (`Waiver Release` + `Waiver Audit`) to maintain traceability.
 
+### Stream Evidence Predicate Contract
+
+For versioned planpacks (`<!-- IE_PLAN_PACK_VERSION: 1 -->`), required stream IDs are derived from `## Work Unit Groups Overview` in the Progress Tracker.
+
+Normalization:
+- Group values are normalized to `G-NN` stream tokens (for example `G-06-release-readiness` → `G-06`).
+
+Pass requirement for each derived stream token:
+1. `## Execution Log` contains completion evidence for that stream (`completed`, `done`, or `status: passed`), and
+2. `## Stream Evidence` contains a row for that stream with passed status and non-empty `Evidence`.
+
+Missing either signal for any required stream is a deterministic validation failure.
+
 ---
 
 ## Validation Gate
 
-### Default Behavior (OFF)
-By default, no schema validation is performed on plan pack output. The dual-reviewer contract is the sole quality gate. Plan output is identical to today.
+### Enforcement Behavior
+`scripts/validate-planpack.js` enforces the v1 schema and progress-tracker final gate contracts for versioned planpacks.
 
-### Opt-In Behavior (ON)
-When the following marker is present in the plan pack, the plan is validated against the v1 schema before submission to reviewers:
+Fail-closed defaults:
+- Missing `IE_PLAN_PACK_VERSION` marker fails validation.
+- Unsupported marker version fails validation.
 
-```
-<!-- IE_PLANPACK_VALIDATE: true -->
-```
+Explicit compatibility override:
+- `--allow-legacy-best-effort` allows missing version marker for legacy plans only.
 
 ### What Validation Checks
-When opt-in is ON:
 1. All 12 required H2 sections are present (see v1 Field Contract)
 2. Each WU spec has required subsections (Context, Acceptance Criteria, Plan/Approach, Validation)
 3. WU-ID format matches `^WU-\d{3}$`
 4. Group-ID format matches `^G-\d{2}-[a-z0-9-]+$`
 5. No orphan WUs (every WU in Graph appears in Specs and vice versa)
 6. No duplicate WU-IDs
+7. Required stream evidence predicates for all streams derived from `Work Unit Groups Overview`
+8. Final gate control rows (`evidencePredicates`, `finalGateWaiverPrecedence`, `trustedEvidenceBindingRetention`) with waiver scope/audit semantics
+9. Trusted evidence binding + evidence retention checks when `trustedEvidenceBindingRetention` is passed
 
 ### What Validation Does NOT Check
 - Content quality (that's the reviewers' job)
@@ -284,9 +299,9 @@ The version marker is an HTML comment placed as the **second line** of the Plan 
 ### Parser Behavior
 | Marker | Behavior |
 |--------|----------|
-| Missing (no marker) | v0 — best-effort parsing, no validation enforced |
+| Missing (no marker) | fail-closed (unless explicit `--allow-legacy-best-effort`) |
 | `<!-- IE_PLAN_PACK_VERSION: 1 -->` | v1 — validate against spec |
-| Unknown version (> 1) | Warn and skip validation |
+| Unknown version (> 1) | fail-closed (unsupported version) |
 
 ### v1 Field Contract
 A v1 Plan Pack MUST contain all of the following H2 sections (in order):

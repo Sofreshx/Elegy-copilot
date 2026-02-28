@@ -185,6 +185,7 @@ $DryRun = $false
 $Force = $false
 $DoCli = $false
 $DoVscode = $false
+$Pointer = $false
 $VscodeSettings = $null
 $VscodeHome = $null
 
@@ -196,6 +197,7 @@ for ($i = 0; $i -lt $args.Length; $i++) {
     '--cli' { $DoCli = $true }
     '--vscode' { $DoVscode = $true }
     '--all' { $DoCli = $true; $DoVscode = $true }
+    '--pointer' { $Pointer = $true }
     '--vscode-settings' {
       $i++
       if ($i -ge $args.Length) { throw 'Missing value for --vscode-settings' }
@@ -206,7 +208,7 @@ for ($i = 0; $i -lt $args.Length; $i++) {
       if ($i -ge $args.Length) { throw 'Missing value for --vscode-home' }
       $VscodeHome = $args[$i]
     }
-    default { throw "Unknown arg: $a (supported: --dry-run, --force, --cli, --vscode, --all, --vscode-settings <path>, --vscode-home <path>)" }
+    default { throw "Unknown arg: $a (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --vscode-settings <path>, --vscode-home <path>)" }
   }
 }
 
@@ -260,9 +262,27 @@ if ($DoCli) {
   }
 
   # .github\skills\<skill>\** -> <copilotHome>\skills\<skill>\** (preserve folder)
-  Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
-    $dstDir = Join-Path (Join-Path $copilotHome 'skills') $_.Name
-    Sync-Directory $_.FullName $dstDir -DryRun:$DryRun -Force:$Force
+  if ($Pointer) {
+    $vaultDir = Join-Path $copilotHome 'skills-vault'
+    if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $vaultDir | Out-Null }
+    Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
+      $skillName = $_.Name
+      $vaultDst = Join-Path $vaultDir $skillName
+      Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
+      $pointerDir = Join-Path (Join-Path $copilotHome 'skills') $skillName
+      if (-not $DryRun) {
+        New-Item -ItemType Directory -Force -Path $pointerDir | Out-Null
+        $pointerContent = "---`nschema-version: 1`nvault-ref: $skillName`n---`n# $skillName`nTriggers on: $skillName`n"
+        Set-Content -LiteralPath (Join-Path $pointerDir 'SKILL.md') -Value $pointerContent -Encoding UTF8
+      } else {
+        Write-Host "[DRY-RUN] write pointer: $(Join-Path $pointerDir 'SKILL.md')"
+      }
+    }
+  } else {
+    Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
+      $dstDir = Join-Path (Join-Path $copilotHome 'skills') $_.Name
+      Sync-Directory $_.FullName $dstDir -DryRun:$DryRun -Force:$Force
+    }
   }
 
   # engine-assets/copilot-instructions.md -> <copilotHome>\copilot-instructions.md
@@ -283,9 +303,27 @@ if ($DoVscode) {
     Sync-File $_.FullName $dst -DryRun:$DryRun -Force:$Force
   }
 
-  Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
-    $dstDir = Join-Path (Join-Path $vscodeHomeResolved 'skills') $_.Name
-    Sync-Directory $_.FullName $dstDir -DryRun:$DryRun -Force:$Force
+  if ($Pointer) {
+    $vscodeVault = Join-Path $vscodeHomeResolved 'skills-vault'
+    if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $vscodeVault | Out-Null }
+    Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
+      $skillName = $_.Name
+      $vaultDst = Join-Path $vscodeVault $skillName
+      Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
+      $pointerDir = Join-Path (Join-Path $vscodeHomeResolved 'skills') $skillName
+      if (-not $DryRun) {
+        New-Item -ItemType Directory -Force -Path $pointerDir | Out-Null
+        $pointerContent = "---`nschema-version: 1`nvault-ref: $skillName`n---`n# $skillName`nTriggers on: $skillName`n"
+        Set-Content -LiteralPath (Join-Path $pointerDir 'SKILL.md') -Value $pointerContent -Encoding UTF8
+      } else {
+        Write-Host "[DRY-RUN] write pointer: $(Join-Path $pointerDir 'SKILL.md')"
+      }
+    }
+  } else {
+    Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
+      $dstDir = Join-Path (Join-Path $vscodeHomeResolved 'skills') $_.Name
+      Sync-Directory $_.FullName $dstDir -DryRun:$DryRun -Force:$Force
+    }
   }
 
   Get-ChildItem -LiteralPath $srcPromptsRoot -Filter '*.prompt.md' -File | ForEach-Object {

@@ -365,68 +365,98 @@ function main() {
 		}
 	}
 
-	// ── Temp File Safety Controls parity check (TMPSEC_*) ──────────────
+	// ── Mirrored copilot-instructions critical section checks ───────────
 	{
 		const canonicalPath = path.join(repoRoot, 'engine-assets', 'copilot-instructions.md');
 		const mirrorPath = path.join(repoRoot, '.github', 'copilot-instructions.md');
-		const sectionHeading = '## Temp File Safety Controls';
-		const anchor = '<a id="temp-file-safety-controls-v1"></a>';
-		const controlTokens = [
-			'TMP-CTRL-001',
-			'TMP-CTRL-002',
-			'TMP-CTRL-003',
-			'TMP-CTRL-004',
-			'TMP-CTRL-005',
-			'TMP-CTRL-006',
-		];
-
-		function extractSection(text, heading) {
-			const idx = text.indexOf(heading);
-			if (idx === -1) return null;
-			return text.slice(idx);
-		}
-
 		const filesToCheck = [
 			{ label: 'engine-assets/copilot-instructions.md', abs: canonicalPath },
 			{ label: '.github/copilot-instructions.md', abs: mirrorPath },
 		];
 
-		/** @type {string|null} */
-		let canonicalSection = null;
-		/** @type {string|null} */
-		let mirrorSection = null;
+		function extractSection(text, heading) {
+			const idx = text.indexOf(heading);
+			if (idx === -1) return null;
 
-		for (const file of filesToCheck) {
-			if (!fs.existsSync(file.abs)) {
-				errors.push(`TMPSEC_MISSING_SECTION ${file.label}: file not found.`);
-				continue;
-			}
-			const text = fs.readFileSync(file.abs, 'utf8');
+			const remainder = text.slice(idx + heading.length);
+			const nextH2Offset = remainder.search(/\n##\s+/);
+			if (nextH2Offset === -1) return text.slice(idx);
 
-			if (!text.includes(sectionHeading)) {
-				errors.push(`TMPSEC_MISSING_SECTION ${file.label}: missing '${sectionHeading}'.`);
+			return text.slice(idx, idx + heading.length + nextH2Offset);
+		}
+
+		function validateMirroredSection({ codePrefix, sectionHeading, anchor, tokens, parityDriftMessage, enforceParity = true }) {
+			/** @type {string|null} */
+			let canonicalSection = null;
+			/** @type {string|null} */
+			let mirrorSection = null;
+
+			for (const file of filesToCheck) {
+				if (!fs.existsSync(file.abs)) {
+					errors.push(`${codePrefix}_MISSING_SECTION ${file.label}: file not found.`);
+					continue;
+				}
+
+				const text = fs.readFileSync(file.abs, 'utf8');
+				const section = extractSection(text, sectionHeading);
+				if (!section) {
+					errors.push(`${codePrefix}_MISSING_SECTION ${file.label}: missing '${sectionHeading}'.`);
+				}
+
+				if (anchor && (!section || !section.includes(anchor))) {
+					errors.push(`${codePrefix}_MISSING_ANCHOR ${file.label}: missing anchor '${anchor}'.`);
+				}
+
+				const tokenSource = section || '';
+				for (let i = 0; i < tokens.length; i++) {
+					const token = tokens[i];
+					if (!tokenSource.includes(token)) {
+						const pad = String(i + 1).padStart(3, '0');
+						errors.push(`${codePrefix}_MISSING_TOKEN_${pad} ${file.label}: missing token '${token}'.`);
+					}
+				}
+
+				if (file.abs === canonicalPath) canonicalSection = section;
+				if (file.abs === mirrorPath) mirrorSection = section;
 			}
-			if (!text.includes(anchor)) {
-				errors.push(`TMPSEC_MISSING_ANCHOR ${file.label}: missing anchor '${anchor}'.`);
-			}
-			for (let i = 0; i < controlTokens.length; i++) {
-				const token = controlTokens[i];
-				if (!text.includes(token)) {
-					const pad = String(i + 1).padStart(3, '0');
-					errors.push(`TMPSEC_MISSING_TOKEN_${pad} ${file.label}: missing control token '${token}'.`);
+
+			if (enforceParity && canonicalSection !== null && mirrorSection !== null) {
+				if (canonicalSection.trimEnd() !== mirrorSection.trimEnd()) {
+					errors.push(`${codePrefix}_PARITY_DRIFT ${parityDriftMessage}`);
 				}
 			}
-
-			const section = extractSection(text, sectionHeading);
-			if (file.abs === canonicalPath) canonicalSection = section;
-			if (file.abs === mirrorPath) mirrorSection = section;
 		}
 
-		if (canonicalSection !== null && mirrorSection !== null) {
-			if (canonicalSection.trimEnd() !== mirrorSection.trimEnd()) {
-				errors.push('TMPSEC_PARITY_DRIFT The Temp File Safety Controls section differs between engine-assets/copilot-instructions.md and .github/copilot-instructions.md.');
-			}
-		}
+		validateMirroredSection({
+			codePrefix: 'TMPSEC',
+			sectionHeading: '## Temp File Safety Controls',
+			anchor: '<a id="temp-file-safety-controls-v1"></a>',
+			tokens: [
+				'TMP-CTRL-001',
+				'TMP-CTRL-002',
+				'TMP-CTRL-003',
+				'TMP-CTRL-004',
+				'TMP-CTRL-005',
+				'TMP-CTRL-006',
+			],
+			parityDriftMessage: 'The Temp File Safety Controls section differs between engine-assets/copilot-instructions.md and .github/copilot-instructions.md.',
+		});
+
+		validateMirroredSection({
+			codePrefix: 'TERMBG',
+			sectionHeading: '## CRITICAL: run_in_terminal MUST NEVER USE isBackground=true',
+			anchor: null,
+			enforceParity: true,
+			tokens: [
+				'run_in_terminal(command: "make build", isBackground: true)',
+				'run_in_terminal(command: "git commit", isBackground: true)',
+				'run_in_terminal(command: "make build", isBackground: false)',
+				'run_in_terminal(command: "git commit", isBackground: false)',
+				'ALWAYS set `isBackground: false` for ALL commands',
+				'NEVER use `isBackground: true` for ANY command',
+			],
+			parityDriftMessage: 'The CRITICAL run_in_terminal background-safety section differs between engine-assets/copilot-instructions.md and .github/copilot-instructions.md.',
+		});
 	}
 
 	if (warnings.length > 0) {

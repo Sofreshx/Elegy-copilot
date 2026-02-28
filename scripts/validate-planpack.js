@@ -189,6 +189,49 @@ function hasControlScopeToken(value, controlId) {
 	return tokenRe.test(String(value));
 }
 
+function normalizeRequiredStreamGroupId(value) {
+	const token = String(value || '').trim();
+	if (!token) {
+		return '';
+	}
+
+	const match = token.match(/^(G-\d{2})(?:$|[^0-9])/i);
+	if (!match) {
+		return '';
+	}
+
+	return match[1].toUpperCase();
+}
+
+function deriveRequiredStreamGroups(progressContent) {
+	const overviewSection = extractH2Section(progressContent, 'Work Unit Groups Overview');
+	const overviewTable = parseMarkdownTable(overviewSection);
+	if (!overviewTable) {
+		return {
+			requiredStreams: [],
+			hasOverviewTable: false,
+		};
+	}
+
+	const requiredStreams = [];
+	for (const row of overviewTable.rows) {
+		const rawGroup = getRowValue(row, ['Group']);
+		const normalized = normalizeRequiredStreamGroupId(rawGroup);
+		if (!normalized) {
+			continue;
+		}
+
+		if (!requiredStreams.includes(normalized)) {
+			requiredStreams.push(normalized);
+		}
+	}
+
+	return {
+		requiredStreams,
+		hasOverviewTable: true,
+	};
+}
+
 function parseCliArgs(argv) {
 	const options = {
 		filePath: '',
@@ -559,6 +602,12 @@ if (!versionMatch) {
 	process.exit(1);
 }
 
+const planPackVersion = Number.parseInt(String(versionMatch[1] || ''), 10);
+if (!Number.isFinite(planPackVersion) || planPackVersion !== 1) {
+	console.error(`planpack invalid:\n  unsupported planpack version: ${versionMatch[1]} (supported: 1)`);
+	process.exit(1);
+}
+
 const lines = body.split(/\r?\n/);
 const errors = [];
 
@@ -699,8 +748,17 @@ for (const wuId of specWUs) {
 	}
 }
 
-// --- 8. Evidence predicates (required streams G-01..G-04) ---
-const requiredStreams = ['G-01', 'G-02', 'G-03', 'G-04'];
+// --- 8. Evidence predicates (required streams from Work Unit Groups Overview) ---
+const requiredStreamGroups = deriveRequiredStreamGroups(progressContent);
+if (!requiredStreamGroups.hasOverviewTable) {
+	errors.push('missing required progress section: ## Work Unit Groups Overview (markdown table required)');
+}
+
+const requiredStreams = requiredStreamGroups.requiredStreams;
+if (requiredStreams.length === 0) {
+	errors.push('missing required stream evidence: no valid Group IDs found in Work Unit Groups Overview');
+}
+
 const executionLogSection = extractH2Section(progressContent, 'Execution Log');
 const streamEvidenceTable = parseMarkdownTable(extractH2Section(progressContent, 'Stream Evidence'));
 

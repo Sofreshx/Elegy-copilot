@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "policyVersion": "1.0.0",
   "name": "pipeline-policy",
   "description": "Canonical policy for fail-closed pipeline controls across UI/API/CI/release surfaces.",
@@ -54,6 +54,41 @@
       "outcome": {
         "action": "block",
         "message": "Release promotion requires matching attestation/provenance evidence."
+      }
+    },
+    {
+      "id": "agent.block.background-terminal",
+      "severity": "block",
+      "scope": "agent",
+      "match": {
+        "type": "hook-rule",
+        "pattern": "tool.pre.run_in_terminal"
+      },
+      "hookConfig": {
+        "toolNamePattern": "run_in_terminal",
+        "argPatterns": {
+          "isBackground": "^true$"
+        }
+      },
+      "outcome": {
+        "action": "block",
+        "message": "isBackground:true is prohibited per copilot-instructions.md — causes silent failures."
+      }
+    },
+    {
+      "id": "agent.warn.destructive-file-delete",
+      "severity": "warn",
+      "scope": "agent",
+      "match": {
+        "type": "hook-rule",
+        "pattern": "tool.pre.delete_file"
+      },
+      "hookConfig": {
+        "toolNamePattern": "delete_file"
+      },
+      "outcome": {
+        "action": "warn",
+        "message": "Destructive file deletion — verify user explicitly requested this."
       }
     }
   ]

@@ -18,7 +18,9 @@ const {
   FINISH_COMPATIBILITY_RECEIPT_CONTRACT_VERSION,
   PLANNING_API_CONTRACT_VERSION,
   PLANNING_PERSISTENCE_HEALTH_KIND,
+  createPlanningApiState,
 } = require('./lib/planningApiContracts');
+const { acquirePlanningMutationRouteLock, startServer } = require('./server');
 
 const serverPath = path.join(__dirname, 'server.js');
 
@@ -109,6 +111,38 @@ function postJson(url, payload) {
   });
 }
 
+function startMockTrackerStatusServer(expectedToken = 'ws2-tracker-token') {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((req, res) => {
+      if (req.method === 'GET' && req.url === '/api/status') {
+        const auth = String(req.headers.authorization || '');
+        if (auth !== `Bearer ${expectedToken}`) {
+          res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ error: 'unauthorized' }));
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: true, marker: 'tracker_ready' }));
+        return;
+      }
+
+      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'not_found' }));
+    });
+
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      const port = address && typeof address === 'object' ? address.port : null;
+      resolve({
+        server,
+        port,
+        close: () => new Promise((closeResolve) => server.close(() => closeResolve())),
+      });
+    });
+  });
+}
+
 async function waitForHealth(baseUrl, attempts = 60) {
   for (let i = 0; i < attempts; i++) {
     try {
@@ -131,7 +165,70 @@ function withTempDir(fn) {
     });
 }
 
+async function withPatchedEnv(overrides, fn) {
+  const updates = overrides && typeof overrides === 'object' ? overrides : {};
+  const previous = {};
+  for (const [key, value] of Object.entries(updates)) {
+    previous[key] = Object.prototype.hasOwnProperty.call(process.env, key)
+      ? process.env[key]
+      : undefined;
+    if (value == null) {
+      delete process.env[key];
+    } else {
+      process.env[key] = String(value);
+    }
+  }
+
+  try {
+    return await fn();
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
 async function run() {
+  await test('planning mutation route lock rejects overlapping same-idempotency requests with deterministic conflict', async () => {
+    const planningApiState = createPlanningApiState();
+    const context = { userId: 'user-1', repoId: 'repo-1' };
+
+    const first = acquirePlanningMutationRouteLock({
+      planningApiState,
+      pathname: '/api/planning/records',
+      method: 'POST',
+      context,
+      idempotencyKey: 'same-key-overlap',
+      requestId: null,
+      nowMs: 1000,
+    });
+
+    assert.strictEqual(first.ok, true);
+    assert.ok(first.lock);
+    assert.ok(first.lock.lock);
+    assert.strictEqual(typeof first.lock.lock.ownerId, 'string');
+    assert.ok(first.lock.lock.ownerId.length > 0);
+
+    const second = acquirePlanningMutationRouteLock({
+      planningApiState,
+      pathname: '/api/planning/records',
+      method: 'POST',
+      context,
+      idempotencyKey: 'same-key-overlap',
+      requestId: null,
+      nowMs: 1001,
+    });
+
+    assert.strictEqual(second.ok, false);
+    assert.strictEqual(second.statusCode, 409);
+    assert.strictEqual(second.body.code, 'planning_route_lock_conflict');
+    assert.strictEqual(second.body.reason, 'lock_already_held');
+  });
+
   await test('health payload includes deterministic runtime compatibility contract', async () => {
     await withTempDir(async (root) => {
       const copilotHome = path.join(root, '.copilot');
@@ -209,11 +306,26 @@ async function run() {
         assert.strictEqual(response.body.planningPersistence.usable, false);
         assert.deepStrictEqual(response.body.planningPersistence.errors, []);
         assert.strictEqual(response.body.planningPersistence.lastError, null);
+        assert.ok(response.body.planningPersistence.governance);
+        assert.strictEqual(response.body.planningPersistence.governance.deterministic, true);
+        assert.strictEqual(response.body.planningPersistence.governance.failClosed, true);
+        assert.strictEqual(response.body.planningPersistence.governance.ready, false);
+        assert.strictEqual(response.body.planningPersistence.governance.code, 'planning_persistence_disabled');
+        assert.strictEqual(response.body.planningPersistence.governance.reason, 'planning_persistence_disabled');
+        assert.ok(Array.isArray(response.body.planningPersistence.governance.reasonCodes));
         assert.ok(response.body.planningPersistence.migrations);
         assert.strictEqual(response.body.planningPersistence.migrations.schemaTable, 'ie_schema_versions');
+        assert.ok(response.body.planningPersistence.migrations.manifestCount >= 1);
+        assert.strictEqual(typeof response.body.planningPersistence.migrations.checksumBaseline, 'string');
+        assert.strictEqual(response.body.planningPersistence.migrations.baselineEnforced, true);
+        assert.strictEqual(response.body.planningPersistence.migrations.baselineMismatch, false);
         assert.strictEqual(response.body.planningPersistence.migrations.appliedCount, 0);
         assert.deepStrictEqual(response.body.planningPersistence.migrations.appliedVersions, []);
         assert.strictEqual(response.body.planningPersistence.migrations.driftDetected, false);
+        assert.ok(response.body.planningPersistence.migrations.checksumValidation);
+        assert.strictEqual(response.body.planningPersistence.migrations.checksumValidation.outcome, 'pass');
+        assert.strictEqual(response.body.planningPersistence.migrations.checksumValidation.reason, 'all_manifest_checksums_match');
+        assert.strictEqual(response.body.planningPersistence.migrations.checksumValidation.baselineMismatch, false);
       } finally {
         server.kill();
         await sleep(150);
@@ -280,6 +392,360 @@ async function run() {
         assert.ok(response.body.runtime.finishCompatibilityHook);
         assert.strictEqual(response.body.runtime.finishCompatibilityHook.contractVersion, FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION);
         assert.strictEqual(response.body.runtime.finishCompatibilityHook.providerAgnostic, true);
+      } finally {
+        server.kill();
+        await sleep(150);
+      }
+
+      if (stderr.trim()) {
+        assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
+      }
+    });
+  });
+
+  await test('gateway state/connect and planning persistence init return deterministic degraded envelopes when gateway is not configured', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+
+      const port = await getFreePort();
+      const baseUrl = `http://127.0.0.1:${port}`;
+
+      const server = childProcess.spawn(process.execPath, [
+        serverPath,
+        '--host',
+        '127.0.0.1',
+        '--port',
+        String(port),
+        '--copilot-home',
+        copilotHome,
+        '--vscode-home',
+        vscodeHome,
+        '--sandboxes-home',
+        sandboxesHome,
+      ], {
+        env: {
+          ...process.env,
+          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
+          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
+          INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN: '',
+          INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH: path.join(root, '.instruction-engine', 'missing-gateway-config.json'),
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+
+      let stderr = '';
+      server.stderr.on('data', (chunk) => {
+        stderr += chunk.toString('utf8');
+      });
+
+      try {
+        await waitForHealth(baseUrl);
+
+        const state = await fetchJson(`${baseUrl}/api/gateway/state`);
+        assert.strictEqual(state.statusCode, 200);
+        assert.strictEqual(state.body.kind, 'gateway.state');
+        assert.strictEqual(state.body.deterministic, true);
+        assert.strictEqual(state.body.ready, false);
+        assert.ok(state.body.gateway);
+        assert.strictEqual(state.body.gateway.ready, false);
+        assert.ok(state.body.tracker);
+        assert.strictEqual(state.body.tracker.ready, false);
+        assert.ok(Array.isArray(state.body.errors));
+        assert.ok(state.body.errors.some((entry) => entry && entry.code === 'gateway_config_missing'));
+        assert.ok(state.body.errors.some((entry) => entry && entry.code === 'tracker_token_missing'));
+
+        const connect = await postJson(`${baseUrl}/api/gateway/connect`, {});
+        assert.strictEqual(connect.statusCode, 503);
+        assert.strictEqual(connect.body.kind, 'gateway.connect');
+        assert.strictEqual(connect.body.action, 'connect');
+        assert.strictEqual(connect.body.deterministic, true);
+        assert.strictEqual(connect.body.ready, false);
+        assert.strictEqual(connect.body.connected, false);
+        assert.ok(Array.isArray(connect.body.errors));
+        assert.ok(connect.body.errors.length >= 1);
+        assert.ok(connect.body.error);
+
+        const initDb = await postJson(`${baseUrl}/api/planning/persistence/init`, {});
+        assert.strictEqual(initDb.statusCode, 503);
+        assert.strictEqual(initDb.body.kind, 'planning.persistence.init');
+        assert.strictEqual(initDb.body.deterministic, true);
+        assert.strictEqual(initDb.body.ready, false);
+        assert.strictEqual(initDb.body.initialized, false);
+        assert.ok(initDb.body.error);
+        assert.strictEqual(initDb.body.error.code, 'planning_persistence_not_configured');
+        assert.ok(Array.isArray(initDb.body.errors));
+        assert.strictEqual(initDb.body.errors.length, 1);
+      } finally {
+        server.kill();
+        await sleep(150);
+      }
+
+      if (stderr.trim()) {
+        assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
+      }
+    });
+  });
+
+  await test('gateway connect returns deterministic ready envelope when config and tracker are ready', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+
+      const gatewayConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
+      fs.mkdirSync(path.dirname(gatewayConfigPath), { recursive: true });
+      fs.writeFileSync(gatewayConfigPath, JSON.stringify({
+        mode: 'auto',
+        workspaces: {
+          allowedRoots: [root],
+          activeRoot: root,
+        },
+      }, null, 2));
+
+      const tracker = await startMockTrackerStatusServer('ws2-tracker-token');
+
+      const port = await getFreePort();
+      const baseUrl = `http://127.0.0.1:${port}`;
+
+      const server = childProcess.spawn(process.execPath, [
+        serverPath,
+        '--host',
+        '127.0.0.1',
+        '--port',
+        String(port),
+        '--copilot-home',
+        copilotHome,
+        '--vscode-home',
+        vscodeHome,
+        '--sandboxes-home',
+        sandboxesHome,
+        '--tracker-url',
+        `http://127.0.0.1:${tracker.port}`,
+      ], {
+        env: {
+          ...process.env,
+          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
+          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
+          INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN: 'ws2-tracker-token',
+          INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH: gatewayConfigPath,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+
+      let stderr = '';
+      server.stderr.on('data', (chunk) => {
+        stderr += chunk.toString('utf8');
+      });
+
+      try {
+        await waitForHealth(baseUrl);
+
+        const connect = await postJson(`${baseUrl}/api/gateway/connect`, {});
+        assert.strictEqual(connect.statusCode, 200);
+        assert.strictEqual(connect.body.kind, 'gateway.connect');
+        assert.strictEqual(connect.body.deterministic, true);
+        assert.strictEqual(connect.body.status, 'ready');
+        assert.strictEqual(connect.body.ready, true);
+        assert.strictEqual(connect.body.connected, true);
+        assert.strictEqual(connect.body.gateway.config.path, path.resolve(gatewayConfigPath));
+        assert.ok(Array.isArray(connect.body.errors));
+        assert.strictEqual(connect.body.errors.length, 0);
+
+        const state = await fetchJson(`${baseUrl}/api/gateway/state`);
+        assert.strictEqual(state.statusCode, 200);
+        assert.strictEqual(state.body.kind, 'gateway.state');
+        assert.strictEqual(state.body.ready, true);
+        assert.strictEqual(state.body.gateway.config.path, path.resolve(gatewayConfigPath));
+        assert.ok(Array.isArray(state.body.errors));
+        assert.strictEqual(state.body.errors.length, 0);
+      } finally {
+        server.kill();
+        await sleep(150);
+        await tracker.close();
+      }
+
+      if (stderr.trim()) {
+        assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
+      }
+    });
+  });
+
+  await test('gateway config deterministically rehomes legacy copilot-home path to canonical default path when env override is absent', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+
+      const legacyConfigPath = path.join(copilotHome, 'messaging-gateway.config.json');
+      const legacyConfig = {
+        mode: 'auto',
+        workspaces: {
+          allowedRoots: [root],
+          activeRoot: root,
+        },
+      };
+      fs.writeFileSync(legacyConfigPath, JSON.stringify(legacyConfig, null, 2));
+
+      const port = await getFreePort();
+      const baseUrl = `http://127.0.0.1:${port}`;
+
+      const server = childProcess.spawn(process.execPath, [
+        serverPath,
+        '--host',
+        '127.0.0.1',
+        '--port',
+        String(port),
+        '--copilot-home',
+        copilotHome,
+        '--vscode-home',
+        vscodeHome,
+        '--sandboxes-home',
+        sandboxesHome,
+      ], {
+        env: {
+          ...process.env,
+          HOME: root,
+          USERPROFILE: root,
+          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
+          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
+          INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH: '',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+
+      let stderr = '';
+      server.stderr.on('data', (chunk) => {
+        stderr += chunk.toString('utf8');
+      });
+
+      try {
+        await waitForHealth(baseUrl);
+
+        const configResponse = await fetchJson(`${baseUrl}/api/gateway/config`);
+        assert.strictEqual(configResponse.statusCode, 200);
+        assert.strictEqual(configResponse.body.exists, true);
+        const resolvedConfigPath = path.resolve(configResponse.body.configPath);
+        assert.ok(
+          resolvedConfigPath.toLowerCase().endsWith(path.join('.instruction-engine', 'messaging-gateway.config.json').toLowerCase())
+        );
+        assert.notStrictEqual(resolvedConfigPath.toLowerCase(), path.resolve(legacyConfigPath).toLowerCase());
+        assert.deepStrictEqual(configResponse.body.config, legacyConfig);
+
+        assert.strictEqual(fs.existsSync(resolvedConfigPath), true);
+        assert.strictEqual(fs.existsSync(legacyConfigPath), false);
+
+        const persistedCanonicalConfig = JSON.parse(fs.readFileSync(resolvedConfigPath, 'utf8'));
+        assert.deepStrictEqual(persistedCanonicalConfig, legacyConfig);
+      } finally {
+        server.kill();
+        await sleep(150);
+      }
+
+      if (stderr.trim()) {
+        assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
+      }
+    });
+  });
+
+  await test('gateway config path honors env override ahead of canonical default and does not rehome legacy path', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+
+      const legacyConfigPath = path.join(copilotHome, 'messaging-gateway.config.json');
+      const canonicalConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
+      const envConfigPath = path.join(root, 'config-overrides', 'gateway-config.json');
+
+      const legacyConfig = {
+        mode: 'disconnected',
+        workspaces: {
+          allowedRoots: [root],
+          activeRoot: root,
+        },
+      };
+      const canonicalConfig = {
+        mode: 'connected',
+        workspaces: {
+          allowedRoots: [root],
+          activeRoot: root,
+        },
+      };
+      const envConfig = {
+        mode: 'auto',
+        workspaces: {
+          allowedRoots: [root],
+          activeRoot: root,
+        },
+      };
+
+      fs.writeFileSync(legacyConfigPath, JSON.stringify(legacyConfig, null, 2));
+      fs.mkdirSync(path.dirname(canonicalConfigPath), { recursive: true });
+      fs.writeFileSync(canonicalConfigPath, JSON.stringify(canonicalConfig, null, 2));
+      fs.mkdirSync(path.dirname(envConfigPath), { recursive: true });
+      fs.writeFileSync(envConfigPath, JSON.stringify(envConfig, null, 2));
+
+      const port = await getFreePort();
+      const baseUrl = `http://127.0.0.1:${port}`;
+
+      const server = childProcess.spawn(process.execPath, [
+        serverPath,
+        '--host',
+        '127.0.0.1',
+        '--port',
+        String(port),
+        '--copilot-home',
+        copilotHome,
+        '--vscode-home',
+        vscodeHome,
+        '--sandboxes-home',
+        sandboxesHome,
+      ], {
+        env: {
+          ...process.env,
+          HOME: root,
+          USERPROFILE: root,
+          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
+          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
+          INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH: envConfigPath,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+
+      let stderr = '';
+      server.stderr.on('data', (chunk) => {
+        stderr += chunk.toString('utf8');
+      });
+
+      try {
+        await waitForHealth(baseUrl);
+
+        const configResponse = await fetchJson(`${baseUrl}/api/gateway/config`);
+        assert.strictEqual(configResponse.statusCode, 200);
+        assert.strictEqual(configResponse.body.exists, true);
+        assert.strictEqual(
+          path.resolve(configResponse.body.configPath).toLowerCase(),
+          path.resolve(envConfigPath).toLowerCase()
+        );
+        assert.deepStrictEqual(configResponse.body.config, envConfig);
+
+        assert.strictEqual(fs.existsSync(legacyConfigPath), true);
+        assert.strictEqual(fs.existsSync(canonicalConfigPath), true);
+        assert.deepStrictEqual(JSON.parse(fs.readFileSync(canonicalConfigPath, 'utf8')), canonicalConfig);
       } finally {
         server.kill();
         await sleep(150);
@@ -509,6 +975,16 @@ async function run() {
         assert.strictEqual(planningBlocked.body.dependencyGate.marker, 'dependency-blocked');
         assert.strictEqual(planningBlocked.body.dependencyGate.ready, false);
         assert.deepStrictEqual(planningBlocked.body.dependencyGate.reasonCodes, ['ws3_authority_gate_forced_blocked']);
+
+        const retentionBlocked = await postJson(`${baseUrl}/api/planning/persistence/retention`, {
+          mode: 'dry-run',
+        });
+        assert.strictEqual(retentionBlocked.statusCode, 503);
+        assert.strictEqual(retentionBlocked.body.error, 'Planning durability dependency gate blocked');
+        assert.strictEqual(retentionBlocked.body.code, 'planning_durability_dependency_gate_blocked');
+        assert.strictEqual(retentionBlocked.body.reason, 'ws3_authority_gate_forced_blocked');
+        assert.strictEqual(retentionBlocked.body.kind, 'planning.persistence.retention');
+        assert.strictEqual(retentionBlocked.body.deterministic, true);
       } finally {
         server.kill();
         await sleep(150);
@@ -582,6 +1058,242 @@ async function run() {
         assert.strictEqual(create.body.planningPersistence.configured, true);
         assert.strictEqual(create.body.planningPersistence.usable, true);
         assert.strictEqual(create.body.planningPersistence.ready, false);
+        assert.ok(create.body.planningPersistence.governance);
+        assert.strictEqual(create.body.planningPersistence.governance.deterministic, true);
+        assert.strictEqual(create.body.planningPersistence.governance.failClosed, true);
+
+        const retention = await postJson(`${baseUrl}/api/planning/persistence/retention`, {
+          mode: 'dry-run',
+        });
+        assert.strictEqual(retention.statusCode, 503);
+        assert.strictEqual(retention.body.code, 'planning_persistence_unavailable');
+        assert.strictEqual(retention.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(retention.body.kind, 'planning.persistence.retention');
+
+        const exported = await postJson(`${baseUrl}/api/planning/persistence/export`, {});
+        assert.strictEqual(exported.statusCode, 503);
+        assert.strictEqual(exported.body.code, 'planning_persistence_unavailable');
+        assert.strictEqual(exported.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(exported.body.kind, 'planning.persistence.export');
+
+        const imported = await postJson(`${baseUrl}/api/planning/persistence/import`, { records: [] });
+        assert.strictEqual(imported.statusCode, 503);
+        assert.strictEqual(imported.body.code, 'planning_persistence_unavailable');
+        assert.strictEqual(imported.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(imported.body.kind, 'planning.persistence.import');
+
+        const corruptionScan = await postJson(`${baseUrl}/api/planning/persistence/corruption/scan`, {});
+        assert.strictEqual(corruptionScan.statusCode, 503);
+        assert.strictEqual(corruptionScan.body.code, 'planning_persistence_unavailable');
+        assert.strictEqual(corruptionScan.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(corruptionScan.body.kind, 'planning.persistence.corruption.scan');
+      } finally {
+        server.kill();
+        await sleep(150);
+      }
+
+      if (stderr.trim()) {
+        assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
+      }
+    });
+  });
+
+  await test('WS5A durability-critical routes keep canonical reason code when persistence diagnostics are noisy', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+
+      const port = await getFreePort();
+      const baseUrl = `http://127.0.0.1:${port}`;
+      const noisyDiagnostic = `ws5a-m1-noisy-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+      let runningServer = null;
+      try {
+        await withPatchedEnv({
+          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
+          INSTRUCTION_ENGINE_PLANNING_DB_URL: 'postgres://localhost:5432/planning',
+        }, async () => {
+          runningServer = await startServer({
+            host: '127.0.0.1',
+            port,
+            copilotHome,
+            vscodeHome,
+            sandboxesHome,
+            planningPersistenceClient: {
+              query: async () => {
+                throw new Error(noisyDiagnostic);
+              },
+            },
+            quiet: true,
+          });
+
+          const health = await fetchJson(`${baseUrl}/api/health`);
+          assert.strictEqual(health.statusCode, 200);
+          assert.strictEqual(health.body.planningPersistence.status, 'migration_error');
+
+          const compareBlocked = await postJson(`${baseUrl}/api/planning/compare`, {
+            scopes: ['user'],
+            query: 'durability gate canonical reasons',
+          });
+
+          assert.strictEqual(compareBlocked.statusCode, 503);
+          assert.strictEqual(compareBlocked.body.code, 'planning_durability_route_gate_blocked');
+          assert.strictEqual(compareBlocked.body.reason, 'planning_persistence_migration_error');
+          assert.notStrictEqual(compareBlocked.body.reason, noisyDiagnostic);
+          assert.strictEqual(compareBlocked.body.kind, 'planning.compare');
+          assert.ok(compareBlocked.body.durabilityRouteGate);
+          assert.deepStrictEqual(compareBlocked.body.durabilityRouteGate.reasonCodes, ['planning_persistence_migration_error']);
+          assert.ok(compareBlocked.body.durabilityRouteGate.debug);
+          assert.strictEqual(compareBlocked.body.durabilityRouteGate.debug.persistenceAuthorityStatus, 'migration_error');
+          assert.strictEqual(compareBlocked.body.durabilityRouteGate.debug.persistenceAuthorityLastError, noisyDiagnostic);
+          assert.ok(compareBlocked.body.durabilityRouteGate.persistenceAuthority);
+          assert.strictEqual(compareBlocked.body.durabilityRouteGate.persistenceAuthority.lastError, noisyDiagnostic);
+
+          const suggestionBlocked = await postJson(`${baseUrl}/api/planning/suggestions`, {
+            suggestionId: 'suggestion-noisy-1',
+            state: {
+              recommendation: 'defer-merge',
+            },
+          });
+
+          assert.strictEqual(suggestionBlocked.statusCode, 503);
+          assert.strictEqual(suggestionBlocked.body.code, 'planning_durability_route_gate_blocked');
+          assert.strictEqual(suggestionBlocked.body.reason, 'planning_persistence_migration_error');
+          assert.strictEqual(suggestionBlocked.body.kind, 'planning.suggestion.persist');
+
+          const recapBlocked = await postJson(`${baseUrl}/api/planning/recaps`, {
+            recapId: 'recap-noisy-1',
+            state: {
+              summary: 'merge skipped',
+            },
+          });
+
+          assert.strictEqual(recapBlocked.statusCode, 503);
+          assert.strictEqual(recapBlocked.body.code, 'planning_durability_route_gate_blocked');
+          assert.strictEqual(recapBlocked.body.reason, 'planning_persistence_migration_error');
+          assert.strictEqual(recapBlocked.body.kind, 'planning.recap.persist');
+        });
+      } finally {
+        if (runningServer) {
+          await runningServer.close();
+        }
+      }
+    });
+  });
+
+  await test('WS5A durability-critical routes fail closed when persistence authority is not configured', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(root, '.copilot', 'sandboxes');
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+
+      const port = await getFreePort();
+      const baseUrl = `http://127.0.0.1:${port}`;
+
+      const server = childProcess.spawn(process.execPath, [
+        serverPath,
+        '--host',
+        '127.0.0.1',
+        '--port',
+        String(port),
+        '--copilot-home',
+        copilotHome,
+        '--vscode-home',
+        vscodeHome,
+        '--sandboxes-home',
+        sandboxesHome,
+      ], {
+        env: {
+          ...process.env,
+          INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
+          INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+
+      let stderr = '';
+      server.stderr.on('data', (chunk) => {
+        stderr += chunk.toString('utf8');
+      });
+
+      try {
+        const health = await waitForHealth(baseUrl);
+        assert.strictEqual(health.statusCode, 200);
+        assert.strictEqual(health.body.planningDurabilityDependencyGate.ready, true);
+
+        const compareBlocked = await postJson(`${baseUrl}/api/planning/compare`, {
+          scopes: ['user'],
+          query: 'durability gate',
+        });
+        assert.strictEqual(compareBlocked.statusCode, 503);
+        assert.strictEqual(compareBlocked.body.error, 'Planning durability route gate blocked');
+        assert.strictEqual(compareBlocked.body.code, 'planning_durability_route_gate_blocked');
+        assert.strictEqual(compareBlocked.body.reason, 'planning_persistence_not_configured');
+        assert.strictEqual(compareBlocked.body.kind, 'planning.compare');
+        assert.strictEqual(compareBlocked.body.deterministic, true);
+        assert.ok(compareBlocked.body.durabilityRouteGate);
+        assert.strictEqual(compareBlocked.body.durabilityRouteGate.marker, 'dependency-blocked');
+        assert.strictEqual(compareBlocked.body.durabilityRouteGate.ready, false);
+        assert.ok(Array.isArray(compareBlocked.body.durabilityRouteGate.reasonCodes));
+        assert.deepStrictEqual(compareBlocked.body.durabilityRouteGate.reasonCodes, ['planning_persistence_not_configured']);
+
+        const intentBlocked = await postJson(`${baseUrl}/api/planning/merge-intent`, {
+          compareReceiptId: 'compare-123',
+          targetId: 'planning-001',
+          sourceIds: ['planning-010'],
+        });
+        assert.strictEqual(intentBlocked.statusCode, 503);
+        assert.strictEqual(intentBlocked.body.error, 'Planning durability route gate blocked');
+        assert.strictEqual(intentBlocked.body.code, 'planning_durability_route_gate_blocked');
+        assert.strictEqual(intentBlocked.body.reason, 'planning_persistence_not_configured');
+        assert.strictEqual(intentBlocked.body.kind, 'planning.merge-intent');
+
+        const mergeBlocked = await postJson(`${baseUrl}/api/planning/merge`, {
+          tokenId: 'intent-123',
+          compareReceiptId: 'compare-123',
+          targetId: 'planning-001',
+          sourceIdsHash: 'abc123',
+          compareHash: 'def456',
+          idempotencyKey: 'merge-gate-blocked-1',
+        });
+        assert.strictEqual(mergeBlocked.statusCode, 503);
+        assert.strictEqual(mergeBlocked.body.error, 'Planning durability route gate blocked');
+        assert.strictEqual(mergeBlocked.body.code, 'planning_durability_route_gate_blocked');
+        assert.strictEqual(mergeBlocked.body.reason, 'planning_persistence_not_configured');
+        assert.strictEqual(mergeBlocked.body.kind, 'planning.merge');
+
+        const suggestionBlocked = await postJson(`${baseUrl}/api/planning/suggestions`, {
+          suggestionId: 'suggestion-blocked-1',
+          state: {
+            recommendation: 'blocked',
+          },
+        });
+        assert.strictEqual(suggestionBlocked.statusCode, 503);
+        assert.strictEqual(suggestionBlocked.body.error, 'Planning durability route gate blocked');
+        assert.strictEqual(suggestionBlocked.body.code, 'planning_durability_route_gate_blocked');
+        assert.strictEqual(suggestionBlocked.body.reason, 'planning_persistence_not_configured');
+        assert.strictEqual(suggestionBlocked.body.kind, 'planning.suggestion.persist');
+
+        const recapBlocked = await postJson(`${baseUrl}/api/planning/recaps`, {
+          recapId: 'recap-blocked-1',
+          state: {
+            summary: 'blocked',
+          },
+        });
+        assert.strictEqual(recapBlocked.statusCode, 503);
+        assert.strictEqual(recapBlocked.body.error, 'Planning durability route gate blocked');
+        assert.strictEqual(recapBlocked.body.code, 'planning_durability_route_gate_blocked');
+        assert.strictEqual(recapBlocked.body.reason, 'planning_persistence_not_configured');
+        assert.strictEqual(recapBlocked.body.kind, 'planning.recap.persist');
+
+        const sessionsResponse = await fetchJson(`${baseUrl}/api/sessions?source=cli`);
+        assert.strictEqual(sessionsResponse.statusCode, 200);
       } finally {
         server.kill();
         await sleep(150);

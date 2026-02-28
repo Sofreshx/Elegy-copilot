@@ -14,13 +14,14 @@ These are the lightweight, **global** conventions for using Instruction Engine a
 run_in_terminal(command: "make build", isBackground: true)  # WRONG! Causes silent failures
 run_in_terminal(command: "git commit", isBackground: true)   # WRONG! Command gets cancelled
 ```
+### ALWAYS USE vscode/askQuestions
+When you need clarification from the user, use `vscode/askQuestions` to ask a single, targeted question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
 
 ** ALWAYS DO THIS:**
 ```
 run_in_terminal(command: "make build", isBackground: false)  # CORRECT
 run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 ```
-
 **WHY:**
 - `isBackground=true` causes commands to be cancelled/interrupted
 - You won't see output or know if command succeeded
@@ -31,6 +32,10 @@ run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 - ALWAYS set `isBackground: false` for ALL commands
 - NEVER use `isBackground: true` for ANY command
 - If unsure, default to `false`
+
+## Core Guardrails Backstop
+- The `core-guardrails` skill mirrors these non-negotiable execution rules.
+- If repo-level instructions are customized, keep this safety set intact by loading `core-guardrails` before tool execution.
 
 ## Completion Gate (Finish End-to-End)
 Do not stop execution for trivial issues like :
@@ -79,6 +84,7 @@ Route written output to the correct location based on content type:
 - **Plan packs** → return in-chat by default; the host/dashboard persists them outside the repo.
 - **User-facing documentation** → `docs/` or `README.md` — end-user and developer guides.
 - **Generated reports & logs** → avoid `.instructions-output/`; prefer host/session artifacts.
+- **Implementation friction log** → append concise recurring codebase pain points to `docs/issues/implementation-friction-log.md`.
 - **Task tracking** → avoid repo-local task systems; prefer orchestrator + host persistence.
 
 Key distinctions:
@@ -136,6 +142,11 @@ If a task maps to a known domain, treat skills as the default path:
 - **Always** load the relevant `SKILL.md` before making changes in that domain.
 - Prefer skill-specific guidance over generic judgment.
 - If multiple skills apply, load the primary one first, then the supporting ones.
+
+## Implementation Friction Capture
+- Constructive complaints about hard-to-work-with code are allowed when they help delivery.
+- When recurring implementation friction is detected (shaky patterns, dead code, brittle design, repeated workaround), load the `implementation-friction` skill.
+- Log only concise entries, then continue implementation; avoid deep refactor detours unless explicitly requested.
 
 ## Safety
 - Do destructive scaffolding or large deletions only with an explicit user ask.

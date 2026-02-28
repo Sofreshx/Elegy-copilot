@@ -1,13 +1,33 @@
 import http from "http";
-import { TrackerConfig } from "./config";
+import {
+  TRACKER_TOKEN_READINESS_CONTRACT_VERSION,
+  TrackerConfig,
+  TrackerRelayTokenSource,
+  TrackerTokenReadinessV1,
+} from "./config";
 import { GitSnapshot, TrackerEvent } from "./types";
 
+const TRACKER_STATUS_CONTRACT_VERSION = "tracker_status_v1";
+
+function createMissingTokenReadiness(source: TrackerRelayTokenSource): TrackerTokenReadinessV1 {
+  return {
+    contractVersion: TRACKER_TOKEN_READINESS_CONTRACT_VERSION,
+    state: "missing",
+    reasonCode: "relay_token_missing",
+    deterministic: true,
+    source,
+  };
+}
+
 export interface TrackerStatus {
+  schemaVersion: 1;
+  contractVersion: typeof TRACKER_STATUS_CONTRACT_VERSION;
   uptime: number;
   gitSnapshots: GitSnapshot[];
   connectedExtensions: number;
   recentEvents: TrackerEvent[];
   startedAt: string;
+  relayTokenReadiness: TrackerTokenReadinessV1;
 }
 
 export class StatusServer {
@@ -15,14 +35,25 @@ export class StatusServer {
   private config: TrackerConfig;
   private status: TrackerStatus;
 
-  constructor(config: TrackerConfig) {
+  constructor(config: TrackerConfig, options: { relayTokenReadiness?: TrackerTokenReadinessV1 } = {}) {
     this.config = config;
     this.status = {
+      schemaVersion: 1,
+      contractVersion: TRACKER_STATUS_CONTRACT_VERSION,
       uptime: 0,
       gitSnapshots: [],
       connectedExtensions: 0,
       recentEvents: [],
       startedAt: new Date().toISOString(),
+      relayTokenReadiness: options.relayTokenReadiness ?? createMissingTokenReadiness(config.relayTokenSource),
+    };
+  }
+
+  updateRelayTokenReadiness(readiness: TrackerTokenReadinessV1): void {
+    this.status.relayTokenReadiness = {
+      ...readiness,
+      contractVersion: TRACKER_TOKEN_READINESS_CONTRACT_VERSION,
+      deterministic: true,
     };
   }
 

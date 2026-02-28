@@ -43,6 +43,7 @@ jest.mock("chokidar", () => ({
 function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
   return {
     workspacePaths: ["/test/workspace"],
+    relayTokenSource: "missing",
     localWsPort: 9821,
     watchIntervalMs: 2000,
     statusPort: 0,

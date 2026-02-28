@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { sanitizeOutboundText } from './sanitizer';
+import { getWorkflowTracer } from './workflows/workflowTracing';
 
 export type AuditLogRecord = Record<string, unknown>;
 
@@ -14,6 +15,8 @@ export interface AuditLoggerOptions {
 
 const DEFAULT_MAX_FILE_BYTES = 10 * 1024 * 1024;
 const DEFAULT_FILE_NAME = 'remote-audit.jsonl';
+export const GATEWAY_AUDIT_LOG_SCHEMA_VERSION = 1;
+export const GATEWAY_AUDIT_LOG_CONTRACT_VERSION = 'messaging_gateway_audit_v1';
 
 function ensureDirExists(dirPath: string): void {
 	fs.mkdirSync(dirPath, { recursive: true });
@@ -85,6 +88,43 @@ function safeJsonlStringify(record: AuditLogRecord, maxStringLength: number): st
 	return JSON.stringify(asObject);
 }
 
+function asOptionalString(value: unknown): string | undefined {
+	if (typeof value !== 'string') return undefined;
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : undefined;
+}
+
+export function normalizeAuditLogRecord(record: AuditLogRecord): AuditLogRecord {
+	const source = isRecord(record) ? record : {};
+	const normalizedFrom: 'v0' | 'v1' =
+		source.schemaVersion === GATEWAY_AUDIT_LOG_SCHEMA_VERSION ||
+		source.contractVersion === GATEWAY_AUDIT_LOG_CONTRACT_VERSION
+			? 'v1'
+			: 'v0';
+
+	const eventType =
+		asOptionalString(source.eventType) ??
+		asOptionalString(source.event) ??
+		asOptionalString(source.action) ??
+		'unspecified';
+
+	const category =
+		asOptionalString(source.category) ??
+		(source.security === true ? 'security' : 'general');
+
+	return {
+		...source,
+		schemaVersion: GATEWAY_AUDIT_LOG_SCHEMA_VERSION,
+		contractVersion: GATEWAY_AUDIT_LOG_CONTRACT_VERSION,
+		compatibility: {
+			normalizedFrom,
+			deterministic: true,
+		},
+		category,
+		eventType,
+	};
+}
+
 export function getAuditLogFilePath(workspaceRoot: string, fileName: string = DEFAULT_FILE_NAME): string {
 	return path.join(path.resolve(workspaceRoot), '.instructions-output', fileName);
 }
@@ -106,9 +146,12 @@ export class AuditLogger {
 
 	log(record: AuditLogRecord): void {
 		const ts = this.now().toISOString();
+		const traceId = getWorkflowTracer().getActiveTraceId();
+		const normalized = normalizeAuditLogRecord(record);
 		const enriched: AuditLogRecord = {
+			...normalized,
 			ts,
-			...record,
+			...(traceId ? { traceId } : {}),
 		};
 
 		const logFilePath = getAuditLogFilePath(this.workspaceRoot, this.fileName);

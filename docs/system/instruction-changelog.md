@@ -11,6 +11,14 @@ tags: [changelog]
 
 # Instruction Changelog
 
+## 2026-02-27 — Core guardrails made mandatory in asset pipeline
+
+- Added `engine-assets/skills/core-guardrails/SKILL.md` to hold non-negotiable execution safety rules.
+- Added `core-guardrails` to shipped allowlist and canonical manifest assets.
+- Updated `scripts/generate-cli-manifest.mjs` to force-include mandatory allowlist items (currently `core-guardrails`).
+- Updated `scripts/validate-manifest.js` to fail if required assets (`copilot-instructions`, `skill-core-guardrails`) are missing.
+- Updated `scripts/validate-doc-graph.js` to enforce mirrored token/parity checks for the critical `run_in_terminal` background-safety section.
+
 ## 2026-02-25 — G-05-WU-05 final gate + waiver precedence enforced
 
 - Added deterministic `Final Gate Controls` validation to `scripts/validate-planpack.js`.

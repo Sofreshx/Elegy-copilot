@@ -292,7 +292,9 @@ function listInstalledSkills(home) {
       .filter((e) => e.isDirectory())
       .map((e) => {
         const absPath = path.join(skillsDir, e.name, 'SKILL.md');
-        return fs.existsSync(absPath) ? { name: e.name, absPath } : null;
+        if (!fs.existsSync(absPath)) return null;
+        const kind = isPointerFile(absPath) ? 'pointer' : 'full';
+        return { name: e.name, absPath, kind };
       })
       .filter(Boolean)
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -418,23 +420,54 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
 
   if (!dryRun) {
     fs.mkdirSync(path.dirname(destinationAbs), { recursive: true });
-    const st = fs.statSync(sourceAbs);
-    if (st.isDirectory()) {
-      fs.rmSync(destinationAbs, { recursive: true, force: true });
-      if (typeof fs.cpSync === 'function') {
-        fs.cpSync(sourceAbs, destinationAbs, { recursive: true, force: true });
-      } else {
-        // Fallback for older Node: naive recursive copy.
-        const files = walkFilesRecursive(sourceAbs);
-        for (const f of files) {
-          const rel = path.relative(sourceAbs, f);
-          const out = path.join(destinationAbs, rel);
-          fs.mkdirSync(path.dirname(out), { recursive: true });
-          fs.copyFileSync(f, out);
+
+    if (asset.type === 'skill' && opts && opts.pointerMode) {
+      // Pointer mode: copy full content to vault, write pointer in scan path
+      const skillBase = path.basename(asset.destination);
+      const vaultDir = getVaultDir(destinationHome);
+      const vaultDest = path.join(vaultDir, skillBase);
+      fs.mkdirSync(vaultDest, { recursive: true });
+      const st = fs.statSync(sourceAbs);
+      if (st.isDirectory()) {
+        fs.rmSync(vaultDest, { recursive: true, force: true });
+        if (typeof fs.cpSync === 'function') {
+          fs.cpSync(sourceAbs, vaultDest, { recursive: true, force: true });
+        } else {
+          const files = walkFilesRecursive(sourceAbs);
+          for (const f of files) {
+            const rel = path.relative(sourceAbs, f);
+            const out = path.join(vaultDest, rel);
+            fs.mkdirSync(path.dirname(out), { recursive: true });
+            fs.copyFileSync(f, out);
+          }
         }
+      } else {
+        fs.copyFileSync(sourceAbs, vaultDest);
       }
+      // Write pointer file
+      const vaultRef = skillBase;
+      const pointerContent = generatePointer(skillBase, '', '', vaultRef);
+      fs.mkdirSync(destinationAbs, { recursive: true });
+      fs.writeFileSync(path.join(destinationAbs, 'SKILL.md'), pointerContent, 'utf8');
     } else {
-      fs.copyFileSync(sourceAbs, destinationAbs);
+      const st = fs.statSync(sourceAbs);
+      if (st.isDirectory()) {
+        fs.rmSync(destinationAbs, { recursive: true, force: true });
+        if (typeof fs.cpSync === 'function') {
+          fs.cpSync(sourceAbs, destinationAbs, { recursive: true, force: true });
+        } else {
+          // Fallback for older Node: naive recursive copy.
+          const files = walkFilesRecursive(sourceAbs);
+          for (const f of files) {
+            const rel = path.relative(sourceAbs, f);
+            const out = path.join(destinationAbs, rel);
+            fs.mkdirSync(path.dirname(out), { recursive: true });
+            fs.copyFileSync(f, out);
+          }
+        }
+      } else {
+        fs.copyFileSync(sourceAbs, destinationAbs);
+      }
     }
   }
 
@@ -535,7 +568,47 @@ function removeAsset(destinationHome, asset, opts) {
     tryRemoveEmptyDirsUp(path.dirname(destinationAbs), homeAbs);
   }
 
+  // Clean vault entry if this was a skill (best-effort)
+  if (asset.type === 'skill' || (asset.destination && asset.destination.startsWith('skills/'))) {
+    try {
+      const skillBase = path.basename(asset.destination || '');
+      if (skillBase) {
+        const vaultDir = getVaultDir(homeAbs);
+        const vaultEntry = path.join(vaultDir, skillBase);
+        if (fs.existsSync(vaultEntry)) {
+          fs.rmSync(vaultEntry, { recursive: true, force: true });
+        }
+      }
+    } catch { /* best-effort vault cleanup */ }
+  }
+
   return { action: 'removed', destinationAbs };
+}
+
+function getVaultDir(home) {
+  return path.join(path.resolve(home), 'skills-vault');
+}
+
+function isPointerFile(absPath) {
+  try {
+    const text = fs.readFileSync(absPath, 'utf8');
+    return /^---\s*\n[\s\S]*?vault-ref:\s*\S+/m.test(text);
+  } catch {
+    return false;
+  }
+}
+
+function generatePointer(name, description, triggers, vaultRef) {
+  const lines = [
+    '---',
+    'schema-version: 1',
+    `vault-ref: ${vaultRef}`,
+    '---',
+    `# ${name}`,
+  ];
+  if (description) lines.push(description);
+  if (triggers) lines.push(`Triggers on: ${triggers}`);
+  return lines.join('\n') + '\n';
 }
 
 module.exports = {
@@ -550,5 +623,8 @@ module.exports = {
   syncAsset,
   syncAll,
   removeAsset,
+  generatePointer,
+  isPointerFile,
+  getVaultDir,
 };
 

@@ -27,6 +27,8 @@ const FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION = '1';
 const FINISH_COMPATIBILITY_RECEIPT_CONTRACT_VERSION = '1';
 const DEFAULT_CREATE_IDEMPOTENCY_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_COMPARE_IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_ROUTE_LOCK_TTL_MS = 15 * 1000;
+const MAX_ROUTE_LOCK_TTL_MS = 60 * 1000;
 const DEFAULT_IMPLEMENTED_OUTCOMES_STALE_MS = 6 * 60 * 60 * 1000;
 const DEFAULT_COMPARE_LIMIT = 20;
 const MAX_IMPLEMENTED_SOURCE_BYTES = 2 * 1024 * 1024;
@@ -365,6 +367,15 @@ function buildErrorBody(kind, code, reason, extras = {}) {
 function buildPlanningPersistenceHealthEnvelope(input = {}) {
   const source = isPlainObject(input) ? input : {};
   const migrations = isPlainObject(source.migrations) ? source.migrations : {};
+  const governance = isPlainObject(source.governance) ? source.governance : {};
+  const checksumValidation = isPlainObject(migrations.checksumValidation)
+    ? migrations.checksumValidation
+    : {};
+
+  const normalizedBaselineMismatch = Boolean(migrations.baselineMismatch)
+    || Boolean(checksumValidation.baselineMismatch);
+  const normalizedDriftDetected = Boolean(migrations.driftDetected)
+    || Boolean(checksumValidation.driftDetected);
 
   return {
     contractVersion: normalizeString(source.contractVersion) || '1',
@@ -377,12 +388,54 @@ function buildPlanningPersistenceHealthEnvelope(input = {}) {
     status: normalizeString(source.status) || 'disabled',
     errors: normalizeDeterministicStringArray(source.errors),
     lastError: normalizeString(source.lastError) || null,
+    governance: {
+      deterministic: true,
+      failClosed: governance.failClosed !== false,
+      ready: Boolean(governance.ready),
+      code: normalizeString(governance.code) || 'planning_persistence_disabled',
+      reason: normalizeString(governance.reason)
+        || normalizeString(governance.code)
+        || 'planning_persistence_disabled',
+      reasonCodes: normalizeDeterministicStringArray(governance.reasonCodes),
+    },
     migrations: {
       schemaTable: normalizeString(migrations.schemaTable) || 'ie_schema_versions',
       latestVersion: normalizeString(migrations.latestVersion) || null,
+      manifestCount: normalizePositiveInteger(migrations.manifestCount, 0),
+      checksumBaseline: normalizeString(migrations.checksumBaseline) || null,
+      baselineEnforced: migrations.baselineEnforced !== false,
+      baselineMismatch: normalizedBaselineMismatch,
       appliedCount: normalizePositiveInteger(migrations.appliedCount, 0),
       appliedVersions: normalizeDeterministicStringArray(migrations.appliedVersions),
-      driftDetected: Boolean(migrations.driftDetected),
+      driftDetected: normalizedDriftDetected,
+      checksumValidation: {
+        outcome: normalizeString(checksumValidation.outcome)
+          || (normalizedDriftDetected || normalizedBaselineMismatch ? 'fail' : 'pass'),
+        reason: normalizeString(checksumValidation.reason)
+          || (normalizedBaselineMismatch
+            ? 'manifest_checksum_baseline_mismatch'
+            : normalizedDriftDetected
+              ? 'manifest_checksum_drift_detected'
+              : 'all_manifest_checksums_match'),
+        driftDetected: normalizedDriftDetected,
+        baselineMismatch: normalizedBaselineMismatch,
+        checkedVersionCount: normalizePositiveInteger(checksumValidation.checkedVersionCount, 0),
+        checkedVersions: normalizeDeterministicStringArray(checksumValidation.checkedVersions),
+        manifestVersionCount: normalizePositiveInteger(checksumValidation.manifestVersionCount, 0),
+        manifestChecksumBaseline: normalizeString(checksumValidation.manifestChecksumBaseline)
+          || normalizeString(migrations.checksumBaseline)
+          || null,
+        enforcement: normalizeString(checksumValidation.enforcement) || 'fail_closed',
+        failure: isPlainObject(checksumValidation.failure)
+          ? {
+            version: normalizeString(checksumValidation.failure.version) || null,
+            expectedChecksum: normalizeString(checksumValidation.failure.expectedChecksum) || null,
+            actualChecksum: normalizeString(checksumValidation.failure.actualChecksum) || null,
+            unexpectedVersions: normalizeDeterministicStringArray(checksumValidation.failure.unexpectedVersions),
+            detail: normalizeString(checksumValidation.failure.detail) || null,
+          }
+          : null,
+      },
       lastRunAt: normalizeIso(migrations.lastRunAt),
     },
   };
@@ -509,10 +562,140 @@ function createPlanningApiState() {
     nextRecordNumber: 1,
     recordsVersion: 0,
     recordsProjectionHash: null,
+    routeLocks: new Map(),
     idempotency: {
       create: new Map(),
       compare: new Map(),
     },
+  };
+}
+
+function normalizeRouteLockTtlMs(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_ROUTE_LOCK_TTL_MS;
+  const floored = Math.floor(numeric);
+  if (floored <= 0) return DEFAULT_ROUTE_LOCK_TTL_MS;
+  return Math.min(floored, MAX_ROUTE_LOCK_TTL_MS);
+}
+
+function buildPlanningRouteLockKey(input = {}) {
+  const source = isPlainObject(input) ? input : {};
+  const routeKind = normalizeString(source.routeKind || source.kind).toLowerCase() || 'planning.unknown';
+  const actorId = normalizeIdentity(source.actorId || source.userId) || 'anonymous';
+  const repoId = normalizeIdentity(source.repoId) || '-';
+  const scope = normalizeString(source.scope).toLowerCase() || '-';
+  return ['planning.lock', routeKind, actorId, repoId, scope].join('|');
+}
+
+function ensurePlanningRouteLockStore(state) {
+  if (!state || typeof state !== 'object') {
+    throw new Error('planning_api_state_required');
+  }
+
+  if (!(state.routeLocks instanceof Map)) {
+    state.routeLocks = new Map();
+  }
+
+  return state.routeLocks;
+}
+
+function reapPlanningRouteLocks(store, nowMs) {
+  for (const [lockKey, lock] of store.entries()) {
+    const expiresAtMs = Number(lock && lock.expiresAtMs);
+    if (!Number.isFinite(expiresAtMs) || nowMs > expiresAtMs) {
+      store.delete(lockKey);
+    }
+  }
+}
+
+function acquirePlanningRouteLock(state, input = {}) {
+  const source = isPlainObject(input) ? input : {};
+  const lockStore = ensurePlanningRouteLockStore(state);
+  const nowMs = normalizeNowMs(source.nowMs);
+  const ttlMs = normalizeRouteLockTtlMs(source.ttlMs);
+  const lockKey = buildPlanningRouteLockKey(source);
+  const ownerId = normalizeString(source.ownerId) || 'anonymous-owner';
+
+  reapPlanningRouteLocks(lockStore, nowMs);
+
+  const existing = lockStore.get(lockKey);
+  if (existing && existing.ownerId !== ownerId) {
+    return {
+      ok: false,
+      conflict: true,
+      code: 'planning_route_lock_conflict',
+      reason: 'lock_already_held',
+      deterministic: true,
+      lock: {
+        lockKey,
+        ownerId,
+        heldBy: existing.ownerId,
+        expiresAt: new Date(existing.expiresAtMs).toISOString(),
+      },
+    };
+  }
+
+  const acquiredAtMs = existing && Number.isFinite(existing.acquiredAtMs)
+    ? existing.acquiredAtMs
+    : nowMs;
+  const expiresAtMs = nowMs + ttlMs;
+
+  lockStore.set(lockKey, {
+    lockKey,
+    ownerId,
+    routeKind: normalizeString(source.routeKind || source.kind).toLowerCase() || 'planning.unknown',
+    acquiredAtMs,
+    expiresAtMs,
+  });
+
+  return {
+    ok: true,
+    deterministic: true,
+    acquired: !existing,
+    reentrant: Boolean(existing),
+    lock: {
+      lockKey,
+      ownerId,
+      routeKind: normalizeString(source.routeKind || source.kind).toLowerCase() || 'planning.unknown',
+      ttlMs,
+      acquiredAt: new Date(acquiredAtMs).toISOString(),
+      expiresAt: new Date(expiresAtMs).toISOString(),
+    },
+  };
+}
+
+function releasePlanningRouteLock(state, handle) {
+  const lockStore = ensurePlanningRouteLockStore(state);
+  const source = isPlainObject(handle) ? handle : {};
+  const lock = isPlainObject(source.lock) ? source.lock : source;
+  const lockKey = normalizeString(lock.lockKey);
+  const ownerId = normalizeString(lock.ownerId);
+
+  if (!lockKey || !ownerId) {
+    return {
+      ok: false,
+      released: false,
+      deterministic: true,
+      reason: 'invalid_lock_handle',
+    };
+  }
+
+  const existing = lockStore.get(lockKey);
+  if (!existing || existing.ownerId !== ownerId) {
+    return {
+      ok: true,
+      released: false,
+      deterministic: true,
+      reason: 'lock_not_owned_or_missing',
+    };
+  }
+
+  lockStore.delete(lockKey);
+  return {
+    ok: true,
+    released: true,
+    deterministic: true,
+    reason: 'released',
   };
 }
 
@@ -785,6 +968,42 @@ function attachIdempotency(resultBody, meta) {
     outcome: meta.outcome,
   };
   return body;
+}
+
+function evictPlanningIdempotencyEntry(state, input = {}) {
+  const source = isPlainObject(input) ? input : {};
+  const operation = normalizeString(source.operation).toLowerCase();
+  const scopeKey = normalizeString(source.scopeKey);
+  const idempotencyKey = readIdempotencyHeaderValue(source.idempotencyKey);
+
+  if (!operation || !scopeKey || !idempotencyKey) {
+    return {
+      ok: false,
+      deterministic: true,
+      evicted: false,
+      reason: 'invalid_idempotency_eviction_input',
+    };
+  }
+
+  if (!state || !state.idempotency || !(state.idempotency[operation] instanceof Map)) {
+    return {
+      ok: false,
+      deterministic: true,
+      evicted: false,
+      reason: 'idempotency_store_unavailable',
+    };
+  }
+
+  const store = state.idempotency[operation];
+  const mapKey = `${scopeKey}:${idempotencyKey}`;
+  const evicted = store.delete(mapKey);
+
+  return {
+    ok: true,
+    deterministic: true,
+    evicted,
+    reason: evicted ? 'evicted' : 'entry_missing',
+  };
 }
 
 function createPlanningRecordOperation(state, input = {}) {
@@ -1476,6 +1695,7 @@ module.exports = {
   PROVIDER_LIFECYCLE_CAPABILITY_MATRIX,
   DEFAULT_CREATE_IDEMPOTENCY_TTL_MS,
   DEFAULT_COMPARE_IDEMPOTENCY_TTL_MS,
+  DEFAULT_ROUTE_LOCK_TTL_MS,
   DEFAULT_IMPLEMENTED_OUTCOMES_STALE_MS,
   IMPLEMENTED_OUTCOME_SOURCE_TYPES,
   buildPlanningPersistenceHealthEnvelope,
@@ -1483,11 +1703,15 @@ module.exports = {
   evaluateProviderLifecycleCapability,
   buildLifecycleUnsupportedCapabilityMarker,
   createPlanningApiState,
+  buildPlanningRouteLockKey,
+  acquirePlanningRouteLock,
+  releasePlanningRouteLock,
   replacePlanningProjectionFromPersistedRecords,
   createPlanningRecordOperation,
   listPlanningRecordsOperation,
   searchPlanningRecordsOperation,
   comparePlanningRecordsOperation,
+  evictPlanningIdempotencyEntry,
   normalizeImplementedOutcomeSources,
   ingestImplementedOutcomeSources,
 };

@@ -1,11 +1,14 @@
 export type SkillSourceKind = 'instruction-engine' | 'target-repo';
 
+export type SkillEntryKind = 'full' | 'pointer';
+
 export interface SkillEntry {
 	name: string;
 	path: string;
 	source: SkillSourceKind;
 	repoPath?: string;
 	enabled?: boolean;
+	kind?: SkillEntryKind;
 }
 
 export interface RepoSkills {

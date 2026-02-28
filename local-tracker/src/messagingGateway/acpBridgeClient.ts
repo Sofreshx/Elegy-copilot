@@ -4,6 +4,7 @@ import net from 'net';
 import type { BridgeClient, BridgeClientStatus, CancelSessionParams, InvokeAgentParams, ResolvePermissionParams } from './bridgeClient';
 import type { AcpRpcId } from './acpEventMapping';
 import { mapAcpRequestPermissionToExtensionEventLike, mapAcpSessionUpdateToExtensionEventLike } from './acpEventMapping';
+import type { SdkHooks } from './sdkHooks';
 
 interface JsonRpcRequest {
 	jsonrpc: '2.0';
@@ -81,6 +82,7 @@ export interface AcpBridgeClientOptions {
 	baseReconnectDelayMs?: number;
 	maxReconnectDelayMs?: number;
 	requestTimeoutMs?: number;
+	sdkHooks?: SdkHooks;
 }
 
 /**
@@ -102,6 +104,7 @@ export class AcpBridgeClient implements BridgeClient {
 	private readonly baseReconnectDelayMs: number;
 	private readonly maxReconnectDelayMs: number;
 	private readonly requestTimeoutMs: number;
+	private readonly sdkHooks: SdkHooks | undefined;
 
 	private socket: net.Socket | null = null;
 	private status: BridgeClientStatus = 'idle';
@@ -126,6 +129,7 @@ export class AcpBridgeClient implements BridgeClient {
 		this.baseReconnectDelayMs = options.baseReconnectDelayMs ?? 250;
 		this.maxReconnectDelayMs = options.maxReconnectDelayMs ?? 30_000;
 		this.requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
+		this.sdkHooks = options.sdkHooks;
 	}
 
 	start(): void {
@@ -417,6 +421,16 @@ export class AcpBridgeClient implements BridgeClient {
 						lastUpdatedIso: nowIso,
 					});
 				}
+				// WU-H05b: Fire onPostToolUse for completed tool calls
+				if (this.sdkHooks && ev?.type === 'tool_called' && isRecord(ev.payload)) {
+					const status = typeof ev.payload.status === 'string' ? ev.payload.status : '';
+					if (status === 'completed' || status === 'done') {
+						const toolName = typeof ev.payload.tool === 'string' ? ev.payload.tool : 'unknown';
+						const toolArgs = this.extractToolArgs(ev.payload as Record<string, unknown>);
+						this.sdkHooks.onPostToolUse(toolName, toolArgs, ev.payload);
+					}
+				}
+
 				if (ev) this.onEvent?.(ev);
 			}
 			return;
@@ -452,6 +466,33 @@ export class AcpBridgeClient implements BridgeClient {
 					.map((o) => ({ optionId: typeof o.optionId === 'string' ? o.optionId : '', kind: typeof o.kind === 'string' ? o.kind : undefined }))
 					.filter((o) => o.optionId.length > 0);
 
+				// WU-H05b: Hook-based auto-rejection for blocked tools
+				if (this.sdkHooks) {
+					const toolName = this.extractToolName(parsed.params);
+					const toolArgs = this.extractToolArgs(parsed.params);
+					const hookResult = this.sdkHooks.evaluatePermission(toolName, toolArgs);
+					if (hookResult.autoReject) {
+						// Auto-reject: pick a reject option and respond immediately
+						const rejectOption = options.find((o) => o.kind === 'reject_once' || o.kind === 'reject_always');
+						if (rejectOption?.optionId) {
+							this.sendResponse(parsed.id, { outcome: { outcome: 'selected', optionId: rejectOption.optionId } });
+						} else {
+							this.sendError(parsed.id, -32602, hookResult.message ?? 'Hook policy blocked this tool call; no reject option available');
+						}
+						this.onEvent?.({
+							type: 'permission_resolved',
+							sessionId: ev.sessionId!,
+							payload: {
+								callbackId: String(parsed.id),
+								approved: false,
+								resolvedBy: 'sdk_hook',
+								ruleId: hookResult.ruleId,
+							},
+						});
+						return;
+					}
+				}
+
 				this.pendingPermissions.set(String(parsed.id), {
 					rpcId: parsed.id,
 					sessionId: ev.sessionId!,
@@ -466,6 +507,34 @@ export class AcpBridgeClient implements BridgeClient {
 			this.sendError(parsed.id, -32601, `Method not found: ${parsed.method}`);
 			return;
 		}
+	}
+
+	private extractToolName(params: Record<string, unknown> | undefined): string {
+		if (!params) return 'unknown';
+		if (typeof params.toolName === 'string') return params.toolName;
+		if (typeof params.tool_name === 'string') return params.tool_name;
+		if (typeof params.tool === 'string') return params.tool;
+		if (isRecord(params.toolCall)) {
+			const tc = params.toolCall;
+			if (typeof tc.title === 'string') return tc.title;
+			if (typeof tc.toolName === 'string') return tc.toolName;
+			if (typeof tc.tool_name === 'string') return tc.tool_name;
+			if (typeof tc.name === 'string') return tc.name;
+		}
+		return 'unknown';
+	}
+
+	private extractToolArgs(params: Record<string, unknown> | undefined): Record<string, unknown> {
+		if (!params) return {};
+		if (isRecord(params.toolCall) && isRecord((params.toolCall as Record<string, unknown>).args)) {
+			return (params.toolCall as Record<string, unknown>).args as Record<string, unknown>;
+		}
+		if (isRecord(params.toolCall) && isRecord((params.toolCall as Record<string, unknown>).arguments)) {
+			return (params.toolCall as Record<string, unknown>).arguments as Record<string, unknown>;
+		}
+		if (isRecord(params.args)) return params.args as Record<string, unknown>;
+		if (isRecord(params.arguments)) return params.arguments as Record<string, unknown>;
+		return {};
 	}
 
 	private sendJson(obj: unknown): void {

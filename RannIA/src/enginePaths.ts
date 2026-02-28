@@ -97,6 +97,14 @@ export function getRepoArtefactsDir(repoPath: string): string {
 	return path.join(getRepoStateRootDir(repoPath), 'artefacts');
 }
 
+export function getSkillVaultDir(): string {
+	return path.join(resolveStateRoot(), 'skills-vault');
+}
+
+export function getMigrationJournalPath(): string {
+	return path.join(getSkillVaultDir(), '.migration-journal.json');
+}
+
 export function getRepoContextsDir(repoPath: string): string {
 	return path.join(getRepoStateRootDir(repoPath), 'contexts');
 }

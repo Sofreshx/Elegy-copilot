@@ -5,6 +5,7 @@ import { scanSkills } from './skillScanner';
 import { scanTasks } from './taskScanner';
 import { setRepoItemEnabled } from './enablementStore';
 import { RepoSkills, SkillEntry } from './types';
+import { isPointerEnabled } from './skillPointer';
 
 function normalizeKey(value: string): string {
 	return value.trim().toLowerCase();
@@ -91,6 +92,13 @@ async function getRecommendedSkillSet(repoPath: string): Promise<Set<string>> {
 }
 
 export async function initializeSkills(output: vscode.OutputChannel): Promise<void> {
+	if (isPointerEnabled()) {
+		void vscode.window.showWarningMessage(
+			'Skills are in pointer mode. Initialize skills is not available in pointer mode.'
+		);
+		return;
+	}
+
 	const snapshot = await scanSkills();
 	const targetRepos = snapshot.targetRepos;
 	if (targetRepos.length === 0) {

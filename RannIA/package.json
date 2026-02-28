@@ -64,7 +64,9 @@
     "onCommand:skillInstaller.clearRepoContext",
     "onCommand:skillInstaller.clearAllRepoContexts",
     "onCommand:skillInstaller.migrateLegacyState",
-    "onCommand:skillInstaller.ws.showPort"
+    "onCommand:skillInstaller.ws.showPort",
+    "onCommand:skillInstaller.skillPointer.migrate",
+    "onCommand:skillInstaller.skillPointer.refreshIndex"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -231,6 +233,16 @@
         "command": "skillInstaller.ws.showPort",
         "title": "WS: Show Port (Copy URL)",
         "category": "Instruction Engine"
+      },
+      {
+        "command": "skillInstaller.skillPointer.migrate",
+        "title": "SkillPointer: Toggle Migration",
+        "icon": "$(database)"
+      },
+      {
+        "command": "skillInstaller.skillPointer.refreshIndex",
+        "title": "SkillPointer: Refresh Search Index",
+        "icon": "$(search-refresh)"
       }
     ],
     "menus": {
@@ -361,6 +373,11 @@
           "type": "boolean",
           "default": false,
           "description": "Show low-signal skills that are typically handled by the base model (debug/docs/refactor/design)."
+        },
+        "skillInstaller.skillPointer.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable SkillPointer mode: skills are stored in a vault and exposed via lightweight pointer files."
         },
         "skillInstaller.agents.disabledByRepo": {
           "type": "object",

@@ -5,6 +5,8 @@ description: Create an implementation plan (with risks + validation) and require
 
 Create a concrete implementation plan for the task I’m asking about.
 
+Before proceeding, apply `core-guardrails` safety constraints (especially terminal/background-process rules).
+
 Requirements:
 - Include: goals, assumptions, explicit scope boundaries, phased steps, risks, validation, and rollback.
 - Keep the plan actionable (file-level where possible).

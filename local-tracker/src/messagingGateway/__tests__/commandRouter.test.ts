@@ -30,6 +30,7 @@ function makeRouter(overrides?: {
 	policy?: Partial<CommandRouterPolicy>;
 	extensionClient?: any;
 	permissionOrchestrator?: any;
+	sessionDriver?: any;
 	workspaceRoots?: string[];
 	setActiveWorkspaceRoot?: jest.Mock;
 }) {
@@ -43,6 +44,7 @@ function makeRouter(overrides?: {
 		},
 		auditLogger: { log: jest.fn() } as any,
 		extensionClient: overrides?.extensionClient,
+		sessionDriver: overrides?.sessionDriver,
 		permissionOrchestrator: overrides?.permissionOrchestrator ?? {
 			approve: jest.fn(async () => undefined),
 			deny: jest.fn(async () => undefined),
@@ -566,5 +568,121 @@ describe('Platform-aware authorization (WU-005)', () => {
 		);
 		expect(res.kind).toBe('denied');
 		expect(res.meta?.reason).toBe('guild_scope_mismatch');
+	});
+});
+
+// ── 10) SessionDriver delegation (WU-S05/S06/S07a/S07b/S08) ──────────────
+
+describe('SessionDriver delegation', () => {
+	const mockDriver = () => ({
+		invokeAgent: jest.fn(async () => ({ sessionId: 'sd-1' })),
+		cancelSession: jest.fn(async () => undefined),
+		getSessions: jest.fn(async () => [
+			{ id: 'sd-1', status: 'active', agentName: 'orchestrator', createdAt: '2026-01-01T00:00:00Z' },
+		]),
+		resolvePermission: jest.fn(async () => undefined),
+		getStatus: jest.fn(() => 'connected'),
+		getSource: jest.fn(() => 'local' as const),
+	});
+
+	it('/task delegates to sessionDriver.invokeAgent when present', async () => {
+		const driver = mockDriver();
+		const router = makeRouter({ sessionDriver: driver });
+		const res = await router.route({ name: '/task', args: { prompt: 'hello' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(driver.invokeAgent).toHaveBeenCalledWith({ agentName: 'orchestrator', prompt: 'hello' });
+	});
+
+	it('/task extracts sessionId from sessionDriver result', async () => {
+		const driver = mockDriver();
+		const router = makeRouter({ sessionDriver: driver });
+		const res = await router.route({ name: '/task', args: { prompt: 'hello' } }, ctx);
+		expect(res.meta?.sessionId).toBe('sd-1');
+	});
+
+	it('/plan delegates to sessionDriver.invokeAgent when present', async () => {
+		const driver = mockDriver();
+		const router = makeRouter({ sessionDriver: driver });
+		const res = await router.route({ name: '/plan', args: { prompt: 'make a plan' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(driver.invokeAgent).toHaveBeenCalledTimes(1);
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		expect((driver.invokeAgent.mock.calls as any)[0][0].prompt).toContain('PLAN ONLY');
+	});
+
+	it('/stop delegates to sessionDriver.cancelSession when present', async () => {
+		const driver = mockDriver();
+		const router = makeRouter({ sessionDriver: driver });
+		const res = await router.route({ name: '/stop', args: { sessionId: 'sd-1' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(driver.cancelSession).toHaveBeenCalledWith({ sessionId: 'sd-1' });
+	});
+
+	it('/sessions delegates to sessionDriver.getSessions when present', async () => {
+		const driver = mockDriver();
+		const router = makeRouter({ sessionDriver: driver });
+		const res = await router.route({ name: '/sessions' }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(driver.getSessions).toHaveBeenCalledTimes(1);
+		expect(res.messages.join('\n')).toContain('Sessions');
+	});
+
+	it('/approve calls permissionOrchestrator AND sessionDriver.resolvePermission', async () => {
+		const driver = mockDriver();
+		const orch = {
+			approve: jest.fn(async () => undefined),
+			deny: jest.fn(async () => undefined),
+			getPending: jest.fn(() => []),
+		};
+		const router = makeRouter({ sessionDriver: driver, permissionOrchestrator: orch });
+		const res = await router.route({ name: '/approve', args: { callbackId: 'cb-1' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(orch.approve).toHaveBeenCalledWith('cb-1');
+		expect(driver.resolvePermission).toHaveBeenCalledWith({ callbackId: 'cb-1', approved: true });
+	});
+
+	it('/deny calls permissionOrchestrator AND sessionDriver.resolvePermission', async () => {
+		const driver = mockDriver();
+		const orch = {
+			approve: jest.fn(async () => undefined),
+			deny: jest.fn(async () => undefined),
+			getPending: jest.fn(() => []),
+		};
+		const router = makeRouter({ sessionDriver: driver, permissionOrchestrator: orch });
+		const res = await router.route({ name: '/deny', args: { callbackId: 'cb-2' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(orch.deny).toHaveBeenCalledWith('cb-2');
+		expect(driver.resolvePermission).toHaveBeenCalledWith({ callbackId: 'cb-2', approved: false });
+	});
+
+	it('/approve tolerates sessionDriver.resolvePermission failure (best-effort)', async () => {
+		const driver = mockDriver();
+		driver.resolvePermission.mockRejectedValue(new Error('boom'));
+		const router = makeRouter({ sessionDriver: driver });
+		const res = await router.route({ name: '/approve', args: { callbackId: 'cb-3' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(res.messages.join('\n')).toContain('Approved');
+	});
+
+	it('/task falls back to extensionClient when sessionDriver is absent', async () => {
+		const client = {
+			getStatus: () => 'connected',
+			invoke_agent: jest.fn(async () => ({ sessionId: 'ec-1' })),
+		};
+		const router = makeRouter({ extensionClient: client });
+		const res = await router.route({ name: '/task', args: { prompt: 'hi' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(client.invoke_agent).toHaveBeenCalled();
+	});
+
+	it('/stop falls back to extensionClient when sessionDriver is absent', async () => {
+		const client = {
+			getStatus: () => 'connected',
+			cancel_session: jest.fn(async () => undefined),
+		};
+		const router = makeRouter({ extensionClient: client });
+		const res = await router.route({ name: '/stop', args: { sessionId: 'x' } }, ctx);
+		expect(res.kind).toBe('ok');
+		expect(client.cancel_session).toHaveBeenCalledWith({ sessionId: 'x' });
 	});
 });

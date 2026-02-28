@@ -547,6 +547,21 @@ function removeStaleLocations(settings) {
 	return changed;
 }
 
+function removeVaultFromSkillLocations(settings) {
+	const key = 'chat.agentSkillsLocations';
+	const val = settings[key];
+	if (!val || typeof val !== 'object' || Array.isArray(val)) return false;
+	let changed = false;
+	for (const k of Object.keys(val)) {
+		if (k.includes('skills-vault') || k.includes('skills_vault')) {
+			delete val[k];
+			changed = true;
+			console.log(`  (removed vault path from skill locations: ${k})`);
+		}
+	}
+	return changed;
+}
+
 function main() {
 	const args = parseArgs(process.argv.slice(2));
 	const assetsHome = resolveAssetsHome(args);
@@ -589,6 +604,9 @@ function main() {
 		changed = ensureLocationEnabled(settings, 'chat.agentSkillsLocations', desired.skills) || changed;
 		changed = ensureLocationEnabled(settings, 'chat.promptFilesLocations', desired.prompts) || changed;
 		changed = ensureLocationEnabled(settings, 'chat.instructionsFilesLocations', desired.instructions) || changed;
+
+		// Guard: vault path must NEVER appear in skills scan locations
+		changed = removeVaultFromSkillLocations(settings) || changed;
 
 		// Add a conservative auto-approval list for common safe terminal commands.
 		changed = ensureTerminalAutoApprove(settings) || changed;

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-02-27
 category: system
 status: current
 doc_kind: node
@@ -63,3 +63,12 @@ A skill is a prune/deprecate candidate if:
 - it is rarely invoked and yields no quality delta.
 
 Prefer **hide/deprecate** before deletion to preserve backward compatibility.
+
+## Implementation friction capture
+Use `implementation-friction` when delivery is slowed by recurring codebase pain points (e.g., shaky patterns, dead code, brittle structure).
+
+Operational rules:
+- Keep capture low-overhead: one concise log entry, then continue implementation.
+- Prefer recurrence-based logging over one-off annoyance logging.
+- Suggestions can be blank when root-cause analysis would derail current work.
+- Log target: `docs/issues/implementation-friction-log.md`.

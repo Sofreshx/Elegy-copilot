@@ -41,7 +41,7 @@ function runValidator(filePath, args = []) {
 	});
 }
 
-function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows }) {
+function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows, planPackVersion = 1 }) {
 	const defaultReleaseTag = 'release-2026.02.25.1';
 	const defaultTimestamp = new Date().toISOString();
 
@@ -90,7 +90,7 @@ function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows }) {
 		];
 
 	return `# Plan Pack — Final Gate Validation Test
-<!-- IE_PLAN_PACK_VERSION: 1 -->
+<!-- IE_PLAN_PACK_VERSION: ${planPackVersion} -->
 ## Goal + Success Criteria
 - Goal: Validate final gate control behavior.
 - Success Criteria:
@@ -214,6 +214,15 @@ test('passes when all required final gate controls are passed', () => {
 	withTempPlanFile(planContent, (filePath) => {
 		const result = runValidator(filePath);
 		assert.strictEqual(result.status, 0, `validator should pass, stderr: ${result.stderr}`);
+	});
+});
+
+test('fails closed when IE_PLAN_PACK_VERSION is unsupported', () => {
+	const planContent = buildPlanPack({ planPackVersion: 2 });
+	withTempPlanFile(planContent, (filePath) => {
+		const result = runValidator(filePath);
+		assert.notStrictEqual(result.status, 0, 'validator should fail for unsupported version markers');
+		assert.match(result.stderr, /unsupported planpack version: 2/i);
 	});
 });
 

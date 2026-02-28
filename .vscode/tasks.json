@@ -121,6 +121,15 @@
 			"group": "test"
 		},
 		{
+			"label": "validate: pointer manifest",
+			"type": "shell",
+			"command": "node",
+			"args": ["scripts/validate-manifest.pointer.test.js"],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
 			"label": "test: all",
 			"dependsOn": ["test: scripts", "test: copilot-ui", "test: local-tracker", "test: RannIA"],
 			"problemMatcher": [],

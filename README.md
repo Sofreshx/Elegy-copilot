@@ -50,7 +50,7 @@ This copies all agents, skills, prompts, and the global instructions file into `
 | Type | Count | Location |
 |------|-------|----------|
 | Agents | 32 | `engine-assets/agents/*.agent.md` |
-| Skills | 40 | `engine-assets/skills/<name>/SKILL.md` |
+| Skills | 41 | `engine-assets/skills/<name>/SKILL.md` |
 | Prompts | 3 | `engine-assets/prompts/*.prompt.md` |
 | Instructions | 1 | `engine-assets/copilot-instructions.md` |
 | Manifest (install/shipping) | — | `.cli/manifest.json` |
@@ -134,6 +134,20 @@ Release-safety rules (G-06-WU-03):
 - WS6 is a post-WS1 gate: execute WS6 compatibility/release-safety work only after the WS1 contract freeze (`G-01-WU-04`).
 - WS2 owns the primary non-Docker default runtime behavior.
 - WS6 non-Docker scope is compatibility/upgrade safety only (mixed-version compatibility, rollback, release safety), not primary default behavior changes.
+
+### WS6 CI topology + required checks (locked)
+
+- Authoritative workflow: `.github/workflows/extension-ci.yml`.
+- Required topology is fixed and fail-closed: `build` → `ws6-evidence` (matrix `WS6-E1`..`WS6-E5`) → `ws6-artifact-gate` → `required-checks`.
+- `required-checks` must fail when any required upstream job is non-`success`, skipped, or missing required artifact completeness output.
+- `release` requires both `build` and `required-checks`; tag publish is blocked until both succeed.
+
+### WS6 validation ladder + rollback contract (narrow → broad)
+
+- Narrow: `node scripts/validate-manifest.js` and `node scripts/validate-doc-graph.js`.
+- Mid: mixed-version + checksum invariants (`server.lifecycle-proxy.test.js`, `gatewayHttpServer.test.ts`, `planningPersistence.test.js`, `server.runtime-health.test.js`).
+- Broad: rollback threshold + kill-switch assertions (`rollbackPolicy.test.js`, `updatePolicy.rollback.test.js`, `updater.rollback.test.js`).
+- Any failure in this ladder is release-blocking and requires regenerated WS6 evidence artifacts.
 
 ### One-time VS Code setup (reducing permission prompts)
 

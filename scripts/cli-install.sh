@@ -3,6 +3,7 @@ set -euo pipefail
 
 DRY_RUN=false
 FORCE=false
+POINTER_MODE=false
 
 DO_CLI=false
 DO_VSCODE=false
@@ -16,9 +17,10 @@ for arg in "$@"; do
     --cli) DO_CLI=true ;;
     --vscode) DO_VSCODE=true ;;
     --all) DO_CLI=true; DO_VSCODE=true ;;
+    --pointer) POINTER_MODE=true ;;
     --vscode-settings=*) VSCODE_SETTINGS="${arg#--vscode-settings=}" ;;
     --vscode-home=*) VSCODE_HOME="${arg#--vscode-home=}" ;;
-    *) echo "Unknown arg: $arg (supported: --dry-run, --force, --cli, --vscode, --all, --vscode-settings=<path>, --vscode-home=<path>)" >&2; exit 2 ;;
+    *) echo "Unknown arg: $arg (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --vscode-settings=<path>, --vscode-home=<path>)" >&2; exit 2 ;;
   esac
 done
 
@@ -288,11 +290,35 @@ if $DO_CLI; then
 
   # engine-assets/skills/<skill>/** -> <copilotHome>/skills/<skill>/**
   mkdir_if_needed "$COPILOT_HOME/skills"
-  for src_dir in "$SRC_SKILLS_ROOT"/*; do
-    [[ -d "$src_dir" ]] || continue
-    skill_name="$(basename "$src_dir")"
-    sync_dir "$src_dir" "$COPILOT_HOME/skills/$skill_name"
-  done
+  if $POINTER_MODE; then
+    mkdir_if_needed "$COPILOT_HOME/skills-vault"
+    for src_dir in "$SRC_SKILLS_ROOT"/*; do
+      [[ -d "$src_dir" ]] || continue
+      skill_name="$(basename "$src_dir")"
+      # Copy full skill to vault
+      sync_dir "$src_dir" "$COPILOT_HOME/skills-vault/$skill_name"
+      # Write pointer file in scan path
+      mkdir_if_needed "$COPILOT_HOME/skills/$skill_name"
+      if ! $DRY_RUN; then
+        cat > "$COPILOT_HOME/skills/$skill_name/SKILL.md" <<POINTER
+---
+schema-version: 1
+vault-ref: $skill_name
+---
+# $skill_name
+Triggers on: $skill_name
+POINTER
+      else
+        echo "[DRY-RUN] write pointer: $COPILOT_HOME/skills/$skill_name/SKILL.md"
+      fi
+    done
+  else
+    for src_dir in "$SRC_SKILLS_ROOT"/*; do
+      [[ -d "$src_dir" ]] || continue
+      skill_name="$(basename "$src_dir")"
+      sync_dir "$src_dir" "$COPILOT_HOME/skills/$skill_name"
+    done
+  fi
 
   # engine-assets/copilot-instructions.md -> <copilotHome>/copilot-instructions.md
   sync_file "$SRC_INSTRUCTIONS" "$COPILOT_HOME/copilot-instructions.md"
@@ -307,11 +333,33 @@ if $DO_VSCODE; then
   done
 
   mkdir_if_needed "$VSCODE_HOME_RESOLVED/skills"
-  for src_dir in "$SRC_SKILLS_ROOT"/*; do
-    [[ -d "$src_dir" ]] || continue
-    skill_name="$(basename "$src_dir")"
-    sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills/$skill_name"
-  done
+  if $POINTER_MODE; then
+    mkdir_if_needed "$VSCODE_HOME_RESOLVED/skills-vault"
+    for src_dir in "$SRC_SKILLS_ROOT"/*; do
+      [[ -d "$src_dir" ]] || continue
+      skill_name="$(basename "$src_dir")"
+      sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills-vault/$skill_name"
+      mkdir_if_needed "$VSCODE_HOME_RESOLVED/skills/$skill_name"
+      if ! $DRY_RUN; then
+        cat > "$VSCODE_HOME_RESOLVED/skills/$skill_name/SKILL.md" <<POINTER
+---
+schema-version: 1
+vault-ref: $skill_name
+---
+# $skill_name
+Triggers on: $skill_name
+POINTER
+      else
+        echo "[DRY-RUN] write pointer: $VSCODE_HOME_RESOLVED/skills/$skill_name/SKILL.md"
+      fi
+    done
+  else
+    for src_dir in "$SRC_SKILLS_ROOT"/*; do
+      [[ -d "$src_dir" ]] || continue
+      skill_name="$(basename "$src_dir")"
+      sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills/$skill_name"
+    done
+  fi
 
   mkdir_if_needed "$VSCODE_HOME_RESOLVED/prompts"
   for src in "$SRC_PROMPTS_ROOT/"*.prompt.md; do

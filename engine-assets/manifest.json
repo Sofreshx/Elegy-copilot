@@ -18,6 +18,12 @@
     "skillsRequireFolderName": true,
     "notes": "If the installer flattens source folders, it should still write files using each asset.destination path."
   },
+  "skillPointer": {
+    "enabled": false,
+    "schemaVersion": 1,
+    "vaultDir": "skills-vault",
+    "notes": "When enabled, CLI installers write pointer stubs to skills/ and full content to skills-vault/. Consumers must read vault-ref from pointer frontmatter to resolve full skill content."
+  },
   "governance": {
     "g05": {
       "schemaVersion": "1.0.0",
@@ -299,6 +305,12 @@
       "type": "skill",
       "source": "engine-assets/skills/code-review",
       "destination": "skills/code-review"
+    },
+    {
+      "id": "skill-core-guardrails",
+      "type": "skill",
+      "source": "engine-assets/skills/core-guardrails",
+      "destination": "skills/core-guardrails"
     },
     {
       "id": "skill-csharp-expert",

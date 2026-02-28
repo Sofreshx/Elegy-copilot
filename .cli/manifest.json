@@ -307,6 +307,12 @@
       "destination": "skills/code-review"
     },
     {
+      "id": "skill-core-guardrails",
+      "type": "skill",
+      "source": "engine-assets/skills/core-guardrails",
+      "destination": "skills/core-guardrails"
+    },
+    {
       "id": "skill-csharp-expert",
       "type": "skill",
       "source": "engine-assets/skills/csharp-expert",
@@ -323,6 +329,12 @@
       "type": "skill",
       "source": "engine-assets/skills/frontend",
       "destination": "skills/frontend"
+    },
+    {
+      "id": "skill-implementation-friction",
+      "type": "skill",
+      "source": "engine-assets/skills/implementation-friction",
+      "destination": "skills/implementation-friction"
     },
     {
       "id": "skill-instruction-quality",

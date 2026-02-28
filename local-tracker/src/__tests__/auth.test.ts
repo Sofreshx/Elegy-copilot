@@ -129,4 +129,54 @@ describe("TrackerAuth", () => {
       expect(auth.validateToken(token)).toBe(true);
     });
   });
+
+  describe("evaluateTokenReadiness()", () => {
+    const auth = new TrackerAuth();
+
+    it("returns deterministic missing readiness when token is not provided", () => {
+      expect(auth.evaluateTokenReadiness(undefined, "missing")).toEqual({
+        contractVersion: 1,
+        state: "missing",
+        reasonCode: "relay_token_missing",
+        deterministic: true,
+        source: "missing",
+      });
+    });
+
+    it("returns deterministic invalid readiness for malformed tokens", () => {
+      expect(auth.evaluateTokenReadiness("not-a-jwt", "env")).toEqual({
+        contractVersion: 1,
+        state: "invalid",
+        reasonCode: "relay_token_invalid",
+        deterministic: true,
+        source: "env",
+      });
+    });
+
+    it("returns deterministic expired readiness for expired token", () => {
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation();
+
+      const expired = makeJwt({}, { exp: Math.floor(Date.now() / 1000) - 60 });
+      expect(auth.evaluateTokenReadiness(expired, "env")).toEqual({
+        contractVersion: 1,
+        state: "expired",
+        reasonCode: "relay_token_expired",
+        deterministic: true,
+        source: "env",
+      });
+
+      warnSpy.mockRestore();
+    });
+
+    it("returns deterministic ready readiness for valid token", () => {
+      const token = makeJwt();
+      expect(auth.evaluateTokenReadiness(token, "env")).toEqual({
+        contractVersion: 1,
+        state: "ready",
+        reasonCode: "relay_token_valid",
+        deterministic: true,
+        source: "env",
+      });
+    });
+  });
 });

@@ -369,6 +369,7 @@ describe('LifecycleOperationsHandler', () => {
 		expect(firstResult).toMatchObject({
 			sandboxId: 'sb-edited-canonical',
 			status: 'finished',
+			finishDeterministic: true,
 			deduped: true,
 			coalescedCallCount: 2,
 			dedupeKey: 'finish:sb-edited-canonical:skip-pr',
@@ -416,6 +417,7 @@ describe('LifecycleOperationsHandler', () => {
 		await expect(first).resolves.toMatchObject({
 			sandboxId: 'sb-finish-conflict',
 			status: 'finished',
+			finishDeterministic: true,
 		});
 
 		expect(harness.auditLogger.logSecurityEvent).toHaveBeenCalledWith(

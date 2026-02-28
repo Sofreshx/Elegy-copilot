@@ -21,6 +21,9 @@ import { McpProvidersTreeProvider } from './mcpProvidersTree';
 import { McpProviderInfo, syncMcpConfigForRepo, syncMcpConfigForWorkspace } from './mcpConfig';
 import { DumpCleanerTreeProvider } from './dumpCleanerTree';
 import { migrateLegacyWorkspaceState } from './legacyMigration';
+import { resumeMigration, getCurrentPhase, migrateIn, migrateOut } from './skillPointerLifecycle';
+import { isPointerEnabled } from './skillPointer';
+import { buildSearchIndex, SkillSearchIndex } from './skillResolver';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -84,6 +87,9 @@ function isInstructionEngineFolder(folder: vscode.WorkspaceFolder): boolean {
 export function activate(context: vscode.ExtensionContext): void {
 	const output = vscode.window.createOutputChannel('RannIA');
 	context.subscriptions.push(output);
+
+	// SkillPointer: resume any interrupted migration before discovery
+	resumeMigration(output);
 
 	// Initialize session manager
 	const sessionManager = new SessionManager(output);
@@ -185,6 +191,21 @@ export function activate(context: vscode.ExtensionContext): void {
 			permissionsProvider.invalidateCache();
 			mcpProvider.invalidateCache();
 			dumpCleanerProvider.invalidateCache();
+		})
+	);
+
+	// SkillPointer: build search index if in pointer mode
+	let skillSearchIndex: SkillSearchIndex | undefined;
+	if (isPointerEnabled()) {
+		skillSearchIndex = buildSearchIndex();
+		output.appendLine(`[SkillPointer] Search index built: ${skillSearchIndex.entries.length} entries`);
+	}
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.skillPointer.refreshIndex', () => {
+			skillSearchIndex = buildSearchIndex();
+			output.appendLine(`[SkillPointer] Search index refreshed: ${skillSearchIndex?.entries.length ?? 0} entries`);
+			skillProvider.invalidateCache();
 		})
 	);
 
@@ -461,6 +482,33 @@ export function activate(context: vscode.ExtensionContext): void {
 	);
 
 	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.skillPointer.migrate', () => {
+			const phase = getCurrentPhase();
+			const enabled = isPointerEnabled();
+
+			if (enabled && phase === 'disabled') {
+				const result = migrateIn(output);
+				if (result.success) {
+					void vscode.window.showInformationMessage('SkillPointer migration complete. Skills are now in pointer mode.');
+				} else {
+					void vscode.window.showErrorMessage(`SkillPointer migration failed: ${result.error}`);
+				}
+			} else if (!enabled && phase === 'enabled') {
+				const result = migrateOut(output);
+				if (result.success) {
+					void vscode.window.showInformationMessage('SkillPointer restoration complete. Skills are back to full mode.');
+				} else {
+					void vscode.window.showErrorMessage(`SkillPointer restoration failed: ${result.error}`);
+				}
+			} else {
+				void vscode.window.showInformationMessage(`SkillPointer: phase=${phase}, flag=${enabled ? 'enabled' : 'disabled'}. No action needed.`);
+			}
+
+			skillProvider.invalidateCache();
+		})
+	);
+
+	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration((event) => {
 			if (event.affectsConfiguration('skillInstaller.mcp')) {
 				mcpProvider.invalidateCache();
@@ -469,6 +517,22 @@ export function activate(context: vscode.ExtensionContext): void {
 					.get<boolean>('skillInstaller.mcp.autoSync', true);
 				if (autoSync) {
 					void syncMcpConfigForWorkspace(output);
+				}
+			}
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeConfiguration((event) => {
+			if (event.affectsConfiguration('skillInstaller.skillPointer.enabled')) {
+				const enabled = vscode.workspace.getConfiguration().get<boolean>('skillInstaller.skillPointer.enabled', false);
+				const phase = getCurrentPhase();
+				if (enabled && phase === 'disabled') {
+					migrateIn(output);
+					skillProvider.invalidateCache();
+				} else if (!enabled && phase === 'enabled') {
+					migrateOut(output);
+					skillProvider.invalidateCache();
 				}
 			}
 		})

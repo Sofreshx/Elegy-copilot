@@ -8,6 +8,7 @@ import { TrackerEvent } from "../types";
 function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
   return {
     workspacePaths: ["/test/workspace"],
+    relayTokenSource: "missing",
     localWsPort: 0, // random free port
     watchIntervalMs: 2000,
     statusPort: 0,

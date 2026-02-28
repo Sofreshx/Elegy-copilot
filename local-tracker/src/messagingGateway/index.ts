@@ -13,15 +13,31 @@ import {
 import { AuditLogger } from './auditLogger';
 import { CommandRouter, WU002_POLICY_CONTRACT } from './commandRouter';
 import { DiscordPlatform } from './discordPlatform';
+import { TelegramPlatform } from './telegramPlatform';
 import type { BridgeClient } from './bridgeClient';
 import { AcpBridgeClient } from './acpBridgeClient';
 import { PermissionOrchestrator } from './permissionOrchestrator';
 import { SessionThreadManager } from './sessionThreadManager';
 import { formatSessionLine, isActiveSessionStatus, parseBridgeSessions } from './sessionsHelpers';
-import { deleteGatewaySecret, ensureGatewayHttpToken, getGatewaySecret, getGatewaySecretsStatus, storeGatewaySecretFromEnv } from './secrets';
+import { hasSessionSummaryCapability } from './platformCapabilities';
+import type { PlatformCommandInteraction } from './platform';
+import {
+	deleteGatewaySecret,
+	ensureGatewayHttpToken,
+	ensureTelegramWebhookSecret,
+	getGatewaySecret,
+	getGatewaySecretsStatus,
+	storeGatewaySecretFromEnv,
+} from './secrets';
 import { detectModeAuto } from './workspaceDetection';
 import { printGatewayStatusSummary } from './status';
-import { MessagingGatewayStatusWriter, resolveMessagingGatewayStatusPath, type MessagingGatewayStatusV1 } from './statusFile';
+import {
+	deriveMessagingGatewayReadiness,
+	MessagingGatewayStatusWriter,
+	MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
+	resolveMessagingGatewayStatusPath,
+	type MessagingGatewayStatusV1,
+} from './statusFile';
 import { ContainerManager, type ContainerManagerOptions } from './containerManager';
 import { PortAllocator, type PortAllocatorOptions } from './portAllocator';
 import { createLifecycleOperationsHandler } from './lifecycleOperations';
@@ -234,6 +250,24 @@ async function handleSecretUtilityFlags(args: CliArgs): Promise<boolean> {
 }
 
 async function main() {
+	// OTel SDK initialization — feature-flagged
+	if (process.env.OTEL_WORKFLOW_TRACING_ENABLED === 'true') {
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const { NodeSDK } = require('@opentelemetry/sdk-node');
+			// eslint-disable-next-line @typescript-eslint/no-var-requires
+			const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http');
+			const sdk = new NodeSDK({
+				traceExporter: new OTLPTraceExporter(),
+				serviceName: 'local-tracker-gateway',
+			});
+			sdk.start();
+			process.on('SIGTERM', () => sdk.shutdown());
+		} catch (err) {
+			console.warn('[OTel] Failed to initialize:', err);
+		}
+	}
+
 	const args = parseArgs(process.argv.slice(2));
 	if (args.help) {
 		printHelp();
@@ -253,6 +287,11 @@ async function main() {
 	if (await handleSecretUtilityFlags(args)) return;
 
 	const loaded = loadMessagingGatewayConfig(args.configPath);
+	const discordConfig = loaded.config.discord;
+	const telegramConfig = loaded.config.telegram;
+	if (!discordConfig && !telegramConfig) {
+		throw new Error('[Gateway] Invalid config: at least one platform (discord or telegram) must be configured');
+	}
 
 	const requestedMode = resolveRequestedMode(args.mode, loaded.config.mode);
 	let activeWorkspaceRoot = loaded.config.workspaces.activeRoot;
@@ -261,11 +300,25 @@ async function main() {
 	const mode = requestedMode === 'auto' ? detectModeAuto(acpPort) : requestedMode;
 	const secretsStatus = await getGatewaySecretsStatus();
 
-	const discordBotToken = await getGatewaySecret('discordBotToken');
-	if (!discordBotToken.value) {
-		throw new Error(
-			'[Gateway] Missing required secret: Discord bot token. Store it in the OS credential store (preferred) or set INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN.',
-		);
+	if (discordConfig) {
+		const discordBotToken = await getGatewaySecret('discordBotToken');
+		if (!discordBotToken.value) {
+			throw new Error(
+				'[Gateway] Missing required secret: Discord bot token. Store it in the OS credential store (preferred) or set INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN.',
+			);
+		}
+	}
+
+	let telegramWebhookSecret: string | undefined;
+	if (telegramConfig) {
+		const telegramBotToken = await getGatewaySecret('telegramBotToken');
+		if (!telegramBotToken.value) {
+			throw new Error(
+				'[Gateway] Missing required secret: Telegram bot token. Store it in the OS credential store (preferred) or set INSTRUCTION_ENGINE_TELEGRAM_BOT_TOKEN.',
+			);
+		}
+		const webhookSecret = await ensureTelegramWebhookSecret();
+		telegramWebhookSecret = webhookSecret.value;
 	}
 
 	if (mode === 'connected' && !acpPort) {
@@ -279,22 +332,23 @@ async function main() {
 		configPath: loaded.configPath,
 		activeWorkspaceRoot,
 		allowedWorkspaceRootsCount: loaded.config.workspaces.allowedRoots.length,
-		allowlistedDiscordUsersCount: loaded.config.discord.allowlistedUserIds.length,
-		discordGuildId: loaded.config.discord.guildId,
-		discordChannelId: loaded.config.discord.channelId,
-		discordPermissionsChannelId: loaded.config.discord.permissionsChannelId,
+		allowlistedDiscordUsersCount: discordConfig?.allowlistedUserIds.length ?? 0,
+		discordGuildId: discordConfig?.guildId,
+		discordChannelId: discordConfig?.channelId,
+		discordPermissionsChannelId: discordConfig?.permissionsChannelId,
 		secrets: secretsStatus,
 		acpHost,
 		acpPort,
 	});
 
 	const auditLogger = new AuditLogger({ workspaceRoot: activeWorkspaceRoot });
-	const discord = new DiscordPlatform(loaded.config.discord);
+	const discord = discordConfig ? new DiscordPlatform(discordConfig) : undefined;
+	const telegram = telegramConfig ? new TelegramPlatform(telegramConfig) : undefined;
 
 	const sessionThreads = new SessionThreadManager({
 		minUpdateIntervalMs: 3000,
 		postPermissionPrompt: async (req) => {
-			// Discord-only: permission prompts are posted into the session thread.
+			if (!discord) return;
 			try {
 				await discord.sendPermissionPrompt({
 					threadId: req.threadId,
@@ -306,6 +360,7 @@ async function main() {
 			}
 		},
 		markPermissionResolved: async (res) => {
+			if (!discord) return;
 			try {
 				await discord.markPermissionPromptResolved({
 					callbackId: res.callbackId,
@@ -323,17 +378,32 @@ async function main() {
 		resolveMessagingGatewayStatusPath(loaded.configPath),
 		{
 			schemaVersion: 1,
+			contractVersion: MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
+			compatibility: {
+				normalizedFrom: loaded.config.compatibility?.normalizedFrom ?? 'v1',
+				deterministic: true,
+			},
+			readiness: {
+				state: 'disconnected',
+				reasonCode: 'gateway_disconnected',
+				deterministic: true,
+			},
 			lastUpdatedUtc: new Date().toISOString(),
 			config: {
 				configPath: loaded.configPath,
 				mode,
-				discord: {
-					guildId: loaded.config.discord.guildId,
-					channelId: loaded.config.discord.channelId,
-					permissionsChannelId: loaded.config.discord.permissionsChannelId,
-				},
+				discord: discordConfig
+					? {
+						guildId: discordConfig.guildId,
+						channelId: discordConfig.channelId,
+						permissionsChannelId: discordConfig.permissionsChannelId,
+					}
+					: undefined,
+				telegram: loaded.config.telegram
+					? { allowlistedUsersCount: loaded.config.telegram.allowlistedUserIds.length }
+					: undefined,
 				allowlists: {
-					discordUsersCount: loaded.config.discord.allowlistedUserIds.length,
+					discordUsersCount: discordConfig?.allowlistedUserIds.length ?? 0,
 					workspaceRootsCount: loaded.config.workspaces.allowedRoots.length,
 				},
 				workspaces: {
@@ -351,12 +421,23 @@ async function main() {
 					fromKeychain: secretsStatus.gatewayHttpToken.source === 'keychain',
 					fromEnv: secretsStatus.gatewayHttpToken.source === 'env',
 				},
+				telegramBotToken: {
+					present: secretsStatus.telegramBotToken.present,
+					fromKeychain: secretsStatus.telegramBotToken.source === 'keychain',
+					fromEnv: secretsStatus.telegramBotToken.source === 'env',
+				},
 			},
 			runtime: {
 				discord: {
 					connected: false,
 					ready: false,
 				},
+				telegram: telegramConfig
+					? {
+						connected: false,
+						ready: false,
+					}
+					: undefined,
 				acp: mode === 'connected' ? { connected: false } : undefined,
 				sessions: {
 					activeSessionThreadCount: 0,
@@ -376,6 +457,7 @@ async function main() {
 			if (!status.runtime.acp) status.runtime.acp = { connected: false };
 			status.runtime.acp.connected = acpConnected;
 		}
+		status.readiness = deriveMessagingGatewayReadiness(status.runtime);
 	}
 
 	// Write once on startup after config + secrets resolved.
@@ -698,6 +780,14 @@ async function main() {
 
 			return { allowed: true };
 		},
+		telegramWebhook: telegram && telegramWebhookSecret
+			? {
+				secretToken: telegramWebhookSecret,
+				onUpdate: async (update) => {
+					await telegram.handleUpdate(update);
+				},
+			}
+			: undefined,
 	});
 
 	await gatewayHttpServer.start();
@@ -716,11 +806,22 @@ async function main() {
 		});
 	}
 
+	const combinedAllowlistedUserIds = Array.from(
+		new Set([
+			...(discordConfig?.allowlistedUserIds ?? []),
+			...(telegramConfig?.allowlistedUserIds ?? []),
+		]),
+	);
+
 	const router = new CommandRouter({
 		policy: {
-			allowlistedUserIds: loaded.config.discord.allowlistedUserIds,
-			requiredGuildId: loaded.config.discord.guildId,
-			requiredChannelId: loaded.config.discord.channelId,
+			allowlistedUserIds: combinedAllowlistedUserIds,
+			allowlistedUserIdsByPlatform: {
+				...(discordConfig ? { discord: discordConfig.allowlistedUserIds } : {}),
+				...(telegramConfig ? { telegram: telegramConfig.allowlistedUserIds } : {}),
+			},
+			requiredGuildId: discordConfig?.guildId,
+			requiredChannelId: discordConfig?.channelId,
 			rateLimitsPerMinute: WU002_POLICY_CONTRACT.rateLimitsPerMinute,
 			maxActiveInvokeSessionsPerUser: WU002_POLICY_CONTRACT.maxActiveInvokeSessionsPerUser,
 			permissionTimeoutMs: WU002_POLICY_CONTRACT.permissionTimeoutMs,
@@ -737,7 +838,7 @@ async function main() {
 		sandboxRegistry,
 	});
 
-	discord.setCommandHandler(async (interaction) => {
+	const handlePlatformCommand = async (interaction: PlatformCommandInteraction) => {
 		const baseCtx = {
 			userId: interaction.context.userId,
 			userDisplayName: interaction.context.userDisplayName,
@@ -764,6 +865,10 @@ async function main() {
 					? String((interaction.args as any).prompt)
 					: '';
 			const threadName = `${commandName.slice(1)}: ${prompt}`.trim();
+			if (!interaction.createThread) {
+				await initial.edit('Thread creation is not supported on this platform.');
+				return;
+			}
 			const thread = await interaction.createThread(threadName);
 			await initial.edit(`Created thread: ${thread.name} (id=${thread.id}). Invoking…`);
 			await thread.sendMessage('Starting session…');
@@ -790,17 +895,39 @@ async function main() {
 		for (const msg of result.messages.slice(1)) {
 			await interaction.sendMessage(msg);
 		}
-	});
+	};
 
-	await discord.start();
-	statusWriter.update((s) => {
-		s.runtime.discord.connected = true;
-		s.runtime.discord.ready = true;
-		refreshDynamicStatusFields(s);
-	});
+	if (discord) {
+		discord.setCommandHandler(handlePlatformCommand);
+	}
+	if (telegram) {
+		telegram.setCommandHandler(handlePlatformCommand);
+	}
+
+	if (discord) {
+		await discord.start();
+		statusWriter.update((s) => {
+			s.runtime.discord.connected = true;
+			s.runtime.discord.ready = true;
+			refreshDynamicStatusFields(s);
+		});
+	}
+
+	if (telegram) {
+		await telegram.start();
+		statusWriter.update((s) => {
+			if (!s.runtime.telegram) {
+				s.runtime.telegram = { connected: false, ready: false };
+			}
+			s.runtime.telegram.connected = true;
+			s.runtime.telegram.ready = true;
+			refreshDynamicStatusFields(s);
+		});
+	}
 
 	// Best-effort: keep a single top-level "Sessions summary" message updated in the main channel.
-	const sessionsSummary = discord.startSessionsSummary({
+	const sessionsSummary = discord && hasSessionSummaryCapability(discord)
+		? discord.startSessionsSummary({
 		intervalMs: 30_000,
 		buildContent: async () => {
 			const pending = permissionOrchestrator?.getPending() ?? [];
@@ -828,7 +955,8 @@ async function main() {
 
 			return lines.join('\n');
 		},
-	});
+		})
+		: { stop: () => { /* no-op when no summary-capable platform is configured */ } };
 
 	console.log('[Gateway] Status OK. Waiting for shutdown (Ctrl+C)...');
 
@@ -843,7 +971,8 @@ async function main() {
 				sessionsSummary.stop();
 				await permissionOrchestrator?.stop();
 				await extensionClient?.stop();
-				await discord.stop();
+				await discord?.stop();
+				await telegram?.stop();
 				await gatewayHttpServer?.stop();
 				await sandboxRegistry.stopAll();
 				await containerManager.stopAll();
@@ -851,6 +980,10 @@ async function main() {
 				statusWriter.update((s) => {
 					s.runtime.discord.connected = false;
 					s.runtime.discord.ready = false;
+					if (s.runtime.telegram) {
+						s.runtime.telegram.connected = false;
+						s.runtime.telegram.ready = false;
+					}
 					if (s.runtime.acp) s.runtime.acp.connected = false;
 					if (s.runtime.sessions) s.runtime.sessions.activeSessionThreadCount = 0;
 				});

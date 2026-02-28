@@ -93,6 +93,39 @@ test('patcher is idempotent for permissions-config approvals', () => {
   });
 });
 
+test('patcher removes vault path from chat.agentSkillsLocations', () => {
+  withTempDir((root) => {
+    const copilotHome = path.join(root, '.copilot');
+    const vscodeHome = path.join(root, '.copilot-vscode');
+    const settingsPath = path.join(root, 'settings.json');
+
+    fs.mkdirSync(copilotHome, { recursive: true });
+    fs.mkdirSync(vscodeHome, { recursive: true });
+
+    // Pre-seed settings with a vault path that should be removed
+    const initial = {
+      'chat.agentSkillsLocations': {
+        '~/.copilot/skills': true,
+        '~/.copilot/skills-vault': true
+      }
+    };
+    fs.writeFileSync(settingsPath, JSON.stringify(initial, null, 2) + '\n', 'utf8');
+
+    runPatch({ settingsPath, copilotHome, vscodeHome });
+
+    const patched = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    const locs = patched['chat.agentSkillsLocations'];
+
+    // Vault path must be removed
+    for (const k of Object.keys(locs)) {
+      assert.ok(!k.includes('skills-vault'), `vault path should be removed: ${k}`);
+    }
+    // Skills path should still be present
+    const hasSkills = Object.keys(locs).some((k) => k.includes('/skills') && !k.includes('vault'));
+    assert.ok(hasSkills, 'skills location should still be present');
+  });
+});
+
 console.log(`\n${passed} tests passed`);
 if (process.exitCode) {
   console.error('Some tests FAILED');

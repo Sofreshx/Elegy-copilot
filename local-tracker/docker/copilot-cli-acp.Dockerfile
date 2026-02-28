@@ -26,6 +26,7 @@ RUN groupadd -g 1001 copilot \
 
 ENV HOME=/home/copilot
 ENV COPILOT_HOME=/home/copilot/.copilot
+ENV SKILL_POINTER_MODE=false
 
 # Seed engine assets into the image so sandboxes have the org's agents/skills/prompts by default.
 # (If a caller bind-mounts /home/copilot/.copilot, these baked assets will be hidden.)
@@ -34,6 +35,8 @@ RUN mkdir -p "$COPILOT_HOME" \
 
 COPY --chown=copilot:copilot engine-assets/agents/ $COPILOT_HOME/agents/
 COPY --chown=copilot:copilot engine-assets/skills/ $COPILOT_HOME/skills/
+# Vault layout: when SKILL_POINTER_MODE=true at runtime, entrypoint seeds vault from this copy.
+COPY --chown=copilot:copilot engine-assets/skills/ $COPILOT_HOME/skills-vault/
 COPY --chown=copilot:copilot engine-assets/prompts/ $COPILOT_HOME/prompts/
 COPY --chown=copilot:copilot engine-assets/copilot-instructions.md $COPILOT_HOME/copilot-instructions.md
 

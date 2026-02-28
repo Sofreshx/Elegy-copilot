@@ -5,6 +5,8 @@ description: Split work into independent workstreams for /fleet, minimizing file
 
 Split this task into independent workstreams suitable for Copilot CLI `/fleet` (parallel subagents).
 
+Before proceeding, apply `core-guardrails` safety constraints (especially terminal/background-process rules).
+
 Constraints:
 - Assign exclusive file/directory ownership per workstream to reduce merge conflicts.
 - Prefer additive changes over broad refactors.

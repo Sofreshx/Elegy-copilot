@@ -18,6 +18,12 @@ export function run(): Promise<void> {
   } else {
     mocha.addFile(path.resolve(testsRoot, 'eventEmitter.test.js'));
     mocha.addFile(path.resolve(testsRoot, 'taskLifecycle.test.js'));
+    mocha.addFile(path.resolve(testsRoot, 'skillPointer.test.js'));
+    mocha.addFile(path.resolve(testsRoot, 'vaultMigration.test.js'));
+    mocha.addFile(path.resolve(testsRoot, 'skillPointerLifecycle.test.js'));
+    mocha.addFile(path.resolve(testsRoot, 'skillResolver.test.js'));
+    mocha.addFile(path.resolve(testsRoot, 'pathSecurity.test.js'));
+    mocha.addFile(path.resolve(testsRoot, 'skillPointerInvariants.test.js'));
   }
 
   return new Promise((resolve, reject) => {

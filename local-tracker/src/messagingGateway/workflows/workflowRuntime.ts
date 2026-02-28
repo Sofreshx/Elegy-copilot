@@ -1,4 +1,5 @@
 import { WorkflowDefinition, WorkflowStep, WorkflowStepResult, WorkflowRunResult } from './workflowSchema';
+import { getWorkflowTracer } from './workflowTracing';
 
 export type StepExecutor = (step: WorkflowStep, context: Record<string, unknown>) => Promise<unknown>;
 
@@ -70,6 +71,13 @@ export async function executeWorkflow(
     executor: StepExecutor,
     context: Record<string, unknown> = {},
 ): Promise<WorkflowRunResult> {
+    const tracer = getWorkflowTracer();
+    const rootSpan = tracer.startSpan(`workflow.${definition.id}`, {
+        'workflow.id': definition.id,
+        'workflow.name': definition.name,
+        'workflow.stepCount': definition.steps.length,
+    });
+
     const layers = topologicalSort(definition.steps);
     const results: WorkflowStepResult[] = [];
     const failedSteps = new Set<string>();
@@ -85,9 +93,15 @@ export async function executeWorkflow(
                     return { stepId: step.id, status: 'skipped', durationMs: 0 };
                 }
 
+                const stepSpan = tracer.startSpan(`step.${step.id}`, {
+                    'step.id': step.id,
+                    'step.action': step.action,
+                });
                 const stepStart = Date.now();
                 try {
                     const output = await executor(step, context);
+                    stepSpan.setStatus('ok');
+                    stepSpan.end();
                     return {
                         stepId: step.id,
                         status: 'success',
@@ -96,6 +110,8 @@ export async function executeWorkflow(
                     };
                 } catch (err) {
                     failedSteps.add(step.id);
+                    stepSpan.setStatus('error', err instanceof Error ? err.message : String(err));
+                    stepSpan.end();
                     return {
                         stepId: step.id,
                         status: 'failed',
@@ -111,6 +127,9 @@ export async function executeWorkflow(
     const hasFailure = results.some(r => r.status === 'failed');
     const hasSkipped = results.some(r => r.status === 'skipped');
     const status = hasFailure ? 'failed' : hasSkipped ? 'partial' : 'completed';
+
+    rootSpan.setStatus(status === 'completed' ? 'ok' : 'error');
+    rootSpan.end();
 
     return {
         workflowId: definition.id,

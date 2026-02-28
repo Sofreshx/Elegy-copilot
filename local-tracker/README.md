@@ -78,3 +78,29 @@ All configuration is via environment variables:
 | `TRACKER_RELAY_TOKEN` | — | Auth token for the relay (see [Authentication](#authentication)) |
 | `TRACKER_WS_PORT` | `9821` | Local WebSocket server port |
 | `TRACKER_WATCH_INTERVAL` | `2000` | Polling interval in ms |
+| `OTEL_WORKFLOW_TRACING_ENABLED` | `false` | Set to `true` to enable OpenTelemetry tracing |
+
+## Local Observability (OpenTelemetry)
+
+Workflow execution, hook evaluations, and session operations can emit OpenTelemetry traces when `OTEL_WORKFLOW_TRACING_ENABLED=true`.
+
+### Quick start with Jaeger
+
+```bash
+# Start a local Jaeger instance with OTLP support
+docker compose -f docker/docker-compose.otel.yml up -d
+
+# Run the gateway with tracing enabled
+OTEL_WORKFLOW_TRACING_ENABLED=true npm run dev:gateway
+```
+
+Open the Jaeger UI at [http://localhost:16686](http://localhost:16686) to view traces.
+
+### What's traced
+
+- **Workflow execution** — root span per workflow, child span per step
+- **Hook evaluations** — `preToolUse` / `postToolUse` decisions
+- **Session operations** — `invokeAgent` calls (local and sandbox)
+- **Audit log entries** — enriched with `traceId` when an active span exists
+
+When the feature flag is disabled (default), all tracing code is no-op with zero runtime overhead.

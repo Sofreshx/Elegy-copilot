@@ -3,7 +3,6 @@ import crypto from 'node:crypto';
 import { Bot } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 
-import { getDefaultGatewayCommandSpecs } from './commandSpecs';
 import type { MessagingGatewayConfig } from './config';
 import type {
 	MessagePlatform,
@@ -50,19 +49,22 @@ interface PendingPermissionPrompt {
 	messageId: number;
 }
 
-const INVOKE_COMMANDS: ReadonlySet<string> = new Set(
-	getDefaultGatewayCommandSpecs()
-		.filter((c) => c.tier === 'invoke')
-		.map((c) => c.name),
-);
+const TELEGRAM_MVP_ROUTED_COMMANDS: ReadonlySet<string> = new Set(['/status', '/sessions']);
+const TELEGRAM_MVP_COMMANDS: ReadonlySet<string> = new Set(['/start', '/help', ...TELEGRAM_MVP_ROUTED_COMMANDS]);
+const TELEGRAM_MVP_UNSUPPORTED_GUIDANCE = 'Unsupported command for Telegram MVP. Supported commands: /start, /help, /status, /sessions.';
+const TELEGRAM_MVP_HELP_TEXT = [
+	'Telegram MVP commands:',
+	'/start — show this quick start guidance',
+	'/help — show supported commands',
+	'/status — show gateway status',
+	'/sessions [limit=...] [statuses=...] — list recent sessions',
+].join('\n');
 
 const CONFIRMATION_TTL_MS = 120_000;
 
 function parseTelegramCommandArgs(commandName: string, rawArgs: string): unknown {
 	switch (commandName) {
 		case '/status':
-		case '/git':
-		case '/workspaces':
 			return {};
 		case '/sessions': {
 			const trimmed = rawArgs.trim();
@@ -81,13 +83,6 @@ function parseTelegramCommandArgs(commandName: string, rawArgs: string): unknown
 			}
 			return result;
 		}
-		case '/task':
-		case '/plan':
-			return { prompt: rawArgs.trim() };
-		case '/stop':
-			return { sessionId: rawArgs.trim() };
-		case '/switch':
-			return { workspaceRoot: rawArgs.trim() };
 		default:
 			return {};
 	}
@@ -139,16 +134,17 @@ export class TelegramPlatform implements MessagePlatform, PlatformPermissionProm
 		this.bot = undefined;
 	}
 
-	async registerCommands(commands: ReadonlyArray<PlatformCommandSpec>): Promise<void> {
+	async registerCommands(_commands: ReadonlyArray<PlatformCommandSpec>): Promise<void> {
 		if (!this.bot) {
 			throw new Error('[Gateway] Telegram bot is not started; call start() first');
 		}
 
-		const registerable = commands.filter((c) => c.tier === 'read' || c.tier === 'invoke');
-		const botCommands = registerable.map((c) => ({
-			command: c.name.replace(/^\//, ''),
-			description: c.description,
-		}));
+		const botCommands = [
+			{ command: 'start', description: 'Show Telegram MVP quick start' },
+			{ command: 'help', description: 'Show supported Telegram MVP commands' },
+			{ command: 'status', description: 'Show gateway status' },
+			{ command: 'sessions', description: 'List recent sessions' },
+		];
 
 		await this.bot.api.setMyCommands(botCommands);
 		console.log(`[Gateway] Telegram commands registered: ${botCommands.length}`);
@@ -179,6 +175,16 @@ export class TelegramPlatform implements MessagePlatform, PlatformPermissionProm
 		const commandName = rawCommand.replace(/@\S+$/, '');
 		const rawArgs = spaceIdx === -1 ? '' : text.slice(spaceIdx + 1);
 
+		if (!TELEGRAM_MVP_COMMANDS.has(commandName)) {
+			await this.bot.api.sendMessage(chatId, TELEGRAM_MVP_UNSUPPORTED_GUIDANCE);
+			return;
+		}
+
+		if (commandName === '/start' || commandName === '/help') {
+			await this.bot.api.sendMessage(chatId, TELEGRAM_MVP_HELP_TEXT);
+			return;
+		}
+
 		const args = parseTelegramCommandArgs(commandName, rawArgs);
 
 		const context: PlatformScopeContext = {
@@ -187,9 +193,8 @@ export class TelegramPlatform implements MessagePlatform, PlatformPermissionProm
 			channelId: String(chatId),
 		};
 
-		// Invoke-tier commands require confirmation
-		if (INVOKE_COMMANDS.has(commandName)) {
-			await this.sendConfirmation(chatId, userId, commandName, args, context);
+		if (!TELEGRAM_MVP_ROUTED_COMMANDS.has(commandName)) {
+			await this.bot.api.sendMessage(chatId, TELEGRAM_MVP_UNSUPPORTED_GUIDANCE);
 			return;
 		}
 

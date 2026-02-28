@@ -224,6 +224,23 @@ You can override via:
 - `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path>`
 - or inline JSON with `INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON=<json>`
 
+### WS4 closure path + idempotency checkpoint
+
+For WS4 freeze/gate evidence, treat these as contract-level invariants:
+
+- **Canonical config path semantics**
+  - tracker config path resolves in this order: CLI path → `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` → `~/.instruction-engine/messaging-gateway.config.json`
+  - paths are normalized to absolute paths before use
+
+- **Canonical status path semantics**
+  - gateway status artifact is machine-global and deterministic at:
+    - `~/.instruction-engine/messaging-gateway.status.json`
+
+- **Lifecycle idempotency semantics**
+  - finish retries preserve canonical `sandboxId`
+  - coalesced duplicate finish calls return deterministic dedupe metadata
+  - mismatched payload replays fail explicitly with `idempotency_conflict` + `idempotency_key_payload_mismatch`
+
 ### Example config
 
 There is also a copy/paste template checked into the repo:

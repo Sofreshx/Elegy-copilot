@@ -12,6 +12,9 @@ let trackerPendingCount = 0;
 let policyGateBlocked = false;
 let policyGateReason = '';
 let sandboxSessions = [];
+const ACTION_LOG_MAX_ENTRIES = 200;
+let actionLogSequence = 0;
+const actionLogEntries = [];
 
 const PLANNING_GATE_STATES = Object.freeze({
   PASS: 'pass',
@@ -59,6 +62,8 @@ function applyPolicyGateUi() {
     'btn-copilot-authorize',
     'btn-install-lsp',
     'btn-gateway-save',
+    'btn-gateway-connect',
+    'btn-planning-persistence-init',
     'btn-planning-create',
     'btn-planning-merge',
     'btn-sandbox-create',
@@ -116,7 +121,134 @@ async function api(url, opts) {
 }
 
 function setStatus(msg) {
-  $('status').textContent = msg;
+  const el = $('status');
+  if (!el) return;
+  el.textContent = msg;
+}
+
+function parseActionFailureDetails(error) {
+  const message = String((error && error.message) || error || 'Unknown error');
+  const details = {
+    deterministic: false,
+    statusCode: null,
+    statusText: '',
+    error: null,
+    code: null,
+    reason: null,
+    message,
+  };
+
+  const match = message.match(/^(\d{3})\s+([^:]+):\s*(.*)$/);
+  if (match) {
+    details.statusCode = Number(match[1]);
+    details.statusText = String(match[2] || '').trim();
+
+    const payload = String(match[3] || '').trim();
+    if (payload.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(payload);
+        const nested = parsed && typeof parsed.error === 'object' ? parsed.error : null;
+        details.deterministic = Boolean(parsed && (parsed.deterministic === true || (nested && nested.deterministic === true)));
+        details.error = typeof parsed.error === 'string'
+          ? parsed.error
+          : (nested && typeof nested.message === 'string' ? nested.message : null);
+        details.code = String((parsed && (parsed.code || (nested && nested.code))) || '').trim() || null;
+        details.reason = String((parsed && (parsed.reason || (nested && nested.reason))) || '').trim() || null;
+        details.message = details.error || details.reason || details.message;
+      } catch {
+        details.error = payload || null;
+      }
+    } else {
+      details.error = payload || null;
+    }
+  }
+
+  return details;
+}
+
+function formatActionFailureSummary(details) {
+  const source = details && typeof details === 'object' ? details : parseActionFailureDetails(details);
+  const parts = [];
+  if (source.statusCode) parts.push(`status=${source.statusCode}`);
+  if (source.code) parts.push(`code=${source.code}`);
+  if (source.reason) parts.push(`reason=${source.reason}`);
+  if (source.error) parts.push(`error=${source.error}`);
+  if (!parts.length) parts.push(String(source.message || 'action_failed'));
+  return parts.join(', ');
+}
+
+function appendActionLog(action, stage, details = {}) {
+  const entry = {
+    sequence: actionLogSequence += 1,
+    at: new Date().toISOString(),
+    action: String(action || '').trim() || 'unknown',
+    stage: String(stage || '').trim() || 'info',
+    details,
+  };
+
+  actionLogEntries.push(entry);
+  if (actionLogEntries.length > ACTION_LOG_MAX_ENTRIES) {
+    actionLogEntries.splice(0, actionLogEntries.length - ACTION_LOG_MAX_ENTRIES);
+  }
+
+  if (typeof console !== 'undefined' && console) {
+    const logger = stage === 'failure' ? console.error : console.log;
+    if (typeof logger === 'function') {
+      logger(`[action:${entry.action}] ${entry.stage}`, entry.details || {});
+    }
+  }
+
+  return entry;
+}
+
+function getActionLogEntries() {
+  return actionLogEntries.slice();
+}
+
+function resetActionLogEntries() {
+  actionLogSequence = 0;
+  actionLogEntries.splice(0, actionLogEntries.length);
+}
+
+async function runActionWithLog(actionName, operation, options = {}) {
+  const action = String(actionName || '').trim() || 'unknown.action';
+  const startMessage = typeof options.startMessage === 'string' ? options.startMessage : null;
+  const successMessage = typeof options.successMessage === 'string' ? options.successMessage : null;
+  const failurePrefix = String(options.failurePrefix || `${action} failed`).trim();
+
+  appendActionLog(action, 'start', {
+    deterministic: true,
+    started: true,
+  });
+
+  if (startMessage) {
+    setStatus(startMessage);
+  }
+
+  try {
+    const result = await operation();
+    appendActionLog(action, 'success', {
+      deterministic: true,
+      succeeded: true,
+    });
+    if (successMessage) {
+      setStatus(successMessage);
+    }
+    return result;
+  } catch (error) {
+    const failure = parseActionFailureDetails(error);
+    appendActionLog(action, 'failure', failure);
+    setStatus(`${failurePrefix}: ${formatActionFailureSummary(failure)}`);
+
+    if (error && typeof error === 'object') {
+      error.actionFailure = failure;
+      throw error;
+    }
+
+    const wrapped = new Error(failure.message || String(error || 'action_failed'));
+    wrapped.actionFailure = failure;
+    throw wrapped;
+  }
 }
 
 async function viewRel(relPath, label) {
@@ -699,6 +831,7 @@ function switchTab(tab) {
   const tracker = tab === 'tracker';
   const planning = tab === 'planning';
   const gateway = tab === 'gateway';
+  const skillsPreview = tab === 'skills-preview';
   $('tab-sessions').classList.toggle('active', sessions);
   $('tab-sandboxes').classList.toggle('active', sandboxes);
   $('tab-assets').classList.toggle('active', assets);
@@ -706,6 +839,7 @@ function switchTab(tab) {
   $('tab-tracker').classList.toggle('active', tracker);
   $('tab-planning').classList.toggle('active', planning);
   $('tab-gateway').classList.toggle('active', gateway);
+  $('tab-skills-preview').classList.toggle('active', skillsPreview);
   $('view-sessions').classList.toggle('hidden', !sessions);
   $('view-sandboxes').classList.toggle('hidden', !sandboxes);
   $('view-assets').classList.toggle('hidden', !assets);
@@ -713,6 +847,7 @@ function switchTab(tab) {
   $('view-tracker').classList.toggle('hidden', !tracker);
   $('view-planning').classList.toggle('hidden', !planning);
   $('view-gateway').classList.toggle('hidden', !gateway);
+  $('view-skills-preview').classList.toggle('hidden', !skillsPreview);
   
   if (lsp) {
     loadLspConfig();
@@ -732,11 +867,80 @@ function switchTab(tab) {
 
   if (gateway) {
     loadGatewayConfig();
+    refreshGatewayState({ setStatusMessage: false }).catch(() => {
+      setStatus('Gateway state unavailable.');
+    });
+  }
+
+  if (skillsPreview) {
+    loadSkillsPreview();
   }
 
   if (sandboxes) {
     ensureSandboxDraftId();
     loadSandboxes().catch((e) => setStatus(e.message));
+  }
+}
+
+async function loadSkillsPreview() {
+  const tbody = $('skills-preview-body');
+  const empty = $('skills-preview-empty');
+  const detail = $('skills-preview-detail');
+  tbody.innerHTML = '';
+  detail.textContent = '(loading...)';
+  try {
+    const res = await fetch('/api/skills/preview');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const skills = data.skills || [];
+    if (!skills.length) {
+      empty.style.display = '';
+      detail.textContent = '(no skills)';
+      return;
+    }
+    empty.style.display = 'none';
+    for (const s of skills) {
+      const tr = document.createElement('tr');
+      const tdName = document.createElement('td');
+      tdName.textContent = s.name;
+      const tdKind = document.createElement('td');
+      tdKind.innerHTML = s.kind === 'pointer'
+        ? '<span class="badge badge-ok">pointer</span>'
+        : '<span class="badge badge-missing">full</span>';
+      const tdTriggers = document.createElement('td');
+      tdTriggers.textContent = s.triggers || '';
+      tdTriggers.style.maxWidth = '300px';
+      tdTriggers.style.overflow = 'hidden';
+      tdTriggers.style.textOverflow = 'ellipsis';
+      const tdActions = document.createElement('td');
+      const viewBtn = document.createElement('button');
+      viewBtn.className = 'btn btn-sm';
+      viewBtn.textContent = 'View';
+      viewBtn.onclick = () => viewSkillDetail(s.name, s.vaultPath || s.absPath);
+      tdActions.appendChild(viewBtn);
+      tr.appendChild(tdName);
+      tr.appendChild(tdKind);
+      tr.appendChild(tdTriggers);
+      tr.appendChild(tdActions);
+      tbody.appendChild(tr);
+    }
+    detail.textContent = '(select a skill above)';
+  } catch (e) {
+    detail.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function viewSkillDetail(name, absPath) {
+  const detail = $('skills-preview-detail');
+  detail.textContent = '(loading ' + name + '...)';
+  try {
+    const rel = absPath ? 'skills/' + name + '/SKILL.md' : '';
+    const res = await fetch('/api/assets/view?path=' + encodeURIComponent(rel));
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const text = await res.text();
+    detail.textContent = text;
+  } catch (e) {
+    detail.textContent = 'Error loading ' + name + ': ' + e.message;
   }
 }
 
@@ -1086,42 +1290,64 @@ function findSandboxSessionMatch(list, sandboxId) {
   return list.find((s) => String((s && s.id) || '').trim().toLowerCase() === target) || null;
 }
 
-async function followSandboxSession(sandboxId) {
+async function followSandboxSession(sandboxId, options = {}) {
   const target = String(sandboxId || '').trim();
   if (!target) {
     setStatus('Follow requires sandboxId.');
     return;
   }
 
-  switchTab('sessions');
-  setSessionsSource('sandbox', { reload: false });
-  const sessions = await loadSessions();
-  const match = findSandboxSessionMatch(sessions, target);
-  if (!match) {
-    setStatus(`Sandbox ${target} not found in Sessions.`);
-    return;
+  const followCore = async () => {
+    switchTab('sessions');
+    setSessionsSource('sandbox', { reload: false });
+    const sessions = await loadSessions();
+    const match = findSandboxSessionMatch(sessions, target);
+    if (!match) {
+      throw new Error(`Sandbox ${target} not found in Sessions.`);
+    }
+
+    await selectSession(match);
+    return match;
+  };
+
+  if (options && options.skipActionLog) {
+    const result = await followCore();
+    if (!options.skipStatus) {
+      setStatus(`Following sandbox ${target}.`);
+    }
+    return result;
   }
 
-  await selectSession(match);
-  setStatus(`Following sandbox ${target}.`);
+  return runActionWithLog('sandbox.follow', followCore, {
+    startMessage: `Following sandbox ${target}…`,
+    successMessage: `Following sandbox ${target}.`,
+    failurePrefix: 'Sandbox follow failed',
+  });
 }
 
 async function runSandboxLifecycleAction(action, payload, sandboxId) {
-  setStatus(`Running sandbox ${action}…`);
-  const response = await api(`/api/tracker/lifecycle/${encodeURIComponent(action)}`, {
-    method: 'POST',
-    body: JSON.stringify(payload || {}),
+  return runActionWithLog(`sandbox.${action}`, async () => {
+    const response = await api(`/api/tracker/lifecycle/${encodeURIComponent(action)}`, {
+      method: 'POST',
+      body: JSON.stringify(payload || {}),
+    });
+
+    const canonicalSandboxId = resolveCanonicalSandboxId(response, sandboxId, payload);
+
+    if (canonicalSandboxId && $('sandbox-id')) {
+      $('sandbox-id').value = canonicalSandboxId;
+    }
+
+    if (canonicalSandboxId) {
+      await followSandboxSession(canonicalSandboxId, { skipActionLog: true, skipStatus: true });
+    }
+
+    return response;
+  }, {
+    startMessage: `Running sandbox ${action}…`,
+    successMessage: `Sandbox ${action} completed.`,
+    failurePrefix: `Sandbox ${action} failed`,
   });
-
-  const canonicalSandboxId = resolveCanonicalSandboxId(response, sandboxId, payload);
-
-  if (canonicalSandboxId && $('sandbox-id')) {
-    $('sandbox-id').value = canonicalSandboxId;
-  }
-
-  if (canonicalSandboxId) {
-    await followSandboxSession(canonicalSandboxId);
-  }
 }
 
 async function loadSandboxes() {
@@ -1156,7 +1382,8 @@ async function loadSandboxes() {
       try {
         await followSandboxSession(sandboxId);
       } catch (err) {
-        setStatus(`Follow failed: ${err.message}`);
+        const failure = (err && err.actionFailure) || parseActionFailureDetails(err);
+        setStatus(`Follow failed: ${formatActionFailureSummary(failure)}`);
       }
     });
     row.querySelector('.actions').appendChild(followBtn);
@@ -1801,6 +2028,133 @@ async function installLsp() {
 let gatewayAllowedRoots = new Set();
 let gatewayActiveRoot = '';
 let gatewayScanResults = null;
+let gatewayStateEnvelope = null;
+
+function formatGatewayStateSummary(segment, options = {}) {
+  const source = segment && typeof segment === 'object' ? segment : {};
+  const readyToken = source.ready === true ? 'ready' : 'not_ready';
+  const statusToken = String(source.status || options.fallbackStatus || 'unknown').trim() || 'unknown';
+  const parts = [statusToken, readyToken];
+
+  if (source.statusCode != null) {
+    parts.push(`statusCode=${source.statusCode}`);
+  }
+
+  if (source.error && typeof source.error === 'object') {
+    const code = String(source.error.code || '').trim();
+    const reason = String(source.error.reason || '').trim();
+    if (code) parts.push(`code=${code}`);
+    if (reason) parts.push(`reason=${reason}`);
+  }
+
+  return parts.join(' • ');
+}
+
+function formatGatewayErrorList(errors) {
+  const list = Array.isArray(errors) ? errors : [];
+  if (!list.length) return '(none)';
+
+  return list
+    .map((entry) => {
+      const source = entry && typeof entry === 'object' ? entry : { message: String(entry || '') };
+      const code = String(source.code || '').trim();
+      const reason = String(source.reason || '').trim();
+      const message = String(source.message || '').trim() || 'unknown_error';
+      const statusCode = Number.isFinite(source.statusCode) ? ` statusCode=${source.statusCode}` : '';
+      return `${code || 'error'}${reason ? ` (${reason})` : ''}: ${message}${statusCode}`;
+    })
+    .join('\n');
+}
+
+function renderGatewayState(state) {
+  const source = state && typeof state === 'object' ? state : {};
+  gatewayStateEnvelope = source;
+
+  if ($('gateway-state-gateway')) {
+    $('gateway-state-gateway').textContent = formatGatewayStateSummary(source.gateway, {
+      fallbackStatus: source.ready === true ? 'ready' : 'not_ready',
+    });
+  }
+
+  if ($('gateway-state-tracker')) {
+    $('gateway-state-tracker').textContent = formatGatewayStateSummary(source.tracker, {
+      fallbackStatus: 'unavailable',
+    });
+  }
+
+  if ($('gateway-state-db')) {
+    const planningPersistence = source.planningPersistence && typeof source.planningPersistence === 'object'
+      ? source.planningPersistence
+      : {};
+    $('gateway-state-db').textContent = formatGatewayStateSummary(planningPersistence, {
+      fallbackStatus: planningPersistence.required ? 'required_not_ready' : 'optional',
+    });
+  }
+
+  if ($('gateway-state-errors')) {
+    $('gateway-state-errors').textContent = formatGatewayErrorList(source.errors);
+    $('gateway-state-errors').className = Array.isArray(source.errors) && source.errors.length ? 'pre' : 'pre muted';
+  }
+}
+
+async function refreshGatewayState(options = {}) {
+  const setStatusMessage = options.setStatusMessage !== false;
+
+  if (setStatusMessage) {
+    setStatus('Loading gateway state…');
+  }
+
+  const state = await api('/api/gateway/state');
+  renderGatewayState(state);
+
+  if (setStatusMessage) {
+    setStatus('Gateway state loaded.');
+  }
+
+  return state;
+}
+
+async function connectGateway() {
+  try {
+    const response = await runActionWithLog('gateway.connect', async () => {
+      const data = await api('/api/gateway/connect', { method: 'POST', body: JSON.stringify({}) });
+      renderGatewayState(data);
+      return data;
+    }, {
+      startMessage: 'Connecting gateway…',
+      successMessage: 'Gateway connect completed.',
+      failurePrefix: 'Gateway connect failed',
+    });
+
+    if (response && response.ready === true) {
+      setStatus('Gateway connect completed and ready.');
+    }
+
+    return response;
+  } catch (error) {
+    await refreshGatewayState({ setStatusMessage: false }).catch(() => {});
+    throw error;
+  }
+}
+
+async function initPlanningPersistence() {
+  try {
+    const response = await runActionWithLog('planning.persistence.init', async () => {
+      const data = await api('/api/planning/persistence/init', { method: 'POST', body: JSON.stringify({}) });
+      return data;
+    }, {
+      startMessage: 'Initializing planning persistence…',
+      successMessage: 'Planning persistence init completed.',
+      failurePrefix: 'Planning persistence init failed',
+    });
+
+    await refreshGatewayState({ setStatusMessage: false }).catch(() => {});
+    return response;
+  } catch (error) {
+    await refreshGatewayState({ setStatusMessage: false }).catch(() => {});
+    throw error;
+  }
+}
 
 async function loadGatewayConfig() {
   setStatus('Loading gateway config\u2026');
@@ -1818,6 +2172,7 @@ async function loadGatewayConfig() {
     const cfg = data.config || {};
     const acp = cfg.acp || {};
     const discord = cfg.discord || {};
+    const telegram = cfg.telegram || {};
     const ws = cfg.workspaces || {};
     $('gateway-mode').value = cfg.mode || 'auto';
     $('gateway-acp-host').value = acp.host || '127.0.0.1';
@@ -1826,6 +2181,7 @@ async function loadGatewayConfig() {
     $('gateway-discord-channel').value = discord.channelId || '';
     $('gateway-discord-users').value = (discord.allowlistedUserIds || []).join(', ');
     $('gateway-discord-perms-channel').value = discord.permissionsChannelId || '';
+    $('gateway-telegram-users').value = (telegram.allowlistedUserIds || []).join(', ');
     // Restore checked roots from saved config
     gatewayAllowedRoots = new Set(ws.allowedRoots || []);
     gatewayActiveRoot = ws.activeRoot || '';
@@ -1945,18 +2301,29 @@ async function saveGatewayConfig() {
   const channelId = $('gateway-discord-channel').value.trim();
   const usersRaw = $('gateway-discord-users').value.trim();
   const permsChannel = $('gateway-discord-perms-channel').value.trim();
+  const telegramUsersRaw = $('gateway-telegram-users').value.trim();
   const activeRoot = $('gateway-active-root').value || gatewayActiveRoot;
   const allowlistedUserIds = usersRaw ? usersRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
+  const telegramAllowlistedUserIds = telegramUsersRaw ? telegramUsersRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
   const allowedRoots = [...gatewayAllowedRoots];
   const statusEl = $('gateway-status');
 
-  if (!guildId || !channelId) {
-    statusEl.textContent = 'Validation error: Discord Guild ID and Channel ID are required.';
+  const hasAnyDiscordInput = Boolean(guildId || channelId || usersRaw || permsChannel);
+  const includeDiscord = hasAnyDiscordInput && guildId && channelId && allowlistedUserIds.length > 0;
+  const includeTelegram = telegramAllowlistedUserIds.length > 0;
+
+  if (hasAnyDiscordInput && (!guildId || !channelId)) {
+    statusEl.textContent = 'Validation error: Discord Guild ID and Channel ID are required when Discord is configured.';
     statusEl.className = 'pre';
     return;
   }
-  if (!allowlistedUserIds.length) {
-    statusEl.textContent = 'Validation error: At least one Discord User ID is required.';
+  if (hasAnyDiscordInput && !allowlistedUserIds.length) {
+    statusEl.textContent = 'Validation error: At least one Discord User ID is required when Discord is configured.';
+    statusEl.className = 'pre';
+    return;
+  }
+  if (!includeDiscord && !includeTelegram) {
+    statusEl.textContent = 'Validation error: Configure at least one platform (Discord or Telegram).';
     statusEl.className = 'pre';
     return;
   }
@@ -1974,12 +2341,23 @@ async function saveGatewayConfig() {
   const body = {
     mode,
     acp: { host: acpHost, port: acpPort },
-    discord: {
-      allowlistedUserIds,
-      guildId,
-      channelId,
-      ...(permsChannel ? { permissionsChannelId: permsChannel } : {}),
-    },
+    ...(includeDiscord
+      ? {
+        discord: {
+          allowlistedUserIds,
+          guildId,
+          channelId,
+          ...(permsChannel ? { permissionsChannelId: permsChannel } : {}),
+        },
+      }
+      : {}),
+    ...(includeTelegram
+      ? {
+        telegram: {
+          allowlistedUserIds: telegramAllowlistedUserIds,
+        },
+      }
+      : {}),
     workspaces: { allowedRoots, activeRoot },
   };
 
@@ -1989,6 +2367,7 @@ async function saveGatewayConfig() {
     statusEl.textContent = `Saved \u2192 ${r.configPath}`;
     statusEl.className = 'pre status-saved';
     await loadGatewayConfig();
+    await refreshGatewayState({ setStatusMessage: false }).catch(() => {});
     setStatus('Gateway config saved.');
   } catch (e) {
     statusEl.textContent = 'Save error: ' + e.message;
@@ -2882,7 +3261,8 @@ function bindUi() {
     try {
       await runSandboxLifecycleAction('create', payload, sandboxId);
     } catch (e) {
-      setStatus(`Sandbox create failed: ${e.message}`);
+      const failure = (e && e.actionFailure) || parseActionFailureDetails(e);
+      setStatus(`Sandbox create failed: ${formatActionFailureSummary(failure)}`);
     }
   });
   $('btn-sandbox-start').addEventListener('click', async () => {
@@ -2891,7 +3271,8 @@ function bindUi() {
     try {
       await runSandboxLifecycleAction('start', { sandboxId }, sandboxId);
     } catch (e) {
-      setStatus(`Sandbox start failed: ${e.message}`);
+      const failure = (e && e.actionFailure) || parseActionFailureDetails(e);
+      setStatus(`Sandbox start failed: ${formatActionFailureSummary(failure)}`);
     }
   });
   $('btn-sandbox-stop').addEventListener('click', async () => {
@@ -2900,7 +3281,8 @@ function bindUi() {
     try {
       await runSandboxLifecycleAction('stop', { sandboxId }, sandboxId);
     } catch (e) {
-      setStatus(`Sandbox stop failed: ${e.message}`);
+      const failure = (e && e.actionFailure) || parseActionFailureDetails(e);
+      setStatus(`Sandbox stop failed: ${formatActionFailureSummary(failure)}`);
     }
   });
   $('btn-sandbox-open-terminal').addEventListener('click', async () => {
@@ -2909,7 +3291,8 @@ function bindUi() {
     try {
       await runSandboxLifecycleAction('open-terminal', { sandboxId }, sandboxId);
     } catch (e) {
-      setStatus(`Sandbox open-terminal failed: ${e.message}`);
+      const failure = (e && e.actionFailure) || parseActionFailureDetails(e);
+      setStatus(`Sandbox open-terminal failed: ${formatActionFailureSummary(failure)}`);
     }
   });
   $('btn-sandbox-follow').addEventListener('click', async () => {
@@ -2918,7 +3301,8 @@ function bindUi() {
     try {
       await followSandboxSession(sandboxId);
     } catch (e) {
-      setStatus(`Follow failed: ${e.message}`);
+      const failure = (e && e.actionFailure) || parseActionFailureDetails(e);
+      setStatus(`Follow failed: ${formatActionFailureSummary(failure)}`);
     }
   });
   $('btn-sandbox-pr-open').addEventListener('click', async () => {
@@ -2935,7 +3319,8 @@ function bindUi() {
     try {
       await runSandboxLifecycleAction('pr-open', { sandboxId, baseBranch, headBranch }, sandboxId);
     } catch (e) {
-      setStatus(`Sandbox pr-open failed: ${e.message}`);
+      const failure = (e && e.actionFailure) || parseActionFailureDetails(e);
+      setStatus(`Sandbox pr-open failed: ${formatActionFailureSummary(failure)}`);
     }
   });
 
@@ -3014,10 +3399,29 @@ function bindUi() {
   bindPlanningContextPersistence();
 
   $('tab-gateway').addEventListener('click', () => switchTab('gateway'));
+  $('tab-skills-preview').addEventListener('click', () => switchTab('skills-preview'));
+  $('btn-refresh-skills-preview').addEventListener('click', () => loadSkillsPreview());
+  $('skills-preview-search').addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    const rows = $('skills-preview-body').querySelectorAll('tr');
+    for (const row of rows) {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(q) ? '' : 'none';
+    }
+  });
   $('btn-gateway-scan').addEventListener('click', () => scanGatewayRepos(null).catch((e) => setStatus(e.message)));
   $('btn-gateway-scan-custom').addEventListener('click', () => {
     const extra = $('gateway-custom-path').value.trim();
     scanGatewayRepos(extra || null).catch((e) => setStatus(e.message));
+  });
+  $('btn-gateway-refresh-state').addEventListener('click', () => {
+    refreshGatewayState().catch((e) => setStatus('Failed to load gateway state: ' + e.message));
+  });
+  $('btn-gateway-connect').addEventListener('click', () => {
+    connectGateway().catch(() => {});
+  });
+  $('btn-planning-persistence-init').addEventListener('click', () => {
+    initPlanningPersistence().catch(() => {});
   });
   $('gateway-active-root').addEventListener('change', () => {
     gatewayActiveRoot = $('gateway-active-root').value;
@@ -3104,6 +3508,12 @@ const planningTestExports = {
   buildSourceIdsHash,
   createPlanningIntentToken,
   validatePlanningIntentToken,
+  parseActionFailureDetails,
+  formatActionFailureSummary,
+  appendActionLog,
+  getActionLogEntries,
+  resetActionLogEntries,
+  runActionWithLog,
   SANDBOX_ID_PATTERN,
   createSandboxDraftId,
   buildCreateSandboxPayload,

@@ -14,6 +14,11 @@ const REQUIRED_G05_CONTROLS = {
 	final: ['evidencePredicates', 'finalGateWaiverPrecedence', 'trustedEvidenceBindingRetention'],
 };
 
+const REQUIRED_ASSETS = [
+	{ id: 'copilot-instructions', type: 'instructions' },
+	{ id: 'skill-core-guardrails', type: 'skill' },
+];
+
 let hasFailures = false;
 
 function fail(msg) {
@@ -171,6 +176,12 @@ function validateAssets(manifest, manifestRelPath, enforceSourceExists) {
 			continue;
 		}
 
+		// Vault-ref must never appear as a source or destination in manifests
+		if (source.includes('skills-vault') || destination.includes('skills-vault')) {
+			fail(`${manifestRelPath}: asset ${id} must not reference skills-vault path`);
+			continue;
+		}
+
 		if (enforceSourceExists) {
 			const sourceAbs = path.join(root, source);
 			if (!fs.existsSync(sourceAbs)) {
@@ -181,6 +192,22 @@ function validateAssets(manifest, manifestRelPath, enforceSourceExists) {
 	}
 
 	return checked;
+}
+
+function validateRequiredAssets(manifest, manifestRelPath) {
+	if (!Array.isArray(manifest.assets)) return;
+
+	for (const required of REQUIRED_ASSETS) {
+		const match = manifest.assets.find((asset) => asset && asset.id === required.id);
+		if (!match) {
+			fail(`${manifestRelPath}: missing required asset id '${required.id}'`);
+			continue;
+		}
+
+		if (required.type && match.type !== required.type) {
+			fail(`${manifestRelPath}: required asset '${required.id}' must have type '${required.type}'`);
+		}
+	}
 }
 
 const checkedByManifest = [];
@@ -196,6 +223,7 @@ for (const target of manifestFiles) {
 
 	validateGovernance(manifest, manifestRelPath);
 	const checked = validateAssets(manifest, manifestRelPath, target.enforceSourceExists);
+	validateRequiredAssets(manifest, manifestRelPath);
 	checkedByManifest.push(`${manifestRelPath}=${checked}`);
 }
 

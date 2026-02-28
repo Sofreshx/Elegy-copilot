@@ -401,20 +401,42 @@ describe('Config path resolution', () => {
 	});
 
 	it('uses CONFIG_PATH env var when set', () => {
-		const customPath = '/custom/config.json';
+		const customPath = path.join(os.tmpdir(), 'gateway-config', 'custom.config.json');
 		process.env[CONFIG_PATH_ENV] = customPath;
-		expect(resolveMessagingGatewayConfigPath()).toBe(customPath);
+		expect(resolveMessagingGatewayConfigPath()).toBe(path.resolve(customPath));
 	});
 
 	it('falls back to default path when env var is not set', () => {
 		delete process.env[CONFIG_PATH_ENV];
-		expect(resolveMessagingGatewayConfigPath()).toBe(getDefaultMessagingGatewayConfigPath());
+		expect(resolveMessagingGatewayConfigPath()).toBe(path.resolve(getDefaultMessagingGatewayConfigPath()));
 	});
 
 	it('CLI arg takes priority over env var', () => {
-		process.env[CONFIG_PATH_ENV] = '/env/config.json';
-		const cliPath = '/cli/config.json';
-		expect(resolveMessagingGatewayConfigPath(cliPath)).toBe(cliPath);
+		process.env[CONFIG_PATH_ENV] = path.join(os.tmpdir(), 'gateway-config', 'env.config.json');
+		const cliPath = path.join(os.tmpdir(), 'gateway-config', 'cli.config.json');
+		expect(resolveMessagingGatewayConfigPath(cliPath)).toBe(path.resolve(cliPath));
+	});
+
+	it('uses canonical os.homedir default when HOME and USERPROFILE diverge', () => {
+		delete process.env[CONFIG_PATH_ENV];
+		const homeOnlyPath = path.join(os.tmpdir(), 'gateway-config-home-only');
+		const userProfilePath = path.join(os.tmpdir(), 'gateway-config-userprofile');
+		process.env.HOME = homeOnlyPath;
+		process.env.USERPROFILE = userProfilePath;
+
+		const resolvedPath = resolveMessagingGatewayConfigPath();
+		const expectedPath = path.resolve(
+			path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.config.json'),
+		);
+
+		expect(resolvedPath).toBe(expectedPath);
+
+		if (process.platform === 'win32') {
+			const homeDerivedPath = path.resolve(
+				path.join(homeOnlyPath, '.instruction-engine', 'messaging-gateway.config.json'),
+			);
+			expect(resolvedPath.toLowerCase()).not.toBe(homeDerivedPath.toLowerCase());
+		}
 	});
 });
 
@@ -628,9 +650,32 @@ describe('configVersion validation', () => {
 		expect(config.configVersion).toBe(2);
 	});
 
-	it('config without configVersion has undefined configVersion', () => {
+	it('config without configVersion is normalized to v1 marker', () => {
 		const config = loadFromEnvJson({});
-		expect(config.configVersion).toBeUndefined();
+		expect(config.configVersion).toBe(1);
+		expect(config.schemaVersion).toBe(1);
+		expect(config.contractVersion).toBe('messaging_gateway_config_v1');
+		expect(config.compatibility).toEqual({ normalizedFrom: 'v0', deterministic: true });
+	});
+
+	it('normalizes v0 legacy root fields into canonical v1 config shape', () => {
+		process.env[CONFIG_JSON_ENV] = JSON.stringify({
+			allowlistedUserIds: ['1234567890'],
+			guildId: '2222222222',
+			channelId: '3333333333',
+			allowedRoots: [tmpRoot],
+			activeRoot: tmpRoot,
+		});
+
+		const config = loadMessagingGatewayConfig().config;
+		expect(config.discord).toEqual({
+			allowlistedUserIds: ['1234567890'],
+			guildId: '2222222222',
+			channelId: '3333333333',
+			permissionsChannelId: undefined,
+		});
+		expect(config.workspaces.activeRoot).toBe(path.resolve(tmpRoot));
+		expect(config.compatibility).toEqual({ normalizedFrom: 'v0', deterministic: true });
 	});
 
 	it('throws when configVersion is not a positive integer', () => {

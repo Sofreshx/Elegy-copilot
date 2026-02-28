@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-26
+updated: 2026-02-27
 category: system
 status: current
 doc_kind: node
@@ -183,6 +183,57 @@ The persistence authority for planning records and planning notes is frozen as f
 4. No file fallback writes
   - Implementations MUST NOT silently fall back to file-based persistence for planning records/notes when local DB persistence is unavailable.
   - Persistence failures must remain explicit and deterministic to callers.
+
+### Planning Persistence Operations Contract (WS4 M2)
+
+The WS4 M2 operational APIs are additive and machine-deterministic:
+
+1. Retention engine
+  - `POST /api/planning/persistence/retention` supports `dry-run` and `execute` modes.
+  - Both modes return deterministic report envelopes including retention policy, candidate counts, and record-id lists.
+  - `dry-run` must not mutate persisted rows; `execute` may delete only records selected by the deterministic cutoff policy.
+
+2. Export contract
+  - `POST /api/planning/persistence/export` returns a deterministic snapshot envelope with:
+    - snapshot contract version,
+    - sorted canonical records,
+    - record count,
+    - checksum.
+  - Export is read-only and additive; it must not mutate persistence state.
+
+3. Import contract
+  - `POST /api/planning/persistence/import` accepts exported snapshot shape (or a compatible `{ records: [...] }` payload).
+  - Import behavior is idempotent on repeated identical payloads (replays produce no duplicate durable writes).
+  - Conflicting duplicate record IDs within a single payload fail closed with explicit deterministic code/reason.
+
+4. Corruption-aware write safety
+  - Import and retention execute mode are write operations and must respect corruption recovery write blocks.
+  - When recovery is required, write operations fail closed with explicit deterministic marker (`planning_persistence_recovery_required`).
+
+### WS4 M3 Closure Freeze + Evidence Contract
+
+WS4 M3 closes governance scope for persistence operations and freezes evidence expectations before WS5A durability expansion.
+
+1. Freeze criteria (all required)
+  - migration checksum baseline remains fixed and deterministic
+  - planning health/governance contract fields remain additive and stable
+  - corruption-recovery write block markers remain explicit and fail-closed
+  - tracker/coprocess path + idempotency semantics remain aligned with planning governance assumptions
+
+2. Required WS4 gate evidence pack
+  - `node copilot-ui/lib/planningPersistence.test.js`
+  - `node copilot-ui/lib/planningApiContracts.test.js`
+  - `node copilot-ui/server.runtime-health.test.js`
+  - `npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts`
+
+3. Path/idempotency checkpoint expectations
+  - gateway config path resolution is deterministic and tracker-compatible (`INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` override; canonical default under `~/.instruction-engine`)
+  - status artifact path remains deterministic and machine-global (`~/.instruction-engine/messaging-gateway.status.json`)
+  - lifecycle finish retries preserve canonical sandbox ID and idempotency conflict envelopes stay explicit (`idempotency_conflict`, `idempotency_key_payload_mismatch`)
+
+4. Gate decision
+  - **Pass**: all evidence commands exit `0` and required deterministic markers are present.
+  - **Fail**: any command fails, required marker is missing/changed, or path/idempotency semantics drift.
 
 ### Runtime Provider State Authority (G-02-WU-01)
 
@@ -390,6 +441,41 @@ Behavior:
 - same key + same scope + different payload within TTL → conflict (`idempotency_conflict`)
 - expired key → treated as a new execution with explicit `expired_reapplied`
 
+### Planning Persistence Health Governance Envelope (WS4 M1)
+
+`/api/health` and planning persistence init/failure surfaces include a deterministic governance envelope:
+
+- `planningPersistence.governance.deterministic = true`
+- `planningPersistence.governance.failClosed = true`
+- explicit `planningPersistence.governance.code` and `planningPersistence.governance.reason`
+- sorted `planningPersistence.governance.reasonCodes`
+
+This envelope remains additive and backward compatible.
+
+### Migration Baseline Governance + Checksum Enforcement (WS4 M1)
+
+Planning migration metadata is additive and fail-closed:
+
+- `planningPersistence.migrations.manifestCount`
+- `planningPersistence.migrations.checksumBaseline`
+- `planningPersistence.migrations.baselineEnforced`
+- `planningPersistence.migrations.baselineMismatch`
+- `planningPersistence.migrations.checksumValidation` with explicit outcome/reason and baseline markers
+
+Enforcement behavior:
+
+- checksum drift for an applied known migration version fails closed (`PLANNING_MIGRATION_CHECKSUM_DRIFT`)
+- unexpected existing migration versions fail closed as baseline mismatch (`PLANNING_MIGRATION_BASELINE_MISMATCH`)
+- optional expected baseline mismatch fails closed before mutation (`PLANNING_MIGRATION_BASELINE_MISMATCH`)
+
+### Route Lock + Optimistic Concurrency Controls (WS4 M1)
+
+Planning mutating routes (`POST /api/planning/records`, `POST /api/planning/merge`) apply practical lock and optimistic concurrency guards:
+
+- route lock conflict fails closed with explicit deterministic envelope (`code = planning_route_lock_conflict`, `reason = lock_already_held`)
+- optimistic concurrency uses expected version inputs (`expectedVersion`, `expectedRecordsVersion`, `x-planning-records-version`, or `If-Match`)
+- version mismatch fails closed with explicit deterministic envelope (`code = optimistic_concurrency_conflict`, conflict reason markers)
+
 ### Compare Snapshot / Version Pinning
 
 Compare responses pin request-start snapshots and expose:
@@ -501,17 +587,14 @@ Markdown table with columns:
 
 #### 5. Stream Evidence
 Markdown table with columns:
-- `Group` — Required stream ID (`G-01`, `G-02`, `G-03`, `G-04`)
+- `Group` — Required stream ID token derived from `Work Unit Groups Overview` (normalized `G-NN` token)
 - `Predicate` — Predicate contract used for this stream (`execution-log and/or stream-marker`)
-- `Evidence` — Optional pointer to artifact/log line/checkpoint entry
+- `Evidence` — Required pointer to artifact/log line/checkpoint entry when status is passed
 - `Status` — `pending`, `passed`, or `failed`
 - `Notes` — Free-form details; if used for machine-readable marker, include `status: passed|failed|pending`
 
 Required rows:
-- `G-01`
-- `G-02`
-- `G-03`
-- `G-04`
+- one row per normalized stream token present in `Work Unit Groups Overview`
 
 #### 6. Final Gate Controls
 Markdown table with columns:
@@ -575,19 +658,18 @@ status: failed; integration-tests; see: execution log 2026-02-23T14:45
 status: skipped; user declined doc update
 ```
 
-### Required Stream Predicate Contract (G-01..G-04)
+### Required Stream Predicate Contract
 
-For planpacks with `<!-- IE_PLAN_PACK_VERSION: N -->`, `scripts/validate-planpack.js` enforces evidence predicates for these streams:
-- `G-01`
-- `G-02`
-- `G-03`
-- `G-04`
+For versioned planpacks (`<!-- IE_PLAN_PACK_VERSION: 1 -->`), `scripts/validate-planpack.js` derives required streams from the `## Work Unit Groups Overview` table.
 
-A stream is considered satisfied if **either** condition is met:
-1. `## Execution Log` contains an entry that references the stream ID and a completion token (`completed`, `done`, or `status: passed`), **or**
-2. `## Stream Evidence` contains a row for that stream with `Status = passed` (or `Notes` containing `status: passed`).
+Normalization rule:
+- each `Group` cell is normalized to `G-NN` token (for example `G-06-release-readiness` → `G-06`)
 
-If any required stream lacks both forms of evidence, validation fails deterministically with a non-zero exit code.
+A stream is considered satisfied only when **both** conditions are met:
+1. `## Execution Log` contains an entry that references the stream ID and a completion token (`completed`, `done`, or `status: passed`), **and**
+2. `## Stream Evidence` contains a row for that stream with `Status = passed` (or `Notes` containing `status: passed`) **and** non-empty `Evidence`.
+
+If any derived required stream lacks either proof, validation fails deterministically with a non-zero exit code.
 
 Examples:
 
@@ -606,8 +688,9 @@ Examples:
 ```
 
 Compatibility behavior:
-- If `IE_PLAN_PACK_VERSION` marker is missing, validator remains in legacy best-effort mode and skips enforcement.
-- Versioned planpacks enforce stream evidence predicates.
+- If `IE_PLAN_PACK_VERSION` marker is missing, validator fails closed unless explicit legacy override (`--allow-legacy-best-effort`) is supplied.
+- If marker version is unsupported (`!= 1`), validator fails closed.
+- Version `1` enforces stream evidence predicates and final gate contracts.
 
 ### Trusted Evidence Binding + Retention Contract (G-05-WU-06)
 
@@ -721,6 +804,95 @@ When readiness is not satisfied, routes fail closed with explicit marker envelop
 ```
 
 Non-durability paths remain backward compatible and are not blocked by this gate.
+
+### WS5A M1 Durability-Critical Route Gate (WU-WS5A-M1-01)
+
+Durability-critical merge lifecycle routes must fail closed unless persistence authority is ready and WS5A durability migrations are present.
+
+Durability-critical route scope:
+
+- `POST /api/planning/compare`
+- `POST /api/planning/merge-intent`
+- `POST /api/planning/merge`
+- `POST /api/planning/suggestions`
+- `GET /api/planning/suggestions?suggestionId=<id>`
+- `POST /api/planning/recaps`
+- `GET /api/planning/recaps?recapId=<id>`
+
+Required additive migration versions:
+
+- `004_planning_compare_receipts_init`
+- `005_planning_merge_intents_init`
+- `006_planning_merge_idempotency_ledger_init`
+- `007_planning_suggestions_init`
+- `008_planning_recaps_init`
+
+When not ready, routes fail closed with explicit deterministic envelope:
+
+```json
+{
+  "contractVersion": "planning_api_v1",
+  "kind": "planning.compare|planning.merge-intent|planning.merge|planning.suggestion.persist|planning.suggestion.read|planning.recap.persist|planning.recap.read",
+  "deterministic": true,
+  "error": "Planning durability route gate blocked",
+  "code": "planning_durability_route_gate_blocked",
+  "reason": "planning_persistence_not_configured|planning_persistence_not_ready|planning_durability_artifact_migrations_missing",
+  "durabilityRouteGate": {
+    "marker": "dependency-blocked",
+    "dependency": "ws5a_durability_persistence_gate",
+    "required": true,
+    "ready": false,
+    "contractVersion": "1",
+    "reasonCodes": ["..."],
+    "migrationVersions": ["..."],
+    "checkedMigrationVersions": ["..."],
+    "missingMigrationVersions": ["..."],
+    "persistenceAuthority": {
+      "persistedAuthority": false,
+      "ready": false,
+      "status": "disabled|configured_no_client|ready",
+      "lastError": "..."
+    }
+  }
+}
+```
+
+### WS5A M3 Durable Suggestions + Recaps Contract (WU-WS5A-M3-01 / WU-WS5A-M3-02)
+
+Suggestions and recaps use persisted DB authority as canonical storage. Contracts are additive, deterministic, and fail closed when persistence authority is unavailable.
+
+Suggestions:
+
+- `POST /api/planning/suggestions`
+  - body contract: `{ suggestionId, scope?, state, createdAt?, updatedAt? }`
+  - response contract: `{ contractVersion, kind="planning.suggestion.persist", deterministic=true, suggestion }`
+- `GET /api/planning/suggestions?suggestionId=<id>`
+  - response contract: `{ contractVersion, kind="planning.suggestion.read", deterministic=true, suggestion }`
+
+Recaps:
+
+- `POST /api/planning/recaps`
+  - body contract: `{ recapId, scope?, state, createdAt?, updatedAt? }`
+  - response contract: `{ contractVersion, kind="planning.recap.persist", deterministic=true, recap }`
+- `GET /api/planning/recaps?recapId=<id>`
+  - response contract: `{ contractVersion, kind="planning.recap.read", deterministic=true, recap }`
+
+Deterministic retrieval/error semantics:
+
+- missing id parameter returns `400`
+  - suggestions: `error.code=invalid_planning_suggestion`, `error.reason=missing_suggestion_id`
+  - recaps: `error.code=invalid_planning_recap`, `error.reason=missing_recap_id`
+- missing persisted artifact returns `404`
+  - suggestions: `planning_suggestion_not_found`
+  - recaps: `planning_recap_not_found`
+- scope/ownership denial returns `403` with `error.code=scope_visibility_denied`
+- persistence authority/dependency gate failures remain fail-closed with existing deterministic gate envelopes (`planning_durability_dependency_gate_blocked` / `planning_durability_route_gate_blocked`)
+
+Durability + restart safety expectations:
+
+- persisted suggestion/recap artifacts are restart-safe DB records
+- retrieval behavior does not depend on in-memory process state
+- no fallback to file-based persistence for suggestions/recaps
 
 ## Planning UI Contract (WS5)
 

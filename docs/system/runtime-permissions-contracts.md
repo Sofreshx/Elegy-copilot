@@ -1,6 +1,6 @@
 ---
 created: 2026-02-25
-updated: 2026-02-26
+updated: 2026-02-27
 category: system
 status: current
 doc_kind: node
@@ -114,6 +114,95 @@ Pass/fail contract:
 - **Fail**: any artifact is missing, any required marker/reason is absent, or any referenced command fails.
 - A fail state is release-blocking until corrected evidence is regenerated.
 
+## WS6 CI Topology + Required-Check Contract (WU-WS6-01 / WU-WS6-03 / WU-WS6-04 / WU-WS6-05)
+
+`extension-ci` is a fail-closed topology with explicit WS6 evidence and aggregation semantics.
+
+1. Fixed topology (authoritative)
+  - `.github/workflows/extension-ci.yml` must keep this required dependency chain:
+    - `build`
+    - `ws6-evidence` (matrix entries: `WS6-E1`, `WS6-E2`, `WS6-E3`, `WS6-E4`, `WS6-E5`)
+    - `ws6-artifact-gate`
+    - `required-checks`
+
+2. Matrix evidence execution
+  - Every WS6 matrix leg executes deterministically and emits one artifact named `ws6-evidence-<WS6-Ex>`.
+  - Each artifact must include `command.log`, `metadata.json`, and matching SHA256 files.
+
+3. Artifact completeness/integrity gate (fail closed)
+  - `ws6-artifact-gate` must fail when expected artifact count is not exact, any required file is missing, or any checksum verification fails.
+  - Metadata evidence ID must match the artifact ID exactly.
+
+4. Required-check aggregator (strict semantics)
+  - `required-checks` runs with `if: always()` and fails unless:
+    - `needs.build.result == success`
+    - `needs.ws6-evidence.result == success`
+    - `needs.ws6-artifact-gate.result == success`
+    - `needs.ws6-artifact-gate.outputs.complete == true`
+  - Missing/skipped/non-success statuses are treated as hard failures.
+
+5. Release gate linkage
+  - `release` depends on both `build` and `required-checks`; publish is blocked when aggregator semantics fail.
+
+## WS6 Narrow-to-Broad Validation + Rollback Contract (WU-WS6-07)
+
+WS6 validation follows this ordered ladder:
+
+1. Narrow static guards
+  - `node scripts/validate-manifest.js`
+  - `node scripts/validate-doc-graph.js`
+
+2. Compatibility + checksum guards
+  - `node copilot-ui/server.lifecycle-proxy.test.js`
+  - `npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/gatewayHttpServer.test.ts`
+  - `node copilot-ui/lib/planningPersistence.test.js`
+  - `node copilot-ui/server.runtime-health.test.js`
+
+3. Rollback + kill-switch guards
+  - `node copilot-ui/dist-electron/rollbackPolicy.test.js`
+  - `node copilot-ui/dist-electron/updatePolicy.rollback.test.js`
+  - `node copilot-ui/dist-electron/updater.rollback.test.js`
+
+Contract result:
+- **Pass**: all ladder stages pass and required WS6 artifacts are complete/integrity-verified.
+- **Fail**: any stage fails, any required artifact/check is missing, or required-check aggregation is non-success.
+
+## WS4 M2 Corruption Scan + Recovery Write Gate Contract
+
+Planning persistence corruption handling is fail-closed and deterministic:
+
+1. Scan endpoint
+  - `POST /api/planning/persistence/corruption/scan` returns a deterministic scan envelope (`blocked`, `recoveryRequired`, `findingCount`, explicit `code`/`reason`).
+
+2. Recovery write gate
+  - When scan state indicates corruption (`blocked=true`), planning persistence write operations must fail closed.
+  - Blocked write responses use explicit deterministic marker `code=planning_persistence_recovery_required` with recovery reason metadata.
+
+3. Recovery path
+  - Write operations remain blocked until a subsequent scan reports clear state (`blocked=false`, `recoveryRequired=false`).
+  - This preserves deterministic safety under corruption conditions without introducing file-based fallback writes.
+
+## WS4 M3 Closure Alignment Contract
+
+WS4 closure is complete only when freeze evidence and tracker alignment semantics are both satisfied.
+
+1. Required closure evidence commands
+  - `node copilot-ui/lib/planningPersistence.test.js`
+  - `node copilot-ui/lib/planningApiContracts.test.js`
+  - `node copilot-ui/server.runtime-health.test.js`
+  - `npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts`
+
+2. Path alignment requirement
+  - copilot-ui gateway-state/config surfaces must resolve tracker config deterministically with `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` override support.
+  - Canonical machine-global default remains under `~/.instruction-engine`.
+
+3. Idempotency alignment requirement
+  - lifecycle retry and conflict behavior remains deterministic and explicit.
+  - conflict envelopes must preserve stable code/reason semantics (`idempotency_conflict`, `idempotency_key_payload_mismatch`) with no silent payload drift acceptance.
+
+4. Fail-closed gate semantics
+  - any evidence failure or path/idempotency drift is WS4 freeze-blocking for downstream promotion.
+
 ## Permissions Contract
 
 ### Contract source
@@ -155,5 +244,6 @@ node copilot-ui/server.runtime-health.test.js
 Manual checks:
 - `copilot-ui/VALIDATION.md` → **WS3 — Runtime Compatibility Contract (G-01-WU-03)**
 - `copilot-ui/VALIDATION.md` → **WS2 — Provider SSOT + Parity Guardrails (G-02-WU-04)**
+- `copilot-ui/VALIDATION.md` → **WS4 M3 — Closure Evidence Gate + DoD**
 - `copilot-ui/VALIDATION.md` → **WS6 — Compatibility + Upgrade Safety Scope Gate (G-06-WU-01)**
 - `copilot-ui/VALIDATION.md` → **WS6 — Release Readiness Evidence Gate (G-06-WU-04)**

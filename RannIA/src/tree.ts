@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { scanSkills } from './skillScanner';
+import { resolveSkill } from './skillResolver';
 import { RepoSkills, SkillDiscoverySnapshot, SkillEntry } from './types';
 
 type NodeKind = 'root' | 'section' | 'repo' | 'skill';
@@ -126,11 +127,15 @@ export class SkillDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 
 	private toSkillNode(skill: SkillEntry): SkillNode {
 		const enabled = skill.enabled !== false;
+		const isPointer = skill.kind === 'pointer';
 		const descriptionParts: string[] = [];
 		if (skill.source === 'instruction-engine') {
 			descriptionParts.push('engine');
 		} else {
 			descriptionParts.push('discoverable');
+		}
+		if (isPointer) {
+			descriptionParts.push('pointer');
 		}
 		if (!enabled) {
 			descriptionParts.push('disabled');
@@ -139,7 +144,11 @@ export class SkillDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 		const contextValue = enabled
 			? 'skillInstaller.skill.enabled'
 			: 'skillInstaller.skill.disabled';
-		const icon = enabled ? 'book' : 'circle-slash';
+		let icon = enabled ? 'book' : 'circle-slash';
+		if (isPointer && enabled) {
+			icon = 'link';
+		}
+		const openPath = isPointer ? (resolveSkill(skill.name) ?? skill.path) : skill.path;
 		return {
 			kind: 'skill',
 			label: skill.name,
@@ -150,7 +159,7 @@ export class SkillDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 			command: {
 				title: 'Open Skill',
 				command: 'vscode.open',
-				arguments: [vscode.Uri.file(skill.path)]
+				arguments: [vscode.Uri.file(openPath)]
 			}
 		};
 	}

@@ -16,3 +16,4 @@ This folder contains **non-canonical** notes, spikes, and audits.
 - Treat as inputs, not truth.
 - Prefer `docs/system/**` when there is conflict.
 - [Bosun Repo Analysis and Inspiration](bosun-analysis-inspiration.md)
+- [Context Reduction Techniques: SkillPointer and Code Mode MCP](skillpointer-codemode-techniques.md)

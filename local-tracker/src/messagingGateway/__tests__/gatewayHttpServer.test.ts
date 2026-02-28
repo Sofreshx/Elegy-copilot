@@ -426,6 +426,8 @@ describe('GatewayHttpServer', () => {
 
         expect(first.statusCode).toBe(200);
         expect(retry.statusCode).toBe(200);
+        expect(JSON.parse(first.body).result.sandboxId).toBe('sb-edited-canonical');
+        expect(JSON.parse(retry.body).result.sandboxId).toBe('sb-edited-canonical');
         expect(JSON.parse(first.body)).toEqual({
             ok: true,
             action: 'finish',

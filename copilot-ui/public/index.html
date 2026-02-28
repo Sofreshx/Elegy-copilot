@@ -17,6 +17,7 @@
         <button id="tab-tracker" class="tab" type="button">Tracker <span id="tracker-badge" class="badge-count" style="display:none"></span></button>
         <button id="tab-planning" class="tab" type="button">Planning</button>
         <button id="tab-gateway" class="tab" type="button">Gateway</button>
+        <button id="tab-skills-preview" class="tab" type="button">Skills Preview <span class="badge-preview">(Preview)</span></button>
       </nav>
       <div class="spacer"></div>
       <button id="btn-reload" type="button" class="btn">Reload</button>
@@ -288,12 +289,37 @@
       </section>
 
       <section id="view-gateway" class="view hidden">
-        <h2>Discord Messaging Gateway</h2>
+        <h2>Messaging Gateway</h2>
         <div class="panel">
           <div style="display:flex;align-items:center;gap:8px;">
             <span class="muted">Config file:</span>
             <code id="gateway-config-path" class="mono muted"></code>
             <span id="gateway-config-badge" class="badge badge-missing">not found</span>
+          </div>
+        </div>
+
+        <h3>Gateway State</h3>
+        <div class="panel">
+          <div class="toolbar" style="margin-bottom: 10px;">
+            <button id="btn-gateway-refresh-state" class="btn" type="button">Refresh state</button>
+            <button id="btn-gateway-connect" class="btn" type="button">Connect</button>
+            <button id="btn-planning-persistence-init" class="btn" type="button">Init DB</button>
+          </div>
+          <div class="gateway-field">
+            <label>Gateway</label>
+            <div id="gateway-state-gateway" class="muted">(unknown)</div>
+          </div>
+          <div class="gateway-field">
+            <label>Tracker</label>
+            <div id="gateway-state-tracker" class="muted">(unknown)</div>
+          </div>
+          <div class="gateway-field">
+            <label>DB</label>
+            <div id="gateway-state-db" class="muted">(unknown)</div>
+          </div>
+          <div class="gateway-field">
+            <label>Errors</label>
+            <pre id="gateway-state-errors" class="pre muted">(none)</pre>
           </div>
         </div>
 
@@ -338,6 +364,14 @@
                 <input id="gateway-discord-perms-channel" type="text" class="gateway-input" placeholder="(optional)" />
               </div>
             </div>
+
+            <h3>Telegram</h3>
+            <div class="panel">
+              <div class="gateway-field">
+                <label for="gateway-telegram-users">Allowed User IDs <span class="muted">(comma-separated numeric Telegram user IDs)</span></label>
+                <input id="gateway-telegram-users" type="text" class="gateway-input" placeholder="123456789, 987654321" />
+              </div>
+            </div>
           </div>
 
           <div class="col">
@@ -363,6 +397,30 @@
           <button id="btn-gateway-save" class="btn" type="button">Save config</button>
         </div>
         <pre id="gateway-status" class="pre muted">Config not yet saved.</pre>
+      </section>
+
+      <section id="view-skills-preview" class="view hidden">
+        <h2>Skills Preview <span class="badge-preview">(Preview)</span></h2>
+        <div class="toolbar">
+          <button id="btn-refresh-skills-preview" class="btn" type="button">Refresh</button>
+          <input id="skills-preview-search" type="text" placeholder="Search skills..." style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1e1e1e);color:inherit;" />
+        </div>
+        <div class="panel">
+          <table id="skills-preview-table" class="data-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Kind</th>
+                <th>Triggers</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="skills-preview-body"></tbody>
+          </table>
+          <div id="skills-preview-empty" class="muted" style="display:none;padding:16px;">No skills found. Enable pointer mode to populate the vault.</div>
+        </div>
+        <h3>Skill Detail</h3>
+        <pre id="skills-preview-detail" class="pre muted">(select a skill above)</pre>
       </section>
     </main>
 

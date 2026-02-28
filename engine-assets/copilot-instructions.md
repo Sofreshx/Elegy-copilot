@@ -13,7 +13,7 @@ Assume **both** user-level and repo-level instructions apply; conflicts can be n
 run_in_terminal(command: "make build", isBackground: true)  # WRONG! Causes silent failures
 run_in_terminal(command: "git commit", isBackground: true)   # WRONG! Command gets cancelled
 ```
-## ALWAYS USE vscode/askQuestions
+### ALWAYS USE vscode/askQuestions
 When you need clarification from the user, use `vscode/askQuestions` to ask a single, targeted question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
 
 ** ALWAYS DO THIS:**
@@ -26,6 +26,15 @@ run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 - You won't see output or know if command succeeded
 - Git commits, builds, and all other commands REQUIRE `isBackground=false`
 - This is a HARD REQUIREMENT - violations cause session failure
+
+**THE RULE:**
+- ALWAYS set `isBackground: false` for ALL commands
+- NEVER use `isBackground: true` for ANY command
+- If unsure, default to `false`
+
+## Core Guardrails Backstop
+- The `core-guardrails` skill mirrors these non-negotiable execution rules.
+- If repo-level instructions are customized, keep this safety set intact by loading `core-guardrails` before tool execution.
 
 ## Operating rules (global)
 - Prefer small, verifiable changes.
@@ -71,6 +80,11 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
 ## Using Instruction Engine assets
 - When domain-specific behavior matters, load the relevant skill (`SKILL.md`) before implementing changes.
 - Keep repo-local memory and tasks under `.instructions/` (not inside this distribution).
+
+## Implementation Friction Capture
+- Constructive complaints about hard-to-work-with code are allowed when they help delivery.
+- When recurring implementation friction is detected (shaky patterns, dead code, brittle design), load the `implementation-friction` skill.
+- Capture issues quickly using the `docs/issues/implementation-friction-log.md` format, then continue implementation without deep side-tracking.
 
 ## Conflicts (repo-level + user-level)
 - Assume repo-level instructions (e.g. `.github/copilot-instructions.md`) may add constraints.

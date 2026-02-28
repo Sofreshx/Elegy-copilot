@@ -4,6 +4,7 @@ import path from 'path';
 import {
 	MessagingGatewayStatusWriter,
 	MessagingGatewayStatusV1,
+	MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
 	getDefaultMessagingGatewayStatusPath,
 	resolveMessagingGatewayStatusPath,
 } from '../statusFile';
@@ -11,6 +12,16 @@ import {
 function makeStatus(overrides: Partial<MessagingGatewayStatusV1> = {}): MessagingGatewayStatusV1 {
 	return {
 		schemaVersion: 1,
+		contractVersion: MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
+		compatibility: {
+			normalizedFrom: 'v1',
+			deterministic: true,
+		},
+		readiness: {
+			state: 'disconnected',
+			reasonCode: 'gateway_disconnected',
+			deterministic: true,
+		},
 		lastUpdatedUtc: '',
 		config: {
 			configPath: '/tmp/config.json',
@@ -59,9 +70,36 @@ describe('MessagingGatewayStatusWriter', () => {
 
 		const content = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
 		expect(content.schemaVersion).toBe(1);
+			expect(content.contractVersion).toBe(MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION);
 		expect(typeof content.lastUpdatedUtc).toBe('string');
 		expect(content.lastUpdatedUtc.length).toBeGreaterThan(0);
 	});
+
+		test('constructor normalizes legacy v0 status input into canonical v1 readiness shape', () => {
+			const statusPath = path.join(tmpDir, 'legacy-status.json');
+			const writer = new MessagingGatewayStatusWriter(statusPath, {
+				configPath: '/legacy/config.json',
+				activeWorkspaceRoot: '/legacy/ws',
+				connected: true,
+				ready: false,
+				activeSessionThreadCount: 2,
+			});
+
+			writer.writeNow();
+			const content = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
+			expect(content.schemaVersion).toBe(1);
+			expect(content.contractVersion).toBe(MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION);
+			expect(content.compatibility).toEqual({ normalizedFrom: 'v0', deterministic: true });
+			expect(content.readiness).toEqual({
+				state: 'not_ready',
+				reasonCode: 'gateway_not_ready',
+				deterministic: true,
+			});
+			expect(content.runtime.discord.connected).toBe(true);
+			expect(content.runtime.discord.ready).toBe(false);
+			expect(content.runtime.sessions.activeSessionThreadCount).toBe(2);
+			expect(content.config.workspaces.activeRoot).toBe('/legacy/ws');
+		});
 
 	test('writeNow() creates parent directory if needed', () => {
 		const deepPath = path.join(tmpDir, 'a', 'b', 'status.json');

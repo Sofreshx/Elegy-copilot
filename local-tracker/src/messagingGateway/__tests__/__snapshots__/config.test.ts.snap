@@ -2,6 +2,12 @@
 
 exports[`Golden snapshot valid complete config matches snapshot 1`] = `
 {
+  "compatibility": {
+    "deterministic": true,
+    "normalizedFrom": "v0",
+  },
+  "configVersion": 1,
+  "contractVersion": "messaging_gateway_config_v1",
   "discord": {
     "allowlistedUserIds": [
       "1234567890",
@@ -20,6 +26,7 @@ exports[`Golden snapshot valid complete config matches snapshot 1`] = `
     },
     "staleTtlMs": 60000,
   },
+  "schemaVersion": 1,
   "workspaces": {
     "activeRoot": "<TMPROOT>",
     "allowedRoots": [

@@ -36,6 +36,17 @@ interface LifecycleCompatibilityResult {
     receivedCapability: string | null;
 }
 
+export interface TelegramWebhookOptions {
+    /** Shared secret from Telegram webhook registration (`X-Telegram-Bot-Api-Secret-Token`). */
+    secretToken: string;
+    /** Update handler callback (typically delegates to TelegramPlatform.handleUpdate). */
+    onUpdate: (update: unknown) => void | Promise<void>;
+    /** Max accepted request body size in bytes. Default: 64KB. */
+    maxBodyBytes?: number;
+    /** Dedupe TTL window for update_id values in ms. Default: 10 minutes. */
+    dedupeTtlMs?: number;
+}
+
 function normalizeLifecycleCompatibilityToken(value: unknown): string {
     if (Array.isArray(value)) {
         return normalizeLifecycleCompatibilityToken(value.length > 0 ? value[0] : '');
@@ -67,6 +78,8 @@ export interface GatewayHttpServerOptions {
     handleLifecycleAction?: (action: LifecycleAction, payload: unknown, req: http.IncomingMessage) => Promise<unknown>;
     /** Optional policy gate callback for fail-closed mutating routes. */
     getPolicyGateStatus?: () => PolicyGateStatus;
+    /** Optional Telegram webhook endpoint (`POST /api/telegram/webhook`) configuration. */
+    telegramWebhook?: TelegramWebhookOptions;
 }
 
 export class GatewayHttpServer {
@@ -81,6 +94,8 @@ export class GatewayHttpServer {
     private readonly authorizeLifecycleAction: (action: LifecycleAction, req: http.IncomingMessage) => LifecycleAuthorizationResult;
     private readonly handleLifecycleAction: ((action: LifecycleAction, payload: unknown, req: http.IncomingMessage) => Promise<unknown>) | undefined;
     private readonly getPolicyGateStatus: (() => PolicyGateStatus) | undefined;
+    private readonly telegramWebhook: TelegramWebhookOptions | undefined;
+    private readonly telegramSeenUpdateIds = new Map<number, number>();
 
     // SSE connections
     private readonly sseClients = new Set<http.ServerResponse>();
@@ -100,6 +115,16 @@ export class GatewayHttpServer {
         this.authorizeLifecycleAction = options.authorizeLifecycleAction ?? (() => ({ allowed: true }));
         this.handleLifecycleAction = options.handleLifecycleAction;
         this.getPolicyGateStatus = options.getPolicyGateStatus;
+        this.telegramWebhook = options.telegramWebhook;
+
+        if (this.telegramWebhook) {
+            if (typeof this.telegramWebhook.secretToken !== 'string' || this.telegramWebhook.secretToken.trim().length === 0) {
+                throw new Error('[GatewayHttpServer] telegramWebhook.secretToken is required when telegramWebhook is configured');
+            }
+            if (typeof this.telegramWebhook.onUpdate !== 'function') {
+                throw new Error('[GatewayHttpServer] telegramWebhook.onUpdate must be a function when telegramWebhook is configured');
+            }
+        }
     }
 
     async start(): Promise<void> {
@@ -158,10 +183,25 @@ export class GatewayHttpServer {
         const url = req.url ?? '';
         const method = req.method ?? 'GET';
 
+        if (method === 'POST' && url === '/api/telegram/webhook') {
+            if (!this.telegramWebhook) {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Telegram webhook not configured' }));
+                return;
+            }
+            void this.handleTelegramWebhook(req, res);
+            return;
+        }
+
         // Auth check on all endpoints
         if (!this.authenticate(req)) {
             res.writeHead(401, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Unauthorized' }));
+            return;
+        }
+
+        if (method === 'GET' && url === '/api/status') {
+            this.handleStatus(res);
             return;
         }
 
@@ -206,6 +246,17 @@ export class GatewayHttpServer {
             res.writeHead(404, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Not found' }));
         }
+    }
+
+    private handleStatus(res: http.ServerResponse): void {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            contractVersion: 'gateway_http_status_v1',
+            deterministic: true,
+            ok: true,
+            status: 'ready',
+            checkedAt: new Date().toISOString(),
+        }));
     }
 
     private sendLifecyclePayloadValidationError(
@@ -384,17 +435,20 @@ export class GatewayHttpServer {
     private async readJsonBody(req: http.IncomingMessage, maxBytes = 128 * 1024): Promise<unknown> {
         return new Promise((resolve, reject) => {
             let size = 0;
+            let tooLarge = false;
             const chunks: Buffer[] = [];
             req.on('data', (chunk: Buffer) => {
+                if (tooLarge) return;
                 size += chunk.length;
                 if (size > maxBytes) {
+                    tooLarge = true;
                     reject(new Error('Request body too large'));
-                    req.destroy();
                     return;
                 }
                 chunks.push(chunk);
             });
             req.on('end', () => {
+                if (tooLarge) return;
                 if (chunks.length === 0) {
                     resolve({});
                     return;
@@ -408,6 +462,91 @@ export class GatewayHttpServer {
             });
             req.on('error', reject);
         });
+    }
+
+    private readSingleHeaderValue(value: string | string[] | undefined): string {
+        if (Array.isArray(value)) return this.readSingleHeaderValue(value.length > 0 ? value[0] : '');
+        return typeof value === 'string' ? value.trim() : '';
+    }
+
+    private compareSecretToken(received: string, expected: string): boolean {
+        const a = Buffer.from(received);
+        const b = Buffer.from(expected);
+        if (a.length !== b.length) return false;
+        return crypto.timingSafeEqual(a, b);
+    }
+
+    private pruneTelegramDedupeMap(nowMs: number, ttlMs: number): void {
+        const cutoff = nowMs - ttlMs;
+        for (const [updateId, seenAt] of this.telegramSeenUpdateIds.entries()) {
+            if (seenAt < cutoff) this.telegramSeenUpdateIds.delete(updateId);
+        }
+    }
+
+    private async handleTelegramWebhook(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+        const webhook = this.telegramWebhook;
+        if (!webhook) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Telegram webhook not configured' }));
+            return;
+        }
+
+        const receivedSecret = this.readSingleHeaderValue(req.headers['x-telegram-bot-api-secret-token']);
+        const expectedSecret = webhook.secretToken.trim();
+        if (!receivedSecret || !this.compareSecretToken(receivedSecret, expectedSecret)) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Forbidden' }));
+            return;
+        }
+
+        let payload: unknown;
+        try {
+            payload = await this.readJsonBody(req, webhook.maxBodyBytes ?? 64 * 1024);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            if (message === 'Request body too large') {
+                res.writeHead(413, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Payload too large' }));
+                return;
+            }
+            if (message === 'Invalid JSON body') {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Invalid JSON' }));
+                return;
+            }
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid request body' }));
+            return;
+        }
+
+        const updateId =
+            typeof payload === 'object' && payload !== null && typeof (payload as { update_id?: unknown }).update_id === 'number'
+                ? (payload as { update_id: number }).update_id
+                : undefined;
+
+        if (typeof updateId === 'number') {
+            const nowMs = Date.now();
+            const dedupeTtlMs = webhook.dedupeTtlMs ?? 10 * 60 * 1000;
+            this.pruneTelegramDedupeMap(nowMs, dedupeTtlMs);
+
+            if (this.telegramSeenUpdateIds.has(updateId)) {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ ok: true, deduplicated: true }));
+                return;
+            }
+
+            this.telegramSeenUpdateIds.set(updateId, nowMs);
+        }
+
+        try {
+            await webhook.onUpdate(payload);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true }));
+        } catch (err) {
+            console.error('[GatewayHttp] Telegram webhook update handler failed:', err);
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, dropped: true, reason: 'handler_error' }));
+        }
     }
 
     private async handleLifecycleActionRequest(

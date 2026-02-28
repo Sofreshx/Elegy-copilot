@@ -5,6 +5,8 @@ description: High-signal review checklist for changes before commit (/diff + /re
 
 Review the current changeset before commit.
 
+Before proceeding, apply `core-guardrails` safety constraints (especially terminal/background-process rules).
+
 Checklist:
 - Correctness: does it do what was asked?
 - Scope: no unrelated refactors or new features.

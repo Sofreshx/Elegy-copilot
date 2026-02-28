@@ -28,6 +28,18 @@ const {
   createPlanningApiState,
   FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION,
 } = require('./lib/planningApiContracts');
+const {
+  persistPlanningCompareReceipt,
+  readPlanningCompareReceipt,
+  persistPlanningMergeIntent,
+  readPlanningMergeIntent,
+  persistPlanningSuggestion,
+  readPlanningSuggestion,
+  persistPlanningRecap,
+  readPlanningRecap,
+  persistPlanningMergeIdempotencyRecord,
+  readPlanningMergeIdempotencyRecord,
+} = require('./lib/planningPersistence');
 
 let passed = 0;
 
@@ -41,6 +53,156 @@ async function test(name, fn) {
     console.error(`    ${error.message}`);
     process.exitCode = 1;
   }
+}
+
+function createDurabilityArtifactClient() {
+  const compareReceipts = new Map();
+  const mergeIntents = new Map();
+  const suggestions = new Map();
+  const recaps = new Map();
+  const idempotencyLedger = new Map();
+
+  return {
+    async query(sql, params = []) {
+      const statement = String(sql || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+      if (statement.startsWith('insert into ie_planning_compare_receipts')) {
+        const row = {
+          receipt_id: String(params[0] || '').trim(),
+          actor_id: String(params[1] || '').trim().toLowerCase(),
+          repo_id: params[2] == null ? null : String(params[2]).trim().toLowerCase(),
+          compare_hash: String(params[3] || '').trim(),
+          source_ids_hash: String(params[4] || '').trim(),
+          source_ids: typeof params[5] === 'string' ? JSON.parse(params[5]) : [],
+          version_vector: typeof params[6] === 'string' ? JSON.parse(params[6]) : null,
+          gate_state: String(params[7] || '').trim(),
+          merge_eligible: params[8] === true,
+          reason: String(params[9] || '').trim(),
+          downgrade: typeof params[10] === 'string' ? JSON.parse(params[10]) : null,
+          issued_at: String(params[11] || '').trim(),
+          expires_at: String(params[12] || '').trim(),
+        };
+        compareReceipts.set(row.receipt_id, row);
+        return { rows: [{ ...row }], rowCount: 1 };
+      }
+
+      if (statement.startsWith('select receipt_id, actor_id, repo_id, compare_hash, source_ids_hash, source_ids, version_vector, gate_state, merge_eligible, reason, downgrade, issued_at, expires_at from ie_planning_compare_receipts where receipt_id = $1')) {
+        const receiptId = String(params[0] || '').trim();
+        const row = receiptId ? compareReceipts.get(receiptId) : null;
+        return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
+      }
+
+      if (statement.startsWith('delete from ie_planning_compare_receipts where receipt_id = $1')) {
+        const receiptId = String(params[0] || '').trim();
+        const deleted = compareReceipts.delete(receiptId);
+        return { rows: [], rowCount: deleted ? 1 : 0 };
+      }
+
+      if (statement.startsWith('insert into ie_planning_merge_intents')) {
+        const row = {
+          token_id: String(params[0] || '').trim(),
+          compare_receipt_id: String(params[1] || '').trim(),
+          actor_id: String(params[2] || '').trim().toLowerCase(),
+          repo_id: params[3] == null ? null : String(params[3]).trim().toLowerCase(),
+          target_id: String(params[4] || '').trim(),
+          source_ids_hash: String(params[5] || '').trim(),
+          compare_hash: String(params[6] || '').trim(),
+          version_vector: typeof params[7] === 'string' ? JSON.parse(params[7]) : null,
+          version_vector_hash: params[8] == null ? null : String(params[8]).trim(),
+          issued_at: String(params[9] || '').trim(),
+          expires_at: String(params[10] || '').trim(),
+          consumed_at: params[11] == null ? null : String(params[11]).trim(),
+        };
+        mergeIntents.set(row.token_id, row);
+        return { rows: [{ ...row }], rowCount: 1 };
+      }
+
+      if (statement.startsWith('select token_id, compare_receipt_id, actor_id, repo_id, target_id, source_ids_hash, compare_hash, version_vector, version_vector_hash, issued_at, expires_at, consumed_at from ie_planning_merge_intents where token_id = $1')) {
+        const tokenId = String(params[0] || '').trim();
+        const row = tokenId ? mergeIntents.get(tokenId) : null;
+        return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
+      }
+
+      if (statement.startsWith('delete from ie_planning_merge_intents where token_id = $1')) {
+        const tokenId = String(params[0] || '').trim();
+        const deleted = mergeIntents.delete(tokenId);
+        return { rows: [], rowCount: deleted ? 1 : 0 };
+      }
+
+      if (statement.startsWith('insert into ie_planning_suggestions')) {
+        const row = {
+          suggestion_id: String(params[0] || '').trim(),
+          actor_id: String(params[1] || '').trim().toLowerCase(),
+          repo_id: params[2] == null ? null : String(params[2]).trim().toLowerCase(),
+          scope: String(params[3] || '').trim().toLowerCase(),
+          state: typeof params[4] === 'string' ? JSON.parse(params[4]) : {},
+          created_at: String(params[5] || '').trim(),
+          updated_at: String(params[6] || '').trim(),
+        };
+        suggestions.set(row.suggestion_id, row);
+        return { rows: [{ ...row }], rowCount: 1 };
+      }
+
+      if (statement.startsWith('select suggestion_id, actor_id, repo_id, scope, state, created_at, updated_at from ie_planning_suggestions where suggestion_id = $1 limit 1')) {
+        const suggestionId = String(params[0] || '').trim();
+        const row = suggestionId ? suggestions.get(suggestionId) : null;
+        return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
+      }
+
+      if (statement.startsWith('insert into ie_planning_recaps')) {
+        const row = {
+          recap_id: String(params[0] || '').trim(),
+          actor_id: String(params[1] || '').trim().toLowerCase(),
+          repo_id: params[2] == null ? null : String(params[2]).trim().toLowerCase(),
+          scope: String(params[3] || '').trim().toLowerCase(),
+          state: typeof params[4] === 'string' ? JSON.parse(params[4]) : {},
+          created_at: String(params[5] || '').trim(),
+          updated_at: String(params[6] || '').trim(),
+        };
+        recaps.set(row.recap_id, row);
+        return { rows: [{ ...row }], rowCount: 1 };
+      }
+
+      if (statement.startsWith('select recap_id, actor_id, repo_id, scope, state, created_at, updated_at from ie_planning_recaps where recap_id = $1 limit 1')) {
+        const recapId = String(params[0] || '').trim();
+        const row = recapId ? recaps.get(recapId) : null;
+        return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
+      }
+
+      if (statement.startsWith('select idempotency_key, actor_id, repo_id, operation_type, target_id, source_ids_hash, compare_hash, payload_hash, merge_record_id, response, created_at, expires_at from ie_planning_merge_idempotency_ledger where idempotency_key = $1')) {
+        const idempotencyKey = String(params[0] || '').trim();
+        const row = idempotencyKey ? idempotencyLedger.get(idempotencyKey) : null;
+        return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
+      }
+
+      if (statement.startsWith('insert into ie_planning_merge_idempotency_ledger')) {
+        const row = {
+          idempotency_key: String(params[0] || '').trim(),
+          actor_id: String(params[1] || '').trim().toLowerCase(),
+          repo_id: params[2] == null ? null : String(params[2]).trim().toLowerCase(),
+          operation_type: String(params[3] || '').trim(),
+          target_id: String(params[4] || '').trim(),
+          source_ids_hash: String(params[5] || '').trim(),
+          compare_hash: String(params[6] || '').trim(),
+          payload_hash: String(params[7] || '').trim(),
+          merge_record_id: params[8] == null ? null : String(params[8]).trim(),
+          response: typeof params[9] === 'string' ? JSON.parse(params[9]) : {},
+          created_at: new Date().toISOString(),
+          expires_at: String(params[10] || '').trim(),
+        };
+        idempotencyLedger.set(row.idempotency_key, row);
+        return { rows: [{ ...row }], rowCount: 1 };
+      }
+
+      if (statement.startsWith('delete from ie_planning_merge_idempotency_ledger where idempotency_key = $1')) {
+        const idempotencyKey = String(params[0] || '').trim();
+        const deleted = idempotencyLedger.delete(idempotencyKey);
+        return { rows: [], rowCount: deleted ? 1 : 0 };
+      }
+
+      throw new Error(`Unexpected query in durability artifact client: ${sql}`);
+    },
+  };
 }
 
 async function run() {
@@ -909,6 +1071,313 @@ async function run() {
 
     assert.strictEqual(retry.statusCode, 200);
     assert.strictEqual(retry.body.idempotency.replay, false);
+  });
+
+  await test('persisted compare receipt and merge intent survive restart hydration for merge execution', async () => {
+    const durabilityClient = createDurabilityArtifactClient();
+
+    const initialState = createPlanningApiState();
+    const compareReceipt = recordPlanningCompareReceipt(
+      initialState,
+      { userId: 'user-1', repoId: 'repo-1' },
+      {
+        requestedScopes: ['repo'],
+        deniedScopes: [],
+        planningRecords: [{ recordId: 'source-1' }],
+        matches: [{ recordId: 'source-1' }],
+        implementedOutcomes: { sources: [] },
+        versionVector: { pinned: { planningRecordsVersion: 2 } },
+        newerDataAvailable: false,
+      },
+      Date.parse('2026-02-26T03:00:00.000Z'),
+    );
+
+    await persistPlanningCompareReceipt(durabilityClient, {
+      receipt: compareReceipt,
+    });
+
+    const intent = issuePlanningMergeIntent(initialState, {
+      context: { userId: 'user-1', repoId: 'repo-1' },
+      payload: {
+        compareReceiptId: compareReceipt.receiptId,
+        targetId: 'target-1',
+        sourceIds: ['source-1'],
+      },
+      nowMs: Date.parse('2026-02-26T03:00:30.000Z'),
+    });
+    assert.strictEqual(intent.statusCode, 200);
+
+    await persistPlanningMergeIntent(durabilityClient, {
+      token: intent.body.intentToken,
+    });
+
+    const restartedState = createPlanningApiState();
+    restartedState.compareReceipts = new Map();
+    restartedState.mergeIntentTokens = new Map();
+    restartedState.mergeIdempotencyRecords = new Map();
+
+    const persistedReceipt = await readPlanningCompareReceipt(durabilityClient, {
+      receiptId: compareReceipt.receiptId,
+      nowMs: Date.parse('2026-02-26T03:01:00.000Z'),
+    });
+    assert.strictEqual(persistedReceipt.ok, true);
+    restartedState.compareReceipts.set(compareReceipt.receiptId, persistedReceipt.receipt);
+
+    const persistedIntent = await readPlanningMergeIntent(durabilityClient, {
+      tokenId: intent.body.intentToken.tokenId,
+      nowMs: Date.parse('2026-02-26T03:01:00.000Z'),
+    });
+    assert.strictEqual(persistedIntent.ok, true);
+    restartedState.mergeIntentTokens.set(intent.body.intentToken.tokenId, persistedIntent.token);
+
+    const merge = executePlanningMerge(restartedState, {
+      context: { userId: 'user-1', repoId: 'repo-1' },
+      payload: {
+        idempotencyKey: 'merge-restart-1',
+        compareReceiptId: compareReceipt.receiptId,
+        tokenId: intent.body.intentToken.tokenId,
+        targetId: 'target-1',
+        sourceIdsHash: intent.body.intentToken.sourceIdsHash,
+        compareHash: intent.body.intentToken.compareHash,
+        sourceIds: ['source-1'],
+        versionVector: { planningRecordsVersion: 2 },
+      },
+      nowMs: Date.parse('2026-02-26T03:01:00.000Z'),
+    });
+
+    assert.strictEqual(merge.statusCode, 200);
+    assert.strictEqual(merge.body.mergeAccepted, true);
+    assert.strictEqual(merge.body.idempotency.replay, false);
+  });
+
+  await test('persisted idempotency ledger replay and payload conflict remain deterministic after restart hydration', async () => {
+    const durabilityClient = createDurabilityArtifactClient();
+
+    const planningState = createPlanningApiState();
+    const compareReceipt = recordPlanningCompareReceipt(
+      planningState,
+      { userId: 'user-1', repoId: 'repo-1' },
+      {
+        requestedScopes: ['repo'],
+        deniedScopes: [],
+        planningRecords: [{ recordId: 'source-1' }],
+        matches: [{ recordId: 'source-1' }],
+        implementedOutcomes: { sources: [] },
+        versionVector: { pinned: { planningRecordsVersion: 2 } },
+        newerDataAvailable: false,
+      },
+      Date.parse('2026-02-26T03:10:00.000Z'),
+    );
+
+    const intent = issuePlanningMergeIntent(planningState, {
+      context: { userId: 'user-1', repoId: 'repo-1' },
+      payload: {
+        compareReceiptId: compareReceipt.receiptId,
+        targetId: 'target-1',
+        sourceIds: ['source-1'],
+      },
+      nowMs: Date.parse('2026-02-26T03:10:00.000Z'),
+    });
+
+    const merge = executePlanningMerge(planningState, {
+      context: { userId: 'user-1', repoId: 'repo-1' },
+      payload: {
+        idempotencyKey: 'merge-persisted-1',
+        compareReceiptId: compareReceipt.receiptId,
+        tokenId: intent.body.intentToken.tokenId,
+        targetId: 'target-1',
+        sourceIdsHash: intent.body.intentToken.sourceIdsHash,
+        compareHash: intent.body.intentToken.compareHash,
+        sourceIds: ['source-1'],
+        versionVector: { planningRecordsVersion: 2 },
+      },
+      nowMs: Date.parse('2026-02-26T03:10:30.000Z'),
+    });
+
+    assert.strictEqual(merge.statusCode, 200);
+
+    await persistPlanningMergeIdempotencyRecord(durabilityClient, {
+      idempotencyKey: 'merge-persisted-1',
+      actorId: 'user-1',
+      repoId: 'repo-1',
+      operationType: 'merge',
+      targetId: 'target-1',
+      sourceIdsHash: intent.body.intentToken.sourceIdsHash,
+      compareHash: intent.body.intentToken.compareHash,
+      payloadHash: planningState.mergeIdempotencyRecords.get('merge-persisted-1').payloadHash,
+      mergeRecordId: merge.body.mergeRecord && merge.body.mergeRecord.recordId,
+      response: merge.body,
+      nowMs: Date.parse('2026-02-26T03:10:30.000Z'),
+      ttlMs: 60_000,
+    });
+
+    const restartedState = createPlanningApiState();
+    restartedState.compareReceipts = new Map([[compareReceipt.receiptId, compareReceipt]]);
+    restartedState.mergeIntentTokens = new Map([[intent.body.intentToken.tokenId, intent.body.intentToken]]);
+    restartedState.mergeIdempotencyRecords = new Map();
+
+    const persistedRecord = await readPlanningMergeIdempotencyRecord(durabilityClient, {
+      idempotencyKey: 'merge-persisted-1',
+      nowMs: Date.parse('2026-02-26T03:10:45.000Z'),
+    });
+    assert.strictEqual(persistedRecord.ok, true);
+    assert.ok(persistedRecord.record);
+
+    restartedState.mergeIdempotencyRecords.set('merge-persisted-1', {
+      idempotencyKey: persistedRecord.record.idempotencyKey,
+      payloadHash: persistedRecord.record.payloadHash,
+      response: persistedRecord.record.response,
+      createdAtMs: Date.parse(persistedRecord.record.createdAt),
+      expiresAtMs: Date.parse(persistedRecord.record.expiresAt),
+    });
+
+    const replay = executePlanningMerge(restartedState, {
+      context: { userId: 'user-1', repoId: 'repo-1' },
+      payload: {
+        idempotencyKey: 'merge-persisted-1',
+        compareReceiptId: compareReceipt.receiptId,
+        tokenId: intent.body.intentToken.tokenId,
+        targetId: 'target-1',
+        sourceIdsHash: intent.body.intentToken.sourceIdsHash,
+        compareHash: intent.body.intentToken.compareHash,
+        sourceIds: ['source-1'],
+        versionVector: { planningRecordsVersion: 2 },
+      },
+      nowMs: Date.parse('2026-02-26T03:10:50.000Z'),
+    });
+
+    assert.strictEqual(replay.statusCode, 200);
+    assert.strictEqual(replay.body.idempotency.replay, true);
+
+    const conflict = executePlanningMerge(restartedState, {
+      context: { userId: 'user-1', repoId: 'repo-1' },
+      payload: {
+        idempotencyKey: 'merge-persisted-1',
+        compareReceiptId: compareReceipt.receiptId,
+        tokenId: intent.body.intentToken.tokenId,
+        targetId: 'target-1',
+        sourceIdsHash: intent.body.intentToken.sourceIdsHash,
+        compareHash: 'cmp-mismatch',
+        sourceIds: ['source-1'],
+        versionVector: { planningRecordsVersion: 2 },
+      },
+      nowMs: Date.parse('2026-02-26T03:11:00.000Z'),
+    });
+
+    assert.strictEqual(conflict.statusCode, 409);
+    assert.deepStrictEqual(conflict.body.error, {
+      code: 'idempotency_conflict',
+      reason: 'idempotency_key_payload_mismatch',
+    });
+  });
+
+  await test('persisted planning suggestion is restart-safe with deterministic retrieval contract', async () => {
+    const durabilityClient = createDurabilityArtifactClient();
+
+    const persistedSuggestion = await persistPlanningSuggestion(durabilityClient, {
+      actorId: 'user-1',
+      suggestion: {
+        suggestionId: 'suggestion-1',
+        actorId: 'user-1',
+        repoId: 'repo-1',
+        scope: 'repo',
+        state: {
+          compareReceiptId: 'compare-1',
+          recommendation: 'merge-safe',
+          reasonCodes: ['gate_pass'],
+        },
+        createdAt: '2026-02-26T04:00:00.000Z',
+        updatedAt: '2026-02-26T04:00:10.000Z',
+      },
+    });
+
+    assert.strictEqual(persistedSuggestion.ok, true);
+    assert.ok(persistedSuggestion.suggestion);
+
+    const readAfterRestart = await readPlanningSuggestion(durabilityClient, {
+      actorId: 'user-1',
+      suggestionId: 'suggestion-1',
+    });
+
+    assert.strictEqual(readAfterRestart.ok, true);
+    assert.ok(readAfterRestart.suggestion);
+    assert.strictEqual(readAfterRestart.suggestion.suggestionId, 'suggestion-1');
+    assert.strictEqual(readAfterRestart.suggestion.scope, 'repo');
+    assert.strictEqual(readAfterRestart.suggestion.state.recommendation, 'merge-safe');
+
+    const missing = await readPlanningSuggestion(durabilityClient, {
+      actorId: 'user-1',
+      suggestionId: 'missing-suggestion',
+    });
+    assert.strictEqual(missing.ok, false);
+    assert.deepStrictEqual(missing.error, {
+      code: 'invalid_planning_suggestion',
+      reason: 'planning_suggestion_not_found',
+    });
+
+    const denied = await readPlanningSuggestion(durabilityClient, {
+      actorId: 'user-2',
+      suggestionId: 'suggestion-1',
+    });
+    assert.strictEqual(denied.ok, false);
+    assert.deepStrictEqual(denied.error, {
+      code: 'scope_visibility_denied',
+      reason: 'owner_identity_mismatch_or_missing',
+    });
+  });
+
+  await test('persisted planning recap is restart-safe with deterministic retrieval contract', async () => {
+    const durabilityClient = createDurabilityArtifactClient();
+
+    const persistedRecap = await persistPlanningRecap(durabilityClient, {
+      actorId: 'user-1',
+      recap: {
+        recapId: 'recap-1',
+        actorId: 'user-1',
+        scope: 'user',
+        state: {
+          summary: 'merge accepted',
+          mergeRecordId: 'record-1',
+          completedAt: '2026-02-26T04:15:00.000Z',
+        },
+        createdAt: '2026-02-26T04:15:00.000Z',
+        updatedAt: '2026-02-26T04:15:01.000Z',
+      },
+    });
+
+    assert.strictEqual(persistedRecap.ok, true);
+    assert.ok(persistedRecap.recap);
+
+    const readAfterRestart = await readPlanningRecap(durabilityClient, {
+      actorId: 'user-1',
+      recapId: 'recap-1',
+    });
+
+    assert.strictEqual(readAfterRestart.ok, true);
+    assert.ok(readAfterRestart.recap);
+    assert.strictEqual(readAfterRestart.recap.recapId, 'recap-1');
+    assert.strictEqual(readAfterRestart.recap.scope, 'user');
+    assert.strictEqual(readAfterRestart.recap.state.mergeRecordId, 'record-1');
+
+    const missing = await readPlanningRecap(durabilityClient, {
+      actorId: 'user-1',
+      recapId: 'missing-recap',
+    });
+    assert.strictEqual(missing.ok, false);
+    assert.deepStrictEqual(missing.error, {
+      code: 'invalid_planning_recap',
+      reason: 'planning_recap_not_found',
+    });
+
+    const denied = await readPlanningRecap(durabilityClient, {
+      actorId: 'user-2',
+      recapId: 'recap-1',
+    });
+    assert.strictEqual(denied.ok, false);
+    assert.deepStrictEqual(denied.error, {
+      code: 'scope_visibility_denied',
+      reason: 'owner_identity_mismatch_or_missing',
+    });
   });
 
   await test('executePlanningMerge rejects snapshot mismatch', async () => {

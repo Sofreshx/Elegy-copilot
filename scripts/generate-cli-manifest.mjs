@@ -34,6 +34,12 @@ function stableSort(a, b) {
 	return a.localeCompare(b);
 }
 
+const MANDATORY_ALLOWLIST_ITEMS = Object.freeze({
+	agents: [],
+	skills: ['core-guardrails'],
+	prompts: []
+});
+
 function parseArgs(argv) {
 	const args = { all: false };
 	for (const a of argv || []) {
@@ -63,6 +69,14 @@ function loadAllowlist(engineRoot, args) {
 	};
 }
 
+function enforceMandatoryAllowlistItems(allow) {
+	if (!allow) return;
+
+	for (const name of MANDATORY_ALLOWLIST_ITEMS.agents) allow.agents.add(name);
+	for (const name of MANDATORY_ALLOWLIST_ITEMS.skills) allow.skills.add(name);
+	for (const name of MANDATORY_ALLOWLIST_ITEMS.prompts) allow.prompts.add(name);
+}
+
 function main() {
 	const args = parseArgs(process.argv.slice(2));
 	const engineRoot = path.resolve(process.cwd());
@@ -73,6 +87,7 @@ function main() {
 	const assetsPrompts = path.join(assetsRoot, 'prompts');
 	const cliInstructions = path.join(assetsRoot, 'copilot-instructions.md');
 	const allow = loadAllowlist(engineRoot, args);
+	enforceMandatoryAllowlistItems(allow);
 
 	if (!fs.existsSync(manifestPath)) {
 		console.error(`Missing manifest: ${manifestPath}`);
@@ -111,12 +126,25 @@ function main() {
 		const skillFile = path.join(dirAbs, 'SKILL.md');
 		if (!fs.existsSync(skillFile)) continue;
 		matched.skills.add(name);
-		assets.push({
+		const asset = {
 			id: `skill-${name}`,
 			type: 'skill',
 			source: `engine-assets/skills/${name}`,
 			destination: `skills/${name}`
-		});
+		};
+
+		// Detect pointer skills (vault-ref in SKILL.md frontmatter)
+		const skillContent = fs.readFileSync(skillFile, 'utf8');
+		const isPointer = /^---[\s\S]*?vault-ref:\s*.+[\s\S]*?---/m.test(skillContent);
+		if (isPointer) {
+			const vaultRefMatch = skillContent.match(/vault-ref:\s*(.+)/);
+			asset.pointer = true;
+			if (vaultRefMatch) {
+				asset.vaultRef = vaultRefMatch[1].trim();
+			}
+		}
+
+		assets.push(asset);
 	}
 
 	// Prompts (files)

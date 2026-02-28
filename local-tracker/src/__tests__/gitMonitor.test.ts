@@ -21,6 +21,7 @@ class TestableGitMonitor extends GitMonitor {
 function makeConfig(overrides?: Partial<TrackerConfig>): TrackerConfig {
   return {
     workspacePaths: ["/fake/repo"],
+    relayTokenSource: "missing",
     localWsPort: 9821,
     watchIntervalMs: 1000,
     statusPort: 0,

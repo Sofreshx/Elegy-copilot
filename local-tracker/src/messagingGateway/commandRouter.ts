@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AuditLogger } from './auditLogger';
 import { chunkText } from './chunking';
 import type { BridgeClient } from './bridgeClient';
+import type { SessionDriver } from './sessionDriver';
 import { formatSummary } from './formatSummary';
 import { getWorkspaceGitSnapshot } from './gitSnapshot';
 import type { PermissionOrchestrator } from './permissionOrchestrator';
@@ -13,9 +14,10 @@ import { FixedWindowRateLimiter } from './rateLimiter';
 import { ArtefactsMonitor } from './artefactsMonitor';
 import { formatSessionLine, parseBridgeSessions } from './sessionsHelpers';
 import type { PlatformKind } from './platform';
-import { loadAllWorkflowTemplates } from './workflows/workflowLoader';
 import { executeWorkflow } from './workflows/workflowRuntime';
-import type { WorkflowStep } from './workflows/workflowSchema';
+import { createDefaultRegistry } from './workflows/executors';
+import { WorkflowDiscovery } from './workflows/workflowDiscovery';
+import { WorkflowHistory } from './workflows/workflowHistory';
 
 export type CommandTier = 'read' | 'invoke' | 'admin';
 
@@ -110,6 +112,8 @@ export interface CommandRouterDeps {
 	extensionClient?: BridgeClient;
 	permissionOrchestrator?: PermissionOrchestrator;
 	sandboxRegistry?: SandboxRegistry;
+	sessionDriver?: SessionDriver;
+	workflowHistory?: WorkflowHistory;
 	nowMs?: () => number;
 }
 
@@ -158,8 +162,9 @@ const SessionIdSchema = z.preprocess(
 );
 
 const WorkflowArgsSchema = z.object({
-	subcommand: z.enum(['run', 'list']),
+	subcommand: z.enum(['run', 'list', 'history', 'inspect']),
 	name: z.string().min(1).max(64).optional(),
+	limit: z.number().int().min(1).max(100).optional(),
 }).strict();
 
 const WorkspaceRootSchema = z.preprocess(
@@ -192,6 +197,7 @@ export class CommandRouter {
 	// When sandboxId is provided: tracks per-user-per-sandbox (allows multi-sandbox concurrency)
 	// When sandboxId is absent ("__default__"): tracks per-user globally (backward compat)
 	private readonly invokeInFlightByUser = new Map<string, Map<string, number>>();
+	private workflowDiscovery?: WorkflowDiscovery;
 
 	constructor(deps: CommandRouterDeps) {
 		assertPolicyContract(deps.policy);
@@ -494,6 +500,7 @@ export class CommandRouter {
 		const workspaceRoot = this.deps.workspaces.getActiveWorkspaceRoot();
 		this.assertWorkspaceAllowed(workspaceRoot);
 
+		const driver = this.getSessionDriver();
 		const client = this.deps.extensionClient;
 		const pending = this.deps.permissionOrchestrator?.getPending() ?? [];
 		const pendingBySessionId = new Map<string, number>();
@@ -502,8 +509,8 @@ export class CommandRouter {
 			if (!sessionId) continue;
 			pendingBySessionId.set(sessionId, (pendingBySessionId.get(sessionId) ?? 0) + 1);
 		}
-		if (client && client.getStatus() === 'connected') {
-			const resUnknown = await client.get_sessions();
+		if (driver || (client && client.getStatus() === 'connected')) {
+			const resUnknown = driver ? await driver.getSessions() : await client!.get_sessions();
 			const sessions = parseBridgeSessions(resUnknown);
 			const normalizedStatuses = (args.statuses ?? []).map((s) => s.toLowerCase()).filter((s) => s.length > 0);
 			const filtered = sessions.filter((s) => {
@@ -532,17 +539,23 @@ export class CommandRouter {
 			.strict()
 			.parse(argsUnknown);
 
-		const client = this.deps.extensionClient;
-		if (!client || client.getStatus() !== 'connected') {
-			return { messages: sanitizeAndChunk(`${kind} is connected-only (extension WS not connected).`) };
-		}
-
 		const prompt =
 			kind === 'plan'
 				? sanitizeInboundPrompt(`PLAN ONLY:\n${args.prompt}`, { maxLength: this.deps.policy.maxPromptChars })
 				: args.prompt;
 
-		const result = await client.invoke_agent({ agentName: 'orchestrator', prompt });
+		const driver = this.getSessionDriver();
+		let result: unknown;
+		if (driver) {
+			result = await driver.invokeAgent({ agentName: 'orchestrator', prompt });
+		} else {
+			const client = this.deps.extensionClient;
+			if (!client || client.getStatus() !== 'connected') {
+				return { messages: sanitizeAndChunk(`${kind} is connected-only (extension WS not connected).`) };
+			}
+			result = await client.invoke_agent({ agentName: 'orchestrator', prompt });
+		}
+
 		const sessionId = this.tryExtractSessionId(result);
 		const summaryText = formatSummary(
 			[
@@ -563,12 +576,17 @@ export class CommandRouter {
 			.strict()
 			.parse(argsUnknown);
 
-		const client = this.deps.extensionClient;
-		if (!client || client.getStatus() !== 'connected') {
-			return sanitizeAndChunk('stop is connected-only (extension WS not connected).');
+		const driver = this.getSessionDriver();
+		if (driver) {
+			await driver.cancelSession({ sessionId: args.sessionId });
+		} else {
+			const client = this.deps.extensionClient;
+			if (!client || client.getStatus() !== 'connected') {
+				return sanitizeAndChunk('stop is connected-only (extension WS not connected).');
+			}
+			await client.cancel_session({ sessionId: args.sessionId });
 		}
 
-		await client.cancel_session({ sessionId: args.sessionId });
 		return sanitizeAndChunk(`Stop requested for session ${args.sessionId}.`);
 	}
 
@@ -637,6 +655,12 @@ export class CommandRouter {
 		if (approved) await orch.approve(args.callbackId);
 		else await orch.deny(args.callbackId);
 
+		// Best-effort: also notify sessionDriver if available
+		const driver = this.getSessionDriver();
+		if (driver) {
+			await driver.resolvePermission({ callbackId: args.callbackId, approved }).catch(() => {});
+		}
+
 		return sanitizeAndChunk(`${approved ? 'Approved' : 'Denied'} permission ${args.callbackId}.`);
 	}
 
@@ -660,17 +684,64 @@ export class CommandRouter {
 		return sanitizeAndChunk(lines.join('\n'));
 	}
 
+	private getWorkflowDiscovery(forceRefresh = false): WorkflowDiscovery {
+		if (!this.workflowDiscovery) {
+			this.workflowDiscovery = new WorkflowDiscovery();
+		} else if (forceRefresh) {
+			this.workflowDiscovery.refresh();
+		}
+		return this.workflowDiscovery;
+	}
+
 	private async handleWorkflow(argsUnknown: unknown): Promise<string[]> {
 		const args = WorkflowArgsSchema.parse(argsUnknown);
-		const templates = loadAllWorkflowTemplates();
+		const discovery = this.getWorkflowDiscovery();
 
 		if (args.subcommand === 'list') {
-			if (templates.size === 0) {
+			const all = discovery.listAll();
+			if (all.length === 0) {
 				return sanitizeAndChunk('No workflow templates found.');
 			}
 			const lines = ['**Available Workflows:**'];
-			for (const [id, def] of templates) {
-				lines.push(`\u2022 \`${id}\` \u2014 ${def.name}${def.description ? ` (${def.description})` : ''}`);
+			for (const def of all) {
+				lines.push(`\u2022 \`${def.id}\` \u2014 ${def.name}${def.description ? ` (${def.description})` : ''}`);
+			}
+			return sanitizeAndChunk(lines.join('\n'));
+		}
+
+		if (args.subcommand === 'history') {
+			if (!args.name) {
+				return sanitizeAndChunk('Usage: /workflow history <name> [--limit N]');
+			}
+			if (!this.deps.workflowHistory) {
+				return sanitizeAndChunk('Workflow history is not enabled.');
+			}
+			const entries = this.deps.workflowHistory.readRecent(args.name, args.limit ?? 10);
+			if (entries.length === 0) {
+				return sanitizeAndChunk(`No history found for workflow "${args.name}".`);
+			}
+			const lines = [`**Workflow History: ${args.name}** (${entries.length} recent runs)`];
+			for (const entry of entries) {
+				const dur = entry.completedAtMs - entry.startedAtMs;
+				lines.push(`\u2022 ${entry.status} \u2014 ${dur}ms \u2014 ${new Date(entry.startedAtMs).toISOString()}`);
+			}
+			return sanitizeAndChunk(lines.join('\n'));
+		}
+
+		if (args.subcommand === 'inspect') {
+			if (!args.name) {
+				return sanitizeAndChunk('Usage: /workflow inspect <name>');
+			}
+			const def = discovery.get(args.name);
+			if (!def) {
+				return sanitizeAndChunk(`Workflow "${args.name}" not found.`);
+			}
+			const lines = [`**Workflow: ${def.name}** (v${def.version})`];
+			if (def.description) lines.push(def.description);
+			lines.push('', '**Steps:**');
+			for (const step of def.steps) {
+				const deps = step.dependsOn.length > 0 ? ` \u2192 depends on: ${step.dependsOn.join(', ')}` : '';
+				lines.push(`\u2022 \`${step.id}\` \u2014 ${step.name} [${step.action}]${deps}`);
 			}
 			return sanitizeAndChunk(lines.join('\n'));
 		}
@@ -680,16 +751,25 @@ export class CommandRouter {
 			return sanitizeAndChunk('Usage: /workflow run <name>. Use /workflow list to see available workflows.');
 		}
 
-		const definition = templates.get(args.name);
+		const definition = discovery.get(args.name);
 		if (!definition) {
 			return sanitizeAndChunk(`Workflow "${args.name}" not found. Use /workflow list to see available workflows.`);
 		}
 
-		const stubExecutor = async (step: WorkflowStep): Promise<unknown> => {
-			return { step: step.id, action: step.action, status: 'stub' };
-		};
+		if (!this.deps.extensionClient) {
+			return sanitizeAndChunk('Cannot run workflows: no bridge client connected.');
+		}
 
-		const result = await executeWorkflow(definition, stubExecutor);
+		const registry = createDefaultRegistry(this.deps.extensionClient);
+		const result = await executeWorkflow(definition, registry.toStepExecutor());
+
+		if (this.deps.workflowHistory) {
+			try {
+				this.deps.workflowHistory.append(result);
+			} catch {
+				// Graceful skip if history write fails
+			}
+		}
 
 		const lines = [`**Workflow: ${definition.name}** (${result.status})`];
 		for (const sr of result.steps) {
@@ -697,6 +777,11 @@ export class CommandRouter {
 			lines.push(`${icon} ${sr.stepId}: ${sr.status} (${sr.durationMs}ms)`);
 		}
 		return sanitizeAndChunk(lines.join('\n'));
+	}
+
+	private getSessionDriver(): SessionDriver | undefined {
+		if (this.deps.sessionDriver) return this.deps.sessionDriver;
+		return undefined;
 	}
 
 	private assertWorkspaceAllowed(workspaceRoot: string): void {

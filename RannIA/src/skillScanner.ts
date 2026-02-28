@@ -5,6 +5,7 @@ import { RepoSkills, SkillDiscoverySnapshot, SkillEntry } from './types';
 import { getRepoDisabledSet } from './enablementStore';
 import { getUserSkillsDir, resolveStateRoot } from './enginePaths';
 import { existsDir, existsFile } from './utils/fs';
+import { isPointerSkill } from './skillPointer';
 
 const DEFAULT_HANDLED_SKILLS = new Set(['debug', 'docs', 'refactor', 'design']);
 
@@ -39,13 +40,15 @@ function listSkillsInDir(
 			const indexFile = path.join(skillDir, 'index.md');
 			if (existsFile(skillFile) || existsFile(indexFile)) {
 				const enabled = !disabledSet.has(normalizeKey(entry.name));
-				results.push({ name: entry.name, path: skillDir, source, repoPath, enabled });
+				const kind = isPointerSkill(skillDir) ? 'pointer' as const : 'full' as const;
+				results.push({ name: entry.name, path: skillDir, source, repoPath, enabled, kind });
 				continue;
 			}
 
 			// If directory exists but doesn't match known patterns, still treat it as a skill folder
 			const enabled = !disabledSet.has(normalizeKey(entry.name));
-			results.push({ name: entry.name, path: skillDir, source, repoPath, enabled });
+			const kind = isPointerSkill(skillDir) ? 'pointer' as const : 'full' as const;
+			results.push({ name: entry.name, path: skillDir, source, repoPath, enabled, kind });
 			continue;
 		}
 
@@ -53,7 +56,7 @@ function listSkillsInDir(
 			const fullPath = path.join(skillsRoot, entry.name);
 			const skillName = normalizeSkillNameFromFile(entry.name);
 			const enabled = !disabledSet.has(normalizeKey(skillName));
-			results.push({ name: skillName, path: fullPath, source, repoPath, enabled });
+			results.push({ name: skillName, path: fullPath, source, repoPath, enabled, kind: 'full' });
 		}
 	}
 

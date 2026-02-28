@@ -6,6 +6,10 @@ export type MessagingGatewayMode = 'auto' | 'connected' | 'disconnected';
 export const LIFECYCLE_ACTIONS = ['create', 'start', 'stop', 'open-terminal', 'pr-open', 'finish'] as const;
 export type LifecycleAction = (typeof LIFECYCLE_ACTIONS)[number];
 
+export const MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION = 1;
+export const MESSAGING_GATEWAY_CONFIG_CONTRACT_VERSION = 'messaging_gateway_config_v1';
+export type MessagingGatewayConfigCompatibilitySource = 'v0' | 'v1';
+
 export const DEFAULT_SANDBOX_MAX_SANDBOXES = 10;
 export const DEFAULT_SANDBOX_PORT_RANGE_START = 13_000;
 export const DEFAULT_SANDBOX_PORT_RANGE_END = 13_099;
@@ -17,6 +21,13 @@ const DEFAULT_ENABLED_LIFECYCLE_ACTIONS: LifecycleAction[] = [...LIFECYCLE_ACTIO
 const DEFAULT_LOCAL_MACHINE_ONLY_ACTIONS: LifecycleAction[] = ['open-terminal'];
 
 export interface MessagingGatewayConfig {
+	configVersion?: number;
+	schemaVersion?: typeof MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION;
+	contractVersion?: typeof MESSAGING_GATEWAY_CONFIG_CONTRACT_VERSION;
+	compatibility?: {
+		normalizedFrom: MessagingGatewayConfigCompatibilitySource;
+		deterministic: true;
+	};
 	mode?: MessagingGatewayMode;
 	/** ACP (Copilot CLI `--acp --port <N>`) settings. */
 	acp?: {
@@ -32,11 +43,14 @@ export interface MessagingGatewayConfig {
 		cleanupOnStartup?: boolean;
 		staleTtlMs?: number;
 	};
-	discord: {
+	discord?: {
 		allowlistedUserIds: string[];
 		guildId: string;
 		channelId: string;
 		permissionsChannelId?: string;
+	};
+	telegram?: {
+		allowlistedUserIds: string[];
 	};
 	workspaces: {
 		allowedRoots: string[];
@@ -65,19 +79,20 @@ export interface ResolvedSandboxLifecycleConfig {
 	staleTtlMs: number;
 }
 
-const CONFIG_PATH_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH';
-const CONFIG_JSON_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON';
+export const MESSAGING_GATEWAY_CONFIG_PATH_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH';
+export const MESSAGING_GATEWAY_CONFIG_JSON_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON';
 
 export function getDefaultMessagingGatewayConfigPath(): string {
 	return path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.config.json');
 }
 
 export function resolveMessagingGatewayConfigPath(configPathFromCli?: string): string {
-	return (
+	const resolved =
 		configPathFromCli?.trim() ||
-		process.env[CONFIG_PATH_ENV]?.trim() ||
-		getDefaultMessagingGatewayConfigPath()
-	);
+		process.env[MESSAGING_GATEWAY_CONFIG_PATH_ENV]?.trim() ||
+		getDefaultMessagingGatewayConfigPath();
+
+	return path.resolve(resolved);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -97,6 +112,17 @@ function asStringArray(value: unknown, field: string): string[] {
 	}
 	const strings = value.map((v, index) => asNonEmptyString(v, `${field}[${index}]`));
 	return strings;
+}
+
+function uniqueStrings(values: string[]): string[] {
+	const seen = new Set<string>();
+	const output: string[] = [];
+	for (const value of values) {
+		if (seen.has(value)) continue;
+		seen.add(value);
+		output.push(value);
+	}
+	return output;
 }
 
 function asLifecycleActionsArray(value: unknown, field: string): LifecycleAction[] {
@@ -137,6 +163,14 @@ function asOptionalBoolean(value: unknown, field: string): boolean | undefined {
 	return value;
 }
 
+function asOptionalPositiveInteger(value: unknown, field: string): number | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value) || value <= 0) {
+		throw new Error(`[Gateway] Invalid config: ${field} must be a positive integer`);
+	}
+	return value;
+}
+
 function assertAllNumericIds(ids: string[], field: string) {
 	for (const id of ids) {
 		if (!/^\d+$/.test(id)) {
@@ -168,6 +202,13 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 	if (!isRecord(raw)) {
 		throw new Error('[Gateway] Invalid config: root must be an object');
 	}
+
+	const configVersion = asOptionalPositiveInteger(raw.configVersion, 'configVersion');
+	const hasExplicitV1Marker =
+		configVersion !== undefined ||
+		raw.schemaVersion !== undefined ||
+		raw.contractVersion !== undefined;
+	const normalizedFrom: MessagingGatewayConfigCompatibilitySource = hasExplicitV1Marker ? 'v1' : 'v0';
 
 	const modeRaw = raw.mode;
 	if (
@@ -227,31 +268,87 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 		};
 	}
 
-	const discordRaw = raw.discord;
-	if (!isRecord(discordRaw)) {
-		throw new Error('[Gateway] Invalid config: discord must be an object');
-	}
+	const legacyDiscordRaw =
+		raw.allowlistedUserIds !== undefined ||
+		raw.guildId !== undefined ||
+		raw.channelId !== undefined ||
+		raw.permissionsChannelId !== undefined
+			? {
+				allowlistedUserIds: raw.allowlistedUserIds,
+				guildId: raw.guildId,
+				channelId: raw.channelId,
+				permissionsChannelId: raw.permissionsChannelId,
+			}
+			: undefined;
 
-	const allowlistedUserIds = asStringArray(discordRaw.allowlistedUserIds, 'discord.allowlistedUserIds');
-	if (allowlistedUserIds.length === 0) {
-		throw new Error('[Gateway] Invalid config: discord.allowlistedUserIds must not be empty');
-	}
-	assertAllNumericIds(allowlistedUserIds, 'discord.allowlistedUserIds');
-
-	const guildId = asNonEmptyString(discordRaw.guildId, 'discord.guildId');
-	const channelId = asNonEmptyString(discordRaw.channelId, 'discord.channelId');
-	if (!/^\d+$/.test(guildId)) throw new Error('[Gateway] Invalid config: discord.guildId must be numeric');
-	if (!/^\d+$/.test(channelId)) throw new Error('[Gateway] Invalid config: discord.channelId must be numeric');
-
-	let permissionsChannelId: string | undefined;
-	if (discordRaw.permissionsChannelId !== undefined && discordRaw.permissionsChannelId !== null) {
-		permissionsChannelId = asNonEmptyString(discordRaw.permissionsChannelId, 'discord.permissionsChannelId');
-		if (!/^\d+$/.test(permissionsChannelId)) {
-			throw new Error('[Gateway] Invalid config: discord.permissionsChannelId must be numeric');
+	const discordRaw = raw.discord ?? legacyDiscordRaw;
+	let discord: MessagingGatewayConfig['discord'] | undefined;
+	if (discordRaw !== undefined && discordRaw !== null) {
+		if (!isRecord(discordRaw)) {
+			throw new Error('[Gateway] Invalid config: discord must be an object');
 		}
+
+		const allowlistedUserIds = uniqueStrings(asStringArray(discordRaw.allowlistedUserIds, 'discord.allowlistedUserIds'));
+		if (allowlistedUserIds.length === 0) {
+			throw new Error('[Gateway] Invalid config: discord.allowlistedUserIds must not be empty');
+		}
+		assertAllNumericIds(allowlistedUserIds, 'discord.allowlistedUserIds');
+
+		const guildId = asNonEmptyString(discordRaw.guildId, 'discord.guildId');
+		const channelId = asNonEmptyString(discordRaw.channelId, 'discord.channelId');
+		if (!/^\d+$/.test(guildId)) throw new Error('[Gateway] Invalid config: discord.guildId must be numeric');
+		if (!/^\d+$/.test(channelId)) throw new Error('[Gateway] Invalid config: discord.channelId must be numeric');
+
+		let permissionsChannelId: string | undefined;
+		if (discordRaw.permissionsChannelId !== undefined && discordRaw.permissionsChannelId !== null) {
+			permissionsChannelId = asNonEmptyString(discordRaw.permissionsChannelId, 'discord.permissionsChannelId');
+			if (!/^\d+$/.test(permissionsChannelId)) {
+				throw new Error('[Gateway] Invalid config: discord.permissionsChannelId must be numeric');
+			}
+		}
+
+		discord = {
+			allowlistedUserIds,
+			guildId,
+			channelId,
+			permissionsChannelId,
+		};
 	}
 
-	const workspacesRaw = raw.workspaces;
+	const legacyTelegramRaw = raw.telegramAllowlistedUserIds !== undefined
+		? { allowlistedUserIds: raw.telegramAllowlistedUserIds }
+		: undefined;
+	const telegramRaw = raw.telegram ?? legacyTelegramRaw;
+	let telegram: MessagingGatewayConfig['telegram'] | undefined;
+	if (telegramRaw !== undefined && telegramRaw !== null) {
+		if (!isRecord(telegramRaw)) {
+			throw new Error('[Gateway] Invalid config: telegram must be an object');
+		}
+		const allowlistedUserIds = uniqueStrings(asStringArray(telegramRaw.allowlistedUserIds, 'telegram.allowlistedUserIds'));
+		if (allowlistedUserIds.length === 0) {
+			throw new Error('[Gateway] Invalid config: telegram.allowlistedUserIds must not be empty');
+		}
+		assertAllNumericIds(allowlistedUserIds, 'telegram.allowlistedUserIds');
+
+		telegram = {
+			allowlistedUserIds,
+		};
+	}
+
+	if (!discord && !telegram) {
+		throw new Error('[Gateway] Invalid config: at least one platform (discord or telegram) must be configured');
+	}
+
+	const legacyWorkspaceRoot = raw.workspaceRoot ?? raw.workspacePath;
+	const legacyAllowedRoots = raw.allowedRoots ?? raw.allowedWorkspaceRoots;
+	const workspacesRaw = raw.workspaces ?? (
+		legacyWorkspaceRoot !== undefined || legacyAllowedRoots !== undefined
+			? {
+				allowedRoots: legacyAllowedRoots ?? (legacyWorkspaceRoot !== undefined ? [legacyWorkspaceRoot] : undefined),
+				activeRoot: raw.activeRoot ?? legacyWorkspaceRoot,
+			}
+			: undefined
+	);
 	if (!isRecord(workspacesRaw)) {
 		throw new Error('[Gateway] Invalid config: workspaces must be an object');
 	}
@@ -298,15 +395,18 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 	}
 
 	return {
+		configVersion: configVersion ?? MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION,
+		schemaVersion: MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION,
+		contractVersion: MESSAGING_GATEWAY_CONFIG_CONTRACT_VERSION,
+		compatibility: {
+			normalizedFrom,
+			deterministic: true,
+		},
 		mode: modeRaw,
 		acp,
 		sandboxLifecycle,
-		discord: {
-			allowlistedUserIds,
-			guildId,
-			channelId,
-			permissionsChannelId,
-		},
+		discord,
+		telegram,
 		workspaces: {
 			allowedRoots,
 			activeRoot,
@@ -330,18 +430,18 @@ export function resolveSandboxLifecycleConfig(
 }
 
 function readConfigFromEnvJson(): LoadedMessagingGatewayConfig | undefined {
-	const json = process.env[CONFIG_JSON_ENV];
+	const json = process.env[MESSAGING_GATEWAY_CONFIG_JSON_ENV];
 	if (!json || json.trim().length === 0) return undefined;
 
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(json);
 	} catch {
-		throw new Error(`[Gateway] Invalid config: ${CONFIG_JSON_ENV} is not valid JSON`);
+		throw new Error(`[Gateway] Invalid config: ${MESSAGING_GATEWAY_CONFIG_JSON_ENV} is not valid JSON`);
 	}
 
 	return {
-		configPath: `(env:${CONFIG_JSON_ENV})`,
+		configPath: `(env:${MESSAGING_GATEWAY_CONFIG_JSON_ENV})`,
 		config: validateAndNormalizeConfig(parsed),
 	};
 }
@@ -355,7 +455,7 @@ export function loadMessagingGatewayConfig(configPathFromCli?: string): LoadedMe
 	if (!fs.existsSync(configPath)) {
 		throw new Error(
 			`[Gateway] Missing config file: ${configPath}\n` +
-				`[Gateway] Set ${CONFIG_PATH_ENV} to a JSON config file path, or set ${CONFIG_JSON_ENV} to inline JSON.\n` +
+				`[Gateway] Set ${MESSAGING_GATEWAY_CONFIG_PATH_ENV} to a JSON config file path, or set ${MESSAGING_GATEWAY_CONFIG_JSON_ENV} to inline JSON.\n` +
 				`[Gateway] See local-tracker/docs/messaging-gateway.md (Step 3) for an example config.`,
 		);
 	}

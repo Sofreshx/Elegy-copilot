@@ -1,6 +1,17 @@
+import {
+  TRACKER_TOKEN_READINESS_CONTRACT_VERSION,
+  TrackerRelayTokenSource,
+  TrackerTokenReadinessV1,
+} from "./config";
+
 export interface TrackerCredentials {
   relayToken: string;
   source: "env" | "keychain" | "manual";
+}
+
+interface TrackerTokenAssessmentResult {
+  state: "ready" | "invalid" | "expired";
+  reasonCode: "relay_token_valid" | "relay_token_invalid" | "relay_token_expired";
 }
 
 export class TrackerAuth {
@@ -38,13 +49,47 @@ export class TrackerAuth {
     return this.credentials;
   }
 
+  evaluateTokenReadiness(
+    token: string | null | undefined,
+    source: TrackerRelayTokenSource = "unknown"
+  ): TrackerTokenReadinessV1 {
+    const tokenValue = typeof token === "string" ? token.trim() : "";
+    if (!tokenValue) {
+      return {
+        contractVersion: TRACKER_TOKEN_READINESS_CONTRACT_VERSION,
+        state: "missing",
+        reasonCode: "relay_token_missing",
+        deterministic: true,
+        source: source === "unknown" ? "missing" : source,
+      };
+    }
+
+    const assessment = this.assessToken(tokenValue);
+    return {
+      contractVersion: TRACKER_TOKEN_READINESS_CONTRACT_VERSION,
+      state: assessment.state,
+      reasonCode: assessment.reasonCode,
+      deterministic: true,
+      source,
+    };
+  }
+
   /**
    * Validate that the token is well-formed (basic JWT structure check).
    * This does NOT verify the signature — that is the relay's responsibility.
    */
   validateToken(token: string): boolean {
+    return this.evaluateTokenReadiness(token, "unknown").state === "ready";
+  }
+
+  private assessToken(token: string): TrackerTokenAssessmentResult {
     const parts = token.split(".");
-    if (parts.length !== 3) return false;
+    if (parts.length !== 3) {
+      return {
+        state: "invalid",
+        reasonCode: "relay_token_invalid",
+      };
+    }
 
     try {
       const header = JSON.parse(
@@ -55,20 +100,39 @@ export class TrackerAuth {
       );
 
       // Check for required JWT header fields
-      if (!header.alg || !header.typ) return false;
+      if (!header.alg || !header.typ) {
+        return {
+          state: "invalid",
+          reasonCode: "relay_token_invalid",
+        };
+      }
 
       // Require at least one identifier claim
-      if (!payload.sub && !payload.client_id) return false;
+      if (!payload.sub && !payload.client_id) {
+        return {
+          state: "invalid",
+          reasonCode: "relay_token_invalid",
+        };
+      }
 
       // Check expiration if present
       if (payload.exp && payload.exp < Date.now() / 1000) {
         console.warn("[Auth] Token has expired");
-        return false;
+        return {
+          state: "expired",
+          reasonCode: "relay_token_expired",
+        };
       }
 
-      return true;
+      return {
+        state: "ready",
+        reasonCode: "relay_token_valid",
+      };
     } catch {
-      return false;
+      return {
+        state: "invalid",
+        reasonCode: "relay_token_invalid",
+      };
     }
   }
 

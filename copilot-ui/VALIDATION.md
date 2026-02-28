@@ -389,6 +389,89 @@ node copilot-ui/dist-electron/updater.rollback.test.js
 - WS6 release readiness is **fail** when any artifact is missing, any required marker/reason is absent, or any command fails.
 - A failed WS6 gate blocks release progression until corrected evidence is regenerated.
 
+## WS6 — CI Topology + Trigger Coverage + Required Checks (WU-WS6-01 / WU-WS6-03 / WU-WS6-04 / WU-WS6-05)
+
+Authoritative workflow: `.github/workflows/extension-ci.yml`.
+
+### Fixed topology (must remain fail-closed)
+
+- `build`
+- `ws6-evidence` matrix (`WS6-E1`..`WS6-E5`)
+- `ws6-artifact-gate`
+- `required-checks`
+- `release` (tag-only; depends on `build` + `required-checks`)
+
+### Trigger coverage checks
+
+For pull requests, confirm workflow path filters include WS6-owned files:
+
+- `.github/workflows/extension-ci.yml`
+- `copilot-ui/VALIDATION.md`
+- `docs/system/runtime-permissions-contracts.md`
+- `README.md`
+- `scripts/validate-planpack.js`
+- `scripts/validate-planpack.evidence.test.js`
+- `scripts/validate-planpack.final-gate.test.js`
+- `docs/system/session-state-artifacts.md`
+- `docs/system/planpack-spec.md`
+
+### Matrix evidence + artifact gate checks
+
+1. `ws6-evidence` runs all five matrix IDs (`WS6-E1`..`WS6-E5`) and uploads one artifact per ID.
+2. Each artifact contains:
+  - `command.log`
+  - `metadata.json`
+  - `command.log.sha256`
+  - `metadata.json.sha256`
+3. `ws6-artifact-gate` fails closed on:
+  - missing or extra WS6 artifacts,
+  - missing required files,
+  - checksum mismatch,
+  - evidence-ID mismatch in `metadata.json`.
+
+### Required-check aggregator semantics
+
+`required-checks` must fail unless all are true:
+
+- `needs.build.result == success`
+- `needs.ws6-evidence.result == success`
+- `needs.ws6-artifact-gate.result == success`
+- `needs.ws6-artifact-gate.outputs.complete == true`
+
+Missing/skipped/non-success statuses are treated as release-blocking failures.
+
+## WS6 — Narrow-to-Broad Validation + Rollback Contract (WU-WS6-07)
+
+Run validation in this order:
+
+1. Narrow static checks
+
+```bash
+node scripts/validate-manifest.js
+node scripts/validate-doc-graph.js
+```
+
+2. Compatibility + checksum checks
+
+```bash
+node copilot-ui/server.lifecycle-proxy.test.js
+npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/gatewayHttpServer.test.ts
+node copilot-ui/lib/planningPersistence.test.js
+node copilot-ui/server.runtime-health.test.js
+```
+
+3. Broad rollback + kill-switch checks
+
+```bash
+node copilot-ui/dist-electron/rollbackPolicy.test.js
+node copilot-ui/dist-electron/updatePolicy.rollback.test.js
+node copilot-ui/dist-electron/updater.rollback.test.js
+```
+
+Contract result:
+- **Pass**: all stages pass and WS6 artifacts are complete/integrity-verified.
+- **Fail**: any stage fails, required artifact/check is missing, or `required-checks` is non-success.
+
 ## WS4 — Electron Packaging Baseline (G-02-WU-02)
 
 ### Build baseline
@@ -551,6 +634,44 @@ Expected checkpoint result:
 - when gate readiness is not satisfied, planning durability routes fail closed with HTTP `503`, `code=planning_durability_dependency_gate_blocked`, and `dependencyGate.marker=dependency-blocked`
 - non-durability routes (for example `GET /api/sessions`) remain backward compatible and continue to succeed while the durability gate is blocked
 
+## WS5A M1 — Mandatory Durability Hardening (WU-WS5A-M1-01 / WU-WS5A-M1-02)
+
+Run this WS5A M1 checkpoint from repository root (`instruction-engine`):
+
+```bash
+node copilot-ui/lib/planningPersistence.test.js
+node copilot-ui/server.runtime-health.test.js
+```
+
+Optional interaction regression check when touching merge lifecycle paths:
+
+```bash
+node copilot-ui/server.lifecycle-proxy.test.js
+```
+
+Expected WS5A M1 outcomes:
+- additive migration manifest includes durability artifact versions for compare receipts, merge intents, merge idempotency ledger, suggestions, and recaps
+- compare/merge-intent/merge routes fail closed with HTTP `503`, `code=planning_durability_route_gate_blocked`, and explicit deterministic `reason`
+- route-gate failure envelope includes `durabilityRouteGate.reasonCodes` and migration readiness metadata (`migrationVersions`, `checkedMigrationVersions`, `missingMigrationVersions`)
+- non-durability routes remain backward compatible while the WS5A durability route gate is blocking
+
+## WS5A M3 — Durable Suggestions + Recaps Contract Closure
+
+Run this WS5A M3 checkpoint from repository root (`instruction-engine`):
+
+```bash
+node copilot-ui/server.lifecycle-proxy.test.js
+node copilot-ui/server.runtime-health.test.js
+node copilot-ui/lib/planningPersistence.test.js
+```
+
+Expected WS5A M3 outcomes:
+- suggestion and recap artifacts persist durably and are restart-safe (retrieval succeeds after restart-style rehydration)
+- retrieval contracts are explicit and deterministic (`GET /api/planning/suggestions?suggestionId=<id>`, `GET /api/planning/recaps?recapId=<id>`)
+- missing IDs return deterministic `400`; missing artifacts return deterministic `404`; ownership mismatches return deterministic `403`
+- WS5A durability gate continues to fail closed for suggestions/recaps when persistence authority is unavailable, with canonical reason code (`planning_persistence_not_configured|planning_persistence_migration_error`)
+- health/evidence closure remains additive and does not relax existing WS5A route-gate requirements
+
 ## G-05 — Crash Write-Through + Restart Durability Pack (G-05-WU-05)
 
 Run this narrow durability pack from repository root (`instruction-engine`) to validate crash/restart persistence behavior and deterministic recovery markers:
@@ -574,3 +695,45 @@ Reproducible sequence (single pass):
   - `write-through crash after DB mutation is restart-recoverable via persisted authority read-back`
   - `projection hydration after crash drops non-durable in-memory records and restores deterministically on restart`
   - `deriveBackfillRecoveryMarker models crash write-through and restart recovery sequence deterministically`
+
+## WS4 M2 — Retention / Export-Import / Corruption Recovery
+
+Run the WS4 M2 checkpoint pack from repository root (`instruction-engine`):
+
+```bash
+node copilot-ui/lib/planningPersistence.test.js
+node copilot-ui/server.runtime-health.test.js
+```
+
+Optional shared-contract regression check:
+
+```bash
+node copilot-ui/lib/planningApiContracts.test.js
+```
+
+Expected WS4 M2 outcomes:
+- retention supports deterministic `dry-run` and `execute` modes with explicit report envelopes
+- export/import contract is additive and deterministic, with repeated import producing idempotent replay counts
+- corruption scans return deterministic markers and write paths fail closed with explicit code/reason when recovery is required
+- durability routes continue to fail closed when persistence authority is configured but not ready
+
+## WS4 M3 — Closure Evidence Gate + DoD
+
+Run this closure pack from repository root (`instruction-engine`):
+
+```bash
+node copilot-ui/lib/planningPersistence.test.js
+node copilot-ui/lib/planningApiContracts.test.js
+node copilot-ui/server.runtime-health.test.js
+npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts
+```
+
+Required DoD markers:
+- planning persistence suite proves deterministic/fail-closed retention, import replay, checksum baseline, and corruption scan envelopes
+- planning API contract suite proves deterministic idempotency conflict semantics (`idempotency_conflict`, `idempotency_key_payload_mismatch`)
+- runtime health suite proves deterministic gateway state/connect envelopes with tracker-compatible config path semantics
+- local-tracker lifecycle/gateway suites prove canonical sandbox ID retry invariants and deterministic idempotency conflict handling
+
+WS4 freeze decision:
+- **Pass**: all four commands exit `0` and required markers are present.
+- **Fail**: any command fails, a required marker is missing/changed, or path/idempotency semantics drift.

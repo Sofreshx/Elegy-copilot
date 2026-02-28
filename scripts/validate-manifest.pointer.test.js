@@ -1,0 +1,35 @@
+#!/usr/bin/env node
+const assert = require('assert');
+const childProcess = require('child_process');
+const path = require('path');
+
+const validatorPath = path.resolve(__dirname, 'validate-manifest.js');
+
+let passed = 0;
+function test(name, fn) {
+  try {
+    fn();
+    passed++;
+    console.log(`  PASS: ${name}`);
+  } catch (e) {
+    console.error(`  FAIL: ${name}`);
+    console.error(`    ${e.message}`);
+    process.exitCode = 1;
+  }
+}
+
+test('validate-manifest rejects vault-ref in asset source', () => {
+  // The existing manifests should pass (no vault refs)
+  const result = childProcess.spawnSync(process.execPath, [validatorPath], {
+    cwd: path.resolve(__dirname, '..'),
+    stdio: 'pipe'
+  });
+  assert.strictEqual(result.status, 0, `validator should pass on clean manifests: ${result.stderr}`);
+});
+
+console.log(`\n${passed} tests passed`);
+if (process.exitCode) {
+  console.error('Some tests FAILED');
+} else {
+  console.log('All tests passed');
+}

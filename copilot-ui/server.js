@@ -31,6 +31,24 @@ const {
   evaluatePlanningOptimisticConcurrencyGuard,
   listPersistedPlanningRecords,
   persistPlanningRecord,
+  persistPlanningCompareReceipt,
+  readPlanningCompareReceipt,
+  persistPlanningMergeIntent,
+  readPlanningMergeIntent,
+  consumePlanningMergeIntent,
+  resetPlanningMergeIntentConsumption,
+  persistPlanningSuggestion,
+  readPlanningSuggestion,
+  persistPlanningRecap,
+  readPlanningRecap,
+  readPlanningMergeIdempotencyRecord,
+  persistPlanningMergeIdempotencyRecord,
+  deletePlanningMergeIdempotencyRecord,
+  deletePersistedPlanningRecordById,
+  runPlanningRetention,
+  exportPlanningPersistenceSnapshot,
+  importPlanningPersistenceSnapshot,
+  scanPlanningPersistenceCorruption,
   readPlanningPersistenceConfig,
   readPlanningProviderState,
   reconcileBackfillItemStatusTransition,
@@ -38,6 +56,7 @@ const {
   validatePlanningReadWriteContext,
   getPlanningPersistenceHealth,
   runPlanningMigrations,
+  PLANNING_WS5A_DURABILITY_REQUIRED_MIGRATION_VERSIONS,
 } = require('./lib/planningPersistence');
 const {
   SEMANTIC_SCORING_CONTRACT_VERSION,
@@ -59,11 +78,26 @@ const {
   listPlanningRecordsOperation,
   searchPlanningRecordsOperation,
   comparePlanningRecordsOperation,
+  buildPlanningRouteLockKey,
+  acquirePlanningRouteLock,
+  releasePlanningRouteLock,
+  evictPlanningIdempotencyEntry,
 } = require('./lib/planningApiContracts');
 
 const WS3_AUTHORITY_DEPENDENCY_GATE_CONTRACT_VERSION = '1';
 const WS3_AUTHORITY_DEPENDENCY_NAME = 'ws3_authority_reconciliation_contract';
 const WS3_AUTHORITY_DEPENDENCY_BLOCK_CODE = 'planning_durability_dependency_gate_blocked';
+const WS5A_DURABILITY_ROUTE_GATE_CONTRACT_VERSION = '1';
+const WS5A_DURABILITY_ROUTE_GATE_NAME = 'ws5a_durability_persistence_gate';
+const WS5A_DURABILITY_ROUTE_BLOCK_CODE = 'planning_durability_route_gate_blocked';
+const WS5A_DURABILITY_CRITICAL_ROUTES = Object.freeze(new Set([
+  '/api/planning/compare',
+  '/api/planning/merge-intent',
+  '/api/planning/merge',
+  '/api/planning/suggestions',
+  '/api/planning/recaps',
+]));
+const MESSAGING_GATEWAY_CONFIG_PATH_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH';
 const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION = '1';
 const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY = 'mixed-version-lifecycle-v1';
 const LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION = 'x-instruction-engine-lifecycle-contract-version';
@@ -440,6 +474,80 @@ function resolveTrackerToken(args) {
   return null;
 }
 
+function getDefaultMessagingGatewayConfigPath() {
+  const canonicalHome = path.resolve(os.homedir());
+  return path.resolve(path.join(canonicalHome, '.instruction-engine', 'messaging-gateway.config.json'));
+}
+
+function rehomeLegacyMessagingGatewayConfigIfNeeded(copilotHomeAbs, canonicalPath) {
+  if (typeof copilotHomeAbs !== 'string' || !copilotHomeAbs.trim()) {
+    return;
+  }
+
+  const legacyPath = path.resolve(path.join(copilotHomeAbs, 'messaging-gateway.config.json'));
+  const canonicalPathAbs = path.resolve(canonicalPath);
+
+  if (legacyPath === canonicalPathAbs) {
+    return;
+  }
+
+  try {
+    if (!fs.existsSync(legacyPath) || !fs.statSync(legacyPath).isFile()) {
+      return;
+    }
+  } catch {
+    return;
+  }
+
+  try {
+    if (fs.existsSync(canonicalPathAbs)) {
+      return;
+    }
+  } catch {
+    return;
+  }
+
+  try {
+    ensureDir(path.dirname(canonicalPathAbs));
+    fs.renameSync(legacyPath, canonicalPathAbs);
+    return;
+  } catch {
+    // fallback to copy + atomic rename below
+  }
+
+  const tmpPath = `${canonicalPathAbs}.tmp.${process.pid}.${Date.now()}`;
+  try {
+    const legacyContents = fs.readFileSync(legacyPath);
+    fs.writeFileSync(tmpPath, legacyContents);
+    fs.renameSync(tmpPath, canonicalPathAbs);
+
+    try {
+      fs.unlinkSync(legacyPath);
+    } catch {
+      // best-effort legacy cleanup after successful rehome
+    }
+  } catch {
+    try {
+      if (fs.existsSync(tmpPath)) {
+        fs.unlinkSync(tmpPath);
+      }
+    } catch {
+      // best-effort temp cleanup
+    }
+  }
+}
+
+function resolveMessagingGatewayConfigPath(copilotHomeAbs) {
+  const explicitPath = process.env[MESSAGING_GATEWAY_CONFIG_PATH_ENV];
+  if (typeof explicitPath === 'string' && explicitPath.trim()) {
+    return path.resolve(explicitPath.trim());
+  }
+
+  const defaultPath = getDefaultMessagingGatewayConfigPath();
+  rehomeLegacyMessagingGatewayConfigIfNeeded(copilotHomeAbs, defaultPath);
+  return defaultPath;
+}
+
 function resolveForcedCapabilityState(capabilityName) {
   const key = `INSTRUCTION_ENGINE_FORCE_${String(capabilityName || '').trim().toUpperCase()}_STATE`;
   const raw = process.env[key];
@@ -578,6 +686,16 @@ function safeResolveUnder(baseAbs, relPath) {
   return abs;
 }
 
+function extractTriggers(absPath) {
+  try {
+    const text = fs.readFileSync(absPath, 'utf8');
+    const match = text.match(/Triggers?\s+on:\s*(.+)/i);
+    return match ? match[1].trim() : '';
+  } catch {
+    return '';
+  }
+}
+
 function sendJson(res, code, obj) {
   const body = JSON.stringify(obj, null, 2);
   res.writeHead(code, {
@@ -616,6 +734,379 @@ async function readJsonBody(req, maxBytes = 256 * 1024) {
     });
     req.on('error', reject);
   });
+}
+
+function parseJsonBodySafe(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function buildGatewayProbeFailure(code, reason, message, statusCode = null) {
+  return {
+    deterministic: true,
+    code: String(code || 'gateway_probe_failed'),
+    reason: String(reason || 'gateway_probe_failed'),
+    message: String(message || reason || code || 'gateway_probe_failed'),
+    statusCode: Number.isFinite(statusCode) ? Number(statusCode) : null,
+  };
+}
+
+async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? Number(options.timeoutMs) : 5000;
+  const checkedAt = new Date().toISOString();
+
+  if (!trackerToken) {
+    return {
+      deterministic: true,
+      checkedAt,
+      ready: false,
+      status: 'missing_token',
+      statusCode: null,
+      error: buildGatewayProbeFailure(
+        'tracker_token_missing',
+        'tracker_token_missing',
+        'Tracker token not configured',
+      ),
+    };
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL('/api/status', trackerUrl);
+  } catch {
+    return {
+      deterministic: true,
+      checkedAt,
+      ready: false,
+      status: 'invalid_url',
+      statusCode: null,
+      error: buildGatewayProbeFailure(
+        'tracker_url_invalid',
+        'tracker_url_invalid',
+        'Tracker URL is invalid',
+      ),
+    };
+  }
+
+  return new Promise((resolve) => {
+    const request = http.request({
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port,
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${trackerToken}`,
+        'Accept': 'application/json',
+      },
+      timeout: timeoutMs,
+    }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        const body = parseJsonBodySafe(raw);
+        const statusCode = response.statusCode || null;
+
+        if (statusCode && statusCode >= 200 && statusCode < 300) {
+          resolve({
+            deterministic: true,
+            checkedAt,
+            ready: true,
+            status: 'ready',
+            statusCode,
+            body,
+            error: null,
+          });
+          return;
+        }
+
+        const isAuthFailure = statusCode === 401 || statusCode === 403;
+        const errorCode = isAuthFailure ? 'tracker_auth_failed' : 'tracker_status_unhealthy';
+        const reason = isAuthFailure ? 'tracker_auth_failed' : 'tracker_status_unhealthy';
+        const message = (body && typeof body.error === 'string' && body.error.trim())
+          || raw.trim()
+          || `Tracker returned status ${statusCode || 'unknown'}`;
+
+        resolve({
+          deterministic: true,
+          checkedAt,
+          ready: false,
+          status: isAuthFailure ? 'auth_failed' : 'status_unhealthy',
+          statusCode,
+          body,
+          error: buildGatewayProbeFailure(errorCode, reason, message, statusCode),
+        });
+      });
+    });
+
+    request.on('timeout', () => {
+      request.destroy();
+      resolve({
+        deterministic: true,
+        checkedAt,
+        ready: false,
+        status: 'timeout',
+        statusCode: null,
+        error: buildGatewayProbeFailure('tracker_timeout', 'tracker_request_timeout', 'Tracker request timed out'),
+      });
+    });
+
+    request.on('error', (error) => {
+      resolve({
+        deterministic: true,
+        checkedAt,
+        ready: false,
+        status: 'unreachable',
+        statusCode: null,
+        error: buildGatewayProbeFailure(
+          'tracker_unreachable',
+          'tracker_request_failed',
+          String(error && error.message ? error.message : error),
+        ),
+      });
+    });
+
+    request.end();
+  });
+}
+
+function buildGatewayStateEnvelope(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const configPath = String(source.configPath || '');
+  const gatewayConfig = source.gatewayConfig && typeof source.gatewayConfig === 'object'
+    ? source.gatewayConfig
+    : null;
+  const tracker = source.trackerProbe && typeof source.trackerProbe === 'object'
+    ? source.trackerProbe
+    : null;
+  const planningPersistence = source.planningPersistence && typeof source.planningPersistence === 'object'
+    ? source.planningPersistence
+    : buildPlanningPersistenceHealthEnvelope({});
+
+  const trackerReady = Boolean(tracker && tracker.ready === true);
+  const trackerStatus = String(tracker && tracker.status || (trackerReady ? 'ready' : 'unavailable')).trim() || 'unavailable';
+  const planningReady = String(planningPersistence.status || '') === 'ready';
+  const planningRequired = Boolean(planningPersistence.required);
+  const gatewayConfigured = Boolean(gatewayConfig);
+  const gatewayReady = gatewayConfigured && trackerReady && (planningReady || !planningRequired);
+
+  const normalizedConfig = gatewayConfig && typeof gatewayConfig === 'object' ? gatewayConfig : {};
+  const workspaceConfig = normalizedConfig.workspaces && typeof normalizedConfig.workspaces === 'object'
+    ? normalizedConfig.workspaces
+    : {};
+
+  const errors = [];
+  if (!gatewayConfigured) {
+    errors.push(buildGatewayProbeFailure(
+      'gateway_config_missing',
+      'gateway_config_missing',
+      'Messaging gateway config is not initialized',
+    ));
+  }
+  if (tracker && tracker.error) {
+    errors.push(tracker.error);
+  }
+  if (planningRequired && !planningReady) {
+    errors.push(buildGatewayProbeFailure(
+      'planning_persistence_not_ready',
+      'planning_persistence_not_ready',
+      String(planningPersistence.lastError || planningPersistence.status || 'planning_persistence_not_ready'),
+    ));
+  }
+
+  return {
+    contractVersion: '1',
+    kind: 'gateway.state',
+    deterministic: true,
+    checkedAt: new Date().toISOString(),
+    ready: gatewayReady,
+    error: errors.length ? errors[0] : null,
+    gateway: {
+      ready: gatewayReady,
+      status: gatewayReady ? 'ready' : gatewayConfigured ? 'degraded' : 'not_configured',
+      config: {
+        exists: gatewayConfigured,
+        path: configPath,
+        mode: String(normalizedConfig.mode || '').trim() || null,
+        activeRoot: String(workspaceConfig.activeRoot || '').trim() || null,
+        allowedRootCount: Array.isArray(workspaceConfig.allowedRoots) ? workspaceConfig.allowedRoots.length : 0,
+      },
+    },
+    tracker: {
+      ready: trackerReady,
+      status: trackerStatus,
+      statusCode: tracker && Number.isFinite(tracker.statusCode) ? Number(tracker.statusCode) : null,
+      url: String(source.trackerUrl || '').trim() || null,
+      checkedAt: tracker && tracker.checkedAt ? tracker.checkedAt : null,
+      error: tracker && tracker.error ? tracker.error : null,
+    },
+    planningPersistence: {
+      ...planningPersistence,
+      ready: planningReady,
+      initSupported: Boolean(source.planningAuthority && source.planningAuthority.persistedAuthority),
+      initRequired: Boolean(source.planningAuthority && source.planningAuthority.persistedAuthority) && !planningReady,
+    },
+    errors,
+  };
+}
+
+async function initializePlanningPersistenceAuthority(planningPersistenceConfig, planningPersistenceState) {
+  const authority = resolvePlanningPersistenceAuthorityState(planningPersistenceConfig, planningPersistenceState);
+
+  if (!authority.persistedAuthority) {
+    return {
+      statusCode: 503,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.init',
+        deterministic: true,
+        ready: false,
+        initialized: false,
+        error: {
+          code: 'planning_persistence_not_configured',
+          reason: 'planning_persistence_not_configured',
+          message: 'Planning persistence is not configured',
+        },
+        errors: [{
+          code: 'planning_persistence_not_configured',
+          reason: 'planning_persistence_not_configured',
+          message: 'Planning persistence is not configured',
+        }],
+        planningPersistence: buildPlanningPersistenceHealthEnvelope(
+          getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+        ),
+        corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+      },
+    };
+  }
+
+  if (!authority.client) {
+    planningPersistenceState.status = 'configured_no_client';
+    planningPersistenceState.lastError = authority.lastError || 'planning_persistence_client_unavailable';
+
+    return {
+      statusCode: 503,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.init',
+        deterministic: true,
+        ready: false,
+        initialized: false,
+        error: {
+          code: 'planning_persistence_client_unavailable',
+          reason: 'planning_persistence_client_unavailable',
+          message: 'Planning persistence client is unavailable',
+        },
+        errors: [{
+          code: 'planning_persistence_client_unavailable',
+          reason: 'planning_persistence_client_unavailable',
+          message: 'Planning persistence client is unavailable',
+        }],
+        planningPersistence: buildPlanningPersistenceHealthEnvelope(
+          getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+        ),
+        corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+      },
+    };
+  }
+
+  try {
+    const migrationResult = await runPlanningMigrations(authority.client, {
+      schemaTable: planningPersistenceConfig && planningPersistenceConfig.schemaTable,
+    });
+
+    planningPersistenceState.status = 'ready';
+    planningPersistenceState.lastError = null;
+    planningPersistenceState.client = authority.client;
+    planningPersistenceState.migrations = {
+      ...migrationResult,
+      lastRunAt: new Date().toISOString(),
+    };
+    const corruptionScan = await scanPlanningPersistenceCorruption(authority.client);
+    const corruption = applyPlanningPersistenceCorruptionScan(planningPersistenceState, corruptionScan);
+
+    return {
+      statusCode: 200,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.init',
+        deterministic: true,
+        ready: true,
+        initialized: true,
+        writeBlocked: corruption.blocked,
+        errors: [],
+        result: {
+          appliedCount: migrationResult.appliedCount,
+          appliedVersions: migrationResult.appliedVersions,
+          driftDetected: migrationResult.driftDetected,
+          schemaTable: migrationResult.schemaTable,
+          corruptionScan,
+        },
+        planningPersistence: buildPlanningPersistenceHealthEnvelope(
+          getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+        ),
+        corruption,
+      },
+    };
+  } catch (error) {
+    const isChecksumDrift = error && error.code === 'PLANNING_MIGRATION_CHECKSUM_DRIFT';
+    const isBaselineMismatch = error && error.code === 'PLANNING_MIGRATION_BASELINE_MISMATCH';
+
+    const code = isBaselineMismatch
+      ? 'planning_persistence_checksum_baseline_mismatch'
+      : isChecksumDrift
+        ? 'planning_persistence_checksum_drift'
+        : 'planning_persistence_init_failed';
+    const reason = code;
+    const status = isChecksumDrift || isBaselineMismatch
+      ? 'drift_detected'
+      : 'migration_error';
+
+    planningPersistenceState.status = status;
+    planningPersistenceState.lastError = String(error && error.message ? error.message : error);
+    planningPersistenceState.client = authority.client;
+    planningPersistenceState.migrations = {
+      ...(planningPersistenceState.migrations && typeof planningPersistenceState.migrations === 'object'
+        ? planningPersistenceState.migrations
+        : {}),
+      driftDetected: isChecksumDrift || isBaselineMismatch,
+      baselineMismatch: isBaselineMismatch,
+      checksumValidation: error && error.checksumValidation
+        ? error.checksumValidation
+        : null,
+      lastRunAt: new Date().toISOString(),
+    };
+
+    return {
+      statusCode: 503,
+      body: {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.init',
+        deterministic: true,
+        ready: false,
+        initialized: false,
+        error: {
+          code,
+          reason,
+          message: String(error && error.message ? error.message : error),
+        },
+        errors: [{
+          code,
+          reason,
+          message: String(error && error.message ? error.message : error),
+        }],
+        planningPersistence: buildPlanningPersistenceHealthEnvelope(
+          getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+        ),
+        corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+      },
+    };
+  }
 }
 
 const OPEN_TERMINAL_ALLOWED_LAUNCHERS = new Set(['auto', 'pwsh', 'terminal', 'x-terminal-emulator']);
@@ -1100,6 +1591,128 @@ function resolveRequestIdempotencyKey(req, body = null) {
   );
 }
 
+function normalizeIfMatchToken(value) {
+  const token = String(value || '').trim();
+  if (!token) return '';
+
+  const weakPrefix = /^W\//i;
+  const withoutWeakPrefix = weakPrefix.test(token) ? token.replace(weakPrefix, '') : token;
+  const unquoted = withoutWeakPrefix.replace(/^"|"$/g, '').trim();
+  return unquoted;
+}
+
+function resolveExpectedPlanningVersion(req, payload = null) {
+  const body = payload && typeof payload === 'object' ? payload : {};
+  const rawIfMatch = firstStringValue(req && req.headers && req.headers['if-match']);
+
+  return firstStringValue(
+    body.expectedVersion,
+    body.expectedRecordsVersion,
+    body.version,
+    body.versionVector && body.versionVector.planningRecordsVersion,
+    body.versionVector && body.versionVector.pinned && body.versionVector.pinned.planningRecordsVersion,
+    req && req.headers && req.headers['x-planning-records-version'],
+    normalizeIfMatchToken(rawIfMatch),
+  );
+}
+
+function evaluatePlanningRouteOptimisticConcurrency(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const expectedVersion = source.expectedVersion;
+
+  if (expectedVersion == null || String(expectedVersion).trim() === '') {
+    return {
+      ok: true,
+      skipped: true,
+    };
+  }
+
+  const guard = evaluatePlanningOptimisticConcurrencyGuard({
+    resourceType: 'planning_records_projection',
+    resourceId: source.resourceId || 'planning_records',
+    expectedVersion,
+    actualVersion: source.actualVersion,
+  });
+
+  if (guard.ok) {
+    return {
+      ok: true,
+      skipped: false,
+      guard,
+    };
+  }
+
+  return {
+    ok: false,
+    skipped: false,
+    guard,
+    statusCode: 409,
+    body: {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: resolvePlanningDurabilityGateKind(source.pathname, source.method),
+      deterministic: true,
+      error: 'Planning optimistic concurrency conflict',
+      code: guard.code,
+      reason: guard.reason,
+      optimisticConcurrency: guard.result,
+      versionVector: {
+        expected: String(expectedVersion).trim(),
+        current: String(source.actualVersion == null ? '' : source.actualVersion).trim() || null,
+      },
+    },
+  };
+}
+
+function acquirePlanningMutationRouteLock(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const context = source.context && typeof source.context === 'object' ? source.context : {};
+  const ownerPrefix = firstStringValue(
+    source.ownerId,
+    source.requestId,
+    source.idempotencyKey,
+  ) || 'request';
+  const lockOwner = `${ownerPrefix}:${crypto.randomUUID()}`;
+
+  const routeKind = resolvePlanningDurabilityGateKind(source.pathname, source.method);
+  const lockKey = buildPlanningRouteLockKey({
+    routeKind,
+    actorId: context.userId,
+    repoId: context.repoId,
+  });
+
+  const lock = acquirePlanningRouteLock(source.planningApiState, {
+    routeKind,
+    actorId: context.userId,
+    repoId: context.repoId,
+    ownerId: lockOwner,
+    nowMs: source.nowMs,
+  });
+
+  if (lock.ok) {
+    return {
+      ok: true,
+      lock,
+    };
+  }
+
+  return {
+    ok: false,
+    statusCode: 409,
+    body: {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: routeKind,
+      deterministic: true,
+      error: 'Planning route lock conflict',
+      code: lock.code || 'planning_route_lock_conflict',
+      reason: lock.reason || 'lock_already_held',
+      lock: {
+        lockKey,
+        ...(lock.lock || {}),
+      },
+    },
+  };
+}
+
 function resolvePlanningPersistenceAuthorityState(planningPersistenceConfig, planningPersistenceState) {
   const state = planningPersistenceState && typeof planningPersistenceState === 'object'
     ? planningPersistenceState
@@ -1120,6 +1733,161 @@ function resolvePlanningPersistenceAuthorityState(planningPersistenceConfig, pla
     validation,
     lastError: String(state.lastError || '').trim() || null,
   };
+}
+
+function buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState) {
+  const state = planningPersistenceState && typeof planningPersistenceState === 'object'
+    ? planningPersistenceState
+    : {};
+  const corruption = state.corruption && typeof state.corruption === 'object'
+    ? state.corruption
+    : {};
+
+  const scannedAt = typeof corruption.scannedAt === 'string' && corruption.scannedAt.trim()
+    ? corruption.scannedAt.trim()
+    : null;
+  const blocked = corruption.blocked === true;
+
+  return {
+    contractVersion: '1',
+    scannedAt,
+    blocked,
+    recoveryRequired: corruption.recoveryRequired === true || blocked,
+    findingCount: Number.isFinite(corruption.findingCount)
+      ? Math.max(0, Math.floor(Number(corruption.findingCount)))
+      : 0,
+    code: String(corruption.code || '').trim()
+      || (blocked ? 'planning_persistence_corruption_detected' : 'planning_persistence_corruption_not_scanned'),
+    reason: String(corruption.reason || '').trim()
+      || (blocked ? 'corruption_detected' : 'corruption_scan_not_run'),
+  };
+}
+
+function applyPlanningPersistenceCorruptionScan(planningPersistenceState, scanResult = {}) {
+  const state = planningPersistenceState && typeof planningPersistenceState === 'object'
+    ? planningPersistenceState
+    : null;
+  if (!state) {
+    return buildPlanningPersistenceCorruptionEnvelope({ corruption: scanResult });
+  }
+
+  const scannedAt = String(scanResult.scannedAt || '').trim() || new Date().toISOString();
+  const blocked = scanResult.blocked === true;
+
+  state.corruption = {
+    contractVersion: '1',
+    scannedAt,
+    blocked,
+    recoveryRequired: scanResult.recoveryRequired === true || blocked,
+    findingCount: Number.isFinite(scanResult.findingCount)
+      ? Math.max(0, Math.floor(Number(scanResult.findingCount)))
+      : 0,
+    code: String(scanResult.code || '').trim()
+      || (blocked ? 'planning_persistence_corruption_detected' : 'planning_persistence_corruption_clear'),
+    reason: String(scanResult.reason || '').trim()
+      || (blocked ? 'corruption_detected' : 'no_corruption_detected'),
+  };
+
+  if (blocked) {
+    state.lastError = 'planning_persistence_corruption_detected';
+  } else if (state.lastError === 'planning_persistence_corruption_detected') {
+    state.lastError = null;
+  }
+
+  return buildPlanningPersistenceCorruptionEnvelope(state);
+}
+
+function buildPlanningPersistenceOperationAuthorityFailure(pathname, method, planningPersistenceConfig, planningPersistenceState, authority) {
+  if (!authority.persistedAuthority) {
+    return buildPlanningPersistenceFailure(pathname, method, {
+      statusCode: 503,
+      code: 'planning_persistence_not_configured',
+      error: 'Planning persistence is not configured',
+      reason: 'planning_persistence_not_configured',
+      configured: authority.validation.configured,
+      usable: authority.validation.usable,
+      required: authority.validation.required,
+      ready: authority.ready,
+      status: authority.status,
+      governance: getPlanningPersistenceHealth(
+        planningPersistenceConfig,
+        planningPersistenceState,
+      ).governance,
+      corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+    });
+  }
+
+  if (!authority.ready) {
+    return buildPlanningPersistenceFailure(pathname, method, {
+      statusCode: 503,
+      code: 'planning_persistence_unavailable',
+      error: 'Planning persistence unavailable',
+      reason: authority.lastError || 'planning_persistence_not_ready',
+      configured: authority.validation.configured,
+      usable: authority.validation.usable,
+      required: authority.validation.required,
+      ready: authority.ready,
+      status: authority.status,
+      governance: getPlanningPersistenceHealth(
+        planningPersistenceConfig,
+        planningPersistenceState,
+      ).governance,
+      corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+    });
+  }
+
+  return null;
+}
+
+function resolvePlanningPersistenceOperationClient(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const authority = resolvePlanningPersistenceAuthorityState(
+    source.planningPersistenceConfig,
+    source.planningPersistenceState,
+  );
+
+  const failure = buildPlanningPersistenceOperationAuthorityFailure(
+    source.pathname,
+    source.method,
+    source.planningPersistenceConfig,
+    source.planningPersistenceState,
+    authority,
+  );
+
+  if (failure) {
+    return {
+      ok: false,
+      authority,
+      failure,
+    };
+  }
+
+  return {
+    ok: true,
+    authority,
+  };
+}
+
+function buildPlanningPersistenceWriteBlockedFailure(pathname, method, planningPersistenceConfig, planningPersistenceState, authority) {
+  const corruption = buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState);
+  if (!corruption.blocked) return null;
+
+  return buildPlanningPersistenceFailure(pathname, method, {
+    statusCode: 503,
+    code: 'planning_persistence_recovery_required',
+    error: 'Planning persistence write blocked pending recovery',
+    reason: corruption.reason || 'corruption_detected',
+    configured: authority.validation.configured,
+    usable: authority.validation.usable,
+    required: authority.validation.required,
+    ready: authority.ready,
+    status: authority.status,
+    governance: getPlanningPersistenceHealth(
+      planningPersistenceConfig,
+      planningPersistenceState,
+    ).governance,
+    corruption,
+  });
 }
 
 function buildPlanningPersistenceFailure(pathname, method, input = {}) {
@@ -1144,6 +1912,12 @@ function buildPlanningPersistenceFailure(pathname, method, input = {}) {
         required: Boolean(source.required),
         ready: Boolean(source.ready),
         status: String(source.status || '').trim() || null,
+        governance: source.governance && typeof source.governance === 'object'
+          ? source.governance
+          : null,
+        corruption: source.corruption && typeof source.corruption === 'object'
+          ? source.corruption
+          : null,
       },
     },
   };
@@ -1178,6 +1952,10 @@ async function hydratePlanningProjectionFromPersistence(input = {}) {
         required: authority.validation.required,
         ready: authority.ready,
         status: authority.status,
+        governance: getPlanningPersistenceHealth(
+          source.planningPersistenceConfig,
+          source.planningPersistenceState,
+        ).governance,
       }),
     };
   }
@@ -1219,6 +1997,10 @@ async function hydratePlanningProjectionFromPersistence(input = {}) {
           required: authority.validation.required,
           ready: authority.ready,
           status: authority.status,
+          governance: getPlanningPersistenceHealth(
+            source.planningPersistenceConfig,
+            source.planningPersistenceState,
+          ).governance,
         }),
       };
     }
@@ -1248,6 +2030,10 @@ async function hydratePlanningProjectionFromPersistence(input = {}) {
         required: authority.validation.required,
         ready: authority.ready,
         status: authority.status,
+        governance: getPlanningPersistenceHealth(
+          source.planningPersistenceConfig,
+          source.planningPersistenceState,
+        ).governance,
         detail: String(error && error.message ? error.message : error),
       }),
     };
@@ -1282,6 +2068,10 @@ async function persistPlanningRecordToAuthority(input = {}) {
         required: authority.validation.required,
         ready: authority.ready,
         status: authority.status,
+        governance: getPlanningPersistenceHealth(
+          source.planningPersistenceConfig,
+          source.planningPersistenceState,
+        ).governance,
       }),
     };
   }
@@ -1312,6 +2102,10 @@ async function persistPlanningRecordToAuthority(input = {}) {
           required: authority.validation.required,
           ready: authority.ready,
           status: authority.status,
+          governance: getPlanningPersistenceHealth(
+            source.planningPersistenceConfig,
+            source.planningPersistenceState,
+          ).governance,
         }),
       };
     }
@@ -1334,8 +2128,361 @@ async function persistPlanningRecordToAuthority(input = {}) {
         required: authority.validation.required,
         ready: authority.ready,
         status: authority.status,
+        governance: getPlanningPersistenceHealth(
+          source.planningPersistenceConfig,
+          source.planningPersistenceState,
+        ).governance,
       }),
     };
+  }
+}
+
+function buildPlanningDurabilityPersistenceFailure(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  return buildPlanningPersistenceFailure(source.pathname, source.method, {
+    statusCode: Number.isFinite(source.statusCode) ? Number(source.statusCode) : 503,
+    code: String(source.code || '').trim() || 'planning_persistence_write_failed',
+    error: String(source.error || 'Planning durability persistence failed'),
+    reason: String(source.reason || '').trim() || 'planning_persistence_write_failed',
+    configured: source.authority && source.authority.validation
+      ? source.authority.validation.configured
+      : false,
+    usable: source.authority && source.authority.validation
+      ? source.authority.validation.usable
+      : false,
+    required: source.authority && source.authority.validation
+      ? source.authority.validation.required
+      : false,
+    ready: source.authority ? source.authority.ready : false,
+    status: source.authority ? source.authority.status : null,
+    governance: getPlanningPersistenceHealth(
+      source.planningPersistenceConfig,
+      source.planningPersistenceState,
+    ).governance,
+    corruption: buildPlanningPersistenceCorruptionEnvelope(source.planningPersistenceState),
+  });
+}
+
+async function resolvePlanningDurabilityWriteAuthority(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const operationAuthority = resolvePlanningPersistenceOperationClient({
+    pathname: source.pathname,
+    method: source.method,
+    planningPersistenceConfig: source.planningPersistenceConfig,
+    planningPersistenceState: source.planningPersistenceState,
+  });
+
+  if (!operationAuthority.ok) {
+    return operationAuthority;
+  }
+
+  const blockedFailure = buildPlanningPersistenceWriteBlockedFailure(
+    source.pathname,
+    source.method,
+    source.planningPersistenceConfig,
+    source.planningPersistenceState,
+    operationAuthority.authority,
+  );
+
+  if (blockedFailure) {
+    return {
+      ok: false,
+      authority: operationAuthority.authority,
+      failure: blockedFailure,
+    };
+  }
+
+  return operationAuthority;
+}
+
+function resolvePlanningDurabilityArtifactErrorStatusCode(error, { missingReason, invalidCode }) {
+  const source = error && typeof error === 'object' ? error : {};
+  const code = String(source.code || '').trim();
+  const reason = String(source.reason || '').trim();
+
+  if (code === 'scope_visibility_denied') {
+    return 403;
+  }
+
+  if (code === invalidCode && reason === missingReason) {
+    return 400;
+  }
+
+  if (code === invalidCode && reason.endsWith('_shape_invalid')) {
+    return 400;
+  }
+
+  if (code === invalidCode && reason.endsWith('_not_found')) {
+    return 404;
+  }
+
+  if (code === invalidCode && reason.endsWith('_corrupt')) {
+    return 503;
+  }
+
+  return 503;
+}
+
+function buildPlanningDurabilityArtifactFailureEnvelope(pathname, method, { error, statusCode }) {
+  const normalizedError = error && typeof error === 'object' ? error : {};
+  return {
+    statusCode: Number.isFinite(statusCode) ? Number(statusCode) : 503,
+    body: {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: resolvePlanningDurabilityGateKind(pathname, method),
+      deterministic: true,
+      error: {
+        code: String(normalizedError.code || '').trim() || 'planning_persistence_operation_failed',
+        reason: String(normalizedError.reason || '').trim() || 'planning_persistence_operation_failed',
+      },
+    },
+  };
+}
+
+function mapPersistedMergeIdempotencyRecordToRuntime(record) {
+  if (!record || typeof record !== 'object') return null;
+  const expiresAtMs = parseIsoMs(record.expiresAt);
+  const createdAtMs = parseIsoMs(record.createdAt);
+
+  return {
+    idempotencyKey: String(record.idempotencyKey || ''),
+    payloadHash: String(record.payloadHash || ''),
+    response: cloneJsonValue(record.response && typeof record.response === 'object' ? record.response : {}),
+    createdAtMs: createdAtMs == null ? Date.now() : createdAtMs,
+    expiresAtMs: expiresAtMs == null ? Date.now() : expiresAtMs,
+  };
+}
+
+async function hydratePlanningMergeDurabilityStateFromAuthority(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const state = ensurePlanningMergeState(source.planningApiState);
+  const payload = source.payload && typeof source.payload === 'object' ? source.payload : {};
+  const authority = source.authority;
+  const nowMs = Number.isFinite(source.nowMs) ? Number(source.nowMs) : Date.now();
+
+  if (!authority || !authority.ready || !authority.client) {
+    return { ok: true };
+  }
+
+  const compareReceiptId = String(payload.compareReceiptId || '').trim();
+  if (compareReceiptId && !state.compareReceipts.has(compareReceiptId)) {
+    const persistedReceipt = await readPlanningCompareReceipt(authority.client, {
+      receiptId: compareReceiptId,
+      nowMs,
+    });
+
+    if (persistedReceipt.ok && persistedReceipt.receipt) {
+      state.compareReceipts.set(compareReceiptId, persistedReceipt.receipt);
+    } else if (persistedReceipt.error && persistedReceipt.error.reason === 'compare_receipt_expired') {
+      return {
+        ok: false,
+        statusCode: 409,
+        body: {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: String(source.kind || 'planning.merge-intent'),
+          deterministic: true,
+          error: persistedReceipt.error,
+        },
+      };
+    }
+  }
+
+  const tokenId = String(payload.tokenId || '').trim();
+  if (tokenId && !state.mergeIntentTokens.has(tokenId)) {
+    const persistedToken = await readPlanningMergeIntent(authority.client, {
+      tokenId,
+      nowMs,
+    });
+
+    if (persistedToken.ok && persistedToken.token) {
+      state.mergeIntentTokens.set(tokenId, persistedToken.token);
+    } else if (persistedToken.error && persistedToken.error.reason === 'token_expired') {
+      return {
+        ok: false,
+        statusCode: 409,
+        body: {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: String(source.kind || 'planning.merge'),
+          deterministic: true,
+          error: persistedToken.error,
+        },
+      };
+    }
+  }
+
+  const idempotencyKey = String(payload.idempotencyKey || '').trim();
+  if (idempotencyKey && !state.mergeIdempotencyRecords.has(idempotencyKey)) {
+    const persistedIdempotency = await readPlanningMergeIdempotencyRecord(authority.client, {
+      idempotencyKey,
+      nowMs,
+    });
+
+    if (!persistedIdempotency.ok) {
+      return {
+        ok: false,
+        failure: buildPlanningDurabilityPersistenceFailure({
+          pathname: source.pathname,
+          method: source.method,
+          planningPersistenceConfig: source.planningPersistenceConfig,
+          planningPersistenceState: source.planningPersistenceState,
+          authority,
+          code: persistedIdempotency.error && persistedIdempotency.error.code,
+          reason: persistedIdempotency.error && persistedIdempotency.error.reason,
+          error: 'Planning merge idempotency ledger read failed',
+          statusCode: 503,
+        }),
+      };
+    }
+
+    if (persistedIdempotency.record) {
+      const runtimeRecord = mapPersistedMergeIdempotencyRecordToRuntime(persistedIdempotency.record);
+      if (runtimeRecord) {
+        state.mergeIdempotencyRecords.set(idempotencyKey, runtimeRecord);
+      }
+    }
+  }
+
+  return { ok: true };
+}
+
+async function persistPlanningMergeCommitDurabilityArtifacts(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const operationBody = source.operationBody && typeof source.operationBody === 'object'
+    ? source.operationBody
+    : {};
+  const mergeEvent = operationBody.mergeEvent && typeof operationBody.mergeEvent === 'object'
+    ? operationBody.mergeEvent
+    : null;
+  const idempotency = operationBody.idempotency && typeof operationBody.idempotency === 'object'
+    ? operationBody.idempotency
+    : null;
+  const authority = source.authority;
+
+  if (!authority || !authority.ready || !authority.client || !mergeEvent || !idempotency) {
+    return {
+      ok: false,
+      failure: buildPlanningDurabilityPersistenceFailure({
+        pathname: source.pathname,
+        method: source.method,
+        planningPersistenceConfig: source.planningPersistenceConfig,
+        planningPersistenceState: source.planningPersistenceState,
+        authority,
+        code: 'planning_merge_durability_write_invalid',
+        reason: 'planning_merge_durability_write_invalid',
+        error: 'Planning merge durability write invalid',
+        statusCode: 503,
+      }),
+    };
+  }
+
+  const tokenWrite = await consumePlanningMergeIntent(authority.client, {
+    tokenId: mergeEvent.tokenId,
+    consumedAt: mergeEvent.consumedAt,
+    nowMs: source.nowMs,
+  });
+
+  if (!tokenWrite.ok) {
+    return {
+      ok: false,
+      failure: buildPlanningDurabilityPersistenceFailure({
+        pathname: source.pathname,
+        method: source.method,
+        planningPersistenceConfig: source.planningPersistenceConfig,
+        planningPersistenceState: source.planningPersistenceState,
+        authority,
+        code: tokenWrite.error && tokenWrite.error.code,
+        reason: tokenWrite.error && tokenWrite.error.reason,
+        error: 'Planning merge intent consume persistence failed',
+        statusCode: tokenWrite.error && tokenWrite.error.code === 'invalid_confirmation_token' ? 409 : 503,
+      }),
+    };
+  }
+
+  const payloadHash = hashMergePayload({
+    idempotencyKey: idempotency.key,
+    actorId: mergeEvent.actorId,
+    targetId: mergeEvent.targetId,
+    sourceIdsHash: mergeEvent.sourceIdsHash,
+    compareHash: mergeEvent.compareHash,
+    operationType: 'merge',
+  });
+
+  const idempotencyWrite = await persistPlanningMergeIdempotencyRecord(authority.client, {
+    idempotencyKey: idempotency.key,
+    actorId: mergeEvent.actorId,
+    repoId: source.context && source.context.repoId,
+    operationType: 'merge',
+    targetId: mergeEvent.targetId,
+    sourceIdsHash: mergeEvent.sourceIdsHash,
+    compareHash: mergeEvent.compareHash,
+    payloadHash,
+    mergeRecordId: source.mergeRecord && source.mergeRecord.recordId,
+    response: operationBody,
+    nowMs: source.nowMs,
+    ttlMs: PLANNING_MERGE_IDEMPOTENCY_TTL_MS,
+  });
+
+  if (!idempotencyWrite.ok) {
+    await resetPlanningMergeIntentConsumption(authority.client, {
+      tokenId: mergeEvent.tokenId,
+    });
+
+    return {
+      ok: false,
+      failure: buildPlanningDurabilityPersistenceFailure({
+        pathname: source.pathname,
+        method: source.method,
+        planningPersistenceConfig: source.planningPersistenceConfig,
+        planningPersistenceState: source.planningPersistenceState,
+        authority,
+        code: idempotencyWrite.error && idempotencyWrite.error.code,
+        reason: idempotencyWrite.error && idempotencyWrite.error.reason,
+        error: 'Planning merge idempotency ledger persistence failed',
+        statusCode: idempotencyWrite.error && idempotencyWrite.error.code === 'idempotency_conflict' ? 409 : 503,
+      }),
+    };
+  }
+
+  return {
+    ok: true,
+    record: idempotencyWrite.record || null,
+  };
+}
+
+async function compensatePlanningMergeDurabilityFailure(input = {}) {
+  const source = input && typeof input === 'object' ? input : {};
+  const authority = source.authority;
+  const operationBody = source.operationBody && typeof source.operationBody === 'object'
+    ? source.operationBody
+    : {};
+  const mergeEvent = operationBody.mergeEvent && typeof operationBody.mergeEvent === 'object'
+    ? operationBody.mergeEvent
+    : null;
+  const idempotency = operationBody.idempotency && typeof operationBody.idempotency === 'object'
+    ? operationBody.idempotency
+    : null;
+
+  if (!authority || !authority.ready || !authority.client) {
+    return;
+  }
+
+  if (idempotency && typeof idempotency.key === 'string' && idempotency.key.trim()) {
+    await deletePlanningMergeIdempotencyRecord(authority.client, {
+      idempotencyKey: idempotency.key,
+    });
+  }
+
+  if (mergeEvent && typeof mergeEvent.tokenId === 'string' && mergeEvent.tokenId.trim()) {
+    await resetPlanningMergeIntentConsumption(authority.client, {
+      tokenId: mergeEvent.tokenId,
+    });
+  }
+
+  if (source.mergeRecord && typeof source.mergeRecord.recordId === 'string' && source.mergeRecord.recordId.trim()) {
+    await deletePersistedPlanningRecordById(authority.client, {
+      actorId: source.context && source.context.userId,
+      recordId: source.mergeRecord.recordId,
+    });
   }
 }
 
@@ -1545,6 +2692,13 @@ function isPlanningDurabilityRoute(pathname) {
     || route === '/api/planning/compare'
     || route === '/api/planning/merge-intent'
     || route === '/api/planning/merge'
+    || route === '/api/planning/suggestions'
+    || route === '/api/planning/recaps'
+    || route === '/api/planning/persistence/init'
+    || route === '/api/planning/persistence/retention'
+    || route === '/api/planning/persistence/export'
+    || route === '/api/planning/persistence/import'
+    || route === '/api/planning/persistence/corruption/scan'
   );
 }
 
@@ -1566,6 +2720,27 @@ function resolvePlanningDurabilityGateKind(pathname, method) {
   }
   if (route === '/api/planning/merge') {
     return 'planning.merge';
+  }
+  if (route === '/api/planning/suggestions') {
+    return normalizedMethod === 'POST' ? 'planning.suggestion.persist' : 'planning.suggestion.read';
+  }
+  if (route === '/api/planning/recaps') {
+    return normalizedMethod === 'POST' ? 'planning.recap.persist' : 'planning.recap.read';
+  }
+  if (route === '/api/planning/persistence/init') {
+    return 'planning.persistence.init';
+  }
+  if (route === '/api/planning/persistence/retention') {
+    return 'planning.persistence.retention';
+  }
+  if (route === '/api/planning/persistence/export') {
+    return 'planning.persistence.export';
+  }
+  if (route === '/api/planning/persistence/import') {
+    return 'planning.persistence.import';
+  }
+  if (route === '/api/planning/persistence/corruption/scan') {
+    return 'planning.persistence.corruption.scan';
   }
 
   return 'planning.unknown';
@@ -1594,6 +2769,157 @@ function buildPlanningDurabilityDependencyGateFailure(pathname, method, gateStat
           ? gate.reasonCodes
           : [reason]),
         ws3: gate.ws3 || null,
+      },
+    },
+  };
+}
+
+function isPlanningDurabilityCriticalRoute(pathname) {
+  const route = String(pathname || '').trim();
+  return WS5A_DURABILITY_CRITICAL_ROUTES.has(route);
+}
+
+function resolveWs5aPersistenceAuthorityReasonCode(authority, planningPersistenceState) {
+  const status = String(authority && authority.status || '').trim();
+  const migrations = planningPersistenceState
+    && typeof planningPersistenceState === 'object'
+    && planningPersistenceState.migrations
+    && typeof planningPersistenceState.migrations === 'object'
+    ? planningPersistenceState.migrations
+    : {};
+  const checksumValidation = migrations.checksumValidation
+    && typeof migrations.checksumValidation === 'object'
+    ? migrations.checksumValidation
+    : {};
+
+  if (status === 'configured_no_client') {
+    return 'planning_persistence_client_unavailable';
+  }
+
+  if (status === 'drift_detected') {
+    return checksumValidation.baselineMismatch === true || migrations.baselineMismatch === true
+      ? 'planning_persistence_checksum_baseline_mismatch'
+      : 'planning_persistence_checksum_drift';
+  }
+
+  if (status === 'migration_error') {
+    return 'planning_persistence_migration_error';
+  }
+
+  if (status === 'invalid_config') {
+    return 'planning_persistence_invalid_config';
+  }
+
+  if (status === 'disabled') {
+    return 'planning_persistence_not_configured';
+  }
+
+  return 'planning_persistence_not_ready';
+}
+
+function resolvePlanningDurabilityRouteGateState(pathname, method, planningPersistenceConfig, planningPersistenceState) {
+  const route = String(pathname || '').trim();
+  const authority = resolvePlanningPersistenceAuthorityState(
+    planningPersistenceConfig,
+    planningPersistenceState,
+  );
+  const migrationVersions = Array.isArray(PLANNING_WS5A_DURABILITY_REQUIRED_MIGRATION_VERSIONS)
+    ? PLANNING_WS5A_DURABILITY_REQUIRED_MIGRATION_VERSIONS
+    : [];
+
+  const checkedVersions = normalizeDeterministicReasonCodes(
+    planningPersistenceState
+    && planningPersistenceState.migrations
+    && planningPersistenceState.migrations.checksumValidation
+    && Array.isArray(planningPersistenceState.migrations.checksumValidation.checkedVersions)
+      ? planningPersistenceState.migrations.checksumValidation.checkedVersions
+      : [],
+  );
+
+  const missingMigrationVersions = migrationVersions
+    .filter((version) => !checkedVersions.includes(version))
+    .sort((a, b) => a.localeCompare(b));
+
+  const reasonCodes = [];
+  let primaryReason = 'ws5a_durability_route_ready';
+  if (!authority.persistedAuthority) {
+    primaryReason = 'planning_persistence_not_configured';
+    reasonCodes.push(primaryReason);
+  } else if (!authority.ready) {
+    primaryReason = resolveWs5aPersistenceAuthorityReasonCode(authority, planningPersistenceState);
+    reasonCodes.push(primaryReason);
+  }
+
+  if (authority.ready && missingMigrationVersions.length > 0) {
+    primaryReason = 'planning_durability_artifact_migrations_missing';
+    reasonCodes.push(primaryReason);
+  }
+
+  const normalizedReasonCodes = normalizeDeterministicReasonCodes(reasonCodes);
+  const ready = normalizedReasonCodes.length === 0;
+
+  if (!ready && !normalizedReasonCodes.includes(primaryReason)) {
+    primaryReason = normalizedReasonCodes[0] || 'planning_persistence_not_ready';
+  }
+
+  return {
+    contractVersion: WS5A_DURABILITY_ROUTE_GATE_CONTRACT_VERSION,
+    dependency: WS5A_DURABILITY_ROUTE_GATE_NAME,
+    deterministic: true,
+    required: isPlanningDurabilityCriticalRoute(route),
+    ready,
+    marker: ready ? 'ready' : 'dependency-blocked',
+    reason: ready ? 'ws5a_durability_route_ready' : primaryReason,
+    reasonCodes: ready ? ['ws5a_durability_route_ready'] : normalizedReasonCodes,
+    kind: resolvePlanningDurabilityGateKind(pathname, method),
+    migrationVersions,
+    checkedMigrationVersions: checkedVersions,
+    missingMigrationVersions,
+    debug: {
+      persistenceAuthorityStatus: authority.status,
+      persistenceAuthorityLastError: authority.lastError,
+    },
+    persistenceAuthority: {
+      persistedAuthority: authority.persistedAuthority,
+      ready: authority.ready,
+      status: authority.status,
+      lastError: authority.lastError,
+    },
+  };
+}
+
+function buildPlanningDurabilityRouteGateFailure(pathname, method, gateState) {
+  const gate = gateState && typeof gateState === 'object' ? gateState : {};
+  const reason = String(gate.reason || '').trim() || 'planning_persistence_not_ready';
+
+  return {
+    statusCode: 503,
+    body: {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: resolvePlanningDurabilityGateKind(pathname, method),
+      deterministic: true,
+      error: 'Planning durability route gate blocked',
+      code: WS5A_DURABILITY_ROUTE_BLOCK_CODE,
+      reason,
+      durabilityRouteGate: {
+        marker: 'dependency-blocked',
+        dependency: String(gate.dependency || WS5A_DURABILITY_ROUTE_GATE_NAME),
+        required: true,
+        ready: false,
+        contractVersion: String(gate.contractVersion || WS5A_DURABILITY_ROUTE_GATE_CONTRACT_VERSION),
+        reasonCodes: normalizeDeterministicReasonCodes(gate.reasonCodes && gate.reasonCodes.length
+          ? gate.reasonCodes
+          : [reason]),
+        debug: gate.debug && typeof gate.debug === 'object'
+          ? {
+            persistenceAuthorityStatus: String(gate.debug.persistenceAuthorityStatus || '').trim() || null,
+            persistenceAuthorityLastError: String(gate.debug.persistenceAuthorityLastError || '').trim() || null,
+          }
+          : null,
+        migrationVersions: Array.isArray(gate.migrationVersions) ? gate.migrationVersions : [],
+        checkedMigrationVersions: Array.isArray(gate.checkedMigrationVersions) ? gate.checkedMigrationVersions : [],
+        missingMigrationVersions: Array.isArray(gate.missingMigrationVersions) ? gate.missingMigrationVersions : [],
+        persistenceAuthority: gate.persistenceAuthority || null,
       },
     },
   };
@@ -2079,6 +3405,7 @@ function issuePlanningMergeIntent(planningApiState, input = {}) {
   const state = reapPlanningMergeState(planningApiState, nowMs);
 
   const actorId = normalizeIdentity(context.userId || payload.actorId || payload.userId);
+  const repoId = normalizeIdentity(context.repoId || payload.repoId);
   const targetId = String(payload.targetId || '').trim();
   const compareReceiptId = String(payload.compareReceiptId || '').trim();
 
@@ -2159,6 +3486,7 @@ function issuePlanningMergeIntent(planningApiState, input = {}) {
   const token = {
     tokenId,
     actorId,
+    repoId,
     sourceIdsHash,
     targetId,
     compareHash,
@@ -3224,6 +4552,21 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     return;
   }
 
+  if (isPlanningDurabilityCriticalRoute(pathname)) {
+    const durabilityRouteGate = resolvePlanningDurabilityRouteGateState(
+      pathname,
+      req.method,
+      planningPersistenceConfig,
+      planningPersistenceState,
+    );
+
+    if (durabilityRouteGate.required && durabilityRouteGate.ready !== true) {
+      const gateFailure = buildPlanningDurabilityRouteGateFailure(pathname, req.method, durabilityRouteGate);
+      sendJson(res, gateFailure.statusCode, gateFailure.body);
+      return;
+    }
+  }
+
   if (req.method === 'GET' && pathname === '/api/health') {
     const changes = changeTracker ? changeTracker.get() : null;
     const runtime = getRuntimeHealth({ engineRoot, sandboxesHome, providerState });
@@ -3251,63 +4594,379 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     return;
   }
 
+  if (req.method === 'POST' && pathname === '/api/planning/persistence/init') {
+    initializePlanningPersistenceAuthority(planningPersistenceConfig, planningPersistenceState)
+      .then((result) => sendJson(res, result.statusCode, result.body))
+      .catch((error) => sendJson(res, 503, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.init',
+        deterministic: true,
+        ready: false,
+        initialized: false,
+        error: {
+          code: 'planning_persistence_init_failed',
+          reason: 'planning_persistence_init_failed',
+          message: String(error && error.message ? error.message : error),
+        },
+        errors: [{
+          code: 'planning_persistence_init_failed',
+          reason: 'planning_persistence_init_failed',
+          message: String(error && error.message ? error.message : error),
+        }],
+        planningPersistence: buildPlanningPersistenceHealthEnvelope(
+          getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+        ),
+      }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/planning/persistence/corruption/scan') {
+    readJsonBody(req)
+      .then(async () => {
+        const operationAuthority = resolvePlanningPersistenceOperationClient({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+        });
+
+        if (!operationAuthority.ok) {
+          sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+          return;
+        }
+
+        const result = await scanPlanningPersistenceCorruption(operationAuthority.authority.client);
+        const corruption = applyPlanningPersistenceCorruptionScan(planningPersistenceState, result);
+
+        sendJson(res, 200, {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.persistence.corruption.scan',
+          deterministic: true,
+          code: corruption.code,
+          reason: corruption.reason,
+          blocked: corruption.blocked,
+          recoveryRequired: corruption.recoveryRequired,
+          result,
+          planningPersistence: buildPlanningPersistenceHealthEnvelope(
+            getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+          ),
+          corruption,
+        });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.corruption.scan',
+        deterministic: true,
+        error: 'Planning persistence corruption scan failed',
+        code: 'planning_persistence_corruption_scan_failed',
+        reason: 'planning_persistence_corruption_scan_failed',
+        detail: String(e && e.message ? e.message : e),
+      }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/planning/persistence/retention') {
+    readJsonBody(req)
+      .then(async (body) => {
+        const payload = body && typeof body === 'object' ? body : {};
+        const operationAuthority = resolvePlanningPersistenceOperationClient({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+        });
+
+        if (!operationAuthority.ok) {
+          sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+          return;
+        }
+
+        const modeToken = String(payload.mode || '').trim().toLowerCase();
+        const mode = modeToken === 'execute' ? 'execute' : 'dry-run';
+        if (mode === 'execute') {
+          const blockedFailure = buildPlanningPersistenceWriteBlockedFailure(
+            pathname,
+            req.method,
+            planningPersistenceConfig,
+            planningPersistenceState,
+            operationAuthority.authority,
+          );
+          if (blockedFailure) {
+            sendJson(res, blockedFailure.statusCode, blockedFailure.body);
+            return;
+          }
+        }
+
+        const result = await runPlanningRetention(operationAuthority.authority.client, {
+          ...payload,
+          mode,
+          nowMs: Date.now(),
+        });
+
+        if (mode === 'execute') {
+          const postScan = await scanPlanningPersistenceCorruption(operationAuthority.authority.client);
+          applyPlanningPersistenceCorruptionScan(planningPersistenceState, postScan);
+        }
+
+        sendJson(res, 200, {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.persistence.retention',
+          deterministic: true,
+          code: mode === 'execute'
+            ? 'planning_persistence_retention_executed'
+            : 'planning_persistence_retention_dry_run',
+          reason: mode === 'execute'
+            ? 'planning_persistence_retention_executed'
+            : 'planning_persistence_retention_dry_run',
+          result,
+          planningPersistence: buildPlanningPersistenceHealthEnvelope(
+            getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+          ),
+          corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+        });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.retention',
+        deterministic: true,
+        error: 'Planning persistence retention failed',
+        code: 'planning_persistence_retention_failed',
+        reason: 'planning_persistence_retention_failed',
+        detail: String(e && e.message ? e.message : e),
+      }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/planning/persistence/export') {
+    readJsonBody(req)
+      .then(async (body) => {
+        const payload = body && typeof body === 'object' ? body : {};
+        const operationAuthority = resolvePlanningPersistenceOperationClient({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+        });
+
+        if (!operationAuthority.ok) {
+          sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+          return;
+        }
+
+        const result = await exportPlanningPersistenceSnapshot(operationAuthority.authority.client, {
+          exportedAt: payload.exportedAt,
+        });
+
+        sendJson(res, 200, {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.persistence.export',
+          deterministic: true,
+          code: 'planning_persistence_export_ready',
+          reason: 'planning_persistence_export_ready',
+          result,
+          planningPersistence: buildPlanningPersistenceHealthEnvelope(
+            getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+          ),
+          corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+        });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.export',
+        deterministic: true,
+        error: 'Planning persistence export failed',
+        code: 'planning_persistence_export_failed',
+        reason: 'planning_persistence_export_failed',
+        detail: String(e && e.message ? e.message : e),
+      }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/planning/persistence/import') {
+    readJsonBody(req)
+      .then(async (body) => {
+        const payload = body && typeof body === 'object' ? body : {};
+        const operationAuthority = resolvePlanningPersistenceOperationClient({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+        });
+
+        if (!operationAuthority.ok) {
+          sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+          return;
+        }
+
+        const blockedFailure = buildPlanningPersistenceWriteBlockedFailure(
+          pathname,
+          req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          operationAuthority.authority,
+        );
+        if (blockedFailure) {
+          sendJson(res, blockedFailure.statusCode, blockedFailure.body);
+          return;
+        }
+
+        const result = await importPlanningPersistenceSnapshot(operationAuthority.authority.client, payload);
+        if (!result.ok) {
+          const statusCode = result.error && (
+            result.error.code === 'planning_persistence_import_invalid_record'
+            || result.error.code === 'planning_persistence_import_conflicting_duplicate'
+          )
+            ? 400
+            : 503;
+
+          sendJson(res, statusCode, {
+            contractVersion: PLANNING_API_CONTRACT_VERSION,
+            kind: 'planning.persistence.import',
+            deterministic: true,
+            error: 'Planning persistence import failed',
+            code: result.error && result.error.code
+              ? result.error.code
+              : 'planning_persistence_import_failed',
+            reason: result.error && result.error.reason
+              ? result.error.reason
+              : 'planning_persistence_import_failed',
+            detail: result.error || null,
+            planningPersistence: buildPlanningPersistenceHealthEnvelope(
+              getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+            ),
+            corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+          });
+          return;
+        }
+
+        const postScan = await scanPlanningPersistenceCorruption(operationAuthority.authority.client);
+        applyPlanningPersistenceCorruptionScan(planningPersistenceState, postScan);
+
+        sendJson(res, 200, {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.persistence.import',
+          deterministic: true,
+          code: 'planning_persistence_import_applied',
+          reason: 'planning_persistence_import_applied',
+          result,
+          planningPersistence: buildPlanningPersistenceHealthEnvelope(
+            getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+          ),
+          corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+        });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.persistence.import',
+        deterministic: true,
+        error: 'Planning persistence import failed',
+        code: 'planning_persistence_import_failed',
+        reason: 'planning_persistence_import_failed',
+        detail: String(e && e.message ? e.message : e),
+      }));
+    return;
+  }
+
   if (req.method === 'POST' && pathname === '/api/planning/records') {
     readJsonBody(req)
       .then(async (body) => {
         const payload = body && typeof body === 'object' ? body : {};
         const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
         const recordInput = payload.record && typeof payload.record === 'object' ? payload.record : payload;
+        const idempotencyKey = resolveRequestIdempotencyKey(req, payload);
 
-        const projectionSync = await hydratePlanningProjectionFromPersistence({
+        const routeLock = acquirePlanningMutationRouteLock({
+          planningApiState,
           pathname,
           method: req.method,
-          planningPersistenceConfig,
-          planningPersistenceState,
-          planningApiState,
           context,
-        });
-
-        if (!projectionSync.ok) {
-          sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
-          return;
-        }
-
-        const operation = createPlanningRecordOperation(planningApiState, {
-          context,
-          request: {
-            ...recordInput,
-            idempotencyKey: resolveRequestIdempotencyKey(req, payload),
-          },
+          idempotencyKey,
+          requestId: req.headers['x-request-id'],
           nowMs: Date.now(),
         });
 
-        if (operation.ok && operation.body && operation.body.record) {
-          const persistedWrite = await persistPlanningRecordToAuthority({
+        if (!routeLock.ok) {
+          sendJson(res, routeLock.statusCode, routeLock.body);
+          return;
+        }
+
+        try {
+          const projectionSync = await hydratePlanningProjectionFromPersistence({
             pathname,
             method: req.method,
             planningPersistenceConfig,
             planningPersistenceState,
+            planningApiState,
             context,
-            record: operation.body.record,
           });
 
-          if (!persistedWrite.ok) {
-            await hydratePlanningProjectionFromPersistence({
+          if (!projectionSync.ok) {
+            sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+            return;
+          }
+
+          const expectedVersion = resolveExpectedPlanningVersion(req, payload);
+          const concurrency = evaluatePlanningRouteOptimisticConcurrency({
+            pathname,
+            method: req.method,
+            expectedVersion,
+            actualVersion: planningApiState.recordsVersion,
+          });
+
+          if (!concurrency.ok) {
+            sendJson(res, concurrency.statusCode, concurrency.body);
+            return;
+          }
+
+          const operation = createPlanningRecordOperation(planningApiState, {
+            context,
+            request: {
+              ...recordInput,
+              idempotencyKey,
+            },
+            nowMs: Date.now(),
+          });
+
+          if (operation.ok && operation.body && operation.body.record) {
+            const persistedWrite = await persistPlanningRecordToAuthority({
               pathname,
               method: req.method,
               planningPersistenceConfig,
               planningPersistenceState,
-              planningApiState,
               context,
+              record: operation.body.record,
             });
-            sendJson(res, persistedWrite.failure.statusCode, persistedWrite.failure.body);
-            return;
+
+            if (!persistedWrite.ok) {
+              evictPlanningIdempotencyEntry(planningApiState, {
+                operation: 'create',
+                scopeKey: operation.body
+                  && operation.body.idempotency
+                  && typeof operation.body.idempotency.scopeKey === 'string'
+                  ? operation.body.idempotency.scopeKey
+                  : '',
+                idempotencyKey,
+              });
+
+              await hydratePlanningProjectionFromPersistence({
+                pathname,
+                method: req.method,
+                planningPersistenceConfig,
+                planningPersistenceState,
+                planningApiState,
+                context,
+              });
+              sendJson(res, persistedWrite.failure.statusCode, persistedWrite.failure.body);
+              return;
+            }
+
+            operation.body.record = persistedWrite.record;
           }
 
-          operation.body.record = persistedWrite.record;
+          sendJson(res, operation.statusCode, operation.body);
+        } finally {
+          releasePlanningRouteLock(planningApiState, routeLock.lock);
         }
-
-        sendJson(res, operation.statusCode, operation.body);
       })
       .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
     return;
@@ -3412,11 +5071,46 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
         if (operation && operation.statusCode === 200 && operation.body && !operation.body.error) {
           const nowMs = Date.now();
           const compareReceipt = recordPlanningCompareReceipt(planningApiState, context, operation.body, nowMs);
-          operation.body.compareReceipt = compareReceipt;
-          operation.body.gateState = compareReceipt.gateState;
-          operation.body.mergeEligible = compareReceipt.mergeEligible;
-          operation.body.reason = compareReceipt.reason;
-          operation.body.downgrade = compareReceipt.downgrade;
+
+          const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+            pathname,
+            method: req.method,
+            planningPersistenceConfig,
+            planningPersistenceState,
+          });
+
+          if (!durabilityAuthority.ok) {
+            sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+            return;
+          }
+
+          const persistedCompareReceipt = await persistPlanningCompareReceipt(
+            durabilityAuthority.authority.client,
+            { receipt: compareReceipt },
+          );
+
+          if (!persistedCompareReceipt.ok) {
+            const failure = buildPlanningDurabilityPersistenceFailure({
+              pathname,
+              method: req.method,
+              planningPersistenceConfig,
+              planningPersistenceState,
+              authority: durabilityAuthority.authority,
+              code: persistedCompareReceipt.error && persistedCompareReceipt.error.code,
+              reason: persistedCompareReceipt.error && persistedCompareReceipt.error.reason,
+              error: 'Planning compare receipt persistence failed',
+              statusCode: 503,
+            });
+            sendJson(res, failure.statusCode, failure.body);
+            return;
+          }
+
+          const durableCompareReceipt = persistedCompareReceipt.receipt || compareReceipt;
+          operation.body.compareReceipt = durableCompareReceipt;
+          operation.body.gateState = durableCompareReceipt.gateState;
+          operation.body.mergeEligible = durableCompareReceipt.mergeEligible;
+          operation.body.reason = durableCompareReceipt.reason;
+          operation.body.downgrade = durableCompareReceipt.downgrade;
         }
 
         sendJson(res, operation.statusCode, operation.body);
@@ -3427,14 +5121,80 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
 
   if (req.method === 'POST' && pathname === '/api/planning/merge-intent') {
     readJsonBody(req)
-      .then((body) => {
+      .then(async (body) => {
         const payload = body && typeof body === 'object' ? body : {};
         const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+
+        const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+        });
+
+        if (!durabilityAuthority.ok) {
+          sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+          return;
+        }
+
+        const durabilityHydration = await hydratePlanningMergeDurabilityStateFromAuthority({
+          kind: 'planning.merge-intent',
+          pathname,
+          method: req.method,
+          planningApiState,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          authority: durabilityAuthority.authority,
+          payload,
+          nowMs: Date.now(),
+        });
+
+        if (!durabilityHydration.ok) {
+          if (durabilityHydration.failure) {
+            sendJson(res, durabilityHydration.failure.statusCode, durabilityHydration.failure.body);
+            return;
+          }
+
+          sendJson(res, durabilityHydration.statusCode || 409, durabilityHydration.body || {
+            contractVersion: PLANNING_API_CONTRACT_VERSION,
+            kind: 'planning.merge-intent',
+            deterministic: true,
+            error: { code: 'invalid_compare_receipt', reason: 'compare_receipt_not_found' },
+          });
+          return;
+        }
+
         const operation = issuePlanningMergeIntent(planningApiState, {
           context,
           payload,
           nowMs: Date.now(),
         });
+
+        if (operation && operation.statusCode === 200 && operation.body && operation.body.intentToken) {
+          const persistedIntent = await persistPlanningMergeIntent(
+            durabilityAuthority.authority.client,
+            { token: operation.body.intentToken },
+          );
+
+          if (!persistedIntent.ok) {
+            const failure = buildPlanningDurabilityPersistenceFailure({
+              pathname,
+              method: req.method,
+              planningPersistenceConfig,
+              planningPersistenceState,
+              authority: durabilityAuthority.authority,
+              code: persistedIntent.error && persistedIntent.error.code,
+              reason: persistedIntent.error && persistedIntent.error.reason,
+              error: 'Planning merge intent persistence failed',
+              statusCode: 503,
+            });
+            sendJson(res, failure.statusCode, failure.body);
+            return;
+          }
+
+          operation.body.intentToken = persistedIntent.token || operation.body.intentToken;
+        }
+
         sendJson(res, operation.statusCode, operation.body);
       })
       .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
@@ -3446,65 +5206,388 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
       .then(async (body) => {
         const payload = body && typeof body === 'object' ? body : {};
         const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
-
-        const projectionSync = await hydratePlanningProjectionFromPersistence({
+        const routeLock = acquirePlanningMutationRouteLock({
+          planningApiState,
           pathname,
           method: req.method,
-          planningPersistenceConfig,
-          planningPersistenceState,
-          planningApiState,
           context,
-        });
-
-        if (!projectionSync.ok) {
-          sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
-          return;
-        }
-
-        const operation = executePlanningMerge(planningApiState, {
-          context,
-          payload,
+          idempotencyKey: payload.idempotencyKey,
+          requestId: req.headers['x-request-id'],
           nowMs: Date.now(),
         });
 
-        const mergeRecord = operation
-          && operation.statusCode === 200
-          && operation.body
-          && operation.body.mergeRecord
-          && !(operation.body.idempotency && operation.body.idempotency.replay)
-          ? operation.body.mergeRecord
-          : null;
+        if (!routeLock.ok) {
+          sendJson(res, routeLock.statusCode, routeLock.body);
+          return;
+        }
 
-        if (mergeRecord) {
-          const persistedWrite = await persistPlanningRecordToAuthority({
+        try {
+          const projectionSync = await hydratePlanningProjectionFromPersistence({
             pathname,
             method: req.method,
             planningPersistenceConfig,
             planningPersistenceState,
+            planningApiState,
             context,
-            record: mergeRecord,
           });
 
-          if (!persistedWrite.ok) {
-            rollbackMergeCommitAfterPersistenceFailure(planningApiState, operation.body);
-            await hydratePlanningProjectionFromPersistence({
+          if (!projectionSync.ok) {
+            sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+            return;
+          }
+
+          const expectedVersion = resolveExpectedPlanningVersion(req, payload);
+          const concurrency = evaluatePlanningRouteOptimisticConcurrency({
+            pathname,
+            method: req.method,
+            expectedVersion,
+            actualVersion: planningApiState.recordsVersion,
+          });
+
+          if (!concurrency.ok) {
+            sendJson(res, concurrency.statusCode, concurrency.body);
+            return;
+          }
+
+          const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+            pathname,
+            method: req.method,
+            planningPersistenceConfig,
+            planningPersistenceState,
+          });
+
+          if (!durabilityAuthority.ok) {
+            sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+            return;
+          }
+
+          const mergeNowMs = Date.now();
+          const durabilityHydration = await hydratePlanningMergeDurabilityStateFromAuthority({
+            kind: 'planning.merge',
+            pathname,
+            method: req.method,
+            planningApiState,
+            planningPersistenceConfig,
+            planningPersistenceState,
+            authority: durabilityAuthority.authority,
+            payload,
+            nowMs: mergeNowMs,
+          });
+
+          if (!durabilityHydration.ok) {
+            if (durabilityHydration.failure) {
+              sendJson(res, durabilityHydration.failure.statusCode, durabilityHydration.failure.body);
+              return;
+            }
+
+            sendJson(res, durabilityHydration.statusCode || 409, durabilityHydration.body || {
+              contractVersion: PLANNING_API_CONTRACT_VERSION,
+              kind: 'planning.merge',
+              deterministic: true,
+              error: { code: 'invalid_confirmation_token', reason: 'token_not_found' },
+            });
+            return;
+          }
+
+          const operation = executePlanningMerge(planningApiState, {
+            context,
+            payload,
+            nowMs: mergeNowMs,
+          });
+
+          const mergeRecord = operation
+            && operation.statusCode === 200
+            && operation.body
+            && operation.body.mergeRecord
+            && !(operation.body.idempotency && operation.body.idempotency.replay)
+            ? operation.body.mergeRecord
+            : null;
+
+          if (mergeRecord) {
+            const persistedWrite = await persistPlanningRecordToAuthority({
               pathname,
               method: req.method,
               planningPersistenceConfig,
               planningPersistenceState,
-              planningApiState,
               context,
+              record: mergeRecord,
             });
-            sendJson(res, persistedWrite.failure.statusCode, persistedWrite.failure.body);
-            return;
+
+            if (!persistedWrite.ok) {
+              rollbackMergeCommitAfterPersistenceFailure(planningApiState, operation.body);
+              await hydratePlanningProjectionFromPersistence({
+                pathname,
+                method: req.method,
+                planningPersistenceConfig,
+                planningPersistenceState,
+                planningApiState,
+                context,
+              });
+              sendJson(res, persistedWrite.failure.statusCode, persistedWrite.failure.body);
+              return;
+            }
+
+            operation.body.mergeRecord = persistedWrite.record;
+
+            const durabilityCommit = await persistPlanningMergeCommitDurabilityArtifacts({
+              pathname,
+              method: req.method,
+              planningPersistenceConfig,
+              planningPersistenceState,
+              authority: durabilityAuthority.authority,
+              context,
+              operationBody: operation.body,
+              mergeRecord: persistedWrite.record,
+              nowMs: mergeNowMs,
+            });
+
+            if (!durabilityCommit.ok) {
+              rollbackMergeCommitAfterPersistenceFailure(planningApiState, operation.body);
+              await compensatePlanningMergeDurabilityFailure({
+                authority: durabilityAuthority.authority,
+                context,
+                operationBody: operation.body,
+                mergeRecord: persistedWrite.record,
+              });
+              await hydratePlanningProjectionFromPersistence({
+                pathname,
+                method: req.method,
+                planningPersistenceConfig,
+                planningPersistenceState,
+                planningApiState,
+                context,
+              });
+              sendJson(res, durabilityCommit.failure.statusCode, durabilityCommit.failure.body);
+              return;
+            }
           }
 
-          operation.body.mergeRecord = persistedWrite.record;
+          sendJson(res, operation.statusCode, operation.body);
+        } finally {
+          releasePlanningRouteLock(planningApiState, routeLock.lock);
         }
-
-        sendJson(res, operation.statusCode, operation.body);
       })
       .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/planning/suggestions') {
+    readJsonBody(req)
+      .then(async (body) => {
+        const payload = body && typeof body === 'object' ? body : {};
+        const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+
+        const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+        });
+
+        if (!durabilityAuthority.ok) {
+          sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+          return;
+        }
+
+        const scope = firstStringValue(payload.scope) || (context.repoId ? 'repo' : 'user');
+        const persisted = await persistPlanningSuggestion(durabilityAuthority.authority.client, {
+          actorId: context.userId,
+          suggestion: {
+            suggestionId: firstStringValue(payload.suggestionId),
+            actorId: context.userId,
+            repoId: context.repoId,
+            scope,
+            state: payload.state,
+            createdAt: payload.createdAt,
+            updatedAt: payload.updatedAt,
+          },
+        });
+
+        if (!persisted.ok) {
+          const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(persisted.error, {
+            missingReason: 'missing_suggestion_id',
+            invalidCode: 'invalid_planning_suggestion',
+          });
+          const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+            statusCode,
+            error: persisted.error,
+          });
+          sendJson(res, failure.statusCode, failure.body);
+          return;
+        }
+
+        sendJson(res, 200, {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.suggestion.persist',
+          deterministic: true,
+          suggestion: persisted.suggestion,
+        });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/planning/suggestions') {
+    const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
+    const suggestionId = firstStringValue(u.searchParams.get('suggestionId'));
+
+    const operationAuthority = resolvePlanningPersistenceOperationClient({
+      pathname,
+      method: req.method,
+      planningPersistenceConfig,
+      planningPersistenceState,
+    });
+
+    if (!operationAuthority.ok) {
+      sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+      return;
+    }
+
+    readPlanningSuggestion(operationAuthority.authority.client, {
+      actorId: context.userId,
+      suggestionId,
+    })
+      .then((result) => {
+        if (!result.ok) {
+          const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(result.error, {
+            missingReason: 'missing_suggestion_id',
+            invalidCode: 'invalid_planning_suggestion',
+          });
+          const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+            statusCode,
+            error: result.error,
+          });
+          sendJson(res, failure.statusCode, failure.body);
+          return;
+        }
+
+        sendJson(res, 200, {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.suggestion.read',
+          deterministic: true,
+          suggestion: result.suggestion,
+        });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 503, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.suggestion.read',
+        deterministic: true,
+        error: {
+          code: 'planning_persistence_read_failed',
+          reason: 'planning_persistence_read_failed',
+        },
+        detail: String(e && e.message ? e.message : e),
+      }));
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/planning/recaps') {
+    readJsonBody(req)
+      .then(async (body) => {
+        const payload = body && typeof body === 'object' ? body : {};
+        const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+
+        const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+        });
+
+        if (!durabilityAuthority.ok) {
+          sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+          return;
+        }
+
+        const scope = firstStringValue(payload.scope) || (context.repoId ? 'repo' : 'user');
+        const persisted = await persistPlanningRecap(durabilityAuthority.authority.client, {
+          actorId: context.userId,
+          recap: {
+            recapId: firstStringValue(payload.recapId),
+            actorId: context.userId,
+            repoId: context.repoId,
+            scope,
+            state: payload.state,
+            createdAt: payload.createdAt,
+            updatedAt: payload.updatedAt,
+          },
+        });
+
+        if (!persisted.ok) {
+          const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(persisted.error, {
+            missingReason: 'missing_recap_id',
+            invalidCode: 'invalid_planning_recap',
+          });
+          const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+            statusCode,
+            error: persisted.error,
+          });
+          sendJson(res, failure.statusCode, failure.body);
+          return;
+        }
+
+        sendJson(res, 200, {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.recap.persist',
+          deterministic: true,
+          recap: persisted.recap,
+        });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+    return;
+  }
+
+  if (req.method === 'GET' && pathname === '/api/planning/recaps') {
+    const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
+    const recapId = firstStringValue(u.searchParams.get('recapId'));
+
+    const operationAuthority = resolvePlanningPersistenceOperationClient({
+      pathname,
+      method: req.method,
+      planningPersistenceConfig,
+      planningPersistenceState,
+    });
+
+    if (!operationAuthority.ok) {
+      sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+      return;
+    }
+
+    readPlanningRecap(operationAuthority.authority.client, {
+      actorId: context.userId,
+      recapId,
+    })
+      .then((result) => {
+        if (!result.ok) {
+          const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(result.error, {
+            missingReason: 'missing_recap_id',
+            invalidCode: 'invalid_planning_recap',
+          });
+          const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+            statusCode,
+            error: result.error,
+          });
+          sendJson(res, failure.statusCode, failure.body);
+          return;
+        }
+
+        sendJson(res, 200, {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.recap.read',
+          deterministic: true,
+          recap: result.recap,
+        });
+      })
+      .catch((e) => sendJson(res, e.statusCode || 503, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.recap.read',
+        deterministic: true,
+        error: {
+          code: 'planning_persistence_read_failed',
+          reason: 'planning_persistence_read_failed',
+        },
+        detail: String(e && e.message ? e.message : e),
+      }));
     return;
   }
 
@@ -3837,6 +5920,22 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     return;
   }
 
+  if (req.method === 'GET' && pathname === '/api/skills/preview') {
+    try {
+      const skills = assets.listInstalledSkills(assetsHomeAbs);
+      const vaultDir = assets.getVaultDir ? assets.getVaultDir(assetsHomeAbs) : path.join(assetsHomeAbs, 'skills-vault');
+      const result = skills.map((s) => {
+        const triggers = extractTriggers(s.absPath);
+        const vaultPath = s.kind === 'pointer' ? path.join(vaultDir, s.name, 'SKILL.md') : null;
+        return { name: s.name, kind: s.kind || 'full', triggers, absPath: s.absPath, vaultPath };
+      });
+      sendJson(res, 200, { skills: result });
+    } catch (e) {
+      sendJson(res, 500, { error: String(e.message || e) });
+    }
+    return;
+  }
+
   if (req.method === 'POST' && pathname === '/api/assets/remove') {
     readJsonBody(req)
       .then((body) => {
@@ -3859,7 +5958,20 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
       return;
     }
     try {
-      const abs = safeResolveUnder(assetsHomeAbs, rel);
+      let abs = safeResolveUnder(assetsHomeAbs, rel);
+      // If the file is a pointer, resolve through vault
+      if (assets.isPointerFile && assets.isPointerFile(abs)) {
+        const vaultDir = assets.getVaultDir ? assets.getVaultDir(assetsHomeAbs) : path.join(assetsHomeAbs, 'skills-vault');
+        const relNorm = rel.split('\\').join('/').replace(/^\/+/, '');
+        // Extract skill name from path like "skills/<name>/SKILL.md"
+        const match = relNorm.match(/^skills\/([^/]+)\//);
+        if (match && match[1] !== '..' && match[1] !== '.') {
+          const vaultPath = path.join(vaultDir, match[1], 'SKILL.md');
+          if (fs.existsSync(vaultPath)) {
+            abs = vaultPath;
+          }
+        }
+      }
       const text = assets.readTextFileSafe(abs, 512 * 1024);
       if (text == null) {
         sendText(res, 404, 'Not found');
@@ -3979,8 +6091,123 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   }
 
   // --- Gateway config endpoints ---
+  if (req.method === 'GET' && pathname === '/api/gateway/state') {
+    const configPath = resolveMessagingGatewayConfigPath(copilotHomeAbs);
+    const gatewayConfig = readJsonFileSafe(configPath);
+    const planningPersistence = buildPlanningPersistenceHealthEnvelope(
+      getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+    );
+    const planningAuthority = resolvePlanningPersistenceAuthorityState(planningPersistenceConfig, planningPersistenceState);
+
+    probeTrackerReadiness(trackerUrl, trackerToken)
+      .then((trackerProbe) => {
+        const state = buildGatewayStateEnvelope({
+          configPath,
+          gatewayConfig,
+          trackerProbe,
+          trackerUrl,
+          planningPersistence,
+          planningAuthority,
+        });
+        sendJson(res, 200, state);
+      })
+      .catch((error) => {
+        const state = buildGatewayStateEnvelope({
+          configPath,
+          gatewayConfig,
+          trackerProbe: {
+            deterministic: true,
+            checkedAt: new Date().toISOString(),
+            ready: false,
+            status: 'probe_failed',
+            statusCode: null,
+            error: buildGatewayProbeFailure(
+              'tracker_probe_failed',
+              'tracker_probe_failed',
+              String(error && error.message ? error.message : error),
+            ),
+          },
+          trackerUrl,
+          planningPersistence,
+          planningAuthority,
+        });
+        sendJson(res, 200, state);
+      });
+    return;
+  }
+
+  if (req.method === 'POST' && pathname === '/api/gateway/connect') {
+    const configPath = resolveMessagingGatewayConfigPath(copilotHomeAbs);
+    const gatewayConfig = readJsonFileSafe(configPath);
+    const planningPersistence = buildPlanningPersistenceHealthEnvelope(
+      getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+    );
+    const planningAuthority = resolvePlanningPersistenceAuthorityState(planningPersistenceConfig, planningPersistenceState);
+
+    probeTrackerReadiness(trackerUrl, trackerToken)
+      .then((trackerProbe) => {
+        const baseState = buildGatewayStateEnvelope({
+          configPath,
+          gatewayConfig,
+          trackerProbe,
+          trackerUrl,
+          planningPersistence,
+          planningAuthority,
+        });
+        const response = {
+          ...baseState,
+          kind: 'gateway.connect',
+          action: 'connect',
+          status: baseState.ready ? 'ready' : 'not_ready',
+          ready: baseState.ready,
+          connected: Boolean(trackerProbe && trackerProbe.ready === true),
+          error: baseState.error || (trackerProbe && trackerProbe.error ? trackerProbe.error : null),
+          errors: Array.isArray(baseState.errors) ? baseState.errors : [],
+        };
+
+        sendJson(res, response.ready ? 200 : 503, response);
+      })
+      .catch((error) => {
+        const failure = buildGatewayProbeFailure(
+          'tracker_probe_failed',
+          'tracker_probe_failed',
+          String(error && error.message ? error.message : error),
+        );
+
+        const baseState = buildGatewayStateEnvelope({
+          configPath,
+          gatewayConfig,
+          trackerProbe: {
+            deterministic: true,
+            checkedAt: new Date().toISOString(),
+            ready: false,
+            status: 'probe_failed',
+            statusCode: null,
+            error: failure,
+          },
+          trackerUrl,
+          planningPersistence,
+          planningAuthority,
+        });
+
+        sendJson(res, 503, {
+          ...baseState,
+          kind: 'gateway.connect',
+          action: 'connect',
+          status: 'error',
+          ready: false,
+          connected: false,
+          error: failure,
+          errors: Array.isArray(baseState.errors) && baseState.errors.length
+            ? baseState.errors
+            : [failure],
+        });
+      });
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/gateway/config') {
-    const configPath = path.join(copilotHomeAbs, 'messaging-gateway.config.json');
+    const configPath = resolveMessagingGatewayConfigPath(copilotHomeAbs);
     const config = readJsonFileSafe(configPath);
     sendJson(res, 200, { exists: config !== null, configPath, config: config || null });
     return;
@@ -3990,9 +6217,55 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     readJsonBody(req)
       .then((body) => {
         const discord = body && body.discord;
-        if (!discord || typeof discord.guildId !== 'string' || typeof discord.channelId !== 'string' || !Array.isArray(discord.allowlistedUserIds)) {
-          throw Object.assign(new Error('discord.guildId, discord.channelId, discord.allowlistedUserIds are required'), { statusCode: 400 });
+        const telegram = body && body.telegram;
+
+        let normalizedDiscord;
+        if (discord !== undefined && discord !== null) {
+          if (!discord || typeof discord.guildId !== 'string' || typeof discord.channelId !== 'string' || !Array.isArray(discord.allowlistedUserIds)) {
+            throw Object.assign(new Error('discord.guildId, discord.channelId, discord.allowlistedUserIds are required when discord is provided'), { statusCode: 400 });
+          }
+
+          const allowlistedUserIds = discord.allowlistedUserIds
+            .map((id) => String(id).trim())
+            .filter(Boolean);
+          if (allowlistedUserIds.length === 0) {
+            throw Object.assign(new Error('discord.allowlistedUserIds must contain at least one entry'), { statusCode: 400 });
+          }
+
+          normalizedDiscord = {
+            allowlistedUserIds,
+            guildId: String(discord.guildId).trim(),
+            channelId: String(discord.channelId).trim(),
+            ...(discord.permissionsChannelId ? { permissionsChannelId: String(discord.permissionsChannelId).trim() } : {}),
+          };
+
+          if (!normalizedDiscord.guildId || !normalizedDiscord.channelId) {
+            throw Object.assign(new Error('discord.guildId and discord.channelId must be non-empty strings'), { statusCode: 400 });
+          }
         }
+
+        let normalizedTelegram;
+        if (telegram !== undefined && telegram !== null) {
+          if (!telegram || !Array.isArray(telegram.allowlistedUserIds)) {
+            throw Object.assign(new Error('telegram.allowlistedUserIds is required when telegram is provided'), { statusCode: 400 });
+          }
+
+          const allowlistedUserIds = telegram.allowlistedUserIds
+            .map((id) => String(id).trim())
+            .filter(Boolean);
+          if (allowlistedUserIds.length === 0) {
+            throw Object.assign(new Error('telegram.allowlistedUserIds must contain at least one entry'), { statusCode: 400 });
+          }
+
+          normalizedTelegram = {
+            allowlistedUserIds,
+          };
+        }
+
+        if (!normalizedDiscord && !normalizedTelegram) {
+          throw Object.assign(new Error('At least one platform must be configured (discord or telegram)'), { statusCode: 400 });
+        }
+
         const ws = body && body.workspaces;
         if (!ws || !Array.isArray(ws.allowedRoots) || ws.allowedRoots.length === 0 || typeof ws.activeRoot !== 'string') {
           throw Object.assign(new Error('workspaces.allowedRoots (non-empty) and workspaces.activeRoot are required'), { statusCode: 400 });
@@ -4009,17 +6282,13 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
         const normalized = {
           mode: body.mode || 'auto',
           acp: { host: (body.acp && body.acp.host) || '127.0.0.1', port: Number((body.acp && body.acp.port) || 3000) },
-          discord: {
-            allowlistedUserIds: discord.allowlistedUserIds.map(String),
-            guildId: String(discord.guildId),
-            channelId: String(discord.channelId),
-            ...(discord.permissionsChannelId ? { permissionsChannelId: String(discord.permissionsChannelId) } : {}),
-          },
+          ...(normalizedDiscord ? { discord: normalizedDiscord } : {}),
+          ...(normalizedTelegram ? { telegram: normalizedTelegram } : {}),
           workspaces: { allowedRoots: normalizedRoots, activeRoot: normalizedActive },
         };
-        const configPath = path.join(copilotHomeAbs, 'messaging-gateway.config.json');
+        const configPath = resolveMessagingGatewayConfigPath(copilotHomeAbs);
         const tmpPath = `${configPath}.tmp.${Date.now()}`;
-        ensureDir(copilotHomeAbs);
+        ensureDir(path.dirname(configPath));
         fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2), 'utf8');
         fs.renameSync(tmpPath, configPath);
         sendJson(res, 200, { ok: true, configPath });
@@ -4078,6 +6347,11 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   }
 
   // --- Tracker proxy endpoints ---
+  if (req.method === 'GET' && pathname === '/api/tracker/status') {
+    proxyToTracker(trackerUrl, trackerToken, '/api/status', 'GET', req, res);
+    return;
+  }
+
   if (req.method === 'GET' && pathname === '/api/tracker/sessions') {
     proxyToTracker(trackerUrl, trackerToken, '/api/sessions/live', 'GET', req, res);
     return;
@@ -4217,6 +6491,15 @@ async function startServer(options = {}) {
       driftDetected: false,
       lastRunAt: null,
     },
+    corruption: {
+      contractVersion: '1',
+      scannedAt: null,
+      blocked: false,
+      recoveryRequired: false,
+      findingCount: 0,
+      code: 'planning_persistence_corruption_not_scanned',
+      reason: 'corruption_scan_not_run',
+    },
   };
   const planningApiState = createPlanningApiState();
 
@@ -4248,15 +6531,25 @@ async function startServer(options = {}) {
           ...migrationResult,
           lastRunAt: new Date().toISOString(),
         };
+
+        const corruptionScan = await scanPlanningPersistenceCorruption(planningPersistenceClient);
+        applyPlanningPersistenceCorruptionScan(planningPersistenceState, corruptionScan);
       } catch (error) {
-        planningPersistenceState.status = error && error.code === 'PLANNING_MIGRATION_CHECKSUM_DRIFT'
+        const isChecksumDrift = error && error.code === 'PLANNING_MIGRATION_CHECKSUM_DRIFT';
+        const isBaselineMismatch = error && error.code === 'PLANNING_MIGRATION_BASELINE_MISMATCH';
+
+        planningPersistenceState.status = isChecksumDrift || isBaselineMismatch
           ? 'drift_detected'
           : 'migration_error';
         planningPersistenceState.lastError = String(error && error.message ? error.message : error);
         planningPersistenceState.client = planningPersistenceClient;
         planningPersistenceState.migrations = {
           ...planningPersistenceState.migrations,
-          driftDetected: error && error.code === 'PLANNING_MIGRATION_CHECKSUM_DRIFT',
+          driftDetected: isChecksumDrift || isBaselineMismatch,
+          baselineMismatch: isBaselineMismatch,
+          checksumValidation: error && error.checksumValidation
+            ? error.checksumValidation
+            : null,
           lastRunAt: new Date().toISOString(),
         };
 
@@ -4379,6 +6672,7 @@ if (require.main === module) {
 module.exports = {
   startServer,
   parseArgs,
+  probeTrackerReadiness,
   containsUnsafeShellSyntax,
   validateOpenTerminalLifecyclePayload,
   validateFinishLifecyclePayload,
@@ -4403,6 +6697,7 @@ module.exports = {
   evaluateSemanticGate,
   evaluatePlanningDurabilityDependencyGate,
   resolveLifecycleCapabilityGate,
+  acquirePlanningMutationRouteLock,
   LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
   LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
   evaluateLifecycleMixedVersionCompatibility,

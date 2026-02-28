@@ -3,19 +3,31 @@ import { FileWatcher } from "./watchers";
 import { GitMonitor } from "./gitMonitor";
 import { ExtensionBridge } from "./extensionBridge";
 import { StatusServer } from "./statusServer";
+import { TrackerAuth } from "./auth";
 
 async function main() {
   const config = loadConfig();
+  const auth = new TrackerAuth();
+  const resolvedCredentials = await auth.resolve();
+  if (resolvedCredentials?.relayToken) {
+    config.relayToken = resolvedCredentials.relayToken;
+    config.relayTokenSource = resolvedCredentials.source;
+  }
+  const relayTokenReadiness = auth.evaluateTokenReadiness(config.relayToken, config.relayTokenSource);
+
   console.log("[Tracker] Starting local agent tracker...");
   console.log(`[Tracker] Watching: ${config.workspacePaths.join(", ")}`);
   console.log(`[Tracker] Relay: ${config.relayUrl || "not configured"}`);
+  console.log(`[Tracker] Relay token readiness: ${relayTokenReadiness.state} (${relayTokenReadiness.reasonCode})`);
 
   // Initialize extension bridge
   const bridge = new ExtensionBridge(config);
   bridge.start();
 
   // Initialize status dashboard
-  const statusServer = new StatusServer(config);
+  const statusServer = new StatusServer(config, {
+    relayTokenReadiness,
+  });
   await statusServer.start();
 
   // Initialize watchers

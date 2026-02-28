@@ -20,7 +20,26 @@ if [[ -d "$ASSETS_ROOT" ]]; then
 
   # Copy without overwriting if possible (cp -n is supported on GNU coreutils; fallback to overwrite in worst case)
   cp -Rn "$ASSETS_ROOT/agents/." "$COPILOT_HOME/agents/" 2>/dev/null || cp -R "$ASSETS_ROOT/agents/." "$COPILOT_HOME/agents/" || true
-  cp -Rn "$ASSETS_ROOT/skills/." "$COPILOT_HOME/skills/" 2>/dev/null || cp -R "$ASSETS_ROOT/skills/." "$COPILOT_HOME/skills/" || true
+  if [[ "${SKILL_POINTER_MODE:-}" == "true" ]]; then
+    mkdir -p "$COPILOT_HOME/skills-vault"
+    cp -Rn "$ASSETS_ROOT/skills/." "$COPILOT_HOME/skills-vault/" 2>/dev/null || cp -R "$ASSETS_ROOT/skills/." "$COPILOT_HOME/skills-vault/" || true
+    # Write pointer stubs for each skill
+    for skill_dir in "$COPILOT_HOME/skills-vault"/*/; do
+      [[ -d "$skill_dir" ]] || continue
+      skill_name="$(basename "$skill_dir")"
+      mkdir -p "$COPILOT_HOME/skills/$skill_name"
+      cat > "$COPILOT_HOME/skills/$skill_name/SKILL.md" <<POINTER
+---
+schema-version: 1
+vault-ref: $skill_name
+---
+# $skill_name
+Triggers on: $skill_name
+POINTER
+    done
+  else
+    cp -Rn "$ASSETS_ROOT/skills/." "$COPILOT_HOME/skills/" 2>/dev/null || cp -R "$ASSETS_ROOT/skills/." "$COPILOT_HOME/skills/" || true
+  fi
   cp -Rn "$ASSETS_ROOT/prompts/." "$COPILOT_HOME/prompts/" 2>/dev/null || cp -R "$ASSETS_ROOT/prompts/." "$COPILOT_HOME/prompts/" || true
   cp -n "$ASSETS_ROOT/copilot-instructions.md" "$COPILOT_HOME/copilot-instructions.md" 2>/dev/null || true
 fi

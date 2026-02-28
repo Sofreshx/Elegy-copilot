@@ -41,7 +41,30 @@ describe('AuditLogger', () => {
 
 		const lines = readLines(logPath);
 		expect(lines).toHaveLength(1);
-		expect(lines[0]).toMatchObject({ ts: fixedDate.toISOString(), action: 'test' });
+		expect(lines[0]).toMatchObject({
+			ts: fixedDate.toISOString(),
+			action: 'test',
+			schemaVersion: 1,
+			contractVersion: 'messaging_gateway_audit_v1',
+			eventType: 'test',
+			category: 'general',
+			compatibility: { normalizedFrom: 'v0', deterministic: true },
+		});
+	});
+
+	test('log() normalizes legacy v0 event field names into canonical eventType/category markers', () => {
+		const logger = makeLogger();
+		logger.log({ event: 'legacy_event', security: true });
+
+		const lines = readLines(getAuditLogFilePath(tmpRoot));
+		expect(lines[0]).toMatchObject({
+			schemaVersion: 1,
+			contractVersion: 'messaging_gateway_audit_v1',
+			event: 'legacy_event',
+			eventType: 'legacy_event',
+			category: 'security',
+			compatibility: { normalizedFrom: 'v0', deterministic: true },
+		});
 	});
 
 	test('log() creates output directory if it does not exist', () => {

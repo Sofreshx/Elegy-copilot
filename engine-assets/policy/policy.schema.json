@@ -58,7 +58,8 @@
               "ui",
               "api",
               "ci",
-              "release"
+              "release",
+              "agent"
             ]
           },
           "match": {
@@ -74,7 +75,8 @@
                 "enum": [
                   "exact",
                   "glob",
-                  "regex"
+                  "regex",
+                  "hook-rule"
                 ]
               },
               "pattern": {
@@ -102,7 +104,31 @@
                 "type": "string"
               }
             }
+          },
+          "hookConfig": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["toolNamePattern"],
+            "properties": {
+              "toolNamePattern": { "type": "string", "minLength": 1 },
+              "argPatterns": {
+                "type": "object",
+                "additionalProperties": { "type": "string" }
+              }
+            }
           }
+        },
+        "if": {
+          "properties": {
+            "match": {
+              "properties": {
+                "type": { "const": "hook-rule" }
+              }
+            }
+          }
+        },
+        "then": {
+          "required": ["hookConfig"]
         }
       }
     }

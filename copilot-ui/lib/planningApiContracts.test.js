@@ -7,6 +7,7 @@ const path = require('path');
 
 const {
   DEFAULT_CREATE_IDEMPOTENCY_TTL_MS,
+  DEFAULT_ROUTE_LOCK_TTL_MS,
   FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION,
   FINISH_COMPATIBILITY_RECEIPT_CONTRACT_VERSION,
   FINISH_COMPATIBILITY_SUPPORTED_PROVIDERS,
@@ -21,9 +22,13 @@ const {
   evaluateProviderLifecycleCapability,
   buildLifecycleUnsupportedCapabilityMarker,
   createPlanningApiState,
+  buildPlanningRouteLockKey,
+  acquirePlanningRouteLock,
+  releasePlanningRouteLock,
   replacePlanningProjectionFromPersistedRecords,
   createPlanningRecordOperation,
   comparePlanningRecordsOperation,
+  evictPlanningIdempotencyEntry,
 } = require('./planningApiContracts');
 
 let passed = 0;
@@ -90,6 +95,8 @@ test('create idempotency supports replay, conflict, and expiry handling', () => 
   });
   assert.strictEqual(conflict.statusCode, 409);
   assert.strictEqual(conflict.body.error.code, 'idempotency_conflict');
+  assert.strictEqual(conflict.body.error.reason, 'idempotency_key_payload_mismatch');
+  assert.strictEqual(conflict.body.deterministic, true);
 
   const expired = createPlanningRecordOperation(state, {
     context: baseContext,
@@ -99,6 +106,49 @@ test('create idempotency supports replay, conflict, and expiry handling', () => 
   assert.strictEqual(expired.statusCode, 200);
   assert.strictEqual(expired.body.idempotency.outcome, 'expired_reapplied');
   assert.notStrictEqual(expired.body.record.recordId, firstRecordId);
+});
+
+test('create idempotency eviction removes stale replay entry after failed durable write rollback', () => {
+  const state = createPlanningApiState();
+  const context = { userId: 'user-1', repoId: 'repo-1' };
+  const request = {
+    scope: 'repo',
+    title: 'rollback create',
+    summary: 'idempotency rollback',
+    state: 'thought',
+    score: 0.1,
+    idempotencyKey: 'idem-create-rollback-1',
+  };
+
+  const first = createPlanningRecordOperation(state, {
+    context,
+    request,
+    nowMs: 5_000,
+  });
+
+  assert.strictEqual(first.statusCode, 200);
+  assert.strictEqual(first.body.idempotency.outcome, 'applied');
+
+  const evicted = evictPlanningIdempotencyEntry(state, {
+    operation: 'create',
+    scopeKey: first.body.idempotency.scopeKey,
+    idempotencyKey: request.idempotencyKey,
+  });
+
+  assert.strictEqual(evicted.ok, true);
+  assert.strictEqual(evicted.evicted, true);
+  assert.strictEqual(evicted.reason, 'evicted');
+
+  const replayAfterEviction = createPlanningRecordOperation(state, {
+    context,
+    request,
+    nowMs: 5_100,
+  });
+
+  assert.strictEqual(replayAfterEviction.statusCode, 200);
+  assert.strictEqual(replayAfterEviction.body.idempotency.replay, false);
+  assert.strictEqual(replayAfterEviction.body.idempotency.outcome, 'applied');
+  assert.notStrictEqual(replayAfterEviction.body.record.recordId, first.body.record.recordId);
 });
 
 test('compare is deterministic for repeated runs and tie cases', () => {
@@ -575,12 +625,31 @@ test('planning persistence health envelope remains deterministic and backward co
     status: ' configured_no_client ',
     errors: ['zeta', 'alpha', 'zeta'],
     lastError: '  planning_persistence_client_unavailable  ',
+    governance: {
+      ready: false,
+      code: ' planning_persistence_client_unavailable ',
+      reason: ' planning_persistence_client_unavailable ',
+      reasonCodes: ['zeta', 'alpha', 'alpha'],
+    },
     migrations: {
       schemaTable: ' ie_schema_versions ',
       latestVersion: '003_planning_backfill_items_ledger_init',
+      manifestCount: '3.5',
+      checksumBaseline: ' abcdef1234 ',
+      baselineEnforced: 1,
+      baselineMismatch: 0,
       appliedCount: '4.5',
       appliedVersions: ['003', '001', '002', '002'],
       driftDetected: 0,
+      checksumValidation: {
+        outcome: ' pass ',
+        reason: ' all_manifest_checksums_match ',
+        checkedVersionCount: '4.5',
+        checkedVersions: ['003', '001', '002', '002'],
+        manifestVersionCount: '3.5',
+        manifestChecksumBaseline: ' abcdef1234 ',
+        enforcement: ' fail_closed ',
+      },
       lastRunAt: '2026-02-26T00:00:00.000Z',
     },
   });
@@ -595,12 +664,121 @@ test('planning persistence health envelope remains deterministic and backward co
   assert.strictEqual(envelope.status, 'configured_no_client');
   assert.deepStrictEqual(envelope.errors, ['alpha', 'zeta']);
   assert.strictEqual(envelope.lastError, 'planning_persistence_client_unavailable');
+  assert.ok(envelope.governance);
+  assert.strictEqual(envelope.governance.deterministic, true);
+  assert.strictEqual(envelope.governance.failClosed, true);
+  assert.strictEqual(envelope.governance.ready, false);
+  assert.strictEqual(envelope.governance.code, 'planning_persistence_client_unavailable');
+  assert.strictEqual(envelope.governance.reason, 'planning_persistence_client_unavailable');
+  assert.deepStrictEqual(envelope.governance.reasonCodes, ['alpha', 'zeta']);
   assert.strictEqual(envelope.migrations.schemaTable, 'ie_schema_versions');
   assert.strictEqual(envelope.migrations.latestVersion, '003_planning_backfill_items_ledger_init');
+  assert.strictEqual(envelope.migrations.manifestCount, 3);
+  assert.strictEqual(envelope.migrations.checksumBaseline, 'abcdef1234');
+  assert.strictEqual(envelope.migrations.baselineEnforced, true);
+  assert.strictEqual(envelope.migrations.baselineMismatch, false);
   assert.strictEqual(envelope.migrations.appliedCount, 4);
   assert.deepStrictEqual(envelope.migrations.appliedVersions, ['001', '002', '003']);
   assert.strictEqual(envelope.migrations.driftDetected, false);
+  assert.ok(envelope.migrations.checksumValidation);
+  assert.strictEqual(envelope.migrations.checksumValidation.outcome, 'pass');
+  assert.strictEqual(envelope.migrations.checksumValidation.reason, 'all_manifest_checksums_match');
+  assert.strictEqual(envelope.migrations.checksumValidation.checkedVersionCount, 4);
+  assert.deepStrictEqual(envelope.migrations.checksumValidation.checkedVersions, ['001', '002', '003']);
+  assert.strictEqual(envelope.migrations.checksumValidation.manifestVersionCount, 3);
+  assert.strictEqual(envelope.migrations.checksumValidation.manifestChecksumBaseline, 'abcdef1234');
+  assert.strictEqual(envelope.migrations.checksumValidation.enforcement, 'fail_closed');
+  assert.strictEqual(envelope.migrations.checksumValidation.failure, null);
   assert.strictEqual(envelope.migrations.lastRunAt, '2026-02-26T00:00:00.000Z');
+});
+
+test('planning route lock primitives enforce deterministic conflict and release semantics', () => {
+  const state = createPlanningApiState();
+  const lockKey = buildPlanningRouteLockKey({
+    routeKind: 'planning.create',
+    actorId: 'user-1',
+    repoId: 'repo-1',
+  });
+
+  const first = acquirePlanningRouteLock(state, {
+    routeKind: 'planning.create',
+    actorId: 'user-1',
+    repoId: 'repo-1',
+    ownerId: 'req-a',
+    nowMs: 1_000,
+  });
+
+  assert.strictEqual(first.ok, true);
+  assert.strictEqual(first.acquired, true);
+  assert.strictEqual(first.reentrant, false);
+  assert.strictEqual(first.lock.lockKey, lockKey);
+  assert.strictEqual(first.lock.ttlMs, DEFAULT_ROUTE_LOCK_TTL_MS);
+
+  const conflict = acquirePlanningRouteLock(state, {
+    routeKind: 'planning.create',
+    actorId: 'user-1',
+    repoId: 'repo-1',
+    ownerId: 'req-b',
+    nowMs: 1_500,
+  });
+
+  assert.strictEqual(conflict.ok, false);
+  assert.strictEqual(conflict.conflict, true);
+  assert.strictEqual(conflict.code, 'planning_route_lock_conflict');
+  assert.strictEqual(conflict.reason, 'lock_already_held');
+  assert.strictEqual(conflict.lock.lockKey, lockKey);
+  assert.strictEqual(conflict.lock.heldBy, 'req-a');
+
+  const reentrant = acquirePlanningRouteLock(state, {
+    routeKind: 'planning.create',
+    actorId: 'user-1',
+    repoId: 'repo-1',
+    ownerId: 'req-a',
+    nowMs: 1_600,
+  });
+
+  assert.strictEqual(reentrant.ok, true);
+  assert.strictEqual(reentrant.reentrant, true);
+
+  const released = releasePlanningRouteLock(state, first.lock);
+  assert.strictEqual(released.ok, true);
+  assert.strictEqual(released.released, true);
+
+  const afterRelease = acquirePlanningRouteLock(state, {
+    routeKind: 'planning.create',
+    actorId: 'user-1',
+    repoId: 'repo-1',
+    ownerId: 'req-b',
+    nowMs: 1_700,
+  });
+  assert.strictEqual(afterRelease.ok, true);
+  assert.strictEqual(afterRelease.acquired, true);
+});
+
+test('planning route lock expires and is reacquired by a different owner', () => {
+  const state = createPlanningApiState();
+
+  const first = acquirePlanningRouteLock(state, {
+    routeKind: 'planning.merge',
+    actorId: 'user-1',
+    repoId: 'repo-1',
+    ownerId: 'owner-a',
+    nowMs: 10_000,
+    ttlMs: 100,
+  });
+  assert.strictEqual(first.ok, true);
+
+  const second = acquirePlanningRouteLock(state, {
+    routeKind: 'planning.merge',
+    actorId: 'user-1',
+    repoId: 'repo-1',
+    ownerId: 'owner-b',
+    nowMs: 10_150,
+    ttlMs: 100,
+  });
+
+  assert.strictEqual(second.ok, true);
+  assert.strictEqual(second.lock.ownerId, 'owner-b');
 });
 
 test('provider lifecycle shared capabilities are contract-equivalent across providers', () => {

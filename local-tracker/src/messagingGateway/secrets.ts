@@ -1,7 +1,7 @@
 import { deletePassword, getPassword, setPassword } from '@napi-rs/keyring/keytar';
 import crypto from 'crypto';
 
-export type GatewaySecretKind = 'discordBotToken' | 'telegramBotToken' | 'gatewayHttpToken' | 'githubPrToken';
+export type GatewaySecretKind = 'discordBotToken' | 'telegramBotToken' | 'telegramWebhookSecret' | 'gatewayHttpToken' | 'githubPrToken';
 
 export interface PrTokenLease {
 	leaseId: string;
@@ -13,6 +13,7 @@ export interface GatewaySecretsStatus {
 	serviceName: string;
 	discordBotToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
 	telegramBotToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
+	telegramWebhookSecret: { present: boolean; source: 'keychain' | 'env' | 'missing' };
 	gatewayHttpToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
 	githubPrToken: { present: boolean; source: 'keychain' | 'env' | 'missing' };
 }
@@ -21,6 +22,7 @@ const SERVICE_NAME = 'instruction-engine.messaging-gateway';
 const SECRET_ACCOUNT: Record<GatewaySecretKind, string> = {
 	discordBotToken: 'discord.botToken',
 	telegramBotToken: 'telegram.botToken',
+	telegramWebhookSecret: 'telegram.webhookSecret',
 	gatewayHttpToken: 'gateway.httpToken',
 	githubPrToken: 'github.prToken',
 };
@@ -28,6 +30,7 @@ const SECRET_ACCOUNT: Record<GatewaySecretKind, string> = {
 const ENV_FALLBACKS: Record<GatewaySecretKind, string[]> = {
 	discordBotToken: ['INSTRUCTION_ENGINE_DISCORD_BOT_TOKEN', 'DISCORD_BOT_TOKEN'],
 	telegramBotToken: ['INSTRUCTION_ENGINE_TELEGRAM_BOT_TOKEN', 'TELEGRAM_BOT_TOKEN'],
+	telegramWebhookSecret: ['INSTRUCTION_ENGINE_TELEGRAM_WEBHOOK_SECRET', 'TELEGRAM_WEBHOOK_SECRET'],
 	gatewayHttpToken: ['INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN'],
 	githubPrToken: ['INSTRUCTION_ENGINE_GITHUB_PR_TOKEN', 'GITHUB_PR_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'],
 };
@@ -82,6 +85,7 @@ export async function deleteGatewaySecret(kind: GatewaySecretKind): Promise<bool
 export async function getGatewaySecretsStatus(): Promise<GatewaySecretsStatus> {
 	const discord = await getGatewaySecret('discordBotToken');
 	const telegram = await getGatewaySecret('telegramBotToken');
+	const telegramWebhookSecret = await getGatewaySecret('telegramWebhookSecret');
 	const httpToken = await getGatewaySecret('gatewayHttpToken');
 	const githubPrToken = await getGatewaySecret('githubPrToken');
 
@@ -89,9 +93,35 @@ export async function getGatewaySecretsStatus(): Promise<GatewaySecretsStatus> {
 		serviceName: SERVICE_NAME,
 		discordBotToken: { present: Boolean(discord.value), source: discord.source },
 		telegramBotToken: { present: Boolean(telegram.value), source: telegram.source },
+		telegramWebhookSecret: { present: Boolean(telegramWebhookSecret.value), source: telegramWebhookSecret.source },
 		gatewayHttpToken: { present: Boolean(httpToken.value), source: httpToken.source },
 		githubPrToken: { present: Boolean(githubPrToken.value), source: githubPrToken.source },
 	};
+}
+
+export async function ensureTelegramWebhookSecret(): Promise<{ value: string; source: 'keychain' | 'env' | 'generated' }> {
+	// 1. Check keychain
+	try {
+		const fromKeychain = await getPassword(SERVICE_NAME, SECRET_ACCOUNT.telegramWebhookSecret);
+		if (fromKeychain && fromKeychain.trim().length > 0) {
+			return { value: fromKeychain, source: 'keychain' };
+		}
+	} catch {
+		// fall through
+	}
+
+	// 2. Check env
+	const fromEnv = getFromEnv('telegramWebhookSecret');
+	if (fromEnv) return { value: fromEnv, source: 'env' };
+
+	// 3. Generate dedicated webhook secret and persist best-effort.
+	const generated = crypto.randomBytes(24).toString('hex');
+	try {
+		await setPassword(SERVICE_NAME, SECRET_ACCOUNT.telegramWebhookSecret, generated);
+	} catch {
+		// If keychain store fails, still return generated secret for current session.
+	}
+	return { value: generated, source: 'generated' };
 }
 
 export async function ensureGatewayHttpToken(): Promise<{ value: string; source: 'keychain' | 'env' | 'generated' }> {

@@ -6,6 +6,7 @@ import { GitSnapshot, TrackerEvent } from "../types";
 function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
   return {
     workspacePaths: ["/tmp/test"],
+    relayTokenSource: "missing",
     localWsPort: 0,
     watchIntervalMs: 5000,
     statusPort: 0, // port 0 = OS picks a free port
@@ -76,10 +77,22 @@ describe("StatusServer", () => {
       expect(data).toHaveProperty("connectedExtensions");
       expect(data).toHaveProperty("recentEvents");
       expect(data).toHaveProperty("startedAt");
+      expect(data).toHaveProperty("schemaVersion");
+      expect(data).toHaveProperty("contractVersion");
+      expect(data).toHaveProperty("relayTokenReadiness");
       expect(typeof data.uptime).toBe("number");
       expect(Array.isArray(data.gitSnapshots)).toBe(true);
       expect(Array.isArray(data.recentEvents)).toBe(true);
       expect(typeof data.connectedExtensions).toBe("number");
+      expect(data.schemaVersion).toBe(1);
+      expect(data.contractVersion).toBe("tracker_status_v1");
+      expect(data.relayTokenReadiness).toEqual({
+        contractVersion: 1,
+        state: "missing",
+        reasonCode: "relay_token_missing",
+        deterministic: true,
+        source: "missing",
+      });
     });
 
     it("reflects updated git snapshots", async () => {
@@ -98,6 +111,26 @@ describe("StatusServer", () => {
       const res = await fetch(`${baseUrl}/api/status`);
       const data: TrackerStatus = JSON.parse(res.body);
       expect(data.connectedExtensions).toBe(3);
+    });
+
+    it("reflects updated relay token readiness", async () => {
+      server.updateRelayTokenReadiness({
+        contractVersion: 1,
+        state: "ready",
+        reasonCode: "relay_token_valid",
+        deterministic: true,
+        source: "env",
+      });
+
+      const res = await fetch(`${baseUrl}/api/status`);
+      const data: TrackerStatus = JSON.parse(res.body);
+      expect(data.relayTokenReadiness).toEqual({
+        contractVersion: 1,
+        state: "ready",
+        reasonCode: "relay_token_valid",
+        deterministic: true,
+        source: "env",
+      });
     });
 
     it("reflects pushed events", async () => {

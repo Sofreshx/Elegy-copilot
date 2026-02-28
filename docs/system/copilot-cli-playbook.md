@@ -1056,6 +1056,22 @@ copilot --acp --port 3000
 
 ---
 
-**Last Updated:** 2026-02-20  
+## Workflow Commands (Gateway)
+
+The `/workflow` command supports discovery, execution, inspection, and history:
+
+| Subcommand | Description | Example |
+|---|---|---|
+| `list` | List all available workflow templates | `/workflow list` |
+| `run <name>` | Execute a workflow by name | `/workflow run deploy-prod` |
+| `inspect <name>` | Show workflow definition and steps | `/workflow inspect deploy-prod` |
+| `history <name>` | View recent run history for a workflow | `/workflow history deploy-prod --limit 5` |
+
+- **inspect** shows version, description, and step DAG (including dependencies).
+- **history** requires the `workflowHistory` module to be enabled in router deps. Returns entries in reverse chronological order.
+
+---
+
+**Last Updated:** 2026-02-28  
 **Maintained By:** Instruction Engine Team  
 **Status:** Living document - update as CLI evolves

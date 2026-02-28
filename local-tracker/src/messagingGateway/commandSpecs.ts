@@ -40,11 +40,12 @@ export function getDefaultGatewayCommandSpecs(): PlatformCommandSpec[] {
 		},
 		{
 			name: '/workflow',
-			description: 'Run or list workflow templates',
+			description: 'Run, list, inspect, or view history of workflow templates',
 			tier: 'admin',
 			options: [
-				{ name: 'subcommand', description: 'run | list', type: 'string', required: true },
-				{ name: 'name', description: 'Workflow template name (for run)', type: 'string' },
+				{ name: 'subcommand', description: 'run | list | history | inspect', type: 'string', required: true },
+				{ name: 'name', description: 'Workflow template name', type: 'string' },
+				{ name: 'limit', description: 'Max history entries to show (1-100)', type: 'integer' },
 			],
 		},
 	];
