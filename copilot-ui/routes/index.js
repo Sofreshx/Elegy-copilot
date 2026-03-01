@@ -84,9 +84,14 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./lifecycle'), context);
   registry.registerModule(require('./assets'), context);
   registry.registerModule(require('./planning'), context);
+  registry.registerModule(require('./planning-artifacts'), context);
   registry.registerModule(require('./sessions'), context);
   registry.registerModule(require('./gateway'), context);
   registry.registerModule(require('./tracker'), context);
+
+  if (context && context.sdkBridge) {
+    registry.registerModule(require('./sdk'), context);
+  }
 
   return registry;
 }

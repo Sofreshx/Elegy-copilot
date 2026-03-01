@@ -24,6 +24,7 @@ description: "7-phase workflow for planning large or complex features and refact
     - Identify analogous features (copy-paste candidates).
     - Map entry points, data flows, and key abstractions.
     - List essential files to read.
+- **Output**: Emit a structured `ResearchNote` summary for exploration findings.
 - **Tool Usage**: Use `file_search` and `read_file` to gather context.
 
 ### Phase 3: Clarifying Questions (Gaps)
@@ -37,6 +38,7 @@ description: "7-phase workflow for planning large or complex features and refact
     - Propose an architecture that aligns with project patterns.
     - Define component boundaries, data models, and API contracts.
     - Explain *why* this approach was chosen (trade-offs).
+- **Output**: Include at least one `PlanningDiagram` (Mermaid preferred) representing key architecture/data flow.
 
 ### Phase 5: Implementation Plan (Tasks)
 - **Goal**: Create actionable steps.
@@ -48,6 +50,8 @@ description: "7-phase workflow for planning large or complex features and refact
 ### Phase 6: Quality Gates (Review & Test)
 - **Goal**: Ensure safety.
 - **Action**: Define the test strategy (unit vs integration). Identify what to watch for in code review.
+- **Acceptance Criteria Rule**: Require at least 2 bullet Acceptance Criteria per work unit.
+- **Acceptance Criteria Rule**: Reject vague criteria (for example: quality, good, proper, etc.) and require measurable language.
 
 ### Phase 7: Summary & Handoff
 - **Goal**: Ready for execution.

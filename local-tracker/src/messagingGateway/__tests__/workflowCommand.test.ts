@@ -1,5 +1,7 @@
 import { CommandRouter, WU002_POLICY_CONTRACT, type CommandRouterPolicy } from '../commandRouter';
 import { getDefaultGatewayCommandSpecs } from '../commandSpecs';
+import { executeWorkflow } from '../workflows/workflowRuntime';
+import type { WorkflowStreamingModule } from '../workflows/workflowStreaming';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
 
@@ -25,14 +27,44 @@ jest.mock('../workflows/workflowLoader', () => ({
 }));
 
 jest.mock('../workflows/workflowRuntime', () => ({
-	executeWorkflow: jest.fn(async (def: any, executor: any) => {
+	executeWorkflow: jest.fn(async (def: any, executor: any, _context: any, observer: any) => {
+		if (observer?.onRunStarted) {
+			await observer.onRunStarted({
+				workflowId: def.id,
+				workflowName: def.name,
+				stepCount: def.steps.length,
+				startedAtMs: 0,
+			});
+		}
 		const stepResults = [];
 		for (const step of def.steps) {
+			if (observer?.onStepStarted) {
+				await observer.onStepStarted({
+					workflowId: def.id,
+					stepId: step.id,
+					stepName: step.name,
+					action: step.action,
+				});
+			}
 			stepResults.push({ stepId: step.id, status: 'success', durationMs: 1 });
+			if (observer?.onStepCompleted) {
+				await observer.onStepCompleted({
+					workflowId: def.id,
+					stepId: step.id,
+					status: 'success',
+					durationMs: 1,
+				});
+			}
 		}
-		return { workflowId: def.id, status: 'completed', startedAtMs: 0, completedAtMs: 1, steps: stepResults };
+		const result = { workflowId: def.id, status: 'completed', startedAtMs: 0, completedAtMs: 1, steps: stepResults };
+		if (observer?.onRunCompleted) {
+			await observer.onRunCompleted({ workflowId: def.id, result });
+		}
+		return result;
 	}),
 }));
+
+const mockedExecuteWorkflow = executeWorkflow as jest.MockedFunction<typeof executeWorkflow>;
 
 jest.mock('../workflows/executors', () => ({
 	createDefaultRegistry: jest.fn(() => ({
@@ -50,7 +82,11 @@ const BASE_POLICY = {
 	maxPromptChars: WU002_POLICY_CONTRACT.maxPromptChars,
 };
 
-function makeRouter(overrides?: { policy?: Partial<CommandRouterPolicy>; workflowHistory?: any }) {
+function makeRouter(overrides?: {
+	policy?: Partial<CommandRouterPolicy>;
+	workflowHistory?: any;
+	workflowStreaming?: WorkflowStreamingModule;
+}) {
 	return new CommandRouter({
 		policy: { ...BASE_POLICY, ...overrides?.policy },
 		workspaces: {
@@ -74,6 +110,7 @@ function makeRouter(overrides?: { policy?: Partial<CommandRouterPolicy>; workflo
 			getPending: jest.fn(() => []),
 		} as any,
 		workflowHistory: overrides?.workflowHistory,
+		workflowStreaming: overrides?.workflowStreaming,
 		nowMs: () => 0,
 	});
 }
@@ -84,6 +121,7 @@ const ctx = { userId: 'u1', platform: 'discord' as const };
 
 beforeEach(() => {
 	mockTemplates.clear();
+	mockedExecuteWorkflow.mockClear();
 });
 
 describe('/workflow command', () => {
@@ -138,6 +176,78 @@ describe('/workflow command', () => {
 		expect(text).toContain('completed');
 		expect(text).toContain('build');
 		expect(text).toContain('deploy');
+	});
+
+	it('/workflow run wires streaming observer path and exposes runId', async () => {
+		mockTemplates.set('deploy-prod', {
+			id: 'deploy-prod',
+			name: 'Deploy Production',
+			version: '1.0.0',
+			steps: [{ id: 'build', name: 'Build', action: 'build', dependsOn: [] }],
+		});
+
+		const observer = {
+			onRunStarted: jest.fn(),
+			onStepStarted: jest.fn(),
+			onStepCompleted: jest.fn(),
+			onRunCompleted: jest.fn(),
+		};
+		const workflowStreaming = {
+			createRunContext: jest.fn(() => ({ runId: 'run-stream-1', observer })),
+			publishRunFailure: jest.fn(),
+			getBacklogSnapshot: jest.fn(() => ({ events: [], droppedCount: 0 })),
+			subscribe: jest.fn(),
+			unsubscribe: jest.fn(),
+		} as unknown as WorkflowStreamingModule;
+
+		const router = makeRouter({ workflowStreaming });
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'run', name: 'deploy-prod' } }, ctx);
+
+		expect(res.kind).toBe('ok');
+		expect(workflowStreaming.createRunContext).toHaveBeenCalledWith(expect.objectContaining({ id: 'deploy-prod' }));
+		expect(mockedExecuteWorkflow).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'deploy-prod' }),
+			expect.any(Function),
+			{},
+			observer,
+		);
+		expect(res.meta?.runId).toBe('run-stream-1');
+		expect(res.messages.join('\n')).toContain('Run ID: `run-stream-1`');
+	});
+
+	it('/workflow run publishes run failure when executeWorkflow throws', async () => {
+		mockTemplates.set('deploy-prod', {
+			id: 'deploy-prod',
+			name: 'Deploy Production',
+			version: '1.0.0',
+			steps: [{ id: 'build', name: 'Build', action: 'build', dependsOn: [] }],
+		});
+
+		const observer = {
+			onRunStarted: jest.fn(),
+			onStepStarted: jest.fn(),
+			onStepCompleted: jest.fn(),
+			onRunCompleted: jest.fn(),
+		};
+		const workflowStreaming = {
+			createRunContext: jest.fn(() => ({ runId: 'run-stream-fail', observer })),
+			publishRunFailure: jest.fn(),
+			getBacklogSnapshot: jest.fn(() => ({ events: [], droppedCount: 0 })),
+			subscribe: jest.fn(),
+			unsubscribe: jest.fn(),
+		} as unknown as WorkflowStreamingModule;
+
+		mockedExecuteWorkflow.mockRejectedValueOnce(new Error('runtime crashed'));
+
+		const router = makeRouter({ workflowStreaming });
+		const res = await router.route({ name: '/workflow', args: { subcommand: 'run', name: 'deploy-prod' } }, ctx);
+
+		expect(res.kind).toBe('error');
+		expect(workflowStreaming.publishRunFailure).toHaveBeenCalledWith({
+			runId: 'run-stream-fail',
+			workflowId: 'deploy-prod',
+			error: expect.any(Error),
+		});
 	});
 
 	it('/workflow run with invalid name returns not-found', async () => {

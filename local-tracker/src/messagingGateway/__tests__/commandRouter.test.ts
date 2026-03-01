@@ -1,4 +1,9 @@
-import { CommandRouter, WU002_POLICY_CONTRACT, type CommandRouterPolicy } from '../commandRouter';
+import {
+	CommandRouter,
+	COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY,
+	WU002_POLICY_CONTRACT,
+	type CommandRouterPolicy,
+} from '../commandRouter';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────
 
@@ -684,5 +689,68 @@ describe('SessionDriver delegation', () => {
 		const res = await router.route({ name: '/stop', args: { sessionId: 'x' } }, ctx);
 		expect(res.kind).toBe('ok');
 		expect(client.cancel_session).toHaveBeenCalledWith({ sessionId: 'x' });
+	});
+});
+
+// ── 11) Discovery telemetry (WS2 WU-05) ─────────────────────────────────
+
+describe('Discovery telemetry', () => {
+	it('records keyword_miss for unknown command', async () => {
+		const router = makeRouter();
+		await router.route({ name: '/does-not-exist' }, ctx);
+
+		const summary = router.getDiscoveryTelemetrySummary();
+		expect(summary.contractVersion).toBe('skill_discovery_telemetry_v1');
+		expect(summary.countersByReason.keyword_miss).toBe(1);
+		expect(summary.sample.size).toBe(1);
+		expect(summary.recent[0]?.reason).toBe('keyword_miss');
+	});
+
+	it('records ambiguity for ambiguous /switch routing conditions', async () => {
+		const router = makeRouter({
+			workspaceRoots: ['/ws/team-a/repo', '/ws/team-b/repo'],
+		});
+		const res = await router.route({ name: '/switch', args: { workspaceRoot: 'repo' } }, ctx);
+
+		expect(res.kind).toBe('error');
+		const summary = router.getDiscoveryTelemetrySummary();
+		expect(summary.countersByReason.ambiguity).toBe(1);
+		expect(summary.recent.some((sample) => sample.reason === 'ambiguity')).toBe(true);
+	});
+
+	it('records stale_map for missing workflow definitions', async () => {
+		const router = makeRouter();
+		const res = await router.route({
+			name: '/workflow',
+			args: { subcommand: 'inspect', name: 'workflow-that-does-not-exist' },
+		}, ctx);
+
+		expect(res.kind).toBe('ok');
+		expect(res.messages.join('\n')).toContain('not found');
+		const summary = router.getDiscoveryTelemetrySummary();
+		expect(summary.countersByReason.stale_map).toBe(1);
+	});
+
+	it('records no_route for command argument misses', async () => {
+		const router = makeRouter();
+		const res = await router.route({ name: '/task', args: {} }, ctx);
+
+		expect(res.kind).toBe('error');
+		const summary = router.getDiscoveryTelemetrySummary();
+		expect(summary.countersByReason.no_route).toBe(1);
+		expect(summary.recent.some((sample) => sample.reason === 'no_route')).toBe(true);
+	});
+
+	it('keeps sampled telemetry bounded with dropped counter', async () => {
+		const router = makeRouter();
+		for (let i = 0; i < COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY + 3; i++) {
+			await router.route({ name: `/missing-${i}` }, ctx);
+		}
+
+		const summary = router.getDiscoveryTelemetrySummary();
+		expect(summary.sample.capacity).toBe(COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY);
+		expect(summary.sample.size).toBe(COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY);
+		expect(summary.sample.dropped).toBe(3);
+		expect(summary.countersByReason.keyword_miss).toBe(COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY + 3);
 	});
 });

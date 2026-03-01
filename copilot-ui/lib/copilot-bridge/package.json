@@ -1,0 +1,5 @@
+{
+  "name": "@instruction-engine/copilot-bridge",
+  "private": true,
+  "type": "module"
+}

@@ -2,7 +2,7 @@
 created: 2026-02-23
 updated: 2026-02-23
 category: research
-status: current
+status: archived
 doc_kind: node
 id: copilot-sdk-spike
 summary: Spike notes for using the GitHub Copilot SDK to improve Instruction Engine tooling.

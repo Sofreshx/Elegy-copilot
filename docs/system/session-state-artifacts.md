@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-27
+updated: 2026-03-01
 category: system
 status: current
 doc_kind: node
@@ -40,6 +40,22 @@ A typical session directory contains:
     rev-0001.md        # First revision
     rev-0002.md        # Second revision, etc.
 ```
+
+## Research + Diagram Artifacts
+
+Planning records can include structured research and diagram artifacts as additive fields:
+
+- `researchNotes` (`ResearchNote[]`) on planning records for discovery/context notes
+- `diagrams` (`PlanningDiagram[]`) on planning records for architecture visuals
+
+The dashboard planning artifact routes expose these fields per record:
+
+- `GET /api/planning/records/:id/research`
+- `POST /api/planning/records/:id/research`
+- `DELETE /api/planning/records/:id/research/:noteId`
+- `GET /api/planning/records/:id/diagrams`
+
+These APIs are deterministic and operate on the existing planning record state in memory/persistence projection.
 
 ### Plan Artifact (`plan.md`)
 

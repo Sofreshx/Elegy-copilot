@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-03-01
 category: system
 status: current
 doc_kind: index
@@ -32,6 +32,12 @@ related: [doc-graph-spec]
 ## Runbooks
 
 - [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md)
+
+## Strategy
+
+- [[system-upgrade-direction-2026]] [docs/system/system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
+- [[research-promotion-checklist]] [docs/system/research-promotion-checklist.md](docs/system/research-promotion-checklist.md)
+- [[skill-discovery-telemetry]] [docs/system/skill-discovery-telemetry.md](docs/system/skill-discovery-telemetry.md)
 
 ## Precedence
 

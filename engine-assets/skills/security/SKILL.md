@@ -15,9 +15,16 @@ description: "Security review and vulnerability detection. Checks secure coding 
 - Dependency security concerns
 
 ## When NOT to Use
-- General code quality ? `code-review.agent.md`
-- Auth feature implementation ? `auth.agent.md`
-- Performance issues ? `performance-auditer.agent.md`
+- General code quality -> `code-review`
+- Auth feature implementation -> `firebase-auth` (or `auth` alias)
+- Performance investigation -> `debug` plus the relevant domain skill
+
+## Related docs
+
+- Security model: `docs/system/security-model.md`
+- Runtime permissions contracts: `docs/system/runtime-permissions-contracts.md`
+- Security model and safety MOC: `docs/system/mocs/security-model-and-safety.md`
+- Copilot CLI playbook: `docs/system/copilot-cli-playbook.md`
 
 ## Steps
 1. Read security-relevant contexts in /docs or /documentation and existing warnings.

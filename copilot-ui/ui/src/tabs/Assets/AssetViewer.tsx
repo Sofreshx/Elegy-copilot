@@ -1,8 +1,17 @@
-import type { InstalledAssetsResponse, ManagedAssetStatus } from '../../lib/types';
+import type {
+  InstalledAgent,
+  InstalledAssetsResponse,
+  InstalledInstructions,
+  InstalledPrompt,
+  InstalledSkill,
+  ManagedAssetStatus,
+} from '../../lib/types';
+
+type InstalledSelectionItem = InstalledAgent | InstalledSkill | InstalledPrompt | InstalledInstructions;
 
 interface InstalledSelection {
   category: 'agent' | 'skill' | 'prompt' | 'instructions';
-  item: Record<string, unknown>;
+  item: InstalledSelectionItem;
 }
 
 interface AssetViewerProps {

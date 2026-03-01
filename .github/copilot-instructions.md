@@ -65,6 +65,18 @@ Before structural changes, consult in this order:
 2. `.instructions/architecture.md` (legacy, if present)
 3. `.instructions/contexts/*.md` (legacy, if present)
 
+## Documentation Discovery Protocol
+When task decisions depend on repository docs, follow this route first:
+1. Open `docs/system/index.md`.
+2. Choose the closest MOC in `docs/system/mocs/*.md`.
+3. Follow that MOC to the minimal set of canonical nodes in `docs/system/**`.
+4. Expand only when needed.
+
+Precedence:
+- Canonical decisions live in `docs/system/**`.
+- Research and exploratory inputs live in `docs/research/**`.
+- If they conflict, follow `docs/system/**` and treat research as non-canonical.
+
 ## Context & Memory (Durable)
 - Prefer host/session artifacts (Copilot session logs, dashboard) as durable memory.
 - If a repo still uses `.instructions/contexts/*.md`, treat it as legacy durable memory.
@@ -88,9 +100,12 @@ Route written output to the correct location based on content type:
 - **Task tracking** → avoid repo-local task systems; prefer orchestrator + host persistence.
 
 Key distinctions:
-- **Analysis ≠ Documentation**: analysis goes to `.instructions/research/`; only settled decisions get promoted to `.instructions/contexts/`.
-- **Ideas ≠ Decisions**: raw ideas stay in research notes. Promote to contexts only when ratified.
-- **Internal context ≠ User docs**: agent-facing context goes to `.instructions/contexts/`; user-facing docs go to `docs/`.
+- **Analysis ≠ Documentation**: analysis goes to `docs/research/**`; only settled decisions get promoted to `docs/system/**`.
+- **Ideas ≠ Decisions**: raw ideas stay in research notes. Promote to canonical docs only when ratified.
+- **Internal context ≠ User docs**: canonical/internal system context goes to `docs/system/**`; user-facing docs go to `docs/` or `README.md`.
+
+Legacy note:
+- If a repository explicitly opts into `.instructions/*`, treat it as a legacy overlay and keep `docs/system/**` as canonical unless repo policy says otherwise.
 
 ## Tasks (Durable Tracking)
 - Avoid repo-local task tracking by default; prefer `@orchestrator` + host persistence.

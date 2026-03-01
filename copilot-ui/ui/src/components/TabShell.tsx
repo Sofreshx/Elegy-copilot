@@ -50,7 +50,7 @@ export default function TabShell({
 
   return (
     <section className="tab-shell">
-      <div aria-label={tablistLabel} className="tab-bar" role="tablist">
+      <div aria-label={tablistLabel} aria-orientation="horizontal" className="tab-bar" role="tablist">
         {tabs.map((tab, index) => (
           <button
             aria-controls={toTabPanelId(tab.id)}
@@ -74,6 +74,7 @@ export default function TabShell({
         className="tab-panel"
         id={toTabPanelId(activeTabId)}
         role="tabpanel"
+        tabIndex={0}
       >
         {children}
       </div>

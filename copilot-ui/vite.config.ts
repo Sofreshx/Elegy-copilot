@@ -13,4 +13,11 @@ export default defineConfig({
     outDir: path.resolve(__dirname, 'ui-dist'),
     emptyOutDir: true,
   },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: path.resolve(__dirname, 'tests/vitest.setup.ts'),
+    include: ['../tests/**/*.vitest.ts', '../tests/**/*.vitest.tsx'],
+    clearMocks: true,
+  },
 });

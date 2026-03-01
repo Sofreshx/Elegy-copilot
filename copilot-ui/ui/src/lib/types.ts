@@ -29,6 +29,61 @@ export interface SessionsListResponse {
   sessions: SessionSummary[];
 }
 
+export interface SdkHealthResponse {
+  connected: boolean;
+  state: string;
+  mode?: string;
+  sessionCount?: number;
+  cliVersion?: string;
+  error?: string;
+  [key: string]: unknown;
+}
+
+export interface SdkSessionSummary {
+  sessionId: string;
+  model?: string | null;
+  createdAt?: string;
+  sseClientCount?: number;
+  [key: string]: unknown;
+}
+
+export interface SdkSessionsResponse {
+  sessions: SdkSessionSummary[];
+}
+
+export interface SdkSendResponse {
+  messageId: string;
+}
+
+export interface SdkRelayEvent {
+  sessionId: string;
+  type: string;
+  event: {
+    type?: string;
+    data?: unknown;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export type SdkStreamStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'error'
+  | 'unsupported';
+
+export interface SdkMessageEntry {
+  id: string;
+  role: 'user' | 'assistant' | 'system' | 'tool' | 'unknown';
+  content: string;
+  reasoning?: string;
+  createdAtMs: number;
+  status: 'streaming' | 'complete' | 'error';
+  eventType?: string;
+}
+
 export interface ManagedAssetStatus {
   id: string;
   type: 'agent' | 'skill' | 'prompt' | string;
@@ -169,10 +224,56 @@ export interface PlanningRecordItem {
   repoId?: string | null;
   title?: string;
   summary?: string;
+  acceptanceCriteria?: string[];
+  acceptanceCriteriaText?: string;
   state?: string;
   score?: number | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningResearchNote {
+  id: string;
+  phase: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  noteId?: string;
+  summary?: string;
+  sources?: string[];
+  source?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningResearchNotesResponse {
+  recordId: string;
+  researchNotes: PlanningResearchNote[];
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  [key: string]: unknown;
+}
+
+export interface PlanningDiagram {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  format: string;
+  createdAt: string;
+  diagramId?: string;
+  updatedAt?: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningDiagramsResponse {
+  recordId: string;
+  diagrams: PlanningDiagram[];
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
   [key: string]: unknown;
 }
 

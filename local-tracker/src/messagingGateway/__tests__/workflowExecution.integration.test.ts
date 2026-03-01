@@ -22,6 +22,7 @@ describe('workflow execution integration', () => {
     let templates: Map<string, any>;
     const runtimeContext = {
         allowMutatingExecutors: true,
+        allowDestructiveExecutors: true,
         incidentAcknowledged: true,
         notifySink: () => undefined,
     };
@@ -30,14 +31,17 @@ describe('workflow execution integration', () => {
         templates = loadAllWorkflowTemplates();
     });
 
-    it('loads all 5 templates', () => {
-        expect(templates.size).toBe(5);
+    it('loads all 8 templates', () => {
+        expect(templates.size).toBe(8);
         expect([...templates.keys()].sort()).toEqual([
             'code-state-review',
             'failed-session-recovery',
             'feature-research-plan',
             'finalization-validation',
+            'implementation-workflow',
             'incident-escalation',
+            'multi-pr-merge',
+            'test-and-fix',
         ]);
     });
 
@@ -47,6 +51,9 @@ describe('workflow execution integration', () => {
         'incident-escalation',
         'finalization-validation',
         'failed-session-recovery',
+        'implementation-workflow',
+        'test-and-fix',
+        'multi-pr-merge',
     ]) {
         it(`runs "${templateId}" to completion with all steps succeeding`, async () => {
             const definition = templates.get(templateId)!;

@@ -77,6 +77,32 @@ async function run() {
     assert.ok(appSource.includes("./tabs/SkillsPreview/SkillsPreviewView"), 'Expected SkillsPreviewView import in App.tsx');
   });
 
+  await test('responsive breakpoints for 1440px, 768px, and 320px exist in app.css', async () => {
+    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
+
+    assert.ok(appCss.includes('@media (max-width: 1440px)'), 'Expected explicit 1440px breakpoint in app.css');
+    assert.ok(appCss.includes('@media (max-width: 768px)'), 'Expected explicit 768px breakpoint in app.css');
+    assert.ok(appCss.includes('@media (max-width: 320px)'), 'Expected explicit 320px breakpoint in app.css');
+  });
+
+  await test('accessibility styles include visible focus and reduced-motion handling', async () => {
+    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
+
+    assert.ok(appCss.includes(':focus-visible'), 'Expected :focus-visible styles in app.css');
+    assert.ok(appCss.includes('@media (prefers-reduced-motion: reduce)'), 'Expected reduced-motion media query in app.css');
+  });
+
+  await test('semantic landmark and tab structure is preserved in App.tsx and TabShell.tsx', async () => {
+    const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
+    const tabShellSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'TabShell.tsx'), 'utf8');
+
+    assert.ok(appSource.includes('<main aria-labelledby="instruction-engine-title" className="app-shell">'), 'Expected labelled main landmark in App.tsx');
+    assert.ok(appSource.includes('<header className="hero-card">'), 'Expected semantic header landmark in App.tsx');
+    assert.ok(tabShellSource.includes('role="tablist"'), 'Expected tablist role in TabShell.tsx');
+    assert.ok(tabShellSource.includes('role="tabpanel"'), 'Expected tabpanel role in TabShell.tsx');
+    assert.ok(tabShellSource.includes('aria-orientation="horizontal"'), 'Expected explicit tablist orientation in TabShell.tsx');
+  });
+
   await test('ui/src contains no .svelte files', async () => {
     const files = walkFiles(uiSrcRoot);
     const svelteFiles = files.filter((filePath) => filePath.endsWith('.svelte'));

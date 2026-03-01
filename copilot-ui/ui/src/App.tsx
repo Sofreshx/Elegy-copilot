@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import TabShell from './components/TabShell';
+import { useStoreValue } from './lib/store';
 import { NAVIGATION_TABS, TabId } from './stores/navigation';
+import { sdkHealthStore } from './stores/sdkHealthStore';
 import AssetsView from './tabs/Assets/AssetsView';
 import LspView from './tabs/LSP/LspView';
 import GatewayView from './tabs/Gateway/GatewayView';
@@ -23,19 +25,47 @@ const PLACEHOLDER_TAB_IDS: readonly TabId[] = ['workflows'];
 
 export default function App() {
   const [activeTabId, setActiveTabId] = useState<TabId>('sessions');
+  const sdkHealthState = useStoreValue(sdkHealthStore);
+
+  useEffect(() => {
+    sdkHealthStore.startPolling();
+    return () => {
+      sdkHealthStore.stopPolling();
+    };
+  }, []);
+
   const placeholder = useMemo(() => tabPlaceholderCopy[activeTabId] ?? null, [activeTabId]);
   const showPlaceholder = PLACEHOLDER_TAB_IDS.includes(activeTabId);
 
+  const sdkHealthClassName = sdkHealthState.error
+    ? 'error'
+    : sdkHealthState.health?.connected
+      ? 'ok'
+      : sdkHealthState.loading
+        ? 'loading'
+        : 'warn';
+
+  const sdkHealthSummary = sdkHealthState.error
+    ? sdkHealthState.error
+    : sdkHealthState.health
+      ? `${sdkHealthState.health.state}${Number.isFinite(sdkHealthState.health.sessionCount)
+        ? `, sessions=${sdkHealthState.health.sessionCount}`
+        : ''}`
+      : 'awaiting first poll';
+
   return (
-    <main className="app-shell">
-      <section className="hero-card">
+    <main aria-labelledby="instruction-engine-title" className="app-shell">
+      <header className="hero-card">
         <p className="kicker">{environmentLabel}</p>
-        <h1>Instruction Engine Tab Shell</h1>
+        <p className={`sdk-health-indicator sdk-health-${sdkHealthClassName}`}>
+          SDK Health: {sdkHealthSummary}
+        </p>
+        <h1 id="instruction-engine-title">Instruction Engine Tab Shell</h1>
         <p>
           Base migration scaffold with token-driven styling, section tabs, and a preserved runtime
           health panel.
         </p>
-      </section>
+      </header>
 
       <TabShell
         activeTabId={activeTabId}

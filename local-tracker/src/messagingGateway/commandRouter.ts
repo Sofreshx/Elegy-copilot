@@ -15,9 +15,12 @@ import { ArtefactsMonitor } from './artefactsMonitor';
 import { formatSessionLine, parseBridgeSessions } from './sessionsHelpers';
 import type { PlatformKind } from './platform';
 import { executeWorkflow } from './workflows/workflowRuntime';
+import type { WorkflowRuntimeObserver } from './workflows/workflowRuntime';
 import { createDefaultRegistry } from './workflows/executors';
 import { WorkflowDiscovery } from './workflows/workflowDiscovery';
 import { WorkflowHistory } from './workflows/workflowHistory';
+import type { WorkflowRunResult } from './workflows/workflowSchema';
+import type { WorkflowStreamingModule } from './workflows/workflowStreaming';
 
 export type CommandTier = 'read' | 'invoke' | 'admin';
 
@@ -114,12 +117,46 @@ export interface CommandRouterDeps {
 	sandboxRegistry?: SandboxRegistry;
 	sessionDriver?: SessionDriver;
 	workflowHistory?: WorkflowHistory;
+	workflowStreaming?: WorkflowStreamingModule;
 	nowMs?: () => number;
 }
 
 interface CommandExecutionResult {
 	messages: string[];
 	meta?: Record<string, unknown>;
+}
+
+export const COMMAND_ROUTER_DISCOVERY_TELEMETRY_CONTRACT_VERSION = 'skill_discovery_telemetry_v1';
+export const COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY = 12;
+
+export type CommandDiscoveryMissReason = 'keyword_miss' | 'ambiguity' | 'stale_map' | 'no_route';
+
+export interface CommandDiscoveryMissSample {
+	sequence: number;
+	reason: CommandDiscoveryMissReason;
+	command: string;
+	detail: string;
+}
+
+export interface CommandDiscoveryTelemetrySummary {
+	contractVersion: typeof COMMAND_ROUTER_DISCOVERY_TELEMETRY_CONTRACT_VERSION;
+	sample: {
+		capacity: number;
+		size: number;
+		dropped: number;
+		deterministic: true;
+	};
+	countersByReason: Record<CommandDiscoveryMissReason, number>;
+	recent: CommandDiscoveryMissSample[];
+}
+
+function createDiscoveryCounters(): Record<CommandDiscoveryMissReason, number> {
+	return {
+		keyword_miss: 0,
+		ambiguity: 0,
+		stale_map: 0,
+		no_route: 0,
+	};
 }
 
 function canonicalPathForComparison(inputPath: string): string {
@@ -198,6 +235,10 @@ export class CommandRouter {
 	// When sandboxId is absent ("__default__"): tracks per-user globally (backward compat)
 	private readonly invokeInFlightByUser = new Map<string, Map<string, number>>();
 	private workflowDiscovery?: WorkflowDiscovery;
+	private readonly discoveryCounters = createDiscoveryCounters();
+	private readonly discoveryRecentSamples: CommandDiscoveryMissSample[] = [];
+	private discoveryDroppedSamples = 0;
+	private discoverySequence = 0;
 
 	constructor(deps: CommandRouterDeps) {
 		assertPolicyContract(deps.policy);
@@ -239,6 +280,7 @@ export class CommandRouter {
 		};
 
 		if (!command || tier === 'unknown') {
+			this.recordDiscoveryMiss('keyword_miss', command, 'unknown_command');
 			this.deps.auditLogger.log({ ...baseAudit, outcome: 'denied', reason: 'unknown_command' });
 			return {
 				kind: 'denied',
@@ -320,6 +362,9 @@ export class CommandRouter {
 			};
 		} catch (err) {
 			const durationMs = Date.now() - startedAt;
+			if (err instanceof z.ZodError) {
+				this.recordDiscoveryMiss('no_route', command, 'argument_miss');
+			}
 			const message = err instanceof Error ? err.message : String(err);
 			this.deps.auditLogger.log({
 				...baseAudit,
@@ -349,6 +394,20 @@ export class CommandRouter {
 				}
 			}
 		}
+	}
+
+	getDiscoveryTelemetrySummary(): CommandDiscoveryTelemetrySummary {
+		return {
+			contractVersion: COMMAND_ROUTER_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+			sample: {
+				capacity: COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY,
+				size: this.discoveryRecentSamples.length,
+				dropped: this.discoveryDroppedSamples,
+				deterministic: true,
+			},
+			countersByReason: { ...this.discoveryCounters },
+			recent: this.discoveryRecentSamples.map((sample) => ({ ...sample })),
+		};
 	}
 
 	private authorize(ctx: CommandScopeContext): { allowed: boolean; reason?: string } {
@@ -400,7 +459,7 @@ export class CommandRouter {
 			case '/deny':
 				return { messages: await this.handlePermissionDecision(false, argsUnknown) };
 			case '/workflow':
-				return { messages: await this.handleWorkflow(argsUnknown) };
+				return await this.handleWorkflow(argsUnknown);
 			default:
 				// Should be unreachable due to tier check.
 				throw new Error('Unknown command');
@@ -624,6 +683,7 @@ export class CommandRouter {
 		const byBase = allowed.filter((r) => path.basename(r).toLowerCase() === norm);
 		if (byBase.length === 1) return byBase[0];
 		if (byBase.length > 1) {
+			this.recordDiscoveryMiss('ambiguity', '/switch', `workspace_name:${raw.toLowerCase()}`);
 			throw new Error(`Ambiguous workspace name: ${raw}`);
 		}
 
@@ -636,7 +696,10 @@ export class CommandRouter {
 		);
 		const byRepo = snaps.filter((s) => (s.repoName ?? '').toLowerCase() === norm).map((s) => s.root);
 		if (byRepo.length === 1) return byRepo[0];
-		if (byRepo.length > 1) throw new Error(`Ambiguous repo name: ${raw}`);
+		if (byRepo.length > 1) {
+			this.recordDiscoveryMiss('ambiguity', '/switch', `repo_name:${raw.toLowerCase()}`);
+			throw new Error(`Ambiguous repo name: ${raw}`);
+		}
 
 		throw new Error(`Workspace not found in allowlist: ${raw}`);
 	}
@@ -693,48 +756,49 @@ export class CommandRouter {
 		return this.workflowDiscovery;
 	}
 
-	private async handleWorkflow(argsUnknown: unknown): Promise<string[]> {
+	private async handleWorkflow(argsUnknown: unknown): Promise<CommandExecutionResult> {
 		const args = WorkflowArgsSchema.parse(argsUnknown);
 		const discovery = this.getWorkflowDiscovery();
 
 		if (args.subcommand === 'list') {
 			const all = discovery.listAll();
 			if (all.length === 0) {
-				return sanitizeAndChunk('No workflow templates found.');
+				return { messages: sanitizeAndChunk('No workflow templates found.') };
 			}
 			const lines = ['**Available Workflows:**'];
 			for (const def of all) {
 				lines.push(`\u2022 \`${def.id}\` \u2014 ${def.name}${def.description ? ` (${def.description})` : ''}`);
 			}
-			return sanitizeAndChunk(lines.join('\n'));
+			return { messages: sanitizeAndChunk(lines.join('\n')) };
 		}
 
 		if (args.subcommand === 'history') {
 			if (!args.name) {
-				return sanitizeAndChunk('Usage: /workflow history <name> [--limit N]');
+				return { messages: sanitizeAndChunk('Usage: /workflow history <name> [--limit N]') };
 			}
 			if (!this.deps.workflowHistory) {
-				return sanitizeAndChunk('Workflow history is not enabled.');
+				return { messages: sanitizeAndChunk('Workflow history is not enabled.') };
 			}
 			const entries = this.deps.workflowHistory.readRecent(args.name, args.limit ?? 10);
 			if (entries.length === 0) {
-				return sanitizeAndChunk(`No history found for workflow "${args.name}".`);
+				return { messages: sanitizeAndChunk(`No history found for workflow "${args.name}".`) };
 			}
 			const lines = [`**Workflow History: ${args.name}** (${entries.length} recent runs)`];
 			for (const entry of entries) {
 				const dur = entry.completedAtMs - entry.startedAtMs;
 				lines.push(`\u2022 ${entry.status} \u2014 ${dur}ms \u2014 ${new Date(entry.startedAtMs).toISOString()}`);
 			}
-			return sanitizeAndChunk(lines.join('\n'));
+			return { messages: sanitizeAndChunk(lines.join('\n')) };
 		}
 
 		if (args.subcommand === 'inspect') {
 			if (!args.name) {
-				return sanitizeAndChunk('Usage: /workflow inspect <name>');
+				return { messages: sanitizeAndChunk('Usage: /workflow inspect <name>') };
 			}
 			const def = discovery.get(args.name);
 			if (!def) {
-				return sanitizeAndChunk(`Workflow "${args.name}" not found.`);
+				this.recordDiscoveryMiss('stale_map', '/workflow', `inspect:${args.name}`);
+				return { messages: sanitizeAndChunk(`Workflow "${args.name}" not found.`) };
 			}
 			const lines = [`**Workflow: ${def.name}** (v${def.version})`];
 			if (def.description) lines.push(def.description);
@@ -743,25 +807,46 @@ export class CommandRouter {
 				const deps = step.dependsOn.length > 0 ? ` \u2192 depends on: ${step.dependsOn.join(', ')}` : '';
 				lines.push(`\u2022 \`${step.id}\` \u2014 ${step.name} [${step.action}]${deps}`);
 			}
-			return sanitizeAndChunk(lines.join('\n'));
+			return { messages: sanitizeAndChunk(lines.join('\n')) };
 		}
 
 		// subcommand === 'run'
 		if (!args.name) {
-			return sanitizeAndChunk('Usage: /workflow run <name>. Use /workflow list to see available workflows.');
+			return { messages: sanitizeAndChunk('Usage: /workflow run <name>. Use /workflow list to see available workflows.') };
 		}
 
 		const definition = discovery.get(args.name);
 		if (!definition) {
-			return sanitizeAndChunk(`Workflow "${args.name}" not found. Use /workflow list to see available workflows.`);
+			this.recordDiscoveryMiss('stale_map', '/workflow', `run:${args.name}`);
+			return { messages: sanitizeAndChunk(`Workflow "${args.name}" not found. Use /workflow list to see available workflows.`) };
 		}
 
 		if (!this.deps.extensionClient) {
-			return sanitizeAndChunk('Cannot run workflows: no bridge client connected.');
+			return { messages: sanitizeAndChunk('Cannot run workflows: no bridge client connected.') };
+		}
+
+		let runId: string | undefined;
+		let observer: WorkflowRuntimeObserver | undefined;
+		if (this.deps.workflowStreaming) {
+			const runContext = this.deps.workflowStreaming.createRunContext(definition);
+			runId = runContext.runId;
+			observer = runContext.observer;
 		}
 
 		const registry = createDefaultRegistry(this.deps.extensionClient);
-		const result = await executeWorkflow(definition, registry.toStepExecutor());
+		let result: WorkflowRunResult;
+		try {
+			result = await executeWorkflow(definition, registry.toStepExecutor(), {}, observer);
+		} catch (error) {
+			if (this.deps.workflowStreaming && runId) {
+				this.deps.workflowStreaming.publishRunFailure({
+					runId,
+					workflowId: definition.id,
+					error,
+				});
+			}
+			throw error;
+		}
 
 		if (this.deps.workflowHistory) {
 			try {
@@ -772,11 +857,17 @@ export class CommandRouter {
 		}
 
 		const lines = [`**Workflow: ${definition.name}** (${result.status})`];
+		if (runId) {
+			lines.push(`Run ID: \`${runId}\``);
+		}
 		for (const sr of result.steps) {
 			const icon = sr.status === 'success' ? '\u2705' : sr.status === 'failed' ? '\u274C' : '\u23ED\uFE0F';
 			lines.push(`${icon} ${sr.stepId}: ${sr.status} (${sr.durationMs}ms)`);
 		}
-		return sanitizeAndChunk(lines.join('\n'));
+		return {
+			messages: sanitizeAndChunk(lines.join('\n')),
+			meta: runId ? { runId } : undefined,
+		};
 	}
 
 	private getSessionDriver(): SessionDriver | undefined {
@@ -802,6 +893,24 @@ export class CommandRouter {
 		const monitor = new ArtefactsMonitor({ workspaceRoot });
 		await monitor.refreshSnapshot();
 		return monitor.getSnapshot().map((i) => i.relativePath);
+	}
+
+	private recordDiscoveryMiss(reason: CommandDiscoveryMissReason, command: string, detail: string): void {
+		this.discoveryCounters[reason] += 1;
+		const normalizedCommand = normalizeCommandName(command) || '(unknown)';
+		const sample: CommandDiscoveryMissSample = {
+			sequence: this.discoverySequence++,
+			reason,
+			command: normalizedCommand,
+			detail: sanitizeOutboundText(detail).slice(0, 200),
+		};
+
+		if (this.discoveryRecentSamples.length >= COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY) {
+			this.discoveryRecentSamples.shift();
+			this.discoveryDroppedSamples += 1;
+		}
+
+		this.discoveryRecentSamples.push(sample);
 	}
 }
 

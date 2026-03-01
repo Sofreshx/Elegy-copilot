@@ -254,7 +254,7 @@ Expected: 401 empty body (query-param auth not supported)
 - [ ] Source badges hidden when a specific filter is active
 - [ ] ACP-only rows appear with muted styling
 - [ ] Console has no `[session-dedupe]` warnings under normal operation
-- [ ] `session-source.js` loaded before `app.js` (check Elements/Sources tab)
+- [ ] React bundle is served from `ui-dist` (legacy `public/app.js` no longer loaded)
 
 ## WS3 — Runtime Compatibility Contract (G-01-WU-03)
 

@@ -5,8 +5,28 @@ import path from 'path';
 export const MESSAGING_GATEWAY_STATUS_FILENAME = 'messaging-gateway.status.json';
 export const MESSAGING_GATEWAY_STATUS_DIRNAME = '.instruction-engine';
 export const MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION = 'messaging_gateway_readiness_v1';
+export const MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION = 'skill_discovery_telemetry_v1';
+export const MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_DEFAULT_SAMPLE_CAPACITY = 12;
 export type MessagingGatewayReadinessState = 'ready' | 'not_ready' | 'disconnected';
 export type MessagingGatewayReadinessReasonCode = 'gateway_ready' | 'gateway_not_ready' | 'gateway_disconnected';
+export type MessagingGatewayDiscoveryMissReason = 'keyword_miss' | 'ambiguity' | 'stale_map' | 'no_route';
+
+export interface MessagingGatewayDiscoveryTelemetrySummary {
+	contractVersion: typeof MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION;
+	sample: {
+		capacity: number;
+		size: number;
+		dropped: number;
+		deterministic: true;
+	};
+	countersByReason: Record<MessagingGatewayDiscoveryMissReason, number>;
+	recent: Array<{
+		sequence: number;
+		reason: MessagingGatewayDiscoveryMissReason;
+		command: string;
+		detail: string;
+	}>;
+}
 
 export interface MessagingGatewayStatusV1 {
 	schemaVersion: 1;
@@ -65,6 +85,7 @@ export interface MessagingGatewayStatusV1 {
 			connected: boolean;
 			ready: boolean;
 		};
+		discoveryTelemetry: MessagingGatewayDiscoveryTelemetrySummary;
 		telegram?: {
 			connected: boolean;
 			ready: boolean;
@@ -113,6 +134,63 @@ function normalizeSecretStatus(raw: unknown): { present: boolean; fromKeychain: 
 		present: asBoolean(source.present, false),
 		fromKeychain: asBoolean(source.fromKeychain, false),
 		fromEnv: asBoolean(source.fromEnv, false),
+	};
+}
+
+function createDiscoveryCounters(raw: unknown): Record<MessagingGatewayDiscoveryMissReason, number> {
+	const source = isRecord(raw) ? raw : {};
+	return {
+		keyword_miss: asNonNegativeInteger(source.keyword_miss, 0),
+		ambiguity: asNonNegativeInteger(source.ambiguity, 0),
+		stale_map: asNonNegativeInteger(source.stale_map, 0),
+		no_route: asNonNegativeInteger(source.no_route, 0),
+	};
+}
+
+function asDiscoveryMissReason(value: unknown): MessagingGatewayDiscoveryMissReason | undefined {
+	if (value === 'keyword_miss' || value === 'ambiguity' || value === 'stale_map' || value === 'no_route') {
+		return value;
+	}
+	return undefined;
+}
+
+function normalizeDiscoveryTelemetry(raw: unknown): MessagingGatewayDiscoveryTelemetrySummary {
+	const source = isRecord(raw) ? raw : {};
+	const sourceSample = isRecord(source.sample) ? source.sample : {};
+	const recent = Array.isArray(source.recent)
+		? source.recent
+			.filter((item): item is Record<string, unknown> => isRecord(item))
+			.map((item) => {
+				const reason = asDiscoveryMissReason(item.reason) ?? 'no_route';
+				return {
+					sequence: asNonNegativeInteger(item.sequence, 0),
+					reason,
+					command: asOptionalString(item.command) ?? '(unknown)',
+					detail: asOptionalString(item.detail) ?? '',
+				};
+			})
+		: [];
+
+	const capacity = asNonNegativeInteger(
+		sourceSample.capacity,
+		MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_DEFAULT_SAMPLE_CAPACITY,
+	);
+
+	const boundedRecent = recent.slice(Math.max(0, recent.length - capacity));
+
+	return {
+		contractVersion:
+			asOptionalString(source.contractVersion) === MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION
+				? MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION
+				: MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+		sample: {
+			capacity,
+			size: boundedRecent.length,
+			dropped: asNonNegativeInteger(sourceSample.dropped, 0),
+			deterministic: true,
+		},
+		countersByReason: createDiscoveryCounters(source.countersByReason),
+		recent: boundedRecent,
 	};
 }
 
@@ -172,6 +250,9 @@ export function normalizeMessagingGatewayStatusV1(input: unknown): MessagingGate
 	const sourceRuntimeTelegram = isRecord(sourceRuntime.telegram) ? sourceRuntime.telegram : undefined;
 	const sourceRuntimeAcp = isRecord(sourceRuntime.acp) ? sourceRuntime.acp : undefined;
 	const sourceRuntimeSessions = isRecord(sourceRuntime.sessions) ? sourceRuntime.sessions : {};
+	const sourceRuntimeDiscoveryTelemetry = isRecord(sourceRuntime.discoveryTelemetry)
+		? sourceRuntime.discoveryTelemetry
+		: undefined;
 
 	const normalizedFrom: 'v0' | 'v1' =
 		source.schemaVersion === 1 || source.contractVersion === MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION
@@ -185,6 +266,7 @@ export function normalizeMessagingGatewayStatusV1(input: unknown): MessagingGate
 
 	const runtime: MessagingGatewayStatusV1['runtime'] = {
 		discord: runtimeDiscord,
+		discoveryTelemetry: normalizeDiscoveryTelemetry(sourceRuntimeDiscoveryTelemetry),
 	};
 
 	if (sourceRuntimeTelegram) {

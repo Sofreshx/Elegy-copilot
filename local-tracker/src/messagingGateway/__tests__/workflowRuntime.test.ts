@@ -106,6 +106,9 @@ describe('parseWorkflowDefinition', () => {
         expect(result.steps[0].dependsOn).toEqual([]);
         expect(result.steps[0].type).toBe('action');
         expect(result.steps[0].streaming).toBe(false);
+        expect(result.steps[0].streamingMetadata).toBeUndefined();
+        expect(result.steps[0].ui).toBeUndefined();
+        expect(result.ui).toBeUndefined();
     });
 
     it('preserves explicit v2 fields when provided', () => {
@@ -143,6 +146,57 @@ describe('parseWorkflowDefinition', () => {
         expect(result.steps[0].dependsOn).toEqual(['bootstrap']);
     });
 
+    it('parses optional streaming and ui metadata when provided', () => {
+        const input = {
+            id: 'wf-meta',
+            name: 'Workflow Metadata',
+            version: '2.0.0',
+            schemaVersion: '2.1',
+            ui: {
+                category: 'operations',
+                tags: ['workflow', 'live-view'],
+            },
+            steps: [
+                {
+                    id: 'step1',
+                    name: 'Step 1',
+                    action: 'stream-output',
+                    streaming: true,
+                    streamingMetadata: {
+                        mode: 'chunk',
+                        channel: 'workflow-step-1',
+                        eventType: 'delta',
+                    },
+                    ui: {
+                        label: 'Streaming Step',
+                        group: 'analysis',
+                        order: 1,
+                        icon: 'pulse',
+                    },
+                },
+            ],
+        };
+
+        const result = parseWorkflowDefinition(input);
+
+        expect(result.ui).toEqual({
+            category: 'operations',
+            tags: ['workflow', 'live-view'],
+        });
+        expect(result.steps[0].streaming).toBe(true);
+        expect(result.steps[0].streamingMetadata).toEqual({
+            mode: 'chunk',
+            channel: 'workflow-step-1',
+            eventType: 'delta',
+        });
+        expect(result.steps[0].ui).toEqual({
+            label: 'Streaming Step',
+            group: 'analysis',
+            order: 1,
+            icon: 'pulse',
+        });
+    });
+
     it('applies v1 defaults when parsing legacy templates', () => {
         for (const filename of LEGACY_TEMPLATE_FILES) {
             const rawTemplate = loadRawTemplate(filename);
@@ -150,6 +204,9 @@ describe('parseWorkflowDefinition', () => {
 
             const definition = parseWorkflowDefinition(rawTemplate);
             expect(definition.schemaVersion).toBe('1.0');
+            if (!Object.prototype.hasOwnProperty.call(rawTemplate, 'ui')) {
+                expect(definition.ui).toBeUndefined();
+            }
 
             for (let index = 0; index < rawTemplate.steps.length; index += 1) {
                 const rawStep = rawTemplate.steps[index];
@@ -161,6 +218,14 @@ describe('parseWorkflowDefinition', () => {
 
                 if (!Object.prototype.hasOwnProperty.call(rawStep, 'streaming')) {
                     expect(parsedStep.streaming).toBe(false);
+                }
+
+                if (!Object.prototype.hasOwnProperty.call(rawStep, 'streamingMetadata')) {
+                    expect(parsedStep.streamingMetadata).toBeUndefined();
+                }
+
+                if (!Object.prototype.hasOwnProperty.call(rawStep, 'ui')) {
+                    expect(parsedStep.ui).toBeUndefined();
                 }
 
                 if (!Object.prototype.hasOwnProperty.call(rawStep, 'dependsOn')) {

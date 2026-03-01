@@ -1,0 +1,605 @@
+{
+  "schemaVersion": 1,
+  "skills": [
+    {
+      "skill": "agent-browser",
+      "name": "agent-browser",
+      "description": "Browser automation CLI for AI agents. Uses Playwright under the hood with a snapshot-ref workflow optimized for deterministic UI exploration and E2E validation. Triggers on: agent-browser, browser automation CLI, snapshot refs, UI exploration, E2E browser testing.",
+      "triggersOn": [
+        "agent-browser",
+        "browser automation cli",
+        "e2e browser testing",
+        "snapshot refs",
+        "ui exploration"
+      ],
+      "manifest": {
+        "id": "skill-agent-browser",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "alba-integration-tests",
+      "name": "alba-integration-tests",
+      "description": "Alba-based integration testing for .NET web apps. Use this when asked to write integration tests for endpoints, APIs, or cross-layer flows. Triggers on: Alba, integration test, endpoint test, WebApplicationFactory replacement, in-process HTTP tests.",
+      "triggersOn": [
+        "alba",
+        "endpoint test",
+        "in-process http tests",
+        "integration test",
+        "webapplicationfactory replacement"
+      ],
+      "manifest": {
+        "id": "skill-alba-integration-tests",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "aspire-apphost",
+      "name": "aspire-apphost",
+      "description": ".NET Aspire AppHost orchestration. Configures service discovery, dependencies, and local development. Use this when asked to configure Aspire, add a service to AppHost, set up orchestration, or work on Aspire AppHost configuration. Triggers on: AppHost, Aspire AppHost, Aspire orchestration, Aspire.",
+      "triggersOn": [
+        "apphost",
+        "aspire",
+        "aspire apphost",
+        "aspire orchestration"
+      ],
+      "manifest": {
+        "id": "skill-aspire-apphost",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "aspire-deployment",
+      "name": "aspire-deployment",
+      "description": ".NET Aspire deployment and publishing. Handles aspire publish, deploy, and manifest generation. Use this when asked to deploy an Aspire app, publish to Azure, generate deployment manifests, or work on Aspire deployment tasks. Triggers on: Aspire deploy, AZD, aspire deployment, deploy aspire.",
+      "triggersOn": [
+        "aspire deploy",
+        "aspire deployment",
+        "azd",
+        "deploy aspire"
+      ],
+      "manifest": {
+        "id": "skill-aspire-deployment",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "audit-report-formats",
+      "name": "audit-report-formats",
+      "description": "Standard audit report schema: frontmatter, severity definitions, finding format, stats, and trends. Triggers on: audit report, report format, audit findings, severity definitions, audit schema.",
+      "triggersOn": [
+        "audit findings",
+        "audit report",
+        "audit schema",
+        "report format",
+        "severity definitions"
+      ],
+      "manifest": {
+        "id": "skill-audit-report-formats",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "auth",
+      "name": "auth",
+      "description": "Backward-compatible alias for firebase-auth. Primary auth implementation is Firebase Authentication. Triggers on: auth, authentication, login, firebase, firebase auth, id token, custom claims.",
+      "triggersOn": [
+        "auth",
+        "authentication",
+        "custom claims",
+        "firebase",
+        "firebase auth",
+        "id token",
+        "login"
+      ],
+      "manifest": {
+        "id": "skill-auth",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "code-review",
+      "name": "code-review",
+      "description": "Code review for quality, patterns, and bugs. Reviews PRs, identifies issues, and suggests improvements. Triggers on: review, PR review, code review, code quality, peer review.",
+      "triggersOn": [
+        "code quality",
+        "code review",
+        "peer review",
+        "pr review",
+        "review"
+      ],
+      "manifest": {
+        "id": "skill-code-review",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "core-guardrails",
+      "name": "core-guardrails",
+      "description": "Non-negotiable execution safety guardrails for all tasks. Triggers on: run_in_terminal, terminal command, isBackground, branch switch, instruction conflict, askQuestions.",
+      "triggersOn": [
+        "askquestions",
+        "branch switch",
+        "instruction conflict",
+        "isbackground",
+        "run_in_terminal",
+        "terminal command"
+      ],
+      "manifest": {
+        "id": "skill-core-guardrails",
+        "loadMode": "always"
+      }
+    },
+    {
+      "skill": "critic",
+      "name": "critic",
+      "description": "Challenge assumptions and probe reasoning using adversarial thinking. Use when asked to find weaknesses, challenge a design, identify edge cases, or stress-test an approach. Triggers on: use critic mode, challenge this, find weaknesses, what could go wrong, critic, devil's advocate, poke holes, stress test, what am I missing, 5 whys. Read-only mode - questions and probes but doesn't provide solutions.",
+      "triggersOn": [
+        "5 whys",
+        "challenge this",
+        "critic",
+        "devil's advocate",
+        "find weaknesses",
+        "poke holes",
+        "stress test",
+        "use critic mode",
+        "what am i missing",
+        "what could go wrong"
+      ],
+      "manifest": {
+        "id": "skill-critic",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "csharp-expert",
+      "name": "csharp-expert",
+      "description": "C# expert guidance for clean, secure, maintainable .NET code. Triggers on: C#, .NET, ASP.NET, DI, async/await, CQRS, xUnit.",
+      "triggersOn": [
+        ".net",
+        "asp.net",
+        "async/await",
+        "c#",
+        "cqrs",
+        "di",
+        "xunit"
+      ],
+      "manifest": {
+        "id": "skill-csharp-expert",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "e2e-workflow",
+      "name": "e2e-workflow",
+      "description": "E2E test workflow patterns: execution modes, evidence requirements, health endpoints, and pass/fail rules. Triggers on: e2e workflow, e2e modes, e2e evidence, e2e report format, health endpoints.",
+      "triggersOn": [
+        "e2e evidence",
+        "e2e modes",
+        "e2e report format",
+        "e2e workflow",
+        "health endpoints"
+      ],
+      "manifest": {
+        "id": "skill-e2e-workflow",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "firebase-auth",
+      "name": "firebase-auth",
+      "description": "Firebase Authentication with Admin SDK for .NET. Handles user management, token verification, custom claims, and role-based access. Use this when asked to implement Firebase auth, verify ID tokens (JWT), manage custom claims, or integrate Firebase login with a backend. Triggers on: firebase, firebase auth, firebase authentication, id token, verify id token, custom claims, setCustomUserClaims, admin sdk, FirebaseAdmin, Bearer token.",
+      "triggersOn": [
+        "admin sdk",
+        "bearer token",
+        "custom claims",
+        "firebase",
+        "firebase auth",
+        "firebase authentication",
+        "firebaseadmin",
+        "id token",
+        "setcustomuserclaims",
+        "verify id token"
+      ],
+      "manifest": {
+        "id": "skill-firebase-auth",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "frontend",
+      "name": "frontend",
+      "description": "Frontend UI development for React and similar frameworks. Creates components, pages, and handles state management. Triggers on: UI, component, React, Vue, page, frontend.",
+      "triggersOn": [
+        "component",
+        "frontend",
+        "page",
+        "react",
+        "ui",
+        "vue"
+      ],
+      "manifest": {
+        "id": "skill-frontend",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "implementation-friction",
+      "name": "implementation-friction",
+      "description": "Capture recurring implementation friction with minimal overhead and append concise findings for future refactor planning. Triggers on: shaky pattern, bad design, dead code, brittle code, hard to work with, architecture drag, recurring workaround, implementation friction.",
+      "triggersOn": [
+        "architecture drag",
+        "bad design",
+        "brittle code",
+        "dead code",
+        "hard to work with",
+        "implementation friction",
+        "recurring workaround",
+        "shaky pattern"
+      ],
+      "manifest": {
+        "id": "skill-implementation-friction",
+        "loadMode": "always"
+      }
+    },
+    {
+      "skill": "instruction-quality",
+      "name": "instruction-quality",
+      "description": "Research-backed check rules for auditing agent instruction file quality. Triggers on: instruction quality, agent audit, audit instructions, instruction best practices, agent quality.",
+      "triggersOn": [
+        "agent audit",
+        "agent quality",
+        "audit instructions",
+        "instruction best practices",
+        "instruction quality"
+      ],
+      "manifest": {
+        "id": "skill-instruction-quality",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "logging-observability",
+      "name": "logging-observability",
+      "description": "Logging and OpenTelemetry observability setup across local dev and production, including Grafana Cloud wiring. Use this when asked to configure logs/traces/metrics, OpenTelemetry exporters, or Grafana integration. Triggers on: logging, observability, opentelemetry, otel, grafana, traces, metrics, logs.",
+      "triggersOn": [
+        "grafana",
+        "logging",
+        "logs",
+        "metrics",
+        "observability",
+        "opentelemetry",
+        "otel",
+        "traces"
+      ],
+      "manifest": {
+        "id": "skill-logging-observability",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "marten-documents",
+      "name": "marten-documents",
+      "description": "Marten document database. PostgreSQL document store with LINQ queries. Use this when asked to work with Marten queries, document store operations, storing or querying documents in Marten. Triggers on: Marten, document store, IDocumentSession, document DB.",
+      "triggersOn": [
+        "document db",
+        "document store",
+        "idocumentsession",
+        "marten"
+      ],
+      "manifest": {
+        "id": "skill-marten-documents",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "marten-events",
+      "name": "marten-events",
+      "description": "Marten event sourcing. PostgreSQL event store with projections. Use this when asked to implement event sourcing, work with Marten events, create projections, or build event store functionality. Triggers on: event sourcing, Marten events, event stream.",
+      "triggersOn": [
+        "event sourcing",
+        "event stream",
+        "marten events"
+      ],
+      "manifest": {
+        "id": "skill-marten-events",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "marten-linq-querying",
+      "name": "marten-linq-querying",
+      "description": "Marten LINQ querying (documents). Prevent queries that compile but fail at runtime. Use this when writing/debugging Marten LINQ filters, Include(), child collection queries, pagination, Stats(), or async enumeration. Triggers on: Marten LINQ, NotSupportedException, Include(), child collections, Any, Contains, pagination, Skip, Take, OrderBy, Stats.",
+      "triggersOn": [
+        "any",
+        "child collections",
+        "contains",
+        "include()",
+        "marten linq",
+        "notsupportedexception",
+        "orderby",
+        "pagination",
+        "skip",
+        "stats",
+        "take"
+      ],
+      "manifest": {
+        "id": "skill-marten-linq-querying",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "microsoft-agent-framework",
+      "name": "microsoft-agent-framework",
+      "description": "Microsoft Agent Framework (C#/.NET). Build agents and workflows with sessions, tools (including MCP), middleware, and multi-agent orchestration. Triggers on: Agent Framework, Microsoft.Agents, AIAgent, AgentSession, tools, MCP, workflows, executors, edges.",
+      "triggersOn": [
+        "agent framework",
+        "agentsession",
+        "aiagent",
+        "edges",
+        "executors",
+        "mcp",
+        "microsoft.agents",
+        "tools",
+        "workflows"
+      ],
+      "manifest": {
+        "id": "skill-microsoft-agent-framework",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "openai-compatible",
+      "name": "openai-compatible",
+      "description": "Integration for OpenAI-compatible APIs (OpenAI, Azure, ZAI, etc.). Handles chat completions, embeddings, and function calling. Triggers on: OpenAI, GPT, chat completion, OpenAI-compatible.",
+      "triggersOn": [
+        "chat completion",
+        "gpt",
+        "openai",
+        "openai-compatible"
+      ],
+      "manifest": {
+        "id": "skill-openai-compatible",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "orleans",
+      "name": "orleans",
+      "description": "Microsoft Orleans 10.0 virtual actors with .NET Aspire integration. Creates grains, silos, and distributed state with PostgreSQL persistence and Redis clustering. Use this when asked to create Orleans grains, implement virtual actors, work with distributed state, configure Aspire+Orleans, or build Orleans functionality. Triggers on: Orleans, grain, virtual actor, silo, Aspire Orleans, grain persistence.",
+      "triggersOn": [
+        "aspire orleans",
+        "grain",
+        "grain persistence",
+        "orleans",
+        "silo",
+        "virtual actor"
+      ],
+      "manifest": {
+        "id": "skill-orleans",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "planning-feature",
+      "name": "planning-feature",
+      "description": "7-phase workflow for planning large or complex features and refactors. Triggers on: plan a feature, design a feature, break down requirements, feature plan, plan refactor, restructure, refactor plan, technical debt plan.",
+      "triggersOn": [
+        "break down requirements",
+        "design a feature",
+        "feature plan",
+        "plan a feature",
+        "plan refactor",
+        "refactor plan",
+        "restructure",
+        "technical debt plan"
+      ],
+      "manifest": {
+        "id": "skill-planning-feature",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "planpack-authoring",
+      "name": "planpack-authoring",
+      "description": "Plan-pack schema, progress tracker format, and quality gate rules for producing execution plans. Triggers on: plan pack, plan-pack, progress tracker, execution plan schema, plan quality gate.",
+      "triggersOn": [
+        "execution plan schema",
+        "plan pack",
+        "plan quality gate",
+        "plan-pack",
+        "progress tracker"
+      ],
+      "manifest": {
+        "id": "skill-planpack-authoring",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "react-query",
+      "name": "react-query",
+      "description": ">",
+      "triggersOn": [
+        "react-query",
+        "tanstack",
+        "usemutation",
+        "usequery"
+      ],
+      "manifest": {
+        "id": "skill-react-query",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "refactor",
+      "name": "refactor",
+      "description": "Code restructuring and cleanup. Improves readability, reduces duplication, and aligns with patterns without changing behavior. Triggers on: refactor, clean up, reorganize, simplify.",
+      "triggersOn": [
+        "clean up",
+        "refactor",
+        "reorganize",
+        "simplify"
+      ],
+      "manifest": {
+        "id": "skill-refactor",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "security",
+      "name": "security",
+      "description": "Security review and vulnerability detection. Checks secure coding practices and exposure risks. Triggers on: security, vulnerability, hardening, secure coding.",
+      "triggersOn": [
+        "hardening",
+        "secure coding",
+        "security",
+        "vulnerability"
+      ],
+      "manifest": {
+        "id": "skill-security",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "signalr",
+      "name": "signalr",
+      "description": ">",
+      "triggersOn": [
+        "real-time",
+        "signalr",
+        "web sockets",
+        "websocket"
+      ],
+      "manifest": {
+        "id": "skill-signalr",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "skill-discovery",
+      "name": "skill-discovery",
+      "description": "Dynamic skill discovery and resolution for the search/execute pattern. Teaches agents how to find, search, and load domain-specific skills from the vault instead of relying on always-loaded context. Use this when you need to find which skill applies to a task, resolve a pointer skill, or search the skill vault by keyword. Triggers on: find skill, which skill, search skills, discover skill, load skill, skill vault, pointer skill, resolve skill, skill for this task.",
+      "triggersOn": [
+        "discover skill",
+        "find skill",
+        "load skill",
+        "pointer skill",
+        "resolve skill",
+        "search skills",
+        "skill for this task",
+        "skill vault",
+        "which skill"
+      ],
+      "manifest": {
+        "id": "skill-discovery",
+        "loadMode": "always"
+      }
+    },
+    {
+      "skill": "stack-audit-patterns",
+      "name": "stack-audit-patterns",
+      "description": "Framework-specific audit patterns for Marten, Wolverine, Orleans, SignalR, and Aspire. Triggers on: stack audit, framework audit, pattern check, stack-audit-patterns, runtime failure patterns.",
+      "triggersOn": [
+        "framework audit",
+        "pattern check",
+        "runtime failure patterns",
+        "stack audit",
+        "stack-audit-patterns"
+      ],
+      "manifest": {
+        "id": "skill-stack-audit-patterns",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "stack-detector",
+      "name": "stack-detector",
+      "description": "Automatic tech stack detection and operational context classification. Scans project files to identify frameworks, libraries, infrastructure, and classify projects as api, desktop, frontend, infra, or unknown. Use this when asked to detect stack, identify technologies, discover frameworks, determine which skills apply, or classify a project's operational context. Triggers on: detect stack, identify tech, framework detection, stack analysis, which skills, target context, operational context.",
+      "triggersOn": [
+        "detect stack",
+        "framework detection",
+        "identify tech",
+        "operational context",
+        "stack analysis",
+        "target context",
+        "which skills"
+      ],
+      "manifest": {
+        "id": "skill-stack-detector",
+        "loadMode": "always"
+      }
+    },
+    {
+      "skill": "system-cleanup",
+      "name": "system-cleanup",
+      "description": ">",
+      "triggersOn": [
+        "system cleanup"
+      ],
+      "manifest": {
+        "id": "skill-system-cleanup",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "test-caching-verification",
+      "name": "test-caching-verification",
+      "description": "Anti-hallucination verification for test execution. Mandates extraction and validation of evidence files produced by the test ledger wrapper. Use this whenever running unit or integration tests via the ledger wrapper.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-test-caching-verification",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "testing-dotnet-unit",
+      "name": "testing-dotnet-unit",
+      "description": "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + AutoFixture). Use this when asked to write unit tests for C# backend code, add coverage for handlers/services, or validate business rules.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-testing-dotnet-unit",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "testing-frontend-unit",
+      "name": "testing-frontend-unit",
+      "description": "Frontend unit/component testing (React/Vue/Angular). Use this when asked to write frontend unit tests, component tests, or to add coverage for UI behavior. Prefers React Testing Library + Vitest when applicable.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-testing-frontend-unit",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "wolverine-core",
+      "name": "wolverine-core",
+      "description": ">",
+      "triggersOn": [
+        "command handler",
+        "cqrs",
+        "message handler",
+        "wolverine"
+      ],
+      "manifest": {
+        "id": "skill-wolverine-core",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "wolverine-http",
+      "name": "wolverine-http",
+      "description": "Wolverine HTTP endpoints. Creates minimal API-style HTTP endpoints with Wolverine. Use this when asked to create a Wolverine endpoint, add an HTTP handler, or work on API endpoints using Wolverine HTTP. Triggers on: Wolverine endpoint, Wolverine API, minimal API, HTTP handler.",
+      "triggersOn": [
+        "http handler",
+        "minimal api",
+        "wolverine api",
+        "wolverine endpoint"
+      ],
+      "manifest": {
+        "id": "skill-wolverine-http",
+        "loadMode": "on-demand"
+      }
+    }
+  ]
+}

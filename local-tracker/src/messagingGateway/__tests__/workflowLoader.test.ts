@@ -6,6 +6,9 @@ const TEMPLATE_IDS = [
     'feature-research-plan',
     'finalization-validation',
     'incident-escalation',
+    'implementation-workflow',
+    'test-and-fix',
+    'multi-pr-merge',
 ] as const;
 
 describe('loadWorkflowTemplate', () => {
@@ -53,6 +56,37 @@ describe('loadWorkflowTemplate', () => {
         expect(def.steps[2].dependsOn).toEqual(['collect-diagnostics', 'analyze-git-diff']);
     });
 
+    it('loads implementation-workflow.json and validates schema', () => {
+        const def = loadWorkflowTemplate('implementation-workflow.json');
+        expect(def.id).toBe('implementation-workflow');
+        expect(def.name).toBe('Implementation Workflow');
+        expect(def.schemaVersion).toBe('2.0');
+        expect(def.steps).toHaveLength(5);
+        expect(def.steps[3].action).toBe('dev.implement');
+        expect(def.steps[2].dependsOn).toEqual(['analyze-session', 'analyze-git-state']);
+    });
+
+    it('loads test-and-fix.json and validates schema', () => {
+        const def = loadWorkflowTemplate('test-and-fix.json');
+        expect(def.id).toBe('test-and-fix');
+        expect(def.name).toBe('Test And Fix');
+        expect(def.schemaVersion).toBe('2.0');
+        expect(def.steps).toHaveLength(4);
+        expect(def.steps[0].action).toBe('dev.test');
+        expect(def.steps[1].action).toBe('dev.implement');
+        expect(def.steps[2].dependsOn).toEqual(['implement-fix']);
+    });
+
+    it('loads multi-pr-merge.json and validates schema', () => {
+        const def = loadWorkflowTemplate('multi-pr-merge.json');
+        expect(def.id).toBe('multi-pr-merge');
+        expect(def.name).toBe('Multi PR Merge');
+        expect(def.schemaVersion).toBe('2.0');
+        expect(def.steps).toHaveLength(4);
+        expect(def.steps[2].action).toBe('git.merge-prs');
+        expect(def.steps[2].dependsOn).toEqual(['check-working-tree', 'check-current-branch']);
+    });
+
     it('throws on non-existent filename', () => {
         expect(() => loadWorkflowTemplate('does-not-exist.json')).toThrow('Template not found');
     });
@@ -63,9 +97,9 @@ describe('loadWorkflowTemplate', () => {
 });
 
 describe('loadAllWorkflowTemplates', () => {
-    it('loads all 5 templates', () => {
+    it('loads all 8 templates', () => {
         const templates = loadAllWorkflowTemplates();
-        expect(templates.size).toBe(5);
+        expect(templates.size).toBe(8);
     });
 
     it('returns Map keyed by workflow ID', () => {

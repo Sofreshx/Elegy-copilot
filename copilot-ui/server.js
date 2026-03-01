@@ -6,6 +6,7 @@ const path = require('path');
 const os = require('os');
 const childProcess = require('child_process');
 const crypto = require('crypto');
+const { pathToFileURL } = require('url');
 
 /**
  * @typedef {import('@instruction-engine/contracts').WorkflowStep} ContractWorkflowStep
@@ -3921,12 +3922,12 @@ function contentTypeFor(filePath) {
   return 'application/octet-stream';
 }
 
-function serveStatic(publicDir, urlPath, res) {
+function serveStatic(staticDir, urlPath, res) {
   let rel = urlPath || '/';
   if (rel === '/') rel = '/index.html';
   rel = rel.split('\\').join('/');
   const cleaned = rel.replace(/^\/+/, '');
-  const abs = safeResolveUnder(publicDir, cleaned);
+  const abs = safeResolveUnder(staticDir, cleaned);
 
   let stat;
   try {
@@ -4596,6 +4597,51 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   sendJson(res, 404, { error: 'Not found' });
 }
 
+function isSdkBridgeEnabled(env) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  return String(source.COPILOT_SDK_BRIDGE || '').trim() === '1';
+}
+
+async function initializeSdkBridge({ engineRoot, env, policyPreflightFn }) {
+  const sourceEnv = env && typeof env === 'object' ? env : process.env;
+  if (!isSdkBridgeEnabled(sourceEnv)) {
+    return null;
+  }
+
+  const bridgeModulePath = pathToFileURL(path.join(__dirname, 'lib', 'copilot-bridge', 'index.mjs')).href;
+  const bridgeModule = await import(bridgeModulePath);
+
+  if (!bridgeModule || typeof bridgeModule.SdkBridgeService !== 'function') {
+    throw new Error('SdkBridgeService export not found in copilot bridge module');
+  }
+
+  if (typeof bridgeModule.resolveBridgeConfig !== 'function') {
+    throw new Error('resolveBridgeConfig export not found in copilot bridge module');
+  }
+
+  const bridgeConfig = bridgeModule.resolveBridgeConfig(sourceEnv, {
+    enabled: true,
+    cwd: engineRoot,
+    policyPreflightFn,
+  });
+
+  const sdkBridge = new bridgeModule.SdkBridgeService(bridgeConfig);
+  await sdkBridge.init();
+  return sdkBridge;
+}
+
+async function shutdownSdkBridgeSafely(sdkBridge) {
+  if (!sdkBridge || typeof sdkBridge.shutdown !== 'function') {
+    return;
+  }
+
+  try {
+    await sdkBridge.shutdown();
+  } catch {
+    // Best-effort shutdown on server close/error.
+  }
+}
+
 async function startServer(options = {}) {
   const args = {
     port: Number.isFinite(options.port) ? Number(options.port) : 3210,
@@ -4708,99 +4754,128 @@ async function startServer(options = {}) {
   }
 
   const changeTracker = createChangeTracker(path.resolve(copilotHome), path.resolve(vscodeHome), path.resolve(sandboxesHome));
-  const publicDir = path.join(__dirname, 'public');
+  const uiDistDir = path.join(__dirname, 'ui-dist');
+  const legacyPublicDir = path.join(__dirname, 'public');
+  const resolveStaticDir = () => (fs.existsSync(path.join(uiDistDir, 'index.html'))
+    ? uiDistDir
+    : legacyPublicDir);
   const host = args.host;
   const token = resolveToken(args, host);
   const planningAuthContext = {
     userId: derivePlanningActorId(token),
   };
-  const routeRegistry = createRegistry({
-    fs,
-    path,
-    os,
-    process,
-    childProcess,
-    sessions,
-    assets,
-    engineRoot,
-    getPolicyPreflight,
-    getRuntimeHealth,
-    trackerUrl,
-    trackerToken,
-    proxyToTracker,
-    postJsonToTracker,
-    postJsonToTrackerWithFinishInvariant,
-    relayTrackerSSE,
-    resolveLifecycleCapabilityGate,
-    validateOpenTerminalLifecyclePayload,
-    validateFinishLifecyclePayload,
-    sendLifecyclePayloadError,
-    planState,
-    sendJson,
-    sendText,
-    readJsonBody,
-    runVscodeSettingsPatcher,
-    patchCopilotPermissionsConfig,
-    safeResolveUnder,
-    extractTriggers,
-    parseNumberQuery,
-    resolveSessionsHome,
-    isValidSessionId,
-    ensureDir,
-    resolveMessagingGatewayConfigPath,
-    readJsonFileSafe,
-    resolvePlanningPersistenceAuthorityState,
-    probeTrackerReadiness,
-    buildGatewayStateEnvelope,
-    buildGatewayProbeFailure,
-    uniqueArchiveDir,
-    listPlanArtifacts,
-    readPlanArtifact,
-    initializePlanningPersistenceAuthority,
-    PLANNING_API_CONTRACT_VERSION,
-    buildPlanningPersistenceHealthEnvelope,
-    getPlanningPersistenceHealth,
-    resolvePlanningPersistenceOperationClient,
-    scanPlanningPersistenceCorruption,
-    applyPlanningPersistenceCorruptionScan,
-    runPlanningRetention,
-    buildPlanningPersistenceWriteBlockedFailure,
-    buildPlanningPersistenceCorruptionEnvelope,
-    exportPlanningPersistenceSnapshot,
-    importPlanningPersistenceSnapshot,
-    buildPlanningRequestContext,
-    resolveRequestIdempotencyKey,
-    acquirePlanningMutationRouteLock,
-    hydratePlanningProjectionFromPersistence,
-    resolveExpectedPlanningVersion,
-    evaluatePlanningRouteOptimisticConcurrency,
-    createPlanningRecordOperation,
-    persistPlanningRecordToAuthority,
-    evictPlanningIdempotencyEntry,
-    releasePlanningRouteLock,
-    parsePlanningScopesFromRequest,
-    listPlanningRecordsOperation,
-    firstStringValue,
-    searchPlanningRecordsOperation,
-    comparePlanningRecordsOperation,
-    recordPlanningCompareReceipt,
-    resolvePlanningDurabilityWriteAuthority,
-    persistPlanningCompareReceipt,
-    buildPlanningDurabilityPersistenceFailure,
-    issuePlanningMergeIntent,
-    persistPlanningMergeIntent,
-    hydratePlanningMergeDurabilityStateFromAuthority,
-    executePlanningMerge,
-    rollbackMergeCommitAfterPersistenceFailure,
-    persistPlanningMergeCommitDurabilityArtifacts,
-    compensatePlanningMergeDurabilityFailure,
-    persistPlanningSuggestion,
-    resolvePlanningDurabilityArtifactErrorStatusCode,
-    buildPlanningDurabilityArtifactFailureEnvelope,
-    readPlanningSuggestion,
-    persistPlanningRecap,
-    readPlanningRecap,
-  });
+  const sdkBridgeEnabled = isSdkBridgeEnabled(process.env);
+  let sdkBridge = null;
+
+  if (sdkBridgeEnabled) {
+    try {
+      sdkBridge = await initializeSdkBridge({
+        engineRoot,
+        env: process.env,
+        policyPreflightFn: () => getPolicyPreflight(engineRoot),
+      });
+    } catch (error) {
+      changeTracker.close();
+      const detail = String(error && error.message ? error.message : error);
+      throw new Error(`SDK bridge startup failed with COPILOT_SDK_BRIDGE=1: ${detail}`);
+    }
+  }
+
+  let routeRegistry;
+  try {
+    routeRegistry = createRegistry({
+      fs,
+      path,
+      os,
+      process,
+      childProcess,
+      sessions,
+      assets,
+      engineRoot,
+      getPolicyPreflight,
+      getRuntimeHealth,
+      trackerUrl,
+      trackerToken,
+      proxyToTracker,
+      postJsonToTracker,
+      postJsonToTrackerWithFinishInvariant,
+      relayTrackerSSE,
+      resolveLifecycleCapabilityGate,
+      validateOpenTerminalLifecyclePayload,
+      validateFinishLifecyclePayload,
+      sendLifecyclePayloadError,
+      planState,
+      sendJson,
+      sendText,
+      readJsonBody,
+      runVscodeSettingsPatcher,
+      patchCopilotPermissionsConfig,
+      safeResolveUnder,
+      extractTriggers,
+      parseNumberQuery,
+      resolveSessionsHome,
+      isValidSessionId,
+      ensureDir,
+      resolveMessagingGatewayConfigPath,
+      readJsonFileSafe,
+      resolvePlanningPersistenceAuthorityState,
+      probeTrackerReadiness,
+      buildGatewayStateEnvelope,
+      buildGatewayProbeFailure,
+      uniqueArchiveDir,
+      listPlanArtifacts,
+      readPlanArtifact,
+      initializePlanningPersistenceAuthority,
+      PLANNING_API_CONTRACT_VERSION,
+      buildPlanningPersistenceHealthEnvelope,
+      getPlanningPersistenceHealth,
+      resolvePlanningPersistenceOperationClient,
+      scanPlanningPersistenceCorruption,
+      applyPlanningPersistenceCorruptionScan,
+      runPlanningRetention,
+      buildPlanningPersistenceWriteBlockedFailure,
+      buildPlanningPersistenceCorruptionEnvelope,
+      exportPlanningPersistenceSnapshot,
+      importPlanningPersistenceSnapshot,
+      buildPlanningRequestContext,
+      resolveRequestIdempotencyKey,
+      acquirePlanningMutationRouteLock,
+      hydratePlanningProjectionFromPersistence,
+      resolveExpectedPlanningVersion,
+      evaluatePlanningRouteOptimisticConcurrency,
+      createPlanningRecordOperation,
+      persistPlanningRecordToAuthority,
+      evictPlanningIdempotencyEntry,
+      releasePlanningRouteLock,
+      parsePlanningScopesFromRequest,
+      listPlanningRecordsOperation,
+      firstStringValue,
+      searchPlanningRecordsOperation,
+      comparePlanningRecordsOperation,
+      recordPlanningCompareReceipt,
+      resolvePlanningDurabilityWriteAuthority,
+      persistPlanningCompareReceipt,
+      buildPlanningDurabilityPersistenceFailure,
+      issuePlanningMergeIntent,
+      persistPlanningMergeIntent,
+      hydratePlanningMergeDurabilityStateFromAuthority,
+      executePlanningMerge,
+      rollbackMergeCommitAfterPersistenceFailure,
+      persistPlanningMergeCommitDurabilityArtifacts,
+      compensatePlanningMergeDurabilityFailure,
+      persistPlanningSuggestion,
+      resolvePlanningDurabilityArtifactErrorStatusCode,
+      buildPlanningDurabilityArtifactFailureEnvelope,
+      readPlanningSuggestion,
+      persistPlanningRecap,
+      readPlanningRecap,
+      sdkBridge,
+    });
+  } catch (error) {
+    await shutdownSdkBridgeSafely(sdkBridge);
+    changeTracker.close();
+    throw error;
+  }
 
   const server = http.createServer((req, res) => {
     if (!checkAuth(req, token, { allowLoopbackBypass: !isNonLoopback(host) })) {
@@ -4832,7 +4907,7 @@ async function startServer(options = {}) {
         });
         return;
       }
-      serveStatic(publicDir, u.pathname, res);
+      serveStatic(resolveStaticDir(), u.pathname, res);
     } catch (e) {
       sendJson(res, 500, { error: String(e.message || e) });
     }
@@ -4843,8 +4918,12 @@ async function startServer(options = {}) {
     server.once('error', (error) => {
       if (settled) return;
       settled = true;
-      changeTracker.close();
-      reject(error);
+      Promise.resolve()
+        .then(() => shutdownSdkBridgeSafely(sdkBridge))
+        .finally(() => {
+          changeTracker.close();
+          reject(error);
+        });
     });
 
     server.listen(args.port, host, () => {
@@ -4859,6 +4938,7 @@ async function startServer(options = {}) {
         console.log(`sandboxesHome:  ${sandboxesHome}`);
         console.log(`engineRoot:     ${engineRoot}`);
         console.log(`trackerUrl:     ${trackerUrl}`);
+        if (sdkBridgeEnabled) console.log('sdkBridge:      enabled');
         if (trackerToken) console.log(`trackerAuth:    configured`);
         if (token) {
           console.log(`auth token:  ${token}`);
@@ -4879,8 +4959,12 @@ async function startServer(options = {}) {
         sandboxesHome,
         trackerUrl,
         close: () => new Promise((closeResolve) => {
-          changeTracker.close();
-          server.close(() => closeResolve());
+          Promise.resolve()
+            .then(() => shutdownSdkBridgeSafely(sdkBridge))
+            .finally(() => {
+              changeTracker.close();
+              server.close(() => closeResolve());
+            });
         }),
       });
     });

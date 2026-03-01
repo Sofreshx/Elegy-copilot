@@ -1,4 +1,23 @@
 /** A single step in a workflow DAG. */
+export interface WorkflowStreamingMetadata {
+  mode?: string;
+  channel?: string;
+  eventType?: string;
+}
+
+export interface WorkflowStepUiMetadata {
+  label?: string;
+  group?: string;
+  order?: number;
+  icon?: string;
+}
+
+export interface WorkflowUiMetadata {
+  category?: string;
+  tags?: string[];
+}
+
+/** A single step in a workflow DAG. */
 export interface WorkflowStep {
   id: string;
   name: string;
@@ -13,6 +32,10 @@ export interface WorkflowStep {
   outputs?: Record<string, unknown>;
   /** v2: Whether this step emits streaming events. Default: false */
   streaming?: boolean;
+  /** v3: Optional streaming metadata for event protocol routing. */
+  streamingMetadata?: WorkflowStreamingMetadata;
+  /** v3: Optional per-step UI metadata for DAG/view rendering. */
+  ui?: WorkflowStepUiMetadata;
 }
 
 /** A workflow definition describing a DAG of steps. */
@@ -24,6 +47,8 @@ export interface WorkflowDefinition {
   steps: WorkflowStep[];
   /** v2: Schema version for migration support. Default: '1.0' */
   schemaVersion?: string;
+  /** v3: Optional workflow-level UI metadata for listing and grouping. */
+  ui?: WorkflowUiMetadata;
 }
 
 /** Result of a single step execution. */

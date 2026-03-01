@@ -1,0 +1,56 @@
+{
+  "id": "implementation-workflow",
+  "name": "Implementation Workflow",
+  "description": "Runs a deterministic implementation flow from session analysis through implementation review.",
+  "version": "1.0.0",
+  "schemaVersion": "2.0",
+  "steps": [
+    {
+      "id": "analyze-session",
+      "name": "Analyze Session Context",
+      "action": "dev.analyze-session",
+      "params": {
+        "includeArtifacts": true,
+        "window": "24h"
+      }
+    },
+    {
+      "id": "analyze-git-state",
+      "name": "Analyze Git State",
+      "action": "git.state-analysis",
+      "params": {
+        "command": "status --short"
+      }
+    },
+    {
+      "id": "draft-plan",
+      "name": "Draft Implementation Plan",
+      "action": "dev.plan",
+      "params": {
+        "goal": "implement-approved-work-unit",
+        "mode": "deterministic"
+      },
+      "dependsOn": ["analyze-session", "analyze-git-state"]
+    },
+    {
+      "id": "implement-work",
+      "name": "Implement Work",
+      "action": "dev.implement",
+      "params": {
+        "ticket": "G-05-WU-06",
+        "dryRun": true
+      },
+      "dependsOn": ["draft-plan"]
+    },
+    {
+      "id": "review-implementation",
+      "name": "Review Implementation",
+      "action": "dev.review",
+      "params": {
+        "checklist": ["correctness", "regressions", "tests"],
+        "mode": "read-only"
+      },
+      "dependsOn": ["implement-work"]
+    }
+  ]
+}

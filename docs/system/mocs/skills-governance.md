@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-03-01
 category: system
 status: current
 doc_kind: moc
@@ -12,6 +12,24 @@ related: [system-docs-index]
 
 # MOC — Skills Governance
 
+## When to read
+
+- You are adding, deprecating, or reshaping skills.
+- You are deciding whether behavior belongs in a skill, agent prompt, or canonical docs.
+- You need promotion criteria for moving research findings into `docs/system/**`.
+
 ## Start here
 
 - Skills governance: `docs/system/skills-governance.md`
+- Research promotion checklist: `docs/system/research-promotion-checklist.md`
+- Skill discovery telemetry: `docs/system/skill-discovery-telemetry.md`
+
+## See also
+
+- System upgrade direction: [[system-upgrade-direction-2026]] [docs/system/system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
+- Orchestration and agents map: `docs/system/mocs/orchestration-and-agents.md`
+
+## Depends on
+
+- Contract: [[doc-graph-spec]] [docs/system/doc-graph-spec.md](docs/system/doc-graph-spec.md)
+- System docs entrypoint: `docs/system/index.md`

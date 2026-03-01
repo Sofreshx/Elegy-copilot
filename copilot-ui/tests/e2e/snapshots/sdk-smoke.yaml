@@ -1,0 +1,15 @@
+# instruction-engine specific replay snapshot for SDK smoke validation
+name: instruction-engine-sdk-smoke
+schemaVersion: 1
+transport: replay-proxy
+exchange:
+  request:
+    role: user
+    content: "Summarize the SDK bridge health status."
+  response:
+    role: assistant
+    content: "SDK bridge healthy"
+assertions:
+  - kind: contains
+    value: "SDK"
+  - kind: non_empty

@@ -24,6 +24,13 @@ description: "Frontend unit/component testing (React/Vue/Angular). Use this when
 - Runner: **Vitest** (or Jest if repo already uses it)
 - DOM utilities: **@testing-library/react** (+ user-event)
 
+## Related docs
+
+- Testing and E2E MOC: `docs/system/mocs/testing-and-e2e.md`
+- E2E setup guide: `docs/system/e2e-setup-guide.md`
+- Agent hooks: `docs/system/agent-hooks.md`
+- System docs index: `docs/system/index.md`
+
 ## Steps
 1. Detect existing test tooling in repo (Vitest vs Jest, RTL vs alternatives).
 2. Identify the behavior to test:

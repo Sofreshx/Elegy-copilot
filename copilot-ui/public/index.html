@@ -3,433 +3,52 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Copilot CLI Dashboard</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <title>Instruction Engine UI</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        background: #f4f7ff;
+        color: #1b2340;
+      }
+
+      main {
+        max-width: 56rem;
+        margin: 4rem auto;
+        padding: 1.5rem;
+        border: 1px solid #d8e1ff;
+        border-radius: 1rem;
+        background: #ffffff;
+        box-shadow: 0 16px 40px rgba(30, 47, 107, 0.12);
+      }
+
+      h1 {
+        margin: 0 0 0.5rem;
+      }
+
+      p {
+        line-height: 1.5;
+      }
+
+      code {
+        background: #edf2ff;
+        border-radius: 0.4rem;
+        padding: 0.1rem 0.35rem;
+      }
+    </style>
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">Copilot CLI Dashboard</div>
-      <nav class="tabs">
-        <button id="tab-sessions" class="tab active" type="button">Sessions</button>
-        <button id="tab-sandboxes" class="tab" type="button">Sandboxes</button>
-        <button id="tab-assets" class="tab" type="button">Assets</button>
-        <button id="tab-lsp" class="tab" type="button">LSP</button>
-        <button id="tab-tracker" class="tab" type="button">Tracker <span id="tracker-badge" class="badge-count" style="display:none"></span></button>
-        <button id="tab-planning" class="tab" type="button">Planning</button>
-        <button id="tab-gateway" class="tab" type="button">Gateway</button>
-        <button id="tab-skills-preview" class="tab" type="button">Skills Preview <span class="badge-preview">(Preview)</span></button>
-      </nav>
-      <div class="spacer"></div>
-      <button id="btn-reload" type="button" class="btn">Reload</button>
-    </header>
-
-    <main class="layout">
-      <section id="view-sessions" class="view">
-        <div class="row">
-          <div class="col">
-            <div class="toolbar">
-              <button id="btn-refresh-sessions" class="btn" type="button">Refresh</button>
-              <div class="tabs" style="gap: 6px;">
-                <button id="tab-sessions-all" class="tab active" type="button">All</button>
-                <button id="tab-sessions-cli" class="tab" type="button">CLI</button>
-                <button id="tab-sessions-vscode" class="tab" type="button">VS Code</button>
-                <button id="tab-sessions-sandbox" class="tab" type="button">Sandbox</button>
-              </div>
-              <span id="sessions-summary" class="muted"></span>
-            </div>
-
-            <h2>Active</h2>
-            <div id="sessions-active" class="list"></div>
-
-            <h2>Past</h2>
-            <div id="sessions-past" class="list"></div>
-          </div>
-
-          <div class="col detail">
-             <h2>Session Detail</h2>
-             <div class="toolbar">
-               <button id="btn-archive-session" class="btn" type="button" disabled>Archive session</button>
-               <button id="btn-delete-session" class="btn danger" type="button" disabled>Delete permanently</button>
-             </div>
-             <div id="session-detail" class="panel muted">Select a session.</div>
-             <h3>Progress</h3>
-             <div id="session-progress" class="panel muted">(no progress data)</div>
-             <h3>Proposition</h3>
-             <div id="session-proposition" class="panel muted">(none)</div>
-             <h3>Verification Guide</h3>
-             <div id="session-verification-guide" class="panel muted">(none)</div>
-             <h3>Plans</h3>
-             <div id="session-plans" class="list"></div>
-             <pre id="session-plan" class="pre"></pre>
-             <h3>Final output (preview)</h3>
-             <pre id="session-final" class="pre"></pre>
-             <h3>Agent usage</h3>
-             <div id="session-agent-usage" class="panel muted">(none detected)</div>
-             <h3>Recent events</h3>
-             <div id="session-events" class="events"></div>
-           </div>
-         </div>
-       </section>
-
-      <section id="view-sandboxes" class="view hidden">
-        <div class="toolbar">
-          <input id="sandbox-id" type="text" class="gateway-input sandbox-input" placeholder="sandboxId (auto-generated, editable)" maxlength="64" autocomplete="off" spellcheck="false" />
-          <button id="btn-sandbox-create" class="btn" type="button">Create</button>
-          <button id="btn-sandbox-start" class="btn" type="button">Start</button>
-          <button id="btn-sandbox-stop" class="btn" type="button">Stop</button>
-          <button id="btn-sandbox-open-terminal" class="btn" type="button">Open terminal</button>
-          <button id="btn-sandbox-follow" class="btn" type="button">Follow</button>
-        </div>
-        <div class="toolbar">
-          <input id="sandbox-base-branch" type="text" class="gateway-input sandbox-input" placeholder="baseBranch" />
-          <input id="sandbox-head-branch" type="text" class="gateway-input sandbox-input" placeholder="headBranch" />
-          <button id="btn-sandbox-pr-open" class="btn" type="button">Open PR</button>
-        </div>
-
-        <div class="toolbar">
-          <button id="btn-refresh-sandboxes" class="btn" type="button">Refresh</button>
-          <span id="sandboxes-summary" class="muted"></span>
-        </div>
-
-        <h2>Discovered sandbox sessions</h2>
-        <div id="sandboxes-list" class="list sandbox-list-compact"></div>
-      </section>
-
-      <section id="view-assets" class="view hidden">
-        <div class="toolbar">
-          <button id="btn-refresh-managed" class="btn" type="button">Refresh managed</button>
-          <button id="btn-refresh-installed" class="btn" type="button">Refresh agents/skills</button>
-          <button id="btn-refresh-all" class="btn" type="button">Refresh all</button>
-          <button id="btn-sync-all" class="btn" type="button">Sync all</button>
-          <button id="btn-fresh-all" class="btn" type="button">Fresh all (force)</button>
-          <button id="btn-patch-vscode-settings" class="btn" type="button">Patch VS Code settings</button>
-          <button id="btn-copilot-authorize" class="btn" type="button">Authorize Copilot folders</button>
-          <span id="assets-summary" class="muted"></span>
-        </div>
-
-        <h2>Managed assets</h2>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Type</th>
-              <th>Installed</th>
-              <th>Up-to-date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="managed-table"></tbody>
-        </table>
-
-         <h2>Installed inventory</h2>
-         <div class="row">
-           <div class="col">
-             <h3>Agents</h3>
-             <table class="table">
-              <thead><tr><th>Name</th><th>File</th><th>Actions</th></tr></thead>
-              <tbody id="agents-table"></tbody>
-             </table>
-           </div>
-           <div class="col">
-             <h3>Skills</h3>
-             <table class="table">
-              <thead><tr><th>Name</th><th>Path</th><th>Actions</th></tr></thead>
-              <tbody id="skills-table"></tbody>
-             </table>
-           </div>
-           <div class="col">
-             <h3>Prompts</h3>
-             <table class="table">
-              <thead><tr><th>Name</th><th>File</th><th>Actions</th></tr></thead>
-              <tbody id="prompts-table"></tbody>
-             </table>
-
-             <h3>Instructions</h3>
-             <div id="instructions-panel" class="panel muted">(VS Code target only)</div>
-           </div>
-         </div>
-
-        <h2>Viewer</h2>
-        <div id="viewer-meta" class="muted"></div>
-        <pre id="viewer" class="pre"></pre>
-      </section>
-
-      <section id="view-lsp" class="view hidden">
-        <div class="toolbar">
-          <button id="btn-refresh-lsp" class="btn" type="button">Refresh LSP Config</button>
-          <button id="btn-install-lsp" class="btn" type="button">Install Default LSPs (C#, Rust, TS)</button>
-        </div>
-        <h2>LSP Configuration (~/.copilot/lsp-config.json)</h2>
-        <div id="lsp-config-meta" class="muted"></div>
-        <pre id="lsp-config-viewer" class="pre"></pre>
-        
-        <h2>Install Logs</h2>
-        <pre id="lsp-install-logs" class="pre muted">No logs yet.</pre>
-      </section>
-
-      <section id="view-tracker" class="view hidden">
-        <div class="toolbar">
-          <button id="btn-refresh-tracker" class="btn" type="button">Refresh</button>
-          <span id="tracker-status" class="muted">Disconnected</span>
-        </div>
-
-        <h2>Pending Permissions</h2>
-        <div id="tracker-permissions" class="list">(loading…)</div>
-
-        <h2>Live Sessions (ACP)</h2>
-        <div id="tracker-sessions" class="list">(loading…)</div>
-
-        <h2>Event Log</h2>
-        <div id="tracker-events" class="events" style="max-height: 300px; overflow-y: auto;"></div>
-      </section>
-
-      <section id="view-planning" class="view hidden">
-        <h2>Planning</h2>
-
-        <div class="toolbar">
-          <input id="planning-user-id" type="text" class="gateway-input" placeholder="userId (required)" style="max-width: 220px;" />
-          <input id="planning-repo-id" type="text" class="gateway-input" placeholder="repoId (optional)" style="max-width: 220px;" />
-          <input id="planning-query" type="text" class="gateway-input" placeholder="search query" style="flex: 1;" />
-          <input id="planning-session-id" type="text" class="gateway-input" placeholder="sessionId (optional for compare sources)" style="max-width: 220px;" />
-        </div>
-
-        <div class="toolbar">
-          <label class="repo-row" style="margin-right: 6px;"><input id="planning-scope-user" type="checkbox" checked /> <span>user</span></label>
-          <label class="repo-row" style="margin-right: 6px;"><input id="planning-scope-repo" type="checkbox" checked /> <span>repo</span></label>
-          <label class="repo-row" style="margin-right: 10px;"><input id="planning-scope-global" type="checkbox" checked /> <span>global</span></label>
-          <button id="btn-planning-list" class="btn" type="button">List records</button>
-          <button id="btn-planning-search" class="btn" type="button">Search</button>
-          <button id="btn-planning-compare" class="btn" type="button">Compare</button>
-        </div>
-
-        <div class="panel">
-          <div class="toolbar" style="margin-bottom: 6px;">
-            <span class="muted">Gate state:</span>
-            <span id="planning-gate-badge" class="badge status-pending">insufficient-data</span>
-          </div>
-          <div id="planning-gate-detail" class="muted">Run compare to evaluate merge gate state.</div>
-          <div style="margin-top: 8px;"><span class="muted">Denied scopes:</span> <span id="planning-denied-scopes" class="mono muted">(none)</span></div>
-        </div>
-
-        <div class="row">
-          <div class="col">
-            <h3>Create Planning Record</h3>
-            <div class="panel planning-create-panel">
-              <div class="toolbar">
-                <select id="planning-create-scope" class="gateway-input" style="max-width: 140px;">
-                  <option value="user">user</option>
-                  <option value="repo">repo</option>
-                  <option value="global">global</option>
-                </select>
-                <select id="planning-create-state" class="gateway-input" style="max-width: 160px;">
-                  <option value="thought">thought</option>
-                  <option value="research">research</option>
-                  <option value="pre-plan">pre-plan</option>
-                  <option value="queued">queued</option>
-                  <option value="implemented">implemented</option>
-                </select>
-              </div>
-              <label class="planning-create-field" for="planning-create-title">
-                <span class="muted planning-create-label">Title</span>
-                <input id="planning-create-title" type="text" class="gateway-input" placeholder="Short title" />
-              </label>
-              <label class="planning-create-field" for="planning-create-summary">
-                <span class="muted planning-create-label">Notes</span>
-                <textarea id="planning-create-summary" class="gateway-input planning-notes-input" placeholder="Multiline notes" rows="7"></textarea>
-              </label>
-              <button id="btn-planning-create" class="btn" type="button" disabled>Create record</button>
-            </div>
-
-            <h3>Records</h3>
-            <div id="planning-records" class="list panel muted">(none)</div>
-
-            <h3>Search Results</h3>
-            <div id="planning-search-results" class="list panel muted">(none)</div>
-          </div>
-
-          <div class="col">
-            <h3>Compare Matches</h3>
-            <div id="planning-compare-matches" class="list panel muted">(none)</div>
-
-            <h3>Implemented Source Markers</h3>
-            <div id="planning-source-markers" class="list panel muted">(none)</div>
-
-            <h3>Conflict Review (user &gt; repo &gt; global)</h3>
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>Field</th>
-                  <th>User</th>
-                  <th>Repo</th>
-                  <th>Global</th>
-                  <th>Winner</th>
-                  <th>Reviewed</th>
-                </tr>
-              </thead>
-              <tbody id="planning-conflict-rows"></tbody>
-            </table>
-
-            <h3>Intent-bound Merge</h3>
-            <div class="panel">
-              <div class="toolbar">
-                <select id="planning-merge-target" class="gateway-input" style="max-width: 320px;">
-                  <option value="">(compare first)</option>
-                </select>
-                <button id="btn-planning-prepare-intent" class="btn" type="button">Prepare intent</button>
-                <button id="btn-planning-merge" class="btn" type="button" disabled>Confirm merge</button>
-              </div>
-              <div id="planning-merge-requirements" class="muted">Merge requires pass state and reviewed conflicts.</div>
-              <pre id="planning-intent" class="pre muted">(no intent token)</pre>
-            </div>
-
-            <h3>Planning Output</h3>
-            <pre id="planning-output" class="pre muted">(no activity)</pre>
-          </div>
-        </div>
-      </section>
-
-      <section id="view-gateway" class="view hidden">
-        <h2>Messaging Gateway</h2>
-        <div class="panel">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span class="muted">Config file:</span>
-            <code id="gateway-config-path" class="mono muted"></code>
-            <span id="gateway-config-badge" class="badge badge-missing">not found</span>
-          </div>
-        </div>
-
-        <h3>Gateway State</h3>
-        <div class="panel">
-          <div class="toolbar" style="margin-bottom: 10px;">
-            <button id="btn-gateway-refresh-state" class="btn" type="button">Refresh state</button>
-            <button id="btn-gateway-connect" class="btn" type="button">Connect</button>
-            <button id="btn-planning-persistence-init" class="btn" type="button">Init DB</button>
-          </div>
-          <div class="gateway-field">
-            <label>Gateway</label>
-            <div id="gateway-state-gateway" class="muted">(unknown)</div>
-          </div>
-          <div class="gateway-field">
-            <label>Tracker</label>
-            <div id="gateway-state-tracker" class="muted">(unknown)</div>
-          </div>
-          <div class="gateway-field">
-            <label>DB</label>
-            <div id="gateway-state-db" class="muted">(unknown)</div>
-          </div>
-          <div class="gateway-field">
-            <label>Errors</label>
-            <pre id="gateway-state-errors" class="pre muted">(none)</pre>
-          </div>
-        </div>
-
-        <div class="row" style="align-items:flex-start;gap:16px;">
-          <div class="col">
-            <h3>Connection</h3>
-            <div class="panel">
-              <div class="gateway-field">
-                <label for="gateway-mode">Mode</label>
-                <select id="gateway-mode" class="gateway-input">
-                  <option value="auto">auto (recommended)</option>
-                  <option value="connected">connected</option>
-                  <option value="disconnected">disconnected</option>
-                </select>
-              </div>
-              <div class="gateway-field">
-                <label for="gateway-acp-host">ACP Host</label>
-                <input id="gateway-acp-host" type="text" class="gateway-input" value="127.0.0.1" placeholder="127.0.0.1" />
-              </div>
-              <div class="gateway-field">
-                <label for="gateway-acp-port">ACP Port</label>
-                <input id="gateway-acp-port" type="number" class="gateway-input" value="3000" min="1" max="65535" placeholder="3000" />
-              </div>
-            </div>
-
-            <h3>Discord</h3>
-            <div class="panel">
-              <div class="gateway-field">
-                <label for="gateway-discord-guild">Guild ID <span class="muted">(numeric snowflake)</span></label>
-                <input id="gateway-discord-guild" type="text" class="gateway-input" placeholder="222222222222222222" />
-              </div>
-              <div class="gateway-field">
-                <label for="gateway-discord-channel">Channel ID <span class="muted">(numeric snowflake)</span></label>
-                <input id="gateway-discord-channel" type="text" class="gateway-input" placeholder="333333333333333333" />
-              </div>
-              <div class="gateway-field">
-                <label for="gateway-discord-users">Allowed User IDs <span class="muted">(comma-separated)</span></label>
-                <input id="gateway-discord-users" type="text" class="gateway-input" placeholder="111111111111111111, 444444444444444444" />
-              </div>
-              <div class="gateway-field">
-                <label for="gateway-discord-perms-channel">Permissions Channel ID <span class="muted">(optional — leave blank to use session thread)</span></label>
-                <input id="gateway-discord-perms-channel" type="text" class="gateway-input" placeholder="(optional)" />
-              </div>
-            </div>
-
-            <h3>Telegram</h3>
-            <div class="panel">
-              <div class="gateway-field">
-                <label for="gateway-telegram-users">Allowed User IDs <span class="muted">(comma-separated numeric Telegram user IDs)</span></label>
-                <input id="gateway-telegram-users" type="text" class="gateway-input" placeholder="123456789, 987654321" />
-              </div>
-            </div>
-          </div>
-
-          <div class="col">
-            <h3>Workspace Roots</h3>
-            <div class="toolbar">
-              <button id="btn-gateway-scan" class="btn" type="button">Scan repos</button>
-              <input id="gateway-custom-path" type="text" class="gateway-input" style="flex:1" placeholder="Custom path to scan…" />
-              <button id="btn-gateway-scan-custom" class="btn" type="button">Scan custom</button>
-            </div>
-            <div id="gateway-repo-list" class="repo-list panel">
-              <span class="muted">(click Scan repos to discover projects)</span>
-            </div>
-            <div class="gateway-field" style="margin-top:10px;">
-              <label for="gateway-active-root">Active root</label>
-              <select id="gateway-active-root" class="gateway-input">
-                <option value="">(check repos above first)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="toolbar" style="margin-top:12px;">
-          <button id="btn-gateway-save" class="btn" type="button">Save config</button>
-        </div>
-        <pre id="gateway-status" class="pre muted">Config not yet saved.</pre>
-      </section>
-
-      <section id="view-skills-preview" class="view hidden">
-        <h2>Skills Preview <span class="badge-preview">(Preview)</span></h2>
-        <div class="toolbar">
-          <button id="btn-refresh-skills-preview" class="btn" type="button">Refresh</button>
-          <input id="skills-preview-search" type="text" placeholder="Search skills..." style="padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-input,#1e1e1e);color:inherit;" />
-        </div>
-        <div class="panel">
-          <table id="skills-preview-table" class="data-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Kind</th>
-                <th>Triggers</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="skills-preview-body"></tbody>
-          </table>
-          <div id="skills-preview-empty" class="muted" style="display:none;padding:16px;">No skills found. Enable pointer mode to populate the vault.</div>
-        </div>
-        <h3>Skill Detail</h3>
-        <pre id="skills-preview-detail" class="pre muted">(select a skill above)</pre>
-      </section>
+    <main>
+      <h1>Instruction Engine UI Fallback</h1>
+      <p>
+        The legacy vanilla dashboard has been retired. The active React UI is served from
+        <code>copilot-ui/ui-dist</code> when available.
+      </p>
+      <p>
+        If you see this fallback page, build the UI bundle with
+        <code>npm --prefix copilot-ui run ui:build</code>.
+      </p>
     </main>
-
-    <footer class="footer">
-      <div id="status" class="muted">Ready.</div>
-    </footer>
-
-    <script src="/session-source.js"></script>
-    <script src="/app.js"></script>
   </body>
 </html>
 

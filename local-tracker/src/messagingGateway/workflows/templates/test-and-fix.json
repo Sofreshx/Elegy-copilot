@@ -1,0 +1,48 @@
+{
+  "id": "test-and-fix",
+  "name": "Test And Fix",
+  "description": "Executes a deterministic test-fix-retest loop for targeted validation.",
+  "version": "1.0.0",
+  "schemaVersion": "2.0",
+  "steps": [
+    {
+      "id": "run-baseline-tests",
+      "name": "Run Baseline Tests",
+      "action": "dev.test",
+      "params": {
+        "suite": "messagingGateway-workflow-tests",
+        "runInBand": true
+      }
+    },
+    {
+      "id": "implement-fix",
+      "name": "Implement Fix",
+      "action": "dev.implement",
+      "params": {
+        "ticket": "G-05-WU-07",
+        "dryRun": true
+      },
+      "dependsOn": ["run-baseline-tests"]
+    },
+    {
+      "id": "rerun-tests",
+      "name": "Rerun Tests",
+      "action": "dev.test",
+      "params": {
+        "suite": "messagingGateway-workflow-tests",
+        "runInBand": true
+      },
+      "dependsOn": ["implement-fix"]
+    },
+    {
+      "id": "review-results",
+      "name": "Review Results",
+      "action": "dev.review",
+      "params": {
+        "checklist": ["failing-tests", "fix-scope", "residual-risk"],
+        "mode": "read-only"
+      },
+      "dependsOn": ["rerun-tests"]
+    }
+  ]
+}

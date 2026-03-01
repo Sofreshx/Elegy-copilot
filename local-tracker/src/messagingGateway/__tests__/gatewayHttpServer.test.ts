@@ -7,6 +7,21 @@ import {
 } from '../gatewayHttpServer';
 
 const TEST_TOKEN = 'test-secret-token-abc123';
+const TEMPLATE_DEFINITION = {
+    id: 'template-1',
+    name: 'Template One',
+    version: '1.0.0',
+    schemaVersion: '1.0',
+    steps: [{ id: 'step-1', name: 'Step 1', action: 'noop', dependsOn: [] }],
+};
+
+const PERSISTED_DEFINITION = {
+    id: 'saved-1',
+    name: 'Saved Workflow One',
+    version: '1.0.0',
+    schemaVersion: '1.0',
+    steps: [{ id: 'step-1', name: 'Step 1', action: 'noop', dependsOn: [] }],
+};
 
 function makeRequest(
     port: number,
@@ -57,6 +72,7 @@ function makeRequest(
 describe('GatewayHttpServer', () => {
     let server: GatewayHttpServer;
     let port: number;
+    const workflowListeners = new Set<(event: any) => void>();
 
     const mockGetSessions = jest.fn<Promise<unknown>, []>().mockResolvedValue([
         { id: 'sess-1', name: 'Session 1' },
@@ -70,6 +86,30 @@ describe('GatewayHttpServer', () => {
     const mockAuthorizeLifecycleAction = jest.fn().mockReturnValue({ allowed: true });
     const mockHandleLifecycleAction = jest.fn<Promise<unknown>, [string, unknown, http.IncomingMessage]>().mockResolvedValue({ status: 'queued' });
     const mockGetPolicyGateStatus = jest.fn().mockReturnValue({ ok: true });
+    const mockWorkflowSubscribe = jest.fn((listener: (event: any) => void) => {
+        workflowListeners.add(listener);
+    });
+    const mockWorkflowUnsubscribe = jest.fn((listener: (event: any) => void) => {
+        workflowListeners.delete(listener);
+    });
+    const mockGetWorkflowBacklog = jest.fn().mockReturnValue({ events: [], droppedCount: 0 });
+    const mockListTemplateDefinitions = jest.fn(() => [TEMPLATE_DEFINITION]);
+    const mockGetTemplateDefinition = jest.fn((id: string) => (id === TEMPLATE_DEFINITION.id ? TEMPLATE_DEFINITION : undefined));
+    const mockListPersistedDefinitions = jest.fn(() => [PERSISTED_DEFINITION]);
+    const mockGetPersistedDefinition = jest.fn((id: string) => (id === PERSISTED_DEFINITION.id ? PERSISTED_DEFINITION : undefined));
+    const mockCreatePersistedDefinition = jest.fn((payload: unknown) => payload);
+    const mockUpdatePersistedDefinition = jest.fn((_id: string, payload: unknown) => payload);
+    const mockDeletePersistedDefinition = jest.fn((id: string) => id === PERSISTED_DEFINITION.id);
+    const mockRunPersistedDefinition = jest.fn(async () => ({
+        result: {
+            workflowId: PERSISTED_DEFINITION.id,
+            status: 'completed',
+            startedAtMs: 1,
+            completedAtMs: 2,
+            steps: [{ stepId: 'step-1', status: 'success', durationMs: 1 }],
+        },
+        runId: 'run-http-1',
+    }));
 
     beforeAll(async () => {
         server = new GatewayHttpServer({
@@ -83,6 +123,21 @@ describe('GatewayHttpServer', () => {
             authorizeLifecycleAction: mockAuthorizeLifecycleAction,
             handleLifecycleAction: mockHandleLifecycleAction,
             getPolicyGateStatus: mockGetPolicyGateStatus,
+            workflowStreaming: {
+                subscribe: mockWorkflowSubscribe,
+                unsubscribe: mockWorkflowUnsubscribe,
+                getBacklogSnapshot: mockGetWorkflowBacklog,
+            },
+            workflowApi: {
+                listTemplateDefinitions: mockListTemplateDefinitions,
+                getTemplateDefinition: mockGetTemplateDefinition,
+                listPersistedDefinitions: mockListPersistedDefinitions,
+                getPersistedDefinition: mockGetPersistedDefinition,
+                createPersistedDefinition: mockCreatePersistedDefinition,
+                updatePersistedDefinition: mockUpdatePersistedDefinition,
+                deletePersistedDefinition: mockDeletePersistedDefinition,
+                runPersistedDefinition: mockRunPersistedDefinition,
+            },
         });
         await server.start();
         port = server.getPort()!;
@@ -106,7 +161,32 @@ describe('GatewayHttpServer', () => {
         mockAuthorizeLifecycleAction.mockReturnValue({ allowed: true });
         mockHandleLifecycleAction.mockResolvedValue({ status: 'queued' });
         mockGetPolicyGateStatus.mockReturnValue({ ok: true });
+        mockGetWorkflowBacklog.mockReturnValue({ events: [], droppedCount: 0 });
+        mockListTemplateDefinitions.mockReturnValue([TEMPLATE_DEFINITION]);
+        mockGetTemplateDefinition.mockImplementation((id: string) => (id === TEMPLATE_DEFINITION.id ? TEMPLATE_DEFINITION : undefined));
+        mockListPersistedDefinitions.mockReturnValue([PERSISTED_DEFINITION]);
+        mockGetPersistedDefinition.mockImplementation((id: string) => (id === PERSISTED_DEFINITION.id ? PERSISTED_DEFINITION : undefined));
+        mockCreatePersistedDefinition.mockImplementation((payload: unknown) => payload);
+        mockUpdatePersistedDefinition.mockImplementation((_id: string, payload: unknown) => payload);
+        mockDeletePersistedDefinition.mockImplementation((id: string) => id === PERSISTED_DEFINITION.id);
+        mockRunPersistedDefinition.mockResolvedValue({
+            result: {
+                workflowId: PERSISTED_DEFINITION.id,
+                status: 'completed',
+                startedAtMs: 1,
+                completedAtMs: 2,
+                steps: [{ stepId: 'step-1', status: 'success', durationMs: 1 }],
+            },
+            runId: 'run-http-1',
+        });
+        workflowListeners.clear();
     });
+
+    function emitWorkflowEvent(event: unknown): void {
+        for (const listener of workflowListeners) {
+            listener(event);
+        }
+    }
 
     it('returns 401 when no auth header', async () => {
         const res = await makeRequest(port, { path: '/api/sessions/live' });
@@ -250,6 +330,349 @@ describe('GatewayHttpServer', () => {
         expect(allData).toContain('event: live');
         expect(allData).toContain('"type":"session.created"');
         expect(allData).toContain('"id":"sess-3"');
+    });
+
+    it('GET /api/workflows/templates returns template definitions', async () => {
+        const res = await makeRequest(port, {
+            method: 'GET',
+            path: '/api/workflows/templates',
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual([TEMPLATE_DEFINITION]);
+        expect(mockListTemplateDefinitions).toHaveBeenCalledTimes(1);
+    });
+
+    it('GET /api/workflows/templates/:id returns 404 when template is missing', async () => {
+        const res = await makeRequest(port, {
+            method: 'GET',
+            path: '/api/workflows/templates/not-found',
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(404);
+        expect(JSON.parse(res.body)).toEqual({ error: 'Workflow template not found' });
+    });
+
+    it('GET /api/workflows/definitions returns persisted definitions', async () => {
+        const res = await makeRequest(port, {
+            method: 'GET',
+            path: '/api/workflows/definitions',
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual([PERSISTED_DEFINITION]);
+        expect(mockListPersistedDefinitions).toHaveBeenCalledTimes(1);
+    });
+
+    it('POST /api/workflows/definitions creates a definition and returns 201', async () => {
+        const payload = {
+            id: 'created-1',
+            name: 'Created Workflow',
+            version: '1.0.0',
+            schemaVersion: '1.0',
+            steps: [{ id: 'step-1', name: 'Step 1', action: 'noop', dependsOn: [] }],
+        };
+
+        mockCreatePersistedDefinition.mockImplementationOnce((input: unknown) => input);
+
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/workflows/definitions',
+            token: TEST_TOKEN,
+            body: JSON.stringify(payload),
+        });
+
+        expect(res.statusCode).toBe(201);
+        expect(JSON.parse(res.body)).toEqual(payload);
+        expect(mockCreatePersistedDefinition).toHaveBeenCalledWith(payload);
+    });
+
+    it('PUT /api/workflows/definitions/:id returns 400 when body.id mismatches path id', async () => {
+        const res = await makeRequest(port, {
+            method: 'PUT',
+            path: '/api/workflows/definitions/saved-1',
+            token: TEST_TOKEN,
+            body: JSON.stringify({
+                id: 'other-id',
+                name: 'Invalid Update',
+                version: '1.0.0',
+                schemaVersion: '1.0',
+                steps: [{ id: 'step-1', name: 'Step 1', action: 'noop', dependsOn: [] }],
+            }),
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Body id must match route id',
+            code: 'workflow_id_mismatch',
+        });
+        expect(mockUpdatePersistedDefinition).not.toHaveBeenCalled();
+    });
+
+    it('DELETE /api/workflows/definitions/:id returns 404 when definition is missing', async () => {
+        const res = await makeRequest(port, {
+            method: 'DELETE',
+            path: '/api/workflows/definitions/missing-id',
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(404);
+        expect(JSON.parse(res.body)).toEqual({ error: 'Workflow definition not found' });
+    });
+
+    it('POST /api/workflows/definitions/:id/run returns run result and runId', async () => {
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/workflows/definitions/saved-1/run',
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual({
+            result: {
+                workflowId: 'saved-1',
+                status: 'completed',
+                startedAtMs: 1,
+                completedAtMs: 2,
+                steps: [{ stepId: 'step-1', status: 'success', durationMs: 1 }],
+            },
+            runId: 'run-http-1',
+        });
+        expect(mockRunPersistedDefinition).toHaveBeenCalledWith(PERSISTED_DEFINITION);
+    });
+
+    it('POST /api/workflows/definitions/:id/run returns 503 when runtime is unavailable', async () => {
+        mockRunPersistedDefinition.mockRejectedValueOnce({
+            statusCode: 503,
+            message: 'Workflow runtime unavailable: no extension client connected',
+            code: 'workflow_runtime_unavailable',
+        });
+
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/workflows/definitions/saved-1/run',
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(503);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Workflow runtime unavailable: no extension client connected',
+            code: 'workflow_runtime_unavailable',
+        });
+    });
+
+    it('GET /api/workflows/events requires auth', async () => {
+        const res = await makeRequest(port, { path: '/api/workflows/events?runId=run-1' });
+        expect(res.statusCode).toBe(401);
+    });
+
+    it('GET /api/workflows/events returns 400 when runId is missing', async () => {
+        const res = await makeRequest(port, { path: '/api/workflows/events', token: TEST_TOKEN });
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body)).toEqual({ error: 'Missing or invalid runId' });
+    });
+
+    it('GET /api/workflows/events returns SSE stream with connected event', async () => {
+        const data = await new Promise<string>((resolve, reject) => {
+            const req = http.request(
+                {
+                    hostname: '127.0.0.1',
+                    port,
+                    path: '/api/workflows/events?runId=run-1',
+                    method: 'GET',
+                    headers: { Authorization: `Bearer ${TEST_TOKEN}` },
+                },
+                (res) => {
+                    expect(res.statusCode).toBe(200);
+                    expect(res.headers['content-type']).toBe('text/event-stream');
+                    let received = '';
+                    res.on('data', (chunk) => {
+                        received += chunk;
+                        if (received.includes('event: connected')) {
+                            req.destroy();
+                            resolve(received);
+                        }
+                    });
+                },
+            );
+            req.on('error', (err) => {
+                if ((err as NodeJS.ErrnoException).code !== 'ECONNRESET') reject(err);
+            });
+            req.end();
+        });
+
+        expect(data).toContain('event: connected');
+        expect(data).toContain('"runId":"run-1"');
+    });
+
+    it('GET /api/workflows/events replays backlog and sends reconnect hint when events were dropped', async () => {
+        mockGetWorkflowBacklog.mockReturnValueOnce({
+            droppedCount: 3,
+            events: [
+                {
+                    type: 'run.started',
+                    protocolVersion: 'workflow-stream-v1',
+                    runId: 'run-backlog-1',
+                    workflowId: 'wf-1',
+                    emittedAtMs: 1,
+                    workflowName: 'Workflow 1',
+                    stepCount: 1,
+                    startedAtMs: 0,
+                },
+                {
+                    type: 'step.completed',
+                    protocolVersion: 'workflow-stream-v1',
+                    runId: 'run-backlog-1',
+                    workflowId: 'wf-1',
+                    emittedAtMs: 2,
+                    stepId: 'build',
+                    status: 'success',
+                    durationMs: 10,
+                },
+            ],
+        });
+
+        const data = await new Promise<string>((resolve, reject) => {
+            const req = http.request(
+                {
+                    hostname: '127.0.0.1',
+                    port,
+                    path: '/api/workflows/events?runId=run-backlog-1',
+                    method: 'GET',
+                    headers: { Authorization: `Bearer ${TEST_TOKEN}` },
+                },
+                (res) => {
+                    expect(res.statusCode).toBe(200);
+                    let received = '';
+                    res.on('data', (chunk) => {
+                        received += chunk;
+                        if (received.includes('event: reconnect-hint') && received.includes('"type":"step.completed"')) {
+                            req.destroy();
+                            resolve(received);
+                        }
+                    });
+                },
+            );
+            req.on('error', (err) => {
+                if ((err as NodeJS.ErrnoException).code !== 'ECONNRESET') reject(err);
+            });
+            req.end();
+        });
+
+        expect(data).toContain('event: reconnect-hint');
+        expect(data).toContain('"droppedCount":3');
+        expect(data).toContain('event: workflow');
+        expect(data).toContain('"type":"run.started"');
+        expect(data).toContain('"type":"step.completed"');
+    });
+
+    it('GET /api/workflows/events delivers live events only to matching runId subscribers', async () => {
+        const receivedData = await new Promise<string>((resolve, reject) => {
+            const req = http.request(
+                {
+                    hostname: '127.0.0.1',
+                    port,
+                    path: '/api/workflows/events?runId=run-live-1',
+                    method: 'GET',
+                    headers: { Authorization: `Bearer ${TEST_TOKEN}` },
+                },
+                (res) => {
+                    expect(res.statusCode).toBe(200);
+                    let connected = false;
+                    let received = '';
+                    res.on('data', (chunk) => {
+                        received += chunk;
+                        if (!connected && received.includes('event: connected')) {
+                            connected = true;
+                            emitWorkflowEvent({
+                                type: 'step.started',
+                                protocolVersion: 'workflow-stream-v1',
+                                runId: 'run-other',
+                                workflowId: 'wf-other',
+                                emittedAtMs: 10,
+                                stepId: 'x',
+                                stepName: 'X',
+                                action: 'noop',
+                            });
+                            emitWorkflowEvent({
+                                type: 'step.completed',
+                                protocolVersion: 'workflow-stream-v1',
+                                runId: 'run-live-1',
+                                workflowId: 'wf-live',
+                                emittedAtMs: 11,
+                                stepId: 'build',
+                                status: 'success',
+                                durationMs: 22,
+                            });
+                        }
+
+                        if (received.includes('event: workflow') && received.includes('"runId":"run-live-1"')) {
+                            req.destroy();
+                            resolve(received);
+                        }
+                    });
+                },
+            );
+            req.on('error', (err) => {
+                if ((err as NodeJS.ErrnoException).code !== 'ECONNRESET') reject(err);
+            });
+            req.end();
+        });
+
+        expect(receivedData).toContain('"runId":"run-live-1"');
+        expect(receivedData).not.toContain('"runId":"run-other"');
+    });
+
+    it('GET /api/workflows/events returns 429 when more than 10 clients connect for the same runId', async () => {
+        const openRequests: http.ClientRequest[] = [];
+
+        const openWorkflowSseClient = async (runId: string): Promise<void> => {
+            await new Promise<void>((resolve, reject) => {
+                const req = http.request(
+                    {
+                        hostname: '127.0.0.1',
+                        port,
+                        path: `/api/workflows/events?runId=${runId}`,
+                        method: 'GET',
+                        headers: { Authorization: `Bearer ${TEST_TOKEN}` },
+                    },
+                    (res) => {
+                        expect(res.statusCode).toBe(200);
+                        let received = '';
+                        res.on('data', (chunk) => {
+                            received += chunk;
+                            if (received.includes('event: connected')) {
+                                openRequests.push(req);
+                                resolve();
+                            }
+                        });
+                    },
+                );
+                req.on('error', reject);
+                req.end();
+            });
+        };
+
+        try {
+            for (let index = 0; index < 10; index += 1) {
+                await openWorkflowSseClient('run-cap-1');
+            }
+
+            const overflow = await makeRequest(port, {
+                path: '/api/workflows/events?runId=run-cap-1',
+                token: TEST_TOKEN,
+            });
+
+            expect(overflow.statusCode).toBe(429);
+            expect(JSON.parse(overflow.body)).toEqual({ error: 'Too many workflow stream clients for runId' });
+        } finally {
+            for (const req of openRequests) {
+                req.destroy();
+            }
+        }
     });
 
     it('GET unknown path returns 404', async () => {

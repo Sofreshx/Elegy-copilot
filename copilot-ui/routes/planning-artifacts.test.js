@@ -1,0 +1,391 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+
+const { createPlanningApiState } = require('../lib/planningApiContracts');
+const { register } = require('./planning-artifacts');
+
+let passed = 0;
+
+async function test(name, fn) {
+  try {
+    await fn();
+    passed += 1;
+    console.log(`  PASS: ${name}`);
+  } catch (error) {
+    console.error(`  FAIL: ${name}`);
+    console.error(`    ${error.message}`);
+    process.exitCode = 1;
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function createRequest(body) {
+  return {
+    __body: body,
+  };
+}
+
+function createResponse() {
+  const state = {
+    statusCode: null,
+    headers: null,
+    chunks: [],
+    ended: false,
+  };
+
+  return {
+    get statusCode() {
+      return state.statusCode;
+    },
+    get headers() {
+      return state.headers;
+    },
+    get bodyText() {
+      return state.chunks.join('');
+    },
+    get writableEnded() {
+      return state.ended;
+    },
+    writeHead(statusCode, headers) {
+      state.statusCode = statusCode;
+      state.headers = headers;
+    },
+    write(chunk) {
+      state.chunks.push(String(chunk));
+      return true;
+    },
+    end(chunk) {
+      if (chunk != null) {
+        state.chunks.push(String(chunk));
+      }
+      state.ended = true;
+    },
+  };
+}
+
+function parseJsonBody(response) {
+  const text = response.bodyText.trim();
+  if (!text) {
+    return null;
+  }
+  return JSON.parse(text);
+}
+
+function findRoute(routes, method, pathname) {
+  for (const route of routes) {
+    if (route.method !== method) continue;
+
+    if (typeof route.path === 'string' && route.path === pathname) {
+      return { route, match: null };
+    }
+
+    if (route.path instanceof RegExp) {
+      const match = pathname.match(route.path);
+      if (match) {
+        return { route, match };
+      }
+    }
+  }
+
+  throw new Error(`Route not found for ${method} ${pathname}`);
+}
+
+async function invoke(routes, planningApiState, method, pathname, body) {
+  const { route, match } = findRoute(routes, method, pathname);
+  const req = createRequest(body);
+  const res = createResponse();
+  const u = new URL(`http://127.0.0.1${pathname}`);
+
+  route.handler({ req, res, u, match, pathname, planningApiState });
+  await sleep(0);
+
+  return { req, res };
+}
+
+function createSeedState() {
+  const planningApiState = createPlanningApiState();
+  planningApiState.recordsById.set('planning-000001', {
+    recordId: 'planning-000001',
+    title: 'Planning artifact record',
+    summary: 'seed summary',
+    createdAt: '2026-03-01T00:00:00.000Z',
+    updatedAt: '2026-03-01T00:00:00.000Z',
+    researchNotes: [
+      {
+        noteId: 'note-0002',
+        title: 'Second note',
+        summary: 'later note',
+        source: 'doc-b',
+        createdAt: '2026-03-01T00:02:00.000Z',
+        updatedAt: '2026-03-01T00:02:00.000Z',
+      },
+      {
+        noteId: 'note-0001',
+        title: 'First note',
+        summary: 'earlier note',
+        source: 'doc-a',
+        createdAt: '2026-03-01T00:01:00.000Z',
+        updatedAt: '2026-03-01T00:01:00.000Z',
+      },
+    ],
+    diagrams: [
+      {
+        diagramId: 'diagram-002',
+        title: 'Flow B',
+        format: 'mermaid',
+        content: 'graph TD; B-->C;',
+        createdAt: '2026-03-01T00:03:00.000Z',
+        updatedAt: '2026-03-01T00:03:00.000Z',
+      },
+      {
+        diagramId: 'diagram-001',
+        title: 'Flow A',
+        format: 'mermaid',
+        content: 'graph TD; A-->B;',
+        createdAt: '2026-03-01T00:02:00.000Z',
+        updatedAt: '2026-03-01T00:02:00.000Z',
+      },
+    ],
+  });
+
+  return planningApiState;
+}
+
+async function run() {
+  await test('GET /api/planning/records/:id/research returns deterministic research notes', async () => {
+    const planningApiState = createSeedState();
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'planning_api_v1',
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, {
+          'Content-Type': 'application/json; charset=utf-8',
+        });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const { res } = await invoke(routes, planningApiState, 'GET', '/api/planning/records/planning-000001/research');
+    assert.equal(res.statusCode, 200);
+
+    const body = parseJsonBody(res);
+    assert.equal(body.kind, 'planning.artifacts.research.list');
+    assert.equal(body.deterministic, true);
+    assert.equal(body.researchNotes.length, 2);
+    assert.equal(body.researchNotes[0].id, 'note-0001');
+    assert.equal(body.researchNotes[0].phase, 'research');
+    assert.equal(body.researchNotes[0].title, 'First note');
+    assert.equal(body.researchNotes[0].content, 'earlier note');
+    assert.deepEqual(body.researchNotes[0].sources, ['doc-a']);
+    assert.equal(body.researchNotes[1].id, 'note-0002');
+  });
+
+  await test('GET /api/planning/records/:id/research validates record ids and missing records', async () => {
+    const planningApiState = createSeedState();
+    const routes = register({
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const invalid = await invoke(routes, planningApiState, 'GET', '/api/planning/records/%2F/research');
+    assert.equal(invalid.res.statusCode, 400);
+
+    const missing = await invoke(routes, planningApiState, 'GET', '/api/planning/records/planning-999999/research');
+    assert.equal(missing.res.statusCode, 404);
+  });
+
+  await test('POST /api/planning/records/:id/research creates a note with generated id', async () => {
+    const planningApiState = createSeedState();
+    const routes = register({
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const created = await invoke(routes, planningApiState, 'POST', '/api/planning/records/planning-000001/research', {
+      phase: 'analysis',
+      title: 'Third note',
+      content: 'new insight',
+      sources: ['doc-c'],
+    });
+
+    assert.equal(created.res.statusCode, 201);
+    const createdBody = parseJsonBody(created.res);
+    assert.equal(createdBody.kind, 'planning.artifacts.research.create');
+    assert.equal(createdBody.note.id, 'note-0003');
+    assert.equal(createdBody.note.phase, 'analysis');
+    assert.equal(createdBody.note.content, 'new insight');
+    assert.deepEqual(createdBody.note.sources, ['doc-c']);
+
+    const listed = await invoke(routes, planningApiState, 'GET', '/api/planning/records/planning-000001/research');
+    const listedBody = parseJsonBody(listed.res);
+    assert.equal(listedBody.researchNotes.length, 3);
+    assert.deepEqual(
+      listedBody.researchNotes.map((entry) => entry.id),
+      ['note-0001', 'note-0002', 'note-0003']
+    );
+  });
+
+  await test('POST /api/planning/records/:id/research updates an existing note when id already exists', async () => {
+    const planningApiState = createSeedState();
+    const routes = register({
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const updated = await invoke(routes, planningApiState, 'POST', '/api/planning/records/planning-000001/research', {
+      id: 'note-0001',
+      phase: 'implementation',
+      title: 'First note revised',
+      content: 'updated insight',
+      sources: ['doc-z', 'doc-y'],
+    });
+
+    assert.equal(updated.res.statusCode, 200);
+    const updatedBody = parseJsonBody(updated.res);
+    assert.equal(updatedBody.kind, 'planning.artifacts.research.update');
+    assert.equal(updatedBody.note.id, 'note-0001');
+    assert.equal(updatedBody.note.phase, 'implementation');
+    assert.equal(updatedBody.note.title, 'First note revised');
+    assert.equal(updatedBody.note.content, 'updated insight');
+    assert.deepEqual(updatedBody.note.sources, ['doc-y', 'doc-z']);
+
+    const listed = await invoke(routes, planningApiState, 'GET', '/api/planning/records/planning-000001/research');
+    const listedBody = parseJsonBody(listed.res);
+    assert.equal(listedBody.researchNotes.length, 2);
+
+    const updatedListed = listedBody.researchNotes.find((entry) => entry.id === 'note-0001');
+    assert.ok(updatedListed);
+    assert.equal(updatedListed.phase, 'implementation');
+    assert.equal(updatedListed.content, 'updated insight');
+    assert.deepEqual(updatedListed.sources, ['doc-y', 'doc-z']);
+  });
+
+  await test('POST /api/planning/records/:id/research validates payload and missing records', async () => {
+    const planningApiState = createSeedState();
+    const routes = register({
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const missingTitle = await invoke(routes, planningApiState, 'POST', '/api/planning/records/planning-000001/research', {
+      content: 'missing title',
+    });
+    assert.equal(missingTitle.res.statusCode, 400);
+
+    const missingContent = await invoke(routes, planningApiState, 'POST', '/api/planning/records/planning-000001/research', {
+      title: 'Missing content',
+    });
+    assert.equal(missingContent.res.statusCode, 400);
+
+    const missingRecord = await invoke(routes, planningApiState, 'POST', '/api/planning/records/planning-999999/research', {
+      title: 'Missing',
+      content: 'record missing',
+    });
+    assert.equal(missingRecord.res.statusCode, 404);
+  });
+
+  await test('DELETE /api/planning/records/:id/research/:noteId removes note and validates ids', async () => {
+    const planningApiState = createSeedState();
+    const routes = register({
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const removed = await invoke(routes, planningApiState, 'DELETE', '/api/planning/records/planning-000001/research/note-0001');
+    assert.equal(removed.res.statusCode, 200);
+    assert.equal(parseJsonBody(removed.res).ok, true);
+
+    const removedList = await invoke(routes, planningApiState, 'GET', '/api/planning/records/planning-000001/research');
+    assert.deepEqual(
+      parseJsonBody(removedList.res).researchNotes.map((entry) => entry.id),
+      ['note-0002']
+    );
+
+    const invalidNote = await invoke(routes, planningApiState, 'DELETE', '/api/planning/records/planning-000001/research/%2F');
+    assert.equal(invalidNote.res.statusCode, 400);
+  });
+
+  await test('DELETE /api/planning/records/:id/research/:noteId returns 404 for missing record/note', async () => {
+    const planningApiState = createSeedState();
+    const routes = register({
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const missingRecord = await invoke(routes, planningApiState, 'DELETE', '/api/planning/records/planning-999999/research/note-0001');
+    assert.equal(missingRecord.res.statusCode, 404);
+
+    const missingNote = await invoke(routes, planningApiState, 'DELETE', '/api/planning/records/planning-000001/research/note-9999');
+    assert.equal(missingNote.res.statusCode, 404);
+  });
+
+  await test('GET /api/planning/records/:id/diagrams returns deterministic diagrams and validation paths', async () => {
+    const planningApiState = createSeedState();
+    const routes = register({
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const diagrams = await invoke(routes, planningApiState, 'GET', '/api/planning/records/planning-000001/diagrams');
+    assert.equal(diagrams.res.statusCode, 200);
+    const diagramsBody = parseJsonBody(diagrams.res);
+    assert.equal(diagramsBody.kind, 'planning.artifacts.diagrams.list');
+    assert.deepEqual(
+      diagramsBody.diagrams.map((entry) => entry.id),
+      ['diagram-001', 'diagram-002']
+    );
+    assert.equal(diagramsBody.diagrams[0].type, 'diagram');
+    assert.equal(diagramsBody.diagrams[0].title, 'Flow A');
+    assert.equal(diagramsBody.diagrams[0].format, 'mermaid');
+    assert.equal(diagramsBody.diagrams[0].content, 'graph TD; A-->B;');
+
+    const invalidRecord = await invoke(routes, planningApiState, 'GET', '/api/planning/records/%2F/diagrams');
+    assert.equal(invalidRecord.res.statusCode, 400);
+
+    const missingRecord = await invoke(routes, planningApiState, 'GET', '/api/planning/records/planning-999999/diagrams');
+    assert.equal(missingRecord.res.statusCode, 404);
+  });
+
+  if (!process.exitCode) {
+    console.log(`planning artifact route tests passed (${passed})`);
+  }
+}
+
+run().catch((error) => {
+  console.error('planning artifact route tests failed');
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -84,6 +84,9 @@ describe('registerDevExecutors', () => {
         expect(registry.has('dev.research')).toBe(true);
         expect(registry.has('dev.plan')).toBe(true);
         expect(registry.has('dev.review')).toBe(true);
+        expect(registry.has('dev.implement')).toBe(true);
+        expect(registry.has('dev.test')).toBe(true);
+        expect(registry.has('dev.analyze-session')).toBe(true);
 
         const nowMs = 1700000000123;
         const result = await registry.get('dev.research')(
@@ -108,10 +111,86 @@ describe('registerDevExecutors', () => {
                 requestId: 'req-99',
             },
         });
+
+        const implementResult = await registry.get('dev.implement')(
+            step('s-implement', 'dev.implement', { ticket: 'G-05-WU-03', dryRun: true }),
+            {
+                workflowId: 'wf-compat',
+                sessionId: 'ses-42',
+                requestId: 'req-99',
+                nowMs: nowMs + 1,
+            },
+        );
+
+        expect(implementResult).toEqual({
+            action: 'dev.implement',
+            stepId: 's-implement',
+            stepName: 'Step s-implement',
+            timestampMs: nowMs + 1,
+            params: { ticket: 'G-05-WU-03', dryRun: true },
+            context: {
+                workflowId: 'wf-compat',
+                sessionId: 'ses-42',
+                requestId: 'req-99',
+            },
+        });
+
+        const testResult = await registry.get('dev.test')(
+            step('s-test', 'dev.test', { suite: 'registry', runInBand: true }),
+            {
+                workflowId: 'wf-compat',
+                sessionId: 'ses-42',
+                requestId: 'req-99',
+                nowMs: nowMs + 2,
+            },
+        );
+
+        expect(testResult).toEqual({
+            action: 'dev.test',
+            stepId: 's-test',
+            stepName: 'Step s-test',
+            timestampMs: nowMs + 2,
+            params: { suite: 'registry', runInBand: true },
+            context: {
+                workflowId: 'wf-compat',
+                sessionId: 'ses-42',
+                requestId: 'req-99',
+            },
+        });
+
+        const analyzeSessionResult = await registry.get('dev.analyze-session')(
+            step('s-analyze', 'dev.analyze-session', { includeArtifacts: true, window: '24h' }),
+            {
+                workflowId: 'wf-compat',
+                sessionId: 'ses-42',
+                requestId: 'req-99',
+                nowMs: nowMs + 3,
+            },
+        );
+
+        expect(analyzeSessionResult).toEqual({
+            action: 'dev.analyze-session',
+            stepId: 's-analyze',
+            stepName: 'Step s-analyze',
+            timestampMs: nowMs + 3,
+            params: { includeArtifacts: true, window: '24h' },
+            context: {
+                workflowId: 'wf-compat',
+                sessionId: 'ses-42',
+                requestId: 'req-99',
+            },
+        });
     });
 });
 
 describe('registerGitExecutors', () => {
+    it('registers git.merge-prs action', () => {
+        const registry = new ActionRegistry();
+        registerGitExecutors(registry);
+
+        expect(registry.has('git.merge-prs')).toBe(true);
+    });
+
     it('allows whitelisted read-only commands', async () => {
         const registry = new ActionRegistry();
         registerGitExecutors(registry);
@@ -161,5 +240,90 @@ describe('registerGitExecutors', () => {
             }),
         );
         expect((result as { reason?: string }).reason).toContain('not in read-only whitelist');
+    });
+
+    it('returns deterministic merge-prs output with safe defaults', async () => {
+        const registry = new ActionRegistry();
+        registerGitExecutors(registry);
+
+        const result = await registry.get('git.merge-prs')(
+            step('s-merge', 'git.merge-prs', {
+                command: 'merge --ff-only',
+                mergeRequests: ['#12', { prNumber: 44 }, { ref: 'feature/abc' }, 77],
+                repositoryPath: '/workspace/repo',
+            }),
+            {
+                workflowId: 'wf-merge',
+                sessionId: 'ses-merge',
+                nowMs: 1710000000200,
+            },
+        );
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                action: 'git.merge-prs',
+                stepId: 's-merge',
+                timestampMs: 1710000000200,
+                requestedCommand: 'merge --ff-only',
+                requestedToken: 'merge',
+                whitelist: ['merge', 'checkout', 'pull', 'push'],
+                dryRun: true,
+                timeoutMsPerMerge: 120000,
+                mergeCap: 10,
+                mergeRequests: ['#12', '44', 'feature/abc', '77'],
+                blocked: false,
+                context: {
+                    repositoryPath: '/workspace/repo',
+                    workflowId: 'wf-merge',
+                    sessionId: 'ses-merge',
+                },
+            }),
+        );
+    });
+
+    it('blocks merge-prs when command token is not whitelisted', async () => {
+        const registry = new ActionRegistry();
+        registerGitExecutors(registry);
+
+        const result = await registry.get('git.merge-prs')(
+            step('s-merge-block', 'git.merge-prs', {
+                command: 'fetch origin',
+                mergeRequests: ['123'],
+            }),
+            { nowMs: 1710000000300 },
+        );
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                action: 'git.merge-prs',
+                requestedToken: 'fetch',
+                blocked: true,
+            }),
+        );
+        expect((result as { reason?: string }).reason).toContain('not in merge whitelist');
+    });
+
+    it('blocks merge-prs when merge request count exceeds cap', async () => {
+        const registry = new ActionRegistry();
+        registerGitExecutors(registry);
+
+        const mergeRequests = Array.from({ length: 11 }, (_, index) => index + 1);
+        const result = await registry.get('git.merge-prs')(
+            step('s-merge-cap', 'git.merge-prs', {
+                command: 'pull origin main',
+                mergeRequests,
+            }),
+            { nowMs: 1710000000400 },
+        );
+
+        expect(result).toEqual(
+            expect.objectContaining({
+                action: 'git.merge-prs',
+                requestedToken: 'pull',
+                mergeCap: 10,
+                blocked: true,
+            }),
+        );
+        expect((result as { reason?: string }).reason).toContain('exceeds cap 10');
     });
 });

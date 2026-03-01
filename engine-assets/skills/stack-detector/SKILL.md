@@ -6,7 +6,7 @@ description: "Automatic tech stack detection and operational context classificat
 # Stack Detection Skill
 
 ## Purpose
-Automatically detect frameworks, libraries, and infrastructure from project files, return the relevant skill names that exist in `.github/skills/`, and classify each project's operational context (api, desktop, frontend, infra, or unknown).
+Automatically detect frameworks, libraries, and infrastructure from project files, return the relevant skill names that exist in installed Copilot skill paths (`~/.copilot/skills-vault/` for on-demand skills and `~/.copilot/skills/` for always-loaded skills), and classify each project's operational context (api, desktop, frontend, infra, or unknown).
 
 ## When NOT to Use
 - When the user explicitly specifies which technologies to use
@@ -19,6 +19,8 @@ Look for these files in the workspace:
 - `*.csproj` - .NET project files
 - `*.sln` - .NET solution files
 - `package.json` - Node.js/frontend projects
+- `pyproject.toml`, `requirements*.txt` - Python projects
+- `go.mod` - Go projects
 - `*.tf` - Terraform infrastructure
 - `docker-compose*.yml` - Docker Compose configuration
 
@@ -37,6 +39,12 @@ Look for these files in the workspace:
 }
 ```
 
+**For `pyproject.toml` / `requirements*.txt`:**
+- Extract package names from dependency lists and requirements entries.
+
+**For `go.mod`:**
+- Extract module paths from `require` blocks and direct `require` lines.
+
 ### Step 3: Match Against Detection Rules
 
 ## Detection Rules
@@ -54,7 +62,9 @@ Look for these files in the workspace:
 | `Alba` | `alba-integration-tests` |
 | `Aspire.*` | `aspire-apphost`, `aspire-deployment` |
 | `FirebaseAdmin` | `firebase-auth` |
-| `Microsoft.SemanticKernel*` | `semantic-kernel-agents` |
+| `Microsoft.SemanticKernel*` | `microsoft-agent-framework` |
+| `Microsoft.Agents*` | `microsoft-agent-framework` |
+| `Azure.AI.OpenAI`, `OpenAI` | `openai-compatible` |
 | `OpenTelemetry*` | `logging-observability` |
 | `NSubstitute`, `xunit`, `Shouldly` | `testing-dotnet-unit` |
 
@@ -66,7 +76,21 @@ Look for these files in the workspace:
 | `firebase`, `firebase-admin` | `firebase-auth` |
 | `@testing-library/react`, `vitest`, `jest` | `testing-frontend-unit` |
 | `react`, `vue`, `@angular/core` | `frontend` |
-| `openai` | `openai-compatible` |
+| `openai`, `@azure/openai`, `@azure/ai-inference` | `openai-compatible` |
+| `@microsoft/agent-framework`, `@microsoft/agents`, `@microsoft/agents-*` | `microsoft-agent-framework` |
+
+### Python Packages (from `pyproject.toml` / `requirements*.txt`)
+
+| Package Pattern | Detected Skills |
+|-----------------|-----------------|
+| `openai`, `azure-ai-inference`, `azure-ai-openai` | `openai-compatible` |
+| `semantic-kernel` | `microsoft-agent-framework` |
+
+### Go Modules (from `go.mod`)
+
+| Module Pattern | Detected Skills |
+|----------------|-----------------|
+| `github.com/openai/openai-go`, `github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai` | `openai-compatible` |
 
 ### Infrastructure Files
 
@@ -86,7 +110,11 @@ If package detection is inconclusive, scan source files for:
 | `using Wolverine;` | `wolverine-core` |
 | `using Orleans;` | `orleans` |
 | `using Microsoft.AspNetCore.SignalR;` | `signalr` |
+| `using Microsoft.Agents` | `microsoft-agent-framework` |
+| `using Azure.AI.OpenAI;`, `using OpenAI;` | `openai-compatible` |
 | `import { useQuery }` | `react-query` |
+| `import OpenAI from 'openai'` | `openai-compatible` |
+| `from openai import OpenAI` | `openai-compatible` |
 
 ### Step 4: Classify Operational Context
 
@@ -115,7 +143,7 @@ After skill detection, classify each project (or workspace root) into an operati
 
 ## Output Format
 
-Return a deduplicated list of skill names that exist in `.github/skills/`, followed by an optional Target Context classification:
+Return a deduplicated list of skill names that exist in installed Copilot skill paths, followed by an optional Target Context classification:
 
 ```text
 Detected Skills:
@@ -169,11 +197,14 @@ Agent: "I need to understand this codebase"
 
 After detection, verify skills exist:
 ```bash
-# List available skills
-ls .github/skills/
+# List always-loaded skills
+ls ~/.copilot/skills/
 
-# Confirm detected skill exists
-test -f ".github/skills/wolverine-core/SKILL.md" && echo "exists"
+# List on-demand skills
+ls ~/.copilot/skills-vault/
+
+# Confirm detected on-demand skill exists
+test -f "$HOME/.copilot/skills-vault/wolverine-core/SKILL.md" && echo "exists"
 ```
 
 ## Consumer Guardrails

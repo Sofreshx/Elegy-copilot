@@ -15,11 +15,12 @@ export interface ExecutorPolicyEvaluationResult {
 
 export interface ExecutorPolicyContext {
     allowMutatingExecutors?: boolean;
+    allowDestructiveExecutors?: boolean;
     executorPolicyEvaluator?: (input: ExecutorPolicyEvaluatorInput) => { allowed: boolean; reason?: string } | undefined;
 }
 
 const DESTRUCTIVE_ACTION_PATTERN = /(delete|remove|merge|destroy|stop)/i;
-const MUTATING_ACTION_PATTERN = /(create|write|update|start|sync|install|apply)/i;
+const MUTATING_ACTION_PATTERN = /(create|write|update|start|sync|install|apply|implement|edit|modify|patch)/i;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
@@ -66,7 +67,23 @@ export function evaluateExecutorPolicy(
         return { allowed: true, riskLevel };
     }
 
-    if (dryRun || policyContext.allowMutatingExecutors === true) {
+    if (riskLevel === 'destructive') {
+        if (dryRun || policyContext.allowDestructiveExecutors === true) {
+            return { allowed: true, riskLevel };
+        }
+
+        return {
+            allowed: false,
+            reason: `Action "${actionName}" (${riskLevel}) requires dryRun=true or context.allowDestructiveExecutors=true`,
+            riskLevel,
+        };
+    }
+
+    if (
+        dryRun
+        || policyContext.allowMutatingExecutors === true
+        || policyContext.allowDestructiveExecutors === true
+    ) {
         return { allowed: true, riskLevel };
     }
 

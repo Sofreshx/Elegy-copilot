@@ -175,6 +175,32 @@ function normalizeDeterministicStringArray(values) {
   return [...new Set(normalized)].sort(deterministicStringCompare);
 }
 
+function normalizeOrderedStringArray(values) {
+  const list = Array.isArray(values) ? values : [];
+  const normalized = [];
+  const seen = new Set();
+
+  for (const value of list) {
+    const token = normalizeString(value);
+    if (!token || seen.has(token)) continue;
+    seen.add(token);
+    normalized.push(token);
+  }
+
+  return normalized;
+}
+
+function normalizeAcceptanceCriteria(criteriaInput, criteriaTextInput) {
+  const acceptanceCriteria = normalizeOrderedStringArray(criteriaInput);
+  const acceptanceCriteriaText = normalizeString(criteriaTextInput)
+    || acceptanceCriteria.join('\n');
+
+  return {
+    acceptanceCriteria,
+    acceptanceCriteriaText,
+  };
+}
+
 function normalizeImplementedOutcomeMarkerStatus(value) {
   const normalized = normalizeString(value).toLowerCase();
   if (normalized === 'available') return 'available';
@@ -1043,6 +1069,10 @@ function createPlanningRecordOperation(state, input = {}) {
   const summary = normalizeString(request.summary || request.text);
   const normalizedState = normalizeState(request.state || request.status);
   const score = normalizeScore(request.score);
+  const { acceptanceCriteria, acceptanceCriteriaText } = normalizeAcceptanceCriteria(
+    request.acceptanceCriteria,
+    request.acceptanceCriteriaText || request.acceptanceCriteriaSummary,
+  );
 
   const ttlMs = Number.isFinite(input.idempotencyTtlMs)
     ? Number(input.idempotencyTtlMs)
@@ -1060,6 +1090,8 @@ function createPlanningRecordOperation(state, input = {}) {
       scope,
       title,
       summary,
+      acceptanceCriteria,
+      acceptanceCriteriaText,
       state: normalizedState,
       score,
     },
@@ -1075,6 +1107,8 @@ function createPlanningRecordOperation(state, input = {}) {
         repoId: scope === 'repo' ? repoId : null,
         title,
         summary,
+        ...(acceptanceCriteria.length ? { acceptanceCriteria } : {}),
+        ...(acceptanceCriteriaText ? { acceptanceCriteriaText } : {}),
         state: normalizedState,
         score,
         createdAt,
@@ -1174,7 +1208,12 @@ function searchPlanningRecordsOperation(state, input = {}) {
     scope: record.scope,
     status: record.state,
     semanticScore: semanticScoreFromRecord(record),
-    lexicalScore: lexicalScore(query, `${record.title || ''} ${record.summary || ''} ${record.recordId || ''}`),
+    lexicalScore: lexicalScore(
+      query,
+      `${record.title || ''} ${record.summary || ''} ${record.recordId || ''} ${Array.isArray(record.acceptanceCriteria)
+        ? record.acceptanceCriteria.join(' ')
+        : normalizeString(record.acceptanceCriteriaText)}`,
+    ),
     title: record.title || record.recordId,
     updatedAt: record.updatedAt,
     createdAt: record.createdAt,
@@ -1517,7 +1556,12 @@ function buildCompareCandidates(records, query) {
     scope: planState.normalizePlanningScope(record.scope) || 'global',
     status: normalizeState(record.state),
     semanticScore: semanticScoreFromRecord(record),
-    lexicalScore: lexicalScore(query, `${record.title || ''} ${record.summary || ''} ${record.recordId || ''}`),
+    lexicalScore: lexicalScore(
+      query,
+      `${record.title || ''} ${record.summary || ''} ${record.recordId || ''} ${Array.isArray(record.acceptanceCriteria)
+        ? record.acceptanceCriteria.join(' ')
+        : normalizeString(record.acceptanceCriteriaText)}`,
+    ),
     title: normalizeString(record.title || record.recordId),
     updatedAt: normalizeIso(record.updatedAt),
     createdAt: normalizeIso(record.createdAt),

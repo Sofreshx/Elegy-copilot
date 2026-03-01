@@ -4,6 +4,7 @@ import path from 'path';
 import {
 	MessagingGatewayStatusWriter,
 	MessagingGatewayStatusV1,
+	MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
 	MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
 	getDefaultMessagingGatewayStatusPath,
 	resolveMessagingGatewayStatusPath,
@@ -45,6 +46,22 @@ function makeStatus(overrides: Partial<MessagingGatewayStatusV1> = {}): Messagin
 		},
 		runtime: {
 			discord: { connected: false, ready: false },
+			discoveryTelemetry: {
+				contractVersion: MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+				sample: {
+					capacity: 12,
+					size: 0,
+					dropped: 0,
+					deterministic: true,
+				},
+				countersByReason: {
+					keyword_miss: 0,
+					ambiguity: 0,
+					stale_map: 0,
+					no_route: 0,
+				},
+				recent: [],
+			},
 		},
 		...overrides,
 	};
@@ -99,6 +116,45 @@ describe('MessagingGatewayStatusWriter', () => {
 			expect(content.runtime.discord.ready).toBe(false);
 			expect(content.runtime.sessions.activeSessionThreadCount).toBe(2);
 			expect(content.config.workspaces.activeRoot).toBe('/legacy/ws');
+			expect(content.runtime.discoveryTelemetry.contractVersion).toBe(
+				MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+			);
+			expect(content.runtime.discoveryTelemetry.countersByReason).toEqual({
+				keyword_miss: 0,
+				ambiguity: 0,
+				stale_map: 0,
+				no_route: 0,
+			});
+		});
+
+		test('constructor keeps discovery telemetry shape when provided', () => {
+			const statusPath = path.join(tmpDir, 'status-with-discovery.json');
+			const writer = new MessagingGatewayStatusWriter(
+				statusPath,
+				makeStatus({
+					runtime: {
+						discord: { connected: true, ready: true },
+						discoveryTelemetry: {
+							contractVersion: MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+							sample: { capacity: 12, size: 1, dropped: 0, deterministic: true },
+							countersByReason: {
+								keyword_miss: 1,
+								ambiguity: 0,
+								stale_map: 0,
+								no_route: 0,
+							},
+							recent: [
+								{ sequence: 1, reason: 'keyword_miss', command: '/unknown', detail: 'unknown_command' },
+							],
+						},
+					},
+				}),
+			);
+
+			writer.writeNow();
+			const content = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
+			expect(content.runtime.discoveryTelemetry.sample.size).toBe(1);
+			expect(content.runtime.discoveryTelemetry.countersByReason.keyword_miss).toBe(1);
 		});
 
 	test('writeNow() creates parent directory if needed', () => {

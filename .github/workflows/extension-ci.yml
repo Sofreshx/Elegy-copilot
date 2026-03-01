@@ -13,10 +13,15 @@ on:
       - '.cli/policy/**'
       - 'scripts/validate-policy-lockfiles.js'
       - 'scripts/validate-manifest.js'
+      - 'scripts/validate-skill-discovery-map.js'
+      - 'scripts/validate-skill-discovery-map.test.js'
+      - 'engine-assets/manifest.json'
       - 'scripts/validate-doc-graph.js'
       - 'scripts/validate-planpack.js'
       - 'scripts/validate-planpack.evidence.test.js'
       - 'scripts/validate-planpack.final-gate.test.js'
+      - 'engine-assets/skills/skill-discovery/SKILL.md'
+      - 'engine-assets/skills/stack-detector/SKILL.md'
       - 'engine-assets/copilot-instructions.md'
       - '.github/copilot-instructions.md'
       - 'copilot-ui/VALIDATION.md'
@@ -107,6 +112,7 @@ jobs:
           - evidence_id: WS6-E1
             commands: |
               node scripts/validate-doc-graph.js
+              node scripts/validate-skill-discovery-map.js
               node scripts/validate-manifest.js
           - evidence_id: WS6-E2
             commands: |

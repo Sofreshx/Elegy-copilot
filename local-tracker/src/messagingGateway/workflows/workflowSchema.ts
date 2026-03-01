@@ -1,5 +1,23 @@
 import { z } from 'zod';
 
+const WorkflowStreamingMetadataSchema = z.object({
+    mode: z.string().min(1).max(32).optional(),
+    channel: z.string().min(1).max(128).optional(),
+    eventType: z.string().min(1).max(128).optional(),
+}).optional();
+
+const WorkflowStepUiMetadataSchema = z.object({
+    label: z.string().min(1).max(128).optional(),
+    group: z.string().min(1).max(64).optional(),
+    order: z.number().int().min(0).optional(),
+    icon: z.string().min(1).max(64).optional(),
+}).optional();
+
+const WorkflowUiMetadataSchema = z.object({
+    category: z.string().min(1).max(64).optional(),
+    tags: z.array(z.string().min(1).max(64)).max(32).optional(),
+}).optional();
+
 /**
  * A single step in a workflow.
  * - id: unique step identifier
@@ -16,6 +34,8 @@ export const WorkflowStepSchema = z.object({
     condition: z.string().optional(),
     outputs: z.record(z.string(), z.unknown()).optional(),
     streaming: z.boolean().default(false),
+    streamingMetadata: WorkflowStreamingMetadataSchema,
+    ui: WorkflowStepUiMetadataSchema,
     params: z.record(z.string(), z.unknown()).optional(),
     dependsOn: z.array(z.string()).optional().default([]),
 });
@@ -36,6 +56,7 @@ export const WorkflowDefinitionSchema = z.object({
     description: z.string().max(512).optional(),
     version: z.string().regex(/^\d+\.\d+\.\d+$/).default('1.0.0'),
     schemaVersion: z.string().default('1.0'),
+    ui: WorkflowUiMetadataSchema,
     steps: z.array(WorkflowStepSchema).min(1),
 });
 

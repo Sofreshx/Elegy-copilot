@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "e2e-health-check-simple.js",
   "scripts": {
-    "test": "node test-with-ledger.js"
+    "test": "node test-with-ledger.js",
+    "validate:skill-discovery-map": "node validate-skill-discovery-map.js",
+    "generate:skill-metadata-index": "node generate-skill-metadata-index.mjs"
   },
   "keywords": [],
   "author": "",

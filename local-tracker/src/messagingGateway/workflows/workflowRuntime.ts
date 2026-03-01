@@ -6,6 +6,54 @@ import { evaluateExecutorPolicy } from './executorPolicy';
 
 export type StepExecutor = (step: WorkflowStep, context: Record<string, unknown>) => Promise<unknown>;
 
+export interface WorkflowRunStartedObserverEvent {
+    workflowId: string;
+    workflowName: string;
+    stepCount: number;
+    startedAtMs: number;
+}
+
+export interface WorkflowStepStartedObserverEvent {
+    workflowId: string;
+    stepId: string;
+    stepName: string;
+    action: string;
+}
+
+export interface WorkflowStepCompletedObserverEvent {
+    workflowId: string;
+    stepId: string;
+    status: WorkflowStepResult['status'];
+    durationMs: number;
+    error?: string;
+}
+
+export interface WorkflowRunCompletedObserverEvent {
+    workflowId: string;
+    result: WorkflowRunResult;
+}
+
+export interface WorkflowRuntimeObserver {
+    onRunStarted?: (event: WorkflowRunStartedObserverEvent) => void | Promise<void>;
+    onStepStarted?: (event: WorkflowStepStartedObserverEvent) => void | Promise<void>;
+    onStepCompleted?: (event: WorkflowStepCompletedObserverEvent) => void | Promise<void>;
+    onRunCompleted?: (event: WorkflowRunCompletedObserverEvent) => void | Promise<void>;
+}
+
+function notifyObserver<T>(callback: ((event: T) => void | Promise<void>) | undefined, event: T): void {
+    if (!callback) return;
+    try {
+        const maybePromise = callback(event);
+        if (maybePromise && typeof (maybePromise as Promise<void>).catch === 'function') {
+            void (maybePromise as Promise<void>).catch(() => {
+                // Best-effort observer callback: errors must not affect workflow execution.
+            });
+        }
+    } catch {
+        // Best-effort observer callback: errors must not affect workflow execution.
+    }
+}
+
 /**
  * Topological sort of workflow steps.
  * Throws if a cycle is detected or if a dependsOn references a non-existent step.
@@ -73,6 +121,7 @@ export async function executeWorkflow(
     definition: WorkflowDefinition,
     executor: StepExecutor,
     context: Record<string, unknown> = {},
+    observer?: WorkflowRuntimeObserver,
 ): Promise<WorkflowRunResult> {
     const tracer = getWorkflowTracer();
     const rootSpan = tracer.startSpan(`workflow.${definition.id}`, {
@@ -81,36 +130,72 @@ export async function executeWorkflow(
         'workflow.stepCount': definition.steps.length,
     });
 
+    const startedAtMs = Date.now();
+    notifyObserver(observer?.onRunStarted, {
+        workflowId: definition.id,
+        workflowName: definition.name,
+        stepCount: definition.steps.length,
+        startedAtMs,
+    });
+
     const layers = topologicalSort(definition.steps);
     const results: WorkflowStepResult[] = [];
     const failedSteps = new Set<string>();
     const outputStore = new StepOutputStore();
-    const startedAtMs = Date.now();
 
     for (const layer of layers) {
         const layerResults = await Promise.all(
             layer.map(async (step): Promise<WorkflowStepResult> => {
+                notifyObserver(observer?.onStepStarted, {
+                    workflowId: definition.id,
+                    stepId: step.id,
+                    stepName: step.name,
+                    action: step.action,
+                });
+
                 // Skip if any dependency failed
                 const hasFailed = step.dependsOn.some(dep => failedSteps.has(dep));
                 if (hasFailed) {
                     failedSteps.add(step.id);
-                    return { stepId: step.id, status: 'skipped', durationMs: 0 };
+                    const skippedResult: WorkflowStepResult = { stepId: step.id, status: 'skipped', durationMs: 0 };
+                    notifyObserver(observer?.onStepCompleted, {
+                        workflowId: definition.id,
+                        stepId: step.id,
+                        status: skippedResult.status,
+                        durationMs: skippedResult.durationMs,
+                    });
+                    return skippedResult;
                 }
 
                 if (step.condition !== undefined) {
                     try {
                         const shouldExecute = evaluateStepCondition(step.condition, outputStore);
                         if (!shouldExecute) {
-                            return { stepId: step.id, status: 'skipped', durationMs: 0 };
+                            const skippedResult: WorkflowStepResult = { stepId: step.id, status: 'skipped', durationMs: 0 };
+                            notifyObserver(observer?.onStepCompleted, {
+                                workflowId: definition.id,
+                                stepId: step.id,
+                                status: skippedResult.status,
+                                durationMs: skippedResult.durationMs,
+                            });
+                            return skippedResult;
                         }
                     } catch (err) {
                         failedSteps.add(step.id);
-                        return {
+                        const failedResult: WorkflowStepResult = {
                             stepId: step.id,
                             status: 'failed',
                             durationMs: 0,
                             error: err instanceof Error ? err.message : String(err),
                         };
+                        notifyObserver(observer?.onStepCompleted, {
+                            workflowId: definition.id,
+                            stepId: step.id,
+                            status: failedResult.status,
+                            durationMs: failedResult.durationMs,
+                            error: failedResult.error,
+                        });
+                        return failedResult;
                     }
                 }
 
@@ -131,34 +216,57 @@ export async function executeWorkflow(
                         const reason = policyResult.reason ?? `Executor policy blocked action "${resolvedStep.action}"`;
                         stepSpan.setStatus('error', reason);
                         stepSpan.end();
-                        return {
+                        const failedResult: WorkflowStepResult = {
                             stepId: step.id,
                             status: 'failed',
                             durationMs: 0,
                             error: reason,
                         };
+                        notifyObserver(observer?.onStepCompleted, {
+                            workflowId: definition.id,
+                            stepId: step.id,
+                            status: failedResult.status,
+                            durationMs: failedResult.durationMs,
+                            error: failedResult.error,
+                        });
+                        return failedResult;
                     }
 
                     const output = await executor(resolvedStep, context);
                     outputStore.setStepOutput(step.id, output);
                     stepSpan.setStatus('ok');
                     stepSpan.end();
-                    return {
+                    const successResult: WorkflowStepResult = {
                         stepId: step.id,
                         status: 'success',
                         durationMs: Date.now() - stepStart,
                         output,
                     };
+                    notifyObserver(observer?.onStepCompleted, {
+                        workflowId: definition.id,
+                        stepId: step.id,
+                        status: successResult.status,
+                        durationMs: successResult.durationMs,
+                    });
+                    return successResult;
                 } catch (err) {
                     failedSteps.add(step.id);
                     stepSpan.setStatus('error', err instanceof Error ? err.message : String(err));
                     stepSpan.end();
-                    return {
+                    const failedResult: WorkflowStepResult = {
                         stepId: step.id,
                         status: 'failed',
                         durationMs: Date.now() - stepStart,
                         error: err instanceof Error ? err.message : String(err),
                     };
+                    notifyObserver(observer?.onStepCompleted, {
+                        workflowId: definition.id,
+                        stepId: step.id,
+                        status: failedResult.status,
+                        durationMs: failedResult.durationMs,
+                        error: failedResult.error,
+                    });
+                    return failedResult;
                 }
             }),
         );
@@ -172,11 +280,18 @@ export async function executeWorkflow(
     rootSpan.setStatus(status === 'completed' ? 'ok' : 'error');
     rootSpan.end();
 
-    return {
+    const runResult: WorkflowRunResult = {
         workflowId: definition.id,
         status,
         startedAtMs,
         completedAtMs: Date.now(),
         steps: results,
     };
+
+    notifyObserver(observer?.onRunCompleted, {
+        workflowId: definition.id,
+        result: runResult,
+    });
+
+    return runResult;
 }

@@ -11,7 +11,12 @@ import {
 	resolveSandboxLifecycleConfig,
 } from './config';
 import { AuditLogger } from './auditLogger';
-import { CommandRouter, WU002_POLICY_CONTRACT } from './commandRouter';
+import {
+	CommandRouter,
+	COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY,
+	COMMAND_ROUTER_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+	WU002_POLICY_CONTRACT,
+} from './commandRouter';
 import { DiscordPlatform } from './discordPlatform';
 import { TelegramPlatform } from './telegramPlatform';
 import type { BridgeClient } from './bridgeClient';
@@ -50,6 +55,16 @@ import {
 	LifecyclePayloadValidationError,
 	type OpenTerminalPayload,
 } from './lifecycleOpenTerminal';
+import { createDefaultRegistry } from './workflows/executors';
+import { WorkflowDiscovery } from './workflows/workflowDiscovery';
+import { WorkflowHistory } from './workflows/workflowHistory';
+import { executeWorkflow } from './workflows/workflowRuntime';
+import {
+	getDefaultWorkflowDefinitionsDir,
+	WorkflowStore,
+} from './workflows/workflowStore';
+import { WorkflowHttpError } from './workflows/workflowHttpRoutes';
+import { createWorkflowStreamingModule } from './workflows/workflowStreaming';
 
 function isLoopbackAddress(address: string | undefined): boolean {
 	if (!address) return false;
@@ -333,6 +348,11 @@ async function main() {
 		activeWorkspaceRoot,
 		allowedWorkspaceRootsCount: loaded.config.workspaces.allowedRoots.length,
 		allowlistedDiscordUsersCount: discordConfig?.allowlistedUserIds.length ?? 0,
+		discoveryTelemetry: {
+			contractVersion: COMMAND_ROUTER_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+			sampleCapacity: COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY,
+			sampled: true,
+		},
 		discordGuildId: discordConfig?.guildId,
 		discordChannelId: discordConfig?.channelId,
 		discordPermissionsChannelId: discordConfig?.permissionsChannelId,
@@ -432,6 +452,22 @@ async function main() {
 					connected: false,
 					ready: false,
 				},
+				discoveryTelemetry: {
+					contractVersion: COMMAND_ROUTER_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+					sample: {
+						capacity: COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY,
+						size: 0,
+						dropped: 0,
+						deterministic: true,
+					},
+					countersByReason: {
+						keyword_miss: 0,
+						ambiguity: 0,
+						stale_map: 0,
+						no_route: 0,
+					},
+					recent: [],
+				},
 				telegram: telegramConfig
 					? {
 						connected: false,
@@ -448,11 +484,21 @@ async function main() {
 
 	let acpConnected = false;
 	let gatewayHttpServer: GatewayHttpServer | undefined;
+	let router: CommandRouter | undefined;
 	function refreshDynamicStatusFields(status: MessagingGatewayStatusV1): void {
 		status.config.workspaces.activeRoot = activeWorkspaceRoot;
 		if (status.runtime.sessions) {
 			status.runtime.sessions.activeSessionThreadCount = sessionThreads.getActiveSessionThreadCount();
 		}
+
+		const discoverySummary = router?.getDiscoveryTelemetrySummary();
+		if (discoverySummary) {
+			status.runtime.discoveryTelemetry.contractVersion = discoverySummary.contractVersion;
+			status.runtime.discoveryTelemetry.sample = { ...discoverySummary.sample };
+			status.runtime.discoveryTelemetry.countersByReason = { ...discoverySummary.countersByReason };
+			status.runtime.discoveryTelemetry.recent = discoverySummary.recent.map((sample) => ({ ...sample }));
+		}
+
 		if (mode === 'connected') {
 			if (!status.runtime.acp) status.runtime.acp = { connected: false };
 			status.runtime.acp.connected = acpConnected;
@@ -588,6 +634,12 @@ async function main() {
 				});
 			}
 			: undefined,
+	});
+	const workflowStreaming = createWorkflowStreamingModule();
+	const workflowDiscovery = new WorkflowDiscovery();
+	const workflowStore = new WorkflowStore();
+	const workflowHistory = new WorkflowHistory({
+		historyDir: path.join(path.dirname(getDefaultWorkflowDefinitionsDir()), 'history'),
 	});
 
 	gatewayHttpServer = new GatewayHttpServer({
@@ -788,6 +840,65 @@ async function main() {
 				},
 			}
 			: undefined,
+		workflowStreaming: {
+			subscribe: workflowStreaming.subscribe,
+			unsubscribe: workflowStreaming.unsubscribe,
+			getBacklogSnapshot: workflowStreaming.getBacklogSnapshot,
+		},
+		workflowApi: {
+			listTemplateDefinitions: () => workflowDiscovery.listAll(),
+			getTemplateDefinition: (id) => workflowDiscovery.get(id),
+			listPersistedDefinitions: () => workflowStore.list(),
+			getPersistedDefinition: (id) => workflowStore.load(id),
+			createPersistedDefinition: (payload) => workflowStore.save(payload),
+			updatePersistedDefinition: (_id, payload) => workflowStore.save(payload),
+			deletePersistedDefinition: (id) => {
+				if (!workflowStore.load(id)) {
+					return false;
+				}
+				workflowStore.delete(id);
+				return true;
+			},
+			runPersistedDefinition: async (definition) => {
+				if (!extensionClient || extensionClient.getStatus() !== 'connected') {
+					throw new WorkflowHttpError(
+						503,
+						'Workflow runtime unavailable: no extension client connected',
+						'workflow_runtime_unavailable',
+					);
+				}
+
+				const runContext = workflowStreaming.createRunContext(definition);
+				const runId = runContext.runId;
+				const observer = runContext.observer;
+
+				const registry = createDefaultRegistry(extensionClient);
+				let result;
+				try {
+					result = await executeWorkflow(definition, registry.toStepExecutor(), {}, observer);
+				} catch (error) {
+					if (runId) {
+						workflowStreaming.publishRunFailure({
+							runId,
+							workflowId: definition.id,
+							error,
+						});
+					}
+					throw error;
+				}
+
+				try {
+					workflowHistory.append(result);
+				} catch {
+					// Best-effort history write.
+				}
+
+				return {
+					result,
+					...(runId ? { runId } : {}),
+				};
+			},
+		},
 	});
 
 	await gatewayHttpServer.start();
@@ -813,7 +924,7 @@ async function main() {
 		]),
 	);
 
-	const router = new CommandRouter({
+	router = new CommandRouter({
 		policy: {
 			allowlistedUserIds: combinedAllowlistedUserIds,
 			allowlistedUserIdsByPlatform: {
@@ -836,7 +947,11 @@ async function main() {
 		extensionClient,
 		permissionOrchestrator,
 		sandboxRegistry,
+		workflowHistory,
+		workflowStreaming,
 	});
+
+	statusWriter.update((s) => refreshDynamicStatusFields(s));
 
 	const handlePlatformCommand = async (interaction: PlatformCommandInteraction) => {
 		const baseCtx = {

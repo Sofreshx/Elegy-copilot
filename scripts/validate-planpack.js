@@ -242,6 +242,7 @@ function parseCliArgs(argv) {
 		maxFutureSkewMinutes: 5,
 		nowIso: '',
 		allowLegacyBestEffort: false,
+		acEnforcement: 'warn',
 	};
 
 	for (let index = 0; index < argv.length; index++) {
@@ -324,6 +325,22 @@ function parseCliArgs(argv) {
 			continue;
 		}
 
+		if (arg.startsWith('--ac-enforcement=')) {
+			const mode = arg.slice('--ac-enforcement='.length).trim().toLowerCase();
+			if (mode === 'warn' || mode === 'fail') {
+				options.acEnforcement = mode;
+			}
+			continue;
+		}
+		if (arg === '--ac-enforcement' && index + 1 < argv.length) {
+			const mode = String(argv[index + 1] || '').trim().toLowerCase();
+			if (mode === 'warn' || mode === 'fail') {
+				options.acEnforcement = mode;
+			}
+			index++;
+			continue;
+		}
+
 		if (arg.startsWith('--')) {
 			continue;
 		}
@@ -334,6 +351,87 @@ function parseCliArgs(argv) {
 	}
 
 	return options;
+}
+
+const AC_VAGUE_TOKEN_RE = /\b(quality|good|proper|appropriate|adequate|robust|clean|nice|better|improved|sufficient)\b/i;
+
+function parseAcceptanceCriteriaQuality(lines, wuSubs) {
+	const wuSpecRe = /^###\s+(WU-\d{3})\s+—\s+/;
+	const h4Re = /^####\s+(.+)/;
+	const bulletRe = /^\s*[-*]\s+(.+)$/;
+
+	const acceptanceCriteria = new Map();
+	let currentWU = null;
+	let currentSubsection = '';
+
+	for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+		const line = lines[lineIndex];
+
+		const wuMatch = line.match(wuSpecRe);
+		if (wuMatch) {
+			currentWU = wuMatch[1];
+			currentSubsection = '';
+			if (!acceptanceCriteria.has(currentWU)) {
+				acceptanceCriteria.set(currentWU, []);
+			}
+			continue;
+		}
+
+		if (/^##\s+/.test(line) || (/^###\s+/.test(line) && !wuSpecRe.test(line))) {
+			currentWU = null;
+			currentSubsection = '';
+			continue;
+		}
+
+		if (!currentWU) {
+			continue;
+		}
+
+		const h4Match = line.match(h4Re);
+		if (h4Match) {
+			currentSubsection = h4Match[1].trim();
+			continue;
+		}
+
+		if (currentSubsection !== 'Acceptance Criteria') {
+			continue;
+		}
+
+		const bulletMatch = line.match(bulletRe);
+		if (!bulletMatch) {
+			continue;
+		}
+
+		const criteria = bulletMatch[1].trim();
+		if (!criteria) {
+			continue;
+		}
+
+		acceptanceCriteria.get(currentWU).push({
+			lineNumber: lineIndex + 1,
+			text: criteria,
+		});
+	}
+
+	const qualityDiagnostics = [];
+	for (const wuId of wuSubs.keys()) {
+		const entries = acceptanceCriteria.get(wuId) || [];
+		if (entries.length < 2) {
+			qualityDiagnostics.push(
+				`${wuId} Acceptance Criteria must include at least 2 bullet items (found ${entries.length})`
+			);
+		}
+
+		for (const entry of entries) {
+			if (AC_VAGUE_TOKEN_RE.test(entry.text)) {
+				qualityDiagnostics.push(
+					`${wuId} Acceptance Criteria line ${entry.lineNumber} is vague: "${entry.text}"`
+				);
+			}
+		}
+	}
+
+	return qualityDiagnostics;
 }
 
 function normalizeComparable(value) {
@@ -610,6 +708,7 @@ if (!Number.isFinite(planPackVersion) || planPackVersion !== 1) {
 
 const lines = body.split(/\r?\n/);
 const errors = [];
+const warnings = [];
 
 // --- 1. Required H2 headings ---
 const requiredH2 = [
@@ -692,6 +791,20 @@ for (const [wuId, subs] of wuSubs) {
 	for (const req of requiredWuSubs) {
 		if (!subs.has(req)) {
 			errors.push(`${wuId} missing required subsection: #### ${req}`);
+		}
+	}
+}
+
+// --- 4b. Acceptance Criteria quality enforcement ---
+const acQualityDiagnostics = parseAcceptanceCriteriaQuality(lines, wuSubs);
+if (acQualityDiagnostics.length > 0) {
+	if (cliOptions.acEnforcement === 'fail') {
+		for (const diagnostic of acQualityDiagnostics) {
+			errors.push(`AC quality failed: ${diagnostic}`);
+		}
+	} else {
+		for (const diagnostic of acQualityDiagnostics) {
+			warnings.push(`AC quality warning: ${diagnostic}`);
 		}
 	}
 }
@@ -884,6 +997,10 @@ for (const wuId of graphWUs) {
 if (errors.length > 0) {
 	console.error(`planpack invalid:\n${errors.map(e => '  ' + e).join('\n')}`);
 	process.exit(1);
+}
+
+if (warnings.length > 0) {
+	console.error(`planpack warning:\n${warnings.map(w => '  ' + w).join('\n')}`);
 }
 
 console.log(`planpack ok (${specWUs.length} work units)`);

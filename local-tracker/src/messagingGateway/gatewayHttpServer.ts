@@ -5,6 +5,15 @@ import {
     isLifecyclePayloadValidationError,
     validateOpenTerminalPayload,
 } from './lifecycleOpenTerminal';
+import {
+    handleWorkflowHttpRoute,
+    type WorkflowHttpApiHandlers,
+} from './workflows/workflowHttpRoutes';
+import type {
+    WorkflowBacklogSnapshot,
+    WorkflowStreamEvent,
+    WorkflowStreamListener,
+} from './workflows/workflowStreaming';
 
 export type LifecycleAction = 'create' | 'start' | 'stop' | 'open-terminal' | 'pr-open' | 'finish';
 
@@ -47,6 +56,12 @@ export interface TelegramWebhookOptions {
     dedupeTtlMs?: number;
 }
 
+export interface WorkflowStreamingSseOptions {
+    subscribe: (listener: WorkflowStreamListener) => void;
+    unsubscribe: (listener: WorkflowStreamListener) => void;
+    getBacklogSnapshot: (runId: string) => WorkflowBacklogSnapshot;
+}
+
 function normalizeLifecycleCompatibilityToken(value: unknown): string {
     if (Array.isArray(value)) {
         return normalizeLifecycleCompatibilityToken(value.length > 0 ? value[0] : '');
@@ -80,6 +95,10 @@ export interface GatewayHttpServerOptions {
     getPolicyGateStatus?: () => PolicyGateStatus;
     /** Optional Telegram webhook endpoint (`POST /api/telegram/webhook`) configuration. */
     telegramWebhook?: TelegramWebhookOptions;
+    /** Optional workflow streaming endpoint wiring (`GET /api/workflows/events?runId=<id>`). */
+    workflowStreaming?: WorkflowStreamingSseOptions;
+    /** Optional workflow CRUD + run endpoint wiring (`/api/workflows/*`). */
+    workflowApi?: WorkflowHttpApiHandlers;
 }
 
 export class GatewayHttpServer {
@@ -95,10 +114,14 @@ export class GatewayHttpServer {
     private readonly handleLifecycleAction: ((action: LifecycleAction, payload: unknown, req: http.IncomingMessage) => Promise<unknown>) | undefined;
     private readonly getPolicyGateStatus: (() => PolicyGateStatus) | undefined;
     private readonly telegramWebhook: TelegramWebhookOptions | undefined;
+    private readonly workflowStreaming: WorkflowStreamingSseOptions | undefined;
+    private readonly workflowApi: WorkflowHttpApiHandlers | undefined;
     private readonly telegramSeenUpdateIds = new Map<number, number>();
 
     // SSE connections
     private readonly sseClients = new Set<http.ServerResponse>();
+    private readonly workflowSseClientsByRunId = new Map<string, Set<http.ServerResponse>>();
+    private readonly workflowSseListenerByRunId = new Map<string, WorkflowStreamListener>();
     private heartbeatTimer: NodeJS.Timeout | null = null;
 
     constructor(options: GatewayHttpServerOptions) {
@@ -116,6 +139,8 @@ export class GatewayHttpServer {
         this.handleLifecycleAction = options.handleLifecycleAction;
         this.getPolicyGateStatus = options.getPolicyGateStatus;
         this.telegramWebhook = options.telegramWebhook;
+        this.workflowStreaming = options.workflowStreaming;
+        this.workflowApi = options.workflowApi;
 
         if (this.telegramWebhook) {
             if (typeof this.telegramWebhook.secretToken !== 'string' || this.telegramWebhook.secretToken.trim().length === 0) {
@@ -146,6 +171,20 @@ export class GatewayHttpServer {
             try { client.end(); } catch { /* ignore */ }
         }
         this.sseClients.clear();
+
+        for (const [, runClients] of this.workflowSseClientsByRunId.entries()) {
+            for (const client of runClients) {
+                try { client.end(); } catch { /* ignore */ }
+            }
+        }
+        this.workflowSseClientsByRunId.clear();
+
+        if (this.workflowStreaming) {
+            for (const listener of this.workflowSseListenerByRunId.values()) {
+                this.workflowStreaming.unsubscribe(listener);
+            }
+        }
+        this.workflowSseListenerByRunId.clear();
 
         return new Promise((resolve) => {
             if (!this.server) { resolve(); return; }
@@ -180,10 +219,19 @@ export class GatewayHttpServer {
     }
 
     private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-        const url = req.url ?? '';
+        const rawUrl = req.url ?? '';
         const method = req.method ?? 'GET';
+        let parsedUrl: URL;
+        try {
+            parsedUrl = new URL(rawUrl, 'http://127.0.0.1');
+        } catch {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid request URL' }));
+            return;
+        }
+        const pathname = parsedUrl.pathname;
 
-        if (method === 'POST' && url === '/api/telegram/webhook') {
+        if (method === 'POST' && pathname === '/api/telegram/webhook') {
             if (!this.telegramWebhook) {
                 res.writeHead(404, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Telegram webhook not configured' }));
@@ -200,7 +248,7 @@ export class GatewayHttpServer {
             return;
         }
 
-        if (method === 'GET' && url === '/api/status') {
+        if (method === 'GET' && pathname === '/api/status') {
             this.handleStatus(res);
             return;
         }
@@ -221,20 +269,24 @@ export class GatewayHttpServer {
         }
 
         // Route
-        if (method === 'GET' && url === '/api/events') {
+        if (method === 'GET' && pathname === '/api/events') {
             this.handleSSE(req, res);
-        } else if (method === 'GET' && url === '/api/sessions/live') {
+        } else if (method === 'GET' && pathname === '/api/workflows/events') {
+            this.handleWorkflowEventsSSE(req, res, parsedUrl.searchParams.get('runId'));
+        } else if (pathname.startsWith('/api/workflows/')) {
+            void this.handleWorkflowApiRequest(method, pathname, req, res);
+        } else if (method === 'GET' && pathname === '/api/sessions/live') {
             void this.handleGetSessions(res);
-        } else if (method === 'GET' && url === '/api/permissions/pending') {
+        } else if (method === 'GET' && pathname === '/api/permissions/pending') {
             this.handleGetPendingPermissions(res);
-        } else if (method === 'POST' && url.match(/^\/api\/permissions\/[^/]+\/approve$/)) {
-            const callbackId = url.split('/')[3];
+        } else if (method === 'POST' && pathname.match(/^\/api\/permissions\/[^/]+\/approve$/)) {
+            const callbackId = pathname.split('/')[3];
             void this.handlePermissionAction(callbackId, true, req, res);
-        } else if (method === 'POST' && url.match(/^\/api\/permissions\/[^/]+\/deny$/)) {
-            const callbackId = url.split('/')[3];
+        } else if (method === 'POST' && pathname.match(/^\/api\/permissions\/[^/]+\/deny$/)) {
+            const callbackId = pathname.split('/')[3];
             void this.handlePermissionAction(callbackId, false, req, res);
-        } else if (method === 'POST' && url.match(/^\/api\/lifecycle\/[^/]+$/)) {
-            const rawAction = decodeURIComponent(url.split('/')[3] ?? '');
+        } else if (method === 'POST' && pathname.match(/^\/api\/lifecycle\/[^/]+$/)) {
+            const rawAction = decodeURIComponent(pathname.split('/')[3] ?? '');
             const action = this.parseLifecycleAction(rawAction);
             if (!action) {
                 res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -246,6 +298,29 @@ export class GatewayHttpServer {
             res.writeHead(404, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Not found' }));
         }
+    }
+
+    private async handleWorkflowApiRequest(
+        method: string,
+        pathname: string,
+        req: http.IncomingMessage,
+        res: http.ServerResponse,
+    ): Promise<void> {
+        const handled = await handleWorkflowHttpRoute({
+            method,
+            pathname,
+            req,
+            res,
+            handlers: this.workflowApi,
+            readJsonBody: (request, maxBytes) => this.readJsonBody(request, maxBytes),
+        });
+
+        if (handled) {
+            return;
+        }
+
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not found' }));
     }
 
     private handleStatus(res: http.ServerResponse): void {
@@ -364,19 +439,115 @@ export class GatewayHttpServer {
         return null;
     }
 
-    private handleSSE(req: http.IncomingMessage, res: http.ServerResponse): void {
+    private writeSseHeaders(res: http.ServerResponse): void {
         res.writeHead(200, {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
             'Connection': 'keep-alive',
             'X-Accel-Buffering': 'no',
         });
-        res.write('event: connected\ndata: {}\n\n');
+    }
+
+    private sendSseEvent(res: http.ServerResponse, eventName: string, payload: unknown): void {
+        res.write(`event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`);
+    }
+
+    private isValidRunId(runId: string): boolean {
+        return /^[a-zA-Z0-9_-]{1,128}$/.test(runId);
+    }
+
+    private handleSSE(req: http.IncomingMessage, res: http.ServerResponse): void {
+        this.writeSseHeaders(res);
+        this.sendSseEvent(res, 'connected', {});
         this.sseClients.add(res);
 
         req.on('close', () => {
             this.sseClients.delete(res);
         });
+    }
+
+    private handleWorkflowEventsSSE(req: http.IncomingMessage, res: http.ServerResponse, rawRunId: string | null): void {
+        if (!this.workflowStreaming) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Not found' }));
+            return;
+        }
+
+        const runId = (rawRunId ?? '').trim();
+        if (!this.isValidRunId(runId)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing or invalid runId' }));
+            return;
+        }
+
+        let clientsForRun = this.workflowSseClientsByRunId.get(runId);
+        if (!clientsForRun) {
+            clientsForRun = new Set<http.ServerResponse>();
+            this.workflowSseClientsByRunId.set(runId, clientsForRun);
+        }
+
+        if (clientsForRun.size >= 10) {
+            res.writeHead(429, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Too many workflow stream clients for runId' }));
+            return;
+        }
+
+        this.writeSseHeaders(res);
+        this.sendSseEvent(res, 'connected', { runId });
+
+        const backlog = this.workflowStreaming.getBacklogSnapshot(runId);
+        if (backlog.droppedCount > 0) {
+            this.sendSseEvent(res, 'reconnect-hint', { runId, droppedCount: backlog.droppedCount });
+        }
+        for (const event of backlog.events) {
+            this.sendSseEvent(res, 'workflow', event);
+        }
+
+        if (!this.workflowSseListenerByRunId.has(runId)) {
+            const listener: WorkflowStreamListener = (event: WorkflowStreamEvent) => {
+                if (event.runId !== runId) return;
+
+                const activeClients = this.workflowSseClientsByRunId.get(runId);
+                if (!activeClients || activeClients.size === 0) return;
+
+                for (const client of activeClients) {
+                    try {
+                        this.sendSseEvent(client, 'workflow', event);
+                    } catch {
+                        // Ignore dead sockets. Close handlers remove them from maps.
+                    }
+                }
+            };
+
+            this.workflowSseListenerByRunId.set(runId, listener);
+            this.workflowStreaming.subscribe(listener);
+        }
+
+        clientsForRun.add(res);
+
+        req.on('close', () => {
+            this.removeWorkflowSseClient(runId, res);
+        });
+    }
+
+    private removeWorkflowSseClient(runId: string, client: http.ServerResponse): void {
+        const clientsForRun = this.workflowSseClientsByRunId.get(runId);
+        if (!clientsForRun) return;
+
+        clientsForRun.delete(client);
+        if (clientsForRun.size > 0) {
+            return;
+        }
+
+        this.workflowSseClientsByRunId.delete(runId);
+
+        const listener = this.workflowSseListenerByRunId.get(runId);
+        if (!listener || !this.workflowStreaming) {
+            return;
+        }
+
+        this.workflowSseListenerByRunId.delete(runId);
+        this.workflowStreaming.unsubscribe(listener);
     }
 
     private async handleGetSessions(res: http.ServerResponse): Promise<void> {
@@ -628,6 +799,11 @@ export class GatewayHttpServer {
             const heartbeat = `:heartbeat ${new Date().toISOString()}\n\n`;
             for (const client of this.sseClients) {
                 try { client.write(heartbeat); } catch { /* ignore */ }
+            }
+            for (const runClients of this.workflowSseClientsByRunId.values()) {
+                for (const client of runClients) {
+                    try { client.write(heartbeat); } catch { /* ignore */ }
+                }
             }
         }, 15_000);
     }

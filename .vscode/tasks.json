@@ -44,6 +44,15 @@
 			"group": "test"
 		},
 		{
+			"label": "validate: skill discovery map",
+			"type": "shell",
+			"command": "node",
+			"args": ["scripts/validate-skill-discovery-map.js"],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
 			"label": "validate: plan pack",
 			"type": "shell",
 			"command": "node",
@@ -121,6 +130,15 @@
 			"group": "test"
 		},
 		{
+			"label": "test: sdk smoke e2e",
+			"type": "shell",
+			"command": "node",
+			"args": ["copilot-ui/tests/e2e/sdk-smoke.test.js"],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
 			"label": "validate: pointer manifest",
 			"type": "shell",
 			"command": "node",
@@ -130,14 +148,23 @@
 			"group": "test"
 		},
 		{
+			"label": "validate: vue-free guard",
+			"type": "shell",
+			"command": "node",
+			"args": ["scripts/vue-free-guard.js"],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
 			"label": "test: all",
-			"dependsOn": ["test: scripts", "test: copilot-ui", "test: local-tracker", "test: RannIA"],
+			"dependsOn": ["test: scripts", "validate: skill discovery map", "validate: vue-free guard", "test: copilot-ui", "test: local-tracker", "test: RannIA"],
 			"problemMatcher": [],
 			"group": "test"
 		},
 		{
 			"label": "test: all (force)",
-			"dependsOn": ["test: scripts (force)", "test: copilot-ui (force)", "test: local-tracker (force)", "test: RannIA (force)"],
+			"dependsOn": ["test: scripts (force)", "validate: skill discovery map", "validate: vue-free guard", "test: copilot-ui (force)", "test: local-tracker (force)", "test: RannIA (force)"],
 			"problemMatcher": [],
 			"group": "test"
 		}

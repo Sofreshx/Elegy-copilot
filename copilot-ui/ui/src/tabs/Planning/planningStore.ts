@@ -1,18 +1,25 @@
 import {
   comparePlanningRecords,
   createPlanningRecord,
+  deletePlanningResearchNote,
+  getPlanningDiagrams,
+  getPlanningResearchNotes,
   getPlanningRecords,
   getPolicyPreflight,
   mergePlanningRecords,
+  type PlanningResearchNoteInput,
   preparePlanningMergeIntent,
+  savePlanningResearchNote,
   searchPlanningRecords,
 } from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type {
+  PlanningDiagram,
   PlanningCompareReceipt,
   PlanningCompareResponse,
   PlanningMergeIntentToken,
   PlanningRecordItem,
+  PlanningResearchNote,
   PlanningSearchResultItem,
   PolicyPreflightResponse,
 } from '../../lib/types';
@@ -61,6 +68,15 @@ export interface PlanningState {
   createState: string;
   createTitle: string;
   createSummary: string;
+  createAcceptanceCriteria: string;
+  selectedRecordId: string;
+  researchNotes: PlanningResearchNote[];
+  diagrams: PlanningDiagram[];
+  selectedDiagramId: string;
+  artifactsLoading: boolean;
+  artifactsSaving: boolean;
+  artifactsDeleting: boolean;
+  artifactsError: string | null;
   compareResponse: PlanningCompareResponse | null;
   gateState: string;
   gateReason: string;
@@ -98,6 +114,15 @@ const INITIAL_STATE: PlanningState = {
   createState: 'thought',
   createTitle: '',
   createSummary: '',
+  createAcceptanceCriteria: '',
+  selectedRecordId: '',
+  researchNotes: [],
+  diagrams: [],
+  selectedDiagramId: '',
+  artifactsLoading: false,
+  artifactsSaving: false,
+  artifactsDeleting: false,
+  artifactsError: null,
   compareResponse: null,
   gateState: PLANNING_GATE_INSUFFICIENT_DATA,
   gateReason: 'Run compare to evaluate merge gate state.',
@@ -308,6 +333,13 @@ function selectedScopes(state: PlanningState): string[] {
   return scopes;
 }
 
+function normalizeAcceptanceCriteriaInput(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 function readCompareReceipt(compareResponse: PlanningCompareResponse | null): PlanningCompareReceipt | null {
   if (!compareResponse || !compareResponse.compareReceipt) {
     return null;
@@ -337,6 +369,8 @@ function createPlanningStore() {
   let searchRequestVersion = 0;
   let compareRequestVersion = 0;
   let preflightRequestVersion = 0;
+  let artifactsRequestVersion = 0;
+  let artifactsMutationVersion = 0;
 
   function setStatus(statusMessage: string): void {
     store.setState((state) => ({
@@ -422,20 +456,42 @@ function createPlanningStore() {
         scopes: selectedScopes(stateSnapshot),
       });
 
+      let nextSelectedRecordId = '';
+
       store.setState((state) => {
         if (nextVersion !== recordsRequestVersion) {
           return state;
         }
 
+        const hasSelectedRecord =
+          state.selectedRecordId.trim().length > 0
+          && response.records.some((record) => record.recordId === state.selectedRecordId);
+
+        nextSelectedRecordId = hasSelectedRecord
+          ? state.selectedRecordId
+          : (response.records[0]?.recordId ?? '');
+
         return {
           ...state,
           records: response.records,
           deniedScopes: response.deniedScopes,
+          selectedRecordId: nextSelectedRecordId,
           listing: false,
           error: null,
           statusMessage: 'Planning records loaded.',
         };
       });
+
+      if (nextSelectedRecordId) {
+        await loadArtifacts(nextSelectedRecordId);
+      } else {
+        store.setState((state) => ({
+          ...state,
+          researchNotes: [],
+          diagrams: [],
+          selectedDiagramId: '',
+        }));
+      }
     } catch (error) {
       const message = toErrorMessage(error, 'Unable to load planning records.');
 
@@ -499,6 +555,173 @@ function createPlanningStore() {
           searching: false,
           error: message,
           statusMessage: `Planning search failed: ${message}`,
+        };
+      });
+    }
+  }
+
+  async function loadArtifacts(recordIdOverride?: string): Promise<void> {
+    const nextVersion = ++artifactsRequestVersion;
+    const snapshot = store.getState();
+    const recordId = (recordIdOverride ?? snapshot.selectedRecordId).trim();
+
+    if (!recordId) {
+      store.setState((state) => ({
+        ...state,
+        researchNotes: [],
+        diagrams: [],
+        selectedDiagramId: '',
+        artifactsLoading: false,
+        artifactsError: null,
+      }));
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      artifactsLoading: true,
+      artifactsError: null,
+    }));
+
+    try {
+      const [notesResponse, diagramsResponse] = await Promise.all([
+        getPlanningResearchNotes(recordId),
+        getPlanningDiagrams(recordId),
+      ]);
+
+      store.setState((state) => {
+        if (nextVersion !== artifactsRequestVersion) {
+          return state;
+        }
+
+        const hasSelectedDiagram =
+          state.selectedDiagramId.trim().length > 0
+          && diagramsResponse.diagrams.some((diagram) => diagram.id === state.selectedDiagramId);
+
+        return {
+          ...state,
+          selectedRecordId: recordId,
+          researchNotes: notesResponse.researchNotes,
+          diagrams: diagramsResponse.diagrams,
+          selectedDiagramId: hasSelectedDiagram
+            ? state.selectedDiagramId
+            : (diagramsResponse.diagrams[0]?.id ?? ''),
+          artifactsLoading: false,
+          artifactsError: null,
+        };
+      });
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to load planning artifacts.');
+
+      store.setState((state) => {
+        if (nextVersion !== artifactsRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          artifactsLoading: false,
+          artifactsError: message,
+        };
+      });
+    }
+  }
+
+  async function saveResearchNote(note: PlanningResearchNoteInput): Promise<void> {
+    const snapshot = store.getState();
+    const recordId = snapshot.selectedRecordId.trim();
+    if (!recordId) {
+      setStatus('Select a planning record before saving research notes.');
+      return;
+    }
+
+    const nextVersion = ++artifactsMutationVersion;
+
+    store.setState((state) => ({
+      ...state,
+      artifactsSaving: true,
+      artifactsError: null,
+    }));
+
+    try {
+      await savePlanningResearchNote(recordId, note);
+      await loadArtifacts(recordId);
+
+      store.setState((state) => {
+        if (nextVersion !== artifactsMutationVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          artifactsSaving: false,
+          artifactsError: null,
+          statusMessage: 'Research note saved.',
+        };
+      });
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to save research note.');
+
+      store.setState((state) => {
+        if (nextVersion !== artifactsMutationVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          artifactsSaving: false,
+          artifactsError: message,
+          statusMessage: `Research note save failed: ${message}`,
+        };
+      });
+    }
+  }
+
+  async function removeResearchNote(noteId: string): Promise<void> {
+    const snapshot = store.getState();
+    const recordId = snapshot.selectedRecordId.trim();
+    const normalizedNoteId = noteId.trim();
+    if (!recordId || !normalizedNoteId) {
+      return;
+    }
+
+    const nextVersion = ++artifactsMutationVersion;
+
+    store.setState((state) => ({
+      ...state,
+      artifactsDeleting: true,
+      artifactsError: null,
+    }));
+
+    try {
+      await deletePlanningResearchNote(recordId, normalizedNoteId);
+      await loadArtifacts(recordId);
+
+      store.setState((state) => {
+        if (nextVersion !== artifactsMutationVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          artifactsDeleting: false,
+          artifactsError: null,
+          statusMessage: 'Research note deleted.',
+        };
+      });
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to delete research note.');
+
+      store.setState((state) => {
+        if (nextVersion !== artifactsMutationVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          artifactsDeleting: false,
+          artifactsError: message,
+          statusMessage: `Research note delete failed: ${message}`,
         };
       });
     }
@@ -589,6 +812,7 @@ function createPlanningStore() {
 
   async function createRecord(): Promise<void> {
     const stateSnapshot = store.getState();
+    const acceptanceCriteria = normalizeAcceptanceCriteriaInput(stateSnapshot.createAcceptanceCriteria);
 
     if (stateSnapshot.mutatingBlocked) {
       setStatus(`Create blocked: ${stateSnapshot.mutatingReason || 'policy gate active'}.`);
@@ -615,6 +839,8 @@ function createPlanningStore() {
         scope: stateSnapshot.createScope,
         title,
         summary: stateSnapshot.createSummary,
+        acceptanceCriteria: acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
+        acceptanceCriteriaText: stateSnapshot.createAcceptanceCriteria.trim() || undefined,
         state: stateSnapshot.createState,
         idempotencyKey: buildIdempotencyKey('planning-create'),
       });
@@ -624,6 +850,7 @@ function createPlanningStore() {
         creating: false,
         createTitle: '',
         createSummary: '',
+        createAcceptanceCriteria: '',
         statusMessage: 'Planning record created.',
       }));
 
@@ -890,6 +1117,39 @@ function createPlanningStore() {
     }));
   }
 
+  function setCreateAcceptanceCriteria(value: string): void {
+    store.setState((state) => ({
+      ...state,
+      createAcceptanceCriteria: value,
+    }));
+  }
+
+  function setSelectedRecordId(value: string): void {
+    const selectedRecordId = value.trim();
+
+    store.setState((state) => ({
+      ...state,
+      selectedRecordId,
+      selectedDiagramId: '',
+      researchNotes: [],
+      diagrams: [],
+      artifactsError: null,
+    }));
+
+    void loadArtifacts(selectedRecordId);
+  }
+
+  function setSelectedDiagramId(value: string): void {
+    const selectedDiagramId = value.trim();
+    store.setState((state) => {
+      const isKnownDiagram = state.diagrams.some((diagram) => diagram.id === selectedDiagramId);
+      return {
+        ...state,
+        selectedDiagramId: isKnownDiagram ? selectedDiagramId : '',
+      };
+    });
+  }
+
   function setMergeTargetId(value: string): void {
     store.setState((state) => ({
       ...state,
@@ -925,6 +1185,9 @@ function createPlanningStore() {
     refreshPolicyPreflight,
     listRecords,
     searchRecords,
+    loadArtifacts,
+    saveResearchNote,
+    removeResearchNote,
     compareRecords,
     createRecord,
     prepareMergeIntent,
@@ -938,6 +1201,9 @@ function createPlanningStore() {
     setCreateState,
     setCreateTitle,
     setCreateSummary,
+    setCreateAcceptanceCriteria,
+    setSelectedRecordId,
+    setSelectedDiagramId,
     setMergeTargetId,
     toggleConflictReviewed,
   };

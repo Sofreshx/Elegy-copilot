@@ -26,6 +26,13 @@ description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + Au
 - Assertions: **Shouldly**
 - Data generation: **AutoFixture** (use stable seeds when needed)
 
+## Related docs
+
+- Testing and E2E MOC: `docs/system/mocs/testing-and-e2e.md`
+- E2E setup guide: `docs/system/e2e-setup-guide.md`
+- Workflow planning contract: `docs/system/workflow-planning-contract.md`
+- System docs index: `docs/system/index.md`
+
 ## Steps
 1. Identify the unit boundary:
    - Pure logic (best) vs service/handler (mock external dependencies)

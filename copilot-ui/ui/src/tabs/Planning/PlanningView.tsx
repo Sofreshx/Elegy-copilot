@@ -1,11 +1,13 @@
 import { useEffect, useMemo } from 'react';
 import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
+import MermaidViewer from './MermaidViewer';
 import {
   hasReviewedAllPlanningConflicts,
   planningGateAllowsMerge,
   planningStore,
 } from './planningStore';
+import ResearchNotesPanel from './ResearchNotesPanel';
 
 function renderConflictValue(value: string | null): string {
   if (value == null || !value.trim()) {
@@ -32,6 +34,11 @@ export default function PlanningView() {
   }, [planningState.compareResponse]);
 
   const compareReceiptId = planningState.compareResponse?.compareReceipt?.receiptId || '';
+  const selectedRecord = planningState.records.find((record) => record.recordId === planningState.selectedRecordId) ?? null;
+  const selectedDiagram =
+    planningState.diagrams.find((diagram) => diagram.id === planningState.selectedDiagramId)
+    ?? planningState.diagrams[0]
+    ?? null;
   const reviewedAllConflicts = hasReviewedAllPlanningConflicts(
     planningState.conflictRows,
     planningState.reviewedConflictKeys
@@ -267,6 +274,18 @@ export default function PlanningView() {
               />
             </label>
 
+            <label className="form-input" htmlFor="planning-create-acceptance-criteria">
+              <span className="form-label">Acceptance Criteria (one per line)</span>
+              <textarea
+                data-testid="planning-create-acceptance-criteria-input"
+                id="planning-create-acceptance-criteria"
+                onChange={(event) => planningStore.setCreateAcceptanceCriteria(event.target.value)}
+                placeholder={'Given ...\nWhen ...\nThen ...'}
+                rows={5}
+                value={planningState.createAcceptanceCriteria}
+              />
+            </label>
+
             <Button
               disabled={
                 planningState.mutatingBlocked ||
@@ -301,6 +320,11 @@ export default function PlanningView() {
                       <p className="planning-item-copy">
                         <code>{record.recordId}</code> | {record.scope} | {record.state || 'unknown'}
                       </p>
+                      {record.acceptanceCriteria && record.acceptanceCriteria.length > 0 ? (
+                        <p className="planning-item-copy">
+                          Acceptance criteria: {record.acceptanceCriteria.join(' | ')}
+                        </p>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -324,6 +348,75 @@ export default function PlanningView() {
                 </ul>
               )}
             </div>
+          </div>
+        </Panel>
+
+        <Panel
+          subtitle="Attach research notes and inspect diagrams for the selected record."
+          testId="planning-artifacts-panel"
+          title="Research + Diagrams"
+        >
+          <div className="planning-controls">
+            <div className="planning-select-grid">
+              <label className="form-input" htmlFor="planning-artifact-record-id">
+                <span className="form-label">Selected Record</span>
+                <select
+                  data-testid="planning-artifact-record-select"
+                  id="planning-artifact-record-id"
+                  onChange={(event) => planningStore.setSelectedRecordId(event.target.value)}
+                  value={planningState.selectedRecordId}
+                >
+                  {planningState.records.length === 0 ? <option value="">(no records)</option> : null}
+                  {planningState.records.map((record) => (
+                    <option key={record.recordId} value={record.recordId}>
+                      {record.recordId}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="form-input" htmlFor="planning-artifact-diagram-id">
+                <span className="form-label">Diagram</span>
+                <select
+                  data-testid="planning-artifact-diagram-select"
+                  id="planning-artifact-diagram-id"
+                  onChange={(event) => planningStore.setSelectedDiagramId(event.target.value)}
+                  value={planningState.selectedDiagramId}
+                >
+                  {planningState.diagrams.length === 0 ? <option value="">(no diagrams)</option> : null}
+                  {planningState.diagrams.map((diagram) => (
+                    <option key={diagram.id} value={diagram.id}>
+                      {diagram.title || diagram.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <p className="planning-copy">
+              Selected: {selectedRecord?.recordId || '(none)'} | Notes: {planningState.researchNotes.length} | Diagrams:{' '}
+              {planningState.diagrams.length}
+            </p>
+
+            <ResearchNotesPanel
+              deleting={planningState.artifactsDeleting}
+              error={planningState.artifactsError}
+              loading={planningState.artifactsLoading}
+              notes={planningState.researchNotes}
+              onDelete={async (noteId) => {
+                await planningStore.removeResearchNote(noteId);
+              }}
+              onRefresh={() => {
+                void planningStore.loadArtifacts();
+              }}
+              onSave={async (note) => {
+                await planningStore.saveResearchNote(note);
+              }}
+              recordId={planningState.selectedRecordId}
+              saving={planningState.artifactsSaving}
+            />
+
+            <MermaidViewer diagram={selectedDiagram} />
           </div>
         </Panel>
 

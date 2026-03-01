@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-03-01
 category: system
 status: current
 doc_kind: moc
@@ -12,11 +12,24 @@ related: [system-docs-index]
 
 # MOC — Testing & E2E
 
+## When to read
+
+- You are adding or updating test strategy for scripts, UI, local tracker, or RannIA.
+- You need E2E setup rules, browser workflow constraints, or hang prevention guidance.
+- You are deciding whether to run unit, integration, or E2E checks for a change.
+
 ## Start here
 
 - E2E setup: `docs/system/e2e-setup-guide.md`
+- Workflow planning contract: `docs/system/workflow-planning-contract.md`
 
 ## See also
 
 - Agent hooks: `docs/system/agent-hooks.md`
 - MCP workflow: `docs/system/mcp-workflow.md`
+- Security model and safety map: `docs/system/mocs/security-model-and-safety.md`
+
+## Depends on
+
+- Doc graph contract: `docs/system/doc-graph-spec.md`
+- System docs entrypoint: `docs/system/index.md`

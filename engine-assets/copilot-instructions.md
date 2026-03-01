@@ -85,7 +85,8 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   2. Load the full skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
   3. Follow the skill's instructions for the current task.
 - If a skill is not found in the vault, it is not installed — proceed with general knowledge.
-- Keep repo-local memory and tasks under `.instructions/` (not inside this distribution).
+- Prefer canonical documentation in `docs/system/**` and exploratory notes in `docs/research/**`.
+- Treat `.instructions/*` paths as legacy and use them only when a repository explicitly opts in.
 
 ## Implementation Friction Capture
 - Constructive complaints about hard-to-work-with code are allowed when they help delivery.
@@ -103,6 +104,18 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
 ## Main context sources
 - **Repo docs**: `README.md`, `docs/`, `documentation/`,
 assume those might be outdated sometimes, still do check them for high level guidance and constraints.
+
+## Documentation Discovery Protocol
+When task decisions depend on repository docs, follow this route first:
+1. Open `docs/system/index.md`.
+2. Choose the closest MOC in `docs/system/mocs/*.md`.
+3. Follow that MOC to the minimal set of canonical nodes in `docs/system/**`.
+4. Expand only when needed.
+
+Precedence:
+- Canonical decisions live in `docs/system/**`.
+- Research and exploratory inputs live in `docs/research/**`.
+- If they conflict, follow `docs/system/**` and treat research as non-canonical.
 
 ## Temp File Safety Controls
 <a id="temp-file-safety-controls-v1"></a>

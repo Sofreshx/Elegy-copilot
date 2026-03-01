@@ -2,7 +2,13 @@ import type { ActionRegistry } from '../actionRegistry';
 import type { WorkflowStep } from '../workflowSchema';
 
 interface DevActionResult {
-    action: 'dev.research' | 'dev.plan' | 'dev.review';
+    action:
+        | 'dev.research'
+        | 'dev.plan'
+        | 'dev.review'
+        | 'dev.implement'
+        | 'dev.test'
+        | 'dev.analyze-session';
     stepId: string;
     stepName: string;
     timestampMs: number;
@@ -58,5 +64,17 @@ export function registerDevExecutors(registry: ActionRegistry): void {
 
     registry.register('dev.review', async (step, context) => {
         return buildResult('dev.review', step, context);
+    });
+
+    registry.register('dev.implement', async (step, context) => {
+        return buildResult('dev.implement', step, context);
+    });
+
+    registry.register('dev.test', async (step, context) => {
+        return buildResult('dev.test', step, context);
+    });
+
+    registry.register('dev.analyze-session', async (step, context) => {
+        return buildResult('dev.analyze-session', step, context);
     });
 }

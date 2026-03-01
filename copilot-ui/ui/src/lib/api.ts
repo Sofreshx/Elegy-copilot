@@ -10,6 +10,8 @@ import type {
   LspConfigResponse,
   LspInstallResponse,
   ManagedAssetsResponse,
+  PlanningDiagram,
+  PlanningDiagramsResponse,
   PlanningCompareReceipt,
   PlanningCompareResponse,
   PlanningCreateResponse,
@@ -18,6 +20,8 @@ import type {
   PlanningMergeResponse,
   PlanningPersistenceInitResponse,
   PlanningRecordItem,
+  PlanningResearchNote,
+  PlanningResearchNotesResponse,
   PlanningRecordsResponse,
   PlanningSearchResponse,
   PlanningSearchResultItem,
@@ -25,6 +29,10 @@ import type {
   SandboxLifecycleAction,
   SandboxLifecyclePayload,
   SandboxLifecycleResponse,
+  SdkHealthResponse,
+  SdkSendResponse,
+  SdkSessionSummary,
+  SdkSessionsResponse,
   SkillsPreviewResponse,
   SessionsListResponse,
   TrackerPermissionsResponse,
@@ -74,6 +82,8 @@ export interface PlanningCreatePayload {
   scope: string;
   title: string;
   summary?: string;
+  acceptanceCriteria?: string[];
+  acceptanceCriteriaText?: string;
   state?: string;
   idempotencyKey?: string;
 }
@@ -108,6 +118,29 @@ export interface PlanningMergePayload {
   sourceIds: string[];
   versionVector?: Record<string, unknown> | null;
   conflictSummary?: string;
+}
+
+export interface SdkCreateSessionPayload {
+  sessionId?: string;
+  model?: string;
+}
+
+export interface SdkSendPayload {
+  sessionId: string;
+  prompt: string;
+  attachments?: unknown[];
+  mode?: 'enqueue' | 'immediate';
+}
+
+export interface PlanningResearchNoteInput {
+  id?: string;
+  noteId?: string;
+  phase?: string;
+  title: string;
+  content: string;
+  summary?: string;
+  source?: string;
+  sources?: string[];
 }
 
 export interface GatewaySaveConfigPayload {
@@ -179,6 +212,11 @@ function normalizePlanningRecord(value: unknown): PlanningRecordItem | null {
     return null;
   }
 
+  const acceptanceCriteria = asStringList(record.acceptanceCriteria);
+  const acceptanceCriteriaText = asTrimmedString(record.acceptanceCriteriaText)
+    || asTrimmedString(record.acceptanceCriteriaSummary)
+    || '';
+
   return {
     ...record,
     recordId,
@@ -187,6 +225,8 @@ function normalizePlanningRecord(value: unknown): PlanningRecordItem | null {
     repoId: typeof record.repoId === 'string' || record.repoId === null ? (record.repoId as string | null) : null,
     title: asString(record.title),
     summary: asString(record.summary),
+    acceptanceCriteria: acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
+    acceptanceCriteriaText: acceptanceCriteriaText || undefined,
     state: asTrimmedString(record.state) || 'thought',
     score: asNullableNumber(record.score),
     createdAt: asTrimmedString(record.createdAt) || null,
@@ -379,6 +419,117 @@ function normalizePlanningMergeResponse(payload: unknown): PlanningMergeResponse
     error: record.error && typeof record.error === 'object'
       ? (record.error as Record<string, unknown>)
       : undefined,
+  };
+}
+
+function normalizeSdkSessionSummary(value: unknown): SdkSessionSummary | null {
+  const record = asRecord(value);
+  const sessionId = asTrimmedString(record.sessionId) || asTrimmedString(record.id);
+  if (!sessionId) {
+    return null;
+  }
+
+  return {
+    ...record,
+    sessionId,
+    model: typeof record.model === 'string' || record.model == null
+      ? (record.model as string | null | undefined)
+      : undefined,
+    createdAt: asTrimmedString(record.createdAt) || undefined,
+    sseClientCount: asNumber(record.sseClientCount, 0),
+  };
+}
+
+function normalizeSdkSessionsResponse(payload: unknown): SdkSessionsResponse {
+  const record = asRecord(payload);
+
+  return {
+    sessions: asArray(record.sessions)
+      .map((entry) => normalizeSdkSessionSummary(entry))
+      .filter((entry): entry is SdkSessionSummary => entry !== null),
+  };
+}
+
+function normalizeSdkHealthResponse(payload: unknown): SdkHealthResponse {
+  const record = asRecord(payload);
+
+  return {
+    ...record,
+    connected: asBoolean(record.connected, false),
+    state: asTrimmedString(record.state) || 'unknown',
+    mode: asTrimmedString(record.mode) || undefined,
+    sessionCount: asNumber(record.sessionCount, 0),
+    cliVersion: asTrimmedString(record.cliVersion) || undefined,
+    error: asTrimmedString(record.error) || undefined,
+  };
+}
+
+function normalizePlanningResearchNote(value: unknown): PlanningResearchNote | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id) || asTrimmedString(record.noteId);
+  if (!id) {
+    return null;
+  }
+
+  const sources = asStringList(record.sources);
+  const source = asTrimmedString(record.source);
+
+  return {
+    ...record,
+    id,
+    phase: asTrimmedString(record.phase) || 'research',
+    title: asString(record.title),
+    content: asString(record.content) || asString(record.summary),
+    createdAt: asTrimmedString(record.createdAt) || new Date(0).toISOString(),
+    noteId: id,
+    summary: asString(record.summary) || undefined,
+    sources: sources.length > 0 ? sources : (source ? [source] : undefined),
+    source: source || undefined,
+    updatedAt: asTrimmedString(record.updatedAt) || undefined,
+  };
+}
+
+function normalizePlanningResearchNotesResponse(payload: unknown): PlanningResearchNotesResponse {
+  const record = asRecord(payload);
+
+  return {
+    ...record,
+    recordId: asTrimmedString(record.recordId),
+    researchNotes: asArray(record.researchNotes)
+      .map((entry) => normalizePlanningResearchNote(entry))
+      .filter((entry): entry is PlanningResearchNote => entry !== null),
+  };
+}
+
+function normalizePlanningDiagram(value: unknown): PlanningDiagram | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id) || asTrimmedString(record.diagramId);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    ...record,
+    id,
+    type: asTrimmedString(record.type) || 'diagram',
+    title: asString(record.title),
+    content: asString(record.content),
+    format: asTrimmedString(record.format) || 'mermaid',
+    createdAt: asTrimmedString(record.createdAt) || new Date(0).toISOString(),
+    diagramId: id,
+    updatedAt: asTrimmedString(record.updatedAt) || undefined,
+  };
+}
+
+function normalizePlanningDiagramsResponse(payload: unknown): PlanningDiagramsResponse {
+  const record = asRecord(payload);
+
+  return {
+    ...record,
+    recordId: asTrimmedString(record.recordId),
+    diagrams: asArray(record.diagrams)
+      .map((entry) => normalizePlanningDiagram(entry))
+      .filter((entry): entry is PlanningDiagram => entry !== null),
   };
 }
 
@@ -657,6 +808,83 @@ export function listSessions(baseUrl?: string, options: ListSessionsOptions = {}
   });
 }
 
+export async function getSdkHealth(baseUrl?: string): Promise<SdkHealthResponse> {
+  const payload = await apiRequest<unknown>('/api/sdk/health', { baseUrl });
+  return normalizeSdkHealthResponse(payload);
+}
+
+export async function createSdkSession(
+  payload: SdkCreateSessionPayload = {},
+  baseUrl?: string
+): Promise<SdkSessionSummary> {
+  const response = await apiRequest<unknown>('/api/sdk/session', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const normalized = normalizeSdkSessionSummary(response);
+  if (!normalized) {
+    throw new Error('invalid_sdk_session_response');
+  }
+
+  return normalized;
+}
+
+export async function listSdkSessions(baseUrl?: string): Promise<SdkSessionsResponse> {
+  const payload = await apiRequest<unknown>('/api/sdk/sessions', { baseUrl });
+  return normalizeSdkSessionsResponse(payload);
+}
+
+export function deleteSdkSession(
+  sessionId: string,
+  baseUrl?: string
+): Promise<{ ok?: boolean; sessionId?: string; error?: string; [key: string]: unknown }> {
+  return apiRequest<{ ok?: boolean; sessionId?: string; error?: string; [key: string]: unknown }>(
+    `/api/sdk/session/${encodeURIComponent(sessionId)}`,
+    {
+      baseUrl,
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    }
+  );
+}
+
+export async function sendSdkMessage(payload: SdkSendPayload, baseUrl?: string): Promise<SdkSendResponse> {
+  const response = await apiRequest<unknown>('/api/sdk/send', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const record = asRecord(response);
+  return {
+    messageId: asTrimmedString(record.messageId),
+  };
+}
+
+export function createSdkStreamUrl(sessionId: string, baseUrl?: string): string {
+  const endpoint = `/api/sdk/stream/${encodeURIComponent(sessionId)}`;
+  if (baseUrl) {
+    return createUrl(endpoint, baseUrl).toString();
+  }
+
+  if (typeof window !== 'undefined') {
+    return endpoint;
+  }
+
+  return createUrl(endpoint, 'http://127.0.0.1').toString();
+}
+
 export function getManagedAssets(baseUrl?: string): Promise<ManagedAssetsResponse> {
   return apiRequest<ManagedAssetsResponse>('/api/assets/managed', { baseUrl });
 }
@@ -820,6 +1048,62 @@ export async function mergePlanningRecords(payload: PlanningMergePayload, baseUr
   });
 
   return normalizePlanningMergeResponse(response);
+}
+
+export async function getPlanningResearchNotes(
+  recordId: string,
+  baseUrl?: string
+): Promise<PlanningResearchNotesResponse> {
+  const payload = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}/research`, {
+    baseUrl,
+  });
+  return normalizePlanningResearchNotesResponse(payload);
+}
+
+export async function savePlanningResearchNote(
+  recordId: string,
+  note: PlanningResearchNoteInput,
+  baseUrl?: string
+): Promise<{ note?: PlanningResearchNote; [key: string]: unknown }> {
+  const payload = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}/research`, {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(note),
+  });
+
+  const response = asRecord(payload);
+  return {
+    ...response,
+    note: normalizePlanningResearchNote(response.note) ?? undefined,
+  };
+}
+
+export async function deletePlanningResearchNote(
+  recordId: string,
+  noteId: string,
+  baseUrl?: string
+): Promise<{ ok?: boolean; [key: string]: unknown }> {
+  return apiRequest<{ ok?: boolean; [key: string]: unknown }>(
+    `/api/planning/records/${encodeURIComponent(recordId)}/research/${encodeURIComponent(noteId)}`,
+    {
+      baseUrl,
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    }
+  );
+}
+
+export async function getPlanningDiagrams(recordId: string, baseUrl?: string): Promise<PlanningDiagramsResponse> {
+  const payload = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}/diagrams`, {
+    baseUrl,
+  });
+  return normalizePlanningDiagramsResponse(payload);
 }
 
 export async function getGatewayConfig(baseUrl?: string): Promise<GatewayConfigResponse> {

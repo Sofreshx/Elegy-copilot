@@ -1,0 +1,46 @@
+{
+  "id": "multi-pr-merge",
+  "name": "Multi PR Merge",
+  "description": "Performs read-only git checks before a deterministic multi-PR merge step.",
+  "version": "1.0.0",
+  "schemaVersion": "2.0",
+  "steps": [
+    {
+      "id": "check-working-tree",
+      "name": "Check Working Tree",
+      "action": "git.state-analysis",
+      "params": {
+        "command": "status --short"
+      }
+    },
+    {
+      "id": "check-current-branch",
+      "name": "Check Current Branch",
+      "action": "git.state-analysis",
+      "params": {
+        "command": "rev-parse --abbrev-ref HEAD"
+      }
+    },
+    {
+      "id": "merge-prs",
+      "name": "Merge Pull Requests",
+      "action": "git.merge-prs",
+      "params": {
+        "command": "merge --ff-only",
+        "mergeRequests": ["101", "102", "103"],
+        "dryRun": true,
+        "timeoutMsPerMerge": 120000
+      },
+      "dependsOn": ["check-working-tree", "check-current-branch"]
+    },
+    {
+      "id": "verify-post-merge-state",
+      "name": "Verify Post Merge State",
+      "action": "git.state-analysis",
+      "params": {
+        "command": "log --oneline -5"
+      },
+      "dependsOn": ["merge-prs"]
+    }
+  ]
+}
