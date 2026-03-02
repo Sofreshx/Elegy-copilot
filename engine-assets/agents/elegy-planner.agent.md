@@ -4,7 +4,6 @@ description: "Plan-first agent. Explores quickly, drafts a single-file Plan Pack
 tools: [read, search, agent/runSubagent, agent, todo, vscode/askQuestions, edit, execute/runInTerminal]
 user-invocable: true
 disable-model-invocation: true
-agents: [code-explorer, elegy-direction, elegy-subplanner, reviewer-opus-4-6, reviewer-gpt-5-3-codex]
 ---
 
 # Elegy Planner

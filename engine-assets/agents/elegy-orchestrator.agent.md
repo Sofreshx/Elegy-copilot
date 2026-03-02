@@ -4,7 +4,6 @@ description: "Implementation entrypoint for Elegy workflow. Executes an approved
 tools: [read, search, edit, execute/runInTerminal, agent/runSubagent, agent, todo, vscode/askQuestions]
 user-invocable: true
 disable-model-invocation: true
-agents: [code-explorer, impl-infra, impl-business, impl-reviewer, work-unit-runner, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, code-reviewer, final-reviewer, verification-guide]
 ---
 
 # Elegy Orchestrator

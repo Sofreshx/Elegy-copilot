@@ -4,7 +4,6 @@ description: Cross-model reviewer (Opus 4.6). Validates plans and execution summ
 tools: [read, search]
 user-invocable: false
 disable-model-invocation: false
-model: Claude Opus 4.6 (copilot)
 ---
 
 # Cross-Model Reviewer (Opus 4.6)
