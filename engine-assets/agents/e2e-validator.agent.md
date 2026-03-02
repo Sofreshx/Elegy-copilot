@@ -1,6 +1,6 @@
 ---
 name: e2e-validator
-description: Validates E2E setup health: app startup, health endpoints, critical pages, and auth flow. Produces a pass/fail health report. Uses agent-browser CLI for real browser testing.
+description: "Validates E2E setup health: app startup, health endpoints, critical pages, and auth flow. Produces a pass/fail health report. Uses agent-browser CLI for real browser testing."
 tools: [read/readFile, read/terminalLastCommand, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, execute/runInTerminal, agent/runSubagent, edit/createFile, edit/editFiles]
 user-invocable: true
 disable-model-invocation: true
