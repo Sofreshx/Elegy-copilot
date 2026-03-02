@@ -4,6 +4,7 @@ set -euo pipefail
 DRY_RUN=false
 FORCE=false
 POINTER_MODE=false
+OVERWRITE_MODE=""
 
 DO_CLI=false
 DO_VSCODE=false
@@ -131,6 +132,21 @@ confirm_overwrite() {
   if [[ ! -t 0 ]]; then
     return 1
   fi
+
+  if [[ -z "$OVERWRITE_MODE" ]]; then
+    read -r -p "Overwrite mode for this run? [a]ll / [e]ach / [n]one (default: each): " mode_resp
+    case "${mode_resp,,}" in
+      a|all) OVERWRITE_MODE="all" ;;
+      n|none) OVERWRITE_MODE="none" ;;
+      ""|e|each) OVERWRITE_MODE="each" ;;
+      *) OVERWRITE_MODE="each" ;;
+    esac
+  fi
+
+  case "$OVERWRITE_MODE" in
+    all) return 0 ;;
+    none) return 1 ;;
+  esac
 
   read -r -p "Overwrite $path ? [y/N] " resp
   [[ "$resp" =~ ^([yY]|[yY][eE][sS])$ ]]
