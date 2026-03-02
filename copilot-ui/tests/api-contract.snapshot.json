@@ -525,7 +525,12 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "error"
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
     ]
   },
   "GET /api/tracker/sessions": {
@@ -533,7 +538,12 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "error"
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
     ]
   },
   "GET /api/tracker/permissions": {
@@ -541,7 +551,12 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "error"
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
     ]
   },
   "GET /api/tracker/events": {
@@ -549,7 +564,12 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "error"
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
     ]
   },
   "POST /api/tracker/permissions/test-id/approve": {
@@ -557,7 +577,12 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "error"
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
     ]
   },
   "POST /api/tracker/lifecycle/start": {
@@ -565,7 +590,12 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "error"
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
     ]
   }
 }

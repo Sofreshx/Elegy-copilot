@@ -27,7 +27,7 @@ export default function SessionList({
       {!loading && !error && sessions.length === 0 ? <p className="state-message">No sessions available.</p> : null}
 
       {sessions.length > 0 ? (
-        <ul>
+        <ul className="session-list-items">
           {sessions.map((session) => (
             <SessionItem
               key={session.id}

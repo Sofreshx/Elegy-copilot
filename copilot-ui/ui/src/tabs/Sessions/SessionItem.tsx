@@ -1,4 +1,13 @@
 import StatusBadge from '../../components/StatusBadge';
+import {
+  formatTimestampLabel,
+  humanizeToken,
+  resolveSessionActiveLabel,
+  resolveSessionReason,
+  resolveSessionSourceLabel,
+  resolveSessionStatus,
+  resolveSessionUpdatedAt,
+} from '../../lib/stateDiagnostics';
 import type { SessionSummary } from '../../lib/types';
 
 interface SessionItemProps {
@@ -7,59 +16,10 @@ interface SessionItemProps {
   onSelect?: (id: string) => void;
 }
 
-function toTimestamp(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    return value;
-  }
-
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  return null;
-}
-
-function resolveUpdatedAt(input: SessionSummary): number | null {
-  return toTimestamp(input.updatedAtMs) ?? toTimestamp(input.lastEventTime) ?? null;
-}
-
-function formatTimestamp(timestamp: number | null): string {
-  if (!timestamp) {
-    return 'Unknown';
-  }
-
-  return new Date(timestamp).toLocaleString();
-}
-
-function resolveStatus(input: SessionSummary): string {
-  if (typeof input.resolvedStatus === 'string' && input.resolvedStatus.trim()) {
-    return input.resolvedStatus;
-  }
-
-  if (typeof input.status === 'string' && input.status.trim()) {
-    return input.status;
-  }
-
-  if (typeof input.active === 'boolean') {
-    return input.active ? 'active' : 'inactive';
-  }
-
-  return 'unknown';
-}
-
-function resolveActive(input: SessionSummary): string {
-  if (typeof input.active === 'boolean') {
-    return input.active ? 'true' : 'false';
-  }
-
-  const status = resolveStatus(input).toLowerCase();
-  if (status === 'active') return 'true';
-  if (status === 'idle' || status === 'inactive') return 'false';
-  return 'unknown';
-}
-
 export default function SessionItem({ session, selected = false, onSelect }: SessionItemProps) {
+  const status = resolveSessionStatus(session);
+  const reason = resolveSessionReason(session);
+
   return (
     <li className="session-item" data-testid="session-item">
       <button
@@ -71,23 +31,27 @@ export default function SessionItem({ session, selected = false, onSelect }: Ses
       >
         <div className="session-item-header">
           <p className="session-id">{session.id}</p>
-          <StatusBadge status={resolveStatus(session)} testId="session-item-status" />
+          <StatusBadge status={humanizeToken(status)} testId="session-item-status" />
         </div>
 
         <dl className="session-item-meta">
           <div>
             <dt>Source</dt>
-            <dd>{String(session.source ?? 'unknown')}</dd>
+            <dd>{resolveSessionSourceLabel(session)}</dd>
           </div>
           <div>
             <dt>Active</dt>
-            <dd>{resolveActive(session)}</dd>
+            <dd>{resolveSessionActiveLabel(session)}</dd>
           </div>
           <div>
             <dt>Updated</dt>
-            <dd>{formatTimestamp(resolveUpdatedAt(session))}</dd>
+            <dd>{formatTimestampLabel(resolveSessionUpdatedAt(session))}</dd>
           </div>
         </dl>
+
+        <p className="session-item-reason">
+          <span>Why:</span> {reason.message}
+        </p>
       </button>
     </li>
   );

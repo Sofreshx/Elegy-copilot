@@ -125,17 +125,21 @@ export default function GatewayView() {
             </div>
 
             <div className="gateway-state-list">
-              <p>
-                <strong>Gateway:</strong> {gatewaySummary}
-              </p>
-              <p>
-                <strong>Tracker:</strong> {trackerSummary}
-              </p>
-              <p>
-                <strong>Planning Persistence:</strong> {planningPersistenceSummary}
-              </p>
+              <div className="gateway-state-row">
+                <p className="gateway-item-title">Gateway</p>
+                <p className="gateway-item-copy">{gatewaySummary}</p>
+              </div>
+              <div className="gateway-state-row">
+                <p className="gateway-item-title">Tracker</p>
+                <p className="gateway-item-copy">{trackerSummary}</p>
+              </div>
+              <div className="gateway-state-row">
+                <p className="gateway-item-title">Planning Persistence</p>
+                <p className="gateway-item-copy">{planningPersistenceSummary}</p>
+              </div>
             </div>
 
+            <p className="gateway-copy">Detailed diagnostics</p>
             <pre className="code-block" data-testid="gateway-errors-block">
               {gatewayErrorsText}
             </pre>

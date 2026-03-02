@@ -6,7 +6,11 @@ import {
   initPlanningPersistence,
   saveGatewayConfig,
   scanGatewayRepos,
+  toCanonicalSandboxMissingTokenError,
+  toCanonicalSandboxMissingTokenErrorFromUnknown,
+  toSandboxTokenRemediationMessage,
 } from '../../lib/api';
+import { formatGatewaySegmentSummary, humanizeToken } from '../../lib/stateDiagnostics';
 import { createStore } from '../../lib/store';
 import type {
   GatewayScanReposResponse,
@@ -34,6 +38,8 @@ export interface GatewayState {
   policyPreflight: PolicyPreflightResponse | null;
   mutatingBlocked: boolean;
   mutatingReason: string;
+  sandboxTokenMissing: boolean;
+  sandboxTokenGuidance: string;
   loadingConfig: boolean;
   saving: boolean;
   refreshingState: boolean;
@@ -64,6 +70,8 @@ const INITIAL_STATE: GatewayState = {
   policyPreflight: null,
   mutatingBlocked: false,
   mutatingReason: '',
+  sandboxTokenMissing: false,
+  sandboxTokenGuidance: '',
   loadingConfig: false,
   saving: false,
   refreshingState: false,
@@ -95,26 +103,9 @@ function formatDelimitedList(values: string[]): string {
 }
 
 export function formatGatewayStateSummary(segment: Record<string, unknown> | null, fallbackStatus = 'unknown'): string {
-  const source = segment && typeof segment === 'object' ? segment : {};
-  const status = typeof source.status === 'string' && source.status.trim() ? source.status : fallbackStatus;
-  const readyToken = source.ready === true ? 'ready' : 'not_ready';
-
-  const parts = [status, readyToken];
-  if (source.statusCode != null) {
-    parts.push(`statusCode=${String(source.statusCode)}`);
-  }
-
-  const error = source.error && typeof source.error === 'object'
-    ? (source.error as GatewayStateError)
-    : null;
-  if (error && typeof error.code === 'string' && error.code.trim()) {
-    parts.push(`code=${error.code}`);
-  }
-  if (error && typeof error.reason === 'string' && error.reason.trim()) {
-    parts.push(`reason=${error.reason}`);
-  }
-
-  return parts.join(' | ');
+  const summary = formatGatewaySegmentSummary(segment, fallbackStatus);
+  const detailSuffix = summary.detail ? ` - ${summary.detail}` : '';
+  return `${summary.statusLabel} (${summary.readinessLabel})${detailSuffix}`;
 }
 
 export function formatGatewayErrorList(errors: GatewayStateError[] | undefined): string {
@@ -127,8 +118,9 @@ export function formatGatewayErrorList(errors: GatewayStateError[] | undefined):
       const code = typeof entry.code === 'string' && entry.code.trim() ? entry.code : 'error';
       const reason = typeof entry.reason === 'string' && entry.reason.trim() ? entry.reason : '';
       const message = typeof entry.message === 'string' && entry.message.trim() ? entry.message : 'unknown_error';
-      const statusCode = entry.statusCode != null ? ` statusCode=${entry.statusCode}` : '';
-      return `${code}${reason ? ` (${reason})` : ''}: ${message}${statusCode}`;
+      const statusCode = entry.statusCode != null ? ` (HTTP ${entry.statusCode})` : '';
+      const reasonLabel = reason ? humanizeToken(reason) : humanizeToken(code, 'Error');
+      return `${reasonLabel}: ${message}${statusCode}`;
     })
     .join('\n');
 }
@@ -139,10 +131,48 @@ function createGatewayStore() {
   let stateRequestVersion = 0;
   let preflightRequestVersion = 0;
 
+  function resolveSandboxTokenGateFromPayload(payload: unknown): { blocked: boolean; guidance: string } {
+    const mapped = toCanonicalSandboxMissingTokenError(payload);
+    if (!mapped) {
+      return {
+        blocked: false,
+        guidance: '',
+      };
+    }
+
+    return {
+      blocked: true,
+      guidance: toSandboxTokenRemediationMessage(payload),
+    };
+  }
+
+  function resolveSandboxTokenGateFromError(error: unknown): { blocked: boolean; guidance: string } {
+    const mapped = toCanonicalSandboxMissingTokenErrorFromUnknown(error);
+    if (!mapped) {
+      return {
+        blocked: false,
+        guidance: '',
+      };
+    }
+
+    return {
+      blocked: true,
+      guidance: toSandboxTokenRemediationMessage(error),
+    };
+  }
+
   function setStatus(statusMessage: string): void {
     store.setState((state) => ({
       ...state,
       statusMessage,
+    }));
+  }
+
+  function setSandboxTokenGate(blocked: boolean, guidance = ''): void {
+    store.setState((state) => ({
+      ...state,
+      sandboxTokenMissing: blocked,
+      sandboxTokenGuidance: blocked ? guidance : '',
     }));
   }
 
@@ -273,6 +303,7 @@ function createGatewayStore() {
 
     try {
       const response = await getGatewayState();
+      const sandboxTokenGate = resolveSandboxTokenGateFromPayload(response);
 
       store.setState((state) => {
         if (nextVersion !== stateRequestVersion) {
@@ -284,11 +315,14 @@ function createGatewayStore() {
           refreshingState: false,
           stateEnvelope: response,
           error: null,
+          sandboxTokenMissing: sandboxTokenGate.blocked,
+          sandboxTokenGuidance: sandboxTokenGate.guidance,
           statusMessage: setStatusMessage ? 'Gateway state loaded.' : state.statusMessage,
         };
       });
     } catch (error) {
       const message = toErrorMessage(error, 'Unable to refresh gateway state.');
+      const sandboxTokenGate = resolveSandboxTokenGateFromError(error);
 
       store.setState((state) => {
         if (nextVersion !== stateRequestVersion) {
@@ -299,6 +333,8 @@ function createGatewayStore() {
           ...state,
           refreshingState: false,
           error: message,
+          sandboxTokenMissing: sandboxTokenGate.blocked,
+          sandboxTokenGuidance: sandboxTokenGate.guidance,
           statusMessage: `Gateway state failed: ${message}`,
         };
       });
@@ -321,23 +357,29 @@ function createGatewayStore() {
 
     try {
       const response = await connectGateway();
+      const sandboxTokenGate = resolveSandboxTokenGateFromPayload(response);
 
       store.setState((state) => ({
         ...state,
         connecting: false,
         stateEnvelope: response,
         error: null,
+        sandboxTokenMissing: sandboxTokenGate.blocked,
+        sandboxTokenGuidance: sandboxTokenGate.guidance,
         statusMessage: response.ready ? 'Gateway connect completed and ready.' : 'Gateway connect completed.',
       }));
 
       await refreshState(false);
     } catch (error) {
       const message = toErrorMessage(error, 'Unable to connect gateway.');
+      const sandboxTokenGate = resolveSandboxTokenGateFromError(error);
 
       store.setState((state) => ({
         ...state,
         connecting: false,
         error: message,
+        sandboxTokenMissing: sandboxTokenGate.blocked,
+        sandboxTokenGuidance: sandboxTokenGate.guidance,
         statusMessage: `Gateway connect failed: ${message}`,
       }));
 
@@ -639,6 +681,7 @@ function createGatewayStore() {
     setDiscordPermissionsChannelId,
     setTelegramUsersText,
     setExtraScanPath,
+    setSandboxTokenGate,
   };
 }
 

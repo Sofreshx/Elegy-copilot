@@ -31,7 +31,9 @@ export interface SessionsListResponse {
 
 export interface SdkHealthResponse {
   connected: boolean;
+  enabled?: boolean;
   state: string;
+  reason?: string;
   mode?: string;
   sessionCount?: number;
   cliVersion?: string;

@@ -89,9 +89,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./gateway'), context);
   registry.registerModule(require('./tracker'), context);
 
-  if (context && context.sdkBridge) {
-    registry.registerModule(require('./sdk'), context);
-  }
+  registry.registerModule(require('./sdk'), context);
 
   return registry;
 }

@@ -103,6 +103,19 @@ async function run() {
     assert.ok(tabShellSource.includes('aria-orientation="horizontal"'), 'Expected explicit tablist orientation in TabShell.tsx');
   });
 
+  await test('WS05-I5 TabShell/Panel selector contract is present in app.css and component refs', async () => {
+    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
+    const tabShellSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'TabShell.tsx'), 'utf8');
+    const panelSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Panel.tsx'), 'utf8');
+
+    assert.ok(appCss.includes('.tab-shell {'), 'Expected .tab-shell selector in app.css');
+    assert.ok(appCss.includes('.tab-panel {'), 'Expected .tab-panel selector in app.css');
+    assert.ok(appCss.includes('.panel {'), 'Expected .panel selector in app.css');
+    assert.ok(tabShellSource.includes('className="tab-shell"'), 'Expected TabShell to reference tab-shell class');
+    assert.ok(tabShellSource.includes('className="tab-panel"'), 'Expected TabShell to reference tab-panel class');
+    assert.ok(panelSource.includes('className="panel"'), 'Expected Panel to reference panel class');
+  });
+
   await test('ui/src contains no .svelte files', async () => {
     const files = walkFiles(uiSrcRoot);
     const svelteFiles = files.filter((filePath) => filePath.endsWith('.svelte'));

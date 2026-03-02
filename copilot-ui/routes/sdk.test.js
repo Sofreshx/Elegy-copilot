@@ -216,15 +216,49 @@ function createMockSdkBridge() {
 }
 
 async function run() {
-  await test('register() returns no routes when sdkBridge is missing', async () => {
+  await test('register() keeps SDK routes available when sdkBridge is missing', async () => {
     const routes = register({
       sendJson: () => {
-        throw new Error('sendJson should not be called when route list is empty');
+        throw new Error('sendJson should not be called during route registration');
       },
       readJsonBody: async () => ({}),
     });
 
-    assert.deepEqual(routes, []);
+    assert.ok(Array.isArray(routes));
+    assert.ok(routes.length > 0);
+  });
+
+  await test('disabled bridge returns deterministic health and guarded 503 for SDK mutations', async () => {
+    const routes = register({
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, {
+          'Content-Type': 'application/json; charset=utf-8',
+        });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const health = await invoke(routes, 'GET', '/api/sdk/health');
+    assert.equal(health.res.statusCode, 200);
+    assert.deepEqual(parseJsonBody(health.res), {
+      connected: false,
+      enabled: false,
+      state: 'disabled',
+      mode: 'disabled',
+      sessionCount: 0,
+      reason: 'sdk_bridge_disabled',
+      error: 'SDK bridge is disabled. Set COPILOT_SDK_BRIDGE=1 to enable SDK sessions.',
+    });
+
+    const list = await invoke(routes, 'GET', '/api/sdk/sessions');
+    assert.equal(list.res.statusCode, 503);
+    assert.deepEqual(parseJsonBody(list.res), {
+      error: 'SDK bridge is disabled. Set COPILOT_SDK_BRIDGE=1 to enable SDK sessions.',
+      code: 'sdk_bridge_disabled',
+      reason: 'sdk_bridge_disabled',
+    });
   });
 
   const sdkBridge = createMockSdkBridge();

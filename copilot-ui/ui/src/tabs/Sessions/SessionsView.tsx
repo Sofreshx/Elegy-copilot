@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, FormInput, Panel, Toolbar } from '../../components';
+import { humanizeToken, summarizeSdkHealth } from '../../lib/stateDiagnostics';
 import { useStoreValue } from '../../lib/store';
 import type { SessionSummary } from '../../lib/types';
+import { sdkHealthStore } from '../../stores/sdkHealthStore';
+import { gatewayStore } from '../Gateway/gatewayStore';
 import SessionDetail from './SessionDetail';
 import SessionList from './SessionList';
 import SdkMessageList from './SdkMessageList';
@@ -22,9 +25,12 @@ export default function SessionsView() {
   const [createModel, setCreateModel] = useState('');
   const localSessionState = useStoreValue(sessionsStore);
   const sdkSessionState = useStoreValue(sdkSessionsStore);
+  const sdkHealthState = useStoreValue(sdkHealthStore);
+  const gatewayState = useStoreValue(gatewayStore);
 
   useEffect(() => {
     void sessionsStore.loadSessions();
+    void gatewayStore.refreshState(false);
 
     return () => {
       sdkSessionsStore.dispose();
@@ -58,6 +64,38 @@ export default function SessionsView() {
   );
 
   const modeError = mode === 'local' ? localSessionState.error : sdkSessionState.error;
+  const sdkHealthSummary = summarizeSdkHealth(sdkHealthState.health, sdkHealthState.error);
+
+  const trackerSegment =
+    gatewayState.stateEnvelope?.tracker && typeof gatewayState.stateEnvelope.tracker === 'object'
+      ? (gatewayState.stateEnvelope.tracker as Record<string, unknown>)
+      : null;
+  const trackerReason =
+    trackerSegment?.error && typeof trackerSegment.error === 'object'
+      ? (trackerSegment.error as Record<string, unknown>)
+      : null;
+
+  const localConnectionStatus = localSessionState.error
+    ? 'Blocked'
+    : localSessionState.loading
+      ? 'Checking'
+      : activeCount > 0
+        ? 'Active'
+        : 'Idle';
+  const localConnectionDetail = localSessionState.error
+    ? localSessionState.error
+    : `${localSessionState.sessions.length} session(s), ${activeCount} active.`;
+
+  const sandboxConnectionStatus = gatewayState.sandboxTokenMissing
+    ? 'Blocked'
+    : trackerSegment?.ready === true
+      ? 'Connected'
+      : humanizeToken(typeof trackerSegment?.status === 'string' ? trackerSegment.status : 'unknown');
+  const sandboxConnectionDetail = gatewayState.sandboxTokenMissing
+    ? (gatewayState.sandboxTokenGuidance || 'Tracker token is missing for sandbox lifecycle actions.')
+    : (typeof trackerReason?.message === 'string' && trackerReason.message.trim()
+      ? trackerReason.message
+      : 'Sandbox lifecycle follows tracker readiness and token policy.');
 
   const handleRefresh = async () => {
     if (mode === 'local') {
@@ -124,6 +162,26 @@ export default function SessionsView() {
           </Button>
         </div>
       </Toolbar>
+
+      <div className="sessions-connection-grid" data-testid="sessions-connection-grid">
+        <article className="sessions-connection-card">
+          <p className="sessions-connection-title">Local Sessions</p>
+          <p className="sessions-connection-status">{localConnectionStatus}</p>
+          <p className="sessions-connection-copy">{localConnectionDetail}</p>
+        </article>
+
+        <article className="sessions-connection-card">
+          <p className="sessions-connection-title">SDK Bridge</p>
+          <p className="sessions-connection-status">{sdkHealthSummary.status}</p>
+          <p className="sessions-connection-copy">{sdkHealthSummary.detail}</p>
+        </article>
+
+        <article className="sessions-connection-card">
+          <p className="sessions-connection-title">Sandbox Lifecycle</p>
+          <p className="sessions-connection-status">{sandboxConnectionStatus}</p>
+          <p className="sessions-connection-copy">{sandboxConnectionDetail}</p>
+        </article>
+      </div>
 
       {modeError ? (
         <p className="sessions-error" role="alert">

@@ -205,6 +205,175 @@ function asStringList(value: unknown): string[] {
     .filter((entry) => entry.length > 0);
 }
 
+export const SANDBOX_TOKEN_CANONICAL_STATE = 'token_missing';
+export const SANDBOX_TOKEN_CANONICAL_CODE = 'MISSING_SANDBOX_TOKEN';
+export const SANDBOX_TOKEN_REMEDIATION_GUIDANCE =
+  'Provide tracker auth via --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.';
+
+const LEGACY_SANDBOX_TOKEN_STATE = `${'missing'}_token`;
+const LEGACY_SANDBOX_TOKEN_CODE = ['tracker', 'token', 'missing'].join('_');
+const LEGACY_SANDBOX_TOKEN_MESSAGE_PREFIX = ['tracker', 'token', 'not', 'configured'].join(' ');
+
+const SANDBOX_TOKEN_KNOWN_INDICATORS = new Set([
+  SANDBOX_TOKEN_CANONICAL_STATE,
+  SANDBOX_TOKEN_CANONICAL_CODE.toLowerCase(),
+  LEGACY_SANDBOX_TOKEN_STATE,
+  LEGACY_SANDBOX_TOKEN_CODE,
+  LEGACY_SANDBOX_TOKEN_MESSAGE_PREFIX,
+]);
+
+export interface CanonicalSandboxMissingTokenError {
+  status: typeof SANDBOX_TOKEN_CANONICAL_STATE;
+  code: typeof SANDBOX_TOKEN_CANONICAL_CODE;
+  reason: typeof SANDBOX_TOKEN_CANONICAL_STATE;
+  message: string;
+  legacyCode: string;
+  legacyReason: string;
+}
+
+function normalizeIndicatorToken(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function collectSandboxTokenIndicators(payload: unknown, out: string[] = [], depth = 0): string[] {
+  if (payload == null || depth > 3) {
+    return out;
+  }
+
+  if (typeof payload === 'string') {
+    out.push(normalizeIndicatorToken(payload));
+    return out;
+  }
+
+  if (Array.isArray(payload)) {
+    for (const entry of payload) {
+      collectSandboxTokenIndicators(entry, out, depth + 1);
+    }
+    return out;
+  }
+
+  if (typeof payload !== 'object') {
+    return out;
+  }
+
+  const source = payload as Record<string, unknown>;
+  const fields = ['status', 'state', 'code', 'reason', 'message', 'error', 'errors', 'legacyCode', 'legacyReason'];
+
+  for (const field of fields) {
+    if (!Object.prototype.hasOwnProperty.call(source, field)) {
+      continue;
+    }
+
+    const value = source[field];
+    if (typeof value === 'string') {
+      out.push(normalizeIndicatorToken(value));
+      continue;
+    }
+
+    collectSandboxTokenIndicators(value, out, depth + 1);
+  }
+
+  return out;
+}
+
+export function isSandboxMissingTokenIndicator(payload: unknown): boolean {
+  const tokens = collectSandboxTokenIndicators(payload);
+  return tokens.some((token) => {
+    if (!token) {
+      return false;
+    }
+
+    return SANDBOX_TOKEN_KNOWN_INDICATORS.has(token)
+      || token.startsWith(LEGACY_SANDBOX_TOKEN_MESSAGE_PREFIX);
+  });
+}
+
+function extractSandboxTokenMessage(payload: unknown): string {
+  if (!payload || typeof payload !== 'object') {
+    return '';
+  }
+
+  const source = payload as Record<string, unknown>;
+  if (typeof source.message === 'string' && source.message.trim()) {
+    return source.message.trim();
+  }
+  if (typeof source.error === 'string' && source.error.trim()) {
+    return source.error.trim();
+  }
+
+  if (source.error && typeof source.error === 'object') {
+    const nestedError = source.error as Record<string, unknown>;
+    if (typeof nestedError.message === 'string' && nestedError.message.trim()) {
+      return nestedError.message.trim();
+    }
+  }
+
+  if (Array.isArray(source.errors)) {
+    for (const item of source.errors) {
+      const candidate = extractSandboxTokenMessage(item);
+      if (candidate) {
+        return candidate;
+      }
+    }
+  }
+
+  return '';
+}
+
+export function toCanonicalSandboxMissingTokenError(payload: unknown): CanonicalSandboxMissingTokenError | null {
+  if (!isSandboxMissingTokenIndicator(payload)) {
+    return null;
+  }
+
+  return {
+    status: SANDBOX_TOKEN_CANONICAL_STATE,
+    code: SANDBOX_TOKEN_CANONICAL_CODE,
+    reason: SANDBOX_TOKEN_CANONICAL_STATE,
+    message: extractSandboxTokenMessage(payload) || 'Sandbox tracker token is missing',
+    legacyCode: LEGACY_SANDBOX_TOKEN_CODE,
+    legacyReason: LEGACY_SANDBOX_TOKEN_CODE,
+  };
+}
+
+export function toCanonicalSandboxMissingTokenErrorFromUnknown(error: unknown): CanonicalSandboxMissingTokenError | null {
+  const candidates: unknown[] = [error];
+
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    if (record.payload != null) {
+      candidates.push(record.payload);
+    }
+    if (record.cause != null) {
+      candidates.push(record.cause);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const mapped = toCanonicalSandboxMissingTokenError(candidate);
+    if (mapped) {
+      return mapped;
+    }
+  }
+
+  return null;
+}
+
+export function toSandboxTokenRemediationMessage(errorOrPayload?: unknown): string {
+  const mapped = toCanonicalSandboxMissingTokenErrorFromUnknown(errorOrPayload)
+    ?? toCanonicalSandboxMissingTokenError(errorOrPayload);
+
+  const baseMessage = mapped?.message?.trim() || 'Sandbox tracker token is missing';
+  const hasGuidance = baseMessage.includes('--tracker-token')
+    && baseMessage.includes('INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN');
+
+  if (hasGuidance) {
+    return baseMessage;
+  }
+
+  const normalizedBase = /[.!?]$/.test(baseMessage) ? baseMessage : `${baseMessage}.`;
+  return `${normalizedBase} ${SANDBOX_TOKEN_REMEDIATION_GUIDANCE}`;
+}
+
 function normalizePlanningRecord(value: unknown): PlanningRecordItem | null {
   const record = asRecord(value);
   const recordId = asTrimmedString(record.recordId) || asTrimmedString(record.id);
@@ -456,7 +625,9 @@ function normalizeSdkHealthResponse(payload: unknown): SdkHealthResponse {
   return {
     ...record,
     connected: asBoolean(record.connected, false),
+    enabled: asBoolean(record.enabled, true),
     state: asTrimmedString(record.state) || 'unknown',
+    reason: asTrimmedString(record.reason) || undefined,
     mode: asTrimmedString(record.mode) || undefined,
     sessionCount: asNumber(record.sessionCount, 0),
     cliVersion: asTrimmedString(record.cliVersion) || undefined,

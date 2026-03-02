@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components';
+import { SANDBOX_TOKEN_REMEDIATION_GUIDANCE } from '../../lib/api';
 import { useStoreValue } from '../../lib/store';
 import type { SessionSummary } from '../../lib/types';
+import { gatewayStore } from '../Gateway/gatewayStore';
 import { readSandboxId, sandboxesStore } from './sandboxesStore';
 
 interface SandboxesViewProps {
@@ -22,6 +24,7 @@ function readSessionStatus(session: SessionSummary): string {
 
 export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) {
   const sandboxState = useStoreValue(sandboxesStore);
+  const gatewayState = useStoreValue(gatewayStore);
 
   useEffect(() => {
     void sandboxesStore.loadSandboxes();
@@ -54,6 +57,12 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
     return readSessionStatus(session).toLowerCase() === 'active';
   }).length;
 
+  const lifecycleBlockedByToken = sandboxState.tokenMissingBlocked || gatewayState.sandboxTokenMissing;
+  const lifecycleBlockedMessage =
+    sandboxState.tokenMissingMessage
+    || gatewayState.sandboxTokenGuidance
+    || SANDBOX_TOKEN_REMEDIATION_GUIDANCE;
+
   return (
     <section className="sandboxes-view" data-testid="sandboxes-view">
       <Toolbar testId="sandboxes-view-toolbar">
@@ -76,6 +85,12 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
       {sandboxState.error ? (
         <p className="sandboxes-error" role="alert">
           {sandboxState.error}
+        </p>
+      ) : null}
+
+      {lifecycleBlockedByToken ? (
+        <p className="sandboxes-error" data-testid="sandbox-token-remediation" role="alert">
+          Sandbox lifecycle actions are disabled until tracker auth is configured. {lifecycleBlockedMessage}
         </p>
       ) : null}
 
@@ -118,14 +133,14 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
 
             <div className="sandboxes-actions">
               <Button
-                disabled={sandboxState.actionLoading}
+                disabled={sandboxState.actionLoading || lifecycleBlockedByToken}
                 onClick={() => runAction(() => sandboxesStore.createSandbox())}
                 testId="sandbox-create-button"
               >
                 Create
               </Button>
               <Button
-                disabled={sandboxState.actionLoading}
+                disabled={sandboxState.actionLoading || lifecycleBlockedByToken}
                 onClick={() => runAction(() => sandboxesStore.startSandbox())}
                 testId="sandbox-start-button"
                 variant="secondary"
@@ -133,7 +148,7 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
                 Start
               </Button>
               <Button
-                disabled={sandboxState.actionLoading}
+                disabled={sandboxState.actionLoading || lifecycleBlockedByToken}
                 onClick={() => runAction(() => sandboxesStore.stopSandbox())}
                 testId="sandbox-stop-button"
                 variant="secondary"
@@ -141,7 +156,7 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
                 Stop
               </Button>
               <Button
-                disabled={sandboxState.actionLoading}
+                disabled={sandboxState.actionLoading || lifecycleBlockedByToken}
                 onClick={() => runAction(() => sandboxesStore.openSandboxTerminal())}
                 testId="sandbox-open-terminal-button"
                 variant="ghost"
@@ -149,7 +164,7 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
                 Open Terminal
               </Button>
               <Button
-                disabled={sandboxState.actionLoading}
+                disabled={sandboxState.actionLoading || lifecycleBlockedByToken}
                 onClick={() => runAction(() => sandboxesStore.openSandboxPullRequest())}
                 testId="sandbox-open-pr-button"
                 variant="ghost"

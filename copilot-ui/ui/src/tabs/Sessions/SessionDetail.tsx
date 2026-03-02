@@ -1,4 +1,14 @@
 import type { SessionSummary } from '../../lib/types';
+import {
+  formatTimestampLabel,
+  humanizeToken,
+  resolveSessionActiveLabel,
+  resolveSessionReason,
+  resolveSessionSourceLabel,
+  resolveSessionStartedAt,
+  resolveSessionStatus,
+  resolveSessionUpdatedAt,
+} from '../../lib/stateDiagnostics';
 
 interface SessionDetailProps {
   session?: SessionSummary | null;
@@ -17,57 +27,12 @@ const KNOWN_METADATA_KEYS = new Set([
   'lastUpdatedAt',
   'status',
   'resolvedStatus',
+  'reconciliationReason',
+  'resolvedSourceSet',
+  'sources',
+  'authority',
+  'reconciliation',
 ]);
-
-function toTimestamp(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
-    return value;
-  }
-
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Date.parse(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  return null;
-}
-
-function formatTimestamp(value: number | null): string {
-  if (!value) {
-    return 'Unknown';
-  }
-
-  return new Date(value).toLocaleString();
-}
-
-function resolveStartedAt(input: SessionSummary): number | null {
-  return toTimestamp(input.startedAtMs) ?? toTimestamp(input.startTime) ?? toTimestamp(input.startedAt) ?? null;
-}
-
-function resolveUpdatedAt(input: SessionSummary): number | null {
-  return (
-    toTimestamp(input.updatedAtMs) ??
-    toTimestamp(input.lastEventTime) ??
-    toTimestamp(input.updatedAt) ??
-    toTimestamp(input.lastUpdatedAt) ??
-    null
-  );
-}
-
-function resolveActive(input: SessionSummary): string {
-  if (typeof input.active === 'boolean') {
-    return input.active ? 'true' : 'false';
-  }
-
-  const resolvedStatus = typeof input.resolvedStatus === 'string' ? input.resolvedStatus.toLowerCase() : '';
-  const status = typeof input.status === 'string' ? input.status.toLowerCase() : '';
-  const mergedStatus = resolvedStatus || status;
-
-  if (mergedStatus === 'active') return 'true';
-  if (mergedStatus === 'idle' || mergedStatus === 'inactive') return 'false';
-
-  return 'unknown';
-}
 
 function getExtraMetadata(input: SessionSummary): Record<string, unknown> {
   const metadata: Record<string, unknown> = {};
@@ -85,6 +50,7 @@ function getExtraMetadata(input: SessionSummary): Record<string, unknown> {
 export default function SessionDetail({ session = null }: SessionDetailProps) {
   const extraMetadata = session ? getExtraMetadata(session) : {};
   const extraMetadataJson = Object.keys(extraMetadata).length > 0 ? JSON.stringify(extraMetadata, null, 2) : null;
+  const sessionReason = session ? resolveSessionReason(session) : null;
 
   return (
     <section className="session-detail" data-testid="session-detail">
@@ -97,21 +63,33 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
             </div>
             <div>
               <dt>Source</dt>
-              <dd>{String(session.source ?? 'unknown')}</dd>
+              <dd>{resolveSessionSourceLabel(session)}</dd>
             </div>
             <div>
               <dt>Active</dt>
-              <dd>{resolveActive(session)}</dd>
+              <dd>{resolveSessionActiveLabel(session)}</dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{humanizeToken(resolveSessionStatus(session))}</dd>
+            </div>
+            <div>
+              <dt>Reason</dt>
+              <dd>{sessionReason?.label || 'Unknown'}</dd>
             </div>
             <div>
               <dt>Started</dt>
-              <dd>{formatTimestamp(resolveStartedAt(session))}</dd>
+              <dd>{formatTimestampLabel(resolveSessionStartedAt(session))}</dd>
             </div>
             <div>
               <dt>Updated</dt>
-              <dd>{formatTimestamp(resolveUpdatedAt(session))}</dd>
+              <dd>{formatTimestampLabel(resolveSessionUpdatedAt(session))}</dd>
             </div>
           </dl>
+
+          <p className="session-detail-reason-copy">
+            {sessionReason?.message || 'No explicit reason provided by reconciliation metadata.'}
+          </p>
 
           {extraMetadataJson ? (
             <div className="metadata-block">

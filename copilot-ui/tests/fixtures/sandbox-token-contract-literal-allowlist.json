@@ -1,0 +1,18 @@
+{
+  "missing_token": [
+    "copilot-ui/lib/sandboxLifecycleTokenContract.js",
+    "copilot-ui/lib/sandboxLifecycleTokenContract.test.js",
+    "copilot-ui/tests/sandbox-token-contract-literals.test.js"
+  ],
+  "tracker_token_missing": [
+    "copilot-ui/lib/sandboxLifecycleTokenContract.js",
+    "copilot-ui/lib/sandboxLifecycleTokenContract.test.js",
+    "copilot-ui/server.runtime-health.test.js",
+    "copilot-ui/tests/sandbox-token-contract-literals.test.js"
+  ],
+  "Tracker token not configured": [
+    "copilot-ui/lib/sandboxLifecycleTokenContract.js",
+    "copilot-ui/lib/sandboxLifecycleTokenContract.test.js",
+    "copilot-ui/tests/sandbox-token-contract-literals.test.js"
+  ]
+}

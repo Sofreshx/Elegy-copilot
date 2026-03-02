@@ -785,6 +785,7 @@ async function run() {
           ...process.env,
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER_SELECTED: 'non-docker',
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER_DEFAULT: 'non-docker',
+          INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN: 'ws2-runtime-health-token',
           INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
           INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
         },

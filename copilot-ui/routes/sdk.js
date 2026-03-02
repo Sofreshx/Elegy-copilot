@@ -49,9 +49,43 @@ function toBridgeErrorPayload(error, fallbackStatusCode = 500) {
   };
 }
 
+function buildSdkBridgeDisabledHealth() {
+  return {
+    connected: false,
+    enabled: false,
+    state: 'disabled',
+    mode: 'disabled',
+    sessionCount: 0,
+    reason: 'sdk_bridge_disabled',
+    error: 'SDK bridge is disabled. Set COPILOT_SDK_BRIDGE=1 to enable SDK sessions.',
+  };
+}
+
+function buildSdkBridgeDisabledError() {
+  return {
+    error: 'SDK bridge is disabled. Set COPILOT_SDK_BRIDGE=1 to enable SDK sessions.',
+    code: 'sdk_bridge_disabled',
+    reason: 'sdk_bridge_disabled',
+  };
+}
+
+function requireSdkBridge(res, deps) {
+  if (deps.sdkBridge) {
+    return deps.sdkBridge;
+  }
+
+  deps.sendJson(res, 503, buildSdkBridgeDisabledError());
+  return null;
+}
+
 function handleSdkHealth(ctx, deps) {
   const { res } = ctx;
   const { sendJson, sdkBridge } = deps;
+
+  if (!sdkBridge) {
+    sendJson(res, 200, buildSdkBridgeDisabledHealth());
+    return;
+  }
 
   Promise.resolve()
     .then(() => sdkBridge.getHealth())
@@ -64,7 +98,11 @@ function handleSdkHealth(ctx, deps) {
 
 function handleCreateSession(ctx, deps) {
   const { req, res } = ctx;
-  const { sendJson, readJsonBody, sdkBridge } = deps;
+  const { sendJson, readJsonBody } = deps;
+  const sdkBridge = requireSdkBridge(res, deps);
+  if (!sdkBridge) {
+    return;
+  }
 
   readJsonBody(req)
     .then((body) => {
@@ -94,7 +132,11 @@ function handleCreateSession(ctx, deps) {
 
 function handleListSessions(ctx, deps) {
   const { res } = ctx;
-  const { sendJson, sdkBridge } = deps;
+  const { sendJson } = deps;
+  const sdkBridge = requireSdkBridge(res, deps);
+  if (!sdkBridge) {
+    return;
+  }
 
   Promise.resolve()
     .then(() => sdkBridge.listSdkSessions())
@@ -107,7 +149,11 @@ function handleListSessions(ctx, deps) {
 
 function handleDeleteSession(ctx, deps) {
   const { res, match } = ctx;
-  const { sendJson, sdkBridge } = deps;
+  const { sendJson } = deps;
+  const sdkBridge = requireSdkBridge(res, deps);
+  if (!sdkBridge) {
+    return;
+  }
 
   const sessionId = decodeURIComponent(match[1] || '').trim();
   if (!isValidSessionId(sessionId)) {
@@ -132,7 +178,11 @@ function handleDeleteSession(ctx, deps) {
 
 function handleSend(ctx, deps) {
   const { req, res } = ctx;
-  const { sendJson, readJsonBody, sdkBridge } = deps;
+  const { sendJson, readJsonBody } = deps;
+  const sdkBridge = requireSdkBridge(res, deps);
+  if (!sdkBridge) {
+    return;
+  }
 
   readJsonBody(req)
     .then((body) => {
@@ -163,7 +213,11 @@ function handleSend(ctx, deps) {
 
 function handleStream(ctx, deps) {
   const { req, res, match } = ctx;
-  const { sendJson, sdkBridge } = deps;
+  const { sendJson } = deps;
+  const sdkBridge = requireSdkBridge(res, deps);
+  if (!sdkBridge) {
+    return;
+  }
 
   const sessionId = decodeURIComponent(match[1] || '').trim();
   if (!isValidSessionId(sessionId)) {
@@ -185,15 +239,10 @@ function handleStream(ctx, deps) {
 }
 
 function register(deps = {}) {
-  const sdkBridge = deps.sdkBridge || null;
-  if (!sdkBridge) {
-    return [];
-  }
-
   const resolvedDeps = {
     sendJson: deps.sendJson || defaultSendJson,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
-    sdkBridge,
+    sdkBridge: deps.sdkBridge || null,
   };
 
   return [
