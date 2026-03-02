@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+$script:OverwriteMode = $null
 
 function Get-CopilotHome {
   if (-not [string]::IsNullOrWhiteSpace($env:XDG_CONFIG_HOME)) {
@@ -75,6 +76,22 @@ function Confirm-Overwrite([string]$path) {
   try {
     if ([Console]::IsInputRedirected) { return $false }
   } catch { }
+
+  if (-not $script:OverwriteMode) {
+    try {
+      $mode = Read-Host 'Overwrite mode for this run? [a]ll / [e]ach / [n]one (default: each)'
+      switch -Regex ($mode) {
+        '^(?i:a|all)$' { $script:OverwriteMode = 'all'; break }
+        '^(?i:n|none)$' { $script:OverwriteMode = 'none'; break }
+        default { $script:OverwriteMode = 'each'; break }
+      }
+    } catch {
+      return $false
+    }
+  }
+
+  if ($script:OverwriteMode -eq 'all') { return $true }
+  if ($script:OverwriteMode -eq 'none') { return $false }
 
   try {
     $resp = Read-Host "Overwrite $path ? [y/N]"
@@ -371,4 +388,3 @@ if ($DoVscode) {
 }
 
 Write-Host 'Done.'
-
