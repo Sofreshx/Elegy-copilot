@@ -4,7 +4,6 @@ description: Cross-model reviewer (GPT-5.3 Codex). Validates plans and execution
 tools: [read, search]
 user-invocable: false
 disable-model-invocation: false
-model: GPT-5.3-Codex (copilot)
 ---
 
 # Cross-Model Reviewer (GPT-5.3 Codex)

@@ -4,8 +4,6 @@ description: "Unified orchestrator — single entry point for all complex work. 
 tools: [read, search, edit, execute/runInTerminal, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-planner, impl-infra, impl-business, impl-reviewer, final-reviewer, work-unit-runner, code-explorer, code-architect, code-reviewer, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, reviewer-gpt-5-3-codex, reviewer-opus-4-6]
-
 ---
 
 # Orchestrator — Unified Agent
