@@ -92,6 +92,39 @@ async function run() {
     assert.ok(appCss.includes('@media (prefers-reduced-motion: reduce)'), 'Expected reduced-motion media query in app.css');
   });
 
+  await test('session selector contract is present in source app.css', async () => {
+    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
+    const requiredSelectors = [
+      '.session-list-items {',
+      '.session-card {',
+      '.session-item-actions {',
+      '.detail-grid {',
+      '.metadata-block {',
+    ];
+
+    for (const selector of requiredSelectors) {
+      assert.ok(appCss.includes(selector), `Expected ${selector} in source app.css`);
+    }
+  });
+
+  await test('session selector contract is present in ui-dist css bundles when dist exists', async () => {
+    const assetsDir = path.join(repoRoot, 'ui-dist', 'assets');
+    if (!fs.existsSync(assetsDir) || !fs.statSync(assetsDir).isDirectory()) {
+      return;
+    }
+
+    const cssFiles = fs.readdirSync(assetsDir).filter((entry) => entry.endsWith('.css'));
+    assert.ok(cssFiles.length > 0, 'Expected at least one ui-dist CSS bundle');
+
+    const bundledCss = cssFiles
+      .map((entry) => fs.readFileSync(path.join(assetsDir, entry), 'utf8'))
+      .join('\n');
+
+    for (const selector of ['.session-list-items', '.session-card', '.detail-grid', '.metadata-block']) {
+      assert.ok(bundledCss.includes(selector), `Expected ${selector} in ui-dist CSS bundle`);
+    }
+  });
+
   await test('semantic landmark and tab structure is preserved in App.tsx and TabShell.tsx', async () => {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
     const tabShellSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'TabShell.tsx'), 'utf8');

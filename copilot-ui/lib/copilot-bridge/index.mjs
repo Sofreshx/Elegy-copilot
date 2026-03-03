@@ -1,4 +1,5 @@
 import { CopilotClient } from "@github/copilot-sdk";
+import path from "path";
 import { resolveBridgeConfig } from "./bridge-config.mjs";
 import { createPreToolUseHook, createSessionEndHook } from "./hooks.mjs";
 import { createPermissionRequestHandler } from "./permissions.mjs";
@@ -38,6 +39,21 @@ function toErrorMessage(error) {
 function normalizeSessionId(value) {
   if (typeof value !== "string") return "";
   return value.trim();
+}
+
+function normalizeOptionalString(value) {
+  if (typeof value !== "string") return "";
+  return value.trim();
+}
+
+function areSamePath(left, right) {
+  if (!left || !right) return false;
+  const normalizedLeft = path.resolve(left);
+  const normalizedRight = path.resolve(right);
+  if (process.platform === "win32") {
+    return normalizedLeft.toLowerCase() === normalizedRight.toLowerCase();
+  }
+  return normalizedLeft === normalizedRight;
 }
 
 function normalizeMaxSseClients(value) {
@@ -189,6 +205,33 @@ export class SdkBridgeService {
     return health;
   }
 
+  _resolveBaseClientOptions() {
+    return isObject(this._config.clientOptions) ? this._config.clientOptions : {};
+  }
+
+  _resolveSessionContext(sessionConfig) {
+    const requestedCwd = normalizeOptionalString(sessionConfig.cwd);
+    const sandboxId = normalizeOptionalString(sessionConfig.sandboxId) || null;
+    const contextToken = normalizeOptionalString(sessionConfig.contextType).toLowerCase();
+    const contextType = contextToken || (sandboxId ? "sandbox" : "regular");
+    const baseClientOptions = this._resolveBaseClientOptions();
+    const baseCwd = normalizeOptionalString(baseClientOptions.cwd) || null;
+
+    const useDedicatedClient = Boolean(
+      requestedCwd
+      && (!baseCwd || !areSamePath(baseCwd, requestedCwd))
+    );
+
+    return {
+      contextType,
+      sandboxId,
+      requestedCwd: requestedCwd || null,
+      baseCwd,
+      effectiveCwd: requestedCwd || baseCwd,
+      useDedicatedClient,
+    };
+  }
+
   async createSdkSession(options = {}) {
     if (!this._client) {
       throw new Error("SDK bridge is not initialized");
@@ -239,13 +282,57 @@ export class SdkBridgeService {
       onSessionEnd,
     };
 
-    const session = await this._client.createSession(createRequest);
+    const context = this._resolveSessionContext(sessionConfig);
+    let client = this._client;
+    let ownsClient = false;
+
+    if (context.useDedicatedClient) {
+      const dedicatedOptions = {
+        ...this._resolveBaseClientOptions(),
+        cwd: context.requestedCwd,
+      };
+      client = this._deps.createClient(dedicatedOptions);
+      if (!client || typeof client.start !== "function") {
+        throw new Error("SdkBridgeService requires a CopilotClient-compatible start() function");
+      }
+      await client.start();
+      ownsClient = true;
+    }
+
+    let session;
+    try {
+      session = await client.createSession(createRequest);
+    } catch (error) {
+      if (ownsClient && client && typeof client.stop === "function") {
+        try {
+          await client.stop();
+        } catch {
+          // Ignore dedicated client shutdown failures after session creation failure.
+        }
+      }
+      throw error;
+    }
+
     const sessionId = normalizeSessionId(session && session.sessionId);
     if (!sessionId) {
+      if (ownsClient && client && typeof client.stop === "function") {
+        try {
+          await client.stop();
+        } catch {
+          // Ignore dedicated client shutdown failures after invalid session id.
+        }
+      }
       throw new Error("SDK client returned an invalid session id");
     }
 
     if (this._sessions.has(sessionId)) {
+      if (ownsClient && client && typeof client.stop === "function") {
+        try {
+          await client.stop();
+        } catch {
+          // Ignore dedicated client shutdown failures after duplicate session id.
+        }
+      }
       throw new Error(`SDK session already exists: ${sessionId}`);
     }
 
@@ -254,6 +341,11 @@ export class SdkBridgeService {
       model: typeof createRequest.model === "string" ? createRequest.model : null,
       createdAt: safeIsoNow(this._deps.now),
       session,
+      client,
+      ownsClient,
+      contextType: context.contextType,
+      sandboxId: context.sandboxId,
+      cwd: context.effectiveCwd,
       hooks: {
         onPreToolUse,
         onSessionEnd,
@@ -274,6 +366,9 @@ export class SdkBridgeService {
       sessionId,
       model: record.model,
       createdAt: record.createdAt,
+      contextType: record.contextType,
+      sandboxId: record.sandboxId,
+      cwd: record.cwd,
     };
   }
 
@@ -310,6 +405,15 @@ export class SdkBridgeService {
       }
     }
 
+    let stopError = null;
+    if (record.ownsClient && record.client && typeof record.client.stop === "function") {
+      try {
+        await record.client.stop();
+      } catch (error) {
+        stopError = error;
+      }
+    }
+
     this._sessions.delete(normalizedSessionId);
 
     const reason =
@@ -321,6 +425,9 @@ export class SdkBridgeService {
 
     if (destroyError) {
       throw destroyError;
+    }
+    if (stopError) {
+      throw stopError;
     }
 
     return true;
@@ -336,6 +443,9 @@ export class SdkBridgeService {
       model: record.model,
       createdAt: record.createdAt,
       sseClientCount: record.sseClients.size,
+      contextType: record.contextType,
+      sandboxId: record.sandboxId,
+      cwd: record.cwd,
       session: record.session,
     };
   }
@@ -346,6 +456,9 @@ export class SdkBridgeService {
       model: record.model,
       createdAt: record.createdAt,
       sseClientCount: record.sseClients.size,
+      contextType: record.contextType,
+      sandboxId: record.sandboxId,
+      cwd: record.cwd,
     }));
   }
 

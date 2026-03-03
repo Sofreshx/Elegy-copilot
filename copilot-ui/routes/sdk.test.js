@@ -1,6 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 const { register } = require('./sdk');
 
@@ -131,13 +134,13 @@ function findRoute(routes, method, pathname) {
   throw new Error(`Route not found for ${method} ${pathname}`);
 }
 
-async function invoke(routes, method, pathname, body) {
+async function invoke(routes, method, pathname, body, extraContext = {}) {
   const { route, match } = findRoute(routes, method, pathname);
   const req = createRequest(body);
   const res = createResponse();
   const u = new URL(`http://127.0.0.1${pathname}`);
 
-  route.handler({ req, res, u, match, pathname });
+  route.handler({ req, res, u, match, pathname, ...extraContext });
   await sleep(0);
 
   return { req, res };
@@ -301,6 +304,75 @@ async function run() {
       model: 'gpt-5.3-codex',
       createdAt: '2026-03-01T00:00:00.000Z',
     });
+  });
+
+  await test('POST /api/sdk/session supports sandbox context with isolated cwd', async () => {
+    const sandboxId = 'sb-sdk-route-1';
+    const sandboxesHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-sdk-route-'));
+    const sandboxRoot = path.join(sandboxesHome, sandboxId);
+    fs.mkdirSync(sandboxRoot, { recursive: true });
+
+    try {
+      let capturedPayload = null;
+      const sandboxBridge = {
+        ...createMockSdkBridge(),
+        async createSdkSession(payload) {
+          capturedPayload = payload;
+          return {
+            sessionId: 'sandbox-session-1',
+            model: null,
+            createdAt: '2026-03-01T00:00:00.000Z',
+            contextType: payload.contextType,
+            sandboxId: payload.sandboxId,
+            cwd: payload.cwd,
+          };
+        },
+      };
+
+      const sandboxRoutes = register({
+        sdkBridge: sandboxBridge,
+        sendJson(res, code, payload) {
+          const text = JSON.stringify(payload, null, 2);
+          res.writeHead(code, {
+            'Content-Type': 'application/json; charset=utf-8',
+          });
+          res.end(text);
+        },
+        readJsonBody: async (req) => req.__body || {},
+      });
+
+      const created = await invoke(
+        sandboxRoutes,
+        'POST',
+        '/api/sdk/session',
+        {
+          sandboxId,
+        },
+        {
+          sandboxesHome,
+        }
+      );
+
+      assert.equal(created.res.statusCode, 201);
+      assert.equal(capturedPayload.contextType, 'sandbox');
+      assert.equal(capturedPayload.sandboxId, sandboxId);
+      assert.equal(path.resolve(capturedPayload.cwd), path.resolve(sandboxRoot));
+
+      const missingSandbox = await invoke(
+        sandboxRoutes,
+        'POST',
+        '/api/sdk/session',
+        {
+          sandboxId: 'sb-sdk-missing',
+        },
+        {
+          sandboxesHome,
+        }
+      );
+      assert.equal(missingSandbox.res.statusCode, 409);
+    } finally {
+      fs.rmSync(sandboxesHome, { recursive: true, force: true });
+    }
   });
 
   await test('GET /api/sdk/sessions lists sessions', async () => {

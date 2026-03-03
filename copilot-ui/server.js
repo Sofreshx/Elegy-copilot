@@ -100,6 +100,8 @@ const {
   evictPlanningIdempotencyEntry,
 } = require('./lib/planningApiContracts');
 const { createRegistry } = require('./routes');
+const LOCAL_TRACKER_SECRETS_MODULE_PATH = path.join(__dirname, '..', 'local-tracker', 'dist', 'messagingGateway', 'secrets.js');
+const GATEWAY_HTTP_SECRET_KIND = 'gatewayHttpToken';
 
 const WS3_AUTHORITY_DEPENDENCY_GATE_CONTRACT_VERSION = '1';
 const WS3_AUTHORITY_DEPENDENCY_NAME = 'ws3_authority_reconciliation_contract';
@@ -499,10 +501,82 @@ function resolveTrackerUrl(args) {
   return 'http://127.0.0.1:4100';
 }
 
-function resolveTrackerToken(args) {
-  if (args && typeof args.trackerToken === 'string' && args.trackerToken.trim()) return args.trackerToken.trim();
-  if (process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN) return process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.trim();
-  return null;
+async function resolveTrackerTokenFromGatewaySecrets() {
+  try {
+    if (!fs.existsSync(LOCAL_TRACKER_SECRETS_MODULE_PATH)) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  let secretsModule;
+  try {
+    secretsModule = require(LOCAL_TRACKER_SECRETS_MODULE_PATH);
+  } catch {
+    return null;
+  }
+
+  if (!secretsModule || typeof secretsModule.getGatewaySecret !== 'function') {
+    return null;
+  }
+
+  try {
+    const secretResult = await secretsModule.getGatewaySecret(GATEWAY_HTTP_SECRET_KIND);
+    const token = secretResult && typeof secretResult.value === 'string'
+      ? secretResult.value.trim()
+      : '';
+    if (!token) {
+      return null;
+    }
+
+    const source = secretResult && typeof secretResult.source === 'string'
+      ? secretResult.source
+      : 'keychain';
+
+    return {
+      value: token,
+      source: source === 'env' ? 'env' : 'keychain',
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveTrackerToken(args) {
+  if (args && typeof args.trackerToken === 'string' && args.trackerToken.trim()) {
+    return {
+      value: args.trackerToken.trim(),
+      source: 'arg',
+    };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(process.env, 'INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN')) {
+    const envToken = typeof process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN === 'string'
+      ? process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.trim()
+      : '';
+    if (!envToken) {
+      return {
+        value: null,
+        source: 'missing',
+      };
+    }
+
+    return {
+      value: envToken,
+      source: 'env',
+    };
+  }
+
+  const fromGatewaySecrets = await resolveTrackerTokenFromGatewaySecrets();
+  if (fromGatewaySecrets) {
+    return fromGatewaySecrets;
+  }
+
+  return {
+    value: null,
+    source: 'missing',
+  };
 }
 
 function getDefaultMessagingGatewayConfigPath() {
@@ -4799,7 +4873,8 @@ async function startServer(options = {}) {
   const vscodeHome = resolveVscodeHome(args);
   const sandboxesHome = resolveSandboxesHome(args);
   const trackerUrl = resolveTrackerUrl(args);
-  const trackerToken = resolveTrackerToken(args);
+  const trackerTokenResolution = await resolveTrackerToken(args);
+  const trackerToken = trackerTokenResolution.value;
   const planningPersistenceConfig = readPlanningPersistenceConfig(process.env);
   const planningValidation = validatePlanningPersistenceConfig(planningPersistenceConfig);
   const planningDurabilityDependencyGate = evaluatePlanningDurabilityDependencyGate({ env: process.env });
@@ -5078,7 +5153,7 @@ async function startServer(options = {}) {
         console.log(`engineRoot:     ${engineRoot}`);
         console.log(`trackerUrl:     ${trackerUrl}`);
         if (sdkBridgeEnabled) console.log('sdkBridge:      enabled');
-        if (trackerToken) console.log(`trackerAuth:    configured`);
+        if (trackerToken) console.log(`trackerAuth:    configured (${trackerTokenResolution.source})`);
         if (token) {
           console.log(`auth token:  ${token}`);
         }

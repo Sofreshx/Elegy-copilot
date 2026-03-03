@@ -33,6 +33,9 @@ import type {
   SdkSendResponse,
   SdkSessionSummary,
   SdkSessionsResponse,
+  SessionPlansResponse,
+  SessionStructuredStateResponse,
+  SessionTextArtifactResponse,
   SkillsPreviewResponse,
   SessionsListResponse,
   TrackerPermissionsResponse,
@@ -63,6 +66,11 @@ export interface ListSessionsOptions {
   activeWindowMinutes?: number;
   source?: string;
   dedupe?: string;
+}
+
+export interface SessionArtifactQueryOptions {
+  source?: string;
+  planId?: string;
 }
 
 export interface PlanningContextQuery {
@@ -123,6 +131,8 @@ export interface PlanningMergePayload {
 export interface SdkCreateSessionPayload {
   sessionId?: string;
   model?: string;
+  contextType?: 'regular' | 'sandbox' | string;
+  sandboxId?: string;
 }
 
 export interface SdkSendPayload {
@@ -977,6 +987,65 @@ export function listSessions(baseUrl?: string, options: ListSessionsOptions = {}
       dedupe: options.dedupe,
     },
   });
+}
+
+export function listSessionPlans(
+  sessionId: string,
+  options: SessionArtifactQueryOptions = {},
+  baseUrl?: string
+): Promise<SessionPlansResponse> {
+  return apiRequest<SessionPlansResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/plans`, {
+    baseUrl,
+    query: {
+      source: options.source,
+    },
+  });
+}
+
+export function getSessionStructuredState(
+  sessionId: string,
+  options: SessionArtifactQueryOptions = {},
+  baseUrl?: string
+): Promise<SessionStructuredStateResponse> {
+  return apiRequest<SessionStructuredStateResponse>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/structured-state`,
+    {
+      baseUrl,
+      query: {
+        source: options.source,
+        planId: options.planId,
+      },
+    }
+  );
+}
+
+export function getSessionProposition(
+  sessionId: string,
+  options: SessionArtifactQueryOptions = {},
+  baseUrl?: string
+): Promise<SessionTextArtifactResponse> {
+  return apiRequest<SessionTextArtifactResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/proposition`, {
+    baseUrl,
+    query: {
+      source: options.source,
+    },
+  });
+}
+
+export function getSessionVerificationGuide(
+  sessionId: string,
+  options: SessionArtifactQueryOptions = {},
+  baseUrl?: string
+): Promise<SessionTextArtifactResponse> {
+  return apiRequest<SessionTextArtifactResponse>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/verification-guide`,
+    {
+      baseUrl,
+      query: {
+        source: options.source,
+      },
+    }
+  );
 }
 
 export async function getSdkHealth(baseUrl?: string): Promise<SdkHealthResponse> {

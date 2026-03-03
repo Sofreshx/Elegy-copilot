@@ -1,6 +1,9 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const SANDBOX_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/;
 
 function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -12,6 +15,38 @@ function isValidSessionId(value) {
   if (id.length > 256) return false;
   if (id.includes('..') || id.includes('/') || id.includes('\\')) return false;
   return true;
+}
+
+function isPathInside(parentPath, candidatePath) {
+  const relativePath = path.relative(parentPath, candidatePath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+}
+
+function resolveSandboxSessionCwd(sandboxesHome, sandboxId) {
+  const sandboxRoot = typeof sandboxesHome === 'string' && sandboxesHome.trim()
+    ? path.resolve(sandboxesHome.trim())
+    : '';
+  if (!sandboxRoot) {
+    throw Object.assign(new Error('Sandbox root is unavailable on the server.'), { statusCode: 503 });
+  }
+
+  const sandboxCwd = path.resolve(path.join(sandboxRoot, sandboxId));
+  if (!isPathInside(sandboxRoot, sandboxCwd)) {
+    throw Object.assign(new Error('Sandbox path escapes configured sandbox root.'), { statusCode: 400 });
+  }
+
+  let stat;
+  try {
+    stat = fs.statSync(sandboxCwd);
+  } catch {
+    throw Object.assign(new Error(`Sandbox ${sandboxId} is not available. Run create/start first.`), { statusCode: 409 });
+  }
+
+  if (!stat.isDirectory()) {
+    throw Object.assign(new Error(`Sandbox ${sandboxId} is not available. Run create/start first.`), { statusCode: 409 });
+  }
+
+  return sandboxCwd;
 }
 
 function toBridgeErrorPayload(error, fallbackStatusCode = 500) {
@@ -97,7 +132,7 @@ function handleSdkHealth(ctx, deps) {
 }
 
 function handleCreateSession(ctx, deps) {
-  const { req, res } = ctx;
+  const { req, res, sandboxesHome } = ctx;
   const { sendJson, readJsonBody } = deps;
   const sdkBridge = requireSdkBridge(res, deps);
   if (!sdkBridge) {
@@ -109,6 +144,9 @@ function handleCreateSession(ctx, deps) {
       const payload = body && typeof body === 'object' ? body : {};
       const sessionId = payload.sessionId == null ? null : String(payload.sessionId).trim();
       const model = payload.model == null ? null : String(payload.model).trim();
+      const contextType = payload.contextType == null ? null : String(payload.contextType).trim().toLowerCase();
+      const sandboxId = payload.sandboxId == null ? null : String(payload.sandboxId).trim();
+      let cwd;
 
       if (sessionId != null && sessionId !== '' && !isValidSessionId(sessionId)) {
         throw Object.assign(new Error('Invalid sessionId'), { statusCode: 400 });
@@ -118,9 +156,32 @@ function handleCreateSession(ctx, deps) {
         throw Object.assign(new Error('model must be a non-empty string when provided'), { statusCode: 400 });
       }
 
+      if (payload.contextType != null && !isNonEmptyString(contextType)) {
+        throw Object.assign(new Error('contextType must be a non-empty string when provided'), { statusCode: 400 });
+      }
+
+      if (payload.sandboxId != null && !isNonEmptyString(sandboxId)) {
+        throw Object.assign(new Error('sandboxId must be a non-empty string when provided'), { statusCode: 400 });
+      }
+
+      if (sandboxId && !SANDBOX_ID_PATTERN.test(sandboxId)) {
+        throw Object.assign(new Error('sandboxId must use only alphanumeric and hyphen characters'), { statusCode: 400 });
+      }
+
+      if (sandboxId && contextType && contextType !== 'sandbox') {
+        throw Object.assign(new Error('sandboxId requires contextType=sandbox (or omit contextType)'), { statusCode: 400 });
+      }
+
+      if (sandboxId) {
+        cwd = resolveSandboxSessionCwd(sandboxesHome, sandboxId);
+      }
+
       return sdkBridge.createSdkSession({
         sessionId: sessionId || undefined,
         model: model || undefined,
+        contextType: sandboxId ? 'sandbox' : (contextType || 'regular'),
+        sandboxId: sandboxId || undefined,
+        cwd,
       });
     })
     .then((result) => sendJson(res, 201, result))

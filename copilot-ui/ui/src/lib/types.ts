@@ -29,6 +29,46 @@ export interface SessionsListResponse {
   sessions: SessionSummary[];
 }
 
+export interface SessionPlanArtifact {
+  id: string;
+  kind?: string;
+  status?: string | null;
+  verdict?: string | null;
+  source?: string;
+  bytes?: number;
+  updatedMs?: number | null;
+  sessionStatus?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SessionPlansResponse {
+  id: string;
+  source: string;
+  plans: SessionPlanArtifact[];
+}
+
+export interface SessionStructuredNextUnit {
+  workUnitId?: string;
+  rationale?: string;
+  [key: string]: unknown;
+}
+
+export interface SessionStructuredStateResponse {
+  id: string;
+  source: string;
+  planId?: string;
+  nextUnit?: SessionStructuredNextUnit | null;
+  warnings?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionTextArtifactResponse {
+  id: string;
+  source: string;
+  content: string;
+  [key: string]: unknown;
+}
+
 export interface SdkHealthResponse {
   connected: boolean;
   enabled?: boolean;
@@ -46,6 +86,9 @@ export interface SdkSessionSummary {
   model?: string | null;
   createdAt?: string;
   sseClientCount?: number;
+  contextType?: string;
+  sandboxId?: string | null;
+  cwd?: string | null;
   [key: string]: unknown;
 }
 

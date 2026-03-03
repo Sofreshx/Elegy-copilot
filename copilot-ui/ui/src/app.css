@@ -710,28 +710,35 @@
   list-style: none;
 }
 
-.session-item > button {
+.session-card {
   width: 100%;
   border: 1px solid var(--color-ink-200);
   border-radius: var(--radius-md);
   background: var(--color-surface-1);
-  color: inherit;
-  cursor: pointer;
   display: grid;
   gap: var(--space-sm);
   padding: var(--space-sm);
-  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
 }
 
-.session-item > button:hover {
+.session-card:hover {
   border-color: var(--color-brand-500);
   background: rgba(47, 165, 157, 0.06);
 }
 
-.session-item > button.selected,
-.session-item > button[aria-pressed='true'] {
+.session-card:focus-visible {
+  outline: 3px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+.session-card.selected {
   border-color: var(--color-brand-500);
   background: rgba(47, 165, 157, 0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 .session-item-header {
@@ -739,6 +746,28 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-sm);
+}
+
+.session-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  justify-content: flex-start;
+}
+
+.session-item-action {
+  border: 1px solid var(--color-ink-300);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-0);
+  color: var(--color-ink-900);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+}
+
+.session-item-action:hover {
+  border-color: var(--color-brand-500);
+  background: rgba(47, 165, 157, 0.08);
 }
 
 .session-id {
@@ -751,13 +780,13 @@
 .session-item-meta {
   margin: 0;
   display: grid;
-  gap: var(--space-sm);
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.45rem 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .session-item-meta div {
   display: grid;
-  gap: var(--space-2xs);
+  gap: 0.15rem;
 }
 
 .session-item-meta dt,
@@ -789,19 +818,81 @@
 
 .session-detail {
   display: grid;
-  gap: var(--space-sm);
+  gap: 0.55rem;
 }
 
 .detail-grid {
   margin: 0;
   display: grid;
-  gap: var(--space-sm);
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.45rem 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .detail-grid div {
   display: grid;
-  gap: var(--space-2xs);
+  gap: 0.15rem;
+}
+
+.session-detail-artifacts {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.session-detail-artifacts h4 {
+  margin: 0;
+  color: var(--color-ink-900);
+  font-size: 0.95rem;
+}
+
+.session-detail-hint {
+  margin: 0;
+  color: var(--color-ink-500);
+  font-size: 0.86rem;
+}
+
+.session-detail-suggestion {
+  margin: 0;
+  color: var(--color-ink-700);
+  font-size: 0.9rem;
+}
+
+.session-detail-suggestion span {
+  font-weight: 600;
+}
+
+.session-plan-list,
+.session-detail-warnings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.session-plan-list li {
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.5rem;
+  background: var(--color-surface-0);
+}
+
+.session-plan-item-title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--color-ink-900);
+}
+
+.session-plan-item-copy {
+  margin: 0.12rem 0 0;
+  color: var(--color-ink-600);
+  font-size: 0.82rem;
+}
+
+.session-detail-warnings li {
+  color: var(--color-accent-600);
+  font-size: 0.82rem;
+  padding-left: 0.35rem;
 }
 
 .metadata-block {
@@ -813,9 +904,9 @@
   gap: var(--space-xs);
 }
 
-.metadata-block p {
-  margin: 0;
+.metadata-block summary {
   color: var(--color-ink-600);
+  cursor: pointer;
   font-weight: 600;
 }
 
@@ -823,6 +914,8 @@
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
+  max-height: 12rem;
+  overflow: auto;
 }
 
 .sdk-message-list {
