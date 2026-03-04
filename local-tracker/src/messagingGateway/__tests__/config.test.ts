@@ -218,6 +218,15 @@ describe('Discord config validation', () => {
 		).toThrow('[Gateway] Invalid config: at least one platform (discord or telegram) must be configured');
 	});
 
+	it('allows platformless config when explicitly enabled', () => {
+		process.env.INSTRUCTION_ENGINE_GATEWAY_ALLOW_PLATFORMLESS = '1';
+		const config = loadRawEnvJson({
+			workspaces: { allowedRoots: [tmpRoot], activeRoot: tmpRoot },
+		});
+		expect(config.discord).toBeUndefined();
+		expect(config.telegram).toBeUndefined();
+	});
+
 	it('throws when guildId is missing', () => {
 		expect(() =>
 			loadRawEnvJson({

@@ -471,15 +471,15 @@ async function run() {
         assert.ok(connect.body.error);
 
         const initDb = await postJson(`${baseUrl}/api/planning/persistence/init`, {});
-        assert.strictEqual(initDb.statusCode, 503);
+        assert.strictEqual(initDb.statusCode, 200);
         assert.strictEqual(initDb.body.kind, 'planning.persistence.init');
         assert.strictEqual(initDb.body.deterministic, true);
-        assert.strictEqual(initDb.body.ready, false);
-        assert.strictEqual(initDb.body.initialized, false);
-        assert.ok(initDb.body.error);
-        assert.strictEqual(initDb.body.error.code, 'planning_persistence_not_configured');
+        assert.strictEqual(initDb.body.ready, true);
+        assert.strictEqual(initDb.body.initialized, true);
+        assert.ok(initDb.body.result);
+        assert.strictEqual(initDb.body.result.mode, 'noop_optional_persistence');
         assert.ok(Array.isArray(initDb.body.errors));
-        assert.strictEqual(initDb.body.errors.length, 1);
+        assert.strictEqual(initDb.body.errors.length, 0);
       } finally {
         server.kill();
         await sleep(150);

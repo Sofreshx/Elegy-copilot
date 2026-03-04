@@ -1133,6 +1133,17 @@ export function getInstalledAssets(baseUrl?: string): Promise<InstalledAssetsRes
   return apiRequest<InstalledAssetsResponse>('/api/assets/installed', { baseUrl });
 }
 
+export function syncAllAssets(force = false, baseUrl?: string): Promise<{ result: unknown[] }> {
+  return apiRequest<{ result: unknown[] }>('/api/assets/sync-all', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ force }),
+  });
+}
+
 export function runSandboxLifecycleAction(
   action: SandboxLifecycleAction,
   payload: SandboxLifecyclePayload,

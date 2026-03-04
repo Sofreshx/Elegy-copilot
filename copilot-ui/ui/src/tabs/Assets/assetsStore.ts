@@ -1,4 +1,4 @@
-import { getInstalledAssets, getManagedAssets } from '../../lib/api';
+import { getInstalledAssets, getManagedAssets, syncAllAssets } from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type { InstalledAssetsResponse, ManagedAssetStatus } from '../../lib/types';
 
@@ -19,6 +19,8 @@ export interface AssetsState {
   error: string | null;
   selectedAssetId: string | null;
   selectedAssetPath: string | null;
+  syncing: boolean;
+  actionMessage: string | null;
 }
 
 const INITIAL_STATE: AssetsState = {
@@ -28,6 +30,8 @@ const INITIAL_STATE: AssetsState = {
   error: null,
   selectedAssetId: null,
   selectedAssetPath: null,
+  syncing: false,
+  actionMessage: null,
 };
 
 function toErrorMessage(error: unknown): string {
@@ -185,6 +189,8 @@ function createAssetsStore() {
           error: null,
           selectedAssetId,
           selectedAssetPath,
+          syncing: state.syncing,
+          actionMessage: state.actionMessage,
         };
       });
     } catch (error) {
@@ -237,6 +243,35 @@ function createAssetsStore() {
     return loadAssets();
   }
 
+  async function syncAll(force = false): Promise<void> {
+    store.setState((state) => ({
+      ...state,
+      syncing: true,
+      error: null,
+      actionMessage: force ? 'Force reinstalling managed assets...' : 'Installing/updating managed assets...',
+    }));
+
+    try {
+      const response = await syncAllAssets(force);
+      const results = Array.isArray(response?.result) ? response.result : [];
+      await loadAssets();
+      store.setState((state) => ({
+        ...state,
+        syncing: false,
+        actionMessage: `${force ? 'Force reinstall' : 'Install/update'} completed for ${results.length} asset(s).`,
+      }));
+    } catch (error) {
+      const message = toErrorMessage(error);
+      store.setState((state) => ({
+        ...state,
+        syncing: false,
+        error: message,
+        actionMessage: `${force ? 'Force reinstall' : 'Install/update'} failed.`,
+      }));
+      throw error;
+    }
+  }
+
   return {
     getState: store.getState,
     subscribe: store.subscribe,
@@ -244,6 +279,7 @@ function createAssetsStore() {
     refresh,
     selectManagedAsset,
     selectInstalledAsset,
+    syncAll,
   };
 }
 
