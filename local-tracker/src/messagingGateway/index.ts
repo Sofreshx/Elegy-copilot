@@ -304,7 +304,8 @@ async function main() {
 	const loaded = loadMessagingGatewayConfig(args.configPath);
 	const discordConfig = loaded.config.discord;
 	const telegramConfig = loaded.config.telegram;
-	if (!discordConfig && !telegramConfig) {
+	const allowPlatformless = process.env.INSTRUCTION_ENGINE_GATEWAY_ALLOW_PLATFORMLESS === '1';
+	if (!discordConfig && !telegramConfig && !allowPlatformless) {
 		throw new Error('[Gateway] Invalid config: at least one platform (discord or telegram) must be configured');
 	}
 

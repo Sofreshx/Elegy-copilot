@@ -1073,6 +1073,28 @@ async function initializePlanningPersistenceAuthority(planningPersistenceConfig,
   const authority = resolvePlanningPersistenceAuthorityState(planningPersistenceConfig, planningPersistenceState);
 
   if (!authority.persistedAuthority) {
+    const required = Boolean(authority.validation && authority.validation.required);
+    if (!required) {
+      return {
+        statusCode: 200,
+        body: {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.persistence.init',
+          deterministic: true,
+          ready: true,
+          initialized: true,
+          result: {
+            mode: 'noop_optional_persistence',
+          },
+          errors: [],
+          planningPersistence: buildPlanningPersistenceHealthEnvelope(
+            getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+          ),
+          corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+        },
+      };
+    }
+
     return {
       statusCode: 503,
       body: {
