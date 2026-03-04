@@ -16,9 +16,9 @@ try {
 }
 
 # 2. C#
-Write-Output "`n[2/3] Installing C# Language Server (csharp-ls)..."
+Write-Output "`n[2/3] Installing C# Language Server (OmniSharp)..."
 try {
-    dotnet tool install -g csharp-ls
+    dotnet tool install -g omnisharp
     Write-Output "C# Language Server installed successfully."
 } catch {
     Write-Output "Failed to install C# Language Server. It might already be installed, or .NET SDK is missing."
@@ -56,8 +56,8 @@ $config = @{
             }
         }
         csharp = @{
-            command = "csharp-ls"
-            args = @()
+            command = "omnisharp"
+            args = @("--languageserver")
             fileExtensions = @{
                 ".cs" = "csharp"
             }

@@ -116,6 +116,30 @@ Open: http://127.0.0.1:3210
 
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.
 
+## Elegy canonical contracts (consumer integration)
+
+Instruction Engine includes a minimal consumer for Elegy canonical workflow contracts under `contracts/elegy/`.
+
+- Contract consumer module: `scripts/elegy-contract-consumer.js`
+- Sync/import script: `scripts/sync-elegy-contracts.js`
+- Validation CLI: `scripts/validate-elegy-canonical.js`
+
+Use the following root npm scripts:
+
+```bash
+# Refresh local contracts from sibling Elegy repo artifacts
+npm run contracts:sync:elegy
+
+# Validate a sample canonical payload (defaults to local minimal fixture)
+npm run contracts:validate:elegy-sample
+```
+
+Optional source override for sync:
+
+```bash
+node scripts/sync-elegy-contracts.js "C:/path/to/Elegy/artifacts/contracts"
+```
+
 ### Desktop distribution policy (locked)
 
 - Packaging runtime: Electron (`electron-builder`) with in-app updates (`electron-updater`)
