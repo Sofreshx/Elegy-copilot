@@ -1,4 +1,4 @@
-import { getInstalledAssets, getManagedAssets, syncAllAssets } from '../../lib/api';
+import { authorizeCopilotFolders, getInstalledAssets, getManagedAssets, patchVscodeSettings, syncAllAssets } from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type { InstalledAssetsResponse, ManagedAssetStatus } from '../../lib/types';
 
@@ -20,6 +20,7 @@ export interface AssetsState {
   selectedAssetId: string | null;
   selectedAssetPath: string | null;
   syncing: boolean;
+  repairing: boolean;
   actionMessage: string | null;
 }
 
@@ -31,6 +32,7 @@ const INITIAL_STATE: AssetsState = {
   selectedAssetId: null,
   selectedAssetPath: null,
   syncing: false,
+  repairing: false,
   actionMessage: null,
 };
 
@@ -190,6 +192,7 @@ function createAssetsStore() {
           selectedAssetId,
           selectedAssetPath,
           syncing: state.syncing,
+          repairing: state.repairing,
           actionMessage: state.actionMessage,
         };
       });
@@ -247,6 +250,7 @@ function createAssetsStore() {
     store.setState((state) => ({
       ...state,
       syncing: true,
+      repairing: false,
       error: null,
       actionMessage: force ? 'Force reinstalling managed assets...' : 'Installing/updating managed assets...',
     }));
@@ -258,6 +262,7 @@ function createAssetsStore() {
       store.setState((state) => ({
         ...state,
         syncing: false,
+        repairing: false,
         actionMessage: `${force ? 'Force reinstall' : 'Install/update'} completed for ${results.length} asset(s).`,
       }));
     } catch (error) {
@@ -265,8 +270,60 @@ function createAssetsStore() {
       store.setState((state) => ({
         ...state,
         syncing: false,
+        repairing: false,
         error: message,
         actionMessage: `${force ? 'Force reinstall' : 'Install/update'} failed.`,
+      }));
+      throw error;
+    }
+  }
+
+  async function repairWithSetup(): Promise<void> {
+    store.setState((state) => ({
+      ...state,
+      syncing: true,
+      repairing: true,
+      error: null,
+      actionMessage: 'Step 1/3: Repairing managed assets in pointer mode...',
+    }));
+
+    try {
+      const syncResponse = await syncAllAssets(false, undefined, true);
+      const repaired = Array.isArray(syncResponse?.result) ? syncResponse.result.length : 0;
+
+      store.setState((state) => ({
+        ...state,
+        actionMessage: `Step 1/3 complete: repaired ${repaired} asset(s). Step 2/3: Patching VS Code settings...`,
+      }));
+      await patchVscodeSettings();
+
+      store.setState((state) => ({
+        ...state,
+        actionMessage: 'Step 2/3 complete: VS Code settings patched. Step 3/3: Authorizing Copilot folders...',
+      }));
+      await authorizeCopilotFolders();
+
+      await loadAssets();
+
+      store.setState((state) => ({
+        ...state,
+        syncing: false,
+        repairing: false,
+        actionMessage: `One-click repair complete: ${repaired} asset(s) repaired, VS Code settings patched, Copilot folders authorized.`,
+      }));
+    } catch (error) {
+      const message = toErrorMessage(error);
+      try {
+        await loadAssets();
+      } catch {
+        // Keep the original repair failure visible even if refresh fails.
+      }
+      store.setState((state) => ({
+        ...state,
+        syncing: false,
+        repairing: false,
+        error: message,
+        actionMessage: `One-click repair failed: ${message}`,
       }));
       throw error;
     }
@@ -280,6 +337,7 @@ function createAssetsStore() {
     selectManagedAsset,
     selectInstalledAsset,
     syncAll,
+    repairWithSetup,
   };
 }
 

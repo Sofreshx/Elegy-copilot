@@ -1133,14 +1133,36 @@ export function getInstalledAssets(baseUrl?: string): Promise<InstalledAssetsRes
   return apiRequest<InstalledAssetsResponse>('/api/assets/installed', { baseUrl });
 }
 
-export function syncAllAssets(force = false, baseUrl?: string): Promise<{ result: unknown[] }> {
+export function syncAllAssets(force = false, baseUrl?: string, pointerMode = true): Promise<{ result: unknown[] }> {
   return apiRequest<{ result: unknown[] }>('/api/assets/sync-all', {
     baseUrl,
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ force }),
+    body: JSON.stringify({ force, pointerMode }),
+  });
+}
+
+export function patchVscodeSettings(baseUrl?: string): Promise<{ result: unknown }> {
+  return apiRequest<{ result: unknown }>('/api/vscode/patch-settings', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ dryRun: false }),
+  });
+}
+
+export function authorizeCopilotFolders(baseUrl?: string): Promise<{ result: unknown }> {
+  return apiRequest<{ result: unknown }>('/api/copilot/authorize', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ dryRun: false }),
   });
 }
 

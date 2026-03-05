@@ -354,7 +354,7 @@ function getManagedAssetStatuses(engineRoot, destinationHome) {
 }
 
 function syncAsset(engineRoot, destinationHome, assetId, opts) {
-  const { dryRun = false, force = false } = opts || {};
+  const { dryRun = false, force = false, pointerMode = true } = opts || {};
   const manifest = loadManifest(engineRoot);
   const asset = manifest.assets.find((a) => a.id === assetId);
   if (!asset) throw new Error(`Unknown assetId: ${assetId}`);
@@ -421,7 +421,7 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
   if (!dryRun) {
     fs.mkdirSync(path.dirname(destinationAbs), { recursive: true });
 
-    if (asset.type === 'skill' && opts && opts.pointerMode) {
+    if (asset.type === 'skill' && pointerMode) {
       // Pointer mode: respect loadMode from manifest
       const skillBase = path.basename(asset.destination);
       const loadMode = asset.loadMode || 'on-demand';

@@ -4890,7 +4890,10 @@ async function startServer(options = {}) {
   };
 
   const quiet = options.quiet === true;
-  const engineRoot = path.resolve(__dirname, '..');
+  const engineRoot =
+    typeof options.engineRoot === 'string' && options.engineRoot.trim()
+      ? path.resolve(options.engineRoot.trim())
+      : path.resolve(__dirname, '..');
   const copilotHome = resolveCopilotHome(args);
   const vscodeHome = resolveVscodeHome(args);
   const sandboxesHome = resolveSandboxesHome(args);

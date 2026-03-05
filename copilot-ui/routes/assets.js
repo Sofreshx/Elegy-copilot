@@ -55,7 +55,7 @@ function handleAssetsSyncAll(ctx, deps) {
       const result = assets.syncAll(engineRoot, assetsHomeAbs, {
         dryRun: Boolean(body.dryRun),
         force: Boolean(body.force),
-
+        pointerMode: body.pointerMode !== false,
       });
       sendJson(res, 200, { result });
     })
@@ -74,7 +74,7 @@ function handleAssetsSync(ctx, deps) {
       const result = assets.syncAsset(engineRoot, assetsHomeAbs, assetId, {
         dryRun: Boolean(body.dryRun),
         force: Boolean(body.force),
-
+        pointerMode: body.pointerMode !== false,
       });
       sendJson(res, 200, { result });
     })

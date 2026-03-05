@@ -146,6 +146,16 @@ node scripts/sync-elegy-contracts.js "C:/path/to/Elegy/artifacts/contracts"
 - Release scope: Windows GA first; Linux/macOS preview until signing parity
 - Signing custody: managed external signing service via OIDC (no private keys in repo)
 - Rollback authority: Release Engineering owns channel rollback + kill switch decisions
+- Desktop package bundle includes runtime assets required for standalone mode:
+  - `engine-assets/**`
+  - `copilot-ui/ui-dist/**`
+  - `local-tracker` runtime (`dist` + runtime deps)
+  - helper scripts required by dashboard/runtime operations
+- Packaged desktop runtime attempts embedded Postgres bootstrap in packaged mode (Windows-first). If runtime binaries are unavailable, app continues in non-persistent mode and surfaces a warning.
+
+Desktop version automation:
+- `.github/workflows/desktop-version-tag.yml` watches `copilot-ui/package.json` on `main` and creates `desktop-v<version>` tags for Changesets version commits (`Version Packages`).
+- `.github/workflows/desktop-release.yml` remains the authoritative release publisher and is triggered by `desktop-v*` tags.
 
 Release-safety rules (G-06-WU-03):
 - Migration checksum safety is explicit: `pass` only when persisted migration checksums match manifest checksums; checksum drift is release-blocking (`PLANNING_MIGRATION_CHECKSUM_DRIFT`).

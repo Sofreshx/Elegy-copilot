@@ -1,0 +1,37 @@
+name: Desktop Version Tag Automation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'copilot-ui/package.json'
+
+permissions:
+  contents: write
+
+jobs:
+  tag-desktop-version:
+    if: contains(github.event.head_commit.message, 'Version Packages')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create desktop release tag if version changed
+        run: node scripts/create-desktop-release-tag.js

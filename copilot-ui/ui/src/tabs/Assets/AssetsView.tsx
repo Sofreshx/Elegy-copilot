@@ -35,6 +35,16 @@ export default function AssetsView() {
         <Button
           disabled={assetState.loading || assetState.syncing}
           onClick={() => {
+            void assetsStore.repairWithSetup();
+          }}
+          testId="assets-repair-one-click"
+          variant="primary"
+        >
+          One-Click Skill Repair + Setup
+        </Button>
+        <Button
+          disabled={assetState.loading || assetState.syncing}
+          onClick={() => {
             void assetsStore.syncAll(false);
           }}
           testId="assets-sync-all"
@@ -58,7 +68,7 @@ export default function AssetsView() {
           testId="assets-view-refresh"
           variant="secondary"
         >
-          {assetState.loading ? 'Refreshing...' : assetState.syncing ? 'Working...' : 'Refresh'}
+          {assetState.loading ? 'Refreshing...' : assetState.repairing ? 'Repairing...' : assetState.syncing ? 'Working...' : 'Refresh'}
         </Button>
       </Toolbar>
 

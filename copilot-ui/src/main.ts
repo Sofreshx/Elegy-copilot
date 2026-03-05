@@ -9,6 +9,15 @@ import path from 'path';
 import { app, BrowserWindow, shell } from 'electron';
 
 import { configureUpdater } from './updater';
+const { startEmbeddedPostgresRuntime } = require('../lib/embeddedPostgresRuntime.js') as {
+  startEmbeddedPostgresRuntime: (options: Record<string, unknown>) => Promise<{
+    connectionString: string;
+    queryClient: {
+      query: (sql: string, params?: unknown[]) => Promise<unknown>;
+    };
+    stop: () => Promise<void>;
+  } | null>;
+};
 
 const { startServer } = require('../server.js') as {
   startServer: (options: Record<string, unknown>) => Promise<{
@@ -21,14 +30,24 @@ const { startServer } = require('../server.js') as {
 let mainWindow: any = null;
 let serverHandle: { host: string; port: number; close: () => Promise<void> } | null = null;
 let gatewayProcess: ChildProcess | null = null;
+let embeddedPostgresHandle: {
+  connectionString: string;
+  queryClient: {
+    query: (sql: string, params?: unknown[]) => Promise<unknown>;
+  };
+  stop: () => Promise<void>;
+} | null = null;
 
 function resolveEngineRoot(): string {
+  if (app.isPackaged) {
+    return path.resolve(process.resourcesPath);
+  }
+
   return path.resolve(__dirname, '..', '..');
 }
 
-function resolveDefaultWorkspaceRoot(): string {
-  const engineRoot = resolveEngineRoot();
-  return fs.existsSync(engineRoot) ? engineRoot : path.resolve(process.cwd());
+function resolveDefaultWorkspaceRoot(runtimeRoot: string): string {
+  return fs.existsSync(runtimeRoot) ? runtimeRoot : path.resolve(process.cwd());
 }
 
 function ensureSdkBridgeDefaultEnabled(): void {
@@ -104,6 +123,21 @@ function spawnGatewayDependency(localTrackerRoot: string, trackerToken: string, 
 
   const srcEntry = path.join(localTrackerRoot, 'src', 'messagingGateway', 'index.ts');
   if (fs.existsSync(srcEntry)) {
+    const tsNodeBin = path.join(
+      localTrackerRoot,
+      'node_modules',
+      '.bin',
+      process.platform === 'win32' ? 'ts-node.cmd' : 'ts-node'
+    );
+    if (fs.existsSync(tsNodeBin)) {
+      return spawn(tsNodeBin, [srcEntry], {
+        cwd: localTrackerRoot,
+        env,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+    }
+
     const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     return spawn(npmCommand, ['run', 'dev:gateway'], {
       cwd: localTrackerRoot,
@@ -116,12 +150,15 @@ function spawnGatewayDependency(localTrackerRoot: string, trackerToken: string, 
   return null;
 }
 
-async function startGatewayDependency(workspaceRoot: string): Promise<{ trackerUrl: string; trackerToken: string }> {
+async function startGatewayDependency(
+  runtimeRoot: string,
+  workspaceRoot: string
+): Promise<{ trackerUrl: string; trackerToken: string }> {
   const trackerToken =
     String(process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN || '').trim() || randomBytes(32).toString('hex');
   process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN = trackerToken;
 
-  const localTrackerRoot = path.join(resolveEngineRoot(), 'local-tracker');
+  const localTrackerRoot = path.join(runtimeRoot, 'local-tracker');
   if (fs.existsSync(localTrackerRoot)) {
     gatewayProcess = spawnGatewayDependency(localTrackerRoot, trackerToken, workspaceRoot);
   }
@@ -184,11 +221,29 @@ function createWindow(baseUrl: string) {
 async function startDashboardServer() {
   const home = os.homedir();
   const copilotHome = path.join(home, '.copilot');
-  const workspaceRoot = resolveDefaultWorkspaceRoot();
+  const runtimeRoot = resolveEngineRoot();
+  const workspaceRoot = resolveDefaultWorkspaceRoot(runtimeRoot);
+  const engineRootOverride = app.isPackaged ? runtimeRoot : undefined;
 
   ensureSdkBridgeDefaultEnabled();
   ensureDefaultGatewayConfig(workspaceRoot);
-  const gateway = await startGatewayDependency(workspaceRoot);
+  const gateway = await startGatewayDependency(runtimeRoot, workspaceRoot);
+  if (app.isPackaged) {
+    try {
+      embeddedPostgresHandle = await startEmbeddedPostgresRuntime({
+        runtimeRoot,
+        logger: (message: string) => console.log(message),
+      });
+
+      if (embeddedPostgresHandle) {
+        process.env.INSTRUCTION_ENGINE_PLANNING_DB_URL = embeddedPostgresHandle.connectionString;
+        process.env.INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED = '1';
+      }
+    } catch (error) {
+      embeddedPostgresHandle = null;
+      console.warn('[embedded-postgres] startup failed; continuing without persistence', error);
+    }
+  }
 
   serverHandle = await startServer({
     host: '127.0.0.1',
@@ -198,6 +253,8 @@ async function startDashboardServer() {
     sandboxesHome: path.join(copilotHome, 'sandboxes'),
     trackerUrl: gateway.trackerUrl,
     trackerToken: gateway.trackerToken,
+    planningPersistenceClient: embeddedPostgresHandle ? embeddedPostgresHandle.queryClient : undefined,
+    engineRoot: engineRootOverride,
     quiet: true,
   });
 
@@ -209,6 +266,12 @@ async function stopDashboardServer() {
     const handle = serverHandle;
     serverHandle = null;
     await handle.close();
+  }
+
+  if (embeddedPostgresHandle) {
+    const handle = embeddedPostgresHandle;
+    embeddedPostgresHandle = null;
+    await handle.stop();
   }
 
   await stopGatewayDependency();
