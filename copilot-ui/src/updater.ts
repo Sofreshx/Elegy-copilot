@@ -1,7 +1,5 @@
 /// <reference path="./electron-externals.d.ts" />
 
-import { autoUpdater } from 'electron-updater';
-
 import { resolveRollbackPolicy, RollbackPolicyResolution } from './rollbackPolicy';
 import { evaluateUpdateCandidate, evaluateUpdateCheck, resolveUpdateChannel } from './updatePolicy';
 
@@ -19,6 +17,23 @@ interface UpdaterOptions {
   disableUpdates?: boolean | string | null;
   updaterClient?: UpdaterClient;
   logger?: (message: string) => void;
+}
+
+let cachedDefaultUpdaterClient: UpdaterClient | null | undefined;
+
+function resolveDefaultUpdaterClient(): UpdaterClient | null {
+  if (cachedDefaultUpdaterClient !== undefined) {
+    return cachedDefaultUpdaterClient;
+  }
+
+  try {
+    const electronUpdater = require('electron-updater') as { autoUpdater?: UpdaterClient };
+    cachedDefaultUpdaterClient = electronUpdater.autoUpdater || null;
+  } catch {
+    cachedDefaultUpdaterClient = null;
+  }
+
+  return cachedDefaultUpdaterClient;
 }
 
 function parseBooleanOverride(input: boolean | string | null | undefined): boolean | null {
@@ -81,7 +96,7 @@ function resolveEffectiveRollbackPolicy(options: UpdaterOptions): RollbackPolicy
 
 export function configureUpdater(options: UpdaterOptions) {
   const logger = options.logger || (() => {});
-  const updater = (options.updaterClient || (autoUpdater as unknown as UpdaterClient)) as UpdaterClient;
+  const updater = options.updaterClient || resolveDefaultUpdaterClient();
   const channel = resolveUpdateChannel({
     appVersion: options.appVersion,
     explicitChannel: options.explicitChannel,
@@ -93,46 +108,50 @@ export function configureUpdater(options: UpdaterOptions) {
     rollbackPolicy,
   });
 
-  updater.autoDownload = false;
-  updater.allowPrerelease = channel === 'prerelease';
-
-  if (!checkDecision.allowed) {
+  if (!updater) {
+    logger(`[updater] update checks blocked on channel ${channel}: updater_module_unavailable`);
+  } else if (!checkDecision.allowed) {
     logger(`[updater] update checks blocked on channel ${channel}: ${checkDecision.reason}`);
   }
 
-  updater.on('update-available', (info: unknown) => {
-    if (!checkDecision.allowed) {
-      return;
-    }
+  if (updater) {
+    updater.autoDownload = false;
+    updater.allowPrerelease = channel === 'prerelease';
 
-    const details = info && typeof info === 'object' ? (info as Record<string, unknown>) : {};
-    const candidateVersion = String(details.version || '').trim();
-    const decision = evaluateUpdateCandidate({
-      appVersion: options.appVersion,
-      explicitChannel: options.explicitChannel,
-      candidateVersion,
-      rollbackPolicy,
+    updater.on('update-available', (info: unknown) => {
+      if (!checkDecision.allowed) {
+        return;
+      }
+
+      const details = info && typeof info === 'object' ? (info as Record<string, unknown>) : {};
+      const candidateVersion = String(details.version || '').trim();
+      const decision = evaluateUpdateCandidate({
+        appVersion: options.appVersion,
+        explicitChannel: options.explicitChannel,
+        candidateVersion,
+        rollbackPolicy,
+      });
+
+      if (!decision.allowed) {
+        logger(
+          `[updater] blocked update candidate ${candidateVersion || '(unknown)'} on channel ${decision.channel}: ${decision.reason}`,
+        );
+        return;
+      }
+
+      logger(`[updater] update available on channel ${decision.channel}: ${candidateVersion || '(unknown)'}`);
     });
 
-    if (!decision.allowed) {
-      logger(
-        `[updater] blocked update candidate ${candidateVersion || '(unknown)'} on channel ${decision.channel}: ${decision.reason}`,
-      );
-      return;
-    }
-
-    logger(`[updater] update available on channel ${decision.channel}: ${candidateVersion || '(unknown)'}`);
-  });
-
-  updater.on('error', (err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err);
-    logger(`[updater] error: ${message}`);
-  });
+    updater.on('error', (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      logger(`[updater] error: ${message}`);
+    });
+  }
 
   return {
     channel,
     checkForUpdates: async () => {
-      if (!checkDecision.allowed) {
+      if (!checkDecision.allowed || !updater) {
         return;
       }
       await updater.checkForUpdatesAndNotify();
