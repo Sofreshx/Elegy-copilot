@@ -44,6 +44,14 @@ interface MessagingGatewayStatusV1 {
 	};
 }
 
+function isMessagingGatewayStatusV1(value: unknown): value is MessagingGatewayStatusV1 {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	const candidate = value as Record<string, unknown>;
+	return candidate.schemaVersion === 1 && typeof candidate.lastUpdatedUtc === 'string';
+}
+
 function getDefaultMessagingGatewayStatusPath(): string {
 	return path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.status.json');
 }
@@ -64,11 +72,10 @@ function tryReadMessagingGatewayStatus():
 	try {
 		const raw = fs.readFileSync(statusPath, 'utf8');
 		const parsed = JSON.parse(raw) as unknown;
-		const anyParsed = parsed as any;
-		if (!anyParsed || anyParsed.schemaVersion !== 1 || typeof anyParsed.lastUpdatedUtc !== 'string') {
+		if (!isMessagingGatewayStatusV1(parsed)) {
 			return { kind: 'invalid', statusPath, error: 'Unsupported or missing schemaVersion/lastUpdatedUtc (expected schemaVersion=1)' };
 		}
-		return { kind: 'ok', statusPath, status: anyParsed as MessagingGatewayStatusV1 };
+		return { kind: 'ok', statusPath, status: parsed };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { kind: 'invalid', statusPath, error: message };

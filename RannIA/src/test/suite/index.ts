@@ -36,7 +36,7 @@ export function run(): Promise<void> {
         }
       });
 
-      const results: Record<string, { success: boolean, durationMs: number, failedTests: any[] }> = {};
+      const results: Record<string, { success: boolean, durationMs: number, failedTests: Array<{ title: string; error: string | undefined }> }> = {};
 
       runner.on('test end', (test) => {
         const file = test.file;
