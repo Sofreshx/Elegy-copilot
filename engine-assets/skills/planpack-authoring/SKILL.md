@@ -37,6 +37,13 @@ Each WU spec (H3) must contain: Context, Acceptance Criteria (≥2 specific veri
 5. Checkpoints — columns: Group | Checkpoint | Trigger | Notes
 6. Execution Log
 
+## Phase-Aware Validation
+- Planning phase validator: `node scripts/validate-planpack-planning.js <plan.md> --ac-enforcement fail`
+- Execution/final-gate validator: `node scripts/validate-planpack-execution.js <plan.md>`
+- Compatibility/full validator: `node scripts/validate-planpack.js <plan.md>`
+
+Planning-time plans must include the base progress tracker sections above, but they do **not** need execution-only sections like Stream Evidence, Final Gate Controls, Trusted Evidence Binding, or Evidence Retention until execution/finalization.
+
 ## Checkpoint Defaults
 - `unit-test-runner` after each group completes
 - Final integration/E2E checkpoint (user-confirmed, never automatic)

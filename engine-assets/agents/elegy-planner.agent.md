@@ -41,7 +41,7 @@ Plan-strict: reviews at both tiers; final assembled plan requires explicit revie
 ### Phase 3 — Assembly & Final Review
 1. Assemble approved high-level plan + sub-plans into a single Plan Pack with Progress Tracker.
 2. Write to `~/.copilot/session-state/{SESSION_ID}/plan.md`.
-3. **Validate**: run `node scripts/validate-planpack.js <path-to-plan.md>` to verify structural conformance. Fix any issues before proceeding.
+3. **Validate**: run `node scripts/validate-planpack-planning.js <path-to-plan.md> --ac-enforcement fail` to verify planning-phase structural conformance. Fix any issues before proceeding. Do **not** require execution-only evidence or final-gate sections at this stage.
 4. Submit to `@reviewer-opus-4-6` for final review; record a Review Ledger in `plan.md` (see below).
 5. Append `after-planning` entry to `proposition.md`.
 6. Write `~/.copilot/session-state/{SESSION_ID}/handoff.md` (see Handoff Manifest below).

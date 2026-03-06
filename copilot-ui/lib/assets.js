@@ -329,6 +329,17 @@ function getInstalledInstructions(home) {
   }
 }
 
+function buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, extras) {
+  return {
+    ...asset,
+    managed: true,
+    source: sourceRel,
+    sourceAbs,
+    destinationAbs,
+    ...extras,
+  };
+}
+
 function getManagedAssetStatuses(engineRoot, destinationHome) {
   const manifest = loadManifest(engineRoot);
   return manifest.assets.map((asset) => {
@@ -338,18 +349,13 @@ function getManagedAssetStatuses(engineRoot, destinationHome) {
     const destinationHash = installed ? sha256PathHex(destinationAbs) : null;
     const upToDate = Boolean(installed && sourceHash && destinationHash && sourceHash === destinationHash);
 
-    return {
-      ...asset,
-      managed: true,
-      
-      source: sourceRel,
-      sourceAbs,
-      destinationAbs,
+    return buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, {
       installed,
       upToDate,
+      sourceAvailable: Boolean(sourceHash),
       sourceHash,
       destinationHash,
-    };
+    });
   });
 }
 
@@ -360,60 +366,54 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
   if (!asset) throw new Error(`Unknown assetId: ${assetId}`);
 
   const { sourceAbs, destinationAbs, sourceRel } = getAssetPaths(engineRoot, destinationHome, asset);
-  const sourceHash = sha256PathHex(sourceAbs);
-  if (!sourceHash) throw new Error(`Source missing/unreadable: ${sourceAbs}`);
-
   const installed = fs.existsSync(destinationAbs);
   const destinationHash = installed ? sha256PathHex(destinationAbs) : null;
+  const sourceHash = sha256PathHex(sourceAbs);
+  if (!sourceHash) {
+    return buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, {
+      action: 'skipped',
+      reason: 'source_missing_or_unreadable',
+      installed,
+      upToDate: false,
+      sourceAvailable: false,
+      sourceHash: null,
+      destinationHash,
+    });
+  }
 
   if (installed && destinationHash && destinationHash === sourceHash) {
-    return {
-      ...asset,
-      managed: true,
-      
-      source: sourceRel,
-      sourceAbs,
-      destinationAbs,
+    return buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, {
       action: 'noop',
       installed: true,
       upToDate: true,
+      sourceAvailable: true,
       sourceHash,
       destinationHash,
-    };
+    });
   }
 
   if (installed && !force && !destinationHash) {
-    return {
-      ...asset,
-      managed: true,
-      
-      source: sourceRel,
-      sourceAbs,
-      destinationAbs,
+    return buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, {
       action: 'skipped',
       reason: 'destination_unreadable',
       installed: true,
       upToDate: false,
+      sourceAvailable: true,
       sourceHash,
       destinationHash,
-    };
+    });
   }
 
   if (installed && !force && destinationHash && destinationHash !== sourceHash) {
-    return {
-      ...asset,
-      managed: true,
-      
-      source: sourceRel,
-      sourceAbs,
-      destinationAbs,
+    return buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, {
       action: 'skipped',
       reason: 'destination_differs_from_source',
       installed: true,
       upToDate: false,
+      sourceAvailable: true,
       sourceHash,
       destinationHash,
-    };
+    });
   }
 
   const action = installed ? (dryRun ? 'would_update' : 'updated') : (dryRun ? 'would_install' : 'installed');
@@ -493,24 +493,21 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
 
   const newDestinationHash = dryRun ? destinationHash : sha256PathHex(destinationAbs);
 
-  return {
-    ...asset,
-    managed: true,
-    
-    source: sourceRel,
-    sourceAbs,
-    destinationAbs,
+  return buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, {
     action,
     installed: true,
     upToDate: Boolean(newDestinationHash && newDestinationHash === sourceHash),
+    sourceAvailable: true,
     sourceHash,
     destinationHash: newDestinationHash,
-  };
+  });
 }
 
 function syncAll(engineRoot, destinationHome, opts) {
   const manifest = loadManifest(engineRoot);
-  return manifest.assets.map((a) => syncAsset(engineRoot, destinationHome, a.id, opts));
+  return manifest.assets
+    .map((a) => syncAsset(engineRoot, destinationHome, a.id, opts))
+    .filter((result) => !(result && result.reason === 'source_missing_or_unreadable'));
 }
 
 function tryRemoveEmptyDirsUp(startDirAbs, stopDirAbs) {
