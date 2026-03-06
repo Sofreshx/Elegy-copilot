@@ -40,6 +40,7 @@ Each subagent receives **only** what it needs. Target < 2000 words per delegatio
 | `@doc-writer` | Changed files, plan goal, `docs/system/index.md`, relevant MOCs |
 
 ## Testing & E2E Routing
+- Apply this routing only after user approval when the run is **integration** or **E2E**.
 - **UI smoke / health** → `@e2e-validator` (agent-browser CLI via `@e2e-browser`).
 - **Existing Playwright suite** → `@integration-test-runner` (headless, bounded timeout).
 
@@ -51,7 +52,7 @@ Each subagent receives **only** what it needs. Target < 2000 words per delegatio
 3. Parse the Progress Tracker: extract `## Work Unit Status Table`, `## Next Unit`, `## Execution Log`.
 4. Determine session state:
    - **No progress tracker / all WUs `not-started`** → fresh start, proceed to Phase 1.
-   - **Some WUs `done`, Next Unit exists** → resuming, proceed to Phase 2 starting from the Next Unit.
+   - **Some WUs `done` and at least one WU remains** → resuming, proceed to Phase 2 from `Next Unit` if present, else first `not-started` WU with deps met.
    - **All WUs `done`** → proceed directly to Phase 3 (Finalization).
 5. Read `proposition.md` if it exists — use `direction` and `after-planning` entries for constraints and decisions context.
 6. Build a compact working summary: original goal, completed WUs (IDs + 1-line outcomes from Execution Log), current group, next WU ID + title, key files from handoff.
@@ -77,7 +78,7 @@ Each subagent receives **only** what it needs. Target < 2000 words per delegatio
 
 ### Phase 3 — Finalization
 1. `@code-reviewer` on changed files.
-2. Optional cross-model review (if non-trivial).
+2. Optional cross-model review (if non-trivial and user wants extra assurance).
 3. `@final-reviewer`.
 4. `@verification-guide`: extract changed files from Execution Log WU completion entries; pass `final_review` + `changed_files` + `plan_summary`; write to `~/.copilot/session-state/{SESSION_ID}/verification-guide.md` (overwrite). On failure: log and continue.
 5. Append `after-execution` entry to `proposition.md` (append-only; see `docs/system/session-state-artifacts.md`).

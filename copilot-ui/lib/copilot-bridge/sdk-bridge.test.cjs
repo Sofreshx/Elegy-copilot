@@ -341,6 +341,53 @@ async function run() {
     await service.shutdown();
   });
 
+  await test('sandbox session context spins dedicated client and preserves cwd metadata', async () => {
+    const defaultClient = createMockClient();
+    const dedicatedClient = createMockClient();
+    const clientOptionsLog = [];
+
+    const service = new SdkBridgeService(
+      {
+        clientOptions: {
+          autoStart: true,
+          cwd: '/workspace/default',
+        },
+      },
+      {
+        createClient: (options) => {
+          clientOptionsLog.push(options);
+          return clientOptionsLog.length === 1 ? defaultClient : dedicatedClient;
+        },
+      }
+    );
+
+    await service.init();
+
+    const created = await service.createSdkSession({
+      sessionId: 'session-sandbox',
+      contextType: 'sandbox',
+      sandboxId: 'sb-1',
+      cwd: '/workspace/sandboxes/sb-1',
+    });
+
+    assert.equal(created.sessionId, 'session-sandbox');
+    assert.equal(created.contextType, 'sandbox');
+    assert.equal(created.sandboxId, 'sb-1');
+    assert.equal(created.cwd, '/workspace/sandboxes/sb-1');
+    assert.equal(dedicatedClient.started, true);
+
+    const listed = service.listSdkSessions();
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].contextType, 'sandbox');
+    assert.equal(listed[0].sandboxId, 'sb-1');
+    assert.equal(listed[0].cwd, '/workspace/sandboxes/sb-1');
+
+    await service.destroySdkSession('session-sandbox');
+    assert.equal(dedicatedClient.stopCalls, 1);
+
+    await service.shutdown();
+  });
+
   await test('getHealth reflects session errors relayed from SDK events', async () => {
     const mockClient = createMockClient();
     const service = new SdkBridgeService({}, { createClient: () => mockClient });

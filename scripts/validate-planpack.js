@@ -235,6 +235,7 @@ function deriveRequiredStreamGroups(progressContent) {
 function parseCliArgs(argv) {
 	const options = {
 		filePath: '',
+		phase: 'full',
 		expectedCommit: '',
 		expectedRelease: '',
 		expectedChannel: '',
@@ -247,6 +248,22 @@ function parseCliArgs(argv) {
 
 	for (let index = 0; index < argv.length; index++) {
 		const arg = String(argv[index] || '');
+
+		if (arg.startsWith('--phase=')) {
+			const phase = arg.slice('--phase='.length).trim().toLowerCase();
+			if (phase === 'planning' || phase === 'execution' || phase === 'full') {
+				options.phase = phase;
+			}
+			continue;
+		}
+		if (arg === '--phase' && index + 1 < argv.length) {
+			const phase = String(argv[index + 1] || '').trim().toLowerCase();
+			if (phase === 'planning' || phase === 'execution' || phase === 'full') {
+				options.phase = phase;
+			}
+			index++;
+			continue;
+		}
 
 		if (arg.startsWith('--expected-commit=')) {
 			options.expectedCommit = arg.slice('--expected-commit='.length).trim();
@@ -351,6 +368,27 @@ function parseCliArgs(argv) {
 	}
 
 	return options;
+}
+
+function hasRequiredProgressSection(progressContent, headingPrefix) {
+	if (headingPrefix === 'Execution Log') {
+		return /^##\s+Execution Log\s*$/im.test(progressContent);
+	}
+
+	if (headingPrefix === 'Session Metadata') {
+		return /^##\s+Session Metadata\s*$/im.test(progressContent);
+	}
+
+	const sectionText = extractH2Section(progressContent, headingPrefix);
+	if (!sectionText) {
+		return false;
+	}
+
+	if (headingPrefix === 'Work Unit Groups Overview' || headingPrefix === 'Work Unit Status Table' || headingPrefix === 'Checkpoints') {
+		return Boolean(parseMarkdownTable(sectionText));
+	}
+
+	return true;
 }
 
 const AC_VAGUE_TOKEN_RE = /\b(quality|good|proper|appropriate|adequate|robust|clean|nice|better|improved|sufficient)\b/i;
@@ -709,6 +747,8 @@ if (!Number.isFinite(planPackVersion) || planPackVersion !== 1) {
 const lines = body.split(/\r?\n/);
 const errors = [];
 const warnings = [];
+const requiresExecutionGateChecks = cliOptions.phase !== 'planning';
+const requiresPlanningBaseProgressChecks = cliOptions.phase === 'planning';
 
 // --- 1. Required H2 headings ---
 const requiredH2 = [
@@ -861,128 +901,153 @@ for (const wuId of specWUs) {
 	}
 }
 
+// --- 7b. Planning/base progress tracker sections ---
+if (requiresPlanningBaseProgressChecks) {
+	const requiredBaseProgressSections = [
+		'Session Metadata',
+		'Work Unit Groups Overview',
+		'Work Unit Status Table',
+		'Next Unit',
+		'Checkpoints',
+		'Execution Log',
+	];
+
+	for (const sectionName of requiredBaseProgressSections) {
+		if (!hasRequiredProgressSection(progressContent, sectionName)) {
+			const descriptor = sectionName === 'Execution Log' || sectionName === 'Session Metadata'
+				? `${sectionName} section required`
+				: `${sectionName} section required${sectionName === 'Next Unit' ? '' : ' (markdown table required)'}`;
+			errors.push(`missing required progress section: ## ${descriptor}`);
+		}
+	}
+}
+
 // --- 8. Evidence predicates (required streams from Work Unit Groups Overview) ---
-const requiredStreamGroups = deriveRequiredStreamGroups(progressContent);
-if (!requiredStreamGroups.hasOverviewTable) {
-	errors.push('missing required progress section: ## Work Unit Groups Overview (markdown table required)');
-}
+if (requiresExecutionGateChecks) {
+	const requiredStreamGroups = deriveRequiredStreamGroups(progressContent);
+	if (!requiredStreamGroups.hasOverviewTable) {
+		errors.push('missing required progress section: ## Work Unit Groups Overview (markdown table required)');
+	}
 
-const requiredStreams = requiredStreamGroups.requiredStreams;
-if (requiredStreams.length === 0) {
-	errors.push('missing required stream evidence: no valid Group IDs found in Work Unit Groups Overview');
-}
+	const requiredStreams = requiredStreamGroups.requiredStreams;
+	if (requiredStreams.length === 0) {
+		errors.push('missing required stream evidence: no valid Group IDs found in Work Unit Groups Overview');
+	}
 
-const executionLogSection = extractH2Section(progressContent, 'Execution Log');
-const streamEvidenceTable = parseMarkdownTable(extractH2Section(progressContent, 'Stream Evidence'));
+	const executionLogSection = extractH2Section(progressContent, 'Execution Log');
+	const streamEvidenceTable = parseMarkdownTable(extractH2Section(progressContent, 'Stream Evidence'));
 
-for (const streamId of requiredStreams) {
-	const hasExecutionEvidence = hasExecutionLogCompletion(executionLogSection, streamId);
-	const hasStreamTableEvidence = hasPassedStreamEvidenceForGroup(streamEvidenceTable, streamId);
+	for (const streamId of requiredStreams) {
+		const hasExecutionEvidence = hasExecutionLogCompletion(executionLogSection, streamId);
+		const hasStreamTableEvidence = hasPassedStreamEvidenceForGroup(streamEvidenceTable, streamId);
 
-	if (!(hasExecutionEvidence && hasStreamTableEvidence)) {
-		errors.push(
-			`missing required stream evidence: ${streamId} (requires BOTH Execution Log completion evidence and Stream Evidence row with Status=passed plus non-empty Evidence)`
-		);
+		if (!(hasExecutionEvidence && hasStreamTableEvidence)) {
+			errors.push(
+				`missing required stream evidence: ${streamId} (requires BOTH Execution Log completion evidence and Stream Evidence row with Status=passed plus non-empty Evidence)`
+			);
+		}
 	}
 }
 
 // --- 9. Final gate controls (required controls + waiver precedence) ---
-const finalRequiredControls = [
-	'evidencePredicates',
-	'finalGateWaiverPrecedence',
-	'trustedEvidenceBindingRetention',
-];
-const finalGateSection = extractH2Section(progressContent, 'Final Gate Controls');
-const finalGateTable = parseMarkdownTable(finalGateSection);
+if (requiresExecutionGateChecks) {
+	const finalRequiredControls = [
+		'evidencePredicates',
+		'finalGateWaiverPrecedence',
+		'trustedEvidenceBindingRetention',
+	];
+	const finalGateSection = extractH2Section(progressContent, 'Final Gate Controls');
+	const finalGateTable = parseMarkdownTable(finalGateSection);
 
-if (!finalGateTable) {
-	errors.push('missing required progress section: ## Final Gate Controls (markdown table required)');
-} else {
-	const normalizedHeaders = finalGateTable.headers.map(normalizeFieldName);
-	const hasControlHeader = normalizedHeaders.includes('control') || normalizedHeaders.includes('controlid');
-	const hasStatusHeader = normalizedHeaders.includes('status');
-	const hasWaiverScopeHeader = normalizedHeaders.includes('waiverscope') || normalizedHeaders.includes('waivercontrols');
-	const hasWaiverReleaseHeader = normalizedHeaders.includes('waiverrelease') || normalizedHeaders.includes('release') || normalizedHeaders.includes('releaseid');
-	const hasWaiverAuditHeader = normalizedHeaders.includes('waiveraudit') || normalizedHeaders.includes('waiveraudittrail') || normalizedHeaders.includes('audittrail') || normalizedHeaders.includes('auditreference') || normalizedHeaders.includes('auditref') || normalizedHeaders.includes('auditlink');
+	if (!finalGateTable) {
+		errors.push('missing required progress section: ## Final Gate Controls (markdown table required)');
+	} else {
+		const normalizedHeaders = finalGateTable.headers.map(normalizeFieldName);
+		const hasControlHeader = normalizedHeaders.includes('control') || normalizedHeaders.includes('controlid');
+		const hasStatusHeader = normalizedHeaders.includes('status');
+		const hasWaiverScopeHeader = normalizedHeaders.includes('waiverscope') || normalizedHeaders.includes('waivercontrols');
+		const hasWaiverReleaseHeader = normalizedHeaders.includes('waiverrelease') || normalizedHeaders.includes('release') || normalizedHeaders.includes('releaseid');
+		const hasWaiverAuditHeader = normalizedHeaders.includes('waiveraudit') || normalizedHeaders.includes('waiveraudittrail') || normalizedHeaders.includes('audittrail') || normalizedHeaders.includes('auditreference') || normalizedHeaders.includes('auditref') || normalizedHeaders.includes('auditlink');
 
-	if (!hasControlHeader) {
-		errors.push('invalid Final Gate Controls table: missing Control column');
-	}
-	if (!hasStatusHeader) {
-		errors.push('invalid Final Gate Controls table: missing Status column');
-	}
-	if (!hasWaiverScopeHeader) {
-		errors.push('invalid Final Gate Controls table: missing Waiver Scope column');
-	}
-	if (!hasWaiverReleaseHeader) {
-		errors.push('invalid Final Gate Controls table: missing Waiver Release column');
-	}
-	if (!hasWaiverAuditHeader) {
-		errors.push('invalid Final Gate Controls table: missing Waiver Audit column');
-	}
-
-	for (const controlId of finalRequiredControls) {
-		const matchingRows = finalGateTable.rows.filter((row) => {
-			const rowControlId = getRowValue(row, ['Control', 'Control ID', 'ControlId']);
-			return rowControlId.toLowerCase() === controlId.toLowerCase();
-		});
-
-		if (matchingRows.length === 0) {
-			errors.push(`missing required final gate control row: ${controlId}`);
-			continue;
+		if (!hasControlHeader) {
+			errors.push('invalid Final Gate Controls table: missing Control column');
+		}
+		if (!hasStatusHeader) {
+			errors.push('invalid Final Gate Controls table: missing Status column');
+		}
+		if (!hasWaiverScopeHeader) {
+			errors.push('invalid Final Gate Controls table: missing Waiver Scope column');
+		}
+		if (!hasWaiverReleaseHeader) {
+			errors.push('invalid Final Gate Controls table: missing Waiver Release column');
+		}
+		if (!hasWaiverAuditHeader) {
+			errors.push('invalid Final Gate Controls table: missing Waiver Audit column');
 		}
 
-		if (matchingRows.length > 1) {
-			errors.push(`duplicate final gate control rows: ${controlId}`);
-			continue;
-		}
+		for (const controlId of finalRequiredControls) {
+			const matchingRows = finalGateTable.rows.filter((row) => {
+				const rowControlId = getRowValue(row, ['Control', 'Control ID', 'ControlId']);
+				return rowControlId.toLowerCase() === controlId.toLowerCase();
+			});
 
-		const row = matchingRows[0];
-		const statusValue = getRowValue(row, ['Status']).toLowerCase();
-		const isPassed = ['passed', 'true', 'yes'].includes(statusValue);
-
-		if (isPassed) {
-			if (controlId.toLowerCase() === 'trustedevidencebindingretention') {
-				const trustedEvidenceErrors = validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions);
-				for (const trustedEvidenceError of trustedEvidenceErrors) {
-					errors.push(`final gate control failed: trustedEvidenceBindingRetention (${trustedEvidenceError})`);
-				}
+			if (matchingRows.length === 0) {
+				errors.push(`missing required final gate control row: ${controlId}`);
+				continue;
 			}
-			continue;
-		}
 
-		if (statusValue !== 'waived') {
-			errors.push(
-				`final gate control failed: ${controlId} (Status must be passed or waived; got ${statusValue || 'missing'})`
-			);
-			continue;
-		}
+			if (matchingRows.length > 1) {
+				errors.push(`duplicate final gate control rows: ${controlId}`);
+				continue;
+			}
 
-		const waiverScope = getRowValue(row, [
-			'Waiver Scope',
-			'Scoped Controls',
-			'Waiver Controls',
-			'Waiver Control Scope',
-		]);
-		if (!hasControlScopeToken(waiverScope, controlId)) {
-			errors.push(
-				`final gate waiver scope mismatch: ${controlId} (Waiver Scope must explicitly include ${controlId})`
-			);
-		}
+			const row = matchingRows[0];
+			const statusValue = getRowValue(row, ['Status']).toLowerCase();
+			const isPassed = ['passed', 'true', 'yes'].includes(statusValue);
 
-		const waiverRelease = getRowValue(row, ['Waiver Release', 'Release', 'Release ID', 'ReleaseId']);
-		const waiverAudit = getRowValue(row, [
-			'Waiver Audit',
-			'Waiver Audit Trail',
-			'Audit Trail',
-			'Audit Reference',
-			'Audit Ref',
-			'Audit Link',
-		]);
-		if (!waiverRelease || !waiverAudit) {
-			errors.push(
-				`final gate waiver missing release-linked audit trail: ${controlId} (Waiver Release and Waiver Audit are required when Status=waived)`
-			);
+			if (isPassed) {
+				if (controlId.toLowerCase() === 'trustedevidencebindingretention') {
+					const trustedEvidenceErrors = validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions);
+					for (const trustedEvidenceError of trustedEvidenceErrors) {
+						errors.push(`final gate control failed: trustedEvidenceBindingRetention (${trustedEvidenceError})`);
+					}
+				}
+				continue;
+			}
+
+			if (statusValue !== 'waived') {
+				errors.push(
+					`final gate control failed: ${controlId} (Status must be passed or waived; got ${statusValue || 'missing'})`
+				);
+				continue;
+			}
+
+			const waiverScope = getRowValue(row, [
+				'Waiver Scope',
+				'Scoped Controls',
+				'Waiver Controls',
+				'Waiver Control Scope',
+			]);
+			if (!hasControlScopeToken(waiverScope, controlId)) {
+				errors.push(
+					`final gate waiver scope mismatch: ${controlId} (Waiver Scope must explicitly include ${controlId})`
+				);
+			}
+
+			const waiverRelease = getRowValue(row, ['Waiver Release', 'Release', 'Release ID', 'ReleaseId']);
+			const waiverAudit = getRowValue(row, [
+				'Waiver Audit',
+				'Waiver Audit Trail',
+				'Audit Trail',
+				'Audit Reference',
+				'Audit Ref',
+				'Audit Link',
+			]);
+			if (!waiverRelease || !waiverAudit) {
+				errors.push(
+					`final gate waiver missing release-linked audit trail: ${controlId} (Waiver Release and Waiver Audit are required when Status=waived)`
+				);
+			}
 		}
 	}
 }

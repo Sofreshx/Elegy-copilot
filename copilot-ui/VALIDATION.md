@@ -737,3 +737,28 @@ Required DoD markers:
 WS4 freeze decision:
 - **Pass**: all four commands exit `0` and required markers are present.
 - **Fail**: any command fails, a required marker is missing/changed, or path/idempotency semantics drift.
+
+## WS-05 - Sandbox Token Gating Invariants
+
+### Invariant mapping
+
+| Invariant | Test file | Case ID/title |
+|---|---|---|
+| WS05-I1 strict predicate truth table | `copilot-ui/lib/sandboxLifecycleTokenContract.test.js` | `WS05-I1 isKnownMissingTokenIndicator strict predicate truth table` |
+| WS05-I2 local pre-proxy guard -> proxy count 0 | `copilot-ui/routes/tracker.test.js` | `WS05-I2 local pre-proxy guard short-circuits with canonical envelope and proxy count 0` |
+| WS05-I3 token-present path -> proxy count 1, no remap | `copilot-ui/routes/tracker.test.js` | `WS05-I3 token-present path proxies once without local remap` |
+| WS05-I4 unrelated failures pass through with status/body/selected headers parity | `copilot-ui/server.lifecycle-proxy.test.js` | `WS05-I4 buildTrackerProxyResponsePlan passes unrelated failures through with status/body/selected headers parity` |
+| WS05-I5 TabShell/Panel selector contract present in app.css and component refs | `copilot-ui/tests/ui-react-smoke.test.js` | `WS05-I5 TabShell/Panel selector contract is present in app.css and component refs` |
+
+### WS-05 validation command pack
+
+Run from repository root (`instruction-engine`):
+
+```bash
+node copilot-ui/lib/sandboxLifecycleTokenContract.test.js
+node copilot-ui/server.lifecycle-proxy.test.js
+node copilot-ui/server.runtime-health.test.js
+node copilot-ui/routes/tracker.test.js
+node copilot-ui/tests/ui-react-smoke.test.js
+node copilot-ui/tests/sandbox-token-contract-literals.test.js
+```

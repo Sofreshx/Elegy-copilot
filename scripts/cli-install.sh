@@ -3,7 +3,7 @@ set -euo pipefail
 
 DRY_RUN=false
 FORCE=false
-POINTER_MODE=false
+POINTER_MODE=true
 OVERWRITE_MODE=""
 
 DO_CLI=false

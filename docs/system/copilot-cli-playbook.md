@@ -709,8 +709,8 @@ Install examples:
 # TypeScript
 npm install -g typescript typescript-language-server
 
-# C# (one common option)
-dotnet tool install -g csharp-ls
+# C# (alternative to csharp-ls)
+dotnet tool install -g omnisharp
 
 # Rust
 # Install rust-analyzer (via rustup / package manager) and ensure `rust-analyzer` is on PATH
@@ -731,8 +731,8 @@ Example:
       }
     },
     "csharp": {
-      "command": "csharp-ls",
-      "args": [],
+      "command": "omnisharp",
+      "args": ["--languageserver"],
       "fileExtensions": {
         ".cs": "csharp"
       }

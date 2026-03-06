@@ -202,7 +202,7 @@ $DryRun = $false
 $Force = $false
 $DoCli = $false
 $DoVscode = $false
-$Pointer = $false
+$Pointer = $true
 $VscodeSettings = $null
 $VscodeHome = $null
 

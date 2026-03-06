@@ -51,9 +51,12 @@ Reference runbook: [Desktop Update Rollback + Kill Switch Runbook](desktop-updat
 
 ### CI Enforcement — Signing Trust Chain (G-02-WU-04)
 
-Desktop release CI is enforced by `.github/workflows/desktop-release.yml`:
+Desktop release CI is enforced by `.github/workflows/desktop-release.yml` and `.github/workflows/desktop-version-tag.yml`:
 
-- Trigger: `desktop-v*` tags and manual dispatch (`release_tag`).
+- Tag source:
+  - `.github/workflows/desktop-version-tag.yml` creates `desktop-v*` tags from Changesets version commits on `main` (`Version Packages`).
+  - `.github/workflows/desktop-release.yml` also supports manual dispatch (`release_tag`).
+- Trigger: `desktop-v*` tags.
 - Windows GA artifact flow:
   - Build unsigned installer on `windows-latest`.
   - Exchange GitHub OIDC token (`id-token: write`) for signing identity.

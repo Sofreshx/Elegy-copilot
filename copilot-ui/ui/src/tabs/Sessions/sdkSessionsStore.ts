@@ -18,6 +18,12 @@ interface PendingSdkMessage {
   reasoning: string;
 }
 
+export interface CreateSdkSessionOptions {
+  model?: string;
+  contextType?: 'regular' | 'sandbox' | string;
+  sandboxId?: string;
+}
+
 export interface SdkSessionsState {
   sessions: SdkSessionSummary[];
   selectedSessionId: string | null;
@@ -445,7 +451,7 @@ function createSdkSessionsStore() {
     }
   }
 
-  async function createSession(model?: string): Promise<void> {
+  async function createSession(input?: string | CreateSdkSessionOptions): Promise<void> {
     store.setState((state) => ({
       ...state,
       creating: true,
@@ -453,8 +459,23 @@ function createSdkSessionsStore() {
     }));
 
     try {
+      const options = typeof input === 'string'
+        ? { model: input }
+        : (input ?? {});
+      const model = typeof options.model === 'string' && options.model.trim()
+        ? options.model.trim()
+        : undefined;
+      const contextType = typeof options.contextType === 'string' && options.contextType.trim()
+        ? options.contextType.trim()
+        : undefined;
+      const sandboxId = typeof options.sandboxId === 'string' && options.sandboxId.trim()
+        ? options.sandboxId.trim()
+        : undefined;
+
       const response = await createSdkSession({
-        model: model && model.trim() ? model.trim() : undefined,
+        model,
+        contextType,
+        sandboxId,
       });
 
       await loadSessions();

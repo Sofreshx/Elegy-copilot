@@ -446,20 +446,39 @@ export class SessionManager implements vscode.Disposable {
 		}
 
 		const indexPath = path.join(plansDir, 'index.json');
-		let index: any = null;
+		type PlanRecord = Record<string, unknown>;
+		type PlanIndex = {
+			schemaVersion: number;
+			sessionId: string;
+			updatedAt: string;
+			plans: PlanRecord[];
+		};
+		let index: PlanIndex | null = null;
 		try {
 			if (fs.existsSync(indexPath) && fs.statSync(indexPath).isFile()) {
-				index = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
+				const parsed = JSON.parse(fs.readFileSync(indexPath, 'utf-8')) as unknown;
+				if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+					const candidate = parsed as Record<string, unknown>;
+					const plans = Array.isArray(candidate.plans)
+						? candidate.plans.filter((p): p is PlanRecord => !!p && typeof p === 'object' && !Array.isArray(p))
+						: [];
+					index = {
+						schemaVersion: typeof candidate.schemaVersion === 'number' ? candidate.schemaVersion : 1,
+						sessionId: typeof candidate.sessionId === 'string' ? candidate.sessionId : sessionId,
+						updatedAt: typeof candidate.updatedAt === 'string' ? candidate.updatedAt : new Date().toISOString(),
+						plans,
+					};
+				}
 			}
 		} catch {
 			index = null;
 		}
-		if (!index || typeof index !== 'object' || Array.isArray(index)) {
-			index = { schemaVersion: 1, sessionId, updatedAt: new Date().toISOString(), plans: [] as any[] };
+		if (!index) {
+			index = { schemaVersion: 1, sessionId, updatedAt: new Date().toISOString(), plans: [] };
 		}
 		if (!Array.isArray(index.plans)) index.plans = [];
 
-		let active = index.plans.find((p: any) => p && p.status === 'active');
+		let active = index.plans.find((p) => p.status === 'active');
 		if (!active) {
 			const id = `rev-0001`;
 			active = {

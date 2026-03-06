@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
 import { SkillDiscoveryTreeProvider } from './tree';
 import { AgentDiscoveryTreeProvider } from './agentsTree';
 import { clearRepoContext } from './contextCleaner';
@@ -73,15 +71,6 @@ function getRepoPathFromCommand(arg: unknown): string | undefined {
 		return typeof repoPath === 'string' ? repoPath : undefined;
 	}
 	return undefined;
-}
-
-function isInstructionEngineFolder(folder: vscode.WorkspaceFolder): boolean {
-	const name = folder.name.toLowerCase();
-	if (name === 'instruction-engine') {
-		return true;
-	}
-	const folderPath = folder.uri.fsPath.replace(/\\/g, '/').toLowerCase();
-	return folderPath.endsWith('/instruction-engine');
 }
 
 export function activate(context: vscode.ExtensionContext): void {

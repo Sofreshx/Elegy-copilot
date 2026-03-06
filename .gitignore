@@ -2,6 +2,11 @@
 node_modules/
 package-lock.json
 **/package-lock.json
+!/package-lock.json
+!/RannIA/package-lock.json
+!/scripts/package-lock.json
+!/copilot-ui/package-lock.json
+!/local-tracker/package-lock.json
 
 # Build outputs
 dist/

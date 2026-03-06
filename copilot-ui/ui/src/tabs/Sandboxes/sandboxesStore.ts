@@ -1,6 +1,12 @@
-import { listSessions, runSandboxLifecycleAction } from '../../lib/api';
+import {
+  listSessions,
+  runSandboxLifecycleAction,
+  toCanonicalSandboxMissingTokenErrorFromUnknown,
+  toSandboxTokenRemediationMessage,
+} from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type { SandboxLifecycleAction, SessionSummary } from '../../lib/types';
+import { gatewayStore } from '../Gateway/gatewayStore';
 
 const SANDBOX_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;
 
@@ -14,6 +20,8 @@ export interface SandboxesState {
   currentAction: SandboxLifecycleAction | null;
   error: string | null;
   statusMessage: string | null;
+  tokenMissingBlocked: boolean;
+  tokenMissingMessage: string | null;
 }
 
 const INITIAL_STATE: SandboxesState = {
@@ -26,6 +34,8 @@ const INITIAL_STATE: SandboxesState = {
   currentAction: null,
   error: null,
   statusMessage: null,
+  tokenMissingBlocked: false,
+  tokenMissingMessage: null,
 };
 
 function toErrorMessage(error: unknown): string {
@@ -123,6 +133,36 @@ function createSandboxesStore() {
   const store = createStore<SandboxesState>(INITIAL_STATE);
   let requestVersion = 0;
 
+  gatewayStore.subscribe(() => {
+    const gatewayState = gatewayStore.getState();
+    if (gatewayState.sandboxTokenMissing) {
+      return;
+    }
+
+    store.setState((state) => {
+      if (!state.tokenMissingBlocked && !state.tokenMissingMessage) {
+        return state;
+      }
+
+      return {
+        ...state,
+        tokenMissingBlocked: false,
+        tokenMissingMessage: null,
+      };
+    });
+  });
+
+  function readTokenMissingGate(state: SandboxesState): { blocked: boolean; message: string | null } {
+    const gatewayState = gatewayStore.getState();
+    const gatewayBlocked = gatewayState.sandboxTokenMissing;
+    const gatewayMessage = gatewayState.sandboxTokenGuidance || null;
+
+    return {
+      blocked: state.tokenMissingBlocked || gatewayBlocked,
+      message: state.tokenMissingMessage || gatewayMessage,
+    };
+  }
+
   async function loadSandboxes(): Promise<void> {
     const nextVersion = ++requestVersion;
 
@@ -173,6 +213,19 @@ function createSandboxesStore() {
   }
 
   async function runLifecycleAction(action: SandboxLifecycleAction, payload: Record<string, unknown>): Promise<string> {
+    const gateState = readTokenMissingGate(store.getState());
+    if (gateState.blocked) {
+      const blockedMessage = gateState.message || toSandboxTokenRemediationMessage();
+
+      store.setState((state) => ({
+        ...state,
+        error: blockedMessage,
+        statusMessage: blockedMessage,
+      }));
+
+      throw new Error(blockedMessage);
+    }
+
     store.setState((state) => ({
       ...state,
       actionLoading: true,
@@ -197,11 +250,20 @@ function createSandboxesStore() {
         currentAction: null,
         sandboxId: canonicalSandboxId || state.sandboxId,
         statusMessage: `Sandbox ${action} completed.`,
+        tokenMissingBlocked: false,
+        tokenMissingMessage: null,
       }));
 
       return canonicalSandboxId;
     } catch (error) {
-      const message = toErrorMessage(error);
+      const canonicalMissingToken = toCanonicalSandboxMissingTokenErrorFromUnknown(error);
+      const message = canonicalMissingToken
+        ? toSandboxTokenRemediationMessage(error)
+        : toErrorMessage(error);
+
+      if (canonicalMissingToken) {
+        gatewayStore.setSandboxTokenGate(true, message);
+      }
 
       store.setState((state) => ({
         ...state,
@@ -209,6 +271,8 @@ function createSandboxesStore() {
         currentAction: null,
         error: message,
         statusMessage: `Sandbox ${action} failed.`,
+        tokenMissingBlocked: Boolean(canonicalMissingToken),
+        tokenMissingMessage: canonicalMissingToken ? message : null,
       }));
 
       throw error;

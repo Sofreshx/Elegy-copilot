@@ -260,7 +260,11 @@ Missing either signal for any required stream is a deterministic validation fail
 ## Validation Gate
 
 ### Enforcement Behavior
-`scripts/validate-planpack.js` enforces the v1 schema and progress-tracker final gate contracts for versioned planpacks.
+Validation is phase-aware:
+
+- `scripts/validate-planpack-planning.js` enforces the v1 planning schema for fresh plans. It validates the plan pack structure, WU shape, AC quality mode, and the base progress-tracker sections required before execution starts.
+- `scripts/validate-planpack-execution.js` enforces execution-time progress, evidence, and final-gate contracts for versioned planpacks.
+- `scripts/validate-planpack.js` remains the compatibility entrypoint for full execution/final-gate validation.
 
 Fail-closed defaults:
 - Missing `IE_PLAN_PACK_VERSION` marker fails validation.
@@ -270,6 +274,16 @@ Explicit compatibility override:
 - `--allow-legacy-best-effort` allows missing version marker for legacy plans only.
 
 ### What Validation Checks
+Planning validation (`validate-planpack-planning.js`) checks:
+1. All 12 required H2 sections are present (see v1 Field Contract)
+2. Each WU spec has required subsections (Context, Acceptance Criteria, Plan/Approach, Validation)
+3. WU-ID format matches `^WU-\d{3}$`
+4. Group-ID format matches `^G-\d{2}-[a-z0-9-]+$`
+5. No orphan WUs (every WU in Graph appears in Specs and vice versa)
+6. No duplicate WU-IDs
+7. Base progress-tracker sections required for planning-time resume/bootstrap are present
+
+Execution validation (`validate-planpack-execution.js` or `validate-planpack.js`) additionally checks:
 1. All 12 required H2 sections are present (see v1 Field Contract)
 2. Each WU spec has required subsections (Context, Acceptance Criteria, Plan/Approach, Validation)
 3. WU-ID format matches `^WU-\d{3}$`

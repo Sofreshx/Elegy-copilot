@@ -23,6 +23,8 @@ const {
   LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
   LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
   evaluateLifecycleMixedVersionCompatibility,
+  shouldRemapTrackerMissingTokenPayload,
+  buildTrackerProxyResponsePlan,
 } = require('./server');
 const {
   createPlanningApiState,
@@ -581,6 +583,88 @@ async function run() {
       reason: 'compatibility_supported',
       receivedContractVersion: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
       receivedCapability: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+    });
+  });
+
+  await test('shouldRemapTrackerMissingTokenPayload enforces strict case-sensitive OR predicate', async () => {
+    const truthyCases = [
+      { status: 'missing_token' },
+      { error: { code: 'tracker_token_missing' } },
+      { error: 'Tracker token not configured for workspace root' },
+      { error: { message: 'Tracker token not configured. Set --tracker-token' } },
+    ];
+
+    for (const payload of truthyCases) {
+      assert.strictEqual(shouldRemapTrackerMissingTokenPayload(payload), true);
+    }
+
+    const falsyCases = [
+      null,
+      {},
+      { status: 'Missing_token' },
+      { code: 'tracker_token_missing' },
+      { error: { code: 'TRACKER_TOKEN_MISSING' } },
+      { error: 'tracker token not configured' },
+      { error: { message: 'tracker token not configured' } },
+      { error: { message: 'Token missing' } },
+    ];
+
+    for (const payload of falsyCases) {
+      assert.strictEqual(shouldRemapTrackerMissingTokenPayload(payload), false);
+    }
+  });
+
+  await test('buildTrackerProxyResponsePlan remaps strict missing-token payloads to canonical envelope', async () => {
+    const responsePlan = buildTrackerProxyResponsePlan({
+      statusCode: 401,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'x-ignored-header': 'ignored',
+      },
+      bodyText: JSON.stringify({ status: 'missing_token' }),
+    });
+
+    assert.strictEqual(responsePlan.remapped, true);
+    assert.strictEqual(responsePlan.statusCode, 502);
+    assert.deepStrictEqual(JSON.parse(responsePlan.bodyText), {
+      status: 'token_missing',
+      code: 'MISSING_SANDBOX_TOKEN',
+      reason: 'token_missing',
+      message: 'Tracker token not configured',
+      legacyCode: 'tracker_token_missing',
+      legacyReason: 'tracker_token_missing',
+    });
+    assert.deepStrictEqual(responsePlan.headers, {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json; charset=utf-8',
+    });
+  });
+
+  await test('WS05-I4 buildTrackerProxyResponsePlan passes unrelated failures through with status/body/selected headers parity', async () => {
+    const rawBody = JSON.stringify({ error: 'Unauthorized', code: 'tracker_auth_failed' });
+    const responsePlan = buildTrackerProxyResponsePlan({
+      statusCode: 401,
+      headers: {
+        'content-type': 'application/json; charset=utf-8',
+        'www-authenticate': 'Bearer realm="tracker"',
+        'retry-after': '30',
+        'x-instruction-engine-lifecycle-contract-version': '1',
+        'x-instruction-engine-lifecycle-capability': 'mixed-version-lifecycle-v1',
+        'x-extra-header': 'blocked',
+      },
+      bodyText: rawBody,
+    });
+
+    assert.strictEqual(responsePlan.remapped, false);
+    assert.strictEqual(responsePlan.statusCode, 401);
+    assert.strictEqual(responsePlan.bodyText, rawBody);
+    assert.deepStrictEqual(responsePlan.headers, {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json; charset=utf-8',
+      'WWW-Authenticate': 'Bearer realm="tracker"',
+      'Retry-After': '30',
+      'X-Instruction-Engine-Lifecycle-Contract-Version': '1',
+      'X-Instruction-Engine-Lifecycle-Capability': 'mixed-version-lifecycle-v1',
     });
   });
 

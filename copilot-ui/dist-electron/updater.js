@@ -2,9 +2,22 @@
 /// <reference path="./electron-externals.d.ts" />
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.configureUpdater = configureUpdater;
-const electron_updater_1 = require("electron-updater");
 const rollbackPolicy_1 = require("./rollbackPolicy");
 const updatePolicy_1 = require("./updatePolicy");
+let cachedDefaultUpdaterClient;
+function resolveDefaultUpdaterClient() {
+    if (cachedDefaultUpdaterClient !== undefined) {
+        return cachedDefaultUpdaterClient;
+    }
+    try {
+        const electronUpdater = require('electron-updater');
+        cachedDefaultUpdaterClient = electronUpdater.autoUpdater || null;
+    }
+    catch {
+        cachedDefaultUpdaterClient = null;
+    }
+    return cachedDefaultUpdaterClient;
+}
 function parseBooleanOverride(input) {
     if (typeof input === 'boolean') {
         return input;
@@ -55,7 +68,7 @@ function resolveEffectiveRollbackPolicy(options) {
 }
 function configureUpdater(options) {
     const logger = options.logger || (() => { });
-    const updater = (options.updaterClient || electron_updater_1.autoUpdater);
+    const updater = options.updaterClient || resolveDefaultUpdaterClient();
     const channel = (0, updatePolicy_1.resolveUpdateChannel)({
         appVersion: options.appVersion,
         explicitChannel: options.explicitChannel,
@@ -66,37 +79,42 @@ function configureUpdater(options) {
         explicitChannel: options.explicitChannel,
         rollbackPolicy,
     });
-    updater.autoDownload = false;
-    updater.allowPrerelease = channel === 'prerelease';
-    if (!checkDecision.allowed) {
+    if (!updater) {
+        logger(`[updater] update checks blocked on channel ${channel}: updater_module_unavailable`);
+    }
+    else if (!checkDecision.allowed) {
         logger(`[updater] update checks blocked on channel ${channel}: ${checkDecision.reason}`);
     }
-    updater.on('update-available', (info) => {
-        if (!checkDecision.allowed) {
-            return;
-        }
-        const details = info && typeof info === 'object' ? info : {};
-        const candidateVersion = String(details.version || '').trim();
-        const decision = (0, updatePolicy_1.evaluateUpdateCandidate)({
-            appVersion: options.appVersion,
-            explicitChannel: options.explicitChannel,
-            candidateVersion,
-            rollbackPolicy,
+    if (updater) {
+        updater.autoDownload = false;
+        updater.allowPrerelease = channel === 'prerelease';
+        updater.on('update-available', (info) => {
+            if (!checkDecision.allowed) {
+                return;
+            }
+            const details = info && typeof info === 'object' ? info : {};
+            const candidateVersion = String(details.version || '').trim();
+            const decision = (0, updatePolicy_1.evaluateUpdateCandidate)({
+                appVersion: options.appVersion,
+                explicitChannel: options.explicitChannel,
+                candidateVersion,
+                rollbackPolicy,
+            });
+            if (!decision.allowed) {
+                logger(`[updater] blocked update candidate ${candidateVersion || '(unknown)'} on channel ${decision.channel}: ${decision.reason}`);
+                return;
+            }
+            logger(`[updater] update available on channel ${decision.channel}: ${candidateVersion || '(unknown)'}`);
         });
-        if (!decision.allowed) {
-            logger(`[updater] blocked update candidate ${candidateVersion || '(unknown)'} on channel ${decision.channel}: ${decision.reason}`);
-            return;
-        }
-        logger(`[updater] update available on channel ${decision.channel}: ${candidateVersion || '(unknown)'}`);
-    });
-    updater.on('error', (err) => {
-        const message = err instanceof Error ? err.message : String(err);
-        logger(`[updater] error: ${message}`);
-    });
+        updater.on('error', (err) => {
+            const message = err instanceof Error ? err.message : String(err);
+            logger(`[updater] error: ${message}`);
+        });
+    }
     return {
         channel,
         checkForUpdates: async () => {
-            if (!checkDecision.allowed) {
+            if (!checkDecision.allowed || !updater) {
                 return;
             }
             await updater.checkForUpdatesAndNotify();

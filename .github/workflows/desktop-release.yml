@@ -71,9 +71,16 @@ jobs:
           node-version: '20.x'
           cache: npm
 
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
+
       - name: Install desktop dependencies
         working-directory: copilot-ui
-        run: npm install --no-audit --no-fund
+        run: npm ci
+
+      - name: Install local-tracker dependencies
+        working-directory: local-tracker
+        run: npm ci
 
       - name: Build Windows package (unsigned)
         working-directory: copilot-ui
@@ -218,9 +225,16 @@ jobs:
           node-version: '20.x'
           cache: npm
 
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
+
       - name: Install desktop dependencies
         working-directory: copilot-ui
-        run: npm install --no-audit --no-fund
+        run: npm ci
+
+      - name: Install local-tracker dependencies
+        working-directory: local-tracker
+        run: npm ci
 
       - name: Build Linux preview package (unsigned)
         working-directory: copilot-ui
@@ -323,9 +337,16 @@ jobs:
           node-version: '20.x'
           cache: npm
 
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
+
       - name: Install desktop dependencies
         working-directory: copilot-ui
-        run: npm install --no-audit --no-fund
+        run: npm ci
+
+      - name: Install local-tracker dependencies
+        working-directory: local-tracker
+        run: npm ci
 
       - name: Build macOS preview package (unsigned)
         working-directory: copilot-ui

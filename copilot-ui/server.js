@@ -78,6 +78,11 @@ const {
   evaluateSemanticGate,
 } = require('./lib/planningSemantic');
 const {
+  SANDBOX_TOKEN_CANONICAL_STATE,
+  SANDBOX_TOKEN_CANONICAL_CODE,
+  toCanonicalMissingTokenError,
+} = require('./lib/sandboxLifecycleTokenContract');
+const {
   PLANNING_API_CONTRACT_VERSION,
   buildPlanningPersistenceHealthEnvelope,
   buildFinishCompatibilityHookContract,
@@ -95,6 +100,8 @@ const {
   evictPlanningIdempotencyEntry,
 } = require('./lib/planningApiContracts');
 const { createRegistry } = require('./routes');
+const LOCAL_TRACKER_SECRETS_MODULE_PATH = path.join(__dirname, '..', 'local-tracker', 'dist', 'messagingGateway', 'secrets.js');
+const GATEWAY_HTTP_SECRET_KIND = 'gatewayHttpToken';
 
 const WS3_AUTHORITY_DEPENDENCY_GATE_CONTRACT_VERSION = '1';
 const WS3_AUTHORITY_DEPENDENCY_NAME = 'ws3_authority_reconciliation_contract';
@@ -114,6 +121,20 @@ const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION = '1';
 const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY = 'mixed-version-lifecycle-v1';
 const LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION = 'x-instruction-engine-lifecycle-contract-version';
 const LIFECYCLE_COMPATIBILITY_HEADER_CAPABILITY = 'x-instruction-engine-lifecycle-capability';
+const TRACKER_PROXY_RESPONSE_HEADER_ALLOWLIST = Object.freeze([
+  'content-type',
+  'www-authenticate',
+  'retry-after',
+  'x-instruction-engine-lifecycle-contract-version',
+  'x-instruction-engine-lifecycle-capability',
+]);
+const TRACKER_PROXY_RESPONSE_HEADER_MAP = Object.freeze({
+  'content-type': 'Content-Type',
+  'www-authenticate': 'WWW-Authenticate',
+  'retry-after': 'Retry-After',
+  'x-instruction-engine-lifecycle-contract-version': 'X-Instruction-Engine-Lifecycle-Contract-Version',
+  'x-instruction-engine-lifecycle-capability': 'X-Instruction-Engine-Lifecycle-Capability',
+});
 
 function normalizeLifecycleCompatibilityToken(value) {
   if (Array.isArray(value)) {
@@ -480,10 +501,82 @@ function resolveTrackerUrl(args) {
   return 'http://127.0.0.1:4100';
 }
 
-function resolveTrackerToken(args) {
-  if (args && typeof args.trackerToken === 'string' && args.trackerToken.trim()) return args.trackerToken.trim();
-  if (process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN) return process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.trim();
-  return null;
+async function resolveTrackerTokenFromGatewaySecrets() {
+  try {
+    if (!fs.existsSync(LOCAL_TRACKER_SECRETS_MODULE_PATH)) {
+      return null;
+    }
+  } catch {
+    return null;
+  }
+
+  let secretsModule;
+  try {
+    secretsModule = require(LOCAL_TRACKER_SECRETS_MODULE_PATH);
+  } catch {
+    return null;
+  }
+
+  if (!secretsModule || typeof secretsModule.getGatewaySecret !== 'function') {
+    return null;
+  }
+
+  try {
+    const secretResult = await secretsModule.getGatewaySecret(GATEWAY_HTTP_SECRET_KIND);
+    const token = secretResult && typeof secretResult.value === 'string'
+      ? secretResult.value.trim()
+      : '';
+    if (!token) {
+      return null;
+    }
+
+    const source = secretResult && typeof secretResult.source === 'string'
+      ? secretResult.source
+      : 'keychain';
+
+    return {
+      value: token,
+      source: source === 'env' ? 'env' : 'keychain',
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveTrackerToken(args) {
+  if (args && typeof args.trackerToken === 'string' && args.trackerToken.trim()) {
+    return {
+      value: args.trackerToken.trim(),
+      source: 'arg',
+    };
+  }
+
+  if (Object.prototype.hasOwnProperty.call(process.env, 'INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN')) {
+    const envToken = typeof process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN === 'string'
+      ? process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.trim()
+      : '';
+    if (!envToken) {
+      return {
+        value: null,
+        source: 'missing',
+      };
+    }
+
+    return {
+      value: envToken,
+      source: 'env',
+    };
+  }
+
+  const fromGatewaySecrets = await resolveTrackerTokenFromGatewaySecrets();
+  if (fromGatewaySecrets) {
+    return fromGatewaySecrets;
+  }
+
+  return {
+    value: null,
+    source: 'missing',
+  };
 }
 
 function getDefaultMessagingGatewayConfigPath() {
@@ -773,16 +866,25 @@ async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
   const checkedAt = new Date().toISOString();
 
   if (!trackerToken) {
+    const missingTokenError = toCanonicalMissingTokenError({
+      status: SANDBOX_TOKEN_CANONICAL_STATE,
+    });
     return {
       deterministic: true,
       checkedAt,
       ready: false,
-      status: 'missing_token',
+      status: SANDBOX_TOKEN_CANONICAL_STATE,
       statusCode: null,
       error: buildGatewayProbeFailure(
-        'tracker_token_missing',
-        'tracker_token_missing',
-        'Tracker token not configured',
+        missingTokenError && typeof missingTokenError.legacyCode === 'string'
+          ? missingTokenError.legacyCode
+          : 'tracker_missing_token',
+        missingTokenError && typeof missingTokenError.legacyReason === 'string'
+          ? missingTokenError.legacyReason
+          : SANDBOX_TOKEN_CANONICAL_STATE,
+        missingTokenError && typeof missingTokenError.message === 'string'
+          ? missingTokenError.message
+          : 'Sandbox token missing',
       ),
     };
   }
@@ -971,6 +1073,28 @@ async function initializePlanningPersistenceAuthority(planningPersistenceConfig,
   const authority = resolvePlanningPersistenceAuthorityState(planningPersistenceConfig, planningPersistenceState);
 
   if (!authority.persistedAuthority) {
+    const required = Boolean(authority.validation && authority.validation.required);
+    if (!required) {
+      return {
+        statusCode: 200,
+        body: {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.persistence.init',
+          deterministic: true,
+          ready: true,
+          initialized: true,
+          result: {
+            mode: 'noop_optional_persistence',
+          },
+          errors: [],
+          planningPersistence: buildPlanningPersistenceHealthEnvelope(
+            getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState),
+          ),
+          corruption: buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState),
+        },
+      };
+    }
+
     return {
       statusCode: 503,
       body: {
@@ -4268,12 +4392,103 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
   return { ok: true, action: 'patched', filePath, backup, locations: desired };
 }
 
-function proxyToTracker(trackerUrl, trackerToken, targetPath, method, req, res, lifecycleAction = null) {
-  if (!trackerToken) {
-    sendJson(res, 502, { error: 'Tracker token not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.' });
-    return;
+function shouldRemapTrackerMissingTokenPayload(payload) {
+  if (!payload || typeof payload !== 'object') {
+    return false;
   }
 
+  const hasMissingStatus = payload.status === 'missing_token';
+  const hasLegacyErrorCode = payload.error
+    && typeof payload.error === 'object'
+    && payload.error.code === 'tracker_token_missing';
+  const hasLegacyErrorString = typeof payload.error === 'string'
+    && payload.error.startsWith('Tracker token not configured');
+  const hasLegacyErrorMessage = payload.error
+    && typeof payload.error === 'object'
+    && typeof payload.error.message === 'string'
+    && payload.error.message.startsWith('Tracker token not configured');
+
+  return Boolean(hasMissingStatus || hasLegacyErrorCode || hasLegacyErrorString || hasLegacyErrorMessage);
+}
+
+function buildCanonicalTrackerMissingTokenEnvelope(payload) {
+  if (!shouldRemapTrackerMissingTokenPayload(payload)) {
+    return null;
+  }
+
+  const legacyMessage = typeof payload.error === 'string'
+    ? payload.error
+    : payload.error && typeof payload.error === 'object' && typeof payload.error.message === 'string'
+      ? payload.error.message
+      : 'Tracker token not configured';
+
+  return toCanonicalMissingTokenError(payload) || {
+    status: SANDBOX_TOKEN_CANONICAL_STATE,
+    code: SANDBOX_TOKEN_CANONICAL_CODE,
+    reason: SANDBOX_TOKEN_CANONICAL_STATE,
+    message: legacyMessage,
+  };
+}
+
+function buildTrackerProxyPassThroughHeaders(headers) {
+  const source = headers && typeof headers === 'object' ? headers : {};
+  const outbound = { 'Cache-Control': 'no-store' };
+
+  for (const headerName of TRACKER_PROXY_RESPONSE_HEADER_ALLOWLIST) {
+    const value = source[headerName];
+    if (value == null) {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        continue;
+      }
+      outbound[TRACKER_PROXY_RESPONSE_HEADER_MAP[headerName]] = value.join(', ');
+      continue;
+    }
+
+    outbound[TRACKER_PROXY_RESPONSE_HEADER_MAP[headerName]] = String(value);
+  }
+
+  return outbound;
+}
+
+function buildTrackerProxyResponsePlan({ statusCode, headers, bodyText }) {
+  const resolvedStatusCode = Number.isFinite(statusCode) ? Number(statusCode) : 502;
+  const responseBodyText = typeof bodyText === 'string' ? bodyText : '';
+  const parsedPayload = parseJsonBodySafe(responseBodyText);
+
+  if (resolvedStatusCode >= 400 && parsedPayload) {
+    const canonicalMissingToken = buildCanonicalTrackerMissingTokenEnvelope(parsedPayload);
+    if (canonicalMissingToken) {
+      const remapHeaders = buildTrackerProxyPassThroughHeaders({
+        ...(headers && typeof headers === 'object' ? headers : {}),
+        'content-type': 'application/json; charset=utf-8',
+      });
+      return {
+        statusCode: 502,
+        headers: remapHeaders,
+        bodyText: JSON.stringify(canonicalMissingToken, null, 2),
+        remapped: true,
+      };
+    }
+  }
+
+  return {
+    statusCode: resolvedStatusCode,
+    headers: buildTrackerProxyPassThroughHeaders(headers),
+    bodyText: responseBodyText,
+    remapped: false,
+  };
+}
+
+function writeTrackerProxyResponse(res, responsePlan) {
+  res.writeHead(responsePlan.statusCode, responsePlan.headers);
+  res.end(responsePlan.bodyText);
+}
+
+function proxyToTracker(trackerUrl, trackerToken, targetPath, method, req, res, lifecycleAction = null) {
   const parsed = new URL(targetPath, trackerUrl);
   const options = {
     hostname: parsed.hostname,
@@ -4302,9 +4517,16 @@ function proxyToTracker(trackerUrl, trackerToken, targetPath, method, req, res, 
       }
     }
 
-    const ct = proxyRes.headers['content-type'] || 'application/json';
-    res.writeHead(proxyRes.statusCode || 502, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
-    proxyRes.pipe(res);
+    const chunks = [];
+    proxyRes.on('data', (chunk) => chunks.push(chunk));
+    proxyRes.on('end', () => {
+      const responsePlan = buildTrackerProxyResponsePlan({
+        statusCode: proxyRes.statusCode,
+        headers: proxyRes.headers,
+        bodyText: Buffer.concat(chunks).toString('utf8'),
+      });
+      writeTrackerProxyResponse(res, responsePlan);
+    });
   });
 
   proxyReq.on('error', (err) => {
@@ -4328,11 +4550,6 @@ function proxyToTracker(trackerUrl, trackerToken, targetPath, method, req, res, 
 }
 
 function postJsonToTracker(trackerUrl, trackerToken, targetPath, payload, res, action = null) {
-  if (!trackerToken) {
-    sendJson(res, 502, { error: 'Tracker token not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.' });
-    return;
-  }
-
   const parsed = new URL(targetPath, trackerUrl);
   const rawBody = JSON.stringify(payload == null ? {} : payload);
 
@@ -4363,9 +4580,16 @@ function postJsonToTracker(trackerUrl, trackerToken, targetPath, payload, res, a
       return;
     }
 
-    const ct = proxyRes.headers['content-type'] || 'application/json';
-    res.writeHead(proxyRes.statusCode || 502, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
-    proxyRes.pipe(res);
+    const chunks = [];
+    proxyRes.on('data', (chunk) => chunks.push(chunk));
+    proxyRes.on('end', () => {
+      const responsePlan = buildTrackerProxyResponsePlan({
+        statusCode: proxyRes.statusCode,
+        headers: proxyRes.headers,
+        bodyText: Buffer.concat(chunks).toString('utf8'),
+      });
+      writeTrackerProxyResponse(res, responsePlan);
+    });
   });
 
   proxyReq.on('error', (err) => {
@@ -4386,11 +4610,6 @@ function postJsonToTracker(trackerUrl, trackerToken, targetPath, payload, res, a
 }
 
 function postJsonToTrackerWithFinishInvariant(trackerUrl, trackerToken, targetPath, payload, res, providerState, action = 'finish') {
-  if (!trackerToken) {
-    sendJson(res, 502, { error: 'Tracker token not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.' });
-    return;
-  }
-
   const parsed = new URL(targetPath, trackerUrl);
   const rawBody = JSON.stringify(payload == null ? {} : payload);
 
@@ -4428,11 +4647,26 @@ function postJsonToTrackerWithFinishInvariant(trackerUrl, trackerToken, targetPa
     proxyRes.on('data', (chunk) => chunks.push(chunk));
     proxyRes.on('end', () => {
       const responseBodyText = Buffer.concat(chunks).toString('utf8');
+      if (statusCode >= 400) {
+        const failureResponsePlan = buildTrackerProxyResponsePlan({
+          statusCode,
+          headers: proxyRes.headers,
+          bodyText: responseBodyText,
+        });
+        writeTrackerProxyResponse(res, failureResponsePlan);
+        return;
+      }
 
       const isJson = ct.toLowerCase().includes('application/json');
       if (!isJson) {
-        res.writeHead(statusCode, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
-        res.end(responseBodyText);
+        writeTrackerProxyResponse(res, {
+          statusCode,
+          headers: buildTrackerProxyPassThroughHeaders({
+            ...proxyRes.headers,
+            'content-type': ct,
+          }),
+          bodyText: responseBodyText,
+        });
         return;
       }
 
@@ -4440,8 +4674,14 @@ function postJsonToTrackerWithFinishInvariant(trackerUrl, trackerToken, targetPa
       try {
         parsedBody = responseBodyText.trim() ? JSON.parse(responseBodyText) : {};
       } catch {
-        res.writeHead(statusCode, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
-        res.end(responseBodyText);
+        writeTrackerProxyResponse(res, {
+          statusCode,
+          headers: buildTrackerProxyPassThroughHeaders({
+            ...proxyRes.headers,
+            'content-type': ct,
+          }),
+          bodyText: responseBodyText,
+        });
         return;
       }
 
@@ -4480,11 +4720,6 @@ function postJsonToTrackerWithFinishInvariant(trackerUrl, trackerToken, targetPa
 }
 
 function relayTrackerSSE(trackerUrl, trackerToken, req, res) {
-  if (!trackerToken) {
-    sendJson(res, 502, { error: 'Tracker token not configured' });
-    return;
-  }
-
   const parsed = new URL('/api/events', trackerUrl);
   const options = {
     hostname: parsed.hostname,
@@ -4655,12 +4890,16 @@ async function startServer(options = {}) {
   };
 
   const quiet = options.quiet === true;
-  const engineRoot = path.resolve(__dirname, '..');
+  const engineRoot =
+    typeof options.engineRoot === 'string' && options.engineRoot.trim()
+      ? path.resolve(options.engineRoot.trim())
+      : path.resolve(__dirname, '..');
   const copilotHome = resolveCopilotHome(args);
   const vscodeHome = resolveVscodeHome(args);
   const sandboxesHome = resolveSandboxesHome(args);
   const trackerUrl = resolveTrackerUrl(args);
-  const trackerToken = resolveTrackerToken(args);
+  const trackerTokenResolution = await resolveTrackerToken(args);
+  const trackerToken = trackerTokenResolution.value;
   const planningPersistenceConfig = readPlanningPersistenceConfig(process.env);
   const planningValidation = validatePlanningPersistenceConfig(planningPersistenceConfig);
   const planningDurabilityDependencyGate = evaluatePlanningDurabilityDependencyGate({ env: process.env });
@@ -4939,7 +5178,7 @@ async function startServer(options = {}) {
         console.log(`engineRoot:     ${engineRoot}`);
         console.log(`trackerUrl:     ${trackerUrl}`);
         if (sdkBridgeEnabled) console.log('sdkBridge:      enabled');
-        if (trackerToken) console.log(`trackerAuth:    configured`);
+        if (trackerToken) console.log(`trackerAuth:    configured (${trackerTokenResolution.source})`);
         if (token) {
           console.log(`auth token:  ${token}`);
         }
@@ -5021,6 +5260,9 @@ module.exports = {
   LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
   evaluateLifecycleMixedVersionCompatibility,
   buildLifecycleMixedVersionUnsupportedMarker,
+  shouldRemapTrackerMissingTokenPayload,
+  buildTrackerProxyPassThroughHeaders,
+  buildTrackerProxyResponsePlan,
   recordPlanningCompareReceipt,
   issuePlanningMergeIntent,
   executePlanningMerge,

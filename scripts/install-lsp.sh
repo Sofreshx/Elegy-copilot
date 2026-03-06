@@ -13,9 +13,9 @@ else
 fi
 
 # 2. C#
-echo -e "\n\033[1;33m[2/3] Installing C# Language Server (csharp-ls)...\033[0m"
+echo -e "\n\033[1;33m[2/3] Installing C# Language Server (OmniSharp)...\033[0m"
 if command -v dotnet &> /dev/null; then
-    dotnet tool install -g csharp-ls || echo -e "\033[1;33mC# Language Server might already be installed.\033[0m"
+    dotnet tool install -g omnisharp || echo -e "\033[1;33mC# Language Server might already be installed.\033[0m"
     echo -e "\033[1;32mC# Language Server installed successfully.\033[0m"
 else
     echo -e "\033[1;31mFailed to install C# Language Server. dotnet is not installed.\033[0m"
@@ -54,8 +54,10 @@ cat > "$LSP_CONFIG_PATH" << 'EOF'
       }
     },
     "csharp": {
-      "command": "csharp-ls",
-      "args": [],
+      "command": "omnisharp",
+      "args": [
+        "--languageserver"
+      ],
       "fileExtensions": {
         ".cs": "csharp"
       }

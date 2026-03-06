@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, FormInput, Panel, Toolbar } from '../../components';
+import { humanizeToken, summarizeSdkHealth } from '../../lib/stateDiagnostics';
 import { useStoreValue } from '../../lib/store';
 import type { SessionSummary } from '../../lib/types';
+import { sdkHealthStore } from '../../stores/sdkHealthStore';
+import { gatewayStore } from '../Gateway/gatewayStore';
+import { sandboxesStore } from '../Sandboxes/sandboxesStore';
 import SessionDetail from './SessionDetail';
 import SessionList from './SessionList';
 import SdkMessageList from './SdkMessageList';
@@ -20,11 +24,18 @@ function isSessionActive(session: SessionSummary): boolean {
 export default function SessionsView() {
   const [mode, setMode] = useState<'local' | 'sdk'>('local');
   const [createModel, setCreateModel] = useState('');
+  const [sandboxLaunchId, setSandboxLaunchId] = useState('');
+  const [sandboxLaunching, setSandboxLaunching] = useState(false);
+  const [sandboxLaunchStatus, setSandboxLaunchStatus] = useState<string | null>(null);
+  const [sandboxLaunchError, setSandboxLaunchError] = useState<string | null>(null);
   const localSessionState = useStoreValue(sessionsStore);
   const sdkSessionState = useStoreValue(sdkSessionsStore);
+  const sdkHealthState = useStoreValue(sdkHealthStore);
+  const gatewayState = useStoreValue(gatewayStore);
 
   useEffect(() => {
     void sessionsStore.loadSessions();
+    void gatewayStore.refreshState(false);
 
     return () => {
       sdkSessionsStore.dispose();
@@ -58,6 +69,39 @@ export default function SessionsView() {
   );
 
   const modeError = mode === 'local' ? localSessionState.error : sdkSessionState.error;
+  const sdkHealthSummary = summarizeSdkHealth(sdkHealthState.health, sdkHealthState.error);
+
+  const trackerSegment =
+    gatewayState.stateEnvelope?.tracker && typeof gatewayState.stateEnvelope.tracker === 'object'
+      ? (gatewayState.stateEnvelope.tracker as Record<string, unknown>)
+      : null;
+  const trackerReason =
+    trackerSegment?.error && typeof trackerSegment.error === 'object'
+      ? (trackerSegment.error as Record<string, unknown>)
+      : null;
+
+  const localConnectionStatus = localSessionState.error
+    ? 'Blocked'
+    : localSessionState.loading
+      ? 'Checking'
+      : activeCount > 0
+        ? 'Active'
+        : 'Idle';
+  const localConnectionDetail = localSessionState.error
+    ? localSessionState.error
+    : `${localSessionState.sessions.length} session(s), ${activeCount} active.`;
+
+  const sandboxConnectionStatus = gatewayState.sandboxTokenMissing
+    ? 'Blocked'
+    : trackerSegment?.ready === true
+      ? 'Connected'
+      : humanizeToken(typeof trackerSegment?.status === 'string' ? trackerSegment.status : 'unknown');
+  const sandboxConnectionDetail = gatewayState.sandboxTokenMissing
+    ? (gatewayState.sandboxTokenGuidance || 'Tracker token is missing for sandbox lifecycle actions.')
+    : (typeof trackerReason?.message === 'string' && trackerReason.message.trim()
+      ? trackerReason.message
+      : 'Sandbox lifecycle follows tracker readiness and token policy.');
+  const sandboxLifecycleBlocked = gatewayState.sandboxTokenMissing;
 
   const handleRefresh = async () => {
     if (mode === 'local') {
@@ -71,6 +115,76 @@ export default function SessionsView() {
   const handleCreateSdkSession = async () => {
     await sdkSessionsStore.createSession(createModel);
     setCreateModel('');
+  };
+
+  const handleLaunchSandboxSdkSession = async () => {
+    const normalizedSandboxId = sandboxLaunchId.trim();
+    if (!normalizedSandboxId) {
+      setSandboxLaunchError('Sandbox ID is required to launch an isolated SDK session.');
+      setSandboxLaunchStatus(null);
+      return;
+    }
+
+    setSandboxLaunching(true);
+    setSandboxLaunchError(null);
+    setSandboxLaunchStatus('Preparing sandbox...');
+    sandboxesStore.setSandboxId(normalizedSandboxId);
+
+    try {
+      try {
+        await sandboxesStore.createSandbox();
+      } catch (error) {
+        const createMessage = error instanceof Error ? error.message : String(error);
+        if (!/already exists/i.test(createMessage)) {
+          throw error;
+        }
+      }
+
+      setSandboxLaunchStatus('Starting sandbox...');
+      await sandboxesStore.startSandbox();
+
+      setSandboxLaunchStatus('Creating isolated SDK session...');
+      await sdkSessionsStore.createSession({
+        model: createModel,
+        contextType: 'sandbox',
+        sandboxId: normalizedSandboxId,
+      });
+
+      setSandboxLaunchStatus(`Sandbox SDK session ready: ${normalizedSandboxId}`);
+      setSandboxLaunchError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to launch sandbox SDK session.';
+      setSandboxLaunchError(message);
+      setSandboxLaunchStatus(null);
+    } finally {
+      setSandboxLaunching(false);
+    }
+  };
+
+  const handleOpenSandboxTerminal = async () => {
+    const normalizedSandboxId = sandboxLaunchId.trim();
+    if (!normalizedSandboxId) {
+      setSandboxLaunchError('Sandbox ID is required to open a sandbox terminal.');
+      setSandboxLaunchStatus(null);
+      return;
+    }
+
+    setSandboxLaunching(true);
+    setSandboxLaunchError(null);
+    setSandboxLaunchStatus('Opening sandbox terminal...');
+    sandboxesStore.setSandboxId(normalizedSandboxId);
+
+    try {
+      await sandboxesStore.openSandboxTerminal();
+      setSandboxLaunchStatus(`Sandbox terminal opened: ${normalizedSandboxId}`);
+      setSandboxLaunchError(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to open sandbox terminal.';
+      setSandboxLaunchError(message);
+      setSandboxLaunchStatus(null);
+    } finally {
+      setSandboxLaunching(false);
+    }
   };
 
   const handleDeleteSdkSession = async () => {
@@ -124,6 +238,26 @@ export default function SessionsView() {
           </Button>
         </div>
       </Toolbar>
+
+      <div className="sessions-connection-grid" data-testid="sessions-connection-grid">
+        <article className="sessions-connection-card">
+          <p className="sessions-connection-title">Local Sessions</p>
+          <p className="sessions-connection-status">{localConnectionStatus}</p>
+          <p className="sessions-connection-copy">{localConnectionDetail}</p>
+        </article>
+
+        <article className="sessions-connection-card">
+          <p className="sessions-connection-title">SDK Bridge</p>
+          <p className="sessions-connection-status">{sdkHealthSummary.status}</p>
+          <p className="sessions-connection-copy">{sdkHealthSummary.detail}</p>
+        </article>
+
+        <article className="sessions-connection-card">
+          <p className="sessions-connection-title">Sandbox Lifecycle</p>
+          <p className="sessions-connection-status">{sandboxConnectionStatus}</p>
+          <p className="sessions-connection-copy">{sandboxConnectionDetail}</p>
+        </article>
+      </div>
 
       {modeError ? (
         <p className="sessions-error" role="alert">
@@ -191,6 +325,47 @@ export default function SessionsView() {
                 </Button>
               </div>
 
+              <FormInput
+                id="sdk-sandbox-id"
+                label="Sandbox ID (isolated SDK launch)"
+                onValueChange={setSandboxLaunchId}
+                placeholder="sb-..."
+                testId="sdk-sandbox-id-input"
+                value={sandboxLaunchId}
+              />
+
+              <div className="sessions-actions">
+                <Button
+                  disabled={sandboxLaunching || sdkSessionState.creating || sandboxLifecycleBlocked}
+                  onClick={handleLaunchSandboxSdkSession}
+                  testId="sdk-session-launch-sandbox"
+                  variant="secondary"
+                >
+                  {sandboxLaunching ? 'Launching...' : 'Launch Sandbox Session'}
+                </Button>
+                <Button
+                  disabled={sandboxLaunching || sandboxLifecycleBlocked}
+                  onClick={handleOpenSandboxTerminal}
+                  testId="sdk-session-open-sandbox-terminal"
+                  variant="ghost"
+                >
+                  Open Sandbox Terminal
+                </Button>
+              </div>
+
+              {sandboxLifecycleBlocked ? (
+                <p className="sessions-error">
+                  Sandbox launch blocked: {sandboxConnectionDetail}
+                </p>
+              ) : null}
+
+              {sandboxLaunchStatus ? <p className="sessions-copy">{sandboxLaunchStatus}</p> : null}
+              {sandboxLaunchError ? (
+                <p className="sessions-error" role="alert">
+                  {sandboxLaunchError}
+                </p>
+              ) : null}
+
               {sdkSessionState.sessions.length === 0 ? (
                 <p className="state-message">No SDK sessions available.</p>
               ) : (
@@ -202,7 +377,12 @@ export default function SessionsView() {
                         <div>
                           <p className="tracker-item-title">{session.sessionId}</p>
                           <p className="tracker-item-copy">
-                            {session.model || '(default model)'} | sse clients={session.sseClientCount ?? 0}
+                            {session.model || '(default model)'}
+                            {' | '}
+                            {session.contextType || 'regular'}
+                            {session.sandboxId ? `:${session.sandboxId}` : ''}
+                            {' | '}
+                            sse clients={session.sseClientCount ?? 0}
                           </p>
                         </div>
                         <div className="tracker-item-actions">
@@ -235,6 +415,9 @@ export default function SessionsView() {
 
             <p className="sessions-copy">
               Selected session: {selectedSdkSession?.sessionId || '(none)'}
+              {selectedSdkSession?.contextType
+                ? ` (${selectedSdkSession.contextType}${selectedSdkSession.sandboxId ? `:${selectedSdkSession.sandboxId}` : ''})`
+                : ''}
             </p>
 
             <SdkMessageList

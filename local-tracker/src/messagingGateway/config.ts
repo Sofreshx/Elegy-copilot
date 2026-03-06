@@ -336,7 +336,10 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 	}
 
 	if (!discord && !telegram) {
-		throw new Error('[Gateway] Invalid config: at least one platform (discord or telegram) must be configured');
+		const allowPlatformless = process.env.INSTRUCTION_ENGINE_GATEWAY_ALLOW_PLATFORMLESS === '1';
+		if (!allowPlatformless) {
+			throw new Error('[Gateway] Invalid config: at least one platform (discord or telegram) must be configured');
+		}
 	}
 
 	const legacyWorkspaceRoot = raw.workspaceRoot ?? raw.workspacePath;

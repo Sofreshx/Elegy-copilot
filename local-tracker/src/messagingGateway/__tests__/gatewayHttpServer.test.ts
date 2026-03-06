@@ -5,22 +5,38 @@ import {
     LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
     LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
 } from '../gatewayHttpServer';
+import type { WorkflowHttpRunResponse } from '../workflows/workflowHttpRoutes';
+import { parseWorkflowDefinition, type WorkflowDefinition } from '../workflows/workflowSchema';
 
 const TEST_TOKEN = 'test-secret-token-abc123';
-const TEMPLATE_DEFINITION = {
+const TEMPLATE_DEFINITION: WorkflowDefinition = {
     id: 'template-1',
     name: 'Template One',
     version: '1.0.0',
     schemaVersion: '1.0',
-    steps: [{ id: 'step-1', name: 'Step 1', action: 'noop', dependsOn: [] }],
+    steps: [{
+        id: 'step-1',
+        name: 'Step 1',
+        type: 'action',
+        action: 'noop',
+        streaming: false,
+        dependsOn: [],
+    }],
 };
 
-const PERSISTED_DEFINITION = {
+const PERSISTED_DEFINITION: WorkflowDefinition = {
     id: 'saved-1',
     name: 'Saved Workflow One',
     version: '1.0.0',
     schemaVersion: '1.0',
-    steps: [{ id: 'step-1', name: 'Step 1', action: 'noop', dependsOn: [] }],
+    steps: [{
+        id: 'step-1',
+        name: 'Step 1',
+        type: 'action',
+        action: 'noop',
+        streaming: false,
+        dependsOn: [],
+    }],
 };
 
 function makeRequest(
@@ -93,14 +109,22 @@ describe('GatewayHttpServer', () => {
         workflowListeners.delete(listener);
     });
     const mockGetWorkflowBacklog = jest.fn().mockReturnValue({ events: [], droppedCount: 0 });
-    const mockListTemplateDefinitions = jest.fn(() => [TEMPLATE_DEFINITION]);
-    const mockGetTemplateDefinition = jest.fn((id: string) => (id === TEMPLATE_DEFINITION.id ? TEMPLATE_DEFINITION : undefined));
-    const mockListPersistedDefinitions = jest.fn(() => [PERSISTED_DEFINITION]);
-    const mockGetPersistedDefinition = jest.fn((id: string) => (id === PERSISTED_DEFINITION.id ? PERSISTED_DEFINITION : undefined));
-    const mockCreatePersistedDefinition = jest.fn((payload: unknown) => payload);
-    const mockUpdatePersistedDefinition = jest.fn((_id: string, payload: unknown) => payload);
+    const mockListTemplateDefinitions = jest.fn<WorkflowDefinition[], []>(() => [TEMPLATE_DEFINITION]);
+    const mockGetTemplateDefinition = jest.fn<WorkflowDefinition | undefined, [string]>(
+        (id: string) => (id === TEMPLATE_DEFINITION.id ? TEMPLATE_DEFINITION : undefined),
+    );
+    const mockListPersistedDefinitions = jest.fn<WorkflowDefinition[], []>(() => [PERSISTED_DEFINITION]);
+    const mockGetPersistedDefinition = jest.fn<WorkflowDefinition | undefined, [string]>(
+        (id: string) => (id === PERSISTED_DEFINITION.id ? PERSISTED_DEFINITION : undefined),
+    );
+    const mockCreatePersistedDefinition = jest.fn<WorkflowDefinition, [unknown]>(
+        (payload: unknown) => parseWorkflowDefinition(payload),
+    );
+    const mockUpdatePersistedDefinition = jest.fn<WorkflowDefinition, [string, unknown]>(
+        (_id: string, payload: unknown) => parseWorkflowDefinition(payload),
+    );
     const mockDeletePersistedDefinition = jest.fn((id: string) => id === PERSISTED_DEFINITION.id);
-    const mockRunPersistedDefinition = jest.fn(async () => ({
+    const mockRunPersistedDefinition = jest.fn<Promise<WorkflowHttpRunResponse>, [WorkflowDefinition]>(async () => ({
         result: {
             workflowId: PERSISTED_DEFINITION.id,
             status: 'completed',
@@ -166,8 +190,8 @@ describe('GatewayHttpServer', () => {
         mockGetTemplateDefinition.mockImplementation((id: string) => (id === TEMPLATE_DEFINITION.id ? TEMPLATE_DEFINITION : undefined));
         mockListPersistedDefinitions.mockReturnValue([PERSISTED_DEFINITION]);
         mockGetPersistedDefinition.mockImplementation((id: string) => (id === PERSISTED_DEFINITION.id ? PERSISTED_DEFINITION : undefined));
-        mockCreatePersistedDefinition.mockImplementation((payload: unknown) => payload);
-        mockUpdatePersistedDefinition.mockImplementation((_id: string, payload: unknown) => payload);
+        mockCreatePersistedDefinition.mockImplementation((payload: unknown) => parseWorkflowDefinition(payload));
+        mockUpdatePersistedDefinition.mockImplementation((_id: string, payload: unknown) => parseWorkflowDefinition(payload));
         mockDeletePersistedDefinition.mockImplementation((id: string) => id === PERSISTED_DEFINITION.id);
         mockRunPersistedDefinition.mockResolvedValue({
             result: {
@@ -373,10 +397,17 @@ describe('GatewayHttpServer', () => {
             name: 'Created Workflow',
             version: '1.0.0',
             schemaVersion: '1.0',
-            steps: [{ id: 'step-1', name: 'Step 1', action: 'noop', dependsOn: [] }],
+            steps: [{
+                id: 'step-1',
+                name: 'Step 1',
+                type: 'action',
+                action: 'noop',
+                streaming: false,
+                dependsOn: [],
+            }],
         };
 
-        mockCreatePersistedDefinition.mockImplementationOnce((input: unknown) => input);
+        mockCreatePersistedDefinition.mockImplementationOnce((input: unknown) => parseWorkflowDefinition(input));
 
         const res = await makeRequest(port, {
             method: 'POST',
@@ -445,11 +476,13 @@ describe('GatewayHttpServer', () => {
     });
 
     it('POST /api/workflows/definitions/:id/run returns 503 when runtime is unavailable', async () => {
-        mockRunPersistedDefinition.mockRejectedValueOnce({
-            statusCode: 503,
-            message: 'Workflow runtime unavailable: no extension client connected',
-            code: 'workflow_runtime_unavailable',
-        });
+        const runtimeUnavailableError = new Error('Workflow runtime unavailable: no extension client connected') as Error & {
+            statusCode: number;
+            code: string;
+        };
+        runtimeUnavailableError.statusCode = 503;
+        runtimeUnavailableError.code = 'workflow_runtime_unavailable';
+        mockRunPersistedDefinition.mockRejectedValueOnce(runtimeUnavailableError);
 
         const res = await makeRequest(port, {
             method: 'POST',

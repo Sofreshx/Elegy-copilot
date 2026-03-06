@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "entries": [
+    {
+      "id": "baseline-0.1",
+      "instructionEngineVersionRange": ">=0.0.0 <=0.0.99",
+      "elegyPackageVersionRange": ">=0.1.0 <=0.1.99",
+      "supportLevel": "supported"
+    }
+  ]
+}

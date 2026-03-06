@@ -33,12 +33,42 @@ export default function AssetsView() {
           </p>
         </div>
         <Button
-          disabled={assetState.loading}
+          disabled={assetState.loading || assetState.syncing}
+          onClick={() => {
+            void assetsStore.repairWithSetup();
+          }}
+          testId="assets-repair-one-click"
+          variant="primary"
+        >
+          One-Click Skill Repair + Setup
+        </Button>
+        <Button
+          disabled={assetState.loading || assetState.syncing}
+          onClick={() => {
+            void assetsStore.syncAll(false);
+          }}
+          testId="assets-sync-all"
+          variant="secondary"
+        >
+          Install/Update All
+        </Button>
+        <Button
+          disabled={assetState.loading || assetState.syncing}
+          onClick={() => {
+            void assetsStore.syncAll(true);
+          }}
+          testId="assets-sync-all-force"
+          variant="ghost"
+        >
+          Force Reinstall All
+        </Button>
+        <Button
+          disabled={assetState.loading || assetState.syncing}
           onClick={handleRefresh}
           testId="assets-view-refresh"
           variant="secondary"
         >
-          {assetState.loading ? 'Refreshing...' : 'Refresh'}
+          {assetState.loading ? 'Refreshing...' : assetState.repairing ? 'Repairing...' : assetState.syncing ? 'Working...' : 'Refresh'}
         </Button>
       </Toolbar>
 
@@ -47,6 +77,7 @@ export default function AssetsView() {
           {assetState.error}
         </p>
       ) : null}
+      {assetState.actionMessage ? <p className="assets-status">{assetState.actionMessage}</p> : null}
 
       <div className="assets-grid">
         <Panel

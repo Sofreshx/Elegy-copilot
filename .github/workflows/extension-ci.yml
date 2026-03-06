@@ -56,12 +56,15 @@ jobs:
             RannIA/package.json
             scripts/package.json
 
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --workspaces=false
         working-directory: RannIA
 
       - name: Install scripts dependencies
-        run: npm ci
+        run: npm ci --workspaces=false
         working-directory: scripts
 
       - name: Restore test cache
@@ -144,12 +147,15 @@ jobs:
             copilot-ui/package.json
             local-tracker/package.json
 
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
+
       - name: Install scripts dependencies
         run: npm ci
         working-directory: scripts
 
       - name: Install copilot-ui dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci
         working-directory: copilot-ui
 
       - name: Install local-tracker dependencies
