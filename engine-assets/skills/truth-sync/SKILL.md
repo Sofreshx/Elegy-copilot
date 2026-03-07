@@ -54,6 +54,6 @@ When the hierarchy cannot resolve the conflict:
 - Use `vscode/askQuestions` to ask the user which source is authoritative.
 - Record the decision in the completion summary so future agents have context.
 
-## Future Elegy Alignment
+## Elegy Governance Integration
 
-`TODO(elegy-contracts)`: Truth hierarchy ranks will eventually map to Elegy governance tiers. Canonical authority resolution will align with `CanonicalAuthority` enum from Elegy Formalization Core.
+Truth hierarchy ranks map to Elegy governance tiers via `Elegy.Formalization.Governance`. The `GovernancePolicy` record supports `GovernanceResolutionStrategy` (Reject, Reconcile, Override) and `GovernanceEnforcementMode` (Strict, Warn) for canonical authority resolution. See `Elegy.Formalization.Governance` module for the C# domain model.

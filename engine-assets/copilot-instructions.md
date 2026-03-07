@@ -68,6 +68,7 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
 
 ## Subagents (speed + context)
 - Delegate aggressively for speed:
+  - capability discovery and staged context loading → `@search`, then `@execute`
   - exploration/synthesis → `@code-explorer` (or `explore` agent)
   - running builds/tests → `@unit-test-runner` / `@integration-test-runner` (or `task` agent)
   - high-signal review → `@code-reviewer`
@@ -80,11 +81,16 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
 ## Using Instruction Engine assets
 - A few transversal skills are always loaded (`~/.copilot/skills/`): `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`.
 - **Most domain-specific skills live in the vault** (`~/.copilot/skills-vault/`) and are NOT loaded by default to save tokens.
+- The canonical workflow is **search then execute**:
+  1. Use `@search` to resolve the smallest relevant capability across docs, agents, and skills.
+  2. Use `@execute` to turn the resolved capability into a minimal execution brief.
+  3. Only then load or delegate to the downstream specialist agent.
 - When domain-specific behavior matters, **discover and load the right skill on demand**:
   1. Match the task domain to a skill name (use the `skill-discovery` skill's keyword map or run `stack-detector` for project-wide detection).
   2. Load the full skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
   3. Follow the skill's instructions for the current task.
 - If a skill is not found in the vault, it is not installed — proceed with general knowledge.
+- See `docs/system/search-execute-workflow.md` for the canonical staged-routing model.
 - Prefer canonical documentation in `docs/system/**` and exploratory notes in `docs/research/**`.
 - Treat `.instructions/*` paths as legacy and use them only when a repository explicitly opts in.
 

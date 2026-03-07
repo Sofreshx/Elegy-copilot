@@ -257,6 +257,18 @@ function loadManifest(engineRoot) {
   };
 }
 
+function readJsonIfExists(absPath) {
+  try {
+    if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
+      return null;
+    }
+
+    return JSON.parse(fs.readFileSync(absPath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
 function getAssetPaths(engineRoot, destinationHome, asset, opts) {
   const engineAbs = path.resolve(engineRoot);
   const homeAbs = path.resolve(destinationHome);
@@ -301,6 +313,101 @@ function listInstalledSkills(home) {
   } catch {
     return [];
   }
+}
+
+function listVaultSkills(home) {
+  const vaultDir = getVaultDir(home);
+  try {
+    const entries = fs.readdirSync(vaultDir, { withFileTypes: true });
+    return entries
+      .filter((e) => e.isDirectory())
+      .map((e) => {
+        const absPath = path.join(vaultDir, e.name, 'SKILL.md');
+        if (!fs.existsSync(absPath)) return null;
+        return { name: e.name, absPath };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
+
+function getSkillCatalogPreview(engineRoot, home) {
+  const manifest = loadManifest(engineRoot);
+  const manifestSkills = (manifest.assets || []).filter((asset) => asset && asset.type === 'skill');
+  const installedSkills = new Map(listInstalledSkills(home).map((skill) => [skill.name, skill]));
+  const vaultSkills = new Map(listVaultSkills(home).map((skill) => [skill.name, skill]));
+  const metadataIndex = readJsonIfExists(path.join(path.resolve(engineRoot), 'engine-assets', 'skills', 'skill-metadata-index.json'));
+  const metadataEntries = new Map(
+    Array.isArray(metadataIndex?.entries)
+      ? metadataIndex.entries
+          .filter((entry) => entry && typeof entry === 'object' && typeof entry.skill === 'string' && entry.skill.trim())
+          .map((entry) => [entry.skill.trim(), entry])
+      : []
+  );
+
+  const manifestSkillByName = new Map(
+    manifestSkills.map((asset) => {
+      const sourceName = path.posix.basename(String(asset.source || '').replace(/\\/g, '/'));
+      return [sourceName, asset];
+    })
+  );
+
+  const names = new Set([
+    ...manifestSkillByName.keys(),
+    ...installedSkills.keys(),
+    ...vaultSkills.keys(),
+    ...metadataEntries.keys(),
+  ]);
+
+  return Array.from(names)
+    .map((name) => {
+      const installed = installedSkills.get(name);
+      const vaulted = vaultSkills.get(name);
+      const manifestAsset = manifestSkillByName.get(name);
+      const metadata = metadataEntries.get(name) || {};
+      const triggerList = Array.isArray(metadata.triggersOn)
+        ? metadata.triggersOn.filter((value) => typeof value === 'string' && value.trim())
+        : [];
+      const loadMode =
+        typeof manifestAsset?.loadMode === 'string' && manifestAsset.loadMode.trim()
+          ? manifestAsset.loadMode
+          : typeof metadata?.manifest?.loadMode === 'string' && metadata.manifest.loadMode.trim()
+            ? metadata.manifest.loadMode
+            : 'on-demand';
+
+      let kind = 'missing';
+      let availability = 'not-installed';
+      let viewPath = `skills/${name}/SKILL.md`;
+      let absPath;
+
+      if (installed) {
+        kind = installed.kind || 'full';
+        availability = vaulted ? 'scan+vault' : 'scan-path';
+        viewPath = `skills/${name}/SKILL.md`;
+        absPath = installed.absPath;
+      } else if (vaulted) {
+        kind = 'vault';
+        availability = 'vault-only';
+        viewPath = `skills-vault/${name}/SKILL.md`;
+        absPath = vaulted.absPath;
+      }
+
+      return {
+        name,
+        kind,
+        loadMode,
+        availability,
+        description: typeof metadata.description === 'string' ? metadata.description : '',
+        triggers: triggerList.join(', '),
+        absPath,
+        vaultPath: vaulted ? vaulted.absPath : null,
+        viewPath,
+        managed: manifestSkillByName.has(name),
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function listInstalledPrompts(home) {
@@ -633,6 +740,8 @@ module.exports = {
   loadManifest,
   listInstalledAgents,
   listInstalledSkills,
+  listVaultSkills,
+  getSkillCatalogPreview,
   listInstalledPrompts,
   getInstalledInstructions,
   getManagedAssetStatuses,

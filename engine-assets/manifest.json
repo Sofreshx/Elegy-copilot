@@ -19,7 +19,7 @@
     "notes": "If the installer flattens source folders, it should still write files using each asset.destination path."
   },
   "skillPointer": {
-    "enabled": false,
+    "enabled": true,
     "schemaVersion": 1,
     "vaultDir": "skills-vault",
     "loadModes": {
@@ -87,6 +87,12 @@
       "type": "agent",
       "source": "engine-assets/agents/deploy-auditor.agent.md",
       "destination": "agents/deploy-auditor.agent.md"
+    },
+    {
+      "id": "agent-execute",
+      "type": "agent",
+      "source": "engine-assets/agents/execute.agent.md",
+      "destination": "agents/execute.agent.md"
     },
     {
       "id": "agent-doc-writer",
@@ -207,6 +213,12 @@
       "type": "agent",
       "source": "engine-assets/agents/reviewer-gpt-5-3-codex.agent.md",
       "destination": "agents/reviewer-gpt-5-3-codex.agent.md"
+    },
+    {
+      "id": "agent-search",
+      "type": "agent",
+      "source": "engine-assets/agents/search.agent.md",
+      "destination": "agents/search.agent.md"
     },
     {
       "id": "agent-reviewer-opus-4-6",

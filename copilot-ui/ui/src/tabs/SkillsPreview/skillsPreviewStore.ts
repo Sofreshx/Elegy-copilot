@@ -55,10 +55,14 @@ function normalizeSkills(input: unknown): SkillPreviewItem[] {
         ...record,
         name,
         kind,
+        loadMode: typeof record.loadMode === 'string' ? record.loadMode : undefined,
+        availability: typeof record.availability === 'string' ? record.availability : undefined,
+        description: typeof record.description === 'string' ? record.description : '',
         triggers: typeof record.triggers === 'string' ? record.triggers : '',
         absPath: typeof record.absPath === 'string' ? record.absPath : undefined,
         vaultPath:
           typeof record.vaultPath === 'string' || record.vaultPath === null ? record.vaultPath : undefined,
+        viewPath: typeof record.viewPath === 'string' ? record.viewPath : undefined,
       } as SkillPreviewItem;
     })
     .filter((entry): entry is SkillPreviewItem => entry !== null);
@@ -67,8 +71,12 @@ function normalizeSkills(input: unknown): SkillPreviewItem[] {
   return normalized;
 }
 
-function buildSkillDetailPath(name: string): string {
-  return `skills/${name}/SKILL.md`;
+function buildSkillDetailPath(skill: SkillPreviewItem): string {
+  if (typeof skill.viewPath === 'string' && skill.viewPath.trim()) {
+    return skill.viewPath;
+  }
+
+  return `skills/${skill.name}/SKILL.md`;
 }
 
 function createSkillsPreviewStore() {
@@ -139,7 +147,9 @@ function createSkillsPreviewStore() {
     }));
 
     try {
-      const detailText = await getAssetView(buildSkillDetailPath(normalizedSkillName));
+      const selectedSkill = store.getState().skills.find((skill) => skill.name === normalizedSkillName);
+      const detailPath = buildSkillDetailPath(selectedSkill ?? { name: normalizedSkillName, kind: 'full' });
+      const detailText = await getAssetView(detailPath);
 
       store.setState((state) => ({
         ...state,

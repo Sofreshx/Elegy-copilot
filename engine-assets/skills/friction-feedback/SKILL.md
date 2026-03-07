@@ -49,6 +49,6 @@ Trigger signals:
 
 This skill is loaded by the orchestrator when it detects the escalation flag. It does NOT load other skills or delegate to subagents. It reads the friction log, analyzes it, and returns a structured report to the orchestrator.
 
-## Future Elegy Alignment
+## Elegy Integration
 
-`TODO(elegy-contracts)`: Friction feedback reports will eventually emit `AgenticEvent` monitoring events via the Elegy Monitoring contract. Cluster analysis will align with `monitoring-event.schema.json` category and severity fields.
+Friction feedback reports can now emit structured `AgenticEvent` monitoring events via the Elegy `FrictionEvent` model in `Elegy.Formalization.Monitoring`. Cluster analysis maps to `monitoring-event.schema.json` with `category: "friction"` and severity derived from importance weights. Use `node scripts/friction-emit.mjs` to produce individual structured events.

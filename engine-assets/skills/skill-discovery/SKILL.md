@@ -9,6 +9,8 @@ description: "Dynamic skill discovery and resolution for the search/execute patt
 
 Most domain-specific skills are stored in the **skill vault** (`~/.copilot/skills-vault/`) and are NOT loaded into agent context by default. This keeps token usage low. When you need domain-specific knowledge, use this skill's patterns to find and load the right skill on demand.
 
+In the first-class Instruction Engine workflow, `@search` is the preferred capability-discovery layer and `@execute` is the preferred capability-application layer. This skill remains the always-loaded meta-skill that those agents, and any direct callers, use for vault routing.
+
 ## Related docs
 
 - System docs index: `docs/system/index.md`
@@ -136,6 +138,26 @@ read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")
 ```
 
 Replace `~/.copilot` with the actual Copilot home path if `XDG_CONFIG_HOME` is set.
+
+### Pattern 6: CLI Search/Load (terminal-based)
+
+When you prefer programmatic discovery via terminal (useful for scripting, CI, or when `read_file` is not available):
+
+**Search for skills by query:**
+```bash
+node scripts/skill-search.mjs "wolverine"           # human-readable output
+node scripts/skill-search.mjs --json "auth"          # JSON array with name, description, vaultRef, score
+node scripts/skill-search.mjs                        # list all skills (no query)
+```
+
+**Load a skill's SKILL.md content:**
+```bash
+node scripts/skill-load.mjs wolverine-core           # prints SKILL.md to stdout
+```
+
+Security: `skill-load.mjs` rejects path traversal (`..`, `.`), symlinks, and paths outside the skills root. Follows the same confinement patterns as `RannIA/src/utils/pathSecurity.ts`.
+
+These scripts read from `engine-assets/skills/skill-metadata-index.json` (search) and `engine-assets/skills/{name}/SKILL.md` (load). They are the CLI equivalent of Patterns 2–5.
 
 ## Resolution Rules
 

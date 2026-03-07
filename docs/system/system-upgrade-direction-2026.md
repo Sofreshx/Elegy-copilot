@@ -14,6 +14,8 @@ related: [orchestration-and-agents, moc-skills-governance, session-state, instru
 
 This document converts recent research into a practical, phased upgrade direction for instruction-engine.
 
+As of March 2026, the platform is also adopting first-class `@search` and `@execute` agents to make the staged discovery/application workflow explicit rather than implied.
+
 ## Scope and Intent
 
 The goal is not to replace the current architecture. The goal is to improve four specific areas where research found quality gaps:
@@ -48,8 +50,10 @@ The target architecture keeps the current strengths (manifest-driven assets, ski
 flowchart LR
     U[User Request] --> O[Orchestrator]
     O --> D[Doc Discovery Protocol]
-    O --> S[Skill Discovery Protocol]
-    O --> A[Agent Routing Contract]
+    O --> X[@search]
+    X --> S[Skill and Doc Discovery]
+    O --> E[@execute]
+    E --> A[Agent Routing Contract]
 
     D --> DI[docs/system/index.md]
     DI --> DM[MOCs]
@@ -135,6 +139,7 @@ The vault model is excellent, but discovery quality drops on ambiguity and multi
 2. Add explicit multi-skill orchestration policy (primary skill + supporting skills + token budget).
 3. Replace manually maintained keyword maps with generated or validated maps from skill frontmatter.
 4. Add telemetry for skill selection quality and miss categories.
+5. Route discovery through first-class `@search` and `@execute` agents so vault loading becomes explicit and observable.
 
 ### Resolver Design
 
@@ -165,6 +170,7 @@ flowchart TD
 2. Add validation in `scripts/validate-manifest.js` or a dedicated script to detect unmapped skills.
 3. Add skill metadata indexing from SKILL frontmatter (`description`, trigger phrases, tags).
 4. Add a discovery telemetry schema for miss reasons (keyword miss, ambiguity, stale map, no route).
+5. Add first-class `@search` and `@execute` agent prompts that consume the existing vault model instead of replacing it.
 
 ### Success Metrics
 

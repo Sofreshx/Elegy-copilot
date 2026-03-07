@@ -241,9 +241,13 @@ export interface TrackerSessionsResponse {
 export interface SkillPreviewItem {
   name: string;
   kind: 'pointer' | 'full' | string;
+  loadMode?: 'always' | 'on-demand' | string;
+  availability?: string;
+  description?: string;
   triggers?: string;
   absPath?: string;
   vaultPath?: string | null;
+  viewPath?: string;
   [key: string]: unknown;
 }
 

@@ -21,6 +21,7 @@ related: [system-docs-index]
 ## Start here
 
 - If you are changing how orchestration works: read `docs/system/orchestrator/user-guide.md`.
+- If you are changing staged capability routing: read `docs/system/search-execute-workflow.md`.
 - Contract shape and planning constraints: `docs/system/workflow-planning-contract.md`.
 - Research promotion checklist: `docs/system/research-promotion-checklist.md`.
 

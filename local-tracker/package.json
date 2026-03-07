@@ -4,7 +4,7 @@
   "description": "Local agent tracker - watches for session/task changes and bridges to relay",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "ts-node src/index.ts",
     "dev:gateway": "ts-node src/messagingGateway/index.ts",
     "start": "node dist/index.js",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@instruction-engine/contracts": "file:../contracts",
+    "@instruction-engine/local-tracker": "file:",
     "@napi-rs/keyring": "^1.2.0",
     "chokidar": "^4.0.0",
     "discord.js": "^14.0.0",

@@ -116,6 +116,7 @@ Legacy note:
 ## Delegation (Use Subagents)
 Use subagents to keep work high-signal and consistent. Prefer only the ones that clearly apply:
 - **Orchestrator (recommended)**: `@orchestrator` — single entry point for all complex work. Routes by complexity (trivial/standard/complex), delegates to specialized subagents. Replaces all executive variants.
+- **Search/Execute (preferred capability routing)**: use `@search` to resolve the smallest relevant capability, then `@execute` to turn it into a compact downstream brief before loading heavy context.
 - Core: `@debugger`, `@code-explorer`, `@code-reviewer`, `@unit-test-runner`, `@integration-test-runner`.
 - Testing: use `@unit-test-runner` for unit tests; use `@integration-test-runner` only when explicitly requested.
 - Audit: use `@security-auditor`, `@stack-auditor`, and `@deploy-auditor` depending on the change.
@@ -156,6 +157,10 @@ Note: The "Completion Gate" rule ("ask one targeted question") applies to genera
 If a task maps to a known domain, treat skills as the default path:
 - A few transversal skills are always loaded in `~/.copilot/skills/`: `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`.
 - **Most domain skills live in `~/.copilot/skills-vault/`** and are NOT loaded by default (saves tokens).
+- Use the staged routing model by default:
+	1. `@search` resolves the smallest relevant capability.
+	2. `@execute` extracts the minimum constraints and steps needed downstream.
+	3. Only load the resolved on-demand skill when the task truly needs domain-specific guidance.
 - To find the right skill: use the `skill-discovery` skill's keyword map, or run `stack-detector` for project-wide detection.
 - To load an on-demand skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
 - Prefer skill-specific guidance over generic judgment.
@@ -235,3 +240,23 @@ Temp files must never contain API keys, tokens, passwords, or other secrets. Use
 
 ### TMP-CTRL-006: Prefer real files over streams for auditable workflows
 When an audit trail is needed, write to a real file in a sanctioned temp directory rather than piping through memory-only streams.
+
+## Defensive Tool Use (Hang & Error Prevention)
+
+### TOOL-SAFE-001: Verify directories before listing
+Before calling `list_dir` on paths that may not exist (build output, test results, artifact directories), verify the path exists first. Do not assume output directories are present — they depend on prior build/test steps having run.
+
+### TOOL-SAFE-002: Prefer smaller patches for large files
+When editing files over 200 lines of changes, use multiple smaller targeted edits instead of one large patch. Re-read the file immediately before editing to ensure context lines match. If a patch fails with "Invalid context", re-read the target file and retry with fresh context.
+
+### TOOL-SAFE-003: Keep session-state files lean
+Plan files in `session-state/` should stay under 500 lines. When a plan file grows large, archive completed sections to a separate file to reduce patch conflict risk.
+
+### TOOL-SAFE-004: Never launch long-running processes without timeouts
+When spawning child processes (servers, builds, tests), always configure a timeout or deadline. Never rely on a process exiting on its own — always have a kill path if it exceeds the timeout budget. This applies to both direct terminal commands and programmatic process spawning.
+
+### TOOL-SAFE-005: Desktop host and server launches
+When launching desktop hosts, Electron apps, or dev servers that assign ports and wait for health checks:
+- Ensure health check loops have bounded retry counts (not infinite).
+- Always configure a total timeout for the startup sequence.
+- If a health check fails after the retry budget, kill the spawned process and report the failure — do not leave ghost processes.

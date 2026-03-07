@@ -15,6 +15,8 @@ if (!fs.existsSync(includeListFile)) {
     process.exit(1);
 }
 
+const TEST_TIMEOUT_MS = 120_000; // 2 minutes per test file
+
 const testsToRun = JSON.parse(fs.readFileSync(includeListFile, 'utf8'));
 const results = {};
 let hasFailures = false;
@@ -26,13 +28,18 @@ for (const testFile of testsToRun) {
     try {
         const result = spawnSync('node', [testFile], {
             stdio: 'pipe',
-            encoding: 'utf8'
+            encoding: 'utf8',
+            timeout: TEST_TIMEOUT_MS,
         });
         
         const durationMs = Date.now() - startTime;
-        const success = result.status === 0;
+        const timedOut = result.signal === 'SIGTERM' && result.status === null;
+        const success = !timedOut && result.status === 0;
         
-        if (!success) {
+        if (timedOut) {
+            hasFailures = true;
+            console.error(`Test timed out after ${TEST_TIMEOUT_MS}ms: ${testFile}`);
+        } else if (!success) {
             hasFailures = true;
             console.error(`Test failed: ${testFile}`);
             if (result.stdout) console.error(result.stdout);
@@ -42,6 +49,7 @@ for (const testFile of testsToRun) {
         results[testFile] = {
             success,
             durationMs,
+            timedOut,
             stdout: result.stdout || '',
             stderr: result.stderr || ''
         };

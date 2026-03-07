@@ -16,7 +16,7 @@
     "entityId": { "type": "string", "minLength": 1 },
     "category": {
       "type": "string",
-      "enum": ["lifecycle", "activation", "validation", "routing"]
+      "enum": ["lifecycle", "activation", "validation", "routing", "friction"]
     },
     "severity": {
       "type": "string",

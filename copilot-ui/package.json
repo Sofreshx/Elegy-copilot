@@ -7,10 +7,11 @@
   "scripts": {
     "test": "node scripts/test-with-ledger.js && npm run test:vitest",
     "test:vitest": "vitest run",
+    "build:local-tracker": "npm --prefix ../local-tracker run build",
     "build:electron": "tsc -p tsconfig.electron.json",
     "electron:dev": "npm run build:electron && electron .",
-    "package:preview": "npm run ui:build && npm run build:electron && electron-builder --dir",
-    "package:win": "npm run ui:build && npm run build:electron && electron-builder --win nsis",
+    "package:preview": "npm run ui:build && npm run build:local-tracker && npm run build:electron && electron-builder --dir",
+    "package:win": "npm run ui:build && npm run build:local-tracker && npm run build:electron && electron-builder --win nsis",
     "ui:dev": "vite --config vite.config.ts",
     "ui:build": "vite build --config vite.config.ts",
     "ui:preview": "vite preview --config vite.config.ts"

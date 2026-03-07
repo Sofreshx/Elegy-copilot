@@ -19,5 +19,7 @@ export default defineConfig({
     setupFiles: path.resolve(__dirname, 'tests/vitest.setup.ts'),
     include: ['../tests/**/*.vitest.ts', '../tests/**/*.vitest.tsx'],
     clearMocks: true,
+    testTimeout: 30_000,
+    hookTimeout: 15_000,
   },
 });

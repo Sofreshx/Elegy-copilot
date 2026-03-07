@@ -83,16 +83,31 @@ function handleAssetsSync(ctx, deps) {
 
 function handleSkillsPreview(ctx, deps) {
   const { res, copilotHomeAbs } = ctx;
-  const { sendJson, assets, path, extractTriggers } = deps;
+  const { sendJson, assets, path, extractTriggers, engineRoot } = deps;
   const assetsHomeAbs = copilotHomeAbs;
 
   try {
+    if (engineRoot && typeof assets.getSkillCatalogPreview === 'function') {
+      const skills = assets.getSkillCatalogPreview(engineRoot, assetsHomeAbs);
+      sendJson(res, 200, { skills });
+      return;
+    }
+
     const skills = assets.listInstalledSkills(assetsHomeAbs);
     const vaultDir = assets.getVaultDir ? assets.getVaultDir(assetsHomeAbs) : path.join(assetsHomeAbs, 'skills-vault');
     const result = skills.map((s) => {
       const triggers = extractTriggers(s.absPath);
       const vaultPath = s.kind === 'pointer' ? path.join(vaultDir, s.name, 'SKILL.md') : null;
-      return { name: s.name, kind: s.kind || 'full', triggers, absPath: s.absPath, vaultPath };
+      return {
+        name: s.name,
+        kind: s.kind || 'full',
+        loadMode: 'always',
+        availability: s.kind === 'pointer' ? 'scan+vault' : 'scan-path',
+        triggers,
+        absPath: s.absPath,
+        vaultPath,
+        viewPath: `skills/${s.name}/SKILL.md`,
+      };
     });
     sendJson(res, 200, { skills: result });
   } catch (e) {

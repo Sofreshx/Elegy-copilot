@@ -36,6 +36,7 @@ related: [doc-graph-spec]
 ## Strategy
 
 - [[system-upgrade-direction-2026]] [docs/system/system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
+- [[search-execute-workflow]] [docs/system/search-execute-workflow.md](docs/system/search-execute-workflow.md)
 - [[research-promotion-checklist]] [docs/system/research-promotion-checklist.md](docs/system/research-promotion-checklist.md)
 - [[skill-discovery-telemetry]] [docs/system/skill-discovery-telemetry.md](docs/system/skill-discovery-telemetry.md)
 

@@ -82,6 +82,9 @@ function spawnGatewayDependency(localTrackerRoot, trackerToken, workspaceRoot) {
             windowsHide: true,
         });
     }
+    if (electron_1.app.isPackaged) {
+        return null;
+    }
     const srcEntry = path_1.default.join(localTrackerRoot, 'src', 'messagingGateway', 'index.ts');
     if (fs_1.default.existsSync(srcEntry)) {
         const tsNodeBin = path_1.default.join(localTrackerRoot, 'node_modules', '.bin', process.platform === 'win32' ? 'ts-node.cmd' : 'ts-node');

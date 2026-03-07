@@ -10,7 +10,7 @@ function matchesQuery(skill: SkillPreviewItem, query: string): boolean {
     return true;
   }
 
-  const fields = [skill.name, skill.kind, skill.triggers ?? ''];
+  const fields = [skill.name, skill.kind, skill.loadMode ?? '', skill.availability ?? '', skill.description ?? '', skill.triggers ?? ''];
   return fields.some((field) => field.toLowerCase().includes(normalizedQuery));
 }
 
@@ -24,6 +24,14 @@ export default function SkillsPreviewView() {
   const filteredSkills = useMemo(() => {
     return skillsState.skills.filter((skill) => matchesQuery(skill, skillsState.searchQuery));
   }, [skillsState.skills, skillsState.searchQuery]);
+
+  const alwaysLoadedCount = useMemo(() => {
+    return skillsState.skills.filter((skill) => skill.loadMode === 'always').length;
+  }, [skillsState.skills]);
+
+  const vaultFirstCount = useMemo(() => {
+    return skillsState.skills.filter((skill) => skill.loadMode !== 'always').length;
+  }, [skillsState.skills]);
 
   const handleRefresh = async () => {
     await skillsPreviewStore.refresh();
@@ -39,7 +47,7 @@ export default function SkillsPreviewView() {
         <div className="skills-preview-summary">
           <p className="skills-preview-title">Skills Catalog Preview</p>
           <p className="skills-preview-copy">
-            {skillsState.skills.length} total skills, {filteredSkills.length} visible
+            {skillsState.skills.length} total skills, {alwaysLoadedCount} always-loaded, {vaultFirstCount} vault-first
           </p>
         </div>
 
@@ -47,7 +55,7 @@ export default function SkillsPreviewView() {
           <FormInput
             label="Filter"
             onValueChange={(value) => skillsPreviewStore.setSearchQuery(value)}
-            placeholder="Search by skill name, kind, or triggers"
+            placeholder="Search by skill name, mode, state, description, or triggers"
             testId="skills-preview-search"
             type="search"
             value={skillsState.searchQuery}
@@ -71,7 +79,7 @@ export default function SkillsPreviewView() {
 
       <div className="skills-preview-grid">
         <Panel
-          subtitle="GET /api/skills/preview with pointer/full kind indicators."
+          subtitle="Vault-first catalog from GET /api/skills/preview with scan-path and vault awareness."
           testId="skills-preview-list-panel"
           title="Skills"
         >
@@ -88,26 +96,31 @@ export default function SkillsPreviewView() {
               <thead>
                 <tr>
                   <th scope="col">Name</th>
-                  <th scope="col">Kind</th>
+                  <th scope="col">Load Mode</th>
+                  <th scope="col">State</th>
                   <th scope="col">Triggers</th>
                   <th scope="col">Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredSkills.map((skill) => {
+                {filteredSkills.map((skill: SkillPreviewItem) => {
                   const isSelected = skill.name === skillsState.selectedSkillName;
                   return (
                     <tr className={isSelected ? 'is-selected' : ''} key={skill.name}>
-                      <td>{skill.name}</td>
                       <td>
-                        <StatusBadge
-                          status={skill.kind === 'pointer' ? 'pointer' : 'full'}
-                          testId="skills-preview-kind-badge"
-                        />
+                        <div>{skill.name}</div>
+                        {skill.description ? <small>{skill.description}</small> : null}
+                      </td>
+                      <td>
+                        <StatusBadge status={skill.loadMode ?? 'unknown'} testId="skills-preview-kind-badge" />
+                      </td>
+                      <td>
+                        <StatusBadge status={skill.availability ?? skill.kind} testId="skills-preview-state-badge" />
                       </td>
                       <td>{skill.triggers || '-'}</td>
                       <td>
                         <Button
+                          disabled={skill.kind === 'missing'}
                           onClick={() => {
                             void handleSelectSkill(skill.name);
                           }}
@@ -127,7 +140,7 @@ export default function SkillsPreviewView() {
         </Panel>
 
         <Panel
-          subtitle="GET /api/assets/view?path=skills/<name>/SKILL.md."
+          subtitle="Uses the resolved scan-path or vault path for the selected skill."
           testId="skills-preview-detail-panel"
           title="Skill Detail"
         >

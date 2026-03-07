@@ -114,10 +114,13 @@ const resultsFile = path.join(tmpWorkDir, `results-${Date.now()}.json`);
 fs.writeFileSync(includeListFile, JSON.stringify(testsToRun));
 
 // 4. Run tests
+const LEDGER_TIMEOUT_MS = 300_000; // 5 minutes for entire test run
+
 try {
     execSync(`node ${path.join(__dirname, 'run-tests.js')}`, { 
         cwd: path.join(__dirname, '..'), 
         stdio: 'inherit',
+        timeout: LEDGER_TIMEOUT_MS,
         env: {
             ...process.env,
             TEST_INCLUDE_LIST_FILE: includeListFile,
@@ -125,7 +128,11 @@ try {
         }
     });
 } catch (error) {
-    console.error('Test run failed or partially failed.');
+    if (error.killed) {
+        console.error(`Test run timed out after ${LEDGER_TIMEOUT_MS}ms.`);
+    } else {
+        console.error('Test run failed or partially failed.');
+    }
 }
 
 // 5. Process results

@@ -121,6 +121,10 @@ function spawnGatewayDependency(localTrackerRoot: string, trackerToken: string, 
     });
   }
 
+  if (app.isPackaged) {
+    return null;
+  }
+
   const srcEntry = path.join(localTrackerRoot, 'src', 'messagingGateway', 'index.ts');
   if (fs.existsSync(srcEntry)) {
     const tsNodeBin = path.join(

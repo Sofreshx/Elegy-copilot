@@ -14,6 +14,15 @@ tags: [skills, governance]
 ## Purpose
 Keep skills high-signal and avoid overfitting generic behavior into heavy skills.
 
+## Search/Execute operating model
+
+Use staged capability routing by default:
+- `@search` resolves the smallest relevant capability across docs, agents, and skills.
+- `@execute` converts that capability into a compact downstream brief.
+- The majority of skills stay vault-first and on-demand; only transversal meta-skills remain always loaded.
+
+This keeps startup context lean and makes domain loading explicit.
+
 ## Triage model
 Classify each skill as one of:
 - **Core**: required project-specific patterns and hard constraints.

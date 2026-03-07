@@ -16,8 +16,8 @@ extraResources:
     to: engine-assets
     filter:
       - '**/*'
-  - from: ../local-tracker/src
-    to: local-tracker/src
+  - from: ../local-tracker/dist
+    to: local-tracker/dist
     filter:
       - '**/*'
   - from: ../local-tracker/node_modules
@@ -26,8 +26,6 @@ extraResources:
       - '**/*'
   - from: ../local-tracker/package.json
     to: local-tracker/package.json
-  - from: ../local-tracker/tsconfig.json
-    to: local-tracker/tsconfig.json
   - from: ../scripts
     to: scripts
     filter:
@@ -40,11 +38,12 @@ extraResources:
 extraMetadata:
   main: dist-electron/main.js
 win:
+  signAndEditExecutable: false
   target:
     - nsis
   artifactName: instruction-engine-${version}-${os}-${arch}.${ext}
 publish:
   provider: github
-  owner: ${env.GITHUB_REPOSITORY_OWNER}
-  repo: ${env.GITHUB_REPOSITORY_NAME}
+  owner: Sofreshx
+  repo: instruction-engine
   releaseType: draft

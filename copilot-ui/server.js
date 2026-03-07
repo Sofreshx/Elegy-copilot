@@ -4093,6 +4093,7 @@ function runVscodeSettingsPatcher({ engineRoot, vscodeHome, settingsPath, dryRun
   const result = childProcess.spawnSync(process.execPath, args, {
     encoding: 'utf8',
     windowsHide: true,
+    timeout: 15_000,
     maxBuffer: 2 * 1024 * 1024,
   });
 
@@ -4129,6 +4130,7 @@ function evaluatePolicyPreflight(engineRoot) {
   const result = childProcess.spawnSync(process.execPath, [validatorPath], {
     encoding: 'utf8',
     windowsHide: true,
+    timeout: 10_000,
     maxBuffer: 512 * 1024,
   });
 

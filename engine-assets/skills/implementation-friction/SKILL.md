@@ -59,6 +59,29 @@ When friction reaches the escalation threshold, set a flag in your completion su
 
 Include this flag in the completion summary so the orchestrator can detect it and route to the `friction-feedback` on-demand skill. Do NOT load the friction-feedback skill yourself — the orchestrator handles routing.
 
-## Future Elegy Alignment
+## Elegy Structured Output
 
-`TODO(elegy-contracts)`: Friction entries will eventually map to Elegy `AgenticEvent` monitoring schema. Severity, category, and metadata fields will align with `monitoring-event.schema.json`. Until then, entries use the markdown template convention above.
+Friction entries now map to Elegy `AgenticEvent` via `FrictionEvent.FromFrictionEntry()` in `Elegy.Formalization.Monitoring`.
+
+When emitting structured friction events (via CLI or programmatically), produce JSON conforming to `monitoring-event.schema.json`:
+
+```json
+{
+  "eventId": "friction-<guid>",
+  "timestamp": "2026-03-07T00:00:00Z",
+  "entityKind": "skill",
+  "entityId": "implementation-friction",
+  "category": "friction",
+  "severity": "warning",
+  "message": "Short title of friction entry",
+  "metadata": {
+    "reason": "What made implementation hard",
+    "context": "File/module impacted",
+    "clusterId": "optional-cluster-id"
+  }
+}
+```
+
+Severity mapping: `low` → `info`, `medium` → `warning`, `high` → `error`, `critical` → `critical`.
+
+Use `node scripts/friction-emit.mjs` to emit structured events from the CLI.

@@ -13,6 +13,7 @@ dist/
 build/
 out/
 coverage/
+copilot-ui/release/
 
 # Environment & Logs
 .env

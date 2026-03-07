@@ -1,5 +1,10 @@
-import { deletePassword, getPassword, setPassword } from '@napi-rs/keyring/keytar';
 import crypto from 'crypto';
+
+type KeyringModule = {
+	deletePassword: (service: string, account: string) => Promise<boolean>;
+	getPassword: (service: string, account: string) => Promise<string | null | undefined>;
+	setPassword: (service: string, account: string, password: string) => Promise<void>;
+};
 
 export type GatewaySecretKind = 'discordBotToken' | 'telegramBotToken' | 'telegramWebhookSecret' | 'gatewayHttpToken' | 'githubPrToken';
 
@@ -37,6 +42,22 @@ const ENV_FALLBACKS: Record<GatewaySecretKind, string[]> = {
 
 const DEFAULT_PR_TOKEN_TTL_MS = 15 * 60 * 1000;
 
+let keyringModulePromise: Promise<KeyringModule | null> | null = null;
+
+async function loadKeyringModule(): Promise<KeyringModule | null> {
+	if (!keyringModulePromise) {
+		keyringModulePromise = import('@napi-rs/keyring/keytar')
+			.then((module) => ({
+				deletePassword: module.deletePassword,
+				getPassword: module.getPassword,
+				setPassword: module.setPassword,
+			}))
+			.catch(() => null);
+	}
+
+	return await keyringModulePromise;
+}
+
 const prTokenLeases = new Map<string, {
 	token: string;
 	scope: string;
@@ -55,9 +76,12 @@ function getFromEnv(kind: GatewaySecretKind): string | undefined {
 
 export async function getGatewaySecret(kind: GatewaySecretKind): Promise<{ value?: string; source: 'keychain' | 'env' | 'missing' }> {
 	try {
-		const fromKeychain = await getPassword(SERVICE_NAME, SECRET_ACCOUNT[kind]);
-		if (fromKeychain && fromKeychain.trim().length > 0) {
-			return { value: fromKeychain, source: 'keychain' };
+		const keyring = await loadKeyringModule();
+		if (keyring) {
+			const fromKeychain = await keyring.getPassword(SERVICE_NAME, SECRET_ACCOUNT[kind]);
+			if (fromKeychain && fromKeychain.trim().length > 0) {
+				return { value: fromKeychain, source: 'keychain' };
+			}
 		}
 	} catch {
 		// Keychain failures should not leak secrets; we fall back to env.
@@ -75,11 +99,18 @@ export async function storeGatewaySecretFromEnv(kind: GatewaySecretKind): Promis
 			`[Gateway] Cannot store ${kind}: missing env var (expected one of: ${ENV_FALLBACKS[kind].join(', ')})`,
 		);
 	}
-	await setPassword(SERVICE_NAME, SECRET_ACCOUNT[kind], envValue);
+	const keyring = await loadKeyringModule();
+	if (!keyring) {
+		throw new Error(`[Gateway] Cannot store ${kind}: OS credential store is unavailable in this runtime`);
+	}
+
+	await keyring.setPassword(SERVICE_NAME, SECRET_ACCOUNT[kind], envValue);
 }
 
 export async function deleteGatewaySecret(kind: GatewaySecretKind): Promise<boolean> {
-	return await deletePassword(SERVICE_NAME, SECRET_ACCOUNT[kind]);
+	const keyring = await loadKeyringModule();
+	if (!keyring) return false;
+	return await keyring.deletePassword(SERVICE_NAME, SECRET_ACCOUNT[kind]);
 }
 
 export async function getGatewaySecretsStatus(): Promise<GatewaySecretsStatus> {
@@ -102,9 +133,12 @@ export async function getGatewaySecretsStatus(): Promise<GatewaySecretsStatus> {
 export async function ensureTelegramWebhookSecret(): Promise<{ value: string; source: 'keychain' | 'env' | 'generated' }> {
 	// 1. Check keychain
 	try {
-		const fromKeychain = await getPassword(SERVICE_NAME, SECRET_ACCOUNT.telegramWebhookSecret);
-		if (fromKeychain && fromKeychain.trim().length > 0) {
-			return { value: fromKeychain, source: 'keychain' };
+		const keyring = await loadKeyringModule();
+		if (keyring) {
+			const fromKeychain = await keyring.getPassword(SERVICE_NAME, SECRET_ACCOUNT.telegramWebhookSecret);
+			if (fromKeychain && fromKeychain.trim().length > 0) {
+				return { value: fromKeychain, source: 'keychain' };
+			}
 		}
 	} catch {
 		// fall through
@@ -117,7 +151,10 @@ export async function ensureTelegramWebhookSecret(): Promise<{ value: string; so
 	// 3. Generate dedicated webhook secret and persist best-effort.
 	const generated = crypto.randomBytes(24).toString('hex');
 	try {
-		await setPassword(SERVICE_NAME, SECRET_ACCOUNT.telegramWebhookSecret, generated);
+		const keyring = await loadKeyringModule();
+		if (keyring) {
+			await keyring.setPassword(SERVICE_NAME, SECRET_ACCOUNT.telegramWebhookSecret, generated);
+		}
 	} catch {
 		// If keychain store fails, still return generated secret for current session.
 	}
@@ -127,9 +164,12 @@ export async function ensureTelegramWebhookSecret(): Promise<{ value: string; so
 export async function ensureGatewayHttpToken(): Promise<{ value: string; source: 'keychain' | 'env' | 'generated' }> {
 	// 1. Check keychain
 	try {
-		const fromKeychain = await getPassword(SERVICE_NAME, SECRET_ACCOUNT.gatewayHttpToken);
-		if (fromKeychain && fromKeychain.trim().length > 0) {
-			return { value: fromKeychain, source: 'keychain' };
+		const keyring = await loadKeyringModule();
+		if (keyring) {
+			const fromKeychain = await keyring.getPassword(SERVICE_NAME, SECRET_ACCOUNT.gatewayHttpToken);
+			if (fromKeychain && fromKeychain.trim().length > 0) {
+				return { value: fromKeychain, source: 'keychain' };
+			}
 		}
 	} catch {
 		// fall through
@@ -143,7 +183,10 @@ export async function ensureGatewayHttpToken(): Promise<{ value: string; source:
 	const crypto = await import('crypto');
 	const generated = crypto.randomBytes(32).toString('hex');
 	try {
-		await setPassword(SERVICE_NAME, SECRET_ACCOUNT.gatewayHttpToken, generated);
+		const keyring = await loadKeyringModule();
+		if (keyring) {
+			await keyring.setPassword(SERVICE_NAME, SECRET_ACCOUNT.gatewayHttpToken, generated);
+		}
 	} catch {
 		// If keychain store fails, still return the generated token (it will work for this session).
 		// The token won't persist across restarts without keychain, but env var fallback is available.

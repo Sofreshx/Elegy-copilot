@@ -21,6 +21,7 @@ related: [system-docs-index]
 ## Start here
 
 - Skills governance: `docs/system/skills-governance.md`
+- Search/execute workflow: `docs/system/search-execute-workflow.md`
 - Research promotion checklist: `docs/system/research-promotion-checklist.md`
 - Skill discovery telemetry: `docs/system/skill-discovery-telemetry.md`
 

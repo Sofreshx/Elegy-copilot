@@ -24,6 +24,26 @@ const { acquirePlanningMutationRouteLock, startServer } = require('./server');
 
 const serverPath = path.join(__dirname, 'server.js');
 
+const TEST_SUITE_TIMEOUT_MS = 90_000; // 90 seconds for entire suite
+
+// Track all spawned server processes for cleanup on unexpected exit
+const trackedProcesses = new Set();
+
+function trackProcess(proc) {
+  trackedProcesses.add(proc);
+  proc.on('exit', () => trackedProcesses.delete(proc));
+  return proc;
+}
+
+function killTracked() {
+  for (const proc of trackedProcesses) {
+    try { proc.kill('SIGKILL'); } catch { /* already dead */ }
+  }
+  trackedProcesses.clear();
+}
+
+process.on('exit', killTracked);
+
 let passed = 0;
 
 async function test(name, fn) {
@@ -240,7 +260,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -266,7 +286,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -348,7 +368,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -372,7 +392,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -414,7 +434,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -436,7 +456,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -514,7 +534,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -538,7 +558,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -599,7 +619,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -622,7 +642,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -701,7 +721,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -724,7 +744,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -768,7 +788,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -791,7 +811,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -850,7 +870,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -870,7 +890,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -918,7 +938,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -939,7 +959,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -1008,7 +1028,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -1028,7 +1048,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -1196,7 +1216,7 @@ async function run() {
       const port = await getFreePort();
       const baseUrl = `http://127.0.0.1:${port}`;
 
-      const server = childProcess.spawn(process.execPath, [
+      const server = trackProcess(childProcess.spawn(process.execPath, [
         serverPath,
         '--host',
         '127.0.0.1',
@@ -1216,7 +1236,7 @@ async function run() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
-      });
+      }));
 
       let stderr = '';
       server.stderr.on('data', (chunk) => {
@@ -1314,7 +1334,17 @@ async function run() {
   }
 }
 
+const suiteTimer = setTimeout(() => {
+  console.error(`Test suite timed out after ${TEST_SUITE_TIMEOUT_MS}ms — killing tracked processes and exiting.`);
+  killTracked();
+  process.exit(2);
+}, TEST_SUITE_TIMEOUT_MS);
+suiteTimer.unref();
+
 run().catch((e) => {
   console.error(e.stack || e.message || String(e));
   process.exit(1);
+}).finally(() => {
+  clearTimeout(suiteTimer);
+  killTracked();
 });
