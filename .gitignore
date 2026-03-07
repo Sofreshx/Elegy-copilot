@@ -42,6 +42,7 @@ tmpclaude-*
 .instructions/tasks/
 .instructions/tasks.archive/
 messaging-gateway.config.json
+/prompt.md
 
 # LLM temp file sanctioned roots
 /.tmp/
