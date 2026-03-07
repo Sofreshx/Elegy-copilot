@@ -198,6 +198,93 @@ function Sync-Directory([string]$srcDir, [string]$dstDir, [switch]$DryRun, [swit
   }
 }
 
+function Get-InstallStatePath([string]$root) {
+  return (Join-Path $root '.instruction-engine-install-state.json')
+}
+
+function Read-InstallState([string]$root) {
+  $statePath = Get-InstallStatePath $root
+  if (-not (Test-Path -LiteralPath $statePath)) {
+    return $null
+  }
+
+  try {
+    return (Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json)
+  } catch {
+    return $null
+  }
+}
+
+function Write-InstallState([string]$root, [string[]]$managedSkills, [string[]]$alwaysLoadedSkills, [switch]$DryRun) {
+  $statePath = Get-InstallStatePath $root
+  $state = [ordered]@{
+    schemaVersion = 1
+    managedSkills = @($managedSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    alwaysLoadedSkills = @($alwaysLoadedSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+  }
+
+  if ($DryRun) {
+    Write-Host "[DRY-RUN] WRITE-STATE $statePath"
+    return
+  }
+
+  $state | ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding UTF8
+  Write-Host "[STATE]  $statePath"
+}
+
+function Remove-SkillArtifact([string]$artifactPath, [switch]$DryRun) {
+  if (-not (Test-Path -LiteralPath $artifactPath)) {
+    return
+  }
+
+  if ($DryRun) {
+    Write-Host "[DRY-RUN] PRUNE $artifactPath"
+    return
+  }
+
+  Remove-Item -LiteralPath $artifactPath -Recurse -Force
+  Write-Host "[PRUNE]  $artifactPath"
+}
+
+function Prune-ManagedSkillInstall(
+  [string]$root,
+  [string[]]$managedSkills,
+  [string[]]$alwaysLoadedSkills,
+  [string[]]$legacySkillNames,
+  [switch]$DryRun
+) {
+  $previousState = Read-InstallState $root
+  $previousManaged = @()
+  if ($previousState -and $previousState.managedSkills) {
+    $previousManaged = @($previousState.managedSkills)
+  }
+
+  $managedSet = @($managedSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+  $alwaysSet = @($alwaysLoadedSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+  $pruneCandidates = @($managedSet + $previousManaged + $legacySkillNames | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+
+  $skillsRoot = Join-Path $root 'skills'
+  $vaultRoot = Join-Path $root 'skills-vault'
+
+  foreach ($skillName in $pruneCandidates) {
+    if ($alwaysSet -contains $skillName) {
+      continue
+    }
+
+    Remove-SkillArtifact (Join-Path $skillsRoot $skillName) -DryRun:$DryRun
+    Remove-SkillArtifact (Join-Path $skillsRoot "$skillName.md") -DryRun:$DryRun
+  }
+
+  foreach ($skillName in $pruneCandidates) {
+    if ($managedSet -contains $skillName) {
+      continue
+    }
+
+    Remove-SkillArtifact (Join-Path $vaultRoot $skillName) -DryRun:$DryRun
+    Remove-SkillArtifact (Join-Path $vaultRoot "$skillName.md") -DryRun:$DryRun
+  }
+}
+
 $DryRun = $false
 $Force = $false
 $DoCli = $false
@@ -241,6 +328,21 @@ $srcSkillsRoot = Join-Path $srcAssetsRoot 'skills'
 $srcPromptsRoot = Join-Path $srcAssetsRoot 'prompts'
 $srcInstructions = Join-Path $srcAssetsRoot 'copilot-instructions.md'
 $srcVscodeInstructions = Join-Path $engineRoot '.github\copilot-instructions.md'
+$legacyManagedSkillNames = @(
+  'deployment-compose',
+  'debug',
+  'design',
+  'feature-creator',
+  'planning-refactor',
+  'playwright-mcp',
+  'quality-auditor',
+  'semantic-kernel-agents',
+  'system-drift',
+  'system-editor',
+  'system-health',
+  'terraform',
+  'tech-debt'
+)
 
 if ($DoCli) {
   if (-not (Test-Path -LiteralPath $srcAgentsRoot)) { throw "Missing agents source: $srcAgentsRoot" }
@@ -279,6 +381,13 @@ function Get-SkillLoadMode([string]$skillName) {
   return 'on-demand'
 }
 
+$managedSkillNames = @(
+  Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object { $_.Name }
+)
+$alwaysLoadedSkillNames = @(
+  $managedSkillNames | Where-Object { (Get-SkillLoadMode $_) -eq 'always' }
+)
+
 
 if ($DoCli) {
   if ($DryRun) {
@@ -312,12 +421,16 @@ if ($DoCli) {
         Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
       }
     }
+
+    Prune-ManagedSkillInstall -root $copilotHome -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -legacySkillNames $legacyManagedSkillNames -DryRun:$DryRun
   } else {
     Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
       $dstDir = Join-Path (Join-Path $copilotHome 'skills') $_.Name
       Sync-Directory $_.FullName $dstDir -DryRun:$DryRun -Force:$Force
     }
   }
+
+  Write-InstallState -root $copilotHome -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -DryRun:$DryRun
 
   # engine-assets/copilot-instructions.md -> <copilotHome>\copilot-instructions.md
   $dstInstructions = Join-Path $copilotHome 'copilot-instructions.md'
@@ -355,12 +468,16 @@ if ($DoVscode) {
         Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
       }
     }
+
+    Prune-ManagedSkillInstall -root $vscodeHomeResolved -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -legacySkillNames $legacyManagedSkillNames -DryRun:$DryRun
   } else {
     Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
       $dstDir = Join-Path (Join-Path $vscodeHomeResolved 'skills') $_.Name
       Sync-Directory $_.FullName $dstDir -DryRun:$DryRun -Force:$Force
     }
   }
+
+  Write-InstallState -root $vscodeHomeResolved -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -DryRun:$DryRun
 
   Get-ChildItem -LiteralPath $srcPromptsRoot -Filter '*.prompt.md' -File | ForEach-Object {
     $dst = Join-Path (Join-Path $vscodeHomeResolved 'prompts') $_.Name

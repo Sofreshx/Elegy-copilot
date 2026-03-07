@@ -1,7 +1,7 @@
 ---
 name: elegy-orchestrator
 description: "Implementation entrypoint for Elegy workflow. Executes an approved Execution Plan by delegating to implementers, running test gates, and finishing with requested-vs-delivered review."
-tools: [read, search, edit, execute/runInTerminal, agent/runSubagent, agent, todo, vscode/askQuestions]
+tools: [read, search, edit, execute/runInTerminal, agent/runSubagent, todo, vscode/askQuestions]
 user-invocable: true
 disable-model-invocation: true
 ---

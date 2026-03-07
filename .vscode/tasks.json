@@ -53,6 +53,15 @@
 			"group": "test"
 		},
 		{
+			"label": "validate: agentic schemas",
+			"type": "shell",
+			"command": "node",
+			"args": ["scripts/validate-agentic-schemas.js"],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
 			"label": "validate: plan pack",
 			"type": "shell",
 			"command": "node",
@@ -158,13 +167,13 @@
 		},
 		{
 			"label": "test: all",
-			"dependsOn": ["test: scripts", "validate: skill discovery map", "validate: vue-free guard", "test: copilot-ui", "test: local-tracker", "test: RannIA"],
+			"dependsOn": ["test: scripts", "validate: skill discovery map", "validate: agentic schemas", "validate: vue-free guard", "test: copilot-ui", "test: local-tracker", "test: RannIA"],
 			"problemMatcher": [],
 			"group": "test"
 		},
 		{
 			"label": "test: all (force)",
-			"dependsOn": ["test: scripts (force)", "validate: skill discovery map", "validate: vue-free guard", "test: copilot-ui (force)", "test: local-tracker (force)", "test: RannIA (force)"],
+			"dependsOn": ["test: scripts (force)", "validate: skill discovery map", "validate: agentic schemas", "validate: vue-free guard", "test: copilot-ui (force)", "test: local-tracker (force)", "test: RannIA (force)"],
 			"problemMatcher": [],
 			"group": "test"
 		}

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "skills": [
+  "entries": [
     {
       "skill": "agent-browser",
       "name": "agent-browser",
@@ -203,6 +203,22 @@
       ],
       "manifest": {
         "id": "skill-firebase-auth",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "friction-feedback",
+      "name": "friction-feedback",
+      "description": "Reviews accumulated friction entries, clusters patterns, and produces prioritized remediation recommendations. Triggers on: friction review, friction analysis, friction cluster, refactor priority, friction feedback.",
+      "triggersOn": [
+        "friction analysis",
+        "friction cluster",
+        "friction feedback",
+        "friction review",
+        "refactor priority"
+      ],
+      "manifest": {
+        "id": "skill-friction-feedback",
         "loadMode": "on-demand"
       }
     },
@@ -496,6 +512,23 @@
       }
     },
     {
+      "skill": "skill-forge",
+      "name": "skill-forge",
+      "description": "Pointer stub — skill creation is now handled by Elegy SkillForgeService. Triggers on: create skill, author skill, skill template, forge skill, project skill, runtime skill.",
+      "triggersOn": [
+        "author skill",
+        "create skill",
+        "forge skill",
+        "project skill",
+        "runtime skill",
+        "skill template"
+      ],
+      "manifest": {
+        "id": "skill-skill-forge",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "stack-audit-patterns",
       "name": "stack-audit-patterns",
       "description": "Framework-specific audit patterns for Marten, Wolverine, Orleans, SignalR, and Aspire. Triggers on: stack audit, framework audit, pattern check, stack-audit-patterns, runtime failure patterns.",
@@ -568,6 +601,22 @@
       "triggersOn": [],
       "manifest": {
         "id": "skill-testing-frontend-unit",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "truth-sync",
+      "name": "truth-sync",
+      "description": "Resolves conflicts between code, docs, and legacy sources using a ranked truth hierarchy. Triggers on: doc conflict, source of truth, stale docs, truth hierarchy, code vs docs.",
+      "triggersOn": [
+        "code vs docs",
+        "doc conflict",
+        "source of truth",
+        "stale docs",
+        "truth hierarchy"
+      ],
+      "manifest": {
+        "id": "skill-truth-sync",
         "loadMode": "on-demand"
       }
     },

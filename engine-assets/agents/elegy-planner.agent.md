@@ -1,7 +1,7 @@
 ---
 name: elegy-planner
 description: "Plan-first agent. Explores quickly, drafts a single-file Plan Pack, runs cross-model plan review, then hands off to elegy-orchestrator."
-tools: [read, search, agent/runSubagent, agent, todo, vscode/askQuestions, edit, execute/runInTerminal]
+tools: [read, search, agent/runSubagent, todo, vscode/askQuestions, edit, execute/runInTerminal]
 user-invocable: true
 disable-model-invocation: true
 ---

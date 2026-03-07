@@ -13,6 +13,14 @@ const requiredFiles = [
 	'compatibility-manifest.json',
 	'compatibility-matrix.json',
 	'canonical-workflow.schema.json',
+	'agent-definition.schema.json',
+	'dynamic-skill-activation.schema.json',
+	'monitoring-event.schema.json',
+	'skill-definition.schema.json',
+	'skill-forge-request.schema.json',
+	'agent-create-request.schema.json',
+	'skill-discovery-index.schema.json',
+	'mcp-tool-definition.schema.json',
 ];
 
 function fail(message) {

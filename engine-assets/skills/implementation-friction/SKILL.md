@@ -38,6 +38,9 @@ Capture recurring codebase friction that slows delivery, without derailing the a
 - **Impact on Delivery:** Time/risk/debug burden.
 - **Suggestion:** Optional; may be blank.
 - **Confidence:** low | medium | high
+- **Cluster ID:** _(optional)_ Groups related friction entries.
+- **Recurrence Count:** _(optional)_ Times this pattern has been observed.
+- **Auto-Remediation Candidate:** _(optional, yes/no)_ Whether amenable to automated fix.
 ```
 
 ## Workflow
@@ -45,3 +48,17 @@ Capture recurring codebase friction that slows delivery, without derailing the a
 2. If not already captured, append one concise log entry.
 3. Continue implementation immediately.
 4. Mention logged friction briefly in completion summary when relevant.
+
+## Escalation Flag
+
+When friction reaches the escalation threshold, set a flag in your completion summary:
+
+**Trigger condition:** recurrence count ≥ 3 OR importance is `critical`.
+
+**Flag:** `friction_escalation_requested: true`
+
+Include this flag in the completion summary so the orchestrator can detect it and route to the `friction-feedback` on-demand skill. Do NOT load the friction-feedback skill yourself — the orchestrator handles routing.
+
+## Future Elegy Alignment
+
+`TODO(elegy-contracts)`: Friction entries will eventually map to Elegy `AgenticEvent` monitoring schema. Severity, category, and metadata fields will align with `monitoring-event.schema.json`. Until then, entries use the markdown template convention above.

@@ -1,0 +1,6 @@
+{
+  "event": "friction_escalation_requested",
+  "enabled": false,
+  "action": "log",
+  "_comment": "Template only. Copy into .github/hooks/*.json and enable explicitly to activate."
+}

@@ -131,7 +131,7 @@ function generateIndex() {
 
 	const index = {
 		schemaVersion: 1,
-		skills,
+		entries: skills,
 	};
 
 	fs.writeFileSync(outputPath, `${JSON.stringify(index, null, 2)}\n`, 'utf8');
@@ -139,4 +139,4 @@ function generateIndex() {
 }
 
 const index = generateIndex();
-console.log(`Generated skill metadata index: ${path.relative(repoRoot, outputPath)} (skills=${index.skills.length})`);
+console.log(`Generated skill metadata index: ${path.relative(repoRoot, outputPath)} (skills=${index.entries.length})`);

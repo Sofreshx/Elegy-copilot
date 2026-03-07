@@ -522,7 +522,10 @@ function resolveAssetsHome(args) {
 // Keys that represent the old Documents/instruction-engine location (any variant).
 function isStaleLocationKey(k) {
 	const norm = k.replace(/\\/g, '/').toLowerCase();
-	return norm.includes('documents/instruction-engine') || norm.includes('.local/state/instruction-engine');
+	return norm.includes('documents/instruction-engine')
+		|| norm.includes('.local/state/instruction-engine')
+		|| (norm.includes('/instruction-engine/.tmp/') && norm.includes('/.copilot'))
+		|| (norm.includes('/ie-api-contract-') && norm.includes('/.copilot'));
 }
 
 function removeStaleLocations(settings) {

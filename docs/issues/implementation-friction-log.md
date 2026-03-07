@@ -1,6 +1,6 @@
 ---
 created: 2026-02-27
-updated: 2026-02-27
+updated: 2026-03-06
 category: system
 status: current
 doc_kind: node
@@ -26,3 +26,6 @@ tags: [friction, refactor-input, delivery]
 - **Impact on Delivery:**
 - **Suggestion:**
 - **Confidence:** low | medium | high
+- **Cluster ID:** _(optional)_
+- **Recurrence Count:** _(optional)_
+- **Auto-Remediation Candidate:** _(optional, yes/no)_
