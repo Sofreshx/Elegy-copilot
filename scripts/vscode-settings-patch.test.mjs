@@ -126,6 +126,58 @@ test('patcher removes vault path from chat.agentSkillsLocations', () => {
   });
 });
 
+test('patcher removes ephemeral ie-api-contract locations from all chat asset settings', () => {
+  withTempDir((root) => {
+    const copilotHome = path.join(root, '.copilot');
+    const vscodeHome = path.join(root, '.copilot-vscode');
+    const settingsPath = path.join(root, 'settings.json');
+
+    fs.mkdirSync(copilotHome, { recursive: true });
+    fs.mkdirSync(vscodeHome, { recursive: true });
+
+    const initial = {
+      'chat.agentFilesLocations': {
+        '~/.copilot/agents': true,
+        '~/Documents/GitHub/instruction-engine/.tmp/llm-work/install-check/.copilot/agents': true,
+        '~/AppData/Local/Temp/ie-api-contract-AbCd12/.copilot/agents': true
+      },
+      'chat.agentSkillsLocations': {
+        '~/.copilot/skills': true,
+        '~/Documents/GitHub/instruction-engine/.tmp/llm-work/install-check/.copilot/skills': true,
+        '~/AppData/Local/Temp/ie-api-contract-AbCd12/.copilot/skills': true
+      },
+      'chat.promptFilesLocations': {
+        '~/.copilot/prompts': true,
+        '~/Documents/GitHub/instruction-engine/.tmp/llm-work/install-check/.copilot/prompts': true,
+        '~/AppData/Local/Temp/ie-api-contract-AbCd12/.copilot/prompts': true
+      },
+      'chat.instructionsFilesLocations': {
+        '~/.copilot': true,
+        '~/Documents/GitHub/instruction-engine/.tmp/llm-work/install-check/.copilot': true,
+        '~/AppData/Local/Temp/ie-api-contract-AbCd12/.copilot': true
+      }
+    };
+    fs.writeFileSync(settingsPath, JSON.stringify(initial, null, 2) + '\n', 'utf8');
+
+    runPatch({ settingsPath, copilotHome, vscodeHome });
+
+    const patched = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    const keys = [
+      'chat.agentFilesLocations',
+      'chat.agentSkillsLocations',
+      'chat.promptFilesLocations',
+      'chat.instructionsFilesLocations'
+    ];
+
+    for (const key of keys) {
+      for (const locationKey of Object.keys(patched[key])) {
+        assert.ok(!locationKey.includes('ie-api-contract-'), `${key} should not contain temp location: ${locationKey}`);
+        assert.ok(!locationKey.includes('instruction-engine/.tmp/'), `${key} should not contain repo temp location: ${locationKey}`);
+      }
+    }
+  });
+});
+
 console.log(`\n${passed} tests passed`);
 if (process.exitCode) {
   console.error('Some tests FAILED');

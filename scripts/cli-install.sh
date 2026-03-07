@@ -60,6 +60,21 @@ SRC_SKILLS_ROOT="$SRC_ASSETS_ROOT/skills"
 SRC_PROMPTS_ROOT="$SRC_ASSETS_ROOT/prompts"
 SRC_INSTRUCTIONS="$SRC_ASSETS_ROOT/copilot-instructions.md"
 SRC_VSCODE_INSTRUCTIONS="$ENGINE_ROOT/.github/copilot-instructions.md"
+LEGACY_MANAGED_SKILLS=(
+  deployment-compose
+  debug
+  design
+  feature-creator
+  planning-refactor
+  playwright-mcp
+  quality-auditor
+  semantic-kernel-agents
+  system-drift
+  system-editor
+  system-health
+  terraform
+  tech-debt
+)
 
 default_vscode_home() {
   echo "$HOME/.copilot"
@@ -272,6 +287,88 @@ sync_dir() {
   fi
 }
 
+install_state_path() {
+  local root="$1"
+  echo "$root/.instruction-engine-install-state.json"
+}
+
+remove_skill_artifact() {
+  local artifact_path="$1"
+  if [[ ! -e "$artifact_path" ]]; then
+    return 0
+  fi
+
+  if $DRY_RUN; then
+    echo "[DRY-RUN] PRUNE $artifact_path"
+  else
+    rm -rf "$artifact_path"
+    echo "[PRUNE]  $artifact_path"
+  fi
+}
+
+write_install_state() {
+  local root="$1"
+  if ! command -v node >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local state_file
+  state_file="$(install_state_path "$root")"
+  local managed_json always_json
+  managed_json="$(node -e "console.log(JSON.stringify(process.argv.slice(1).filter(Boolean).sort()))" "${CURRENT_MANAGED_SKILLS[@]}")"
+  always_json="$(node -e "console.log(JSON.stringify(process.argv.slice(1).filter(Boolean).sort()))" "${CURRENT_ALWAYS_SKILLS[@]}")"
+
+  if $DRY_RUN; then
+    echo "[DRY-RUN] WRITE-STATE $state_file"
+    return 0
+  fi
+
+  mkdir_if_needed "$(dirname "$state_file")"
+  printf '{\n  "schemaVersion": 1,\n  "managedSkills": %s,\n  "alwaysLoadedSkills": %s\n}\n' "$managed_json" "$always_json" > "$state_file"
+  echo "[STATE]  $state_file"
+}
+
+prune_managed_skill_install() {
+  local root="$1"
+  local state_file
+  state_file="$(install_state_path "$root")"
+
+  local -a previous_managed=()
+  if command -v node >/dev/null 2>&1 && [[ -f "$state_file" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && previous_managed+=("$line")
+    done < <(node -e "try { const state = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')); for (const item of (state.managedSkills || [])) console.log(String(item)); } catch {}" "$state_file")
+  fi
+
+  local -a prune_candidates=()
+  prune_candidates+=("${CURRENT_MANAGED_SKILLS[@]}")
+  prune_candidates+=("${LEGACY_MANAGED_SKILLS[@]}")
+  prune_candidates+=("${previous_managed[@]}")
+
+  local -a unique_candidates=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && unique_candidates+=("$line")
+  done < <(printf '%s\n' "${prune_candidates[@]}" | awk 'NF && !seen[$0]++')
+
+  for skill_name in "${unique_candidates[@]}"; do
+    if printf '%s\n' "${CURRENT_ALWAYS_SKILLS[@]}" | awk -v target="$skill_name" '$0 == target { found = 1 } END { exit(found ? 0 : 1) }'; then
+      continue
+    fi
+
+    remove_skill_artifact "$root/skills/$skill_name"
+    remove_skill_artifact "$root/skills/$skill_name.md"
+  done
+
+  for skill_name in "${unique_candidates[@]}"; do
+    if printf '%s\n' "${CURRENT_MANAGED_SKILLS[@]}" | awk -v target="$skill_name" '$0 == target { found = 1 } END { exit(found ? 0 : 1) }'; then
+      continue
+    fi
+
+    remove_skill_artifact "$root/skills-vault/$skill_name"
+    remove_skill_artifact "$root/skills-vault/$skill_name.md"
+  done
+}
+
 if $DO_CLI; then
   mkdir_if_needed "$COPILOT_HOME"
 fi
@@ -299,6 +396,20 @@ get_skill_load_mode() {
   echo "$mode"
 }
 
+CURRENT_MANAGED_SKILLS=()
+for src_dir in "$SRC_SKILLS_ROOT"/*; do
+  [[ -d "$src_dir" ]] || continue
+  CURRENT_MANAGED_SKILLS+=("$(basename "$src_dir")")
+done
+
+CURRENT_ALWAYS_SKILLS=()
+for skill_name in "${CURRENT_MANAGED_SKILLS[@]}"; do
+  load_mode="$(get_skill_load_mode "$skill_name")"
+  if [[ "$load_mode" == "always" ]]; then
+    CURRENT_ALWAYS_SKILLS+=("$skill_name")
+  fi
+done
+
 if $DO_CLI; then
   # engine-assets/agents/*.agent.md -> <copilotHome>/agents/ (flatten)
   mkdir_if_needed "$COPILOT_HOME/agents"
@@ -325,6 +436,8 @@ if $DO_CLI; then
         sync_dir "$src_dir" "$COPILOT_HOME/skills-vault/$skill_name"
       fi
     done
+
+    prune_managed_skill_install "$COPILOT_HOME"
   else
     for src_dir in "$SRC_SKILLS_ROOT"/*; do
       [[ -d "$src_dir" ]] || continue
@@ -332,6 +445,8 @@ if $DO_CLI; then
       sync_dir "$src_dir" "$COPILOT_HOME/skills/$skill_name"
     done
   fi
+
+  write_install_state "$COPILOT_HOME"
 
   # engine-assets/copilot-instructions.md -> <copilotHome>/copilot-instructions.md
   sync_file "$SRC_INSTRUCTIONS" "$COPILOT_HOME/copilot-instructions.md"
@@ -362,6 +477,8 @@ if $DO_VSCODE; then
         sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills-vault/$skill_name"
       fi
     done
+
+    prune_managed_skill_install "$VSCODE_HOME_RESOLVED"
   else
     for src_dir in "$SRC_SKILLS_ROOT"/*; do
       [[ -d "$src_dir" ]] || continue
@@ -369,6 +486,8 @@ if $DO_VSCODE; then
       sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills/$skill_name"
     done
   fi
+
+  write_install_state "$VSCODE_HOME_RESOLVED"
 
   mkdir_if_needed "$VSCODE_HOME_RESOLVED/prompts"
   for src in "$SRC_PROMPTS_ROOT/"*.prompt.md; do

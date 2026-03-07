@@ -379,6 +379,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "skill-friction-feedback",
+      "type": "skill",
+      "source": "engine-assets/skills/friction-feedback",
+      "destination": "skills/friction-feedback",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "skill-frontend",
       "type": "skill",
       "source": "engine-assets/skills/frontend",
@@ -498,6 +505,13 @@
       "loadMode": "always"
     },
     {
+      "id": "skill-skill-forge",
+      "type": "skill",
+      "source": "engine-assets/skills/skill-forge",
+      "destination": "skills/skill-forge",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "skill-stack-audit-patterns",
       "type": "skill",
       "source": "engine-assets/skills/stack-audit-patterns",
@@ -544,6 +558,13 @@
       "type": "skill",
       "source": "engine-assets/skills/testing-frontend-unit",
       "destination": "skills/testing-frontend-unit",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-truth-sync",
+      "type": "skill",
+      "source": "engine-assets/skills/truth-sync",
+      "destination": "skills/truth-sync",
       "loadMode": "on-demand"
     },
     {

@@ -39,6 +39,7 @@ Single entry point for all complex work. Thin routing and context-curation layer
 | Architecture blueprint | `@code-architect` |
 | Code review | `@code-reviewer` |
 | Research | `@research-ideation` |
+| Friction escalation | Load `friction-feedback` skill then `@research-ideation` |
 | Unit tests | `@unit-test-runner` |
 | Integration tests | `@integration-test-runner` |
 | Browser E2E validation | `@e2e-validator` → `@e2e-browser` |
@@ -100,6 +101,13 @@ Single entry point for all complex work. Thin routing and context-curation layer
 - Generate 2-4 concrete follow-up proposals + "Stop — all done" option. Mark "Stop" as `recommended` only if primary work is complete.
 - Follow-up picked → back to Phase 1. "Stop" → finalize: state "paused" with remaining WUs or "done" with requested-vs-delivered summary. Do not write files.
 - **Loop until user explicitly stops.**
+
+## Friction Escalation Protocol
+
+1. Detect `friction_escalation_requested: true` in a completion summary.
+2. Load the on-demand `friction-feedback` skill before delegation.
+3. Delegate friction analysis to `@research-ideation` with only friction log context.
+4. Return ranked remediation recommendations and keep depth-1 routing intact.
 
 ## Complexity Routing
 

@@ -45,20 +45,20 @@ runGenerator();
 const secondRaw = readIndexRaw();
 const second = readIndex();
 
-test('generator writes schemaVersion=1 and non-empty skills list', () => {
+test('generator writes schemaVersion=1 and non-empty entries list', () => {
 	assert.strictEqual(first.schemaVersion, 1);
-	assert.ok(Array.isArray(first.skills));
-	assert.ok(first.skills.length > 0, 'expected at least one skill');
+	assert.ok(Array.isArray(first.entries));
+	assert.ok(first.entries.length > 0, 'expected at least one skill');
 });
 
-test('skills are deterministically sorted by skill key', () => {
-	const keys = first.skills.map((entry) => entry.skill);
+test('entries are deterministically sorted by skill key', () => {
+	const keys = first.entries.map((entry) => entry.skill);
 	const sorted = [...keys].sort((a, b) => a.localeCompare(b));
 	assert.deepStrictEqual(keys, sorted);
 });
 
 test('triggersOn values are sorted and deduplicated per skill', () => {
-	for (const entry of first.skills) {
+	for (const entry of first.entries) {
 		assert.ok(Array.isArray(entry.triggersOn), `triggersOn should be array for ${entry.skill}`);
 		const sorted = [...entry.triggersOn].sort((a, b) => a.localeCompare(b));
 		assert.deepStrictEqual(entry.triggersOn, sorted, `triggersOn not sorted for ${entry.skill}`);
@@ -68,7 +68,7 @@ test('triggersOn values are sorted and deduplicated per skill', () => {
 });
 
 test('manifest metadata is present when attached and has deterministic fields', () => {
-	for (const entry of first.skills) {
+	for (const entry of first.entries) {
 		if (!entry.manifest) continue;
 		assert.ok(typeof entry.manifest.id === 'string' && entry.manifest.id.length > 0, `manifest.id missing for ${entry.skill}`);
 		assert.ok(typeof entry.manifest.loadMode === 'string' && entry.manifest.loadMode.length > 0, `manifest.loadMode missing for ${entry.skill}`);

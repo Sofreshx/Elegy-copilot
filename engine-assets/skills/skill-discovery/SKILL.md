@@ -106,12 +106,15 @@ Common keyword → skill mappings:
 - Playwright MCP → `agent-browser`
 - Instruction quality → `instruction-quality`
 - Test caching → `test-caching-verification`
+- Friction review, friction analysis, friction cluster, refactor priority, friction feedback → `friction-feedback`
+- Create skill, author skill, skill template, forge skill → `skill-forge`
+- Doc conflict, source of truth, stale docs, truth hierarchy, code vs docs → `truth-sync`
 
 ### Pattern 3: Skill Metadata Search (keyword miss)
 
 When keyword map does not produce a clear match:
 
-1. Read the generated index `engine-assets/skills/skill-metadata-index.json` (deterministic source of `name`/`description`/`triggersOn`)
+1. Read the generated index `engine-assets/skills/skill-metadata-index.json` (deterministic source of `name`/`description`/`triggersOn`, conforms to Elegy `skill-discovery-index.schema.json`)
 2. Rank candidates by trigger overlap with task terms
 3. Read the top candidate `SKILL.md` only when needed to confirm fit
 4. If ties remain, choose lexical order by skill name
