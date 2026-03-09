@@ -110,7 +110,7 @@ function httpRequest(baseUrl, method, routePath) {
   });
 }
 
-// All 53 routes from the server's handleApi()
+// Route inventory snapshot for public backend endpoints.
 const ROUTE_INVENTORY = [
   // Lifecycle/Misc (7)
   { method: 'GET', path: '/api/policy/preflight' },
@@ -161,6 +161,29 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/assets/remove' },
   { method: 'GET', path: '/api/assets/view' },
   { method: 'POST', path: '/api/assets/delete' },
+
+  // Catalog/Search/Audit/Runtime (21)
+  { method: 'GET', path: '/api/catalog/repos' },
+  { method: 'POST', path: '/api/catalog/repos/register' },
+  { method: 'POST', path: '/api/catalog/repos/unregister' },
+  { method: 'POST', path: '/api/catalog/repos/select' },
+  { method: 'POST', path: '/api/catalog/repos/refresh' },
+  { method: 'GET', path: '/api/catalog/summary' },
+  { method: 'GET', path: '/api/catalog/assets' },
+  { method: 'GET', path: '/api/catalog/entries' },
+  { method: 'GET', path: '/api/catalog/assets/test-asset-id' },
+  { method: 'POST', path: '/api/catalog/refresh' },
+  { method: 'POST', path: '/api/catalog/assets/create' },
+  { method: 'POST', path: '/api/catalog/assets/update' },
+  { method: 'POST', path: '/api/catalog/assets/delete' },
+  { method: 'POST', path: '/api/catalog/assets/install' },
+  { method: 'POST', path: '/api/catalog/assets/enable' },
+  { method: 'POST', path: '/api/catalog/assets/disable' },
+  { method: 'POST', path: '/api/search/query' },
+  { method: 'POST', path: '/api/search/selection' },
+  { method: 'GET', path: '/api/audit/assets' },
+  { method: 'GET', path: '/api/audit/events' },
+  { method: 'GET', path: '/api/runtime/catalog-health' },
 
   // Gateway (5)
   { method: 'GET', path: '/api/gateway/state' },
@@ -315,7 +338,7 @@ async function run() {
 
     // Summary: route count
     await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-      assert.strictEqual(ROUTE_INVENTORY.length, 53, `Expected 53 routes, got ${ROUTE_INVENTORY.length}`);
+      assert.strictEqual(ROUTE_INVENTORY.length, 74, `Expected 74 routes, got ${ROUTE_INVENTORY.length}`);
     });
 
   } finally {

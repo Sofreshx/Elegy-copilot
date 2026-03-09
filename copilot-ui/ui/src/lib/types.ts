@@ -255,6 +255,404 @@ export interface SkillsPreviewResponse {
   skills: SkillPreviewItem[];
 }
 
+export interface CatalogFileDescription {
+  path: string | null;
+  exists: boolean;
+  size: number | null;
+  updatedAt: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogScope {
+  kind: string;
+  repoId?: string;
+  repoPath?: string;
+  displayName?: string;
+  [key: string]: unknown;
+}
+
+export interface CatalogRepoContext {
+  repoId?: string;
+  repoPath?: string;
+  repoLabel?: string;
+  [key: string]: unknown;
+}
+
+export interface CatalogInstallState {
+  availability?: string;
+  isInstalled?: boolean;
+  isAutoLoaded?: boolean;
+  materialization?: string;
+  contentHash?: string;
+  sourcePath?: string;
+  installedPaths?: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface CatalogEntry {
+  assetId: string;
+  assetKey?: string;
+  kind: string;
+  title?: string;
+  description?: string;
+  layer?: string;
+  scope?: CatalogScope;
+  contentPath?: string;
+  installState?: CatalogInstallState;
+  lifecycle?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  targeting?: Record<string, unknown>;
+  overlay?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface CatalogReason {
+  code?: string;
+  layer?: string | null;
+  message?: string;
+  [key: string]: unknown;
+}
+
+export interface CatalogEffectiveAsset {
+  assetId: string;
+  assetKey: string;
+  kind: string;
+  scope?: CatalogScope;
+  selectedEntry?: CatalogEntry | null;
+  selectedLayer?: string;
+  installState?: CatalogInstallState;
+  recommendations?: unknown[];
+  contributingEntries?: CatalogEntry[];
+  suppressedEntries?: CatalogEntry[];
+  available?: boolean;
+  installed?: boolean;
+  enabled?: boolean;
+  recommended?: boolean;
+  deprecated?: boolean;
+  overridden?: boolean;
+  hiddenFromAutoLoad?: boolean;
+  labels?: string[];
+  reasons?: CatalogReason[];
+  [key: string]: unknown;
+}
+
+export interface CatalogSnapshotWarningSummary {
+  count: number;
+  items: unknown[];
+  [key: string]: unknown;
+}
+
+export interface CatalogSnapshotFreshness {
+  status: string;
+  ageMs: number | null;
+  latestInputAt: string | null;
+  reasons: string[];
+  [key: string]: unknown;
+}
+
+export interface CatalogRuntimeRebuildState {
+  status: string;
+  refreshCount: number;
+  lastRequestedAt: string | null;
+  lastCompletedAt: string | null;
+  lastSuccessfulAt: string | null;
+  lastDurationMs: number | null;
+  lastReason: string | null;
+  lastError: string | null;
+  lastSnapshotPath: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogSnapshotStats {
+  entryCount?: number;
+  effectiveCount?: number;
+  byLayer?: Record<string, number>;
+  byKind?: Record<string, number>;
+  enabledCount?: number;
+  installedCount?: number;
+  recommendedCount?: number;
+  overriddenCount?: number;
+  [key: string]: unknown;
+}
+
+export interface CatalogSnapshotEnvelope {
+  schemaVersion: number | null;
+  generatedAt: string | null;
+  readMode?: string;
+  repoContext?: CatalogRepoContext | null;
+  storage?: {
+    catalogRoot?: string;
+    snapshotPath?: string;
+    snapshotExists?: boolean;
+    [key: string]: unknown;
+  };
+  stats?: CatalogSnapshotStats | null;
+  warnings?: CatalogSnapshotWarningSummary;
+  inputs?: {
+    manifest?: CatalogFileDescription;
+    metadataIndex?: CatalogFileDescription;
+    registry?: CatalogFileDescription;
+    snapshot?: CatalogFileDescription;
+    [key: string]: CatalogFileDescription | undefined;
+  };
+  freshness?: CatalogSnapshotFreshness;
+  rebuild?: CatalogRuntimeRebuildState;
+  [key: string]: unknown;
+}
+
+export interface CatalogSummaryResponse {
+  kind?: string;
+  deterministic?: boolean;
+  summary: CatalogSnapshotEnvelope;
+  [key: string]: unknown;
+}
+
+export interface CatalogAssetsResponse {
+  kind?: string;
+  deterministic?: boolean;
+  filters?: Record<string, unknown>;
+  count: number;
+  snapshot?: CatalogSnapshotEnvelope;
+  assets: CatalogEffectiveAsset[];
+  [key: string]: unknown;
+}
+
+export interface CatalogAssetDetailResponse {
+  kind?: string;
+  deterministic?: boolean;
+  asset?: CatalogEffectiveAsset;
+  entries?: CatalogEntry[];
+  snapshot?: CatalogSnapshotEnvelope;
+  [key: string]: unknown;
+}
+
+export interface CatalogRefreshResponse {
+  kind?: string;
+  deterministic?: boolean;
+  refreshed?: boolean;
+  audit?: {
+    logged?: boolean;
+    path?: string;
+    eventId?: string;
+    error?: string | null;
+    [key: string]: unknown;
+  };
+  snapshot?: CatalogSnapshotEnvelope;
+  [key: string]: unknown;
+}
+
+export interface CatalogSearchExplanation {
+  code?: string;
+  weight?: number;
+  message?: string;
+  layer?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogSearchResult {
+  rank: number;
+  assetId: string;
+  entry?: CatalogEntry | null;
+  effectiveState?: CatalogEffectiveAsset | null;
+  score: number;
+  explanations: CatalogSearchExplanation[];
+  [key: string]: unknown;
+}
+
+export interface CatalogSearchRequest {
+  query: string;
+  kind?: string;
+  repoId?: string;
+  repoPath?: string;
+  frameworks?: string[];
+  stacks?: string[];
+  tags?: string[];
+  limit?: number;
+  includeVaultOnly?: boolean;
+  includeDisabled?: boolean;
+  includeDeprecated?: boolean;
+  preferLoadMode?: string;
+  sessionId?: string;
+  correlationId?: string;
+}
+
+export interface CatalogSearchResponse {
+  kind?: string;
+  deterministic?: boolean;
+  query?: Record<string, unknown>;
+  count: number;
+  results: CatalogSearchResult[];
+  snapshot?: CatalogSnapshotEnvelope;
+  audit?: {
+    logged?: boolean;
+    path?: string;
+    eventIds?: string[];
+    errors?: string[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditEvent {
+  eventId: string;
+  eventType: string;
+  occurredAt: string;
+  actor?: Record<string, unknown>;
+  assetId?: string;
+  assetKey?: string;
+  assetKind?: string;
+  scope?: CatalogScope;
+  repoId?: string;
+  sessionId?: string;
+  correlationId?: string;
+  search?: Record<string, unknown>;
+  details?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditEventsResponse {
+  kind?: string;
+  deterministic?: boolean;
+  filters?: Record<string, unknown>;
+  count: number;
+  storage?: {
+    path?: string;
+    exists?: boolean;
+    [key: string]: unknown;
+  };
+  events: CatalogAuditEvent[];
+  [key: string]: unknown;
+}
+
+export interface RuntimeCatalogHealthResponse {
+  kind?: string;
+  deterministic?: boolean;
+  ok: boolean;
+  error?: string;
+  projection?: CatalogSnapshotEnvelope | null;
+  audit?: {
+    path?: string;
+    exists?: boolean;
+    updatedAt?: string | null;
+    size?: number | null;
+    [key: string]: unknown;
+  };
+  changes?: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogMutationAuditResult {
+  logged?: boolean;
+  path?: string;
+  eventId?: string;
+  lifecycleEventIds?: string[];
+  lifecycleErrors?: string[];
+  error?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogMutationRefreshResult {
+  selector?: {
+    repoId?: string | null;
+    repoPath?: string | null;
+    [key: string]: unknown;
+  };
+  snapshot?: CatalogSnapshotEnvelope | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogAssetMutationResponse {
+  kind?: string;
+  deterministic?: boolean;
+  action?: string;
+  authoringScope?: string;
+  assetId?: string;
+  assetKey?: string;
+  assetKind?: string;
+  scope?: CatalogScope;
+  loadMode?: string | null;
+  contentHash?: string | null;
+  sourceHash?: string | null;
+  registryHash?: string | null;
+  repoId?: string | null;
+  installedPaths?: string[];
+  refreshes?: CatalogMutationRefreshResult[];
+  audit?: CatalogMutationAuditResult;
+  [key: string]: unknown;
+}
+
+export interface CatalogRepoAssetSummary {
+  hasRepoAssets?: boolean;
+  hasSkills?: boolean;
+  hasAgents?: boolean;
+  skillCount?: number;
+  agentCount?: number;
+  overlayEnabledCount?: number;
+  overlayDisabledCount?: number;
+  skillsPath?: string | null;
+  agentsPath?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogRepoHints {
+  stacks?: string[];
+  frameworks?: string[];
+  languages?: string[];
+  targets?: string[];
+  [key: string]: unknown;
+}
+
+export interface CatalogRepoInventoryEntry {
+  repoId?: string | null;
+  repoPath?: string | null;
+  repoLabel?: string | null;
+  selected?: boolean;
+  registered?: boolean;
+  sources?: string[];
+  exists?: boolean;
+  gitRootPresent?: boolean;
+  scanStatus?: string;
+  lastSeenAt?: string | null;
+  lastRefreshAt?: string | null;
+  assets?: CatalogRepoAssetSummary;
+  hints?: CatalogRepoHints;
+  snapshot?: Record<string, unknown>;
+  repoState?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface CatalogRepoInventoryStorage {
+  path?: string;
+  exists?: boolean;
+  [key: string]: unknown;
+}
+
+export interface CatalogReposListResponse {
+  kind?: string;
+  deterministic?: boolean;
+  count?: number;
+  selectedRepo?: CatalogRepoInventoryEntry | null;
+  storage?: CatalogRepoInventoryStorage;
+  repos: CatalogRepoInventoryEntry[];
+  [key: string]: unknown;
+}
+
+export interface CatalogRepoMutationResponse {
+  kind?: string;
+  deterministic?: boolean;
+  registered?: boolean;
+  removed?: boolean;
+  refreshed?: boolean;
+  selected?: boolean;
+  selectionCleared?: boolean;
+  repo?: CatalogRepoInventoryEntry | null;
+  selectedRepo?: CatalogRepoInventoryEntry | null;
+  storage?: CatalogRepoInventoryStorage;
+  snapshot?: CatalogSnapshotEnvelope | null;
+  audit?: CatalogMutationAuditResult;
+  [key: string]: unknown;
+}
+
 export interface PolicyPreflightResponse {
   ok: boolean;
   status: string;

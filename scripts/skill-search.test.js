@@ -20,7 +20,7 @@ function test(name, fn) {
 }
 
 function run(...args) {
-	const result = childProcess.spawnSync(process.execPath, [scriptPath, ...args], {
+	const result = childProcess.spawnSync(process.execPath, [scriptPath, '--no-telemetry', ...args], {
 		cwd: repoRoot,
 		stdio: 'pipe',
 		encoding: 'utf8',
@@ -45,6 +45,7 @@ test('empty query with --json returns all entries as JSON array', () => {
 	assert.ok(parsed.length > 0, 'expected at least one result');
 	assert.ok(parsed[0].name, 'expected name field');
 	assert.ok(parsed[0].vaultRef, 'expected vaultRef field');
+	assert.ok(Array.isArray(parsed[0].explanations), 'expected explanations array');
 });
 
 test('search "wolverine" returns wolverine-core and wolverine-http', () => {
@@ -87,7 +88,20 @@ test('exact name match scores higher than trigger match', () => {
 	const parsed = JSON.parse(result.stdout);
 	assert.ok(parsed.length > 0, 'expected at least one result');
 	assert.strictEqual(parsed[0].name, 'critic', 'exact match should be first');
-	assert.strictEqual(parsed[0].score, 100, 'exact match should score 100');
+	const nextScore = parsed[1] ? parsed[1].score : 0;
+	assert.ok(parsed[0].score >= nextScore, 'exact match should rank first');
+	assert.ok(parsed[0].reasons.includes('exact-name'), 'exact match should explain exact-name');
+});
+
+test('targeting flags influence ranking output', () => {
+	const result = run('--json', '--prefer-load-mode', 'on-demand', 'auth');
+	assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+	const parsed = JSON.parse(result.stdout);
+	assert.ok(parsed.length > 0, 'expected targeting query to return at least one result');
+	assert.ok(
+		parsed[0].reasons.includes('load-mode'),
+		'expected targeting-driven explanations',
+	);
 });
 
 test('human format output contains skill name and vault path', () => {

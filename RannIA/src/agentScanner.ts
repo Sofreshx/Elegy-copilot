@@ -1,12 +1,37 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import type { AssetCatalogEntry } from '@instruction-engine/contracts';
 import * as vscode from 'vscode';
-import { AgentDiscoverySnapshot, AgentEntry, RepoAgents } from './types';
+import {
+	createCatalogEntry,
+	createCatalogScope,
+	createRepoOverlayEntry,
+	groupEntriesByAssetKey,
+	resolveCatalogState,
+} from './catalogAdapter';
 import { getRepoDisabledSet } from './enablementStore';
 import { getUserAgentsDir, resolveStateRoot } from './enginePaths';
+import { AgentDiscoverySnapshot, AgentEntry, RepoAgents } from './types';
 import { existsDir, existsFile } from './utils/fs';
-import { tryParseYamlFrontMatter } from './utils/yaml';
 import { normalizeString } from './utils/strings';
+import { tryParseYamlFrontMatter } from './utils/yaml';
+
+interface ParsedAgentCandidate {
+	path: string;
+	openPath: string;
+	fileName: string;
+	name: string;
+	description?: string;
+	role?: string;
+	visibility?: string;
+	infer?: boolean;
+	userInvocable?: boolean;
+	disableModelInvocation?: boolean;
+	source: 'instruction-engine' | 'target-repo';
+	repoPath: string;
+	layer: 'user-installed' | 'repo-local';
+	installState: NonNullable<AssetCatalogEntry['installState']>;
+}
 
 function isInstructionEngineFolder(folder: vscode.WorkspaceFolder): boolean {
 	const name = folder.name.toLowerCase();
@@ -72,70 +97,221 @@ function listAgentFiles(agentsDir: string): string[] {
 	return files;
 }
 
+function parseAgentCandidate(
+	filePath: string,
+	source: 'instruction-engine' | 'target-repo',
+	repoPath: string,
+	layer: 'user-installed' | 'repo-local'
+): ParsedAgentCandidate | undefined {
+	if (!existsFile(filePath)) {
+		return undefined;
+	}
+
+	const contentStart = readFileStart(filePath);
+	const fm = tryParseYamlFrontMatter(contentStart)?.fm ?? {};
+	const fileName = path.basename(filePath);
+
+	const rawInfer = fm['infer'];
+	let inferStr: string | undefined;
+	if (typeof rawInfer === 'boolean') {
+		inferStr = rawInfer ? 'true' : 'false';
+	} else if (typeof rawInfer === 'string') {
+		inferStr = rawInfer.trim().toLowerCase();
+	}
+
+	const userInvocable =
+		normalizeBoolean(fm['user-invocable']) ??
+		normalizeBoolean(fm['user-invokable']) ??
+		(inferStr === 'true' || inferStr === 'user');
+
+	let disableModelInvocation = normalizeBoolean(fm['disable-model-invocation']);
+	if (disableModelInvocation === undefined) {
+		disableModelInvocation = inferStr === 'agent' ? false : true;
+	}
+
+	return {
+		path: filePath,
+		openPath: filePath,
+		fileName,
+		name: normalizeString(fm['name']) ?? fileName,
+		description: normalizeString(fm['description']),
+		role: normalizeString(fm['role']),
+		visibility: normalizeString(fm['visibility']),
+		infer: normalizeBoolean(fm['infer']),
+		userInvocable,
+		disableModelInvocation,
+		source,
+		repoPath,
+		layer,
+		installState: {
+			availability: layer === 'repo-local' ? 'repo-local' : 'installed',
+			materialization: 'materialized',
+			isInstalled: true,
+			sourcePath: filePath,
+			installedPaths:
+				layer === 'repo-local'
+					? { 'repo-local': filePath }
+					: { 'user-installed': filePath }
+		}
+	};
+}
+
+function toCatalogEntry(
+	candidate: ParsedAgentCandidate,
+	scope: ReturnType<typeof createCatalogScope>
+): AssetCatalogEntry {
+	return createCatalogEntry({
+		kind: 'agent',
+		assetKey: candidate.fileName,
+		title: candidate.name,
+		description: candidate.description,
+		layer: candidate.layer,
+		scope,
+		contentPath: candidate.path,
+		installState: candidate.installState,
+		metadata: {
+			fileName: candidate.fileName,
+			path: candidate.path,
+			openPath: candidate.openPath,
+			role: candidate.role,
+			visibility: candidate.visibility,
+			infer: candidate.infer,
+			userInvocable: candidate.userInvocable,
+			disableModelInvocation: candidate.disableModelInvocation,
+			source: candidate.source
+		}
+	});
+}
+
+function getMetadataString(entry: AssetCatalogEntry | undefined, key: string): string | undefined {
+	const value = entry?.metadata?.[key];
+	return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function getMetadataBoolean(entry: AssetCatalogEntry | undefined, key: string): boolean | undefined {
+	const value = entry?.metadata?.[key];
+	return typeof value === 'boolean' ? value : undefined;
+}
+
+function buildAgentEntry(
+	effectiveState: ReturnType<typeof resolveCatalogState>,
+	repoPath: string
+): AgentEntry | undefined {
+	const selected = effectiveState.selectedEntry;
+	if (!selected?.contentPath) {
+		return undefined;
+	}
+
+	const contributingLayers = Array.from(
+		new Set(effectiveState.contributingEntries.map((entry) => entry.layer))
+	);
+	const fileName = getMetadataString(selected, 'fileName') ?? path.basename(selected.contentPath);
+
+	return {
+		path: selected.contentPath,
+		openPath: getMetadataString(selected, 'openPath') ?? selected.contentPath,
+		fileName,
+		name: selected.title,
+		description: selected.description,
+		role: getMetadataString(selected, 'role'),
+		visibility: getMetadataString(selected, 'visibility'),
+		infer: getMetadataBoolean(selected, 'infer'),
+		userInvocable: getMetadataBoolean(selected, 'userInvocable'),
+		userInvokable: getMetadataBoolean(selected, 'userInvocable'),
+		disableModelInvocation: getMetadataBoolean(selected, 'disableModelInvocation'),
+		repoPath,
+		enabled: effectiveState.enabled,
+		assetId: effectiveState.assetId,
+		assetKey: effectiveState.assetKey,
+		catalogLayer: effectiveState.selectedLayer,
+		installState: effectiveState.installState,
+		overlay: effectiveState.overlay,
+		effectiveState,
+		contributingLayers,
+		hiddenFromAutoLoad: effectiveState.hiddenFromAutoLoad,
+		overridden: effectiveState.overridden
+	};
+}
+
+function buildEffectiveAgents(
+	contentEntries: AssetCatalogEntry[],
+	scope: ReturnType<typeof createCatalogScope>,
+	disabledSet: Set<string>,
+	repoPath: string
+): AgentEntry[] {
+	const results: AgentEntry[] = [];
+	const grouped = groupEntriesByAssetKey(contentEntries);
+
+	for (const [assetKey, entries] of grouped) {
+		const catalogEntries = [...entries];
+		if (disabledSet.has(assetKey)) {
+			catalogEntries.push(createRepoOverlayEntry('agent', assetKey, scope, false));
+		}
+
+		const agent = buildAgentEntry(resolveCatalogState(catalogEntries), repoPath);
+		if (agent) {
+			results.push(agent);
+		}
+	}
+
+	results.sort((a, b) => a.name.localeCompare(b.name));
+	return results;
+}
+
+export function buildRepoAgents(
+	userEntriesByKey: Map<string, AssetCatalogEntry[]>,
+	repoEntries: AssetCatalogEntry[],
+	repoScope: ReturnType<typeof createCatalogScope>,
+	disabledSet: Set<string>,
+	repoPath: string
+): AgentEntry[] {
+	const repoEntriesByKey = groupEntriesByAssetKey(repoEntries);
+	const assetKeys = new Set<string>([
+		...userEntriesByKey.keys(),
+		...repoEntriesByKey.keys()
+	]);
+	const agents: AgentEntry[] = [];
+
+	for (const assetKey of assetKeys) {
+		const catalogEntries = [
+			...(userEntriesByKey.get(assetKey) ?? []),
+			...(repoEntriesByKey.get(assetKey) ?? [])
+		];
+		if (disabledSet.has(assetKey)) {
+			catalogEntries.push(createRepoOverlayEntry('agent', assetKey, repoScope, false));
+		}
+
+		const agent = buildAgentEntry(resolveCatalogState(catalogEntries), repoPath);
+		if (agent) {
+			agents.push(agent);
+		}
+	}
+
+	agents.sort((a, b) => a.name.localeCompare(b.name));
+	return agents;
+}
+
 export async function scanAgents(): Promise<AgentDiscoverySnapshot> {
 	const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
 	const repos: RepoAgents[] = [];
 
-	// Always include the user-level agent store under skillInstaller.state.root.
 	const userRoot = resolveStateRoot();
 	const userAgentsDir = getUserAgentsDir();
 	const userAgentsDirPath = existsDir(userAgentsDir) ? userAgentsDir : undefined;
 	const userDisabledSet = getRepoDisabledSet('agents', userRoot);
-
-	const userAgents: AgentEntry[] = [];
-	if (userAgentsDirPath) {
-		const agentFiles = listAgentFiles(userAgentsDirPath);
-		for (const filePath of agentFiles) {
-			if (!existsFile(filePath)) {
-				continue;
-			}
-			const contentStart = readFileStart(filePath);
-			const fm = tryParseYamlFrontMatter(contentStart)?.fm ?? {};
-			const fileName = path.basename(filePath);
-			const enabled = !userDisabledSet.has(normalizeKey(fileName));
-
-			const rawInfer = fm['infer'];
-			let inferStr: string | undefined;
-			if (typeof rawInfer === 'boolean') inferStr = rawInfer ? 'true' : 'false';
-			else if (typeof rawInfer === 'string') inferStr = rawInfer.trim().toLowerCase();
-
-			const userInvocable =
-				normalizeBoolean(fm['user-invocable']) ??
-				normalizeBoolean(fm['user-invokable']) ??
-				(inferStr === 'true' || inferStr === 'user');
-
-			let disableModelInvocation = normalizeBoolean(fm['disable-model-invocation']);
-			if (disableModelInvocation === undefined) {
-				if (inferStr === 'agent') {
-					disableModelInvocation = false;
-				} else {
-					disableModelInvocation = true;
-				}
-			}
-
-			userAgents.push({
-				path: filePath,
-				fileName,
-				name: normalizeString(fm['name']) ?? fileName,
-				description: normalizeString(fm['description']),
-				role: normalizeString(fm['role']),
-				visibility: normalizeString(fm['visibility']),
-				infer: normalizeBoolean(fm['infer']),
-				userInvocable,
-				userInvokable: userInvocable,
-				disableModelInvocation,
-				repoPath: userRoot,
-				enabled
-			});
-		}
-	}
+	const userScope = createCatalogScope('user', userRoot);
+	const userCandidates = (userAgentsDirPath ? listAgentFiles(userAgentsDirPath) : [])
+		.map((filePath) => parseAgentCandidate(filePath, 'instruction-engine', userRoot, 'user-installed'))
+		.filter((candidate): candidate is ParsedAgentCandidate => Boolean(candidate));
+	const userEntries = userCandidates.map((candidate) => toCatalogEntry(candidate, userScope));
+	const userEntriesByKey = groupEntriesByAssetKey(userEntries);
 
 	repos.push({
 		repoName: 'User Asset Home',
 		repoPath: userRoot,
 		isInstructionEngine: false,
 		agentsDirPath: userAgentsDirPath,
-		agents: userAgents
+		agents: buildEffectiveAgents(userEntries, userScope, userDisabledSet, userRoot)
 	});
 
 	for (const folder of workspaceFolders) {
@@ -143,63 +319,17 @@ export async function scanAgents(): Promise<AgentDiscoverySnapshot> {
 		const agentsDir = path.join(repoPath, '.github', 'agents');
 		const agentsDirPath = existsDir(agentsDir) ? agentsDir : undefined;
 		const disabledSet = getRepoDisabledSet('agents', repoPath);
-
-		const agents: AgentEntry[] = [];
-		if (agentsDirPath) {
-			const agentFiles = listAgentFiles(agentsDirPath);
-			for (const filePath of agentFiles) {
-				if (!existsFile(filePath)) {
-					continue;
-				}
-				const contentStart = readFileStart(filePath);
-				const fm = tryParseYamlFrontMatter(contentStart)?.fm ?? {};
-				const fileName = path.basename(filePath);
-				const enabled = !disabledSet.has(normalizeKey(fileName));
-
-				// Determine new-style fields, falling back to legacy keys/`infer` when needed
-				const rawInfer = fm['infer'];
-				let inferStr: string | undefined;
-				if (typeof rawInfer === 'boolean') inferStr = rawInfer ? 'true' : 'false';
-				else if (typeof rawInfer === 'string') inferStr = rawInfer.trim().toLowerCase();
-
-				const userInvocable =
-					normalizeBoolean(fm['user-invocable']) ??
-					normalizeBoolean(fm['user-invokable']) ??
-					(inferStr === 'true' || inferStr === 'user');
-
-				let disableModelInvocation = normalizeBoolean(fm['disable-model-invocation']);
-				if (disableModelInvocation === undefined) {
-					if (inferStr === 'agent') {
-						disableModelInvocation = false; // allow model-invocation for subagents
-					} else {
-						// be conservative: disallow model invocation unless explicitly marked 'agent'
-						disableModelInvocation = true;
-					}
-				}
-
-				agents.push({
-					path: filePath,
-					fileName,
-					name: normalizeString(fm['name']) ?? fileName,
-					description: normalizeString(fm['description']),
-					role: normalizeString(fm['role']),
-					visibility: normalizeString(fm['visibility']),
-					infer: normalizeBoolean(fm['infer']), // legacy
-					userInvocable,
-					userInvokable: userInvocable,
-					disableModelInvocation,
-					repoPath,
-					enabled
-				});
-			}
-		}
-
+		const repoScope = createCatalogScope('repo', repoPath, folder.name);
+		const repoCandidates = (agentsDirPath ? listAgentFiles(agentsDirPath) : [])
+			.map((filePath) => parseAgentCandidate(filePath, 'target-repo', repoPath, 'repo-local'))
+			.filter((candidate): candidate is ParsedAgentCandidate => Boolean(candidate));
+		const repoEntries = repoCandidates.map((candidate) => toCatalogEntry(candidate, repoScope));
 		repos.push({
 			repoName: folder.name,
 			repoPath,
 			isInstructionEngine: isInstructionEngineFolder(folder),
 			agentsDirPath,
-			agents
+			agents: buildRepoAgents(userEntriesByKey, repoEntries, repoScope, disabledSet, repoPath)
 		});
 	}
 

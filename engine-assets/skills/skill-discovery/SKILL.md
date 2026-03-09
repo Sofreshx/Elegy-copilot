@@ -41,7 +41,7 @@ Use this exact order when the right skill is not already known:
 
 1. Stack detection
 2. Keyword map
-3. Skill metadata search (generated index first)
+3. Shared catalog-backed search/resolution
 4. Semantic fallback
 
 Rules:
@@ -112,14 +112,20 @@ Common keyword → skill mappings:
 - Create skill, author skill, skill template, forge skill → `skill-forge`
 - Doc conflict, source of truth, stale docs, truth hierarchy, code vs docs → `truth-sync`
 
-### Pattern 3: Skill Metadata Search (keyword miss)
+### Pattern 3: Shared Catalog Search (keyword miss or ranking needed)
 
 When keyword map does not produce a clear match:
 
-1. Read the generated index `engine-assets/skills/skill-metadata-index.json` (deterministic source of `name`/`description`/`triggersOn`, conforms to Elegy `skill-discovery-index.schema.json`)
-2. Rank candidates by trigger overlap with task terms
-3. Read the top candidate `SKILL.md` only when needed to confirm fit
-4. If ties remain, choose lexical order by skill name
+1. Use the shared catalog projection + resolver (`copilot-ui/lib/skillSearchService.js`) so search and routing use the same deterministic ranking rules.
+2. Rank candidates using explicit metadata and context signals:
+   - skill key/title/aliases
+   - trigger phrases, description, and tags
+   - frameworks / stacks / languages
+   - repo/workspace context when available
+   - load mode / vault-first preference
+   - existing catalog recommendation signals
+3. Read the top candidate `SKILL.md` only when needed to confirm fit.
+4. If ties remain, choose lexical order by skill name.
 
 ### Pattern 4: Semantic Fallback (last resort)
 
@@ -147,6 +153,8 @@ When you prefer programmatic discovery via terminal (useful for scripting, CI, o
 ```bash
 node scripts/skill-search.mjs "wolverine"           # human-readable output
 node scripts/skill-search.mjs --json "auth"          # JSON array with name, description, vaultRef, score
+node scripts/skill-search.mjs --framework react --language typescript --prefer-load-mode on-demand "query cache"
+node scripts/skill-search.mjs --repo /path/to/repo "testing"
 node scripts/skill-search.mjs                        # list all skills (no query)
 ```
 
@@ -157,7 +165,9 @@ node scripts/skill-load.mjs wolverine-core           # prints SKILL.md to stdout
 
 Security: `skill-load.mjs` rejects path traversal (`..`, `.`), symlinks, and paths outside the skills root. Follows the same confinement patterns as `RannIA/src/utils/pathSecurity.ts`.
 
-These scripts read from `engine-assets/skills/skill-metadata-index.json` (search) and `engine-assets/skills/{name}/SKILL.md` (load). They are the CLI equivalent of Patterns 2–5.
+`skill-search.mjs` now resolves against the shared catalog-backed search service instead of a separate lexical-only index reader. It still uses deterministic ranking and stores bounded privacy-safe search telemetry under `~/.copilot/catalog/search-telemetry.json` for later evaluation.
+
+These scripts read from the catalog projection (search) and `engine-assets/skills/{name}/SKILL.md` (load). They are the CLI equivalent of Patterns 2–5.
 
 ## Resolution Rules
 

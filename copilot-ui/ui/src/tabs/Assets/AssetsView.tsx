@@ -1,124 +1,1599 @@
-import { useEffect } from 'react';
-import { Button, Panel, Toolbar } from '../../components';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
-import AssetViewer from './AssetViewer';
-import InstalledInventory from './InstalledInventory';
-import ManagedAssetsTable from './ManagedAssetsTable';
-import { assetsStore } from './assetsStore';
+import type { CatalogEffectiveAsset, CatalogEntry, CatalogRepoInventoryEntry } from '../../lib/types';
+import { catalogWorkspaceStore } from './catalogWorkspaceStore';
+
+type AuthoringScope = 'shared' | 'user-global' | 'repo-local';
+type SupportedAuthoringKind = 'skill' | 'agent';
+
+interface CreateTargetOption {
+  id: string;
+  authoringScope: AuthoringScope;
+  label: string;
+  description: string;
+  repoPath?: string;
+  authoringRepoPath?: string;
+}
+
+interface WriteTarget {
+  id: string;
+  label: string;
+  description: string;
+  authoringScope: AuthoringScope;
+  kind: SupportedAuthoringKind;
+  assetId: string;
+  assetKey: string;
+  loadMode: 'always' | 'on-demand';
+  expectedHash?: string;
+  repoPath?: string;
+  authoringRepoPath?: string;
+  contentPrefill: string;
+  contentPrefillAvailable: boolean;
+}
+
+interface AssetDraftState {
+  targetId: string;
+  kind: SupportedAuthoringKind;
+  assetKey: string;
+  title: string;
+  description: string;
+  loadMode: 'always' | 'on-demand';
+  triggersInput: string;
+  content: string;
+}
+
+function formatCount(value: number | undefined): string {
+  return Number.isFinite(value) ? String(value) : '0';
+}
+
+function formatTimestamp(value: string | null | undefined): string {
+  if (!value) {
+    return '—';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+}
+
+function normalizePath(input: string | null | undefined): string {
+  return typeof input === 'string' ? input.trim() : '';
+}
+
+function normalizePathForComparison(input: string | null | undefined): string {
+  return normalizePath(input).replace(/\//g, '\\').toLowerCase();
+}
+
+function samePath(left: string | null | undefined, right: string | null | undefined): boolean {
+  const normalizedLeft = normalizePathForComparison(left);
+  const normalizedRight = normalizePathForComparison(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
+function matchesText(asset: CatalogEffectiveAsset, query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  const selectedEntry = asset.selectedEntry;
+  const searchFields = [
+    asset.assetId,
+    asset.assetKey,
+    asset.kind,
+    asset.selectedLayer,
+    selectedEntry?.title,
+    selectedEntry?.description,
+    ...(asset.labels ?? []),
+  ];
+
+  return searchFields.some((field) => String(field || '').toLowerCase().includes(normalized));
+}
+
+function matchesFilters(
+  asset: CatalogEffectiveAsset,
+  filters: ReturnType<typeof catalogWorkspaceStore.getState>['filters']
+): boolean {
+  if (filters.kind !== 'all' && asset.kind !== filters.kind) {
+    return false;
+  }
+  if (filters.scopeKind !== 'all' && asset.scope?.kind !== filters.scopeKind) {
+    return false;
+  }
+  if (filters.installedOnly && !asset.installed) {
+    return false;
+  }
+  if (filters.enabledOnly && !asset.enabled) {
+    return false;
+  }
+  if (filters.availableOnly && !asset.available) {
+    return false;
+  }
+  if (filters.overriddenOnly && !asset.overridden) {
+    return false;
+  }
+
+  return matchesText(asset, filters.text);
+}
+
+function summarizeEntryScope(entry: CatalogEntry): string {
+  const scope = entry.scope?.kind || 'unknown';
+  const repoLabel = typeof entry.scope?.displayName === 'string' ? entry.scope.displayName : '';
+  return repoLabel ? `${scope} · ${repoLabel}` : scope;
+}
+
+function isSupportedAuthoringKind(kind: unknown): kind is SupportedAuthoringKind {
+  return kind === 'skill' || kind === 'agent';
+}
+
+function readStringList(input: unknown): string[] {
+  return Array.isArray(input)
+    ? input
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+    : [];
+}
+
+function parseListInput(input: string): string[] {
+  return input
+    .split(/[\r\n,]+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function formatListInput(values: string[]): string {
+  return values.join(', ');
+}
+
+function readLoadMode(entry: CatalogEntry | null | undefined, asset: CatalogEffectiveAsset | null | undefined): 'always' | 'on-demand' {
+  const raw = String(
+    entry?.installState?.loadMode ||
+    entry?.metadata?.manifestLoadMode ||
+    asset?.installState?.loadMode ||
+    'on-demand'
+  ).trim().toLowerCase();
+
+  return raw === 'always' ? 'always' : 'on-demand';
+}
+
+function readTriggers(entry: CatalogEntry | null | undefined, asset: CatalogEffectiveAsset | null | undefined): string[] {
+  return readStringList(entry?.metadata?.triggersOn ?? asset?.selectedEntry?.metadata?.triggersOn);
+}
+
+function readContentHash(entry: CatalogEntry | null | undefined): string {
+  return typeof entry?.installState?.contentHash === 'string' ? entry.installState.contentHash : '';
+}
+
+function buildRepoLabel(repo: CatalogRepoInventoryEntry | null | undefined): string {
+  return String(repo?.repoLabel || repo?.repoPath || repo?.repoId || 'Unknown repo');
+}
+
+function resolveActiveRepo(
+  repos: CatalogRepoInventoryEntry[],
+  selectedRepo: CatalogRepoInventoryEntry | null | undefined,
+  activeRepoPath: string,
+  activeRepoId: string
+): CatalogRepoInventoryEntry | null {
+  if (selectedRepo && (normalizePath(selectedRepo.repoPath) || String(selectedRepo.repoId || '').trim())) {
+    return selectedRepo;
+  }
+
+  return repos.find((repo) => (
+    (activeRepoId && repo.repoId === activeRepoId) ||
+    (activeRepoPath && samePath(repo.repoPath, activeRepoPath))
+  )) ?? null;
+}
+
+function buildCreateTargets(
+  activeRepo: CatalogRepoInventoryEntry | null,
+  workspaceRepo: CatalogRepoInventoryEntry | null,
+  activeRepoPath: string
+): CreateTargetOption[] {
+  const targets: CreateTargetOption[] = [];
+
+  const repoPath = normalizePath(activeRepo?.repoPath) || normalizePath(activeRepoPath);
+  if (repoPath) {
+    targets.push({
+      id: `repo-local:${repoPath}`,
+      authoringScope: 'repo-local',
+      label: `Repo-local (${buildRepoLabel(activeRepo)})`,
+      description: `Creates a repo-scoped asset under ${repoPath}\\.github\\agents or ${repoPath}\\.github\\skills.`,
+      repoPath,
+    });
+  }
+
+  targets.push({
+    id: 'user-global',
+    authoringScope: 'user-global',
+    label: 'User-global (~/.copilot)',
+    description: 'Creates a personal global asset under ~/.copilot/agents, ~/.copilot/skills, or ~/.copilot/skills-vault.',
+  });
+
+  if (repoPath && workspaceRepo?.repoPath && samePath(repoPath, workspaceRepo.repoPath)) {
+    targets.unshift({
+      id: 'shared',
+      authoringScope: 'shared',
+      label: 'Shared shipped asset (engine-assets/*)',
+      description: 'Creates a shipped asset in engine-assets/* and updates the shared manifest in this instruction-engine workspace.',
+      authoringRepoPath: normalizePath(workspaceRepo.repoPath),
+    });
+  }
+
+  return targets;
+}
+
+function buildEditableTargets(
+  asset: CatalogEffectiveAsset | null,
+  entries: CatalogEntry[],
+  activeRepo: CatalogRepoInventoryEntry | null,
+  workspaceRepo: CatalogRepoInventoryEntry | null,
+  previewContent: string,
+  previewStatus: string
+): WriteTarget[] {
+  if (!asset || !isSupportedAuthoringKind(asset.kind)) {
+    return [];
+  }
+
+  const targets = new Map<string, WriteTarget>();
+  const candidateEntries: CatalogEntry[] = [];
+  if (asset.selectedEntry) {
+    candidateEntries.push(asset.selectedEntry);
+  }
+  candidateEntries.push(...entries);
+
+  const activeRepoPath = normalizePath(activeRepo?.repoPath);
+  const workspaceRepoPath = normalizePath(workspaceRepo?.repoPath);
+
+  for (const entry of candidateEntries) {
+    if (!entry || !isSupportedAuthoringKind(entry.kind)) {
+      continue;
+    }
+
+    if ((entry.layer === 'user-installed' || entry.layer === 'vault-only') && !targets.has('user-global')) {
+      targets.set('user-global', {
+        id: 'user-global',
+        label: 'User-global asset',
+        description: entry.contentPath
+          ? `Updates the authoritative file at ${entry.contentPath}.`
+          : 'Updates the authoritative user-global asset under ~/.copilot.',
+        authoringScope: 'user-global',
+        kind: entry.kind,
+        assetId: entry.assetId,
+        assetKey: entry.assetKey || asset.assetKey,
+        loadMode: readLoadMode(entry, asset),
+        expectedHash: readContentHash(entry) || undefined,
+        contentPrefill: previewStatus === 'ready' ? previewContent : '',
+        contentPrefillAvailable: previewStatus === 'ready',
+      });
+    }
+
+    if (entry.layer === 'repo-local' && entry.scope?.repoPath) {
+      const repoPath = normalizePath(entry.scope.repoPath);
+      const targetId = `repo-local:${repoPath}`;
+      if (!targets.has(targetId)) {
+        targets.set(targetId, {
+          id: targetId,
+          label: `Repo-local override (${entry.scope.displayName || repoPath})`,
+          description: entry.contentPath
+            ? `Updates the authoritative repo-local asset at ${entry.contentPath}.`
+            : `Updates the authoritative repo-local asset in ${repoPath}\\.github\\*.`,
+          authoringScope: 'repo-local',
+          kind: entry.kind,
+          assetId: entry.assetId,
+          assetKey: entry.assetKey || asset.assetKey,
+          loadMode: readLoadMode(entry, asset),
+          expectedHash: readContentHash(entry) || undefined,
+          repoPath,
+          contentPrefill: '',
+          contentPrefillAvailable: false,
+        });
+      }
+    }
+
+    if (entry.layer === 'source' && activeRepoPath && workspaceRepoPath && samePath(activeRepoPath, workspaceRepoPath) && !targets.has('shared')) {
+      targets.set('shared', {
+        id: 'shared',
+        label: 'Shared shipped asset',
+        description: entry.contentPath
+          ? `Updates the authoritative shipped asset at ${entry.contentPath}.`
+          : 'Updates the authoritative shipped asset under engine-assets/*.',
+        authoringScope: 'shared',
+        kind: entry.kind,
+        assetId: entry.assetId,
+        assetKey: entry.assetKey || asset.assetKey,
+        loadMode: readLoadMode(entry, asset),
+        expectedHash: readContentHash(entry) || undefined,
+        authoringRepoPath: workspaceRepoPath,
+        contentPrefill: '',
+        contentPrefillAvailable: false,
+      });
+    }
+  }
+
+  return Array.from(targets.values());
+}
+
+function createEmptyDraft(targetId = 'user-global'): AssetDraftState {
+  return {
+    targetId,
+    kind: 'skill',
+    assetKey: '',
+    title: '',
+    description: '',
+    loadMode: 'on-demand',
+    triggersInput: '',
+    content: '',
+  };
+}
+
+function buildEditDraft(asset: CatalogEffectiveAsset, target: WriteTarget): AssetDraftState {
+  return {
+    targetId: target.id,
+    kind: target.kind,
+    assetKey: target.assetKey,
+    title: String(target.authoringScope === 'shared'
+      ? target.assetKey
+      : asset.selectedEntry?.title || target.assetKey
+    ),
+    description: String(asset.selectedEntry?.description || ''),
+    loadMode: target.loadMode,
+    triggersInput: formatListInput(readTriggers(asset.selectedEntry, asset)),
+    content: target.contentPrefill,
+  };
+}
+
+function describeRepoAssetSummary(repo: CatalogRepoInventoryEntry): string {
+  const skillCount = repo.assets?.skillCount ?? 0;
+  const agentCount = repo.assets?.agentCount ?? 0;
+  const frameworks = readStringList(repo.hints?.frameworks);
+  const targets = readStringList(repo.hints?.targets);
+  const hintSummary = [...frameworks.slice(0, 2), ...targets.slice(0, 2)].join(', ');
+  return `${skillCount} skill(s), ${agentCount} agent(s)${hintSummary ? ` · ${hintSummary}` : ''}`;
+}
 
 export default function AssetsView() {
-  const assetState = useStoreValue(assetsStore);
+  const catalogState = useStoreValue(catalogWorkspaceStore);
+  const [repoLabelInput, setRepoLabelInput] = useState('');
+  const [createDraft, setCreateDraft] = useState<AssetDraftState>(createEmptyDraft());
+  const [editTargetId, setEditTargetId] = useState('');
+  const [editDraft, setEditDraft] = useState<AssetDraftState>(createEmptyDraft());
+  const [editDraftContextKey, setEditDraftContextKey] = useState('');
+  const [editDraftDirty, setEditDraftDirty] = useState(false);
+  const [confirmRemoveTargetId, setConfirmRemoveTargetId] = useState<string | null>(null);
 
   useEffect(() => {
-    void assetsStore.loadAssets();
+    void catalogWorkspaceStore.loadWorkspace();
   }, []);
 
-  const installedTotal =
-    assetState.installedInventory.agents.length +
-    assetState.installedInventory.skills.length +
-    assetState.installedInventory.prompts.length +
-    (assetState.installedInventory.instructions.installed ? 1 : 0);
+  const filteredAssets = useMemo(() => {
+    return catalogState.assets.filter((asset) => matchesFilters(asset, catalogState.filters));
+  }, [catalogState.assets, catalogState.filters]);
 
-  const handleRefresh = async () => {
-    await assetsStore.refresh();
+  const selectedAsset = catalogState.selectedAsset;
+  const selectedReasons = selectedAsset?.reasons ?? [];
+  const selectedContributors = selectedAsset?.contributingEntries ?? [];
+  const selectedSuppressed = selectedAsset?.suppressedEntries ?? [];
+  const recommendedAssets = catalogState.assets.filter((asset) => asset.recommended);
+  const auditCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const event of catalogState.auditEvents) {
+      const key = event.eventType || 'unknown';
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).slice(0, 5);
+  }, [catalogState.auditEvents]);
+
+  const summaryStats = catalogState.summary?.stats;
+  const runtimeProjection = catalogState.runtimeHealth?.projection;
+  const repoInventory = catalogState.repoInventory;
+  const repoList = repoInventory?.repos ?? [];
+  const workspaceRepo = useMemo(
+    () => repoList.find((repo) => (repo.sources ?? []).includes('workspace')) ?? null,
+    [repoList]
+  );
+  const activeRepo = useMemo(
+    () => resolveActiveRepo(repoList, repoInventory?.selectedRepo ?? null, catalogState.activeRepoPath, catalogState.activeRepoId),
+    [repoList, repoInventory?.selectedRepo, catalogState.activeRepoPath, catalogState.activeRepoId]
+  );
+  const createTargets = useMemo(
+    () => buildCreateTargets(activeRepo, workspaceRepo, catalogState.activeRepoPath),
+    [activeRepo, workspaceRepo, catalogState.activeRepoPath]
+  );
+  const editableTargets = useMemo(
+    () => buildEditableTargets(
+      selectedAsset,
+      catalogState.selectedEntries,
+      activeRepo,
+      workspaceRepo,
+      catalogState.selectedAssetContent,
+      catalogState.selectedAssetContentStatus
+    ),
+    [
+      selectedAsset,
+      catalogState.selectedEntries,
+      activeRepo,
+      workspaceRepo,
+      catalogState.selectedAssetContent,
+      catalogState.selectedAssetContentStatus,
+    ]
+  );
+  const selectedCreateTarget = createTargets.find((target) => target.id === createDraft.targetId) ?? createTargets[0] ?? null;
+  const selectedEditTarget = editableTargets.find((target) => target.id === editTargetId) ?? editableTargets[0] ?? null;
+  const editContextKey = `${selectedAsset?.assetId || ''}:${selectedEditTarget?.id || ''}`;
+  const sharedEditBlocked = Boolean(
+    selectedAsset &&
+    catalogState.selectedEntries.some((entry) => entry.layer === 'source') &&
+    !editableTargets.some((target) => target.authoringScope === 'shared')
+  );
+  const hasInstallableSource = Boolean(catalogState.selectedEntries.some((entry) => entry.layer === 'source'));
+  const canToggleEnabled = Boolean(
+    selectedAsset &&
+    isSupportedAuthoringKind(selectedAsset.kind) &&
+    normalizePath(activeRepo?.repoPath || catalogState.activeRepoPath)
+  );
+
+  useEffect(() => {
+    setCreateDraft((current) => {
+      const nextTarget = createTargets.find((target) => target.id === current.targetId) ?? createTargets[0] ?? null;
+      if (!nextTarget) {
+        return current;
+      }
+      return current.targetId === nextTarget.id ? current : { ...current, targetId: nextTarget.id };
+    });
+  }, [createTargets]);
+
+  useEffect(() => {
+    const nextTarget = editableTargets.find((target) => target.id === editTargetId) ?? editableTargets[0] ?? null;
+    const nextTargetId = nextTarget?.id || '';
+    if (editTargetId !== nextTargetId) {
+      setEditTargetId(nextTargetId);
+      setConfirmRemoveTargetId(null);
+    }
+  }, [editableTargets, editTargetId]);
+
+  useEffect(() => {
+    if (!selectedAsset || !selectedEditTarget) {
+      setEditDraft(createEmptyDraft());
+      setEditDraftContextKey('');
+      setEditDraftDirty(false);
+      setConfirmRemoveTargetId(null);
+      return;
+    }
+
+    if (editDraftContextKey !== editContextKey || !editDraftDirty) {
+      setEditDraft(buildEditDraft(selectedAsset, selectedEditTarget));
+      setEditDraftContextKey(editContextKey);
+      setEditDraftDirty(false);
+      setConfirmRemoveTargetId(null);
+    }
+  }, [selectedAsset, selectedEditTarget, editContextKey, editDraftContextKey, editDraftDirty]);
+
+  const handleCreateDraftChange = (updates: Partial<AssetDraftState>) => {
+    setCreateDraft((current) => ({ ...current, ...updates }));
+  };
+
+  const handleEditDraftChange = (updates: Partial<AssetDraftState>) => {
+    setEditDraftDirty(true);
+    setEditDraft((current) => ({ ...current, ...updates }));
+  };
+
+  const handleCreateAsset = async () => {
+    if (!selectedCreateTarget || !createDraft.assetKey.trim() || !createDraft.content.trim()) {
+      return;
+    }
+
+    await catalogWorkspaceStore.createAsset({
+      authoringScope: selectedCreateTarget.authoringScope,
+      kind: createDraft.kind,
+      assetKey: createDraft.assetKey.trim(),
+      title: createDraft.title.trim() || undefined,
+      description: createDraft.description.trim() || undefined,
+      content: createDraft.content,
+      loadMode: createDraft.kind === 'skill' ? createDraft.loadMode : undefined,
+      triggersOn: createDraft.kind === 'skill' ? parseListInput(createDraft.triggersInput) : undefined,
+      repoPath: selectedCreateTarget.repoPath,
+      authoringRepoPath: selectedCreateTarget.authoringRepoPath,
+    });
+
+    setCreateDraft((current) => ({
+      ...createEmptyDraft(selectedCreateTarget.id),
+      targetId: selectedCreateTarget.id,
+      kind: current.kind,
+      loadMode: current.kind === 'skill' ? current.loadMode : 'on-demand',
+    }));
+  };
+
+  const handleUpdateAsset = async () => {
+    if (!selectedAsset || !selectedEditTarget || !editDraft.content.trim()) {
+      return;
+    }
+
+    await catalogWorkspaceStore.updateAsset({
+      authoringScope: selectedEditTarget.authoringScope,
+      kind: selectedEditTarget.kind,
+      assetId: selectedEditTarget.assetId,
+      assetKey: selectedEditTarget.assetKey,
+      title: editDraft.title.trim() || undefined,
+      description: editDraft.description.trim() || undefined,
+      content: editDraft.content,
+      loadMode: selectedEditTarget.kind === 'skill' ? editDraft.loadMode : undefined,
+      triggersOn: selectedEditTarget.kind === 'skill' ? parseListInput(editDraft.triggersInput) : undefined,
+      expectedHash: selectedEditTarget.expectedHash,
+      repoPath: selectedEditTarget.repoPath,
+      authoringRepoPath: selectedEditTarget.authoringRepoPath,
+    });
+  };
+
+  const handleDeleteTarget = async () => {
+    if (!selectedEditTarget) {
+      return;
+    }
+
+    await catalogWorkspaceStore.deleteAsset({
+      authoringScope: selectedEditTarget.authoringScope,
+      kind: selectedEditTarget.kind,
+      assetId: selectedEditTarget.assetId,
+      assetKey: selectedEditTarget.assetKey,
+      loadMode: selectedEditTarget.kind === 'skill' ? editDraft.loadMode : undefined,
+      expectedHash: selectedEditTarget.expectedHash,
+      repoPath: selectedEditTarget.repoPath,
+      authoringRepoPath: selectedEditTarget.authoringRepoPath,
+    });
+
+    setConfirmRemoveTargetId(null);
+  };
+
+  const handleInstallAsset = async () => {
+    if (!selectedAsset?.assetId) {
+      return;
+    }
+
+    await catalogWorkspaceStore.installAsset({
+      assetId: selectedAsset.assetId,
+    });
+  };
+
+  const handleToggleEnabled = async () => {
+    if (!selectedAsset || !isSupportedAuthoringKind(selectedAsset.kind)) {
+      return;
+    }
+
+    const repoPath = normalizePath(activeRepo?.repoPath || catalogState.activeRepoPath);
+    if (!repoPath) {
+      return;
+    }
+
+    if (selectedAsset.enabled) {
+      await catalogWorkspaceStore.disableAsset({
+        kind: selectedAsset.kind,
+        assetId: selectedAsset.assetId,
+        assetKey: selectedAsset.assetKey,
+        repoPath,
+      });
+      return;
+    }
+
+    await catalogWorkspaceStore.enableAsset({
+      kind: selectedAsset.kind,
+      assetId: selectedAsset.assetId,
+      assetKey: selectedAsset.assetKey,
+      repoPath,
+    });
   };
 
   return (
-    <section className="assets-view" data-testid="assets-view">
-      <Toolbar testId="assets-view-toolbar">
-        <div className="assets-summary">
-          <p className="assets-title">Managed + Installed Assets</p>
-          <p className="assets-copy">
-            {assetState.managedAssets.length} managed entries, {installedTotal} installed artifacts
+    <section className="catalog-workspace" data-testid="catalog-workspace-view">
+      <Toolbar testId="catalog-workspace-toolbar">
+        <div className="catalog-summary">
+          <p className="catalog-title">Catalog workspace</p>
+          <p className="catalog-copy">
+            {formatCount(summaryStats?.effectiveCount)} effective assets, {formatCount(summaryStats?.installedCount)} installed,{' '}
+            {formatCount(summaryStats?.overriddenCount)} overridden
           </p>
         </div>
-        <Button
-          disabled={assetState.loading || assetState.syncing}
-          onClick={() => {
-            void assetsStore.repairWithSetup();
-          }}
-          testId="assets-repair-one-click"
-          variant="primary"
-        >
-          One-Click Skill Repair + Setup
-        </Button>
-        <Button
-          disabled={assetState.loading || assetState.syncing}
-          onClick={() => {
-            void assetsStore.syncAll(false);
-          }}
-          testId="assets-sync-all"
-          variant="secondary"
-        >
-          Install/Update All
-        </Button>
-        <Button
-          disabled={assetState.loading || assetState.syncing}
-          onClick={() => {
-            void assetsStore.syncAll(true);
-          }}
-          testId="assets-sync-all-force"
-          variant="ghost"
-        >
-          Force Reinstall All
-        </Button>
-        <Button
-          disabled={assetState.loading || assetState.syncing}
-          onClick={handleRefresh}
-          testId="assets-view-refresh"
-          variant="secondary"
-        >
-          {assetState.loading ? 'Refreshing...' : assetState.repairing ? 'Repairing...' : assetState.syncing ? 'Working...' : 'Refresh'}
-        </Button>
+
+        <div className="catalog-toolbar-actions">
+          <Button
+            disabled={catalogState.loading || catalogState.refreshing}
+            onClick={() => {
+              void catalogWorkspaceStore.refreshWorkspace();
+            }}
+            testId="catalog-refresh"
+            variant="primary"
+          >
+            {catalogState.refreshing ? 'Refreshing...' : 'Refresh catalog'}
+          </Button>
+          <Button
+            disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
+            onClick={() => {
+              void catalogWorkspaceStore.installAll(false);
+            }}
+            testId="catalog-install-all"
+            variant="secondary"
+          >
+            Install/Update All
+          </Button>
+          <Button
+            disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
+            onClick={() => {
+              void catalogWorkspaceStore.installAll(true);
+            }}
+            testId="catalog-force-reinstall"
+            variant="ghost"
+          >
+            Force Reinstall All
+          </Button>
+        </div>
       </Toolbar>
 
-      {assetState.error ? (
-        <p className="assets-error" role="alert">
-          {assetState.error}
+      {catalogState.activeRepoPath ? (
+        <p className="catalog-status">
+          Scoped to repo path: {catalogState.activeRepoPath}
+          {activeRepo?.registered ? ' · registered' : ' · ad hoc selection'}
+        </p>
+      ) : (
+        <p className="catalog-status">Showing the global catalog projection. Select a repo to inspect repo-local assets and overlays.</p>
+      )}
+
+      {catalogState.error ? (
+        <p className="catalog-error" role="alert">
+          {catalogState.error}
         </p>
       ) : null}
-      {assetState.actionMessage ? <p className="assets-status">{assetState.actionMessage}</p> : null}
+      {catalogState.installMessage ? <p className="catalog-status">{catalogState.installMessage}</p> : null}
 
-      <div className="assets-grid">
+      <div className="catalog-summary-grid">
+        <article className="catalog-stat-card">
+          <p className="catalog-stat-label">Kinds</p>
+          <p className="catalog-stat-value">{Object.keys(summaryStats?.byKind ?? {}).length}</p>
+          <p className="catalog-stat-copy">
+            Skills {formatCount(summaryStats?.byKind?.skill)} · Agents {formatCount(summaryStats?.byKind?.agent)}
+          </p>
+        </article>
+        <article className="catalog-stat-card">
+          <p className="catalog-stat-label">Projection freshness</p>
+          <p className="catalog-stat-value">{runtimeProjection?.freshness?.status ?? 'unknown'}</p>
+          <p className="catalog-stat-copy">Generated {formatTimestamp(runtimeProjection?.generatedAt)}</p>
+        </article>
+        <article className="catalog-stat-card">
+          <p className="catalog-stat-label">Recommendations</p>
+          <p className="catalog-stat-value">{recommendedAssets.length}</p>
+          <p className="catalog-stat-copy">
+            Current backend recommendation flags surfaced without inventing a parallel write path.
+          </p>
+        </article>
+        <article className="catalog-stat-card">
+          <p className="catalog-stat-label">Known repos</p>
+          <p className="catalog-stat-value">{repoList.length}</p>
+          <p className="catalog-stat-copy">
+            {activeRepo ? `Selected: ${buildRepoLabel(activeRepo)}` : 'No repo selected; working in global/user scope.'}
+          </p>
+        </article>
+      </div>
+
+      <div className="catalog-grid">
         <Panel
-          subtitle="Typed API data for managed asset status."
-          testId="assets-managed-panel"
-          title="Managed Assets"
+          subtitle="Explicit repo inventory, selection, registration, and repo-local scan visibility from the catalog repo endpoints."
+          testId="catalog-repo-panel"
+          title="Repo scope & registration"
         >
-          <ManagedAssetsTable
-            error={assetState.error}
-            loading={assetState.loading}
-            managedAssets={assetState.managedAssets}
-            onSelectAsset={(id) => assetsStore.selectManagedAsset(id)}
-            selectedAssetId={assetState.selectedAssetId}
-          />
+          <div className="catalog-form-grid">
+            <FormInput
+              label="Repo path"
+              onValueChange={(value) => catalogWorkspaceStore.setRepoPathInput(value)}
+              placeholder="C:\\path\\to\\repo"
+              testId="catalog-repo-path"
+              value={catalogState.repoPathInput}
+            />
+            <FormInput
+              label="Repo label (optional)"
+              onValueChange={setRepoLabelInput}
+              placeholder="Friendly repo label"
+              testId="catalog-repo-label"
+              value={repoLabelInput}
+            />
+          </div>
+
+          <div className="catalog-action-row">
+            <Button
+              disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !catalogState.repoPathInput.trim()}
+              onClick={() => {
+                void catalogWorkspaceStore.applyRepoContext();
+              }}
+              testId="catalog-apply-repo"
+              variant="secondary"
+            >
+              Select scope
+            </Button>
+            <Button
+              disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !catalogState.repoPathInput.trim()}
+              onClick={() => {
+                void catalogWorkspaceStore.registerRepo(catalogState.repoPathInput, repoLabelInput.trim() || undefined);
+              }}
+              testId="catalog-register-repo"
+              variant="secondary"
+            >
+              Register repo
+            </Button>
+            <Button
+              disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !catalogState.activeRepoPath}
+              onClick={() => {
+                void catalogWorkspaceStore.refreshRepo({
+                  repoId: catalogState.activeRepoId || undefined,
+                  repoPath: catalogState.activeRepoPath || undefined,
+                });
+              }}
+              testId="catalog-refresh-repo"
+              variant="ghost"
+            >
+              Refresh selected repo
+            </Button>
+            <Button
+              disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !catalogState.activeRepoPath}
+              onClick={() => {
+                void catalogWorkspaceStore.clearRepoContext();
+              }}
+              testId="catalog-clear-repo"
+              variant="ghost"
+            >
+              Clear scope
+            </Button>
+          </div>
+
+          {catalogState.repoInventoryError ? (
+            <p className="state-message state-error" role="alert">
+              {catalogState.repoInventoryError}
+            </p>
+          ) : null}
+
+          <p className="catalog-inline-note">
+            Active write context:{' '}
+            {activeRepo
+              ? `${buildRepoLabel(activeRepo)} (${activeRepo.repoPath || activeRepo.repoId || 'unknown path'})`
+              : 'Global/user-home only. Select a repo before repo-local or enable/disable actions.'}
+          </p>
+
+          <ul className="catalog-repo-list" data-testid="catalog-repo-list">
+            {catalogState.repoInventoryLoading && repoList.length === 0 ? (
+              <li className="state-message">Loading known repos...</li>
+            ) : null}
+            {!catalogState.repoInventoryLoading && repoList.length === 0 ? (
+              <li className="state-message">No known repos were returned by the repo inventory service.</li>
+            ) : null}
+            {repoList.map((repo) => (
+              <li className={repo.selected ? 'is-selected' : ''} key={`${repo.repoId || repo.repoPath || 'repo'}`}>
+                <div className="catalog-search-result-header">
+                  <div>
+                    <p className="catalog-item-title">{buildRepoLabel(repo)}</p>
+                    <p className="catalog-item-copy">{repo.repoPath || repo.repoId || 'No repo path available'}</p>
+                  </div>
+                  <div className="catalog-badge-row">
+                    <StatusBadge status={repo.scanStatus || 'unknown'} testId="catalog-repo-scan-status" />
+                    {repo.registered ? <StatusBadge status="registered" testId="catalog-repo-registered" /> : null}
+                    {repo.selected ? <StatusBadge status="selected" testId="catalog-repo-selected" /> : null}
+                  </div>
+                </div>
+
+                <p className="catalog-inline-note">{describeRepoAssetSummary(repo)}</p>
+                <div className="catalog-badge-row">
+                  {(repo.sources ?? []).slice(0, 4).map((source) => (
+                    <StatusBadge key={`${repo.repoId || repo.repoPath}-${source}`} status={source} testId="catalog-repo-source" />
+                  ))}
+                </div>
+
+                <div className="catalog-action-row">
+                  <Button
+                    disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || repo.selected}
+                    onClick={() => {
+                      void catalogWorkspaceStore.selectRepo({
+                        repoId: repo.repoId,
+                        repoPath: repo.repoPath,
+                      });
+                    }}
+                    size="sm"
+                    testId="catalog-repo-select"
+                    variant="secondary"
+                  >
+                    Select
+                  </Button>
+                  <Button
+                    disabled={catalogState.loading || catalogState.refreshing}
+                    onClick={() => {
+                      void catalogWorkspaceStore.refreshRepo({
+                        repoId: repo.repoId,
+                        repoPath: repo.repoPath,
+                      });
+                    }}
+                    size="sm"
+                    testId="catalog-repo-item-refresh"
+                    variant="ghost"
+                  >
+                    Refresh
+                  </Button>
+                  {repo.registered ? (
+                    <Button
+                      disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                      onClick={() => {
+                        void catalogWorkspaceStore.unregisterRepo({
+                          repoId: repo.repoId,
+                          repoPath: repo.repoPath,
+                        });
+                      }}
+                      size="sm"
+                      testId="catalog-repo-unregister"
+                      variant="danger"
+                    >
+                      Unregister
+                    </Button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
         </Panel>
 
         <Panel
-          subtitle="Counts and previews from installed assets."
-          testId="assets-installed-panel"
-          title="Installed Inventory"
+          subtitle="Create a new agent or skill in the selected authoritative target. The form makes the write path explicit before saving."
+          testId="catalog-create-panel"
+          title="Create asset"
         >
-          <InstalledInventory
-            error={assetState.error}
-            inventory={assetState.installedInventory}
-            loading={assetState.loading}
-            onSelectAsset={(path) => assetsStore.selectInstalledAsset(path)}
-            selectedAssetPath={assetState.selectedAssetPath}
+          <div className="catalog-form-grid">
+            <label className="form-input" htmlFor="catalog-create-target">
+              <span className="form-label">Write target</span>
+              <select
+                data-testid="catalog-create-target"
+                id="catalog-create-target"
+                onChange={(event) => handleCreateDraftChange({ targetId: event.target.value })}
+                value={selectedCreateTarget?.id || ''}
+              >
+                {createTargets.map((target) => (
+                  <option key={target.id} value={target.id}>
+                    {target.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="form-input" htmlFor="catalog-create-kind">
+              <span className="form-label">Kind</span>
+              <select
+                data-testid="catalog-create-kind"
+                id="catalog-create-kind"
+                onChange={(event) => handleCreateDraftChange({ kind: event.target.value as SupportedAuthoringKind })}
+                value={createDraft.kind}
+              >
+                <option value="skill">Skill</option>
+                <option value="agent">Agent</option>
+              </select>
+            </label>
+          </div>
+
+          <p className="catalog-inline-note" data-testid="catalog-create-target-copy">
+            {selectedCreateTarget?.description || 'Select a write target to create a new asset.'}
+          </p>
+
+          <div className="catalog-form-grid">
+            <FormInput
+              label="Asset key"
+              onValueChange={(value) => handleCreateDraftChange({ assetKey: value })}
+              placeholder="repo-helper"
+              testId="catalog-create-asset-key"
+              value={createDraft.assetKey}
+            />
+            <FormInput
+              label="Title"
+              onValueChange={(value) => handleCreateDraftChange({ title: value })}
+              placeholder="Repo Helper"
+              testId="catalog-create-title"
+              value={createDraft.title}
+            />
+          </div>
+
+          <FormInput
+            label="Description"
+            onValueChange={(value) => handleCreateDraftChange({ description: value })}
+            placeholder="Short summary shown in the catalog."
+            testId="catalog-create-description"
+            value={createDraft.description}
           />
+
+          {createDraft.kind === 'skill' ? (
+            <div className="catalog-form-grid">
+              <label className="form-input" htmlFor="catalog-create-load-mode">
+                <span className="form-label">Load mode</span>
+                <select
+                  data-testid="catalog-create-load-mode"
+                  id="catalog-create-load-mode"
+                  onChange={(event) => handleCreateDraftChange({ loadMode: event.target.value as 'always' | 'on-demand' })}
+                  value={createDraft.loadMode}
+                >
+                  <option value="on-demand">On-demand (skills-vault)</option>
+                  <option value="always">Always loaded (skills + skills-vault when installed)</option>
+                </select>
+              </label>
+
+              <FormInput
+                label="Triggers"
+                onValueChange={(value) => handleCreateDraftChange({ triggersInput: value })}
+                placeholder="repo, workspace, helper"
+                testId="catalog-create-triggers"
+                value={createDraft.triggersInput}
+              />
+            </div>
+          ) : null}
+
+          <label className="form-input" htmlFor="catalog-create-content">
+            <span className="form-label">Markdown content</span>
+            <textarea
+              data-testid="catalog-create-content"
+              id="catalog-create-content"
+              onChange={(event) => handleCreateDraftChange({ content: event.target.value })}
+              placeholder="## Usage&#10;&#10;Add the asset body here."
+              value={createDraft.content}
+            />
+          </label>
+
+          <div className="catalog-action-row">
+            <Button
+              disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !selectedCreateTarget || !createDraft.assetKey.trim() || !createDraft.content.trim()}
+              onClick={() => {
+                void handleCreateAsset();
+              }}
+              testId="catalog-create-submit"
+              variant="primary"
+            >
+              Create asset
+            </Button>
+          </div>
+        </Panel>
+      </div>
+
+      <div className="catalog-grid">
+        <Panel
+          subtitle="Unified browsing across the catalog projection with quick perspectives for skills, agents, scopes, and effective state."
+          testId="catalog-browser-panel"
+          title="Catalog browser"
+        >
+          <div className="catalog-filter-grid">
+            <FormInput
+              label="Filter"
+              onValueChange={(value) => catalogWorkspaceStore.setFilters({ text: value })}
+              placeholder="Search by asset, title, description, label, or selected layer"
+              testId="catalog-filter-input"
+              type="search"
+              value={catalogState.filters.text}
+            />
+            <div className="catalog-filter-groups">
+              <div className="catalog-filter-group">
+                <span className="form-label">Perspective</span>
+                <div className="catalog-chip-row">
+                  {(['all', 'skill', 'agent', 'prompt'] as const).map((kind) => (
+                    <button
+                      aria-pressed={catalogState.filters.kind === kind}
+                      className={`catalog-chip ${catalogState.filters.kind === kind ? 'is-active' : ''}`}
+                      key={kind}
+                      onClick={() => catalogWorkspaceStore.setFilters({ kind })}
+                      type="button"
+                    >
+                      {kind === 'all' ? 'All assets' : `${kind}s`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="catalog-filter-group">
+                <span className="form-label">Scope</span>
+                <div className="catalog-chip-row">
+                  {(['all', 'global', 'user', 'repo'] as const).map((scopeKind) => (
+                    <button
+                      aria-pressed={catalogState.filters.scopeKind === scopeKind}
+                      className={`catalog-chip ${catalogState.filters.scopeKind === scopeKind ? 'is-active' : ''}`}
+                      key={scopeKind}
+                      onClick={() => catalogWorkspaceStore.setFilters({ scopeKind })}
+                      type="button"
+                    >
+                      {scopeKind}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="catalog-check-grid">
+                <label className="planning-checkbox">
+                  <input
+                    checked={catalogState.filters.installedOnly}
+                    onChange={(event) => catalogWorkspaceStore.setFilters({ installedOnly: event.target.checked })}
+                    type="checkbox"
+                  />
+                  Installed only
+                </label>
+                <label className="planning-checkbox">
+                  <input
+                    checked={catalogState.filters.enabledOnly}
+                    onChange={(event) => catalogWorkspaceStore.setFilters({ enabledOnly: event.target.checked })}
+                    type="checkbox"
+                  />
+                  Enabled only
+                </label>
+                <label className="planning-checkbox">
+                  <input
+                    checked={catalogState.filters.availableOnly}
+                    onChange={(event) => catalogWorkspaceStore.setFilters({ availableOnly: event.target.checked })}
+                    type="checkbox"
+                  />
+                  Available only
+                </label>
+                <label className="planning-checkbox">
+                  <input
+                    checked={catalogState.filters.overriddenOnly}
+                    onChange={(event) => catalogWorkspaceStore.setFilters({ overriddenOnly: event.target.checked })}
+                    type="checkbox"
+                  />
+                  Overridden only
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {catalogState.loading && catalogState.assets.length === 0 ? (
+            <p className="state-message">Loading catalog workspace…</p>
+          ) : null}
+          {filteredAssets.length === 0 && !catalogState.loading ? (
+            <p className="state-message">No catalog assets matched the current filters.</p>
+          ) : null}
+
+          {filteredAssets.length > 0 ? (
+            <div className="catalog-table-wrap">
+              <table className="catalog-table" data-testid="catalog-browser-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Asset</th>
+                    <th scope="col">Perspective</th>
+                    <th scope="col">Scope</th>
+                    <th scope="col">State</th>
+                    <th scope="col">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAssets.map((asset) => {
+                    const isSelected = asset.assetId === catalogState.selectedAssetId;
+                    return (
+                      <tr className={isSelected ? 'is-selected' : ''} key={asset.assetId}>
+                        <td>
+                          <div className="catalog-item-title">{asset.selectedEntry?.title || asset.assetKey}</div>
+                          <p className="catalog-item-copy">{asset.selectedEntry?.description || asset.assetId}</p>
+                        </td>
+                        <td>
+                          <div className="catalog-badge-row">
+                            <StatusBadge status={asset.kind} testId="catalog-kind-badge" />
+                            <StatusBadge status={asset.selectedLayer || 'unknown-layer'} testId="catalog-layer-badge" />
+                          </div>
+                        </td>
+                        <td>{asset.scope?.kind || 'unknown'}</td>
+                        <td>
+                          <div className="catalog-badge-row">
+                            <StatusBadge status={asset.installed ? 'installed' : 'not-installed'} testId="catalog-installed-badge" />
+                            <StatusBadge status={asset.enabled ? 'enabled' : 'disabled'} testId="catalog-enabled-badge" />
+                            {asset.overridden ? <StatusBadge status="overridden" testId="catalog-overridden-badge" /> : null}
+                          </div>
+                        </td>
+                        <td>
+                          <Button
+                            onClick={() => {
+                              void catalogWorkspaceStore.selectAsset(asset.assetId);
+                            }}
+                            size="sm"
+                            testId="catalog-select-asset"
+                            variant="secondary"
+                          >
+                            Inspect
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </Panel>
 
         <Panel
-          subtitle="Selected asset metadata JSON preview."
-          testId="assets-viewer-panel"
-          title="Asset Viewer"
+          subtitle="Effective state, write-target aware actions, and explicit edit/remove flows using the catalog mutation APIs."
+          testId="catalog-detail-panel"
+          title="Asset state inspector"
         >
-          <AssetViewer
-            installedInventory={assetState.installedInventory}
-            managedAssets={assetState.managedAssets}
-            selectedAssetId={assetState.selectedAssetId}
-            selectedAssetPath={assetState.selectedAssetPath}
-          />
+          {catalogState.selectedAssetDetailLoading ? <p className="state-message">(loading selected asset...)</p> : null}
+          {catalogState.selectedAssetDetailError ? (
+            <p className="state-message state-error" role="alert">
+              {catalogState.selectedAssetDetailError}
+            </p>
+          ) : null}
+
+          {selectedAsset ? (
+            <>
+              <dl className="detail-grid">
+                <div>
+                  <dt>Asset</dt>
+                  <dd>{selectedAsset.selectedEntry?.title || selectedAsset.assetKey}</dd>
+                </div>
+                <div>
+                  <dt>Effective scope</dt>
+                  <dd>{selectedAsset.scope?.kind || 'unknown'}</dd>
+                </div>
+                <div>
+                  <dt>Selected layer</dt>
+                  <dd>{selectedAsset.selectedLayer || 'unknown'}</dd>
+                </div>
+                <div>
+                  <dt>Availability</dt>
+                  <dd>{selectedAsset.installState?.availability || 'unknown'}</dd>
+                </div>
+                <div>
+                  <dt>Auto-load</dt>
+                  <dd>{selectedAsset.installState?.isAutoLoaded ? 'yes' : 'no'}</dd>
+                </div>
+                <div>
+                  <dt>Labels</dt>
+                  <dd>{(selectedAsset.labels ?? []).join(', ') || '—'}</dd>
+                </div>
+              </dl>
+
+              <div className="catalog-badge-row">
+                <StatusBadge status={selectedAsset.kind} testId="catalog-detail-kind" />
+                <StatusBadge status={selectedAsset.installed ? 'installed' : 'not-installed'} testId="catalog-detail-installed" />
+                <StatusBadge status={selectedAsset.enabled ? 'enabled' : 'disabled'} testId="catalog-detail-enabled" />
+                {selectedAsset.recommended ? <StatusBadge status="recommended" testId="catalog-detail-recommended" /> : null}
+                {selectedAsset.overridden ? <StatusBadge status="overridden" testId="catalog-detail-overridden" /> : null}
+              </div>
+
+              <p className="catalog-item-copy">
+                {selectedAsset.selectedEntry?.description || 'No description available for this asset.'}
+              </p>
+
+              <div className="catalog-action-row">
+                <Button
+                  onClick={() => {
+                    void catalogWorkspaceStore.selectAsset(selectedAsset.assetId);
+                  }}
+                  testId="catalog-reinspect-asset"
+                  variant="secondary"
+                >
+                  Refresh inspect state
+                </Button>
+                <Button
+                  disabled={!hasInstallableSource || catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                  onClick={() => {
+                    void handleInstallAsset();
+                  }}
+                  testId="catalog-install-selected"
+                  variant="secondary"
+                >
+                  Install shipped copy
+                </Button>
+                <Button
+                  disabled={!canToggleEnabled || catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                  onClick={() => {
+                    void handleToggleEnabled();
+                  }}
+                  testId="catalog-toggle-enabled"
+                  variant="ghost"
+                >
+                  {selectedAsset.enabled ? 'Disable for selected repo' : 'Enable for selected repo'}
+                </Button>
+              </div>
+
+              <div className="metadata-block">
+                <p className="catalog-section-title">Selected write target</p>
+                {selectedEditTarget ? (
+                  <>
+                    <label className="form-input" htmlFor="catalog-edit-target">
+                      <span className="form-label">Edit / remove target</span>
+                      <select
+                        data-testid="catalog-edit-target"
+                        id="catalog-edit-target"
+                        onChange={(event) => setEditTargetId(event.target.value)}
+                        value={selectedEditTarget.id}
+                      >
+                        {editableTargets.map((target) => (
+                          <option key={target.id} value={target.id}>
+                            {target.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <p className="catalog-inline-note" data-testid="catalog-write-target-copy">
+                      {selectedEditTarget.description}
+                    </p>
+                  </>
+                ) : (
+                  <p className="catalog-gap-note" data-testid="catalog-write-target-gap">
+                    {sharedEditBlocked
+                      ? 'Shared shipped assets are only writable when the instruction-engine workspace repo is the selected write scope.'
+                      : 'No authoritative write target is available for this effective asset in the current scope.'}
+                  </p>
+                )}
+              </div>
+
+              {selectedEditTarget ? (
+                <div className="catalog-editor-grid">
+                  <div className="catalog-form-grid">
+                    <FormInput
+                      label="Title"
+                      onValueChange={(value) => handleEditDraftChange({ title: value })}
+                      placeholder="Asset title"
+                      testId="catalog-edit-title"
+                      value={editDraft.title}
+                    />
+                    <FormInput
+                      label="Description"
+                      onValueChange={(value) => handleEditDraftChange({ description: value })}
+                      placeholder="Short summary"
+                      testId="catalog-edit-description"
+                      value={editDraft.description}
+                    />
+                  </div>
+
+                  {selectedEditTarget.kind === 'skill' ? (
+                    <div className="catalog-form-grid">
+                      <label className="form-input" htmlFor="catalog-edit-load-mode">
+                        <span className="form-label">Load mode</span>
+                        <select
+                          data-testid="catalog-edit-load-mode"
+                          id="catalog-edit-load-mode"
+                          onChange={(event) => handleEditDraftChange({ loadMode: event.target.value as 'always' | 'on-demand' })}
+                          value={editDraft.loadMode}
+                        >
+                          <option value="on-demand">On-demand</option>
+                          <option value="always">Always loaded</option>
+                        </select>
+                      </label>
+
+                      <FormInput
+                        label="Triggers"
+                        onValueChange={(value) => handleEditDraftChange({ triggersInput: value })}
+                        placeholder="repo, workspace, helper"
+                        testId="catalog-edit-triggers"
+                        value={editDraft.triggersInput}
+                      />
+                    </div>
+                  ) : null}
+
+                  <label className="form-input" htmlFor="catalog-edit-content">
+                    <span className="form-label">Markdown content</span>
+                    <textarea
+                      data-testid="catalog-edit-content"
+                      id="catalog-edit-content"
+                      onChange={(event) => handleEditDraftChange({ content: event.target.value })}
+                      placeholder="Paste the full replacement content for this asset."
+                      value={editDraft.content}
+                    />
+                  </label>
+
+                  {!selectedEditTarget.contentPrefillAvailable ? (
+                    <p className="catalog-gap-note">
+                      Current authoritative content is not exposed by the read APIs for this target. Paste the full replacement markdown before saving to avoid accidental truncation.
+                    </p>
+                  ) : null}
+
+                  <div className="catalog-action-row">
+                    <Button
+                      disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !editDraft.content.trim()}
+                      onClick={() => {
+                        void handleUpdateAsset();
+                      }}
+                      testId="catalog-edit-save"
+                      variant="primary"
+                    >
+                      Save changes
+                    </Button>
+                    <Button
+                      disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                      onClick={() => {
+                        setConfirmRemoveTargetId((current) => current === selectedEditTarget.id ? null : selectedEditTarget.id);
+                      }}
+                      testId="catalog-edit-remove"
+                      variant="danger"
+                    >
+                      Remove target
+                    </Button>
+                    {confirmRemoveTargetId === selectedEditTarget.id ? (
+                      <Button
+                        disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                        onClick={() => {
+                          void handleDeleteTarget();
+                        }}
+                        testId="catalog-edit-remove-confirm"
+                        variant="danger"
+                      >
+                        Confirm remove
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              {selectedReasons.length > 0 ? (
+                <div className="metadata-block">
+                  <p className="catalog-section-title">Effective-state reasons</p>
+                  <ul className="catalog-reason-list">
+                    {selectedReasons.map((reason, index) => (
+                      <li key={`${reason.code || 'reason'}-${index}`}>
+                        <strong>{reason.code || 'reason'}:</strong> {reason.message || 'No explanation provided.'}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              <details className="metadata-block" open>
+                <summary>{catalogState.selectedAssetContentLabel}</summary>
+                <pre className="code-block">{catalogState.selectedAssetContent}</pre>
+              </details>
+
+              <details className="metadata-block">
+                <summary>View state JSON</summary>
+                <pre>{JSON.stringify({ asset: selectedAsset, entries: catalogState.selectedEntries }, null, 2)}</pre>
+              </details>
+            </>
+          ) : (
+            <p className="state-message">Select an asset from the catalog browser to inspect effective state.</p>
+          )}
+        </Panel>
+      </div>
+
+      <div className="catalog-grid">
+        <Panel
+          subtitle="See how source, user-installed, repo-local, and overlay entries resolve into the effective state."
+          testId="catalog-overrides-panel"
+          title="Scopes & overrides"
+        >
+          {!selectedAsset ? <p className="state-message">Select an asset to inspect contributing and suppressed entries.</p> : null}
+
+          {selectedAsset ? (
+            <div className="catalog-overrides-grid">
+              <section>
+                <p className="catalog-section-title">Contributing entries ({selectedContributors.length})</p>
+                {selectedContributors.length === 0 ? <p className="state-message">No contributing entries recorded.</p> : null}
+                {selectedContributors.length > 0 ? (
+                  <ul className="catalog-entry-list">
+                    {selectedContributors.map((entry, index) => (
+                      <li key={`${entry.assetId}-${entry.layer || 'layer'}-${index}`}>
+                        <div className="catalog-badge-row">
+                          <StatusBadge status={entry.layer || 'unknown-layer'} testId="catalog-entry-layer" />
+                          <StatusBadge status={entry.installState?.availability || 'unknown'} testId="catalog-entry-availability" />
+                        </div>
+                        <p className="catalog-item-title">{entry.title || entry.assetKey || entry.assetId}</p>
+                        <p className="catalog-item-copy">{summarizeEntryScope(entry)}</p>
+                        <p className="catalog-entry-path">{entry.contentPath || 'No content path available'}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </section>
+
+              <section>
+                <p className="catalog-section-title">Suppressed entries ({selectedSuppressed.length})</p>
+                {selectedSuppressed.length === 0 ? <p className="state-message">No suppressed entries recorded.</p> : null}
+                {selectedSuppressed.length > 0 ? (
+                  <ul className="catalog-entry-list">
+                    {selectedSuppressed.map((entry, index) => (
+                      <li key={`${entry.assetId}-${entry.layer || 'suppressed'}-${index}`}>
+                        <div className="catalog-badge-row">
+                          <StatusBadge status={entry.layer || 'unknown-layer'} testId="catalog-suppressed-layer" />
+                          <StatusBadge status={entry.installState?.availability || 'unknown'} testId="catalog-suppressed-availability" />
+                        </div>
+                        <p className="catalog-item-title">{entry.title || entry.assetKey || entry.assetId}</p>
+                        <p className="catalog-item-copy">{summarizeEntryScope(entry)}</p>
+                        <p className="catalog-entry-path">{entry.contentPath || 'No content path available'}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </section>
+            </div>
+          ) : null}
+        </Panel>
+
+        <Panel
+          subtitle="Deterministic catalog search against the new backend route family, with explanations and selected recommendations."
+          testId="catalog-search-panel"
+          title="Search & recommendations"
+        >
+          <div className="catalog-search-controls">
+            <FormInput
+              label="Search"
+              onValueChange={(value) => catalogWorkspaceStore.setSearchQuery(value)}
+              placeholder="Search the catalog by task, skill, agent, tag, or title"
+              testId="catalog-search-query"
+              type="search"
+              value={catalogState.searchQuery}
+            />
+            <div className="catalog-chip-row">
+              {(['all', 'always', 'on-demand'] as const).map((mode) => (
+                <button
+                  aria-pressed={catalogState.searchPreferLoadMode === mode}
+                  className={`catalog-chip ${catalogState.searchPreferLoadMode === mode ? 'is-active' : ''}`}
+                  key={mode}
+                  onClick={() => catalogWorkspaceStore.setSearchPreferLoadMode(mode)}
+                  type="button"
+                >
+                  {mode === 'all' ? 'Any load mode' : mode}
+                </button>
+              ))}
+            </div>
+            <label className="planning-checkbox">
+              <input
+                checked={catalogState.searchIncludeVaultOnly}
+                onChange={(event) => catalogWorkspaceStore.setSearchIncludeVaultOnly(event.target.checked)}
+                type="checkbox"
+              />
+              Include vault-only results
+            </label>
+            <Button
+              disabled={catalogState.searchLoading}
+              onClick={() => {
+                void catalogWorkspaceStore.runSearch();
+              }}
+              testId="catalog-run-search"
+              variant="secondary"
+            >
+              {catalogState.searchLoading ? 'Searching...' : 'Search catalog'}
+            </Button>
+          </div>
+
+          {catalogState.searchError ? (
+            <p className="state-message state-error" role="alert">
+              {catalogState.searchError}
+            </p>
+          ) : null}
+
+          {recommendedAssets.length > 0 ? (
+            <p className="catalog-inline-note">
+              Recommended effective assets currently flagged by the backend: {recommendedAssets.map((asset) => asset.assetKey).join(', ')}
+            </p>
+          ) : (
+            <p className="catalog-inline-note">
+              No backend recommendation flags are active in the current projection; search explanations still surface why results matched.
+            </p>
+          )}
+
+          <ul className="catalog-search-result-list">
+            {catalogState.searchResults.length === 0 ? (
+              <li className="state-message">Run a search to inspect ranked results and explanations.</li>
+            ) : (
+              catalogState.searchResults.map((result) => (
+                <li key={`${result.assetId}-${result.rank}`}>
+                  <div className="catalog-search-result-header">
+                    <div>
+                      <p className="catalog-item-title">
+                        #{result.rank} · {result.entry?.title || result.effectiveState?.assetKey || result.assetId}
+                      </p>
+                      <p className="catalog-item-copy">Score {result.score}</p>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        void catalogWorkspaceStore.selectAsset(result.assetId);
+                      }}
+                      size="sm"
+                      testId="catalog-search-inspect"
+                      variant="secondary"
+                    >
+                      Inspect
+                    </Button>
+                  </div>
+                  <div className="catalog-badge-row">
+                    <StatusBadge status={result.effectiveState?.kind || 'unknown'} testId="catalog-search-kind" />
+                    <StatusBadge status={result.effectiveState?.selectedLayer || 'unknown-layer'} testId="catalog-search-layer" />
+                  </div>
+                  <ul className="catalog-reason-list">
+                    {(result.explanations ?? []).map((explanation, index) => (
+                      <li key={`${result.assetId}-explanation-${index}`}>
+                        <strong>{explanation.code || 'match'}:</strong> {explanation.message || 'Matched by catalog search.'}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))
+            )}
+          </ul>
+        </Panel>
+      </div>
+
+      <div className="catalog-grid">
+        <Panel
+          subtitle="Recent asset-centric usage, search, and rebuild events from the audit log."
+          testId="catalog-audit-panel"
+          title="Usage & audit"
+        >
+          {catalogState.auditError ? (
+            <p className="state-message state-error" role="alert">
+              {catalogState.auditError}
+            </p>
+          ) : null}
+
+          {auditCounts.length > 0 ? (
+            <div className="catalog-badge-row">
+              {auditCounts.map(([eventType, count]) => (
+                <StatusBadge key={eventType} status={`${eventType} × ${count}`} testId="catalog-audit-type" />
+              ))}
+            </div>
+          ) : null}
+
+          <ul className="catalog-audit-list">
+            {catalogState.auditEvents.length === 0 ? (
+              <li className="state-message">No audit events were returned for the current selection.</li>
+            ) : (
+              catalogState.auditEvents.map((event) => (
+                <li key={event.eventId}>
+                  <p className="catalog-item-title">{event.eventType}</p>
+                  <p className="catalog-item-copy">{formatTimestamp(event.occurredAt)}</p>
+                  {typeof event.search?.query === 'object' ? (
+                    <p className="catalog-inline-note">
+                      Query: {String((event.search.query as Record<string, unknown>).query || '—')}
+                    </p>
+                  ) : null}
+                </li>
+              ))
+            )}
+          </ul>
+        </Panel>
+
+        <Panel
+          subtitle="Projection read mode, freshness, warning state, and audit storage health from /api/runtime/catalog-health."
+          testId="catalog-runtime-panel"
+          title="Runtime health"
+        >
+          {catalogState.summaryError ? (
+            <p className="state-message state-error" role="alert">
+              {catalogState.summaryError}
+            </p>
+          ) : null}
+          {catalogState.healthError ? (
+            <p className="state-message state-error" role="alert">
+              {catalogState.healthError}
+            </p>
+          ) : null}
+
+          <dl className="detail-grid">
+            <div>
+              <dt>Projection status</dt>
+              <dd>{catalogState.runtimeHealth?.ok ? 'ok' : 'degraded'}</dd>
+            </div>
+            <div>
+              <dt>Read mode</dt>
+              <dd>{runtimeProjection?.readMode || 'unknown'}</dd>
+            </div>
+            <div>
+              <dt>Freshness</dt>
+              <dd>{runtimeProjection?.freshness?.status || 'unknown'}</dd>
+            </div>
+            <div>
+              <dt>Warnings</dt>
+              <dd>{runtimeProjection?.warnings?.count ?? 0}</dd>
+            </div>
+            <div>
+              <dt>Last rebuild</dt>
+              <dd>{formatTimestamp(runtimeProjection?.rebuild?.lastSuccessfulAt)}</dd>
+            </div>
+            <div>
+              <dt>Audit file</dt>
+              <dd>{catalogState.runtimeHealth?.audit?.exists ? 'available' : 'missing'}</dd>
+            </div>
+          </dl>
+
+          <div className="catalog-badge-row">
+            <StatusBadge status={runtimeProjection?.freshness?.status || 'unknown'} testId="catalog-runtime-freshness" />
+            <StatusBadge status={runtimeProjection?.rebuild?.status || 'idle'} testId="catalog-runtime-rebuild" />
+            <StatusBadge status={catalogState.runtimeHealth?.audit?.exists ? 'audit-ready' : 'audit-missing'} testId="catalog-runtime-audit" />
+          </div>
+
+          <details className="metadata-block">
+            <summary>Projection metadata</summary>
+            <pre>{JSON.stringify(catalogState.runtimeHealth, null, 2)}</pre>
+          </details>
         </Panel>
       </div>
     </section>

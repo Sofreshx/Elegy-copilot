@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 
 const { register } = require('../routes/assets');
+const { readCatalogAuditEvents } = require('../lib/catalogAuditAnalytics');
 
 let passed = 0;
 let failed = 0;
@@ -100,6 +101,12 @@ async function run() {
       const vaultedSkill = path.join(copilotHomeAbs, 'skills-vault', 'valid-skill', 'SKILL.md');
       assert.ok(fs.existsSync(installedSkill), 'Expected valid skill to install to skills/');
       assert.ok(fs.existsSync(vaultedSkill), 'Expected valid skill to copy to skills-vault/');
+
+      const auditEvents = readCatalogAuditEvents(copilotHomeAbs, 10);
+      assert.ok(
+        auditEvents.some((event) => event.eventType === 'asset.installed' && event.assetId === 'skill-valid'),
+        'Expected canonical asset.installed audit event for managed sync',
+      );
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

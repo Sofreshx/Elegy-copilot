@@ -168,7 +168,16 @@ export class AgentDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 		if (visibility) {
 			parts.push(visibility);
 		}
-		parts.push('discoverable');
+		if (agent.catalogLayer === 'repo-local') {
+			parts.push('repo-local');
+		} else if (agent.catalogLayer === 'user-installed') {
+			parts.push('installed');
+		} else {
+			parts.push('discoverable');
+		}
+		if (agent.overridden) {
+			parts.push('override');
+		}
 		if (!enabled) {
 			parts.push('disabled');
 		}
@@ -191,7 +200,7 @@ export class AgentDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 			command: {
 				title: 'Open Agent',
 				command: 'vscode.open',
-				arguments: [vscode.Uri.file(agent.path)]
+				arguments: [vscode.Uri.file(agent.openPath ?? agent.path)]
 			}
 		};
 	}

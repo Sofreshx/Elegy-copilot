@@ -16,7 +16,10 @@ export function run(): Promise<void> {
       mocha.addFile(file);
     }
   } else {
+    mocha.addFile(path.resolve(testsRoot, 'agentScanner.test.js'));
+    mocha.addFile(path.resolve(testsRoot, 'catalogAdapter.test.js'));
     mocha.addFile(path.resolve(testsRoot, 'eventEmitter.test.js'));
+    mocha.addFile(path.resolve(testsRoot, 'skillScanner.test.js'));
     mocha.addFile(path.resolve(testsRoot, 'taskLifecycle.test.js'));
     mocha.addFile(path.resolve(testsRoot, 'skillPointer.test.js'));
     mocha.addFile(path.resolve(testsRoot, 'vaultMigration.test.js'));

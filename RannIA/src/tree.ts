@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { scanSkills } from './skillScanner';
-import { resolveSkill } from './skillResolver';
 import { RepoSkills, SkillDiscoverySnapshot, SkillEntry } from './types';
 
 type NodeKind = 'root' | 'section' | 'repo' | 'skill';
@@ -127,15 +126,26 @@ export class SkillDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 
 	private toSkillNode(skill: SkillEntry): SkillNode {
 		const enabled = skill.enabled !== false;
-		const isPointer = skill.kind === 'pointer';
+		const isPointer = skill.kind === 'pointer' || skill.hiddenFromAutoLoad === true;
 		const descriptionParts: string[] = [];
-		if (skill.source === 'instruction-engine') {
-			descriptionParts.push('engine');
-		} else {
-			descriptionParts.push('discoverable');
+		switch (skill.catalogLayer) {
+			case 'repo-local':
+				descriptionParts.push('repo-local');
+				break;
+			case 'vault-only':
+				descriptionParts.push('vault');
+				break;
+			case 'user-installed':
+				descriptionParts.push('installed');
+				break;
+			default:
+				descriptionParts.push(skill.source === 'instruction-engine' ? 'engine' : 'discoverable');
 		}
 		if (isPointer) {
-			descriptionParts.push('pointer');
+			descriptionParts.push(skill.catalogLayer === 'vault-only' ? 'on-demand' : 'pointer');
+		}
+		if (skill.overridden) {
+			descriptionParts.push('override');
 		}
 		if (!enabled) {
 			descriptionParts.push('disabled');
@@ -148,7 +158,7 @@ export class SkillDiscoveryTreeProvider implements vscode.TreeDataProvider<Node>
 		if (isPointer && enabled) {
 			icon = 'link';
 		}
-		const openPath = isPointer ? (resolveSkill(skill.name) ?? skill.path) : skill.path;
+		const openPath = skill.openPath ?? skill.path;
 		return {
 			kind: 'skill',
 			label: skill.name,

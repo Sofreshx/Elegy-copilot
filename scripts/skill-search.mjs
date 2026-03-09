@@ -1,55 +1,116 @@
 #!/usr/bin/env node
-import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
+
+const require = createRequire(import.meta.url);
+const { searchSkills } = require('../copilot-ui/lib/skillSearchService');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
-const indexPath = path.join(repoRoot, 'engine-assets', 'skills', 'skill-metadata-index.json');
 
-function loadIndex() {
-	if (!fs.existsSync(indexPath)) {
-		console.error(`Index not found: ${indexPath}`);
-		process.exit(1);
+function takeValue(args, index, flag) {
+	const value = args[index + 1];
+	if (value == null || value.startsWith('--')) {
+		throw new Error(`Missing value for ${flag}`);
 	}
-	return JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+	return value;
 }
 
-function scoreEntry(entry, query) {
-	const q = query.toLowerCase();
-
-	if (entry.name.toLowerCase() === q) return { score: 100, reason: 'exact-name' };
-	if (entry.skill.toLowerCase() === q) return { score: 100, reason: 'exact-skill' };
-	if (entry.name.toLowerCase().includes(q)) return { score: 50, reason: 'name-contains' };
-	if (entry.skill.toLowerCase().includes(q)) return { score: 50, reason: 'skill-contains' };
-
-	for (const trigger of entry.triggersOn || []) {
-		if (trigger.toLowerCase().includes(q)) return { score: 30, reason: 'trigger-contains' };
-	}
-
-	if (entry.description && entry.description.toLowerCase().includes(q)) {
-		return { score: 10, reason: 'description-contains' };
-	}
-
-	return { score: 0, reason: '' };
-}
-
-function search(index, query) {
-	if (!query) {
-		return index.entries.map((e) => ({ ...e, score: 0, reason: 'all' }));
-	}
-
-	const results = [];
-	for (const entry of index.entries) {
-		const { score, reason } = scoreEntry(entry, query);
-		if (score > 0) {
-			results.push({ ...entry, score, reason });
+function collectRepeatedValues(args, flag) {
+	const values = [];
+	for (let index = 0; index < args.length; index += 1) {
+		if (args[index] !== flag) {
+			continue;
 		}
+		values.push(takeValue(args, index, flag));
+		index += 1;
+	}
+	return values;
+}
+
+function parseArgs(argv) {
+	const args = [...argv];
+	const jsonFlag = args.includes('--json');
+	const noTelemetry = args.includes('--no-telemetry');
+	const frameworks = collectRepeatedValues(args, '--framework');
+	const stacks = collectRepeatedValues(args, '--stack');
+	const languages = collectRepeatedValues(args, '--language');
+	const tags = collectRepeatedValues(args, '--tag');
+
+	let repoPath;
+	let workspaceId;
+	let workspacePath;
+	let preferLoadMode;
+	let limit;
+	const queryParts = [];
+
+	for (let index = 0; index < args.length; index += 1) {
+		const value = args[index];
+		if (
+			value === '--json' ||
+			value === '--no-telemetry' ||
+			value === '--framework' ||
+			value === '--stack' ||
+			value === '--language' ||
+			value === '--tag'
+		) {
+			if (
+				value === '--framework' ||
+				value === '--stack' ||
+				value === '--language' ||
+				value === '--tag'
+			) {
+				index += 1;
+			}
+			continue;
+		}
+		if (value === '--repo') {
+			repoPath = takeValue(args, index, value);
+			index += 1;
+			continue;
+		}
+		if (value === '--workspace') {
+			workspaceId = takeValue(args, index, value);
+			index += 1;
+			continue;
+		}
+		if (value === '--workspace-path') {
+			workspacePath = takeValue(args, index, value);
+			index += 1;
+			continue;
+		}
+		if (value === '--prefer-load-mode') {
+			preferLoadMode = takeValue(args, index, value);
+			index += 1;
+			continue;
+		}
+		if (value === '--limit') {
+			limit = Number.parseInt(takeValue(args, index, value), 10);
+			index += 1;
+			continue;
+		}
+		if (value.startsWith('--')) {
+			throw new Error(`Unknown flag: ${value}`);
+		}
+		queryParts.push(value);
 	}
 
-	results.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
-	return results;
+	return {
+		jsonFlag,
+		noTelemetry,
+		query: queryParts.join(' ').trim(),
+		repoPath,
+		workspaceId,
+		workspacePath,
+		frameworks,
+		stacks,
+		languages,
+		tags,
+		preferLoadMode,
+		limit: Number.isFinite(limit) ? limit : undefined,
+	};
 }
 
 function formatHuman(results) {
@@ -57,37 +118,63 @@ function formatHuman(results) {
 		console.log('No matching skills found.');
 		return;
 	}
-	for (const r of results) {
-		const vaultRef = `${r.skill}/SKILL.md`;
-		console.log(`${r.name}  ${vaultRef}  (${r.reason}, score=${r.score})`);
+	for (const result of results) {
+		const vaultRef = `${result.skill}/SKILL.md`;
+		const reasonSummary = result.reasons.length ? result.reasons.join(', ') : 'all';
+		console.log(`${result.name}  ${vaultRef}  (${reasonSummary}, score=${result.score})`);
 	}
 }
 
 function formatJson(results) {
-	const output = results.map((r) => ({
-		name: r.name,
-		skill: r.skill,
-		description: r.description,
-		vaultRef: `${r.skill}/SKILL.md`,
-		score: r.score,
-		reason: r.reason,
-	}));
-	console.log(JSON.stringify(output, null, 2));
+	console.log(JSON.stringify(results, null, 2));
 }
 
-// --- CLI ---
-const args = process.argv.slice(2);
-const jsonFlag = args.includes('--json');
-const queryArgs = args.filter((a) => a !== '--json');
-const query = queryArgs.join(' ').trim();
-
-const index = loadIndex();
-const results = search(index, query);
-
-if (jsonFlag) {
-	formatJson(results);
-} else {
-	formatHuman(results);
+function serializeResult(result) {
+	return {
+		name: result.effectiveState.assetKey,
+		skill: result.effectiveState.assetKey,
+		description: result.entry.description,
+		vaultRef: `${result.effectiveState.assetKey}/SKILL.md`,
+		score: result.score,
+		reason: result.explanations[0]?.code || '',
+		reasons: result.explanations.map((item) => item.code),
+		explanations: result.explanations,
+		selectedLayer: result.effectiveState.selectedLayer,
+		loadMode: result.effectiveState.installState?.loadMode,
+	};
 }
 
-export { search, scoreEntry, loadIndex };
+try {
+	const parsed = parseArgs(process.argv.slice(2));
+	const response = searchSkills(
+		{
+			query: parsed.query,
+			repoPath: parsed.repoPath,
+			workspaceId: parsed.workspaceId,
+			workspacePath: parsed.workspacePath,
+			frameworks: parsed.frameworks,
+			stacks: parsed.stacks,
+			languages: parsed.languages,
+			tags: parsed.tags,
+			preferLoadMode: parsed.preferLoadMode,
+			limit: parsed.limit,
+		},
+		{
+			engineRoot: repoRoot,
+			repoPath: parsed.repoPath,
+			persistTelemetry: !parsed.noTelemetry,
+		},
+	);
+	const results = response.results.map(serializeResult);
+
+	if (parsed.jsonFlag) {
+		formatJson(results);
+	} else {
+		formatHuman(results);
+	}
+} catch (error) {
+	console.error(error.message);
+	process.exitCode = 1;
+}
+
+export { parseArgs, serializeResult, searchSkills };

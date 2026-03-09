@@ -20,7 +20,7 @@ export type NavigationTab = {
 
 export const NAVIGATION_TABS: readonly NavigationTab[] = [
   { id: 'sessions', label: 'Sessions', description: 'Runtime and active sessions' },
-  { id: 'assets', label: 'Assets', description: 'Asset catalog and installs' },
+  { id: 'assets', label: 'Catalog', description: 'Unified catalog workspace and installs' },
   { id: 'planning', label: 'Planning', description: 'Plan packs and sequencing' },
   { id: 'gateway', label: 'Gateway', description: 'Policy and command routing' },
   { id: 'sandboxes', label: 'Sandboxes', description: 'Workspace isolation controls' },

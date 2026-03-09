@@ -102,6 +102,9 @@ Override the default location with `skillInstaller.state.root` in VS Code settin
 ## Dashboard (local UI)
 
 A local Node.js dashboard to view sessions, sync assets, and manage your `~/.copilot` installation.
+`copilot-ui` is also the **catalog control plane** for the delivered asset system: it owns the
+authoritative local catalog/search/audit APIs, repo inventory, projection refresh, and mutation
+flows for shared, user-global, and repo-local assets.
 
 ```bash
 # Direct
@@ -115,6 +118,65 @@ scripts/cli-ui.ps1          # Windows
 Open: http://127.0.0.1:3210
 
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.
+
+### Catalog control plane at a glance
+
+- **Canonical management surface:** `copilot-ui`
+- **Catalog projection storage:** `~/.copilot/catalog/projections/global.json` plus
+  `~/.copilot/catalog/projections/repo-<repoId>.json`
+- **Repo inventory storage:** `~/.copilot/catalog/repo-inventory.json`
+- **Search telemetry storage:** `~/.copilot/catalog/search-telemetry.json`
+- **Audit log storage:** `~/.copilot/catalog/audit/events.jsonl`
+
+Authoritative write paths remain file-backed:
+
+- shared shipped assets → `engine-assets/agents/*`, `engine-assets/skills/*`,
+  `engine-assets/manifest.json`
+- user-global assets → `~/.copilot/agents`, `~/.copilot/skills`, `~/.copilot/skills-vault`
+- repo-local assets → `<repo>/.github/agents`, `<repo>/.github/skills`
+- repo overlays only → `~/.copilot/repo-state/<repoId>/registry.json`
+
+`repo-state` is never the source of asset content; it stores enable/disable overlays and derived
+signals only.
+
+### Catalog bootstrap and verification
+
+The catalog is an operational projection, not a separate source of truth. Bootstrap is therefore a
+**refresh/rebuild from files**, not a one-time data migration.
+
+```powershell
+# 1) Start the local control plane
+node copilot-ui/server.js
+
+# 2) Rebuild the global projection from engine-assets + ~/.copilot
+Invoke-RestMethod -Method Post `
+  -Uri 'http://127.0.0.1:3210/api/catalog/refresh' `
+  -ContentType 'application/json' `
+  -Body '{}'
+
+# 3) Register/select a repo when you want repo-local .github assets included
+Invoke-RestMethod -Method Post `
+  -Uri 'http://127.0.0.1:3210/api/catalog/repos/register' `
+  -ContentType 'application/json' `
+  -Body (@{ repoPath = 'C:\path\to\repo'; select = $true } | ConvertTo-Json)
+
+# 4) Rebuild the selected repo projection
+Invoke-RestMethod -Method Post `
+  -Uri 'http://127.0.0.1:3210/api/catalog/repos/refresh' `
+  -ContentType 'application/json' `
+  -Body (@{ repoPath = 'C:\path\to\repo' } | ConvertTo-Json)
+```
+
+Verification surfaces:
+
+- `GET /api/catalog/summary` → projection stats, freshness, read mode, input file metadata
+- `GET /api/catalog/repos` → merged repo inventory and selected repo
+- `GET /api/runtime/catalog-health` → projection + audit-file health
+- `POST /api/search/query` → deterministic catalog-backed search with explanations
+- `GET /api/audit/assets` / `GET /api/audit/events` → lifecycle, search, and usage analytics
+
+If a persisted projection is missing, the backend falls back to a filesystem build
+(`readMode: "filesystem-fallback"`). Refreshing persists the snapshot again.
 
 ## Elegy canonical contracts (consumer integration)
 
@@ -259,6 +321,7 @@ See `local-tracker/docs/messaging-gateway.md` for full reference.
 
 ## Documentation
 
+- [Catalog Control Plane](docs/system/catalog-control-plane.md)
 - [Copilot CLI Playbook](docs/system/copilot-cli-playbook.md)
 - [Agents vs Skills](docs/system/agents-vs-skills.md)
 - [Agent Architecture Simplicity](docs/system/agent-architecture-simplicity.md)

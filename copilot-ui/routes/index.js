@@ -83,6 +83,7 @@ function createRegistry(context = {}) {
 
   registry.registerModule(require('./lifecycle'), context);
   registry.registerModule(require('./assets'), context);
+  registry.registerModule(require('./catalog'), context);
   registry.registerModule(require('./planning'), context);
   registry.registerModule(require('./planning-artifacts'), context);
   registry.registerModule(require('./sessions'), context);

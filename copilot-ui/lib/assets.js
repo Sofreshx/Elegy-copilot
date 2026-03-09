@@ -2,6 +2,10 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+const {
+  appendCatalogAuditEvent,
+} = require('./catalogAuditAnalytics');
+
 function toPosixRelPath(p) {
   return String(p || '').replace(/\\/g, '/');
 }
@@ -447,6 +451,45 @@ function buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, ex
   };
 }
 
+function normalizeAuditAssetKey(asset) {
+  if (!asset || typeof asset !== 'object') {
+    return undefined;
+  }
+  const kind = String(asset.type || '').trim().toLowerCase();
+  const destination = String(asset.destination || '').trim();
+  if (kind === 'skill') {
+    return path.basename(destination || String(asset.source || '').trim()).replace(/[\\/]+$/, '') || undefined;
+  }
+  if (kind === 'agent') {
+    return path.basename(destination || String(asset.source || '').trim()).replace(/\.agent\.md$/i, '') || undefined;
+  }
+  if (kind === 'prompt') {
+    return path.basename(destination || String(asset.source || '').trim()).replace(/\.prompt\.md$/i, '') || undefined;
+  }
+  return undefined;
+}
+
+function recordManagedAssetAuditEvent(destinationHome, asset, eventType, details = {}) {
+  try {
+    appendCatalogAuditEvent(destinationHome, {
+      eventType,
+      source: 'assets-lib',
+      actor: {
+        kind: 'system',
+        id: 'assets-lib',
+        label: 'assets-lib',
+      },
+      assetId: asset.id,
+      assetKey: normalizeAuditAssetKey(asset),
+      assetKind: asset.type,
+      scope: { kind: 'user' },
+      details,
+    });
+  } catch {
+    // Best-effort audit logging must not block asset operations.
+  }
+}
+
 function getManagedAssetStatuses(engineRoot, destinationHome) {
   const manifest = loadManifest(engineRoot);
   return manifest.assets.map((asset) => {
@@ -600,7 +643,7 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
 
   const newDestinationHash = dryRun ? destinationHash : sha256PathHex(destinationAbs);
 
-  return buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, {
+  const result = buildManagedAssetResult(asset, sourceRel, sourceAbs, destinationAbs, {
     action,
     installed: true,
     upToDate: Boolean(newDestinationHash && newDestinationHash === sourceHash),
@@ -608,6 +651,17 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
     sourceHash,
     destinationHash: newDestinationHash,
   });
+  if (action === 'installed' || action === 'updated') {
+    recordManagedAssetAuditEvent(destinationHome, asset, `asset.${action}`, {
+      managed: true,
+      loadMode: asset.loadMode || undefined,
+      pointerMode: Boolean(asset.type === 'skill' && pointerMode),
+      materialization: asset.type === 'skill' && pointerMode
+        ? (asset.loadMode === 'always' ? 'vault-and-installed' : 'vault-only')
+        : 'direct-copy',
+    });
+  }
+  return result;
 }
 
 function syncAll(engineRoot, destinationHome, opts) {
@@ -706,7 +760,12 @@ function removeAsset(destinationHome, asset, opts) {
     } catch { /* best-effort vault cleanup */ }
   }
 
-  return { action: 'removed', destinationAbs };
+  const result = { action: 'removed', destinationAbs };
+  recordManagedAssetAuditEvent(destinationHome, asset, 'asset.removed', {
+    managed: true,
+    force: Boolean(force),
+  });
+  return result;
 }
 
 function getVaultDir(home) {

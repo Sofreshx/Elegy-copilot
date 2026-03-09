@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-01
+updated: 2026-03-09
 category: system
 status: current
 doc_kind: index
@@ -35,6 +35,7 @@ related: [doc-graph-spec]
 
 ## Strategy
 
+- [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md)
 - [[system-upgrade-direction-2026]] [docs/system/system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
 - [[search-execute-workflow]] [docs/system/search-execute-workflow.md](docs/system/search-execute-workflow.md)
 - [[research-promotion-checklist]] [docs/system/research-promotion-checklist.md](docs/system/research-promotion-checklist.md)

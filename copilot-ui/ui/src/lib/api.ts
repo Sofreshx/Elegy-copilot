@@ -1,4 +1,14 @@
 import type {
+  CatalogAssetMutationResponse,
+  CatalogAssetDetailResponse,
+  CatalogAssetsResponse,
+  CatalogAuditEventsResponse,
+  CatalogRepoMutationResponse,
+  CatalogReposListResponse,
+  CatalogRefreshResponse,
+  CatalogSearchRequest,
+  CatalogSearchResponse,
+  CatalogSummaryResponse,
   GatewayConfig,
   GatewayConfigResponse,
   GatewaySaveConfigResponse,
@@ -26,6 +36,7 @@ import type {
   PlanningSearchResponse,
   PlanningSearchResultItem,
   PolicyPreflightResponse,
+  RuntimeCatalogHealthResponse,
   SandboxLifecycleAction,
   SandboxLifecyclePayload,
   SandboxLifecycleResponse,
@@ -171,6 +182,96 @@ export interface GatewaySaveConfigPayload {
   workspaces: {
     allowedRoots: string[];
     activeRoot: string;
+  };
+}
+
+export interface CatalogSelectorQuery {
+  repoId?: string;
+  repoPath?: string;
+}
+
+export interface CatalogAssetsQuery extends CatalogSelectorQuery {
+  assetId?: string;
+  assetKey?: string;
+  kind?: string;
+  scopeKind?: string;
+  layer?: string;
+  q?: string;
+  installed?: boolean;
+  enabled?: boolean;
+  recommended?: boolean;
+  available?: boolean;
+}
+
+export interface CatalogAuditEventsQuery extends CatalogSelectorQuery {
+  eventType?: string;
+  assetId?: string;
+  sessionId?: string;
+  correlationId?: string;
+  limit?: number;
+}
+
+export interface CatalogRepoInventoryQuery {
+  repoPath?: string;
+}
+
+export interface CatalogRepoMutationPayload {
+  repoId?: string;
+  repoPath?: string;
+  repoLabel?: string;
+  label?: string;
+  select?: boolean;
+  clear?: boolean;
+  repoPaths?: string[];
+}
+
+export interface CatalogAssetCreatePayload {
+  authoringScope: 'shared' | 'user-global' | 'repo-local' | string;
+  kind: 'agent' | 'skill' | string;
+  assetKey: string;
+  title?: string;
+  description?: string;
+  content: string;
+  loadMode?: 'always' | 'on-demand' | string;
+  triggersOn?: string[];
+  repoPath?: string;
+  authoringRepoPath?: string;
+}
+
+export interface CatalogAssetUpdatePayload extends Omit<CatalogAssetCreatePayload, 'content'> {
+  assetId?: string;
+  expectedHash?: string;
+  content: string;
+}
+
+export interface CatalogAssetDeletePayload {
+  authoringScope: 'shared' | 'user-global' | 'repo-local' | string;
+  kind?: 'agent' | 'skill' | string;
+  assetId?: string;
+  assetKey?: string;
+  loadMode?: 'always' | 'on-demand' | string;
+  expectedHash?: string;
+  repoPath?: string;
+  authoringRepoPath?: string;
+}
+
+export interface CatalogAssetInstallPayload {
+  assetId: string;
+  force?: boolean;
+}
+
+export interface CatalogAssetEnablementPayload {
+  kind?: 'agent' | 'skill' | string;
+  assetId?: string;
+  assetKey?: string;
+  repoPath: string;
+  expectedRegistryHash?: string;
+}
+
+function buildCatalogSelectorQuery(query: CatalogSelectorQuery = {}): ApiRequestOptions['query'] {
+  return {
+    repoId: query.repoId,
+    repoPath: query.repoPath,
   };
 }
 
@@ -1239,6 +1340,250 @@ export function getAssetView(path: string, baseUrl?: string): Promise<string> {
     query: {
       path,
     },
+  });
+}
+
+export function getCatalogSummary(query: CatalogSelectorQuery = {}, baseUrl?: string): Promise<CatalogSummaryResponse> {
+  return apiRequest<CatalogSummaryResponse>('/api/catalog/summary', {
+    baseUrl,
+    query: buildCatalogSelectorQuery(query),
+  });
+}
+
+export function getCatalogRepos(
+  query: CatalogRepoInventoryQuery = {},
+  baseUrl?: string
+): Promise<CatalogReposListResponse> {
+  return apiRequest<CatalogReposListResponse>('/api/catalog/repos', {
+    baseUrl,
+    query: {
+      repoPath: query.repoPath,
+    },
+  });
+}
+
+export function registerCatalogRepo(
+  payload: CatalogRepoMutationPayload,
+  baseUrl?: string
+): Promise<CatalogRepoMutationResponse> {
+  return apiRequest<CatalogRepoMutationResponse>('/api/catalog/repos/register', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function unregisterCatalogRepo(
+  payload: CatalogRepoMutationPayload,
+  baseUrl?: string
+): Promise<CatalogRepoMutationResponse> {
+  return apiRequest<CatalogRepoMutationResponse>('/api/catalog/repos/unregister', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function selectCatalogRepo(
+  payload: CatalogRepoMutationPayload,
+  baseUrl?: string
+): Promise<CatalogRepoMutationResponse> {
+  return apiRequest<CatalogRepoMutationResponse>('/api/catalog/repos/select', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function refreshCatalogRepo(
+  payload: CatalogRepoMutationPayload,
+  baseUrl?: string
+): Promise<CatalogRepoMutationResponse> {
+  return apiRequest<CatalogRepoMutationResponse>('/api/catalog/repos/refresh', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getCatalogAssets(query: CatalogAssetsQuery = {}, baseUrl?: string): Promise<CatalogAssetsResponse> {
+  return apiRequest<CatalogAssetsResponse>('/api/catalog/assets', {
+    baseUrl,
+    query: {
+      ...buildCatalogSelectorQuery(query),
+      assetId: query.assetId,
+      assetKey: query.assetKey,
+      kind: query.kind,
+      scopeKind: query.scopeKind,
+      layer: query.layer,
+      q: query.q,
+      installed: query.installed,
+      enabled: query.enabled,
+      recommended: query.recommended,
+      available: query.available,
+    },
+  });
+}
+
+export function getCatalogAssetDetail(
+  assetId: string,
+  query: CatalogSelectorQuery = {},
+  baseUrl?: string
+): Promise<CatalogAssetDetailResponse> {
+  return apiRequest<CatalogAssetDetailResponse>(`/api/catalog/assets/${encodeURIComponent(assetId)}`, {
+    baseUrl,
+    query: buildCatalogSelectorQuery(query),
+  });
+}
+
+export function refreshCatalogProjection(
+  query: CatalogSelectorQuery = {},
+  baseUrl?: string
+): Promise<CatalogRefreshResponse> {
+  return apiRequest<CatalogRefreshResponse>('/api/catalog/refresh', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(query),
+  });
+}
+
+export function createCatalogAsset(
+  payload: CatalogAssetCreatePayload,
+  baseUrl?: string
+): Promise<CatalogAssetMutationResponse> {
+  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/create', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateCatalogAsset(
+  payload: CatalogAssetUpdatePayload,
+  baseUrl?: string
+): Promise<CatalogAssetMutationResponse> {
+  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/update', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteCatalogAsset(
+  payload: CatalogAssetDeletePayload,
+  baseUrl?: string
+): Promise<CatalogAssetMutationResponse> {
+  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/delete', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function installCatalogAsset(
+  payload: CatalogAssetInstallPayload,
+  baseUrl?: string
+): Promise<CatalogAssetMutationResponse> {
+  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/install', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function enableCatalogAsset(
+  payload: CatalogAssetEnablementPayload,
+  baseUrl?: string
+): Promise<CatalogAssetMutationResponse> {
+  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/enable', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function disableCatalogAsset(
+  payload: CatalogAssetEnablementPayload,
+  baseUrl?: string
+): Promise<CatalogAssetMutationResponse> {
+  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/disable', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function searchCatalogAssets(
+  payload: CatalogSearchRequest,
+  baseUrl?: string
+): Promise<CatalogSearchResponse> {
+  return apiRequest<CatalogSearchResponse>('/api/search/query', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getCatalogAuditEvents(
+  query: CatalogAuditEventsQuery = {},
+  baseUrl?: string
+): Promise<CatalogAuditEventsResponse> {
+  return apiRequest<CatalogAuditEventsResponse>('/api/audit/events', {
+    baseUrl,
+    query: {
+      ...buildCatalogSelectorQuery(query),
+      eventType: query.eventType,
+      assetId: query.assetId,
+      sessionId: query.sessionId,
+      correlationId: query.correlationId,
+      limit: query.limit,
+    },
+  });
+}
+
+export function getRuntimeCatalogHealth(
+  query: CatalogSelectorQuery = {},
+  baseUrl?: string
+): Promise<RuntimeCatalogHealthResponse> {
+  return apiRequest<RuntimeCatalogHealthResponse>('/api/runtime/catalog-health', {
+    baseUrl,
+    query: buildCatalogSelectorQuery(query),
   });
 }
 

@@ -73,19 +73,19 @@
     ]
   },
   "POST /api/planning/persistence/init": {
-    "status": 503,
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "contractVersion",
       "corruption",
       "deterministic",
-      "error",
       "errors",
       "initialized",
       "kind",
       "planningPersistence",
-      "ready"
+      "ready",
+      "result"
     ]
   },
   "POST /api/planning/persistence/corruption/scan": {
@@ -410,11 +410,11 @@
     ]
   },
   "POST /api/assets/sync-all": {
-    "status": 400,
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "error"
+      "result"
     ]
   },
   "POST /api/assets/sync": {
@@ -596,6 +596,236 @@
       "message",
       "reason",
       "status"
+    ]
+  },
+  "GET /api/catalog/summary": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "kind",
+      "summary"
+    ]
+  },
+  "GET /api/catalog/assets": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "assets",
+      "count",
+      "deterministic",
+      "filters",
+      "kind",
+      "snapshot"
+    ]
+  },
+  "GET /api/catalog/entries": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "count",
+      "deterministic",
+      "entries",
+      "filters",
+      "kind",
+      "snapshot"
+    ]
+  },
+  "GET /api/catalog/assets/test-asset-id": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/refresh": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "audit",
+      "deterministic",
+      "kind",
+      "refreshed",
+      "snapshot"
+    ]
+  },
+  "POST /api/catalog/assets/create": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/assets/update": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/assets/delete": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/assets/install": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/assets/enable": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/assets/disable": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/search/query": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "GET /api/audit/events": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "count",
+      "deterministic",
+      "events",
+      "filters",
+      "kind",
+      "storage"
+    ]
+  },
+  "GET /api/runtime/catalog-health": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "audit",
+      "changes",
+      "deterministic",
+      "kind",
+      "ok",
+      "projection"
+    ]
+  },
+  "GET /api/catalog/repos": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "count",
+      "deterministic",
+      "kind",
+      "repos",
+      "selectedRepo",
+      "storage"
+    ]
+  },
+  "POST /api/catalog/repos/register": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/repos/unregister": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/repos/select": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/repos/refresh": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/search/selection": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "audit",
+      "deterministic",
+      "kind",
+      "recorded",
+      "telemetry"
+    ]
+  },
+  "GET /api/audit/assets": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "analytics",
+      "deterministic",
+      "kind",
+      "snapshot"
     ]
   }
 }

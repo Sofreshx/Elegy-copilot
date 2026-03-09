@@ -1,8 +1,28 @@
+import type {
+	AssetCatalogLayer,
+	AssetRepoStateOverlay,
+	EffectiveAssetState,
+	InstallState
+} from '@instruction-engine/contracts';
+
 export type SkillSourceKind = 'instruction-engine' | 'target-repo';
 
 export type SkillEntryKind = 'full' | 'pointer';
 
-export interface SkillEntry {
+export interface CatalogBackedAssetEntry {
+	assetId?: string;
+	assetKey?: string;
+	catalogLayer?: AssetCatalogLayer;
+	installState?: InstallState;
+	overlay?: AssetRepoStateOverlay;
+	effectiveState?: EffectiveAssetState;
+	contributingLayers?: AssetCatalogLayer[];
+	hiddenFromAutoLoad?: boolean;
+	overridden?: boolean;
+	openPath?: string;
+}
+
+export interface SkillEntry extends CatalogBackedAssetEntry {
 	name: string;
 	path: string;
 	source: SkillSourceKind;
@@ -53,7 +73,7 @@ export interface TaskDiscoverySnapshot {
 	repos: RepoTasks[];
 }
 
-export interface AgentEntry {
+export interface AgentEntry extends CatalogBackedAssetEntry {
 	path: string;
 	fileName: string;
 	name: string;

@@ -24,7 +24,7 @@ const tabPlaceholderCopy: Partial<Record<TabId, { title: string; body: string }>
 const PLACEHOLDER_TAB_IDS: readonly TabId[] = ['workflows'];
 
 export default function App() {
-  const [activeTabId, setActiveTabId] = useState<TabId>('sessions');
+  const [activeTabId, setActiveTabId] = useState<TabId>('assets');
   const sdkHealthState = useStoreValue(sdkHealthStore);
 
   useEffect(() => {
@@ -60,10 +60,10 @@ export default function App() {
         <p className={`sdk-health-indicator sdk-health-${sdkHealthClassName}`}>
           SDK Health: {sdkHealthSummary}
         </p>
-        <h1 id="instruction-engine-title">Instruction Engine Tab Shell</h1>
+        <h1 id="instruction-engine-title">Instruction Engine Catalog Workspace</h1>
         <p>
-          Base migration scaffold with token-driven styling, section tabs, and a preserved runtime
-          health panel.
+          Catalog-focused dashboard workspace with unified browsing, search, audit, and runtime
+          visibility while preserving the broader operations tabs.
         </p>
       </header>
 
