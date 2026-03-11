@@ -4,12 +4,12 @@ Shared GitHub Copilot agents, skills, and workflow conventions for multi-repo de
 
 ## How it works
 
-All assets (agents, skills, prompts, instructions) are installed from `engine-assets/` into `~/.copilot`. Both **VS Code Copilot Chat** and the **Copilot CLI** discover assets from that single location — no per-repo setup needed.
+Assets are installed from `engine-assets/` into `~/.copilot`. Agents, prompts, and instructions land there directly, and skills install into `skills/` and/or `skills-vault/` depending on pointer mode. Both **VS Code Copilot Chat** and the **Copilot CLI** discover assets from that location — no per-repo setup needed.
 
 ```
 engine-assets/  →  ~/.copilot/
   agents/           agents/
-  skills/           skills/
+  skills/           skills/ + skills-vault/
   prompts/          prompts/
   copilot-instructions.md   copilot-instructions.md
 ```
@@ -25,10 +25,10 @@ pwsh -File scripts/cli-install.ps1 --all --force
 
 **macOS / Linux:**
 ```bash
-./scripts/cli-install.sh --all --force
+bash scripts/cli-install.sh --all --force
 ```
 
-This copies all agents, skills, prompts, and the global instructions file into `~/.copilot`.
+This installs all agents, prompts, and the global instructions file into `~/.copilot`, and installs skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode.
 
 ### Enable subagent delegation in VS Code
 
@@ -81,7 +81,8 @@ Everything lives under `~/.copilot`:
 ```
 ~/.copilot/
   agents/               installed agent files
-  skills/               installed skill folders
+  skills/               always-available installed skill folders
+  skills-vault/         installed skill vault for on-demand and mirrored always skills
   prompts/              installed prompt files
   copilot-instructions.md
   session-state/        Copilot session logs and plans
@@ -94,6 +95,8 @@ Everything lives under `~/.copilot`:
 ```
 
 Override the default location with `skillInstaller.state.root` in VS Code settings, or pass `--copilot-home` to the dashboard server.
+
+`always` skills are available in both `skills/` and `skills-vault/`. `on-demand` skills install to `skills-vault/` only.
 
 **Elegy plans** are persisted to `~/.copilot/session-state/<SESSION_ID>/plan.md` (not the legacy `.instructions/sessions` folder). The dashboard reads this location automatically.
 
