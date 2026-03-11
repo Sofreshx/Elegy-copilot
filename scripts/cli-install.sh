@@ -396,20 +396,112 @@ fi
 # Load manifest to determine loadMode for skills in pointer mode.
 # Skills with loadMode "always" go to skills/ (full); others go vault-only.
 MANIFEST_FILE="$SRC_ASSETS_ROOT/manifest.json"
-get_skill_load_mode() {
-  local skill_name="$1"
-  if [[ ! -f "$MANIFEST_FILE" ]]; then
-    echo "on-demand"
+SKILL_LOAD_MODE_CACHE=""
+SKILL_MANIFEST_WARNING_EMITTED=0
+
+cleanup_skill_load_mode_cache() {
+  if [[ -n "$SKILL_LOAD_MODE_CACHE" && -f "$SKILL_LOAD_MODE_CACHE" ]]; then
+    rm -f "$SKILL_LOAD_MODE_CACHE" >/dev/null 2>&1 || true
+  fi
+}
+
+trap cleanup_skill_load_mode_cache EXIT
+
+warn_skill_manifest_fallback_once() {
+  local reason="$1"
+  if [[ "$SKILL_MANIFEST_WARNING_EMITTED" -eq 1 ]]; then
     return 0
   fi
-  # Extract loadMode for the matching skill asset from manifest
-  local mode
-  mode="$(node -e "
-    const m = JSON.parse(require('fs').readFileSync('$MANIFEST_FILE','utf8'));
-    const a = (m.assets||[]).find(a => a.type==='skill' && a.source.endsWith('/$skill_name'));
-    console.log((a && a.loadMode) || 'on-demand');
-  " 2>/dev/null || echo "on-demand")"
-  echo "$mode"
+
+  echo "Warning: unable to resolve skill load modes from $MANIFEST_FILE ($reason). Defaulting all skills to on-demand." >&2
+  SKILL_MANIFEST_WARNING_EMITTED=1
+}
+
+build_skill_load_mode_cache() {
+  if [[ -n "$SKILL_LOAD_MODE_CACHE" && -f "$SKILL_LOAD_MODE_CACHE" ]]; then
+    return 0
+  fi
+
+  if [[ ! -f "$MANIFEST_FILE" ]]; then
+    warn_skill_manifest_fallback_once "manifest not found"
+    return 0
+  fi
+
+  local parser=""
+  if command -v node >/dev/null 2>&1; then
+    parser="node"
+  elif command -v python3 >/dev/null 2>&1; then
+    parser="python3"
+  elif command -v python >/dev/null 2>&1; then
+    parser="python"
+  else
+    warn_skill_manifest_fallback_once "no supported parser found (tried: node, python3, python)"
+    return 0
+  fi
+
+  local tmp
+  tmp="$(mktemp 2>/dev/null || echo "")"
+  if [[ -z "$tmp" ]]; then
+    warn_skill_manifest_fallback_once "could not create temporary cache file"
+    return 0
+  fi
+
+  if [[ "$parser" == "node" ]]; then
+    if ! node - "$MANIFEST_FILE" >"$tmp" <<'EOF'
+const fs = require('fs');
+const path = require('path');
+
+const manifestPath = process.argv[2];
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+for (const asset of (manifest.assets || [])) {
+  if (asset.type !== 'skill' || !asset.source) continue;
+  console.log(`${path.posix.basename(String(asset.source))}\t${asset.loadMode || 'on-demand'}`);
+}
+EOF
+    then
+      rm -f "$tmp" >/dev/null 2>&1 || true
+      warn_skill_manifest_fallback_once "manifest parsing failed via node"
+      return 0
+    fi
+  else
+    if ! "$parser" - "$MANIFEST_FILE" >"$tmp" <<'EOF'
+import json
+import os
+import sys
+
+manifest_path = sys.argv[1]
+with open(manifest_path, "r", encoding="utf-8") as handle:
+    manifest = json.load(handle)
+
+for asset in manifest.get("assets", []):
+    if asset.get("type") != "skill" or not asset.get("source"):
+        continue
+    print(f"{os.path.basename(str(asset['source']))}\t{asset.get('loadMode', 'on-demand')}")
+EOF
+    then
+      rm -f "$tmp" >/dev/null 2>&1 || true
+      warn_skill_manifest_fallback_once "manifest parsing failed via $parser"
+      return 0
+    fi
+  fi
+
+  SKILL_LOAD_MODE_CACHE="$tmp"
+}
+
+get_skill_load_mode() {
+  local skill_name="$1"
+  build_skill_load_mode_cache
+
+  if [[ -n "$SKILL_LOAD_MODE_CACHE" && -f "$SKILL_LOAD_MODE_CACHE" ]]; then
+    local mode
+    mode="$(awk -F '	' -v target="$skill_name" '$1 == target { print $2; exit }' "$SKILL_LOAD_MODE_CACHE")"
+    if [[ -n "$mode" ]]; then
+      echo "$mode"
+      return 0
+    fi
+  fi
+
+  echo "on-demand"
 }
 
 CURRENT_MANAGED_SKILLS=()
@@ -419,12 +511,17 @@ for src_dir in "$SRC_SKILLS_ROOT"/*; do
 done
 
 CURRENT_ALWAYS_SKILLS=()
+CURRENT_ON_DEMAND_SKILLS=()
 for skill_name in "${CURRENT_MANAGED_SKILLS[@]}"; do
   load_mode="$(get_skill_load_mode "$skill_name")"
   if [[ "$load_mode" == "always" ]]; then
     CURRENT_ALWAYS_SKILLS+=("$skill_name")
+  else
+    CURRENT_ON_DEMAND_SKILLS+=("$skill_name")
   fi
 done
+
+echo "Skills:       managed=${#CURRENT_MANAGED_SKILLS[@]} always=${#CURRENT_ALWAYS_SKILLS[@]} on-demand=${#CURRENT_ON_DEMAND_SKILLS[@]} pointer=$POINTER_MODE"
 
 if $DO_CLI; then
   # engine-assets/agents/*.agent.md -> <copilotHome>/agents/ (flatten)
@@ -436,6 +533,7 @@ if $DO_CLI; then
 
   # engine-assets/skills/<skill>/** -> <copilotHome>/skills/<skill>/**
   mkdir_if_needed "$COPILOT_HOME/skills"
+  echo "CLI skills:   installing managed=${#CURRENT_MANAGED_SKILLS[@]} always=${#CURRENT_ALWAYS_SKILLS[@]} on-demand=${#CURRENT_ON_DEMAND_SKILLS[@]}"
   if $POINTER_MODE; then
     mkdir_if_needed "$COPILOT_HOME/skills-vault"
     for src_dir in "$SRC_SKILLS_ROOT"/*; do
@@ -477,6 +575,7 @@ if $DO_VSCODE; then
   done
 
   mkdir_if_needed "$VSCODE_HOME_RESOLVED/skills"
+  echo "VS Code skills: installing managed=${#CURRENT_MANAGED_SKILLS[@]} always=${#CURRENT_ALWAYS_SKILLS[@]} on-demand=${#CURRENT_ON_DEMAND_SKILLS[@]}"
   if $POINTER_MODE; then
     mkdir_if_needed "$VSCODE_HOME_RESOLVED/skills-vault"
     for src_dir in "$SRC_SKILLS_ROOT"/*; do
