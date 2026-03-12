@@ -137,23 +137,38 @@ const runResult = spawnSync('node', [runTestsPath], {
     }
 });
 
+let hasFailures = false;
+let runFailureReason = null;
 if (runResult.error) {
-    const reason = runResult.error.code === 'ETIMEDOUT'
+    runFailureReason = runResult.error.code === 'ETIMEDOUT'
         ? `Test runner timed out after ${TEST_RUNNER_TIMEOUT_MS}ms`
         : `Test runner failed to start: ${runResult.error.message}`;
-    console.error(reason);
+    hasFailures = true;
+    console.error(runFailureReason);
 } else if (runResult.status !== 0) {
+    runFailureReason = `Test runner exited with code ${runResult.status}.`;
+    hasFailures = true;
     console.error('Test run failed or partially failed.');
 }
 
 // 5. Process results
-let hasFailures = false;
 if (fs.existsSync(resultsFile)) {
-    const results = JSON.parse(fs.readFileSync(resultsFile, 'utf8'));
-    hasFailures = Object.values(results).some(r => !r.success);
+    let results = {};
+    try {
+        results = JSON.parse(fs.readFileSync(resultsFile, 'utf8'));
+    } catch (error) {
+        hasFailures = true;
+        console.error(`Failed to parse results file: ${error.message}`);
+    }
+
+    hasFailures = hasFailures || Object.values(results).some(r => !r.success);
     
     for (const testFile of testsToRun) {
-        const result = results[testFile] || { success: false, durationMs: 0, stderr: 'Test did not report results' };
+        const result = results[testFile] || {
+            success: false,
+            durationMs: 0,
+            stderr: runFailureReason || 'Test did not report results'
+        };
         const hash = testHashes[testFile];
         
         if (result.success && hash) {
