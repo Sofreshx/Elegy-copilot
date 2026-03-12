@@ -5,20 +5,19 @@
 
 $ErrorActionPreference = "Stop"
 
-$root = Resolve-Path (Join-Path $PSScriptRoot "..")
+$root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $homeDir = if ($env:USERPROFILE) { $env:USERPROFILE } else { $env:HOME }
 $defaultEnvDir = Join-Path $homeDir ".config\instruction-engine"
 $defaultEnvFile = Join-Path $defaultEnvDir "mcp.env"
 $envFile = if ($env:MCP_ENV_FILE) { $env:MCP_ENV_FILE } else { $defaultEnvFile }
 $localEnvFile = "$envFile.local"
 
-if (-not (Test-Path $envFile)) {
-  Write-Error "Missing $envFile. Store MCP secrets outside the repo (for example, $defaultEnvFile) or set MCP_ENV_FILE."
-  exit 1
+if (-not (Test-Path -LiteralPath $envFile)) {
+  throw "Missing $envFile. Store MCP secrets outside the repo (for example, $defaultEnvFile) or set MCP_ENV_FILE."
 }
 
 $paths = @($envFile)
-if (Test-Path $localEnvFile) { $paths += $localEnvFile }
+if (Test-Path -LiteralPath $localEnvFile) { $paths += $localEnvFile }
 
 foreach ($path in $paths) {
   Get-Content $path | ForEach-Object {
@@ -36,12 +35,13 @@ foreach ($path in $paths) {
 }
 
 if ($args.Count -gt 0) {
-  & $args
+  $cmd, $rest = $args
+  & $cmd @rest
   exit $LASTEXITCODE
 }
 
 if (Get-Command code -ErrorAction SilentlyContinue) {
-  & code $root
+  & code "$root"
   exit $LASTEXITCODE
 }
 

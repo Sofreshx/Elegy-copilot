@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENGINE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo -e "\033[1;36mInstalling Language Servers for Copilot CLI...\033[0m"
 
@@ -33,7 +36,11 @@ fi
 # Configure lsp-config.json
 echo -e "\n\033[1;33mConfiguring ~/.copilot/lsp-config.json...\033[0m"
 
-COPILOT_DIR="$HOME/.copilot"
+if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
+  COPILOT_DIR="$XDG_CONFIG_HOME/.copilot"
+else
+  COPILOT_DIR="$HOME/.copilot"
+fi
 mkdir -p "$COPILOT_DIR"
 
 LSP_CONFIG_PATH="$COPILOT_DIR/lsp-config.json"
