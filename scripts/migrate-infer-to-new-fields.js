@@ -184,7 +184,8 @@ function run() {
   const args = process.argv.slice(2);
   const apply = args.includes('--apply');
   const rootArg = args.find(a => a.startsWith('--root='));
-  const scanRoot = rootArg ? path.resolve(rootArg.slice('--root='.length)) : REPO_ROOT;
+  const rootValue = rootArg ? rootArg.slice('--root='.length).trim() : '';
+  const scanRoot = rootValue ? path.resolve(rootValue) : REPO_ROOT;
   console.log(`Scanning from ${scanRoot} ...`);
   const agentsDirs = findAgentsDirs(scanRoot);
   if (agentsDirs.length === 0) {

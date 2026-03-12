@@ -52,7 +52,8 @@ function migrateFile(filePath, apply) {
 function main() {
   const apply = process.argv.includes('--apply');
   const rootArg = process.argv.find(a => a.startsWith('--root='));
-  const rootDir = rootArg ? path.resolve(rootArg.slice('--root='.length)) : REPO_ROOT;
+  const rootValue = rootArg ? rootArg.slice('--root='.length).trim() : '';
+  const rootDir = rootValue ? path.resolve(rootValue) : REPO_ROOT;
   const files = listAgentFiles(rootDir);
 
   if (files.length === 0) {
