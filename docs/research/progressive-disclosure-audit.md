@@ -96,7 +96,7 @@ Evaluate how effectively instruction-engine layers information from surface-leve
 **32 agents** with specialized personas:
 - Orchestrators: orchestrator, elegy-planner, elegy-direction, elegy-subplanner
 - Implementers: impl-business, impl-infra
-- Reviewers: code-reviewer, reviewer-opus-4-6, reviewer-gpt-5-3-codex
+- Reviewers: code-reviewer, reviewer-opus-4-6, reviewer-gpt-5-4
 - Scanners: security-scanner, stack-auditor, deploy-auditor
 - Utilities: agent-governor, instruction-auditor
 
