@@ -28,6 +28,29 @@ function writeText(absPath, text) {
   fs.writeFileSync(absPath, text, 'utf8');
 }
 
+function installPluginAgent(copilotHomeAbs, text) {
+  const pluginAgentAbs = path.join(
+    copilotHomeAbs,
+    'marketplace-cache',
+    'dwaintr-superpowers-copilot',
+    'plugins',
+    'superpowers',
+    'agents',
+    'code-reviewer.md',
+  );
+  writeText(pluginAgentAbs, text);
+
+  const linkedAgentAbs = path.join(copilotHomeAbs, 'agents', 'code-reviewer.md');
+  fs.mkdirSync(path.dirname(linkedAgentAbs), { recursive: true });
+  try {
+    fs.symlinkSync(pluginAgentAbs, linkedAgentAbs, 'file');
+    return { linked: true, linkedAgentAbs, pluginAgentAbs };
+  } catch {
+    writeText(linkedAgentAbs, text);
+    return { linked: false, linkedAgentAbs, pluginAgentAbs };
+  }
+}
+
 function invokeInstalled(copilotHomeAbs) {
   return new Promise((resolve, reject) => {
     const routes = register({
@@ -61,6 +84,29 @@ function invokeDelete(copilotHomeAbs, body) {
   });
 }
 
+function invokeView(copilotHomeAbs, relPath, extraDeps = {}) {
+  return new Promise((resolve, reject) => {
+    const routes = register({
+      sendJson: (_res, status, payload) => resolve({ status, payload, mode: 'json' }),
+      sendText: (_res, status, payload) => resolve({ status, payload, mode: 'text' }),
+      ...extraDeps,
+    });
+
+    const route = routes.find((entry) => entry.method === 'GET' && entry.path === '/api/assets/view');
+    if (!route) {
+      reject(new Error('GET /api/assets/view route not registered'));
+      return;
+    }
+
+    route.handler({
+      req: {},
+      res: {},
+      copilotHomeAbs,
+      u: new URL(`http://localhost/api/assets/view?path=${encodeURIComponent(relPath)}`),
+    });
+  });
+}
+
 async function run() {
   console.log('\nAssets Routes Tests\n');
 
@@ -81,8 +127,8 @@ async function run() {
         '',
       ].join('\n'),
     );
-    writeText(
-      path.join(copilotHomeAbs, 'agents', 'code-reviewer.md'),
+    const pluginAgentInstall = installPluginAgent(
+      copilotHomeAbs,
       [
         '---',
         'name: code-reviewer',
@@ -111,6 +157,10 @@ async function run() {
       const pluginAgent = response.payload.agents.find((agent) => agent.fileName === 'code-reviewer.md');
       assert.ok(pluginAgent, 'expected plain markdown plugin agent in installed inventory');
       assert.strictEqual(pluginAgent.readOnly, true);
+      if (pluginAgentInstall.linked) {
+        assert.strictEqual(pluginAgent.namespace, 'superpowers');
+        assert.strictEqual(pluginAgent.sourcePackage, 'dwaintr-superpowers-copilot');
+      }
     });
 
     await test('delete route rejects plugin namespace roots and plain markdown agents', async () => {
@@ -127,6 +177,28 @@ async function run() {
       });
       assert.strictEqual(pluginAgentDelete.status, 400);
       assert.match(String(pluginAgentDelete.payload.error || ''), /expected \*\.agent\.md/i);
+    });
+
+    await test('asset view rejects symlink targets that escape the copilot home root', async () => {
+      let readAttempted = false;
+      const response = await invokeView(copilotHomeAbs, 'agents/code-reviewer.md', {
+        fs: {
+          existsSync: () => true,
+          realpathSync: () => path.join(tmpRoot, 'outside', 'secret.md'),
+        },
+        assets: {
+          isPointerFile: () => false,
+          readTextFileSafe: () => {
+            readAttempted = true;
+            return 'unexpected';
+          },
+        },
+      });
+
+      assert.strictEqual(response.status, 400);
+      assert.strictEqual(response.mode, 'json');
+      assert.match(String(response.payload.error || ''), /escapes supported copilot roots/i);
+      assert.strictEqual(readAttempted, false);
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

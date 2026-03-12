@@ -325,6 +325,13 @@ function isDirectoryLike(entry, absPath) {
   return Boolean(safeStat(absPath)?.isDirectory());
 }
 
+function isFileLike(entry, absPath) {
+  if (entry && typeof entry.isFile === 'function' && entry.isFile()) {
+    return true;
+  }
+  return Boolean(safeStat(absPath)?.isFile());
+}
+
 function normalizeIdentityPart(value) {
   return String(value || '')
     .trim()
@@ -482,7 +489,7 @@ function listInstalledAgents(home) {
   try {
     const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
     return entries
-      .filter((e) => e.isFile())
+      .filter((e) => isFileLike(e, path.join(agentsDir, e.name)))
       .map((e) => {
         const absPath = path.join(agentsDir, e.name);
         const detected = isRecognizedAgentFile(e.name, absPath);

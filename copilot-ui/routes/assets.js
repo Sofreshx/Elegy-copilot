@@ -16,6 +16,45 @@ function safeResolveUnder(baseAbs, relPath) {
   return abs;
 }
 
+function safeRealpath(absPath, fsImpl = fs) {
+  try {
+    if (typeof fsImpl.realpathSync?.native === 'function') {
+      return fsImpl.realpathSync.native(absPath);
+    }
+    if (typeof fsImpl.realpathSync === 'function') {
+      return fsImpl.realpathSync(absPath);
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function isPathWithinRoot(rootAbs, candidateAbs) {
+  const root = path.resolve(rootAbs);
+  const candidate = path.resolve(candidateAbs);
+  if (candidate === root) {
+    return true;
+  }
+  const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  return candidate.startsWith(prefix);
+}
+
+function assertInspectableAssetPath(absPath, assetsHomeAbs, fsImpl = fs) {
+  if (!fsImpl.existsSync(absPath)) {
+    return absPath;
+  }
+
+  const realPath = safeRealpath(absPath, fsImpl);
+  if (!realPath) {
+    throw Object.assign(new Error('Unable to resolve asset path'), { statusCode: 404 });
+  }
+  if (!isPathWithinRoot(assetsHomeAbs, realPath)) {
+    throw Object.assign(new Error('Resolved asset path escapes supported Copilot roots'), { statusCode: 400 });
+  }
+  return realPath;
+}
+
 function extractTriggers(absPath, fsImpl = fs) {
   try {
     const text = fsImpl.readFileSync(absPath, 'utf8');
@@ -178,6 +217,7 @@ function handleAssetsView(ctx, deps) {
   try {
     let abs = safeResolveUnder(assetsHomeAbs, rel);
     abs = resolvePointerTarget(rel, abs, assetsHomeAbs, assets, fs, safeResolveUnder);
+    abs = assertInspectableAssetPath(abs, assetsHomeAbs, fs);
     const text = assets.readTextFileSafe(abs, 512 * 1024);
     if (text == null) {
       sendText(res, 404, 'Not found');

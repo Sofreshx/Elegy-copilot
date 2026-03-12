@@ -97,6 +97,7 @@ function buildSkillDetailPath(skill: SkillPreviewItem): string {
 function createSkillsPreviewStore() {
   const store = createStore<SkillsPreviewState>(INITIAL_STATE);
   let requestVersion = 0;
+  let detailRequestVersion = 0;
 
   async function loadSkills(): Promise<void> {
     const nextVersion = ++requestVersion;
@@ -126,6 +127,7 @@ function createSkillsPreviewStore() {
           selectedSkillId: selectedStillExists ? state.selectedSkillId : null,
           loading: false,
           error: null,
+          detailLoading: selectedStillExists ? state.detailLoading : false,
           detailText: selectedStillExists ? state.detailText : '(select a skill above)',
           detailError: selectedStillExists ? state.detailError : null,
         };
@@ -152,6 +154,7 @@ function createSkillsPreviewStore() {
     if (!normalizedSkillId) {
       return;
     }
+    const nextDetailVersion = ++detailRequestVersion;
 
     const selectedSkill = store.getState().skills.find((skill) => skill.assetId === normalizedSkillId) ?? null;
     const selectedSkillLabel = selectedSkill?.name || normalizedSkillId;
@@ -168,21 +171,33 @@ function createSkillsPreviewStore() {
       const detailPath = buildSkillDetailPath(selectedSkill ?? { name: selectedSkillLabel, kind: 'full' });
       const detailText = await getAssetView(detailPath);
 
-      store.setState((state) => ({
-        ...state,
-        detailLoading: false,
-        detailError: null,
-        detailText: detailText || '(empty skill content)',
-      }));
+      store.setState((state) => {
+        if (nextDetailVersion !== detailRequestVersion || state.selectedSkillId !== normalizedSkillId) {
+          return state;
+        }
+
+        return {
+          ...state,
+          detailLoading: false,
+          detailError: null,
+          detailText: detailText || '(empty skill content)',
+        };
+      });
     } catch (error) {
       const message = toErrorMessage(error);
 
-      store.setState((state) => ({
-        ...state,
-        detailLoading: false,
-        detailError: message,
-        detailText: `Error loading ${selectedSkillLabel}: ${message}`,
-      }));
+      store.setState((state) => {
+        if (nextDetailVersion !== detailRequestVersion || state.selectedSkillId !== normalizedSkillId) {
+          return state;
+        }
+
+        return {
+          ...state,
+          detailLoading: false,
+          detailError: message,
+          detailText: `Error loading ${selectedSkillLabel}: ${message}`,
+        };
+      });
     }
   }
 

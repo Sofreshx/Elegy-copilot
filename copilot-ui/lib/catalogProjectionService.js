@@ -74,6 +74,13 @@ function isDirectoryLike(entry, absPath) {
   return Boolean(safeStat(absPath)?.isDirectory());
 }
 
+function isFileLike(entry, absPath) {
+  if (entry && typeof entry.isFile === 'function' && entry.isFile()) {
+    return true;
+  }
+  return Boolean(safeStat(absPath)?.isFile());
+}
+
 function toCopilotRelativePath(copilotHome, absPath) {
   if (!absPath) {
     return null;
@@ -823,7 +830,7 @@ function createSourceEntries(engineRoot, metadataBySkill, warnings) {
 function scanUserAgents(copilotHome) {
   const agentsDir = path.join(copilotHome, 'agents');
   return safeReadDir(agentsDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile())
+    .filter((entry) => isFileLike(entry, path.join(agentsDir, entry.name)))
     .map((entry) => {
       const contentPath = path.join(agentsDir, entry.name);
       const parsedAsset = parseMarkdownAsset(contentPath);

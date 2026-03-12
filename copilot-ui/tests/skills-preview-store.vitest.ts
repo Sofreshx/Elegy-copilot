@@ -49,4 +49,56 @@ describe('skillsPreviewStore', () => {
     expect(skillsPreviewStore.getState().selectedSkillId).toBe('skill-copilot-home-plugin-superpowers-brainstorming');
     expect(skillsPreviewStore.getState().detailText).toContain('Plugin Brainstorming');
   });
+
+  it('ignores stale detail responses after a newer skill selection', async () => {
+    mockGetSkillsPreview.mockResolvedValue({
+      skills: [
+        {
+          assetId: 'skill-flat-brainstorming',
+          name: 'brainstorming',
+          kind: 'full',
+          viewPath: 'skills/brainstorming/SKILL.md',
+        },
+        {
+          assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
+          name: 'brainstorming',
+          kind: 'full',
+          namespace: 'superpowers',
+          provider: 'copilot-home-plugin',
+          readOnly: true,
+          viewPath: 'skills/superpowers/brainstorming/SKILL.md',
+        },
+      ],
+    });
+
+    let resolveFlat: ((value: string) => void) | null = null;
+    let resolvePlugin: ((value: string) => void) | null = null;
+    mockGetAssetView.mockImplementation((requestedPath: string) => new Promise((resolve) => {
+      if (requestedPath.includes('skills/superpowers/brainstorming/SKILL.md')) {
+        resolvePlugin = resolve;
+        return;
+      }
+      resolveFlat = resolve;
+    }));
+
+    const { skillsPreviewStore } = await import('../ui/src/tabs/SkillsPreview/skillsPreviewStore');
+
+    await skillsPreviewStore.loadSkills();
+
+    const flatLoad = skillsPreviewStore.loadSkillDetail('skill-flat-brainstorming');
+    const pluginLoad = skillsPreviewStore.loadSkillDetail('skill-copilot-home-plugin-superpowers-brainstorming');
+
+    expect(resolveFlat).not.toBeNull();
+    expect(resolvePlugin).not.toBeNull();
+
+    resolvePlugin?.('# Plugin Brainstorming');
+    await pluginLoad;
+
+    resolveFlat?.('# Flat Brainstorming');
+    await flatLoad;
+
+    expect(skillsPreviewStore.getState().selectedSkillId).toBe('skill-copilot-home-plugin-superpowers-brainstorming');
+    expect(skillsPreviewStore.getState().detailText).toContain('Plugin Brainstorming');
+    expect(skillsPreviewStore.getState().detailText).not.toContain('Flat Brainstorming');
+  });
 });
