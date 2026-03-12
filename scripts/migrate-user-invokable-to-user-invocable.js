@@ -13,6 +13,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const REPO_ROOT = path.resolve(__dirname, '..');
+
 function listAgentFiles(rootDir) {
   const agentsDir = path.join(rootDir, 'engine-assets', 'agents');
   if (!fs.existsSync(agentsDir) || !fs.statSync(agentsDir).isDirectory()) {
@@ -49,7 +51,8 @@ function migrateFile(filePath, apply) {
 
 function main() {
   const apply = process.argv.includes('--apply');
-  const rootDir = process.cwd();
+  const rootArg = process.argv.find(a => a.startsWith('--root='));
+  const rootDir = rootArg ? path.resolve(rootArg.slice('--root='.length)) : REPO_ROOT;
   const files = listAgentFiles(rootDir);
 
   if (files.length === 0) {
@@ -74,5 +77,10 @@ function main() {
 }
 
 if (require.main === module) {
-  main();
+  try {
+    main();
+  } catch (err) {
+    process.stderr.write(`migrate-user-invokable-to-user-invocable: ${err.message}\n`);
+    process.exit(1);
+  }
 }
