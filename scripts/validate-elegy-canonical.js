@@ -5,8 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const { validateCanonicalDocumentPayload, loadCompatibilityManifest } = require('./elegy-contract-consumer');
 
-const payloadArg = process.argv[2] || path.join('contracts', 'elegy', 'fixtures', 'canonical-workflow.minimal.json');
-const payloadPath = path.resolve(process.cwd(), payloadArg);
+const repoRoot = path.resolve(__dirname, '..');
+const payloadPath = process.argv[2]
+	? path.resolve(process.argv[2])
+	: path.join(repoRoot, 'contracts', 'elegy', 'fixtures', 'canonical-workflow.minimal.json');
 
 function readPayload(filePath) {
 	let raw;
