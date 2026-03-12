@@ -1,11 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
+import { repoRoot } from './lib/cli-utils.mjs';
 
 const skillsRoot = path.join(repoRoot, 'engine-assets', 'skills');
 const manifestPath = path.join(repoRoot, 'engine-assets', 'manifest.json');
