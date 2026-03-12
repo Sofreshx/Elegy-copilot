@@ -126,8 +126,9 @@ function main() {
 		const skillFile = path.join(dirAbs, 'SKILL.md');
 		if (!fs.existsSync(skillFile)) continue;
 		matched.skills.add(name);
+		const id = name.startsWith('skill-') ? name : `skill-${name}`;
 		const asset = {
-			id: `skill-${name}`,
+			id,
 			type: 'skill',
 			source: `engine-assets/skills/${name}`,
 			destination: `skills/${name}`

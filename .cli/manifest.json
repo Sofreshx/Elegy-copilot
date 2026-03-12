@@ -160,12 +160,6 @@
       "destination": "agents/deploy-auditor.agent.md"
     },
     {
-      "id": "agent-execute",
-      "type": "agent",
-      "source": "engine-assets/agents/execute.agent.md",
-      "destination": "agents/execute.agent.md"
-    },
-    {
       "id": "agent-doc-writer",
       "type": "agent",
       "source": "engine-assets/agents/doc-writer.agent.md",
@@ -206,6 +200,12 @@
       "type": "agent",
       "source": "engine-assets/agents/elegy-planner.agent.md",
       "destination": "agents/elegy-planner.agent.md"
+    },
+    {
+      "id": "agent-execute",
+      "type": "agent",
+      "source": "engine-assets/agents/execute.agent.md",
+      "destination": "agents/execute.agent.md"
     },
     {
       "id": "agent-final-reviewer",
@@ -286,16 +286,16 @@
       "destination": "agents/reviewer-gpt-5-4.agent.md"
     },
     {
-      "id": "agent-search",
-      "type": "agent",
-      "source": "engine-assets/agents/search.agent.md",
-      "destination": "agents/search.agent.md"
-    },
-    {
       "id": "agent-reviewer-opus-4-6",
       "type": "agent",
       "source": "engine-assets/agents/reviewer-opus-4-6.agent.md",
       "destination": "agents/reviewer-opus-4-6.agent.md"
+    },
+    {
+      "id": "agent-search",
+      "type": "agent",
+      "source": "engine-assets/agents/search.agent.md",
+      "destination": "agents/search.agent.md"
     },
     {
       "id": "agent-security-auditor",
@@ -412,6 +412,12 @@
       "destination": "skills/csharp-expert"
     },
     {
+      "id": "skill-discovery",
+      "type": "skill",
+      "source": "engine-assets/skills/skill-discovery",
+      "destination": "skills/skill-discovery"
+    },
+    {
       "id": "skill-e2e-workflow",
       "type": "skill",
       "source": "engine-assets/skills/e2e-workflow",
@@ -482,12 +488,6 @@
       "type": "skill",
       "source": "engine-assets/skills/stack-detector",
       "destination": "skills/stack-detector"
-    },
-    {
-      "id": "skill-discovery",
-      "type": "skill",
-      "source": "engine-assets/skills/skill-discovery",
-      "destination": "skills/skill-discovery"
     },
     {
       "id": "skill-testing-dotnet-unit",
