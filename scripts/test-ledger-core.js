@@ -206,8 +206,13 @@ function updateDiscoveryState(ledgerDir, partitionKey, currentTestFiles) {
 
             // Write to a temporary file and rename for atomic write
             const tempFile = `${stateFile}.${Date.now()}-${Math.random().toString(36).substring(2)}.tmp`;
-            fs.writeFileSync(tempFile, JSON.stringify(newState, null, 2));
-            fs.renameSync(tempFile, stateFile);
+            try {
+                fs.writeFileSync(tempFile, JSON.stringify(newState, null, 2));
+                fs.renameSync(tempFile, stateFile);
+            } catch (writeErr) {
+                try { fs.unlinkSync(tempFile); } catch { /* ignore */ }
+                throw writeErr;
+            }
 
             return { deletedTests, newTests, state: newState };
         } catch (error) {
@@ -215,12 +220,9 @@ function updateDiscoveryState(ledgerDir, partitionKey, currentTestFiles) {
             if (retries >= maxRetries) {
                 throw new Error(`Failed to update discovery state after ${maxRetries} retries: ${error.message}`);
             }
-            // Small delay before retry
+            // Short bounded sleep before retry to reduce contention.
             const delay = Math.floor(Math.random() * 50) + 10;
-            const start = Date.now();
-            while (Date.now() - start < delay) {
-                // busy wait
-            }
+            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay);
         }
     }
 }
@@ -254,8 +256,13 @@ function writeCacheEntry(cacheDir, hash, entryData) {
     }
     const cacheFile = path.join(cacheDir, `${hash}.json`);
     const tempFile = `${cacheFile}.${Date.now()}-${Math.random().toString(36).substring(2)}.tmp`;
-    fs.writeFileSync(tempFile, JSON.stringify(entryData, null, 2));
-    fs.renameSync(tempFile, cacheFile);
+    try {
+        fs.writeFileSync(tempFile, JSON.stringify(entryData, null, 2));
+        fs.renameSync(tempFile, cacheFile);
+    } catch (err) {
+        try { fs.unlinkSync(tempFile); } catch { /* ignore */ }
+        throw err;
+    }
 }
 
 function readCacheEntry(cacheDir, hash) {
@@ -276,8 +283,13 @@ function writeEvidence(evidenceDir, runId, evidenceItems) {
     }
     const evidenceFile = path.join(evidenceDir, `test-run-evidence-${runId}.json`);
     const tempFile = `${evidenceFile}.${Date.now()}-${Math.random().toString(36).substring(2)}.tmp`;
-    fs.writeFileSync(tempFile, JSON.stringify(evidenceItems, null, 2));
-    fs.renameSync(tempFile, evidenceFile);
+    try {
+        fs.writeFileSync(tempFile, JSON.stringify(evidenceItems, null, 2));
+        fs.renameSync(tempFile, evidenceFile);
+    } catch (err) {
+        try { fs.unlinkSync(tempFile); } catch { /* ignore */ }
+        throw err;
+    }
     return evidenceFile;
 }
 
