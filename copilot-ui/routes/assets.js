@@ -26,6 +26,31 @@ function extractTriggers(absPath, fsImpl = fs) {
   }
 }
 
+function resolvePointerTarget(relPath, absPath, assetsHomeAbs, assets, fsImpl, safeResolveUnderFn) {
+  if (!assets.isPointerFile || !assets.isPointerFile(absPath)) {
+    return absPath;
+  }
+
+  const pointerText = assets.readTextFileSafe(absPath, 64 * 1024);
+  const vaultRefMatch = String(pointerText || '').match(/vault-ref:\s*(\S+)/i);
+  if (!vaultRefMatch?.[1]) {
+    return absPath;
+  }
+
+  const pointerTarget = vaultRefMatch[1].trim().replace(/[\\/]+$/, '');
+  const candidatePath = /\.md$/i.test(pointerTarget) ? pointerTarget : `${pointerTarget}/SKILL.md`;
+  try {
+    const resolvedTarget = safeResolveUnderFn(assetsHomeAbs, candidatePath);
+    if (fsImpl.existsSync(resolvedTarget)) {
+      return resolvedTarget;
+    }
+  } catch {
+    // Keep the original pointer path when the vault-ref is malformed or escapes the home.
+  }
+
+  return absPath;
+}
+
 function handleAssetsManaged(ctx, deps) {
   const { res, copilotHomeAbs } = ctx;
   const { sendJson, assets, engineRoot } = deps;
@@ -99,6 +124,7 @@ function handleSkillsPreview(ctx, deps) {
       const triggers = extractTriggers(s.absPath);
       const vaultPath = s.kind === 'pointer' ? path.join(vaultDir, s.name, 'SKILL.md') : null;
       return {
+        assetId: s.assetId,
         name: s.name,
         kind: s.kind || 'full',
         loadMode: 'always',
@@ -106,7 +132,11 @@ function handleSkillsPreview(ctx, deps) {
         triggers,
         absPath: s.absPath,
         vaultPath,
-        viewPath: `skills/${s.name}/SKILL.md`,
+        viewPath: s.viewPath || `skills/${s.name}/SKILL.md`,
+        namespace: s.namespace,
+        provider: s.provider,
+        sourcePackage: s.sourcePackage,
+        readOnly: s.readOnly === true,
       };
     });
     sendJson(res, 200, { skills: result });
@@ -145,17 +175,7 @@ function handleAssetsView(ctx, deps) {
   }
   try {
     let abs = safeResolveUnder(assetsHomeAbs, rel);
-    if (assets.isPointerFile && assets.isPointerFile(abs)) {
-      const vaultDir = assets.getVaultDir ? assets.getVaultDir(assetsHomeAbs) : path.join(assetsHomeAbs, 'skills-vault');
-      const relNorm = rel.split('\\').join('/').replace(/^\/+/, '');
-      const match = relNorm.match(/^skills\/([^/]+)\//);
-      if (match && match[1] !== '..' && match[1] !== '.') {
-        const vaultPath = path.join(vaultDir, match[1], 'SKILL.md');
-        if (fs.existsSync(vaultPath)) {
-          abs = vaultPath;
-        }
-      }
-    }
+    abs = resolvePointerTarget(rel, abs, assetsHomeAbs, assets, fs, safeResolveUnder);
     const text = assets.readTextFileSafe(abs, 512 * 1024);
     if (text == null) {
       sendText(res, 404, 'Not found');
@@ -188,6 +208,17 @@ function handleAssetsDelete(ctx, deps) {
       }
       if (normalized.startsWith('agents/') && !normalized.toLowerCase().endsWith('.agent.md')) {
         throw Object.assign(new Error('Refusing to delete non-agent file under agents/ (expected *.agent.md)'), { statusCode: 400 });
+      }
+      if (normalized.startsWith('skills/')) {
+        const match = normalized.match(/^skills\/([^/]+)(?:\/SKILL\.md)?$/i);
+        if (!match) {
+          throw Object.assign(new Error('Refusing to delete nested skill paths under skills/'), { statusCode: 400 });
+        }
+        const skillRoot = safeResolveUnder(assetsHomeAbs, `skills/${match[1]}`);
+        const skillFile = path.join(skillRoot, 'SKILL.md');
+        if (!fs.existsSync(skillFile)) {
+          throw Object.assign(new Error('Refusing to delete unsupported skill namespace roots'), { statusCode: 400 });
+        }
       }
 
       if (!force) {

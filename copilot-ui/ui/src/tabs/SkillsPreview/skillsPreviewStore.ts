@@ -7,7 +7,7 @@ export interface SkillsPreviewState {
   loading: boolean;
   error: string | null;
   searchQuery: string;
-  selectedSkillName: string | null;
+  selectedSkillId: string | null;
   detailLoading: boolean;
   detailError: string | null;
   detailText: string;
@@ -18,7 +18,7 @@ const INITIAL_STATE: SkillsPreviewState = {
   loading: false,
   error: null,
   searchQuery: '',
-  selectedSkillName: null,
+  selectedSkillId: null,
   detailLoading: false,
   detailError: null,
   detailText: '(select a skill above)',
@@ -49,10 +49,15 @@ function normalizeSkills(input: unknown): SkillPreviewItem[] {
         return null;
       }
 
+      const assetId =
+        typeof record.assetId === 'string' && record.assetId.trim()
+          ? record.assetId.trim()
+          : `${name}:${typeof record.viewPath === 'string' ? record.viewPath : typeof record.absPath === 'string' ? record.absPath : ''}`;
       const kind = typeof record.kind === 'string' && record.kind.trim() ? record.kind : 'full';
 
       return {
         ...record,
+        assetId,
         name,
         kind,
         loadMode: typeof record.loadMode === 'string' ? record.loadMode : undefined,
@@ -63,11 +68,21 @@ function normalizeSkills(input: unknown): SkillPreviewItem[] {
         vaultPath:
           typeof record.vaultPath === 'string' || record.vaultPath === null ? record.vaultPath : undefined,
         viewPath: typeof record.viewPath === 'string' ? record.viewPath : undefined,
+        provider: typeof record.provider === 'string' ? record.provider : undefined,
+        sourcePackage: typeof record.sourcePackage === 'string' ? record.sourcePackage : undefined,
+        namespace: typeof record.namespace === 'string' ? record.namespace : undefined,
+        readOnly: record.readOnly === true,
       } as SkillPreviewItem;
     })
     .filter((entry): entry is SkillPreviewItem => entry !== null);
 
-  normalized.sort((a, b) => a.name.localeCompare(b.name));
+  normalized.sort((a, b) => {
+    const nameCompare = a.name.localeCompare(b.name);
+    if (nameCompare !== 0) {
+      return nameCompare;
+    }
+    return String(a.assetId || '').localeCompare(String(b.assetId || ''));
+  });
   return normalized;
 }
 
@@ -102,13 +117,13 @@ function createSkillsPreviewStore() {
         }
 
         const selectedStillExists =
-          state.selectedSkillName != null &&
-          skills.some((skill) => skill.name === state.selectedSkillName);
+          state.selectedSkillId != null &&
+          skills.some((skill) => skill.assetId === state.selectedSkillId);
 
         return {
           ...state,
           skills,
-          selectedSkillName: selectedStillExists ? state.selectedSkillName : null,
+          selectedSkillId: selectedStillExists ? state.selectedSkillId : null,
           loading: false,
           error: null,
           detailText: selectedStillExists ? state.detailText : '(select a skill above)',
@@ -132,23 +147,25 @@ function createSkillsPreviewStore() {
     }
   }
 
-  async function loadSkillDetail(skillName: string): Promise<void> {
-    const normalizedSkillName = skillName.trim();
-    if (!normalizedSkillName) {
+  async function loadSkillDetail(skillId: string): Promise<void> {
+    const normalizedSkillId = skillId.trim();
+    if (!normalizedSkillId) {
       return;
     }
 
+    const selectedSkill = store.getState().skills.find((skill) => skill.assetId === normalizedSkillId) ?? null;
+    const selectedSkillLabel = selectedSkill?.name || normalizedSkillId;
+
     store.setState((state) => ({
       ...state,
-      selectedSkillName: normalizedSkillName,
+      selectedSkillId: normalizedSkillId,
       detailLoading: true,
       detailError: null,
-      detailText: `(loading ${normalizedSkillName}...)`,
+      detailText: `(loading ${selectedSkillLabel}...)`,
     }));
 
     try {
-      const selectedSkill = store.getState().skills.find((skill) => skill.name === normalizedSkillName);
-      const detailPath = buildSkillDetailPath(selectedSkill ?? { name: normalizedSkillName, kind: 'full' });
+      const detailPath = buildSkillDetailPath(selectedSkill ?? { name: selectedSkillLabel, kind: 'full' });
       const detailText = await getAssetView(detailPath);
 
       store.setState((state) => ({
@@ -164,7 +181,7 @@ function createSkillsPreviewStore() {
         ...state,
         detailLoading: false,
         detailError: message,
-        detailText: `Error loading ${normalizedSkillName}: ${message}`,
+        detailText: `Error loading ${selectedSkillLabel}: ${message}`,
       }));
     }
   }

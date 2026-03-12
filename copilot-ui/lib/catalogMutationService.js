@@ -81,6 +81,9 @@ function normalizeAssetKey(kind, value) {
   if (!raw) {
     throw Object.assign(new Error('assetKey is required'), { statusCode: 400 });
   }
+  if (/[\\/]/.test(raw)) {
+    throw Object.assign(new Error('assetKey must be a flat name and may not contain path separators'), { statusCode: 400 });
+  }
 
   if (kind === 'agent') {
     return raw.replace(/\.agent\.md$/i, '').replace(/^agent-/, '');

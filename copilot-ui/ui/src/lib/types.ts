@@ -149,15 +149,26 @@ export interface ManagedAssetsResponse {
 }
 
 export interface InstalledAgent {
+  assetId?: string;
   name: string;
   fileName: string;
   absPath: string;
+  provider?: string;
+  sourcePackage?: string;
+  namespace?: string;
+  readOnly?: boolean;
 }
 
 export interface InstalledSkill {
+  assetId?: string;
   name: string;
   absPath: string;
   kind: 'pointer' | 'full' | string;
+  viewPath?: string;
+  provider?: string;
+  sourcePackage?: string;
+  namespace?: string;
+  readOnly?: boolean;
 }
 
 export interface InstalledPrompt {
@@ -239,6 +250,7 @@ export interface TrackerSessionsResponse {
 }
 
 export interface SkillPreviewItem {
+  assetId?: string;
   name: string;
   kind: 'pointer' | 'full' | string;
   loadMode?: 'always' | 'on-demand' | string;
@@ -248,6 +260,10 @@ export interface SkillPreviewItem {
   absPath?: string;
   vaultPath?: string | null;
   viewPath?: string;
+  provider?: string;
+  sourcePackage?: string;
+  namespace?: string;
+  readOnly?: boolean;
   [key: string]: unknown;
 }
 

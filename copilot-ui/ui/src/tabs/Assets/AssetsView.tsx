@@ -88,6 +88,10 @@ function matchesText(asset: CatalogEffectiveAsset, query: string): boolean {
     asset.selectedLayer,
     selectedEntry?.title,
     selectedEntry?.description,
+    readMetadataString(selectedEntry, 'provider'),
+    readMetadataString(selectedEntry, 'sourcePackage'),
+    readMetadataString(selectedEntry, 'namespace'),
+    readMetadataString(selectedEntry, 'logicalName'),
     ...(asset.labels ?? []),
   ];
 
@@ -166,6 +170,34 @@ function readTriggers(entry: CatalogEntry | null | undefined, asset: CatalogEffe
 
 function readContentHash(entry: CatalogEntry | null | undefined): string {
   return typeof entry?.installState?.contentHash === 'string' ? entry.installState.contentHash : '';
+}
+
+function readMetadataString(entry: CatalogEntry | null | undefined, key: string): string {
+  const value = entry?.metadata?.[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function readMetadataBoolean(entry: CatalogEntry | null | undefined, key: string): boolean {
+  return entry?.metadata?.[key] === true;
+}
+
+function summarizeProvenance(entry: CatalogEntry | null | undefined): string {
+  const provider = readMetadataString(entry, 'provider') || readMetadataString(entry, 'source');
+  const sourcePackage = readMetadataString(entry, 'sourcePackage');
+  const namespace = readMetadataString(entry, 'namespace');
+  const segments = [];
+  if (sourcePackage) {
+    segments.push(sourcePackage);
+  } else if (provider) {
+    segments.push(provider);
+  }
+  if (namespace) {
+    segments.push(`namespace: ${namespace}`);
+  }
+  if (readMetadataBoolean(entry, 'readOnly')) {
+    segments.push('read-only');
+  }
+  return segments.join(' · ');
 }
 
 function buildRepoLabel(repo: CatalogRepoInventoryEntry | null | undefined): string {
@@ -250,6 +282,9 @@ function buildEditableTargets(
 
   for (const entry of candidateEntries) {
     if (!entry || !isSupportedAuthoringKind(entry.kind)) {
+      continue;
+    }
+    if (readMetadataBoolean(entry, 'readOnly')) {
       continue;
     }
 
@@ -374,9 +409,12 @@ export default function AssetsView() {
   }, [catalogState.assets, catalogState.filters]);
 
   const selectedAsset = catalogState.selectedAsset;
+  const selectedEntry = selectedAsset?.selectedEntry ?? null;
   const selectedReasons = selectedAsset?.reasons ?? [];
   const selectedContributors = selectedAsset?.contributingEntries ?? [];
   const selectedSuppressed = selectedAsset?.suppressedEntries ?? [];
+  const selectedProvenance = summarizeProvenance(selectedEntry);
+  const selectedIsReadOnly = readMetadataBoolean(selectedEntry, 'readOnly');
   const recommendedAssets = catalogState.assets.filter((asset) => asset.recommended);
   const auditCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -1059,11 +1097,13 @@ export default function AssetsView() {
                 <tbody>
                   {filteredAssets.map((asset) => {
                     const isSelected = asset.assetId === catalogState.selectedAssetId;
+                    const provenanceSummary = summarizeProvenance(asset.selectedEntry);
                     return (
                       <tr className={isSelected ? 'is-selected' : ''} key={asset.assetId}>
                         <td>
                           <div className="catalog-item-title">{asset.selectedEntry?.title || asset.assetKey}</div>
                           <p className="catalog-item-copy">{asset.selectedEntry?.description || asset.assetId}</p>
+                          {provenanceSummary ? <p className="catalog-inline-note">{provenanceSummary}</p> : null}
                         </td>
                         <td>
                           <div className="catalog-badge-row">
@@ -1147,11 +1187,19 @@ export default function AssetsView() {
                 <StatusBadge status={selectedAsset.enabled ? 'enabled' : 'disabled'} testId="catalog-detail-enabled" />
                 {selectedAsset.recommended ? <StatusBadge status="recommended" testId="catalog-detail-recommended" /> : null}
                 {selectedAsset.overridden ? <StatusBadge status="overridden" testId="catalog-detail-overridden" /> : null}
+                {selectedIsReadOnly ? <StatusBadge status="read-only" testId="catalog-detail-read-only" /> : null}
               </div>
 
               <p className="catalog-item-copy">
                 {selectedAsset.selectedEntry?.description || 'No description available for this asset.'}
               </p>
+
+              {selectedProvenance ? (
+                <div className="metadata-block">
+                  <p className="catalog-section-title">Provenance</p>
+                  <p className="catalog-inline-note">{selectedProvenance}</p>
+                </div>
+              ) : null}
 
               <div className="catalog-action-row">
                 <Button
@@ -1210,7 +1258,9 @@ export default function AssetsView() {
                   </>
                 ) : (
                   <p className="catalog-gap-note" data-testid="catalog-write-target-gap">
-                    {sharedEditBlocked
+                    {selectedIsReadOnly
+                      ? 'External plugin-origin assets are read-only in Instruction Engine. Edit or remove them from their source installation instead.'
+                      : sharedEditBlocked
                       ? 'Shared shipped assets are only writable when the instruction-engine workspace repo is the selected write scope.'
                       : 'No authoritative write target is available for this effective asset in the current scope.'}
                   </p>

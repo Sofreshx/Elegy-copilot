@@ -52,6 +52,39 @@ function safeStat(absPath) {
   }
 }
 
+function safeRealpath(absPath) {
+  try {
+    if (typeof fs.realpathSync.native === 'function') {
+      return fs.realpathSync.native(absPath);
+    }
+    return fs.realpathSync(absPath);
+  } catch {
+    return null;
+  }
+}
+
+function toPosixPath(inputPath) {
+  return String(inputPath || '').replace(/\\/g, '/');
+}
+
+function isDirectoryLike(entry, absPath) {
+  if (entry && typeof entry.isDirectory === 'function' && entry.isDirectory()) {
+    return true;
+  }
+  return Boolean(safeStat(absPath)?.isDirectory());
+}
+
+function toCopilotRelativePath(copilotHome, absPath) {
+  if (!absPath) {
+    return null;
+  }
+  const relativePath = path.relative(path.resolve(copilotHome), path.resolve(absPath));
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    return null;
+  }
+  return toPosixPath(relativePath);
+}
+
 function readTextIfExists(absPath, maxBytes = 256 * 1024) {
   try {
     const stat = fs.statSync(absPath);
@@ -220,6 +253,87 @@ function normalizeAssetKey(kind, rawValue) {
   return raw.replace(/[\\/]+$/, '');
 }
 
+function normalizeIdentityPart(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function inferExternalAssetOrigin(absPath, options = {}) {
+  const namespaceInput = options.namespace || '';
+  const namespace =
+    normalizeAssetKey(options.kind === 'agent' ? 'agent' : 'skill', namespaceInput) ||
+    normalizeAssetKey(options.kind === 'agent' ? 'agent' : 'skill', options.detectedNamespace || '');
+  const realPath = safeRealpath(absPath) || path.resolve(absPath);
+  const normalizedRealPath = toPosixPath(realPath);
+  const sourcePackageMatch = normalizedRealPath.match(/\/marketplace-cache\/([^/]+)\//i);
+  const pluginNamespaceMatch = normalizedRealPath.match(/\/plugins\/([^/]+)\//i);
+  const sourcePackage = normalizeIdentityPart(sourcePackageMatch?.[1] || '');
+  const pluginNamespace = normalizeAssetKey(
+    options.kind === 'agent' ? 'agent' : 'skill',
+    pluginNamespaceMatch?.[1] || '',
+  );
+  const resolvedNamespace = namespace || pluginNamespace;
+
+  let provider = '';
+  if (sourcePackage) {
+    provider = 'copilot-marketplace-plugin';
+  } else if (resolvedNamespace) {
+    provider = 'copilot-home-plugin';
+  } else if (options.kind === 'agent' && options.fileKind === 'plain-md') {
+    provider = 'copilot-home-plain-agent';
+  }
+
+  return {
+    isExternal: Boolean(provider),
+    provider: provider || undefined,
+    sourcePackage: sourcePackage || undefined,
+    namespace: resolvedNamespace || undefined,
+    realPath,
+  };
+}
+
+function buildProviderQualifiedAssetKey(kind, logicalName, origin) {
+  const baseKey = normalizeAssetKey(kind, logicalName);
+  if (!baseKey || !origin?.isExternal) {
+    return baseKey;
+  }
+
+  const identityParts = [
+    normalizeIdentityPart(origin.provider),
+    normalizeIdentityPart(origin.sourcePackage),
+    normalizeIdentityPart(origin.namespace),
+    normalizeIdentityPart(baseKey),
+  ].filter(Boolean);
+
+  return identityParts.join('-');
+}
+
+function mergeAliasKeys(...lists) {
+  const aliases = new Set();
+  for (const list of lists) {
+    for (const value of Array.isArray(list) ? list : []) {
+      const normalized = String(value || '').trim();
+      if (normalized) {
+        aliases.add(normalized);
+      }
+    }
+  }
+  return Array.from(aliases);
+}
+
+function buildAssetAliasKeys(kind, assetKey, assetId, logicalName, origin) {
+  const logicalAssetKey = normalizeAssetKey(kind, logicalName);
+  return mergeAliasKeys(
+    buildAliasKeys(kind, assetKey, assetId),
+    logicalAssetKey ? [logicalAssetKey] : [],
+    origin?.namespace && logicalAssetKey ? [`${origin.namespace}/${logicalAssetKey}`] : [],
+    origin?.sourcePackage && logicalAssetKey ? [`${origin.sourcePackage}/${logicalAssetKey}`] : [],
+  );
+}
+
 function deriveAssetId(kind, assetKey) {
   const normalizedKey = normalizeAssetKey(kind, assetKey);
   if (!normalizedKey) {
@@ -259,6 +373,7 @@ function parseMarkdownAsset(absPath) {
       triggers: [],
       frontmatter: {},
       text: '',
+      bodyText: '',
     };
   }
 
@@ -292,7 +407,75 @@ function parseMarkdownAsset(absPath) {
     ),
     frontmatter: attributes,
     text,
+    bodyText: body,
   };
+}
+
+function isRecognizedAgentMarkdownFile(fileName, parsedAsset) {
+  const normalizedFileName = String(fileName || '').trim().toLowerCase();
+  if (normalizedFileName.endsWith('.agent.md')) {
+    return true;
+  }
+  if (!normalizedFileName.endsWith('.md') || normalizedFileName.endsWith('.prompt.md')) {
+    return false;
+  }
+  return Boolean(
+    String(parsedAsset?.frontmatter?.name || '').trim() &&
+      String(parsedAsset?.bodyText || '').trim(),
+  );
+}
+
+function discoverSkillArtifacts(baseDir, relativeRoot) {
+  const discovered = [];
+  for (const entry of safeReadDir(baseDir, { withFileTypes: true })) {
+    const entryPath = path.join(baseDir, entry.name);
+    if (!isDirectoryLike(entry, entryPath)) {
+      continue;
+    }
+
+    const flatContentPath = path.join(entryPath, 'SKILL.md');
+    if (safeStat(flatContentPath)?.isFile()) {
+      discovered.push({
+        logicalName: normalizeAssetKey('skill', entry.name),
+        namespace: null,
+        rootPath: entryPath,
+        contentPath: flatContentPath,
+        viewPath: `${relativeRoot}/${entry.name}/SKILL.md`,
+      });
+    }
+
+    for (const childEntry of safeReadDir(entryPath, { withFileTypes: true })) {
+      const childPath = path.join(entryPath, childEntry.name);
+      if (!isDirectoryLike(childEntry, childPath)) {
+        continue;
+      }
+
+      const childContentPath = path.join(childPath, 'SKILL.md');
+      if (!safeStat(childContentPath)?.isFile()) {
+        continue;
+      }
+
+      discovered.push({
+        logicalName: normalizeAssetKey('skill', childEntry.name),
+        namespace: normalizeAssetKey('skill', entry.name),
+        rootPath: childPath,
+        contentPath: childContentPath,
+        viewPath: `${relativeRoot}/${entry.name}/${childEntry.name}/SKILL.md`,
+      });
+    }
+  }
+
+  return discovered.sort((left, right) => {
+    const nameCompare = String(left.logicalName || '').localeCompare(String(right.logicalName || ''));
+    if (nameCompare !== 0) {
+      return nameCompare;
+    }
+    const namespaceCompare = String(left.namespace || '').localeCompare(String(right.namespace || ''));
+    if (namespaceCompare !== 0) {
+      return namespaceCompare;
+    }
+    return String(left.viewPath || '').localeCompare(String(right.viewPath || ''));
+  });
 }
 
 function isPointerFile(absPath) {
@@ -640,19 +823,32 @@ function createSourceEntries(engineRoot, metadataBySkill, warnings) {
 function scanUserAgents(copilotHome) {
   const agentsDir = path.join(copilotHome, 'agents');
   return safeReadDir(agentsDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.agent.md'))
+    .filter((entry) => entry.isFile())
     .map((entry) => {
       const contentPath = path.join(agentsDir, entry.name);
-      const assetKey = normalizeAssetKey('agent', entry.name);
-      const assetId = deriveAssetId('agent', assetKey);
       const parsedAsset = parseMarkdownAsset(contentPath);
+      if (!isRecognizedAgentMarkdownFile(entry.name, parsedAsset)) {
+        return null;
+      }
+
+      const logicalName = normalizeAssetKey('agent', parsedAsset.frontmatter.name || entry.name);
+      const origin = inferExternalAssetOrigin(contentPath, {
+        kind: 'agent',
+        fileKind: entry.name.toLowerCase().endsWith('.agent.md') ? 'agent-md' : 'plain-md',
+      });
+      const assetKey = origin.isExternal
+        ? buildProviderQualifiedAssetKey('agent', logicalName, origin)
+        : logicalName;
+      const assetId = deriveAssetId('agent', assetKey);
+      const viewPath = toCopilotRelativePath(copilotHome, contentPath) || `agents/${entry.name}`;
+
       return createCatalogEntry({
         kind: 'agent',
         assetKey,
         assetId,
         layer: 'user-installed',
         scope: buildScope('user'),
-        title: parsedAsset.title || humanizeAssetKey(assetKey),
+        title: parsedAsset.title || humanizeAssetKey(logicalName),
         description: parsedAsset.description || undefined,
         contentPath,
         installState: {
@@ -665,11 +861,20 @@ function scanUserAgents(copilotHome) {
           },
         },
         metadata: {
-          source: 'user-home',
-          aliasKeys: buildAliasKeys('agent', assetKey, assetId),
+          source: origin.provider || 'user-home',
+          provider: origin.provider || 'user-home',
+          sourcePackage: origin.sourcePackage,
+          namespace: origin.namespace,
+          logicalName,
+          readOnly: origin.isExternal,
+          resolvedRealPath: origin.realPath,
+          viewPath,
+          aliasKeys: buildAssetAliasKeys('agent', assetKey, assetId, logicalName, origin),
         },
       });
-    });
+    })
+    .filter(Boolean)
+    .sort((left, right) => String(left.assetId || '').localeCompare(String(right.assetId || '')));
 }
 
 function scanUserPrompts(copilotHome) {
@@ -737,23 +942,19 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
   const vaultDir = path.join(copilotHome, 'skills-vault');
   const entries = [];
 
-  for (const entry of safeReadDir(skillsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const skillRoot = path.join(skillsDir, entry.name);
-    const contentPath = path.join(skillRoot, 'SKILL.md');
-    if (!safeStat(contentPath)?.isFile()) {
-      continue;
-    }
-
-    const assetKey = normalizeAssetKey('skill', entry.name);
-    const sourceEntry = sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
+  for (const skill of discoverSkillArtifacts(skillsDir, 'skills')) {
+    const origin = inferExternalAssetOrigin(skill.contentPath, {
+      kind: 'skill',
+      namespace: skill.namespace,
+    });
+    const assetKey = origin.isExternal
+      ? buildProviderQualifiedAssetKey('skill', skill.logicalName, origin)
+      : skill.logicalName;
+    const sourceEntry = origin.isExternal ? null : sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
     const assetId = sourceEntry?.assetId || deriveAssetId('skill', assetKey);
-    const parsedAsset = parseMarkdownAsset(contentPath);
-    const metadataEntry = metadataBySkill.get(assetKey);
-    const pointer = isPointerFile(contentPath);
+    const parsedAsset = parseMarkdownAsset(skill.contentPath);
+    const metadataEntry = origin.isExternal ? null : metadataBySkill.get(skill.logicalName);
+    const pointer = isPointerFile(skill.contentPath);
     const loadMode = resolveSkillLoadMode({
       layer: 'user-installed',
       hasPointerStub: pointer,
@@ -773,51 +974,54 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
           parsedAsset.title ||
           sourceEntry?.title ||
           String(metadataEntry?.name || '').trim() ||
-          humanizeAssetKey(assetKey),
+          humanizeAssetKey(skill.logicalName),
         description:
           parsedAsset.description ||
           String(metadataEntry?.description || '').trim() ||
           sourceEntry?.description ||
           undefined,
-        contentPath,
+        contentPath: skill.contentPath,
         installState: {
           availability: 'installed',
           isInstalled: true,
           isAutoLoaded: loadMode === 'always',
           materialization: pointer ? 'pointer' : 'materialized',
           loadMode,
-          contentHash: sha256PathHex(skillRoot) || undefined,
+          contentHash: sha256PathHex(skill.rootPath) || undefined,
           installedPaths: {
-            'user-installed': contentPath,
+            'user-installed': skill.contentPath,
           },
         },
         metadata: {
-          source: 'user-home',
-          sourceRootPath: skillRoot,
+          source: origin.provider || 'user-home',
+          provider: origin.provider || 'user-home',
+          sourcePackage: origin.sourcePackage,
+          namespace: origin.namespace,
+          logicalName: skill.logicalName,
+          readOnly: origin.isExternal,
+          sourceRootPath: skill.rootPath,
+          resolvedRealPath: origin.realPath,
+          viewPath: skill.viewPath,
           triggersOn: metadataEntry?.triggersOn || parsedAsset.triggers,
-          aliasKeys: buildAliasKeys('skill', assetKey, assetId),
+          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
       }),
     );
   }
 
-  for (const entry of safeReadDir(vaultDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const skillRoot = path.join(vaultDir, entry.name);
-    const contentPath = path.join(skillRoot, 'SKILL.md');
-    if (!safeStat(contentPath)?.isFile()) {
-      continue;
-    }
-
-    const assetKey = normalizeAssetKey('skill', entry.name);
-    const sourceEntry = sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
+  for (const skill of discoverSkillArtifacts(vaultDir, 'skills-vault')) {
+    const origin = inferExternalAssetOrigin(skill.contentPath, {
+      kind: 'skill',
+      namespace: skill.namespace,
+    });
+    const assetKey = origin.isExternal
+      ? buildProviderQualifiedAssetKey('skill', skill.logicalName, origin)
+      : skill.logicalName;
+    const sourceEntry = origin.isExternal ? null : sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
     const assetId = sourceEntry?.assetId || deriveAssetId('skill', assetKey);
-    const parsedAsset = parseMarkdownAsset(contentPath);
-    const metadataEntry = metadataBySkill.get(assetKey);
+    const parsedAsset = parseMarkdownAsset(skill.contentPath);
+    const metadataEntry = origin.isExternal ? null : metadataBySkill.get(skill.logicalName);
     const loadMode = resolveSkillLoadMode({
       layer: 'vault-only',
       hasPointerStub: true,
@@ -837,29 +1041,36 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
           parsedAsset.title ||
           sourceEntry?.title ||
           String(metadataEntry?.name || '').trim() ||
-          humanizeAssetKey(assetKey),
+          humanizeAssetKey(skill.logicalName),
         description:
           parsedAsset.description ||
           String(metadataEntry?.description || '').trim() ||
           sourceEntry?.description ||
           undefined,
-        contentPath,
+        contentPath: skill.contentPath,
         installState: {
           availability: 'vault-only',
           isInstalled: true,
           isAutoLoaded: false,
           materialization: 'vault-only',
           loadMode,
-          contentHash: sha256PathHex(skillRoot) || undefined,
+          contentHash: sha256PathHex(skill.rootPath) || undefined,
           installedPaths: {
-            'vault-only': contentPath,
+            'vault-only': skill.contentPath,
           },
         },
         metadata: {
-          source: 'user-home',
-          sourceRootPath: skillRoot,
+          source: origin.provider || 'user-home',
+          provider: origin.provider || 'user-home',
+          sourcePackage: origin.sourcePackage,
+          namespace: origin.namespace,
+          logicalName: skill.logicalName,
+          readOnly: origin.isExternal,
+          sourceRootPath: skill.rootPath,
+          resolvedRealPath: origin.realPath,
+          viewPath: skill.viewPath,
           triggersOn: metadataEntry?.triggersOn || parsedAsset.triggers,
-          aliasKeys: buildAliasKeys('skill', assetKey, assetId),
+          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
       }),
@@ -1378,6 +1589,10 @@ function collectSearchTerms(asset) {
     asset.kind,
     selectedEntry?.title,
     selectedEntry?.description,
+    selectedEntry?.metadata?.provider,
+    selectedEntry?.metadata?.sourcePackage,
+    selectedEntry?.metadata?.namespace,
+    selectedEntry?.metadata?.logicalName,
   ];
 
   const tags = selectedEntry?.targeting?.tags;
@@ -1388,6 +1603,11 @@ function collectSearchTerms(asset) {
   const triggers = selectedEntry?.metadata?.triggersOn;
   if (Array.isArray(triggers)) {
     terms.push(...triggers);
+  }
+
+  const aliases = selectedEntry?.metadata?.aliasKeys;
+  if (Array.isArray(aliases)) {
+    terms.push(...aliases);
   }
 
   return terms
@@ -1499,11 +1719,15 @@ function getCatalogBundle(snapshot, bundleId) {
 module.exports = {
   CATALOG_PROJECTION_SCHEMA_VERSION,
   buildCatalogProjection,
+  buildProviderQualifiedAssetKey,
+  inferExternalAssetOrigin,
   rebuildCatalogProjection,
   loadCatalogProjectionSnapshot,
+  parseMarkdownAsset,
   resolveProjectionStorage,
   resolveRepoContext,
   getRepoStateKey,
+  toCopilotRelativePath,
   queryCatalogEntries,
   queryEffectiveCatalog,
   queryCatalogBundles,

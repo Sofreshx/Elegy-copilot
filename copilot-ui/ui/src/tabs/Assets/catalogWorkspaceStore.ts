@@ -209,6 +209,14 @@ function resolveInspectablePath(asset: CatalogEffectiveAsset | null): string | n
     return null;
   }
 
+  const explicitViewPath =
+    typeof asset.selectedEntry?.metadata?.viewPath === 'string'
+      ? asset.selectedEntry.metadata.viewPath.trim()
+      : '';
+  if (explicitViewPath) {
+    return explicitViewPath;
+  }
+
   const installedPaths = asset.installState?.installedPaths;
   if (installedPaths && typeof installedPaths === 'object') {
     for (const candidate of Object.values(installedPaths)) {

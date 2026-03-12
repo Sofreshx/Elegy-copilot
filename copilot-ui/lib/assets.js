@@ -5,6 +5,9 @@ const crypto = require('crypto');
 const {
   appendCatalogAuditEvent,
 } = require('./catalogAuditAnalytics');
+const {
+  buildCatalogProjection,
+} = require('./catalogProjectionService');
 
 function toPosixRelPath(p) {
   return String(p || '').replace(/\\/g, '/');
@@ -284,16 +287,221 @@ function getAssetPaths(engineRoot, destinationHome, asset, opts) {
   return { engineAbs, homeAbs, sourceAbs, destinationAbs, sourceRel };
 }
 
+function safeStat(absPath) {
+  try {
+    return fs.statSync(absPath);
+  } catch {
+    return null;
+  }
+}
+
+function safeRealpath(absPath) {
+  try {
+    if (typeof fs.realpathSync.native === 'function') {
+      return fs.realpathSync.native(absPath);
+    }
+    return fs.realpathSync(absPath);
+  } catch {
+    return null;
+  }
+}
+
+function toPosixPath(inputPath) {
+  return String(inputPath || '').replace(/\\/g, '/');
+}
+
+function toCopilotRelativePath(home, absPath) {
+  const relativePath = path.relative(path.resolve(home), path.resolve(absPath));
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    return null;
+  }
+  return toPosixPath(relativePath);
+}
+
+function isDirectoryLike(entry, absPath) {
+  if (entry && typeof entry.isDirectory === 'function' && entry.isDirectory()) {
+    return true;
+  }
+  return Boolean(safeStat(absPath)?.isDirectory());
+}
+
+function normalizeIdentityPart(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function inferExternalOrigin(absPath, options = {}) {
+  const realPath = safeRealpath(absPath) || path.resolve(absPath);
+  const normalizedRealPath = toPosixPath(realPath);
+  const sourcePackageMatch = normalizedRealPath.match(/\/marketplace-cache\/([^/]+)\//i);
+  const pluginNamespaceMatch = normalizedRealPath.match(/\/plugins\/([^/]+)\//i);
+  const namespace = String(options.namespace || pluginNamespaceMatch?.[1] || '').trim();
+  const sourcePackage = normalizeIdentityPart(sourcePackageMatch?.[1] || '');
+
+  let provider = '';
+  if (sourcePackage) {
+    provider = 'copilot-marketplace-plugin';
+  } else if (namespace) {
+    provider = 'copilot-home-plugin';
+  } else if (options.fileKind === 'plain-md') {
+    provider = 'copilot-home-plain-agent';
+  }
+
+  return {
+    isExternal: Boolean(provider),
+    provider: provider || undefined,
+    sourcePackage: sourcePackage || undefined,
+    namespace: namespace || undefined,
+  };
+}
+
+function buildProviderQualifiedId(type, logicalName, origin) {
+  if (!origin?.isExternal) {
+    return deriveAssetId(type, logicalName);
+  }
+  const parts = [
+    normalizeIdentityPart(origin.provider),
+    normalizeIdentityPart(origin.sourcePackage),
+    normalizeIdentityPart(origin.namespace),
+    normalizeIdentityPart(logicalName),
+  ].filter(Boolean);
+  return deriveAssetId(type, parts.join('-'));
+}
+
+function detectAgentFrontmatter(text) {
+  const source = String(text || '');
+  const frontmatterMatch = source.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  if (!frontmatterMatch) {
+    return { name: '', body: source };
+  }
+
+  let name = '';
+  for (const line of frontmatterMatch[1].split(/\r?\n/)) {
+    const match = line.match(/^name:\s*(.+?)\s*$/i);
+    if (match) {
+      name = match[1].trim();
+      break;
+    }
+  }
+
+  return {
+    name,
+    body: source.slice(frontmatterMatch[0].length),
+  };
+}
+
+function isRecognizedAgentFile(entryName, absPath) {
+  const normalizedFileName = String(entryName || '').trim().toLowerCase();
+  if (normalizedFileName.endsWith('.agent.md')) {
+    return {
+      recognized: true,
+      logicalName: entryName.slice(0, -'.agent.md'.length),
+      fileKind: 'agent-md',
+    };
+  }
+  if (!normalizedFileName.endsWith('.md') || normalizedFileName.endsWith('.prompt.md')) {
+    return { recognized: false };
+  }
+
+  const text = readTextFileSafe(absPath, 128 * 1024);
+  const parsed = detectAgentFrontmatter(text);
+  if (!parsed.name.trim() || !parsed.body.trim()) {
+    return { recognized: false };
+  }
+
+  return {
+    recognized: true,
+    logicalName: parsed.name.trim(),
+    fileKind: 'plain-md',
+  };
+}
+
+function discoverSkillInstallations(home, rootName) {
+  const baseDir = path.join(path.resolve(home), rootName);
+  const discovered = [];
+  try {
+    const entries = safeReadDir(baseDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const entryPath = path.join(baseDir, entry.name);
+      if (!isDirectoryLike(entry, entryPath)) {
+        continue;
+      }
+
+      const flatContentPath = path.join(entryPath, 'SKILL.md');
+      if (safeStat(flatContentPath)?.isFile()) {
+        discovered.push({
+          name: entry.name,
+          namespace: undefined,
+          absPath: flatContentPath,
+          viewPath: `${rootName}/${entry.name}/SKILL.md`,
+        });
+      }
+
+      const childEntries = safeReadDir(entryPath, { withFileTypes: true });
+      for (const childEntry of childEntries) {
+        const childPath = path.join(entryPath, childEntry.name);
+        if (!isDirectoryLike(childEntry, childPath)) {
+          continue;
+        }
+
+        const childContentPath = path.join(childPath, 'SKILL.md');
+        if (!safeStat(childContentPath)?.isFile()) {
+          continue;
+        }
+
+        discovered.push({
+          name: childEntry.name,
+          namespace: entry.name,
+          absPath: childContentPath,
+          viewPath: `${rootName}/${entry.name}/${childEntry.name}/SKILL.md`,
+        });
+      }
+    }
+  } catch {
+    return [];
+  }
+
+  return discovered.sort((left, right) => {
+    const nameCompare = String(left.name || '').localeCompare(String(right.name || ''));
+    if (nameCompare !== 0) {
+      return nameCompare;
+    }
+    const namespaceCompare = String(left.namespace || '').localeCompare(String(right.namespace || ''));
+    if (namespaceCompare !== 0) {
+      return namespaceCompare;
+    }
+    return String(left.viewPath || '').localeCompare(String(right.viewPath || ''));
+  });
+}
+
 function listInstalledAgents(home) {
   const agentsDir = path.join(path.resolve(home), 'agents');
   try {
     const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
     return entries
-      .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.agent.md'))
+      .filter((e) => e.isFile())
       .map((e) => {
-        const name = e.name.slice(0, -'.agent.md'.length);
-        return { name, fileName: e.name, absPath: path.join(agentsDir, e.name) };
+        const absPath = path.join(agentsDir, e.name);
+        const detected = isRecognizedAgentFile(e.name, absPath);
+        if (!detected.recognized) return null;
+        const origin = inferExternalOrigin(absPath, {
+          fileKind: detected.fileKind,
+        });
+        return {
+          assetId: buildProviderQualifiedId('agent', detected.logicalName, origin),
+          name: detected.logicalName,
+          fileName: e.name,
+          absPath,
+          provider: origin.provider || 'user-home',
+          sourcePackage: origin.sourcePackage,
+          namespace: origin.namespace,
+          readOnly: origin.isExternal,
+        };
       })
+      .filter(Boolean)
       .sort((a, b) => a.name.localeCompare(b.name));
   } catch {
     return [];
@@ -301,117 +509,112 @@ function listInstalledAgents(home) {
 }
 
 function listInstalledSkills(home) {
-  const skillsDir = path.join(path.resolve(home), 'skills');
-  try {
-    const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
-    return entries
-      .filter((e) => e.isDirectory())
-      .map((e) => {
-        const absPath = path.join(skillsDir, e.name, 'SKILL.md');
-        if (!fs.existsSync(absPath)) return null;
-        const kind = isPointerFile(absPath) ? 'pointer' : 'full';
-        return { name: e.name, absPath, kind };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  } catch {
-    return [];
-  }
+  return discoverSkillInstallations(home, 'skills').map((skill) => {
+    const origin = inferExternalOrigin(skill.absPath, {
+      namespace: skill.namespace,
+    });
+    return {
+      assetId: buildProviderQualifiedId('skill', skill.name, origin),
+      name: skill.name,
+      namespace: skill.namespace,
+      absPath: skill.absPath,
+      kind: isPointerFile(skill.absPath) ? 'pointer' : 'full',
+      viewPath: skill.viewPath,
+      provider: origin.provider || 'user-home',
+      sourcePackage: origin.sourcePackage,
+      readOnly: origin.isExternal,
+    };
+  });
 }
 
 function listVaultSkills(home) {
-  const vaultDir = getVaultDir(home);
-  try {
-    const entries = fs.readdirSync(vaultDir, { withFileTypes: true });
-    return entries
-      .filter((e) => e.isDirectory())
-      .map((e) => {
-        const absPath = path.join(vaultDir, e.name, 'SKILL.md');
-        if (!fs.existsSync(absPath)) return null;
-        return { name: e.name, absPath };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.name.localeCompare(b.name));
-  } catch {
-    return [];
-  }
+  return discoverSkillInstallations(home, 'skills-vault').map((skill) => {
+    const origin = inferExternalOrigin(skill.absPath, {
+      namespace: skill.namespace,
+    });
+    return {
+      assetId: buildProviderQualifiedId('skill', skill.name, origin),
+      name: skill.name,
+      namespace: skill.namespace,
+      absPath: skill.absPath,
+      viewPath: skill.viewPath,
+      provider: origin.provider || 'user-home',
+      sourcePackage: origin.sourcePackage,
+      readOnly: origin.isExternal,
+    };
+  });
 }
 
 function getSkillCatalogPreview(engineRoot, home) {
-  const manifest = loadManifest(engineRoot);
-  const manifestSkills = (manifest.assets || []).filter((asset) => asset && asset.type === 'skill');
-  const installedSkills = new Map(listInstalledSkills(home).map((skill) => [skill.name, skill]));
-  const vaultSkills = new Map(listVaultSkills(home).map((skill) => [skill.name, skill]));
-  const metadataIndex = readJsonIfExists(path.join(path.resolve(engineRoot), 'engine-assets', 'skills', 'skill-metadata-index.json'));
-  const metadataEntries = new Map(
-    Array.isArray(metadataIndex?.entries)
-      ? metadataIndex.entries
-          .filter((entry) => entry && typeof entry === 'object' && typeof entry.skill === 'string' && entry.skill.trim())
-          .map((entry) => [entry.skill.trim(), entry])
-      : []
-  );
+  const snapshot = buildCatalogProjection({ engineRoot, copilotHome: home });
+  const skills = Array.isArray(snapshot?.effectiveAssets)
+    ? snapshot.effectiveAssets.filter((asset) => asset && asset.kind === 'skill')
+    : [];
 
-  const manifestSkillByName = new Map(
-    manifestSkills.map((asset) => {
-      const sourceName = path.posix.basename(String(asset.source || '').replace(/\\/g, '/'));
-      return [sourceName, asset];
-    })
-  );
-
-  const names = new Set([
-    ...manifestSkillByName.keys(),
-    ...installedSkills.keys(),
-    ...vaultSkills.keys(),
-    ...metadataEntries.keys(),
-  ]);
-
-  return Array.from(names)
-    .map((name) => {
-      const installed = installedSkills.get(name);
-      const vaulted = vaultSkills.get(name);
-      const manifestAsset = manifestSkillByName.get(name);
-      const metadata = metadataEntries.get(name) || {};
-      const triggerList = Array.isArray(metadata.triggersOn)
-        ? metadata.triggersOn.filter((value) => typeof value === 'string' && value.trim())
+  return skills
+    .map((asset) => {
+      const entry = asset.selectedEntry || {};
+      const metadata = entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : {};
+      const installedPaths = asset.installState?.installedPaths || {};
+      const triggers = Array.isArray(metadata.triggersOn)
+        ? metadata.triggersOn.map((value) => String(value || '').trim()).filter(Boolean)
         : [];
-      const loadMode =
-        typeof manifestAsset?.loadMode === 'string' && manifestAsset.loadMode.trim()
-          ? manifestAsset.loadMode
-          : typeof metadata?.manifest?.loadMode === 'string' && metadata.manifest.loadMode.trim()
-            ? metadata.manifest.loadMode
-            : 'on-demand';
+      const logicalName = typeof metadata.logicalName === 'string' && metadata.logicalName.trim()
+        ? metadata.logicalName.trim()
+        : String(asset.assetKey || entry.title || '').trim();
+      const explicitViewPath = typeof metadata.viewPath === 'string' && metadata.viewPath.trim()
+        ? metadata.viewPath.trim()
+        : null;
+      const fallbackViewPath =
+        explicitViewPath ||
+        toCopilotRelativePath(home, installedPaths['vault-only']) ||
+        toCopilotRelativePath(home, installedPaths['user-installed']) ||
+        toCopilotRelativePath(home, entry.contentPath);
 
       let kind = 'missing';
       let availability = 'not-installed';
-      let viewPath = `skills/${name}/SKILL.md`;
-      let absPath;
-
-      if (installed) {
-        kind = installed.kind || 'full';
-        availability = vaulted ? 'scan+vault' : 'scan-path';
-        viewPath = `skills/${name}/SKILL.md`;
-        absPath = installed.absPath;
-      } else if (vaulted) {
-        kind = 'vault';
-        availability = 'vault-only';
-        viewPath = `skills-vault/${name}/SKILL.md`;
-        absPath = vaulted.absPath;
+      if (asset.installed) {
+        const materialization = String(entry.installState?.materialization || asset.installState?.materialization || '').trim();
+        availability =
+          asset.selectedLayer === 'vault-only' && installedPaths['user-installed']
+            ? 'scan+vault'
+            : asset.installState?.availability || 'scan-path';
+        if (asset.selectedLayer === 'vault-only') {
+          kind = 'vault';
+        } else if (materialization === 'pointer') {
+          kind = 'pointer';
+        } else {
+          kind = 'full';
+        }
       }
 
       return {
-        name,
+        assetId: asset.assetId,
+        name: logicalName,
         kind,
-        loadMode,
+        loadMode: asset.installState?.loadMode || 'on-demand',
         availability,
-        description: typeof metadata.description === 'string' ? metadata.description : '',
-        triggers: triggerList.join(', '),
-        absPath,
-        vaultPath: vaulted ? vaulted.absPath : null,
-        viewPath,
-        managed: manifestSkillByName.has(name),
+        description: typeof entry.description === 'string' ? entry.description : '',
+        triggers: triggers.join(', '),
+        absPath: typeof entry.contentPath === 'string' ? entry.contentPath : undefined,
+        vaultPath: typeof installedPaths['vault-only'] === 'string' ? installedPaths['vault-only'] : null,
+        viewPath: fallbackViewPath || undefined,
+        managed: Array.isArray(asset.contributingEntries)
+          ? asset.contributingEntries.some((candidate) => candidate?.layer === 'source')
+          : false,
+        namespace: typeof metadata.namespace === 'string' ? metadata.namespace : undefined,
+        provider: typeof metadata.provider === 'string' ? metadata.provider : undefined,
+        sourcePackage: typeof metadata.sourcePackage === 'string' ? metadata.sourcePackage : undefined,
+        readOnly: metadata.readOnly === true,
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((left, right) => {
+      const nameCompare = String(left.name || '').localeCompare(String(right.name || ''));
+      if (nameCompare !== 0) {
+        return nameCompare;
+      }
+      return String(left.assetId || '').localeCompare(String(right.assetId || ''));
+    });
 }
 
 function listInstalledPrompts(home) {
