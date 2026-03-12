@@ -15,6 +15,8 @@
 const fs = require('fs');
 const path = require('path');
 
+const REPO_ROOT = path.resolve(__dirname, '..');
+
 function findAgentsDirs(startDir) {
   const results = [];
   function walk(dir) {
@@ -181,9 +183,11 @@ function updateAgentFile(filePath, apply) {
 function run() {
   const args = process.argv.slice(2);
   const apply = args.includes('--apply');
-  const cwd = process.cwd();
-  console.log(`Scanning from ${cwd} ...`);
-  const agentsDirs = findAgentsDirs(cwd);
+  const rootArg = args.find(a => a.startsWith('--root='));
+  const rootValue = rootArg ? rootArg.slice('--root='.length).trim() : '';
+  const scanRoot = rootValue ? path.resolve(rootValue) : REPO_ROOT;
+  console.log(`Scanning from ${scanRoot} ...`);
+  const agentsDirs = findAgentsDirs(scanRoot);
   if (agentsDirs.length === 0) {
     console.log('No engine-assets/agents folders found. Exiting.');
     return;
@@ -216,4 +220,11 @@ function run() {
   }
 }
 
-if (require.main === module) run();
+if (require.main === module) {
+  try {
+    run();
+  } catch (err) {
+    process.stderr.write(`migrate-infer-to-new-fields: ${err.message}\n`);
+    process.exit(1);
+  }
+}

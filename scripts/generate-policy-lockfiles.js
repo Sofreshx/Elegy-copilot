@@ -10,7 +10,17 @@ const SCHEMA_PATH = path.join(REPO_ROOT, 'engine-assets', 'policy', 'policy.sche
 const LOCK_PATH = path.join(REPO_ROOT, '.cli', 'policy', 'pipeline-policy.lock.json');
 
 function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  let raw;
+  try {
+    raw = fs.readFileSync(filePath, 'utf8');
+  } catch (err) {
+    throw new Error(`Cannot read ${filePath}: ${err.message}`);
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Invalid JSON in ${filePath}: ${err.message}`);
+  }
 }
 
 function canonicalize(value) {
@@ -72,4 +82,9 @@ function main() {
   console.log(`Generated lockfile: ${toPosixRelative(LOCK_PATH)}`);
 }
 
-main();
+try {
+  main();
+} catch (err) {
+  process.stderr.write(`generate-policy-lockfiles: ${err.message}\n`);
+  process.exit(1);
+}
