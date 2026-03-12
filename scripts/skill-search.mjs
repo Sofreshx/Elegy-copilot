@@ -1,14 +1,9 @@
 #!/usr/bin/env node
-import path from 'path';
 import { createRequire } from 'module';
-import { fileURLToPath } from 'url';
+import { repoRoot } from './lib/cli-utils.mjs';
 
 const require = createRequire(import.meta.url);
 const { searchSkills } = require('../copilot-ui/lib/skillSearchService');
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
 
 function takeValue(args, index, flag) {
 	const value = args[index + 1];
@@ -31,9 +26,20 @@ function collectRepeatedValues(args, flag) {
 }
 
 function parseArgs(argv) {
-	const args = [...argv];
+	// Normalize --flag=value to separate --flag value entries so both forms work uniformly.
+	const args = [];
+	for (const a of argv) {
+		if (a.startsWith('--') && a.includes('=')) {
+			const eqIdx = a.indexOf('=');
+			args.push(a.slice(0, eqIdx), a.slice(eqIdx + 1));
+		} else {
+			args.push(a);
+		}
+	}
+
 	const jsonFlag = args.includes('--json');
 	const noTelemetry = args.includes('--no-telemetry');
+	const showHelp = args.includes('--help');
 	const frameworks = collectRepeatedValues(args, '--framework');
 	const stacks = collectRepeatedValues(args, '--stack');
 	const languages = collectRepeatedValues(args, '--language');
@@ -51,6 +57,7 @@ function parseArgs(argv) {
 		if (
 			value === '--json' ||
 			value === '--no-telemetry' ||
+			value === '--help' ||
 			value === '--framework' ||
 			value === '--stack' ||
 			value === '--language' ||
@@ -100,6 +107,7 @@ function parseArgs(argv) {
 	return {
 		jsonFlag,
 		noTelemetry,
+		showHelp,
 		query: queryParts.join(' ').trim(),
 		repoPath,
 		workspaceId,
@@ -146,6 +154,28 @@ function serializeResult(result) {
 
 try {
 	const parsed = parseArgs(process.argv.slice(2));
+
+	if (parsed.showHelp) {
+		console.log(`Usage: skill-search.mjs [flags] [query...]
+
+Flags:
+  --json                      Output results as JSON
+  --no-telemetry              Skip telemetry persistence
+  --repo <path>               Path to the target repository
+  --workspace <id>            Workspace ID
+  --workspace-path <path>     Workspace path
+  --prefer-load-mode <mode>   Preferred load mode
+  --limit <n>                 Maximum number of results
+  --framework <name>          Filter by framework (repeatable)
+  --stack <name>              Filter by stack (repeatable)
+  --language <name>           Filter by language (repeatable)
+  --tag <name>                Filter by tag (repeatable)
+  --help                      Show this help message
+
+Both --flag value and --flag=value forms are supported.`);
+		process.exit(0);
+	}
+
 	const response = searchSkills(
 		{
 			query: parsed.query,

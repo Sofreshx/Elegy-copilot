@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { repoRoot } from './lib/cli-utils.mjs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
 const schemaPath = path.join(repoRoot, 'contracts', 'elegy', 'monitoring-event.schema.json');
 const eventsDir = path.join(repoRoot, 'docs', 'issues', 'friction-events');
 
@@ -18,17 +15,61 @@ function parseArgs(argv) {
 		const arg = argv[i];
 		if (arg === '--dry-run') {
 			args.dryRun = true;
-		} else if (arg === '--title' && argv[i + 1]) {
-			args.title = argv[++i];
-		} else if (arg === '--reason' && argv[i + 1]) {
-			args.reason = argv[++i];
-		} else if (arg === '--importance' && argv[i + 1]) {
-			args.importance = argv[++i];
-		} else if (arg === '--context' && argv[i + 1]) {
-			args.context = argv[++i];
-		} else if (arg === '--cluster-id' && argv[i + 1]) {
-			args.clusterId = argv[++i];
+			continue;
 		}
+		if (arg === '--title') {
+			args.title = argv[++i] ?? null;
+			if (!args.title) throw new Error('Missing value for --title');
+			continue;
+		}
+		if (arg.startsWith('--title=')) {
+			args.title = arg.slice('--title='.length);
+			if (!args.title) throw new Error('Missing value for --title');
+			continue;
+		}
+		if (arg === '--reason') {
+			args.reason = argv[++i] ?? null;
+			if (!args.reason) throw new Error('Missing value for --reason');
+			continue;
+		}
+		if (arg.startsWith('--reason=')) {
+			args.reason = arg.slice('--reason='.length);
+			if (!args.reason) throw new Error('Missing value for --reason');
+			continue;
+		}
+		if (arg === '--importance') {
+			args.importance = argv[++i] ?? null;
+			if (!args.importance) throw new Error('Missing value for --importance');
+			continue;
+		}
+		if (arg.startsWith('--importance=')) {
+			args.importance = arg.slice('--importance='.length);
+			if (!args.importance) throw new Error('Missing value for --importance');
+			continue;
+		}
+		if (arg === '--context') {
+			args.context = argv[++i] ?? null;
+			if (!args.context) throw new Error('Missing value for --context');
+			continue;
+		}
+		if (arg.startsWith('--context=')) {
+			args.context = arg.slice('--context='.length);
+			if (!args.context) throw new Error('Missing value for --context');
+			continue;
+		}
+		if (arg === '--cluster-id') {
+			args.clusterId = argv[++i] ?? null;
+			if (!args.clusterId) throw new Error('Missing value for --cluster-id');
+			continue;
+		}
+		if (arg.startsWith('--cluster-id=')) {
+			args.clusterId = arg.slice('--cluster-id='.length);
+			if (!args.clusterId) throw new Error('Missing value for --cluster-id');
+			continue;
+		}
+		throw new Error(
+			`Unknown arg: ${arg} (supported: --dry-run, --title, --reason, --importance, --context, --cluster-id)`
+		);
 	}
 	return args;
 }
@@ -70,6 +111,7 @@ function buildEvent(args) {
 
 function validateAgainstSchema(event) {
 	if (!fs.existsSync(schemaPath)) {
+		console.warn(`[warn] Schema file not found, skipping schema validation: ${schemaPath}`);
 		return { valid: true, errors: [] };
 	}
 
