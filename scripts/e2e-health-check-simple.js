@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const repoRoot = path.resolve(__dirname, '..');
-const outputDir = path.join(repoRoot, '.instructions-output', 'e2e-health');
+const outputDir = path.join(repoRoot, '.tmp', 'llm-output', 'e2e-health');
 const reportPath = path.join(outputDir, 'health-report.json');
 const screenshotPath = path.join(outputDir, 'health-screenshot.png');
 

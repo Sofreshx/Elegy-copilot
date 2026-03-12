@@ -1,6 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { spawnSync } = require('child_process');
+
+// Overall timeout for the child test-runner process; callers may override via environment.
+const TEST_RUNNER_TIMEOUT_MS = Number.parseInt(process.env.TEST_RUNNER_TIMEOUT_MS || '300000', 10);
 const {
     hashTestFileAndDependencies,
     getPartitionKey,
@@ -111,20 +114,35 @@ if (!fs.existsSync(tmpWorkDir)) {
 const includeListFile = path.join(tmpWorkDir, `include-list-${Date.now()}.json`);
 const resultsFile = path.join(tmpWorkDir, `results-${Date.now()}.json`);
 
+// Register cleanup of temp files so they are removed even on unhandled exits/crashes.
+const tempFilesToClean = [includeListFile, resultsFile];
+process.on('exit', () => {
+    for (const f of tempFilesToClean) {
+        try { fs.unlinkSync(f); } catch { /* ignore */ }
+    }
+});
+
 fs.writeFileSync(includeListFile, JSON.stringify(testsToRun));
 
 // 4. Run tests
-try {
-    execSync(`node ${path.join(__dirname, 'run-tests.js')}`, { 
-        cwd: __dirname, 
-        stdio: 'inherit',
-        env: {
-            ...process.env,
-            TEST_INCLUDE_LIST_FILE: includeListFile,
-            TEST_LEDGER_RESULTS_FILE: resultsFile
-        }
-    });
-} catch (error) {
+const runTestsPath = path.join(__dirname, 'run-tests.js');
+const runResult = spawnSync('node', [runTestsPath], {
+    cwd: __dirname,
+    stdio: 'inherit',
+    timeout: TEST_RUNNER_TIMEOUT_MS,
+    env: {
+        ...process.env,
+        TEST_INCLUDE_LIST_FILE: includeListFile,
+        TEST_LEDGER_RESULTS_FILE: resultsFile
+    }
+});
+
+if (runResult.error) {
+    const reason = runResult.error.code === 'ETIMEDOUT'
+        ? `Test runner timed out after ${TEST_RUNNER_TIMEOUT_MS}ms`
+        : `Test runner failed to start: ${runResult.error.message}`;
+    console.error(reason);
+} else if (runResult.status !== 0) {
     console.error('Test run failed or partially failed.');
 }
 
@@ -169,14 +187,6 @@ if (fs.existsSync(resultsFile)) {
 const evidenceFile = writeEvidence(evidenceDir, runId, allEvidence);
 console.log(`[TEST-LEDGER-EVIDENCE] ${evidenceFile}`);
 cleanupStaleEvidence(evidenceDir);
-
-// 6. Cleanup
-try {
-    fs.unlinkSync(includeListFile);
-    fs.unlinkSync(resultsFile);
-} catch (e) {
-    // Ignore cleanup errors
-}
 
 // Exit with error if any test failed
 if (hasFailures) {
