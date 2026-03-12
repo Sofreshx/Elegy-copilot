@@ -13,4 +13,3 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 
 & node $server @args
 exit $LASTEXITCODE
-
