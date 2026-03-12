@@ -158,6 +158,19 @@ async function run() {
         '',
       ].join('\n'),
     );
+    writeText(
+      path.join(copilotHome, 'skills', 'superpowers', 'brainstorming', 'SKILL.md'),
+      [
+        '---',
+        'name: brainstorming',
+        'description: External brainstorming workflow.',
+        '---',
+        '# Brainstorming',
+        '',
+        'Plugin-installed brainstorming workflow.',
+        '',
+      ].join('\n'),
+    );
 
     const repoStorage = resolveProjectionStorage({ copilotHome, repoPath });
     const snapshot = buildCatalogProjection({ engineRoot, copilotHome, repoPath });
@@ -281,6 +294,25 @@ async function run() {
 
       assert.strictEqual(resolved.results[0].assetId, 'skill-alpha');
       assert.strictEqual(resolved.results[1].assetId, 'skill-beta');
+    });
+
+    await test('searchSkills can resolve provider-qualified plugin skills by logical name aliases', async () => {
+      const pluginResponse = searchSkills(
+        {
+          query: 'brainstorming',
+          limit: 5,
+        },
+        {
+          snapshot,
+          copilotHome,
+          persistTelemetry: false,
+        },
+      );
+
+      assert.ok(pluginResponse.results.length >= 1, 'expected plugin skill to appear in search results');
+      assert.strictEqual(pluginResponse.results[0].entry?.metadata?.logicalName, 'brainstorming');
+      assert.strictEqual(pluginResponse.results[0].entry?.metadata?.namespace, 'superpowers');
+      assert.notStrictEqual(pluginResponse.results[0].assetId, 'skill-brainstorming');
     });
 
     await test('search telemetry persists bounded query, result, miss, and selection events', async () => {

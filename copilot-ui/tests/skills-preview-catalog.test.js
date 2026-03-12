@@ -115,6 +115,19 @@ async function run() {
     writeText(path.join(copilotHomeAbs, 'skills', 'core-guardrails', 'SKILL.md'), '# Core Guardrails\n');
     writeText(path.join(copilotHomeAbs, 'skills-vault', 'core-guardrails', 'SKILL.md'), '# Core Guardrails Vault\n');
     writeText(path.join(copilotHomeAbs, 'skills-vault', 'wolverine-core', 'SKILL.md'), '# Wolverine Core\n');
+    writeText(
+      path.join(copilotHomeAbs, 'skills', 'superpowers', 'brainstorming', 'SKILL.md'),
+      [
+        '---',
+        'name: brainstorming',
+        'description: External brainstorming workflow.',
+        '---',
+        '# Brainstorming',
+        '',
+        'Plugin-installed brainstorming guidance.',
+        '',
+      ].join('\n'),
+    );
 
     await test('preview returns always-loaded, vault-only, and managed-missing skills', async () => {
       const response = await invokeSkillsPreview(engineRoot, copilotHomeAbs);
@@ -141,6 +154,29 @@ async function run() {
       assert.strictEqual(byName.get('missing-skill').kind, 'missing');
       assert.strictEqual(byName.get('missing-skill').availability, 'not-installed');
       assert.strictEqual(byName.get('missing-skill').loadMode, 'on-demand');
+    });
+
+    await test('preview keeps plugin-installed skills distinct with explicit view paths and read-only provenance', async () => {
+      writeText(path.join(copilotHomeAbs, 'skills', 'brainstorming', 'SKILL.md'), '# Brainstorming Local\n');
+
+      const response = await invokeSkillsPreview(engineRoot, copilotHomeAbs);
+      assert.strictEqual(response.status, 200);
+
+      const brainstormingItems = response.payload.skills.filter((skill) => skill.name === 'brainstorming');
+      assert.strictEqual(brainstormingItems.length, 2, 'expected flat and plugin brainstorming entries');
+
+      const pluginEntry = brainstormingItems.find((skill) => skill.namespace === 'superpowers');
+      const flatEntry = brainstormingItems.find((skill) => !skill.namespace);
+
+      assert.ok(pluginEntry, 'expected plugin brainstorming entry');
+      assert.ok(flatEntry, 'expected flat brainstorming entry');
+      assert.notStrictEqual(pluginEntry.assetId, flatEntry.assetId);
+      assert.strictEqual(pluginEntry.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
+      assert.strictEqual(pluginEntry.readOnly, true);
+      assert.ok(
+        ['copilot-home-plugin', 'copilot-marketplace-plugin'].includes(pluginEntry.provider),
+        `unexpected plugin provider: ${pluginEntry.provider}`,
+      );
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

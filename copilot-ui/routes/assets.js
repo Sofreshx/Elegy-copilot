@@ -122,7 +122,9 @@ function handleSkillsPreview(ctx, deps) {
     const vaultDir = assets.getVaultDir ? assets.getVaultDir(assetsHomeAbs) : path.join(assetsHomeAbs, 'skills-vault');
     const result = skills.map((s) => {
       const triggers = extractTriggers(s.absPath);
-      const vaultPath = s.kind === 'pointer' ? path.join(vaultDir, s.name, 'SKILL.md') : null;
+      const vaultPath = s.kind === 'pointer'
+        ? path.join(vaultDir, ...(s.namespace ? [s.namespace] : []), s.name, 'SKILL.md')
+        : null;
       return {
         assetId: s.assetId,
         name: s.name,

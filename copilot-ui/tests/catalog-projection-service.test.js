@@ -132,6 +132,76 @@ async function run() {
       path.join(copilotHome, 'agents', 'code-reviewer.agent.md'),
       '# Code Reviewer Installed\n\nInstalled review agent.\n',
     );
+    writeText(
+      path.join(
+        copilotHome,
+        'marketplace-cache',
+        'dwaintr-superpowers-copilot',
+        'plugins',
+        'superpowers',
+        'agents',
+        'code-reviewer.md',
+      ),
+      [
+        '---',
+        'name: code-reviewer',
+        'description: Plugin-installed external reviewer.',
+        'model: inherit',
+        '---',
+        '',
+        '# Code Reviewer',
+        '',
+        'External plugin review agent.',
+        '',
+      ].join('\n'),
+    );
+    let pluginAgentWasLinked = false;
+    try {
+      fs.mkdirSync(path.join(copilotHome, 'agents'), { recursive: true });
+      fs.symlinkSync(
+        path.join(
+          copilotHome,
+          'marketplace-cache',
+          'dwaintr-superpowers-copilot',
+          'plugins',
+          'superpowers',
+          'agents',
+          'code-reviewer.md',
+        ),
+        path.join(copilotHome, 'agents', 'code-reviewer.md'),
+        'file',
+      );
+      pluginAgentWasLinked = true;
+    } catch {
+      writeText(
+        path.join(copilotHome, 'agents', 'code-reviewer.md'),
+        [
+          '---',
+          'name: code-reviewer',
+          'description: Plugin-installed external reviewer.',
+          'model: inherit',
+          '---',
+          '',
+          '# Code Reviewer',
+          '',
+          'External plugin review agent.',
+          '',
+        ].join('\n'),
+      );
+    }
+    writeText(
+      path.join(copilotHome, 'skills', 'superpowers', 'brainstorming', 'SKILL.md'),
+      [
+        '---',
+        'name: brainstorming',
+        'description: External plugin brainstorming skill.',
+        '---',
+        '# Brainstorming',
+        '',
+        'External plugin brainstorming workflow.',
+        '',
+      ].join('\n'),
+    );
 
     writeText(
       path.join(repoPath, '.github', 'skills', 'react-query', 'SKILL.md'),
@@ -190,6 +260,25 @@ async function run() {
       assert.strictEqual(repoAgent.selectedLayer, 'repo-local');
       assert.strictEqual(repoAgent.enabled, true);
       assert.strictEqual(repoAgent.selectedEntry.title, 'Repo Code Reviewer');
+
+      const pluginAgent = snapshot.effectiveAssets.find((asset) => asset.assetId !== 'agent-code-reviewer' && asset.kind === 'agent');
+      assert.ok(pluginAgent, 'expected plugin agent to be projected separately');
+      assert.strictEqual(pluginAgent.selectedLayer, 'user-installed');
+      assert.strictEqual(pluginAgent.selectedEntry.metadata.logicalName, 'code-reviewer');
+      assert.strictEqual(pluginAgent.selectedEntry.metadata.readOnly, true);
+      assert.ok(pluginAgent.selectedEntry.metadata.provider, 'expected plugin agent provider metadata');
+      if (pluginAgentWasLinked) {
+        assert.strictEqual(pluginAgent.selectedEntry.metadata.namespace, 'superpowers');
+        assert.strictEqual(pluginAgent.selectedEntry.metadata.sourcePackage, 'dwaintr-superpowers-copilot');
+      }
+
+      const pluginSkill = snapshot.effectiveAssets.find((asset) => asset.selectedEntry?.metadata?.namespace === 'superpowers');
+      assert.ok(pluginSkill, 'expected plugin skill to be projected');
+      assert.strictEqual(pluginSkill.kind, 'skill');
+      assert.strictEqual(pluginSkill.selectedLayer, 'user-installed');
+      assert.strictEqual(pluginSkill.selectedEntry.metadata.logicalName, 'brainstorming');
+      assert.strictEqual(pluginSkill.selectedEntry.metadata.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
+      assert.strictEqual(pluginSkill.selectedEntry.metadata.readOnly, true);
 
       const disabledSkills = queryEffectiveCatalog(snapshot, {
         kind: 'skill',

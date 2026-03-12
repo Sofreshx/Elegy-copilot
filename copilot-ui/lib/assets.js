@@ -545,11 +545,67 @@ function listVaultSkills(home) {
   });
 }
 
+function loadSkillMetadataIndex(engineRoot) {
+  const metadataIndexPath = path.join(
+    path.resolve(engineRoot),
+    'engine-assets',
+    'skills',
+    'skill-metadata-index.json',
+  );
+  const metadataIndex = readJsonIfExists(metadataIndexPath);
+  const metadataBySkill = new Map();
+  const entries = Array.isArray(metadataIndex?.entries) ? metadataIndex.entries : [];
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const skillKey = String(entry.skill || entry.name || '').trim();
+    if (!skillKey) {
+      continue;
+    }
+    metadataBySkill.set(skillKey, entry);
+  }
+  return metadataBySkill;
+}
+
+function buildManagedMissingSkillPreview(engineRoot, projectedAssetIds) {
+  const manifest = loadManifest(engineRoot);
+  const metadataBySkill = loadSkillMetadataIndex(engineRoot);
+
+  return manifest.assets
+    .filter((asset) => asset && asset.type === 'skill')
+    .map((asset) => {
+      const assetKey = path.basename(String(asset.destination || asset.source || '').trim()).replace(/[\\/]+$/, '');
+      const assetId = String(asset.id || '').trim() || deriveAssetId('skill', assetKey);
+      if (!assetKey || !assetId || projectedAssetIds.has(assetId)) {
+        return null;
+      }
+
+      const metadataEntry = metadataBySkill.get(assetKey) || null;
+      const triggers = Array.isArray(metadataEntry?.triggersOn)
+        ? metadataEntry.triggersOn.map((value) => String(value || '').trim()).filter(Boolean)
+        : [];
+
+      return {
+        assetId,
+        name: String(metadataEntry?.name || assetKey).trim(),
+        kind: 'missing',
+        loadMode: String(asset.loadMode || metadataEntry?.manifest?.loadMode || 'on-demand').trim(),
+        availability: 'not-installed',
+        description: String(metadataEntry?.description || '').trim(),
+        triggers: triggers.join(', '),
+        managed: true,
+      };
+    })
+    .filter(Boolean);
+}
+
 function getSkillCatalogPreview(engineRoot, home) {
   const snapshot = buildCatalogProjection({ engineRoot, copilotHome: home });
   const skills = Array.isArray(snapshot?.effectiveAssets)
     ? snapshot.effectiveAssets.filter((asset) => asset && asset.kind === 'skill')
     : [];
+  const projectedAssetIds = new Set(skills.map((asset) => String(asset?.assetId || '').trim()).filter(Boolean));
 
   return skills
     .map((asset) => {
@@ -576,9 +632,11 @@ function getSkillCatalogPreview(engineRoot, home) {
       if (asset.installed) {
         const materialization = String(entry.installState?.materialization || asset.installState?.materialization || '').trim();
         availability =
-          asset.selectedLayer === 'vault-only' && installedPaths['user-installed']
+          installedPaths['user-installed'] && installedPaths['vault-only']
             ? 'scan+vault'
-            : asset.installState?.availability || 'scan-path';
+            : asset.selectedLayer === 'vault-only' || asset.installState?.availability === 'vault-only'
+              ? 'vault-only'
+              : 'scan-path';
         if (asset.selectedLayer === 'vault-only') {
           kind = 'vault';
         } else if (materialization === 'pointer') {
@@ -608,6 +666,7 @@ function getSkillCatalogPreview(engineRoot, home) {
         readOnly: metadata.readOnly === true,
       };
     })
+    .concat(buildManagedMissingSkillPreview(engineRoot, projectedAssetIds))
     .sort((left, right) => {
       const nameCompare = String(left.name || '').localeCompare(String(right.name || ''));
       if (nameCompare !== 0) {
