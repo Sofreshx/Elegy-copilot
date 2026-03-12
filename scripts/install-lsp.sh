@@ -37,7 +37,7 @@ fi
 echo -e "\n\033[1;33mConfiguring ~/.copilot/lsp-config.json...\033[0m"
 
 if [[ -n "${XDG_CONFIG_HOME:-}" ]]; then
-  COPILOT_DIR="$XDG_CONFIG_HOME"
+  COPILOT_DIR="$XDG_CONFIG_HOME/.copilot"
 else
   COPILOT_DIR="$HOME/.copilot"
 fi

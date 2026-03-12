@@ -45,7 +45,7 @@ if (Get-Command rustup -ErrorAction SilentlyContinue) {
 Write-Output "`nConfiguring lsp-config.json..."
 
 if (-not [string]::IsNullOrWhiteSpace($env:XDG_CONFIG_HOME)) {
-    $copilotDir = $env:XDG_CONFIG_HOME
+    $copilotDir = Join-Path $env:XDG_CONFIG_HOME '.copilot'
 } else {
     $copilotDir = Join-Path $HOME '.copilot'
 }
