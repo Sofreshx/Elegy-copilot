@@ -15,7 +15,7 @@ if [ -z "$SESSION_ID" ]; then
 fi
 
 echo "Session ID: $SESSION_ID"
-echo "Agent: ${AGENT_NAME:-executive2-planner}"
+echo "Agent: ${AGENT_NAME:-orchestrator}"
 echo "Relay URL: ${RELAY_WEBHOOK_URL:-not-set}"
 
 # Report session started
@@ -62,7 +62,7 @@ if [ -n "$PROMPT" ]; then
   #
   # For now, log the intent and report to relay
   
-  echo "Agent session would execute: @${AGENT_NAME:-executive2-planner} <prompt>"
+  echo "Agent session would execute: @${AGENT_NAME:-orchestrator} <prompt>"
   
   # Report prompt received
   if [ -n "$RELAY_WEBHOOK_URL" ]; then
@@ -72,7 +72,7 @@ if [ -n "$PROMPT" ]; then
         \"session_id\": \"$SESSION_ID\",
         \"user_id\": \"${USER_ID:-unknown}\",
         \"status\": \"executing\",
-        \"agent\": \"${AGENT_NAME:-executive2-planner}\",
+        \"agent\": \"${AGENT_NAME:-orchestrator}\",
         \"prompt_length\": ${#PROMPT},
         \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
       }" 2>/dev/null || echo "Warning: Could not report to relay"

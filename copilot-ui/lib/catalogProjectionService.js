@@ -379,6 +379,62 @@ function buildScope(kind, repoContext) {
   return { kind: 'global' };
 }
 
+function buildManifestAssetDescriptor(asset) {
+  const kind = manifestTypeToKind(asset?.type);
+  const sourceLikePath = String(asset?.source || asset?.destination || '').trim().replace(/\\/g, '/');
+  const assetKey = kind && sourceLikePath
+    ? normalizeAssetKey(kind, path.posix.basename(sourceLikePath))
+    : '';
+  const assetId = String(asset?.id || '').trim() || deriveAssetId(kind, assetKey);
+
+  return {
+    assetId,
+    assetKey,
+    kind,
+  };
+}
+
+function buildManifestAssetIndex(manifestAssets) {
+  const byId = new Map();
+  for (const asset of Array.isArray(manifestAssets) ? manifestAssets : []) {
+    if (!asset || typeof asset !== 'object') {
+      continue;
+    }
+    const descriptor = buildManifestAssetDescriptor(asset);
+    if (!descriptor.assetId) {
+      continue;
+    }
+    byId.set(descriptor.assetId, descriptor);
+  }
+  return byId;
+}
+
+function normalizeManifestBundles(manifest) {
+  if (!Array.isArray(manifest?.bundles)) {
+    return [];
+  }
+
+  return manifest.bundles
+    .filter((bundle) => bundle && typeof bundle === 'object' && !Array.isArray(bundle))
+    .map((bundle) => {
+      const bundleId = String(bundle.id || bundle.bundleId || '').trim();
+      const title = String(bundle.title || '').trim() || humanizeAssetKey(bundleId);
+      return {
+        bundleId,
+        title,
+        description: String(bundle.description || '').trim() || null,
+        assetIds: normalizeList(bundle.assetIds),
+        installTarget: String(bundle.installTarget || '').trim() || null,
+        activationScope: String(bundle.activationScope || '').trim() || null,
+        materialization: String(bundle.materialization || '').trim() || null,
+        tags: normalizeList(bundle.tags),
+        defaultRecommended: bundle.defaultRecommended === true,
+        dependsOn: normalizeList(bundle.dependsOn),
+      };
+    })
+    .filter((bundle) => bundle.bundleId);
+}
+
 function buildTargeting(metadataEntry, parsedAsset, loadMode) {
   const targeting = {};
   const frameworks = normalizeList(metadataEntry?.frameworks || parsedAsset?.frontmatter?.frameworks);
@@ -478,11 +534,16 @@ function loadManifest(engineRoot) {
   if (!manifest || !Array.isArray(manifest.assets)) {
     throw new Error(`Invalid manifest JSON at ${manifestPath}`);
   }
-  return { manifestPath, manifest };
+  return {
+    manifestPath,
+    manifest,
+    manifestAssetIndex: buildManifestAssetIndex(manifest.assets),
+    bundles: normalizeManifestBundles(manifest),
+  };
 }
 
 function createSourceEntries(engineRoot, metadataBySkill, warnings) {
-  const { manifestPath, manifest } = loadManifest(engineRoot);
+  const { manifestPath, manifest, manifestAssetIndex, bundles } = loadManifest(engineRoot);
   const entries = [];
 
   for (const asset of manifest.assets) {
@@ -573,7 +634,7 @@ function createSourceEntries(engineRoot, metadataBySkill, warnings) {
     );
   }
 
-  return { manifestPath, entries };
+  return { manifestPath, manifestAssetIndex, bundles, entries };
 }
 
 function scanUserAgents(copilotHome) {
@@ -1088,7 +1149,138 @@ function incrementCounter(target, key) {
   target[key] = (target[key] || 0) + 1;
 }
 
-function buildStats(entries, effectiveAssets) {
+function buildBundleMember(bundle, assetId, effectiveById, sourceEntriesById, manifestAssetIndex, warnings) {
+  const effectiveAsset = effectiveById.get(assetId) || null;
+  const sourceEntry = sourceEntriesById.get(assetId) || null;
+  const manifestAsset = manifestAssetIndex.get(assetId) || null;
+
+  if (!manifestAsset) {
+    warnings.push({
+      code: 'bundle_asset_unknown',
+      message: `Bundle ${bundle.bundleId} references asset '${assetId}' that is not declared in the manifest asset list.`,
+      bundleId: bundle.bundleId,
+      assetId,
+    });
+  } else if (!effectiveAsset) {
+    warnings.push({
+      code: 'bundle_member_missing_source_state',
+      message: `Bundle ${bundle.bundleId} references asset '${assetId}' but no projected source state was found.`,
+      bundleId: bundle.bundleId,
+      assetId,
+    });
+  }
+
+  const assetKey = effectiveAsset?.assetKey || sourceEntry?.assetKey || manifestAsset?.assetKey || '';
+  const kind = effectiveAsset?.kind || sourceEntry?.kind || manifestAsset?.kind || null;
+  const title =
+    effectiveAsset?.selectedEntry?.title ||
+    sourceEntry?.title ||
+    humanizeAssetKey(assetKey || assetId);
+
+  return {
+    assetId,
+    assetKey,
+    kind,
+    title,
+    available: Boolean(effectiveAsset?.available),
+    installed: Boolean(effectiveAsset?.installed),
+    enabled: Boolean(effectiveAsset?.enabled),
+    selectedLayer: effectiveAsset?.selectedLayer || null,
+    missing: !effectiveAsset,
+  };
+}
+
+function buildBundleMemberStats(members) {
+  return {
+    memberCount: members.length,
+    availableCount: members.filter((member) => member.available).length,
+    installedCount: members.filter((member) => member.installed).length,
+    enabledCount: members.filter((member) => member.enabled).length,
+    missingCount: members.filter((member) => member.missing).length,
+  };
+}
+
+function resolveBundleStatus(stats) {
+  if (!stats.memberCount || stats.missingCount === stats.memberCount) {
+    return 'missing';
+  }
+  if (stats.installedCount === stats.memberCount && stats.enabledCount === stats.memberCount) {
+    return 'active';
+  }
+  if (stats.installedCount === stats.memberCount) {
+    return 'installed';
+  }
+  if (stats.availableCount === stats.memberCount) {
+    return 'available';
+  }
+  return 'partial';
+}
+
+function buildBundleProjection(manifestBundles, effectiveAssets, sourceEntriesById, manifestAssetIndex, warnings) {
+  const effectiveById = new Map();
+  for (const asset of Array.isArray(effectiveAssets) ? effectiveAssets : []) {
+    if (asset?.assetId) {
+      effectiveById.set(asset.assetId, asset);
+    }
+  }
+
+  return (Array.isArray(manifestBundles) ? manifestBundles : []).map((bundle) => {
+    const members = bundle.assetIds.map((assetId) =>
+      buildBundleMember(bundle, assetId, effectiveById, sourceEntriesById, manifestAssetIndex, warnings)
+    );
+    const stats = buildBundleMemberStats(members);
+    return {
+      bundleId: bundle.bundleId,
+      title: bundle.title,
+      description: bundle.description,
+      assetIds: [...bundle.assetIds],
+      installTarget: bundle.installTarget,
+      activationScope: bundle.activationScope,
+      materialization: bundle.materialization,
+      tags: [...bundle.tags],
+      defaultRecommended: bundle.defaultRecommended,
+      dependsOn: [...bundle.dependsOn],
+      status: resolveBundleStatus(stats),
+      stats,
+      members,
+    };
+  });
+}
+
+function buildBundleStats(bundles) {
+  const statusCounts = {};
+  let memberCount = 0;
+  let availableMemberCount = 0;
+  let installedMemberCount = 0;
+  let enabledMemberCount = 0;
+  let missingMemberCount = 0;
+
+  for (const bundle of bundles) {
+    incrementCounter(statusCounts, bundle.status);
+    memberCount += bundle.stats.memberCount;
+    availableMemberCount += bundle.stats.availableCount;
+    installedMemberCount += bundle.stats.installedCount;
+    enabledMemberCount += bundle.stats.enabledCount;
+    missingMemberCount += bundle.stats.missingCount;
+  }
+
+  return {
+    totalCount: bundles.length,
+    defaultRecommendedCount: bundles.filter((bundle) => bundle.defaultRecommended).length,
+    activeCount: statusCounts.active || 0,
+    installedCount: statusCounts.installed || 0,
+    availableCount: statusCounts.available || 0,
+    partialCount: statusCounts.partial || 0,
+    missingCount: statusCounts.missing || 0,
+    memberCount,
+    availableMemberCount,
+    installedMemberCount,
+    enabledMemberCount,
+    missingMemberCount,
+  };
+}
+
+function buildStats(entries, effectiveAssets, bundles) {
   const byLayer = {};
   const byKind = {};
   for (const entry of entries) {
@@ -1105,6 +1297,7 @@ function buildStats(entries, effectiveAssets) {
     installedCount: effectiveAssets.filter((asset) => asset.installed).length,
     recommendedCount: effectiveAssets.filter((asset) => asset.recommended).length,
     overriddenCount: effectiveAssets.filter((asset) => asset.overridden).length,
+    bundles: buildBundleStats(bundles),
   };
 }
 
@@ -1138,6 +1331,13 @@ function buildCatalogProjection(options = {}) {
     ...overlayScan.entries,
   ]);
   const effectiveAssets = buildEffectiveAssets(entries);
+  const bundles = buildBundleProjection(
+    sourceScan.bundles,
+    effectiveAssets,
+    sourceIndex.byId,
+    sourceScan.manifestAssetIndex,
+    warnings,
+  );
 
   return {
     schemaVersion: CATALOG_PROJECTION_SCHEMA_VERSION,
@@ -1154,7 +1354,8 @@ function buildCatalogProjection(options = {}) {
     warnings,
     entries,
     effectiveAssets,
-    stats: buildStats(entries, effectiveAssets),
+    bundles,
+    stats: buildStats(entries, effectiveAssets, bundles),
   };
 }
 
@@ -1187,6 +1388,26 @@ function collectSearchTerms(asset) {
   const triggers = selectedEntry?.metadata?.triggersOn;
   if (Array.isArray(triggers)) {
     terms.push(...triggers);
+  }
+
+  return terms
+    .map((term) => String(term || '').trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function collectBundleSearchTerms(bundle) {
+  const terms = [
+    bundle.bundleId,
+    bundle.title,
+    bundle.description,
+    bundle.status,
+    ...(Array.isArray(bundle.tags) ? bundle.tags : []),
+    ...(Array.isArray(bundle.assetIds) ? bundle.assetIds : []),
+    ...(Array.isArray(bundle.dependsOn) ? bundle.dependsOn : []),
+  ];
+
+  for (const member of Array.isArray(bundle.members) ? bundle.members : []) {
+    terms.push(member.assetId, member.assetKey, member.kind, member.title);
   }
 
   return terms
@@ -1249,8 +1470,30 @@ function queryCatalogEntries(snapshot, filters = {}) {
   return filterByCommonCriteria(entries, filters, { selectedLayerKey: 'layer' });
 }
 
+function queryCatalogBundles(snapshot, filters = {}) {
+  const bundles = Array.isArray(snapshot?.bundles) ? snapshot.bundles : [];
+  const includeText = String(filters.text || '').trim().toLowerCase();
+
+  return bundles.filter((bundle) => {
+    if (filters.bundleId && bundle.bundleId !== filters.bundleId) {
+      return false;
+    }
+    if (includeText) {
+      const terms = collectBundleSearchTerms(bundle);
+      if (!terms.some((term) => term.includes(includeText))) {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
 function getEffectiveAsset(snapshot, assetId) {
   return queryEffectiveCatalog(snapshot, { assetId })[0] || null;
+}
+
+function getCatalogBundle(snapshot, bundleId) {
+  return queryCatalogBundles(snapshot, { bundleId })[0] || null;
 }
 
 module.exports = {
@@ -1263,5 +1506,7 @@ module.exports = {
   getRepoStateKey,
   queryCatalogEntries,
   queryEffectiveCatalog,
+  queryCatalogBundles,
   getEffectiveAsset,
+  getCatalogBundle,
 };

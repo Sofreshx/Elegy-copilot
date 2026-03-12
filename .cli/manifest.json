@@ -53,6 +53,87 @@
       }
     }
   },
+  "bundles": [
+    {
+      "id": "core-global",
+      "title": "Core Global Agents",
+      "description": "Broadly useful global agents for search, execution, review, auditing, and unit-test workflows.",
+      "assetIds": [
+        "agent-search",
+        "agent-execute",
+        "agent-code-explorer",
+        "agent-code-reviewer",
+        "agent-security-auditor",
+        "agent-stack-auditor",
+        "agent-unit-test-runner",
+        "agent-reviewer-opus-4-6",
+        "agent-reviewer-gpt-5-3-codex"
+      ],
+      "installTarget": "user-global",
+      "activationScope": "global",
+      "materialization": "always",
+      "tags": [
+        "core",
+        "global",
+        "search",
+        "review"
+      ],
+      "defaultRecommended": true,
+      "dependsOn": []
+    },
+    {
+      "id": "orchestrator-workflow",
+      "title": "Orchestrator Workflow Agents",
+      "description": "Repo-scoped orchestration agents for reframing, planning, implementation routing, verification, and final review.",
+      "assetIds": [
+        "agent-orchestrator",
+        "agent-o-reframer",
+        "agent-o-planner",
+        "agent-work-unit-runner",
+        "agent-final-reviewer",
+        "agent-remaining-work",
+        "agent-verification-guide",
+        "agent-impl-business",
+        "agent-impl-infra",
+        "agent-impl-reviewer"
+      ],
+      "installTarget": "repo-local",
+      "activationScope": "repo",
+      "materialization": "on-demand",
+      "tags": [
+        "workflow",
+        "orchestration",
+        "planning"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": [
+        "core-global"
+      ]
+    },
+    {
+      "id": "elegy-planning",
+      "title": "Elegy Planning Agents",
+      "description": "Repo-scoped Elegy planning agents for ideation, direction, and orchestration workflows.",
+      "assetIds": [
+        "agent-elegy-planner",
+        "agent-elegy-orchestrator",
+        "agent-elegy-direction",
+        "agent-elegy-ideation"
+      ],
+      "installTarget": "repo-local",
+      "activationScope": "repo",
+      "materialization": "on-demand",
+      "tags": [
+        "elegy",
+        "planning",
+        "direction"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": [
+        "core-global"
+      ]
+    }
+  ],
   "assets": [
     {
       "id": "agent-code-architect",
@@ -77,6 +158,12 @@
       "type": "agent",
       "source": "engine-assets/agents/deploy-auditor.agent.md",
       "destination": "agents/deploy-auditor.agent.md"
+    },
+    {
+      "id": "agent-execute",
+      "type": "agent",
+      "source": "engine-assets/agents/execute.agent.md",
+      "destination": "agents/execute.agent.md"
     },
     {
       "id": "agent-doc-writer",
@@ -197,6 +284,12 @@
       "type": "agent",
       "source": "engine-assets/agents/reviewer-gpt-5-3-codex.agent.md",
       "destination": "agents/reviewer-gpt-5-3-codex.agent.md"
+    },
+    {
+      "id": "agent-search",
+      "type": "agent",
+      "source": "engine-assets/agents/search.agent.md",
+      "destination": "agents/search.agent.md"
     },
     {
       "id": "agent-reviewer-opus-4-6",

@@ -173,7 +173,7 @@ If a task maps to a known domain, treat skills as the default path:
 
 ## Safety
 - Do destructive scaffolding or large deletions only with an explicit user ask.
-- Record recurring gotchas or major informations in `.instructions/contexts/*.md`, to a matching file if possible, otherwise create a new one with a clear name, those files should be concise? 
+- Record recurring gotchas or major information in repo docs or host/session artifacts. When persisting in the repo, prefer `docs/system/**` for canonical guidance or `docs/issues/**` for operational notes.
 
 ## Secrets & Config
 - Never store secrets in `.env*` files or repo files. Use GitHub Secrets for CI and local secret stores (OS keychain, dotnet user-secrets, or environment variables set outside the repo).
@@ -191,7 +191,7 @@ If a task maps to a known domain, treat skills as the default path:
 - **Unit test execution**: Use `@unit-test-runner` (timeouts, non-interactive mode, safe flags).
 - **Integration test execution**: Use `@integration-test-runner` only when explicitly requested.
 - **Integration test authoring**: Prefer Alba (`alba-integration-tests`).
-- **Executive2**: Ask the user before running long E2E/integration tests and log declines to `.instructions/testing/skipped-validation.md`.
+- **Long E2E/integration runs**: Ask the user before running them and capture any decline in chat or host/session artifacts when a durable note is needed.
 - **Segment large test suites** into smaller batches (e.g., by test class filter).
 
 ## Temp File Safety Controls

@@ -149,25 +149,6 @@ discovery or targeted updates.
 - Remote OAuth flows are not reliably automatable for remote agents. Prefer
   CI PATs or pre-authorized non-interactive tokens for CI or remote use.
 
-```json
-{
-  "mcpServers": {
-    "supabase": {
-      "type": "http",
-      "url": "https://mcp.supabase.com/mcp?project_ref=${SUPABASE_PROJECT_REF}",
-      "headers": {
-        "Authorization": "Bearer ${SUPABASE_ACCESS_TOKEN}"
-      }
-    }
-  }
-}
-```
-
-Env var mapping:
-
-- `SUPABASE_PROJECT_REF`: Supabase project ref to scope the MCP server.
-- `SUPABASE_ACCESS_TOKEN`: PAT with minimal scope (read-only when possible).
-
 ## Local vs CI Secrets Guidance
 
 - Local development: store MCP secrets outside the repo and load them with the
@@ -176,11 +157,8 @@ Env var mapping:
 - CI: inject secrets via the CI secret store and map them to env vars. Do not
   commit tokens or headers to repo files; use least-privilege scopes.
 
-## Secrets Inventory
-
-For a full inventory of MCP and infra secrets (including ownership and workflows), see:
-
-- ../.instructions/contexts/mcp-infra-secrets.md
+There is no canonical repo-stored secrets inventory for MCP credentials. Keep ownership,
+rotation, and operational handling in your secure secret-management system rather than in repo files.
 
 ## Security Defaults
 

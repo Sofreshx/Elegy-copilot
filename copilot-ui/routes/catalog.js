@@ -353,6 +353,13 @@ function normalizeCatalogFilters(searchParams) {
   };
 }
 
+function normalizeBundleFilters(searchParams) {
+  return {
+    bundleId: normalizeString(searchParams.get('bundleId')),
+    text: normalizeString(searchParams.get('q') || searchParams.get('text')),
+  };
+}
+
 function stripEmptyFields(input) {
   return Object.fromEntries(
     Object.entries(input || {}).filter(([, value]) => value !== '' && value !== undefined)
@@ -674,6 +681,29 @@ function handleCatalogAssets(ctx, deps) {
     count: assets.length,
     snapshot: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState),
     assets,
+  });
+}
+
+function handleCatalogBundles(ctx, deps) {
+  const selector = normalizeRepoSelector(ctx.u.searchParams);
+  const projectionContext = buildProjectionContext(ctx, deps, selector);
+  if (!projectionContext.snapshot) {
+    const detail = projectionContext.buildError
+      ? String(projectionContext.buildError.message || projectionContext.buildError)
+      : 'Catalog projection is unavailable.';
+    sendJsonError(ctx.res, deps.sendJson, 503, 'catalog.bundles.list', detail);
+    return;
+  }
+
+  const filters = stripEmptyFields(normalizeBundleFilters(ctx.u.searchParams));
+  const bundles = deps.catalogProjection.queryCatalogBundles(projectionContext.snapshot, filters);
+  deps.sendJson(ctx.res, 200, {
+    kind: 'catalog.bundles.list',
+    deterministic: true,
+    filters,
+    count: bundles.length,
+    snapshot: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState),
+    bundles,
   });
 }
 
@@ -1391,6 +1421,11 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/catalog/assets',
       handler: (ctx) => handleCatalogAssets(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/catalog/bundles',
+      handler: (ctx) => handleCatalogBundles(ctx, resolvedDeps),
     },
     {
       method: 'GET',

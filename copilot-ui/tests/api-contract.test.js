@@ -121,7 +121,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/lsp/config' },
   { method: 'POST', path: '/api/lsp/install' },
 
-  // Planning (15)
+  // Planning (19)
   { method: 'POST', path: '/api/planning/persistence/init' },
   { method: 'POST', path: '/api/planning/persistence/corruption/scan' },
   { method: 'POST', path: '/api/planning/persistence/retention' },
@@ -137,6 +137,10 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/planning/suggestions' },
   { method: 'POST', path: '/api/planning/recaps' },
   { method: 'GET', path: '/api/planning/recaps' },
+  { method: 'GET', path: '/api/planning/records/planning-000001/research' },
+  { method: 'POST', path: '/api/planning/records/planning-000001/research' },
+  { method: 'DELETE', path: '/api/planning/records/planning-000001/research/note-0001' },
+  { method: 'GET', path: '/api/planning/records/planning-000001/diagrams' },
 
   // Sessions (12: 1 exact + 11 regex)
   { method: 'GET', path: '/api/sessions' },
@@ -162,7 +166,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/assets/view' },
   { method: 'POST', path: '/api/assets/delete' },
 
-  // Catalog/Search/Audit/Runtime (21)
+  // Catalog/Search/Audit/Runtime (22)
   { method: 'GET', path: '/api/catalog/repos' },
   { method: 'POST', path: '/api/catalog/repos/register' },
   { method: 'POST', path: '/api/catalog/repos/unregister' },
@@ -170,6 +174,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/catalog/repos/refresh' },
   { method: 'GET', path: '/api/catalog/summary' },
   { method: 'GET', path: '/api/catalog/assets' },
+  { method: 'GET', path: '/api/catalog/bundles' },
   { method: 'GET', path: '/api/catalog/entries' },
   { method: 'GET', path: '/api/catalog/assets/test-asset-id' },
   { method: 'POST', path: '/api/catalog/refresh' },
@@ -199,6 +204,14 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/tracker/events' },
   { method: 'POST', path: '/api/tracker/permissions/test-id/approve' },
   { method: 'POST', path: '/api/tracker/lifecycle/start' },
+
+  // SDK bridge (6)
+  { method: 'GET', path: '/api/sdk/health' },
+  { method: 'POST', path: '/api/sdk/session' },
+  { method: 'GET', path: '/api/sdk/sessions' },
+  { method: 'DELETE', path: '/api/sdk/session/test-session-id' },
+  { method: 'POST', path: '/api/sdk/send' },
+  { method: 'GET', path: '/api/sdk/stream/test-session-id' },
 ];
 
 async function run() {
@@ -338,7 +351,7 @@ async function run() {
 
     // Summary: route count
     await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-      assert.strictEqual(ROUTE_INVENTORY.length, 74, `Expected 74 routes, got ${ROUTE_INVENTORY.length}`);
+      assert.strictEqual(ROUTE_INVENTORY.length, 85, `Expected 85 routes, got ${ROUTE_INVENTORY.length}`);
     });
 
   } finally {

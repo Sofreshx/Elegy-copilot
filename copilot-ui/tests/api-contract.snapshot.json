@@ -827,5 +827,118 @@
       "kind",
       "snapshot"
     ]
+  },
+  "GET /api/planning/records/planning-000001/research": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error",
+      "recordId"
+    ]
+  },
+  "POST /api/planning/records/planning-000001/research": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error",
+      "recordId"
+    ]
+  },
+  "DELETE /api/planning/records/planning-000001/research/note-0001": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error",
+      "recordId"
+    ]
+  },
+  "GET /api/planning/records/planning-000001/diagrams": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error",
+      "recordId"
+    ]
+  },
+  "GET /api/catalog/bundles": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "bundles",
+      "count",
+      "deterministic",
+      "filters",
+      "kind",
+      "snapshot"
+    ]
+  },
+  "GET /api/sdk/health": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "connected",
+      "enabled",
+      "error",
+      "mode",
+      "reason",
+      "sessionCount",
+      "state"
+    ]
+  },
+  "POST /api/sdk/session": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "reason"
+    ]
+  },
+  "GET /api/sdk/sessions": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "reason"
+    ]
+  },
+  "DELETE /api/sdk/session/test-session-id": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "reason"
+    ]
+  },
+  "POST /api/sdk/send": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "reason"
+    ]
+  },
+  "GET /api/sdk/stream/test-session-id": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "reason"
+    ]
   }
 }

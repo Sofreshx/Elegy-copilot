@@ -5,7 +5,7 @@ category: system
 status: draft
 doc_kind: node
 id: orchestrator-design
-summary: Design notes for the orchestrator agent architecture and principles.
+summary: Historical design notes for the orchestrator architecture; current behavior is defined by the shipped agent file and user guide.
 tags: [orchestrator, design]
 ---
 
@@ -16,6 +16,10 @@ tags: [orchestrator, design]
 
 ## Status
 Draft — pending review
+
+> Historical design note: this document records the original orchestrator design pass.
+> For current operational behavior, use `engine-assets/agents/orchestrator.agent.md`
+> and `docs/system/orchestrator/user-guide.md`.
 
 ## Overview
 The Orchestrator is the next-generation unified agent that replaces Executive (v1), Executive2, Executive2.5, and Executive2-Fast with a single, clean entry point. It consolidates the best patterns from our executive lineage and external systems (GSD, Copilot Orchestra, Wrapzii Orchestration) while eliminating the complexity that plagued previous versions.
@@ -73,7 +77,6 @@ User
         ├── @integration-test-runner (with user approval)
         ├── @reviewer-opus-4-6 (cross-model review)
         ├── @reviewer-gpt-5-3-codex (cross-model review)
-        ├── @context-curator (condense project memory)
         ├── @e2e-browser (E2E testing with user approval)
         └── @doc-writer (documentation)
 ```
@@ -95,11 +98,11 @@ User
 
 #### @o-planner (Orchestrator Planner)
 **Purpose**: Produce actionable plan packs. Replaces executive2p5-planner for the orchestrator workflow.
-**Tools**: read, search, edit (only .instructions/artefacts/), web/fetch, agent/runSubagent (code-explorer, code-architect, research-ideation)
+**Tools**: read, search, edit (only the approved plan artifact surface), web/fetch, agent/runSubagent (code-explorer, code-architect, research-ideation)
 **Wait** — this violates "no subagent chaining". Instead, the orchestrator should call code-explorer/code-architect/research-ideation and pass results to o-planner.
 
 **Revised**: @o-planner is a LEAF agent (no subagent calls). The orchestrator gathers exploration context and passes it to o-planner.
-**Tools**: read, search, edit (only .instructions/artefacts/)
+**Tools**: read, search, edit (only the approved plan artifact surface)
 **Input**: Enriched brief + exploration findings + project context
 **Output**: Plan pack (2 files) following existing plan-pack format
 
@@ -109,13 +112,10 @@ User
 1. Identify target repo (not instruction-engine)
 2. Load project truth sources:
    - `.github/copilot-instructions.md`
-   - `.instructions/architecture.md`
-   - `.instructions/contexts/*.md`
+   - `docs/system/**`
+   - repo docs such as `README.md` and `docs/`
 3. Compress to ~150-line project context summary
-4. Check for active plan-pack (resume detection):
-   - Scan `.instructions/artefacts/x-PLANPACK-PROGRESS-*.md` for in-progress sessions
-   - If found: ask user "Resume session X?" via askUser
-   - If yes: load plan pack and jump to Phase 3 (Execution)
+4. Resume from host/session artifacts or prior user-provided plan context when relevant.
 
 #### Phase 1: Understand (reframe + classify)
 1. Delegate to @o-reframer with user request + project context
@@ -218,16 +218,16 @@ tools:
 
 ### State Management
 
-**Plan pack files** (standard+ complexity only):
-- `.instructions/artefacts/x-PLANPACK-<SESSION_ID>.md` — plan + WU specs
-- `.instructions/artefacts/x-PLANPACK-PROGRESS-<SESSION_ID>.md` — execution status
+**Plan pack state** (standard+ complexity only):
+- shared plan-pack structure, carried either in chat or host-managed session artifacts depending on workflow
+- no repo-local planning artifact hierarchy required for the default orchestrator path
 
-**Session detection**: Scan progress trackers for active sessions on startup.
+**Session detection**: use host/session artifacts or user-provided prior plan context when resuming work.
 
 **No other state files**: No SQLite, no task files, no separate plan artefacts.
 
-**Context files** (durable project memory):
-- `.instructions/contexts/*.md` — project knowledge (updated by context-curator when significant patterns are discovered during execution)
+**Durable memory**:
+- repo docs and host/session artifacts capture long-lived context; a separate memory-condensation agent is not part of the shipped surface
 
 ### Context Curation Protocol
 
@@ -244,7 +244,6 @@ This is the orchestrator's most important job — curating what each subagent re
 | @research-ideation | Research question, constraints, what's already known |
 | @unit-test-runner | Target repo, scope (file/module filters), test framework info |
 | @reviewer-* | Plan or execution summary, project context |
-| @context-curator | All context files, what's changed in this session |
 
 **Never dump the entire context into a subagent call.** The orchestrator is the context curator.
 
@@ -285,10 +284,10 @@ No plan pack, no progress tracker. Just execute and report.
 ### Memory & Documentation
 
 After significant sessions, update project memory:
-- Delegate to @context-curator to condense findings into `.instructions/contexts/*.md`
+- Capture durable findings in repo docs or host/session artifacts
 - Only for genuinely new insights (not routine work)
 
-Research notes from @research-ideation go to `.instructions/research/*.md` (temporary, exploratory).
+Research notes stay exploratory until promoted into canonical docs.
 
 ### Error Recovery
 
@@ -312,15 +311,15 @@ Research notes from @research-ideation go to `.instructions/research/*.md` (temp
 | planpack-writer | Merged into @o-planner or kept as-is |
 
 ### What Gets Deprecated (Not Deleted Yet)
-All executive agents become deprecated. They remain in the repo for reference but are no longer recommended.
+Executive-era names are historical references only. The shipped surface should point new work to `@orchestrator` or the preserved Elegy workflow.
 
 ## Risks
 
 1. **Seamless Agent availability**: Extension may not be installed. Must fall back gracefully to vscode/askQuestions.
 2. **Reframer accuracy**: Wrong classification → wrong path. Mitigation: reframer can say "uncertain" and the orchestrator asks the user.
 3. **Context window limits**: Orchestrator must stay lean. If it accumulates too much context, quality degrades. Mitigation: delegate aggressively, keep main context for routing only.
-4. **Migration**: Users familiar with older executive workflows need clear guidance on switching. Mitigation: keep old agents, add deprecation notices.
-5. **Plan pack format**: Maintaining backward compatibility with executive2.5 plan packs. Plan packs should use the same format.
+4. **Migration**: Users familiar with older executive workflows need clear guidance on switching. Mitigation: keep migration notes explicit and remove stale defaults.
+5. **Plan pack format**: Maintaining compatibility for the shared plan-pack contract across preserved workflows.
 
 ## Open Questions
 

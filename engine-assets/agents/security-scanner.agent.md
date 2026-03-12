@@ -12,7 +12,8 @@ disable-model-invocation: false
 Identify security risks in the codebase. You map the attack surface (endpoints) and audit them against OWASP standards.
 
 ## Output
-- **Report**: `.instructions-output/security-audit.md`
+- **Report**: Return findings in chat by default. If a durable artifact is explicitly requested,
+  write `docs/issues/security-audit.md`.
 
 ## Workflow
 1.  **Discovery**: Find all API endpoints (Wolverine, Controllers, Minimal API).

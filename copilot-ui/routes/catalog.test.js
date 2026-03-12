@@ -109,6 +109,30 @@ function createFixtureRoot() {
   const manualRepoPath = path.join(tmpRoot, 'manual-repo');
 
   writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
+    bundles: [
+      {
+        id: 'core-global',
+        title: 'Core Global Assets',
+        description: 'Always-on globally useful assets.',
+        assetIds: ['skill-core-guardrails', 'agent-repo-guide'],
+        installTarget: 'user-global',
+        activationScope: 'global',
+        materialization: 'always',
+        tags: ['core', 'global'],
+        defaultRecommended: true,
+      },
+      {
+        id: 'repo-helper-pack',
+        title: 'Repo Helper Pack',
+        description: 'Repo-scoped helper skill for workspace tasks.',
+        assetIds: ['skill-repo-helper'],
+        installTarget: 'repo-local',
+        activationScope: 'repo',
+        materialization: 'on-demand',
+        tags: ['repo'],
+        dependsOn: ['core-global'],
+      },
+    ],
     assets: [
       {
         id: 'skill-core-guardrails',
@@ -274,6 +298,80 @@ async function run() {
       assert.ok(Array.isArray(response.body.assets));
       assert.ok(response.body.assets.some((asset) => asset.assetId === 'skill-core-guardrails'));
       assert.ok(response.body.assets.some((asset) => asset.assetId === 'skill-repo-helper'));
+    });
+
+    await test('GET /api/catalog/bundles returns bundle metadata, computed member state, and additive summary stats', async () => {
+      const bundleResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/bundles?bundleId=core-global');
+
+      assert.equal(bundleResponse.res.statusCode, 200);
+      assert.equal(bundleResponse.body.kind, 'catalog.bundles.list');
+      assert.equal(bundleResponse.body.count, 1);
+      assert.deepEqual(bundleResponse.body.filters, { bundleId: 'core-global' });
+      assert.ok(Array.isArray(bundleResponse.body.bundles));
+
+      const [bundle] = bundleResponse.body.bundles;
+      assert.equal(bundle.bundleId, 'core-global');
+      assert.equal(bundle.title, 'Core Global Assets');
+      assert.equal(bundle.installTarget, 'user-global');
+      assert.equal(bundle.activationScope, 'global');
+      assert.equal(bundle.materialization, 'always');
+      assert.equal(bundle.defaultRecommended, true);
+      assert.deepEqual(bundle.dependsOn, []);
+      assert.equal(bundle.status, 'active');
+      assert.deepEqual(bundle.stats, {
+        memberCount: 2,
+        availableCount: 2,
+        installedCount: 2,
+        enabledCount: 2,
+        missingCount: 0,
+      });
+      assert.deepEqual(
+        bundle.members.map((member) => ({
+          assetId: member.assetId,
+          available: member.available,
+          installed: member.installed,
+          enabled: member.enabled,
+          missing: member.missing,
+        })),
+        [
+          {
+            assetId: 'skill-core-guardrails',
+            available: true,
+            installed: true,
+            enabled: true,
+            missing: false,
+          },
+          {
+            assetId: 'agent-repo-guide',
+            available: true,
+            installed: true,
+            enabled: true,
+            missing: false,
+          },
+        ],
+      );
+
+      const searchResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/bundles?q=repo%20helper');
+      assert.equal(searchResponse.res.statusCode, 200);
+      assert.deepEqual(searchResponse.body.bundles.map((entry) => entry.bundleId), ['repo-helper-pack']);
+
+      const summaryResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/summary');
+      assert.equal(summaryResponse.res.statusCode, 200);
+      assert.equal(summaryResponse.body.kind, 'catalog.summary');
+      assert.deepEqual(summaryResponse.body.summary.stats.bundles, {
+        totalCount: 2,
+        defaultRecommendedCount: 1,
+        activeCount: 2,
+        installedCount: 0,
+        availableCount: 0,
+        partialCount: 0,
+        missingCount: 0,
+        memberCount: 3,
+        availableMemberCount: 3,
+        installedMemberCount: 3,
+        enabledMemberCount: 3,
+        missingMemberCount: 0,
+      });
     });
 
     await test('POST /api/catalog/refresh persists a snapshot and logs a catalog rebuild audit event', async () => {

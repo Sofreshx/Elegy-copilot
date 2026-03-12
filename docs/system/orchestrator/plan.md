@@ -5,11 +5,15 @@ category: system
 status: draft
 doc_kind: node
 id: orchestrator-implementation-plan
-summary: Historical implementation plan for introducing the orchestrator agent system.
+summary: Historical implementation plan for introducing the orchestrator agent system; retained for reference only.
 tags: [orchestrator, planning]
 ---
 
 # Orchestrator Implementation Plan
+
+> Historical note: this document records the original rollout plan. Current shipped behavior is
+> defined by `engine-assets/agents/orchestrator.agent.md` and
+> `docs/system/orchestrator/user-guide.md`.
 
 ## Date
 2026-02-17
@@ -22,7 +26,7 @@ Create the new Orchestrator agent system in the instruction-engine repo.
 ### Phase 1: Foundation (Core Agent Files)
 
 #### 1.1 Create @orchestrator agent definition
-- File: `.github/agents/orchestrator.agent.md`
+- File: `engine-assets/agents/orchestrator.agent.md`
 - The main orchestrator agent with:
   - Complete lifecycle (Phase 0-5)
   - Request classification routing
@@ -33,12 +37,12 @@ Create the new Orchestrator agent system in the instruction-engine repo.
   - Seamless Agent integration (with fallback)
   - Resume detection for active sessions
 - Tools: read, edit, search, execute/runInTerminal, agent/runSubagent, todo, vscode/askQuestions, jraylan.seamless-agent/askUser, jraylan.seamless-agent/planReview, jraylan.seamless-agent/walkthroughReview, web/fetch, web/githubRepo
-- agents list: o-reframer, o-planner, work-unit-runner, code-explorer, code-architect, code-reviewer, research-ideation, unit-test-runner, integration-test-runner, reviewer-gpt-5-3-codex, reviewer-opus-4-6, context-curator, e2e-browser, e2e-live-observer, doc-writer, app-runtime-manager
+- agents list: o-reframer, o-planner, search, execute, impl-infra, impl-business, impl-reviewer, final-reviewer, work-unit-runner, code-explorer, code-architect, code-reviewer, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, reviewer-gpt-5-3-codex, reviewer-opus-4-6
 - user-invocable: true
 - disable-model-invocation: true (orchestrator should use the best available model)
 
 #### 1.2 Create @o-reframer agent definition
-- File: `.github/agents/o-reframer.agent.md`
+- File: `engine-assets/agents/o-reframer.agent.md`
 - Request analysis and classification subagent
 - Read-only (no file edits, no terminal)
 - Tools: read, search
@@ -46,9 +50,9 @@ Create the new Orchestrator agent system in the instruction-engine repo.
 - user-invocable: false
 
 #### 1.3 Create @o-planner agent definition
-- File: `.github/agents/o-planner.agent.md`
+- File: `engine-assets/agents/o-planner.agent.md`
 - Planning subagent that produces plan packs
-- May edit only `.instructions/artefacts/`
+- May edit only the approved plan artifact surface for the selected workflow
 - Tools: read, search, edit
 - Input: Enriched brief + exploration + skills + project context
 - Output: Plan pack (2 files) using existing format
@@ -75,16 +79,16 @@ Create the new Orchestrator agent system in the instruction-engine repo.
 ### Phase 3: Documentation & Migration
 
 #### 3.1 Create orchestrator user guide
-- File: `docs/orchestrator/user-guide.md`
+- File: `docs/system/orchestrator/user-guide.md`
 - How to use @orchestrator
 - When to use fast path vs full planning
 - Seamless Agent setup (optional)
 - Migration from older executive variants
 
-#### 3.2 Add deprecation notices to old agents
-- Update executive.agent.md, executive2.agent.md, executive2p5.agent.md
-- Add deprecation notice in description pointing to @orchestrator
-- Keep them functional for backward compatibility
+#### 3.2 Clean Executive-era migration residue
+- Update scripts, templates, and documentation that still point to executive-era names
+- Redirect new work to `@orchestrator`
+- Preserve only explicitly supported migration notes
 
 ### Phase 4: Validation
 
@@ -121,7 +125,7 @@ Create the new Orchestrator agent system in the instruction-engine repo.
 - [ ] Complex requests include research/discussion before planning
 - [ ] Seamless Agent tools used when available, graceful fallback otherwise
 - [ ] All existing subagents work with the new orchestrator without modification
-- [ ] Old executive agents remain functional with deprecation notices
+- [ ] Executive-era references are removed or clearly marked as historical
 
 ## Estimated Work Units
 - WU-001: Create orchestrator.agent.md (core orchestrator)
@@ -131,5 +135,5 @@ Create the new Orchestrator agent system in the instruction-engine repo.
 - WU-005: Update work-unit-runner for fast path support
 - WU-006: Update code-reviewer for 3-status output
 - WU-007: Create user guide documentation
-- WU-008: Add deprecation notices to old agents
+- WU-008: Remove or rewrite Executive-era migration residue
 - WU-009: Validation testing (manual)

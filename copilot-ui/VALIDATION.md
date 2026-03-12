@@ -1,5 +1,9 @@
 # Manual Validation Guide - WU-005, WU-006, WU-007
 
+This file is a narrow manual companion for selected session-artifact endpoints.
+Use `docs/system/copilot-ui-guide.md` as the canonical overview for the current `copilot-ui`
+runtime surface, tabs, route groups, persistence model, and validation anchors.
+
 ## Overview
 This document provides curl commands to manually validate the new Plan-Pack Progress Tracker endpoints.
 

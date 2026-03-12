@@ -122,9 +122,9 @@ Test execution is centralized in two agents:
 - **`integration-test-runner.agent.md`** - The ONLY agent authorized to execute integration tests via run_in_terminal
 
 Execution flow:
-- `executive2.agent.md` calls `unit-test-runner` at checkpoints.
-- `executive2.agent.md` asks the user before running `integration-test-runner` or `e2e-browser`.
-- `task-runner.agent.md` records test requests but does not run tests.
+- `orchestrator.agent.md` delegates unit-test checkpoints to `unit-test-runner`.
+- `orchestrator.agent.md` asks the user before running `integration-test-runner` or `e2e-browser`.
+- `work-unit-runner.agent.md` can carry test requests but does not own long-running test execution policy.
 
 ## Emergency Recovery
 

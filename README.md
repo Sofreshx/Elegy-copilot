@@ -61,16 +61,20 @@ This copies all agents, skills, prompts, and the global instructions file into `
 
 | Agent | Purpose |
 |-------|---------|
-| `@orchestrator` | Main entry point — routes tasks by complexity, delegates to specialised agents |
+| `@orchestrator` | Recommended general entry point — routes tasks by complexity and delegates to specialised agents |
 | `@code-explorer` | Read-only codebase analysis and Q&A |
 | `@code-architect` | Designs feature architectures from existing patterns |
 | `@impl-business` | Implements app/domain work units (endpoints, services, UI) |
 | `@impl-infra` | Implements infra work units (CI, Docker, config, deployments) |
-| `@elegy-planner` | Hierarchical planning — calls `@elegy-direction` (high-level) + `@elegy-subplanner` (parallel work units) |
+| `@elegy-planner` | Persisted planning entry point — assembles approved session-state plan packs for Elegy execution |
+| `@elegy-orchestrator` | Executes an approved persisted Elegy plan end-to-end |
 | `@code-reviewer` | Bug, logic, and security review |
 | `@unit-test-runner` | Runs unit tests safely with timeouts |
 | `@security-scanner` | Scans for OWASP/endpoint vulnerabilities |
-| `@agent-governor` | Creates/audits agent `.agent.md` files |
+| `@agent-governor` | Read-only structural audit pointer for existing agent files; authoring moved to Elegy AgentFactoryService |
+
+`@orchestrator` is the recommended default for new work. Use the `@elegy-planner` + `@elegy-orchestrator`
+path when you explicitly want persisted session-state artifacts and a reviewer-approved plan handoff.
 
 ---
 
@@ -86,7 +90,7 @@ Everything lives under `~/.copilot`:
   copilot-instructions.md
   session-state/        Copilot session logs and plans
     <SESSION_ID>/
-      plan.md           Elegy plan + progress tracker
+      plan.md           persisted plan artifact + progress tracker
       proposition.md    append-only guidance (after planning + execution)
       plans/            plan revisions
   sessions-archive/     archived sessions
@@ -95,13 +99,17 @@ Everything lives under `~/.copilot`:
 
 Override the default location with `skillInstaller.state.root` in VS Code settings, or pass `--copilot-home` to the dashboard server.
 
-**Elegy plans** are persisted to `~/.copilot/session-state/<SESSION_ID>/plan.md` (not the legacy `.instructions/sessions` folder). The dashboard reads this location automatically.
+Persisted session-state artifacts live under `~/.copilot/session-state/<SESSION_ID>/`.
+The preserved Elegy workflow writes its plan and proposition artifacts there, and `copilot-ui`
+reads the same location in its Sessions and Planning surfaces. The recommended `@orchestrator`
+path keeps planning in chat unless a downstream workflow explicitly hands off to persisted artifacts.
 
 ---
 
 ## Dashboard (local UI)
 
-A local Node.js dashboard to view sessions, sync assets, and manage your `~/.copilot` installation.
+A local UI and control plane for viewing sessions, managing assets, and operating your `~/.copilot`
+installation. `copilot-ui` can run as the local Node.js server or inside the packaged Electron shell.
 `copilot-ui` is also the **catalog control plane** for the delivered asset system: it owns the
 authoritative local catalog/search/audit APIs, repo inventory, projection refresh, and mutation
 flows for shared, user-global, and repo-local assets.
@@ -118,6 +126,8 @@ scripts/cli-ui.ps1          # Windows
 Open: http://127.0.0.1:3210
 
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.
+For the current tabs, route groups, persistence model, and validation anchors, see
+`docs/system/copilot-ui-guide.md`.
 
 ### Catalog control plane at a glance
 

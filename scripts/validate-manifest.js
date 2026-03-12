@@ -21,6 +21,9 @@ const REQUIRED_ASSETS = [
 ];
 
 const VALID_LOAD_MODES = ['always', 'on-demand'];
+const VALID_BUNDLE_INSTALL_TARGETS = ['user-global', 'repo-local'];
+const VALID_BUNDLE_ACTIVATION_SCOPES = ['global', 'user', 'repo', 'workspace'];
+const VALID_BUNDLE_MATERIALIZATION = ['always', 'on-demand'];
 
 let hasFailures = false;
 
@@ -135,7 +138,7 @@ function validateGovernance(manifest, manifestRelPath) {
 function validateAssets(manifest, manifestRelPath, enforceSourceExists) {
 	if (!Array.isArray(manifest.assets)) {
 		fail(`${manifestRelPath}: missing assets[]`);
-		return 0;
+		return { checked: 0, assetIds: new Set() };
 	}
 
 	const seenIds = new Set();
@@ -203,7 +206,113 @@ function validateAssets(manifest, manifestRelPath, enforceSourceExists) {
 		}
 	}
 
-	return checked;
+	return { checked, assetIds: seenIds };
+}
+
+function validateBundles(manifest, manifestRelPath, assetIds) {
+	if (manifest.bundles === undefined) {
+		return;
+	}
+
+	if (!Array.isArray(manifest.bundles)) {
+		fail(`${manifestRelPath}: bundles must be an array when present`);
+		return;
+	}
+
+	const seenIds = new Set();
+	for (let i = 0; i < manifest.bundles.length; i++) {
+		const bundle = manifest.bundles[i];
+		if (!bundle || typeof bundle !== 'object' || Array.isArray(bundle)) {
+			fail(`${manifestRelPath}: bundles[${i}] must be an object`);
+			continue;
+		}
+
+		const id = typeof bundle.id === 'string' ? bundle.id.trim() : '';
+		const title = typeof bundle.title === 'string' ? bundle.title.trim() : '';
+		if (!id) {
+			fail(`${manifestRelPath}: bundles[${i}] missing non-empty id`);
+			continue;
+		}
+		if (seenIds.has(id)) {
+			fail(`${manifestRelPath}: duplicate bundle id: ${id}`);
+			continue;
+		}
+		seenIds.add(id);
+
+		if (!title) {
+			fail(`${manifestRelPath}: bundle ${id} missing non-empty title`);
+		}
+
+		if (!Array.isArray(bundle.assetIds) || bundle.assetIds.length === 0) {
+			fail(`${manifestRelPath}: bundle ${id} must declare a non-empty assetIds array`);
+		} else {
+			for (let assetIndex = 0; assetIndex < bundle.assetIds.length; assetIndex++) {
+				const assetId = typeof bundle.assetIds[assetIndex] === 'string'
+					? bundle.assetIds[assetIndex].trim()
+					: '';
+				if (!assetId) {
+					fail(`${manifestRelPath}: bundle ${id} has empty assetIds[${assetIndex}]`);
+					continue;
+				}
+				if (!assetIds.has(assetId)) {
+					fail(`${manifestRelPath}: bundle ${id} references unknown assetId '${assetId}'`);
+				}
+			}
+		}
+
+		if (
+			bundle.installTarget !== undefined
+			&& !VALID_BUNDLE_INSTALL_TARGETS.includes(bundle.installTarget)
+		) {
+			fail(
+				`${manifestRelPath}: bundle ${id} has invalid installTarget '${bundle.installTarget}' (must be: ${VALID_BUNDLE_INSTALL_TARGETS.join(', ')})`,
+			);
+		}
+
+		if (
+			bundle.activationScope !== undefined
+			&& !VALID_BUNDLE_ACTIVATION_SCOPES.includes(bundle.activationScope)
+		) {
+			fail(
+				`${manifestRelPath}: bundle ${id} has invalid activationScope '${bundle.activationScope}' (must be: ${VALID_BUNDLE_ACTIVATION_SCOPES.join(', ')})`,
+			);
+		}
+
+		if (
+			bundle.materialization !== undefined
+			&& !VALID_BUNDLE_MATERIALIZATION.includes(bundle.materialization)
+		) {
+			fail(
+				`${manifestRelPath}: bundle ${id} has invalid materialization '${bundle.materialization}' (must be: ${VALID_BUNDLE_MATERIALIZATION.join(', ')})`,
+			);
+		}
+
+		if (bundle.dependsOn !== undefined && !Array.isArray(bundle.dependsOn)) {
+			fail(`${manifestRelPath}: bundle ${id} dependsOn must be an array when present`);
+		}
+	}
+
+	for (const bundle of manifest.bundles) {
+		if (!bundle || typeof bundle !== 'object' || Array.isArray(bundle)) {
+			continue;
+		}
+		const id = typeof bundle.id === 'string' ? bundle.id.trim() : '';
+		if (!id || !Array.isArray(bundle.dependsOn)) {
+			continue;
+		}
+		for (let dependencyIndex = 0; dependencyIndex < bundle.dependsOn.length; dependencyIndex++) {
+			const dependencyId = typeof bundle.dependsOn[dependencyIndex] === 'string'
+				? bundle.dependsOn[dependencyIndex].trim()
+				: '';
+			if (!dependencyId) {
+				fail(`${manifestRelPath}: bundle ${id} has empty dependsOn[${dependencyIndex}]`);
+				continue;
+			}
+			if (!seenIds.has(dependencyId)) {
+				fail(`${manifestRelPath}: bundle ${id} dependsOn unknown bundle '${dependencyId}'`);
+			}
+		}
+	}
 }
 
 function validateRequiredAssets(manifest, manifestRelPath) {
@@ -234,7 +343,8 @@ for (const target of manifestFiles) {
 	}
 
 	validateGovernance(manifest, manifestRelPath);
-	const checked = validateAssets(manifest, manifestRelPath, target.enforceSourceExists);
+	const { checked, assetIds } = validateAssets(manifest, manifestRelPath, target.enforceSourceExists);
+	validateBundles(manifest, manifestRelPath, assetIds);
 	validateRequiredAssets(manifest, manifestRelPath);
 	checkedByManifest.push(`${manifestRelPath}=${checked}`);
 }

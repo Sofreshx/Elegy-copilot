@@ -317,15 +317,15 @@ interface Finding {
 
 ### 4. Output Locations
 
-Reports are written to `.instructions-output/`:
+Reports are returned in chat by default. If a durable repo artifact is explicitly requested, prefer `docs/issues/`:
 
 | Audit Type | Output Path |
 |------------|-------------|
-| `security` | `.instructions-output/security-audit.md` |
+| `security` | `docs/issues/security-audit.md` |
 | `test` | (deprecated) |
-| `e2e` | `.instructions-output/e2e-audit/report.md` |
-| `deploy` | `.instructions-output/deploy-audit.md` |
-| `stack` | `.instructions-output/stack-audit.md` |
+| `e2e` | `docs/issues/e2e-audit-report.md` |
+| `deploy` | `docs/issues/deploy-audit.md` |
+| `stack` | `docs/issues/stack-audit.md` |
 
 ---
 

@@ -1,27 +1,53 @@
-# Executive2 Task Progress Tracker
+# Plan-Pack Progress Tracker
 
 ## Session Metadata
 - Session ID:
 - Date:
 - Owner:
-- Plan Artefact: .instructions/artefacts/x-PLAN-artefact.md
+- Plan Artifact: `~/.copilot/session-state/<SESSION_ID>/plan.md`
 
-## Task Groups Overview
-| Group | Title | Status | Tasks | Depends On |
-| --- | --- | --- | --- | --- |
-| 1 |  | not-started |  |  |
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 |  | not-started | 0 | 0 | — |
 
-## Task Status Table
-| Group | Task ID | Status | Next Task | Notes |
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
-| 1 | task-000001 | not-started | task-000002 |  |
+| G-01 | WU-001 | not-started | — |  |
+
+## Next Unit
+**WU-001** —
 
 ## Checkpoints
 | Group | Checkpoint | Trigger | Notes |
 | --- | --- | --- | --- |
-| 1 | review | after task-000002 |  |
-| 1 | test | after task-000003 |  |
+| G-01 | unit-tests | After G-01 | status: pending |
+
+## Stream Evidence
+| Group | Predicate | Evidence | Status | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | execution-log and/or stream-marker |  | pending | status: pending |
+
+## Final Gate Controls
+| Control | Status | Waiver Scope | Waiver Release | Waiver Audit |
+| --- | --- | --- | --- | --- |
+| evidencePredicates | pending | — | — | — |
+| finalGateWaiverPrecedence | pending | — | — | — |
+| trustedEvidenceBindingRetention | pending | — | — | — |
+
+## Trusted Evidence Binding
+| Commit SHA | Release Tag | Channel | Producer Identity | Attestation Status | Evidence Timestamp | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+|  |  |  |  |  |  |  |
+
+## Evidence Retention
+| Policy | Retention Days | Retained | Release Tag | Evidence |
+| --- | --- | --- | --- | --- |
+| opsLogs |  |  |  |  |
+| perReleaseEvidence |  |  |  |  |
 
 ## Execution Log
-- YYYY-MM-DD HH:MM: Started group 1
-- YYYY-MM-DD HH:MM: Completed group 1
+2026-02-23T10:15:00Z — WU-001 started
+2026-02-23T10:22:00Z — WU-001 completed (validation: pass)
+2026-02-23T10:30:00Z — Checkpoint: unit-tests (status: passed; duration=18s)

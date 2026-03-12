@@ -33,6 +33,10 @@ related: [doc-graph-spec]
 
 - [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md)
 
+## Applications
+
+- [[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md)
+
 ## Strategy
 
 - [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md)
