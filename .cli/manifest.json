@@ -67,7 +67,7 @@
         "agent-stack-auditor",
         "agent-unit-test-runner",
         "agent-reviewer-opus-4-6",
-        "agent-reviewer-gpt-5-3-codex"
+        "agent-reviewer-gpt-5-4"
       ],
       "installTarget": "user-global",
       "activationScope": "global",
@@ -280,10 +280,10 @@
       "destination": "agents/research-ideation.agent.md"
     },
     {
-      "id": "agent-reviewer-gpt-5-3-codex",
+      "id": "agent-reviewer-gpt-5-4",
       "type": "agent",
-      "source": "engine-assets/agents/reviewer-gpt-5-3-codex.agent.md",
-      "destination": "agents/reviewer-gpt-5-3-codex.agent.md"
+      "source": "engine-assets/agents/reviewer-gpt-5-4.agent.md",
+      "destination": "agents/reviewer-gpt-5-4.agent.md"
     },
     {
       "id": "agent-search",

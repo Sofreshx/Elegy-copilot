@@ -4,7 +4,7 @@ description: "Unified orchestrator — single entry point for all complex work. 
 tools: [read, search, edit, execute/runInTerminal, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-planner, search, execute, impl-infra, impl-business, impl-reviewer, final-reviewer, work-unit-runner, code-explorer, code-architect, code-reviewer, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, reviewer-gpt-5-3-codex, reviewer-opus-4-6]
+agents: [o-reframer, o-planner, search, execute, impl-infra, impl-business, impl-reviewer, final-reviewer, work-unit-runner, code-explorer, code-architect, code-reviewer, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, reviewer-gpt-5-4, reviewer-opus-4-6]
 
 ---
 
@@ -51,7 +51,7 @@ Single entry point for all complex work. Thin routing and context-curation layer
 | Security audit | `@security-auditor` |
 | Instruction quality | `@instruction-auditor` |
 | Structural correctness | `@agent-governor` |
-| Cross-model review | `@reviewer-opus-4-6`, `@reviewer-gpt-5-3-codex` |
+| Cross-model review | `@reviewer-opus-4-6`, `@reviewer-gpt-5-4` |
 | Final gate | `@final-reviewer` |
 
 ## Context Curation
@@ -86,7 +86,7 @@ Single entry point for all complex work. Thin routing and context-curation layer
 ### Phase 2 — Plan
 - Gather exploration context: `@code-explorer` (parallel for independent scopes), optionally `@code-architect`, then use `@search` and `@execute` to keep capability loading explicit and lean.
 - Delegate to `@o-planner` → returns Plan Pack + Progress Tracker in-chat (source of truth).
-- **Standard**: present plan via `planReview` or `vscode/askQuestions`. **Complex**: cross-model review (`@reviewer-opus-4-6` → `@reviewer-gpt-5-3-codex`) before presenting. Max 3 revision rounds.
+- **Standard**: present plan via `planReview` or `vscode/askQuestions`. **Complex**: cross-model review (`@reviewer-opus-4-6` → `@reviewer-gpt-5-4`) before presenting. Max 3 revision rounds.
 
 ### Phase 3 — Execute
 - **Select next WU**: use Progress Tracker `Next Unit` pointer, else first `not-started` with deps met.
