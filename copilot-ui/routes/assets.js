@@ -216,6 +216,7 @@ function handleAssetsView(ctx, deps) {
   }
   try {
     let abs = safeResolveUnder(assetsHomeAbs, rel);
+    abs = assertInspectableAssetPath(abs, assetsHomeAbs, fs);
     abs = resolvePointerTarget(rel, abs, assetsHomeAbs, assets, fs, safeResolveUnder);
     abs = assertInspectableAssetPath(abs, assetsHomeAbs, fs);
     const text = assets.readTextFileSafe(abs, 512 * 1024);
@@ -241,7 +242,7 @@ function handleAssetsDelete(ctx, deps) {
       if (typeof relPath !== 'string' || !relPath.trim()) throw Object.assign(new Error('path is required'), { statusCode: 400 });
 
       // Guardrails: only delete within agents/ or skills/.
-      const normalized = relPath.split('\\').join('/').replace(/^\/+/, '');
+      let normalized = relPath.split('\\').join('/').replace(/^\/+/, '');
       if (!(normalized.startsWith('agents/') || normalized.startsWith('skills/'))) {
         throw Object.assign(new Error('Only agents/* or skills/* may be deleted'), { statusCode: 400 });
       }
@@ -261,6 +262,7 @@ function handleAssetsDelete(ctx, deps) {
         if (!fs.existsSync(skillFile)) {
           throw Object.assign(new Error('Refusing to delete unsupported skill namespace roots'), { statusCode: 400 });
         }
+        normalized = `skills/${match[1]}`;
       }
 
       if (!force) {

@@ -94,6 +94,14 @@ function buildSkillDetailPath(skill: SkillPreviewItem): string {
   return `skills/${skill.name}/SKILL.md`;
 }
 
+function isPreviewUnavailable(skill: SkillPreviewItem | null): boolean {
+  return Boolean(
+    skill &&
+    (!skill.viewPath || !String(skill.viewPath).trim()) &&
+    String(skill.availability || '').trim() === 'not-installed'
+  );
+}
+
 function createSkillsPreviewStore() {
   const store = createStore<SkillsPreviewState>(INITIAL_STATE);
   let requestVersion = 0;
@@ -166,6 +174,22 @@ function createSkillsPreviewStore() {
       detailError: null,
       detailText: `(loading ${selectedSkillLabel}...)`,
     }));
+
+    if (isPreviewUnavailable(selectedSkill)) {
+      store.setState((state) => {
+        if (state.selectedSkillId !== normalizedSkillId) {
+          return state;
+        }
+
+        return {
+          ...state,
+          detailLoading: false,
+          detailError: null,
+          detailText: `${selectedSkillLabel} is managed but not installed yet. Install or sync it before previewing content.`,
+        };
+      });
+      return;
+    }
 
     try {
       const detailPath = buildSkillDetailPath(selectedSkill ?? { name: selectedSkillLabel, kind: 'full' });

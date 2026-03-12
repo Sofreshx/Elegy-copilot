@@ -101,4 +101,27 @@ describe('skillsPreviewStore', () => {
     expect(skillsPreviewStore.getState().detailText).toContain('Plugin Brainstorming');
     expect(skillsPreviewStore.getState().detailText).not.toContain('Flat Brainstorming');
   });
+
+  it('does not request asset content for managed skills that are not installed yet', async () => {
+    mockGetSkillsPreview.mockResolvedValue({
+      skills: [
+        {
+          assetId: 'skill-missing-skill',
+          name: 'missing-skill',
+          kind: 'missing',
+          availability: 'not-installed',
+          managed: true,
+        },
+      ],
+    });
+
+    const { skillsPreviewStore } = await import('../ui/src/tabs/SkillsPreview/skillsPreviewStore');
+
+    await skillsPreviewStore.loadSkills();
+    await skillsPreviewStore.loadSkillDetail('skill-missing-skill');
+
+    expect(mockGetAssetView).not.toHaveBeenCalled();
+    expect(skillsPreviewStore.getState().detailText).toContain('managed but not installed yet');
+    expect(skillsPreviewStore.getState().detailLoading).toBe(false);
+  });
 });

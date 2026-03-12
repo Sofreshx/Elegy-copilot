@@ -180,6 +180,7 @@ async function run() {
     });
 
     await test('asset view rejects symlink targets that escape the copilot home root', async () => {
+      let pointerProbeAttempted = false;
       let readAttempted = false;
       const response = await invokeView(copilotHomeAbs, 'agents/code-reviewer.md', {
         fs: {
@@ -187,7 +188,10 @@ async function run() {
           realpathSync: () => path.join(tmpRoot, 'outside', 'secret.md'),
         },
         assets: {
-          isPointerFile: () => false,
+          isPointerFile: () => {
+            pointerProbeAttempted = true;
+            return false;
+          },
           readTextFileSafe: () => {
             readAttempted = true;
             return 'unexpected';
@@ -198,7 +202,23 @@ async function run() {
       assert.strictEqual(response.status, 400);
       assert.strictEqual(response.mode, 'json');
       assert.match(String(response.payload.error || ''), /escapes supported copilot roots/i);
+      assert.strictEqual(pointerProbeAttempted, false);
       assert.strictEqual(readAttempted, false);
+    });
+
+    await test('delete route canonicalizes flat skill file paths to the whole skill root', async () => {
+      const flatSkillRoot = path.join(copilotHomeAbs, 'skills', 'flat-skill');
+      writeText(path.join(flatSkillRoot, 'SKILL.md'), '# Flat Skill\n');
+      writeText(path.join(flatSkillRoot, 'notes.txt'), 'extra content');
+
+      const response = await invokeDelete(copilotHomeAbs, {
+        path: 'skills/flat-skill/SKILL.md',
+        force: true,
+      });
+
+      assert.strictEqual(response.status, 200);
+      assert.strictEqual(response.payload.deleted, 'skills/flat-skill');
+      assert.strictEqual(fs.existsSync(flatSkillRoot), false);
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
