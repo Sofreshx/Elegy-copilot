@@ -86,20 +86,19 @@ function normalizeSkills(input: unknown): SkillPreviewItem[] {
   return normalized;
 }
 
-function buildSkillDetailPath(skill: SkillPreviewItem): string {
+function buildSkillDetailPath(skill: SkillPreviewItem): string | null {
   if (typeof skill.viewPath === 'string' && skill.viewPath.trim()) {
     return skill.viewPath;
   }
 
-  return `skills/${skill.name}/SKILL.md`;
+  return null;
 }
 
-function isPreviewUnavailable(skill: SkillPreviewItem | null): boolean {
-  return Boolean(
-    skill &&
-    (!skill.viewPath || !String(skill.viewPath).trim()) &&
-    String(skill.availability || '').trim() === 'not-installed'
-  );
+function buildPreviewUnavailableMessage(skill: SkillPreviewItem | null, label: string): string {
+  if (skill && String(skill.availability || '').trim() === 'not-installed') {
+    return `${label} is managed but not installed yet. Install or sync it before previewing content.`;
+  }
+  return `${label} cannot be previewed from the current source location.`;
 }
 
 function createSkillsPreviewStore() {
@@ -175,7 +174,8 @@ function createSkillsPreviewStore() {
       detailText: `(loading ${selectedSkillLabel}...)`,
     }));
 
-    if (isPreviewUnavailable(selectedSkill)) {
+    const detailPath = buildSkillDetailPath(selectedSkill ?? { name: selectedSkillLabel, kind: 'full' });
+    if (!detailPath) {
       store.setState((state) => {
         if (state.selectedSkillId !== normalizedSkillId) {
           return state;
@@ -185,14 +185,13 @@ function createSkillsPreviewStore() {
           ...state,
           detailLoading: false,
           detailError: null,
-          detailText: `${selectedSkillLabel} is managed but not installed yet. Install or sync it before previewing content.`,
+          detailText: buildPreviewUnavailableMessage(selectedSkill, selectedSkillLabel),
         };
       });
       return;
     }
 
     try {
-      const detailPath = buildSkillDetailPath(selectedSkill ?? { name: selectedSkillLabel, kind: 'full' });
       const detailText = await getAssetView(detailPath);
 
       store.setState((state) => {

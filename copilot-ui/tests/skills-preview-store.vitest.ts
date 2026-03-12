@@ -124,4 +124,27 @@ describe('skillsPreviewStore', () => {
     expect(skillsPreviewStore.getState().detailText).toContain('managed but not installed yet');
     expect(skillsPreviewStore.getState().detailLoading).toBe(false);
   });
+
+  it('does not fall back to a home skill path when the selected preview item has no inspectable view path', async () => {
+    mockGetSkillsPreview.mockResolvedValue({
+      skills: [
+        {
+          assetId: 'skill-repo-local-brainstorming',
+          name: 'brainstorming',
+          kind: 'full',
+          availability: 'scan-path',
+          description: 'Repo-local brainstorming variant.',
+        },
+      ],
+    });
+
+    const { skillsPreviewStore } = await import('../ui/src/tabs/SkillsPreview/skillsPreviewStore');
+
+    await skillsPreviewStore.loadSkills();
+    await skillsPreviewStore.loadSkillDetail('skill-repo-local-brainstorming');
+
+    expect(mockGetAssetView).not.toHaveBeenCalled();
+    expect(skillsPreviewStore.getState().detailText).toContain('cannot be previewed');
+    expect(skillsPreviewStore.getState().detailLoading).toBe(false);
+  });
 });

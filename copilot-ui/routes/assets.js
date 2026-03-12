@@ -31,8 +31,13 @@ function safeRealpath(absPath, fsImpl = fs) {
 }
 
 function isPathWithinRoot(rootAbs, candidateAbs) {
-  const root = path.resolve(rootAbs);
-  const candidate = path.resolve(candidateAbs);
+  const normalizeComparablePath = (inputPath) => {
+    const resolved = path.resolve(inputPath);
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+
+  const root = normalizeComparablePath(rootAbs);
+  const candidate = normalizeComparablePath(candidateAbs);
   if (candidate === root) {
     return true;
   }
@@ -103,7 +108,9 @@ function handleAssetsInstalled(ctx, deps) {
   const { sendJson, assets } = deps;
   const assetsHomeAbs = copilotHomeAbs;
   const agents = assets.listInstalledAgents(assetsHomeAbs);
-  const skills = assets.listInstalledSkills(assetsHomeAbs);
+  const skills = typeof assets.listInstalledSkillInventory === 'function'
+    ? assets.listInstalledSkillInventory(assetsHomeAbs)
+    : assets.listInstalledSkills(assetsHomeAbs);
   const prompts = assets.listInstalledPrompts(assetsHomeAbs);
   const instructions = assets.getInstalledInstructions(assetsHomeAbs);
   sendJson(res, 200, { agents, skills, prompts, instructions });
@@ -157,19 +164,23 @@ function handleSkillsPreview(ctx, deps) {
       return;
     }
 
-    const skills = assets.listInstalledSkills(assetsHomeAbs);
+    const skills = typeof assets.listInstalledSkillInventory === 'function'
+      ? assets.listInstalledSkillInventory(assetsHomeAbs)
+      : assets.listInstalledSkills(assetsHomeAbs);
     const vaultDir = assets.getVaultDir ? assets.getVaultDir(assetsHomeAbs) : path.join(assetsHomeAbs, 'skills-vault');
     const result = skills.map((s) => {
       const triggers = extractTriggers(s.absPath);
       const vaultPath = s.kind === 'pointer'
         ? path.join(vaultDir, ...(s.namespace ? [s.namespace] : []), s.name, 'SKILL.md')
+        : s.kind === 'vault'
+          ? s.absPath
         : null;
       return {
         assetId: s.assetId,
         name: s.name,
         kind: s.kind || 'full',
-        loadMode: 'always',
-        availability: s.kind === 'pointer' ? 'scan+vault' : 'scan-path',
+        loadMode: s.kind === 'vault' ? 'on-demand' : 'always',
+        availability: s.kind === 'pointer' ? 'scan+vault' : s.kind === 'vault' ? 'vault-only' : 'scan-path',
         triggers,
         absPath: s.absPath,
         vaultPath,

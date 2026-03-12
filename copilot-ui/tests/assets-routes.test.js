@@ -127,6 +127,10 @@ async function run() {
         '',
       ].join('\n'),
     );
+    writeText(
+      path.join(copilotHomeAbs, 'skills-vault', 'on-demand-skill', 'SKILL.md'),
+      '# On Demand Skill\n',
+    );
     const pluginAgentInstall = installPluginAgent(
       copilotHomeAbs,
       [
@@ -153,6 +157,11 @@ async function run() {
       assert.ok(pluginSkill, 'expected plugin skill in installed inventory');
       assert.strictEqual(pluginSkill.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
       assert.strictEqual(pluginSkill.readOnly, true);
+
+      const vaultOnlySkill = response.payload.skills.find((skill) => skill.name === 'on-demand-skill');
+      assert.ok(vaultOnlySkill, 'expected vault-only skill in installed inventory');
+      assert.strictEqual(vaultOnlySkill.kind, 'vault');
+      assert.strictEqual(vaultOnlySkill.viewPath, 'skills-vault/on-demand-skill/SKILL.md');
 
       const pluginAgent = response.payload.agents.find((agent) => agent.fileName === 'code-reviewer.md');
       assert.ok(pluginAgent, 'expected plain markdown plugin agent in installed inventory');
@@ -219,6 +228,28 @@ async function run() {
       assert.strictEqual(response.status, 200);
       assert.strictEqual(response.payload.deleted, 'skills/flat-skill');
       assert.strictEqual(fs.existsSync(flatSkillRoot), false);
+    });
+
+    await test('asset view accepts Windows-only casing differences for in-root real paths', async () => {
+      if (process.platform !== 'win32') {
+        return;
+      }
+
+      const lowerHome = copilotHomeAbs.toLowerCase();
+      const response = await invokeView(lowerHome, 'agents/code-reviewer.md', {
+        fs: {
+          existsSync: () => true,
+          realpathSync: () => path.join(copilotHomeAbs.toUpperCase(), 'agents', 'code-reviewer.md'),
+        },
+        assets: {
+          isPointerFile: () => false,
+          readTextFileSafe: () => '# Agent',
+        },
+      });
+
+      assert.strictEqual(response.status, 200);
+      assert.strictEqual(response.mode, 'text');
+      assert.strictEqual(response.payload, '# Agent');
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

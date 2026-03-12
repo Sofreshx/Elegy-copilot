@@ -542,6 +542,7 @@ function listVaultSkills(home) {
     return {
       assetId: buildProviderQualifiedId('skill', skill.name, origin),
       name: skill.name,
+      kind: 'vault',
       namespace: skill.namespace,
       absPath: skill.absPath,
       viewPath: skill.viewPath,
@@ -549,6 +550,34 @@ function listVaultSkills(home) {
       sourcePackage: origin.sourcePackage,
       readOnly: origin.isExternal,
     };
+  });
+}
+
+function listInstalledSkillInventory(home) {
+  const merged = new Map();
+  const installedSkills = listInstalledSkills(home);
+  const vaultSkills = listVaultSkills(home);
+
+  for (const skill of [...installedSkills, ...vaultSkills]) {
+    if (!skill || typeof skill !== 'object') {
+      continue;
+    }
+    const identity = String(skill.assetId || `${skill.namespace || ''}:${skill.name || ''}`).trim();
+    if (!identity) {
+      continue;
+    }
+    const existing = merged.get(identity) || null;
+    if (!existing || (existing.kind === 'vault' && skill.kind !== 'vault')) {
+      merged.set(identity, skill);
+    }
+  }
+
+  return Array.from(merged.values()).sort((left, right) => {
+    const nameCompare = String(left.name || '').localeCompare(String(right.name || ''));
+    if (nameCompare !== 0) {
+      return nameCompare;
+    }
+    return String(left.assetId || '').localeCompare(String(right.assetId || ''));
   });
 }
 
@@ -628,11 +657,16 @@ function getSkillCatalogPreview(engineRoot, home) {
       const explicitViewPath = typeof metadata.viewPath === 'string' && metadata.viewPath.trim()
         ? metadata.viewPath.trim()
         : null;
-      const fallbackViewPath =
-        explicitViewPath ||
-        toCopilotRelativePath(home, installedPaths['vault-only']) ||
-        toCopilotRelativePath(home, installedPaths['user-installed']) ||
-        toCopilotRelativePath(home, entry.contentPath);
+      let fallbackViewPath = explicitViewPath;
+      if (!fallbackViewPath) {
+        if (asset.selectedLayer === 'vault-only') {
+          fallbackViewPath = toCopilotRelativePath(home, installedPaths['vault-only']);
+        } else if (asset.selectedLayer === 'user-installed') {
+          fallbackViewPath = toCopilotRelativePath(home, installedPaths['user-installed']);
+        } else {
+          fallbackViewPath = toCopilotRelativePath(home, entry.contentPath);
+        }
+      }
 
       let kind = 'missing';
       let availability = 'not-installed';
@@ -1068,6 +1102,7 @@ module.exports = {
   loadManifest,
   listInstalledAgents,
   listInstalledSkills,
+  listInstalledSkillInventory,
   listVaultSkills,
   getSkillCatalogPreview,
   listInstalledPrompts,
