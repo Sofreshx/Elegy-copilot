@@ -49,7 +49,70 @@ export interface SessionPlansResponse {
 
 export interface SessionStructuredNextUnit {
   workUnitId?: string;
+  workUnitIds?: string[];
+  parallelCandidate?: boolean;
   rationale?: string;
+  [key: string]: unknown;
+}
+
+export interface SessionArtifactSection {
+  title: string;
+  key?: string;
+  content: string;
+  items?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionPropositionEntry {
+  heading: string;
+  occurredAt?: string | null;
+  phase?: string | null;
+  agent?: string | null;
+  sections: SessionArtifactSection[];
+  [key: string]: unknown;
+}
+
+export interface SessionHandoffManifest {
+  session?: string | null;
+  plan?: string | null;
+  planStatus?: string | null;
+  reviewer?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SessionParsedHandoff {
+  manifest?: SessionHandoffManifest | null;
+  sections?: SessionArtifactSection[];
+  warnings?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionStructuredReviewLedgerRow {
+  round?: string;
+  reviewer?: string;
+  verdict?: string;
+  requiredRevisions?: string;
+  resolution?: string;
+  [key: string]: unknown;
+}
+
+export interface SessionStructuredReviewLedger {
+  rows?: SessionStructuredReviewLedgerRow[];
+  approved?: boolean;
+  warnings?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionStructuredResume {
+  ready?: boolean;
+  blockers?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionStructuredMeta {
+  reviewLedger?: SessionStructuredReviewLedger;
+  handoff?: SessionParsedHandoff | null;
+  resume?: SessionStructuredResume;
   [key: string]: unknown;
 }
 
@@ -59,6 +122,7 @@ export interface SessionStructuredStateResponse {
   planId?: string;
   nextUnit?: SessionStructuredNextUnit | null;
   warnings?: string[];
+  meta?: SessionStructuredMeta;
   [key: string]: unknown;
 }
 
@@ -67,6 +131,15 @@ export interface SessionTextArtifactResponse {
   source: string;
   content: string;
   [key: string]: unknown;
+}
+
+export interface SessionPropositionResponse extends SessionTextArtifactResponse {
+  entries?: SessionPropositionEntry[];
+  latestEntry?: SessionPropositionEntry | null;
+}
+
+export interface SessionHandoffResponse extends SessionTextArtifactResponse {
+  parsed?: SessionParsedHandoff;
 }
 
 export interface SdkHealthResponse {
@@ -414,6 +487,55 @@ export interface CatalogAssetsResponse {
   count: number;
   snapshot?: CatalogSnapshotEnvelope;
   assets: CatalogEffectiveAsset[];
+  [key: string]: unknown;
+}
+
+export interface CatalogBundleMember {
+  assetId: string;
+  assetKey?: string;
+  kind?: string;
+  title?: string;
+  available?: boolean;
+  installed?: boolean;
+  enabled?: boolean;
+  selectedLayer?: string | null;
+  missing?: boolean;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundleStats {
+  memberCount?: number;
+  availableCount?: number;
+  installedCount?: number;
+  enabledCount?: number;
+  missingCount?: number;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundle {
+  bundleId: string;
+  title?: string;
+  description?: string;
+  assetIds?: string[];
+  installTarget?: string;
+  activationScope?: string;
+  materialization?: string;
+  tags?: string[];
+  defaultRecommended?: boolean;
+  dependsOn?: string[];
+  status?: string;
+  stats?: CatalogBundleStats;
+  members?: CatalogBundleMember[];
+  [key: string]: unknown;
+}
+
+export interface CatalogBundlesResponse {
+  kind?: string;
+  deterministic?: boolean;
+  filters?: Record<string, unknown>;
+  count: number;
+  snapshot?: CatalogSnapshotEnvelope;
+  bundles: CatalogBundle[];
   [key: string]: unknown;
 }
 

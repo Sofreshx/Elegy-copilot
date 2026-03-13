@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "upstreamRepo": "DwainTR/superpowers-copilot",
+  "upstreamSha": "3ecdd5b963f1260eeaec2950f3b42dd573a52019",
+  "sourceRoot": ".tmp/llm-work/superpowers-copilot/plugins/superpowers",
+  "importedAt": "2026-03-12T15:00:06.254Z",
+  "skills": [
+    {
+      "upstream": "brainstorming",
+      "vendored": "superpowers-brainstorming"
+    },
+    {
+      "upstream": "dispatching-parallel-agents",
+      "vendored": "superpowers-dispatching-parallel-agents"
+    },
+    {
+      "upstream": "executing-plans",
+      "vendored": "superpowers-executing-plans"
+    },
+    {
+      "upstream": "finishing-a-development-branch",
+      "vendored": "superpowers-finishing-a-development-branch"
+    },
+    {
+      "upstream": "receiving-code-review",
+      "vendored": "superpowers-receiving-code-review"
+    },
+    {
+      "upstream": "requesting-code-review",
+      "vendored": "superpowers-requesting-code-review"
+    },
+    {
+      "upstream": "subagent-driven-development",
+      "vendored": "superpowers-subagent-driven-development"
+    },
+    {
+      "upstream": "systematic-debugging",
+      "vendored": "superpowers-systematic-debugging"
+    },
+    {
+      "upstream": "test-driven-development",
+      "vendored": "superpowers-test-driven-development"
+    },
+    {
+      "upstream": "using-git-worktrees",
+      "vendored": "superpowers-using-git-worktrees"
+    },
+    {
+      "upstream": "using-superpowers",
+      "vendored": "superpowers-using-superpowers"
+    },
+    {
+      "upstream": "verification-before-completion",
+      "vendored": "superpowers-verification-before-completion"
+    },
+    {
+      "upstream": "writing-plans",
+      "vendored": "superpowers-writing-plans"
+    },
+    {
+      "upstream": "writing-skills",
+      "vendored": "superpowers-writing-skills"
+    }
+  ],
+  "agent": {
+    "upstream": "code-reviewer",
+    "vendored": "superpowers-code-reviewer"
+  }
+}

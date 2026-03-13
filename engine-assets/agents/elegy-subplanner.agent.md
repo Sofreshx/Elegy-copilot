@@ -21,7 +21,7 @@ You do **not** implement code. You only generate the detailed sub-plan for your 
 
 ## Inputs (expected)
 - The High-Level Plan (or the specific workstream you are assigned).
-- Relevant codebase context (files, architecture) — including exploration findings from the planner's `@code-explorer` pass.
+- Relevant codebase context (files, architecture) — including exploration findings from the planner's `@code-explorer` pass, already scoped to this workstream.
 - `wuOffset`: starting WU number (e.g., `4` means your first WU is `WU-004`). If not provided, start at `WU-001`.
 
 ## Output Contract
@@ -45,6 +45,9 @@ For each Work Unit, use this exact structure:
 - <Specific, verifiable criterion 1>
 - <Specific, verifiable criterion 2>
 (minimum 2 criteria)
+
+#### Parallel Safety
+yes|no — one-line rationale. Use `yes` only when the WU can run alongside sibling WUs without same-file contention, sequential review dependency, or shared mutable state risk.
 
 #### Plan / Approach
 <Concrete implementation steps with repo-relative file paths where changes will be made.>
@@ -70,3 +73,5 @@ Any other workstreams or Work Units this section relies on.
 - Assume the orchestrator will execute these Work Units sequentially unless marked otherwise.
 - Each WU must have ≥2 specific, verifiable acceptance criteria.
 - Each WU must reference concrete file paths (no placeholders).
+- Treat `Parallel Safety` as opt-in, not optimistic. Default to `no` unless the ownership boundary is clear.
+- When `Parallel Safety` is `yes`, `Expected Files` must enumerate the files or directories that establish that ownership boundary.

@@ -90,7 +90,7 @@ Expected: `{"error":"Plan artifact not found","id":"...","source":"cli","planId"
 ## Endpoint 2: GET /api/sessions/:id/proposition
 
 ### Description
-Returns the content of `proposition.md` from the session directory, or 404 if it doesn't exist.
+Returns the content of `proposition.md` from the session directory, plus parsed closeout entries when the artifact follows the structured proposition format.
 
 ### Basic Test
 ```bash
@@ -111,7 +111,72 @@ curl "http://127.0.0.1:3210/api/sessions/a04980e8-4804-411d-a774-0a4cbf88576e/pr
 {
   "id": "a04980e8-4804-411d-a774-0a4cbf88576e",
   "source": "cli",
-  "content": "## 2026-02-23T10:30:00Z — after-planning — elegy-planner\n\n### Summary\n..."
+  "content": "## 2026-02-23T10:30:00Z — after-planning — elegy-planner\n\n### Summary\n...",
+  "entries": [
+    {
+      "occurredAt": "2026-02-23T10:30:00Z",
+      "phase": "after-planning",
+      "agent": "elegy-planner",
+      "sections": [
+        {
+          "key": "summary",
+          "title": "Summary",
+          "content": "...",
+          "bullets": []
+        }
+      ]
+    }
+  ],
+  "latestEntry": {
+    "occurredAt": "2026-02-23T10:30:00Z",
+    "phase": "after-planning",
+    "agent": "elegy-planner"
+  }
+}
+```
+
+## Endpoint 3: GET /api/sessions/:id/handoff
+
+### Description
+Returns the content of `handoff.md` from the session directory, plus parsed manifest fields, required sections, and parser warnings.
+
+### Basic Test
+```bash
+curl "http://127.0.0.1:3210/api/sessions/a04980e8-4804-411d-a774-0a4cbf88576e/handoff?source=cli"
+```
+
+### Expected Response (v1: 404 if file not present)
+```json
+{
+  "error": "Handoff not found",
+  "id": "a04980e8-4804-411d-a774-0a4cbf88576e",
+  "source": "cli"
+}
+```
+
+### Expected Response (200 if file exists)
+```json
+{
+  "id": "a04980e8-4804-411d-a774-0a4cbf88576e",
+  "source": "cli",
+  "content": "## Handoff Manifest\n- Session: a04980e8-4804-411d-a774-0a4cbf88576e\n...",
+  "parsed": {
+    "manifest": {
+      "session": "a04980e8-4804-411d-a774-0a4cbf88576e",
+      "plan": "plan.md",
+      "planStatus": "APPROVED",
+      "reviewer": "Verdict: APPROVED"
+    },
+    "sections": [
+      {
+        "key": "immediateNextActions",
+        "title": "Immediate Next Actions",
+        "content": "- Execute WU-001.",
+        "bullets": ["Execute WU-001."]
+      }
+    ],
+    "warnings": []
+  }
 }
 ```
 
@@ -129,7 +194,7 @@ curl -s "http://127.0.0.1:3210/api/sessions/SESSION_ID/structured-state?source=c
 
 ## Query Parameters
 
-Both endpoints support:
+All endpoints support:
 - `source`: `cli` (default) or `vscode` or `all` - specifies which session home to search
 - `planId`: (structured-state only) `latest` (default) or `rev-0001`, `rev-0002`, etc.
 
@@ -140,6 +205,7 @@ Both endpoints support:
 3. **Defensive Parsing**: The parser never throws; returns partial data if sections are missing.
 4. **Unicode Support**: Em dash (—), en dash (–), and regular dash (-) are all supported in Next Unit parsing.
 5. **Checkpoint Status**: Extracted from `Notes` column using pattern `status: passed|failed|pending|skipped`.
+6. **Resume Readiness**: `structured-state` now emits `meta.reviewLedger`, optional `meta.handoff`, and `meta.resume` so clients can determine whether a session is safe to resume.
 
 ## Validation Checklist
 
@@ -152,7 +218,9 @@ Both endpoints support:
 - [ ] Format version detected (1 if marker present, 0 otherwise)
 - [ ] Warnings array present (empty if no issues)
 - [ ] `GET /proposition` returns 404 when file missing
-- [ ] `GET /proposition` returns content when file exists
+- [ ] `GET /proposition` returns content plus parsed entries when file exists
+- [ ] `GET /handoff` returns 404 when file missing
+- [ ] `GET /handoff` returns parsed manifest and required sections when file exists
 - [ ] Both endpoints handle invalid session ID (404)
 - [ ] Endpoints work with `source=cli` and `source=vscode`
 

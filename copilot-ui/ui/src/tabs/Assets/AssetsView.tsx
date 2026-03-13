@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
-import type { CatalogEffectiveAsset, CatalogEntry, CatalogRepoInventoryEntry } from '../../lib/types';
+import type { CatalogBundle, CatalogEffectiveAsset, CatalogEntry, CatalogRepoInventoryEntry } from '../../lib/types';
 import { catalogWorkspaceStore } from './catalogWorkspaceStore';
 
 type AuthoringScope = 'shared' | 'user-global' | 'repo-local';
@@ -170,6 +170,10 @@ function readContentHash(entry: CatalogEntry | null | undefined): string {
 
 function buildRepoLabel(repo: CatalogRepoInventoryEntry | null | undefined): string {
   return String(repo?.repoLabel || repo?.repoPath || repo?.repoId || 'Unknown repo');
+}
+
+function bundleHasTag(bundle: CatalogBundle, tag: string): boolean {
+  return readStringList(bundle.tags).some((value) => value.toLowerCase() === tag.toLowerCase());
 }
 
 function resolveActiveRepo(
@@ -378,6 +382,10 @@ export default function AssetsView() {
   const selectedContributors = selectedAsset?.contributingEntries ?? [];
   const selectedSuppressed = selectedAsset?.suppressedEntries ?? [];
   const recommendedAssets = catalogState.assets.filter((asset) => asset.recommended);
+  const workflowBundles = useMemo(
+    () => catalogState.bundles.filter((bundle) => bundle.bundleId === 'superpowers-workflow' || bundleHasTag(bundle, 'superpowers')),
+    [catalogState.bundles]
+  );
   const auditCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const event of catalogState.auditEvents) {
@@ -557,6 +565,10 @@ export default function AssetsView() {
     });
   };
 
+  const handleInstallBundle = async (bundleId: string) => {
+    await catalogWorkspaceStore.installBundle(bundleId);
+  };
+
   const handleToggleEnabled = async () => {
     if (!selectedAsset || !isSupportedAuthoringKind(selectedAsset.kind)) {
       return;
@@ -674,6 +686,65 @@ export default function AssetsView() {
           </p>
         </article>
       </div>
+
+      <Panel
+        subtitle="Optional workflow packs surfaced from catalog bundle metadata and installed through the existing shipped-asset mutation flow."
+        testId="catalog-bundles-panel"
+        title="Workflow packs"
+      >
+        {catalogState.bundlesError ? (
+          <p className="state-message state-error" role="alert">
+            {catalogState.bundlesError}
+          </p>
+        ) : null}
+
+        {workflowBundles.length === 0 ? (
+          <p className="state-message">No optional workflow packs are currently exposed by the catalog bundle projection.</p>
+        ) : (
+          <ul className="catalog-repo-list" data-testid="catalog-bundle-list">
+            {workflowBundles.map((bundle) => {
+              const memberStats = bundle.stats ?? {};
+              const installedCount = Number(memberStats.installedCount ?? 0);
+              const memberCount = Number(memberStats.memberCount ?? 0);
+              const missingCount = Number(memberStats.missingCount ?? 0);
+              const isInstalled = memberCount > 0 && installedCount === memberCount && missingCount === 0;
+
+              return (
+                <li key={bundle.bundleId}>
+                  <div className="catalog-search-result-header">
+                    <div>
+                      <p className="catalog-item-title">{bundle.title || bundle.bundleId}</p>
+                      <p className="catalog-item-copy">{bundle.description || 'No bundle description available.'}</p>
+                    </div>
+                    <div className="catalog-badge-row">
+                      <StatusBadge status={bundle.status || 'unknown'} testId="catalog-bundle-status" />
+                      <StatusBadge status={bundle.materialization || 'unknown'} testId="catalog-bundle-materialization" />
+                      {bundle.defaultRecommended ? <StatusBadge status="recommended" testId="catalog-bundle-recommended" /> : null}
+                    </div>
+                  </div>
+
+                  <p className="catalog-inline-note">
+                    {formatCount(memberStats.memberCount)} assets · {formatCount(memberStats.installedCount)} installed · {formatCount(memberStats.availableCount)} available · {formatCount(memberStats.missingCount)} missing
+                  </p>
+
+                  <div className="catalog-action-row">
+                    <Button
+                      disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
+                      onClick={() => {
+                        void handleInstallBundle(bundle.bundleId);
+                      }}
+                      testId={`catalog-install-bundle-${bundle.bundleId}`}
+                      variant="secondary"
+                    >
+                      {isInstalled ? 'Re-check bundle' : 'Install bundle'}
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Panel>
 
       <div className="catalog-grid">
         <Panel

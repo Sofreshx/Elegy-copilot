@@ -33,6 +33,7 @@ A typical session directory contains:
 ```
 ~/.copilot/session-state/<SESSION_ID>/
   plan.md              # Plan Pack + Progress Tracker (canonical)
+  handoff.md           # Planner-to-orchestrator bootstrap summary
   proposition.md       # Append-only guidance artifact
   verification-guide.md  # Structured verification guide (optional)
   plans/               # Plan revisions
@@ -73,6 +74,12 @@ An append-only file that accumulates guidance at key milestones:
 - **after-planning** — Suggestions after plan approval
 - **after-execution** — Retrospective notes after execution completes
 
+Use durable structured sections so resumptions and downstream planning can extract the next move without re-reading the entire session.
+
+- `direction` entries should include: `Summary`, `Watch Outs`, `Open Risks`, and `Details`.
+- `after-planning` and `after-execution` entries should include: `Summary`, `Immediate Next Actions`, `Next Plan Ideas`, `Watch Outs`, `Open Risks`, and `Details`.
+- When a section has no content yet, keep the heading and use `-` as a placeholder.
+
 Each entry uses an H2 heading:
 ```markdown
 ## 2026-02-23T14:30:00Z — after-planning — elegy-planner
@@ -82,9 +89,43 @@ Each entry uses an H2 heading:
 - Key risk: external API dependency needs stub
 - Recommended: start with G-01 (foundation work)
 
+### Immediate Next Actions
+- Execute G-01 first to establish shared contracts.
+- Re-check any external API assumptions before touching UI work.
+
+### Next Plan Ideas
+- Split docs and rollout hardening into a follow-up plan after the core refactor lands.
+
+### Watch Outs
+- Parallel-safe work is only valid for disjoint ownership boundaries.
+
+### Open Risks
+- External API behavior may still require a stub or contract fixture.
+
 ### Details
 The plan prioritizes foundational changes before UI work to minimize rework...
 ```
+
+### Handoff Artifact (`handoff.md`)
+
+The planner writes a bootstrap artifact for the executor.
+
+| Property | Value |
+|---|---|
+| **Write semantics** | Overwrite at end of planning |
+| **Lifecycle** | Written by `@elegy-planner`; read by `@elegy-orchestrator` before execution |
+| **Required** | Yes for persisted Elegy execution flow |
+
+Required sections:
+
+1. `## Handoff Manifest` — Session ID, plan status, reviewer verdict
+2. `## Key Decisions` — durable decision log with rationale
+3. `## Exploration Summary` — key entry points, key files, relevant patterns
+4. `## User Constraints` — explicit scope or risk tolerances
+5. `## Immediate Next Actions` — the concrete next moves for this session
+6. `## Next Plan Ideas` — follow-on planning opportunities that are deliberately out of scope now
+7. `## Watch Outs` — execution cautions the orchestrator must preserve
+8. `## Open Risks` — unresolved risks that may force replanning or user escalation
 
 ### Verification Guide Artifact (`verification-guide.md`)
 
@@ -581,13 +622,17 @@ Markdown table with columns:
 - `Group` — Group ID
 - `Work Unit ID` — WU identifier (e.g., `WU-003`)
 - `Status` — One of: `not-started`, `in-progress`, `done`, `blocked`, `skipped`
-- `Next Unit` — ID of next WU in sequence, or `—`
+- `Next Unit` — ID of next WU in sequence, comma-separated sibling WU IDs when a parallel-safe batch is ready, or `—`
 - `Notes` — Brief context or checkpoint results
 
 #### 3. Next Unit
 Single line identifying the next work unit to execute:
 ```markdown
 **WU-003** — Foundation work must complete before UI changes
+```
+When a safe sibling batch is ready:
+```markdown
+**WU-003, WU-004** — parallel-safe sibling work units for G-02
 ```
 Or, if complete:
 ```markdown
@@ -673,6 +718,15 @@ status: passed; unit-test-runner; duration=42s
 status: failed; integration-tests; see: execution log 2026-02-23T14:45
 status: skipped; user declined doc update
 ```
+
+### Parallel-Safe Execution Contract
+
+For persisted Elegy execution, `Parallel Safe = yes` only means the orchestrator may consider concurrent execution. It is not an unconditional scheduling command. Before fan-out, the orchestrator should still verify:
+
+1. Every WU in the candidate batch belongs to the same group.
+2. All declared dependencies are already satisfied.
+3. Expected file ownership is disjoint, or a compatible merge strategy is explicitly documented.
+4. No unresolved `Watch Outs` or open risks force sequencing.
 
 ### Required Stream Predicate Contract
 

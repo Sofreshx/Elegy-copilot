@@ -40,6 +40,8 @@ const PLANNING_SCOPE_PRECEDENCE = Object.freeze({
   global: 1,
 });
 
+const { parseHandoffText, parseReviewLedgerFromPlan } = require('./sessionArtifacts');
+
 const PLANNING_PRECEDENCE_CONTRACT_VERSION = '1';
 
 const PLANNING_RECORD_PRECEDENCE_RULES = Object.freeze([
@@ -175,7 +177,7 @@ function comparePlanningRecords(a, b) {
  * @param {string} text - Full plan.md content
  * @returns {object} Structured state with { groups, workUnits, checkpoints, nextUnit, meta, formatVersion, warnings }
  */
-function parseStructuredState(text) {
+function parseStructuredState(text, options = {}) {
   const result = {
     formatVersion: 0,
     warnings: [],
@@ -205,6 +207,7 @@ function parseStructuredState(text) {
   }
 
   const trackerStart = trackerMatch.index + trackerMatch[0].length;
+  const planText = text.slice(0, trackerMatch.index);
   let trackerText = text.slice(trackerStart);
 
   // Stop at next top-level heading (if any)
@@ -224,6 +227,35 @@ function parseStructuredState(text) {
 
   // Parse Checkpoints
   result.checkpoints = parseCheckpoints(trackerText, result.warnings);
+
+  const reviewLedger = parseReviewLedgerFromPlan(planText);
+  result.meta.reviewLedger = reviewLedger;
+  result.warnings.push(...reviewLedger.warnings.map((warning) => `Review Ledger: ${warning}`));
+
+  if (typeof options.handoffText === 'string' && options.handoffText.trim()) {
+    const handoff = parseHandoffText(options.handoffText, { sessionId: options.sessionId });
+    result.meta.handoff = handoff;
+    result.warnings.push(...handoff.warnings.map((warning) => `Handoff: ${warning}`));
+  } else if (options.requireHandoff) {
+    result.meta.handoff = null;
+    result.warnings.push('Handoff: missing handoff artifact');
+  }
+
+  const resumeBlockers = [];
+  if (!reviewLedger.approved) {
+    resumeBlockers.push('review_approval_missing');
+  }
+  if (result.meta.handoff == null) {
+    if (options.requireHandoff) {
+      resumeBlockers.push('handoff_missing');
+    }
+  } else if (Array.isArray(result.meta.handoff.warnings) && result.meta.handoff.warnings.length > 0) {
+    resumeBlockers.push('handoff_invalid');
+  }
+  result.meta.resume = {
+    ready: resumeBlockers.length === 0,
+    blockers: resumeBlockers,
+  };
 
   return result;
 }
@@ -338,7 +370,7 @@ function parseWorkUnitStatus(text, warnings) {
 
 /**
  * Parse "## Next Unit" section
- * Expected format: **WU-XXX** — <rationale> or NONE — <reason>
+ * Expected format: **WU-XXX** — <rationale>, **WU-XXX, WU-YYY** — <rationale>, or NONE — <reason>
  */
 function parseNextUnit(text, warnings) {
   const sectionMatch = text.match(/^##\s+Next Unit\s*$/im);
@@ -359,10 +391,16 @@ function parseNextUnit(text, warnings) {
   // Look for **WU-XXX** or NONE pattern
   // Support both regular dash (-), em dash (\u2014), and en dash (\u2013)
   // Use [^\r\n]+ to capture the rest of the line (handles leading whitespace in section)
-   const nextUnitMatch = sectionText.match(/\*\*([A-Z]+-\d+)\*\*\s*[\u2014\u2013\-]\s*([^\r\n]{1,500})/i);
+   const nextUnitMatch = sectionText.match(/\*\*([A-Z]+-\d+(?:\s*,\s*[A-Z]+-\d+)*)\*\*\s*[\u2014\u2013\-]\s*([^\r\n]{1,500})/i);
   if (nextUnitMatch) {
+    const workUnitIds = nextUnitMatch[1]
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
     return {
-      workUnitId: nextUnitMatch[1],
+      workUnitId: workUnitIds[0] || nextUnitMatch[1],
+      workUnitIds,
+      parallelCandidate: workUnitIds.length > 1,
       rationale: nextUnitMatch[2].trim(),
     };
   }

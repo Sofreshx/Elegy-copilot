@@ -79,6 +79,69 @@ function normalizeFieldName(value) {
 	return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+function normalizeSubsectionName(value) {
+	return String(value || '')
+		.trim()
+		.replace(/\s*\([^)]*\)\s*$/, '')
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, '');
+}
+
+function subsectionMatches(actualTitle, expectedTitle) {
+	const actual = normalizeSubsectionName(actualTitle);
+	const expected = normalizeSubsectionName(expectedTitle);
+	return actual === expected || actual.startsWith(expected);
+}
+
+function wuHasSubsection(subsections, expectedTitle) {
+	if (!(subsections instanceof Set)) {
+		return false;
+	}
+
+	for (const subsection of subsections) {
+		if (subsectionMatches(subsection, expectedTitle)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function getWuSubsectionLines(wuSubContent, wuId, expectedTitle) {
+	if (!(wuSubContent instanceof Map) || !wuSubContent.has(wuId)) {
+		return [];
+	}
+
+	const subsectionMap = wuSubContent.get(wuId);
+	for (const [subsectionTitle, lines] of subsectionMap.entries()) {
+		if (subsectionMatches(subsectionTitle, expectedTitle)) {
+			return Array.isArray(lines) ? lines : [];
+		}
+	}
+
+	return [];
+}
+
+function parseJsonArrayCell(value) {
+	const trimmed = String(value || '').trim();
+	if (!trimmed) {
+		return { ok: false, reason: 'missing JSON array value' };
+	}
+
+	try {
+		const parsed = JSON.parse(trimmed);
+		if (!Array.isArray(parsed)) {
+			return { ok: false, reason: 'value is not a JSON array' };
+		}
+		if (!parsed.every(item => typeof item === 'string')) {
+			return { ok: false, reason: 'array items must be strings' };
+		}
+		return { ok: true, value: parsed };
+	} catch (error) {
+		return { ok: false, reason: 'invalid JSON array syntax' };
+	}
+}
+
 function getRowValue(row, fieldNames) {
 	if (!row || typeof row !== 'object') {
 		return '';
@@ -787,12 +850,15 @@ const requiredWuSubs = ['Context', 'Acceptance Criteria', 'Plan / Approach', 'Va
 const specWUs = [];
 const seenWuIds = new Set();
 let currentWU = null;
+let currentSubsection = '';
 const wuSubs = new Map(); // wuId -> Set of h4 titles
+const wuSubContent = new Map(); // wuId -> Map<h4 title, lines[]>
 
 for (const line of lines) {
 	const wuMatch = line.match(wuSpecRe);
 	if (wuMatch) {
 		currentWU = wuMatch[1];
+		currentSubsection = '';
 		specWUs.push(currentWU);
 
 		// Duplicate check
@@ -801,19 +867,28 @@ for (const line of lines) {
 		}
 		seenWuIds.add(currentWU);
 		wuSubs.set(currentWU, new Set());
+		wuSubContent.set(currentWU, new Map());
 		continue;
 	}
 
 	// Reset current WU on next H2 or H3 that isn't a WU spec
 	if (/^##\s+/.test(line) || (/^###\s+/.test(line) && !wuSpecRe.test(line))) {
 		currentWU = null;
+		currentSubsection = '';
 		continue;
 	}
 
 	if (currentWU) {
 		const h4Match = line.match(h4Re);
 		if (h4Match) {
-			wuSubs.get(currentWU).add(h4Match[1].trim());
+			currentSubsection = h4Match[1].trim();
+			wuSubs.get(currentWU).add(currentSubsection);
+			wuSubContent.get(currentWU).set(currentSubsection, []);
+			continue;
+		}
+
+		if (currentSubsection && wuSubContent.has(currentWU) && wuSubContent.get(currentWU).has(currentSubsection)) {
+			wuSubContent.get(currentWU).get(currentSubsection).push(line);
 		}
 	}
 }
@@ -829,7 +904,7 @@ for (const id of specWUs) {
 // --- 4. Required WU subsections ---
 for (const [wuId, subs] of wuSubs) {
 	for (const req of requiredWuSubs) {
-		if (!subs.has(req)) {
+		if (!wuHasSubsection(subs, req)) {
 			errors.push(`${wuId} missing required subsection: #### ${req}`);
 		}
 	}
@@ -852,36 +927,83 @@ if (acQualityDiagnostics.length > 0) {
 // --- 5. Parse Work Unit Graph table for group IDs and WU IDs ---
 const graphWUs = [];
 const groupIds = new Set();
-let inGraphSection = false;
-let graphTableStarted = false;
+const graphParallelSafety = new Map();
+const graphSection = extractH2Section(body, 'Work Unit Graph');
+const graphTable = parseMarkdownTable(graphSection);
 
-for (const line of lines) {
-	if (/^##\s+Work Unit Graph/.test(line)) {
-		inGraphSection = true;
-		graphTableStarted = false;
-		continue;
+if (!graphTable) {
+	errors.push('invalid Work Unit Graph table: markdown table required');
+} else {
+	const normalizedHeaders = graphTable.headers.map(normalizeFieldName);
+	const requiredGraphHeaders = [
+		'group',
+		'workunitid',
+		'title',
+		'dependson',
+		'nextunits',
+		'parallelsafe',
+	];
+
+	for (const header of requiredGraphHeaders) {
+		if (!normalizedHeaders.includes(header)) {
+			errors.push(`invalid Work Unit Graph table: missing ${header} column`);
+		}
 	}
-	if (inGraphSection && /^##\s+/.test(line)) {
-		inGraphSection = false;
-		continue;
-	}
-	if (!inGraphSection) continue;
 
-	// Skip header row and separator
-	if (/^\|\s*Group\s*\|/.test(line)) { graphTableStarted = true; continue; }
-	if (/^\|\s*-+/.test(line)) continue;
-	if (!graphTableStarted) continue;
+	const seenGraphWuIds = new Set();
+	for (const row of graphTable.rows) {
+		const groupId = getRowValue(row, ['Group']);
+		const wuId = getRowValue(row, ['Work Unit ID', 'WorkUnitID']);
+		const dependsOnRaw = getRowValue(row, ['Depends On', 'DependsOn']);
+		const nextUnitsRaw = getRowValue(row, ['Next Units', 'NextUnits']);
+		const parallelSafeRaw = normalizeComparable(getRowValue(row, ['Parallel Safe', 'ParallelSafe']));
 
-	const cells = line.split('|').map(c => c.trim()).filter(Boolean);
-	if (cells.length < 2) continue;
+		if (!groupId) {
+			errors.push('Work Unit Graph row missing Group value');
+		} else {
+			groupIds.add(groupId);
+		}
 
-	const groupId = cells[0];
-	const wuId = cells[1];
+		if (!wuId) {
+			errors.push('Work Unit Graph row missing Work Unit ID value');
+			continue;
+		}
 
-	groupIds.add(groupId);
+		if (seenGraphWuIds.has(wuId)) {
+			errors.push(`duplicate WU-ID in graph: ${wuId}`);
+		} else {
+			seenGraphWuIds.add(wuId);
+		}
 
-	if (wuIdFormatRe.test(wuId)) {
 		graphWUs.push(wuId);
+
+		const dependsOnParsed = parseJsonArrayCell(dependsOnRaw);
+		if (!dependsOnParsed.ok) {
+			errors.push(`${wuId} Work Unit Graph Depends On must be a JSON array (${dependsOnParsed.reason})`);
+		} else {
+			for (const dependencyId of dependsOnParsed.value) {
+				if (!wuIdFormatRe.test(dependencyId)) {
+					errors.push(`${wuId} Work Unit Graph Depends On contains invalid WU-ID: ${dependencyId}`);
+				}
+			}
+		}
+
+		const nextUnitsParsed = parseJsonArrayCell(nextUnitsRaw);
+		if (!nextUnitsParsed.ok) {
+			errors.push(`${wuId} Work Unit Graph Next Units must be a JSON array (${nextUnitsParsed.reason})`);
+		} else {
+			for (const nextUnitId of nextUnitsParsed.value) {
+				if (!wuIdFormatRe.test(nextUnitId)) {
+					errors.push(`${wuId} Work Unit Graph Next Units contains invalid WU-ID: ${nextUnitId}`);
+				}
+			}
+		}
+
+		if (parallelSafeRaw !== 'yes' && parallelSafeRaw !== 'no') {
+			errors.push(`${wuId} Work Unit Graph Parallel Safe must be yes or no (got ${parallelSafeRaw || 'missing'})`);
+		} else {
+			graphParallelSafety.set(wuId, parallelSafeRaw);
+		}
 	}
 }
 
@@ -898,6 +1020,25 @@ const graphWUSet = new Set(graphWUs);
 for (const wuId of specWUs) {
 	if (!graphWUSet.has(wuId)) {
 		errors.push(`orphan WU spec (not in graph): ${wuId}`);
+	}
+}
+
+// --- 7a. Parallel-safe WUs require ownership declaration ---
+for (const wuId of graphWUs) {
+	if (graphParallelSafety.get(wuId) !== 'yes') {
+		continue;
+	}
+
+	const subsections = wuSubs.get(wuId);
+	if (!wuHasSubsection(subsections, 'Expected Files')) {
+		errors.push(`${wuId} marked Parallel Safe=yes must include subsection: #### Expected Files`);
+		continue;
+	}
+
+	const expectedFileLines = getWuSubsectionLines(wuSubContent, wuId, 'Expected Files');
+	const hasExpectedFileBullet = expectedFileLines.some(line => /^\s*[-*]\s+\S+/.test(line));
+	if (!hasExpectedFileBullet) {
+		errors.push(`${wuId} marked Parallel Safe=yes must list at least one expected file bullet`);
 	}
 }
 

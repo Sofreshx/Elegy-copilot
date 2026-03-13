@@ -132,6 +132,40 @@
       "dependsOn": [
         "core-global"
       ]
+    },
+    {
+      "id": "superpowers-workflow",
+      "title": "Superpowers Workflow Pack",
+      "description": "Optional Jesse Vincent Superpowers workflow skills and reviewer agent, vendored for one-click installation through the catalog control plane.",
+      "assetIds": [
+        "skill-superpowers-brainstorming",
+        "skill-superpowers-dispatching-parallel-agents",
+        "skill-superpowers-executing-plans",
+        "skill-superpowers-finishing-a-development-branch",
+        "skill-superpowers-receiving-code-review",
+        "skill-superpowers-requesting-code-review",
+        "skill-superpowers-subagent-driven-development",
+        "skill-superpowers-systematic-debugging",
+        "skill-superpowers-test-driven-development",
+        "skill-superpowers-using-git-worktrees",
+        "skill-superpowers-using-superpowers",
+        "skill-superpowers-verification-before-completion",
+        "skill-superpowers-writing-plans",
+        "skill-superpowers-writing-skills",
+        "agent-superpowers-code-reviewer"
+      ],
+      "installTarget": "user-global",
+      "activationScope": "global",
+      "materialization": "on-demand",
+      "tags": [
+        "superpowers",
+        "workflow",
+        "planning",
+        "debugging",
+        "tdd"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": []
     }
   ],
   "assets": [
@@ -158,12 +192,6 @@
       "type": "agent",
       "source": "engine-assets/agents/deploy-auditor.agent.md",
       "destination": "agents/deploy-auditor.agent.md"
-    },
-    {
-      "id": "agent-execute",
-      "type": "agent",
-      "source": "engine-assets/agents/execute.agent.md",
-      "destination": "agents/execute.agent.md"
     },
     {
       "id": "agent-doc-writer",
@@ -206,6 +234,12 @@
       "type": "agent",
       "source": "engine-assets/agents/elegy-planner.agent.md",
       "destination": "agents/elegy-planner.agent.md"
+    },
+    {
+      "id": "agent-execute",
+      "type": "agent",
+      "source": "engine-assets/agents/execute.agent.md",
+      "destination": "agents/execute.agent.md"
     },
     {
       "id": "agent-final-reviewer",
@@ -286,16 +320,16 @@
       "destination": "agents/reviewer-gpt-5-3-codex.agent.md"
     },
     {
-      "id": "agent-search",
-      "type": "agent",
-      "source": "engine-assets/agents/search.agent.md",
-      "destination": "agents/search.agent.md"
-    },
-    {
       "id": "agent-reviewer-opus-4-6",
       "type": "agent",
       "source": "engine-assets/agents/reviewer-opus-4-6.agent.md",
       "destination": "agents/reviewer-opus-4-6.agent.md"
+    },
+    {
+      "id": "agent-search",
+      "type": "agent",
+      "source": "engine-assets/agents/search.agent.md",
+      "destination": "agents/search.agent.md"
     },
     {
       "id": "agent-security-auditor",
@@ -320,6 +354,12 @@
       "type": "agent",
       "source": "engine-assets/agents/stack-auditor.agent.md",
       "destination": "agents/stack-auditor.agent.md"
+    },
+    {
+      "id": "agent-superpowers-code-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/superpowers-code-reviewer.agent.md",
+      "destination": "agents/superpowers-code-reviewer.agent.md"
     },
     {
       "id": "agent-unit-test-runner",
@@ -367,151 +407,274 @@
       "id": "skill-agent-browser",
       "type": "skill",
       "source": "engine-assets/skills/agent-browser",
-      "destination": "skills/agent-browser"
+      "destination": "skills/agent-browser",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-alba-integration-tests",
       "type": "skill",
       "source": "engine-assets/skills/alba-integration-tests",
-      "destination": "skills/alba-integration-tests"
+      "destination": "skills/alba-integration-tests",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-aspire-apphost",
       "type": "skill",
       "source": "engine-assets/skills/aspire-apphost",
-      "destination": "skills/aspire-apphost"
+      "destination": "skills/aspire-apphost",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-aspire-deployment",
       "type": "skill",
       "source": "engine-assets/skills/aspire-deployment",
-      "destination": "skills/aspire-deployment"
+      "destination": "skills/aspire-deployment",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-audit-report-formats",
       "type": "skill",
       "source": "engine-assets/skills/audit-report-formats",
-      "destination": "skills/audit-report-formats"
+      "destination": "skills/audit-report-formats",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-code-review",
       "type": "skill",
       "source": "engine-assets/skills/code-review",
-      "destination": "skills/code-review"
+      "destination": "skills/code-review",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-core-guardrails",
       "type": "skill",
       "source": "engine-assets/skills/core-guardrails",
-      "destination": "skills/core-guardrails"
+      "destination": "skills/core-guardrails",
+      "loadMode": "always"
     },
     {
       "id": "skill-csharp-expert",
       "type": "skill",
       "source": "engine-assets/skills/csharp-expert",
-      "destination": "skills/csharp-expert"
-    },
-    {
-      "id": "skill-e2e-workflow",
-      "type": "skill",
-      "source": "engine-assets/skills/e2e-workflow",
-      "destination": "skills/e2e-workflow"
-    },
-    {
-      "id": "skill-frontend",
-      "type": "skill",
-      "source": "engine-assets/skills/frontend",
-      "destination": "skills/frontend"
-    },
-    {
-      "id": "skill-implementation-friction",
-      "type": "skill",
-      "source": "engine-assets/skills/implementation-friction",
-      "destination": "skills/implementation-friction"
-    },
-    {
-      "id": "skill-instruction-quality",
-      "type": "skill",
-      "source": "engine-assets/skills/instruction-quality",
-      "destination": "skills/instruction-quality"
-    },
-    {
-      "id": "skill-marten-documents",
-      "type": "skill",
-      "source": "engine-assets/skills/marten-documents",
-      "destination": "skills/marten-documents"
-    },
-    {
-      "id": "skill-marten-linq-querying",
-      "type": "skill",
-      "source": "engine-assets/skills/marten-linq-querying",
-      "destination": "skills/marten-linq-querying"
-    },
-    {
-      "id": "skill-openai-compatible",
-      "type": "skill",
-      "source": "engine-assets/skills/openai-compatible",
-      "destination": "skills/openai-compatible"
-    },
-    {
-      "id": "skill-planpack-authoring",
-      "type": "skill",
-      "source": "engine-assets/skills/planpack-authoring",
-      "destination": "skills/planpack-authoring"
-    },
-    {
-      "id": "skill-react-query",
-      "type": "skill",
-      "source": "engine-assets/skills/react-query",
-      "destination": "skills/react-query"
-    },
-    {
-      "id": "skill-security",
-      "type": "skill",
-      "source": "engine-assets/skills/security",
-      "destination": "skills/security"
-    },
-    {
-      "id": "skill-stack-audit-patterns",
-      "type": "skill",
-      "source": "engine-assets/skills/stack-audit-patterns",
-      "destination": "skills/stack-audit-patterns"
-    },
-    {
-      "id": "skill-stack-detector",
-      "type": "skill",
-      "source": "engine-assets/skills/stack-detector",
-      "destination": "skills/stack-detector"
+      "destination": "skills/csharp-expert",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-discovery",
       "type": "skill",
       "source": "engine-assets/skills/skill-discovery",
-      "destination": "skills/skill-discovery"
+      "destination": "skills/skill-discovery",
+      "loadMode": "always"
+    },
+    {
+      "id": "skill-e2e-workflow",
+      "type": "skill",
+      "source": "engine-assets/skills/e2e-workflow",
+      "destination": "skills/e2e-workflow",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-frontend",
+      "type": "skill",
+      "source": "engine-assets/skills/frontend",
+      "destination": "skills/frontend",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-implementation-friction",
+      "type": "skill",
+      "source": "engine-assets/skills/implementation-friction",
+      "destination": "skills/implementation-friction",
+      "loadMode": "always"
+    },
+    {
+      "id": "skill-instruction-quality",
+      "type": "skill",
+      "source": "engine-assets/skills/instruction-quality",
+      "destination": "skills/instruction-quality",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-marten-documents",
+      "type": "skill",
+      "source": "engine-assets/skills/marten-documents",
+      "destination": "skills/marten-documents",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-marten-linq-querying",
+      "type": "skill",
+      "source": "engine-assets/skills/marten-linq-querying",
+      "destination": "skills/marten-linq-querying",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-openai-compatible",
+      "type": "skill",
+      "source": "engine-assets/skills/openai-compatible",
+      "destination": "skills/openai-compatible",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-planpack-authoring",
+      "type": "skill",
+      "source": "engine-assets/skills/planpack-authoring",
+      "destination": "skills/planpack-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-react-query",
+      "type": "skill",
+      "source": "engine-assets/skills/react-query",
+      "destination": "skills/react-query",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-security",
+      "type": "skill",
+      "source": "engine-assets/skills/security",
+      "destination": "skills/security",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-stack-audit-patterns",
+      "type": "skill",
+      "source": "engine-assets/skills/stack-audit-patterns",
+      "destination": "skills/stack-audit-patterns",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-stack-detector",
+      "type": "skill",
+      "source": "engine-assets/skills/stack-detector",
+      "destination": "skills/stack-detector",
+      "loadMode": "always"
+    },
+    {
+      "id": "skill-superpowers-brainstorming",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-brainstorming",
+      "destination": "skills/superpowers-brainstorming",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-dispatching-parallel-agents",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-dispatching-parallel-agents",
+      "destination": "skills/superpowers-dispatching-parallel-agents",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-executing-plans",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-executing-plans",
+      "destination": "skills/superpowers-executing-plans",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-finishing-a-development-branch",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-finishing-a-development-branch",
+      "destination": "skills/superpowers-finishing-a-development-branch",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-receiving-code-review",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-receiving-code-review",
+      "destination": "skills/superpowers-receiving-code-review",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-requesting-code-review",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-requesting-code-review",
+      "destination": "skills/superpowers-requesting-code-review",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-subagent-driven-development",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-subagent-driven-development",
+      "destination": "skills/superpowers-subagent-driven-development",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-systematic-debugging",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-systematic-debugging",
+      "destination": "skills/superpowers-systematic-debugging",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-test-driven-development",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-test-driven-development",
+      "destination": "skills/superpowers-test-driven-development",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-using-git-worktrees",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-using-git-worktrees",
+      "destination": "skills/superpowers-using-git-worktrees",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-using-superpowers",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-using-superpowers",
+      "destination": "skills/superpowers-using-superpowers",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-verification-before-completion",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-verification-before-completion",
+      "destination": "skills/superpowers-verification-before-completion",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-writing-plans",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-writing-plans",
+      "destination": "skills/superpowers-writing-plans",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-superpowers-writing-skills",
+      "type": "skill",
+      "source": "engine-assets/skills/superpowers-writing-skills",
+      "destination": "skills/superpowers-writing-skills",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-testing-dotnet-unit",
       "type": "skill",
       "source": "engine-assets/skills/testing-dotnet-unit",
-      "destination": "skills/testing-dotnet-unit"
+      "destination": "skills/testing-dotnet-unit",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-testing-frontend-unit",
       "type": "skill",
       "source": "engine-assets/skills/testing-frontend-unit",
-      "destination": "skills/testing-frontend-unit"
+      "destination": "skills/testing-frontend-unit",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-wolverine-core",
       "type": "skill",
       "source": "engine-assets/skills/wolverine-core",
-      "destination": "skills/wolverine-core"
+      "destination": "skills/wolverine-core",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-wolverine-http",
       "type": "skill",
       "source": "engine-assets/skills/wolverine-http",
-      "destination": "skills/wolverine-http"
+      "destination": "skills/wolverine-http",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": [

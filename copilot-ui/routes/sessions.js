@@ -6,6 +6,7 @@ const path = require('path');
 const sessionsLib = require('../lib/sessions');
 const assetsLib = require('../lib/assets');
 const planStateLib = require('../lib/planState');
+const sessionArtifactsLib = require('../lib/sessionArtifacts');
 const { sendJson: defaultSendJson, sendText: defaultSendText, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
 function parseNumberQuery(searchParams, key, defaultValue) {
@@ -180,7 +181,7 @@ function handleSessionFinal(ctx, deps) {
 
 function handleSessionStructuredState(ctx, deps) {
   const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
-  const { sendJson, resolveSessionsHome, isValidSessionId, readPlanArtifact, planState, fs, path } = deps;
+  const { sendJson, resolveSessionsHome, isValidSessionId, readPlanArtifact, planState, assets, fs, path } = deps;
 
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
@@ -201,7 +202,13 @@ function handleSessionStructuredState(ctx, deps) {
       return;
     }
 
-    const structured = planState.parseStructuredState(planText);
+    const handoffPath = path.join(sessionDir, 'handoff.md');
+    const handoffText = assets.readTextFileSafe(handoffPath, 256 * 1024);
+    const structured = planState.parseStructuredState(planText, {
+      handoffText,
+      requireHandoff: true,
+      sessionId: id,
+    });
     sendJson(res, 200, {
       id,
       source: home.source,
@@ -215,7 +222,7 @@ function handleSessionStructuredState(ctx, deps) {
 
 function handleSessionProposition(ctx, deps) {
   const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
-  const { sendJson, resolveSessionsHome, isValidSessionId, assets, path } = deps;
+  const { sendJson, resolveSessionsHome, isValidSessionId, assets, sessionArtifacts, path } = deps;
 
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
@@ -234,6 +241,32 @@ function handleSessionProposition(ctx, deps) {
     id,
     source: home.source,
     content: text,
+    ...sessionArtifacts.parsePropositionText(text),
+  });
+}
+
+function handleSessionHandoff(ctx, deps) {
+  const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { sendJson, resolveSessionsHome, isValidSessionId, assets, sessionArtifacts, path } = deps;
+
+  const id = decodeURIComponent(match[1]);
+  if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
+  const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
+  const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
+  const handoffPath = path.join(sessionDir, 'handoff.md');
+
+  const text = assets.readTextFileSafe(handoffPath, 256 * 1024);
+  if (text == null) {
+    sendJson(res, 404, { error: 'Handoff not found', id, source: home.source });
+    return;
+  }
+
+  sendJson(res, 200, {
+    id,
+    source: home.source,
+    content: text,
+    parsed: sessionArtifacts.parseHandoffText(text, { sessionId: id }),
   });
 }
 
@@ -326,6 +359,7 @@ function register(deps = {}) {
     sessions: deps.sessions || sessionsLib,
     assets: deps.assets || assetsLib,
     planState: deps.planState || planStateLib,
+    sessionArtifacts: deps.sessionArtifacts || sessionArtifactsLib,
     sendJson: deps.sendJson || defaultSendJson,
     sendText: deps.sendText || defaultSendText,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
@@ -383,6 +417,11 @@ function register(deps = {}) {
       method: 'GET',
       path: /^\/api\/sessions\/([^/]+)\/proposition$/,
       handler: (ctx) => handleSessionProposition(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: /^\/api\/sessions\/([^/]+)\/handoff$/,
+      handler: (ctx) => handleSessionHandoff(ctx, resolvedDeps),
     },
     {
       method: 'GET',

@@ -34,6 +34,10 @@ function stableSort(a, b) {
 	return a.localeCompare(b);
 }
 
+function normalizePathValue(value) {
+	return String(value || '').replace(/\\/g, '/');
+}
+
 const MANDATORY_ALLOWLIST_ITEMS = Object.freeze({
 	agents: [],
 	skills: ['core-guardrails'],
@@ -77,10 +81,53 @@ function enforceMandatoryAllowlistItems(allow) {
 	for (const name of MANDATORY_ALLOWLIST_ITEMS.prompts) allow.prompts.add(name);
 }
 
+function collectCanonicalAssetMetadata(engineManifest) {
+	const metadata = new Map();
+	const assets = Array.isArray(engineManifest?.assets) ? engineManifest.assets : [];
+
+	for (const asset of assets) {
+		if (!asset || typeof asset !== 'object') continue;
+		const source = normalizePathValue(asset.source);
+		if (!source) continue;
+		metadata.set(source, {
+			id: String(asset.id || ''),
+			loadMode: typeof asset.loadMode === 'string' ? asset.loadMode : undefined,
+		});
+	}
+
+	return metadata;
+}
+
+function filterBundlesForCli(bundles, availableAssetIds) {
+	if (!Array.isArray(bundles)) return [];
+
+	const included = [];
+	for (const bundle of bundles) {
+		if (!bundle || typeof bundle !== 'object') continue;
+		const assetIds = Array.isArray(bundle.assetIds)
+			? bundle.assetIds.filter((assetId) => availableAssetIds.has(String(assetId || '')))
+			: [];
+		if (assetIds.length === 0) continue;
+		included.push({
+			...bundle,
+			assetIds,
+		});
+	}
+
+	const includedBundleIds = new Set(included.map((bundle) => String(bundle.id || '')));
+	return included.map((bundle) => ({
+		...bundle,
+		dependsOn: Array.isArray(bundle.dependsOn)
+			? bundle.dependsOn.filter((bundleId) => includedBundleIds.has(String(bundleId || '')))
+			: [],
+	}));
+}
+
 function main() {
 	const args = parseArgs(process.argv.slice(2));
 	const engineRoot = path.resolve(process.cwd());
 	const manifestPath = path.join(engineRoot, '.cli', 'manifest.json');
+	const engineManifestPath = path.join(engineRoot, 'engine-assets', 'manifest.json');
 	const assetsRoot = path.join(engineRoot, 'engine-assets');
 	const assetsAgents = path.join(assetsRoot, 'agents');
 	const assetsSkills = path.join(assetsRoot, 'skills');
@@ -96,6 +143,9 @@ function main() {
 
 	const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 	if (!manifest || typeof manifest !== 'object') throw new Error('Invalid manifest JSON');
+	const engineManifest = JSON.parse(fs.readFileSync(engineManifestPath, 'utf8'));
+	if (!engineManifest || typeof engineManifest !== 'object') throw new Error('Invalid engine-assets manifest JSON');
+	const canonicalAssets = collectCanonicalAssetMetadata(engineManifest);
 
 	const assets = [];
 	const matched = {
@@ -110,11 +160,13 @@ function main() {
 		const base = fileName.replace(/\.agent\.md$/i, '');
 		if (allow && !allow.agents.has(base)) continue;
 		matched.agents.add(base);
-		const id = base.startsWith('agent-') ? base : `agent-${base}`;
+		const source = `engine-assets/agents/${fileName}`;
+		const canonical = canonicalAssets.get(source);
+		const id = canonical?.id || (base.startsWith('agent-') ? base : `agent-${base}`);
 		assets.push({
 			id,
 			type: 'agent',
-			source: `engine-assets/agents/${fileName}`,
+			source,
 			destination: `agents/${fileName}`
 		});
 	}
@@ -126,12 +178,17 @@ function main() {
 		const skillFile = path.join(dirAbs, 'SKILL.md');
 		if (!fs.existsSync(skillFile)) continue;
 		matched.skills.add(name);
+		const source = `engine-assets/skills/${name}`;
+		const canonical = canonicalAssets.get(source);
 		const asset = {
-			id: `skill-${name}`,
+			id: canonical?.id || `skill-${name}`,
 			type: 'skill',
-			source: `engine-assets/skills/${name}`,
+			source,
 			destination: `skills/${name}`
 		};
+		if (canonical?.loadMode) {
+			asset.loadMode = canonical.loadMode;
+		}
 
 		// Detect pointer skills (vault-ref in SKILL.md frontmatter)
 		const skillContent = fs.readFileSync(skillFile, 'utf8');
@@ -154,10 +211,12 @@ function main() {
 			const base = fileName.replace(/\.prompt\.md$/i, '');
 			if (allow && !allow.prompts.has(base)) continue;
 			matched.prompts.add(base);
+			const source = `engine-assets/prompts/${fileName}`;
+			const canonical = canonicalAssets.get(source);
 			assets.push({
-				id: `prompt-${base}`,
+				id: canonical?.id || `prompt-${base}`,
 				type: 'prompt',
-				source: `engine-assets/prompts/${fileName}`,
+				source,
 				destination: `prompts/${fileName}`
 			});
 		}
@@ -187,6 +246,8 @@ function main() {
 		}
 	}
 
+	const availableAssetIds = new Set(assets.map((asset) => String(asset.id || '')));
+	manifest.bundles = filterBundlesForCli(engineManifest.bundles, availableAssetIds);
 	manifest.assets = assets;
 	manifest.sourcePatterns = [
 		{ type: 'agent', sourceGlob: 'engine-assets/agents/*.agent.md', destinationDir: 'agents' },

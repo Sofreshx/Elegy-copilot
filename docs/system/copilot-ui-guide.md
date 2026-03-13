@@ -85,6 +85,8 @@ Treat those groups as the primary backend surface. The most important user-visib
 
 ### Assets and catalog-backed previews
 
+The React `Assets` surface consumes both `/api/catalog/assets` and `/api/catalog/bundles`. Bundle metadata is rendered as `Workflow packs`, allowing one-click installation of optional multi-asset bundles such as the shipped `superpowers-workflow` pack.
+
 | Method | Endpoint | Purpose | Primary test anchors |
 | --- | --- | --- | --- |
 | `GET` | `/api/assets/managed` | Lists managed assets known to the local installation. | `copilot-ui/tests/api-contract.test.js` |
@@ -164,7 +166,8 @@ Treat those groups as the primary backend surface. The most important user-visib
 | `GET` | `/api/sessions/:id/plans/:planId` | Returns one persisted plan artifact revision. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/final` | Returns the final execution summary artifact when present. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/structured-state` | Parses the progress tracker into structured JSON. | `copilot-ui/VALIDATION.md`, `copilot-ui/tests/api-contract.test.js` |
-| `GET` | `/api/sessions/:id/proposition` | Returns `proposition.md` when present. | `copilot-ui/VALIDATION.md`, `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/sessions/:id/proposition` | Returns `proposition.md` plus parsed closeout entries and latest-entry sections when present. | `copilot-ui/VALIDATION.md`, `copilot-ui/routes/sessions.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/sessions/:id/handoff` | Returns `handoff.md` plus parsed manifest, required sections, and parser warnings when present. | `copilot-ui/VALIDATION.md`, `copilot-ui/routes/sessions.test.js` |
 | `GET` | `/api/sessions/:id/verification-guide` | Returns `verification-guide.md` when present. | `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/sessions/:id/archive` | Moves a session into `sessions-archive`. | `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/sessions/:id/delete` | Deletes a session after force confirmation. | `copilot-ui/tests/api-contract.test.js` |
@@ -200,7 +203,7 @@ Treat those groups as the primary backend surface. The most important user-visib
 
 The React UI currently exposes these tab families under `copilot-ui/ui/src/tabs/`:
 
-- `Assets` — managed assets, installed inventory, workspace catalog state, and repair flows
+- `Assets` — managed assets, installed inventory, workspace catalog state, repair flows, and workflow-pack installs
 - `Gateway` — messaging gateway state and integration status
 - `LSP` — language-server-related runtime inspection
 - `Planning` — planning records, diagrams, research notes, and artifact viewers
