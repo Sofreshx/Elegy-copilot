@@ -53,6 +53,19 @@ async function run() {
 
   try {
     writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
+      bundles: [
+        {
+          id: 'frontend-pack',
+          title: 'Frontend Pack',
+          assetIds: ['skill-react-query'],
+          defaultRecommended: true,
+        },
+        {
+          id: 'backend-pack',
+          title: 'Backend Pack',
+          assetIds: ['skill-testing-dotnet-unit'],
+        },
+      ],
       assets: [
         {
           id: 'skill-react-query',
@@ -158,6 +171,19 @@ async function run() {
         '',
       ].join('\n'),
     );
+    writeText(
+      path.join(copilotHome, 'skills', 'superpowers', 'brainstorming', 'SKILL.md'),
+      [
+        '---',
+        'name: brainstorming',
+        'description: External brainstorming workflow.',
+        '---',
+        '# Brainstorming',
+        '',
+        'Plugin-installed brainstorming workflow.',
+        '',
+      ].join('\n'),
+    );
 
     const repoStorage = resolveProjectionStorage({ copilotHome, repoPath });
     const snapshot = buildCatalogProjection({ engineRoot, copilotHome, repoPath });
@@ -214,6 +240,45 @@ async function run() {
         response.results[0].explanations.some((item) => item.code === 'repo-local'),
         'expected repo-local explanation',
       );
+    });
+
+    await test('searchSkills enforces active bundle eligibility by default and allows explicit override', async () => {
+      const defaultResponse = searchSkills(
+        {
+          query: 'xunit unit test',
+          repoId: repoStorage.repoContext.repoId,
+          repoPath,
+          limit: 5,
+        },
+        {
+          snapshot,
+          copilotHome,
+          persistTelemetry: false,
+        },
+      );
+
+      assert.strictEqual(defaultResponse.results.length, 0);
+      assert.strictEqual(defaultResponse.routingPolicy.mode, 'eligible-only');
+      assert.ok(!defaultResponse.routingPolicy.eligibleAssetIds.includes('skill-testing-dotnet-unit'));
+
+      const overrideResponse = searchSkills(
+        {
+          query: 'xunit unit test',
+          repoId: repoStorage.repoContext.repoId,
+          repoPath,
+          limit: 5,
+          overrideRoutingPolicy: true,
+        },
+        {
+          snapshot,
+          copilotHome,
+          persistTelemetry: false,
+        },
+      );
+
+      assert.ok(overrideResponse.results.length >= 1, 'expected explicit override to return the backend skill');
+      assert.strictEqual(overrideResponse.results[0].assetId, 'skill-testing-dotnet-unit');
+      assert.strictEqual(overrideResponse.routingPolicy.mode, 'explicit-override');
     });
 
     await test('resolveSkill keeps deterministic lexical tie-breaking', async () => {
@@ -281,6 +346,26 @@ async function run() {
 
       assert.strictEqual(resolved.results[0].assetId, 'skill-alpha');
       assert.strictEqual(resolved.results[1].assetId, 'skill-beta');
+    });
+
+    await test('searchSkills can resolve provider-qualified plugin skills by logical name aliases', async () => {
+      const pluginResponse = searchSkills(
+        {
+          query: 'brainstorming',
+          limit: 5,
+          overrideRoutingPolicy: true,
+        },
+        {
+          snapshot,
+          copilotHome,
+          persistTelemetry: false,
+        },
+      );
+
+      assert.ok(pluginResponse.results.length >= 1, 'expected plugin skill to appear in search results');
+      assert.strictEqual(pluginResponse.results[0].entry?.metadata?.logicalName, 'brainstorming');
+      assert.strictEqual(pluginResponse.results[0].entry?.metadata?.namespace, 'superpowers');
+      assert.notStrictEqual(pluginResponse.results[0].assetId, 'skill-brainstorming');
     });
 
     await test('search telemetry persists bounded query, result, miss, and selection events', async () => {

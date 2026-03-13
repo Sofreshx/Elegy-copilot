@@ -4,6 +4,12 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+const {
+  buildActivationStateDocument,
+  deriveDefaultsFromEngineRoot,
+  resolveGlobalActivationStatePath,
+  resolveRepoActivationStatePath,
+} = require('./catalogActivationState');
 const { appendCatalogAuditEvent } = require('./catalogAuditAnalytics');
 const { getRepoStateKey } = require('./catalogProjectionService');
 
@@ -80,6 +86,9 @@ function normalizeAssetKey(kind, value) {
   const raw = normalizeString(value);
   if (!raw) {
     throw Object.assign(new Error('assetKey is required'), { statusCode: 400 });
+  }
+  if (/[\\/]/.test(raw)) {
+    throw Object.assign(new Error('assetKey must be a flat name and may not contain path separators'), { statusCode: 400 });
   }
 
   if (kind === 'agent') {
@@ -1138,12 +1147,223 @@ function setAssetEnabled(runtime, body, enabled, options = {}) {
   }
 }
 
+function normalizeActivationAction(value) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (!['activate-bundle', 'deactivate-bundle', 'set-profile', 'clear-repo-override'].includes(normalized)) {
+    throw Object.assign(
+      new Error('action must be "activate-bundle", "deactivate-bundle", "set-profile", or "clear-repo-override"'),
+      { statusCode: 400 },
+    );
+  }
+  return normalized;
+}
+
+function resolveActivationMutationTarget(runtime, body) {
+  const repoPath = normalizeString(body.repoPath);
+  if (!repoPath) {
+    return {
+      scope: { kind: 'user' },
+      targetScope: 'user-global',
+      statePath: resolveGlobalActivationStatePath(runtime.copilotHomeAbs),
+      repoPath: null,
+      repoStateKey: null,
+    };
+  }
+
+  const absoluteRepoPath = ensureAbsolutePath(repoPath, 'repoPath');
+  const repoStateKey = getRepoStateKey(absoluteRepoPath);
+  const repoActivationPath = resolveRepoActivationStatePath(runtime.copilotHomeAbs, absoluteRepoPath);
+  return {
+    scope: {
+      kind: 'repo',
+      repoId: repoStateKey.repoId,
+      displayName: repoStateKey.repoLabel,
+    },
+    targetScope: 'repo-override',
+    statePath: repoActivationPath.path,
+    repoPath: absoluteRepoPath,
+    repoStateKey,
+  };
+}
+
+function loadActivationDefaults(runtime) {
+  return deriveDefaultsFromEngineRoot(runtime.engineRoot);
+}
+
+function updateCatalogActivation(runtime, body, options = {}) {
+  const action = normalizeActivationAction(body.action);
+  const target = resolveActivationMutationTarget(runtime, body);
+  const defaults = loadActivationDefaults(runtime);
+  const globalStatePath = resolveGlobalActivationStatePath(runtime.copilotHomeAbs);
+  const globalState = pathExists(globalStatePath) ? buildActivationStateDocument(readJson(globalStatePath)) : null;
+  const globalEffectivePlannerProfile = normalizeString(globalState?.plannerProfile) || defaults.plannerProfile;
+  const globalEffectiveOrchestrationPolicy =
+    normalizeString(globalState?.orchestrationPolicy) || globalEffectivePlannerProfile || defaults.orchestrationPolicy;
+  const globalEffectiveBundleIds =
+    Array.isArray(globalState?.activeBundleIds)
+      ? globalState.activeBundleIds
+      : defaults.activeBundleIds;
+
+  const ledger = createMutationLedger();
+  try {
+    if (action === 'clear-repo-override') {
+      if (!target.repoPath) {
+        throw Object.assign(new Error('repoPath is required to clear a repo activation override'), { statusCode: 400 });
+      }
+
+      ledger.deletePath(target.statePath, { allowMissing: true });
+      return finalizeMutation(
+        runtime,
+        options,
+        ledger,
+        {
+          action: 'repo-override-cleared',
+          scope: target.scope,
+          repoId: target.repoStateKey?.repoId || null,
+          refreshSelectors: [target.repoPath ? { repoPath: target.repoPath } : {}],
+          refreshReason: 'catalog_activation_override_cleared',
+        },
+        {
+          actor: {
+            kind: 'ui',
+            id: 'copilot-ui-backend',
+            label: 'copilot-ui-backend',
+          },
+          eventType: 'catalog.activation.repo_override_cleared',
+          repoId: target.repoStateKey?.repoId || null,
+          scope: target.scope,
+        },
+      );
+    }
+
+    if (action === 'set-profile') {
+      const plannerProfile = normalizeString(body.plannerProfile);
+      if (!plannerProfile) {
+        throw Object.assign(new Error('plannerProfile is required'), { statusCode: 400 });
+      }
+      const nextState = pathExists(target.statePath) ? readJson(target.statePath) : {};
+      const nextDocument = buildActivationStateDocument({
+        ...nextState,
+        plannerProfile,
+        orchestrationPolicy: plannerProfile,
+        ...(target.repoStateKey
+          ? {
+            repoId: target.repoStateKey.repoId,
+            repoPath: target.repoPath,
+          }
+          : {}),
+      });
+      ledger.replaceFile(target.statePath, stringifyJson(nextDocument), {});
+      return finalizeMutation(
+        runtime,
+        options,
+        ledger,
+        {
+          action: 'planner-profile-set',
+          scope: target.scope,
+          repoId: target.repoStateKey?.repoId || null,
+          plannerProfile,
+          orchestrationPolicy: plannerProfile,
+          refreshSelectors: [target.repoPath ? { repoPath: target.repoPath } : {}],
+          refreshReason: 'catalog_activation_profile_updated',
+        },
+        {
+          actor: {
+            kind: 'ui',
+            id: 'copilot-ui-backend',
+            label: 'copilot-ui-backend',
+          },
+          eventType: 'catalog.activation.profile_set',
+          repoId: target.repoStateKey?.repoId || null,
+          scope: target.scope,
+          details: {
+            plannerProfile,
+            orchestrationPolicy: plannerProfile,
+          },
+        },
+      );
+    }
+
+    const bundleId = normalizeString(body.bundleId);
+    if (!bundleId) {
+      throw Object.assign(new Error('bundleId is required'), { statusCode: 400 });
+    }
+    if (defaults.availableBundleIds.length > 0 && !defaults.availableBundleIds.includes(bundleId)) {
+      throw Object.assign(new Error(`Unknown bundleId: ${bundleId}`), { statusCode: 404 });
+    }
+
+    const existingState = pathExists(target.statePath) ? readJson(target.statePath) : {};
+    const currentBundleIds = Array.isArray(existingState.activeBundleIds)
+      ? existingState.activeBundleIds
+      : target.repoPath
+        ? globalEffectiveBundleIds
+        : globalEffectiveBundleIds;
+    const bundleSet = new Set(currentBundleIds.filter((candidate) => defaults.availableBundleIds.includes(candidate)));
+    if (action === 'activate-bundle') {
+      bundleSet.add(bundleId);
+    } else {
+      bundleSet.delete(bundleId);
+    }
+
+    const nextDocument = buildActivationStateDocument({
+      ...existingState,
+      activeBundleIds: Array.from(bundleSet).sort(),
+      ...(target.repoStateKey
+        ? {
+          repoId: target.repoStateKey.repoId,
+          repoPath: target.repoPath,
+        }
+        : {}),
+      ...(target.repoPath
+        ? {}
+        : {
+          plannerProfile: normalizeString(existingState.plannerProfile) || globalEffectivePlannerProfile,
+          orchestrationPolicy: normalizeString(existingState.orchestrationPolicy) || globalEffectiveOrchestrationPolicy,
+        }),
+    });
+    ledger.replaceFile(target.statePath, stringifyJson(nextDocument), {});
+
+    const activated = action === 'activate-bundle';
+    return finalizeMutation(
+      runtime,
+      options,
+      ledger,
+      {
+        action: activated ? 'bundle-activated' : 'bundle-deactivated',
+        scope: target.scope,
+        repoId: target.repoStateKey?.repoId || null,
+        bundleId,
+        activeBundleIds: nextDocument.activeBundleIds || [],
+        refreshSelectors: [target.repoPath ? { repoPath: target.repoPath } : {}],
+        refreshReason: activated ? 'catalog_bundle_activated' : 'catalog_bundle_deactivated',
+      },
+      {
+        actor: {
+          kind: 'ui',
+          id: 'copilot-ui-backend',
+          label: 'copilot-ui-backend',
+        },
+        eventType: activated ? 'catalog.activation.bundle_activated' : 'catalog.activation.bundle_deactivated',
+        repoId: target.repoStateKey?.repoId || null,
+        scope: target.scope,
+        details: {
+          bundleId,
+        },
+      },
+    );
+  } catch (error) {
+    ledger.rollback();
+    throw error;
+  }
+}
+
 module.exports = {
   createAsset,
   updateAsset,
   deleteAsset,
   installAsset,
   setAssetEnabled,
+  updateCatalogActivation,
   _internals: {
     buildMarkdownDocument,
     buildManifestEntry,

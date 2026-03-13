@@ -47,7 +47,7 @@ When I use **/plan** OR custom plan agent, you MUST:
 1. Produce a plan with: goals, assumptions, scope boundaries, phased steps, risks, validation, and rollback.
 2. Submit the plan for cross-model review by **BOTH** reviewers:
    - `@reviewer-opus-4-6`
-   - `@reviewer-gpt-5-3-codex`
+   - `@reviewer-gpt-5-4`
 3. Revise the plan and re-review **until BOTH reviewers explicitly respond “APPROVED”**.
 4. Only after both approvals: summarize the approved plan and proceed to execution (unless I asked for plan-only).
 

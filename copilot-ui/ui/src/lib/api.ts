@@ -1,9 +1,11 @@
 import type {
+  CatalogActivationMutationResponse,
   CatalogAssetMutationResponse,
   CatalogAssetDetailResponse,
   CatalogAssetsResponse,
   CatalogBundlesResponse,
   CatalogAuditEventsResponse,
+  CatalogBundlesResponse,
   CatalogRepoMutationResponse,
   CatalogReposListResponse,
   CatalogRefreshResponse,
@@ -272,6 +274,13 @@ export interface CatalogAssetEnablementPayload {
   assetKey?: string;
   repoPath: string;
   expectedRegistryHash?: string;
+}
+
+export interface CatalogActivationMutationPayload {
+  action: 'activate-bundle' | 'deactivate-bundle' | 'set-profile' | 'clear-repo-override' | string;
+  bundleId?: string;
+  plannerProfile?: string;
+  repoPath?: string;
 }
 
 function buildCatalogSelectorQuery(query: CatalogSelectorQuery = {}): ApiRequestOptions['query'] {
@@ -1481,6 +1490,17 @@ export function getCatalogAssetDetail(
   });
 }
 
+export function getCatalogBundles(query: CatalogBundlesQuery = {}, baseUrl?: string): Promise<CatalogBundlesResponse> {
+  return apiRequest<CatalogBundlesResponse>('/api/catalog/bundles', {
+    baseUrl,
+    query: {
+      ...buildCatalogSelectorQuery(query),
+      bundleId: query.bundleId,
+      q: query.q,
+    },
+  });
+}
+
 export function refreshCatalogProjection(
   query: CatalogSelectorQuery = {},
   baseUrl?: string
@@ -1570,6 +1590,20 @@ export function disableCatalogAsset(
   baseUrl?: string
 ): Promise<CatalogAssetMutationResponse> {
   return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/disable', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateCatalogActivation(
+  payload: CatalogActivationMutationPayload,
+  baseUrl?: string
+): Promise<CatalogActivationMutationResponse> {
+  return apiRequest<CatalogActivationMutationResponse>('/api/catalog/activation', {
     baseUrl,
     method: 'POST',
     headers: {

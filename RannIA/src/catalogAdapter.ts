@@ -34,11 +34,13 @@ export interface CreateCatalogEntryOptions {
 	title: string;
 	layer: AssetCatalogLayer;
 	scope: AssetScope;
-	description?: string;
-	contentPath?: string;
-	installState?: AssetCatalogEntry['installState'];
-	lifecycle?: AssetCatalogEntry['lifecycle'];
-	metadata?: Record<string, unknown>;
+  description?: string;
+  contentPath?: string;
+  installState?: AssetCatalogEntry['installState'];
+  lifecycle?: AssetCatalogEntry['lifecycle'];
+  metadata?: Record<string, unknown>;
+  provenance?: AssetCatalogEntry['provenance'];
+  activation?: AssetCatalogEntry['activation'];
 }
 
 function buildAssetId(
@@ -64,7 +66,9 @@ export function createCatalogEntry(options: CreateCatalogEntryOptions): AssetCat
 		installState: options.installState,
 		lifecycle: options.lifecycle,
 		contentPath: options.contentPath,
-		metadata: options.metadata
+		metadata: options.metadata,
+		provenance: options.provenance,
+		activation: options.activation
 	};
 }
 

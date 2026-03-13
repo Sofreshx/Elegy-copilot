@@ -7,7 +7,7 @@ export interface SkillsPreviewState {
   loading: boolean;
   error: string | null;
   searchQuery: string;
-  selectedSkillName: string | null;
+  selectedSkillId: string | null;
   detailLoading: boolean;
   detailError: string | null;
   detailText: string;
@@ -18,7 +18,7 @@ const INITIAL_STATE: SkillsPreviewState = {
   loading: false,
   error: null,
   searchQuery: '',
-  selectedSkillName: null,
+  selectedSkillId: null,
   detailLoading: false,
   detailError: null,
   detailText: '(select a skill above)',
@@ -49,10 +49,15 @@ function normalizeSkills(input: unknown): SkillPreviewItem[] {
         return null;
       }
 
+      const assetId =
+        typeof record.assetId === 'string' && record.assetId.trim()
+          ? record.assetId.trim()
+          : `${name}:${typeof record.viewPath === 'string' ? record.viewPath : typeof record.absPath === 'string' ? record.absPath : ''}`;
       const kind = typeof record.kind === 'string' && record.kind.trim() ? record.kind : 'full';
 
       return {
         ...record,
+        assetId,
         name,
         kind,
         loadMode: typeof record.loadMode === 'string' ? record.loadMode : undefined,
@@ -63,25 +68,43 @@ function normalizeSkills(input: unknown): SkillPreviewItem[] {
         vaultPath:
           typeof record.vaultPath === 'string' || record.vaultPath === null ? record.vaultPath : undefined,
         viewPath: typeof record.viewPath === 'string' ? record.viewPath : undefined,
+        provider: typeof record.provider === 'string' ? record.provider : undefined,
+        sourcePackage: typeof record.sourcePackage === 'string' ? record.sourcePackage : undefined,
+        namespace: typeof record.namespace === 'string' ? record.namespace : undefined,
+        readOnly: record.readOnly === true,
       } as SkillPreviewItem;
     })
     .filter((entry): entry is SkillPreviewItem => entry !== null);
 
-  normalized.sort((a, b) => a.name.localeCompare(b.name));
+  normalized.sort((a, b) => {
+    const nameCompare = a.name.localeCompare(b.name);
+    if (nameCompare !== 0) {
+      return nameCompare;
+    }
+    return String(a.assetId || '').localeCompare(String(b.assetId || ''));
+  });
   return normalized;
 }
 
-function buildSkillDetailPath(skill: SkillPreviewItem): string {
+function buildSkillDetailPath(skill: SkillPreviewItem): string | null {
   if (typeof skill.viewPath === 'string' && skill.viewPath.trim()) {
     return skill.viewPath;
   }
 
-  return `skills/${skill.name}/SKILL.md`;
+  return null;
+}
+
+function buildPreviewUnavailableMessage(skill: SkillPreviewItem | null, label: string): string {
+  if (skill && String(skill.availability || '').trim() === 'not-installed') {
+    return `${label} is managed but not installed yet. Install or sync it before previewing content.`;
+  }
+  return `${label} cannot be previewed from the current source location.`;
 }
 
 function createSkillsPreviewStore() {
   const store = createStore<SkillsPreviewState>(INITIAL_STATE);
   let requestVersion = 0;
+  let detailRequestVersion = 0;
 
   async function loadSkills(): Promise<void> {
     const nextVersion = ++requestVersion;
@@ -102,15 +125,16 @@ function createSkillsPreviewStore() {
         }
 
         const selectedStillExists =
-          state.selectedSkillName != null &&
-          skills.some((skill) => skill.name === state.selectedSkillName);
+          state.selectedSkillId != null &&
+          skills.some((skill) => skill.assetId === state.selectedSkillId);
 
         return {
           ...state,
           skills,
-          selectedSkillName: selectedStillExists ? state.selectedSkillName : null,
+          selectedSkillId: selectedStillExists ? state.selectedSkillId : null,
           loading: false,
           error: null,
+          detailLoading: selectedStillExists ? state.detailLoading : false,
           detailText: selectedStillExists ? state.detailText : '(select a skill above)',
           detailError: selectedStillExists ? state.detailError : null,
         };
@@ -132,40 +156,71 @@ function createSkillsPreviewStore() {
     }
   }
 
-  async function loadSkillDetail(skillName: string): Promise<void> {
-    const normalizedSkillName = skillName.trim();
-    if (!normalizedSkillName) {
+  async function loadSkillDetail(skillId: string): Promise<void> {
+    const normalizedSkillId = skillId.trim();
+    if (!normalizedSkillId) {
       return;
     }
+    const nextDetailVersion = ++detailRequestVersion;
+
+    const selectedSkill = store.getState().skills.find((skill) => skill.assetId === normalizedSkillId) ?? null;
+    const selectedSkillLabel = selectedSkill?.name || normalizedSkillId;
 
     store.setState((state) => ({
       ...state,
-      selectedSkillName: normalizedSkillName,
+      selectedSkillId: normalizedSkillId,
       detailLoading: true,
       detailError: null,
-      detailText: `(loading ${normalizedSkillName}...)`,
+      detailText: `(loading ${selectedSkillLabel}...)`,
     }));
 
+    const detailPath = buildSkillDetailPath(selectedSkill ?? { name: selectedSkillLabel, kind: 'full' });
+    if (!detailPath) {
+      store.setState((state) => {
+        if (state.selectedSkillId !== normalizedSkillId) {
+          return state;
+        }
+
+        return {
+          ...state,
+          detailLoading: false,
+          detailError: null,
+          detailText: buildPreviewUnavailableMessage(selectedSkill, selectedSkillLabel),
+        };
+      });
+      return;
+    }
+
     try {
-      const selectedSkill = store.getState().skills.find((skill) => skill.name === normalizedSkillName);
-      const detailPath = buildSkillDetailPath(selectedSkill ?? { name: normalizedSkillName, kind: 'full' });
       const detailText = await getAssetView(detailPath);
 
-      store.setState((state) => ({
-        ...state,
-        detailLoading: false,
-        detailError: null,
-        detailText: detailText || '(empty skill content)',
-      }));
+      store.setState((state) => {
+        if (nextDetailVersion !== detailRequestVersion || state.selectedSkillId !== normalizedSkillId) {
+          return state;
+        }
+
+        return {
+          ...state,
+          detailLoading: false,
+          detailError: null,
+          detailText: detailText || '(empty skill content)',
+        };
+      });
     } catch (error) {
       const message = toErrorMessage(error);
 
-      store.setState((state) => ({
-        ...state,
-        detailLoading: false,
-        detailError: message,
-        detailText: `Error loading ${normalizedSkillName}: ${message}`,
-      }));
+      store.setState((state) => {
+        if (nextDetailVersion !== detailRequestVersion || state.selectedSkillId !== normalizedSkillId) {
+          return state;
+        }
+
+        return {
+          ...state,
+          detailLoading: false,
+          detailError: message,
+          detailText: `Error loading ${selectedSkillLabel}: ${message}`,
+        };
+      });
     }
   }
 

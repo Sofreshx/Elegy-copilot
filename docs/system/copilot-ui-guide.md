@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-03-11
+updated: 2026-03-12
 category: system
 status: current
 doc_kind: node
@@ -97,6 +97,32 @@ The React `Assets` surface consumes both `/api/catalog/assets` and `/api/catalog
 | `POST` | `/api/assets/remove` | Removes installed assets from the local installation surface. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/assets/view` | Returns asset content or metadata for inspection in the UI. | `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/assets/delete` | Deletes managed assets from the selected authoring scope. | `copilot-ui/tests/api-contract.test.js` |
+
+### External plugin asset compatibility
+
+`copilot-ui` now supports read-only discovery of externally installed Copilot assets that do not
+follow Instruction Engine's flat managed layout.
+
+Supported compatibility patterns currently include:
+
+- namespaced skills under `~/.copilot/skills/<namespace>/<skill>/SKILL.md`
+- plain Markdown agents under `~/.copilot/agents/*.md` when they parse like real agent assets
+  (frontmatter with a stable `name` plus a non-empty markdown body)
+- plugin installs exposed through linked or symlinked marketplace-cache paths, including upstream
+  `superpowers-copilot` layouts such as:
+  - `~/.copilot/skills/superpowers/<skill>/SKILL.md`
+  - `~/.copilot/agents/code-reviewer.md`
+
+Behavior guarantees for those compatibility-discovered assets:
+
+- they appear in Catalog, Installed Inventory, Skills Preview, and catalog-backed search
+- nested assets keep explicit `viewPath` metadata so inspection opens the real nested file instead
+  of reconstructing a flat path
+- same-name assets stay distinct through provider-qualified identity instead of collapsing into
+  shipped Instruction Engine assets
+- provenance metadata may include provider, source package, and namespace information
+- external/plugin-origin assets are inspectable but remain read-only in Instruction Engine edit and
+  delete flows
 
 ### Catalog control plane
 

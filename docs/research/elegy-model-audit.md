@@ -18,7 +18,7 @@ The Elegy model is a hierarchical, plan-first agent architecture designed for co
 1. **Ideation & Clarification (`@elegy-ideation`)**: Converts raw user requests into a concrete, scoped brief with risks and open questions.
 2. **High-Level Direction (`@elegy-direction`)**: Takes the brief and produces a consistent high-level direction, identifying distinct workstreams and dependencies.
 3. **Parallel Sub-Planning (`@elegy-subplanner`)**: Takes individual workstreams and breaks them down into explicit, actionable Work Units (files, logic, validation) in parallel.
-4. **Assembly & Review (`@elegy-planner`)**: Assembles the high-level plan and sub-plans into a single Execution Plan. Runs cross-model reviews (`@reviewer-opus-4-6`, `@reviewer-gpt-5-3-codex`) at both the high-level and sub-plan stages.
+4. **Assembly & Review (`@elegy-planner`)**: Assembles the high-level plan and sub-plans into a single Execution Plan. Runs cross-model reviews (`@reviewer-opus-4-6`, `@reviewer-gpt-5-4`) at both the high-level and sub-plan stages.
 5. **Execution (`@elegy-orchestrator`)**: Executes the approved plan sequentially, delegating specific Work Units to implementation agents (`@impl-business`, `@impl-infra`).
 
 ## Potential Issues & Pitfalls

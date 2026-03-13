@@ -10,8 +10,34 @@ function matchesQuery(skill: SkillPreviewItem, query: string): boolean {
     return true;
   }
 
-  const fields = [skill.name, skill.kind, skill.loadMode ?? '', skill.availability ?? '', skill.description ?? '', skill.triggers ?? ''];
+  const fields = [
+    skill.name,
+    skill.kind,
+    skill.loadMode ?? '',
+    skill.availability ?? '',
+    skill.description ?? '',
+    skill.triggers ?? '',
+    skill.provider ?? '',
+    skill.sourcePackage ?? '',
+    skill.namespace ?? '',
+  ];
   return fields.some((field) => field.toLowerCase().includes(normalizedQuery));
+}
+
+function buildSkillSourceLabel(skill: SkillPreviewItem): string {
+  const segments: string[] = [];
+  if (skill.sourcePackage) {
+    segments.push(skill.sourcePackage);
+  } else if (skill.provider && skill.provider !== 'user-home') {
+    segments.push(skill.provider);
+  }
+  if (skill.namespace) {
+    segments.push(`namespace: ${skill.namespace}`);
+  }
+  if (skill.readOnly) {
+    segments.push('read-only');
+  }
+  return segments.join(' · ');
 }
 
 export default function SkillsPreviewView() {
@@ -37,8 +63,8 @@ export default function SkillsPreviewView() {
     await skillsPreviewStore.refresh();
   };
 
-  const handleSelectSkill = async (skillName: string) => {
-    await skillsPreviewStore.loadSkillDetail(skillName);
+  const handleSelectSkill = async (skillId: string) => {
+    await skillsPreviewStore.loadSkillDetail(skillId);
   };
 
   return (
@@ -104,12 +130,14 @@ export default function SkillsPreviewView() {
               </thead>
               <tbody>
                 {filteredSkills.map((skill: SkillPreviewItem) => {
-                  const isSelected = skill.name === skillsState.selectedSkillName;
+                  const isSelected = skill.assetId === skillsState.selectedSkillId;
+                  const sourceLabel = buildSkillSourceLabel(skill);
                   return (
-                    <tr className={isSelected ? 'is-selected' : ''} key={skill.name}>
+                    <tr className={isSelected ? 'is-selected' : ''} key={skill.assetId || `${skill.name}:${skill.viewPath || skill.absPath || ''}`}>
                       <td>
                         <div>{skill.name}</div>
                         {skill.description ? <small>{skill.description}</small> : null}
+                        {sourceLabel ? <small>{sourceLabel}</small> : null}
                       </td>
                       <td>
                         <StatusBadge status={skill.loadMode ?? 'unknown'} testId="skills-preview-kind-badge" />
@@ -122,7 +150,7 @@ export default function SkillsPreviewView() {
                         <Button
                           disabled={skill.kind === 'missing'}
                           onClick={() => {
-                            void handleSelectSkill(skill.name);
+                            void handleSelectSkill(skill.assetId || skill.name);
                           }}
                           size="sm"
                           testId="skills-preview-view-button"

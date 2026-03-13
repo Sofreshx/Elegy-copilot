@@ -401,6 +401,8 @@ const mockState = {
       },
     },
   },
+  bundles: [],
+  selectedBundleId: null,
 };
 
 const mockCatalogWorkspaceStore = {

@@ -1,6 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { AssetCatalogEntry } from '@instruction-engine/contracts';
+import {
+	type AssetCatalogEntry,
+	DEFAULT_PROVIDER_CATALOG,
+	buildProviderQualifiedAssetKey,
+	inferAssetProvenance,
+} from '@instruction-engine/contracts';
 import * as vscode from 'vscode';
 import {
 	createCatalogEntry,
@@ -13,14 +18,16 @@ import {
 import { getRepoDisabledSet } from './enablementStore';
 import { getSkillVaultDir, getUserSkillsDir, resolveStateRoot } from './enginePaths';
 import { parseVaultRef } from './skillResolver';
+import { discoverSkillArtifacts, resolveVaultSkillArtifact } from './skillDiscovery';
 import { isPointerSkill } from './skillPointer';
 import { RepoSkills, SkillDiscoverySnapshot, SkillEntry } from './types';
 import { existsDir, existsFile } from './utils/fs';
 
 const DEFAULT_HANDLED_SKILLS = new Set(['debug', 'docs', 'refactor', 'design']);
 
-interface SkillCatalogCandidate {
+export interface SkillCatalogCandidate {
 	name: string;
+	assetKey: string;
 	path: string;
 	openPath: string;
 	source: 'instruction-engine' | 'target-repo';
@@ -29,6 +36,8 @@ interface SkillCatalogCandidate {
 	layer: 'user-installed' | 'vault-only' | 'repo-local';
 	installState: NonNullable<AssetCatalogEntry['installState']>;
 	metadata?: Record<string, unknown>;
+	provenance?: AssetCatalogEntry['provenance'];
+	activation?: AssetCatalogEntry['activation'];
 }
 
 function normalizeSkillNameFromFile(filename: string): string {
@@ -37,6 +46,45 @@ function normalizeSkillNameFromFile(filename: string): string {
 
 function normalizeKey(value: string): string {
 	return normalizeCatalogAssetKey(value);
+}
+
+function safeRealpath(absPath: string): string {
+	try {
+		if (typeof fs.realpathSync.native === 'function') {
+			return fs.realpathSync.native(absPath);
+		}
+		return fs.realpathSync(absPath);
+	} catch {
+		return path.resolve(absPath);
+	}
+}
+
+function toPosixPath(inputPath: string): string {
+	return String(inputPath || '').replace(/\\/g, '/');
+}
+
+function buildProviderActivation(provenance: AssetCatalogEntry['provenance']): AssetCatalogEntry['activation'] {
+	const provider = DEFAULT_PROVIDER_CATALOG.providers.find(
+		(candidate) => candidate.id === provenance?.providerId
+	);
+	if (!provider?.activationDefaults) {
+		return undefined;
+	}
+	const defaults = provider.activationDefaults;
+	return {
+		eligible: true,
+		scope: defaults.scope,
+		repoOverrides: defaults.repoOverrides,
+		plannerProfile: defaults.plannerProfile,
+		orchestrationPolicy: defaults.orchestrationPolicy,
+		defaultBundles:
+			Array.isArray(defaults.defaultBundles) && defaults.defaultBundles.length > 0
+				? defaults.defaultBundles
+				: Array.isArray(provider.defaultBundles)
+					? provider.defaultBundles
+					: undefined,
+		preferredLoadMode: defaults.preferredLoadMode
+	};
 }
 
 function getSkillOpenPath(skillPath: string): string {
@@ -59,16 +107,20 @@ function getSkillOpenPath(skillPath: string): string {
 
 function createSkillCandidate(
 	name: string,
+	assetKey: string,
 	skillPath: string,
 	source: 'instruction-engine' | 'target-repo',
 	repoPath: string,
 	layer: 'user-installed' | 'vault-only' | 'repo-local',
 	kind: 'full' | 'pointer',
 	installState: NonNullable<AssetCatalogEntry['installState']>,
-	metadata?: Record<string, unknown>
+	metadata?: Record<string, unknown>,
+	provenance?: AssetCatalogEntry['provenance'],
+	activation?: AssetCatalogEntry['activation']
 ): SkillCatalogCandidate {
 	return {
 		name,
+		assetKey,
 		path: skillPath,
 		openPath: getSkillOpenPath(skillPath),
 		source,
@@ -76,155 +128,88 @@ function createSkillCandidate(
 		kind,
 		layer,
 		installState,
-		metadata
+		metadata,
+		provenance,
+		activation
 	};
 }
 
-function listSkillsInDir(
+export function listSkillsInDir(
 	skillsRoot: string,
 	source: 'instruction-engine' | 'target-repo',
 	repoPath: string,
-	layer: 'user-installed' | 'repo-local'
+	layer: 'user-installed' | 'vault-only' | 'repo-local',
+	options?: { vaultRoot?: string }
 ): SkillCatalogCandidate[] {
 	if (!existsDir(skillsRoot)) {
 		return [];
 	}
 
-	const entries = fs.readdirSync(skillsRoot, { withFileTypes: true });
 	const results: SkillCatalogCandidate[] = [];
-	const vaultRoot = layer === 'user-installed' ? getSkillVaultDir() : undefined;
+	const discovered = discoverSkillArtifacts(skillsRoot, path.basename(skillsRoot));
 
-	for (const entry of entries) {
-		if (entry.isDirectory()) {
-			const skillDir = path.join(skillsRoot, entry.name);
-			const skillFile = path.join(skillDir, 'SKILL.md');
-			const indexFile = path.join(skillDir, 'index.md');
-			if (!existsFile(skillFile) && !existsFile(indexFile)) {
-				continue;
-			}
+	for (const candidate of discovered) {
+		const skillLocation = candidate.rootPath;
+		const kind = isPointerSkill(skillLocation) ? ('pointer' as const) : ('full' as const);
+		const resolvedVaultArtifact =
+			layer === 'user-installed' && kind === 'pointer' && options?.vaultRoot
+				? resolveVaultSkillArtifact(options.vaultRoot, parseVaultRef(skillLocation) ?? '')
+				: undefined;
+		const identityCandidate = resolvedVaultArtifact ?? candidate;
+		const provenance = inferAssetProvenance({
+			kind: 'skill',
+			resolvedPath: toPosixPath(safeRealpath(identityCandidate.contentPath)),
+			namespace: identityCandidate.namespace,
+			providers: DEFAULT_PROVIDER_CATALOG
+		});
+		const activation = buildProviderActivation(provenance);
+		const assetKey = provenance.providerId
+			? buildProviderQualifiedAssetKey('skill', identityCandidate.name, provenance)
+			: identityCandidate.name;
+		const installState: NonNullable<AssetCatalogEntry['installState']> = {
+			availability: layer === 'repo-local' ? 'repo-local' : layer === 'vault-only' ? 'vault-only' : 'installed',
+			materialization:
+				layer === 'vault-only'
+					? 'vault-only'
+					: kind === 'pointer'
+						? 'pointer'
+						: 'materialized',
+			loadMode: layer === 'vault-only' || kind === 'pointer' ? 'on-demand' : 'always',
+			isInstalled: true,
+			isAutoLoaded: layer !== 'vault-only' && kind !== 'pointer',
+			sourcePath: skillLocation,
+			installedPaths:
+				layer === 'repo-local'
+					? { 'repo-local': skillLocation }
+					: layer === 'vault-only'
+						? { 'vault-only': skillLocation }
+						: { 'user-installed': skillLocation }
+		};
 
-			const kind = isPointerSkill(skillDir) ? ('pointer' as const) : ('full' as const);
-			const userInstalledEntry = createSkillCandidate(
-				entry.name,
-				skillDir,
+		results.push(
+			createSkillCandidate(
+				identityCandidate.name,
+				assetKey,
+				skillLocation,
 				source,
 				repoPath,
 				layer,
 				kind,
+				installState,
 				{
-					availability: layer === 'repo-local' ? 'repo-local' : 'installed',
-					materialization: kind === 'pointer' ? 'pointer' : 'materialized',
-					loadMode: kind === 'pointer' ? 'on-demand' : 'always',
-					isInstalled: true,
-					isAutoLoaded: kind !== 'pointer',
-					sourcePath: skillDir,
-					installedPaths:
-						layer === 'repo-local'
-							? { 'repo-local': skillDir }
-							: { 'user-installed': skillDir }
+					entryPath: skillLocation,
+					openPath: getSkillOpenPath(skillLocation),
+					kind,
+					namespace: identityCandidate.namespace,
+					provider: provenance.providerId,
+					sourcePackage: provenance.sourcePackage,
+					readOnly: provenance.readOnly,
+					viewPath: candidate.viewPath
 				},
-				{
-					entryPath: skillDir,
-					openPath: getSkillOpenPath(skillDir),
-					kind
-				}
-			);
-			results.push(userInstalledEntry);
-
-			if (layer === 'user-installed' && kind === 'pointer' && vaultRoot) {
-				const vaultRef = parseVaultRef(skillDir);
-				if (vaultRef) {
-					const vaultPath = path.join(vaultRoot, vaultRef);
-					if (existsDir(vaultPath)) {
-						results.push(
-							createSkillCandidate(
-								entry.name,
-								vaultPath,
-								source,
-								repoPath,
-								'vault-only',
-								kind,
-								{
-									availability: 'vault-only',
-									materialization: 'vault-only',
-									loadMode: 'on-demand',
-									isInstalled: true,
-									isAutoLoaded: false,
-									sourcePath: skillDir,
-									installedPaths: {
-										'user-installed': skillDir,
-										'vault-only': vaultPath
-									}
-								},
-								{
-									entryPath: skillDir,
-									openPath: getSkillOpenPath(vaultPath),
-									kind,
-									vaultRef
-								}
-							)
-						);
-					}
-				}
-			}
-			continue;
-		}
-
-		if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.md')) {
-			continue;
-		}
-
-		const fullPath = path.join(skillsRoot, entry.name);
-		const skillName = normalizeSkillNameFromFile(entry.name);
-		const kind = isPointerSkill(fullPath) ? ('pointer' as const) : ('full' as const);
-		results.push(
-			createSkillCandidate(skillName, fullPath, source, repoPath, layer, kind, {
-				availability: layer === 'repo-local' ? 'repo-local' : 'installed',
-				materialization: kind === 'pointer' ? 'pointer' : 'materialized',
-				loadMode: kind === 'pointer' ? 'on-demand' : 'always',
-				isInstalled: true,
-				isAutoLoaded: kind !== 'pointer',
-				sourcePath: fullPath,
-				installedPaths:
-					layer === 'repo-local'
-						? { 'repo-local': fullPath }
-						: { 'user-installed': fullPath }
-			},
-			{
-				entryPath: fullPath,
-				openPath: fullPath,
-				kind
-			})
+				provenance,
+				activation
+			)
 		);
-
-		if (layer === 'user-installed' && kind === 'pointer' && vaultRoot) {
-			const vaultRef = parseVaultRef(fullPath);
-			if (vaultRef) {
-				const vaultPath = path.join(vaultRoot, vaultRef);
-				if (existsDir(vaultPath)) {
-					results.push(
-						createSkillCandidate(skillName, vaultPath, source, repoPath, 'vault-only', kind, {
-							availability: 'vault-only',
-							materialization: 'vault-only',
-							loadMode: 'on-demand',
-							isInstalled: true,
-							isAutoLoaded: false,
-							sourcePath: fullPath,
-							installedPaths: {
-								'user-installed': fullPath,
-								'vault-only': vaultPath
-							}
-						},
-						{
-							entryPath: fullPath,
-							openPath: getSkillOpenPath(vaultPath),
-							kind,
-							vaultRef
-						})
-					);
-				}
-			}
-		}
 	}
 
 	results.sort((a, b) => a.name.localeCompare(b.name));
@@ -272,7 +257,7 @@ function preferCandidate(
 function dedupeCandidates(entries: SkillCatalogCandidate[]): SkillCatalogCandidate[] {
 	const byKey = new Map<string, SkillCatalogCandidate>();
 	for (const entry of entries) {
-		const key = `${normalizeKey(entry.name)}::${entry.layer}`;
+		const key = `${normalizeKey(entry.assetKey)}::${entry.layer}`;
 		const existing = byKey.get(key);
 		if (!existing) {
 			byKey.set(key, entry);
@@ -291,12 +276,14 @@ function toCatalogEntry(
 ): AssetCatalogEntry {
 	return createCatalogEntry({
 		kind: 'skill',
-		assetKey: candidate.name,
+		assetKey: candidate.assetKey,
 		title: candidate.name,
 		layer: candidate.layer,
 		scope,
 		contentPath: candidate.path,
 		installState: candidate.installState,
+		provenance: candidate.provenance,
+		activation: candidate.activation,
 		metadata: {
 			...candidate.metadata,
 			entryPath: candidate.path,
@@ -349,11 +336,17 @@ function buildSkillEntry(
 		assetKey: effectiveState.assetKey,
 		catalogLayer: effectiveState.selectedLayer,
 		installState: effectiveState.installState,
+		provenance: effectiveState.provenance,
+		activation: effectiveState.activation,
 		overlay: effectiveState.overlay,
 		effectiveState,
 		contributingLayers,
 		hiddenFromAutoLoad: effectiveState.hiddenFromAutoLoad,
-		overridden: effectiveState.overridden
+		overridden: effectiveState.overridden,
+		provider: effectiveState.provenance?.providerId,
+		sourcePackage: effectiveState.provenance?.sourcePackage,
+		namespace: effectiveState.provenance?.namespace,
+		readOnly: effectiveState.provenance?.readOnly
 	};
 }
 
@@ -429,8 +422,15 @@ export async function scanSkills(): Promise<SkillDiscoverySnapshot> {
 	const engineSkillsRoots = getEngineSkillsRootsFromUserHome();
 	const userScope = createCatalogScope('user', engineRoot);
 	const globalDisabled = getRepoDisabledSet('skills', engineRoot);
+	const userSkillsRoot = getUserSkillsDir();
+	const vaultSkillsRoot = getSkillVaultDir();
 	const globalCandidates = dedupeCandidates(
-		listSkillsInDir(getUserSkillsDir(), 'instruction-engine', engineRoot, 'user-installed')
+		[
+			...listSkillsInDir(userSkillsRoot, 'instruction-engine', engineRoot, 'user-installed', {
+				vaultRoot: vaultSkillsRoot
+			}),
+			...listSkillsInDir(vaultSkillsRoot, 'instruction-engine', engineRoot, 'vault-only')
+		]
 	);
 	const globalContentEntries = globalCandidates.map((candidate) =>
 		toCatalogEntry(candidate, userScope)

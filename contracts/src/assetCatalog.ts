@@ -86,6 +86,28 @@ export type SkillSearchMissReason = ExtensibleString<
   'empty-catalog' | 'no-match' | 'all-filtered'
 >;
 
+export interface AssetProvenance {
+  providerId?: string;
+  legacyProviderId?: string;
+  sourcePackage?: string;
+  namespace?: string;
+  readOnly?: boolean;
+  discoveryMode?: string;
+  originKind?: string;
+  sourceType?: string;
+  matchedProviderId?: string;
+}
+
+export interface AssetActivationEligibility {
+  eligible?: boolean;
+  scope?: string;
+  repoOverrides?: boolean;
+  plannerProfile?: string;
+  orchestrationPolicy?: string;
+  defaultBundles?: string[];
+  preferredLoadMode?: AssetLoadMode;
+}
+
 export interface AssetScope {
   kind: AssetScopeKind;
   repoId?: string;
@@ -157,6 +179,8 @@ export interface AssetCatalogEntry {
   version?: string;
   contentPath?: string;
   metadata?: Record<string, unknown>;
+  provenance?: AssetProvenance;
+  activation?: AssetActivationEligibility;
   overlay?: AssetRepoStateOverlay;
   recommendation?: AssetRecommendation;
 }
@@ -185,6 +209,8 @@ export interface EffectiveAssetState {
   selectedEntry?: AssetCatalogEntry;
   selectedLayer?: AssetCatalogLayer;
   installState?: InstallState;
+  provenance?: AssetProvenance;
+  activation?: AssetActivationEligibility;
   overlay?: AssetRepoStateOverlay;
   recommendations: AssetRecommendation[];
   contributingEntries: AssetCatalogEntry[];
@@ -566,6 +592,8 @@ export function resolveEffectiveAssetState(
     selectedEntry,
     selectedLayer: selectedEntry?.layer,
     installState,
+    provenance: selectedEntry?.provenance,
+    activation: selectedEntry?.activation,
     overlay,
     recommendations,
     contributingEntries: contentEntries,

@@ -67,7 +67,7 @@
         "agent-stack-auditor",
         "agent-unit-test-runner",
         "agent-reviewer-opus-4-6",
-        "agent-reviewer-gpt-5-3-codex"
+        "agent-reviewer-gpt-5-4"
       ],
       "installTarget": "user-global",
       "activationScope": "global",
@@ -84,7 +84,7 @@
     {
       "id": "orchestrator-workflow",
       "title": "Orchestrator Workflow Agents",
-      "description": "Repo-scoped orchestration agents for reframing, planning, implementation routing, verification, and final review.",
+      "description": "Repo-scoped orchestration agents and support skills for reframing, planning, implementation routing, research, verification, and final review.",
       "assetIds": [
         "agent-orchestrator",
         "agent-o-reframer",
@@ -92,10 +92,12 @@
         "agent-work-unit-runner",
         "agent-final-reviewer",
         "agent-remaining-work",
+        "agent-research-ideation",
         "agent-verification-guide",
         "agent-impl-business",
         "agent-impl-infra",
-        "agent-impl-reviewer"
+        "agent-impl-reviewer",
+        "skill-friction-feedback"
       ],
       "installTarget": "repo-local",
       "activationScope": "repo",
@@ -108,6 +110,34 @@
       "defaultRecommended": false,
       "dependsOn": [
         "core-global"
+      ]
+    },
+    {
+      "id": "instruction-engine-governance-lanes",
+      "title": "Instruction-Engine Governance & Specialist Lanes",
+      "description": "Repo-local governance, specialist reviewer, and follow-up lanes for instruction-engine-first workflows. Explicit opt-in keeps default routing curated.",
+      "assetIds": [
+        "skill-project-conventions-governance",
+        "skill-documentation-structure-governance",
+        "agent-convention-governor",
+        "agent-doc-structure-governor",
+        "agent-logic-reviewer",
+        "agent-consistency-reviewer",
+        "agent-working-reviewer",
+        "agent-follow-up-finder"
+      ],
+      "installTarget": "repo-local",
+      "activationScope": "repo",
+      "materialization": "on-demand",
+      "tags": [
+        "instruction-engine",
+        "governance",
+        "review",
+        "follow-up"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": [
+        "orchestrator-workflow"
       ]
     },
     {
@@ -188,10 +218,28 @@
       "destination": "agents/code-reviewer.agent.md"
     },
     {
+      "id": "agent-consistency-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/consistency-reviewer.agent.md",
+      "destination": "agents/consistency-reviewer.agent.md"
+    },
+    {
+      "id": "agent-convention-governor",
+      "type": "agent",
+      "source": "engine-assets/agents/convention-governor.agent.md",
+      "destination": "agents/convention-governor.agent.md"
+    },
+    {
       "id": "agent-deploy-auditor",
       "type": "agent",
       "source": "engine-assets/agents/deploy-auditor.agent.md",
       "destination": "agents/deploy-auditor.agent.md"
+    },
+    {
+      "id": "agent-doc-structure-governor",
+      "type": "agent",
+      "source": "engine-assets/agents/doc-structure-governor.agent.md",
+      "destination": "agents/doc-structure-governor.agent.md"
     },
     {
       "id": "agent-doc-writer",
@@ -248,6 +296,12 @@
       "destination": "agents/final-reviewer.agent.md"
     },
     {
+      "id": "agent-follow-up-finder",
+      "type": "agent",
+      "source": "engine-assets/agents/follow-up-finder.agent.md",
+      "destination": "agents/follow-up-finder.agent.md"
+    },
+    {
       "id": "agent-governor",
       "type": "agent",
       "source": "engine-assets/agents/agent-governor.agent.md",
@@ -284,6 +338,12 @@
       "destination": "agents/integration-test-runner.agent.md"
     },
     {
+      "id": "agent-logic-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/logic-reviewer.agent.md",
+      "destination": "agents/logic-reviewer.agent.md"
+    },
+    {
       "id": "agent-o-planner",
       "type": "agent",
       "source": "engine-assets/agents/o-planner.agent.md",
@@ -314,10 +374,10 @@
       "destination": "agents/research-ideation.agent.md"
     },
     {
-      "id": "agent-reviewer-gpt-5-3-codex",
+      "id": "agent-reviewer-gpt-5-4",
       "type": "agent",
-      "source": "engine-assets/agents/reviewer-gpt-5-3-codex.agent.md",
-      "destination": "agents/reviewer-gpt-5-3-codex.agent.md"
+      "source": "engine-assets/agents/reviewer-gpt-5-4.agent.md",
+      "destination": "agents/reviewer-gpt-5-4.agent.md"
     },
     {
       "id": "agent-reviewer-opus-4-6",
@@ -378,6 +438,12 @@
       "type": "agent",
       "source": "engine-assets/agents/work-unit-runner.agent.md",
       "destination": "agents/work-unit-runner.agent.md"
+    },
+    {
+      "id": "agent-working-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/working-reviewer.agent.md",
+      "destination": "agents/working-reviewer.agent.md"
     },
     {
       "id": "copilot-instructions",
@@ -467,10 +533,24 @@
       "loadMode": "always"
     },
     {
+      "id": "skill-documentation-structure-governance",
+      "type": "skill",
+      "source": "engine-assets/skills/documentation-structure-governance",
+      "destination": "skills/documentation-structure-governance",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "skill-e2e-workflow",
       "type": "skill",
       "source": "engine-assets/skills/e2e-workflow",
       "destination": "skills/e2e-workflow",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-friction-feedback",
+      "type": "skill",
+      "source": "engine-assets/skills/friction-feedback",
+      "destination": "skills/friction-feedback",
       "loadMode": "on-demand"
     },
     {
@@ -520,6 +600,13 @@
       "type": "skill",
       "source": "engine-assets/skills/planpack-authoring",
       "destination": "skills/planpack-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-project-conventions-governance",
+      "type": "skill",
+      "source": "engine-assets/skills/project-conventions-governance",
+      "destination": "skills/project-conventions-governance",
       "loadMode": "on-demand"
     },
     {

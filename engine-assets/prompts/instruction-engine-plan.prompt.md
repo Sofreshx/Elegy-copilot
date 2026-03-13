@@ -14,7 +14,7 @@ Requirements:
 
 Then request plan review from BOTH:
 - @reviewer-opus-4-6
-- @reviewer-gpt-5-3-codex
+- @reviewer-gpt-5-4
 
 Review loop rules:
 - Reviewers MUST return a strict line: `Verdict: APPROVED | NEEDS_REVISION | BLOCKED`.

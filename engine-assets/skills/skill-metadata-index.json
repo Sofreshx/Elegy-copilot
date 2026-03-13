@@ -170,6 +170,24 @@
       }
     },
     {
+      "skill": "documentation-structure-governance",
+      "name": "documentation-structure-governance",
+      "description": "Governance rules for documentation and project-structure entrypoints, discoverability, and aligned human-friendly plus LLM-friendly access paths. Triggers on: documentation structure, docs IA, docs entrypoint, project structure guidance, LLM-friendly entrypoint, human-friendly entrypoint, doc structure governance.",
+      "triggersOn": [
+        "doc structure governance",
+        "docs entrypoint",
+        "docs ia",
+        "documentation structure",
+        "human-friendly entrypoint",
+        "llm-friendly entrypoint",
+        "project structure guidance"
+      ],
+      "manifest": {
+        "id": "skill-documentation-structure-governance",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "e2e-workflow",
       "name": "e2e-workflow",
       "description": "E2E test workflow patterns: execution modes, evidence requirements, health endpoints, and pass/fail rules. Triggers on: e2e workflow, e2e modes, e2e evidence, e2e report format, health endpoints.",
@@ -428,6 +446,23 @@
       ],
       "manifest": {
         "id": "skill-planpack-authoring",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "project-conventions-governance",
+      "name": "project-conventions-governance",
+      "description": "Governance rules for identifying, auditing, and proposing project conventions with canonical-vs-inferred separation. Triggers on: project conventions, repo conventions, convention audit, convention drift, convention governance, propose conventions.",
+      "triggersOn": [
+        "convention audit",
+        "convention drift",
+        "convention governance",
+        "project conventions",
+        "propose conventions",
+        "repo conventions"
+      ],
+      "manifest": {
+        "id": "skill-project-conventions-governance",
         "loadMode": "on-demand"
       }
     },

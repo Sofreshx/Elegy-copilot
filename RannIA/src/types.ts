@@ -1,8 +1,10 @@
 import type {
-	AssetCatalogLayer,
-	AssetRepoStateOverlay,
-	EffectiveAssetState,
-	InstallState
+  AssetCatalogLayer,
+  AssetProvenance,
+  AssetRepoStateOverlay,
+  AssetActivationEligibility,
+  EffectiveAssetState,
+  InstallState
 } from '@instruction-engine/contracts';
 
 export type SkillSourceKind = 'instruction-engine' | 'target-repo';
@@ -15,11 +17,17 @@ export interface CatalogBackedAssetEntry {
 	catalogLayer?: AssetCatalogLayer;
 	installState?: InstallState;
 	overlay?: AssetRepoStateOverlay;
-	effectiveState?: EffectiveAssetState;
-	contributingLayers?: AssetCatalogLayer[];
-	hiddenFromAutoLoad?: boolean;
-	overridden?: boolean;
-	openPath?: string;
+  effectiveState?: EffectiveAssetState;
+  provenance?: AssetProvenance;
+  activation?: AssetActivationEligibility;
+  contributingLayers?: AssetCatalogLayer[];
+  hiddenFromAutoLoad?: boolean;
+  overridden?: boolean;
+  openPath?: string;
+  provider?: string;
+  sourcePackage?: string;
+  namespace?: string;
+  readOnly?: boolean;
 }
 
 export interface SkillEntry extends CatalogBackedAssetEntry {

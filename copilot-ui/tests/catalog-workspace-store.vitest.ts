@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mockGetCatalogSummary = vi.fn();
 const mockGetCatalogBundles = vi.fn();
 const mockGetCatalogAssets = vi.fn();
+const mockGetCatalogBundles = vi.fn();
 const mockGetRuntimeCatalogHealth = vi.fn();
 const mockGetCatalogAssetDetail = vi.fn();
 const mockGetCatalogAuditEvents = vi.fn();
@@ -51,6 +52,7 @@ describe('catalogWorkspaceStore', () => {
     mockGetCatalogSummary.mockReset();
     mockGetCatalogBundles.mockReset();
     mockGetCatalogAssets.mockReset();
+    mockGetCatalogBundles.mockReset();
     mockGetRuntimeCatalogHealth.mockReset();
     mockGetCatalogAssetDetail.mockReset();
     mockGetCatalogAuditEvents.mockReset();
@@ -125,6 +127,9 @@ describe('catalogWorkspaceStore', () => {
           },
         },
       ],
+    });
+    mockGetCatalogBundles.mockResolvedValue({
+      bundles: [],
     });
     mockGetRuntimeCatalogHealth.mockResolvedValue({
       ok: true,
@@ -207,6 +212,89 @@ describe('catalogWorkspaceStore', () => {
     expect(state.selectedAssetContent).toContain('Test skill');
   });
 
+  it('prefers explicit metadata view paths for nested installed assets', async () => {
+    mockGetCatalogRepos.mockResolvedValue({
+      repos: [],
+      selectedRepo: null,
+    });
+    mockGetCatalogSummary.mockResolvedValue({
+      summary: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+        stats: {
+          effectiveCount: 1,
+          installedCount: 1,
+          overriddenCount: 0,
+        },
+      },
+    });
+    mockGetCatalogAssets.mockResolvedValue({
+      assets: [
+        {
+          assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
+          assetKey: 'copilot-home-plugin-superpowers-brainstorming',
+          kind: 'skill',
+          installed: true,
+          enabled: true,
+          available: true,
+          selectedEntry: {
+            assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
+            kind: 'skill',
+            title: 'Brainstorming',
+          },
+        },
+      ],
+    });
+    mockGetCatalogBundles.mockResolvedValue({
+      bundles: [],
+    });
+    mockGetRuntimeCatalogHealth.mockResolvedValue({
+      ok: true,
+      projection: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+      },
+      audit: {
+        exists: true,
+      },
+    });
+    mockGetCatalogAssetDetail.mockResolvedValue({
+      asset: {
+        assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
+        assetKey: 'copilot-home-plugin-superpowers-brainstorming',
+        kind: 'skill',
+        installed: true,
+        enabled: true,
+        available: true,
+        installState: {
+          availability: 'installed',
+          installedPaths: {
+            'user-installed': 'C:\\Users\\lolzi\\.copilot\\skills\\superpowers\\brainstorming\\SKILL.md',
+          },
+        },
+        selectedEntry: {
+          assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
+          kind: 'skill',
+          title: 'Brainstorming',
+          contentPath: 'C:\\Users\\lolzi\\.copilot\\skills\\superpowers\\brainstorming\\SKILL.md',
+          metadata: {
+            viewPath: 'skills/superpowers/brainstorming/SKILL.md',
+          },
+        },
+      },
+      entries: [],
+    });
+    mockGetCatalogAuditEvents.mockResolvedValue({
+      events: [],
+    });
+    mockGetAssetView.mockResolvedValue('# Brainstorming');
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+    await catalogWorkspaceStore.loadWorkspace();
+
+    expect(mockGetAssetView).toHaveBeenCalledWith('skills/superpowers/brainstorming/SKILL.md');
+  });
+
   it('runs deterministic catalog search with the active repo scope and load mode preference', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       repos: [
@@ -235,6 +323,9 @@ describe('catalogWorkspaceStore', () => {
     });
     mockGetCatalogAssets.mockResolvedValue({
       assets: [],
+    });
+    mockGetCatalogBundles.mockResolvedValue({
+      bundles: [],
     });
     mockGetRuntimeCatalogHealth.mockResolvedValue({
       ok: true,
@@ -431,6 +522,9 @@ describe('catalogWorkspaceStore', () => {
     mockGetCatalogBundles.mockResolvedValue({ bundles: [] });
     mockGetCatalogAssets.mockResolvedValue({
       assets: [],
+    });
+    mockGetCatalogBundles.mockResolvedValue({
+      bundles: [],
     });
     mockGetRuntimeCatalogHealth.mockResolvedValue({
       ok: true,

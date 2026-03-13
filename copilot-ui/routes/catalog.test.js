@@ -318,6 +318,8 @@ async function run() {
       assert.equal(bundle.defaultRecommended, true);
       assert.deepEqual(bundle.dependsOn, []);
       assert.equal(bundle.status, 'active');
+      assert.equal(bundle.activationStatus, 'active');
+      assert.equal(bundle.activationSource, 'provider-defaults');
       assert.deepEqual(bundle.stats, {
         memberCount: 2,
         availableCount: 2,
@@ -358,6 +360,18 @@ async function run() {
       const summaryResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/summary');
       assert.equal(summaryResponse.res.statusCode, 200);
       assert.equal(summaryResponse.body.kind, 'catalog.summary');
+      assert.deepEqual(summaryResponse.body.summary.activation.activeBundleIds, ['core-global']);
+      assert.equal(summaryResponse.body.summary.activation.plannerProfile, 'balanced-default');
+      assert.equal(summaryResponse.body.summary.activation.bundleSource, 'provider-defaults');
+      assert.deepEqual(summaryResponse.body.summary.routingPolicy.activeBundleIds, ['core-global']);
+      assert.ok(
+        summaryResponse.body.summary.routingPolicy.eligibleAssetIds.includes('skill-core-guardrails'),
+        'expected active core bundle member to appear in routing policy snapshot',
+      );
+      assert.ok(
+        !summaryResponse.body.summary.routingPolicy.eligibleAssetIds.includes('skill-repo-helper'),
+        'expected inactive repo bundle member to be excluded from routing policy snapshot',
+      );
       assert.deepEqual(summaryResponse.body.summary.stats.bundles, {
         totalCount: 2,
         defaultRecommendedCount: 1,
@@ -372,6 +386,71 @@ async function run() {
         enabledMemberCount: 3,
         missingMemberCount: 0,
       });
+    });
+
+    await test('POST /api/catalog/activation persists global defaults and repo overrides for bundles/profile state', async () => {
+      const globalDeactivate = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'deactivate-bundle',
+        bundleId: 'core-global',
+      });
+
+      assert.equal(globalDeactivate.res.statusCode, 200);
+      assert.equal(globalDeactivate.body.kind, 'catalog.activation.update');
+      assert.equal(globalDeactivate.body.action, 'bundle-deactivated');
+      assert.deepEqual(
+        JSON.parse(fs.readFileSync(path.join(copilotHomeAbs, 'catalog', 'activation-state.json'), 'utf8')).activeBundleIds,
+        [],
+      );
+
+      const globalSummary = await invoke(routes, baseCtx, 'GET', '/api/catalog/summary');
+      assert.deepEqual(globalSummary.body.summary.activation.activeBundleIds, []);
+      assert.equal(globalSummary.body.summary.activation.bundleSource, 'user-global');
+
+      const repoActivate = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'activate-bundle',
+        bundleId: 'repo-helper-pack',
+        repoPath,
+      });
+      assert.equal(repoActivate.res.statusCode, 200);
+      assert.equal(repoActivate.body.action, 'bundle-activated');
+
+      const repoStateKey = getRepoStateKey(repoPath);
+      const repoActivationPath = path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'activation.json');
+      assert.deepEqual(JSON.parse(fs.readFileSync(repoActivationPath, 'utf8')).activeBundleIds, ['repo-helper-pack']);
+
+      const repoProfile = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'set-profile',
+        plannerProfile: 'manual-review',
+        repoPath,
+      });
+      assert.equal(repoProfile.res.statusCode, 200);
+      assert.equal(repoProfile.body.action, 'planner-profile-set');
+
+      const repoSummary = await invoke(routes, baseCtx, 'GET', `/api/catalog/summary?repoPath=${encodeURIComponent(repoPath)}`);
+      assert.equal(repoSummary.body.summary.activation.plannerProfile, 'manual-review');
+      assert.equal(repoSummary.body.summary.activation.plannerProfileSource, 'repo-override');
+      assert.deepEqual(repoSummary.body.summary.activation.activeBundleIds, ['repo-helper-pack']);
+      assert.equal(repoSummary.body.summary.activation.bundleSource, 'repo-override');
+
+      const repoBundles = await invoke(routes, baseCtx, 'GET', `/api/catalog/bundles?repoPath=${encodeURIComponent(repoPath)}`);
+      const repoHelperBundle = repoBundles.body.bundles.find((entry) => entry.bundleId === 'repo-helper-pack');
+      const coreBundle = repoBundles.body.bundles.find((entry) => entry.bundleId === 'core-global');
+      assert.equal(repoHelperBundle.activationStatus, 'active');
+      assert.equal(repoHelperBundle.activationSource, 'repo-override');
+      assert.equal(coreBundle.activationStatus, 'inactive');
+
+      const clearOverride = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'clear-repo-override',
+        repoPath,
+      });
+      assert.equal(clearOverride.res.statusCode, 200);
+      assert.equal(clearOverride.body.action, 'repo-override-cleared');
+
+      const clearedSummary = await invoke(routes, baseCtx, 'GET', `/api/catalog/summary?repoPath=${encodeURIComponent(repoPath)}`);
+      assert.equal(clearedSummary.body.summary.activation.plannerProfile, 'balanced-default');
+      assert.deepEqual(clearedSummary.body.summary.activation.activeBundleIds, []);
+      assert.equal(clearedSummary.body.summary.activation.bundleSource, 'user-global');
+      assert.equal(fs.existsSync(repoActivationPath), false);
     });
 
     await test('POST /api/catalog/refresh persists a snapshot and logs a catalog rebuild audit event', async () => {
@@ -571,8 +650,8 @@ async function run() {
       assert.equal(Array.isArray(registry.skills.disabled), false);
     });
 
-    await test('POST /api/search/query ranks projection-backed search results and writes audit events', async () => {
-      const response = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
+    await test('POST /api/search/query enforces routing policy by default and exposes an explicit override', async () => {
+      const defaultResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
         query: 'repo',
         kind: 'skill',
         includeVaultOnly: true,
@@ -582,15 +661,61 @@ async function run() {
         sessionId: 'session-asset-1',
       });
 
-      assert.equal(response.res.statusCode, 200);
-      assert.equal(response.body.kind, 'catalog.search.query');
-      assert.ok(response.body.count >= 1);
-      assert.equal(response.body.results[0].assetId, 'skill-repo-helper');
-      assert.ok(Array.isArray(response.body.results[0].explanations));
-      assert.ok(response.body.audit.logged, 'expected search audit logging to succeed');
+      assert.equal(defaultResponse.res.statusCode, 200);
+      assert.equal(defaultResponse.body.kind, 'catalog.search.query');
+      assert.equal(defaultResponse.body.count, 0);
+      assert.equal(defaultResponse.body.routingPolicy.mode, 'eligible-only');
+      assert.ok(
+        !defaultResponse.body.routingPolicy.eligibleAssetIds.includes('skill-repo-helper'),
+        'expected inactive repo bundle member to be excluded from default routing',
+      );
+
+      const overrideResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
+        query: 'repo',
+        kind: 'skill',
+        includeVaultOnly: true,
+        frameworks: ['node'],
+        limit: 5,
+        repoPath,
+        sessionId: 'session-asset-1',
+        overrideRoutingPolicy: true,
+      });
+
+      assert.equal(overrideResponse.res.statusCode, 200);
+      assert.equal(overrideResponse.body.routingPolicy.mode, 'explicit-override');
+      assert.ok(overrideResponse.body.count >= 1);
+      assert.equal(overrideResponse.body.results[0].assetId, 'skill-repo-helper');
+      assert.ok(Array.isArray(overrideResponse.body.results[0].explanations));
+      assert.ok(overrideResponse.body.audit.logged, 'expected search audit logging to succeed');
+
+      await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'activate-bundle',
+        bundleId: 'repo-helper-pack',
+        repoPath,
+      });
+
+      const eligibleResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
+        query: 'repo',
+        kind: 'skill',
+        includeVaultOnly: true,
+        frameworks: ['node'],
+        limit: 5,
+        repoPath,
+        sessionId: 'session-asset-1',
+      });
+
+      assert.equal(eligibleResponse.res.statusCode, 200);
+      assert.ok(eligibleResponse.body.count >= 1);
+      assert.equal(eligibleResponse.body.results[0].assetId, 'skill-repo-helper');
+      assert.equal(eligibleResponse.body.routingPolicy.mode, 'eligible-only');
     });
 
     await test('POST /api/search/selection persists selection telemetry for backend/UI consumers', async () => {
+      await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'activate-bundle',
+        bundleId: 'repo-helper-pack',
+        repoPath,
+      });
       const searchResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
         query: 'repo helper',
         kind: 'skill',
