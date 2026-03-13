@@ -940,5 +940,15 @@
       "error",
       "reason"
     ]
+  },
+  "POST /api/catalog/activation": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
   }
 }

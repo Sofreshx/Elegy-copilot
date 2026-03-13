@@ -7,8 +7,17 @@ const path = require('path');
 
 const {
   compareAssetCatalogEntries,
+  buildLegacyProviderQualifiedAssetKey,
+  buildProviderQualifiedAssetKey: buildSharedProviderQualifiedAssetKey,
+  DEFAULT_PROVIDER_CATALOG,
+  inferAssetProvenance,
   resolveEffectiveAssetState,
 } = require('@instruction-engine/contracts');
+const {
+  buildProviderProjection,
+  loadProviderCatalog,
+  loadProviderInstallState,
+} = require('./providerCatalog');
 
 const CATALOG_PROJECTION_SCHEMA_VERSION = 1;
 const DEFAULT_SNAPSHOT_NAME = 'global';
@@ -270,52 +279,30 @@ function normalizeIdentityPart(value) {
 
 function inferExternalAssetOrigin(absPath, options = {}) {
   const namespaceInput = options.namespace || '';
-  const namespace =
-    normalizeAssetKey(options.kind === 'agent' ? 'agent' : 'skill', namespaceInput) ||
-    normalizeAssetKey(options.kind === 'agent' ? 'agent' : 'skill', options.detectedNamespace || '');
   const realPath = safeRealpath(absPath) || path.resolve(absPath);
-  const normalizedRealPath = toPosixPath(realPath);
-  const sourcePackageMatch = normalizedRealPath.match(/\/marketplace-cache\/([^/]+)\//i);
-  const pluginNamespaceMatch = normalizedRealPath.match(/\/plugins\/([^/]+)\//i);
-  const sourcePackage = normalizeIdentityPart(sourcePackageMatch?.[1] || '');
-  const pluginNamespace = normalizeAssetKey(
-    options.kind === 'agent' ? 'agent' : 'skill',
-    pluginNamespaceMatch?.[1] || '',
-  );
-  const resolvedNamespace = namespace || pluginNamespace;
-
-  let provider = '';
-  if (sourcePackage) {
-    provider = 'copilot-marketplace-plugin';
-  } else if (resolvedNamespace) {
-    provider = 'copilot-home-plugin';
-  } else if (options.kind === 'agent' && options.fileKind === 'plain-md') {
-    provider = 'copilot-home-plain-agent';
-  }
+  const provenance = inferAssetProvenance({
+    kind: options.kind === 'agent' ? 'agent' : 'skill',
+    resolvedPath: toPosixPath(realPath),
+    namespace:
+      normalizeAssetKey(options.kind === 'agent' ? 'agent' : 'skill', namespaceInput) ||
+      normalizeAssetKey(options.kind === 'agent' ? 'agent' : 'skill', options.detectedNamespace || ''),
+    fileKind: options.fileKind,
+    providers: options.providers || DEFAULT_PROVIDER_CATALOG,
+  });
 
   return {
-    isExternal: Boolean(provider),
-    provider: provider || undefined,
-    sourcePackage: sourcePackage || undefined,
-    namespace: resolvedNamespace || undefined,
+    isExternal: provenance.readOnly === true,
+    provider: provenance.providerId,
+    legacyProviderId: provenance.legacyProviderId,
+    sourcePackage: provenance.sourcePackage,
+    namespace: provenance.namespace,
+    provenance,
     realPath,
   };
 }
 
 function buildProviderQualifiedAssetKey(kind, logicalName, origin) {
-  const baseKey = normalizeAssetKey(kind, logicalName);
-  if (!baseKey || !origin?.isExternal) {
-    return baseKey;
-  }
-
-  const identityParts = [
-    normalizeIdentityPart(origin.provider),
-    normalizeIdentityPart(origin.sourcePackage),
-    normalizeIdentityPart(origin.namespace),
-    normalizeIdentityPart(baseKey),
-  ].filter(Boolean);
-
-  return identityParts.join('-');
+  return buildSharedProviderQualifiedAssetKey(kind, logicalName, origin?.provenance);
 }
 
 function mergeAliasKeys(...lists) {
@@ -333,11 +320,13 @@ function mergeAliasKeys(...lists) {
 
 function buildAssetAliasKeys(kind, assetKey, assetId, logicalName, origin) {
   const logicalAssetKey = normalizeAssetKey(kind, logicalName);
+  const legacyQualifiedKey = buildLegacyProviderQualifiedAssetKey(kind, logicalName, origin?.provenance);
   return mergeAliasKeys(
     buildAliasKeys(kind, assetKey, assetId),
     logicalAssetKey ? [logicalAssetKey] : [],
     origin?.namespace && logicalAssetKey ? [`${origin.namespace}/${logicalAssetKey}`] : [],
     origin?.sourcePackage && logicalAssetKey ? [`${origin.sourcePackage}/${logicalAssetKey}`] : [],
+    legacyQualifiedKey ? [legacyQualifiedKey] : [],
   );
 }
 
@@ -432,43 +421,69 @@ function isRecognizedAgentMarkdownFile(fileName, parsedAsset) {
   );
 }
 
+function parseSkillArtifact(relativeRoot, relativeSegments, skillRootPath) {
+  if (!Array.isArray(relativeSegments) || relativeSegments.length === 0) {
+    return null;
+  }
+
+  let logicalName = '';
+  let namespace = null;
+  if (relativeSegments.length === 1) {
+    logicalName = normalizeAssetKey('skill', relativeSegments[0]);
+  } else if (relativeSegments[0] === 'providers' && relativeSegments.length >= 3) {
+    namespace = normalizeAssetKey('skill', relativeSegments[1]);
+    logicalName = normalizeAssetKey('skill', relativeSegments[2]);
+  } else if (relativeSegments.length >= 2) {
+    namespace = normalizeAssetKey('skill', relativeSegments[0]);
+    logicalName = normalizeAssetKey('skill', relativeSegments[1]);
+  }
+
+  if (!logicalName) {
+    return null;
+  }
+
+  const skillContent =
+    (safeStat(path.join(skillRootPath, 'SKILL.md'))?.isFile() && {
+      contentPath: path.join(skillRootPath, 'SKILL.md'),
+      fileName: 'SKILL.md',
+    }) ||
+    (safeStat(path.join(skillRootPath, 'index.md'))?.isFile() && {
+      contentPath: path.join(skillRootPath, 'index.md'),
+      fileName: 'index.md',
+    });
+  if (!skillContent) {
+    return null;
+  }
+
+  return {
+    logicalName,
+    namespace,
+    rootPath: skillRootPath,
+    contentPath: skillContent.contentPath,
+    viewPath: `${relativeRoot}/${relativeSegments.join('/')}/${skillContent.fileName}`,
+  };
+}
+
 function discoverSkillArtifacts(baseDir, relativeRoot) {
   const discovered = [];
-  for (const entry of safeReadDir(baseDir, { withFileTypes: true })) {
-    const entryPath = path.join(baseDir, entry.name);
-    if (!isDirectoryLike(entry, entryPath)) {
-      continue;
-    }
-
-    const flatContentPath = path.join(entryPath, 'SKILL.md');
-    if (safeStat(flatContentPath)?.isFile()) {
-      discovered.push({
-        logicalName: normalizeAssetKey('skill', entry.name),
-        namespace: null,
-        rootPath: entryPath,
-        contentPath: flatContentPath,
-        viewPath: `${relativeRoot}/${entry.name}/SKILL.md`,
-      });
-    }
-
-    for (const childEntry of safeReadDir(entryPath, { withFileTypes: true })) {
-      const childPath = path.join(entryPath, childEntry.name);
-      if (!isDirectoryLike(childEntry, childPath)) {
+  const queue = [{ dirPath: baseDir, relativeSegments: [] }];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    for (const entry of safeReadDir(current.dirPath, { withFileTypes: true })) {
+      const entryPath = path.join(current.dirPath, entry.name);
+      if (!isDirectoryLike(entry, entryPath)) {
         continue;
       }
 
-      const childContentPath = path.join(childPath, 'SKILL.md');
-      if (!safeStat(childContentPath)?.isFile()) {
-        continue;
+      const relativeSegments = [...current.relativeSegments, entry.name];
+      const artifact = parseSkillArtifact(relativeRoot, relativeSegments, entryPath);
+      if (artifact) {
+        discovered.push(artifact);
       }
 
-      discovered.push({
-        logicalName: normalizeAssetKey('skill', childEntry.name),
-        namespace: normalizeAssetKey('skill', entry.name),
-        rootPath: childPath,
-        contentPath: childContentPath,
-        viewPath: `${relativeRoot}/${entry.name}/${childEntry.name}/SKILL.md`,
-      });
+      if (relativeSegments.length < 3) {
+        queue.push({ dirPath: entryPath, relativeSegments });
+      }
     }
   }
 
@@ -669,6 +684,8 @@ function createCatalogEntry({
   lifecycle,
   metadata,
   targeting,
+  provenance,
+  activation,
   overlay,
 }) {
   return {
@@ -684,6 +701,8 @@ function createCatalogEntry({
     lifecycle,
     metadata,
     targeting,
+    provenance,
+    activation,
     overlay,
   };
 }
@@ -729,6 +748,29 @@ function loadManifest(engineRoot) {
     manifest,
     manifestAssetIndex: buildManifestAssetIndex(manifest.assets),
     bundles: normalizeManifestBundles(manifest),
+  };
+}
+
+function buildProviderActivation(provider) {
+  if (!provider || typeof provider !== 'object') {
+    return undefined;
+  }
+  const defaults = provider.activationDefaults;
+  if (!defaults || typeof defaults !== 'object') {
+    return undefined;
+  }
+  return {
+    eligible: true,
+    scope: defaults.scope,
+    repoOverrides: defaults.repoOverrides,
+    plannerProfile: defaults.plannerProfile,
+    orchestrationPolicy: defaults.orchestrationPolicy,
+    defaultBundles: Array.isArray(defaults.defaultBundles)
+      ? defaults.defaultBundles
+      : Array.isArray(provider.defaultBundles)
+        ? provider.defaultBundles
+        : undefined,
+    preferredLoadMode: defaults.preferredLoadMode,
   };
 }
 
@@ -827,7 +869,7 @@ function createSourceEntries(engineRoot, metadataBySkill, warnings) {
   return { manifestPath, manifestAssetIndex, bundles, entries };
 }
 
-function scanUserAgents(copilotHome) {
+function scanUserAgents(copilotHome, providerCatalog = DEFAULT_PROVIDER_CATALOG) {
   const agentsDir = path.join(copilotHome, 'agents');
   return safeReadDir(agentsDir, { withFileTypes: true })
     .filter((entry) => isFileLike(entry, path.join(agentsDir, entry.name)))
@@ -839,10 +881,11 @@ function scanUserAgents(copilotHome) {
       }
 
       const logicalName = normalizeAssetKey('agent', parsedAsset.frontmatter.name || entry.name);
-      const origin = inferExternalAssetOrigin(contentPath, {
-        kind: 'agent',
-        fileKind: entry.name.toLowerCase().endsWith('.agent.md') ? 'agent-md' : 'plain-md',
-      });
+        const origin = inferExternalAssetOrigin(contentPath, {
+          kind: 'agent',
+          fileKind: entry.name.toLowerCase().endsWith('.agent.md') ? 'agent-md' : 'plain-md',
+          providers: providerCatalog,
+        });
       const assetKey = origin.isExternal
         ? buildProviderQualifiedAssetKey('agent', logicalName, origin)
         : logicalName;
@@ -878,6 +921,10 @@ function scanUserAgents(copilotHome) {
           viewPath,
           aliasKeys: buildAssetAliasKeys('agent', assetKey, assetId, logicalName, origin),
         },
+        provenance: origin.provenance,
+        activation: buildProviderActivation(
+          providerCatalog.providers.find((provider) => provider.id === origin.provenance?.providerId),
+        ),
       });
     })
     .filter(Boolean)
@@ -944,7 +991,7 @@ function buildSourceIndex(entries) {
   return { byId, byKeyAndKind };
 }
 
-function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
+function scanUserSkills(copilotHome, metadataBySkill, sourceIndex, providerCatalog = DEFAULT_PROVIDER_CATALOG) {
   const skillsDir = path.join(copilotHome, 'skills');
   const vaultDir = path.join(copilotHome, 'skills-vault');
   const entries = [];
@@ -953,6 +1000,7 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
     const origin = inferExternalAssetOrigin(skill.contentPath, {
       kind: 'skill',
       namespace: skill.namespace,
+      providers: providerCatalog,
     });
     const assetKey = origin.isExternal
       ? buildProviderQualifiedAssetKey('skill', skill.logicalName, origin)
@@ -1013,6 +1061,10 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
           aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
+        provenance: origin.provenance,
+        activation: buildProviderActivation(
+          providerCatalog.providers.find((provider) => provider.id === origin.provenance?.providerId),
+        ),
       }),
     );
   }
@@ -1021,6 +1073,7 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
     const origin = inferExternalAssetOrigin(skill.contentPath, {
       kind: 'skill',
       namespace: skill.namespace,
+      providers: providerCatalog,
     });
     const assetKey = origin.isExternal
       ? buildProviderQualifiedAssetKey('skill', skill.logicalName, origin)
@@ -1080,6 +1133,10 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
           aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
+        provenance: origin.provenance,
+        activation: buildProviderActivation(
+          providerCatalog.providers.find((provider) => provider.id === origin.provenance?.providerId),
+        ),
       }),
     );
   }
@@ -1087,7 +1144,12 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
   return entries;
 }
 
-function scanRepoLocalEntries(repoContext, metadataBySkill, sourceIndex) {
+function scanRepoLocalEntries(
+  repoContext,
+  metadataBySkill,
+  sourceIndex,
+  providerCatalog = DEFAULT_PROVIDER_CATALOG,
+) {
   if (!repoContext?.repoPath) {
     return [];
   }
@@ -1134,25 +1196,23 @@ function scanRepoLocalEntries(repoContext, metadataBySkill, sourceIndex) {
     );
   }
 
-  for (const entry of safeReadDir(skillsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const skillRoot = path.join(skillsDir, entry.name);
-    const contentPath = path.join(skillRoot, 'SKILL.md');
-    if (!safeStat(contentPath)?.isFile()) {
-      continue;
-    }
-
-    const assetKey = normalizeAssetKey('skill', entry.name);
-    const sourceEntry = sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
+  for (const skill of discoverSkillArtifacts(skillsDir, '.github/skills')) {
+    const origin = inferExternalAssetOrigin(skill.contentPath, {
+      kind: 'skill',
+      namespace: skill.namespace,
+      providers: providerCatalog,
+    });
+    const assetKey = origin.isExternal
+      ? buildProviderQualifiedAssetKey('skill', skill.logicalName, origin)
+      : skill.logicalName;
+    const sourceEntry = origin.isExternal ? null : sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
     const assetId = sourceEntry?.assetId || deriveAssetId('skill', assetKey);
-    const parsedAsset = parseMarkdownAsset(contentPath);
-    const metadataEntry = metadataBySkill.get(assetKey);
+    const parsedAsset = parseMarkdownAsset(skill.contentPath);
+    const metadataEntry = origin.isExternal ? null : metadataBySkill.get(skill.logicalName);
+    const pointer = isPointerFile(skill.contentPath);
     const loadMode = resolveSkillLoadMode({
       layer: 'repo-local',
-      hasPointerStub: false,
+      hasPointerStub: pointer,
       metadataEntry,
       parsedAsset,
       sourceEntry,
@@ -1169,31 +1229,42 @@ function scanRepoLocalEntries(repoContext, metadataBySkill, sourceIndex) {
           parsedAsset.title ||
           sourceEntry?.title ||
           String(metadataEntry?.name || '').trim() ||
-          humanizeAssetKey(assetKey),
+          humanizeAssetKey(skill.logicalName),
         description:
           parsedAsset.description ||
           sourceEntry?.description ||
           String(metadataEntry?.description || '').trim() ||
           undefined,
-        contentPath,
+        contentPath: skill.contentPath,
         installState: {
           availability: 'repo-local',
           isInstalled: true,
           isAutoLoaded: loadMode === 'always',
-          materialization: 'materialized',
+          materialization: pointer ? 'pointer' : 'materialized',
           loadMode,
-          contentHash: sha256PathHex(skillRoot) || undefined,
+          contentHash: sha256PathHex(skill.rootPath) || undefined,
           installedPaths: {
-            'repo-local': contentPath,
+            'repo-local': skill.contentPath,
           },
         },
         metadata: {
-          source: 'repo-local',
-          sourceRootPath: skillRoot,
+          source: origin.provider || 'repo-local',
+          provider: origin.provider || 'repo-local',
+          sourcePackage: origin.sourcePackage,
+          namespace: origin.namespace,
+          logicalName: skill.logicalName,
+          readOnly: origin.isExternal,
+          sourceRootPath: skill.rootPath,
+          resolvedRealPath: origin.realPath,
+          viewPath: skill.viewPath,
           triggersOn: metadataEntry?.triggersOn || parsedAsset.triggers,
-          aliasKeys: buildAliasKeys('skill', assetKey, assetId),
+          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
+        provenance: origin.provenance,
+        activation: buildProviderActivation(
+          providerCatalog.providers.find((provider) => provider.id === origin.provenance?.providerId),
+        ),
       }),
     );
   }
@@ -1524,6 +1595,8 @@ function buildCatalogProjection(options = {}) {
   const storage = resolveProjectionStorage(options);
   const repoContext = storage.repoContext;
   const warnings = [];
+  const providerCatalogScan = loadProviderCatalog(engineRoot);
+  const providerStateScan = loadProviderInstallState(storage.copilotHome);
 
   const metadataIndex = buildMetadataIndex(engineRoot);
   warnings.push(...metadataIndex.warnings);
@@ -1531,11 +1604,21 @@ function buildCatalogProjection(options = {}) {
   const sourceScan = createSourceEntries(engineRoot, metadataIndex.metadataBySkill, warnings);
   const sourceIndex = buildSourceIndex(sourceScan.entries);
   const userEntries = [
-    ...scanUserAgents(storage.copilotHome),
+    ...scanUserAgents(storage.copilotHome, providerCatalogScan.providerCatalog),
     ...scanUserPrompts(storage.copilotHome),
-    ...scanUserSkills(storage.copilotHome, metadataIndex.metadataBySkill, sourceIndex),
+    ...scanUserSkills(
+      storage.copilotHome,
+      metadataIndex.metadataBySkill,
+      sourceIndex,
+      providerCatalogScan.providerCatalog,
+    ),
   ];
-  const repoLocalEntries = scanRepoLocalEntries(repoContext, metadataIndex.metadataBySkill, sourceIndex);
+  const repoLocalEntries = scanRepoLocalEntries(
+    repoContext,
+    metadataIndex.metadataBySkill,
+    sourceIndex,
+    providerCatalogScan.providerCatalog,
+  );
   const overlayScan = buildRepoOverlayEntries(storage.copilotHome, repoContext, [
     ...sourceScan.entries,
     ...userEntries,
@@ -1556,6 +1639,11 @@ function buildCatalogProjection(options = {}) {
     sourceScan.manifestAssetIndex,
     warnings,
   );
+  const providers = buildProviderProjection(
+    providerCatalogScan.providerCatalog,
+    providerStateScan.state,
+    effectiveAssets,
+  );
 
   return {
     schemaVersion: CATALOG_PROJECTION_SCHEMA_VERSION,
@@ -1568,11 +1656,14 @@ function buildCatalogProjection(options = {}) {
       manifestPath: sourceScan.manifestPath,
       metadataIndexPath: metadataIndex.metadataIndexPath,
       registryPath: overlayScan.registryPath,
+      providerCatalogPath: providerCatalogScan.providerCatalogPath,
+      providerStatePath: providerStateScan.statePath,
     },
     warnings,
     entries,
     effectiveAssets,
     bundles,
+    providers,
     stats: buildStats(entries, effectiveAssets, bundles),
   };
 }

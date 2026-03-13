@@ -1,6 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const {
+  DEFAULT_PROVIDER_CATALOG,
+  deriveProviderQualifiedAssetId,
+  inferAssetProvenance,
+} = require('@instruction-engine/contracts');
 
 const {
   appendCatalogAuditEvent,
@@ -342,26 +347,20 @@ function normalizeIdentityPart(value) {
 
 function inferExternalOrigin(absPath, options = {}) {
   const realPath = safeRealpath(absPath) || path.resolve(absPath);
-  const normalizedRealPath = toPosixPath(realPath);
-  const sourcePackageMatch = normalizedRealPath.match(/\/marketplace-cache\/([^/]+)\//i);
-  const pluginNamespaceMatch = normalizedRealPath.match(/\/plugins\/([^/]+)\//i);
-  const namespace = String(options.namespace || pluginNamespaceMatch?.[1] || '').trim();
-  const sourcePackage = normalizeIdentityPart(sourcePackageMatch?.[1] || '');
-
-  let provider = '';
-  if (sourcePackage) {
-    provider = 'copilot-marketplace-plugin';
-  } else if (namespace) {
-    provider = 'copilot-home-plugin';
-  } else if (options.fileKind === 'plain-md') {
-    provider = 'copilot-home-plain-agent';
-  }
+  const provenance = inferAssetProvenance({
+    kind: options.kind || 'skill',
+    resolvedPath: toPosixPath(realPath),
+    namespace: options.namespace,
+    fileKind: options.fileKind,
+    providers: DEFAULT_PROVIDER_CATALOG,
+  });
 
   return {
-    isExternal: Boolean(provider),
-    provider: provider || undefined,
-    sourcePackage: sourcePackage || undefined,
-    namespace: namespace || undefined,
+    isExternal: provenance.readOnly === true,
+    provider: provenance.providerId,
+    sourcePackage: provenance.sourcePackage,
+    namespace: provenance.namespace,
+    provenance,
   };
 }
 
@@ -369,13 +368,7 @@ function buildProviderQualifiedId(type, logicalName, origin) {
   if (!origin?.isExternal) {
     return deriveAssetId(type, logicalName);
   }
-  const parts = [
-    normalizeIdentityPart(origin.provider),
-    normalizeIdentityPart(origin.sourcePackage),
-    normalizeIdentityPart(origin.namespace),
-    normalizeIdentityPart(logicalName),
-  ].filter(Boolean);
-  return deriveAssetId(type, parts.join('-'));
+  return deriveProviderQualifiedAssetId(type, logicalName, origin.provenance);
 }
 
 function detectAgentFrontmatter(text) {
@@ -426,45 +419,71 @@ function isRecognizedAgentFile(entryName, absPath) {
   };
 }
 
+function parseSkillArtifact(rootName, relativeSegments, skillRootPath) {
+  if (!Array.isArray(relativeSegments) || relativeSegments.length === 0) {
+    return null;
+  }
+
+  let namespace;
+  let name;
+  if (relativeSegments.length === 1) {
+    [name] = relativeSegments;
+  } else if (relativeSegments[0] === 'providers' && relativeSegments.length >= 3) {
+    namespace = relativeSegments[1];
+    name = relativeSegments[2];
+  } else if (relativeSegments.length >= 2) {
+    namespace = relativeSegments[0];
+    name = relativeSegments[1];
+  }
+
+  if (!name) {
+    return null;
+  }
+
+  const skillContent =
+    (safeStat(path.join(skillRootPath, 'SKILL.md'))?.isFile() && {
+      absPath: path.join(skillRootPath, 'SKILL.md'),
+      fileName: 'SKILL.md',
+    }) ||
+    (safeStat(path.join(skillRootPath, 'index.md'))?.isFile() && {
+      absPath: path.join(skillRootPath, 'index.md'),
+      fileName: 'index.md',
+    });
+  if (!skillContent) {
+    return null;
+  }
+
+  return {
+    name,
+    namespace,
+    absPath: skillContent.absPath,
+    viewPath: `${rootName}/${relativeSegments.join('/')}/${skillContent.fileName}`,
+  };
+}
+
 function discoverSkillInstallations(home, rootName) {
   const baseDir = path.join(path.resolve(home), rootName);
   const discovered = [];
   try {
-    const entries = safeReadDir(baseDir, { withFileTypes: true });
-    for (const entry of entries) {
-      const entryPath = path.join(baseDir, entry.name);
-      if (!isDirectoryLike(entry, entryPath)) {
-        continue;
-      }
-
-      const flatContentPath = path.join(entryPath, 'SKILL.md');
-      if (safeStat(flatContentPath)?.isFile()) {
-        discovered.push({
-          name: entry.name,
-          namespace: undefined,
-          absPath: flatContentPath,
-          viewPath: `${rootName}/${entry.name}/SKILL.md`,
-        });
-      }
-
-      const childEntries = safeReadDir(entryPath, { withFileTypes: true });
-      for (const childEntry of childEntries) {
-        const childPath = path.join(entryPath, childEntry.name);
-        if (!isDirectoryLike(childEntry, childPath)) {
+    const queue = [{ dirPath: baseDir, segments: [] }];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      const entries = safeReadDir(current.dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const entryPath = path.join(current.dirPath, entry.name);
+        if (!isDirectoryLike(entry, entryPath)) {
           continue;
         }
 
-        const childContentPath = path.join(childPath, 'SKILL.md');
-        if (!safeStat(childContentPath)?.isFile()) {
-          continue;
+        const nextSegments = [...current.segments, entry.name];
+        const artifact = parseSkillArtifact(rootName, nextSegments, entryPath);
+        if (artifact) {
+          discovered.push(artifact);
         }
 
-        discovered.push({
-          name: childEntry.name,
-          namespace: entry.name,
-          absPath: childContentPath,
-          viewPath: `${rootName}/${entry.name}/${childEntry.name}/SKILL.md`,
-        });
+        if (nextSegments.length < 3) {
+          queue.push({ dirPath: entryPath, segments: nextSegments });
+        }
       }
     }
   } catch {
@@ -495,6 +514,7 @@ function listInstalledAgents(home) {
         const detected = isRecognizedAgentFile(e.name, absPath);
         if (!detected.recognized) return null;
         const origin = inferExternalOrigin(absPath, {
+          kind: 'agent',
           fileKind: detected.fileKind,
         });
         return {
@@ -518,6 +538,7 @@ function listInstalledAgents(home) {
 function listInstalledSkills(home) {
   return discoverSkillInstallations(home, 'skills').map((skill) => {
     const origin = inferExternalOrigin(skill.absPath, {
+      kind: 'skill',
       namespace: skill.namespace,
     });
     return {
@@ -537,6 +558,7 @@ function listInstalledSkills(home) {
 function listVaultSkills(home) {
   return discoverSkillInstallations(home, 'skills-vault').map((skill) => {
     const origin = inferExternalOrigin(skill.absPath, {
+      kind: 'skill',
       namespace: skill.namespace,
     });
     return {

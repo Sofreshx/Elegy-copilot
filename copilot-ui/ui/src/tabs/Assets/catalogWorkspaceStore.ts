@@ -1,4 +1,5 @@
 import {
+  updateCatalogActivation,
   createCatalogAsset,
   deleteCatalogAsset,
   disableCatalogAsset,
@@ -7,6 +8,7 @@ import {
   getCatalogAssetDetail,
   getCatalogAssets,
   getCatalogAuditEvents,
+  getCatalogBundles,
   getCatalogRepos,
   getCatalogSummary,
   getRuntimeCatalogHealth,
@@ -21,9 +23,11 @@ import {
   updateCatalogAsset,
 } from '../../lib/api';
 import type {
+  CatalogActivationMutationResponse,
   CatalogAssetDetailResponse,
   CatalogAssetMutationResponse,
   CatalogAuditEvent,
+  CatalogBundle,
   CatalogEffectiveAsset,
   CatalogEntry,
   CatalogRepoInventoryEntry,
@@ -60,6 +64,9 @@ export interface CatalogWorkspaceState {
   filters: CatalogWorkspaceFilters;
   summary: CatalogSnapshotEnvelope | null;
   assets: CatalogEffectiveAsset[];
+  bundles: CatalogBundle[];
+  bundlesError: string | null;
+  selectedBundleId: string | null;
   selectedAssetId: string | null;
   selectedAsset: CatalogEffectiveAsset | null;
   selectedEntries: CatalogEntry[];
@@ -108,6 +115,9 @@ const INITIAL_STATE: CatalogWorkspaceState = {
   filters: INITIAL_FILTERS,
   summary: null,
   assets: [],
+  bundles: [],
+  bundlesError: null,
+  selectedBundleId: null,
   selectedAssetId: null,
   selectedAsset: null,
   selectedEntries: [],
@@ -141,6 +151,12 @@ function toErrorMessage(error: unknown, fallback: string): string {
 function normalizeAssets(input: CatalogEffectiveAsset[] | undefined): CatalogEffectiveAsset[] {
   return Array.isArray(input)
     ? input.filter((asset): asset is CatalogEffectiveAsset => Boolean(asset?.assetId))
+    : [];
+}
+
+function normalizeBundles(input: CatalogBundle[] | undefined): CatalogBundle[] {
+  return Array.isArray(input)
+    ? input.filter((bundle): bundle is CatalogBundle => Boolean(bundle?.bundleId))
     : [];
 }
 
@@ -188,6 +204,21 @@ function normalizeRepoInventory(input: CatalogReposListResponse | null | undefin
       : [],
     selectedRepo: input.selectedRepo ?? null,
   };
+}
+
+function resolveSelectedBundleId(currentSelectedBundleId: string | null, bundles: CatalogBundle[]): string | null {
+  if (currentSelectedBundleId && bundles.some((bundle) => bundle.bundleId === currentSelectedBundleId)) {
+    return currentSelectedBundleId;
+  }
+
+  const activeBundle = bundles.find((bundle) => String(bundle.activationStatus || '').trim().toLowerCase() === 'active')
+    ?? bundles.find((bundle) => String(bundle.status || '').trim().toLowerCase() === 'active');
+  if (activeBundle?.bundleId) {
+    return activeBundle.bundleId;
+  }
+
+  const recommendedBundle = bundles.find((bundle) => bundle.defaultRecommended);
+  return recommendedBundle?.bundleId ?? bundles[0]?.bundleId ?? null;
 }
 
 function toCopilotRelativePath(input: string | undefined): string | null {
@@ -423,6 +454,7 @@ function createCatalogWorkspaceStore() {
       ...state,
       loading: true,
       error: null,
+      bundlesError: null,
       summaryError: null,
       healthError: null,
       repoInventoryLoading: true,
@@ -450,9 +482,10 @@ function createCatalogWorkspaceStore() {
       ...(resolvedRepo.activeRepoPath ? { repoPath: resolvedRepo.activeRepoPath } : {}),
     };
 
-    const [summaryResult, assetsResult, healthResult] = await Promise.allSettled([
+    const [summaryResult, assetsResult, bundlesResult, healthResult] = await Promise.allSettled([
       getCatalogSummary(requestSelector),
       getCatalogAssets(requestSelector),
+      getCatalogBundles(requestSelector),
       getRuntimeCatalogHealth(requestSelector),
     ]);
 
@@ -464,11 +497,16 @@ function createCatalogWorkspaceStore() {
       assetsResult.status === 'fulfilled'
         ? normalizeAssets(assetsResult.value.assets)
         : [];
+    const bundles =
+      bundlesResult.status === 'fulfilled'
+        ? normalizeBundles(bundlesResult.value.bundles)
+        : [];
 
     const selectedAssetId =
       assets.some((asset) => asset.assetId === store.getState().selectedAssetId)
         ? store.getState().selectedAssetId
         : assets[0]?.assetId ?? null;
+    const selectedBundleId = resolveSelectedBundleId(store.getState().selectedBundleId, bundles);
 
     store.setState((state) => ({
       ...state,
@@ -488,6 +526,12 @@ function createCatalogWorkspaceStore() {
         summaryResult.status === 'rejected'
           ? toErrorMessage(summaryResult.reason, 'Unable to load catalog summary.')
           : null,
+      bundles,
+      bundlesError:
+        bundlesResult.status === 'rejected'
+          ? toErrorMessage(bundlesResult.reason, 'Unable to load catalog bundles.')
+          : null,
+      selectedBundleId,
       runtimeHealth:
         healthResult.status === 'fulfilled'
           ? healthResult.value
@@ -679,6 +723,70 @@ function createCatalogWorkspaceStore() {
       `Disabling ${payload.assetKey || payload.assetId || 'asset'} for the selected repo...`,
       () => disableCatalogAsset(payload),
       (response) => `Disabled ${response.assetId || payload.assetKey || payload.assetId || 'asset'} for the selected repo.`
+    );
+  }
+
+  async function runActivationMutation(
+    startMessage: string,
+    mutate: () => Promise<CatalogActivationMutationResponse>,
+    successMessage: (response: CatalogActivationMutationResponse) => string
+  ): Promise<CatalogActivationMutationResponse> {
+    store.setState((state) => ({
+      ...state,
+      mutating: true,
+      error: null,
+      installMessage: startMessage,
+    }));
+
+    try {
+      const response = await mutate();
+      await loadWorkspace();
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        installMessage: successMessage(response),
+      }));
+      return response;
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        error: toErrorMessage(error, 'Activation update failed.'),
+        installMessage: `${startMessage} failed.`,
+      }));
+      throw error;
+    }
+  }
+
+  async function activateBundle(bundleId: string, repoPath?: string): Promise<CatalogActivationMutationResponse> {
+    return runActivationMutation(
+      `Activating bundle "${bundleId}"${repoPath ? ' for the selected repo' : ' for user-global defaults'}...`,
+      () => updateCatalogActivation({ action: 'activate-bundle', bundleId, repoPath }),
+      () => `Activated bundle "${bundleId}"${repoPath ? ' for the selected repo.' : ' in user-global defaults.'}`
+    );
+  }
+
+  async function deactivateBundle(bundleId: string, repoPath?: string): Promise<CatalogActivationMutationResponse> {
+    return runActivationMutation(
+      `Deactivating bundle "${bundleId}"${repoPath ? ' for the selected repo' : ' for user-global defaults'}...`,
+      () => updateCatalogActivation({ action: 'deactivate-bundle', bundleId, repoPath }),
+      () => `Deactivated bundle "${bundleId}"${repoPath ? ' for the selected repo.' : ' in user-global defaults.'}`
+    );
+  }
+
+  async function setPlannerProfile(plannerProfile: string, repoPath?: string): Promise<CatalogActivationMutationResponse> {
+    return runActivationMutation(
+      `Saving planner profile "${plannerProfile}"${repoPath ? ' for the selected repo' : ' for user-global defaults'}...`,
+      () => updateCatalogActivation({ action: 'set-profile', plannerProfile, repoPath }),
+      () => `Saved planner profile "${plannerProfile}"${repoPath ? ' for the selected repo.' : ' in user-global defaults.'}`
+    );
+  }
+
+  async function clearRepoActivationOverride(repoPath: string): Promise<CatalogActivationMutationResponse> {
+    return runActivationMutation(
+      'Clearing repo activation override...',
+      () => updateCatalogActivation({ action: 'clear-repo-override', repoPath }),
+      () => 'Cleared the repo activation override.'
     );
   }
 
@@ -1008,6 +1116,13 @@ function createCatalogWorkspaceStore() {
     }));
   }
 
+  function selectBundle(bundleId: string | null): void {
+    store.setState((state) => ({
+      ...state,
+      selectedBundleId: bundleId,
+    }));
+  }
+
   function setSearchQuery(searchQuery: string): void {
     store.setState((state) => ({
       ...state,
@@ -1041,6 +1156,10 @@ function createCatalogWorkspaceStore() {
     installAsset,
     enableAsset,
     disableAsset,
+    activateBundle,
+    deactivateBundle,
+    setPlannerProfile,
+    clearRepoActivationOverride,
     registerRepo,
     unregisterRepo,
     refreshRepo,
@@ -1049,6 +1168,7 @@ function createCatalogWorkspaceStore() {
     applyRepoContext,
     clearRepoContext,
     setFilters,
+    selectBundle,
     selectAsset,
     setSearchQuery,
     setSearchIncludeVaultOnly,

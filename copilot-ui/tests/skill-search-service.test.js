@@ -53,6 +53,19 @@ async function run() {
 
   try {
     writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
+      bundles: [
+        {
+          id: 'frontend-pack',
+          title: 'Frontend Pack',
+          assetIds: ['skill-react-query'],
+          defaultRecommended: true,
+        },
+        {
+          id: 'backend-pack',
+          title: 'Backend Pack',
+          assetIds: ['skill-testing-dotnet-unit'],
+        },
+      ],
       assets: [
         {
           id: 'skill-react-query',
@@ -229,6 +242,45 @@ async function run() {
       );
     });
 
+    await test('searchSkills enforces active bundle eligibility by default and allows explicit override', async () => {
+      const defaultResponse = searchSkills(
+        {
+          query: 'xunit unit test',
+          repoId: repoStorage.repoContext.repoId,
+          repoPath,
+          limit: 5,
+        },
+        {
+          snapshot,
+          copilotHome,
+          persistTelemetry: false,
+        },
+      );
+
+      assert.strictEqual(defaultResponse.results.length, 0);
+      assert.strictEqual(defaultResponse.routingPolicy.mode, 'eligible-only');
+      assert.ok(!defaultResponse.routingPolicy.eligibleAssetIds.includes('skill-testing-dotnet-unit'));
+
+      const overrideResponse = searchSkills(
+        {
+          query: 'xunit unit test',
+          repoId: repoStorage.repoContext.repoId,
+          repoPath,
+          limit: 5,
+          overrideRoutingPolicy: true,
+        },
+        {
+          snapshot,
+          copilotHome,
+          persistTelemetry: false,
+        },
+      );
+
+      assert.ok(overrideResponse.results.length >= 1, 'expected explicit override to return the backend skill');
+      assert.strictEqual(overrideResponse.results[0].assetId, 'skill-testing-dotnet-unit');
+      assert.strictEqual(overrideResponse.routingPolicy.mode, 'explicit-override');
+    });
+
     await test('resolveSkill keeps deterministic lexical tie-breaking', async () => {
       const minimalSnapshot = {
         effectiveAssets: [
@@ -301,6 +353,7 @@ async function run() {
         {
           query: 'brainstorming',
           limit: 5,
+          overrideRoutingPolicy: true,
         },
         {
           snapshot,

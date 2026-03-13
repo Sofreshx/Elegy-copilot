@@ -1,6 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { AssetCatalogEntry } from '@instruction-engine/contracts';
+import {
+	type AssetCatalogEntry,
+	DEFAULT_PROVIDER_CATALOG,
+	buildProviderQualifiedAssetKey,
+	inferAssetProvenance,
+} from '@instruction-engine/contracts';
 import * as vscode from 'vscode';
 import {
 	createCatalogEntry,
@@ -21,6 +26,7 @@ interface ParsedAgentCandidate {
 	openPath: string;
 	fileName: string;
 	name: string;
+	assetKey: string;
 	description?: string;
 	role?: string;
 	visibility?: string;
@@ -31,6 +37,8 @@ interface ParsedAgentCandidate {
 	repoPath: string;
 	layer: 'user-installed' | 'repo-local';
 	installState: NonNullable<AssetCatalogEntry['installState']>;
+	provenance?: AssetCatalogEntry['provenance'];
+	activation?: AssetCatalogEntry['activation'];
 }
 
 function isInstructionEngineFolder(folder: vscode.WorkspaceFolder): boolean {
@@ -75,6 +83,50 @@ function normalizeKey(value: string): string {
 	return value.trim().toLowerCase();
 }
 
+function safeRealpath(absPath: string): string {
+	try {
+		if (typeof fs.realpathSync.native === 'function') {
+			return fs.realpathSync.native(absPath);
+		}
+		return fs.realpathSync(absPath);
+	} catch {
+		return path.resolve(absPath);
+	}
+}
+
+function toPosixPath(inputPath: string): string {
+	return String(inputPath || '').replace(/\\/g, '/');
+}
+
+function buildProviderActivation(provenance: AssetCatalogEntry['provenance']): AssetCatalogEntry['activation'] {
+	const provider = DEFAULT_PROVIDER_CATALOG.providers.find(
+		(candidate) => candidate.id === provenance?.providerId
+	);
+	if (!provider?.activationDefaults) {
+		return undefined;
+	}
+	const defaults = provider.activationDefaults;
+	return {
+		eligible: true,
+		scope: defaults.scope,
+		repoOverrides: defaults.repoOverrides,
+		plannerProfile: defaults.plannerProfile,
+		orchestrationPolicy: defaults.orchestrationPolicy,
+		defaultBundles:
+			Array.isArray(defaults.defaultBundles) && defaults.defaultBundles.length > 0
+				? defaults.defaultBundles
+				: Array.isArray(provider.defaultBundles)
+					? provider.defaultBundles
+					: undefined,
+		preferredLoadMode: defaults.preferredLoadMode
+	};
+}
+
+function extractImportedProviderNamespace(fileName: string): string | undefined {
+	const match = fileName.match(/^providers--(.+?)--.+(?:\.agent)?\.md$/i);
+	return match?.[1]?.trim().toLowerCase() || undefined;
+}
+
 function listAgentFiles(agentsDir: string): string[] {
 	if (!existsDir(agentsDir)) {
 		return [];
@@ -87,7 +139,7 @@ function listAgentFiles(agentsDir: string): string[] {
 			continue;
 		}
 		const lower = entry.name.toLowerCase();
-		if (!lower.endsWith('.agent.md')) {
+		if (!lower.endsWith('.md') || lower.endsWith('.prompt.md')) {
 			continue;
 		}
 		files.push(path.join(agentsDir, entry.name));
@@ -110,6 +162,12 @@ function parseAgentCandidate(
 	const contentStart = readFileStart(filePath);
 	const fm = tryParseYamlFrontMatter(contentStart)?.fm ?? {};
 	const fileName = path.basename(filePath);
+	const lowerFileName = fileName.toLowerCase();
+	const isAgentMarkdown = lowerFileName.endsWith('.agent.md');
+	const bodyText = contentStart.replace(/^---[\s\S]*?\r?\n---\r?\n?/, '').trim();
+	if (!isAgentMarkdown && !(normalizeString(fm['name']) && bodyText)) {
+		return undefined;
+	}
 
 	const rawInfer = fm['infer'];
 	let inferStr: string | undefined;
@@ -129,11 +187,25 @@ function parseAgentCandidate(
 		disableModelInvocation = inferStr === 'agent' ? false : true;
 	}
 
+	const namespace = extractImportedProviderNamespace(fileName);
+	const provenance = inferAssetProvenance({
+		kind: 'agent',
+		resolvedPath: toPosixPath(safeRealpath(filePath)),
+		namespace,
+		fileKind: isAgentMarkdown ? 'agent-md' : 'plain-md',
+		providers: DEFAULT_PROVIDER_CATALOG
+	});
+	const assetKey = provenance.providerId
+		? buildProviderQualifiedAssetKey('agent', normalizeString(fm['name']) ?? fileName, provenance)
+		: fileName;
+	const activation = buildProviderActivation(provenance);
+
 	return {
 		path: filePath,
 		openPath: filePath,
 		fileName,
 		name: normalizeString(fm['name']) ?? fileName,
+		assetKey,
 		description: normalizeString(fm['description']),
 		role: normalizeString(fm['role']),
 		visibility: normalizeString(fm['visibility']),
@@ -152,7 +224,9 @@ function parseAgentCandidate(
 				layer === 'repo-local'
 					? { 'repo-local': filePath }
 					: { 'user-installed': filePath }
-		}
+		},
+		provenance,
+		activation
 	};
 }
 
@@ -162,13 +236,15 @@ function toCatalogEntry(
 ): AssetCatalogEntry {
 	return createCatalogEntry({
 		kind: 'agent',
-		assetKey: candidate.fileName,
+		assetKey: candidate.assetKey,
 		title: candidate.name,
 		description: candidate.description,
 		layer: candidate.layer,
 		scope,
 		contentPath: candidate.path,
 		installState: candidate.installState,
+		provenance: candidate.provenance,
+		activation: candidate.activation,
 		metadata: {
 			fileName: candidate.fileName,
 			path: candidate.path,
@@ -178,7 +254,11 @@ function toCatalogEntry(
 			infer: candidate.infer,
 			userInvocable: candidate.userInvocable,
 			disableModelInvocation: candidate.disableModelInvocation,
-			source: candidate.source
+			source: candidate.source,
+			provider: candidate.provenance?.providerId,
+			sourcePackage: candidate.provenance?.sourcePackage,
+			namespace: candidate.provenance?.namespace,
+			readOnly: candidate.provenance?.readOnly
 		}
 	});
 }
@@ -225,11 +305,17 @@ function buildAgentEntry(
 		assetKey: effectiveState.assetKey,
 		catalogLayer: effectiveState.selectedLayer,
 		installState: effectiveState.installState,
+		provenance: effectiveState.provenance,
+		activation: effectiveState.activation,
 		overlay: effectiveState.overlay,
 		effectiveState,
 		contributingLayers,
 		hiddenFromAutoLoad: effectiveState.hiddenFromAutoLoad,
-		overridden: effectiveState.overridden
+		overridden: effectiveState.overridden,
+		provider: effectiveState.provenance?.providerId,
+		sourcePackage: effectiveState.provenance?.sourcePackage,
+		namespace: effectiveState.provenance?.namespace,
+		readOnly: effectiveState.provenance?.readOnly
 	};
 }
 

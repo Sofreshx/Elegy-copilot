@@ -352,6 +352,73 @@ export interface CatalogEffectiveAsset {
   [key: string]: unknown;
 }
 
+export interface CatalogBundleMember {
+  assetId: string;
+  assetKey?: string;
+  kind?: string;
+  title?: string;
+  description?: string;
+  available?: boolean;
+  installed?: boolean;
+  enabled?: boolean;
+  missing?: boolean;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundleStats {
+  memberCount?: number;
+  availableCount?: number;
+  installedCount?: number;
+  enabledCount?: number;
+  missingCount?: number;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundle {
+  bundleId: string;
+  title?: string;
+  description?: string;
+  installTarget?: string;
+  activationScope?: string;
+  activationStatus?: string;
+  activationSource?: string | null;
+  materialization?: string;
+  defaultRecommended?: boolean;
+  dependsOn?: string[];
+  status?: string;
+  selected?: boolean;
+  members?: CatalogBundleMember[];
+  stats?: CatalogBundleStats;
+  [key: string]: unknown;
+}
+
+export interface CatalogActivationLayerState {
+  exists?: boolean;
+  active?: boolean;
+  path?: string | null;
+  plannerProfile?: string | null;
+  orchestrationPolicy?: string | null;
+  activeBundleIds?: string[] | null;
+  updatedAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogActivationState {
+  schemaVersion?: number;
+  plannerProfile: string;
+  plannerProfileSource?: string;
+  orchestrationPolicy: string;
+  orchestrationPolicySource?: string;
+  activeBundleIds: string[];
+  bundleSource?: string;
+  availableBundleIds?: string[];
+  availablePlannerProfiles?: string[];
+  managedImportProviderIds?: string[];
+  globalDefaults?: CatalogActivationLayerState;
+  repoOverride?: CatalogActivationLayerState | null;
+  [key: string]: unknown;
+}
+
 export interface CatalogSnapshotWarningSummary {
   count: number;
   items: unknown[];
@@ -388,6 +455,21 @@ export interface CatalogSnapshotStats {
   installedCount?: number;
   recommendedCount?: number;
   overriddenCount?: number;
+  bundles?: {
+    totalCount?: number;
+    defaultRecommendedCount?: number;
+    activeCount?: number;
+    installedCount?: number;
+    availableCount?: number;
+    partialCount?: number;
+    missingCount?: number;
+    memberCount?: number;
+    availableMemberCount?: number;
+    installedMemberCount?: number;
+    enabledMemberCount?: number;
+    missingMemberCount?: number;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
@@ -396,6 +478,7 @@ export interface CatalogSnapshotEnvelope {
   generatedAt: string | null;
   readMode?: string;
   repoContext?: CatalogRepoContext | null;
+  activation?: CatalogActivationState;
   storage?: {
     catalogRoot?: string;
     snapshotPath?: string;
@@ -439,6 +522,16 @@ export interface CatalogAssetDetailResponse {
   asset?: CatalogEffectiveAsset;
   entries?: CatalogEntry[];
   snapshot?: CatalogSnapshotEnvelope;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundlesResponse {
+  kind?: string;
+  deterministic?: boolean;
+  filters?: Record<string, unknown>;
+  count: number;
+  snapshot?: CatalogSnapshotEnvelope;
+  bundles: CatalogBundle[];
   [key: string]: unknown;
 }
 
@@ -592,6 +685,21 @@ export interface CatalogAssetMutationResponse {
   registryHash?: string | null;
   repoId?: string | null;
   installedPaths?: string[];
+  refreshes?: CatalogMutationRefreshResult[];
+  audit?: CatalogMutationAuditResult;
+  [key: string]: unknown;
+}
+
+export interface CatalogActivationMutationResponse {
+  kind?: string;
+  deterministic?: boolean;
+  action?: string;
+  bundleId?: string;
+  plannerProfile?: string;
+  orchestrationPolicy?: string;
+  activeBundleIds?: string[];
+  scope?: CatalogScope;
+  repoId?: string | null;
   refreshes?: CatalogMutationRefreshResult[];
   audit?: CatalogMutationAuditResult;
   [key: string]: unknown;

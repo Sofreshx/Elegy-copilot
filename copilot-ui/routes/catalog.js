@@ -4,6 +4,11 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+const {
+  applyActivationToBundles,
+  buildRoutingPolicySnapshot,
+  resolveCatalogActivationState,
+} = require('../lib/catalogActivationState');
 const catalogProjectionLib = require('../lib/catalogProjectionService');
 const catalogMutationLib = require('../lib/catalogMutationService');
 const repoInventoryLib = require('../lib/repoInventoryService');
@@ -196,6 +201,31 @@ function buildCatalogOptions(ctx, selector) {
   };
 }
 
+function buildActivationStateForProjection(ctx, projectionContext) {
+  const repoPath = projectionContext?.snapshot?.repoContext?.repoPath || projectionContext?.storage?.repoContext?.repoPath || null;
+  if (!projectionContext?.snapshot) {
+    return null;
+  }
+  return resolveCatalogActivationState({
+    snapshot: projectionContext.snapshot,
+    copilotHome: ctx.copilotHomeAbs,
+    repoPath,
+  });
+}
+
+function buildRoutingPolicyForProjection(ctx, projectionContext, activationState = null) {
+  const repoPath = projectionContext?.snapshot?.repoContext?.repoPath || projectionContext?.storage?.repoContext?.repoPath || null;
+  if (!projectionContext?.snapshot) {
+    return null;
+  }
+  return buildRoutingPolicySnapshot({
+    snapshot: projectionContext.snapshot,
+    activationState: activationState || buildActivationStateForProjection(ctx, projectionContext),
+    copilotHome: ctx.copilotHomeAbs,
+    repoPath,
+  });
+}
+
 function createCatalogRuntimeState() {
   return {
     status: 'idle',
@@ -308,6 +338,8 @@ function buildSnapshotEnvelope(snapshot, projectionContext, deps, runtimeState, 
     manifest: describeFile(snapshot?.inputs?.manifestPath, deps.fs),
     metadataIndex: describeFile(snapshot?.inputs?.metadataIndexPath, deps.fs),
     registry: describeFile(snapshot?.inputs?.registryPath, deps.fs),
+    providerCatalog: describeFile(snapshot?.inputs?.providerCatalogPath, deps.fs),
+    providerState: describeFile(snapshot?.inputs?.providerStatePath, deps.fs),
     snapshot: describeFile(projectionContext.storage.snapshotPath, deps.fs),
   };
   const warnings = summarizeWarnings(snapshot);
@@ -329,6 +361,8 @@ function buildSnapshotEnvelope(snapshot, projectionContext, deps, runtimeState, 
       manifest: inputFiles.manifest,
       metadataIndex: inputFiles.metadataIndex,
       registry: inputFiles.registry,
+      providerCatalog: inputFiles.providerCatalog,
+      providerState: inputFiles.providerState,
     }),
     rebuild: {
       ...runtimeState,
@@ -477,8 +511,13 @@ function buildSearchExplanations(effectiveState, query) {
   return explanations;
 }
 
-function buildSearchResults(snapshot, request) {
+function buildSearchResults(snapshot, request, routingPolicy = null) {
   const list = Array.isArray(snapshot?.effectiveAssets) ? snapshot.effectiveAssets : [];
+  const eligibleAssetIds = new Set(
+    !request.overrideRoutingPolicy && Array.isArray(routingPolicy?.eligibleAssetIds)
+      ? routingPolicy.eligibleAssetIds
+      : []
+  );
   const filtered = list.filter((asset) => {
     if (!asset || typeof asset !== 'object') {
       return false;
@@ -496,6 +535,12 @@ function buildSearchResults(snapshot, request) {
       return false;
     }
     if (!request.includeVaultOnly && asset.installState?.availability === 'vault-only') {
+      return false;
+    }
+    if (eligibleAssetIds.size > 0 && !eligibleAssetIds.has(asset.assetId)) {
+      return false;
+    }
+    if (!request.overrideRoutingPolicy && routingPolicy && eligibleAssetIds.size === 0) {
       return false;
     }
     if (request.tags.length > 0 && !listIncludesAny(asset.selectedEntry?.targeting?.tags, request.tags)) {
@@ -575,6 +620,7 @@ function parseSearchRequest(body = {}) {
     includeVaultOnly: Boolean(source.includeVaultOnly),
     includeDisabled: Boolean(source.includeDisabled),
     includeDeprecated: Boolean(source.includeDeprecated),
+    overrideRoutingPolicy: Boolean(source.overrideRoutingPolicy),
     preferLoadMode: normalizeString(source.preferLoadMode),
     workspaceId: normalizeString(source.workspaceId),
     workspacePath: normalizeString(source.workspacePath),
@@ -654,10 +700,18 @@ function handleCatalogSummary(ctx, deps) {
     return;
   }
 
+  const activation = buildActivationStateForProjection(ctx, projectionContext);
+  const routingPolicy = buildRoutingPolicyForProjection(ctx, projectionContext, activation);
   deps.sendJson(ctx.res, 200, {
     kind: 'catalog.summary',
     deterministic: true,
-    summary: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState),
+    summary: buildSnapshotEnvelope(
+      projectionContext.snapshot,
+      projectionContext,
+      deps,
+      deps.catalogRuntimeState,
+      { activation, routingPolicy },
+    ),
   });
 }
 
@@ -696,13 +750,17 @@ function handleCatalogBundles(ctx, deps) {
   }
 
   const filters = stripEmptyFields(normalizeBundleFilters(ctx.u.searchParams));
-  const bundles = deps.catalogProjection.queryCatalogBundles(projectionContext.snapshot, filters);
+  const activation = buildActivationStateForProjection(ctx, projectionContext);
+  const bundles = applyActivationToBundles(
+    deps.catalogProjection.queryCatalogBundles(projectionContext.snapshot, filters),
+    activation,
+  );
   deps.sendJson(ctx.res, 200, {
     kind: 'catalog.bundles.list',
     deterministic: true,
     filters,
     count: bundles.length,
-    snapshot: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState),
+    snapshot: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState, { activation }),
     bundles,
   });
 }
@@ -840,6 +898,11 @@ function handleCatalogAssetDisable(ctx, deps) {
     deps.catalogMutation.setAssetEnabled(mutationOptions, body, false, mutationOptions));
 }
 
+function handleCatalogActivationUpdate(ctx, deps) {
+  executeCatalogMutation(ctx, deps, 'catalog.activation.update', (body, mutationOptions) =>
+    deps.catalogMutation.updateCatalogActivation(mutationOptions, body, mutationOptions));
+}
+
 function handleSearchQuery(ctx, deps) {
   deps.readJsonBody(ctx.req)
     .then((body) => {
@@ -856,18 +919,27 @@ function handleSearchQuery(ctx, deps) {
         sendJsonError(ctx.res, deps.sendJson, 503, 'catalog.search.query', detail);
         return;
       }
+      const activation = buildActivationStateForProjection(ctx, projectionContext);
+      const routingPolicy = buildRoutingPolicyForProjection(ctx, projectionContext, activation);
 
       const searchResponse = request.kind === 'skill'
         ? searchSkills(request, {
           snapshot: projectionContext.snapshot,
           copilotHome: ctx.copilotHomeAbs,
+          routingPolicy,
           repoId: request.repoId || projectionContext.snapshot?.repoContext?.repoId,
           repoPath: request.repoPath || projectionContext.snapshot?.repoContext?.repoPath,
           workspaceId: request.workspaceId || undefined,
           workspacePath: request.workspacePath || undefined,
         })
         : {
-          results: buildSearchResults(projectionContext.snapshot, request),
+          results: buildSearchResults(projectionContext.snapshot, request, routingPolicy),
+          routingPolicy: routingPolicy
+            ? {
+              ...routingPolicy,
+              mode: request.overrideRoutingPolicy ? 'explicit-override' : 'eligible-only',
+            }
+            : null,
           totalCandidates: Array.isArray(projectionContext.snapshot?.effectiveAssets)
             ? projectionContext.snapshot.effectiveAssets.length
             : 0,
@@ -938,6 +1010,7 @@ function handleSearchQuery(ctx, deps) {
           includeVaultOnly: request.includeVaultOnly,
           includeDisabled: request.includeDisabled,
           includeDeprecated: request.includeDeprecated,
+          overrideRoutingPolicy: request.overrideRoutingPolicy,
           preferLoadMode: request.preferLoadMode || null,
           workspaceId: request.workspaceId || null,
           workspacePath: request.workspacePath || null,
@@ -946,7 +1019,14 @@ function handleSearchQuery(ctx, deps) {
         },
         count: results.length,
         results,
-        snapshot: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState),
+        routingPolicy: searchResponse.routingPolicy || null,
+        snapshot: buildSnapshotEnvelope(
+          projectionContext.snapshot,
+          projectionContext,
+          deps,
+          deps.catalogRuntimeState,
+          { activation, routingPolicy: searchResponse.routingPolicy || routingPolicy || null },
+        ),
         audit: {
           logged: Boolean(searchAudit.logged && resultAudit.logged),
           path: searchAudit.path,
@@ -1123,7 +1203,16 @@ function handleRuntimeCatalogHealth(ctx, deps) {
     kind: 'runtime.catalog-health',
     deterministic: true,
     ok: true,
-    projection: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState),
+    projection: buildSnapshotEnvelope(
+      projectionContext.snapshot,
+      projectionContext,
+      deps,
+      deps.catalogRuntimeState,
+      {
+        activation: buildActivationStateForProjection(ctx, projectionContext),
+        routingPolicy: buildRoutingPolicyForProjection(ctx, projectionContext),
+      },
+    ),
     audit: {
       path: auditLogPath,
       exists: auditFile.exists,
@@ -1471,6 +1560,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/assets/disable',
       handler: (ctx) => handleCatalogAssetDisable(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/activation',
+      handler: (ctx) => handleCatalogActivationUpdate(ctx, resolvedDeps),
     },
     {
       method: 'POST',

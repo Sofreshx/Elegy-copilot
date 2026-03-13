@@ -202,10 +202,68 @@ async function run() {
         '',
       ].join('\n'),
     );
+    writeText(
+      path.join(copilotHome, 'skills', 'providers', 'superpowers', 'workflow-kit', 'SKILL.md'),
+      [
+        '---',
+        'name: workflow-kit',
+        'description: Managed-import provider workflow kit.',
+        '---',
+        '# Workflow Kit',
+        '',
+        'Managed import workflow kit.',
+        '',
+      ].join('\n'),
+    );
+    writeText(
+      path.join(copilotHome, 'skills', 'operations', 'release-drill', 'index.md'),
+      [
+        '---',
+        'name: release-drill',
+        'description: Namespaced user-installed drill playbook.',
+        '---',
+        '# Release Drill',
+        '',
+        'Practice release recovery steps.',
+        '',
+      ].join('\n'),
+    );
+    writeText(
+      path.join(copilotHome, 'skills-vault', 'providers', 'superpowers', 'incident-kit', 'index.md'),
+      [
+        '---',
+        'name: incident-kit',
+        'description: Vault-only managed-import incident kit.',
+        '---',
+        '# Incident Kit',
+        '',
+        'Managed import incident response kit.',
+        '',
+      ].join('\n'),
+    );
+    writeText(
+      path.join(copilotHome, 'agents', 'providers--superpowers--workflow-guide.md'),
+      [
+        '---',
+        'name: workflow-guide',
+        'description: Managed-import provider guide agent.',
+        'model: inherit',
+        '---',
+        '',
+        '# Workflow Guide',
+        '',
+        'Managed import provider guide.',
+        '',
+      ].join('\n'),
+    );
 
     writeText(
       path.join(repoPath, '.github', 'skills', 'react-query', 'SKILL.md'),
       '# Repo React Query\n\nRepo-local override for this workspace.\n',
+    );
+    writeText(
+      path.join(repoPath, '.github', 'skills', 'providers', 'superpowers', 'repo-kit', 'index.md'),
+      '# Repo Kit\n\nRepo-local managed-import provider kit.\n',
     );
     writeText(
       path.join(repoPath, '.github', 'agents', 'code-reviewer.agent.md'),
@@ -261,24 +319,86 @@ async function run() {
       assert.strictEqual(repoAgent.enabled, true);
       assert.strictEqual(repoAgent.selectedEntry.title, 'Repo Code Reviewer');
 
-      const pluginAgent = snapshot.effectiveAssets.find((asset) => asset.assetId !== 'agent-code-reviewer' && asset.kind === 'agent');
+      const pluginAgent = snapshot.effectiveAssets.find(
+        (asset) => asset.selectedEntry?.metadata?.logicalName === 'code-reviewer' && asset.assetId !== 'agent-code-reviewer',
+      );
       assert.ok(pluginAgent, 'expected plugin agent to be projected separately');
       assert.strictEqual(pluginAgent.selectedLayer, 'user-installed');
       assert.strictEqual(pluginAgent.selectedEntry.metadata.logicalName, 'code-reviewer');
       assert.strictEqual(pluginAgent.selectedEntry.metadata.readOnly, true);
-      assert.ok(pluginAgent.selectedEntry.metadata.provider, 'expected plugin agent provider metadata');
       if (pluginAgentWasLinked) {
+        assert.strictEqual(pluginAgent.selectedEntry.metadata.provider, 'superpowers-copilot');
+        assert.strictEqual(pluginAgent.selectedEntry.provenance.providerId, 'superpowers-copilot');
+        assert.strictEqual(pluginAgent.selectedEntry.provenance.discoveryMode, 'compatibility-bridge');
         assert.strictEqual(pluginAgent.selectedEntry.metadata.namespace, 'superpowers');
         assert.strictEqual(pluginAgent.selectedEntry.metadata.sourcePackage, 'dwaintr-superpowers-copilot');
+      } else {
+        assert.strictEqual(pluginAgent.selectedEntry.metadata.provider, 'copilot-home-plain-agent');
       }
 
-      const pluginSkill = snapshot.effectiveAssets.find((asset) => asset.selectedEntry?.metadata?.namespace === 'superpowers');
+      const pluginSkill = snapshot.effectiveAssets.find(
+        (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/superpowers/brainstorming/SKILL.md',
+      );
       assert.ok(pluginSkill, 'expected plugin skill to be projected');
       assert.strictEqual(pluginSkill.kind, 'skill');
       assert.strictEqual(pluginSkill.selectedLayer, 'user-installed');
       assert.strictEqual(pluginSkill.selectedEntry.metadata.logicalName, 'brainstorming');
       assert.strictEqual(pluginSkill.selectedEntry.metadata.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
       assert.strictEqual(pluginSkill.selectedEntry.metadata.readOnly, true);
+      assert.strictEqual(pluginSkill.selectedEntry.metadata.provider, 'superpowers-copilot');
+      assert.strictEqual(pluginSkill.selectedEntry.provenance.providerId, 'superpowers-copilot');
+      assert.strictEqual(pluginSkill.selectedEntry.provenance.discoveryMode, 'compatibility-bridge');
+
+      const importedProviderSkill = snapshot.effectiveAssets.find(
+        (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/providers/superpowers/workflow-kit/SKILL.md',
+      );
+      assert.ok(importedProviderSkill, 'expected managed-import provider skill to be projected');
+      assert.strictEqual(importedProviderSkill.selectedEntry.provenance.providerId, 'superpowers-copilot');
+      assert.strictEqual(importedProviderSkill.selectedEntry.provenance.discoveryMode, 'managed-import');
+      assert.strictEqual(importedProviderSkill.selectedEntry.provenance.originKind, 'provider-import');
+
+      const namespacedIndexSkill = snapshot.effectiveAssets.find(
+        (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/operations/release-drill/index.md',
+      );
+      assert.ok(namespacedIndexSkill, 'expected namespaced index.md skill to be projected');
+      assert.strictEqual(namespacedIndexSkill.selectedLayer, 'user-installed');
+      assert.strictEqual(namespacedIndexSkill.selectedEntry.metadata.logicalName, 'release-drill');
+      assert.strictEqual(namespacedIndexSkill.selectedEntry.metadata.namespace, 'operations');
+      assert.strictEqual(namespacedIndexSkill.selectedEntry.metadata.provider, 'copilot-home-plugin');
+      assert.strictEqual(namespacedIndexSkill.selectedEntry.metadata.readOnly, true);
+      assert.strictEqual(namespacedIndexSkill.selectedEntry.provenance.providerId, 'copilot-home-plugin');
+      assert.strictEqual(namespacedIndexSkill.selectedEntry.provenance.discoveryMode, 'compatibility-bridge');
+
+      const vaultedProviderIndexSkill = snapshot.effectiveAssets.find(
+        (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills-vault/providers/superpowers/incident-kit/index.md',
+      );
+      assert.ok(vaultedProviderIndexSkill, 'expected vault provider index.md skill to be projected');
+      assert.strictEqual(vaultedProviderIndexSkill.selectedLayer, 'vault-only');
+      assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.metadata.provider, 'superpowers-copilot');
+      assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.metadata.readOnly, true);
+      assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.provenance.providerId, 'superpowers-copilot');
+      assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.provenance.discoveryMode, 'managed-import');
+
+      const repoProviderIndexSkill = snapshot.effectiveAssets.find(
+        (asset) => asset.selectedEntry?.metadata?.viewPath === '.github/skills/providers/superpowers/repo-kit/index.md',
+      );
+      assert.ok(repoProviderIndexSkill, 'expected repo-local provider index.md skill to be projected');
+      assert.strictEqual(repoProviderIndexSkill.selectedLayer, 'repo-local');
+      assert.strictEqual(repoProviderIndexSkill.selectedEntry.metadata.provider, 'superpowers-copilot');
+      assert.strictEqual(repoProviderIndexSkill.selectedEntry.metadata.readOnly, true);
+      assert.strictEqual(repoProviderIndexSkill.selectedEntry.provenance.providerId, 'superpowers-copilot');
+      assert.strictEqual(repoProviderIndexSkill.selectedEntry.provenance.discoveryMode, 'managed-import');
+
+      const importedProviderAgent = snapshot.effectiveAssets.find(
+        (asset) => asset.selectedEntry?.metadata?.logicalName === 'workflow-guide',
+      );
+      assert.ok(importedProviderAgent, 'expected managed-import provider agent to be projected');
+      assert.strictEqual(importedProviderAgent.selectedEntry.provenance.providerId, 'superpowers-copilot');
+      assert.strictEqual(importedProviderAgent.selectedEntry.provenance.discoveryMode, 'managed-import');
+
+      const providerRecord = snapshot.providers.find((provider) => provider.providerId === 'superpowers-copilot');
+      assert.ok(providerRecord, 'expected provider record in projection');
+      assert.ok(providerRecord.discoveredAssets.count >= 3, 'expected provider asset rollup');
 
       const disabledSkills = queryEffectiveCatalog(snapshot, {
         kind: 'skill',

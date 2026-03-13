@@ -166,7 +166,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/assets/view' },
   { method: 'POST', path: '/api/assets/delete' },
 
-  // Catalog/Search/Audit/Runtime (22)
+  // Catalog/Search/Audit/Runtime (23)
   { method: 'GET', path: '/api/catalog/repos' },
   { method: 'POST', path: '/api/catalog/repos/register' },
   { method: 'POST', path: '/api/catalog/repos/unregister' },
@@ -184,6 +184,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/catalog/assets/install' },
   { method: 'POST', path: '/api/catalog/assets/enable' },
   { method: 'POST', path: '/api/catalog/assets/disable' },
+  { method: 'POST', path: '/api/catalog/activation' },
   { method: 'POST', path: '/api/search/query' },
   { method: 'POST', path: '/api/search/selection' },
   { method: 'GET', path: '/api/audit/assets' },
@@ -350,9 +351,9 @@ async function run() {
     }
 
     // Summary: route count
-    await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-      assert.strictEqual(ROUTE_INVENTORY.length, 85, `Expected 85 routes, got ${ROUTE_INVENTORY.length}`);
-    });
+  await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
+    assert.strictEqual(ROUTE_INVENTORY.length, 86, `Expected 86 routes, got ${ROUTE_INVENTORY.length}`);
+  });
 
   } finally {
     if (runningServer) {

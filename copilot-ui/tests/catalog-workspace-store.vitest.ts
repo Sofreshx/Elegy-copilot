@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockGetCatalogSummary = vi.fn();
 const mockGetCatalogAssets = vi.fn();
+const mockGetCatalogBundles = vi.fn();
 const mockGetRuntimeCatalogHealth = vi.fn();
 const mockGetCatalogAssetDetail = vi.fn();
 const mockGetCatalogAuditEvents = vi.fn();
@@ -30,6 +31,7 @@ vi.mock('../ui/src/lib/api', () => ({
   getCatalogAssetDetail: mockGetCatalogAssetDetail,
   getCatalogAssets: mockGetCatalogAssets,
   getCatalogAuditEvents: mockGetCatalogAuditEvents,
+  getCatalogBundles: mockGetCatalogBundles,
   getCatalogRepos: mockGetCatalogRepos,
   getCatalogSummary: mockGetCatalogSummary,
   getRuntimeCatalogHealth: mockGetRuntimeCatalogHealth,
@@ -48,6 +50,7 @@ describe('catalogWorkspaceStore', () => {
   beforeEach(() => {
     mockGetCatalogSummary.mockReset();
     mockGetCatalogAssets.mockReset();
+    mockGetCatalogBundles.mockReset();
     mockGetRuntimeCatalogHealth.mockReset();
     mockGetCatalogAssetDetail.mockReset();
     mockGetCatalogAuditEvents.mockReset();
@@ -107,6 +110,9 @@ describe('catalogWorkspaceStore', () => {
           },
         },
       ],
+    });
+    mockGetCatalogBundles.mockResolvedValue({
+      bundles: [],
     });
     mockGetRuntimeCatalogHealth.mockResolvedValue({
       ok: true,
@@ -221,6 +227,9 @@ describe('catalogWorkspaceStore', () => {
         },
       ],
     });
+    mockGetCatalogBundles.mockResolvedValue({
+      bundles: [],
+    });
     mockGetRuntimeCatalogHealth.mockResolvedValue({
       ok: true,
       projection: {
@@ -296,6 +305,9 @@ describe('catalogWorkspaceStore', () => {
     });
     mockGetCatalogAssets.mockResolvedValue({
       assets: [],
+    });
+    mockGetCatalogBundles.mockResolvedValue({
+      bundles: [],
     });
     mockGetRuntimeCatalogHealth.mockResolvedValue({
       ok: true,
@@ -384,6 +396,9 @@ describe('catalogWorkspaceStore', () => {
     });
     mockGetCatalogAssets.mockResolvedValue({
       assets: [],
+    });
+    mockGetCatalogBundles.mockResolvedValue({
+      bundles: [],
     });
     mockGetRuntimeCatalogHealth.mockResolvedValue({
       ok: true,

@@ -37,6 +37,13 @@ related: [doc-graph-spec]
 
 - [[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md)
 
+## Governance
+
+- [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
+- [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
+- [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
+- [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
+
 ## Strategy
 
 - [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md)

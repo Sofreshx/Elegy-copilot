@@ -128,8 +128,20 @@ async function run() {
       ].join('\n'),
     );
     writeText(
+      path.join(copilotHomeAbs, 'skills', 'providers', 'superpowers', 'workflow-kit', 'SKILL.md'),
+      '# Workflow Kit\n',
+    );
+    writeText(
+      path.join(copilotHomeAbs, 'skills', 'operations', 'release-drill', 'index.md'),
+      '# Release Drill\n',
+    );
+    writeText(
       path.join(copilotHomeAbs, 'skills-vault', 'on-demand-skill', 'SKILL.md'),
       '# On Demand Skill\n',
+    );
+    writeText(
+      path.join(copilotHomeAbs, 'skills-vault', 'providers', 'superpowers', 'incident-kit', 'index.md'),
+      '# Incident Kit\n',
     );
     const pluginAgentInstall = installPluginAgent(
       copilotHomeAbs,
@@ -146,6 +158,21 @@ async function run() {
         '',
       ].join('\n'),
     );
+    writeText(
+      path.join(copilotHomeAbs, 'agents', 'providers--superpowers--workflow-guide.md'),
+      [
+        '---',
+        'name: workflow-guide',
+        'description: Managed-import workflow guide.',
+        'model: inherit',
+        '---',
+        '',
+        '# Workflow Guide',
+        '',
+        'Managed import workflow guide.',
+        '',
+      ].join('\n'),
+    );
 
     await test('installed inventory includes plugin-style skills and plain markdown agents', async () => {
       const response = await invokeInstalled(copilotHomeAbs);
@@ -153,23 +180,52 @@ async function run() {
       assert.ok(Array.isArray(response.payload.skills), 'expected skills array');
       assert.ok(Array.isArray(response.payload.agents), 'expected agents array');
 
-      const pluginSkill = response.payload.skills.find((skill) => skill.namespace === 'superpowers');
+      const pluginSkill = response.payload.skills.find(
+        (skill) => skill.viewPath === 'skills/superpowers/brainstorming/SKILL.md'
+      );
       assert.ok(pluginSkill, 'expected plugin skill in installed inventory');
       assert.strictEqual(pluginSkill.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
       assert.strictEqual(pluginSkill.readOnly, true);
+      assert.strictEqual(pluginSkill.provider, 'superpowers-copilot');
+
+      const importedSkill = response.payload.skills.find((skill) => skill.viewPath === 'skills/providers/superpowers/workflow-kit/SKILL.md');
+      assert.ok(importedSkill, 'expected managed-import provider skill in installed inventory');
+      assert.strictEqual(importedSkill.provider, 'superpowers-copilot');
+      assert.strictEqual(importedSkill.readOnly, true);
+
+      const namespacedIndexSkill = response.payload.skills.find((skill) => skill.viewPath === 'skills/operations/release-drill/index.md');
+      assert.ok(namespacedIndexSkill, 'expected namespaced index.md skill in installed inventory');
+      assert.strictEqual(namespacedIndexSkill.namespace, 'operations');
+      assert.strictEqual(namespacedIndexSkill.provider, 'copilot-home-plugin');
+      assert.strictEqual(namespacedIndexSkill.readOnly, true);
 
       const vaultOnlySkill = response.payload.skills.find((skill) => skill.name === 'on-demand-skill');
       assert.ok(vaultOnlySkill, 'expected vault-only skill in installed inventory');
       assert.strictEqual(vaultOnlySkill.kind, 'vault');
       assert.strictEqual(vaultOnlySkill.viewPath, 'skills-vault/on-demand-skill/SKILL.md');
 
+      const vaultedProviderIndexSkill = response.payload.skills.find(
+        (skill) => skill.viewPath === 'skills-vault/providers/superpowers/incident-kit/index.md'
+      );
+      assert.ok(vaultedProviderIndexSkill, 'expected vault provider index.md skill in installed inventory');
+      assert.strictEqual(vaultedProviderIndexSkill.provider, 'superpowers-copilot');
+      assert.strictEqual(vaultedProviderIndexSkill.readOnly, true);
+
       const pluginAgent = response.payload.agents.find((agent) => agent.fileName === 'code-reviewer.md');
       assert.ok(pluginAgent, 'expected plain markdown plugin agent in installed inventory');
       assert.strictEqual(pluginAgent.readOnly, true);
       if (pluginAgentInstall.linked) {
+        assert.strictEqual(pluginAgent.provider, 'superpowers-copilot');
         assert.strictEqual(pluginAgent.namespace, 'superpowers');
         assert.strictEqual(pluginAgent.sourcePackage, 'dwaintr-superpowers-copilot');
+      } else {
+        assert.strictEqual(pluginAgent.provider, 'copilot-home-plain-agent');
       }
+
+      const importedAgent = response.payload.agents.find((agent) => agent.fileName === 'providers--superpowers--workflow-guide.md');
+      assert.ok(importedAgent, 'expected managed-import provider agent in installed inventory');
+      assert.strictEqual(importedAgent.provider, 'superpowers-copilot');
+      assert.strictEqual(importedAgent.readOnly, true);
     });
 
     await test('delete route rejects plugin namespace roots and plain markdown agents', async () => {

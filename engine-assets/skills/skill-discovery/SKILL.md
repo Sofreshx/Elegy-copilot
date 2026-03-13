@@ -102,6 +102,8 @@ Common keyword → skill mappings:
 - Audit report, finding format → `audit-report-formats`
 - Stack audit, pattern check → `stack-audit-patterns`
 - Critic mode, challenge assumptions, devil's advocate → `critic`
+- Project conventions, repo conventions, convention audit, convention drift → `project-conventions-governance`
+- Documentation structure, docs IA, doc graph, repo structure governance → `documentation-structure-governance`
 - System cleanup, archive completed tasks, cleanup tasks → `system-cleanup`
 - E2E, browser automation → `e2e-workflow`
 - Agent browser CLI → `agent-browser`

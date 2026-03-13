@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
-import type { CatalogEffectiveAsset, CatalogEntry, CatalogRepoInventoryEntry } from '../../lib/types';
+import type {
+  CatalogActivationState,
+  CatalogBundle,
+  CatalogBundleMember,
+  CatalogEffectiveAsset,
+  CatalogEntry,
+  CatalogRepoInventoryEntry,
+} from '../../lib/types';
 import { catalogWorkspaceStore } from './catalogWorkspaceStore';
 
 type AuthoringScope = 'shared' | 'user-global' | 'repo-local';
@@ -42,6 +49,17 @@ interface AssetDraftState {
   triggersInput: string;
   content: string;
 }
+
+export interface AssetActivationSummary {
+  activationLabel: string;
+  routingLabel: string;
+  bundleLabel: string;
+  activeBundleIds: string[];
+  membershipBundleIds: string[];
+  eligibleByDefault: boolean;
+}
+
+const BALANCED_DEFAULT_PROFILE_ID = 'balanced-default';
 
 function formatCount(value: number | undefined): string {
   return Number.isFinite(value) ? String(value) : '0';
@@ -200,8 +218,102 @@ function summarizeProvenance(entry: CatalogEntry | null | undefined): string {
   return segments.join(' · ');
 }
 
+function normalizeBundleMembers(bundle: CatalogBundle | null | undefined): CatalogBundleMember[] {
+  return Array.isArray(bundle?.members) ? bundle.members.filter((member): member is CatalogBundleMember => Boolean(member?.assetId)) : [];
+}
+
+function isBundleActive(bundle: CatalogBundle | null | undefined): boolean {
+  const activationStatus = String(bundle?.activationStatus || '').trim().toLowerCase();
+  if (activationStatus) {
+    return activationStatus === 'active';
+  }
+  return String(bundle?.status || '').trim().toLowerCase() === 'active';
+}
+
+function countEligibleBundleMembers(bundle: CatalogBundle | null | undefined): number {
+  if (!isBundleActive(bundle)) {
+    return 0;
+  }
+
+  return normalizeBundleMembers(bundle).filter((member) => member.available && member.installed && member.enabled && !member.missing).length;
+}
+
+export function buildAssetBundleIndex(bundles: CatalogBundle[]): Record<string, CatalogBundle[]> {
+  return bundles.reduce<Record<string, CatalogBundle[]>>((index, bundle) => {
+    for (const member of normalizeBundleMembers(bundle)) {
+      if (!index[member.assetId]) {
+        index[member.assetId] = [];
+      }
+      index[member.assetId].push(bundle);
+    }
+
+    return index;
+  }, {});
+}
+
+export function deriveAssetActivationSummary(
+  asset: CatalogEffectiveAsset,
+  memberships: CatalogBundle[] | undefined
+): AssetActivationSummary {
+  const bundleMemberships = Array.isArray(memberships) ? memberships : [];
+  const activeMemberships = bundleMemberships.filter((bundle) => isBundleActive(bundle));
+  const eligibleByDefault =
+    activeMemberships.length > 0 &&
+    Boolean(asset.available) &&
+    Boolean(asset.installed) &&
+    Boolean(asset.enabled) &&
+    !Boolean(asset.hiddenFromAutoLoad);
+
+  let activationLabel = 'direct-only';
+  if (activeMemberships.length > 0) {
+    activationLabel = 'active';
+  } else if (bundleMemberships.length > 0) {
+    activationLabel = 'inactive-bundle';
+  }
+
+  let routingLabel = 'manual-review';
+  if (eligibleByDefault) {
+    routingLabel = 'auto-routable';
+  } else if (activeMemberships.length === 0 && bundleMemberships.length > 0) {
+    routingLabel = 'bundle inactive';
+  } else if (!asset.installed) {
+    routingLabel = 'not installed';
+  } else if (!asset.enabled) {
+    routingLabel = 'overlay disabled';
+  } else if (!asset.available) {
+    routingLabel = 'unavailable';
+  } else if (asset.hiddenFromAutoLoad) {
+    routingLabel = 'manual only';
+  }
+
+  return {
+    activationLabel,
+    routingLabel,
+    bundleLabel:
+      activeMemberships.length > 0
+        ? activeMemberships.map((bundle) => bundle.title || bundle.bundleId).join(', ')
+        : bundleMemberships.length > 0
+        ? bundleMemberships.map((bundle) => bundle.title || bundle.bundleId).join(', ')
+        : 'No surfaced bundle membership',
+    activeBundleIds: activeMemberships.map((bundle) => bundle.bundleId),
+    membershipBundleIds: bundleMemberships.map((bundle) => bundle.bundleId),
+    eligibleByDefault,
+  };
+}
+
 function buildRepoLabel(repo: CatalogRepoInventoryEntry | null | undefined): string {
   return String(repo?.repoLabel || repo?.repoPath || repo?.repoId || 'Unknown repo');
+}
+
+function describeActivationSource(source: string | null | undefined): string {
+  const normalized = String(source || '').trim().toLowerCase();
+  if (normalized === 'repo-override') {
+    return 'repo override';
+  }
+  if (normalized === 'user-global') {
+    return 'user-global defaults';
+  }
+  return 'provider defaults';
 }
 
 function resolveActiveRepo(
@@ -393,6 +505,7 @@ function describeRepoAssetSummary(repo: CatalogRepoInventoryEntry): string {
 export default function AssetsView() {
   const catalogState = useStoreValue(catalogWorkspaceStore);
   const [repoLabelInput, setRepoLabelInput] = useState('');
+  const [plannerProfileDraft, setPlannerProfileDraft] = useState(BALANCED_DEFAULT_PROFILE_ID);
   const [createDraft, setCreateDraft] = useState<AssetDraftState>(createEmptyDraft());
   const [editTargetId, setEditTargetId] = useState('');
   const [editDraft, setEditDraft] = useState<AssetDraftState>(createEmptyDraft());
@@ -415,6 +528,11 @@ export default function AssetsView() {
   const selectedSuppressed = selectedAsset?.suppressedEntries ?? [];
   const selectedProvenance = summarizeProvenance(selectedEntry);
   const selectedIsReadOnly = readMetadataBoolean(selectedEntry, 'readOnly');
+  const bundleIndex = useMemo(() => buildAssetBundleIndex(catalogState.bundles), [catalogState.bundles]);
+  const selectedAssetActivation = useMemo(
+    () => (selectedAsset ? deriveAssetActivationSummary(selectedAsset, bundleIndex[selectedAsset.assetId]) : null),
+    [selectedAsset, bundleIndex]
+  );
   const recommendedAssets = catalogState.assets.filter((asset) => asset.recommended);
   const auditCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -426,9 +544,22 @@ export default function AssetsView() {
   }, [catalogState.auditEvents]);
 
   const summaryStats = catalogState.summary?.stats;
+  const activationState: CatalogActivationState | null = catalogState.summary?.activation ?? null;
   const runtimeProjection = catalogState.runtimeHealth?.projection;
   const repoInventory = catalogState.repoInventory;
   const repoList = repoInventory?.repos ?? [];
+  const bundleStats = useMemo(() => {
+    const totalCount = catalogState.bundles.length;
+    const activeCount = activationState?.activeBundleIds?.length ?? catalogState.bundles.filter((bundle) => isBundleActive(bundle)).length;
+    const defaultRecommendedCount = catalogState.bundles.filter((bundle) => bundle.defaultRecommended).length;
+    const eligibleMemberCount = catalogState.bundles.reduce((count, bundle) => count + countEligibleBundleMembers(bundle), 0);
+    return {
+      totalCount,
+      activeCount,
+      defaultRecommendedCount,
+      eligibleMemberCount,
+    };
+  }, [activationState?.activeBundleIds, catalogState.bundles]);
   const workspaceRepo = useMemo(
     () => repoList.find((repo) => (repo.sources ?? []).includes('workspace')) ?? null,
     [repoList]
@@ -461,6 +592,14 @@ export default function AssetsView() {
   );
   const selectedCreateTarget = createTargets.find((target) => target.id === createDraft.targetId) ?? createTargets[0] ?? null;
   const selectedEditTarget = editableTargets.find((target) => target.id === editTargetId) ?? editableTargets[0] ?? null;
+  const selectedBundle = useMemo(
+    () => catalogState.bundles.find((bundle) => bundle.bundleId === catalogState.selectedBundleId) ?? null,
+    [catalogState.bundles, catalogState.selectedBundleId]
+  );
+  const selectedBundleMembers = useMemo(
+    () => normalizeBundleMembers(selectedBundle),
+    [selectedBundle]
+  );
   const editContextKey = `${selectedAsset?.assetId || ''}:${selectedEditTarget?.id || ''}`;
   const sharedEditBlocked = Boolean(
     selectedAsset &&
@@ -473,6 +612,8 @@ export default function AssetsView() {
     isSupportedAuthoringKind(selectedAsset.kind) &&
     normalizePath(activeRepo?.repoPath || catalogState.activeRepoPath)
   );
+  const activationRepoPath = normalizePath(activeRepo?.repoPath || catalogState.activeRepoPath) || undefined;
+  const repoOverrideActive = Boolean(activationState?.repoOverride?.active);
 
   useEffect(() => {
     setCreateDraft((current) => {
@@ -509,6 +650,11 @@ export default function AssetsView() {
       setConfirmRemoveTargetId(null);
     }
   }, [selectedAsset, selectedEditTarget, editContextKey, editDraftContextKey, editDraftDirty]);
+
+  useEffect(() => {
+    const nextPlannerProfile = activationState?.plannerProfile || BALANCED_DEFAULT_PROFILE_ID;
+    setPlannerProfileDraft((current) => (current === nextPlannerProfile ? current : nextPlannerProfile));
+  }, [activationState?.plannerProfile]);
 
   const handleCreateDraftChange = (updates: Partial<AssetDraftState>) => {
     setCreateDraft((current) => ({ ...current, ...updates }));
@@ -623,6 +769,32 @@ export default function AssetsView() {
     });
   };
 
+  const handleToggleBundleActivation = async (bundle: CatalogBundle) => {
+    if (!bundle.bundleId) {
+      return;
+    }
+    if (isBundleActive(bundle)) {
+      await catalogWorkspaceStore.deactivateBundle(bundle.bundleId, activationRepoPath);
+      return;
+    }
+    await catalogWorkspaceStore.activateBundle(bundle.bundleId, activationRepoPath);
+  };
+
+  const handleSavePlannerProfile = async () => {
+    const nextProfile = plannerProfileDraft.trim();
+    if (!nextProfile) {
+      return;
+    }
+    await catalogWorkspaceStore.setPlannerProfile(nextProfile, activationRepoPath);
+  };
+
+  const handleClearRepoActivationOverride = async () => {
+    if (!activationRepoPath) {
+      return;
+    }
+    await catalogWorkspaceStore.clearRepoActivationOverride(activationRepoPath);
+  };
+
   return (
     <section className="catalog-workspace" data-testid="catalog-workspace-view">
       <Toolbar testId="catalog-workspace-toolbar">
@@ -630,7 +802,7 @@ export default function AssetsView() {
           <p className="catalog-title">Catalog workspace</p>
           <p className="catalog-copy">
             {formatCount(summaryStats?.effectiveCount)} effective assets, {formatCount(summaryStats?.installedCount)} installed,{' '}
-            {formatCount(summaryStats?.overriddenCount)} overridden
+            {formatCount(bundleStats.activeCount)} active bundles
           </p>
         </div>
 
@@ -702,6 +874,13 @@ export default function AssetsView() {
           <p className="catalog-stat-value">{recommendedAssets.length}</p>
           <p className="catalog-stat-copy">
             Current backend recommendation flags surfaced without inventing a parallel write path.
+          </p>
+        </article>
+        <article className="catalog-stat-card">
+          <p className="catalog-stat-label">Bundles</p>
+          <p className="catalog-stat-value">{bundleStats.activeCount}</p>
+          <p className="catalog-stat-copy">
+            {bundleStats.totalCount} surfaced · {bundleStats.eligibleMemberCount} eligible member(s) under {BALANCED_DEFAULT_PROFILE_ID}
           </p>
         </article>
         <article className="catalog-stat-card">
@@ -872,6 +1051,215 @@ export default function AssetsView() {
               </li>
             ))}
           </ul>
+        </Panel>
+
+        <Panel
+          subtitle="Bundle-first activation view from /api/catalog/bundles, with persisted user-global defaults plus optional repo overrides for bundle/profile control."
+          testId="catalog-bundles-panel"
+          title="Bundles & activation"
+        >
+          {catalogState.bundlesError ? (
+            <p className="state-message state-error" role="alert">
+              {catalogState.bundlesError}
+            </p>
+          ) : null}
+
+          <div className="catalog-summary-grid">
+            <article className="catalog-stat-card">
+              <p className="catalog-stat-label">Planner profile</p>
+              <p className="catalog-stat-value">{activationState?.plannerProfile || BALANCED_DEFAULT_PROFILE_ID}</p>
+              <p className="catalog-stat-copy">
+                {activeRepo
+                  ? `${buildRepoLabel(activeRepo)} currently inherits or overrides user-global defaults.`
+                  : 'User-global defaults currently define the active bundle/profile set.'}
+              </p>
+            </article>
+            <article className="catalog-stat-card">
+              <p className="catalog-stat-label">Active bundles</p>
+              <p className="catalog-stat-value">{bundleStats.activeCount}</p>
+              <p className="catalog-stat-copy">
+                {bundleStats.totalCount} visible · source: {describeActivationSource(activationState?.bundleSource)}
+              </p>
+            </article>
+          </div>
+
+          <p className="catalog-inline-note">
+            Installed means materialized into a managed surface. Active means the current user/repo context selected the bundle. Default
+            routing under {activationState?.plannerProfile || BALANCED_DEFAULT_PROFILE_ID} only considers members that are installed,
+            active, enabled, and available.
+          </p>
+          <p className="catalog-inline-note">
+            Editing target: {activationRepoPath && activeRepo ? `${buildRepoLabel(activeRepo)} repo override` : 'user-global defaults'} ·
+            planner profile source: {describeActivationSource(activationState?.plannerProfileSource)}
+            {activationState?.managedImportProviderIds?.length
+              ? ` · managed-import providers: ${activationState.managedImportProviderIds.join(', ')}`
+              : ''}
+          </p>
+
+          <div className="catalog-form-grid">
+            <FormInput
+              label="Planner profile"
+              onValueChange={setPlannerProfileDraft}
+              placeholder={BALANCED_DEFAULT_PROFILE_ID}
+              testId="catalog-planner-profile-input"
+              value={plannerProfileDraft}
+            />
+          </div>
+
+          <div className="catalog-action-row">
+            <Button
+              disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !plannerProfileDraft.trim()}
+              onClick={() => {
+                void handleSavePlannerProfile();
+              }}
+              testId="catalog-save-planner-profile"
+              variant="secondary"
+            >
+              Save planner profile
+            </Button>
+            {activationRepoPath ? (
+              <Button
+                disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !repoOverrideActive}
+                onClick={() => {
+                  void handleClearRepoActivationOverride();
+                }}
+                testId="catalog-clear-repo-activation-override"
+                variant="ghost"
+              >
+                Use user-global defaults
+              </Button>
+            ) : null}
+          </div>
+
+          {catalogState.bundles.length === 0 ? (
+            <p className="state-message">No activation bundles were returned by the current catalog projection.</p>
+          ) : (
+            <ul className="catalog-repo-list" data-testid="catalog-bundle-list">
+              {catalogState.bundles.map((bundle) => {
+                const isSelectedBundle = selectedBundle?.bundleId === bundle.bundleId;
+                const memberCount = bundle.stats?.memberCount ?? normalizeBundleMembers(bundle).length;
+                const installedCount = bundle.stats?.installedCount ?? normalizeBundleMembers(bundle).filter((member) => member.installed).length;
+                const enabledCount = bundle.stats?.enabledCount ?? normalizeBundleMembers(bundle).filter((member) => member.enabled).length;
+                const eligibleCount = countEligibleBundleMembers(bundle);
+                const inspectableMember = normalizeBundleMembers(bundle).find((member) => member.assetId);
+
+                return (
+                  <li className={isSelectedBundle ? 'is-selected' : ''} key={bundle.bundleId}>
+                    <div className="catalog-search-result-header">
+                      <div>
+                        <p className="catalog-item-title">{bundle.title || bundle.bundleId}</p>
+                        <p className="catalog-item-copy">{bundle.description || bundle.bundleId}</p>
+                      </div>
+                      <div className="catalog-badge-row">
+                        <StatusBadge status={bundle.activationStatus || 'inactive'} testId="catalog-bundle-activation-status" />
+                        <StatusBadge status={bundle.status || 'unknown'} testId="catalog-bundle-status" />
+                        <StatusBadge status={bundle.materialization || 'manual'} testId="catalog-bundle-materialization" />
+                        {bundle.defaultRecommended ? <StatusBadge status="default" testId="catalog-bundle-default" /> : null}
+                      </div>
+                    </div>
+
+                    <p className="catalog-inline-note">
+                      {installedCount}/{memberCount} installed · {enabledCount}/{memberCount} overlay-enabled · {eligibleCount}/{memberCount}{' '}
+                      auto-routable candidates
+                    </p>
+                    <div className="catalog-badge-row">
+                      <StatusBadge status={bundle.activationScope || 'scope-unknown'} testId="catalog-bundle-scope" />
+                      <StatusBadge status={bundle.installTarget || 'install-target-unknown'} testId="catalog-bundle-install-target" />
+                      {(bundle.dependsOn ?? []).slice(0, 2).map((dependency) => (
+                        <StatusBadge key={`${bundle.bundleId}-${dependency}`} status={`depends:${dependency}`} testId="catalog-bundle-dependency" />
+                      ))}
+                    </div>
+
+                    <div className="catalog-action-row">
+                      <Button
+                        disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                        onClick={() => {
+                          void handleToggleBundleActivation(bundle);
+                        }}
+                        size="sm"
+                        testId="catalog-toggle-bundle-activation"
+                        variant={isBundleActive(bundle) ? 'ghost' : 'primary'}
+                      >
+                        {isBundleActive(bundle) ? 'Deactivate bundle' : 'Activate bundle'}
+                      </Button>
+                      <Button
+                        onClick={() => catalogWorkspaceStore.selectBundle(bundle.bundleId)}
+                        size="sm"
+                        testId="catalog-select-bundle"
+                        variant="secondary"
+                      >
+                        {isSelectedBundle ? 'Selected' : 'Inspect bundle'}
+                      </Button>
+                      <Button
+                        disabled={!inspectableMember?.assetId}
+                        onClick={() => {
+                          if (inspectableMember?.assetId) {
+                            void catalogWorkspaceStore.selectAsset(inspectableMember.assetId);
+                          }
+                        }}
+                        size="sm"
+                        testId="catalog-inspect-bundle-member"
+                        variant="ghost"
+                      >
+                        Inspect first member
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {selectedBundle ? (
+            <details className="metadata-block" open>
+              <summary>
+                Bundle members · {selectedBundle.title || selectedBundle.bundleId} ({selectedBundleMembers.length})
+              </summary>
+              <ul className="catalog-entry-list">
+                {selectedBundleMembers.map((member) => {
+                  const memberAsset = catalogState.assets.find((asset) => asset.assetId === member.assetId) ?? null;
+                  const memberLoadMode = readLoadMode(memberAsset?.selectedEntry ?? null, memberAsset);
+                  const memberProvenance = summarizeProvenance(memberAsset?.selectedEntry ?? null);
+
+                  return (
+                    <li key={`${selectedBundle.bundleId}-${member.assetId}`}>
+                      <div className="catalog-search-result-header">
+                        <div>
+                          <p className="catalog-item-title">{memberAsset?.selectedEntry?.title || member.title || member.assetId}</p>
+                          <p className="catalog-item-copy">{memberAsset?.selectedEntry?.description || member.description || member.assetId}</p>
+                        </div>
+                        <Button
+                          onClick={() => {
+                            void catalogWorkspaceStore.selectAsset(member.assetId);
+                          }}
+                          size="sm"
+                          testId="catalog-bundle-member-inspect"
+                          variant="secondary"
+                        >
+                          Inspect
+                        </Button>
+                      </div>
+
+                      <div className="catalog-badge-row">
+                        <StatusBadge status={member.kind || memberAsset?.kind || 'unknown'} testId="catalog-bundle-member-kind" />
+                        <StatusBadge status={member.installed ? 'installed' : 'not-installed'} testId="catalog-bundle-member-installed" />
+                        <StatusBadge status={member.enabled ? 'overlay-enabled' : 'overlay-disabled'} testId="catalog-bundle-member-enabled" />
+                        <StatusBadge status={memberLoadMode} testId="catalog-bundle-member-load-mode" />
+                        {member.missing ? <StatusBadge status="missing" testId="catalog-bundle-member-missing" /> : null}
+                      </div>
+
+                      <p className="catalog-inline-note">
+                        {memberProvenance || 'No explicit provenance surfaced for this member.'}
+                        {isBundleActive(selectedBundle) && member.available && member.installed && member.enabled && !member.missing
+                          ? ' · Eligible for balanced-default auto-routing.'
+                          : ' · Not yet eligible for default routing.'}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          ) : null}
         </Panel>
 
         <Panel
@@ -1098,6 +1486,7 @@ export default function AssetsView() {
                   {filteredAssets.map((asset) => {
                     const isSelected = asset.assetId === catalogState.selectedAssetId;
                     const provenanceSummary = summarizeProvenance(asset.selectedEntry);
+                    const activationSummary = deriveAssetActivationSummary(asset, bundleIndex[asset.assetId]);
                     return (
                       <tr className={isSelected ? 'is-selected' : ''} key={asset.assetId}>
                         <td>
@@ -1115,9 +1504,13 @@ export default function AssetsView() {
                         <td>
                           <div className="catalog-badge-row">
                             <StatusBadge status={asset.installed ? 'installed' : 'not-installed'} testId="catalog-installed-badge" />
-                            <StatusBadge status={asset.enabled ? 'enabled' : 'disabled'} testId="catalog-enabled-badge" />
+                            <StatusBadge status={activationSummary.activationLabel} testId="catalog-activation-badge" />
+                            <StatusBadge status={asset.enabled ? 'overlay-enabled' : 'overlay-disabled'} testId="catalog-enabled-badge" />
+                            <StatusBadge status={activationSummary.routingLabel} testId="catalog-routing-badge" />
+                            <StatusBadge status={readLoadMode(asset.selectedEntry ?? null, asset)} testId="catalog-load-mode-badge" />
                             {asset.overridden ? <StatusBadge status="overridden" testId="catalog-overridden-badge" /> : null}
                           </div>
+                          <p className="catalog-inline-note">{activationSummary.bundleLabel}</p>
                         </td>
                         <td>
                           <Button
@@ -1141,7 +1534,7 @@ export default function AssetsView() {
         </Panel>
 
         <Panel
-          subtitle="Effective state, write-target aware actions, and explicit edit/remove flows using the catalog mutation APIs."
+          subtitle="Effective state with explicit installed vs active vs overlay-enabled cues, plus the existing write-target aware edit/remove flows."
           testId="catalog-detail-panel"
           title="Asset state inspector"
         >
@@ -1172,8 +1565,20 @@ export default function AssetsView() {
                   <dd>{selectedAsset.installState?.availability || 'unknown'}</dd>
                 </div>
                 <div>
-                  <dt>Auto-load</dt>
-                  <dd>{selectedAsset.installState?.isAutoLoaded ? 'yes' : 'no'}</dd>
+                  <dt>Load mode</dt>
+                  <dd>{readLoadMode(selectedEntry, selectedAsset)}</dd>
+                </div>
+                <div>
+                  <dt>Activation</dt>
+                  <dd>{selectedAssetActivation?.activationLabel || 'direct-only'}</dd>
+                </div>
+                <div>
+                  <dt>Default routing</dt>
+                  <dd>{selectedAssetActivation?.routingLabel || 'manual-review'}</dd>
+                </div>
+                <div>
+                  <dt>Bundle membership</dt>
+                  <dd>{selectedAssetActivation?.bundleLabel || 'No surfaced bundle membership'}</dd>
                 </div>
                 <div>
                   <dt>Labels</dt>
@@ -1184,7 +1589,10 @@ export default function AssetsView() {
               <div className="catalog-badge-row">
                 <StatusBadge status={selectedAsset.kind} testId="catalog-detail-kind" />
                 <StatusBadge status={selectedAsset.installed ? 'installed' : 'not-installed'} testId="catalog-detail-installed" />
-                <StatusBadge status={selectedAsset.enabled ? 'enabled' : 'disabled'} testId="catalog-detail-enabled" />
+                <StatusBadge status={selectedAssetActivation?.activationLabel || 'direct-only'} testId="catalog-detail-activation" />
+                <StatusBadge status={selectedAsset.enabled ? 'overlay-enabled' : 'overlay-disabled'} testId="catalog-detail-enabled" />
+                <StatusBadge status={selectedAssetActivation?.routingLabel || 'manual-review'} testId="catalog-detail-routing" />
+                <StatusBadge status={readLoadMode(selectedEntry, selectedAsset)} testId="catalog-detail-load-mode" />
                 {selectedAsset.recommended ? <StatusBadge status="recommended" testId="catalog-detail-recommended" /> : null}
                 {selectedAsset.overridden ? <StatusBadge status="overridden" testId="catalog-detail-overridden" /> : null}
                 {selectedIsReadOnly ? <StatusBadge status="read-only" testId="catalog-detail-read-only" /> : null}
@@ -1192,6 +1600,11 @@ export default function AssetsView() {
 
               <p className="catalog-item-copy">
                 {selectedAsset.selectedEntry?.description || 'No description available for this asset.'}
+              </p>
+              <p className="catalog-inline-note">
+                Installed = materialized into the managed surface. Active = included by a surfaced bundle/profile. Overlay enabled =
+                the current repo has not disabled it. Auto-routing only considers installed + active + overlay-enabled + available
+                members under {activationState?.plannerProfile || BALANCED_DEFAULT_PROFILE_ID}.
               </p>
 
               {selectedProvenance ? (
@@ -1229,7 +1642,7 @@ export default function AssetsView() {
                   testId="catalog-toggle-enabled"
                   variant="ghost"
                 >
-                  {selectedAsset.enabled ? 'Disable for selected repo' : 'Enable for selected repo'}
+                  {selectedAsset.enabled ? 'Disable overlay for selected repo' : 'Enable overlay for selected repo'}
                 </Button>
               </div>
 

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-03-13
 category: system
 status: current
 doc_kind: node
@@ -41,6 +41,49 @@ The orchestrator classifies every request by complexity:
 
 You don't choose the complexity — the orchestrator's `@o-reframer` subagent analyzes your request and classifies it automatically. If uncertain, it defaults to "standard" and may ask you to confirm scope.
 
+## Default Routing Policy: `balanced-default`
+
+`@orchestrator` remains the default general entry point even as more capability packs, bundles, and workflows become available.
+
+The default policy is **balanced-default**:
+
+- the orchestrator should prefer capabilities that are **installed + active + eligible**
+- activation comes from **user-global defaults** plus any **repo-specific override**
+- eligibility is **curated and visible**, not "anything installed can be auto-picked"
+- explicit user requests can still override the default filter, but that should be called out as an override rather than treated as normal default routing
+
+### Policy precedence
+
+When the orchestrator decides what it may select by default, it should apply this precedence:
+
+1. explicit user request
+2. repo-specific activation/profile override
+3. user-global default profile
+4. built-in fallback baseline when runtime policy state is not yet available
+
+### Safe fallback before backend eligibility state exists
+
+Current prompt/runtime hardening assumes a safe fallback when the backend has not yet surfaced a compact routing-policy snapshot.
+
+In that case, the orchestrator stays inside a curated shipped first-party baseline for automatic routing:
+
+- `@o-reframer`, `@o-planner`, `@search`, `@execute`
+- `@work-unit-runner`, `@impl-infra`, `@impl-business`
+- `@code-explorer`, `@code-architect`, `@code-reviewer`
+- `@research-ideation`, `@unit-test-runner`, `@doc-writer`, `@final-reviewer`
+
+It should **not** auto-select optional audit lanes, cross-model reviewers, provider/imported capabilities, or the Elegy workflow from fallback alone.
+
+### When Elegy is chosen instead
+
+The default orchestrator path remains the recommendation for general work.
+
+Use `@elegy-planner` + `@elegy-orchestrator` when you explicitly need:
+
+- persisted session-state planning/execution artifacts
+- an Elegy-specific workflow/profile selected by the user or repo
+- a handoff that depends on those persisted artifacts
+
 ## The Lifecycle
 
 ### Phase 0: Bootstrap
@@ -74,6 +117,21 @@ The orchestrator proposes 2-4 concrete next actions (tests, docs, refactors). Pi
 | `@research-ideation` | Web + codebase research |
 | `@unit-test-runner` | Unit test execution |
 | `@integration-test-runner` | Integration tests (user-confirmed) |
+
+## How `@search` and `@execute` fit in
+
+Most users should still start with `@orchestrator`, not invoke discovery/apply agents directly.
+
+Inside the default workflow:
+
+- `@search` is used when the right capability is **not already obvious** from the request or when the orchestrator needs to resolve a skill, canonical doc, or eligible imported capability without loading everything first.
+- `@execute` is used **after** capability resolution to turn that capability into a compact execution brief for the downstream implementation/review worker.
+- Deterministic control-lane steps such as reframing, planning, or running a known review step do **not** need broad search first.
+
+Direct invocation is still useful when you want only one stage:
+
+- use `@search` to ask "what capability should handle this?"
+- use `@execute` to ask "what constraints/steps matter from this already-selected capability?"
 
 ## Plan Packs
 
