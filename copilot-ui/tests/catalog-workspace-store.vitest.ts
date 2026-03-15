@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockGetCatalogSummary = vi.fn();
+const mockGetCatalogBundles = vi.fn();
 const mockGetCatalogAssets = vi.fn();
 const mockGetCatalogBundles = vi.fn();
 const mockGetRuntimeCatalogHealth = vi.fn();
@@ -49,6 +50,7 @@ vi.mock('../ui/src/lib/api', () => ({
 describe('catalogWorkspaceStore', () => {
   beforeEach(() => {
     mockGetCatalogSummary.mockReset();
+    mockGetCatalogBundles.mockReset();
     mockGetCatalogAssets.mockReset();
     mockGetCatalogBundles.mockReset();
     mockGetRuntimeCatalogHealth.mockReset();
@@ -69,6 +71,7 @@ describe('catalogWorkspaceStore', () => {
     mockSelectCatalogRepo.mockReset();
     mockRefreshCatalogRepo.mockReset();
     mockUnregisterCatalogRepo.mockReset();
+    mockGetCatalogBundles.mockResolvedValue({ bundles: [] });
   });
 
   afterEach(() => {
@@ -93,6 +96,20 @@ describe('catalogWorkspaceStore', () => {
           overriddenCount: 0,
         },
       },
+    });
+    mockGetCatalogBundles.mockResolvedValue({
+      bundles: [
+        {
+          bundleId: 'superpowers-workflow',
+          title: 'Superpowers Workflow Pack',
+          status: 'available',
+          stats: {
+            memberCount: 15,
+            installedCount: 0,
+          },
+          members: [],
+        },
+      ],
     });
     mockGetCatalogAssets.mockResolvedValue({
       assets: [
@@ -176,6 +193,7 @@ describe('catalogWorkspaceStore', () => {
 
     expect(mockGetCatalogRepos).toHaveBeenCalledTimes(1);
     expect(mockGetCatalogSummary).toHaveBeenCalledTimes(1);
+    expect(mockGetCatalogBundles).toHaveBeenCalledTimes(1);
     expect(mockGetCatalogAssets).toHaveBeenCalledTimes(1);
     expect(mockGetRuntimeCatalogHealth).toHaveBeenCalledTimes(1);
     expect(mockGetCatalogAssetDetail).toHaveBeenCalledWith('skill-test', {});
@@ -364,6 +382,113 @@ describe('catalogWorkspaceStore', () => {
     expect(catalogWorkspaceStore.getState().searchResults).toHaveLength(1);
   });
 
+  it('installs a bundle by iterating installable bundle members and reloading workspace state', async () => {
+    mockGetCatalogRepos.mockResolvedValue({
+      repos: [],
+      selectedRepo: null,
+    });
+    mockGetCatalogSummary.mockResolvedValue({
+      summary: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+        stats: {
+          effectiveCount: 0,
+          installedCount: 0,
+          overriddenCount: 0,
+        },
+      },
+    });
+    mockGetCatalogBundles
+      .mockResolvedValueOnce({
+        bundles: [
+          {
+            bundleId: 'superpowers-workflow',
+            title: 'Superpowers Workflow Pack',
+            status: 'available',
+            stats: {
+              memberCount: 2,
+              installedCount: 0,
+            },
+            members: [
+              {
+                assetId: 'skill-superpowers-brainstorming',
+                available: true,
+                installed: false,
+              },
+              {
+                assetId: 'agent-superpowers-code-reviewer',
+                available: true,
+                installed: false,
+              },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        bundles: [
+          {
+            bundleId: 'superpowers-workflow',
+            title: 'Superpowers Workflow Pack',
+            status: 'available',
+            stats: {
+              memberCount: 2,
+              installedCount: 0,
+            },
+            members: [
+              {
+                assetId: 'skill-superpowers-brainstorming',
+                available: true,
+                installed: false,
+              },
+              {
+                assetId: 'agent-superpowers-code-reviewer',
+                available: true,
+                installed: false,
+              },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        bundles: [
+          {
+            bundleId: 'superpowers-workflow',
+            title: 'Superpowers Workflow Pack',
+            status: 'installed',
+            stats: {
+              memberCount: 2,
+              installedCount: 2,
+            },
+            members: [],
+          },
+        ],
+      });
+    mockGetCatalogAssets.mockResolvedValue({
+      assets: [],
+    });
+    mockGetRuntimeCatalogHealth.mockResolvedValue({
+      ok: true,
+      projection: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+      },
+    });
+    mockGetCatalogAuditEvents.mockResolvedValue({
+      events: [],
+    });
+    mockInstallCatalogAsset.mockResolvedValue({ action: 'installed' });
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    await catalogWorkspaceStore.loadWorkspace();
+    await catalogWorkspaceStore.installBundle('superpowers-workflow');
+
+    expect(mockInstallCatalogAsset).toHaveBeenCalledTimes(2);
+    expect(mockInstallCatalogAsset).toHaveBeenNthCalledWith(1, { assetId: 'skill-superpowers-brainstorming' });
+    expect(mockInstallCatalogAsset).toHaveBeenNthCalledWith(2, { assetId: 'agent-superpowers-code-reviewer' });
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Installed 2 bundle asset(s)');
+  });
+
   it('creates a repo-local asset and reloads the workspace around the mutation', async () => {
     mockGetCatalogRepos.mockResolvedValue({
       repos: [
@@ -394,6 +519,7 @@ describe('catalogWorkspaceStore', () => {
         },
       },
     });
+    mockGetCatalogBundles.mockResolvedValue({ bundles: [] });
     mockGetCatalogAssets.mockResolvedValue({
       assets: [],
     });

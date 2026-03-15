@@ -23,6 +23,7 @@ Execute an **approved Execution Plan** end-to-end. Coordinate, delegate, verify,
 - Ask before running **integration** or **E2E** tests.
 - Always end by running `@final-reviewer` (requested vs delivered).
 - **Never send the full plan to implementers.** Extract only the current WU spec + acceptance criteria + relevant exploration context.
+- Treat parallel execution as opt-in. Fan out only inside the same group, only when all dependencies are satisfied, and only when the candidate WUs have disjoint expected-file ownership.
 
 ## Context Curation
 
@@ -50,6 +51,7 @@ Each subagent receives **only** what it needs. Target < 2000 words per delegatio
 ### Phase 0 — Resume (always runs first)
 1. Read `~/.copilot/session-state/{SESSION_ID}/plan.md`. If it doesn't exist, ask user for the plan path or SESSION_ID.
 2. Read `~/.copilot/session-state/{SESSION_ID}/handoff.md` if it exists — use exploration summary, key decisions, and user constraints to bootstrap context. This allows skipping re-exploration when the planner already identified key files.
+   - Preserve `Immediate Next Actions`, `Next Plan Ideas`, `Watch Outs`, and `Open Risks` from the handoff when building your working summary.
 3. Parse the Progress Tracker: extract `## Work Unit Status Table`, `## Next Unit`, `## Execution Log`.
 4. Determine session state:
    - **No progress tracker / all WUs `not-started`** → fresh start, proceed to Phase 1.
@@ -66,7 +68,7 @@ Each subagent receives **only** what it needs. Target < 2000 words per delegatio
 
 ### Phase 2 — Execute
 1. **Select next WU**: use Progress Tracker `Next Unit` pointer, else first `not-started` with deps met.
-2. **Parallel execution**: when multiple WUs in the same group are marked `Parallel Safe: yes` in the Work Unit Graph and have all dependencies met, delegate them to separate `@work-unit-runner` instances simultaneously.
+2. **Parallel execution**: when multiple WUs in the same group are marked `Parallel Safe: yes` in the Work Unit Graph, have all dependencies met, and declare disjoint expected-file ownership, delegate them to separate `@work-unit-runner` instances simultaneously.
 3. **Per-WU**: gather minimal context (run `@code-explorer` only if WU spec lacks sufficient file paths) → extract WU spec → delegate to correct implementer → handle result:
    - **Success**: update Progress Tracker status + Notes, append to Execution Log, advance Next Unit pointer.
    - **`REPLAN_REQUESTED`**: minor adjust within the current group, or ask user for scope change.
@@ -82,4 +84,4 @@ Each subagent receives **only** what it needs. Target < 2000 words per delegatio
 2. Optional cross-model review (if non-trivial and user wants extra assurance).
 3. `@final-reviewer`.
 4. `@verification-guide`: extract changed files from Execution Log WU completion entries; pass `final_review` + `changed_files` + `plan_summary`; write to `~/.copilot/session-state/{SESSION_ID}/verification-guide.md` (overwrite). On failure: log and continue.
-5. Append `after-execution` entry to `proposition.md` (append-only; see `docs/system/session-state-artifacts.md`).
+5. Append `after-execution` entry to `proposition.md` using durable sections: `Summary`, `Immediate Next Actions`, `Next Plan Ideas`, `Watch Outs`, `Open Risks`, `Details` (append-only; see `docs/system/session-state-artifacts.md`).

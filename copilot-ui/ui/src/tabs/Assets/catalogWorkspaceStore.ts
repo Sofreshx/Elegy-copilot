@@ -58,15 +58,15 @@ export interface CatalogWorkspaceState {
   summaryError: string | null;
   healthError: string | null;
   repoInventoryError: string | null;
+  bundlesError: string | null;
   installMessage: string | null;
   repoPathInput: string;
   activeRepoPath: string;
   activeRepoId: string;
   filters: CatalogWorkspaceFilters;
   summary: CatalogSnapshotEnvelope | null;
-  assets: CatalogEffectiveAsset[];
   bundles: CatalogBundle[];
-  bundlesError: string | null;
+  assets: CatalogEffectiveAsset[];
   selectedBundleId: string | null;
   selectedAssetId: string | null;
   selectedAsset: CatalogEffectiveAsset | null;
@@ -109,15 +109,15 @@ const INITIAL_STATE: CatalogWorkspaceState = {
   summaryError: null,
   healthError: null,
   repoInventoryError: null,
+  bundlesError: null,
   installMessage: null,
   repoPathInput: '',
   activeRepoPath: '',
   activeRepoId: '',
   filters: INITIAL_FILTERS,
   summary: null,
-  assets: [],
   bundles: [],
-  bundlesError: null,
+  assets: [],
   selectedBundleId: null,
   selectedAssetId: null,
   selectedAsset: null,
@@ -523,11 +523,14 @@ function createCatalogWorkspaceStore() {
         summaryResult.status === 'fulfilled'
           ? summaryResult.value.summary
           : null,
+      bundles:
+        bundlesResult.status === 'fulfilled'
+          ? normalizeBundles(bundlesResult.value.bundles)
+          : [],
       summaryError:
         summaryResult.status === 'rejected'
           ? toErrorMessage(summaryResult.reason, 'Unable to load catalog summary.')
           : null,
-      bundles,
       bundlesError:
         bundlesResult.status === 'rejected'
           ? toErrorMessage(bundlesResult.reason, 'Unable to load catalog bundles.')
@@ -616,6 +619,65 @@ function createCatalogWorkspaceStore() {
         installing: false,
         error: toErrorMessage(error, 'Unable to sync assets.'),
         installMessage: `${force ? 'Force reinstall' : 'Install/update'} failed.`,
+      }));
+      throw error;
+    }
+  }
+
+  async function installBundle(bundleId: string): Promise<void> {
+    const normalizedBundleId = bundleId.trim();
+    if (!normalizedBundleId) {
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      installing: true,
+      error: null,
+      installMessage: `Installing bundle ${normalizedBundleId}...`,
+    }));
+
+    try {
+      const requestSelector = selector();
+      const bundleResponse = await getCatalogBundles({
+        ...requestSelector,
+        bundleId: normalizedBundleId,
+      });
+      const bundle = normalizeBundles(bundleResponse.bundles)[0] ?? null;
+
+      if (!bundle) {
+        throw new Error(`Bundle not found: ${normalizedBundleId}`);
+      }
+
+      const pendingMembers = (Array.isArray(bundle.members) ? bundle.members : [])
+        .filter((member) => member.available && !member.installed && member.assetId);
+
+      if (pendingMembers.length === 0) {
+        await loadWorkspace();
+        store.setState((state) => ({
+          ...state,
+          installing: false,
+          installMessage: `${bundle.title || normalizedBundleId} is already installed.`,
+        }));
+        return;
+      }
+
+      for (const member of pendingMembers) {
+        await installCatalogAsset({ assetId: member.assetId });
+      }
+
+      await loadWorkspace();
+      store.setState((state) => ({
+        ...state,
+        installing: false,
+        installMessage: `Installed ${pendingMembers.length} bundle asset(s) from ${bundle.title || normalizedBundleId}.`,
+      }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        installing: false,
+        error: toErrorMessage(error, 'Unable to install bundle.'),
+        installMessage: `Bundle install failed for ${normalizedBundleId}.`,
       }));
       throw error;
     }
@@ -1180,6 +1242,7 @@ function createCatalogWorkspaceStore() {
     loadWorkspace,
     refreshWorkspace,
     installAll,
+    installBundle,
     createAsset,
     updateAsset,
     deleteAsset,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ApiError,
+  getSessionHandoff,
   getSessionProposition,
   getSessionStructuredState,
   getSessionVerificationGuide,
@@ -8,7 +9,12 @@ import {
 } from '../../lib/api';
 import type { SessionSummary } from '../../lib/types';
 import type {
+  SessionArtifactSection,
+  SessionHandoffResponse,
   SessionPlanArtifact,
+  SessionPropositionEntry,
+  SessionPropositionResponse,
+  SessionStructuredMeta,
   SessionStructuredNextUnit,
 } from '../../lib/types';
 import {
@@ -33,6 +39,11 @@ interface SessionArtifactsState {
   nextUnit: SessionStructuredNextUnit | null;
   warnings: string[];
   proposition: string | null;
+  propositionEntries: SessionPropositionEntry[];
+  handoff: string | null;
+  handoffParsed: SessionHandoffResponse['parsed'] | null;
+  resumeMeta: SessionStructuredMeta['resume'] | null;
+  reviewLedgerApproved: boolean | null;
   verificationGuide: string | null;
 }
 
@@ -43,6 +54,11 @@ const EMPTY_ARTIFACTS_STATE: SessionArtifactsState = {
   nextUnit: null,
   warnings: [],
   proposition: null,
+  propositionEntries: [],
+  handoff: null,
+  handoffParsed: null,
+  resumeMeta: null,
+  reviewLedgerApproved: null,
   verificationGuide: null,
 };
 
@@ -90,6 +106,35 @@ function isNotFoundError(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
 }
 
+function renderArtifactSection(section: SessionArtifactSection) {
+  const items = Array.isArray(section.items)
+    ? section.items.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+
+  return (
+    <div key={`${section.key || section.title}-${section.content}`} className="metadata-block">
+      <h5>{section.title}</h5>
+      {items.length > 0 ? (
+        <ul className="session-detail-warnings">
+          {items.map((item) => (
+            <li key={`${section.title}-${item}`}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <pre>{section.content || '-'}</pre>
+      )}
+    </div>
+  );
+}
+
+function getLatestStructuredProposition(response: SessionPropositionResponse | null): SessionPropositionEntry | null {
+  if (!response || !Array.isArray(response.entries) || response.entries.length === 0) {
+    return null;
+  }
+
+  return response.entries[response.entries.length - 1] || null;
+}
+
 export default function SessionDetail({ session = null }: SessionDetailProps) {
   const [artifacts, setArtifacts] = useState<SessionArtifactsState>(EMPTY_ARTIFACTS_STATE);
   const extraMetadata = session ? getExtraMetadata(session) : {};
@@ -128,9 +173,10 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
       readOptional(() => listSessionPlans(session.id, { source: sessionSource })),
       readOptional(() => getSessionStructuredState(session.id, { source: sessionSource, planId: 'latest' })),
       readOptional(() => getSessionProposition(session.id, { source: sessionSource })),
+      readOptional(() => getSessionHandoff(session.id, { source: sessionSource })),
       readOptional(() => getSessionVerificationGuide(session.id, { source: sessionSource })),
     ])
-      .then(([plansResponse, structuredState, propositionResponse, verificationResponse]) => {
+      .then(([plansResponse, structuredState, propositionResponse, handoffResponse, verificationResponse]) => {
         if (cancelled) {
           return;
         }
@@ -143,8 +189,16 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
         const warnings = Array.isArray(structuredState?.warnings)
           ? structuredState.warnings
             .filter((entry): entry is string => typeof entry === 'string')
-            .slice(0, 4)
+            .slice(0, 8)
           : [];
+
+        const latestPropositionEntry = getLatestStructuredProposition(propositionResponse as SessionPropositionResponse | null);
+        const propositionEntries = Array.isArray((propositionResponse as SessionPropositionResponse | null)?.entries)
+          ? ((propositionResponse as SessionPropositionResponse).entries as SessionPropositionEntry[])
+          : [];
+        const structuredMeta = structuredState && typeof structuredState.meta === 'object' && structuredState.meta != null
+          ? (structuredState.meta as SessionStructuredMeta)
+          : null;
 
         setArtifacts({
           loading: false,
@@ -155,6 +209,23 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
           proposition:
             propositionResponse && typeof propositionResponse.content === 'string'
               ? propositionResponse.content
+              : null,
+          propositionEntries: latestPropositionEntry ? latestPropositionEntry.sections.length > 0 ? propositionEntries : propositionEntries : propositionEntries,
+          handoff:
+            handoffResponse && typeof handoffResponse.content === 'string'
+              ? handoffResponse.content
+              : null,
+          handoffParsed:
+            handoffResponse && typeof handoffResponse.parsed === 'object' && handoffResponse.parsed != null
+              ? handoffResponse.parsed
+              : null,
+          resumeMeta:
+            structuredMeta && typeof structuredMeta.resume === 'object' && structuredMeta.resume != null
+              ? structuredMeta.resume
+              : null,
+          reviewLedgerApproved:
+            structuredMeta && typeof structuredMeta.reviewLedger?.approved === 'boolean'
+              ? structuredMeta.reviewLedger.approved
               : null,
           verificationGuide:
             verificationResponse && typeof verificationResponse.content === 'string'
@@ -226,9 +297,25 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
             {!artifacts.loading && artifacts.nextUnit ? (
               <p className="session-detail-suggestion">
                 <span>Next suggested unit:</span>{' '}
-                {artifacts.nextUnit.workUnitId || 'unknown'}
+                {Array.isArray(artifacts.nextUnit.workUnitIds) && artifacts.nextUnit.workUnitIds.length > 0
+                  ? artifacts.nextUnit.workUnitIds.join(', ')
+                  : artifacts.nextUnit.workUnitId || 'unknown'}
                 {artifacts.nextUnit.rationale ? ` - ${artifacts.nextUnit.rationale}` : ''}
               </p>
+            ) : null}
+
+            {!artifacts.loading && artifacts.resumeMeta ? (
+              <p className="session-detail-suggestion">
+                <span>Resume readiness:</span>{' '}
+                {artifacts.resumeMeta.ready ? 'ready' : 'needs attention'}
+                {Array.isArray(artifacts.resumeMeta.blockers) && artifacts.resumeMeta.blockers.length > 0
+                  ? ` - ${artifacts.resumeMeta.blockers.join(', ')}`
+                  : ''}
+              </p>
+            ) : null}
+
+            {!artifacts.loading && artifacts.reviewLedgerApproved === false ? (
+              <p className="session-detail-hint">Review ledger does not currently show a resumable approval verdict.</p>
             ) : null}
 
             {!artifacts.loading && artifacts.plans.length > 0 ? (
@@ -267,7 +354,43 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
             {artifacts.proposition ? (
               <details className="metadata-block">
                 <summary>Proposition</summary>
+                {artifacts.propositionEntries.length > 0 ? (
+                  <>
+                    <p className="session-detail-hint">
+                      Latest guidance: {artifacts.propositionEntries[artifacts.propositionEntries.length - 1]?.phase || 'unknown phase'}
+                    </p>
+                    {artifacts.propositionEntries[artifacts.propositionEntries.length - 1]?.sections.map((section) => renderArtifactSection(section))}
+                  </>
+                ) : null}
                 <pre>{artifacts.proposition}</pre>
+              </details>
+            ) : null}
+
+            {artifacts.handoff ? (
+              <details className="metadata-block">
+                <summary>Handoff</summary>
+                {artifacts.handoffParsed?.manifest ? (
+                  <dl className="detail-grid">
+                    <div>
+                      <dt>Session</dt>
+                      <dd>{artifacts.handoffParsed.manifest.session || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Plan Status</dt>
+                      <dd>{artifacts.handoffParsed.manifest.planStatus || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Reviewer</dt>
+                      <dd>{artifacts.handoffParsed.manifest.reviewer || '—'}</dd>
+                    </div>
+                  </dl>
+                ) : null}
+                {Array.isArray(artifacts.handoffParsed?.sections)
+                  ? artifacts.handoffParsed.sections
+                    .filter((section) => section.key !== 'handoffManifest')
+                    .map((section) => renderArtifactSection(section))
+                  : null}
+                <pre>{artifacts.handoff}</pre>
               </details>
             ) : null}
 

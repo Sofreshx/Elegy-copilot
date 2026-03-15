@@ -36,7 +36,7 @@ Execute one or more work units provided inline by the caller (typically `@orches
 
 | Signal | Fields |
 |--------|--------|
-| `WORK_UNIT_RESULT` | work_unit, status, changes, validation, tests_requested, notes |
+| `WORK_UNIT_RESULT` | work_unit, status, changes, touched_files, validation, tests_requested, parallel_safety_change, notes |
 | `REPLAN_REQUESTED` | work_unit, reasons, requests_from_orchestrator, new_risks, questions |
 | `NEW_WORK_UNIT_REQUEST` | requested_from_work_unit, title, priority, depends_on, context_to_include, acceptance_criteria, plan_approach, validation |
 
@@ -57,7 +57,9 @@ WORK_UNIT_RESULT
 - work_unit: FAST-PATH
 - status: done
 - changes: <1-3 bullets>
+- touched_files: <repo-relative files touched, or none>
 - validation: <commands + results>
 - tests_requested: <test scope or none>
+- parallel_safety_change: unchanged|reduced|unknown
 - notes: <any key follow-ups>
 ```

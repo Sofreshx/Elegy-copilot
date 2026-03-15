@@ -3,6 +3,7 @@ import type {
   CatalogAssetMutationResponse,
   CatalogAssetDetailResponse,
   CatalogAssetsResponse,
+  CatalogBundlesResponse,
   CatalogAuditEventsResponse,
   CatalogProviderInstallResponse,
   CatalogBundlesResponse,
@@ -1157,8 +1158,21 @@ export function getSessionProposition(
   sessionId: string,
   options: SessionArtifactQueryOptions = {},
   baseUrl?: string
-): Promise<SessionTextArtifactResponse> {
-  return apiRequest<SessionTextArtifactResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/proposition`, {
+): Promise<SessionPropositionResponse> {
+  return apiRequest<SessionPropositionResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/proposition`, {
+    baseUrl,
+    query: {
+      source: options.source,
+    },
+  });
+}
+
+export function getSessionHandoff(
+  sessionId: string,
+  options: SessionArtifactQueryOptions = {},
+  baseUrl?: string
+): Promise<SessionHandoffResponse> {
+  return apiRequest<SessionHandoffResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/handoff`, {
     baseUrl,
     query: {
       source: options.source,
@@ -1466,6 +1480,20 @@ export function getCatalogAssets(query: CatalogAssetsQuery = {}, baseUrl?: strin
       enabled: query.enabled,
       recommended: query.recommended,
       available: query.available,
+    },
+  });
+}
+
+export function getCatalogBundles(
+  query: CatalogBundlesQuery = {},
+  baseUrl?: string
+): Promise<CatalogBundlesResponse> {
+  return apiRequest<CatalogBundlesResponse>('/api/catalog/bundles', {
+    baseUrl,
+    query: {
+      ...buildCatalogSelectorQuery(query),
+      bundleId: query.bundleId,
+      q: query.q,
     },
   });
 }

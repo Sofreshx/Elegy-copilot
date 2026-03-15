@@ -114,6 +114,20 @@ Common keyword → skill mappings:
 - Friction review, friction analysis, friction cluster, refactor priority, friction feedback → `friction-feedback`
 - Create skill, author skill, skill template, forge skill → `skill-forge`
 - Doc conflict, source of truth, stale docs, truth hierarchy, code vs docs → `truth-sync`
+- Superpowers workflow, optional workflow pack, workflow discipline → `superpowers-using-superpowers`
+- Brainstorming ideas into designs, design before coding, idea refinement → `superpowers-brainstorming`
+- Red green refactor, strict TDD, write failing test first → `superpowers-test-driven-development`
+- Root cause workflow, systematic debugging, no random fixes → `superpowers-systematic-debugging`
+- Implementation plan writing, bite-sized task planning, plan before code → `superpowers-writing-plans`
+- Execute written plan in-session, batch plan execution → `superpowers-executing-plans`
+- Fresh subagent per task, two-stage review workflow, subagent-driven execution → `superpowers-subagent-driven-development`
+- Parallel subagents, independent tasks in parallel, agent fan-out → `superpowers-dispatching-parallel-agents`
+- Request review against plan, review before merge, review template workflow → `superpowers-requesting-code-review`
+- Respond to review feedback, apply review fixes → `superpowers-receiving-code-review`
+- Verify before done, prove fix worked, completion verification → `superpowers-verification-before-completion`
+- Git worktree workflow, isolated branch workspace, worktree setup → `superpowers-using-git-worktrees`
+- Finish development branch, merge or PR cleanup, branch wrap-up → `superpowers-finishing-a-development-branch`
+- Skill authoring via superpowers, documentation TDD for skills → `superpowers-writing-skills`
 
 ### Pattern 3: Shared Catalog Search (keyword miss or ranking needed)
 

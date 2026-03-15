@@ -30,6 +30,8 @@ bash scripts/cli-install.sh --all --force
 
 This installs all agents, prompts, and the global instructions file into `~/.copilot`, and installs skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode.
 
+Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can then be installed from the local dashboard with one click in `Assets` -> `Workflow packs`.
+
 ### Enable subagent delegation in VS Code
 
 ```json
@@ -49,8 +51,8 @@ This installs all agents, prompts, and the global instructions file into `~/.cop
 
 | Type | Count | Location |
 |------|-------|----------|
-| Agents | 32 | `engine-assets/agents/*.agent.md` |
-| Skills | 41 | `engine-assets/skills/<name>/SKILL.md` |
+| Agents | 37 | `engine-assets/agents/*.agent.md` |
+| Skills | 54 | `engine-assets/skills/<name>/SKILL.md` |
 | Prompts | 3 | `engine-assets/prompts/*.prompt.md` |
 | Instructions | 1 | `engine-assets/copilot-instructions.md` |
 | Manifest (install/shipping) | — | `.cli/manifest.json` |
@@ -138,6 +140,8 @@ Open: http://127.0.0.1:3210
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.
 For the current tabs, route groups, persistence model, and validation anchors, see
 `docs/system/copilot-ui-guide.md`.
+
+The `Assets` tab now includes a `Workflow packs` panel for optional bundles that install multiple assets together. The first shipped bundle is `Superpowers Workflow Pack`, which installs the vendored Superpowers skills and reviewer agent into the user-global Copilot surface.
 
 ### Catalog control plane at a glance
 

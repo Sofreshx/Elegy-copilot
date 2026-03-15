@@ -90,6 +90,11 @@ A markdown table that defines the dependency graph across all work units.
 | `Next Units` | JSON array of WU IDs that depend on this WU, or `[]` |
 | `Parallel Safe` | `yes` or `no` — whether this WU can run in parallel with siblings |
 
+Contract rules:
+- `Depends On` and `Next Units` must remain parseable JSON arrays in the assembled plan pack.
+- `Parallel Safe = yes` is reserved for WUs that do not rely on sibling ordering, do not mutate shared state that needs sequencing, and do not contend on the same expected files or ownership boundary.
+- Any WU marked `Parallel Safe = yes` must declare an `Expected Files` subsection in its WU spec so executors can reason about file ownership before fan-out.
+
 ### `## Work Unit Index`
 
 A lookup table mapping each WU to its spec heading for navigation.
@@ -148,7 +153,7 @@ Where `NNN` is a zero-padded three-digit number.
 
 | Section | Heading | Description |
 | --- | --- | --- |
-| Expected Files | `#### Expected Files (optional)` | Explicit list of files to create or modify. |
+| Expected Files | `#### Expected Files (optional)` | Explicit list of files to create or modify. Required when the WU is marked `Parallel Safe = yes` in the Work Unit Graph. |
 | Risks / Notes | `#### Risks / Notes` | Edge cases, caveats, or known limitations. |
 
 ### Example
@@ -180,6 +185,10 @@ to enforce email format and password strength before persisting.
 #### Risks / Notes
 - Password strength rules may need alignment with the frontend — confirm before merging.
 ```
+
+### Parallel-Safe Ownership Rule
+
+If a WU is marked `Parallel Safe = yes`, its `#### Expected Files` subsection must enumerate the concrete file paths or directory ownership boundaries it expects to touch. Sibling WUs in the same group may run concurrently only when those ownership declarations are disjoint or an explicit merge strategy is documented elsewhere in the plan.
 
 ---
 

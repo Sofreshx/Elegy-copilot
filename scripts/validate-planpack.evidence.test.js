@@ -174,6 +174,9 @@ ${versionLine}## Goal + Success Criteria
 #### Plan / Approach
 - Keep a minimal, valid WU spec and graph.
 
+#### Expected Files (optional)
+- scripts/validate-planpack.js (modify)
+
 #### Validation
 - Run validate-planpack.js against sample content.
 

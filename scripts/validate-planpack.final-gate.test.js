@@ -137,6 +137,9 @@ function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows, plan
 #### Plan / Approach
 - Validate final gate table rows.
 
+#### Expected Files (optional)
+- scripts/validate-planpack.js (modify)
+
 #### Validation
 - node scripts/validate-planpack.js <planpack>
 

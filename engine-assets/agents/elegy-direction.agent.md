@@ -18,6 +18,7 @@ You do **not** implement code.
 - Do not run commands.
 - Do not ask the user questions directly.
 - Choose **one** recommended direction.
+- Mark workstreams as parallel-capable only when their likely ownership boundaries and dependencies are genuinely independent.
 
 ## Inputs (expected)
 - Clarified brief (preferred) OR raw user request + project context
@@ -28,11 +29,11 @@ Return exactly the following sections in Markdown:
 
 1) **Recommended Direction** (single paragraph)
 2) **Workstreams** (2–5 items)
-   - For each workstream: Name, goal, key outputs, and key dependencies
-3) **Dependency Ordering** (ordered list; note what can run in parallel)
+   - For each workstream: Name, goal, key outputs, key dependencies, likely ownership boundary, and `Parallel note: yes|no` with one-line rationale
+3) **Dependency Ordering** (ordered list; note what can run in parallel only when ownership is disjoint and no sequential review gate is required)
 4) **Plan-Pack Mapping**
    - Groups (2–6): `G-01`, `G-02`, ... with titles
-   - For each group: the checkpoint (what "done" means for this group)
+   - For each group: the checkpoint (what "done" means for this group) and whether parallel-safe WUs are expected inside the group
 5) **Testing Strategy** (how the plan should be validated — unit, integration, E2E expectations)
 6) **Plan Quality Risks** (bullets: what tends to go wrong in planning for this request)
 
@@ -40,3 +41,4 @@ Return exactly the following sections in Markdown:
 - Keep this high-level: it should guide `@elegy-subplanner`, not replace it.
 - Work Unit breakdown is the subplanner's job — do not list individual WUs.
 - The mapping must be stable and consistent across similar requests.
+- Prefer serial-by-default planning language. Only advertise parallel work when the decomposition is clearly safe.

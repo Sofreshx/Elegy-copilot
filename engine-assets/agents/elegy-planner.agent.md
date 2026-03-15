@@ -22,6 +22,8 @@ Plan-strict: reviews at both tiers; final assembled plan requires explicit revie
 - Run plan review with `@reviewer-opus-4-6`.
 - Approval gate: do not hand off unless `@reviewer-opus-4-6` returns `Verdict: APPROVED`, OR user explicitly approves via `vscode/askQuestions`.
 - Target < 1500 words per subagent delegation call.
+- Treat exploration as sufficient only when you have concrete entry points, relevant files, and at least one repo-specific constraint or pattern for each major workstream.
+- Cap each review loop at 3 revision rounds. If the cap is hit without approval, summarize the remaining disagreement and escalate via `vscode/askQuestions` instead of looping indefinitely.
 
 ## Workflow
 
@@ -29,21 +31,22 @@ Plan-strict: reviews at both tiers; final assembled plan requires explicit revie
 1. Restate the request in 1–3 bullets (scope + success).
 2. Launch `@code-explorer` for relevant entry points and key files. Retain the `EXPLORATION_RESULT` structured output for later use.
 3. Delegate to `@elegy-direction` with: user request, project context, **and** the `EXPLORATION_RESULT` from step 2 (exploration findings are a required input for direction).
-4. Send direction output to `@reviewer-opus-4-6` — refine until approved.
+4. Send direction output to `@reviewer-opus-4-6` — refine until approved, subject to the 3-round cap.
 
 ### Phase 2 — Parallel Sub-Planning
 1. For each approved workstream, launch `@elegy-subplanner` in parallel with:
    - The approved high-level plan + workstream assignment.
    - **Relevant exploration findings scoped to this workstream** (extract `key_files` and `entry_points` from the `EXPLORATION_RESULT` that pertain to this workstream).
    - A `wuOffset` so each subplanner produces globally unique `WU-NNN` IDs (e.g., workstream 1 starts at WU-001, workstream 2 at WU-004, etc.).
-2. Send sub-plans to `@reviewer-opus-4-6`; refine any `NEEDS_REVISION` results.
+   - A reminder that `Parallel Safety` is opt-in and must be justified with concrete ownership boundaries.
+2. Send sub-plans to `@reviewer-opus-4-6`; refine any `NEEDS_REVISION` results, subject to the 3-round cap.
 
 ### Phase 3 — Assembly & Final Review
 1. Assemble approved high-level plan + sub-plans into a single Plan Pack with Progress Tracker.
 2. Write to `~/.copilot/session-state/{SESSION_ID}/plan.md`.
 3. **Validate**: run `node scripts/validate-planpack-planning.js <path-to-plan.md> --ac-enforcement fail` to verify planning-phase structural conformance. Fix any issues before proceeding. Do **not** require execution-only evidence or final-gate sections at this stage.
 4. Submit to `@reviewer-opus-4-6` for final review; record a Review Ledger in `plan.md` (see below).
-5. Append `after-planning` entry to `proposition.md`.
+5. Append `after-planning` entry to `proposition.md` using durable sections: `Summary`, `Immediate Next Actions`, `Next Plan Ideas`, `Watch Outs`, `Open Risks`, `Details`.
 6. Write `~/.copilot/session-state/{SESSION_ID}/handoff.md` (see Handoff Manifest below).
 
 ### Phase 4 — Handoff
@@ -72,6 +75,18 @@ Written to `~/.copilot/session-state/{SESSION_ID}/handoff.md` at the end of Phas
 
 ## User Constraints
 - <anything the user specified via askQuestions>
+
+## Immediate Next Actions
+- <the first concrete execution moves for this session>
+
+## Next Plan Ideas
+- <explicit follow-on planning ideas that are out of scope for the current session>
+
+## Watch Outs
+- <execution cautions that must remain visible during orchestration>
+
+## Open Risks
+- <unresolved risks that may require replanning or user escalation>
 ```
 
 ## Review Ledger (in `plan.md`)

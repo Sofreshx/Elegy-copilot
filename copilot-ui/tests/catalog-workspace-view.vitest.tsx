@@ -5,6 +5,7 @@ const storeMocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
   refreshWorkspace: vi.fn(),
   installAll: vi.fn(),
+  installBundle: vi.fn(),
   createAsset: vi.fn(),
   updateAsset: vi.fn(),
   deleteAsset: vi.fn(),
@@ -35,6 +36,7 @@ const mockState = {
   summaryError: null,
   healthError: null,
   repoInventoryError: null,
+  bundlesError: null,
   installMessage: 'Catalog projection refreshed.',
   repoPathInput: 'C:\\repo',
   activeRepoPath: 'C:\\repo',
@@ -61,6 +63,24 @@ const mockState = {
       },
     },
   },
+  bundles: [
+    {
+      bundleId: 'superpowers-workflow',
+      title: 'Superpowers Workflow Pack',
+      description: 'Optional workflow pack for disciplined planning, debugging, and TDD.',
+      materialization: 'on-demand',
+      status: 'available',
+      defaultRecommended: false,
+      stats: {
+        memberCount: 15,
+        installedCount: 0,
+        availableCount: 15,
+        missingCount: 0,
+      },
+      tags: ['superpowers', 'workflow'],
+      members: [],
+    },
+  ],
   assets: [
     {
       assetId: 'skill-test',
@@ -391,6 +411,7 @@ const mockCatalogWorkspaceStore = {
   loadWorkspace: storeMocks.loadWorkspace,
   refreshWorkspace: storeMocks.refreshWorkspace,
   installAll: storeMocks.installAll,
+  installBundle: storeMocks.installBundle,
   createAsset: storeMocks.createAsset,
   updateAsset: storeMocks.updateAsset,
   deleteAsset: storeMocks.deleteAsset,
@@ -415,6 +436,7 @@ const mockCatalogWorkspaceStore = {
 describe('AssetsView catalog workspace', () => {
   beforeEach(() => {
     Object.values(storeMocks).forEach((mock) => mock.mockReset());
+    storeMocks.installBundle.mockResolvedValue(undefined);
     storeMocks.createAsset.mockResolvedValue(undefined);
     storeMocks.updateAsset.mockResolvedValue(undefined);
   });
@@ -434,6 +456,8 @@ describe('AssetsView catalog workspace', () => {
 
     expect(storeMocks.loadWorkspace).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Repo scope & registration')).toBeInTheDocument();
+    expect(screen.getByText('Workflow packs')).toBeInTheDocument();
+    expect(screen.getByText('Superpowers Workflow Pack')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Create asset' })).toBeInTheDocument();
     expect(screen.getByText('Catalog browser')).toBeInTheDocument();
     expect(screen.getByText('Search & recommendations')).toBeInTheDocument();
@@ -442,6 +466,22 @@ describe('AssetsView catalog workspace', () => {
     expect(screen.getByTestId('catalog-write-target-copy')).toHaveTextContent('authoritative repo-local asset');
     expect(screen.getByTestId('catalog-runtime-freshness')).toHaveTextContent('fresh');
     expect(screen.getByText('# Test skill')).toBeInTheDocument();
+  });
+
+  it('dispatches bundle installation through the workspace store', async () => {
+    vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
+      catalogWorkspaceStore: mockCatalogWorkspaceStore,
+    }));
+
+    const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
+
+    render(<AssetsView />);
+
+    fireEvent.click(screen.getByTestId('catalog-install-bundle-superpowers-workflow'));
+
+    await waitFor(() => {
+      expect(storeMocks.installBundle).toHaveBeenCalledWith('superpowers-workflow');
+    });
   });
 
   it('submits create and update actions through the workspace store', async () => {
