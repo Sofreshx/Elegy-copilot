@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-01
+updated: 2026-03-15
 category: system
 status: current
 doc_kind: node
@@ -12,6 +12,10 @@ tags: [session-state, elegy]
 # Session State Artifacts
 
 This document defines the canonical contract for Elegy session state artifacts, ensuring agents and UI tools agree on what to write and read.
+It governs artifact file shape and location, not the broader live session reconciliation authority;
+see `docs/system/domain-authorities-freeze.md` for the runtime-vs-artifact authority freeze.
+In `copilot-ui`, `GET /api/sessions` remains an artifact inventory surface for session folders and archive/offline views;
+it may include reconciliation metadata, but it does not override the runtime-first live authority model.
 
 ## Canonical Session Root
 
@@ -57,6 +61,10 @@ The dashboard planning artifact routes expose these fields per record:
 
 These APIs are deterministic and operate on the existing planning record state in memory/persistence projection.
 
+These record-scoped research and diagram artifacts are legacy compatibility surfaces for planning
+records. The repo-backed Planning workflow uses Repository Backlog and Roadmap docs under the selected
+repo instead; see [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
+
 ### Plan Artifact (`plan.md`)
 
 The plan artifact contains **two top-level documents in one markdown file**:
@@ -65,6 +73,18 @@ The plan artifact contains **two top-level documents in one markdown file**:
 2. **Plan-Pack Progress Tracker** — Live execution state (status tables, checkpoints, next unit)
 
 This dual-document approach matches the output of `@o-planner` and `@elegy-planner`.
+
+When a plan pack is linked to repo-backed Planning artifacts, `plan.md` may also include explicit
+Roadmap Sync markers such as:
+
+- `IE_LINKED_BACKLOG_IDS`
+- `IE_LINKED_ROADMAP_IDS`
+- `IE_PLAN_REF` or `IE_SESSION_REF`
+- `IE_PLAN_OUTCOME`
+
+These markers are optional for generic plan packs, but they are required when the session is expected to
+reconcile Repository Backlog or Roadmap state automatically. The canonical linkage and sync semantics are
+defined in [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
 
 ### Proposition Artifact (`proposition.md`)
 
@@ -115,6 +135,15 @@ GET /api/sessions/:id/verification-guide
 ```
 
 Returns `{ id, source, content }` with the raw Markdown content, or `404` if the artifact was not generated for the session.
+
+The dashboard also exposes deterministic roadmap reconciliation for linked plan packs via:
+
+```
+POST /api/sessions/:id/roadmap-sync
+```
+
+This endpoint reads the session `plan.md`, resolves repo context through Catalog selection, and applies
+Roadmap Sync only when the linked plan markers and terminal outcome are valid.
 
 ## Planning Semantic Contract (WS3)
 
@@ -197,8 +226,12 @@ The persistence authority for planning records and planning notes is frozen as f
   - Session artifacts (`plan.md`, `proposition.md`, `verification-guide.md`) are orchestration artifacts and MUST NOT be treated as canonical planning-record persistence.
 
 4. No file fallback writes
-  - Implementations MUST NOT silently fall back to file-based persistence for planning records/notes when local DB persistence is unavailable.
-  - Persistence failures must remain explicit and deterministic to callers.
+   - Implementations MUST NOT silently fall back to file-based persistence for planning records/notes when local DB persistence is unavailable.
+   - Persistence failures must remain explicit and deterministic to callers.
+
+This freeze applies to planning-record persistence only. Repo-backed `docs/backlog.md` and
+`docs/roadmaps/*.md` artifacts are outside session-state authority and outside this local planning DB
+authority boundary.
 
 ### Planning Persistence Operations Contract (WS4 M2)
 
@@ -243,8 +276,8 @@ WS4 M3 closes governance scope for persistence operations and freezes evidence e
   - `npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts`
 
 3. Path/idempotency checkpoint expectations
-  - gateway config path resolution is deterministic and tracker-compatible (`INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` override; canonical default under `~/.instruction-engine`)
-  - status artifact path remains deterministic and machine-global (`~/.instruction-engine/messaging-gateway.status.json`)
+  - gateway config path resolution is deterministic and tracker-compatible (`INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` override; canonical default under `~/.copilot/messaging-gateway.config.json`; legacy `~/.instruction-engine` config is rehome-only compatibility input)
+  - status artifact path remains deterministic and machine-global (`~/.copilot/messaging-gateway.status.json`; legacy `~/.instruction-engine` status is rehome-only compatibility input)
   - lifecycle finish retries preserve canonical sandbox ID and idempotency conflict envelopes stay explicit (`idempotency_conflict`, `idempotency_key_payload_mismatch`)
 
 4. Gate decision
@@ -299,10 +332,9 @@ Lifecycle provider capability behavior is frozen as follows:
 
 Reconciliation authority between runtime state and filesystem/session artifacts is frozen as a deterministic contract:
 
-1. Canonical authority labels (backward-compatible)
-  - `acp` = both runtime and artifact state are present; runtime is authoritative for reconciliation.
-  - `acp-only` = runtime state present without matching artifact state.
-  - `fs` = artifact state present without runtime state, or no runtime signal is available.
+1. Canonical authority labels
+  - `acp` = runtime state is present and is authoritative for reconciliation, whether or not matching artifacts also exist.
+  - `fs` = artifact state is the only available authority, or no runtime signal is available.
 
 2. Deterministic source precedence
   - Source precedence is always `runtime > artifact`.
@@ -310,7 +342,7 @@ Reconciliation authority between runtime state and filesystem/session artifacts 
 
 3. Source-of-truth resolution matrix
   - runtime + artifact -> `authority=acp`, `sourceOfTruth=runtime`, `sourcePrecedence=["runtime","artifact"]`
-  - runtime only -> `authority=acp-only`, `sourceOfTruth=runtime`, `sourcePrecedence=["runtime"]`
+  - runtime only -> `authority=acp`, `sourceOfTruth=runtime`, `sourcePrecedence=["runtime"]`
   - artifact only (or neither source asserted) -> `authority=fs`, `sourceOfTruth=artifact`, `sourcePrecedence=["artifact"]`
 
 4. Frozen helper/export contract
@@ -330,8 +362,8 @@ Reconciliation authority between runtime state and filesystem/session artifacts 
     - `getPlanningScopePrecedence(record)`
 
 5. Compatibility constraints
-  - Existing authority tokens (`acp`, `acp-only`, `fs`) remain unchanged.
-  - Existing consumer behavior remains additive and deterministic; this work freezes contract semantics for reconciliation without changing endpoint envelopes.
+  - Runtime-present authority is unified on `acp`; callers should use reconciliation presence/reason metadata to distinguish `runtime_only` from `runtime_and_artifact`.
+  - Existing consumer behavior remains additive and deterministic; this work freezes contract semantics for reconciliation without changing artifact read endpoints.
 
 ### Reconciliation Invariant Checkpoint (G-03-WU-05)
 
@@ -347,7 +379,7 @@ node copilot-ui/server.runtime-health.test.js
 
 Checkpoint pass criteria:
 - all commands exit `0`
-- authority precedence remains deterministic (`runtime > artifact`) with canonical authorities `acp`, `acp-only`, and `fs`
+- authority precedence remains deterministic (`runtime > artifact`) with canonical authorities `acp` and `fs`
 - stale/conflict downgrade markers are deterministic (sorted + deduped marker collections and reason codes)
 - recovery markers remain explicit and stable (`recovery_checkpoint_only`, `recovery_ledger_only`, `recovery_missing_both`)
 - merged all-source session output includes reconciliation metadata (`authority`, `sourceOfTruth`, `sourcePrecedence`, `sourceSet`)
@@ -785,7 +817,7 @@ Dependency gate contract:
 - gate is deterministic and fail-closed (`required=true`, `deterministic=true`)
 - readiness requires WS3 contract invariants to be satisfied:
   - reconciliation contract metadata is present
-  - canonical authority/source mappings remain valid (`acp`, `acp-only`, `fs` with runtime > artifact precedence)
+  - canonical authority/source mappings remain valid (`acp`, `fs` with runtime > artifact precedence)
   - planning scope precedence remains deterministic (`user > repo > global`)
 
 Durability route scope:

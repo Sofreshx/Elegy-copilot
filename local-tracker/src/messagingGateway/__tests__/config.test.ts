@@ -6,6 +6,7 @@ import {
 	loadMessagingGatewayConfig,
 	resolveMessagingGatewayConfigPath,
 	getDefaultMessagingGatewayConfigPath,
+	getLegacyMessagingGatewayConfigPath,
 	resolveSandboxLifecycleConfig,
 	DEFAULT_SANDBOX_MAX_SANDBOXES,
 	DEFAULT_SANDBOX_PORT_RANGE_START,
@@ -417,7 +418,16 @@ describe('Config path resolution', () => {
 
 	it('falls back to default path when env var is not set', () => {
 		delete process.env[CONFIG_PATH_ENV];
-		expect(resolveMessagingGatewayConfigPath()).toBe(path.resolve(getDefaultMessagingGatewayConfigPath()));
+		const homedirMock = jest.spyOn(os, 'homedir');
+		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-home-'));
+		homedirMock.mockReturnValue(tempHome);
+
+		try {
+			expect(resolveMessagingGatewayConfigPath()).toBe(path.resolve(getDefaultMessagingGatewayConfigPath()));
+		} finally {
+			homedirMock.mockRestore();
+			fs.rmSync(tempHome, { recursive: true, force: true });
+		}
 	});
 
 	it('CLI arg takes priority over env var', () => {
@@ -428,23 +438,75 @@ describe('Config path resolution', () => {
 
 	it('uses canonical os.homedir default when HOME and USERPROFILE diverge', () => {
 		delete process.env[CONFIG_PATH_ENV];
+		const homedirMock = jest.spyOn(os, 'homedir');
+		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-home-'));
+		homedirMock.mockReturnValue(tempHome);
 		const homeOnlyPath = path.join(os.tmpdir(), 'gateway-config-home-only');
 		const userProfilePath = path.join(os.tmpdir(), 'gateway-config-userprofile');
 		process.env.HOME = homeOnlyPath;
 		process.env.USERPROFILE = userProfilePath;
 
-		const resolvedPath = resolveMessagingGatewayConfigPath();
-		const expectedPath = path.resolve(
-			path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.config.json'),
-		);
-
-		expect(resolvedPath).toBe(expectedPath);
-
-		if (process.platform === 'win32') {
-			const homeDerivedPath = path.resolve(
-				path.join(homeOnlyPath, '.instruction-engine', 'messaging-gateway.config.json'),
+		try {
+			const resolvedPath = resolveMessagingGatewayConfigPath();
+			const expectedPath = path.resolve(
+				path.join(os.homedir(), '.copilot', 'messaging-gateway.config.json'),
 			);
-			expect(resolvedPath.toLowerCase()).not.toBe(homeDerivedPath.toLowerCase());
+
+			expect(resolvedPath).toBe(expectedPath);
+
+			if (process.platform === 'win32') {
+				const homeDerivedPath = path.resolve(
+					path.join(homeOnlyPath, '.copilot', 'messaging-gateway.config.json'),
+				);
+				expect(resolvedPath.toLowerCase()).not.toBe(homeDerivedPath.toLowerCase());
+			}
+		} finally {
+			homedirMock.mockRestore();
+			fs.rmSync(tempHome, { recursive: true, force: true });
+		}
+	});
+
+	it('rehomes legacy path into canonical default when canonical default is absent', () => {
+		delete process.env[CONFIG_PATH_ENV];
+		const homedirMock = jest.spyOn(os, 'homedir');
+		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-home-'));
+		homedirMock.mockReturnValue(tempHome);
+
+		try {
+			const canonicalPath = getDefaultMessagingGatewayConfigPath();
+			const legacyPath = getLegacyMessagingGatewayConfigPath();
+
+			fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+			fs.writeFileSync(legacyPath, '{"mode":"auto"}');
+
+			expect(resolveMessagingGatewayConfigPath()).toBe(path.resolve(canonicalPath));
+			expect(fs.existsSync(canonicalPath)).toBe(true);
+			expect(fs.existsSync(legacyPath)).toBe(false);
+		} finally {
+			homedirMock.mockRestore();
+			fs.rmSync(tempHome, { recursive: true, force: true });
+		}
+	});
+
+	it('prefers canonical default path over legacy compatibility path when both exist', () => {
+		delete process.env[CONFIG_PATH_ENV];
+		const homedirMock = jest.spyOn(os, 'homedir');
+		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-config-home-'));
+		homedirMock.mockReturnValue(tempHome);
+
+		try {
+			const canonicalPath = getDefaultMessagingGatewayConfigPath();
+			const legacyPath = getLegacyMessagingGatewayConfigPath();
+
+			fs.mkdirSync(path.dirname(canonicalPath), { recursive: true });
+			fs.writeFileSync(canonicalPath, '{"mode":"connected"}');
+			fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+			fs.writeFileSync(legacyPath, '{"mode":"auto"}');
+
+			expect(resolveMessagingGatewayConfigPath()).toBe(path.resolve(canonicalPath));
+		} finally {
+			homedirMock.mockRestore();
+			fs.rmSync(tempHome, { recursive: true, force: true });
 		}
 	});
 });

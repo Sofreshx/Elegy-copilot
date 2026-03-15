@@ -80,7 +80,7 @@ path when you explicitly want persisted session-state artifacts and a reviewer-a
 
 ## State location
 
-Everything lives under `~/.copilot`:
+Primary runtime state lives under `~/.copilot`:
 
 ```
 ~/.copilot/
@@ -98,7 +98,16 @@ Everything lives under `~/.copilot`:
   repo-state/           per-repo task/artefact state
 ```
 
-Override the default location with `skillInstaller.state.root` in VS Code settings, or pass `--copilot-home` to the dashboard server.
+Override the default location with `skillInstaller.state.root` in VS Code settings, or pass
+`--copilot-home` to the dashboard server.
+
+Migration note:
+
+- `~/.copilot` is the canonical runtime state root for assets, session state, catalog state, and
+  repo-state.
+- remaining `~/.instruction-engine/*` inputs are legacy migration-only surfaces. Current runtime
+  components rehome gateway config/status artifacts into `~/.copilot` when possible rather than
+  treating `~/.instruction-engine` as a second root.
 
 Persisted session-state artifacts live under `~/.copilot/session-state/<SESSION_ID>/`.
 The preserved Elegy workflow writes its plan and proposition artifacts there, and `copilot-ui`
@@ -332,6 +341,7 @@ See `local-tracker/docs/messaging-gateway.md` for full reference.
 
 ## Documentation
 
+- [Domain Authorities Freeze](docs/system/domain-authorities-freeze.md)
 - [Catalog Control Plane](docs/system/catalog-control-plane.md)
 - [Copilot CLI Playbook](docs/system/copilot-cli-playbook.md)
 - [Agents vs Skills](docs/system/agents-vs-skills.md)

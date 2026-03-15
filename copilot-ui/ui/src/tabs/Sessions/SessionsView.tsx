@@ -21,8 +21,8 @@ function isSessionActive(session: SessionSummary): boolean {
   return status === 'active';
 }
 
-export default function SessionsView() {
-  const [mode, setMode] = useState<'local' | 'sdk'>('local');
+export default function SessionsView({ preferredMode = 'local' }: { preferredMode?: 'local' | 'sdk' }) {
+  const [mode, setMode] = useState<'local' | 'sdk'>(preferredMode);
   const [createModel, setCreateModel] = useState('');
   const [sandboxLaunchId, setSandboxLaunchId] = useState('');
   const [sandboxLaunching, setSandboxLaunching] = useState(false);
@@ -50,6 +50,12 @@ export default function SessionsView() {
 
     sdkSessionsStore.detachStream();
   }, [mode]);
+
+  useEffect(() => {
+    if (preferredMode !== mode) {
+      setMode(preferredMode);
+    }
+  }, [mode, preferredMode]);
 
   const selectedSession =
     localSessionState.sessions.find((session) => session.id === localSessionState.selectedSessionId) ?? null;

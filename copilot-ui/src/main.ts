@@ -62,8 +62,24 @@ function ensureSdkBridgeDefaultEnabled(): void {
 }
 
 function ensureDefaultGatewayConfig(workspaceRoot: string): void {
-  const configPath = path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.config.json');
+  const configPath = path.join(os.homedir(), '.copilot', 'messaging-gateway.config.json');
+  const legacyConfigPath = path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.config.json');
   if (fs.existsSync(configPath)) {
+    return;
+  }
+
+  if (fs.existsSync(legacyConfigPath)) {
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    try {
+      fs.renameSync(legacyConfigPath, configPath);
+    } catch {
+      fs.copyFileSync(legacyConfigPath, configPath);
+      try {
+        fs.unlinkSync(legacyConfigPath);
+      } catch {
+        // best-effort cleanup after successful rehome
+      }
+    }
     return;
   }
 

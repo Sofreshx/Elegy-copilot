@@ -6,6 +6,15 @@ const path = require('path');
 const sessionsLib = require('../lib/sessions');
 const assetsLib = require('../lib/assets');
 const planStateLib = require('../lib/planState');
+const repoInventoryLib = require('../lib/repoInventoryService');
+const roadmapArtifactsLib = require('../lib/roadmapArtifacts');
+const repositoryBacklogFileLib = require('../lib/repositoryBacklogFile');
+const sessionPlanRoadmapSyncLib = require('../lib/sessionPlanRoadmapSync');
+const {
+  SESSION_RECONCILIATION_CONTRACT_VERSION,
+  SESSION_RECONCILIATION_SOURCES,
+  SESSION_STATE_AUTHORITIES,
+} = require('../lib/runtimeContracts');
 const { sendJson: defaultSendJson, sendText: defaultSendText, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
 function parseNumberQuery(searchParams, key, defaultValue) {
@@ -33,6 +42,46 @@ function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
+function normalizeString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function firstDefined(...values) {
+  for (const value of values) {
+    if (value != null) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function normalizeRepoSelector(searchParams, body = {}) {
+  const source = body && typeof body === 'object' ? body : {};
+  const repoId = normalizeString(firstDefined(source.repoId, searchParams && searchParams.get('repoId')));
+  const repoPath = normalizeString(firstDefined(source.repoPath, searchParams && searchParams.get('repoPath')));
+  return {
+    ...(repoId ? { repoId } : {}),
+    ...(repoPath ? { repoPath } : {}),
+  };
+}
+
+function resolveRepoContext(ctx, deps, selector) {
+  const inventory = deps.repoInventory.listKnownRepos({
+    copilotHome: ctx.copilotHomeAbs || ctx.copilotHome,
+    engineRoot: ctx.engineRoot,
+    explicitRepoPaths: selector.repoPath ? [selector.repoPath] : [],
+  });
+  const repo = deps.repoInventory.resolveRepoEntry(inventory, selector);
+  if (!repo || !repo.repoPath) {
+    throw Object.assign(new Error('Catalog repo selection is required for roadmap sync'), {
+      statusCode: 409,
+      code: 'catalog_repo_not_selected',
+      reason: 'catalog_repo_not_selected',
+    });
+  }
+  return repo;
+}
+
 function uniqueArchiveDir(baseArchiveDir, id) {
   const safe = String(id || '').replace(/[^A-Za-z0-9_.-]/g, '_');
   const first = path.join(baseArchiveDir, safe);
@@ -42,6 +91,33 @@ function uniqueArchiveDir(baseArchiveDir, id) {
     if (!fs.existsSync(candidate)) return candidate;
   }
   throw new Error('Unable to allocate archive folder');
+}
+
+function buildSessionsListResponse(data, options = {}) {
+  const source = String(options.source || 'cli').trim().toLowerCase() || 'cli';
+  const dedupe = String(options.dedupe || 'on').trim().toLowerCase() || 'on';
+
+  let listingSurface = 'artifact_inventory';
+  if (source === 'all' && dedupe === 'off') {
+    listingSurface = 'artifact_inventory_multi_source';
+  } else if (source === 'all') {
+    listingSurface = 'artifact_inventory_deduped';
+  } else if (source === 'sandbox') {
+    listingSurface = 'artifact_inventory_sandbox';
+  }
+
+  return {
+    sessions: Array.isArray(data) ? data : [],
+    authorityModel: {
+      contractVersion: SESSION_RECONCILIATION_CONTRACT_VERSION,
+      liveAuthority: SESSION_STATE_AUTHORITIES.RUNTIME,
+      artifactFallbackAuthority: SESSION_STATE_AUTHORITIES.ARTIFACT,
+      runtimeSourceOfTruth: SESSION_RECONCILIATION_SOURCES.RUNTIME,
+      artifactSourceOfTruth: SESSION_RECONCILIATION_SOURCES.ARTIFACT,
+      listingSurface,
+      artifactAccessRole: 'archive_offline',
+    },
+  };
 }
 
 function handleSessionsList(ctx, deps) {
@@ -62,19 +138,19 @@ function handleSessionsList(ctx, deps) {
         ...sessions.buildSessionIdentity(s),
       }))
       : sessions.dedupeAllSources(all);
-    sendJson(res, 200, { sessions: result });
+    sendJson(res, 200, buildSessionsListResponse(result, { source, dedupe }));
     return;
   }
   if (source === 'sandbox') {
     const data = sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 })
       .map((s) => sessions.applySessionReconciliation(s));
-    sendJson(res, 200, { sessions: data });
+    sendJson(res, 200, buildSessionsListResponse(data, { source }));
     return;
   }
   const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
   const data = sessions.listSessions(home.home, { activeWindowMinutes, recentLimit: 250 })
     .map((s) => sessions.applySessionReconciliation({ ...s, source: home.source }));
-  sendJson(res, 200, { sessions: data });
+  sendJson(res, 200, buildSessionsListResponse(data, { source: home.source }));
 }
 
 function handleSessionEvents(ctx, deps) {
@@ -237,6 +313,79 @@ function handleSessionProposition(ctx, deps) {
   });
 }
 
+function handleSessionRoadmapSync(ctx, deps) {
+  const { req, res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    resolveSessionsHome,
+    isValidSessionId,
+    readPlanArtifact,
+    path,
+  } = deps;
+
+  const id = decodeURIComponent(match[1]);
+  if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
+
+  readJsonBody(req)
+    .then((body) => {
+      const requestBody = body && typeof body === 'object' ? body : {};
+      const selector = normalizeRepoSelector(u.searchParams, requestBody);
+      const repo = resolveRepoContext(ctx, deps, selector);
+
+      const source = (u.searchParams.get('source') || requestBody.source || 'cli').toLowerCase();
+      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
+      const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
+      const planId = normalizeString(requestBody.planId || u.searchParams.get('planId')) || 'latest';
+      const planText = readPlanArtifact(sessionDir, planId);
+      if (!planText) {
+        throw Object.assign(new Error('Plan artifact not found'), {
+          statusCode: 404,
+          code: 'session_plan_not_found',
+          reason: 'session_plan_not_found',
+        });
+      }
+
+      const result = deps.sessionPlanRoadmapSync.syncSessionPlanToRoadmap(
+        repo.repoPath,
+        id,
+        planText,
+        {
+          planState: deps.planState,
+          repositoryBacklogFile: deps.repositoryBacklogFile,
+          roadmapArtifacts: deps.roadmapArtifacts,
+        },
+      );
+
+      sendJson(res, 200, {
+        contractVersion: 'planning_api_v1',
+        kind: 'sessions.roadmap-sync',
+        deterministic: true,
+        session: {
+          id,
+          source: home.source,
+          planId,
+        },
+        repo: {
+          repoId: repo.repoId || null,
+          repoPath: repo.repoPath || null,
+          repoLabel: repo.repoLabel || null,
+        },
+        ...result,
+      });
+    })
+    .catch((e) => {
+      sendJson(res, e.statusCode || 400, {
+        contractVersion: 'planning_api_v1',
+        kind: 'sessions.roadmap-sync',
+        deterministic: true,
+        error: String(e.message || e),
+        code: normalizeString(e.code) || 'session_roadmap_sync_failed',
+        reason: normalizeString(e.reason) || normalizeString(e.code) || 'session_roadmap_sync_failed',
+      });
+    });
+}
+
 function handleSessionVerificationGuide(ctx, deps) {
   const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
   const { sendJson, resolveSessionsHome, isValidSessionId, assets, path } = deps;
@@ -326,6 +475,10 @@ function register(deps = {}) {
     sessions: deps.sessions || sessionsLib,
     assets: deps.assets || assetsLib,
     planState: deps.planState || planStateLib,
+    repoInventory: deps.repoInventory || repoInventoryLib,
+    roadmapArtifacts: deps.roadmapArtifacts || roadmapArtifactsLib,
+    repositoryBacklogFile: deps.repositoryBacklogFile || repositoryBacklogFileLib,
+    sessionPlanRoadmapSync: deps.sessionPlanRoadmapSync || sessionPlanRoadmapSyncLib,
     sendJson: deps.sendJson || defaultSendJson,
     sendText: deps.sendText || defaultSendText,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
@@ -391,6 +544,11 @@ function register(deps = {}) {
     },
     {
       method: 'POST',
+      path: /^\/api\/sessions\/([^/]+)\/roadmap-sync$/,
+      handler: (ctx) => handleSessionRoadmapSync(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
       path: /^\/api\/sessions\/([^/]+)\/archive$/,
       handler: (ctx) => handleSessionArchive(ctx, resolvedDeps),
     },
@@ -402,4 +560,4 @@ function register(deps = {}) {
   ];
 }
 
-module.exports = { register };
+module.exports = { register, buildSessionsListResponse };

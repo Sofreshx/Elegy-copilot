@@ -53,6 +53,10 @@ function isMessagingGatewayStatusV1(value: unknown): value is MessagingGatewaySt
 }
 
 function getDefaultMessagingGatewayStatusPath(): string {
+	return path.join(os.homedir(), '.copilot', 'messaging-gateway.status.json');
+}
+
+function getLegacyMessagingGatewayStatusPath(): string {
 	return path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.status.json');
 }
 
@@ -66,20 +70,26 @@ function tryReadMessagingGatewayStatus():
 	| { kind: 'missing'; statusPath: string }
 	| { kind: 'invalid'; statusPath: string; error: string }
 	| { kind: 'ok'; statusPath: string; status: MessagingGatewayStatusV1 } {
-	const statusPath = getDefaultMessagingGatewayStatusPath();
-	if (!fs.existsSync(statusPath)) return { kind: 'missing', statusPath };
-
-	try {
-		const raw = fs.readFileSync(statusPath, 'utf8');
-		const parsed = JSON.parse(raw) as unknown;
-		if (!isMessagingGatewayStatusV1(parsed)) {
-			return { kind: 'invalid', statusPath, error: 'Unsupported or missing schemaVersion/lastUpdatedUtc (expected schemaVersion=1)' };
+	const statusPaths = [getDefaultMessagingGatewayStatusPath(), getLegacyMessagingGatewayStatusPath()];
+	for (const statusPath of statusPaths) {
+		if (!fs.existsSync(statusPath)) {
+			continue;
 		}
-		return { kind: 'ok', statusPath, status: parsed };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { kind: 'invalid', statusPath, error: message };
+
+		try {
+			const raw = fs.readFileSync(statusPath, 'utf8');
+			const parsed = JSON.parse(raw) as unknown;
+			if (!isMessagingGatewayStatusV1(parsed)) {
+				return { kind: 'invalid', statusPath, error: 'Unsupported or missing schemaVersion/lastUpdatedUtc (expected schemaVersion=1)' };
+			}
+			return { kind: 'ok', statusPath, status: parsed };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return { kind: 'invalid', statusPath, error: message };
+		}
 	}
+
+	return { kind: 'missing', statusPath: getDefaultMessagingGatewayStatusPath() };
 }
 
 function formatTimestamp(value: string): string {

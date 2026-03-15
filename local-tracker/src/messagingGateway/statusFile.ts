@@ -1,15 +1,31 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import {
+	buildEmptyMessagingGatewayDiscoveryTelemetrySummary,
+	buildMessagingGatewayReadinessMetadata,
+	MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+	MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_DEFAULT_SAMPLE_CAPACITY,
+	MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
+	type ContractCompatibilitySource,
+	type MessagingGatewayDiscoveryMissReason,
+	type MessagingGatewayReadinessReasonCode,
+	type MessagingGatewayReadinessState,
+} from '@instruction-engine/contracts';
 
 export const MESSAGING_GATEWAY_STATUS_FILENAME = 'messaging-gateway.status.json';
-export const MESSAGING_GATEWAY_STATUS_DIRNAME = '.instruction-engine';
-export const MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION = 'messaging_gateway_readiness_v1';
-export const MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION = 'skill_discovery_telemetry_v1';
-export const MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_DEFAULT_SAMPLE_CAPACITY = 12;
-export type MessagingGatewayReadinessState = 'ready' | 'not_ready' | 'disconnected';
-export type MessagingGatewayReadinessReasonCode = 'gateway_ready' | 'gateway_not_ready' | 'gateway_disconnected';
-export type MessagingGatewayDiscoveryMissReason = 'keyword_miss' | 'ambiguity' | 'stale_map' | 'no_route';
+export const MESSAGING_GATEWAY_STATUS_DIRNAME = '.copilot';
+export const LEGACY_MESSAGING_GATEWAY_STATUS_DIRNAME = '.instruction-engine';
+export {
+	MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
+	MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+	MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_DEFAULT_SAMPLE_CAPACITY,
+};
+export type {
+	MessagingGatewayReadinessState,
+	MessagingGatewayReadinessReasonCode,
+	MessagingGatewayDiscoveryMissReason,
+};
 
 export interface MessagingGatewayDiscoveryTelemetrySummary {
 	contractVersion: typeof MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION;
@@ -178,16 +194,14 @@ function normalizeDiscoveryTelemetry(raw: unknown): MessagingGatewayDiscoveryTel
 
 	const boundedRecent = recent.slice(Math.max(0, recent.length - capacity));
 
+	const baseTelemetry = buildEmptyMessagingGatewayDiscoveryTelemetrySummary({ capacity });
+
 	return {
-		contractVersion:
-			asOptionalString(source.contractVersion) === MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION
-				? MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION
-				: MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+		...baseTelemetry,
 		sample: {
-			capacity,
+			...baseTelemetry.sample,
 			size: boundedRecent.length,
 			dropped: asNonNegativeInteger(sourceSample.dropped, 0),
-			deterministic: true,
 		},
 		countersByReason: createDiscoveryCounters(source.countersByReason),
 		recent: boundedRecent,
@@ -254,7 +268,7 @@ export function normalizeMessagingGatewayStatusV1(input: unknown): MessagingGate
 		? sourceRuntime.discoveryTelemetry
 		: undefined;
 
-	const normalizedFrom: 'v0' | 'v1' =
+	const normalizedFrom: ContractCompatibilitySource =
 		source.schemaVersion === 1 || source.contractVersion === MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION
 			? 'v1'
 			: 'v0';
@@ -333,12 +347,7 @@ export function normalizeMessagingGatewayStatusV1(input: unknown): MessagingGate
 	}
 
 	return {
-		schemaVersion: 1,
-		contractVersion: MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
-		compatibility: {
-			normalizedFrom,
-			deterministic: true,
-		},
+		...buildMessagingGatewayReadinessMetadata({ normalizedFrom }),
 		readiness: deriveMessagingGatewayReadiness(runtime),
 		lastUpdatedUtc: asOptionalString(source.lastUpdatedUtc) ?? new Date().toISOString(),
 		config,
@@ -355,11 +364,62 @@ export function getDefaultMessagingGatewayStatusPath(): string {
 	return path.resolve(path.join(os.homedir(), MESSAGING_GATEWAY_STATUS_DIRNAME, MESSAGING_GATEWAY_STATUS_FILENAME));
 }
 
+export function getLegacyMessagingGatewayStatusPath(): string {
+	return path.resolve(path.join(os.homedir(), LEGACY_MESSAGING_GATEWAY_STATUS_DIRNAME, MESSAGING_GATEWAY_STATUS_FILENAME));
+}
+
+function isExistingFile(candidatePath: string): boolean {
+	try {
+		return fs.existsSync(candidatePath) && fs.statSync(candidatePath).isFile();
+	} catch {
+		return false;
+	}
+}
+
+function rehomeLegacyMessagingGatewayStatusIfNeeded(canonicalPath: string): void {
+	const legacyPath = getLegacyMessagingGatewayStatusPath();
+	const canonicalPathAbs = path.resolve(canonicalPath);
+
+	if (legacyPath === canonicalPathAbs || !isExistingFile(legacyPath) || isExistingFile(canonicalPathAbs)) {
+		return;
+	}
+
+	try {
+		fs.mkdirSync(path.dirname(canonicalPathAbs), { recursive: true });
+		fs.renameSync(legacyPath, canonicalPathAbs);
+		return;
+	} catch {
+		// Fall back to copy + atomic rename below.
+	}
+
+	const tmpPath = `${canonicalPathAbs}.tmp.${process.pid}.${Date.now()}`;
+	try {
+		fs.mkdirSync(path.dirname(canonicalPathAbs), { recursive: true });
+		fs.copyFileSync(legacyPath, tmpPath);
+		fs.renameSync(tmpPath, canonicalPathAbs);
+		try {
+			fs.unlinkSync(legacyPath);
+		} catch {
+			// best-effort legacy cleanup after successful rehome
+		}
+	} catch {
+		try {
+			if (fs.existsSync(tmpPath)) {
+				fs.unlinkSync(tmpPath);
+			}
+		} catch {
+			// best-effort temp cleanup
+		}
+	}
+}
+
 export function resolveMessagingGatewayStatusPath(configPath: string): string {
-	// WU-014 requirement + extension reader both assume the default home-based path.
+	// Status remains machine-global at the canonical home-based path.
 	// Keep the signature (configPath) for future evolution, but always write to default for now.
 	void configPath;
-	return getDefaultMessagingGatewayStatusPath();
+	const canonicalPath = getDefaultMessagingGatewayStatusPath();
+	rehomeLegacyMessagingGatewayStatusIfNeeded(canonicalPath);
+	return canonicalPath;
 }
 
 function ensureParentDir(filePath: string): void {

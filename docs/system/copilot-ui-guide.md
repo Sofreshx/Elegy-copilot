@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-03-12
+updated: 2026-03-15
 category: system
 status: current
 doc_kind: node
@@ -43,6 +43,12 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
 - packaged desktop lifecycle, updater wiring, and local runtime health reporting
 
 Catalog semantics and authoritative write paths are defined in [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md).
+
+The Planning workflow is also gaining a repo-backed authority layer defined in
+[[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md):
+Catalog repo selection remains the repo-context source, `docs/backlog.md` becomes the canonical
+Repository Backlog location, `docs/roadmaps/*.md` becomes the canonical Roadmap location, and plan
+packs remain separate session-state execution artifacts.
 
 ## Backend route groups
 
@@ -178,6 +184,9 @@ Behavior guarantees for those compatibility-discovered assets:
 | `DELETE` | `/api/planning/records/:recordId/research/:noteId` | Deletes a research note from a planning record. | `copilot-ui/routes/planning-artifacts.test.js` |
 | `GET` | `/api/planning/records/:recordId/diagrams` | Lists diagrams attached to a planning record. | `copilot-ui/routes/planning-artifacts.test.js` |
 
+These record-scoped research/diagram routes remain legacy compatibility surfaces for planning-record
+artifacts. They are not the target authority for the Repository Backlog + Roadmap workflow.
+
 ### Sessions and persisted session artifacts
 
 | Method | Endpoint | Purpose | Primary test anchors |
@@ -192,6 +201,7 @@ Behavior guarantees for those compatibility-discovered assets:
 | `GET` | `/api/sessions/:id/structured-state` | Parses the progress tracker into structured JSON. | `copilot-ui/VALIDATION.md`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/proposition` | Returns `proposition.md` when present. | `copilot-ui/VALIDATION.md`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/verification-guide` | Returns `verification-guide.md` when present. | `copilot-ui/tests/api-contract.test.js` |
+| `POST` | `/api/sessions/:id/roadmap-sync` | Reconciles linked roadmap/backlog items from the session `plan.md` markers and terminal outcome. | `copilot-ui/routes/sessions.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/sessions/:id/archive` | Moves a session into `sessions-archive`. | `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/sessions/:id/delete` | Deletes a session after force confirmation. | `copilot-ui/tests/api-contract.test.js` |
 
@@ -224,18 +234,71 @@ Behavior guarantees for those compatibility-discovered assets:
 
 ## UI tabs
 
-The React UI currently exposes these tab families under `copilot-ui/ui/src/tabs/`:
+The React UI now exposes exactly **3 top-level hubs** in the application shell:
 
-- `Assets` — managed assets, installed inventory, workspace catalog state, and repair flows
-- `Gateway` — messaging gateway state and integration status
-- `LSP` — language-server-related runtime inspection
-- `Planning` — planning records, diagrams, research notes, and artifact viewers
-- `Sandboxes` — sandbox inventory and related lifecycle state
-- `Sessions` — session lists, detail panes, SDK message views, and artifact inspection
-- `SkillsPreview` — preview/search surfaces for catalog-backed skill discovery
-- `Tracker` — tracker state, permission flows, and runtime status
+- `Home / Runtime`
+- `Catalog`
+- `Planning`
 
-If documentation claims a different dashboard surface, treat the tab directory plus the built UI as the current source of truth.
+Source of truth:
+
+- `copilot-ui/ui/src/App.tsx`
+- `copilot-ui/ui/src/stores/navigation.ts`
+
+### Home / Runtime
+
+`Home / Runtime` is the default landing hub and absorbs the former top-level `State` and
+`Sessions` destinations.
+
+Current sub-sections:
+
+- `Overview` — runtime readiness, planning DB, catalog health, SDK health, policy gate, recent
+  activity, and quick actions
+- `Sessions` — local and SDK-backed runtime sessions
+- `Sandboxes` — sandbox lifecycle and follow-session actions
+- `Diagnostics` — embedded `Gateway`, `Tracker`, and `LSP` tools
+
+Primary implementation:
+
+- `copilot-ui/ui/src/tabs/HomeRuntime/HomeRuntimeView.tsx`
+
+### Catalog
+
+`Catalog` remains the capability discovery and management hub and now exposes these sub-sections:
+
+- `Overview`
+- `Assets`
+- `Skills`
+- `Agents`
+
+The Catalog area is also where provider-backed capability packs such as `superpowers-copilot` are
+surfaced by name and handed off into runtime engagement flows.
+
+Primary implementation:
+
+- `copilot-ui/ui/src/tabs/Catalog/CatalogView.tsx`
+- `copilot-ui/ui/src/tabs/Catalog/CatalogOverviewView.tsx`
+- `copilot-ui/ui/src/tabs/Catalog/CatalogAgentsView.tsx`
+- `copilot-ui/ui/src/tabs/Assets/AssetsView.tsx`
+- `copilot-ui/ui/src/tabs/SkillsPreview/SkillsPreviewView.tsx`
+
+### Planning
+
+`Planning` remains the dedicated planning and idea-management hub for:
+
+- idea capture
+- planning records
+- compare / merge
+- research notes and diagrams
+- compile-to-runtime handoff
+
+Primary implementation:
+
+- `copilot-ui/ui/src/tabs/Planning/PlanningView.tsx`
+
+The `ui/src/tabs/` directory still contains feature surfaces such as `Gateway`, `LSP`, `Sessions`,
+`Sandboxes`, and `Tracker`, but those are no longer top-level shell tabs. Treat the application
+shell plus the navigation store as the authoritative UX model.
 
 ## Persistence and state model
 

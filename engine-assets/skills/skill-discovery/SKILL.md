@@ -99,6 +99,7 @@ Common keyword → skill mappings:
 - Architecture, design, ADR → `planning-feature`
 - Plan feature, break down → `planning-feature`
 - Plan pack, plan authoring → `planpack-authoring`
+- Repository backlog, roadmap, roadmap sync, phased planning portfolio → `roadmap-authoring`
 - Audit report, finding format → `audit-report-formats`
 - Stack audit, pattern check → `stack-audit-patterns`
 - Critic mode, challenge assumptions, devil's advocate → `critic`

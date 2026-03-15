@@ -519,7 +519,7 @@ async function run() {
       fs.mkdirSync(copilotHome, { recursive: true });
       fs.mkdirSync(vscodeHome, { recursive: true });
 
-      const gatewayConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
+      const gatewayConfigPath = path.join(root, '.copilot', 'messaging-gateway.config.json');
       fs.mkdirSync(path.dirname(gatewayConfigPath), { recursive: true });
       fs.writeFileSync(gatewayConfigPath, JSON.stringify({
         mode: 'auto',
@@ -598,7 +598,7 @@ async function run() {
     });
   });
 
-  await test('gateway config deterministically rehomes legacy copilot-home path to canonical default path when env override is absent', async () => {
+  await test('gateway config deterministically rehomes legacy instruction-engine path to canonical copilot path when env override is absent', async () => {
     await withTempDir(async (root) => {
       const copilotHome = path.join(root, '.copilot');
       const vscodeHome = path.join(root, '.copilot-vscode');
@@ -606,7 +606,7 @@ async function run() {
       fs.mkdirSync(copilotHome, { recursive: true });
       fs.mkdirSync(vscodeHome, { recursive: true });
 
-      const legacyConfigPath = path.join(copilotHome, 'messaging-gateway.config.json');
+      const legacyConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
       const legacyConfig = {
         mode: 'auto',
         workspaces: {
@@ -614,6 +614,7 @@ async function run() {
           activeRoot: root,
         },
       };
+      fs.mkdirSync(path.dirname(legacyConfigPath), { recursive: true });
       fs.writeFileSync(legacyConfigPath, JSON.stringify(legacyConfig, null, 2));
 
       const port = await getFreePort();
@@ -657,7 +658,7 @@ async function run() {
         assert.strictEqual(configResponse.body.exists, true);
         const resolvedConfigPath = path.resolve(configResponse.body.configPath);
         assert.ok(
-          resolvedConfigPath.toLowerCase().endsWith(path.join('.instruction-engine', 'messaging-gateway.config.json').toLowerCase())
+          resolvedConfigPath.toLowerCase().endsWith(path.join('.copilot', 'messaging-gateway.config.json').toLowerCase())
         );
         assert.notStrictEqual(resolvedConfigPath.toLowerCase(), path.resolve(legacyConfigPath).toLowerCase());
         assert.deepStrictEqual(configResponse.body.config, legacyConfig);
@@ -686,8 +687,8 @@ async function run() {
       fs.mkdirSync(copilotHome, { recursive: true });
       fs.mkdirSync(vscodeHome, { recursive: true });
 
-      const legacyConfigPath = path.join(copilotHome, 'messaging-gateway.config.json');
-      const canonicalConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
+      const legacyConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
+      const canonicalConfigPath = path.join(root, '.copilot', 'messaging-gateway.config.json');
       const envConfigPath = path.join(root, 'config-overrides', 'gateway-config.json');
 
       const legacyConfig = {
@@ -712,6 +713,7 @@ async function run() {
         },
       };
 
+      fs.mkdirSync(path.dirname(legacyConfigPath), { recursive: true });
       fs.writeFileSync(legacyConfigPath, JSON.stringify(legacyConfig, null, 2));
       fs.mkdirSync(path.dirname(canonicalConfigPath), { recursive: true });
       fs.writeFileSync(canonicalConfigPath, JSON.stringify(canonicalConfig, null, 2));

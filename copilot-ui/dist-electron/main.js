@@ -36,8 +36,25 @@ function ensureSdkBridgeDefaultEnabled() {
             : '1';
 }
 function ensureDefaultGatewayConfig(workspaceRoot) {
-    const configPath = path_1.default.join(os_1.default.homedir(), '.instruction-engine', 'messaging-gateway.config.json');
+    const configPath = path_1.default.join(os_1.default.homedir(), '.copilot', 'messaging-gateway.config.json');
+    const legacyConfigPath = path_1.default.join(os_1.default.homedir(), '.instruction-engine', 'messaging-gateway.config.json');
     if (fs_1.default.existsSync(configPath)) {
+        return;
+    }
+    if (fs_1.default.existsSync(legacyConfigPath)) {
+        fs_1.default.mkdirSync(path_1.default.dirname(configPath), { recursive: true });
+        try {
+            fs_1.default.renameSync(legacyConfigPath, configPath);
+        }
+        catch {
+            fs_1.default.copyFileSync(legacyConfigPath, configPath);
+            try {
+                fs_1.default.unlinkSync(legacyConfigPath);
+            }
+            catch {
+                // best-effort cleanup after successful rehome
+            }
+        }
         return;
     }
     fs_1.default.mkdirSync(path_1.default.dirname(configPath), { recursive: true });

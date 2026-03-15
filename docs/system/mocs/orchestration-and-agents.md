@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-13
+updated: 2026-03-14
 category: system
 status: current
 doc_kind: moc
@@ -31,6 +31,7 @@ related: [system-docs-index]
 - Agent architecture simplicity: `docs/system/agent-architecture-simplicity.md`
 - Agent hooks: `docs/system/agent-hooks.md`
 - Channel capability matrix: `docs/system/channel-capability-matrix.md`
+- Repository backlog, roadmap, and plan-pack boundaries: [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md)
 - Governance lanes: [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
 - Documentation/structure governance: [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
 - Reviewer lane contract: [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)

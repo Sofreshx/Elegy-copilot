@@ -22,6 +22,7 @@ import { migrateLegacyWorkspaceState } from './legacyMigration';
 import { resumeMigration, getCurrentPhase, migrateIn, migrateOut } from './skillPointerLifecycle';
 import { isPointerEnabled } from './skillPointer';
 import { buildSearchIndex, SkillSearchIndex } from './skillResolver';
+import { buildCatalogControlPlaneUrl, DEFAULT_CATALOG_CONTROL_PLANE_URL } from './catalogControlPlane';
 
 function getSkillFromCommand(arg: unknown): SkillEntry | undefined {
 	if (!arg || typeof arg !== 'object') {
@@ -71,6 +72,30 @@ function getRepoPathFromCommand(arg: unknown): string | undefined {
 		return typeof repoPath === 'string' ? repoPath : undefined;
 	}
 	return undefined;
+}
+
+async function openCatalogControlPlane(
+	output: vscode.OutputChannel,
+	options?: {
+		repoPath?: string;
+		catalogSection?: 'overview' | 'assets' | 'skills' | 'agents';
+		intent?: string;
+	}
+): Promise<void> {
+	const baseUrl = vscode.workspace
+		.getConfiguration()
+		.get<string>('skillInstaller.catalog.baseUrl', DEFAULT_CATALOG_CONTROL_PLANE_URL);
+	const url = buildCatalogControlPlaneUrl({
+		baseUrl,
+		tab: 'catalog',
+		catalogSection: options?.catalogSection ?? 'assets',
+		repoPath: options?.repoPath,
+		source: 'rannia',
+		intent: options?.intent ?? 'asset-mutation-handoff'
+	});
+
+	output.appendLine(`[Control Plane] Opening copilot-ui Catalog: ${url}`);
+	await vscode.commands.executeCommand('simpleBrowser.show', url);
 }
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -237,6 +262,19 @@ export function activate(context: vscode.ExtensionContext): void {
 			const agentName = agentMap[selected.auditType];
 			void vscode.window.showInformationMessage(
 				`Run the ${selected.label} audit using @${agentName} in Copilot chat.`
+			);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand('skillInstaller.openCatalogControlPlane', async (arg?: unknown) => {
+			await openCatalogControlPlane(output, {
+				repoPath: getRepoPathFromCommand(arg),
+				catalogSection: 'assets',
+				intent: 'open-control-plane'
+			});
+			void vscode.window.showInformationMessage(
+				'Opened the copilot-ui Catalog control plane. Use it for asset installs and repo-local mutations.'
 			);
 		})
 	);

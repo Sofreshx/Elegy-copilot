@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-03-15
 category: system
 status: current
 doc_kind: node
@@ -23,9 +23,15 @@ This document defines the **canonical contract** for documentation in this repo.
 
 - `docs/system/**` — canonical, system-of-record documentation.
 - `docs/research/**` — non-canonical notes/spikes/audits.
-- `docs/*.md` — reserved for **redirect stubs** only (after migration).
+- `docs/backlog.md` — approved repo-backed Planning artifact location for the Repository Backlog.
+- `docs/roadmaps/*.md` — approved repo-backed Planning artifact locations for Roadmaps.
+- other top-level `docs/*.md` paths — reserved for **redirect stubs** only (after migration).
 
 Redirect docs may also exist in other legacy paths (e.g., `docs/orchestrator/*`) when preserving older inbound links.
+
+The Planning artifact exception above is intentionally narrow: it exists only to support the approved
+repo-backed backlog and roadmap contract without reopening top-level `docs/*.md` as a general-purpose
+content area.
 
 ## Document Kinds (`doc_kind`)
 
@@ -108,6 +114,17 @@ Redirect requirements:
 - `redirect_to` is a repo-relative path that starts with `docs/`.
 - `redirect_to` must point to an existing **non-redirect** doc.
 - Redirect docs MUST NOT contain wikilinks.
+
+## Repo-Backed Planning Artifact Exception
+
+The approved repo-backed Planning artifact paths:
+
+- `docs/backlog.md`
+- `docs/roadmaps/*.md`
+
+are valid non-redirect docs under this spec. They still require standard `docs/**.md` frontmatter and
+all normal value validation, but they are exempt from the top-level redirect-only rule that applies to
+other `docs/*.md` files.
 
 ## Validator Severity
 

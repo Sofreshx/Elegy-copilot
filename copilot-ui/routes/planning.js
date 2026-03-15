@@ -505,6 +505,162 @@ function handlePlanningRecordsList(ctx, deps) {
     .catch((e) => sendJson(res, e.statusCode || 503, { error: String(e.message || e) }));
 }
 
+function normalizeIdeaTargetRepoIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const normalized = value
+    .map((entry) => String(entry || '').trim())
+    .filter(Boolean);
+
+  return [...new Set(normalized)].sort((left, right) => left.localeCompare(right));
+}
+
+function handlePlanningRecordUpdate(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    match,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningApiState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    buildPlanningRequestContext,
+    acquirePlanningMutationRouteLock,
+    hydratePlanningProjectionFromPersistence,
+    resolveExpectedPlanningVersion,
+    evaluatePlanningRouteOptimisticConcurrency,
+    persistPlanningRecordToAuthority,
+    releasePlanningRouteLock,
+  } = deps;
+
+  const recordId = decodeURIComponent((match && match[1]) || '').trim();
+  if (!recordId) {
+    sendJson(res, 400, { error: 'Invalid record id' });
+    return;
+  }
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+      const routeLock = acquirePlanningMutationRouteLock({
+        planningApiState,
+        pathname,
+        method: req.method,
+        context,
+        idempotencyKey: payload.idempotencyKey,
+        requestId: req.headers['x-request-id'],
+        nowMs: Date.now(),
+      });
+
+      if (!routeLock.ok) {
+        sendJson(res, routeLock.statusCode, routeLock.body);
+        return;
+      }
+
+      try {
+        const projectionSync = await hydratePlanningProjectionFromPersistence({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          planningApiState,
+          context,
+        });
+
+        if (!projectionSync.ok) {
+          sendJson(res, projectionSync.failure.statusCode, projectionSync.failure.body);
+          return;
+        }
+
+        const expectedVersion = resolveExpectedPlanningVersion(req, payload);
+        const concurrency = evaluatePlanningRouteOptimisticConcurrency({
+          pathname,
+          method: req.method,
+          expectedVersion,
+          actualVersion: planningApiState.recordsVersion,
+        });
+
+        if (!concurrency.ok) {
+          sendJson(res, concurrency.statusCode, concurrency.body);
+          return;
+        }
+
+        const existing = planningApiState.recordsById.get(recordId);
+        if (!existing) {
+          sendJson(res, 404, { error: 'Planning record not found', recordId });
+          return;
+        }
+
+        if (String(existing.ownerId || '').trim() !== String(context.userId || '').trim()) {
+          sendJson(res, 403, { error: 'Planning record is outside the current user scope', recordId });
+          return;
+        }
+
+        if (existing.scope === 'repo' && String(existing.repoId || '').trim() !== String(context.repoId || '').trim()) {
+          sendJson(res, 403, { error: 'Planning record is outside the current repo scope', recordId });
+          return;
+        }
+
+        const nextRecord = {
+          ...existing,
+          title: typeof payload.title === 'string' ? payload.title.trim() : existing.title,
+          summary: typeof payload.summary === 'string' ? payload.summary.trim() : existing.summary,
+          acceptanceCriteria: Array.isArray(payload.acceptanceCriteria)
+            ? payload.acceptanceCriteria.map((entry) => String(entry || '').trim()).filter(Boolean)
+            : existing.acceptanceCriteria,
+          acceptanceCriteriaText: typeof payload.acceptanceCriteriaText === 'string'
+            ? payload.acceptanceCriteriaText.trim()
+            : existing.acceptanceCriteriaText,
+          targetRepoIds: Array.isArray(payload.targetRepoIds)
+            ? normalizeIdeaTargetRepoIds(payload.targetRepoIds)
+            : existing.targetRepoIds,
+          state: typeof payload.state === 'string' && payload.state.trim() ? payload.state.trim() : existing.state,
+          score: Object.prototype.hasOwnProperty.call(payload, 'score') ? payload.score : existing.score,
+          updatedAt: new Date().toISOString(),
+        };
+
+        const persistedWrite = await persistPlanningRecordToAuthority({
+          pathname,
+          method: req.method,
+          planningPersistenceConfig,
+          planningPersistenceState,
+          context,
+          record: nextRecord,
+        });
+
+        if (!persistedWrite.ok) {
+          sendJson(res, persistedWrite.failure.statusCode, persistedWrite.failure.body);
+          return;
+        }
+
+        planningApiState.recordsById.set(recordId, persistedWrite.record);
+        planningApiState.recordsVersion += 1;
+
+        sendJson(res, 200, {
+          contractVersion: deps.PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.update',
+          deterministic: true,
+          versionVector: {
+            planningRecordsVersion: planningApiState.recordsVersion,
+          },
+          record: persistedWrite.record,
+        });
+      } finally {
+        releasePlanningRouteLock(planningApiState, routeLock.lock);
+      }
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e), recordId }));
+}
+
 function handlePlanningRecordsSearch(ctx, deps) {
   const {
     req,
@@ -1301,6 +1457,11 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/planning/records',
       handler: (ctx) => handlePlanningRecordsList(ctx, deps),
+    },
+    {
+      method: 'PATCH',
+      path: /^\/api\/planning\/records\/([^/]+)$/,
+      handler: (ctx) => handlePlanningRecordUpdate(ctx, deps),
     },
     {
       method: 'GET',

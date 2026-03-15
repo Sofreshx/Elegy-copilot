@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { WorkflowStore } from '../workflows/workflowStore';
+import {
+    getDefaultWorkflowDefinitionsDir,
+    getLegacyWorkflowDefinitionsDir,
+    WorkflowStore,
+} from '../workflows/workflowStore';
 
 function createWorkflow(id: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
@@ -120,5 +124,32 @@ describe('WorkflowStore', () => {
         const list = store.list();
         expect(list).toHaveLength(1);
         expect(list[0].id).toBe('wf-malformed');
+    });
+
+    it('rehomes legacy default workflow storage into canonical copilot state root', () => {
+        const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'wfstore-home-'));
+        const homedirMock = jest.spyOn(os, 'homedir').mockReturnValue(tempHome);
+
+        try {
+            const legacyDir = getLegacyWorkflowDefinitionsDir();
+            const canonicalDir = getDefaultWorkflowDefinitionsDir();
+            fs.mkdirSync(legacyDir, { recursive: true });
+            fs.writeFileSync(
+                path.join(legacyDir, 'wf-legacy.jsonl'),
+                `${JSON.stringify(createWorkflow('wf-legacy'))}\n`,
+                'utf8',
+            );
+
+            const resolvedDir = getDefaultWorkflowDefinitionsDir();
+            const store = new WorkflowStore();
+
+            expect(resolvedDir).toBe(canonicalDir);
+            expect(fs.existsSync(path.join(canonicalDir, 'wf-legacy.jsonl'))).toBe(true);
+            expect(fs.existsSync(path.join(legacyDir, 'wf-legacy.jsonl'))).toBe(false);
+            expect(store.load('wf-legacy')?.id).toBe('wf-legacy');
+        } finally {
+            homedirMock.mockRestore();
+            fs.rmSync(tempHome, { recursive: true, force: true });
+        }
     });
 });

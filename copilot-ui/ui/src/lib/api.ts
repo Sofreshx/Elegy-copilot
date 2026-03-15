@@ -4,6 +4,7 @@ import type {
   CatalogAssetDetailResponse,
   CatalogAssetsResponse,
   CatalogAuditEventsResponse,
+  CatalogProviderInstallResponse,
   CatalogBundlesResponse,
   CatalogRepoMutationResponse,
   CatalogReposListResponse,
@@ -105,8 +106,21 @@ export interface PlanningCreatePayload {
   summary?: string;
   acceptanceCriteria?: string[];
   acceptanceCriteriaText?: string;
+  targetRepoIds?: string[];
   state?: string;
   idempotencyKey?: string;
+}
+
+export interface PlanningUpdatePayload {
+  userId?: string;
+  repoId?: string;
+  title?: string;
+  summary?: string;
+  acceptanceCriteria?: string[];
+  acceptanceCriteriaText?: string;
+  targetRepoIds?: string[];
+  state?: string;
+  score?: number | null;
 }
 
 export interface PlanningComparePayload {
@@ -243,6 +257,11 @@ export interface CatalogAssetCreatePayload {
   triggersOn?: string[];
   repoPath?: string;
   authoringRepoPath?: string;
+}
+
+export interface CatalogProviderInstallPayload {
+  providerId: string;
+  action?: 'install' | 'update' | string;
 }
 
 export interface CatalogAssetUpdatePayload extends Omit<CatalogAssetCreatePayload, 'content'> {
@@ -1543,6 +1562,20 @@ export function installCatalogAsset(
   });
 }
 
+export function installCatalogProvider(
+  payload: CatalogProviderInstallPayload,
+  baseUrl?: string
+): Promise<CatalogProviderInstallResponse> {
+  return apiRequest<CatalogProviderInstallResponse>('/api/catalog/providers/install', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function enableCatalogAsset(
   payload: CatalogAssetEnablementPayload,
   baseUrl?: string
@@ -1656,6 +1689,23 @@ export async function createPlanningRecord(payload: PlanningCreatePayload, baseU
   const response = await apiRequest<unknown>('/api/planning/records', {
     baseUrl,
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningCreateResponse(response);
+}
+
+export async function updatePlanningRecord(
+  recordId: string,
+  payload: PlanningUpdatePayload,
+  baseUrl?: string
+): Promise<PlanningCreateResponse> {
+  const response = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}`, {
+    baseUrl,
+    method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
     },

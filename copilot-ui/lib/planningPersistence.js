@@ -1451,6 +1451,15 @@ function normalizePlanningRecordForPersistence(record = {}) {
   const state = normalizeToken(source.state) || 'thought';
   const createdAt = normalizeRecordTimestamp(source.createdAt) || new Date(0).toISOString();
   const updatedAt = normalizeRecordTimestamp(source.updatedAt) || createdAt;
+  const acceptanceCriteria = Array.isArray(source.acceptanceCriteria)
+    ? source.acceptanceCriteria
+      .map((entry) => normalizePlanningText(entry))
+      .filter(Boolean)
+    : [];
+  const acceptanceCriteriaText = normalizePlanningText(source.acceptanceCriteriaText);
+  const targetRepoIds = Array.isArray(source.targetRepoIds)
+    ? [...new Set(source.targetRepoIds.map((entry) => normalizeIdentity(entry)).filter(Boolean))].sort((left, right) => left.localeCompare(right))
+    : [];
 
   if (!recordId || !scope || !ownerId) {
     return null;
@@ -1467,6 +1476,9 @@ function normalizePlanningRecordForPersistence(record = {}) {
     repoId: scope === 'repo' ? repoId : null,
     title: normalizePlanningText(source.title),
     summary: normalizePlanningText(source.summary),
+    ...(acceptanceCriteria.length ? { acceptanceCriteria } : {}),
+    ...(acceptanceCriteriaText ? { acceptanceCriteriaText } : {}),
+    ...(targetRepoIds.length ? { targetRepoIds } : {}),
     state,
     score: normalizePlanningNumericScore(source.score),
     createdAt,
@@ -1486,6 +1498,15 @@ function mapPersistedPlanningRecordRow(row) {
     repoId: normalizeIdentity(row.repo_id) || normalizeIdentity(persistedState.repoId),
     title: Object.prototype.hasOwnProperty.call(persistedState, 'title') ? persistedState.title : row.title,
     summary: Object.prototype.hasOwnProperty.call(persistedState, 'summary') ? persistedState.summary : row.summary,
+    acceptanceCriteria: Object.prototype.hasOwnProperty.call(persistedState, 'acceptanceCriteria')
+      ? persistedState.acceptanceCriteria
+      : row.acceptance_criteria,
+    acceptanceCriteriaText: Object.prototype.hasOwnProperty.call(persistedState, 'acceptanceCriteriaText')
+      ? persistedState.acceptanceCriteriaText
+      : row.acceptance_criteria_text,
+    targetRepoIds: Object.prototype.hasOwnProperty.call(persistedState, 'targetRepoIds')
+      ? persistedState.targetRepoIds
+      : row.target_repo_ids,
     state: Object.prototype.hasOwnProperty.call(persistedState, 'state') ? persistedState.state : row.state_token,
     score: Object.prototype.hasOwnProperty.call(persistedState, 'score') ? persistedState.score : row.score,
     createdAt: row.created_at || persistedState.createdAt,

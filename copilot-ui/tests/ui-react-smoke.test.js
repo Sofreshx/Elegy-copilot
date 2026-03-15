@@ -51,14 +51,12 @@ async function run() {
     assert.ok(fs.existsSync(path.join(uiSrcRoot, 'App.tsx')), 'Missing ui/src/App.tsx');
   });
 
-  await test('migrated tab view files exist for planning/gateway/sandboxes/lsp/tracker/skills preview', async () => {
+  await test('consolidated workspace view files exist for planning, catalog, sessions, and state', async () => {
     const expectedViews = [
       path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'Gateway', 'GatewayView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'Sandboxes', 'SandboxesView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'LSP', 'LspView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'Tracker', 'TrackerView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'SkillsPreview', 'SkillsPreviewView.tsx'),
+      path.join(uiSrcRoot, 'tabs', 'Catalog', 'CatalogView.tsx'),
+      path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsWorkspaceView.tsx'),
+      path.join(uiSrcRoot, 'tabs', 'State', 'StateView.tsx'),
     ];
 
     for (const expectedView of expectedViews) {
@@ -66,21 +64,20 @@ async function run() {
     }
   });
 
-  await test('App.tsx references migrated tab views', async () => {
+  await test('App.tsx references consolidated workspace views', async () => {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
 
     assert.ok(appSource.includes("./tabs/Planning/PlanningView"), 'Expected PlanningView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/Gateway/GatewayView"), 'Expected GatewayView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/Sandboxes/SandboxesView"), 'Expected SandboxesView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/LSP/LspView"), 'Expected LspView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/Tracker/TrackerView"), 'Expected TrackerView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/SkillsPreview/SkillsPreviewView"), 'Expected SkillsPreviewView import in App.tsx');
+    assert.ok(appSource.includes("./tabs/Catalog/CatalogView"), 'Expected CatalogView import in App.tsx');
+    assert.ok(appSource.includes("./tabs/Sessions/SessionsWorkspaceView"), 'Expected SessionsWorkspaceView import in App.tsx');
+    assert.ok(appSource.includes("./tabs/State/StateView"), 'Expected StateView import in App.tsx');
   });
 
-  await test('responsive breakpoints for 1440px, 768px, and 320px exist in app.css', async () => {
+  await test('responsive breakpoints for 1440px, 1024px, 768px, and 320px exist in app.css', async () => {
     const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
 
     assert.ok(appCss.includes('@media (max-width: 1440px)'), 'Expected explicit 1440px breakpoint in app.css');
+    assert.ok(appCss.includes('@media (max-width: 1024px)'), 'Expected explicit 1024px breakpoint in app.css');
     assert.ok(appCss.includes('@media (max-width: 768px)'), 'Expected explicit 768px breakpoint in app.css');
     assert.ok(appCss.includes('@media (max-width: 320px)'), 'Expected explicit 320px breakpoint in app.css');
   });

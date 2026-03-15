@@ -193,8 +193,8 @@ WS4 closure is complete only when freeze evidence and tracker alignment semantic
   - `npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts`
 
 2. Path alignment requirement
-  - copilot-ui gateway-state/config surfaces must resolve tracker config deterministically with `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` override support.
-  - Canonical machine-global default remains under `~/.instruction-engine`.
+   - copilot-ui gateway-state/config surfaces must resolve tracker config deterministically with `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` override support.
+   - Canonical machine-global default is `~/.copilot/messaging-gateway.config.json`; legacy `~/.instruction-engine` config is compatibility-only rehome input.
 
 3. Idempotency alignment requirement
   - lifecycle retry and conflict behavior remains deterministic and explicit.

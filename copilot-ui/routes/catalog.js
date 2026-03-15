@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const childProcess = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,6 +12,7 @@ const {
 } = require('../lib/catalogActivationState');
 const catalogProjectionLib = require('../lib/catalogProjectionService');
 const catalogMutationLib = require('../lib/catalogMutationService');
+const providerCatalogLib = require('../lib/providerCatalog');
 const repoInventoryLib = require('../lib/repoInventoryService');
 const {
   appendCatalogAuditEvent,
@@ -183,6 +185,165 @@ function describeFile(absPath, fsImpl = fs) {
   };
 }
 
+function writeJsonAtomic(absPath, value, fsImpl = fs, pathImpl = path) {
+  const dirPath = pathImpl.dirname(absPath);
+  const tempPath = pathImpl.join(
+    dirPath,
+    `.${pathImpl.basename(absPath)}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`,
+  );
+  fsImpl.mkdirSync(dirPath, { recursive: true });
+  fsImpl.writeFileSync(tempPath, JSON.stringify(value, null, 2) + '\n', 'utf8');
+  fsImpl.renameSync(tempPath, absPath);
+}
+
+function normalizeProviderAction(value) {
+  const normalized = normalizeString(value).toLowerCase() || 'install';
+  if (normalized !== 'install' && normalized !== 'update') {
+    throw Object.assign(new Error('action must be "install" or "update"'), { statusCode: 400 });
+  }
+  return normalized;
+}
+
+function resolveManagedImportProvider(providerCatalog, providerId) {
+  const provider = (Array.isArray(providerCatalog?.providers) ? providerCatalog.providers : [])
+    .find((entry) => normalizeString(entry?.id) === providerId);
+
+  if (!provider) {
+    throw Object.assign(new Error(`Unknown providerId: ${providerId}`), { statusCode: 404 });
+  }
+
+  if (normalizeString(provider.installStrategy) !== 'managed-import') {
+    throw Object.assign(new Error(`Provider ${providerId} does not support managed installs`), { statusCode: 400 });
+  }
+
+  const namespace = normalizeString(provider?.assetLayout?.namespace);
+  const owner = normalizeString(provider?.source?.owner);
+  const repo = normalizeString(provider?.source?.repo);
+  if (!namespace || !owner || !repo) {
+    throw Object.assign(new Error(`Provider ${providerId} is missing managed install metadata`), { statusCode: 400 });
+  }
+
+  return {
+    provider,
+    namespace,
+    marketplaceRef: `${owner}/${repo}`,
+    pluginRef: `${namespace}@${providerId}`,
+  };
+}
+
+function runProviderCommand(deps, command, args, timeoutMs) {
+  if (typeof deps.executeProviderCommand === 'function') {
+    return deps.executeProviderCommand({ command, args, timeoutMs });
+  }
+
+  return new Promise((resolve, reject) => {
+    deps.childProcess.execFile(
+      command,
+      args,
+      {
+        timeout: timeoutMs,
+        windowsHide: true,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(Object.assign(error, { stdout, stderr }));
+          return;
+        }
+
+        resolve({ stdout, stderr });
+      },
+    );
+  });
+}
+
+async function executeManagedProviderInstall(deps, providerInstall, action) {
+  const commandCandidates = deps.process.platform === 'win32'
+    ? ['copilot.cmd', 'copilot']
+    : ['copilot'];
+  const steps = [
+    {
+      id: 'marketplace-add',
+      args: ['plugin', 'marketplace', 'add', providerInstall.marketplaceRef],
+    },
+    {
+      id: action === 'update' ? 'plugin-update' : 'plugin-install',
+      args: ['plugin', action === 'update' ? 'update' : 'install', providerInstall.pluginRef],
+    },
+  ];
+  const results = [];
+
+  for (const step of steps) {
+    let completed = false;
+    let lastError = null;
+
+    for (const command of commandCandidates) {
+      try {
+        const output = await runProviderCommand(deps, command, step.args, 120000);
+        results.push({
+          step: step.id,
+          command,
+          args: step.args,
+          ok: true,
+          stdout: String(output.stdout || ''),
+          stderr: String(output.stderr || ''),
+        });
+        completed = true;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (error && (error.code === 'ENOENT' || error.code === 'UNKNOWN')) {
+          continue;
+        }
+
+        results.push({
+          step: step.id,
+          command,
+          args: step.args,
+          ok: false,
+          stdout: String(error?.stdout || ''),
+          stderr: String(error?.stderr || ''),
+          error: String(error?.message || error),
+        });
+        throw Object.assign(new Error(`Provider command failed: ${step.id}`), {
+          statusCode: 502,
+          commandResults: results,
+        });
+      }
+    }
+
+    if (!completed) {
+      results.push({
+        step: step.id,
+        command: commandCandidates[0],
+        args: step.args,
+        ok: false,
+        stdout: String(lastError?.stdout || ''),
+        stderr: String(lastError?.stderr || ''),
+        error: String(lastError?.message || 'copilot command not found'),
+      });
+      throw Object.assign(new Error('Copilot CLI command was not found on PATH'), {
+        statusCode: 503,
+        commandResults: results,
+      });
+    }
+  }
+
+  return results;
+}
+
+function persistProviderInstallState(deps, copilotHomeAbs, providerId, entry) {
+  const { statePath, state } = deps.providerCatalog.loadProviderInstallState(copilotHomeAbs);
+  const nextState = {
+    schemaVersion: Number(state?.schemaVersion) || 1,
+    providers: {
+      ...(state?.providers && typeof state.providers === 'object' ? state.providers : {}),
+      [providerId]: entry,
+    },
+  };
+  writeJsonAtomic(statePath, nextState, deps.fs, deps.path);
+  return nextState.providers[providerId];
+}
+
 function normalizeRepoSelector(searchParams, body) {
   const source = body && typeof body === 'object' ? body : {};
   const repoPath = normalizeString(source.repoPath || searchParams?.get('repoPath'));
@@ -349,6 +510,7 @@ function buildSnapshotEnvelope(snapshot, projectionContext, deps, runtimeState, 
     generatedAt: snapshot?.generatedAt || null,
     readMode: projectionContext.readMode,
     repoContext: snapshot?.repoContext || projectionContext.storage.repoContext || null,
+    providers: Array.isArray(snapshot?.providers) ? snapshot.providers : [],
     storage: {
       catalogRoot: projectionContext.storage.catalogRoot,
       snapshotPath: projectionContext.storage.snapshotPath,
@@ -886,6 +1048,96 @@ function handleCatalogAssetDelete(ctx, deps) {
 function handleCatalogAssetInstall(ctx, deps) {
   executeCatalogMutation(ctx, deps, 'catalog.asset.install', (body, mutationOptions) =>
     deps.catalogMutation.installAsset(mutationOptions, body, mutationOptions));
+}
+
+function handleCatalogProviderInstall(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const providerId = normalizeString(body?.providerId);
+      if (!providerId) {
+        throw Object.assign(new Error('providerId is required'), { statusCode: 400 });
+      }
+
+      const action = normalizeProviderAction(body?.action);
+      const { providerCatalog } = deps.providerCatalog.loadProviderCatalog(ctx.engineRoot);
+      const providerInstall = resolveManagedImportProvider(providerCatalog, providerId);
+      const attemptedAt = new Date().toISOString();
+
+      try {
+        const commandResults = await executeManagedProviderInstall(deps, providerInstall, action);
+        const stateEntry = persistProviderInstallState(deps, ctx.copilotHomeAbs, providerId, {
+          providerId,
+          title: providerInstall.provider.title || providerId,
+          installStrategy: providerInstall.provider.installStrategy || null,
+          bridgeStrategy: providerInstall.provider.bridgeStrategy || null,
+          installed: true,
+          pluginRef: providerInstall.pluginRef,
+          marketplaceRef: providerInstall.marketplaceRef,
+          lastAction: action,
+          lastAttemptAt: attemptedAt,
+          lastSuccessAt: attemptedAt,
+          lastError: null,
+          lastCommandResults: commandResults,
+        });
+
+        const snapshot = rebuildProjection(ctx, deps, {}, 'catalog_provider_install');
+        const projectionContext = {
+          storage: deps.catalogProjection.resolveProjectionStorage(buildCatalogOptions(ctx, {})),
+          readMode: 'persisted-snapshot',
+        };
+
+        deps.sendJson(ctx.res, 200, {
+          kind: 'catalog.provider.install',
+          deterministic: true,
+          action,
+          providerId,
+          provider: {
+            providerId,
+            title: providerInstall.provider.title || providerId,
+            installStrategy: providerInstall.provider.installStrategy || null,
+            bridgeStrategy: providerInstall.provider.bridgeStrategy || null,
+            pluginRef: providerInstall.pluginRef,
+            marketplaceRef: providerInstall.marketplaceRef,
+          },
+          state: stateEntry,
+          commands: commandResults,
+          snapshot: buildSnapshotEnvelope(snapshot, projectionContext, deps, deps.catalogRuntimeState),
+        });
+      } catch (error) {
+        const commandResults = Array.isArray(error?.commandResults) ? error.commandResults : [];
+        const stateEntry = persistProviderInstallState(deps, ctx.copilotHomeAbs, providerId, {
+          providerId,
+          title: providerInstall.provider.title || providerId,
+          installStrategy: providerInstall.provider.installStrategy || null,
+          bridgeStrategy: providerInstall.provider.bridgeStrategy || null,
+          installed: false,
+          pluginRef: providerInstall.pluginRef,
+          marketplaceRef: providerInstall.marketplaceRef,
+          lastAction: action,
+          lastAttemptAt: attemptedAt,
+          lastFailureAt: attemptedAt,
+          lastError: String(error?.message || error),
+          lastCommandResults: commandResults,
+        });
+
+        deps.sendJson(ctx.res, error.statusCode || 500, {
+          kind: 'catalog.provider.install',
+          deterministic: true,
+          error: String(error?.message || error),
+          action,
+          providerId,
+          state: stateEntry,
+          commands: commandResults,
+        });
+      }
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.provider.install',
+      String(error.message || error),
+    ));
 }
 
 function handleCatalogAssetEnable(ctx, deps) {
@@ -1464,11 +1716,15 @@ function sendJsonError(res, sendJson, statusCode, kind, error) {
 
 function register(deps = {}) {
   const resolvedDeps = {
+    childProcess: deps.childProcess || childProcess,
     fs: deps.fs || fs,
     path: deps.path || path,
+    process: deps.process || process,
     crypto: deps.crypto || crypto,
     catalogProjection: deps.catalogProjection || catalogProjectionLib,
     catalogMutation: deps.catalogMutation || catalogMutationLib,
+    providerCatalog: deps.providerCatalog || providerCatalogLib,
+    executeProviderCommand: deps.executeProviderCommand,
     repoInventory: deps.repoInventory || repoInventoryLib,
     sendJson: deps.sendJson || defaultSendJson,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
@@ -1550,6 +1806,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/assets/install',
       handler: (ctx) => handleCatalogAssetInstall(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/providers/install',
+      handler: (ctx) => handleCatalogProviderInstall(ctx, resolvedDeps),
     },
     {
       method: 'POST',

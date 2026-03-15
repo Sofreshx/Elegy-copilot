@@ -7,6 +7,7 @@ import type {
   CatalogBundleMember,
   CatalogEffectiveAsset,
   CatalogEntry,
+  CatalogProviderProjection,
   CatalogRepoInventoryEntry,
 } from '../../lib/types';
 import { catalogWorkspaceStore } from './catalogWorkspaceStore';
@@ -195,6 +196,16 @@ function readMetadataString(entry: CatalogEntry | null | undefined, key: string)
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function readProvenanceString(entry: CatalogEntry | null | undefined, key: string): string {
+  const provenance = entry?.provenance;
+  if (!provenance || typeof provenance !== 'object') {
+    return '';
+  }
+
+  const value = (provenance as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function readMetadataBoolean(entry: CatalogEntry | null | undefined, key: string): boolean {
   return entry?.metadata?.[key] === true;
 }
@@ -314,6 +325,21 @@ function describeActivationSource(source: string | null | undefined): string {
     return 'user-global defaults';
   }
   return 'provider defaults';
+}
+
+function readProviderStateString(provider: CatalogProviderProjection | null | undefined, key: string): string {
+  const value = provider?.state?.[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function providerLooksInstalled(provider: CatalogProviderProjection | null | undefined): boolean {
+  if (!provider) {
+    return false;
+  }
+  if (provider.state?.installed === true) {
+    return true;
+  }
+  return Number(provider.discoveredAssets?.count || 0) > 0;
 }
 
 function resolveActiveRepo(
@@ -545,6 +571,9 @@ export default function AssetsView() {
 
   const summaryStats = catalogState.summary?.stats;
   const activationState: CatalogActivationState | null = catalogState.summary?.activation ?? null;
+  const providerProjections = Array.isArray(catalogState.summary?.providers)
+    ? catalogState.summary.providers as CatalogProviderProjection[]
+    : [];
   const runtimeProjection = catalogState.runtimeHealth?.projection;
   const repoInventory = catalogState.repoInventory;
   const repoList = repoInventory?.repos ?? [];
@@ -614,6 +643,11 @@ export default function AssetsView() {
   );
   const activationRepoPath = normalizePath(activeRepo?.repoPath || catalogState.activeRepoPath) || undefined;
   const repoOverrideActive = Boolean(activationState?.repoOverride?.active);
+  const selectedProviderId = String(readProvenanceString(selectedEntry, 'providerId') || readMetadataString(selectedEntry, 'provider') || '').trim();
+  const selectedProvider = providerProjections.find((provider) => provider.providerId === selectedProviderId) ?? null;
+  const selectedProviderInstallable = Boolean(
+    selectedProvider && String(selectedProvider.installStrategy || '').trim().toLowerCase() === 'managed-import'
+  );
 
   useEffect(() => {
     setCreateDraft((current) => {
@@ -1263,6 +1297,52 @@ export default function AssetsView() {
         </Panel>
 
         <Panel
+          subtitle="Install and update provider packs here, while Overview and Agents now own the primary discovery spotlight for provider-backed skills and agents."
+          testId="catalog-providers-panel"
+          title="Provider installs & state"
+        >
+          {providerProjections.length === 0 ? (
+            <p className="state-message">No provider integrations were exposed by the current catalog projection.</p>
+          ) : (
+            <div className="catalog-summary-grid">
+              {providerProjections.map((provider) => {
+                const installed = providerLooksInstalled(provider);
+                const providerError = readProviderStateString(provider, 'lastError');
+                const providerAction = installed ? 'update' : 'install';
+
+                return (
+                  <article className="catalog-stat-card" key={provider.providerId}>
+                    <p className="catalog-stat-label">{provider.providerId}</p>
+                    <p className="catalog-stat-value">{provider.title || provider.providerId}</p>
+                    <p className="catalog-stat-copy">{provider.description || 'External provider package.'}</p>
+                    <p className="catalog-inline-note">
+                      strategy: {provider.installStrategy || 'unknown'} · discovered assets: {provider.discoveredAssets?.count || 0}
+                    </p>
+                    {providerError ? <p className="state-message state-error">{providerError}</p> : null}
+                    <div className="catalog-action-row">
+                      <StatusBadge status={installed ? 'installed' : 'not-installed'} testId="catalog-provider-installed" />
+                      <Button
+                        disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || String(provider.installStrategy || '').trim().toLowerCase() !== 'managed-import'}
+                        onClick={() => {
+                          void catalogWorkspaceStore.installProvider({
+                            providerId: provider.providerId,
+                            action: providerAction,
+                          });
+                        }}
+                        testId="catalog-provider-install"
+                        variant="secondary"
+                      >
+                        {providerAction === 'update' ? 'Update provider' : 'Install provider'}
+                      </Button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </Panel>
+
+        <Panel
           subtitle="Create a new agent or skill in the selected authoritative target. The form makes the write path explicit before saving."
           testId="catalog-create-panel"
           title="Create asset"
@@ -1672,7 +1752,9 @@ export default function AssetsView() {
                 ) : (
                   <p className="catalog-gap-note" data-testid="catalog-write-target-gap">
                     {selectedIsReadOnly
-                      ? 'External plugin-origin assets are read-only in Instruction Engine. Edit or remove them from their source installation instead.'
+                      ? selectedProviderInstallable
+                        ? `External provider assets remain read-only here. Use the provider install controls${selectedProvider ? ` for ${selectedProvider.title || selectedProvider.providerId}` : ''} to install or update the source package.`
+                        : 'External plugin-origin assets are read-only in Instruction Engine. Edit or remove them from their source installation instead.'
                       : sharedEditBlocked
                       ? 'Shared shipped assets are only writable when the instruction-engine workspace repo is the selected write scope.'
                       : 'No authoritative write target is available for this effective asset in the current scope.'}

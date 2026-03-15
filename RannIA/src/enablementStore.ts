@@ -31,6 +31,22 @@ function getRegistryPath(repoPath: string, config: vscode.WorkspaceConfiguration
 	return getRepoRegistryPath(repoPath);
 }
 
+function normalizeDisabledEntries(entries: readonly string[]): string[] {
+	const normalized = new Set<string>();
+	for (const entry of entries) {
+		if (typeof entry !== 'string') {
+			continue;
+		}
+
+		const value = normalizeKey(entry);
+		if (value) {
+			normalized.add(value);
+		}
+	}
+
+	return Array.from(normalized).sort();
+}
+
 function readRegistry(repoPath: string, config: vscode.WorkspaceConfiguration): RegistryData {
 	const registryPath = getRegistryPath(repoPath, config);
 	if (!existsFile(registryPath)) {
@@ -62,24 +78,53 @@ function getSettingsKey(kind: EnablementKind): string {
 			: 'skillInstaller.mcp.providers.disabledByRepo';
 }
 
-export function getRepoDisabledSet(kind: EnablementKind, repoPath: string): Set<string> {
-	const config = vscode.workspace.getConfiguration();
+function getSettingsDisabledEntries(
+	kind: EnablementKind,
+	repoPath: string,
+	config: vscode.WorkspaceConfiguration
+): string[] {
 	const settingsKey = getSettingsKey(kind);
-	const settingsMap = config.get<Record<string, string[]>>(settingsKey) ?? {};
+	const settingsMap = config.get<Record<string, unknown>>(settingsKey) ?? {};
 	const repoKey = normalizeRepoKey(repoPath);
-	const fromSettings = settingsMap[repoKey] ?? [];
-	const registry = readRegistry(repoPath, config);
-	const fromRegistry = registry[kind]?.disabled ?? [];
+	const entries = settingsMap[repoKey];
+	return Array.isArray(entries)
+		? entries.filter((entry): entry is string => typeof entry === 'string')
+		: [];
+}
 
-	const disabled = new Set<string>();
-	for (const entry of [...fromSettings, ...fromRegistry]) {
-		const normalized = normalizeKey(entry);
-		if (normalized) {
-			disabled.add(normalized);
-		}
+function getRegistryDisabledEntries(data: RegistryData, kind: EnablementKind): string[] {
+	const disabled = data[kind]?.disabled;
+	return Array.isArray(disabled)
+		? disabled.filter((entry): entry is string => typeof entry === 'string')
+		: [];
+}
+
+function importSettingsIfNeeded(
+	kind: EnablementKind,
+	repoPath: string,
+	config: vscode.WorkspaceConfiguration,
+	registry: RegistryData
+): RegistryData {
+	if (Array.isArray(registry[kind]?.disabled)) {
+		return registry;
 	}
 
-	return disabled;
+	const settingsEntries = getSettingsDisabledEntries(kind, repoPath, config);
+	if (settingsEntries.length === 0) {
+		return registry;
+	}
+
+	registry[kind] = {
+		disabled: normalizeDisabledEntries(settingsEntries)
+	};
+	writeRegistry(repoPath, config, registry);
+	return registry;
+}
+
+export function getRepoDisabledSet(kind: EnablementKind, repoPath: string): Set<string> {
+	const config = vscode.workspace.getConfiguration();
+	const registry = importSettingsIfNeeded(kind, repoPath, config, readRegistry(repoPath, config));
+	return new Set(normalizeDisabledEntries(getRegistryDisabledEntries(registry, kind)));
 }
 
 export async function setRepoItemEnabled(
@@ -94,21 +139,8 @@ export async function setRepoItemEnabled(
 	}
 
 	const config = vscode.workspace.getConfiguration();
-	const settingsKey = getSettingsKey(kind);
-	const settingsMap = config.get<Record<string, string[]>>(settingsKey) ?? {};
-	const repoKey = normalizeRepoKey(repoPath);
-	const current = new Set((settingsMap[repoKey] ?? []).map(normalizeKey));
-	if (enabled) {
-		current.delete(normalizedKey);
-	} else {
-		current.add(normalizedKey);
-	}
-	settingsMap[repoKey] = Array.from(current).sort();
-	await config.update(settingsKey, settingsMap, vscode.ConfigurationTarget.Workspace);
-
-	const registry = readRegistry(repoPath, config);
-	const registrySection = registry[kind] ?? {};
-	const registrySet = new Set((registrySection.disabled ?? []).map(normalizeKey));
+	const registry = importSettingsIfNeeded(kind, repoPath, config, readRegistry(repoPath, config));
+	const registrySet = new Set(normalizeDisabledEntries(getRegistryDisabledEntries(registry, kind)));
 	if (enabled) {
 		registrySet.delete(normalizedKey);
 	} else {

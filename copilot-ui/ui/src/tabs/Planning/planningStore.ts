@@ -1,16 +1,19 @@
 import {
   comparePlanningRecords,
   createPlanningRecord,
+  createSdkSession,
   deletePlanningResearchNote,
   getPlanningDiagrams,
   getPlanningResearchNotes,
   getPlanningRecords,
   getPolicyPreflight,
   mergePlanningRecords,
+  sendSdkMessage,
   type PlanningResearchNoteInput,
   preparePlanningMergeIntent,
   savePlanningResearchNote,
   searchPlanningRecords,
+  updatePlanningRecord,
 } from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type {
@@ -23,6 +26,7 @@ import type {
   PlanningSearchResultItem,
   PolicyPreflightResponse,
 } from '../../lib/types';
+import { sdkSessionsStore } from '../Sessions/sdkSessionsStore';
 
 const PLANNING_GATE_PASS = 'pass';
 const PLANNING_GATE_DEGRADED = 'degraded';
@@ -30,6 +34,8 @@ const PLANNING_GATE_INSUFFICIENT_DATA = 'insufficient-data';
 const PLANNING_GATE_POLICY_BLOCKED = 'policy-blocked';
 const PLANNING_GATE_AUTH_DENIED = 'auth-denied';
 const PLANNING_MERGE_INTENT_DEFAULT_TTL_MS = 5 * 60 * 1000;
+
+const IDEA_RECORD_STATES = new Set(['thought', 'research', 'pre-plan']);
 
 export interface PlanningConflictValue {
   scope: 'user' | 'repo' | 'global';
@@ -69,6 +75,11 @@ export interface PlanningState {
   createTitle: string;
   createSummary: string;
   createAcceptanceCriteria: string;
+  ideaDraft: string;
+  ideaTargetRepos: string;
+  selectedIdeaIds: string[];
+  updatingRecordId: string | null;
+  compiling: boolean;
   selectedRecordId: string;
   researchNotes: PlanningResearchNote[];
   diagrams: PlanningDiagram[];
@@ -115,6 +126,11 @@ const INITIAL_STATE: PlanningState = {
   createTitle: '',
   createSummary: '',
   createAcceptanceCriteria: '',
+  ideaDraft: '',
+  ideaTargetRepos: '',
+  selectedIdeaIds: [],
+  updatingRecordId: null,
+  compiling: false,
   selectedRecordId: '',
   researchNotes: [],
   diagrams: [],
@@ -340,6 +356,26 @@ function normalizeAcceptanceCriteriaInput(raw: string): string[] {
     .filter((entry) => entry.length > 0);
 }
 
+function normalizeIdeaLines(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((entry) => entry.replace(/^[-*•]\s*/, '').trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function normalizeRepoTargetsInput(raw: string): string[] {
+  return [...new Set(
+    raw
+      .split(/[\n,]+/)
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+  )].sort((left, right) => left.localeCompare(right));
+}
+
+export function isIdeaRecord(record: PlanningRecordItem): boolean {
+  return IDEA_RECORD_STATES.has(String(record.state || '').trim().toLowerCase());
+}
+
 function readCompareReceipt(compareResponse: PlanningCompareResponse | null): PlanningCompareReceipt | null {
   if (!compareResponse || !compareResponse.compareReceipt) {
     return null;
@@ -471,10 +507,15 @@ function createPlanningStore() {
           ? state.selectedRecordId
           : (response.records[0]?.recordId ?? '');
 
+        const nextSelectedIdeas = state.selectedIdeaIds.filter((recordId) =>
+          response.records.some((record) => record.recordId === recordId)
+        );
+
         return {
           ...state,
           records: response.records,
           deniedScopes: response.deniedScopes,
+          selectedIdeaIds: nextSelectedIdeas,
           selectedRecordId: nextSelectedRecordId,
           listing: false,
           error: null,
@@ -867,6 +908,202 @@ function createPlanningStore() {
     }
   }
 
+  async function createIdeaBatch(): Promise<void> {
+    const stateSnapshot = store.getState();
+    const ideas = normalizeIdeaLines(stateSnapshot.ideaDraft);
+    const targetRepoIds = normalizeRepoTargetsInput(stateSnapshot.ideaTargetRepos);
+
+    if (stateSnapshot.mutatingBlocked) {
+      setStatus(`Idea capture blocked: ${stateSnapshot.mutatingReason || 'policy gate active'}.`);
+      return;
+    }
+
+    if (ideas.length === 0) {
+      setStatus('Type one or more bullet ideas before adding them.');
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      creating: true,
+      error: null,
+      statusMessage: `Creating ${ideas.length} idea record${ideas.length === 1 ? '' : 's'}...`,
+    }));
+
+    try {
+      for (const idea of ideas) {
+        await createPlanningRecord({
+          userId: stateSnapshot.userId,
+          repoId: stateSnapshot.repoId,
+          scope: stateSnapshot.createScope,
+          title: idea,
+          summary: idea,
+          state: 'thought',
+          targetRepoIds: targetRepoIds.length > 0 ? targetRepoIds : undefined,
+          idempotencyKey: buildIdempotencyKey('planning-idea'),
+        });
+      }
+
+      store.setState((state) => ({
+        ...state,
+        creating: false,
+        ideaDraft: '',
+        statusMessage: `Captured ${ideas.length} idea record${ideas.length === 1 ? '' : 's'}.`,
+      }));
+
+      await listRecords();
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to create idea records.');
+
+      store.setState((state) => ({
+        ...state,
+        creating: false,
+        error: message,
+        statusMessage: `Idea capture failed: ${message}`,
+      }));
+    }
+  }
+
+  async function updateIdea(
+    recordId: string,
+    input: {
+      title?: string;
+      summary?: string;
+      targetRepoIds?: string[];
+      acceptanceCriteriaText?: string;
+      state?: string;
+    }
+  ): Promise<void> {
+    const stateSnapshot = store.getState();
+    const normalizedRecordId = recordId.trim();
+    if (!normalizedRecordId) {
+      return;
+    }
+
+    if (stateSnapshot.mutatingBlocked) {
+      setStatus(`Idea update blocked: ${stateSnapshot.mutatingReason || 'policy gate active'}.`);
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      updatingRecordId: normalizedRecordId,
+      error: null,
+      statusMessage: 'Saving idea changes...',
+    }));
+
+    try {
+      await updatePlanningRecord(normalizedRecordId, {
+        userId: stateSnapshot.userId,
+        repoId: stateSnapshot.repoId,
+        title: input.title,
+        summary: input.summary,
+        targetRepoIds: input.targetRepoIds,
+        acceptanceCriteriaText: input.acceptanceCriteriaText,
+        acceptanceCriteria: normalizeAcceptanceCriteriaInput(input.acceptanceCriteriaText || ''),
+        state: input.state,
+      });
+
+      store.setState((state) => ({
+        ...state,
+        updatingRecordId: null,
+        statusMessage: 'Idea updated.',
+      }));
+
+      await listRecords();
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to update idea.');
+
+      store.setState((state) => ({
+        ...state,
+        updatingRecordId: null,
+        error: message,
+        statusMessage: `Idea update failed: ${message}`,
+      }));
+    }
+  }
+
+  async function compileSelectedIdeas(): Promise<string | null> {
+    const stateSnapshot = store.getState();
+    const selectedIdeas = stateSnapshot.records.filter(
+      (record) => stateSnapshot.selectedIdeaIds.includes(record.recordId) && isIdeaRecord(record)
+    );
+
+    if (selectedIdeas.length === 0) {
+      setStatus('Select one or more ideas before compiling a plan.');
+      return null;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      compiling: true,
+      error: null,
+      statusMessage: 'Creating SDK planning session...',
+    }));
+
+    try {
+      const response = await createSdkSession({});
+      const sessionId = String(response.sessionId || '').trim();
+      if (!sessionId) {
+        throw new Error('sdk_session_missing');
+      }
+
+      const allTargetRepoIds = [...new Set(selectedIdeas.flatMap((record) =>
+        Array.isArray(record.targetRepoIds) ? record.targetRepoIds.map((entry) => String(entry).trim()).filter(Boolean) : []
+      ))].sort((left, right) => left.localeCompare(right));
+
+      const effectiveTargets = allTargetRepoIds.length > 0
+        ? allTargetRepoIds
+        : (stateSnapshot.repoId.trim() ? [stateSnapshot.repoId.trim()] : []);
+
+      const prompt = [
+        'Create a repo-targeted implementation plan from the following planning ideas.',
+        effectiveTargets.length > 0 ? `Target repositories: ${effectiveTargets.join(', ')}` : 'Target repositories: determine from the supplied idea context.',
+        'Requirements:',
+        '- Produce a concrete implementation plan with phases, risks, validation, and rollout guidance.',
+        '- Do not execute changes.',
+        '- Keep the output ready for follow-up implementation work.',
+        'Ideas:',
+        ...selectedIdeas.map((record, index) => {
+          const acceptance = Array.isArray(record.acceptanceCriteria) && record.acceptanceCriteria.length > 0
+            ? ` Acceptance criteria: ${record.acceptanceCriteria.join('; ')}`
+            : '';
+          const targets = Array.isArray(record.targetRepoIds) && record.targetRepoIds.length > 0
+            ? ` Targets: ${record.targetRepoIds.join(', ')}.`
+            : '';
+          return `${index + 1}. ${String(record.title || '').trim() || '(untitled idea)'}${String(record.summary || '').trim() ? ` Summary: ${String(record.summary).trim()}.` : ''}${targets}${acceptance}`;
+        }),
+      ].join('\n');
+
+      await sendSdkMessage({
+        sessionId,
+        prompt,
+      });
+
+      await sdkSessionsStore.loadSessions();
+      sdkSessionsStore.selectSession(sessionId);
+
+      store.setState((state) => ({
+        ...state,
+        compiling: false,
+        statusMessage: `Plan compilation started in SDK session ${sessionId}.`,
+      }));
+
+      return sessionId;
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to compile ideas into an SDK planning session.');
+
+      store.setState((state) => ({
+        ...state,
+        compiling: false,
+        error: message,
+        statusMessage: `Idea compile failed: ${message}`,
+      }));
+
+      return null;
+    }
+  }
+
   async function prepareMergeIntent(): Promise<void> {
     const stateSnapshot = store.getState();
 
@@ -1124,6 +1361,41 @@ function createPlanningStore() {
     }));
   }
 
+  function setIdeaDraft(value: string): void {
+    store.setState((state) => ({
+      ...state,
+      ideaDraft: value,
+    }));
+  }
+
+  function setIdeaTargetRepos(value: string): void {
+    store.setState((state) => ({
+      ...state,
+      ideaTargetRepos: value,
+    }));
+  }
+
+  function toggleIdeaSelected(recordId: string, checked: boolean): void {
+    const normalizedRecordId = recordId.trim();
+    if (!normalizedRecordId) {
+      return;
+    }
+
+    store.setState((state) => {
+      const nextIds = new Set(state.selectedIdeaIds);
+      if (checked) {
+        nextIds.add(normalizedRecordId);
+      } else {
+        nextIds.delete(normalizedRecordId);
+      }
+
+      return {
+        ...state,
+        selectedIdeaIds: [...nextIds],
+      };
+    });
+  }
+
   function setSelectedRecordId(value: string): void {
     const selectedRecordId = value.trim();
 
@@ -1190,6 +1462,9 @@ function createPlanningStore() {
     removeResearchNote,
     compareRecords,
     createRecord,
+    createIdeaBatch,
+    updateIdea,
+    compileSelectedIdeas,
     prepareMergeIntent,
     confirmMerge,
     setUserId,
@@ -1202,6 +1477,9 @@ function createPlanningStore() {
     setCreateTitle,
     setCreateSummary,
     setCreateAcceptanceCriteria,
+    setIdeaDraft,
+    setIdeaTargetRepos,
+    toggleIdeaSelected,
     setSelectedRecordId,
     setSelectedDiagramId,
     setMergeTargetId,

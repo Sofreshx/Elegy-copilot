@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import MermaidViewer from './MermaidViewer';
+import PlanningIdeasPanel from './PlanningIdeasPanel';
 import {
   hasReviewedAllPlanningConflicts,
   planningGateAllowsMerge,
@@ -17,7 +18,7 @@ function renderConflictValue(value: string | null): string {
   return value;
 }
 
-export default function PlanningView() {
+export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?: (sessionId: string) => void }) {
   const planningState = useStoreValue(planningStore);
 
   useEffect(() => {
@@ -97,6 +98,8 @@ export default function PlanningView() {
           Mutating actions are disabled by policy preflight: {planningState.mutatingReason || 'blocked'}
         </p>
       ) : null}
+
+      <PlanningIdeasPanel onSdkSessionReady={onSdkSessionReady} planningState={planningState} />
 
       <div className="planning-grid">
         <Panel

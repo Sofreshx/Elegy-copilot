@@ -18,6 +18,8 @@ export function run(): Promise<void> {
   } else {
     mocha.addFile(path.resolve(testsRoot, 'agentScanner.test.js'));
     mocha.addFile(path.resolve(testsRoot, 'catalogAdapter.test.js'));
+    mocha.addFile(path.resolve(testsRoot, 'catalogControlPlane.test.js'));
+    mocha.addFile(path.resolve(testsRoot, 'enablementStore.test.js'));
     mocha.addFile(path.resolve(testsRoot, 'eventEmitter.test.js'));
     mocha.addFile(path.resolve(testsRoot, 'skillScanner.test.js'));
     mocha.addFile(path.resolve(testsRoot, 'taskLifecycle.test.js'));

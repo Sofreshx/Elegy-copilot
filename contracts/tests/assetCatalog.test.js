@@ -1,11 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 
 const {
   compareAssetCatalogEntries,
   getAssetLayerPrecedence,
   resolveEffectiveAssetState,
   ASSET_CATALOG_LAYER_PRECEDENCE,
+  DEFAULT_PROVIDER_CATALOG,
 } = require('../dist');
 
 function entry(overrides = {}) {
@@ -148,4 +151,12 @@ test('effective asset state carries provenance and activation metadata from the 
   assert.equal(state.provenance?.providerId, 'superpowers-copilot');
   assert.equal(state.provenance?.discoveryMode, 'managed-import');
   assert.equal(state.activation?.scope, 'global-and-repo');
+});
+
+test('default provider catalog stays synced with engine-assets/providers.json', () => {
+  const canonicalProviderCatalog = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', '..', 'engine-assets', 'providers.json'), 'utf8'),
+  );
+
+  assert.deepEqual(DEFAULT_PROVIDER_CATALOG, canonicalProviderCatalog);
 });

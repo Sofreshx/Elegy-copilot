@@ -5,9 +5,14 @@ Lightweight Node.js service that runs locally alongside VS Code. It watches for 
 ## Overview
 
 The tracker monitors:
-- **Task files** — watches `.instructions/tasks/` for task status updates
+- **Task files** — watches the canonical repo-state task store at `~/.copilot/repo-state/<repoId>/tasks/`
 - **Git status** — polls workspace repos for branch, ahead/behind, and working-tree changes
 - **Relay bridge** — forwards snapshots to the cloud relay over WebSocket
+
+Repo-local `.instructions/tasks/` is no longer a default watched surface. If you need temporary
+legacy compatibility during migration, set `TRACKER_ENABLE_LEGACY_TASK_SURFACE=true` to opt in to
+watching that repo-local path as a bounded compatibility shim. The tracker now logs that opt-in
+explicitly so repo-local task watching is not mistaken for a peer authority.
 
 It also exposes a local WebSocket server (default port `9821`) for the VS Code extension to connect to.
 

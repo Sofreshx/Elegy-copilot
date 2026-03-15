@@ -1,14 +1,23 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import {
+	buildMessagingGatewayConfigMetadata,
+	MESSAGING_GATEWAY_CONFIG_CONTRACT_VERSION,
+	MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION,
+	resolveContractCompatibilitySource,
+	type ContractCompatibilitySource,
+} from '@instruction-engine/contracts';
 
 export type MessagingGatewayMode = 'auto' | 'connected' | 'disconnected';
 export const LIFECYCLE_ACTIONS = ['create', 'start', 'stop', 'open-terminal', 'pr-open', 'finish'] as const;
 export type LifecycleAction = (typeof LIFECYCLE_ACTIONS)[number];
+export {
+	MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION,
+	MESSAGING_GATEWAY_CONFIG_CONTRACT_VERSION,
+};
 
-export const MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION = 1;
-export const MESSAGING_GATEWAY_CONFIG_CONTRACT_VERSION = 'messaging_gateway_config_v1';
-export type MessagingGatewayConfigCompatibilitySource = 'v0' | 'v1';
+export type MessagingGatewayConfigCompatibilitySource = ContractCompatibilitySource;
 
 export const DEFAULT_SANDBOX_MAX_SANDBOXES = 10;
 export const DEFAULT_SANDBOX_PORT_RANGE_START = 13_000;
@@ -81,18 +90,73 @@ export interface ResolvedSandboxLifecycleConfig {
 
 export const MESSAGING_GATEWAY_CONFIG_PATH_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH';
 export const MESSAGING_GATEWAY_CONFIG_JSON_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON';
+const MESSAGING_GATEWAY_CONFIG_FILENAME = 'messaging-gateway.config.json';
 
 export function getDefaultMessagingGatewayConfigPath(): string {
-	return path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.config.json');
+	return path.join(os.homedir(), '.copilot', MESSAGING_GATEWAY_CONFIG_FILENAME);
+}
+
+export function getLegacyMessagingGatewayConfigPath(): string {
+	return path.join(os.homedir(), '.instruction-engine', MESSAGING_GATEWAY_CONFIG_FILENAME);
+}
+
+function isExistingFile(candidatePath: string): boolean {
+	try {
+		return fs.existsSync(candidatePath) && fs.statSync(candidatePath).isFile();
+	} catch {
+		return false;
+	}
+}
+
+function rehomeLegacyMessagingGatewayConfigIfNeeded(canonicalPath: string): void {
+	const legacyPath = path.resolve(getLegacyMessagingGatewayConfigPath());
+	const canonicalPathAbs = path.resolve(canonicalPath);
+
+	if (legacyPath === canonicalPathAbs || !isExistingFile(legacyPath) || isExistingFile(canonicalPathAbs)) {
+		return;
+	}
+
+	try {
+		fs.mkdirSync(path.dirname(canonicalPathAbs), { recursive: true });
+		fs.renameSync(legacyPath, canonicalPathAbs);
+		return;
+	} catch {
+		// Fall back to copy + atomic rename below.
+	}
+
+	const tmpPath = `${canonicalPathAbs}.tmp.${process.pid}.${Date.now()}`;
+	try {
+		fs.mkdirSync(path.dirname(canonicalPathAbs), { recursive: true });
+		fs.copyFileSync(legacyPath, tmpPath);
+		fs.renameSync(tmpPath, canonicalPathAbs);
+		try {
+			fs.unlinkSync(legacyPath);
+		} catch {
+			// best-effort legacy cleanup after successful rehome
+		}
+	} catch {
+		try {
+			if (fs.existsSync(tmpPath)) {
+				fs.unlinkSync(tmpPath);
+			}
+		} catch {
+			// best-effort temp cleanup
+		}
+	}
 }
 
 export function resolveMessagingGatewayConfigPath(configPathFromCli?: string): string {
-	const resolved =
+	const explicitPath =
 		configPathFromCli?.trim() ||
-		process.env[MESSAGING_GATEWAY_CONFIG_PATH_ENV]?.trim() ||
-		getDefaultMessagingGatewayConfigPath();
+		process.env[MESSAGING_GATEWAY_CONFIG_PATH_ENV]?.trim();
 
-	return path.resolve(resolved);
+	if (explicitPath) {
+		return path.resolve(explicitPath);
+	}
+
+	const canonicalPath = path.resolve(getDefaultMessagingGatewayConfigPath());
+	rehomeLegacyMessagingGatewayConfigIfNeeded(canonicalPath);
+	return canonicalPath;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -204,11 +268,8 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 	}
 
 	const configVersion = asOptionalPositiveInteger(raw.configVersion, 'configVersion');
-	const hasExplicitV1Marker =
-		configVersion !== undefined ||
-		raw.schemaVersion !== undefined ||
-		raw.contractVersion !== undefined;
-	const normalizedFrom: MessagingGatewayConfigCompatibilitySource = hasExplicitV1Marker ? 'v1' : 'v0';
+	const normalizedFrom: MessagingGatewayConfigCompatibilitySource =
+		resolveContractCompatibilitySource(raw);
 
 	const modeRaw = raw.mode;
 	if (
@@ -398,13 +459,10 @@ function validateAndNormalizeConfig(raw: unknown): MessagingGatewayConfig {
 	}
 
 	return {
-		configVersion: configVersion ?? MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION,
-		schemaVersion: MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION,
-		contractVersion: MESSAGING_GATEWAY_CONFIG_CONTRACT_VERSION,
-		compatibility: {
+		...buildMessagingGatewayConfigMetadata({
+			configVersion,
 			normalizedFrom,
-			deterministic: true,
-		},
+		}),
 		mode: modeRaw,
 		acp,
 		sandboxLifecycle,

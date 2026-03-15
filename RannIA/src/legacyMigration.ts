@@ -11,26 +11,40 @@ interface MigrationCounts {
 	errors: number;
 }
 
-async function copyDirRecursive(srcDir: string, destDir: string, output: vscode.OutputChannel): Promise<MigrationCounts> {
+type LegacyDirCopyFilter = (srcPath: string) => boolean;
+
+function isMarkdownTaskFile(srcPath: string): boolean {
+	return srcPath.toLowerCase().endsWith('.md');
+}
+
+async function copyDirRecursive(
+	srcDir: string,
+	destDir: string,
+	output: vscode.OutputChannel,
+	includeFile?: LegacyDirCopyFilter
+): Promise<MigrationCounts> {
 	const counts: MigrationCounts = { filesCopied: 0, filesSkipped: 0, errors: 0 };
 	if (!existsDir(srcDir)) {
 		return counts;
 	}
 
-	await fs.promises.mkdir(destDir, { recursive: true });
 	const entries = await fs.promises.readdir(srcDir, { withFileTypes: true });
 	for (const entry of entries) {
 		const srcPath = path.join(srcDir, entry.name);
 		const destPath = path.join(destDir, entry.name);
 		try {
 			if (entry.isDirectory()) {
-				const nested = await copyDirRecursive(srcPath, destPath, output);
+				const nested = await copyDirRecursive(srcPath, destPath, output, includeFile);
 				counts.filesCopied += nested.filesCopied;
 				counts.filesSkipped += nested.filesSkipped;
 				counts.errors += nested.errors;
 				continue;
 			}
 			if (!entry.isFile()) {
+				counts.filesSkipped++;
+				continue;
+			}
+			if (includeFile && !includeFile(srcPath)) {
 				counts.filesSkipped++;
 				continue;
 			}
@@ -52,6 +66,11 @@ async function copyDirRecursive(srcDir: string, destDir: string, output: vscode.
 
 	return counts;
 }
+
+export const __legacyMigrationTestExports = {
+	copyDirRecursive,
+	isMarkdownTaskFile
+};
 
 export async function migrateLegacyRepoState(repoPath: string, output: vscode.OutputChannel): Promise<void> {
 	const legacyRoot = path.join(repoPath, '.instructions');
@@ -86,7 +105,7 @@ export async function migrateLegacyRepoState(repoPath: string, output: vscode.Ou
 	// Tasks
 	{
 		const destTasks = getRepoTasksDir(repoPath);
-		const res = await copyDirRecursive(legacyTasks, destTasks, output);
+		const res = await copyDirRecursive(legacyTasks, destTasks, output, isMarkdownTaskFile);
 		copied += res.filesCopied;
 		skipped += res.filesSkipped;
 		errors += res.errors;
@@ -98,7 +117,7 @@ export async function migrateLegacyRepoState(repoPath: string, output: vscode.Ou
 	// Tasks archive
 	{
 		const destArchive = getRepoTasksArchiveDir(repoPath);
-		const res = await copyDirRecursive(legacyArchive, destArchive, output);
+		const res = await copyDirRecursive(legacyArchive, destArchive, output, isMarkdownTaskFile);
 		copied += res.filesCopied;
 		skipped += res.filesSkipped;
 		errors += res.errors;

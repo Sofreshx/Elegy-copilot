@@ -1,0 +1,329 @@
+
+> @instruction-engine/local-tracker@0.1.0 test:jest
+> jest src/__tests__/watchers.test.ts src/__tests__/extensionBridge.test.ts
+
+PASS src/__tests__/watchers.test.ts (8.569 s)
+  ΓùÅ Console
+
+    console.log
+      [Watcher] Started watching 2 workspace(s)
+
+      at FileWatcher.start (src/watchers.ts:72:13)
+
+    console.log
+      [Watcher] Started watching 1 workspace(s)
+
+      at FileWatcher.start (src/watchers.ts:72:13)
+
+    console.log
+      [Watcher] Started watching 1 workspace(s)
+
+      at FileWatcher.start (src/watchers.ts:72:13)
+
+    console.log
+      [Watcher] Started watching 1 workspace(s)
+
+      at FileWatcher.start (src/watchers.ts:72:13)
+
+    console.log
+      [Watcher] Started watching 1 workspace(s)
+
+      at FileWatcher.start (src/watchers.ts:72:13)
+
+    console.log
+      [Watcher] Started watching 1 workspace(s)
+
+      at FileWatcher.start (src/watchers.ts:72:13)
+
+    console.log
+      [Watcher] Started watching 1 workspace(s)
+
+      at FileWatcher.start (src/watchers.ts:72:13)
+
+    console.error
+      [Watcher] Handler error: Error: boom
+          at C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\src\__tests__\watchers.test.ts:204:15
+          at C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-mock\build\index.js:397:39
+          at C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-mock\build\index.js:404:13
+          at mockConstructor (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-mock\build\index.js:148:19)
+          at FileWatcher.emit (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\src\watchers.ts:130:9)
+          at C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\src\watchers.ts:93:16
+          at C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\src\watchers.ts:121:9
+          at callTimer (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\@sinonjs\fake-timers\src\fake-timers-src.js:744:24)
+          at doTickInner (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\@sinonjs\fake-timers\src\fake-timers-src.js:1312:29)
+          at doTick (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\@sinonjs\fake-timers\src\fake-timers-src.js:1393:20)
+          at Object.tick (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\@sinonjs\fake-timers\src\fake-timers-src.js:1401:20)
+          at FakeTimers.advanceTimersByTime (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\@jest\fake-timers\build\modernFakeTimers.js:94:19)
+          at Object.advanceTimersByTime (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-runtime\build\index.js:2027:26)
+          at Object.<anonymous> (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\src\__tests__\watchers.test.ts:216:12)
+          at Promise.then.completed (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-circus\build\utils.js:298:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-circus\build\utils.js:231:10)
+          at _callCircusTest (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-circus\build\run.js:316:40)
+          at processTicksAndRejections (node:internal/process/task_queues:105:5)
+          at _runTest (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-circus\build\run.js:252:3)
+          at _runTestsForDescribeBlock (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-circus\build\run.js:126:9)
+          at _runTestsForDescribeBlock (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-circus\build\run.js:121:9)
+          at _runTestsForDescribeBlock (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-circus\build\run.js:121:9)
+          at run (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-circus\build\run.js:71:3)
+          at runAndTransformResultsToJestFormat (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapterInit.js:122:21)
+          at jestAdapter (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:79:19)
+          at runTestInternal (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-runner\build\runTest.js:367:16)
+          at runTest (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-runner\build\runTest.js:444:34)
+          at Object.worker (C:\Users\lolzi\Documents\GitHub\instruction-engine\local-tracker\node_modules\jest-runner\build\testWorker.js:106:12)
+
+      130 |         handler(event);
+      131 |       } catch (error) {
+    > 132 |         console.error("[Watcher] Handler error:", error);
+          |                 ^
+      133 |       }
+      134 |     }
+      135 |   }
+
+      at FileWatcher.emit (src/watchers.ts:132:17)
+      at src/watchers.ts:93:16
+      at src/watchers.ts:121:9
+      at callTimer (node_modules/@sinonjs/fake-timers/src/fake-timers-src.js:744:24)
+      at doTickInner (node_modules/@sinonjs/fake-timers/src/fake-timers-src.js:1312:29)
+      at doTick (node_modules/@sinonjs/fake-timers/src/fake-timers-src.js:1393:20)
+      at Object.tick (node_modules/@sinonjs/fake-timers/src/fake-timers-src.js:1401:20)
+      at FakeTimers.advanceTimersByTime (node_modules/@jest/fake-timers/build/modernFakeTimers.js:94:19)
+      at Object.<anonymous> (src/__tests__/watchers.test.ts:216:12)
+
+    console.log
+      [Watcher] Started watching 1 workspace(s)
+
+      at FileWatcher.start (src/watchers.ts:72:13)
+
+    console.log
+      [Watcher] All watchers stopped
+
+      at FileWatcher.stop (src/watchers.ts:148:13)
+
+    console.log
+      [Watcher] Started watching 1 workspace(s)
+
+      at FileWatcher.start (src/watchers.ts:72:13)
+
+    console.log
+      [Watcher] All watchers stopped
+
+      at FileWatcher.stop (src/watchers.ts:148:13)
+
+    console.log
+      [Watcher] Started watching 1 workspace(s)
+
+      at FileWatcher.start (src/watchers.ts:72:13)
+
+    console.log
+      [Watcher] All watchers stopped
+
+      at FileWatcher.stop (src/watchers.ts:148:13)
+
+    console.log
+      [Watcher] All watchers stopped
+
+      at FileWatcher.stop (src/watchers.ts:148:13)
+
+PASS src/__tests__/extensionBridge.test.ts (9.209 s)
+  ΓùÅ Console
+
+    console.log
+      [Bridge] WebSocket server listening on port 0
+
+      at ExtensionBridge.start (src/extensionBridge.ts:46:13)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] WebSocket server listening on port 0
+
+      at ExtensionBridge.start (src/extensionBridge.ts:46:13)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] WebSocket server listening on port 0
+
+      at ExtensionBridge.start (src/extensionBridge.ts:46:13)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] WebSocket server listening on port 0
+
+      at ExtensionBridge.start (src/extensionBridge.ts:46:13)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] WebSocket server listening on port 0
+
+      at ExtensionBridge.start (src/extensionBridge.ts:46:13)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] WebSocket server listening on port 0
+
+      at ExtensionBridge.start (src/extensionBridge.ts:46:13)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Extension disconnected
+
+      at WebSocket.<anonymous> (src/extensionBridge.ts:26:37)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] WebSocket server listening on port 0
+
+      at ExtensionBridge.start (src/extensionBridge.ts:46:13)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] WebSocket server listening on port 0
+
+      at ExtensionBridge.start (src/extensionBridge.ts:46:13)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] WebSocket server listening on port 0
+
+      at ExtensionBridge.start (src/extensionBridge.ts:46:13)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Extension disconnected
+
+      at WebSocket.<anonymous> (src/extensionBridge.ts:26:37)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+    console.log
+      [Bridge] WebSocket server listening on port 0
+
+      at ExtensionBridge.start (src/extensionBridge.ts:46:13)
+
+    console.log
+      [Bridge] Extension connected from ::ffff:127.0.0.1
+
+      at WebSocketServer.<anonymous> (src/extensionBridge.ts:21:15)
+
+    console.log
+      [Bridge] Server stopped
+
+      at ExtensionBridge.stop (src/extensionBridge.ts:80:13)
+
+
+Test Suites: 2 passed, 2 total
+Tests:       23 passed, 23 total
+Snapshots:   0 total
+Time:        12.131 s
+Ran all test suites matching /src\\__tests__\\watchers.test.ts|src\\__tests__\\extensionBridge.test.ts/i.
+
+__EXIT_CODE__=0
+__DURATION_MS__=21419

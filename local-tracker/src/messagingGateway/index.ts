@@ -1,11 +1,16 @@
 import fs from 'fs';
 import childProcess from 'child_process';
 import path from 'path';
+import {
+	buildEmptyMessagingGatewayDiscoveryTelemetrySummary,
+	buildMessagingGatewayReadinessMetadata,
+} from '@instruction-engine/contracts';
 
 import type { LifecycleAction, MessagingGatewayConfig, MessagingGatewayMode, ResolvedSandboxLifecycleConfig } from './config';
 import { GatewayHttpServer } from './gatewayHttpServer';
 import {
 	getDefaultMessagingGatewayConfigPath,
+	getLegacyMessagingGatewayConfigPath,
 	loadMessagingGatewayConfig,
 	resolveMessagingGatewayConfigPath,
 	resolveSandboxLifecycleConfig,
@@ -39,7 +44,6 @@ import { printGatewayStatusSummary } from './status';
 import {
 	deriveMessagingGatewayReadiness,
 	MessagingGatewayStatusWriter,
-	MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
 	resolveMessagingGatewayStatusPath,
 	type MessagingGatewayStatusV1,
 } from './statusFile';
@@ -172,7 +176,7 @@ Utility:
 	--print-config-path     Print the resolved config path (or env JSON source) and exit
 
 Config:
-  INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path> (default: ~/.instruction-engine/messaging-gateway.config.json)
+  INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path> (default: ~/.copilot/messaging-gateway.config.json; legacy ~/.instruction-engine config is rehomed automatically when possible)
   INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON=<inline-json>
 
 Secrets (preferred: OS keychain; fallback: env vars):
@@ -296,6 +300,7 @@ async function main() {
 		}
 		console.log(resolveMessagingGatewayConfigPath(args.configPath || process.env.INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH));
 		console.log(`(default: ${getDefaultMessagingGatewayConfigPath()})`);
+		console.log(`(legacy rehome source: ${getLegacyMessagingGatewayConfigPath()})`);
 		return;
 	}
 
@@ -398,12 +403,9 @@ async function main() {
 	const statusWriter = new MessagingGatewayStatusWriter(
 		resolveMessagingGatewayStatusPath(loaded.configPath),
 		{
-			schemaVersion: 1,
-			contractVersion: MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
-			compatibility: {
+			...buildMessagingGatewayReadinessMetadata({
 				normalizedFrom: loaded.config.compatibility?.normalizedFrom ?? 'v1',
-				deterministic: true,
-			},
+			}),
 			readiness: {
 				state: 'disconnected',
 				reasonCode: 'gateway_disconnected',
@@ -453,22 +455,9 @@ async function main() {
 					connected: false,
 					ready: false,
 				},
-				discoveryTelemetry: {
-					contractVersion: COMMAND_ROUTER_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
-					sample: {
-						capacity: COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY,
-						size: 0,
-						dropped: 0,
-						deterministic: true,
-					},
-					countersByReason: {
-						keyword_miss: 0,
-						ambiguity: 0,
-						stale_map: 0,
-						no_route: 0,
-					},
-					recent: [],
-				},
+				discoveryTelemetry: buildEmptyMessagingGatewayDiscoveryTelemetrySummary({
+					capacity: COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY,
+				}),
 				telegram: telegramConfig
 					? {
 						connected: false,

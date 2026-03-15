@@ -152,7 +152,7 @@ test('applySessionReconciliation resolves runtime-only authority with runtime pr
     resolvedStatus: 'active',
   });
 
-  assert.strictEqual(reconciled.authority, 'acp-only');
+  assert.strictEqual(reconciled.authority, 'acp');
   assert.strictEqual(reconciled.reconciliation.reason, 'runtime_only');
   assert.strictEqual(reconciled.reconciliation.sourceOfTruth, 'runtime');
   assert.deepStrictEqual(reconciled.reconciliation.sourcePrecedence, ['runtime']);

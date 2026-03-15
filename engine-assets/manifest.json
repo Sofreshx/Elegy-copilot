@@ -123,6 +123,28 @@
       ]
     },
     {
+      "id": "roadmap-planning-lane",
+      "title": "Repository Backlog & Roadmap Planning Lane",
+      "description": "Repo-local roadmap planning lane for Repository Backlog and Roadmap authoring, maintenance, and Roadmap Sync-ready linking above plan packs.",
+      "assetIds": [
+        "skill-roadmap-authoring",
+        "agent-roadmap-planner"
+      ],
+      "installTarget": "repo-local",
+      "activationScope": "repo",
+      "materialization": "on-demand",
+      "tags": [
+        "planning",
+        "roadmap",
+        "backlog",
+        "instruction-engine"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": [
+        "orchestrator-workflow"
+      ]
+    },
+    {
       "id": "instruction-engine-governance-lanes",
       "title": "Instruction-Engine Governance & Specialist Lanes",
       "description": "Repo-local governance, specialist reviewer, and follow-up lanes for instruction-engine-first workflows. Explicit opt-in keeps default routing curated.",
@@ -342,6 +364,12 @@
       "type": "agent",
       "source": "engine-assets/agents/remaining-work.agent.md",
       "destination": "agents/remaining-work.agent.md"
+    },
+    {
+      "id": "agent-roadmap-planner",
+      "type": "agent",
+      "source": "engine-assets/agents/roadmap-planner.agent.md",
+      "destination": "agents/roadmap-planner.agent.md"
     },
     {
       "id": "agent-research-ideation",
@@ -647,6 +675,13 @@
       "type": "skill",
       "source": "engine-assets/skills/react-query",
       "destination": "skills/react-query",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-roadmap-authoring",
+      "type": "skill",
+      "source": "engine-assets/skills/roadmap-authoring",
+      "destination": "skills/roadmap-authoring",
       "loadMode": "on-demand"
     },
     {

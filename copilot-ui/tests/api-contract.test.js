@@ -121,7 +121,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/lsp/config' },
   { method: 'POST', path: '/api/lsp/install' },
 
-  // Planning (19)
+  // Planning (20)
   { method: 'POST', path: '/api/planning/persistence/init' },
   { method: 'POST', path: '/api/planning/persistence/corruption/scan' },
   { method: 'POST', path: '/api/planning/persistence/retention' },
@@ -129,6 +129,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/planning/persistence/import' },
   { method: 'POST', path: '/api/planning/records' },
   { method: 'GET', path: '/api/planning/records' },
+  { method: 'PATCH', path: '/api/planning/records/planning-000001' },
   { method: 'GET', path: '/api/planning/search' },
   { method: 'POST', path: '/api/planning/compare' },
   { method: 'POST', path: '/api/planning/merge-intent' },
@@ -166,7 +167,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/assets/view' },
   { method: 'POST', path: '/api/assets/delete' },
 
-  // Catalog/Search/Audit/Runtime (23)
+  // Catalog/Search/Audit/Runtime (24)
   { method: 'GET', path: '/api/catalog/repos' },
   { method: 'POST', path: '/api/catalog/repos/register' },
   { method: 'POST', path: '/api/catalog/repos/unregister' },
@@ -182,6 +183,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/catalog/assets/update' },
   { method: 'POST', path: '/api/catalog/assets/delete' },
   { method: 'POST', path: '/api/catalog/assets/install' },
+  { method: 'POST', path: '/api/catalog/providers/install' },
   { method: 'POST', path: '/api/catalog/assets/enable' },
   { method: 'POST', path: '/api/catalog/assets/disable' },
   { method: 'POST', path: '/api/catalog/activation' },
@@ -352,7 +354,7 @@ async function run() {
 
     // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 86, `Expected 86 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 88, `Expected 88 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

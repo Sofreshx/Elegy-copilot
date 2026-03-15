@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const {
-  DEFAULT_PROVIDER_CATALOG,
+  normalizeProviderCatalogDocument,
 } = require('@instruction-engine/contracts');
 
 function readJsonIfExists(absPath) {
@@ -17,17 +17,6 @@ function readJsonIfExists(absPath) {
   } catch {
     return null;
   }
-}
-
-function normalizeProviderCatalogDocument(document) {
-  if (!document || typeof document !== 'object' || !Array.isArray(document.providers)) {
-    return DEFAULT_PROVIDER_CATALOG;
-  }
-
-  return {
-    schemaVersion: Number(document.schemaVersion) || DEFAULT_PROVIDER_CATALOG.schemaVersion,
-    providers: document.providers.filter((provider) => provider && typeof provider === 'object'),
-  };
 }
 
 function loadProviderCatalog(engineRoot) {

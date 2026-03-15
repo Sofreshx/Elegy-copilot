@@ -1,30 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import TabShell from './components/TabShell';
 import { useStoreValue } from './lib/store';
 import { NAVIGATION_TABS, TabId } from './stores/navigation';
 import { sdkHealthStore } from './stores/sdkHealthStore';
-import AssetsView from './tabs/Assets/AssetsView';
-import LspView from './tabs/LSP/LspView';
-import GatewayView from './tabs/Gateway/GatewayView';
+import CatalogView from './tabs/Catalog/CatalogView';
 import PlanningView from './tabs/Planning/PlanningView';
-import SandboxesView from './tabs/Sandboxes/SandboxesView';
-import SessionsView from './tabs/Sessions/SessionsView';
-import SkillsPreviewView from './tabs/SkillsPreview/SkillsPreviewView';
-import TrackerView from './tabs/Tracker/TrackerView';
+import SessionsWorkspaceView from './tabs/Sessions/SessionsWorkspaceView';
+import StateView from './tabs/State/StateView';
 
 const environmentLabel = 'Instruction Engine UI';
 
-const tabPlaceholderCopy: Partial<Record<TabId, { title: string; body: string }>> = {
-  workflows: {
-    title: 'Workflows Wave Placeholder',
-    body: 'Cross-tab workflow orchestration and migration progress controls will be anchored in this new tab.',
-  },
-};
-
-const PLACEHOLDER_TAB_IDS: readonly TabId[] = ['workflows'];
-
 export default function App() {
-  const [activeTabId, setActiveTabId] = useState<TabId>('assets');
+  const [activeTabId, setActiveTabId] = useState<TabId>('planning');
   const sdkHealthState = useStoreValue(sdkHealthStore);
 
   useEffect(() => {
@@ -33,9 +20,6 @@ export default function App() {
       sdkHealthStore.stopPolling();
     };
   }, []);
-
-  const placeholder = useMemo(() => tabPlaceholderCopy[activeTabId] ?? null, [activeTabId]);
-  const showPlaceholder = PLACEHOLDER_TAB_IDS.includes(activeTabId);
 
   const sdkHealthClassName = sdkHealthState.error
     ? 'error'
@@ -60,10 +44,11 @@ export default function App() {
         <p className={`sdk-health-indicator sdk-health-${sdkHealthClassName}`}>
           SDK Health: {sdkHealthSummary}
         </p>
-        <h1 id="instruction-engine-title">Instruction Engine Catalog Workspace</h1>
+        <h1 id="instruction-engine-title">Instruction Engine Control Plane</h1>
         <p>
-          Catalog-focused dashboard workspace with unified browsing, search, audit, and runtime
-          visibility while preserving the broader operations tabs.
+          Planning-first workspace for turning ideas into repo-targeted plans, managing assets,
+          operating sessions, and checking system readiness without scattering the workflow across
+          overlapping tabs.
         </p>
       </header>
 
@@ -73,24 +58,10 @@ export default function App() {
         tablistLabel="Instruction Engine sections"
         onTabChange={setActiveTabId}
       >
-        {activeTabId === 'sessions' ? <SessionsView /> : null}
-        {activeTabId === 'assets' ? <AssetsView /> : null}
-        {activeTabId === 'planning' ? <PlanningView /> : null}
-        {activeTabId === 'gateway' ? <GatewayView /> : null}
-        {activeTabId === 'sandboxes' ? <SandboxesView onFollowSessions={() => setActiveTabId('sessions')} /> : null}
-        {activeTabId === 'lsp' ? <LspView /> : null}
-        {activeTabId === 'tracker' ? <TrackerView /> : null}
-        {activeTabId === 'skills-preview' ? <SkillsPreviewView /> : null}
-
-        {showPlaceholder && placeholder ? (
-          <section aria-live="polite" className="status-grid">
-            <article className="status-card placeholder-card">
-              <p className="kicker">Migration Wave Placeholder</p>
-              <h2>{placeholder.title}</h2>
-              <p>{placeholder.body}</p>
-            </article>
-          </section>
-        ) : null}
+        {activeTabId === 'planning' ? <PlanningView onSdkSessionReady={() => setActiveTabId('sessions')} /> : null}
+        {activeTabId === 'catalog' ? <CatalogView /> : null}
+        {activeTabId === 'sessions' ? <SessionsWorkspaceView /> : null}
+        {activeTabId === 'state' ? <StateView /> : null}
       </TabShell>
     </main>
   );

@@ -52,3 +52,42 @@ export interface PlanningPersistenceHealth {
 
 /** Supported runtime provider identifiers. */
 export type RuntimeProvider = 'non-docker' | 'docker';
+
+export const PLANNING_API_CONTRACT_VERSION = 'planning_api_v1';
+
+export interface PlanningApiEnvelope {
+  contractVersion: typeof PLANNING_API_CONTRACT_VERSION;
+  kind: string;
+  deterministic: true;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function buildPlanningApiEnvelope<T extends Record<string, unknown>>(
+  kind: string,
+  extras?: T,
+): PlanningApiEnvelope & T {
+  const payload = isRecord(extras) ? extras : ({} as T);
+  return {
+    ...payload,
+    contractVersion: PLANNING_API_CONTRACT_VERSION,
+    kind,
+    deterministic: true,
+  };
+}
+
+export function buildPlanningApiErrorEnvelope<
+  T extends Record<string, unknown>,
+  E extends string | Record<string, unknown>,
+>(
+  kind: string,
+  error: E,
+  extras?: T,
+): PlanningApiEnvelope & T & { error: E } {
+  return buildPlanningApiEnvelope(kind, {
+    ...(isRecord(extras) ? extras : {}),
+    error,
+  } as T & { error: E });
+}

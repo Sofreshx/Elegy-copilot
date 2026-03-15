@@ -1,9 +1,59 @@
 import chokidar, { FSWatcher } from "chokidar";
+import crypto from "crypto";
+import os from "os";
 import path from "path";
 import { TrackerConfig } from "./config";
 import { TrackerEvent } from "./types";
 
 export type EventHandler = (event: TrackerEvent) => void;
+
+const LEGACY_TASK_SURFACE_ENV = "TRACKER_ENABLE_LEGACY_TASK_SURFACE";
+
+type TaskAuthority = "canonical" | "legacy-compat";
+
+interface TaskWatchSurface {
+  authority: TaskAuthority;
+  taskStorePath: string;
+}
+
+function normalizeRepoPathForKey(workspacePath: string): string {
+  return workspacePath.replace(/\\/g, "/").trim().toLowerCase();
+}
+
+function getRepoId(workspacePath: string): string {
+  return crypto.createHash("sha256").update(normalizeRepoPathForKey(workspacePath), "utf8").digest("hex").slice(0, 12);
+}
+
+function toPosixPath(inputPath: string): string {
+  return inputPath.replace(/\\/g, "/");
+}
+
+function getCanonicalTasksPath(workspacePath: string): string {
+  return path.join(os.homedir(), ".copilot", "repo-state", getRepoId(workspacePath), "tasks");
+}
+
+function getLegacyTasksPath(workspacePath: string): string {
+  return path.join(workspacePath, ".instructions", "tasks");
+}
+
+function shouldWatchLegacyTaskSurface(): boolean {
+  const value = process.env[LEGACY_TASK_SURFACE_ENV]?.trim().toLowerCase();
+  return value === "1" || value === "true";
+}
+
+function warnLegacyTaskSurfaceEnabled(workspacePath: string): void {
+  console.warn(
+    `[Watcher] ${LEGACY_TASK_SURFACE_ENV}=true enables legacy repo-local task watching for ${toPosixPath(workspacePath)}. `
+    + `This is a compatibility-only surface; canonical task authority is ~/.copilot/repo-state/<repoId>/tasks/.`
+  );
+}
+
+export const __watcherTestExports = {
+  getCanonicalTasksPath,
+  getLegacyTasksPath,
+  shouldWatchLegacyTaskSurface,
+  warnLegacyTaskSurfaceEnabled,
+};
 
 export class FileWatcher {
   private config: TrackerConfig;
@@ -30,30 +80,42 @@ export class FileWatcher {
     console.log(`[Watcher] Started watching ${this.config.workspacePaths.length} workspace(s)`);
   }
 
-  /** Watch .instructions/tasks/ for file changes */
+  /** Watch canonical repo-state tasks, plus opt-in legacy repo-local tasks for compatibility. */
   private watchTaskFiles(workspacePath: string): void {
-    const tasksPath = path.join(workspacePath, ".instructions", "tasks");
+    const surfaces: TaskWatchSurface[] = [
+      { authority: "canonical", taskStorePath: getCanonicalTasksPath(workspacePath) },
+    ];
 
-    const watcher = chokidar.watch(path.join(tasksPath, "**/*.md"), {
-      ignoreInitial: true,
-      awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
-    });
+    if (shouldWatchLegacyTaskSurface()) {
+      warnLegacyTaskSurfaceEnabled(workspacePath);
+      surfaces.push({ authority: "legacy-compat", taskStorePath: getLegacyTasksPath(workspacePath) });
+    }
 
-    watcher.on("all", (eventType, filePath) => {
-      this.debouncedEmit(`task-${filePath}`, () => {
-        this.emit({
-          type: "task_update",
-          timestamp: new Date().toISOString(),
-          data: {
-            event: eventType,
-            path: filePath,
-            relativePath: path.relative(workspacePath, filePath),
-          },
+    for (const surface of surfaces) {
+      const watcher = chokidar.watch(path.join(surface.taskStorePath, "**/*.md"), {
+        ignoreInitial: true,
+        awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
+      });
+
+      watcher.on("all", (eventType, filePath) => {
+        this.debouncedEmit(`task-${filePath}`, () => {
+          this.emit({
+            type: "task_update",
+            timestamp: new Date().toISOString(),
+            data: {
+              authority: surface.authority,
+              event: eventType,
+              path: filePath,
+              relativePath: toPosixPath(path.relative(surface.taskStorePath, filePath)),
+              taskStorePath: toPosixPath(surface.taskStorePath),
+              workspacePath: toPosixPath(workspacePath),
+            },
+          });
         });
       });
-    });
 
-    this.watchers.push(watcher);
+      this.watchers.push(watcher);
+    }
   }
 
   /** Debounced event emission */

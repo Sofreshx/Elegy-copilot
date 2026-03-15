@@ -58,6 +58,12 @@ export default function SkillsPreviewView() {
   const vaultFirstCount = useMemo(() => {
     return skillsState.skills.filter((skill) => skill.loadMode !== 'always').length;
   }, [skillsState.skills]);
+  const providerBackedCount = useMemo(() => {
+    return skillsState.skills.filter((skill) => skill.provider && skill.provider !== 'user-home').length;
+  }, [skillsState.skills]);
+  const featuredProviderSkills = useMemo(() => {
+    return skillsState.skills.filter((skill) => skill.provider === 'superpowers-copilot' || skill.namespace === 'superpowers');
+  }, [skillsState.skills]);
 
   const handleRefresh = async () => {
     await skillsPreviewStore.refresh();
@@ -73,7 +79,7 @@ export default function SkillsPreviewView() {
         <div className="skills-preview-summary">
           <p className="skills-preview-title">Skills Catalog Preview</p>
           <p className="skills-preview-copy">
-            {skillsState.skills.length} total skills, {alwaysLoadedCount} always-loaded, {vaultFirstCount} vault-first
+            {skillsState.skills.length} total skills, {alwaysLoadedCount} always-loaded, {vaultFirstCount} vault-first, {providerBackedCount} provider-backed
           </p>
         </div>
 
@@ -101,6 +107,23 @@ export default function SkillsPreviewView() {
         <p className="skills-preview-error" role="alert">
           {skillsState.error}
         </p>
+      ) : null}
+
+      {featuredProviderSkills.length > 0 ? (
+        <div className="catalog-featured-provider-banner" data-testid="skills-preview-featured-provider">
+          <div>
+            <p className="catalog-spotlight-kicker">Provider spotlight</p>
+            <p><strong>superpowers-copilot</strong> is surfaced directly in skills discovery with provider-qualified identity intact.</p>
+            <p>{featuredProviderSkills.length} skill(s) from the provider are visible in this preview.</p>
+          </div>
+          <Button
+            onClick={() => skillsPreviewStore.setSearchQuery('superpowers-copilot')}
+            testId="skills-preview-filter-superpowers"
+            variant="secondary"
+          >
+            Show superpowers
+          </Button>
+        </div>
       ) : null}
 
       <div className="skills-preview-grid">

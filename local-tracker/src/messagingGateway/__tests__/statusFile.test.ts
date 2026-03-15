@@ -2,22 +2,22 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import {
+	buildEmptyMessagingGatewayDiscoveryTelemetrySummary,
+	buildMessagingGatewayReadinessMetadata,
+	MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
+} from '@instruction-engine/contracts';
+import {
 	MessagingGatewayStatusWriter,
 	MessagingGatewayStatusV1,
-	MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
 	MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
 	getDefaultMessagingGatewayStatusPath,
+	getLegacyMessagingGatewayStatusPath,
 	resolveMessagingGatewayStatusPath,
 } from '../statusFile';
 
 function makeStatus(overrides: Partial<MessagingGatewayStatusV1> = {}): MessagingGatewayStatusV1 {
 	return {
-		schemaVersion: 1,
-		contractVersion: MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
-		compatibility: {
-			normalizedFrom: 'v1',
-			deterministic: true,
-		},
+		...buildMessagingGatewayReadinessMetadata({ normalizedFrom: 'v1' }),
 		readiness: {
 			state: 'disconnected',
 			reasonCode: 'gateway_disconnected',
@@ -46,22 +46,7 @@ function makeStatus(overrides: Partial<MessagingGatewayStatusV1> = {}): Messagin
 		},
 		runtime: {
 			discord: { connected: false, ready: false },
-			discoveryTelemetry: {
-				contractVersion: MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
-				sample: {
-					capacity: 12,
-					size: 0,
-					dropped: 0,
-					deterministic: true,
-				},
-				countersByReason: {
-					keyword_miss: 0,
-					ambiguity: 0,
-					stale_map: 0,
-					no_route: 0,
-				},
-				recent: [],
-			},
+			discoveryTelemetry: buildEmptyMessagingGatewayDiscoveryTelemetrySummary(),
 		},
 		...overrides,
 	};
@@ -226,7 +211,7 @@ describe('getDefaultMessagingGatewayStatusPath', () => {
 	test('returns expected path under home directory', () => {
 		const result = getDefaultMessagingGatewayStatusPath();
 		expect(result).toBe(
-			path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.status.json'),
+			path.join(os.homedir(), '.copilot', 'messaging-gateway.status.json'),
 		);
 	});
 });
@@ -235,5 +220,25 @@ describe('resolveMessagingGatewayStatusPath', () => {
 	test('ignores configPath arg and returns default', () => {
 		const result = resolveMessagingGatewayStatusPath('/some/random/path.json');
 		expect(result).toBe(getDefaultMessagingGatewayStatusPath());
+	});
+
+	test('rehomes legacy status artifact into canonical path when canonical path is absent', () => {
+		const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'gateway-status-home-'));
+		const homedirMock = jest.spyOn(os, 'homedir').mockReturnValue(tempHome);
+
+		try {
+			const canonicalPath = getDefaultMessagingGatewayStatusPath();
+			const legacyPath = getLegacyMessagingGatewayStatusPath();
+			fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+			fs.writeFileSync(legacyPath, JSON.stringify(makeStatus()), 'utf8');
+
+			const resolved = resolveMessagingGatewayStatusPath('/some/random/path.json');
+			expect(resolved).toBe(canonicalPath);
+			expect(fs.existsSync(canonicalPath)).toBe(true);
+			expect(fs.existsSync(legacyPath)).toBe(false);
+		} finally {
+			homedirMock.mockRestore();
+			fs.rmSync(tempHome, { recursive: true, force: true });
+		}
 	});
 });

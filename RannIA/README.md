@@ -8,16 +8,18 @@
 ## Features
 
 ### Skill Discovery
-Browse and toggle available skills from the Instruction Engine. Skills provide domain-specific knowledge (e.g., `wolverine-http`, `marten-events`, `firebase-auth`) that enhance AI assistant capabilities. Use **Initialize Skills** to copy selected skills into a target repo's `.github/skills` folder.
+Browse and toggle available skills from the Instruction Engine. Skills provide domain-specific knowledge (e.g., `wolverine-http`, `marten-events`, `firebase-auth`) that enhance AI assistant capabilities. Asset mutation flows now hand off to the `copilot-ui` catalog control plane instead of treating direct repo-local copying as the primary authority.
 
 ### Agent Management  
 View and enable/disable agents across workspace repos. Agents are specialized AI workflows defined in `.github/agents/*.agent.md`.
 
 ### Task Tracking
-Track tasks from `.instructions/tasks/*.md` with full YAML front matter support:
+Track tasks from the canonical repo-state task store at `~/.copilot/repo-state/<repoId>/tasks/*.md` with full YAML front matter support:
 - Filter by owner, status, priority
 - Task Workflow view with "Next Up" and "Active" lanes
 - Archive done tasks and purge archived tasks from the workflow view
+
+Repo-local `.instructions/tasks/` is legacy migration input only. It is no longer the default discovery surface.
 
 ### Operations
 Operational visibility for remote control components:
@@ -77,9 +79,10 @@ Then use **Developer: Install Extension from Location...** and select the folder
 | Run Audit | Execute code quality audit |
 | Enable/Disable Skill | Toggle skill availability |
 | Enable/Disable Agent | Toggle agent availability |
-| Initialize Skills | Copy selected skills into `.github/skills` |
+| Initialize Skills | Open the `copilot-ui` catalog control plane handoff for asset mutation flows |
 | Clear Repo Context | Reset context for a repo |
-| Archive Done Tasks | Move completed tasks to `.instructions/tasks.archive` |
+| Migrate Legacy .instructions State | Import legacy repo-local state into the canonical `~/.copilot/repo-state/<repoId>/` store |
+| Archive Done Tasks | Move completed tasks to `~/.copilot/repo-state/<repoId>/tasks.archive` |
 | Purge Archived Tasks | Delete archived task files |
 
 ## Configuration
@@ -88,6 +91,7 @@ Then use **Developer: Install Extension from Location...** and select the folder
 - `skillInstaller.tasks.owner` - Your dev handle for task filtering
 - `skillInstaller.tasks.onlyOwner` - Show only your tasks
 - `skillInstaller.workflow.nextUpLimit` - Max items in "Next Up" lane
+- `skillInstaller.catalog.baseUrl` - Base URL for the `copilot-ui` catalog control plane handoff
 
 ### WebSocket Server
 - `skillInstaller.ws.enabled` - Enable WebSocket server

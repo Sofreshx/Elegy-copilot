@@ -76,7 +76,7 @@ Look for `message.from.id` in the response.
 
 ### Step 4: Configure the Gateway
 
-Add a `telegram` block to your config file at `~/.instruction-engine/gateway-config.json`:
+Add a `telegram` block to your config file at `~/.copilot/messaging-gateway.config.json`:
 
 ```json
 {
@@ -152,7 +152,7 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
 
    ```bash
    node local-tracker/src/messagingGateway/index.js \
-     --config ~/.instruction-engine/gateway-config.json
+     --config ~/.copilot/messaging-gateway.config.json
    ```
 
 2. Open Telegram and send `/status` to your bot.
@@ -162,7 +162,7 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
 4. Check the gateway status file:
 
    ```bash
-   cat ~/.instruction-engine/messaging-gateway.status.json
+   cat ~/.copilot/messaging-gateway.status.json
    ```
 
    It should show `telegram.connected: true`.

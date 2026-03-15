@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-09
+updated: 2026-03-14
 category: system
 status: current
 doc_kind: index
@@ -37,6 +37,10 @@ related: [doc-graph-spec]
 
 - [[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md)
 
+## Planning
+
+- [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md)
+
 ## Governance
 
 - [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
@@ -46,6 +50,7 @@ related: [doc-graph-spec]
 
 ## Strategy
 
+- [[domain-authorities-freeze]] [docs/system/domain-authorities-freeze.md](docs/system/domain-authorities-freeze.md)
 - [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md)
 - [[system-upgrade-direction-2026]] [docs/system/system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
 - [[search-execute-workflow]] [docs/system/search-execute-workflow.md](docs/system/search-execute-workflow.md)

@@ -58,6 +58,7 @@
     "onCommand:skillInstaller.openMcpSettings",
     "onCommand:skillInstaller.enableAgent",
     "onCommand:skillInstaller.disableAgent",
+    "onCommand:skillInstaller.openCatalogControlPlane",
     "onCommand:skillInstaller.initializeSkills",
     "onCommand:skillInstaller.archiveDoneTasks",
     "onCommand:skillInstaller.purgeArchivedTasks",
@@ -168,9 +169,14 @@
         "title": "Disable Skill"
       },
       {
+        "command": "skillInstaller.openCatalogControlPlane",
+        "title": "Open Catalog Control Plane",
+        "icon": "$(link-external)"
+      },
+      {
         "command": "skillInstaller.initializeSkills",
-        "title": "Initialize Skills",
-        "icon": "$(cloud-download)"
+        "title": "Manage Skills in Catalog Control Plane",
+        "icon": "$(link-external)"
       },
       {
         "command": "skillInstaller.enableAgent",
@@ -305,8 +311,13 @@
       ],
       "view/title": [
         {
-          "command": "skillInstaller.initializeSkills",
+          "command": "skillInstaller.openCatalogControlPlane",
           "when": "view == skillInstaller.skillsView",
+          "group": "navigation"
+        },
+        {
+          "command": "skillInstaller.openCatalogControlPlane",
+          "when": "view == skillInstaller.agentsView || view == skillInstaller.mcpView",
           "group": "navigation"
         },
         {
@@ -362,12 +373,14 @@
         "skillInstaller.registry.fileName": {
           "type": "string",
           "default": ".instructions/registry.json",
-          "description": "(Deprecated) Repo-local registry path. RannIA now stores enablement metadata in the central repo-state store and does not write into repos."
+          "description": "(Deprecated) Former repo-local registry path. RannIA now persists enablement in ~/.copilot/repo-state/<repoId>/registry.json and does not write into repos.",
+          "deprecationMessage": "Deprecated: enablement persistence now lives in ~/.copilot/repo-state/<repoId>/registry.json."
         },
         "skillInstaller.skills.disabledByRepo": {
           "type": "object",
           "default": {},
-          "description": "Map of repo paths to disabled skill names. Persisted alongside the repo registry file."
+          "description": "Legacy compatibility import map for disabled skill names by repo path. The canonical persisted store is ~/.copilot/repo-state/<repoId>/registry.json.",
+          "deprecationMessage": "Deprecated: this setting is import-only compatibility state; repo-state registry.json is canonical."
         },
         "skillInstaller.skills.showDefaultHandled": {
           "type": "boolean",
@@ -382,12 +395,14 @@
         "skillInstaller.agents.disabledByRepo": {
           "type": "object",
           "default": {},
-          "description": "Map of repo paths to disabled agent file names. Persisted alongside the repo registry file."
+          "description": "Legacy compatibility import map for disabled agent file names by repo path. The canonical persisted store is ~/.copilot/repo-state/<repoId>/registry.json.",
+          "deprecationMessage": "Deprecated: this setting is import-only compatibility state; repo-state registry.json is canonical."
         },
         "skillInstaller.mcp.providers.disabledByRepo": {
           "type": "object",
           "default": {},
-          "description": "Map of repo paths to disabled MCP provider IDs. Persisted alongside the repo registry file."
+          "description": "Legacy compatibility import map for disabled MCP provider IDs by repo path. The canonical persisted store is ~/.copilot/repo-state/<repoId>/registry.json.",
+          "deprecationMessage": "Deprecated: this setting is import-only compatibility state; repo-state registry.json is canonical."
         },
         "skillInstaller.mcp.configPath": {
           "type": "string",
@@ -444,6 +459,11 @@
           "default": 5,
           "minimum": 1,
           "description": "How many tasks to surface in the Task Workflow 'Next Up' lane."
+        },
+        "skillInstaller.catalog.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:3210",
+          "description": "Base URL for the copilot-ui catalog control plane. RannIA opens this URL when handing off asset mutation flows."
         },
         "skillInstaller.tasks.onlyOwner": {
           "type": "boolean",

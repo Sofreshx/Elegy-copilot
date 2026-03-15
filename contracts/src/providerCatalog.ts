@@ -6,6 +6,12 @@ import type {
   ExtensibleString,
 } from './assetCatalog';
 
+declare const __dirname: string;
+declare function require(name: string): any;
+
+const fs = require('fs');
+const path = require('path');
+
 export type ProviderSourceType = ExtensibleString<'github-repo' | 'package' | 'filesystem'>;
 export type ProviderInstallStrategy = ExtensibleString<'managed-import' | 'bridge-only'>;
 export type ProviderBridgeStrategy = ExtensibleString<'plugin-layout' | 'raw-plugin'>;
@@ -220,7 +226,27 @@ function providerMatchesDiscovery(
   );
 }
 
-export const DEFAULT_PROVIDER_CATALOG: ProviderCatalogDocument = {
+export function normalizeProviderCatalogDocument(document: unknown): ProviderCatalogDocument {
+  if (!document || typeof document !== 'object' || !Array.isArray((document as ProviderCatalogDocument).providers)) {
+    return SYNCED_PROVIDER_CATALOG_MIRROR;
+  }
+
+  return {
+    schemaVersion:
+      Number((document as ProviderCatalogDocument).schemaVersion) || SYNCED_PROVIDER_CATALOG_MIRROR.schemaVersion,
+    providers: (document as ProviderCatalogDocument).providers.filter(
+      (provider): provider is ProviderCatalogEntry => Boolean(provider && typeof provider === 'object'),
+    ),
+  };
+}
+
+const CANONICAL_PROVIDER_CATALOG_PATH = path.resolve(__dirname, '..', '..', 'engine-assets', 'providers.json');
+
+/**
+ * Synced compatibility mirror for package consumers that cannot resolve the repo-root catalog file.
+ * Edit engine-assets/providers.json; parity drift here is a bug.
+ */
+const SYNCED_PROVIDER_CATALOG_MIRROR: ProviderCatalogDocument = {
   schemaVersion: 1,
   providers: [
     {
@@ -266,6 +292,17 @@ export const DEFAULT_PROVIDER_CATALOG: ProviderCatalogDocument = {
     },
   ],
 };
+
+function loadCanonicalProviderCatalog(): ProviderCatalogDocument {
+  try {
+    const raw = fs.readFileSync(CANONICAL_PROVIDER_CATALOG_PATH, 'utf8');
+    return normalizeProviderCatalogDocument(JSON.parse(raw));
+  } catch {
+    return SYNCED_PROVIDER_CATALOG_MIRROR;
+  }
+}
+
+export const DEFAULT_PROVIDER_CATALOG: ProviderCatalogDocument = loadCanonicalProviderCatalog();
 
 export function normalizeProviderIdentityPart(value: string | undefined | null): string {
   return String(value || '')

@@ -12,6 +12,7 @@ import {
   getCatalogRepos,
   getCatalogSummary,
   getRuntimeCatalogHealth,
+  installCatalogProvider,
   installCatalogAsset,
   refreshCatalogProjection,
   refreshCatalogRepo,
@@ -706,6 +707,35 @@ function createCatalogWorkspaceStore() {
     );
   }
 
+  async function installProvider(
+    payload: Parameters<typeof installCatalogProvider>[0]
+  ): Promise<void> {
+    store.setState((state) => ({
+      ...state,
+      mutating: true,
+      error: null,
+      installMessage: `${payload.action === 'update' ? 'Updating' : 'Installing'} provider ${payload.providerId}...`,
+    }));
+
+    try {
+      await installCatalogProvider(payload);
+      await loadWorkspace();
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        installMessage: `${payload.action === 'update' ? 'Updated' : 'Installed'} provider ${payload.providerId}.`,
+      }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        error: toErrorMessage(error, 'Provider install failed.'),
+        installMessage: `${payload.action === 'update' ? 'Provider update' : 'Provider install'} failed.`,
+      }));
+      throw error;
+    }
+  }
+
   async function enableAsset(
     payload: Parameters<typeof enableCatalogAsset>[0]
   ): Promise<CatalogAssetMutationResponse> {
@@ -1154,6 +1184,7 @@ function createCatalogWorkspaceStore() {
     updateAsset,
     deleteAsset,
     installAsset,
+    installProvider,
     enableAsset,
     disableAsset,
     activateBundle,

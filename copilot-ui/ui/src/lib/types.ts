@@ -419,6 +419,25 @@ export interface CatalogActivationState {
   [key: string]: unknown;
 }
 
+export interface CatalogProviderProjection {
+  providerId: string;
+  title?: string | null;
+  description?: string | null;
+  sourceType?: string | null;
+  installStrategy?: string | null;
+  bridgeStrategy?: string | null;
+  activationDefaults?: Record<string, unknown> | null;
+  defaultBundles?: string[];
+  state?: Record<string, unknown> | null;
+  discoveredAssets?: {
+    count?: number;
+    assetIds?: string[];
+    byKind?: Record<string, number>;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
 export interface CatalogSnapshotWarningSummary {
   count: number;
   items: unknown[];
@@ -479,6 +498,7 @@ export interface CatalogSnapshotEnvelope {
   readMode?: string;
   repoContext?: CatalogRepoContext | null;
   activation?: CatalogActivationState;
+  providers?: CatalogProviderProjection[];
   storage?: {
     catalogRoot?: string;
     snapshotPath?: string;
@@ -690,6 +710,19 @@ export interface CatalogAssetMutationResponse {
   [key: string]: unknown;
 }
 
+export interface CatalogProviderInstallResponse {
+  kind?: string;
+  deterministic?: boolean;
+  action?: string;
+  providerId?: string;
+  provider?: Record<string, unknown>;
+  state?: Record<string, unknown>;
+  commands?: Array<Record<string, unknown>>;
+  snapshot?: CatalogSnapshotEnvelope;
+  error?: string;
+  [key: string]: unknown;
+}
+
 export interface CatalogActivationMutationResponse {
   kind?: string;
   deterministic?: boolean;
@@ -797,6 +830,7 @@ export interface PlanningRecordItem {
   summary?: string;
   acceptanceCriteria?: string[];
   acceptanceCriteriaText?: string;
+  targetRepoIds?: string[];
   state?: string;
   score?: number | null;
   createdAt?: string | null;

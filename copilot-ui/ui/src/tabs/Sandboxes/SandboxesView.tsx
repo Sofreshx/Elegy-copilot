@@ -179,7 +179,7 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
                 testId="sandbox-follow-button"
                 variant="secondary"
               >
-                Follow In Sessions
+                Follow In Runtime
               </Button>
             </div>
 

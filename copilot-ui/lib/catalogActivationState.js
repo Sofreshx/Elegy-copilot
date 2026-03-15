@@ -92,8 +92,9 @@ function deriveDefaultsFromProviders(providers) {
       continue;
     }
 
-    if (normalizeString(provider.installStrategy) === 'managed-import' && normalizeString(provider.providerId)) {
-      managedImportProviderIds.push(normalizeString(provider.providerId));
+    const providerId = normalizeString(provider.providerId) || normalizeString(provider.id);
+    if (normalizeString(provider.installStrategy) === 'managed-import' && providerId) {
+      managedImportProviderIds.push(providerId);
     }
 
     const activationDefaults =

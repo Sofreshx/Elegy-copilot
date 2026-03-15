@@ -39,7 +39,11 @@ Follow these steps in order to set up Discord control of Copilot CLI sessions:
 
 ### ✅ Step 2: Gather Discord IDs and create config file
 
-**Config file location**: `$HOME/.instruction-engine/messaging-gateway.config.json`
+**Config file location**: `$HOME/.copilot/messaging-gateway.config.json`
+
+Legacy compatibility: if an older `$HOME/.instruction-engine/messaging-gateway.config.json` exists
+and the canonical `~/.copilot` config is absent, the gateway will rehome that legacy file into the
+canonical `~/.copilot` location before continuing.
 
 You can override this path with:
 - `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path>`
@@ -111,7 +115,7 @@ See the example template below or copy from `local-tracker/docs/messaging-gatewa
 Replace the placeholders with your actual IDs:
 
 ```powershell
-$dir = Join-Path $HOME ".instruction-engine"
+$dir = Join-Path $HOME ".copilot"
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 
 $configPath = Join-Path $dir "messaging-gateway.config.json"
@@ -185,7 +189,7 @@ npm run start:gateway
 ```
 
 The gateway will:
-- Load config from `$HOME/.instruction-engine/messaging-gateway.config.json`
+- Load config from `$HOME/.copilot/messaging-gateway.config.json`
 - Retrieve the Discord bot token from OS credential store
 - Connect to the Copilot CLI ACP server at `127.0.0.1:3000`
 - Authenticate with Discord and start listening for commands
@@ -218,7 +222,8 @@ Buttons appear in the session thread (or in a dedicated `permissionsChannelId` i
 ### Location
 
 By default, the gateway reads config from:
-- `$HOME/.instruction-engine/messaging-gateway.config.json`
+- `$HOME/.copilot/messaging-gateway.config.json`
+- and only treats `$HOME/.instruction-engine/messaging-gateway.config.json` as a legacy rehome source
 
 You can override via:
 - `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path>`
@@ -229,12 +234,14 @@ You can override via:
 For WS4 freeze/gate evidence, treat these as contract-level invariants:
 
 - **Canonical config path semantics**
-  - tracker config path resolves in this order: CLI path → `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` → `~/.instruction-engine/messaging-gateway.config.json`
+  - tracker config path resolves in this order: CLI path → `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` → `~/.copilot/messaging-gateway.config.json`
+  - if the canonical `~/.copilot` file is absent, the loader may rehome `~/.instruction-engine/messaging-gateway.config.json` into the canonical path
   - paths are normalized to absolute paths before use
 
 - **Canonical status path semantics**
   - gateway status artifact is machine-global and deterministic at:
-    - `~/.instruction-engine/messaging-gateway.status.json`
+    - `~/.copilot/messaging-gateway.status.json`
+  - if the canonical status file is absent, an older `~/.instruction-engine/messaging-gateway.status.json` may be rehomed forward once
 
 - **Lifecycle idempotency semantics**
   - finish retries preserve canonical `sandboxId`
