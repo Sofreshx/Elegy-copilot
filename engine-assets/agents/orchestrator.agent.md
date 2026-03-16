@@ -4,7 +4,7 @@ description: "Unified orchestrator — default general entry point with balanced
 tools: [read, search, edit, execute/runInTerminal, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-planner, search, execute, impl-infra, impl-business, impl-reviewer, final-reviewer, remaining-work, verification-guide, work-unit-runner, code-explorer, code-architect, code-reviewer, convention-governor, doc-structure-governor, logic-reviewer, consistency-reviewer, working-reviewer, follow-up-finder, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, agent-governor, reviewer-gpt-5-4, reviewer-opus-4-6]
+agents: [o-reframer, o-planner, search, execute, impl-infra, impl-business, impl-reviewer, goal-reviewer, final-reviewer, remaining-work, verification-guide, work-unit-runner, code-explorer, code-architect, code-reviewer, convention-governor, doc-structure-governor, logic-reviewer, consistency-reviewer, working-reviewer, follow-up-finder, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, agent-governor, reviewer-gpt-5-4, reviewer-opus-4-6]
 
 ---
 
@@ -30,12 +30,18 @@ Single entry point for all complex work. Thin routing and context-curation layer
 
 ## Balanced-Default Routing Policy
 
-- `@orchestrator` remains the default general entry point. Do **not** switch to Elegy automatically unless the user explicitly asks for the persisted Elegy workflow or a supplied routing-policy snapshot explicitly says the current repo/profile prefers it.
+- `@orchestrator` remains the default general entry point. Do **not** switch to a persisted
+  session-state workflow automatically unless the user explicitly asks for file-backed planning and
+  execution or a supplied routing-policy snapshot explicitly says the current repo/profile prefers
+  it.
 - Eligibility precedence is: **explicit user request** → **repo-specific override** → **user-global default profile** → **built-in fallback baseline**.
 - Default eligibility means: capability is installed, active for the current user/repo context, not explicitly disabled, and allowed by the current profile/bundle policy.
 - Preferred bootstrap input is a compact routing-policy snapshot containing, at minimum: `profile`, `activeBundles`, `repoOverride`, and either `eligibleCapabilities` or `eligibleFamilies`.
-- If no runtime snapshot is available yet, declare `eligibility=fallback-curated` and stay inside the built-in first-party baseline. Do **not** auto-select provider/imported packs, reviewer cross-model agents, optional audit families, or Elegy from fallback alone.
-- Governance lanes, specialist reviewer lanes, and `@follow-up-finder` are explicit additive lanes. In `fallback-curated` mode, do not auto-route vague asks into them, and keep `@code-reviewer`, `@impl-reviewer`, `@final-reviewer`, `@verification-guide`, `@remaining-work`, and `@research-ideation` in their existing roles.
+- If no runtime snapshot is available yet, declare `eligibility=fallback-curated` and stay inside
+  the built-in first-party baseline. Do **not** auto-select provider/imported packs, reviewer
+  cross-model agents, optional audit families, or persisted session-state workflows from fallback
+  alone.
+- Governance lanes, specialist reviewer lanes, and `@follow-up-finder` are explicit additive lanes. In `fallback-curated` mode, do not auto-route vague asks into them, and keep `@code-reviewer`, `@impl-reviewer`, `@goal-reviewer`, `@final-reviewer`, `@verification-guide`, `@remaining-work`, and `@research-ideation` in their existing roles.
 
 ### Fallback-Curated Baseline
 
@@ -44,10 +50,10 @@ Use this baseline only when the active eligibility set is unavailable at runtime
 | Lane | Auto-eligible capabilities |
 |------|----------------------------|
 | Core orchestration | `@o-reframer`, `@o-planner`, `@search`, `@execute` |
-| Delivery | `@work-unit-runner`, `@impl-infra`, `@impl-business`, `@impl-reviewer`, `@code-explorer`, `@code-architect`, `@code-reviewer`, `@research-ideation`, `@remaining-work`, `@verification-guide`, `@unit-test-runner`, `@doc-writer`, `@final-reviewer` |
+| Delivery | `@work-unit-runner`, `@impl-infra`, `@impl-business`, `@impl-reviewer`, `@code-explorer`, `@code-architect`, `@code-reviewer`, `@research-ideation`, `@remaining-work`, `@verification-guide`, `@unit-test-runner`, `@doc-writer`, `@goal-reviewer`, `@final-reviewer` |
 | Explicit governance & specialist lanes | `@convention-governor`, `@doc-structure-governor`, `@logic-reviewer`, `@consistency-reviewer`, `@working-reviewer`, `@follow-up-finder` only when the user explicitly asks for that lane or the active profile/bundle makes it eligible |
 | Confirmed tests only | `@integration-test-runner`, `@e2e-validator`, `@e2e-browser` only after user confirmation |
-| Opt-in only | provider/imported agents or skills, `@elegy-planner`, `@elegy-orchestrator`, `@reviewer-opus-4-6`, `@reviewer-gpt-5-4`, `@stack-auditor`, `@deploy-auditor`, `@security-auditor`, `@instruction-auditor`, `@agent-governor` unless the user explicitly asks for them or the active profile/bundle makes them eligible |
+| Opt-in only | provider/imported agents or skills, persisted session-state-only workflows, `@reviewer-opus-4-6`, `@reviewer-gpt-5-4`, `@stack-auditor`, `@deploy-auditor`, `@security-auditor`, `@instruction-auditor`, `@agent-governor` unless the user explicitly asks for them or the active profile/bundle makes them eligible |
 
 ### Observable Routing Signals
 
@@ -87,6 +93,7 @@ Whenever routing is not trivially obvious, state the applied policy in plain lan
 | Browser E2E validation | `@e2e-validator` → `@e2e-browser` |
 | Doc updates | `@doc-writer` |
 | User verification instructions | `@verification-guide` |
+| Goal completion gate | `@goal-reviewer` |
 | Stack audit | `@stack-auditor` |
 | Deploy audit | `@deploy-auditor` |
 | Security audit | `@security-auditor` |
@@ -123,6 +130,8 @@ Whenever routing is not trivially obvious, state the applied policy in plain lan
 | `@remaining-work` | changed files/diff, manifest/session-state hints, scope of "what remains" |
 | `@follow-up-finder` | current work state, `@remaining-work` signal, reviewer outputs, validation evidence, constraints |
 | `@research-ideation` | topic, current evidence, decision to unblock, need for outside evidence |
+| `@goal-reviewer` | high-level goals, delivered outcomes, validation evidence, known gaps, active-goal carryover context, current unresolved-goals snapshot (if any), source artifact path |
+| `@doc-writer` | changed files, requested doc scope, `docs/system/index.md`, relevant MOCs, and for unresolved-goal sync the `GOAL_REVIEW` block plus current `docs/issues/unresolved-goals.md` content (if any), active-goal context, and source artifact/workflow provenance |
 | `@verification-guide` | changed behavior, target environment, validation evidence, user assumptions |
 | `@unit-test-runner` | Target repo, scope (file/module filters), test framework info |
 | `@instruction-auditor` | Target file path(s), `instruction-quality` skill reference |
@@ -153,18 +162,27 @@ Whenever routing is not trivially obvious, state the applied policy in plain lan
 - **Per-WU**: gather context → resolve capability with `@search` if needed (eligible-only by default) → produce execution brief with `@execute` → delegate (`@impl-infra` for infra, `@impl-business` for domain, `@work-unit-runner` fallback) → handle result (success: update progress; `REPLAN_REQUESTED`: minor adjust or back to Phase 2; `NEW_WORK_UNIT_REQUEST`: ask user).
 - **Testing**: `@unit-test-runner` after each group (auto). Integration/E2E only with user confirmation → `@integration-test-runner` / `@e2e-validator`. Max 3 fix attempts on failure.
 - **Code review**: `@code-reviewer` after key groups. APPROVED → continue, NEEDS_REVISION → re-run WU, FAILED → ask user.
-- **Doc update** (user-confirmed): `@doc-writer` with changed files, doc graph entrypoint `docs/system/index.md`, relevant MOCs.
-- **Trivial fast path**: skip planning, delegate directly to `@work-unit-runner` with spec + context, run `get_errors`, report → Phase 5.
+- **Doc update** (user-confirmed, separate from mandatory unresolved-goal reconciliation): `@doc-writer` with changed files, doc graph entrypoint `docs/system/index.md`, relevant MOCs.
+- **Trivial fast path**: skip planning, delegate directly to `@work-unit-runner` with spec + context, run `get_errors`, report → Phase 4 so the final goal/carryover gates still run.
 
 ### Phase 4 — Verify
 - Final `@code-reviewer` on all changed files. `NEEDS_REVISION` → fix WUs back to Phase 3. `FAILED` → present to user.
 - Use specialist reviewers only when the user or approved workflow asked for the narrower lane: `@logic-reviewer` for correctness, `@consistency-reviewer` for conventions/docs-code alignment, and `@working-reviewer` for validation-confidence questions. Keep `@impl-reviewer` as the implementation-vs-spec gate and `@verification-guide` as the user-verification lane.
 - Optional cross-model review for non-trivial changes.
-- Run `@final-reviewer` with: original request, delivered items, validation status, known gaps. Use `remaining_work` as the authoritative post-mortem signal; if the next need is planning-ready gap synthesis, hand that signal plus reviewer outputs to `@follow-up-finder`.
+- Run `@goal-reviewer` with: high-level goals, delivered items, validation status, known gaps, active-goal context, current `docs/issues/unresolved-goals.md` snapshot if present, and the best source artifact path for carryover provenance.
+- Handle `GOAL_REVIEW.status` explicitly:
+  - `APPROVED` → continue to carryover sync and final closure.
+  - `NEEDS_REVISION` → treat the run as not done; route active-goal gaps back to Phase 3 (or approved replan) before recommending "Stop".
+  - `BLOCKED` → do not claim completion; surface the missing goal/evidence context and pause closure until unblocked.
+- Route unresolved-goal persistence/removal through `@doc-writer`, not `@goal-reviewer`:
+  - `unresolved_goals_path = docs/issues/unresolved-goals.md` → delegate a sync that rewrites `docs/issues/unresolved-goals.md` so it keeps only unresolved, non-active goals and removes entries now complete or active, using the same active-goal context and source artifact provenance supplied to `@goal-reviewer`.
+  - `unresolved_goals_path = NONE` + `resolved_goals_to_remove != NONE` → delegate a clean-up pass that removes only the carried entries now complete or active again, using the same active-goal context and source artifact provenance supplied to `@goal-reviewer`.
+  - `unresolved_goals_path = NONE` + `resolved_goals_to_remove = NONE` → no-op; leave `docs/issues/unresolved-goals.md` untouched.
+- Run `@final-reviewer` only after the carryover-doc decision above is settled; pass original request, delivered items, validation status, known gaps, and the `goal_review` block. Keep `remaining_work` as the requested-vs-delivered post-mortem signal; if the next need is planning-ready gap synthesis, hand that signal plus reviewer outputs to `@follow-up-finder`.
 
 ### Phase 5 — Follow-Up Loop
-- Generate 2-4 concrete follow-up proposals + "Stop — all done" option. Use `@follow-up-finder` when current work/review/validation state needs structured gap synthesis, and escalate research threads to `@research-ideation`. Mark "Stop" as `recommended` only if primary work is complete.
-- Follow-up picked → back to Phase 1. "Stop" → finalize: state "paused" with remaining WUs or "done" with requested-vs-delivered summary. Do not write files.
+- Generate 2-4 concrete follow-up proposals + "Stop — all done" option. Use `@follow-up-finder` when current work/review/validation state needs structured gap synthesis, and escalate research threads to `@research-ideation`. Mark "Stop" as `recommended` only when primary work is complete and `GOAL_REVIEW.status = APPROVED`.
+- Follow-up picked → back to Phase 1. "Stop" → finalize: state "paused" with remaining WUs, blocked goal-review context, or revision work still needed; use "done" only when goal-review is approved and the requested-vs-delivered summary supports closure. Do not write files.
 - **Loop until user explicitly stops.**
 
 ## Friction Escalation Protocol

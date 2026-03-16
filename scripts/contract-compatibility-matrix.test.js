@@ -7,8 +7,8 @@ const path = require('path');
 const semver = require('semver');
 
 const repoRoot = path.resolve(__dirname, '..');
-const matrixPath = path.join(repoRoot, 'contracts', 'elegy', 'compatibility-matrix.json');
-const manifestPath = path.join(repoRoot, 'contracts', 'elegy', 'compatibility-manifest.json');
+const matrixPath = path.join(repoRoot, 'contracts', 'session-state', 'compatibility-matrix.json');
+const manifestPath = path.join(repoRoot, 'contracts', 'session-state', 'compatibility-manifest.json');
 const rootPackagePath = path.join(repoRoot, 'package.json');
 
 function isWithinRange(versionText, rangeText) {
@@ -35,32 +35,32 @@ function test(name, fn) {
 	}
 }
 
-test('current instruction-engine/elegy tuple is supported by matrix', () => {
+test('current instruction-engine/contracts tuple is supported by the matrix', () => {
 	const matrix = loadJson(matrixPath);
 	const manifest = loadJson(manifestPath);
 	const rootPackage = loadJson(rootPackagePath);
 
 	const instructionEngineVersion = rootPackage.version;
-	const elegyVersion = manifest.package.version;
+	const contractBundleVersion = manifest.package.version;
 
 	assert.ok(Array.isArray(matrix.entries), 'matrix.entries must be an array');
 	assert.ok(matrix.entries.length > 0, 'matrix.entries must not be empty');
 
 	const supported = matrix.entries.some((entry) => {
-		if (!entry.instructionEngineVersionRange || !entry.elegyPackageVersionRange) {
+		if (!entry.instructionEngineVersionRange || !entry.contractPackageVersionRange) {
 			return false;
 		}
 
 		return (
 			isWithinRange(instructionEngineVersion, entry.instructionEngineVersionRange) &&
-			isWithinRange(elegyVersion, entry.elegyPackageVersionRange)
+			isWithinRange(contractBundleVersion, entry.contractPackageVersionRange)
 		);
 	});
 
 	assert.strictEqual(
 		supported,
 		true,
-		`Unsupported tuple: instruction-engine=${instructionEngineVersion}, elegy=${elegyVersion}`
+		`Unsupported tuple: instruction-engine=${instructionEngineVersion}, contracts=${contractBundleVersion}`
 	);
 });
 
@@ -69,7 +69,7 @@ test('out-of-range tuple is rejected by matrix matcher', () => {
 	const unsupported = matrix.entries.some((entry) => {
 		return (
 			isWithinRange('9.9.9', entry.instructionEngineVersionRange) &&
-			isWithinRange('9.9.9', entry.elegyPackageVersionRange)
+			isWithinRange('9.9.9', entry.contractPackageVersionRange)
 		);
 	});
 	assert.strictEqual(unsupported, false);

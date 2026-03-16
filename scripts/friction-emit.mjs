@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
-const schemaPath = path.join(repoRoot, 'contracts', 'elegy', 'monitoring-event.schema.json');
+const schemaPath = path.join(repoRoot, 'contracts', 'session-state', 'monitoring-event.schema.json');
 const eventsDir = path.join(repoRoot, 'docs', 'issues', 'friction-events');
 
 const VALID_IMPORTANCE = ['low', 'medium', 'high', 'critical'];

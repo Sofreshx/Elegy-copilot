@@ -6,7 +6,7 @@ const path = require('path');
 const Ajv2020 = require('ajv/dist/2020').default;
 
 const CANONICAL_SCHEMA_NAME = 'canonical-workflow';
-const DEFAULT_CONTRACTS_DIR = path.resolve(__dirname, '..', 'contracts', 'elegy');
+const DEFAULT_CONTRACTS_DIR = path.resolve(__dirname, '..', 'contracts', 'session-state');
 const COMPATIBILITY_MANIFEST_FILE = 'compatibility-manifest.json';
 const CANONICAL_SCHEMA_FILE = 'canonical-workflow.schema.json';
 
@@ -42,7 +42,7 @@ function resolveContractsDir(contractsDir) {
 	return contractsDir ? path.resolve(contractsDir) : DEFAULT_CONTRACTS_DIR;
 }
 
-function loadCompatibilityManifest(options = {}) {
+function loadContractManifest(options = {}) {
 	const contractsDir = resolveContractsDir(options.contractsDir);
 	const manifestPath = path.join(contractsDir, COMPATIBILITY_MANIFEST_FILE);
 	const manifest = readJsonFile(manifestPath, 'compatibility manifest');
@@ -57,11 +57,11 @@ function resolveCanonicalSchemaFile(manifest) {
 	return schemaFile;
 }
 
-function loadCanonicalWorkflowSchema(options = {}) {
+function loadCanonicalSchema(options = {}) {
 	const contractsDir = resolveContractsDir(options.contractsDir);
 	const loadedManifest = options.manifest
 		? { manifest: options.manifest, manifestPath: path.join(contractsDir, COMPATIBILITY_MANIFEST_FILE), contractsDir }
-		: loadCompatibilityManifest({ contractsDir });
+		: loadContractManifest({ contractsDir });
 
 	const schemaRelPath = resolveCanonicalSchemaFile(loadedManifest.manifest);
 	const schemaPath = path.join(loadedManifest.contractsDir, schemaRelPath);
@@ -76,8 +76,8 @@ function loadCanonicalWorkflowSchema(options = {}) {
 	};
 }
 
-function createCanonicalWorkflowValidator(options = {}) {
-	const loaded = loadCanonicalWorkflowSchema(options);
+function createWorkflowValidator(options = {}) {
+	const loaded = loadCanonicalSchema(options);
 	const ajv = new Ajv2020({
 		allErrors: true,
 		strict: false,
@@ -96,10 +96,10 @@ function formatAjvErrors(errors) {
 	}));
 }
 
-function validateCanonicalDocumentPayload(payload, options = {}) {
+function validateWorkflowPayload(payload, options = {}) {
 	const compiled = options.validator
 		? { validate: options.validator }
-		: createCanonicalWorkflowValidator(options);
+		: createWorkflowValidator(options);
 
 	const isValid = compiled.validate(payload);
 	return {
@@ -111,8 +111,8 @@ function validateCanonicalDocumentPayload(payload, options = {}) {
 module.exports = {
 	CANONICAL_SCHEMA_NAME,
 	DEFAULT_CONTRACTS_DIR,
-	loadCompatibilityManifest,
-	loadCanonicalWorkflowSchema,
-	createCanonicalWorkflowValidator,
-	validateCanonicalDocumentPayload,
+	loadContractManifest,
+	loadCanonicalSchema,
+	createWorkflowValidator,
+	validateWorkflowPayload,
 };

@@ -1,13 +1,13 @@
 ---
 created: 2026-03-13
-updated: 2026-03-13
+updated: 2026-03-15
 category: system
 status: current
 doc_kind: node
 id: follow-up-discovery-governance
 summary: Canonical contract for discovering remaining work, gaps, and research follow-ups, including the upgraded research-ideation posture.
 tags: [follow-up, research, governance, routing]
-related: [reviewer-lane-governance, search-execute-workflow, project-conventions-governance]
+related: [reviewer-lane-governance, search-execute-workflow, project-conventions-governance, goal-contract-governance]
 ---
 
 # Follow-Up Discovery Governance
@@ -36,6 +36,8 @@ The follow-up discovery lane is responsible for:
 - finding missing docs, tests, validation, or rollout steps
 - converting reviewer findings into concrete next tasks
 - separating immediate follow-up work from deeper research threads
+- applying the unresolved-goal carryover rule from [[goal-contract-governance]]
+  [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md) when goals are `partial` or `not-complete`
 
 The research lane is responsible for:
 
@@ -114,10 +116,20 @@ RESEARCH_IDEATION
 4. Keep research additive; do not introduce a separate research-scout lane until the upgraded
    `research-ideation` contract proves insufficient.
 
+## Persistent Discovery Surfaces
+
+The goal/discovery governance surface uses these persistent docs for cross-session carryover:
+
+- `docs/issues/planning-ideas-log.md`
+- `docs/issues/out-of-scope-findings.md`
+
+These paths are approved targets, but this document does not require immediate creation.
+
 ## References
 
 - `docs/system/search-execute-workflow.md`
 - `docs/system/reviewer-lane-governance.md`
 - `docs/system/project-conventions-governance.md`
+- `docs/system/goal-contract-governance.md`
 - `engine-assets/agents/remaining-work.agent.md`
 - `engine-assets/agents/research-ideation.agent.md`

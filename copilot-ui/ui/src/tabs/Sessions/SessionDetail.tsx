@@ -289,7 +289,7 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
           </p>
 
           <section className="session-detail-artifacts">
-            <h4>Plans and Suggestions</h4>
+            <h4>Plans and Workflow Artifacts</h4>
             {artifacts.loading ? (
               <p className="session-detail-hint">Loading session folder artifacts...</p>
             ) : null}
@@ -340,7 +340,7 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
             && !artifacts.nextUnit
             && !artifacts.proposition
             && !artifacts.verificationGuide ? (
-              <p className="session-detail-hint">No plan artifacts found in this session folder.</p>
+               <p className="session-detail-hint">No workflow artifacts found in this session folder.</p>
             ) : null}
 
             {artifacts.warnings.length > 0 ? (

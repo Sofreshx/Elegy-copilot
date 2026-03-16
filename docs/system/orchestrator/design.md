@@ -311,7 +311,8 @@ Research notes stay exploratory until promoted into canonical docs.
 | planpack-writer | Merged into @o-planner or kept as-is |
 
 ### What Gets Deprecated (Not Deleted Yet)
-Executive-era names are historical references only. The shipped surface should point new work to `@orchestrator` or the preserved Elegy workflow.
+Executive-era names are historical references only. The shipped surface should point new work to
+`@orchestrator` or another current persisted session-state workflow.
 
 ## Risks
 

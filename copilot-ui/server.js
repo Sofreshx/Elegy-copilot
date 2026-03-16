@@ -3424,10 +3424,7 @@ function runVscodeSettingsPatcher({ engineRoot, vscodeHome, settingsPath, dryRun
   };
 }
 
-let policyPreflightCache = {
-  expiresAtMs: 0,
-  value: null,
-};
+const policyPreflightCache = new Map();
 
 function evaluatePolicyPreflight(engineRoot) {
   const validatorPath = path.join(path.resolve(engineRoot), 'scripts', 'validate-policy-lockfiles.js');
@@ -3476,15 +3473,17 @@ function evaluatePolicyPreflight(engineRoot) {
 
 function getPolicyPreflight(engineRoot, { refresh = false } = {}) {
   const now = Date.now();
-  if (!refresh && policyPreflightCache.value && now < policyPreflightCache.expiresAtMs) {
-    return policyPreflightCache.value;
+  const cacheKey = path.resolve(engineRoot);
+  const cached = policyPreflightCache.get(cacheKey);
+  if (!refresh && cached && cached.value && now < cached.expiresAtMs) {
+    return cached.value;
   }
 
-  const value = evaluatePolicyPreflight(engineRoot);
-  policyPreflightCache = {
+  const value = evaluatePolicyPreflight(cacheKey);
+  policyPreflightCache.set(cacheKey, {
     value,
     expiresAtMs: now + 10_000,
-  };
+  });
 
   return value;
 }
@@ -3993,7 +3992,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
   const copilotHomeAbs = path.resolve(copilotHome);
-  const vscodeHomeAbs = copilotHomeAbs;
+  const vscodeHomeAbs = path.resolve(vscodeHome);
   const activePlanningDurabilityDependencyGate = planningDurabilityDependencyGate
     && typeof planningDurabilityDependencyGate === 'object'
     ? planningDurabilityDependencyGate
@@ -4105,6 +4104,7 @@ async function shutdownSdkBridgeSafely(sdkBridge) {
 }
 
 async function startServer(options = {}) {
+  const env = options.env && typeof options.env === 'object' ? options.env : process.env;
   const args = {
     port: Number.isFinite(options.port) ? Number(options.port) : 3210,
     host: typeof options.host === 'string' && options.host.trim() ? options.host.trim() : '127.0.0.1',
@@ -4127,12 +4127,12 @@ async function startServer(options = {}) {
   const trackerUrl = resolveTrackerUrl(args);
   const trackerTokenResolution = await resolveTrackerToken(args);
   const trackerToken = trackerTokenResolution.value;
-  const planningPersistenceConfig = readPlanningPersistenceConfig(process.env);
+  const planningPersistenceConfig = readPlanningPersistenceConfig(env);
   const planningValidation = validatePlanningPersistenceConfig(planningPersistenceConfig);
-  const planningDurabilityDependencyGate = evaluatePlanningDurabilityDependencyGate({ env: process.env });
+  const planningDurabilityDependencyGate = evaluatePlanningDurabilityDependencyGate({ env });
   const providerState = readPlanningProviderState({
     persistedState: options.providerState,
-    env: process.env,
+    env,
   });
   const canonicalProviderState = buildPlanningProviderStatePersistencePayload(providerState);
   const planningPersistenceState = {
@@ -4230,14 +4230,14 @@ async function startServer(options = {}) {
   const planningAuthContext = {
     userId: derivePlanningActorId(token),
   };
-  const sdkBridgeEnabled = isSdkBridgeEnabled(process.env);
+  const sdkBridgeEnabled = isSdkBridgeEnabled(env);
   let sdkBridge = null;
 
   if (sdkBridgeEnabled) {
     try {
       sdkBridge = await initializeSdkBridge({
         engineRoot,
-        env: process.env,
+        env,
         policyPreflightFn: () => getPolicyPreflight(engineRoot),
       });
     } catch (error) {
@@ -4407,7 +4407,7 @@ async function startServer(options = {}) {
         if (sdkBridgeEnabled) console.log('sdkBridge:      enabled');
         if (trackerToken) console.log(`trackerAuth:    configured (${trackerTokenResolution.source})`);
         if (token) {
-          console.log(`auth token:  ${token}`);
+          console.log('auth token:     configured (redacted)');
         }
         if (isNonLoopback(host)) {
           console.error('[WARN] Binding to non-loopback address without HTTPS. Auth token is transmitted in cleartext.');
@@ -4417,6 +4417,7 @@ async function startServer(options = {}) {
 
       resolve({
         server,
+        routeRegistry,
         host,
         port: actualPort,
         token,

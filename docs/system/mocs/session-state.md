@@ -1,12 +1,12 @@
 ---
 created: 2026-02-23
-updated: 2026-03-01
+updated: 2026-03-16
 category: system
 status: current
 doc_kind: moc
 id: session-state
-summary: Map of content for Elegy session state artifacts and plan/progress storage.
-tags: [session-state, elegy]
+summary: Map of content for session workflow artifacts and plan/progress storage.
+tags: [session-state, workflow-artifacts]
 related: [system-docs-index]
 ---
 

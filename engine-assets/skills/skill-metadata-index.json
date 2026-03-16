@@ -567,7 +567,7 @@
     {
       "skill": "skill-forge",
       "name": "skill-forge",
-      "description": "Pointer stub — skill creation is now handled by Elegy SkillForgeService. Triggers on: create skill, author skill, skill template, forge skill, project skill, runtime skill.",
+      "description": "Guidance for creating and updating repo-managed skills, including frontmatter, triggers, and metadata sync. Triggers on: create skill, author skill, skill template, forge skill, project skill, runtime skill.",
       "triggersOn": [
         "author skill",
         "create skill",

@@ -51,11 +51,12 @@ Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can
 
 | Type | Count | Location |
 |------|-------|----------|
-| Agents | 37 | `engine-assets/agents/*.agent.md` |
-| Skills | 54 | `engine-assets/skills/<name>/SKILL.md` |
+| Agents | 45 | `engine-assets/agents/*.agent.md` |
+| Skills | 57 | `engine-assets/skills/<name>/SKILL.md` |
 | Prompts | 3 | `engine-assets/prompts/*.prompt.md` |
 | Instructions | 1 | `engine-assets/copilot-instructions.md` |
-| Manifest (install/shipping) | — | `.cli/manifest.json` |
+| Canonical asset manifest | — | `engine-assets/manifest.json` |
+| Generated shipping manifest | — | `.cli/manifest.json` |
 
 ---
 
@@ -68,15 +69,16 @@ Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can
 | `@code-architect` | Designs feature architectures from existing patterns |
 | `@impl-business` | Implements app/domain work units (endpoints, services, UI) |
 | `@impl-infra` | Implements infra work units (CI, Docker, config, deployments) |
-| `@elegy-planner` | Persisted planning entry point — assembles approved session-state plan packs for Elegy execution |
-| `@elegy-orchestrator` | Executes an approved persisted Elegy plan end-to-end |
 | `@code-reviewer` | Bug, logic, and security review |
+| `@goal-reviewer` | End-gate goal completion assessor (`complete|partial|not-complete`) that emits read-only unresolved-goal sync instructions for the workflow/docs lane |
+| `@final-reviewer` | Requested-vs-delivered and remaining-work post-mortem summary |
 | `@unit-test-runner` | Runs unit tests safely with timeouts |
 | `@security-scanner` | Scans for OWASP/endpoint vulnerabilities |
-| `@agent-governor` | Read-only structural audit pointer for existing agent files; authoring moved to Elegy AgentFactoryService |
+| `@agent-governor` | Read-only structural audit pointer for existing agent files |
 
-`@orchestrator` is the recommended default for new work. Use the `@elegy-planner` + `@elegy-orchestrator`
-path when you explicitly want persisted session-state artifacts and a reviewer-approved plan handoff.
+`@orchestrator` is the recommended default for new work. Persisted session-state artifacts remain
+available for workflows that explicitly hand off approved plan packs into
+`~/.copilot/session-state/<SESSION_ID>/`.
 
 ---
 
@@ -112,9 +114,10 @@ Migration note:
   treating `~/.instruction-engine` as a second root.
 
 Persisted session-state artifacts live under `~/.copilot/session-state/<SESSION_ID>/`.
-The preserved Elegy workflow writes its plan and proposition artifacts there, and `copilot-ui`
-reads the same location in its Sessions and Planning surfaces. The recommended `@orchestrator`
-path keeps planning in chat unless a downstream workflow explicitly hands off to persisted artifacts.
+File-backed planning workflows write their `plan.md` and `proposition.md` artifacts there, and
+`copilot-ui` reads the same location in its Sessions and Planning surfaces. The recommended
+`@orchestrator` path keeps planning in chat unless a downstream workflow explicitly hands off to
+persisted artifacts.
 
 ---
 
@@ -201,30 +204,6 @@ Verification surfaces:
 
 If a persisted projection is missing, the backend falls back to a filesystem build
 (`readMode: "filesystem-fallback"`). Refreshing persists the snapshot again.
-
-## Elegy canonical contracts (consumer integration)
-
-Instruction Engine includes a minimal consumer for Elegy canonical workflow contracts under `contracts/elegy/`.
-
-- Contract consumer module: `scripts/elegy-contract-consumer.js`
-- Sync/import script: `scripts/sync-elegy-contracts.js`
-- Validation CLI: `scripts/validate-elegy-canonical.js`
-
-Use the following root npm scripts:
-
-```bash
-# Refresh local contracts from sibling Elegy repo artifacts
-npm run contracts:sync:elegy
-
-# Validate a sample canonical payload (defaults to local minimal fixture)
-npm run contracts:validate:elegy-sample
-```
-
-Optional source override for sync:
-
-```bash
-node scripts/sync-elegy-contracts.js "C:/path/to/Elegy/artifacts/contracts"
-```
 
 ### Desktop distribution policy (locked)
 
@@ -337,7 +316,7 @@ See `local-tracker/docs/messaging-gateway.md` for full reference.
 
 1. Edit agents in `engine-assets/agents/` (flat `.agent.md` files)
 2. Edit skills in `engine-assets/skills/<name>/SKILL.md`
-3. If adding new assets to ship by default, update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`
+3. Canonical asset metadata lives in `engine-assets/manifest.json`. If adding new assets to ship by default, also update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`
 4. Keep `engine-assets/copilot-instructions.md` concise — it loads into every Copilot session
 5. Document behaviour changes in `docs/`
 
@@ -354,5 +333,5 @@ See `local-tracker/docs/messaging-gateway.md` for full reference.
 - [Skills Governance](docs/system/skills-governance.md)
 - [MCP Workflow](docs/system/mcp-workflow.md)
 - [Security Model](docs/system/security-model.md)
-- [Elegy Model Audit](docs/research/elegy-model-audit.md)
+- [Session-State Artifacts](docs/system/session-state-artifacts.md)
 - [Instruction Changelog](docs/system/instruction-changelog.md)

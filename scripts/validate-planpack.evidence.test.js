@@ -208,6 +208,9 @@ ${groupsOverviewRows.map((row) => `| ${row.group} | ${row.title || ''} | ${row.s
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | done | — | baseline complete |
 
+## Next Unit
+**WU-002** — continue evidence verification
+
 ## Checkpoints
 | Group | Checkpoint | Trigger | Notes |
 | --- | --- | --- | --- |

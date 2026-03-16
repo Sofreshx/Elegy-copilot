@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const skillsRoot = path.join(repoRoot, 'engine-assets', 'skills');
-const schemaPath = path.join(repoRoot, 'contracts', 'elegy', 'skill-forge-request.schema.json');
+const schemaPath = path.join(repoRoot, 'contracts', 'session-state', 'skill-forge-request.schema.json');
 const generatorPath = path.join(__dirname, 'generate-skill-metadata-index.mjs');
 
 const KEBAB_CASE = /^[a-z0-9]+(-[a-z0-9]+)*$/;

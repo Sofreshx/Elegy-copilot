@@ -99,10 +99,14 @@
         "agent-orchestrator",
         "agent-o-reframer",
         "agent-o-planner",
+        "skill-planning-feature",
+        "skill-planpack-authoring",
         "agent-work-unit-runner",
         "agent-final-reviewer",
+        "agent-goal-reviewer",
         "agent-remaining-work",
         "agent-research-ideation",
+        "agent-doc-writer",
         "agent-verification-guide",
         "agent-impl-business",
         "agent-impl-infra",
@@ -170,29 +174,6 @@
       "defaultRecommended": false,
       "dependsOn": [
         "orchestrator-workflow"
-      ]
-    },
-    {
-      "id": "elegy-planning",
-      "title": "Elegy Planning Agents",
-      "description": "Repo-scoped Elegy planning agents for ideation, direction, and orchestration workflows.",
-      "assetIds": [
-        "agent-elegy-planner",
-        "agent-elegy-orchestrator",
-        "agent-elegy-direction",
-        "agent-elegy-ideation"
-      ],
-      "installTarget": "repo-local",
-      "activationScope": "repo",
-      "materialization": "on-demand",
-      "tags": [
-        "elegy",
-        "planning",
-        "direction"
-      ],
-      "defaultRecommended": false,
-      "dependsOn": [
-        "core-global"
       ]
     },
     {
@@ -292,30 +273,6 @@
       "destination": "agents/e2e-validator.agent.md"
     },
     {
-      "id": "agent-elegy-direction",
-      "type": "agent",
-      "source": "engine-assets/agents/elegy-direction.agent.md",
-      "destination": "agents/elegy-direction.agent.md"
-    },
-    {
-      "id": "agent-elegy-ideation",
-      "type": "agent",
-      "source": "engine-assets/agents/elegy-ideation.agent.md",
-      "destination": "agents/elegy-ideation.agent.md"
-    },
-    {
-      "id": "agent-elegy-orchestrator",
-      "type": "agent",
-      "source": "engine-assets/agents/elegy-orchestrator.agent.md",
-      "destination": "agents/elegy-orchestrator.agent.md"
-    },
-    {
-      "id": "agent-elegy-planner",
-      "type": "agent",
-      "source": "engine-assets/agents/elegy-planner.agent.md",
-      "destination": "agents/elegy-planner.agent.md"
-    },
-    {
       "id": "agent-execute",
       "type": "agent",
       "source": "engine-assets/agents/execute.agent.md",
@@ -332,6 +289,12 @@
       "type": "agent",
       "source": "engine-assets/agents/follow-up-finder.agent.md",
       "destination": "agents/follow-up-finder.agent.md"
+    },
+    {
+      "id": "agent-goal-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/goal-reviewer.agent.md",
+      "destination": "agents/goal-reviewer.agent.md"
     },
     {
       "id": "agent-governor",

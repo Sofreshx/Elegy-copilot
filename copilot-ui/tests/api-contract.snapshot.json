@@ -293,11 +293,77 @@
       "reason"
     ]
   },
+  "GET /api/planning/roadmaps": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/roadmaps/platform-foundation": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "POST /api/planning/roadmaps": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "PATCH /api/planning/roadmaps/platform-foundation": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "POST /api/planning/roadmaps/platform-foundation/reconcile": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
   "GET /api/sessions": {
     "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
+      "authorityModel",
       "sessions"
     ]
   },
@@ -369,6 +435,16 @@
       "source"
     ]
   },
+  "GET /api/sessions/test-session-id/handoff": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error",
+      "id",
+      "source"
+    ]
+  },
   "GET /api/sessions/test-session-id/verification-guide": {
     "status": 404,
     "contentType": "application/json",
@@ -377,6 +453,19 @@
       "error",
       "id",
       "source"
+    ]
+  },
+  "POST /api/sessions/test-session-id/roadmap-sync": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "POST /api/sessions/test-session-id/archive": {

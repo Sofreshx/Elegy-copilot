@@ -59,11 +59,10 @@ When friction reaches the escalation threshold, set a flag in your completion su
 
 Include this flag in the completion summary so the orchestrator can detect it and route to the `friction-feedback` on-demand skill. Do NOT load the friction-feedback skill yourself — the orchestrator handles routing.
 
-## Elegy Structured Output
+## Structured Monitoring Output
 
-Friction entries now map to Elegy `AgenticEvent` via `FrictionEvent.FromFrictionEntry()` in `Elegy.Formalization.Monitoring`.
-
-When emitting structured friction events (via CLI or programmatically), produce JSON conforming to `monitoring-event.schema.json`:
+When emitting structured friction events (via CLI or programmatically), produce JSON conforming to
+`monitoring-event.schema.json`:
 
 ```json
 {

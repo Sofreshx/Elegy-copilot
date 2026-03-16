@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-13
+updated: 2026-03-15
 category: system
 status: current
 doc_kind: node
@@ -17,9 +17,9 @@ The `@orchestrator` is the single recommended entry point for general complex wo
 
 You invoke `@orchestrator` and describe what you need. It handles everything — understanding your request, planning, delegating implementation to specialists, running reviews, and proposing follow-ups.
 
-Instruction Engine also preserves a parallel Elegy workflow for teams that want persisted
-session-state artifacts and explicit handoff from planning to execution. Use `@elegy-planner`
-to create the persisted plan, then `@elegy-orchestrator` to execute it.
+Instruction Engine also supports an explicit persisted session-state lane for teams that want
+file-backed artifacts and an intentional handoff from planning to execution. That lane writes the
+same plan-pack shape to `~/.copilot/session-state/<SESSION_ID>/` for downstream tooling.
 
 ## Quick Start
 
@@ -70,18 +70,19 @@ In that case, the orchestrator stays inside a curated shipped first-party baseli
 - `@o-reframer`, `@o-planner`, `@search`, `@execute`
 - `@work-unit-runner`, `@impl-infra`, `@impl-business`
 - `@code-explorer`, `@code-architect`, `@code-reviewer`
-- `@research-ideation`, `@unit-test-runner`, `@doc-writer`, `@final-reviewer`
+- `@research-ideation`, `@unit-test-runner`, `@doc-writer`, `@goal-reviewer`, `@final-reviewer`
 
-It should **not** auto-select optional audit lanes, cross-model reviewers, provider/imported capabilities, or the Elegy workflow from fallback alone.
+It should **not** auto-select optional audit lanes, cross-model reviewers, provider/imported
+capabilities, or persisted session-state workflows from fallback alone.
 
-### When Elegy is chosen instead
+### When a persisted session-state lane is chosen instead
 
 The default orchestrator path remains the recommendation for general work.
 
-Use `@elegy-planner` + `@elegy-orchestrator` when you explicitly need:
+Use an explicit persisted session-state workflow when you need:
 
 - persisted session-state planning/execution artifacts
-- an Elegy-specific workflow/profile selected by the user or repo
+- a repo-specific persisted workflow/profile selected by the user or repo
 - a handoff that depends on those persisted artifacts
 
 ## The Lifecycle
@@ -99,7 +100,13 @@ Your request is analyzed by `@o-reframer`, which produces a structured brief: cl
 Work units are delegated to `@work-unit-runner` (one at a time or in groups). The orchestrator gathers context for each WU, delegates execution, and tracks progress. Testing checkpoints run after each group.
 
 ### Phase 4: Verify
-Final code review via `@code-reviewer`. For important changes, a cross-model review may run (e.g., GPT reviews Claude's work and vice versa).
+Final verification uses a layered end gate: `@code-reviewer` for final code quality, `@goal-reviewer` for high-level goal completion plus read-only unresolved-goal sync instructions, then `@doc-writer` for any required `docs/issues/unresolved-goals.md` reconciliation, and finally `@final-reviewer` for the requested-vs-delivered closure summary. The orchestrator now treats `GOAL_REVIEW` as an active gate:
+
+- `APPROVED` → continue closure, and route any `docs/issues/unresolved-goals.md` sync through `@doc-writer`
+- `NEEDS_REVISION` → go back to execution/replan for active-goal gaps instead of treating the run as done
+- `BLOCKED` → pause closure until the missing goal/evidence context is supplied
+
+When reconciliation runs, `@doc-writer` keeps only unresolved goals that are no longer active, preserves existing entries by Goal Statement, and removes carryover entries that are now complete or active again. When `GOAL_REVIEW.unresolved_goals_path = NONE`, the orchestrator either performs a removal-only clean-up (if prior carryover entries should now be removed) or leaves the file untouched.
 
 ### Phase 5: Follow-Up
 The orchestrator proposes 2-4 concrete next actions (tests, docs, refactors). Pick one to continue, or choose "Stop — all done."
@@ -114,6 +121,9 @@ The orchestrator proposes 2-4 concrete next actions (tests, docs, refactors). Pi
 | `@code-explorer` | Read-only codebase analysis |
 | `@code-architect` | Design decisions and blueprints |
 | `@code-reviewer` | Quality gates (APPROVED/NEEDS_REVISION/FAILED) |
+| `@goal-reviewer` | High-level goal completion gate (`complete|partial|not-complete`) + read-only unresolved-goal sync instructions |
+| `@doc-writer` | Documentation lane, including deterministic reconciliation of `docs/issues/unresolved-goals.md` after `@goal-reviewer` |
+| `@final-reviewer` | Requested-vs-delivered closure summary and remaining-work signal that respects `GOAL_REVIEW` status |
 | `@research-ideation` | Web + codebase research |
 | `@unit-test-runner` | Unit test execution |
 | `@integration-test-runner` | Integration tests (user-confirmed) |
@@ -139,18 +149,20 @@ For standard and complex work, the orchestrator uses the shared Plan Pack struct
 
 - In the default orchestrator path, plan review and progress tracking stay in chat.
 - The orchestrator does not create repo-local planning artifacts as part of its normal flow.
-- If you need persisted plan, proposition, and verification artifacts under `~/.copilot/session-state/<SESSION_ID>/`, use the preserved Elegy workflow instead.
+- If you need persisted plan, proposition, and verification artifacts under
+  `~/.copilot/session-state/<SESSION_ID>/`, use an explicit session-state workflow instead.
 
-The same plan-pack contract is shared across the preserved workflows so downstream tooling can read a consistent shape.
+The same plan-pack contract is shared across chat-first and persisted workflows so downstream
+tooling can read a consistent shape.
 
 ### Resuming Sessions
 If a session is interrupted, re-invoke `@orchestrator` with the prior plan summary or the relevant session artifact context.
 
-## Relationship to the Elegy Workflow
+## Relationship to Persisted Session-State Workflows
 
 Use `@orchestrator` when you want the recommended general workflow with in-chat planning and direct delegation.
 
-Use `@elegy-planner` followed by `@elegy-orchestrator` when you need:
+Use an explicit persisted planning/execution lane when you need:
 
 - persisted plan and proposition artifacts under `~/.copilot/session-state/`
 - explicit reviewer-approved planning before execution handoff

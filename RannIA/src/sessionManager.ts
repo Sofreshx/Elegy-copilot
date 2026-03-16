@@ -407,7 +407,7 @@ export class SessionManager implements vscode.Disposable {
 
 	private extractPlanArtifactText(fullResponse: string): string | null {
 		if (!this.looksLikePlanText(fullResponse)) return null;
-		// For now: store the full response. The planner output is expected to be "Plan Pack" + "Progress Tracker" + handoff.
+		// For now: store the full response. The workflow artifact output is expected to be "Plan Pack" + "Progress Tracker" + handoff.
 		// (We avoid brittle parsing here; the dashboard can still render a full markdown blob.)
 		const maxBytes = 2 * 1024 * 1024; // 2MB cap
 		const buf = Buffer.from(fullResponse, 'utf8');

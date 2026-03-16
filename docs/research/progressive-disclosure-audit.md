@@ -93,8 +93,8 @@ Evaluate how effectively instruction-engine layers information from surface-leve
 
 ### Layer 3: Agent Specialization (agents/)
 
-**32 agents** with specialized personas:
-- Orchestrators: orchestrator, elegy-planner, elegy-direction, elegy-subplanner
+**Current agent families** with specialized personas:
+- Control lane: orchestrator, o-reframer, o-planner, work-unit-runner
 - Implementers: impl-business, impl-infra
 - Reviewers: code-reviewer, reviewer-opus-4-6, reviewer-gpt-5-4
 - Scanners: security-scanner, stack-auditor, deploy-auditor

@@ -6,9 +6,9 @@ const fs = require('fs');
 const path = require('path');
 
 const {
-	loadCompatibilityManifest,
-	validateCanonicalDocumentPayload,
-} = require('./elegy-contract-consumer');
+	loadContractManifest,
+	validateWorkflowPayload,
+} = require('./session-state-contract-consumer');
 
 let passed = 0;
 function test(name, fn) {
@@ -24,30 +24,30 @@ function test(name, fn) {
 }
 
 const repoRoot = path.resolve(__dirname, '..');
-const sampleFixturePath = path.join(repoRoot, 'contracts', 'elegy', 'fixtures', 'canonical-workflow.minimal.json');
+const sampleFixturePath = path.join(repoRoot, 'contracts', 'session-state', 'fixtures', 'canonical-workflow.minimal.json');
 
 function readFixture() {
 	return JSON.parse(fs.readFileSync(sampleFixturePath, 'utf8'));
 }
 
-test('loads Elegy compatibility manifest', () => {
-	const loaded = loadCompatibilityManifest();
+test('loads the local contract manifest', () => {
+	const loaded = loadContractManifest();
 	assert.strictEqual(typeof loaded.manifest.manifestVersion, 'string');
 	assert.ok(Array.isArray(loaded.manifest.schemas));
 	assert.ok(loaded.manifest.schemas.some((entry) => entry.name === 'canonical-workflow'));
 });
 
-test('accepts canonical minimal fixture payload', () => {
+test('accepts the canonical minimal fixture payload', () => {
 	const payload = readFixture();
-	const result = validateCanonicalDocumentPayload(payload);
+	const result = validateWorkflowPayload(payload);
 	assert.strictEqual(result.valid, true);
 	assert.deepStrictEqual(result.errors, []);
 });
 
-test('rejects invalid canonical payload', () => {
+test('rejects an invalid canonical payload', () => {
 	const payload = readFixture();
 	payload.steps = [];
-	const result = validateCanonicalDocumentPayload(payload);
+	const result = validateWorkflowPayload(payload);
 	assert.strictEqual(result.valid, false);
 	assert.ok(result.errors.length > 0);
 });

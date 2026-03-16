@@ -6,7 +6,7 @@ const path = require('path');
 const Ajv2020 = require('ajv/dist/2020').default;
 
 const repoRoot = path.resolve(__dirname, '..');
-const contractsDir = path.join(repoRoot, 'contracts', 'elegy');
+const contractsDir = path.join(repoRoot, 'contracts', 'session-state');
 const manifestPath = path.join(contractsDir, 'compatibility-manifest.json');
 
 const requiredSchemas = [

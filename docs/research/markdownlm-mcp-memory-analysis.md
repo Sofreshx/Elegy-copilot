@@ -37,7 +37,7 @@ The user is specifically interested in **memory management for agentic sessions*
 
 We have **three complementary memory tiers** already in place:
 
-### Tier 1: Session State (Instruction Engine — Elegy)
+### Tier 1: Session State (Instruction Engine)
 
 **Location**: `~/.copilot/session-state/<SESSION_ID>/`
 
@@ -94,7 +94,7 @@ files/               # Session artifacts (analysis.md, notes.txt)
 | User memory (~200 lines) | ~500 | 0 (already loaded) |
 | Session memory listing | ~50 | ~200-500 per file read |
 | Repo memory listing | ~50 | ~200-500 per file read |
-| Session state (Elegy) | 0 | ~1000-3000 per artifact read |
+| Session state | 0 | ~1000-3000 per artifact read |
 | Session persistence (SDK) | 0 | ~500-5000 per checkpoint |
 
 **Startup overhead**: ~600 tokens for memory tiers. **Everything else is on-demand.**

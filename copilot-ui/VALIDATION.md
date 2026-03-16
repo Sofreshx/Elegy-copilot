@@ -1,11 +1,11 @@
 # Manual Validation Guide - WU-005, WU-006, WU-007
 
-This file is a narrow manual companion for selected session-artifact endpoints.
+This file is a narrow manual companion for selected session workflow artifact endpoints.
 Use `docs/system/copilot-ui-guide.md` as the canonical overview for the current `copilot-ui`
 runtime surface, tabs, route groups, persistence model, and validation anchors.
 
 ## Overview
-This document provides curl commands to manually validate the new Plan-Pack Progress Tracker endpoints.
+This document provides curl commands to manually validate the Plan-Pack Progress Tracker and related session artifact endpoints.
 
 ## Prerequisites
 1. Server must be running: `node copilot-ui/server.js`
@@ -32,7 +32,7 @@ curl "http://127.0.0.1:3210/api/sessions/a04980e8-4804-411d-a774-0a4cbf88576e/st
   "groups": [
     {
       "group": "G-01",
-      "title": "Artifact contract + Elegy migration",
+      "title": "Artifact contract + workflow lane rebrand",
       "status": "not-started",
       "wusDone": 0,
       "wusTotal": 4,
@@ -111,12 +111,12 @@ curl "http://127.0.0.1:3210/api/sessions/a04980e8-4804-411d-a774-0a4cbf88576e/pr
 {
   "id": "a04980e8-4804-411d-a774-0a4cbf88576e",
   "source": "cli",
-  "content": "## 2026-02-23T10:30:00Z — after-planning — elegy-planner\n\n### Summary\n...",
+  "content": "## 2026-02-23T10:30:00Z — after-planning — workflow-planner\n\n### Summary\n...",
   "entries": [
     {
       "occurredAt": "2026-02-23T10:30:00Z",
       "phase": "after-planning",
-      "agent": "elegy-planner",
+      "agent": "workflow-planner",
       "sections": [
         {
           "key": "summary",
@@ -130,7 +130,7 @@ curl "http://127.0.0.1:3210/api/sessions/a04980e8-4804-411d-a774-0a4cbf88576e/pr
   "latestEntry": {
     "occurredAt": "2026-02-23T10:30:00Z",
     "phase": "after-planning",
-    "agent": "elegy-planner"
+    "agent": "workflow-planner"
   }
 }
 ```

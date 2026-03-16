@@ -26,8 +26,38 @@ description: "Plan-pack schema, progress tracker format, and quality gate rules 
 11. Risks / Rollback
 12. Validation
 
+## Persisted Artifact Layout
+- Canonical persisted layout is a single session `plan.md` file containing two top-level markdown documents:
+  1. `# Plan Pack — <Title>`
+  2. `# Plan-Pack Progress Tracker`
+- The 12 H2 sections above define only the Plan Pack portion of that combined file.
+- Separate `x-PLANPACK-PROGRESS-<SESSION_ID>.md` files are legacy compatibility artifacts only; do not emit them for fresh plans unless an explicit backward-compatibility flow requires it.
+
+## Goal + Success Criteria Contract
+- Must include:
+  - `- Goal: <one-line outcome>`
+  - `- High-Level Goals:` followed by nested bullets of intended outcomes
+  - `- Success Criteria:` followed by measurable bullets
+- Each high-level goal bullet should carry one canonical completion state token:
+  - `complete`
+  - `partial`
+  - `not-complete`
+- For fresh planning output, default high-level goals to `not-complete`; use `partial`/`complete` only for carryover or replan context.
+
 ## WU Spec Required Sub-Sections
-Each WU spec (H3) must contain: Context, Acceptance Criteria (≥2 specific verifiable), Plan/Approach (concrete file paths), Expected Files, Validation (specific commands), Risks/Notes.
+Each WU spec (H3) must contain:
+- Context
+- Acceptance Criteria (≥2 specific, verifiable items)
+- Plan/Approach (concrete implementation steps with repo-relative file paths)
+- Validation (specific commands/checks)
+
+## WU Spec Optional / Conditional Sub-Sections
+- Expected Files
+  - Optional by default.
+  - Required when the WU is marked `Parallel Safe = yes` so executors can reason about ownership boundaries before fan-out.
+- Risks/Notes
+  - Optional.
+  - Recommended when the WU has caveats, edge cases, or notable coordination risks.
 
 ## Progress Tracker Required Sections
 1. Session Metadata
@@ -38,9 +68,17 @@ Each WU spec (H3) must contain: Context, Acceptance Criteria (≥2 specific veri
 6. Execution Log
 
 ## Phase-Aware Validation
-- Planning phase validator: `node scripts/validate-planpack-planning.js <plan.md> --ac-enforcement fail`
-- Execution/final-gate validator: `node scripts/validate-planpack-execution.js <plan.md>`
-- Compatibility/full validator: `node scripts/validate-planpack.js <plan.md>`
+- Preferred scripted validation when the validator scripts are available in the current workspace:
+  - Planning phase validator: `node scripts/validate-planpack-planning.js <plan.md> --ac-enforcement fail`
+  - Execution/final-gate validator: `node scripts/validate-planpack-execution.js <plan.md>`
+  - Compatibility/full validator: `node scripts/validate-planpack.js <plan.md>`
+- Portable fallback when those scripts are unavailable (for example, installed assets outside the instruction-engine repo):
+  - Manually verify the required H2 sections are present and in order.
+  - Manually verify each WU spec contains the required sub-sections.
+  - Manually verify `Expected Files` is present for any WU marked `Parallel Safe = yes`.
+  - Manually verify identifier formats, graph/spec coverage, and base progress tracker sections.
+  - Apply the Quality Gate checks below and add `## Plan Quality Warnings` for any gaps.
+  - Explicitly report that scripted validation could not be run and summarize the manual checks performed in `## Validation`.
 
 Planning-time plans must include the base progress tracker sections above, but they do **not** need execution-only sections like Stream Evidence, Final Gate Controls, Trusted Evidence Binding, or Evidence Retention until execution/finalization.
 
@@ -50,7 +88,7 @@ Planning-time plans must include the base progress tracker sections above, but t
 - Optional `doc-update` checkpoint (routes to doc-writer; status: passed|failed|skipped)
 
 ## Progressive Refinement
-- Phase 1 (skeleton): goal + criteria final, WU groups preliminary, specs as heading + context only
+- Phase 1 (skeleton): goal + high-level goals + criteria final, WU groups preliminary, specs as heading + context only
 - Phase 2 (refined): full specs with file paths, finalized dependency graph, risks + validation
 
 ## WU Sizing

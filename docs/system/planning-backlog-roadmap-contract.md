@@ -7,7 +7,7 @@ doc_kind: node
 id: planning-backlog-roadmap-contract
 summary: Canonical naming and authority contract for the repo-backed Planning workflow: Repository Backlog, Roadmap, Roadmap Sync, and plan-pack boundaries.
 tags: [planning, backlog, roadmap, planpack, contracts]
-related: [copilot-ui-guide, session-state-artifacts, workflow-planning-contract, orchestration-and-agents]
+related: [copilot-ui-guide, session-state-artifacts, workflow-planning-contract, orchestration-and-agents, goal-contract-governance]
 ---
 
 # Planning Backlog + Roadmap Contract
@@ -181,6 +181,7 @@ Migration stance:
 
 - [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md)
 - [docs/system/session-state-artifacts.md](docs/system/session-state-artifacts.md)
+- [[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md)
 - [docs/system/workflow-planning-contract.md](docs/system/workflow-planning-contract.md)
 - [engine-assets/agents/o-planner.agent.md](engine-assets/agents/o-planner.agent.md)
 - [engine-assets/skills/planpack-authoring/SKILL.md](engine-assets/skills/planpack-authoring/SKILL.md)

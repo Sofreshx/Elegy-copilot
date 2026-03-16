@@ -125,7 +125,7 @@ Pure prompt-pack setup makes onboarding simple for solo/small teams.
 | Skill management | Skills + vault + discovery | No explicit skill system | instruction-engine stronger |
 | Distribution | Manifest + install scripts | Manual prompt file copy | instruction-engine stronger for scale |
 | Context efficiency | Strong via vault/on-demand | Strong via delegation heuristics | both strong in different ways |
-| Planning handoff clarity | Strong (elegy stack) | Strong (Prometheus -> Atlas) | both strong |
+| Planning handoff clarity | Strong (plan-pack + session-state lane) | Strong (Prometheus -> Atlas) | both strong |
 | Durable session state | Formalized artifacts/contracts | Light markdown artifact convention | instruction-engine stronger |
 | Governance and validation | Extensive docs/system + checks | Prompt-centric, minimal governance | instruction-engine stronger |
 

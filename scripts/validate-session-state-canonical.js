@@ -3,9 +3,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const { validateCanonicalDocumentPayload, loadCompatibilityManifest } = require('./elegy-contract-consumer');
+const { validateWorkflowPayload, loadContractManifest } = require('./session-state-contract-consumer');
 
-const payloadArg = process.argv[2] || path.join('contracts', 'elegy', 'fixtures', 'canonical-workflow.minimal.json');
+const payloadArg = process.argv[2] || path.join('contracts', 'session-state', 'fixtures', 'canonical-workflow.minimal.json');
 const payloadPath = path.resolve(process.cwd(), payloadArg);
 
 function readPayload(filePath) {
@@ -25,11 +25,11 @@ function readPayload(filePath) {
 
 try {
 	const payload = readPayload(payloadPath);
-	const { manifest } = loadCompatibilityManifest();
-	const result = validateCanonicalDocumentPayload(payload);
+	const { manifest } = loadContractManifest();
+	const result = validateWorkflowPayload(payload);
 
 	if (!result.valid) {
-		console.error('Canonical payload validation failed');
+		console.error('Workflow payload validation failed');
 		console.error(`  payload: ${payloadPath}`);
 		for (const error of result.errors) {
 			console.error(`  - ${error.instancePath}: ${error.message}`);
@@ -37,9 +37,9 @@ try {
 		process.exit(1);
 	}
 
-	console.log('Canonical payload validation passed');
+	console.log('Workflow payload validation passed');
 	console.log(`  payload: ${payloadPath}`);
-	console.log(`  manifest: ${manifest.package.name}@${manifest.package.version}`);
+	console.log(`  contract bundle: ${manifest.package.name}@${manifest.package.version}`);
 } catch (error) {
 	console.error(error.message || String(error));
 	process.exit(1);

@@ -4,7 +4,7 @@
   "main": "e2e-health-check-simple.js",
   "scripts": {
     "test": "node test-with-ledger.js",
-    "test:elegy-compatibility-matrix": "node elegy-compatibility-matrix.test.js",
+    "test:contract-compatibility-matrix": "node contract-compatibility-matrix.test.js",
     "sync:superpowers": "node sync-superpowers.js",
     "validate:skill-discovery-map": "node validate-skill-discovery-map.js",
     "generate:skill-metadata-index": "node generate-skill-metadata-index.mjs"

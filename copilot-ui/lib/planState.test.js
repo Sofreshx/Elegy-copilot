@@ -366,7 +366,7 @@ test('parseStructuredState marks resume ready when review ledger approval and ha
 - Keep execution sequential until explicit parallel-safe ownership exists.
 
 ## Exploration Summary
-- engine-assets/agents/elegy-orchestrator.agent.md
+- docs/system/session-state-artifacts.md
 
 ## User Constraints
 - none

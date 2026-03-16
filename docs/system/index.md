@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-14
+updated: 2026-03-15
 category: system
 status: current
 doc_kind: index
@@ -40,6 +40,8 @@ related: [doc-graph-spec]
 ## Planning
 
 - [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md)
+- [[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md)
+- [[workflow-planning-contract]] [docs/system/workflow-planning-contract.md](docs/system/workflow-planning-contract.md)
 
 ## Governance
 

@@ -1,4 +1,4 @@
-/** Agentic type stubs matching Elegy Formalization agentic schemas. */
+/** Agentic type stubs matching the repository's shared agent and session-state schemas. */
 
 export interface SkillTrigger {
   pattern: string;

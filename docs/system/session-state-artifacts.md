@@ -1,17 +1,17 @@
 ---
 created: 2026-02-23
-updated: 2026-03-15
+updated: 2026-03-16
 category: system
 status: current
 doc_kind: node
 id: session-state-artifacts
-summary: Canonical contract for Elegy session-state artifacts (plan.md, proposition.md, verification-guide.md) and progress tracker structure.
-tags: [session-state, elegy]
+summary: Canonical contract for session-state workflow artifacts (plan.md, handoff.md, proposition.md, verification-guide.md) and progress tracker structure.
+tags: [session-state, workflow-artifacts]
 ---
 
 # Session State Artifacts
 
-This document defines the canonical contract for Elegy session state artifacts, ensuring agents and UI tools agree on what to write and read.
+This document defines the canonical contract for persisted session workflow artifacts, ensuring agents and UI tools agree on what to write and read.
 It governs artifact file shape and location, not the broader live session reconciliation authority;
 see `docs/system/domain-authorities-freeze.md` for the runtime-vs-artifact authority freeze.
 In `copilot-ui`, `GET /api/sessions` remains an artifact inventory surface for session folders and archive/offline views;
@@ -37,8 +37,8 @@ A typical session directory contains:
 ```
 ~/.copilot/session-state/<SESSION_ID>/
   plan.md              # Plan Pack + Progress Tracker (canonical)
-  handoff.md           # Planner-to-orchestrator bootstrap summary
-  proposition.md       # Append-only guidance artifact
+  handoff.md           # Planning-to-execution bootstrap summary
+  proposition.md       # Append-only session guidance artifact
   verification-guide.md  # Structured verification guide (optional)
   plans/               # Plan revisions
     index.json         # Revision metadata
@@ -73,7 +73,10 @@ The plan artifact contains **two top-level documents in one markdown file**:
 1. **Plan Pack** — High-level plan structure, work unit specifications, dependencies, risks
 2. **Plan-Pack Progress Tracker** — Live execution state (status tables, checkpoints, next unit)
 
-This dual-document approach matches the output of `@o-planner` and `@elegy-planner`.
+This dual-document approach matches the persisted session planning workflow output used by the planning/execution lane.
+
+High-level goal intent and completion semantics for planning/review workflows are governed by
+[[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md).
 
 When a plan pack is linked to repo-backed Planning artifacts, `plan.md` may also include explicit
 Roadmap Sync markers such as:
@@ -87,10 +90,30 @@ These markers are optional for generic plan packs, but they are required when th
 reconcile Repository Backlog or Roadmap state automatically. The canonical linkage and sync semantics are
 defined in [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
 
+### Unresolved Goal Carryover Boundary
+
+Session artifacts are authoritative for active in-flight work. Unresolved goal carryover persistence
+is a separate docs surface:
+
+- canonical carryover path: `docs/issues/unresolved-goals.md`
+
+Boundary rules:
+
+1. Active in-flight goals remain in session artifacts (for example `plan.md`, `handoff.md`,
+   `proposition.md`) until no longer active.
+2. Only unresolved and non-active goals are eligible to persist in `docs/issues/unresolved-goals.md`.
+3. Resolved goals should be removed from `docs/issues/unresolved-goals.md` without an archive
+   requirement.
+4. `@goal-reviewer` remains read-only; workflows should route any persistence/removal for
+   `docs/issues/unresolved-goals.md` through `@doc-writer` or another explicit docs-writing lane.
+5. `GOAL_REVIEW.status = NEEDS_REVISION` keeps active goals in session artifacts and sends execution
+   back to revision work. `BLOCKED` pauses carryover sync until the missing evidence/context is
+   supplied.
+
 ### Proposition Artifact (`proposition.md`)
 
 An append-only file that accumulates guidance at key milestones:
-- **direction** — Initial direction from `@elegy-direction`
+- **direction** — Initial session direction
 - **after-planning** — Suggestions after plan approval
 - **after-execution** — Retrospective notes after execution completes
 
@@ -102,7 +125,7 @@ Use durable structured sections so resumptions and downstream planning can extra
 
 Each entry uses an H2 heading:
 ```markdown
-## 2026-02-23T14:30:00Z — after-planning — elegy-planner
+## 2026-02-23T14:30:00Z — after-planning — workflow-planner
 
 ### Summary
 - Plan approved with 3 work unit groups
@@ -128,13 +151,13 @@ The plan prioritizes foundational changes before UI work to minimize rework...
 
 ### Handoff Artifact (`handoff.md`)
 
-The planner writes a bootstrap artifact for the executor.
+The planning step writes a bootstrap artifact for the next execution or resume step.
 
 | Property | Value |
 |---|---|
 | **Write semantics** | Overwrite at end of planning |
-| **Lifecycle** | Written by `@elegy-planner`; read by `@elegy-orchestrator` before execution |
-| **Required** | Yes for persisted Elegy execution flow |
+| **Lifecycle** | Written by the planning step; read by the execution/resume step before implementation |
+| **Required** | Yes for the persisted session execution flow |
 
 Required sections:
 
@@ -144,7 +167,7 @@ Required sections:
 4. `## User Constraints` — explicit scope or risk tolerances
 5. `## Immediate Next Actions` — the concrete next moves for this session
 6. `## Next Plan Ideas` — follow-on planning opportunities that are deliberately out of scope now
-7. `## Watch Outs` — execution cautions the orchestrator must preserve
+7. `## Watch Outs` — execution cautions the implementation step must preserve
 8. `## Open Risks` — unresolved risks that may force replanning or user escalation
 
 ### Verification Guide Artifact (`verification-guide.md`)
@@ -154,8 +177,8 @@ A structured guide for verifying changes made during a session's execution phase
 | Property | Value |
 |---|---|
 | **Write semantics** | Overwrite (full replace on each write) |
-| **Lifecycle** | Written by `@elegy-orchestrator` at finalization, after `@final-reviewer` completes |
-| **Optional** | Yes — not created if `@verification-guide` agent fails or is skipped |
+| **Lifecycle** | Written during finalization after review completes |
+| **Optional** | Yes — not created if verification-guide generation fails or is skipped |
 
 #### Format
 
@@ -753,7 +776,7 @@ status: skipped; user declined doc update
 
 ### Parallel-Safe Execution Contract
 
-For persisted Elegy execution, `Parallel Safe = yes` only means the orchestrator may consider concurrent execution. It is not an unconditional scheduling command. Before fan-out, the orchestrator should still verify:
+For the persisted session execution flow, `Parallel Safe = yes` only means the execution lane may consider concurrent execution. It is not an unconditional scheduling command. Before fan-out, the execution lane should still verify:
 
 1. Every WU in the candidate batch belongs to the same group.
 2. All declared dependencies are already satisfied.

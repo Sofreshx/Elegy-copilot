@@ -9,14 +9,14 @@ description: "7-phase workflow for planning large or complex features and refact
 - Large or multi-file features.
 - New subsystems or integrations.
 - Cross-cutting changes affecting multiple domains.
-- **Do not use** for simple bug fixes or single-file changes (use `project-management` or just do it).
+- **Do not use** for simple bug fixes or single-file changes (use the standard `/plan` flow only if the work still needs explicit planning; otherwise just do it).
 
 ## The 7 Phases
 
 ### Phase 1: Discovery (Requirements)
 - **Goal**: Clarify the problem, success criteria, and constraints.
-- **Action**: Ask the user for high-level goals. Identify stakeholders and risk areas.
-- **Output**: A summary of the requirements.
+- **Action**: Ask the user for explicit high-level goals. Identify stakeholders, success criteria, constraints, and risk areas.
+- **Output**: A summary of the requirements plus a stable bullet list of high-level goals that the plan should satisfy.
 
 ### Phase 2: Codebase Exploration (Context)
 - **Goal**: Understand the existing system.
@@ -43,6 +43,7 @@ description: "7-phase workflow for planning large or complex features and refact
 ### Phase 5: Implementation Plan (Tasks)
 - **Goal**: Create actionable steps.
 - **Action**:
+    - Keep the high-level goals visible and map implementation phases back to them.
     - Break work into phases (e.g., Scaffolding, Core Logic, UI, Polish).
     - Create concrete tasks mapped to specific files.
     - Assign a "Skill" to each task (e.g., `frontend`, `backend`, `auth`).
@@ -57,10 +58,11 @@ description: "7-phase workflow for planning large or complex features and refact
 - **Goal**: Ready for execution.
 - **Action**:
     - Recap the plan.
-    - **Crucial**: Ask the user if they want to save this plan as a task file under `.instructions/tasks/`.
-    - If yes, create a task file with `owner` + `skills`, and include the plan as the initial content.
+    - If the plan needs persistence or handoff, prefer the host/session artifact surfaces already used by the current workflow (for example orchestrator or session-state planning artifacts such as the active session `plan.md` / plan pack).
+    - If the user wants durable repo-level planning instead of session-only execution planning, direct that persistence to the approved planning surfaces (for example backlog/roadmap docs) rather than ad hoc task files.
+    - Do **not** direct users to save plans under `.instructions/tasks/`.
 
 ## Output Format
-Present the plan in Markdown with clear headers for each phase.
+Present the plan in Markdown with clear headers for each phase. Include the explicit high-level goals before detailed task decomposition.
 
 

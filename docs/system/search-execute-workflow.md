@@ -116,7 +116,8 @@ Until all runtime surfaces can provide the routing-policy snapshot, prompts shou
 
 - declare that routing is operating in `fallback-curated` mode
 - keep automatic selection inside the shipped first-party orchestrator baseline
-- do not auto-select provider/imported capabilities, optional audit lanes, cross-model reviewers, or Elegy from fallback alone
+- do not auto-select provider/imported capabilities, optional audit lanes, cross-model reviewers,
+  or persisted session-state workflows from fallback alone
 
 This is the strongest safe prompt/doc guardrail available before backend/runtime enforcement lands.
 
@@ -138,7 +139,8 @@ responses surface the snapshot so orchestrator bootstrap can pass the same deter
 
 ## Ownership Split
 
-Elegy is the canonical home for reusable typed search and resolution contracts:
+The first-party runtime/catalog layer is the canonical home for reusable typed search and
+resolution contracts:
 
 - Discovery index models and schema
 - Search scoring behavior

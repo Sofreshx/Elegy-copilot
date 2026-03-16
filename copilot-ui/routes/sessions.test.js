@@ -240,7 +240,7 @@ async function run() {
       assets: {
         readTextFileSafe(targetPath) {
           if (String(targetPath).endsWith('proposition.md')) {
-            return `## 2026-03-12T12:00:00Z — after-execution — elegy-orchestrator
+            return `## 2026-03-12T12:00:00Z — after-execution — workflow-executor
 
 ### Summary
 - Execution completed.
@@ -298,7 +298,7 @@ Completed successfully.
 - Use serial execution until file ownership is disjoint.
 
 ## Exploration Summary
-- engine-assets/agents/elegy-planner.agent.md
+- docs/system/session-state-artifacts.md
 
 ## User Constraints
 - none
