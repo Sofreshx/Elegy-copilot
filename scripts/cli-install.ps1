@@ -40,6 +40,14 @@ function Confirm-NodeAvailable {
   }
 }
 
+function Resolve-InstallProfile([string]$value) {
+  switch -Regex ($value) {
+    '^(?i:minimal|public)$' { return 'minimal' }
+    '^(?i:full|internal)$' { return 'full' }
+    default { throw "Unsupported install profile: $value (supported: minimal, full, public, internal)" }
+  }
+}
+
 function Test-FilesEqual([string]$a, [string]$b) {
   if (-not (Test-Path -LiteralPath $a) -or -not (Test-Path -LiteralPath $b)) { return $false }
   $ha = (Get-FileHash -Algorithm SHA256 -LiteralPath $a).Hash
@@ -215,12 +223,21 @@ function Read-InstallState([string]$root) {
   }
 }
 
-function Write-InstallState([string]$root, [string[]]$managedSkills, [string[]]$alwaysLoadedSkills, [switch]$DryRun) {
+function Write-InstallState(
+  [string]$root,
+  [string[]]$managedSkills,
+  [string[]]$alwaysLoadedSkills,
+  [string[]]$vaultSkills,
+  [string]$installProfile,
+  [switch]$DryRun
+) {
   $statePath = Get-InstallStatePath $root
   $state = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
+    installProfile = $installProfile
     managedSkills = @($managedSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
     alwaysLoadedSkills = @($alwaysLoadedSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    vaultSkills = @($vaultSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
   }
 
   if ($DryRun) {
@@ -250,18 +267,28 @@ function Prune-ManagedSkillInstall(
   [string]$root,
   [string[]]$managedSkills,
   [string[]]$alwaysLoadedSkills,
+  [string[]]$vaultSkills,
   [string[]]$legacySkillNames,
   [switch]$DryRun
 ) {
   $previousState = Read-InstallState $root
   $previousManaged = @()
+  $previousVault = @()
   if ($previousState -and $previousState.managedSkills) {
     $previousManaged = @($previousState.managedSkills)
+  }
+  if ($previousState) {
+    if ($previousState.vaultSkills) {
+      $previousVault = @($previousState.vaultSkills)
+    } elseif ($previousState.managedSkills) {
+      $previousVault = @($previousState.managedSkills)
+    }
   }
 
   $managedSet = @($managedSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
   $alwaysSet = @($alwaysLoadedSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
-  $pruneCandidates = @($managedSet + $previousManaged + $legacySkillNames | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+  $currentVaultSet = @($vaultSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+  $pruneCandidates = @($managedSet + $currentVaultSet + $previousManaged + $previousVault + $legacySkillNames | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
 
   $skillsRoot = Join-Path $root 'skills'
   $vaultRoot = Join-Path $root 'skills-vault'
@@ -276,7 +303,7 @@ function Prune-ManagedSkillInstall(
   }
 
   foreach ($skillName in $pruneCandidates) {
-    if ($managedSet -contains $skillName) {
+    if ($currentVaultSet -contains $skillName) {
       continue
     }
 
@@ -290,11 +317,16 @@ $Force = $false
 $DoCli = $false
 $DoVscode = $false
 $Pointer = $true
+$InstallProfile = 'minimal'
 $VscodeSettings = $null
 $VscodeHome = $null
 
 for ($i = 0; $i -lt $args.Length; $i++) {
   $a = $args[$i]
+  if ($a -like '--profile=*') {
+    $InstallProfile = $a.Substring('--profile='.Length)
+    continue
+  }
   switch ($a) {
     '--dry-run' { $DryRun = $true }
     '--force' { $Force = $true }
@@ -302,6 +334,15 @@ for ($i = 0; $i -lt $args.Length; $i++) {
     '--vscode' { $DoVscode = $true }
     '--all' { $DoCli = $true; $DoVscode = $true }
     '--pointer' { $Pointer = $true }
+    '--profile' {
+      $i++
+      if ($i -ge $args.Length) { throw 'Missing value for --profile' }
+      $InstallProfile = $args[$i]
+    }
+    '--minimal' { $InstallProfile = 'minimal' }
+    '--public' { $InstallProfile = 'minimal' }
+    '--full' { $InstallProfile = 'full' }
+    '--internal' { $InstallProfile = 'full' }
     '--vscode-settings' {
       $i++
       if ($i -ge $args.Length) { throw 'Missing value for --vscode-settings' }
@@ -312,9 +353,11 @@ for ($i = 0; $i -lt $args.Length; $i++) {
       if ($i -ge $args.Length) { throw 'Missing value for --vscode-home' }
       $VscodeHome = $args[$i]
     }
-    default { throw "Unknown arg: $a (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --vscode-settings <path>, --vscode-home <path>)" }
+    default { throw "Unknown arg: $a (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --profile <minimal|full>, --minimal, --full, --public, --internal, --vscode-settings <path>, --vscode-home <path>)" }
   }
 }
+
+$InstallProfile = Resolve-InstallProfile $InstallProfile
 
 if (-not $DoCli -and -not $DoVscode) {
   $DoCli = $true
@@ -364,10 +407,11 @@ $vscodeHomeResolved = Get-VscodeHome -Explicit $VscodeHome
 Write-Host "Copilot home: $copilotHome"
 Write-Host "Engine root:  $engineRoot"
 Write-Host "Modes:        cli=$DoCli vscode=$DoVscode"
+Write-Host "Profile:      $InstallProfile"
 Write-Host "VS Code home: $vscodeHomeResolved"
 
 # Load manifest to determine loadMode for skills in pointer mode.
-# Skills with loadMode "always" go to skills/ (full); others go vault-only.
+# Skills with loadMode "always" go to skills/; vault materialization is profile-dependent.
 $manifestPath = Join-Path $srcAssetsRoot 'manifest.json'
 $manifestData = $null
 if (Test-Path -LiteralPath $manifestPath) {
@@ -387,6 +431,14 @@ $managedSkillNames = @(
 $alwaysLoadedSkillNames = @(
   $managedSkillNames | Where-Object { (Get-SkillLoadMode $_) -eq 'always' }
 )
+$vaultSkillNames = @(
+  if ($InstallProfile -eq 'full') {
+    $managedSkillNames
+  } else {
+    $alwaysLoadedSkillNames
+  }
+)
+Write-Host "Skills:       managed=$($managedSkillNames.Count) always=$($alwaysLoadedSkillNames.Count) on-demand=$($managedSkillNames.Count - $alwaysLoadedSkillNames.Count) vault=$($vaultSkillNames.Count) pointer=$Pointer"
 
 
 if ($DoCli) {
@@ -406,6 +458,7 @@ if ($DoCli) {
   if ($Pointer) {
     $vaultDir = Join-Path $copilotHome 'skills-vault'
     if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $vaultDir | Out-Null }
+    Write-Host "CLI skills:   installing managed=$($managedSkillNames.Count) always=$($alwaysLoadedSkillNames.Count) on-demand=$($managedSkillNames.Count - $alwaysLoadedSkillNames.Count) vault=$($vaultSkillNames.Count)"
     Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
       $skillName = $_.Name
       $loadMode = Get-SkillLoadMode $skillName
@@ -414,15 +467,16 @@ if ($DoCli) {
         # Always-loaded: install full skill to skills/ (scanned by VS Code)
         $skillDst = Join-Path (Join-Path $copilotHome 'skills') $skillName
         Sync-Directory $_.FullName $skillDst -DryRun:$DryRun -Force:$Force
-        # Also copy to vault for search index consistency
-        Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
-      } else {
-        # On-demand: vault only — NOT in skills/ scan path
+      }
+
+      if ($vaultSkillNames -contains $skillName) {
+        # Vault installs are profile-dependent. Full installs all managed skills;
+        # minimal installs the always-loaded subset only.
         Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
       }
     }
 
-    Prune-ManagedSkillInstall -root $copilotHome -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -legacySkillNames $legacyManagedSkillNames -DryRun:$DryRun
+    Prune-ManagedSkillInstall -root $copilotHome -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -vaultSkills $vaultSkillNames -legacySkillNames $legacyManagedSkillNames -DryRun:$DryRun
   } else {
     Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
       $dstDir = Join-Path (Join-Path $copilotHome 'skills') $_.Name
@@ -430,7 +484,7 @@ if ($DoCli) {
     }
   }
 
-  Write-InstallState -root $copilotHome -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -DryRun:$DryRun
+  Write-InstallState -root $copilotHome -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -vaultSkills $vaultSkillNames -installProfile $InstallProfile -DryRun:$DryRun
 
   # engine-assets/copilot-instructions.md -> <copilotHome>\copilot-instructions.md
   $dstInstructions = Join-Path $copilotHome 'copilot-instructions.md'
@@ -453,6 +507,7 @@ if ($DoVscode) {
   if ($Pointer) {
     $vscodeVault = Join-Path $vscodeHomeResolved 'skills-vault'
     if (-not $DryRun) { New-Item -ItemType Directory -Force -Path $vscodeVault | Out-Null }
+    Write-Host "VS Code skills: installing managed=$($managedSkillNames.Count) always=$($alwaysLoadedSkillNames.Count) on-demand=$($managedSkillNames.Count - $alwaysLoadedSkillNames.Count) vault=$($vaultSkillNames.Count)"
     Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
       $skillName = $_.Name
       $loadMode = Get-SkillLoadMode $skillName
@@ -461,15 +516,16 @@ if ($DoVscode) {
         # Always-loaded: install full skill to skills/ (scanned by VS Code)
         $skillDst = Join-Path (Join-Path $vscodeHomeResolved 'skills') $skillName
         Sync-Directory $_.FullName $skillDst -DryRun:$DryRun -Force:$Force
-        # Also copy to vault for search index consistency
-        Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
-      } else {
-        # On-demand: vault only — NOT in skills/ scan path
+      }
+
+      if ($vaultSkillNames -contains $skillName) {
+        # Vault installs are profile-dependent. Full installs all managed skills;
+        # minimal installs the always-loaded subset only.
         Sync-Directory $_.FullName $vaultDst -DryRun:$DryRun -Force:$Force
       }
     }
 
-    Prune-ManagedSkillInstall -root $vscodeHomeResolved -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -legacySkillNames $legacyManagedSkillNames -DryRun:$DryRun
+    Prune-ManagedSkillInstall -root $vscodeHomeResolved -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -vaultSkills $vaultSkillNames -legacySkillNames $legacyManagedSkillNames -DryRun:$DryRun
   } else {
     Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object {
       $dstDir = Join-Path (Join-Path $vscodeHomeResolved 'skills') $_.Name
@@ -477,7 +533,7 @@ if ($DoVscode) {
     }
   }
 
-  Write-InstallState -root $vscodeHomeResolved -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -DryRun:$DryRun
+  Write-InstallState -root $vscodeHomeResolved -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -vaultSkills $vaultSkillNames -installProfile $InstallProfile -DryRun:$DryRun
 
   Get-ChildItem -LiteralPath $srcPromptsRoot -Filter '*.prompt.md' -File | ForEach-Object {
     $dst = Join-Path (Join-Path $vscodeHomeResolved 'prompts') $_.Name

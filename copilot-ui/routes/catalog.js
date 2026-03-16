@@ -14,6 +14,7 @@ const catalogProjectionLib = require('../lib/catalogProjectionService');
 const catalogMutationLib = require('../lib/catalogMutationService');
 const providerCatalogLib = require('../lib/providerCatalog');
 const repoInventoryLib = require('../lib/repoInventoryService');
+const repoDiscoveryLib = require('../lib/repoDiscoveryService');
 const {
   appendCatalogAuditEvent,
   buildAssetAuditAnalytics,
@@ -1538,8 +1539,36 @@ function handleCatalogReposList(ctx, deps) {
     count: inventory.repos.length,
     selectedRepo: inventory.selectedRepo,
     storage: inventory.storage,
+    workspaceScan: inventory.workspaceScan,
     repos: inventory.repos,
   }));
+}
+
+function handleCatalogRepoScanRoots(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then((body) => {
+      const source = body && typeof body === 'object' ? body : {};
+      const customScanRoots = normalizeArray(source.customScanRoots || source.scanRoots);
+      deps.repoDiscovery.saveRepoDiscoveryState(ctx.copilotHomeAbs, {
+        customScanRoots,
+      });
+      const inventory = listRepoInventory(ctx, deps);
+      deps.sendJson(ctx.res, 200, buildRepoInventoryResponse('catalog.repos.scan-roots', {
+        updated: true,
+        count: inventory.repos.length,
+        selectedRepo: inventory.selectedRepo,
+        storage: inventory.storage,
+        workspaceScan: inventory.workspaceScan,
+        repos: inventory.repos,
+      }));
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.repos.scan-roots',
+      String(error.message || error),
+    ));
 }
 
 function handleCatalogRepoRegister(ctx, deps) {
@@ -1561,6 +1590,7 @@ function handleCatalogRepoRegister(ctx, deps) {
         repo: result.repo,
         selectedRepo: result.inventory.selectedRepo,
         storage: result.inventory.storage,
+        workspaceScan: result.inventory.workspaceScan,
       }));
     })
     .catch((error) => sendJsonError(
@@ -1588,6 +1618,7 @@ function handleCatalogRepoUnregister(ctx, deps) {
         selectionCleared: result.selectionCleared,
         selectedRepo: result.inventory.selectedRepo,
         storage: result.inventory.storage,
+        workspaceScan: result.inventory.workspaceScan,
       }));
     })
     .catch((error) => sendJsonError(
@@ -1615,6 +1646,7 @@ function handleCatalogRepoSelect(ctx, deps) {
         repo: result.repo,
         selectedRepo: result.inventory.selectedRepo,
         storage: result.inventory.storage,
+        workspaceScan: result.inventory.workspaceScan,
       }));
     })
     .catch((error) => sendJsonError(
@@ -1682,6 +1714,7 @@ function handleCatalogRepoRefresh(ctx, deps) {
         repo: refreshedRepo,
         selectedRepo: refreshedInventory.selectedRepo,
         storage: refreshedInventory.storage,
+        workspaceScan: refreshedInventory.workspaceScan,
         audit: {
           logged: audit.logged,
           path: audit.path,
@@ -1726,6 +1759,7 @@ function register(deps = {}) {
     providerCatalog: deps.providerCatalog || providerCatalogLib,
     executeProviderCommand: deps.executeProviderCommand,
     repoInventory: deps.repoInventory || repoInventoryLib,
+    repoDiscovery: deps.repoDiscovery || repoDiscoveryLib,
     sendJson: deps.sendJson || defaultSendJson,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     catalogRuntimeState: deps.catalogRuntimeState || createCatalogRuntimeState(),
@@ -1741,6 +1775,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/repos/register',
       handler: (ctx) => handleCatalogRepoRegister(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/repos/scan-roots',
+      handler: (ctx) => handleCatalogRepoScanRoots(ctx, resolvedDeps),
     },
     {
       method: 'POST',

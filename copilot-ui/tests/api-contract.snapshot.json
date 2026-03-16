@@ -615,7 +615,11 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "roots"
+      "customScanRoots",
+      "defaultRoots",
+      "roots",
+      "scanRoots",
+      "storage"
     ]
   },
   "GET /api/tracker/status": {
@@ -870,7 +874,8 @@
       "kind",
       "repos",
       "selectedRepo",
-      "storage"
+      "storage",
+      "workspaceScan"
     ]
   },
   "POST /api/catalog/repos/register": {
@@ -881,6 +886,21 @@
       "deterministic",
       "error",
       "kind"
+    ]
+  },
+  "POST /api/catalog/repos/scan-roots": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "count",
+      "deterministic",
+      "kind",
+      "repos",
+      "selectedRepo",
+      "storage",
+      "updated",
+      "workspaceScan"
     ]
   },
   "POST /api/catalog/repos/unregister": {

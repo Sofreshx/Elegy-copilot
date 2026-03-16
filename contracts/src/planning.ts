@@ -8,7 +8,15 @@ export interface PlanningRecord {
   updatedAt: string;
   content?: string;
   metadata?: Record<string, unknown>;
+  /**
+   * @deprecated Legacy record-scoped research artifacts retained for backward compatibility with older
+   * planning records. Prefer repo-backed backlog and roadmap docs for new planning workflows.
+   */
   researchNotes?: ResearchNote[];
+  /**
+   * @deprecated Legacy record-scoped diagram artifacts retained for backward compatibility with older
+   * planning records. Prefer repo-backed backlog and roadmap docs for new planning workflows.
+   */
   diagrams?: PlanningDiagram[];
 }
 
@@ -21,10 +29,13 @@ export interface ResearchNote {
   sources?: string[];
   createdAt: string;
 
-  // Legacy aliases kept optional for backward compatibility.
+  /** @deprecated Legacy alias for `id`; retained for backward compatibility. */
   noteId?: string;
+  /** @deprecated Legacy compatibility field retained for older planning note payloads. */
   summary?: string;
+  /** @deprecated Legacy single-source field; use `sources` instead when writing new data. */
   source?: string;
+  /** @deprecated Legacy compatibility timestamp retained for older planning note payloads. */
   updatedAt?: string;
 }
 
@@ -37,8 +48,9 @@ export interface PlanningDiagram {
   content: string;
   createdAt: string;
 
-  // Legacy alias kept optional for backward compatibility.
+  /** @deprecated Legacy alias for `id`; retained for backward compatibility. */
   diagramId?: string;
+  /** @deprecated Legacy compatibility timestamp retained for older planning diagram payloads. */
   updatedAt?: string;
 }
 

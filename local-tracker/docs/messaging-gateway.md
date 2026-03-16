@@ -1,8 +1,10 @@
-# Messaging Gateway (Discord → Copilot CLI ACP)
+# Optional Messaging Gateway (Discord → Copilot CLI ACP)
 
 Control your **Copilot CLI** agent sessions from **Discord** using slash commands, threads, and permission buttons.
 
-The gateway is a local Node.js process that:
+This gateway is an **optional companion process** under `local-tracker/`. The default tracker runtime can watch repo-state, git status, and serve the local extension bridge without running the gateway. Use this guide only if you explicitly want Discord-based remote control.
+
+When enabled, the gateway is a local Node.js process that:
 - Authenticates a Discord bot
 - Enforces an allowlist + guild/channel scope
 - Connects to a Copilot CLI ACP (Agent Communication Protocol) server
@@ -12,8 +14,10 @@ The gateway is a local Node.js process that:
 
 ## Prerequisites
 
+- **Opt-in use case**: only needed if you want the optional remote-control surface
 - **Node.js**: `>=20`
 - **Copilot CLI**: available on PATH with ACP support (`copilot --acp`)
+- **Gateway runtime deps installed**: if your base tracker install used `npm install --omit=optional`, run `npm install --include=optional` from `local-tracker/` before starting the gateway
 - **Discord**:
   - A Discord bot created in the [Discord Developer Portal](https://discord.com/developers/applications)
   - Bot added to your private guild/channel (recommended: dedicated private channel)
@@ -177,14 +181,19 @@ You can override the config using environment variables:
 
 From `local-tracker/`:
 
+`npm run dev` starts the default tracker only. Use the commands below when you have explicitly opted into the gateway:
+
 **Dev mode (TypeScript via ts-node)**:
 ```bash
+npm install --include=optional   # only needed if you previously omitted optional deps
 npm run dev:gateway
 ```
 
 **Production mode (compiled JS)**:
 ```bash
+npm install --include=optional   # only needed if you previously omitted optional deps
 npm run build
+npm run build:gateway
 npm run start:gateway
 ```
 

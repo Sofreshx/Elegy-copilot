@@ -906,12 +906,21 @@ export interface CatalogRepoInventoryStorage {
   [key: string]: unknown;
 }
 
+export interface CatalogRepoInventoryWorkspaceScan {
+  storage?: CatalogRepoInventoryStorage;
+  defaultRoots?: string[];
+  customScanRoots?: string[];
+  scanRoots?: string[];
+  [key: string]: unknown;
+}
+
 export interface CatalogReposListResponse {
   kind?: string;
   deterministic?: boolean;
   count?: number;
   selectedRepo?: CatalogRepoInventoryEntry | null;
   storage?: CatalogRepoInventoryStorage;
+  workspaceScan?: CatalogRepoInventoryWorkspaceScan | null;
   repos: CatalogRepoInventoryEntry[];
   [key: string]: unknown;
 }
@@ -927,9 +936,14 @@ export interface CatalogRepoMutationResponse {
   repo?: CatalogRepoInventoryEntry | null;
   selectedRepo?: CatalogRepoInventoryEntry | null;
   storage?: CatalogRepoInventoryStorage;
+  workspaceScan?: CatalogRepoInventoryWorkspaceScan | null;
   snapshot?: CatalogSnapshotEnvelope | null;
   audit?: CatalogMutationAuditResult;
   [key: string]: unknown;
+}
+
+export interface CatalogRepoScanRootsMutationResponse extends CatalogReposListResponse {
+  updated?: boolean;
 }
 
 export interface PolicyPreflightResponse {

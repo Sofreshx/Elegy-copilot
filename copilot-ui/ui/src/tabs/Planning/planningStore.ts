@@ -1,4 +1,6 @@
 import {
+  buildPlanningRepositoryBacklogRef,
+  buildPlanningRoadmapDirectoryRef,
   comparePlanningRecords,
   createPlanningRecord,
   createSdkSession,
@@ -17,11 +19,14 @@ import {
 } from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type {
+  CatalogRepoInventoryEntry,
   PlanningDiagram,
   PlanningCompareReceipt,
   PlanningCompareResponse,
   PlanningMergeIntentToken,
   PlanningRecordItem,
+  PlanningRepositoryBacklogRef,
+  PlanningRoadmapDirectoryRef,
   PlanningResearchNote,
   PlanningSearchResultItem,
   PolicyPreflightResponse,
@@ -59,9 +64,19 @@ export interface PlanningConflictRow {
   winnerValue: string;
 }
 
+export interface PlanningCatalogRepoContext {
+  repoId: string;
+  repoPath: string;
+  repoLabel: string;
+  sources: string[];
+}
+
 export interface PlanningState {
   userId: string;
   repoId: string;
+  catalogRepoContext: PlanningCatalogRepoContext | null;
+  repositoryBacklog: PlanningRepositoryBacklogRef | null;
+  roadmapDirectory: PlanningRoadmapDirectoryRef | null;
   query: string;
   sessionId: string;
   scopeUser: boolean;
@@ -113,6 +128,9 @@ export interface PlanningState {
 const INITIAL_STATE: PlanningState = {
   userId: '',
   repoId: '',
+  catalogRepoContext: null,
+  repositoryBacklog: null,
+  roadmapDirectory: null,
   query: '',
   sessionId: '',
   scopeUser: true,
@@ -205,6 +223,34 @@ function parseIsoMs(value: unknown): number {
 
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeCatalogRepoContext(
+  repo: Partial<CatalogRepoInventoryEntry> | null | undefined
+): PlanningCatalogRepoContext | null {
+  if (!repo || typeof repo !== 'object') {
+    return null;
+  }
+
+  const repoId = typeof repo.repoId === 'string' ? repo.repoId.trim() : '';
+  const repoPath = typeof repo.repoPath === 'string' ? repo.repoPath.trim() : '';
+  const repoLabel = typeof repo.repoLabel === 'string' ? repo.repoLabel.trim() : '';
+  const sources = Array.isArray(repo.sources)
+    ? repo.sources
+      .map((entry) => String(entry || '').trim())
+      .filter((entry) => entry.length > 0)
+    : [];
+
+  if (!repoId && !repoPath && !repoLabel && sources.length === 0) {
+    return null;
+  }
+
+  return {
+    repoId,
+    repoPath,
+    repoLabel,
+    sources,
+  };
 }
 
 function scopeRank(scope: string): number {
@@ -398,7 +444,7 @@ export function hasReviewedAllPlanningConflicts(conflicts: PlanningConflictRow[]
   return conflicts.every((row) => reviewed.has(row.conflictKey));
 }
 
-function createPlanningStore() {
+export function createPlanningStore() {
   const store = createStore<PlanningState>(INITIAL_STATE);
 
   let recordsRequestVersion = 0;
@@ -407,6 +453,30 @@ function createPlanningStore() {
   let preflightRequestVersion = 0;
   let artifactsRequestVersion = 0;
   let artifactsMutationVersion = 0;
+
+  function applyCatalogRepoContext(repo: Partial<CatalogRepoInventoryEntry> | null | undefined): void {
+    const catalogRepoContext = normalizeCatalogRepoContext(repo);
+    const repositoryBacklog = buildPlanningRepositoryBacklogRef({
+      repoId: catalogRepoContext?.repoId || undefined,
+      repoPath: catalogRepoContext?.repoPath || undefined,
+      repoLabel: catalogRepoContext?.repoLabel || undefined,
+    });
+    const roadmapDirectory = buildPlanningRoadmapDirectoryRef({
+      repoId: catalogRepoContext?.repoId || undefined,
+      repoPath: catalogRepoContext?.repoPath || undefined,
+      repoLabel: catalogRepoContext?.repoLabel || undefined,
+    });
+
+    store.setState((state) => ({
+      ...state,
+      catalogRepoContext,
+      repositoryBacklog,
+      roadmapDirectory,
+      repoId: catalogRepoContext?.repoId || '',
+      createScope: catalogRepoContext?.repoId ? 'repo' : (state.createScope === 'repo' ? 'user' : state.createScope),
+      error: null,
+    }));
+  }
 
   function setStatus(statusMessage: string): void {
     store.setState((state) => ({
@@ -1453,6 +1523,7 @@ function createPlanningStore() {
   return {
     getState: store.getState,
     subscribe: store.subscribe,
+    applyCatalogRepoContext,
     loadInitial,
     refreshPolicyPreflight,
     listRecords,

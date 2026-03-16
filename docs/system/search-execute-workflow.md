@@ -1,6 +1,6 @@
 ---
 created: 2026-03-07
-updated: 2026-03-13
+updated: 2026-03-16
 category: system
 status: current
 doc_kind: node
@@ -23,10 +23,10 @@ catalog/search control plane in `copilot-ui`, not by separate per-surface discov
 1. Select or infer the relevant repo context when repo-local `.github/*` assets or stack targeting
    matter.
 2. Read the active routing-policy snapshot when available. The intended snapshot is a compact view of:
-   - current profile (for example `balanced-default`)
-   - user-global active bundles
-   - repo-specific overrides
-   - eligible capabilities or eligible capability families
+    - current profile (for example `balanced-default`)
+    - user-global active bundles
+    - repo-specific overrides
+    - eligible capabilities or eligible capability families
 3. If the next action is a deterministic core-lane step (for example reframe, plan, known review, or
    direct work-unit execution), route directly without broad capability search.
 4. Otherwise use `@search` to resolve the smallest relevant **eligible** capability for the task.
@@ -100,6 +100,12 @@ The default planning/orchestration posture is **balanced-default**:
 - auto-routing should prefer capabilities that are **installed + active + eligible**
 - activation is derived from **user-global defaults** plus **repo-specific overrides**
 - the eligible set must stay curated and visible rather than unconstrained
+
+Interpretation rules:
+
+- the source install provides the shipped first-party baseline only
+- user-global active bundles are optional post-install layers, not an automatic copy step
+- repo-specific overrides matter only when a repo is selected and contributes repo-local assets or overlay policy
 
 ### Eligibility precedence
 

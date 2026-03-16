@@ -17,6 +17,7 @@ import {
   refreshCatalogProjection,
   refreshCatalogRepo,
   registerCatalogRepo,
+  saveCatalogRepoScanRoots,
   searchCatalogAssets,
   selectCatalogRepo,
   syncAllAssets,
@@ -32,6 +33,8 @@ import type {
   CatalogEffectiveAsset,
   CatalogEntry,
   CatalogRepoInventoryEntry,
+  CatalogRepoInventoryStorage,
+  CatalogRepoInventoryWorkspaceScan,
   CatalogReposListResponse,
   CatalogSearchResult,
   CatalogSnapshotEnvelope,
@@ -198,12 +201,58 @@ function normalizeRepoInventory(input: CatalogReposListResponse | null | undefin
     return null;
   }
 
+  const normalizeStringList = (value: unknown): string[] => (
+    Array.isArray(value)
+      ? value.filter((entry): entry is string => typeof entry === 'string').map((entry) => entry.trim()).filter(Boolean)
+      : []
+  );
+  const normalizeStorage = (value: unknown): CatalogRepoInventoryStorage | undefined => {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+    return {
+      ...(value as CatalogRepoInventoryStorage),
+      path: typeof (value as CatalogRepoInventoryStorage).path === 'string'
+        ? (value as CatalogRepoInventoryStorage).path.trim()
+        : undefined,
+      exists: (value as CatalogRepoInventoryStorage).exists === true,
+    };
+  };
+  const normalizeRepo = (value: CatalogRepoInventoryEntry | null | undefined): CatalogRepoInventoryEntry | null => {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+    return {
+      ...value,
+      repoId: typeof value.repoId === 'string' ? value.repoId.trim() : value.repoId,
+      repoPath: typeof value.repoPath === 'string' ? value.repoPath.trim() : value.repoPath,
+      repoLabel: typeof value.repoLabel === 'string' ? value.repoLabel.trim() : value.repoLabel,
+      sources: normalizeStringList(value.sources),
+    };
+  };
+  const normalizeWorkspaceScan = (value: unknown): CatalogRepoInventoryWorkspaceScan | null => {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+    return {
+      ...(value as CatalogRepoInventoryWorkspaceScan),
+      storage: normalizeStorage((value as CatalogRepoInventoryWorkspaceScan).storage),
+      defaultRoots: normalizeStringList((value as CatalogRepoInventoryWorkspaceScan).defaultRoots),
+      customScanRoots: normalizeStringList((value as CatalogRepoInventoryWorkspaceScan).customScanRoots),
+      scanRoots: normalizeStringList((value as CatalogRepoInventoryWorkspaceScan).scanRoots),
+    };
+  };
+
   return {
     ...input,
     repos: Array.isArray(input.repos)
-      ? input.repos.filter((repo): repo is CatalogRepoInventoryEntry => Boolean(repo))
+      ? input.repos
+        .map((repo) => normalizeRepo(repo))
+        .filter((repo): repo is CatalogRepoInventoryEntry => Boolean(repo))
       : [],
-    selectedRepo: input.selectedRepo ?? null,
+    selectedRepo: normalizeRepo(input.selectedRepo) ?? null,
+    storage: normalizeStorage(input.storage),
+    workspaceScan: normalizeWorkspaceScan(input.workspaceScan),
   };
 }
 
@@ -1040,22 +1089,18 @@ function createCatalogWorkspaceStore() {
       const response = await registerCatalogRepo({
         repoPath: normalizedRepoPath,
         repoLabel,
-        select: true,
       });
-      const activeRepo = response.selectedRepo ?? response.repo ?? null;
       store.setState((state) => ({
         ...state,
         mutating: false,
-        repoPathInput: normalizeRepoPath(activeRepo?.repoPath) || normalizedRepoPath,
-        activeRepoPath: normalizeRepoPath(activeRepo?.repoPath) || normalizedRepoPath,
-        activeRepoId: typeof activeRepo?.repoId === 'string' ? activeRepo.repoId.trim() : '',
+        repoPathInput: normalizedRepoPath,
       }));
       await loadWorkspace();
       store.setState((state) => ({
         ...state,
-        installMessage: activeRepo?.repoLabel
-          ? `Registered and selected ${activeRepo.repoLabel}.`
-          : `Registered ${normalizedRepoPath}.`,
+        installMessage: response.repo?.repoLabel
+          ? `Registered ${response.repo.repoLabel} for discovery metadata.`
+          : `Registered ${normalizedRepoPath} for discovery metadata.`,
       }));
     } catch (error) {
       store.setState((state) => ({
@@ -1064,6 +1109,50 @@ function createCatalogWorkspaceStore() {
         repoInventoryError: toErrorMessage(error, 'Unable to register repo.'),
         error: toErrorMessage(error, 'Unable to register repo.'),
         installMessage: 'Repo registration failed.',
+      }));
+      throw error;
+    }
+  }
+
+  async function saveCustomScanRoots(customScanRoots: string[]): Promise<void> {
+    const normalizedRoots = Array.from(new Set(
+      (Array.isArray(customScanRoots) ? customScanRoots : [])
+        .map((root) => normalizeRepoPath(root))
+        .filter(Boolean)
+    ));
+
+    store.setState((state) => ({
+      ...state,
+      mutating: true,
+      error: null,
+      repoInventoryError: null,
+      installMessage: normalizedRoots.length
+        ? `Saving ${normalizedRoots.length} custom scan root(s)...`
+        : 'Clearing custom scan roots...',
+    }));
+
+    try {
+      await saveCatalogRepoScanRoots({
+        customScanRoots: normalizedRoots,
+      });
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+      }));
+      await loadWorkspace();
+      store.setState((state) => ({
+        ...state,
+        installMessage: normalizedRoots.length
+          ? `Saved ${normalizedRoots.length} custom scan root(s).`
+          : 'Cleared custom scan roots.',
+      }));
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        repoInventoryError: toErrorMessage(error, 'Unable to save custom scan roots.'),
+        error: toErrorMessage(error, 'Unable to save custom scan roots.'),
+        installMessage: 'Custom scan root update failed.',
       }));
       throw error;
     }
@@ -1255,6 +1344,7 @@ function createCatalogWorkspaceStore() {
     setPlannerProfile,
     clearRepoActivationOverride,
     registerRepo,
+    saveCustomScanRoots,
     unregisterRepo,
     refreshRepo,
     selectRepo,

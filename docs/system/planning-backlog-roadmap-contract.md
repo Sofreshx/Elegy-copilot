@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-03-15
+updated: 2026-03-16
 category: system
 status: current
 doc_kind: node
@@ -168,6 +168,10 @@ Current dashboard/API entrypoint:
 Legacy planning-record research notes and diagrams may continue to exist for older records through the
 current planning persistence APIs, but they are no longer the canonical planning surface for the new
 workflow.
+
+These record-scoped research/diagram fields and their legacy alias properties are deprecated
+compatibility surfaces. They remain readable for older records, but must not be treated as canonical
+inputs for new backlog, roadmap, or plan-pack flows.
 
 Migration stance:
 

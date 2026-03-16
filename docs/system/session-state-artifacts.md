@@ -66,6 +66,18 @@ These record-scoped research and diagram artifacts are legacy compatibility surf
 records. The repo-backed Planning workflow uses Repository Backlog and Roadmap docs under the selected
 repo instead; see [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
 
+Deprecated compatibility status:
+
+- `PlanningRecord.researchNotes` and `PlanningRecord.diagrams` are deprecated record-scoped planning
+  artifact fields retained for older planning records.
+- `GET /api/planning/records/:id/research`, `POST /api/planning/records/:id/research`,
+  `DELETE /api/planning/records/:id/research/:noteId`, and `GET /api/planning/records/:id/diagrams`
+  remain available only as compatibility routes for legacy record-scoped artifacts.
+- Legacy planning-artifact alias fields (`ResearchNote.noteId`, `ResearchNote.summary`,
+  `ResearchNote.source`, `ResearchNote.updatedAt`, `PlanningDiagram.diagramId`,
+  `PlanningDiagram.updatedAt`) remain backward-compatible only and should not be used for new
+  canonical planning writes.
+
 ### Plan Artifact (`plan.md`)
 
 The plan artifact contains **two top-level documents in one markdown file**:
@@ -785,7 +797,7 @@ For the persisted session execution flow, `Parallel Safe = yes` only means the e
 
 ### Required Stream Predicate Contract
 
-For versioned planpacks (`<!-- IE_PLAN_PACK_VERSION: 1 -->`), `scripts/validate-planpack.js` derives required streams from the `## Work Unit Groups Overview` table.
+For versioned execution-phase planpacks (`<!-- IE_PLAN_PACK_VERSION: 1 -->`), `scripts/validate-planpack-execution.js` derives required streams from the `## Work Unit Groups Overview` table. The shared implementation remains in `scripts/validate-planpack.js`, but that direct entrypoint is migration-only compatibility.
 
 Normalization rule:
 - each `Group` cell is normalized to `G-NN` token (for example `G-06-release-readiness` → `G-06`)
@@ -814,12 +826,13 @@ Examples:
 
 Compatibility behavior:
 - If `IE_PLAN_PACK_VERSION` marker is missing, validator fails closed unless explicit legacy override (`--allow-legacy-best-effort`) is supplied.
+- That override is migration-only and should not be used for normal versioned planpack validation.
 - If marker version is unsupported (`!= 1`), validator fails closed.
 - Version `1` enforces stream evidence predicates and final gate contracts.
 
 ### Trusted Evidence Binding + Retention Contract (G-05-WU-06)
 
-For versioned planpacks where `trustedEvidenceBindingRetention` is marked `passed`, `scripts/validate-planpack.js` enforces trusted evidence and retention checks before final gate success:
+For versioned planpacks where `trustedEvidenceBindingRetention` is marked `passed`, `scripts/validate-planpack-execution.js` enforces trusted evidence and retention checks before final gate success (via the shared `scripts/validate-planpack.js` implementation):
 
 1. `## Trusted Evidence Binding` must include a parseable row with:
   - Commit SHA

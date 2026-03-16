@@ -137,68 +137,6 @@
       "dependsOn": [
         "orchestrator-workflow"
       ]
-    },
-    {
-      "id": "instruction-engine-governance-lanes",
-      "title": "Instruction-Engine Governance & Specialist Lanes",
-      "description": "Repo-local governance, specialist reviewer, and follow-up lanes for instruction-engine-first workflows. Explicit opt-in keeps default routing curated.",
-      "assetIds": [
-        "skill-project-conventions-governance",
-        "skill-documentation-structure-governance",
-        "agent-convention-governor",
-        "agent-doc-structure-governor",
-        "agent-logic-reviewer",
-        "agent-consistency-reviewer",
-        "agent-working-reviewer",
-        "agent-follow-up-finder"
-      ],
-      "installTarget": "repo-local",
-      "activationScope": "repo",
-      "materialization": "on-demand",
-      "tags": [
-        "instruction-engine",
-        "governance",
-        "review",
-        "follow-up"
-      ],
-      "defaultRecommended": false,
-      "dependsOn": [
-        "orchestrator-workflow"
-      ]
-    },
-    {
-      "id": "superpowers-workflow",
-      "title": "Superpowers Workflow Pack",
-      "description": "Optional Jesse Vincent Superpowers workflow skills and reviewer agent, vendored for one-click installation through the catalog control plane.",
-      "assetIds": [
-        "skill-superpowers-brainstorming",
-        "skill-superpowers-dispatching-parallel-agents",
-        "skill-superpowers-executing-plans",
-        "skill-superpowers-finishing-a-development-branch",
-        "skill-superpowers-receiving-code-review",
-        "skill-superpowers-requesting-code-review",
-        "skill-superpowers-subagent-driven-development",
-        "skill-superpowers-systematic-debugging",
-        "skill-superpowers-test-driven-development",
-        "skill-superpowers-using-git-worktrees",
-        "skill-superpowers-using-superpowers",
-        "skill-superpowers-verification-before-completion",
-        "skill-superpowers-writing-plans",
-        "skill-superpowers-writing-skills",
-        "agent-superpowers-code-reviewer"
-      ],
-      "installTarget": "user-global",
-      "activationScope": "global",
-      "materialization": "on-demand",
-      "tags": [
-        "superpowers",
-        "workflow",
-        "planning",
-        "debugging",
-        "tdd"
-      ],
-      "defaultRecommended": false,
-      "dependsOn": []
     }
   ],
   "assets": [
@@ -221,28 +159,10 @@
       "destination": "agents/code-reviewer.agent.md"
     },
     {
-      "id": "agent-consistency-reviewer",
-      "type": "agent",
-      "source": "engine-assets/agents/consistency-reviewer.agent.md",
-      "destination": "agents/consistency-reviewer.agent.md"
-    },
-    {
-      "id": "agent-convention-governor",
-      "type": "agent",
-      "source": "engine-assets/agents/convention-governor.agent.md",
-      "destination": "agents/convention-governor.agent.md"
-    },
-    {
       "id": "agent-deploy-auditor",
       "type": "agent",
       "source": "engine-assets/agents/deploy-auditor.agent.md",
       "destination": "agents/deploy-auditor.agent.md"
-    },
-    {
-      "id": "agent-doc-structure-governor",
-      "type": "agent",
-      "source": "engine-assets/agents/doc-structure-governor.agent.md",
-      "destination": "agents/doc-structure-governor.agent.md"
     },
     {
       "id": "agent-doc-writer",
@@ -273,12 +193,6 @@
       "type": "agent",
       "source": "engine-assets/agents/final-reviewer.agent.md",
       "destination": "agents/final-reviewer.agent.md"
-    },
-    {
-      "id": "agent-follow-up-finder",
-      "type": "agent",
-      "source": "engine-assets/agents/follow-up-finder.agent.md",
-      "destination": "agents/follow-up-finder.agent.md"
     },
     {
       "id": "agent-goal-reviewer",
@@ -321,12 +235,6 @@
       "type": "agent",
       "source": "engine-assets/agents/integration-test-runner.agent.md",
       "destination": "agents/integration-test-runner.agent.md"
-    },
-    {
-      "id": "agent-logic-reviewer",
-      "type": "agent",
-      "source": "engine-assets/agents/logic-reviewer.agent.md",
-      "destination": "agents/logic-reviewer.agent.md"
     },
     {
       "id": "agent-o-planner",
@@ -407,12 +315,6 @@
       "destination": "agents/stack-auditor.agent.md"
     },
     {
-      "id": "agent-superpowers-code-reviewer",
-      "type": "agent",
-      "source": "engine-assets/agents/superpowers-code-reviewer.agent.md",
-      "destination": "agents/superpowers-code-reviewer.agent.md"
-    },
-    {
       "id": "agent-unit-test-runner",
       "type": "agent",
       "source": "engine-assets/agents/unit-test-runner.agent.md",
@@ -429,12 +331,6 @@
       "type": "agent",
       "source": "engine-assets/agents/work-unit-runner.agent.md",
       "destination": "agents/work-unit-runner.agent.md"
-    },
-    {
-      "id": "agent-working-reviewer",
-      "type": "agent",
-      "source": "engine-assets/agents/working-reviewer.agent.md",
-      "destination": "agents/working-reviewer.agent.md"
     },
     {
       "id": "copilot-instructions",
@@ -524,13 +420,6 @@
       "loadMode": "always"
     },
     {
-      "id": "skill-documentation-structure-governance",
-      "type": "skill",
-      "source": "engine-assets/skills/documentation-structure-governance",
-      "destination": "skills/documentation-structure-governance",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "skill-e2e-workflow",
       "type": "skill",
       "source": "engine-assets/skills/e2e-workflow",
@@ -601,13 +490,6 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "skill-project-conventions-governance",
-      "type": "skill",
-      "source": "engine-assets/skills/project-conventions-governance",
-      "destination": "skills/project-conventions-governance",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "skill-react-query",
       "type": "skill",
       "source": "engine-assets/skills/react-query",
@@ -618,7 +500,8 @@
       "id": "skill-roadmap-authoring",
       "type": "skill",
       "source": "engine-assets/skills/roadmap-authoring",
-      "destination": "skills/roadmap-authoring"
+      "destination": "skills/roadmap-authoring",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-security",
@@ -640,104 +523,6 @@
       "source": "engine-assets/skills/stack-detector",
       "destination": "skills/stack-detector",
       "loadMode": "always"
-    },
-    {
-      "id": "skill-superpowers-brainstorming",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-brainstorming",
-      "destination": "skills/superpowers-brainstorming",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-dispatching-parallel-agents",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-dispatching-parallel-agents",
-      "destination": "skills/superpowers-dispatching-parallel-agents",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-executing-plans",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-executing-plans",
-      "destination": "skills/superpowers-executing-plans",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-finishing-a-development-branch",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-finishing-a-development-branch",
-      "destination": "skills/superpowers-finishing-a-development-branch",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-receiving-code-review",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-receiving-code-review",
-      "destination": "skills/superpowers-receiving-code-review",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-requesting-code-review",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-requesting-code-review",
-      "destination": "skills/superpowers-requesting-code-review",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-subagent-driven-development",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-subagent-driven-development",
-      "destination": "skills/superpowers-subagent-driven-development",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-systematic-debugging",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-systematic-debugging",
-      "destination": "skills/superpowers-systematic-debugging",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-test-driven-development",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-test-driven-development",
-      "destination": "skills/superpowers-test-driven-development",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-using-git-worktrees",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-using-git-worktrees",
-      "destination": "skills/superpowers-using-git-worktrees",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-using-superpowers",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-using-superpowers",
-      "destination": "skills/superpowers-using-superpowers",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-verification-before-completion",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-verification-before-completion",
-      "destination": "skills/superpowers-verification-before-completion",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-writing-plans",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-writing-plans",
-      "destination": "skills/superpowers-writing-plans",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-superpowers-writing-skills",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-writing-skills",
-      "destination": "skills/superpowers-writing-skills",
-      "loadMode": "on-demand"
     },
     {
       "id": "skill-testing-dotnet-unit",

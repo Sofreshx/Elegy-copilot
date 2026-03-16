@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-25
+updated: 2026-03-16
 category: system
 status: current
 doc_kind: node
@@ -14,7 +14,7 @@ related: [auth-architecture-adr, adr-001-bind-mount-convention]
 
 ## Problem
 
-Docker socket (`/var/run/docker.sock`) access is effectively root-equivalent on the host. The local-tracker gateway process needs socket access to manage sandbox containers via `dockerode` (see `containerManager.ts`).
+Docker socket (`/var/run/docker.sock`) access is effectively root-equivalent on the host. This policy applies only when the optional messaging-gateway / sandbox-orchestration runtime is enabled under `local-tracker/`; the baseline tracker loop does not require Docker socket access. The optional gateway process needs socket access to manage sandbox containers via `dockerode` (see `containerManager.ts`).
 
 ## Policy Decisions
 

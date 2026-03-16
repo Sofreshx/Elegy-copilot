@@ -5,13 +5,20 @@ DRY_RUN=false
 FORCE=false
 POINTER_MODE=true
 OVERWRITE_MODE=""
+INSTALL_PROFILE="minimal"
 
 DO_CLI=false
 DO_VSCODE=false
 VSCODE_SETTINGS=""
 VSCODE_HOME=""
 
+SKIP_NEXT_ARG=false
 for arg in "$@"; do
+  if $SKIP_NEXT_ARG; then
+    SKIP_NEXT_ARG=false
+    continue
+  fi
+
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
     --force) FORCE=true ;;
@@ -19,14 +26,28 @@ for arg in "$@"; do
     --vscode) DO_VSCODE=true ;;
     --all) DO_CLI=true; DO_VSCODE=true ;;
     --pointer) POINTER_MODE=true ;;
+    --profile=*) INSTALL_PROFILE="${arg#--profile=}" ;;
+    --profile|--vscode-settings|--vscode-home) SKIP_NEXT_ARG=true ;;
+    --minimal|--public) INSTALL_PROFILE="minimal" ;;
+    --full|--internal) INSTALL_PROFILE="full" ;;
     --vscode-settings=*) VSCODE_SETTINGS="${arg#--vscode-settings=}" ;;
     --vscode-home=*) VSCODE_HOME="${arg#--vscode-home=}" ;;
-    *) echo "Unknown arg: $arg (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --vscode-settings=<path>, --vscode-home=<path>)" >&2; exit 2 ;;
+    *) echo "Unknown arg: $arg (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --profile=<minimal|full>, --minimal, --full, --public, --internal, --vscode-settings=<path>, --vscode-home=<path>)" >&2; exit 2 ;;
   esac
 done
 
-# Handle the space-separated form: --vscode-settings <path>
+# Handle the space-separated forms: --profile <name>, --vscode-settings <path>, --vscode-home <path>
 for ((i=1; i<=$#; i++)); do
+  if [[ "${!i}" == "--profile" ]]; then
+    next=$((i+1))
+    if [[ $next -le $# ]]; then
+      INSTALL_PROFILE="${!next}"
+    else
+      echo "Missing value for --profile" >&2
+      exit 2
+    fi
+  fi
+
   if [[ "${!i}" == "--vscode-settings" ]]; then
     next=$((i+1))
     if [[ $next -le $# ]]; then
@@ -47,6 +68,19 @@ for ((i=1; i<=$#; i++)); do
     fi
   fi
 done
+
+normalize_install_profile() {
+  case "${1,,}" in
+    minimal|public) echo "minimal" ;;
+    full|internal) echo "full" ;;
+    *)
+      echo "Unsupported install profile: $1 (supported: minimal, full, public, internal)" >&2
+      exit 2
+      ;;
+  esac
+}
+
+INSTALL_PROFILE="$(normalize_install_profile "$INSTALL_PROFILE")"
 
 if ! $DO_CLI && ! $DO_VSCODE; then
   DO_CLI=true
@@ -93,6 +127,18 @@ resolve_vscode_home() {
   echo "$(default_vscode_home)"
 }
 
+array_contains() {
+  local target="$1"
+  shift || true
+  local item
+  for item in "$@"; do
+    if [[ "$item" == "$target" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 if $DO_CLI; then
   [[ -d "$SRC_AGENTS_ROOT" ]] || { echo "Missing agents source: $SRC_AGENTS_ROOT" >&2; exit 1; }
   [[ -d "$SRC_SKILLS_ROOT" ]] || { echo "Missing skills source: $SRC_SKILLS_ROOT" >&2; exit 1; }
@@ -117,6 +163,7 @@ fi
 echo "Copilot home: $COPILOT_HOME"
 echo "Engine root:  $ENGINE_ROOT"
 echo "Modes:        cli=$DO_CLI vscode=$DO_VSCODE"
+echo "Profile:      $INSTALL_PROFILE"
 
 VSCODE_HOME_RESOLVED="$(resolve_vscode_home)"
 echo "VS Code home: $VSCODE_HOME_RESOLVED"
@@ -330,9 +377,10 @@ write_install_state() {
 
   local state_file
   state_file="$(install_state_path "$root")"
-  local managed_json always_json
+  local managed_json always_json vault_json
   managed_json="$(node -e "console.log(JSON.stringify(process.argv.slice(1).filter(Boolean).sort()))" "${CURRENT_MANAGED_SKILLS[@]}")"
   always_json="$(node -e "console.log(JSON.stringify(process.argv.slice(1).filter(Boolean).sort()))" "${CURRENT_ALWAYS_SKILLS[@]}")"
+  vault_json="$(node -e "console.log(JSON.stringify(process.argv.slice(1).filter(Boolean).sort()))" "${CURRENT_VAULT_SKILLS[@]}")"
 
   if $DRY_RUN; then
     echo "[DRY-RUN] WRITE-STATE $state_file"
@@ -340,7 +388,7 @@ write_install_state() {
   fi
 
   mkdir_if_needed "$(dirname "$state_file")"
-  printf '{\n  "schemaVersion": 1,\n  "managedSkills": %s,\n  "alwaysLoadedSkills": %s\n}\n' "$managed_json" "$always_json" > "$state_file"
+  printf '{\n  "schemaVersion": 2,\n  "installProfile": "%s",\n  "managedSkills": %s,\n  "alwaysLoadedSkills": %s,\n  "vaultSkills": %s\n}\n' "$INSTALL_PROFILE" "$managed_json" "$always_json" "$vault_json" > "$state_file"
   echo "[STATE]  $state_file"
 }
 
@@ -350,16 +398,23 @@ prune_managed_skill_install() {
   state_file="$(install_state_path "$root")"
 
   local -a previous_managed=()
+  local -a previous_vault=()
   if command -v node >/dev/null 2>&1 && [[ -f "$state_file" ]]; then
     while IFS= read -r line; do
       [[ -n "$line" ]] && previous_managed+=("$line")
     done < <(node -e "try { const state = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')); for (const item of (state.managedSkills || [])) console.log(String(item)); } catch {}" "$state_file")
+
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && previous_vault+=("$line")
+    done < <(node -e "try { const state = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')); const skills = Array.isArray(state.vaultSkills) ? state.vaultSkills : (state.managedSkills || []); for (const item of skills) console.log(String(item)); } catch {}" "$state_file")
   fi
 
   local -a prune_candidates=()
   prune_candidates+=("${CURRENT_MANAGED_SKILLS[@]}")
+  prune_candidates+=("${CURRENT_VAULT_SKILLS[@]}")
   prune_candidates+=("${LEGACY_MANAGED_SKILLS[@]}")
   prune_candidates+=("${previous_managed[@]}")
+  prune_candidates+=("${previous_vault[@]}")
 
   local -a unique_candidates=()
   while IFS= read -r line; do
@@ -367,7 +422,7 @@ prune_managed_skill_install() {
   done < <(printf '%s\n' "${prune_candidates[@]}" | awk 'NF && !seen[$0]++')
 
   for skill_name in "${unique_candidates[@]}"; do
-    if printf '%s\n' "${CURRENT_ALWAYS_SKILLS[@]}" | awk -v target="$skill_name" '$0 == target { found = 1 } END { exit(found ? 0 : 1) }'; then
+    if array_contains "$skill_name" "${CURRENT_ALWAYS_SKILLS[@]}"; then
       continue
     fi
 
@@ -376,7 +431,7 @@ prune_managed_skill_install() {
   done
 
   for skill_name in "${unique_candidates[@]}"; do
-    if printf '%s\n' "${CURRENT_MANAGED_SKILLS[@]}" | awk -v target="$skill_name" '$0 == target { found = 1 } END { exit(found ? 0 : 1) }'; then
+    if array_contains "$skill_name" "${CURRENT_VAULT_SKILLS[@]}"; then
       continue
     fi
 
@@ -394,7 +449,7 @@ if $DO_VSCODE; then
 fi
 
 # Load manifest to determine loadMode for skills in pointer mode.
-# Skills with loadMode "always" go to skills/ (full); others go vault-only.
+# Skills with loadMode "always" go to skills/; vault materialization is profile-dependent.
 MANIFEST_FILE="$SRC_ASSETS_ROOT/manifest.json"
 SKILL_LOAD_MODE_CACHE=""
 SKILL_MANIFEST_WARNING_EMITTED=0
@@ -521,7 +576,13 @@ for skill_name in "${CURRENT_MANAGED_SKILLS[@]}"; do
   fi
 done
 
-echo "Skills:       managed=${#CURRENT_MANAGED_SKILLS[@]} always=${#CURRENT_ALWAYS_SKILLS[@]} on-demand=${#CURRENT_ON_DEMAND_SKILLS[@]} pointer=$POINTER_MODE"
+CURRENT_VAULT_SKILLS=()
+case "$INSTALL_PROFILE" in
+  full) CURRENT_VAULT_SKILLS=("${CURRENT_MANAGED_SKILLS[@]}") ;;
+  minimal) CURRENT_VAULT_SKILLS=("${CURRENT_ALWAYS_SKILLS[@]}") ;;
+esac
+
+echo "Skills:       managed=${#CURRENT_MANAGED_SKILLS[@]} always=${#CURRENT_ALWAYS_SKILLS[@]} on-demand=${#CURRENT_ON_DEMAND_SKILLS[@]} vault=${#CURRENT_VAULT_SKILLS[@]} pointer=$POINTER_MODE"
 
 if $DO_CLI; then
   # engine-assets/agents/*.agent.md -> <copilotHome>/agents/ (flatten)
@@ -533,7 +594,7 @@ if $DO_CLI; then
 
   # engine-assets/skills/<skill>/** -> <copilotHome>/skills/<skill>/**
   mkdir_if_needed "$COPILOT_HOME/skills"
-  echo "CLI skills:   installing managed=${#CURRENT_MANAGED_SKILLS[@]} always=${#CURRENT_ALWAYS_SKILLS[@]} on-demand=${#CURRENT_ON_DEMAND_SKILLS[@]}"
+  echo "CLI skills:   installing managed=${#CURRENT_MANAGED_SKILLS[@]} always=${#CURRENT_ALWAYS_SKILLS[@]} on-demand=${#CURRENT_ON_DEMAND_SKILLS[@]} vault=${#CURRENT_VAULT_SKILLS[@]}"
   if $POINTER_MODE; then
     mkdir_if_needed "$COPILOT_HOME/skills-vault"
     for src_dir in "$SRC_SKILLS_ROOT"/*; do
@@ -543,10 +604,11 @@ if $DO_CLI; then
       if [[ "$load_mode" == "always" ]]; then
         # Always-loaded: install full skill to skills/ (scanned by VS Code)
         sync_dir "$src_dir" "$COPILOT_HOME/skills/$skill_name"
-        # Also copy to vault for search index consistency
-        sync_dir "$src_dir" "$COPILOT_HOME/skills-vault/$skill_name"
-      else
-        # On-demand: vault only — NOT in skills/ scan path
+      fi
+
+      if array_contains "$skill_name" "${CURRENT_VAULT_SKILLS[@]}"; then
+        # Vault installs are profile-dependent. Full installs all managed skills;
+        # minimal installs the always-loaded subset only.
         sync_dir "$src_dir" "$COPILOT_HOME/skills-vault/$skill_name"
       fi
     done
@@ -575,7 +637,7 @@ if $DO_VSCODE; then
   done
 
   mkdir_if_needed "$VSCODE_HOME_RESOLVED/skills"
-  echo "VS Code skills: installing managed=${#CURRENT_MANAGED_SKILLS[@]} always=${#CURRENT_ALWAYS_SKILLS[@]} on-demand=${#CURRENT_ON_DEMAND_SKILLS[@]}"
+  echo "VS Code skills: installing managed=${#CURRENT_MANAGED_SKILLS[@]} always=${#CURRENT_ALWAYS_SKILLS[@]} on-demand=${#CURRENT_ON_DEMAND_SKILLS[@]} vault=${#CURRENT_VAULT_SKILLS[@]}"
   if $POINTER_MODE; then
     mkdir_if_needed "$VSCODE_HOME_RESOLVED/skills-vault"
     for src_dir in "$SRC_SKILLS_ROOT"/*; do
@@ -585,10 +647,11 @@ if $DO_VSCODE; then
       if [[ "$load_mode" == "always" ]]; then
         # Always-loaded: install full skill to skills/ (scanned by VS Code)
         sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills/$skill_name"
-        # Also copy to vault for search index consistency
-        sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills-vault/$skill_name"
-      else
-        # On-demand: vault only — NOT in skills/ scan path
+      fi
+
+      if array_contains "$skill_name" "${CURRENT_VAULT_SKILLS[@]}"; then
+        # Vault installs are profile-dependent. Full installs all managed skills;
+        # minimal installs the always-loaded subset only.
         sync_dir "$src_dir" "$VSCODE_HOME_RESOLVED/skills-vault/$skill_name"
       fi
     done

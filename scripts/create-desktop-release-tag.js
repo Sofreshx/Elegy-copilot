@@ -6,6 +6,7 @@ const path = require('path');
 
 const DESKTOP_PACKAGE_NAME = 'instruction-engine-desktop';
 const DESKTOP_PACKAGE_PATH = 'copilot-ui/package.json';
+const EXPLICIT_DESKTOP_RELEASE_FLAG = '--desktop-release';
 
 function run(command, options = {}) {
   return execSync(command, {
@@ -41,8 +42,33 @@ function getVersionFromGitObject(gitObjectPath) {
   }
 }
 
+function printUsage() {
+  console.log(
+    [
+      'Usage: node scripts/create-desktop-release-tag.js --desktop-release [--dry-run]',
+      '',
+      'Explicit helper for manual desktop release flows only.',
+    ].join('\n')
+  );
+}
+
 function main() {
-  const dryRun = process.argv.includes('--dry-run');
+  const args = process.argv.slice(2);
+  const dryRun = args.includes('--dry-run');
+  const showHelp = args.includes('--help') || args.includes('-h');
+  const explicitDesktopRelease = args.includes(EXPLICIT_DESKTOP_RELEASE_FLAG);
+
+  if (showHelp) {
+    printUsage();
+    return;
+  }
+
+  if (!explicitDesktopRelease) {
+    throw new Error(
+      `Refusing to run desktop tag helper outside an explicit desktop release flow. Re-run with ${EXPLICIT_DESKTOP_RELEASE_FLAG}.`
+    );
+  }
+
   const repoRoot = run('git rev-parse --show-toplevel');
   const packageJsonPath = path.join(repoRoot, DESKTOP_PACKAGE_PATH);
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));

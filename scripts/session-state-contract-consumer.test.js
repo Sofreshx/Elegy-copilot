@@ -6,7 +6,10 @@ const fs = require('fs');
 const path = require('path');
 
 const {
+	CONTRACT_MANIFEST_FILE,
+	COMPATIBILITY_MANIFEST_FILE,
 	loadContractManifest,
+	loadCompatibilityManifest,
 	validateWorkflowPayload,
 } = require('./session-state-contract-consumer');
 
@@ -30,11 +33,21 @@ function readFixture() {
 	return JSON.parse(fs.readFileSync(sampleFixturePath, 'utf8'));
 }
 
-test('loads the local contract manifest', () => {
+test('loads the canonical local contract manifest', () => {
 	const loaded = loadContractManifest();
+	assert.strictEqual(path.basename(loaded.manifestPath), CONTRACT_MANIFEST_FILE);
 	assert.strictEqual(typeof loaded.manifest.manifestVersion, 'string');
 	assert.ok(Array.isArray(loaded.manifest.schemas));
 	assert.ok(loaded.manifest.schemas.some((entry) => entry.name === 'canonical-workflow'));
+});
+
+test('loads legacy compatibility metadata separately from the schema catalog', () => {
+	const loaded = loadCompatibilityManifest();
+	assert.strictEqual(path.basename(loaded.manifestPath), COMPATIBILITY_MANIFEST_FILE);
+	assert.strictEqual(loaded.manifest.metadataKind, 'legacy-compatibility');
+	assert.strictEqual(loaded.manifest.contractManifestFile, CONTRACT_MANIFEST_FILE);
+	assert.strictEqual(Array.isArray(loaded.manifest.schemas), false);
+	assert.strictEqual(loaded.manifest.canonicalSchema.name, 'canonical-workflow');
 });
 
 test('accepts the canonical minimal fixture payload', () => {

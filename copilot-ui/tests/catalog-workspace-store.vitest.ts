@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mockGetCatalogSummary = vi.fn();
 const mockGetCatalogBundles = vi.fn();
 const mockGetCatalogAssets = vi.fn();
-const mockGetCatalogBundles = vi.fn();
 const mockGetRuntimeCatalogHealth = vi.fn();
 const mockGetCatalogAssetDetail = vi.fn();
 const mockGetCatalogAuditEvents = vi.fn();
@@ -19,6 +18,7 @@ const mockInstallCatalogAsset = vi.fn();
 const mockEnableCatalogAsset = vi.fn();
 const mockDisableCatalogAsset = vi.fn();
 const mockRegisterCatalogRepo = vi.fn();
+const mockSaveCatalogRepoScanRoots = vi.fn();
 const mockSelectCatalogRepo = vi.fn();
 const mockRefreshCatalogRepo = vi.fn();
 const mockUnregisterCatalogRepo = vi.fn();
@@ -40,6 +40,7 @@ vi.mock('../ui/src/lib/api', () => ({
   refreshCatalogProjection: mockRefreshCatalogProjection,
   refreshCatalogRepo: mockRefreshCatalogRepo,
   registerCatalogRepo: mockRegisterCatalogRepo,
+  saveCatalogRepoScanRoots: mockSaveCatalogRepoScanRoots,
   searchCatalogAssets: mockSearchCatalogAssets,
   selectCatalogRepo: mockSelectCatalogRepo,
   syncAllAssets: mockSyncAllAssets,
@@ -68,6 +69,7 @@ describe('catalogWorkspaceStore', () => {
     mockEnableCatalogAsset.mockReset();
     mockDisableCatalogAsset.mockReset();
     mockRegisterCatalogRepo.mockReset();
+    mockSaveCatalogRepoScanRoots.mockReset();
     mockSelectCatalogRepo.mockReset();
     mockRefreshCatalogRepo.mockReset();
     mockUnregisterCatalogRepo.mockReset();
@@ -78,8 +80,47 @@ describe('catalogWorkspaceStore', () => {
     vi.resetModules();
   });
 
+  function primeWorkspaceLoad() {
+    mockGetCatalogSummary.mockResolvedValue({
+      summary: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+        stats: {
+          effectiveCount: 0,
+          installedCount: 0,
+          overriddenCount: 0,
+        },
+      },
+    });
+    mockGetCatalogAssets.mockResolvedValue({
+      assets: [],
+    });
+    mockGetCatalogBundles.mockResolvedValue({
+      bundles: [],
+    });
+    mockGetRuntimeCatalogHealth.mockResolvedValue({
+      ok: true,
+      projection: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+      },
+    });
+    mockGetCatalogAuditEvents.mockResolvedValue({
+      events: [],
+    });
+  }
+
   it('loads the catalog workspace, selects the first asset, and hydrates audit plus content preview', async () => {
     mockGetCatalogRepos.mockResolvedValue({
+      workspaceScan: {
+        storage: {
+          path: 'C:\\Users\\tester\\.copilot\\catalog\\repo-discovery.json',
+          exists: true,
+        },
+        defaultRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+        customScanRoots: ['D:\\work\\repos'],
+        scanRoots: ['C:\\Users\\tester\\Documents\\GitHub', 'D:\\work\\repos'],
+      },
       repos: [],
       selectedRepo: null,
     });
@@ -210,6 +251,7 @@ describe('catalogWorkspaceStore', () => {
     expect(state.selectedEntries).toHaveLength(1);
     expect(state.auditEvents).toHaveLength(1);
     expect(state.selectedAssetContent).toContain('Test skill');
+    expect(state.repoInventory?.workspaceScan?.customScanRoots).toEqual(['D:\\work\\repos']);
   });
 
   it('prefers explicit metadata view paths for nested installed assets', async () => {
@@ -487,6 +529,128 @@ describe('catalogWorkspaceStore', () => {
     expect(mockInstallCatalogAsset).toHaveBeenNthCalledWith(1, { assetId: 'skill-superpowers-brainstorming' });
     expect(mockInstallCatalogAsset).toHaveBeenNthCalledWith(2, { assetId: 'agent-superpowers-code-reviewer' });
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Installed 2 bundle asset(s)');
+  });
+
+  it('registers repo metadata without auto-selecting the repo scope', async () => {
+    primeWorkspaceLoad();
+    mockGetCatalogRepos
+      .mockResolvedValueOnce({
+        workspaceScan: {
+          customScanRoots: [],
+          defaultRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+          scanRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+        },
+        repos: [],
+        selectedRepo: null,
+      })
+      .mockResolvedValueOnce({
+        workspaceScan: {
+          customScanRoots: [],
+          defaultRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+          scanRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+        },
+        repos: [
+          {
+            repoId: 'repo-1',
+            repoPath: 'C:\\repo',
+            repoLabel: 'Repo',
+            registered: true,
+            selected: false,
+            sources: ['manual'],
+          },
+        ],
+        selectedRepo: null,
+      });
+    mockRegisterCatalogRepo.mockResolvedValue({
+      repo: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\repo',
+        repoLabel: 'Repo',
+        registered: true,
+      },
+      selectedRepo: null,
+    });
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    await catalogWorkspaceStore.loadWorkspace();
+    await catalogWorkspaceStore.registerRepo('C:\\repo', 'Repo');
+
+    expect(mockRegisterCatalogRepo).toHaveBeenCalledWith({
+      repoPath: 'C:\\repo',
+      repoLabel: 'Repo',
+    });
+    expect(catalogWorkspaceStore.getState().activeRepoPath).toBe('');
+    expect(catalogWorkspaceStore.getState().activeRepoId).toBe('');
+    expect(catalogWorkspaceStore.getState().repoPathInput).toBe('C:\\repo');
+    expect(catalogWorkspaceStore.getState().repoInventory?.selectedRepo).toBeNull();
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Registered Repo for discovery metadata');
+  });
+
+  it('saves persisted custom scan roots and reloads discovered repo inventory', async () => {
+    primeWorkspaceLoad();
+    mockGetCatalogRepos
+      .mockResolvedValueOnce({
+        workspaceScan: {
+          customScanRoots: [],
+          defaultRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+          scanRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+        },
+        repos: [],
+        selectedRepo: null,
+      })
+      .mockResolvedValueOnce({
+        workspaceScan: {
+          storage: {
+            path: 'C:\\Users\\tester\\.copilot\\catalog\\repo-discovery.json',
+            exists: true,
+          },
+          customScanRoots: ['D:\\work\\repos'],
+          defaultRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+          scanRoots: ['C:\\Users\\tester\\Documents\\GitHub', 'D:\\work\\repos'],
+        },
+        repos: [
+          {
+            repoId: 'discovered-repo',
+            repoPath: 'D:\\work\\repos\\catalog-app',
+            repoLabel: 'catalog-app',
+            selected: false,
+            registered: false,
+            sources: ['workspace-scan'],
+          },
+        ],
+        selectedRepo: null,
+      });
+    mockSaveCatalogRepoScanRoots.mockResolvedValue({
+      updated: true,
+      workspaceScan: {
+        customScanRoots: ['D:\\work\\repos'],
+        defaultRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+        scanRoots: ['C:\\Users\\tester\\Documents\\GitHub', 'D:\\work\\repos'],
+      },
+      repos: [
+        {
+          repoId: 'discovered-repo',
+          repoPath: 'D:\\work\\repos\\catalog-app',
+          repoLabel: 'catalog-app',
+          sources: ['workspace-scan'],
+        },
+      ],
+      selectedRepo: null,
+    });
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    await catalogWorkspaceStore.loadWorkspace();
+    await catalogWorkspaceStore.saveCustomScanRoots(['D:\\work\\repos']);
+
+    expect(mockSaveCatalogRepoScanRoots).toHaveBeenCalledWith({
+      customScanRoots: ['D:\\work\\repos'],
+    });
+    expect(catalogWorkspaceStore.getState().repoInventory?.workspaceScan?.customScanRoots).toEqual(['D:\\work\\repos']);
+    expect(catalogWorkspaceStore.getState().repoInventory?.repos[0]?.sources).toEqual(['workspace-scan']);
+    expect(catalogWorkspaceStore.getState().activeRepoPath).toBe('');
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Saved 1 custom scan root');
   });
 
   it('creates a repo-local asset and reloads the workspace around the mutation', async () => {

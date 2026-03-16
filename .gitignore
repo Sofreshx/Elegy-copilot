@@ -27,9 +27,12 @@ yarn-error.log*
 # System & Temp
 .DS_Store
 tmpclaude-*
+.playwright-mcp/
 .vscode-test/
 **/.vscode-test/
 .vscode/mcp.json
+RannIA/.vscode/launch.json
+instruction-engine.code-workspace
 *.vsix
 *.tsbuildinfo
 

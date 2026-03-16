@@ -422,7 +422,7 @@ Run the narrowest relevant checks:
 
 1. `node scripts/validate-doc-graph.js`
 2. `node scripts/validate-manifest.js`
-3. `node scripts/validate-planpack.js <path>` when planning-contract changes are touched
+3. `node scripts/validate-planpack-planning.js <path> --ac-enforcement fail` for plan-authoring changes, or `node scripts/validate-planpack-execution.js <path>` for execution/final-gate changes (`validate-planpack.js` is migration-only compatibility)
 4. `node scripts/validate-skill-discovery-map.js` for skill mapping parity (new)
 5. `node scripts/validate-orchestration-contracts.js` for output schema conformance (new)
 6. `node scripts/validate-session-memory-conventions.js` for index/compaction rules (new)

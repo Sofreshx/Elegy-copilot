@@ -821,6 +821,13 @@ if (!fs.existsSync(filePath)) {
 }
 
 const content = fs.readFileSync(filePath, 'utf8');
+const legacyCompatibilityMode = cliOptions.phase === 'full';
+
+if (legacyCompatibilityMode) {
+	console.error(
+		'planpack warning: validate-planpack.js is a migration-only compatibility entrypoint; prefer validate-planpack-planning.js or validate-planpack-execution.js'
+	);
+}
 
 // Stop parsing at progress tracker heading
 const stopMarker = '# Plan-Pack Progress Tracker';
@@ -833,7 +840,7 @@ const versionRe = /<!--\s*IE_PLAN_PACK_VERSION:\s*(\d+)\s*-->/;
 const versionMatch = body.match(versionRe);
 if (!versionMatch) {
 	if (cliOptions.allowLegacyBestEffort) {
-		console.log('planpack warning: no version marker found (legacy best-effort override active)');
+		console.error('planpack warning: no version marker found (migration-only legacy best-effort override active)');
 		process.exit(0);
 	}
 	console.error('planpack invalid:\n  missing required version marker: <!-- IE_PLAN_PACK_VERSION: N -->');

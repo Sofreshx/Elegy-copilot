@@ -71,7 +71,8 @@ Each WU spec (H3) must contain:
 - Preferred scripted validation when the validator scripts are available in the current workspace:
   - Planning phase validator: `node scripts/validate-planpack-planning.js <plan.md> --ac-enforcement fail`
   - Execution/final-gate validator: `node scripts/validate-planpack-execution.js <plan.md>`
-  - Compatibility/full validator: `node scripts/validate-planpack.js <plan.md>`
+  - Legacy compatibility validator (migration-only): `node scripts/validate-planpack.js <plan.md>`
+  - Prefer the phase-specific validators in all new instructions, examples, and automation.
 - Portable fallback when those scripts are unavailable (for example, installed assets outside the instruction-engine repo):
   - Manually verify the required H2 sections are present and in order.
   - Manually verify each WU spec contains the required sub-sections.

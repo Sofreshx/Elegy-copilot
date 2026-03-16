@@ -9,6 +9,7 @@ import type {
   CatalogEntry,
   CatalogProviderProjection,
   CatalogRepoInventoryEntry,
+  CatalogRepoInventoryWorkspaceScan,
 } from '../../lib/types';
 import { catalogWorkspaceStore } from './catalogWorkspaceStore';
 
@@ -91,6 +92,43 @@ function samePath(left: string | null | undefined, right: string | null | undefi
   const normalizedLeft = normalizePathForComparison(left);
   const normalizedRight = normalizePathForComparison(right);
   return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
+function dedupePaths(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const normalizedValue = normalizePath(value);
+    if (!normalizedValue) {
+      continue;
+    }
+    const comparisonKey = normalizePathForComparison(normalizedValue);
+    if (!comparisonKey || seen.has(comparisonKey)) {
+      continue;
+    }
+    seen.add(comparisonKey);
+    result.push(normalizedValue);
+  }
+  return result;
+}
+
+function parsePathListInput(input: string): string[] {
+  return dedupePaths(
+    input
+      .split(/\r?\n|,/)
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
+}
+
+function buildPathListKey(values: string[]): string {
+  return dedupePaths(values)
+    .map((value) => normalizePathForComparison(value))
+    .join('|');
+}
+
+function formatPathList(values: string[] | null | undefined): string {
+  return Array.isArray(values) && values.length > 0 ? values.join(' · ') : '—';
 }
 
 function matchesText(asset: CatalogEffectiveAsset, query: string): boolean {
@@ -535,6 +573,8 @@ function describeRepoAssetSummary(repo: CatalogRepoInventoryEntry): string {
 export default function AssetsView() {
   const catalogState = useStoreValue(catalogWorkspaceStore);
   const [repoLabelInput, setRepoLabelInput] = useState('');
+  const [customScanRootsInput, setCustomScanRootsInput] = useState('');
+  const [customScanRootsDirty, setCustomScanRootsDirty] = useState(false);
   const [plannerProfileDraft, setPlannerProfileDraft] = useState(BALANCED_DEFAULT_PROFILE_ID);
   const [createDraft, setCreateDraft] = useState<AssetDraftState>(createEmptyDraft());
   const [editTargetId, setEditTargetId] = useState('');
@@ -585,6 +625,13 @@ export default function AssetsView() {
   const runtimeProjection = catalogState.runtimeHealth?.projection;
   const repoInventory = catalogState.repoInventory;
   const repoList = repoInventory?.repos ?? [];
+  const workspaceScan: CatalogRepoInventoryWorkspaceScan | null = repoInventory?.workspaceScan ?? null;
+  const savedCustomScanRoots = workspaceScan?.customScanRoots ?? [];
+  const draftCustomScanRoots = useMemo(() => parsePathListInput(customScanRootsInput), [customScanRootsInput]);
+  const customScanRootsChanged = useMemo(
+    () => buildPathListKey(savedCustomScanRoots) !== buildPathListKey(draftCustomScanRoots),
+    [savedCustomScanRoots, draftCustomScanRoots]
+  );
   const bundleStats = useMemo(() => {
     const totalCount = catalogState.bundles.length;
     const activeCount = activationState?.activeBundleIds?.length ?? catalogState.bundles.filter((bundle) => isBundleActive(bundle)).length;
@@ -697,6 +744,13 @@ export default function AssetsView() {
     const nextPlannerProfile = activationState?.plannerProfile || BALANCED_DEFAULT_PROFILE_ID;
     setPlannerProfileDraft((current) => (current === nextPlannerProfile ? current : nextPlannerProfile));
   }, [activationState?.plannerProfile]);
+
+  useEffect(() => {
+    const nextInput = savedCustomScanRoots.join('\n');
+    if (!customScanRootsDirty) {
+      setCustomScanRootsInput((current) => (current === nextInput ? current : nextInput));
+    }
+  }, [savedCustomScanRoots, customScanRootsDirty]);
 
   const handleCreateDraftChange = (updates: Partial<AssetDraftState>) => {
     setCreateDraft((current) => ({ ...current, ...updates }));
@@ -839,6 +893,13 @@ export default function AssetsView() {
       return;
     }
     await catalogWorkspaceStore.clearRepoActivationOverride(activationRepoPath);
+  };
+
+  const handleSaveCustomScanRoots = async () => {
+    const nextRoots = parsePathListInput(customScanRootsInput);
+    await catalogWorkspaceStore.saveCustomScanRoots(nextRoots);
+    setCustomScanRootsDirty(false);
+    setCustomScanRootsInput(nextRoots.join('\n'));
   };
 
   return (
@@ -999,7 +1060,7 @@ export default function AssetsView() {
 
       <div className="catalog-grid">
         <Panel
-          subtitle="Explicit repo inventory, selection, registration, and repo-local scan visibility from the catalog repo endpoints."
+          subtitle="Discovered repos surface automatically from persisted workspace scan roots, while explicit selection remains the activation gate for repo-local catalog and planning context."
           testId="catalog-repo-panel"
           title="Repo scope & registration"
         >
@@ -1078,6 +1139,67 @@ export default function AssetsView() {
               ? `${buildRepoLabel(activeRepo)} (${activeRepo.repoPath || activeRepo.repoId || 'unknown path'})`
               : 'Global/user-home only. Select a repo before repo-local or enable/disable actions.'}
           </p>
+          <p className="catalog-inline-note">
+            Manual registration only persists repo metadata. Discovery and custom scan roots control which repos appear automatically; selecting a repo is still the explicit activation step.
+          </p>
+
+          <div className="catalog-form-grid">
+            <div>
+              <label className="form-label" htmlFor="catalog-custom-scan-roots-input">
+                Custom scan roots
+              </label>
+              <textarea
+                className="form-textarea"
+                data-testid="catalog-custom-scan-roots-input"
+                id="catalog-custom-scan-roots-input"
+                onChange={(event) => {
+                  setCustomScanRootsDirty(true);
+                  setCustomScanRootsInput(event.target.value);
+                }}
+                placeholder={'C:\\Users\\you\\Documents\\GitHub\nD:\\work\\repos'}
+                rows={4}
+                value={customScanRootsInput}
+              />
+              <p className="catalog-inline-note">
+                One path per line. Saved to {workspaceScan?.storage?.path || '~/.copilot/catalog/repo-discovery.json'}.
+              </p>
+            </div>
+            <div>
+              <p className="catalog-inline-note">
+                Default scan roots: {formatPathList(workspaceScan?.defaultRoots)}
+              </p>
+              <p className="catalog-inline-note">
+                Persisted custom roots: {formatPathList(savedCustomScanRoots)}
+              </p>
+              <p className="catalog-inline-note">
+                Effective scan roots: {formatPathList(workspaceScan?.scanRoots)}
+              </p>
+            </div>
+          </div>
+
+          <div className="catalog-action-row">
+            <Button
+              disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !customScanRootsChanged}
+              onClick={() => {
+                void handleSaveCustomScanRoots();
+              }}
+              testId="catalog-save-custom-scan-roots"
+              variant="secondary"
+            >
+              Save scan roots
+            </Button>
+            <Button
+              disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !customScanRootsDirty}
+              onClick={() => {
+                setCustomScanRootsDirty(false);
+                setCustomScanRootsInput(savedCustomScanRoots.join('\n'));
+              }}
+              testId="catalog-reset-custom-scan-roots"
+              variant="ghost"
+            >
+              Reset scan roots
+            </Button>
+          </div>
 
           <ul className="catalog-repo-list" data-testid="catalog-repo-list">
             {catalogState.repoInventoryLoading && repoList.length === 0 ? (

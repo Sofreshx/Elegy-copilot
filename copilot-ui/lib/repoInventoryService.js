@@ -10,6 +10,7 @@ const {
   loadCatalogProjectionSnapshot,
   resolveProjectionStorage,
 } = require('./catalogProjectionService');
+const repoDiscovery = require('./repoDiscoveryService');
 
 const REPO_INVENTORY_SCHEMA_VERSION = 1;
 
@@ -623,6 +624,13 @@ function listKnownRepos(options = {}) {
   const state = loadRepoInventoryState(copilotHome);
   const repos = new Map();
   const projectionHints = readProjectionHints(copilotHome);
+  const workspaceScan = repoDiscovery.resolveWorkspaceScanRoots({
+    copilotHome,
+    roots: Array.isArray(options.workspaceScanRoots) ? options.workspaceScanRoots : undefined,
+  });
+  const discoveredRepos = repoDiscovery.discoverReposFromRoots({
+    roots: workspaceScan.scanRoots,
+  });
 
   if (options.engineRoot) {
     mergeCandidate(repos, {
@@ -672,6 +680,14 @@ function listKnownRepos(options = {}) {
     mergeCandidate(repos, repoStateRepo);
   }
 
+  for (const discoveredRepo of discoveredRepos.repos) {
+    mergeCandidate(repos, {
+      repoPath: discoveredRepo.repoPath,
+      repoLabel: discoveredRepo.repoLabel,
+      source: 'workspace-scan',
+    });
+  }
+
   const repoList = Array.from(repos.values())
     .map((repo) => {
       const selected = Boolean(
@@ -697,6 +713,12 @@ function listKnownRepos(options = {}) {
     storage: {
       path: resolveRepoInventoryPath(copilotHome),
       exists: isFile(resolveRepoInventoryPath(copilotHome)),
+    },
+    workspaceScan: {
+      storage: workspaceScan.storage,
+      defaultRoots: workspaceScan.defaultRoots,
+      customScanRoots: workspaceScan.customScanRoots,
+      scanRoots: workspaceScan.scanRoots,
     },
     selectedRepoId: state.selectedRepoId || selectedRepo?.repoId || null,
     selectedRepoPath: state.selectedRepoPath || selectedRepo?.repoPath || null,
@@ -762,6 +784,7 @@ function registerRepo(options = {}) {
     copilotHome,
     engineRoot: options.engineRoot,
     explicitRepoPaths: [repoPath],
+    workspaceScanRoots: options.workspaceScanRoots,
   });
   return {
     repo: resolveRepoEntry(inventory, { repoPath, repoId: repoKey.repoId }),
@@ -815,6 +838,7 @@ function unregisterRepo(options = {}) {
     copilotHome,
     engineRoot: options.engineRoot,
     explicitRepoPaths: removedRepoPath ? [removedRepoPath] : [],
+    workspaceScanRoots: options.workspaceScanRoots,
   });
   return {
     removed: {
@@ -842,6 +866,7 @@ function selectRepo(options = {}) {
       inventory: listKnownRepos({
         copilotHome,
         engineRoot: options.engineRoot,
+        workspaceScanRoots: options.workspaceScanRoots,
       }),
     };
   }
@@ -850,6 +875,7 @@ function selectRepo(options = {}) {
     copilotHome,
     engineRoot: options.engineRoot,
     explicitRepoPaths: options.repoPath ? [options.repoPath] : [],
+    workspaceScanRoots: options.workspaceScanRoots,
   });
   const repo = resolveRepoEntry(inventory, {
     repoId: options.repoId,
@@ -870,6 +896,7 @@ function selectRepo(options = {}) {
     copilotHome,
     engineRoot: options.engineRoot,
     explicitRepoPaths: repo.repoPath ? [repo.repoPath] : [],
+    workspaceScanRoots: options.workspaceScanRoots,
   });
   return {
     repo: resolveRepoEntry(refreshedInventory, {

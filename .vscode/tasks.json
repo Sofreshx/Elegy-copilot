@@ -10,27 +10,12 @@
 			"group": "build"
 		},
 		{
-			"label": "RannIA: watch",
-			"type": "npm",
-			"script": "watch",
-			"path": "RannIA",
-			"isBackground": true,
-			"problemMatcher": "$tsc-watch",
-			"group": "build"
-		},
-		{
-			"label": "RannIA: package",
-			"type": "npm",
-			"script": "package",
-			"path": "RannIA",
-			"problemMatcher": []
-		},
-		{
 			"label": "validate: manifest json",
 			"type": "shell",
 			"command": "node",
-			"args": ["scripts/validate-manifest.js"],
-			"isBackground": false,
+			"args": [
+				"scripts/validate-manifest.js"
+			],
 			"problemMatcher": [],
 			"group": "test"
 		},
@@ -38,8 +23,9 @@
 			"label": "validate: docs graph",
 			"type": "shell",
 			"command": "node",
-			"args": ["scripts/validate-doc-graph.js"],
-			"isBackground": false,
+			"args": [
+				"scripts/validate-doc-graph.js"
+			],
 			"problemMatcher": [],
 			"group": "test"
 		},
@@ -47,8 +33,9 @@
 			"label": "validate: skill discovery map",
 			"type": "shell",
 			"command": "node",
-			"args": ["scripts/validate-skill-discovery-map.js"],
-			"isBackground": false,
+			"args": [
+				"scripts/validate-skill-discovery-map.js"
+			],
 			"problemMatcher": [],
 			"group": "test"
 		},
@@ -56,17 +43,29 @@
 			"label": "validate: agentic schemas",
 			"type": "shell",
 			"command": "node",
-			"args": ["scripts/validate-agentic-schemas.js"],
-			"isBackground": false,
+			"args": [
+				"scripts/validate-agentic-schemas.js"
+			],
 			"problemMatcher": [],
 			"group": "test"
 		},
 		{
-			"label": "validate: plan pack",
+			"label": "validate: pointer manifest",
 			"type": "shell",
 			"command": "node",
-			"args": ["scripts/validate-planpack.js", "${input:planpackPath}"],
-			"isBackground": false,
+			"args": [
+				"scripts/validate-manifest.pointer.test.js"
+			],
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "validate: vue-free guard",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/vue-free-guard.js"
+			],
 			"problemMatcher": [],
 			"group": "test"
 		},
@@ -79,28 +78,10 @@
 			"group": "test"
 		},
 		{
-			"label": "test: scripts (force)",
-			"type": "shell",
-			"command": "npm",
-			"args": ["test", "--", "--force"],
-			"options": { "cwd": "${workspaceFolder}/scripts" },
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
 			"label": "test: copilot-ui",
 			"type": "npm",
 			"script": "test",
 			"path": "copilot-ui",
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
-			"label": "test: copilot-ui (force)",
-			"type": "shell",
-			"command": "npm",
-			"args": ["test", "--", "--force"],
-			"options": { "cwd": "${workspaceFolder}/copilot-ui" },
 			"problemMatcher": [],
 			"group": "test"
 		},
@@ -113,15 +94,6 @@
 			"group": "test"
 		},
 		{
-			"label": "test: local-tracker (force)",
-			"type": "shell",
-			"command": "npm",
-			"args": ["test", "--", "--force"],
-			"options": { "cwd": "${workspaceFolder}/local-tracker" },
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
 			"label": "test: RannIA",
 			"type": "npm",
 			"script": "test",
@@ -130,60 +102,18 @@
 			"group": "test"
 		},
 		{
-			"label": "test: RannIA (force)",
-			"type": "shell",
-			"command": "npm",
-			"args": ["test", "--", "--force"],
-			"options": { "cwd": "${workspaceFolder}/RannIA" },
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
-			"label": "test: sdk smoke e2e",
-			"type": "shell",
-			"command": "node",
-			"args": ["copilot-ui/tests/e2e/sdk-smoke.test.js"],
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
-			"label": "validate: pointer manifest",
-			"type": "shell",
-			"command": "node",
-			"args": ["scripts/validate-manifest.pointer.test.js"],
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
-			"label": "validate: vue-free guard",
-			"type": "shell",
-			"command": "node",
-			"args": ["scripts/vue-free-guard.js"],
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
 			"label": "test: all",
-			"dependsOn": ["test: scripts", "validate: skill discovery map", "validate: agentic schemas", "validate: vue-free guard", "test: copilot-ui", "test: local-tracker", "test: RannIA"],
+			"dependsOn": [
+				"test: scripts",
+				"validate: skill discovery map",
+				"validate: agentic schemas",
+				"validate: vue-free guard",
+				"test: copilot-ui",
+				"test: local-tracker",
+				"test: RannIA"
+			],
 			"problemMatcher": [],
 			"group": "test"
-		},
-		{
-			"label": "test: all (force)",
-			"dependsOn": ["test: scripts (force)", "validate: skill discovery map", "validate: agentic schemas", "validate: vue-free guard", "test: copilot-ui (force)", "test: local-tracker (force)", "test: RannIA (force)"],
-			"problemMatcher": [],
-			"group": "test"
-		}
-	],
-	"inputs": [
-		{
-			"id": "planpackPath",
-			"type": "promptString",
-			"description": "Path to plan pack file",
-			"default": "plan.md"
 		}
 	]
 }

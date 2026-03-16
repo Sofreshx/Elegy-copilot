@@ -179,9 +179,10 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/assets/view' },
   { method: 'POST', path: '/api/assets/delete' },
 
-  // Catalog/Search/Audit/Runtime (24)
+  // Catalog/Search/Audit/Runtime (25)
   { method: 'GET', path: '/api/catalog/repos' },
   { method: 'POST', path: '/api/catalog/repos/register' },
+  { method: 'POST', path: '/api/catalog/repos/scan-roots' },
   { method: 'POST', path: '/api/catalog/repos/unregister' },
   { method: 'POST', path: '/api/catalog/repos/select' },
   { method: 'POST', path: '/api/catalog/repos/refresh' },
@@ -394,7 +395,7 @@ async function run() {
 
     // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 95, `Expected 95 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 96, `Expected 96 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

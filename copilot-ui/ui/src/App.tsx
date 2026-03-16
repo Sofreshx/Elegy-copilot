@@ -1,17 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import TabShell from './components/TabShell';
 import { useStoreValue } from './lib/store';
-import { NAVIGATION_TABS, TabId } from './stores/navigation';
+import { navigationStore, NAVIGATION_TABS } from './stores/navigation';
 import { sdkHealthStore } from './stores/sdkHealthStore';
 import CatalogView from './tabs/Catalog/CatalogView';
+import HomeRuntimeView from './tabs/HomeRuntime/HomeRuntimeView';
 import PlanningView from './tabs/Planning/PlanningView';
-import SessionsWorkspaceView from './tabs/Sessions/SessionsWorkspaceView';
-import StateView from './tabs/State/StateView';
 
 const environmentLabel = 'Instruction Engine UI';
 
 export default function App() {
-  const [activeTabId, setActiveTabId] = useState<TabId>('planning');
+  const navigationState = useStoreValue(navigationStore);
   const sdkHealthState = useStoreValue(sdkHealthStore);
 
   useEffect(() => {
@@ -53,15 +52,18 @@ export default function App() {
       </header>
 
       <TabShell
-        activeTabId={activeTabId}
+        activeTabId={navigationState.activeTabId}
         tabs={NAVIGATION_TABS}
         tablistLabel="Instruction Engine sections"
-        onTabChange={setActiveTabId}
+        onTabChange={(tabId) => navigationStore.setActiveTabId(tabId)}
       >
-        {activeTabId === 'planning' ? <PlanningView onSdkSessionReady={() => setActiveTabId('sessions')} /> : null}
-        {activeTabId === 'catalog' ? <CatalogView /> : null}
-        {activeTabId === 'sessions' ? <SessionsWorkspaceView /> : null}
-        {activeTabId === 'state' ? <StateView /> : null}
+        {navigationState.activeTabId === 'home-runtime' ? <HomeRuntimeView /> : null}
+        {navigationState.activeTabId === 'catalog' ? <CatalogView /> : null}
+        {navigationState.activeTabId === 'planning' ? (
+          <PlanningView onSdkSessionReady={() => {
+            navigationStore.goToRuntime('sessions', { sessionsMode: 'sdk' });
+          }} />
+        ) : null}
       </TabShell>
     </main>
   );

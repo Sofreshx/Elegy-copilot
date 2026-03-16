@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack.js');
+const VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack-execution.js');
 
 let passed = 0;
 
@@ -97,6 +97,7 @@ function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows, plan
   - Validator enforces deterministic final controls.
 
 ## Context Loaded (exact files)
+- scripts/validate-planpack-execution.js
 - scripts/validate-planpack.js
 
 ## Assumptions + Constraints
@@ -141,7 +142,7 @@ function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows, plan
 - scripts/validate-planpack.js (modify)
 
 #### Validation
-- node scripts/validate-planpack.js <planpack>
+- node scripts/validate-planpack-execution.js <planpack>
 
 ## Execution Notes
 - Progress tracker is append-only.
@@ -150,7 +151,7 @@ function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows, plan
 - Risk: waiver scope broadening.
 
 ## Validation
-- node scripts/validate-planpack.js <planpack>
+- node scripts/validate-planpack-execution.js <planpack>
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->

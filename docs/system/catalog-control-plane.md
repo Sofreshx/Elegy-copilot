@@ -1,6 +1,6 @@
 ---
 created: 2026-03-09
-updated: 2026-03-09
+updated: 2026-03-16
 category: system
 status: current
 doc_kind: node
@@ -167,6 +167,12 @@ For skills:
 Mutation safety includes temp-path writes, atomic replace where possible, conflict detection via
 content hashes, rollback on failed refresh, and projection rebuild after successful mutation.
 
+Bundle and repo-scope note:
+
+- workflow packs are an **explicit optional install layer** that group multiple shared assets into one action
+- profile or routing-policy state may mark a bundle active/eligible, but that state does **not** by itself copy bundle members into `~/.copilot`
+- repo-specific governance lanes are not installed into the user-global surface; they are discovered from the selected repo's `.github/agents` and `.github/skills` plus repo overlay state
+
 ## Search, audit, and runtime health surfaces
 
 ### Search
@@ -249,6 +255,11 @@ node copilot-ui/tests/skill-search-service.test.js
 node copilot-ui/tests/api-contract.test.js
 node scripts/skill-search.test.js
 ```
+
+Desktop-packaging note:
+
+- Treat packaged Electron distribution as an optional maintainer release lane layered on top of this
+  local control plane, not as the default release expectation for routine repo changes.
 
 ## Current limitations / honest drift
 

@@ -302,14 +302,14 @@ Validation is phase-aware:
 
 - `scripts/validate-planpack-planning.js` enforces the v1 planning schema for fresh plans. It validates the plan pack structure, WU shape, AC quality mode, and the base progress-tracker sections required before execution starts.
 - `scripts/validate-planpack-execution.js` enforces execution-time progress, evidence, and final-gate contracts for versioned planpacks.
-- `scripts/validate-planpack.js` remains the compatibility entrypoint for full execution/final-gate validation.
+- `scripts/validate-planpack.js` remains a migration-only compatibility entrypoint for legacy callers that have not yet moved to the phase-specific validators.
 
 Fail-closed defaults:
 - Missing `IE_PLAN_PACK_VERSION` marker fails validation.
 - Unsupported marker version fails validation.
 
 Explicit compatibility override:
-- `--allow-legacy-best-effort` allows missing version marker for legacy plans only.
+- `--allow-legacy-best-effort` allows a missing version marker for migration-only legacy plans; do not use it for normal v1 validation flows.
 
 ### What Validation Checks
 Planning validation (`validate-planpack-planning.js`) checks:
@@ -321,7 +321,7 @@ Planning validation (`validate-planpack-planning.js`) checks:
 6. No duplicate WU-IDs
 7. Base progress-tracker sections required for planning-time resume/bootstrap are present
 
-Execution validation (`validate-planpack-execution.js` or `validate-planpack.js`) additionally checks:
+Execution validation (`validate-planpack-execution.js`) additionally checks:
 1. All 12 required H2 sections are present (see v1 Field Contract)
 2. Each WU spec has required subsections (Context, Acceptance Criteria, Plan/Approach, Validation)
 3. WU-ID format matches `^WU-\d{3}$`
@@ -331,6 +331,8 @@ Execution validation (`validate-planpack-execution.js` or `validate-planpack.js`
 7. Required stream evidence predicates for all streams derived from `Work Unit Groups Overview`
 8. Final gate control rows (`evidencePredicates`, `finalGateWaiverPrecedence`, `trustedEvidenceBindingRetention`) with waiver scope/audit semantics
 9. Trusted evidence binding + evidence retention checks when `trustedEvidenceBindingRetention` is passed
+
+The legacy `validate-planpack.js` entrypoint still invokes the same full execution/final-gate rules, but only as a migration-only compatibility path.
 
 ### What Validation Does NOT Check
 - Content quality (that's the reviewers' job)
@@ -351,7 +353,7 @@ The version marker is an HTML comment placed as the **second line** of the Plan 
 ### Parser Behavior
 | Marker | Behavior |
 |--------|----------|
-| Missing (no marker) | fail-closed (unless explicit `--allow-legacy-best-effort`) |
+| Missing (no marker) | fail-closed (unless explicit migration-only `--allow-legacy-best-effort`) |
 | `<!-- IE_PLAN_PACK_VERSION: 1 -->` | v1 — validate against spec |
 | Unknown version (> 1) | fail-closed (unsupported version) |
 

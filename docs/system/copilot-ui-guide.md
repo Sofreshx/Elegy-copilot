@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-03-15
+updated: 2026-03-16
 category: system
 status: current
 doc_kind: node
@@ -15,8 +15,8 @@ related: [catalog-control-plane, session-state-artifacts, desktop-update-rollbac
 ## Purpose
 
 `copilot-ui` is the current local UI and control plane for Instruction Engine. It provides the
-React-based dashboard surface, the local HTTP API used by that UI, and the packaged Electron shell
-used for desktop distribution.
+React-based dashboard surface, the local HTTP API used by that UI, and an optional packaged
+Electron shell for standalone desktop distribution.
 
 It replaces the legacy vanilla dashboard. When the React bundle is unavailable, the fallback page
 from `copilot-ui/public/index.html` explains that the active UI is served from `copilot-ui/ui-dist`.
@@ -30,6 +30,7 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
    - Serves the HTTP API plus the built React UI on `127.0.0.1:3210`.
 2. **Desktop shell mode**
    - Packages the same UI and backend behavior inside the Electron runtime.
+   - This is an optional maintainer/distribution lane rather than the default runtime expectation.
    - Desktop update and rollback behavior are governed by [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md).
 
 ## What it owns
@@ -40,7 +41,7 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
 - session browsing and session-artifact inspection
 - planning record comparison and persisted planning APIs
 - tracker and gateway status/proxy surfaces
-- packaged desktop lifecycle, updater wiring, and local runtime health reporting
+- optional packaged desktop lifecycle, updater wiring, and local runtime health reporting
 
 Catalog semantics and authoritative write paths are defined in [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md).
 
@@ -91,7 +92,7 @@ Treat those groups as the primary backend surface. The most important user-visib
 
 ### Assets and catalog-backed previews
 
-The React `Assets` surface consumes both `/api/catalog/assets` and `/api/catalog/bundles`. Bundle metadata is rendered as `Workflow packs`, allowing one-click installation of optional multi-asset bundles such as the shipped `superpowers-workflow` pack.
+The React `Assets` surface consumes both `/api/catalog/assets` and `/api/catalog/bundles`. Bundle metadata is rendered as `Workflow packs`, allowing explicit one-click installation of optional multi-asset bundles such as the shipped `superpowers-workflow` pack. Profile or routing activation can mark a bundle active for discovery, but the pack's assets are still copied only through the install flow. Repo-specific governance lanes are discovered from selected repos and do not get copied into the user-global install surface as part of bundle activation.
 
 | Method | Endpoint | Purpose | Primary test anchors |
 | --- | --- | --- | --- |

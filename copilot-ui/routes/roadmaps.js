@@ -149,9 +149,9 @@ function handleReadRoadmap(ctx, deps) {
 function handleCreateRoadmap(ctx, deps) {
   readRequestBody(ctx.req, deps)
     .then((body) => {
-      const slug = deps.roadmapArtifacts.assertRoadmapSlug(body.slug || body.roadmapSlug);
       const selector = normalizeRepoSelector(ctx.u.searchParams, body);
       const { repo } = resolveRepoContext(ctx, deps, selector);
+      const slug = deps.roadmapArtifacts.assertRoadmapSlug(body.slug || body.roadmapSlug);
       const filePath = deps.roadmapArtifacts.resolveRoadmapFilePath(repo.repoPath, slug);
       if (deps.fs.existsSync(filePath)) {
         throw Object.assign(new Error(`roadmap already exists: ${slug}`), {

@@ -51,12 +51,12 @@ Reference runbook: [Desktop Update Rollback + Kill Switch Runbook](desktop-updat
 
 ### CI Enforcement — Signing Trust Chain (G-02-WU-04)
 
-Desktop release CI is enforced by `.github/workflows/desktop-release.yml` and `.github/workflows/desktop-version-tag.yml`:
+Desktop release CI is enforced by `.github/workflows/desktop-release.yml`, with `.github/workflows/desktop-version-tag.yml` kept only as an explicit helper for manual desktop release flows:
 
 - Tag source:
-  - `.github/workflows/desktop-version-tag.yml` creates `desktop-v*` tags from Changesets version commits on `main` (`Version Packages`).
-  - `.github/workflows/desktop-release.yml` also supports manual dispatch (`release_tag`).
-- Trigger: `desktop-v*` tags.
+  - `.github/workflows/desktop-version-tag.yml` is manually dispatched by maintainers to create `desktop-v*` tags from an explicit target ref when the desktop release helper is intentionally invoked.
+  - `.github/workflows/desktop-release.yml` is manually dispatched with `release_tag`.
+- Trigger: explicit maintainer dispatch for both tagging and publishing.
 - Windows GA artifact flow:
   - Build unsigned installer on `windows-latest`.
   - Exchange GitHub OIDC token (`id-token: write`) for signing identity.
@@ -83,7 +83,7 @@ Required repository configuration (placeholders, not committed secrets):
 
 ### Final Gate Trusted Evidence Binding + Retention (G-05-WU-06)
 
-Planpack final-gate validation (`scripts/validate-planpack.js`) requires release evidence to be bound to deployment context before `trustedEvidenceBindingRetention` can pass:
+Planpack final-gate validation (`scripts/validate-planpack-execution.js`, backed by the shared `scripts/validate-planpack.js` implementation) requires release evidence to be bound to deployment context before `trustedEvidenceBindingRetention` can pass:
 
 - Trusted binding must include commit SHA, release tag, channel, producer identity, attestation status, and evidence timestamp.
 - Missing fields, attestation false, stale evidence, or expected binding mismatch fail closed.

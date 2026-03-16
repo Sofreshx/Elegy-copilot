@@ -1,534 +1,305 @@
-import { useEffect, useMemo } from 'react';
-import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Panel, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
+import { navigationStore } from '../../stores/navigation';
+import { catalogWorkspaceStore } from '../Assets/catalogWorkspaceStore';
 import MermaidViewer from './MermaidViewer';
 import PlanningIdeasPanel from './PlanningIdeasPanel';
-import {
-  hasReviewedAllPlanningConflicts,
-  planningGateAllowsMerge,
-  planningStore,
-} from './planningStore';
+import { planningStore } from './planningStore';
+import { planningWorkspaceStore } from './planningWorkspaceStore';
 import ResearchNotesPanel from './ResearchNotesPanel';
 
-function renderConflictValue(value: string | null): string {
-  if (value == null || !value.trim()) {
-    return '-';
+function normalizeCatalogRepoEntry(repo: unknown) {
+  if (!repo || typeof repo !== 'object') {
+    return null;
   }
 
-  return value;
+  const record = repo as Record<string, unknown>;
+  const repoId = typeof record.repoId === 'string' ? record.repoId.trim() : '';
+  const repoPath = typeof record.repoPath === 'string' ? record.repoPath.trim() : '';
+  const repoLabel = typeof record.repoLabel === 'string' ? record.repoLabel.trim() : '';
+  const sources = Array.isArray(record.sources)
+    ? record.sources.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : [];
+
+  if (!repoId && !repoPath && !repoLabel && sources.length === 0) {
+    return null;
+  }
+
+  return {
+    repoId,
+    repoPath,
+    repoLabel,
+    sources,
+  };
+}
+
+function resolveCatalogRepoContext(catalogState: ReturnType<typeof catalogWorkspaceStore.getState>) {
+  const selectedRepo = normalizeCatalogRepoEntry(catalogState.repoInventory?.selectedRepo);
+  if (selectedRepo) {
+    return selectedRepo;
+  }
+
+  const repos = Array.isArray(catalogState.repoInventory?.repos) ? catalogState.repoInventory.repos : [];
+  const activeRepoId = typeof catalogState.activeRepoId === 'string' ? catalogState.activeRepoId.trim() : '';
+  const activeRepoPath = typeof catalogState.activeRepoPath === 'string' ? catalogState.activeRepoPath.trim() : '';
+
+  return (
+    normalizeCatalogRepoEntry(
+      repos.find((repo) => {
+        const repoRecord = repo as Record<string, unknown>;
+        const repoId = typeof repoRecord.repoId === 'string' ? repoRecord.repoId.trim() : '';
+        const repoPath = typeof repoRecord.repoPath === 'string' ? repoRecord.repoPath.trim() : '';
+        return (activeRepoId && repoId === activeRepoId) || (activeRepoPath && repoPath === activeRepoPath);
+      })
+    )
+    ?? null
+  );
 }
 
 export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?: (sessionId: string) => void }) {
   const planningState = useStoreValue(planningStore);
+  const planningWorkspaceState = useStoreValue(planningWorkspaceStore);
+  const catalogState = useStoreValue(catalogWorkspaceStore);
+  const [showLegacyArtifacts, setShowLegacyArtifacts] = useState(false);
+
+  const selectedCatalogRepo = useMemo(() => resolveCatalogRepoContext(catalogState), [catalogState]);
 
   useEffect(() => {
-    void planningStore.loadInitial();
-  }, []);
+    planningWorkspaceStore.syncCatalogRepoContext(selectedCatalogRepo);
 
-  const compareTargets = useMemo(() => {
-    const source = planningState.compareResponse?.planningRecords || [];
-    const ids = source
-      .map((record) => String(record.recordId || '').trim())
-      .filter((id) => id.length > 0);
+    if (selectedCatalogRepo?.repoPath) {
+      void planningWorkspaceStore.loadRoadmaps();
+    }
+  }, [
+    selectedCatalogRepo?.repoId,
+    selectedCatalogRepo?.repoLabel,
+    selectedCatalogRepo?.repoPath,
+    selectedCatalogRepo?.sources.join('|'),
+  ]);
 
-    return [...new Set(ids)];
-  }, [planningState.compareResponse]);
+  useEffect(() => {
+    if (showLegacyArtifacts) {
+      void planningStore.loadInitial();
+    }
+  }, [showLegacyArtifacts]);
 
-  const compareReceiptId = planningState.compareResponse?.compareReceipt?.receiptId || '';
-  const selectedRecord = planningState.records.find((record) => record.recordId === planningState.selectedRecordId) ?? null;
-  const selectedDiagram =
+  const selectedRoadmap =
+    planningWorkspaceState.roadmaps.find((roadmap) => roadmap.slug === planningWorkspaceState.selectedRoadmapSlug)
+    ?? planningWorkspaceState.roadmaps[0]
+    ?? null;
+  const selectedLegacyRecord =
+    planningState.records.find((record) => record.recordId === planningState.selectedRecordId)
+    ?? planningState.records[0]
+    ?? null;
+  const selectedLegacyDiagram =
     planningState.diagrams.find((diagram) => diagram.id === planningState.selectedDiagramId)
     ?? planningState.diagrams[0]
     ?? null;
-  const reviewedAllConflicts = hasReviewedAllPlanningConflicts(
-    planningState.conflictRows,
-    planningState.reviewedConflictKeys
-  );
-
-  const canPrepareIntent =
-    !planningState.mutatingBlocked &&
-    !planningState.preparingIntent &&
-    Boolean(compareReceiptId) &&
-    planningState.mergeTargetId.trim().length > 0;
-
-  const canConfirmMerge =
-    !planningState.mutatingBlocked &&
-    !planningState.merging &&
-    planningGateAllowsMerge(planningState.gateState) &&
-    Boolean(planningState.intentToken) &&
-    reviewedAllConflicts;
-
-  const handleRefresh = async () => {
-    await Promise.allSettled([planningStore.refreshPolicyPreflight(true), planningStore.listRecords()]);
-  };
 
   return (
     <section className="planning-view" data-testid="planning-view">
       <Toolbar testId="planning-view-toolbar">
         <div className="planning-summary">
-          <p className="planning-title">Planning Records</p>
+          <p className="planning-title">Repository Backlog + Roadmaps</p>
           <p className="planning-copy">
-            {planningState.records.length} records, {planningState.searchResults.length} search results
+            Repo-backed planning surfaces resolve from the selected Catalog repository before legacy planning records.
           </p>
         </div>
 
         <div className="planning-toolbar-actions">
-          <StatusBadge status={planningState.gateState} testId="planning-gate-badge" />
+          <Button onClick={() => navigationStore.goToCatalog()} testId="planning-open-catalog" variant="secondary">
+            Open Catalog repo selector
+          </Button>
           <Button
-            disabled={planningState.loading || planningState.listing || planningState.preflightLoading}
-            onClick={handleRefresh}
-            testId="planning-refresh-button"
+            onClick={() => setShowLegacyArtifacts((value) => !value)}
+            testId="planning-show-legacy-artifacts"
             variant="secondary"
           >
-            {planningState.listing || planningState.preflightLoading ? 'Refreshing...' : 'Refresh'}
+            {showLegacyArtifacts ? 'Hide legacy artifacts' : 'Show legacy artifacts'}
           </Button>
         </div>
       </Toolbar>
 
-      {planningState.error ? (
+      {planningWorkspaceState.error ? (
         <p className="planning-error" role="alert">
-          {planningState.error}
+          {planningWorkspaceState.error}
         </p>
       ) : null}
-
-      {planningState.statusMessage ? <p className="planning-status">{planningState.statusMessage}</p> : null}
-
-      {planningState.mutatingBlocked ? (
-        <p className="planning-warning" role="alert">
-          Mutating actions are disabled by policy preflight: {planningState.mutatingReason || 'blocked'}
-        </p>
-      ) : null}
-
-      <PlanningIdeasPanel onSdkSessionReady={onSdkSessionReady} planningState={planningState} />
 
       <div className="planning-grid">
         <Panel
-          subtitle="Context drives list/search/compare endpoints."
-          testId="planning-context-panel"
-          title="Context"
+          subtitle="Planning uses the currently selected Catalog repo as the canonical source of backlog and roadmap files."
+          testId="planning-backlog-surface-panel"
+          title="Repository Backlog"
         >
-          <div className="planning-controls">
-            <div className="planning-field-grid">
-              <FormInput
-                id="planning-user-id"
-                label="User ID"
-                onValueChange={(value) => planningStore.setUserId(value)}
-                placeholder="userId"
-                testId="planning-user-id-input"
-                value={planningState.userId}
-              />
-              <FormInput
-                id="planning-repo-id"
-                label="Repo ID"
-                onValueChange={(value) => planningStore.setRepoId(value)}
-                placeholder="repoId"
-                testId="planning-repo-id-input"
-                value={planningState.repoId}
-              />
-              <FormInput
-                id="planning-query"
-                label="Query"
-                onValueChange={(value) => planningStore.setQuery(value)}
-                placeholder="search query"
-                testId="planning-query-input"
-                value={planningState.query}
-              />
-              <FormInput
-                id="planning-session-id"
-                label="Session ID"
-                onValueChange={(value) => planningStore.setSessionId(value)}
-                placeholder="sessionId"
-                testId="planning-session-id-input"
-                value={planningState.sessionId}
-              />
-            </div>
-
-            <div className="planning-scope-row">
-              <label className="planning-checkbox" htmlFor="planning-scope-user">
+          {selectedCatalogRepo ? (
+            <div className="planning-controls">
+              <label className="form-input" htmlFor="planning-repo-id-readonly">
+                <span className="form-label">Catalog Repo ID</span>
                 <input
-                  checked={planningState.scopeUser}
-                  id="planning-scope-user"
-                  onChange={(event) => planningStore.setScope('user', event.target.checked)}
-                  type="checkbox"
+                  data-testid="planning-repo-id-readonly"
+                  id="planning-repo-id-readonly"
+                  readOnly
+                  type="text"
+                  value={selectedCatalogRepo.repoId}
                 />
-                <span>user</span>
               </label>
-              <label className="planning-checkbox" htmlFor="planning-scope-repo">
-                <input
-                  checked={planningState.scopeRepo}
-                  id="planning-scope-repo"
-                  onChange={(event) => planningStore.setScope('repo', event.target.checked)}
-                  type="checkbox"
-                />
-                <span>repo</span>
-              </label>
-              <label className="planning-checkbox" htmlFor="planning-scope-global">
-                <input
-                  checked={planningState.scopeGlobal}
-                  id="planning-scope-global"
-                  onChange={(event) => planningStore.setScope('global', event.target.checked)}
-                  type="checkbox"
-                />
-                <span>global</span>
-              </label>
-            </div>
 
-            <div className="planning-actions">
-              <Button
-                disabled={planningState.listing}
-                onClick={() => {
-                  void planningStore.listRecords();
-                }}
-                testId="planning-list-button"
-                variant="secondary"
-              >
-                {planningState.listing ? 'Loading...' : 'List records'}
-              </Button>
-              <Button
-                disabled={planningState.searching}
-                onClick={() => {
-                  void planningStore.searchRecords();
-                }}
-                testId="planning-search-button"
-                variant="secondary"
-              >
-                {planningState.searching ? 'Searching...' : 'Search'}
-              </Button>
-              <Button
-                disabled={planningState.comparing || planningState.mutatingBlocked}
-                onClick={() => {
-                  void planningStore.compareRecords();
-                }}
-                testId="planning-compare-button"
-              >
-                {planningState.comparing ? 'Comparing...' : 'Compare'}
-              </Button>
+              <p className="planning-copy">
+                {planningWorkspaceState.repositoryBacklog?.canonicalName || 'Repository Backlog'}
+              </p>
+              <p className="planning-copy">
+                <code>{planningWorkspaceState.repositoryBacklog?.filePath || '(no backlog file resolved)'}</code>
+              </p>
+              <p className="planning-copy">
+                Stable IDs: <code>{planningWorkspaceState.repositoryBacklog?.stableIdPattern || 'RB-###'}</code>
+              </p>
             </div>
-
-            <p className="planning-copy">
-              Gate reason: {planningState.gateReason} | Denied scopes:{' '}
-              {planningState.deniedScopes.length > 0 ? planningState.deniedScopes.join(', ') : '(none)'}
-            </p>
-          </div>
+          ) : (
+            <div className="planning-controls">
+              <p className="state-message">Select a repository in Catalog to resolve backlog and roadmap surfaces.</p>
+            </div>
+          )}
         </Panel>
 
         <Panel
-          subtitle="Manual create flow only."
-          testId="planning-create-panel"
-          title="Create Record"
-        >
-          <div className="planning-controls">
-            <div className="planning-select-grid">
-              <label className="form-input" htmlFor="planning-create-scope">
-                <span className="form-label">Scope</span>
-                <select
-                  data-testid="planning-create-scope-select"
-                  id="planning-create-scope"
-                  onChange={(event) => {
-                    planningStore.setCreateScope(event.target.value as 'user' | 'repo' | 'global');
-                  }}
-                  value={planningState.createScope}
-                >
-                  <option value="user">user</option>
-                  <option value="repo">repo</option>
-                  <option value="global">global</option>
-                </select>
-              </label>
-
-              <label className="form-input" htmlFor="planning-create-state">
-                <span className="form-label">State</span>
-                <select
-                  data-testid="planning-create-state-select"
-                  id="planning-create-state"
-                  onChange={(event) => {
-                    planningStore.setCreateState(event.target.value);
-                  }}
-                  value={planningState.createState}
-                >
-                  <option value="thought">thought</option>
-                  <option value="research">research</option>
-                  <option value="pre-plan">pre-plan</option>
-                  <option value="queued">queued</option>
-                  <option value="implemented">implemented</option>
-                  <option value="merged">merged</option>
-                  <option value="superseded">superseded</option>
-                </select>
-              </label>
-            </div>
-
-            <FormInput
-              id="planning-create-title"
-              label="Title"
-              onValueChange={(value) => planningStore.setCreateTitle(value)}
-              placeholder="Short title"
-              testId="planning-create-title-input"
-              value={planningState.createTitle}
-            />
-
-            <label className="form-input" htmlFor="planning-create-summary">
-              <span className="form-label">Summary</span>
-              <textarea
-                data-testid="planning-create-summary-input"
-                id="planning-create-summary"
-                onChange={(event) => planningStore.setCreateSummary(event.target.value)}
-                placeholder="Multiline notes"
-                rows={6}
-                value={planningState.createSummary}
-              />
-            </label>
-
-            <label className="form-input" htmlFor="planning-create-acceptance-criteria">
-              <span className="form-label">Acceptance Criteria (one per line)</span>
-              <textarea
-                data-testid="planning-create-acceptance-criteria-input"
-                id="planning-create-acceptance-criteria"
-                onChange={(event) => planningStore.setCreateAcceptanceCriteria(event.target.value)}
-                placeholder={'Given ...\nWhen ...\nThen ...'}
-                rows={5}
-                value={planningState.createAcceptanceCriteria}
-              />
-            </label>
-
-            <Button
-              disabled={
-                planningState.mutatingBlocked ||
-                planningState.creating ||
-                planningState.createTitle.trim().length === 0
-              }
-              onClick={() => {
-                void planningStore.createRecord();
-              }}
-              testId="planning-create-button"
-            >
-              {planningState.creating ? 'Creating...' : 'Create record'}
-            </Button>
-          </div>
-        </Panel>
-
-        <Panel
-          subtitle="List and search output snapshots."
-          testId="planning-results-panel"
-          title="Records + Search"
-        >
-          <div className="planning-list-grid">
-            <div>
-              <h4>Records</h4>
-              {planningState.records.length === 0 ? (
-                <p className="state-message">No records returned.</p>
-              ) : (
-                <ul className="planning-record-list">
-                  {planningState.records.map((record) => (
-                    <li key={record.recordId}>
-                      <p className="planning-item-title">{record.title || record.recordId}</p>
-                      <p className="planning-item-copy">
-                        <code>{record.recordId}</code> | {record.scope} | {record.state || 'unknown'}
-                      </p>
-                      {record.acceptanceCriteria && record.acceptanceCriteria.length > 0 ? (
-                        <p className="planning-item-copy">
-                          Acceptance criteria: {record.acceptanceCriteria.join(' | ')}
-                        </p>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div>
-              <h4>Search Results</h4>
-              {planningState.searchResults.length === 0 ? (
-                <p className="state-message">No search results.</p>
-              ) : (
-                <ul className="planning-record-list">
-                  {planningState.searchResults.map((result) => (
-                    <li key={`${result.recordId}-${result.rank}`}>
-                      <p className="planning-item-title">#{result.rank} {result.recordId}</p>
-                      <p className="planning-item-copy">
-                        {result.scope || 'unknown'} | {result.status || 'unknown'} | score={result.score}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </Panel>
-
-        <Panel
-          subtitle="Attach research notes and inspect diagrams for the selected record."
-          testId="planning-artifacts-panel"
-          title="Research + Diagrams"
-        >
-          <div className="planning-controls">
-            <div className="planning-select-grid">
-              <label className="form-input" htmlFor="planning-artifact-record-id">
-                <span className="form-label">Selected Record</span>
-                <select
-                  data-testid="planning-artifact-record-select"
-                  id="planning-artifact-record-id"
-                  onChange={(event) => planningStore.setSelectedRecordId(event.target.value)}
-                  value={planningState.selectedRecordId}
-                >
-                  {planningState.records.length === 0 ? <option value="">(no records)</option> : null}
-                  {planningState.records.map((record) => (
-                    <option key={record.recordId} value={record.recordId}>
-                      {record.recordId}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="form-input" htmlFor="planning-artifact-diagram-id">
-                <span className="form-label">Diagram</span>
-                <select
-                  data-testid="planning-artifact-diagram-select"
-                  id="planning-artifact-diagram-id"
-                  onChange={(event) => planningStore.setSelectedDiagramId(event.target.value)}
-                  value={planningState.selectedDiagramId}
-                >
-                  {planningState.diagrams.length === 0 ? <option value="">(no diagrams)</option> : null}
-                  {planningState.diagrams.map((diagram) => (
-                    <option key={diagram.id} value={diagram.id}>
-                      {diagram.title || diagram.id}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <p className="planning-copy">
-              Selected: {selectedRecord?.recordId || '(none)'} | Notes: {planningState.researchNotes.length} | Diagrams:{' '}
-              {planningState.diagrams.length}
-            </p>
-
-            <ResearchNotesPanel
-              deleting={planningState.artifactsDeleting}
-              error={planningState.artifactsError}
-              loading={planningState.artifactsLoading}
-              notes={planningState.researchNotes}
-              onDelete={async (noteId) => {
-                await planningStore.removeResearchNote(noteId);
-              }}
-              onRefresh={() => {
-                void planningStore.loadArtifacts();
-              }}
-              onSave={async (note) => {
-                await planningStore.saveResearchNote(note);
-              }}
-              recordId={planningState.selectedRecordId}
-              saving={planningState.artifactsSaving}
-            />
-
-            <MermaidViewer diagram={selectedDiagram} />
-          </div>
-        </Panel>
-
-        <Panel
-          subtitle="Manual compare -> intent -> confirm flow."
-          testId="planning-merge-panel"
-          title="Compare + Merge"
+          subtitle="Roadmaps come from docs/roadmaps in the selected repository."
+          testId="planning-roadmap-surface-panel"
+          title="Roadmap Surface"
         >
           <div className="planning-controls">
             <p className="planning-copy">
-              Compare receipt: <code>{compareReceiptId || '(none)'}</code>
+              <code>{planningWorkspaceState.roadmapDirectory?.directoryPath || '(no roadmap directory resolved)'}</code>
             </p>
             <p className="planning-copy">
-              Matches: {planningState.compareResponse?.matches.length || 0} | Planning records in compare:{' '}
-              {planningState.compareResponse?.planningRecords.length || 0}
+              Stable IDs: <code>{planningWorkspaceState.roadmapDirectory?.stableIdPattern || 'RM-<roadmap-slug>-###'}</code>
             </p>
+            {planningWorkspaceState.loading ? (
+              <p className="planning-copy">Loading roadmaps…</p>
+            ) : null}
+          </div>
+        </Panel>
 
-            <label className="form-input" htmlFor="planning-merge-target">
-              <span className="form-label">Merge Target</span>
+        <Panel
+          subtitle="Choose a roadmap document for this repository."
+          testId="planning-roadmap-list"
+          title="Roadmaps"
+        >
+          <div className="planning-controls">
+            <label className="form-input" htmlFor="planning-roadmap-select">
+              <span className="form-label">Selected roadmap</span>
               <select
-                data-testid="planning-merge-target-select"
-                id="planning-merge-target"
-                onChange={(event) => planningStore.setMergeTargetId(event.target.value)}
-                value={planningState.mergeTargetId}
+                data-testid="planning-roadmap-select"
+                id="planning-roadmap-select"
+                onChange={(event) => planningWorkspaceStore.setSelectedRoadmapSlug(event.target.value)}
+                value={selectedRoadmap?.slug || ''}
               >
-                {compareTargets.length === 0 ? <option value="">(compare first)</option> : null}
-                {compareTargets.map((targetId) => (
-                  <option key={targetId} value={targetId}>
-                    {targetId}
+                {planningWorkspaceState.roadmaps.length === 0 ? <option value="">(no roadmaps found)</option> : null}
+                {planningWorkspaceState.roadmaps.map((roadmap) => (
+                  <option key={roadmap.slug} value={roadmap.slug}>
+                    {roadmap.title}
                   </option>
                 ))}
               </select>
             </label>
 
-            <div className="planning-actions">
-              <Button
-                disabled={!canPrepareIntent}
-                onClick={() => {
-                  void planningStore.prepareMergeIntent();
-                }}
-                testId="planning-prepare-intent-button"
-                variant="secondary"
-              >
-                {planningState.preparingIntent ? 'Preparing...' : 'Prepare intent'}
-              </Button>
-              <Button
-                disabled={!canConfirmMerge}
-                onClick={() => {
-                  void planningStore.confirmMerge();
-                }}
-                testId="planning-confirm-merge-button"
-                variant="danger"
-              >
-                {planningState.merging ? 'Merging...' : 'Confirm merge'}
-              </Button>
-            </div>
-
-            <p className="planning-copy">
-              Merge checks: gate={planningState.gateState}, reviewedAll={String(reviewedAllConflicts)},
-              intent={planningState.intentToken ? 'present' : 'missing'}
-            </p>
-
-            {planningState.conflictRows.length > 0 ? (
-              <table className="planning-conflicts-table" data-testid="planning-conflicts-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Field</th>
-                    <th scope="col">User</th>
-                    <th scope="col">Repo</th>
-                    <th scope="col">Global</th>
-                    <th scope="col">Winner</th>
-                    <th scope="col">Reviewed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {planningState.conflictRows.map((row) => {
-                    const reviewed = planningState.reviewedConflictKeys.includes(row.conflictKey);
-                    return (
-                      <tr key={row.conflictKey}>
-                        <td>{row.field}</td>
-                        <td>{renderConflictValue(row.valuesByScope.user?.value || null)}</td>
-                        <td>{renderConflictValue(row.valuesByScope.repo?.value || null)}</td>
-                        <td>{renderConflictValue(row.valuesByScope.global?.value || null)}</td>
-                        <td>{row.winnerScope}</td>
-                        <td>
-                          <input
-                            checked={reviewed}
-                            onChange={(event) => {
-                              planningStore.toggleConflictReviewed(row.conflictKey, event.target.checked);
-                            }}
-                            type="checkbox"
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <p className="state-message">No precedence conflicts in the latest compare response.</p>
-            )}
-
-            <pre className="code-block" data-testid="planning-intent-token">
-              {planningState.intentToken
-                ? JSON.stringify(planningState.intentToken, null, 2)
-                : '(no intent token prepared)'}
-            </pre>
+            <ul className="planning-record-list">
+              {planningWorkspaceState.roadmaps.map((roadmap) => (
+                <li key={roadmap.slug}>
+                  <p className="planning-item-title">{roadmap.title}</p>
+                  <p className="planning-item-copy">
+                    <code>{roadmap.repoRelativePath || roadmap.filePath}</code>
+                  </p>
+                </li>
+              ))}
+            </ul>
           </div>
         </Panel>
+
+        <Panel
+          subtitle="Roadmap items are the repo-backed execution roll-up above plan packs."
+          testId="planning-roadmap-detail"
+          title={selectedRoadmap?.title || 'Roadmap detail'}
+        >
+          {selectedRoadmap ? (
+            <div className="planning-controls">
+              {selectedRoadmap.overview ? <p className="planning-copy">{selectedRoadmap.overview}</p> : null}
+              <p className="planning-copy">
+                <code>{selectedRoadmap.filePath}</code>
+              </p>
+              <ul className="planning-record-list">
+                {selectedRoadmap.items.map((item) => (
+                  <li key={item.id}>
+                    <p className="planning-item-title">{item.title}</p>
+                    <p className="planning-item-copy">
+                      <code>{item.id}</code> | phase={item.phase} | status={item.status}
+                    </p>
+                    {item.backlogIds.length > 0 ? (
+                      <p className="planning-item-copy">Backlog links: {item.backlogIds.join(', ')}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <div className="planning-controls">
+              <p className="state-message">No roadmap selected for the active repository.</p>
+            </div>
+          )}
+        </Panel>
+
+        {showLegacyArtifacts ? (
+          <Panel
+            subtitle="Historical planning records and record-scoped artifacts remain available as compatibility-only context."
+            testId="planning-legacy-artifacts-panel"
+            title="Legacy Planning Artifacts"
+          >
+            <div className="planning-controls">
+              <PlanningIdeasPanel onSdkSessionReady={onSdkSessionReady} planningState={planningState} />
+
+              {planningState.records.length > 0 ? (
+                <label className="form-input" htmlFor="planning-legacy-record-select">
+                  <span className="form-label">Legacy record</span>
+                  <select
+                    data-testid="planning-legacy-record-select"
+                    id="planning-legacy-record-select"
+                    onChange={(event) => planningStore.setSelectedRecordId(event.target.value)}
+                    value={selectedLegacyRecord?.recordId || ''}
+                  >
+                    {planningState.records.map((record) => (
+                      <option key={record.recordId} value={record.recordId}>
+                        {record.title || record.recordId}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <p className="state-message">No legacy planning records available.</p>
+              )}
+
+              <ResearchNotesPanel
+                deleting={planningState.artifactsDeleting}
+                error={planningState.artifactsError}
+                loading={planningState.artifactsLoading}
+                notes={planningState.researchNotes}
+                onDelete={async (noteId) => {
+                  await planningStore.removeResearchNote(noteId);
+                }}
+                onRefresh={() => {
+                  void planningStore.loadArtifacts(selectedLegacyRecord?.recordId || '');
+                }}
+                onSave={async (note) => {
+                  await planningStore.saveResearchNote(note);
+                }}
+                recordId={selectedLegacyRecord?.recordId || planningState.selectedRecordId}
+                saving={planningState.artifactsSaving}
+              />
+
+              <MermaidViewer diagram={selectedLegacyDiagram} />
+            </div>
+          </Panel>
+        ) : null}
       </div>
     </section>
   );

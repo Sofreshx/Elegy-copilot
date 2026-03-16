@@ -490,6 +490,8 @@ async function run() {
       assert.equal(listResponse.res.statusCode, 200);
       assert.equal(listResponse.body.kind, 'catalog.repos.list');
       assert.ok(Array.isArray(listResponse.body.repos));
+      assert.ok(listResponse.body.workspaceScan, 'expected workspace scan metadata');
+      assert.deepEqual(listResponse.body.workspaceScan.customScanRoots, []);
       const workspaceRepo = listResponse.body.repos.find((repo) => repo.repoPath === repoPath);
       assert.ok(workspaceRepo, 'expected workspace repo inventory entry');
       assert.ok(workspaceRepo.sources.includes('session-state'));
@@ -529,6 +531,35 @@ async function run() {
       assert.equal(unregisterResponse.body.kind, 'catalog.repos.unregister');
       assert.equal(unregisterResponse.body.removed, true);
       assert.equal(unregisterResponse.body.repo.repoPath, manualRepoPath);
+    });
+
+    await test('repo inventory routes persist custom scan roots and surface discovered repos without selecting them', async () => {
+      const customScanRoot = path.join(tmpRoot, 'scanned-roots');
+      const discoveredRepoPath = path.join(customScanRoot, 'catalog-app');
+      fs.mkdirSync(path.join(discoveredRepoPath, '.git'), { recursive: true });
+      writeJson(path.join(discoveredRepoPath, 'package.json'), {
+        name: 'catalog-app',
+        dependencies: {
+          react: '^18.0.0',
+        },
+      });
+
+      const updateResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/repos/scan-roots', {
+        customScanRoots: [customScanRoot],
+      });
+      assert.equal(updateResponse.res.statusCode, 200);
+      assert.equal(updateResponse.body.kind, 'catalog.repos.scan-roots');
+      assert.equal(updateResponse.body.updated, true);
+      assert.deepEqual(updateResponse.body.workspaceScan.customScanRoots, [customScanRoot]);
+
+      const listResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/repos');
+      assert.equal(listResponse.res.statusCode, 200);
+      assert.deepEqual(listResponse.body.workspaceScan.customScanRoots, [customScanRoot]);
+      const discoveredRepo = listResponse.body.repos.find((repo) => repo.repoPath === discoveredRepoPath);
+      assert.ok(discoveredRepo, 'expected discovered repo inventory entry');
+      assert.ok(discoveredRepo.sources.includes('workspace-scan'));
+      assert.equal(discoveredRepo.selected, false);
+      assert.notEqual(listResponse.body.selectedRepo?.repoPath, discoveredRepoPath);
     });
 
     await test('catalog mutation routes create, update, and delete user-global skills on authoritative paths', async () => {

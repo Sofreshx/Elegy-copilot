@@ -4,7 +4,7 @@ Shared GitHub Copilot agents, skills, and workflow conventions for multi-repo de
 
 ## How it works
 
-Assets are installed from `engine-assets/` into `~/.copilot`. Agents, prompts, and instructions land there directly, and skills install into `skills/` and/or `skills-vault/` depending on pointer mode. Both **VS Code Copilot Chat** and the **Copilot CLI** discover assets from that location — no per-repo setup needed.
+Assets are installed from `engine-assets/` into `~/.copilot`. The default source install copies the shipped first-party agents, prompts, instructions, and skills there. Optional workflow packs and repo-local `.github/*` assets are separate post-install layers. Both **VS Code Copilot Chat** and the **Copilot CLI** discover user-global assets from that location — no per-repo setup needed for the default baseline.
 
 ```
 engine-assets/  →  ~/.copilot/
@@ -28,9 +28,9 @@ pwsh -File scripts/cli-install.ps1 --all --force
 bash scripts/cli-install.sh --all --force
 ```
 
-This installs all agents, prompts, and the global instructions file into `~/.copilot`, and installs skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode.
+This installs the shipped first-party agents, prompts, and global instructions file into `~/.copilot`, and installs shipped skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode. It does **not** install optional workflow packs or repo-local `.github/agents` / `.github/skills` content.
 
-Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can then be installed from the local dashboard with one click in `Assets` -> `Workflow packs`.
+Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can then be installed explicitly from the local dashboard in `Catalog` -> `Workflow packs`. Repo-specific governance lanes only appear when you register/select a repo that provides repo-local `.github/*` assets or repo-scoped overrides.
 
 ### Enable subagent delegation in VS Code
 
@@ -124,7 +124,8 @@ persisted artifacts.
 ## Dashboard (local UI)
 
 A local UI and control plane for viewing sessions, managing assets, and operating your `~/.copilot`
-installation. `copilot-ui` can run as the local Node.js server or inside the packaged Electron shell.
+installation. The default/recommended runtime is the local Node.js server. `copilot-ui` can also run
+inside the packaged Electron shell when maintainers need a standalone desktop distribution.
 `copilot-ui` is also the **catalog control plane** for the delivered asset system: it owns the
 authoritative local catalog/search/audit APIs, repo inventory, projection refresh, and mutation
 flows for shared, user-global, and repo-local assets.
@@ -144,7 +145,7 @@ The server binds to `127.0.0.1` only — do not expose to untrusted networks.
 For the current tabs, route groups, persistence model, and validation anchors, see
 `docs/system/copilot-ui-guide.md`.
 
-The `Assets` tab now includes a `Workflow packs` panel for optional bundles that install multiple assets together. The first shipped bundle is `Superpowers Workflow Pack`, which installs the vendored Superpowers skills and reviewer agent into the user-global Copilot surface.
+The Catalog surface includes a `Workflow packs` panel for optional bundles that install multiple assets together. The first shipped bundle is `Superpowers Workflow Pack`, which installs the vendored Superpowers skills and reviewer agent into the user-global Copilot surface. Profiles and routing policy can mark bundles active, but optional bundle members are still copied only when you explicitly install that pack. Repo-specific governance lanes stay repo-scoped and are discovered from the selected repo's `.github/*` assets instead of being copied into the user-global baseline.
 
 ### Catalog control plane at a glance
 
@@ -205,10 +206,12 @@ Verification surfaces:
 If a persisted projection is missing, the backend falls back to a filesystem build
 (`readMode: "filesystem-fallback"`). Refreshing persists the snapshot again.
 
-### Desktop distribution policy (locked)
+### Optional desktop packaging lane (locked)
 
+- Desktop packaging is an **optional maintainer distribution lane**, not the default expectation for
+  normal repo changes or releases.
 - Packaging runtime: Electron (`electron-builder`) with in-app updates (`electron-updater`)
-- Release scope: Windows GA first; Linux/macOS preview until signing parity
+- Release scope when packaging is used: Windows GA first; Linux/macOS preview until signing parity
 - Signing custody: managed external signing service via OIDC (no private keys in repo)
 - Rollback authority: Release Engineering owns channel rollback + kill switch decisions
 - Desktop package bundle includes runtime assets required for standalone mode:
@@ -218,11 +221,11 @@ If a persisted projection is missing, the backend falls back to a filesystem bui
   - helper scripts required by dashboard/runtime operations
 - Packaged desktop runtime attempts embedded Postgres bootstrap in packaged mode (Windows-first). If runtime binaries are unavailable, app continues in non-persistent mode and surfaces a warning.
 
-Desktop version automation:
-- `.github/workflows/desktop-version-tag.yml` watches `copilot-ui/package.json` on `main` and creates `desktop-v<version>` tags for Changesets version commits (`Version Packages`).
-- `.github/workflows/desktop-release.yml` remains the authoritative release publisher and is triggered by `desktop-v*` tags.
+Desktop release tag helper flow, when the optional packaging lane is exercised:
+- `.github/workflows/desktop-version-tag.yml` is a maintainer-only manual helper that can target a specific ref to create `desktop-v<version>` tags when an explicit desktop release flow should advance.
+- `.github/workflows/desktop-release.yml` remains the authoritative release publisher and is manually dispatched with a `desktop-v*` tag.
 
-Release-safety rules (G-06-WU-03):
+Release-safety rules (G-06-WU-03) for packaged desktop releases:
 - Migration checksum safety is explicit: `pass` only when persisted migration checksums match manifest checksums; checksum drift is release-blocking (`PLANNING_MIGRATION_CHECKSUM_DRIFT`).
 - Rollback threshold `R1`: any single deterministic safety failure (`PLANNING_MIGRATION_CHECKSUM_DRIFT`, `current_version_below_minimum_safe`, `candidate_version_above_channel_ceiling`) triggers immediate channel rollback actions.
 - Rollback threshold `R2`: two consecutive fail-closed policy load cycles (`rollback_policy_source_unavailable` / `rollback_policy_malformed`) after remediation trigger escalation.
@@ -232,7 +235,8 @@ Release-safety rules (G-06-WU-03):
 
 - WS6 is a post-WS1 gate: execute WS6 compatibility/release-safety work only after the WS1 contract freeze (`G-01-WU-04`).
 - WS2 owns the primary non-Docker default runtime behavior.
-- WS6 non-Docker scope is compatibility/upgrade safety only (mixed-version compatibility, rollback, release safety), not primary default behavior changes.
+- WS6 non-Docker scope is compatibility/upgrade safety for the optional desktop packaging lane only
+  (mixed-version compatibility, rollback, release safety), not primary default behavior changes.
 
 ### WS6 CI topology + required checks (locked)
 

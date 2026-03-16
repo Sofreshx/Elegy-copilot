@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 
 const PLANNING_VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack-planning.js');
-const FULL_VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack.js');
+const LEGACY_VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack.js');
 
 let passed = 0;
 
@@ -140,8 +140,9 @@ test('planning validator accepts a structurally valid pre-execution planpack wit
 		const planningResult = runValidator(PLANNING_VALIDATOR_PATH, filePath, ['--ac-enforcement', 'fail']);
 		assert.strictEqual(planningResult.status, 0, `planning validator should pass, stderr: ${planningResult.stderr}`);
 
-		const fullResult = runValidator(FULL_VALIDATOR_PATH, filePath);
-		assert.notStrictEqual(fullResult.status, 0, 'full validator should still fail without execution evidence sections');
+		const fullResult = runValidator(LEGACY_VALIDATOR_PATH, filePath);
+		assert.notStrictEqual(fullResult.status, 0, 'legacy compatibility validator should still fail without execution evidence sections');
+		assert.match(fullResult.stderr, /migration-only compatibility entrypoint/i);
 		assert.match(fullResult.stderr, /missing required stream evidence|missing required progress section: ## Final Gate Controls/i);
 	});
 });
@@ -155,11 +156,12 @@ test('planning validator still requires the base progress tracker next-unit sect
 	});
 });
 
-test('full validator still requires the base progress tracker next-unit section', () => {
+test('legacy compatibility validator still requires the base progress tracker next-unit section', () => {
 	const planContent = buildPlanningPlanPack({ omitNextUnit: true });
 	withTempPlanFile(planContent, (filePath) => {
-		const result = runValidator(FULL_VALIDATOR_PATH, filePath);
-		assert.notStrictEqual(result.status, 0, 'full validator should fail when Next Unit is missing');
+		const result = runValidator(LEGACY_VALIDATOR_PATH, filePath);
+		assert.notStrictEqual(result.status, 0, 'legacy compatibility validator should fail when Next Unit is missing');
+		assert.match(result.stderr, /migration-only compatibility entrypoint/i);
 		assert.match(result.stderr, /missing required progress section: ## Next Unit section required/i);
 	});
 });

@@ -7,6 +7,7 @@ const Ajv2020 = require('ajv/dist/2020').default;
 
 const CANONICAL_SCHEMA_NAME = 'canonical-workflow';
 const DEFAULT_CONTRACTS_DIR = path.resolve(__dirname, '..', 'contracts', 'session-state');
+const CONTRACT_MANIFEST_FILE = 'contract-manifest.json';
 const COMPATIBILITY_MANIFEST_FILE = 'compatibility-manifest.json';
 const CANONICAL_SCHEMA_FILE = 'canonical-workflow.schema.json';
 
@@ -42,11 +43,37 @@ function resolveContractsDir(contractsDir) {
 	return contractsDir ? path.resolve(contractsDir) : DEFAULT_CONTRACTS_DIR;
 }
 
-function loadContractManifest(options = {}) {
+function loadCompatibilityManifest(options = {}) {
 	const contractsDir = resolveContractsDir(options.contractsDir);
 	const manifestPath = path.join(contractsDir, COMPATIBILITY_MANIFEST_FILE);
 	const manifest = readJsonFile(manifestPath, 'compatibility manifest');
 	return { manifest, manifestPath, contractsDir };
+}
+
+function loadContractManifest(options = {}) {
+	const contractsDir = resolveContractsDir(options.contractsDir);
+	const manifestPath = path.join(contractsDir, CONTRACT_MANIFEST_FILE);
+	if (fs.existsSync(manifestPath)) {
+		const manifest = readJsonFile(manifestPath, 'contract manifest');
+		return { manifest, manifestPath, contractsDir };
+	}
+
+	const compatibility = loadCompatibilityManifest({ contractsDir });
+	const redirectedManifestFile = compatibility.manifest && compatibility.manifest.contractManifestFile;
+	if (typeof redirectedManifestFile === 'string' && redirectedManifestFile.trim()) {
+		assertSafeRelativePath(redirectedManifestFile);
+		const redirectedManifestPath = path.join(compatibility.contractsDir, redirectedManifestFile);
+		const manifest = readJsonFile(redirectedManifestPath, 'contract manifest');
+		return {
+			manifest,
+			manifestPath: redirectedManifestPath,
+			contractsDir: compatibility.contractsDir,
+			compatibilityManifest: compatibility.manifest,
+			compatibilityManifestPath: compatibility.manifestPath,
+		};
+	}
+
+	return compatibility;
 }
 
 function resolveCanonicalSchemaFile(manifest) {
@@ -60,7 +87,11 @@ function resolveCanonicalSchemaFile(manifest) {
 function loadCanonicalSchema(options = {}) {
 	const contractsDir = resolveContractsDir(options.contractsDir);
 	const loadedManifest = options.manifest
-		? { manifest: options.manifest, manifestPath: path.join(contractsDir, COMPATIBILITY_MANIFEST_FILE), contractsDir }
+		? {
+				manifest: options.manifest,
+				manifestPath: options.manifestPath ? path.resolve(contractsDir, options.manifestPath) : path.join(contractsDir, CONTRACT_MANIFEST_FILE),
+				contractsDir,
+			}
 		: loadContractManifest({ contractsDir });
 
 	const schemaRelPath = resolveCanonicalSchemaFile(loadedManifest.manifest);
@@ -111,6 +142,9 @@ function validateWorkflowPayload(payload, options = {}) {
 module.exports = {
 	CANONICAL_SCHEMA_NAME,
 	DEFAULT_CONTRACTS_DIR,
+	CONTRACT_MANIFEST_FILE,
+	COMPATIBILITY_MANIFEST_FILE,
+	loadCompatibilityManifest,
 	loadContractManifest,
 	loadCanonicalSchema,
 	createWorkflowValidator,

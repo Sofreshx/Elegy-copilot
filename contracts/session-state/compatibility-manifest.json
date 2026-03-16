@@ -1,81 +1,16 @@
 {
   "manifestVersion": "1.0.0",
+  "metadataKind": "legacy-compatibility",
+  "deprecated": true,
+  "contractManifestFile": "contract-manifest.json",
   "package": {
     "name": "InstructionEngine.SessionState.Contracts",
     "version": "0.1.0"
   },
-  "schemas": [
-    {
-      "name": "canonical-workflow",
-      "schemaVersion": "1.0.0",
-      "file": "canonical-workflow.schema.json",
-      "fixtures": [
-        "fixtures/canonical-workflow.minimal.json"
-      ]
-    },
-    {
-      "name": "agent-definition",
-      "schemaVersion": "1.0.0",
-      "file": "agent-definition.schema.json",
-      "fixtures": [
-        "fixtures/agent-definition.minimal.json"
-      ]
-    },
-    {
-      "name": "dynamic-skill-activation",
-      "schemaVersion": "1.0.0",
-      "file": "dynamic-skill-activation.schema.json",
-      "fixtures": [
-        "fixtures/dynamic-skill-activation.minimal.json"
-      ]
-    },
-    {
-      "name": "monitoring-event",
-      "schemaVersion": "1.0.0",
-      "file": "monitoring-event.schema.json",
-      "fixtures": [
-        "fixtures/monitoring-event.minimal.json"
-      ]
-    },
-    {
-      "name": "skill-definition",
-      "schemaVersion": "1.0.0",
-      "file": "skill-definition.schema.json",
-      "fixtures": [
-        "fixtures/skill-definition.minimal.json"
-      ]
-    },
-    {
-      "name": "skill-forge-request",
-      "schemaVersion": "1.0.0",
-      "file": "skill-forge-request.schema.json",
-      "fixtures": [
-        "fixtures/skill-forge-request.minimal.json"
-      ]
-    },
-    {
-      "name": "agent-create-request",
-      "schemaVersion": "1.0.0",
-      "file": "agent-create-request.schema.json",
-      "fixtures": [
-        "fixtures/agent-create-request.minimal.json"
-      ]
-    },
-    {
-      "name": "skill-discovery-index",
-      "schemaVersion": "1.0.0",
-      "file": "skill-discovery-index.schema.json",
-      "fixtures": [
-        "fixtures/skill-discovery-index.minimal.json"
-      ]
-    },
-    {
-      "name": "mcp-tool-definition",
-      "schemaVersion": "1.0.0",
-      "file": "mcp-tool-definition.schema.json",
-      "fixtures": [
-        "fixtures/mcp-tool-definition.minimal.json"
-      ]
-    }
-  ]
+  "canonicalSchema": {
+    "name": "canonical-workflow",
+    "schemaVersion": "1.0.0",
+    "file": "canonical-workflow.schema.json"
+  },
+  "migrationNotes": "Legacy compatibility metadata for consumers that still probe compatibility-manifest.json before moving to contract-manifest.json."
 }

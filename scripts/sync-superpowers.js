@@ -195,22 +195,6 @@ function updateManifest(manifestPath) {
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 }
 
-function updateCliAllowlist(allowlistPath) {
-  const allowlist = JSON.parse(fs.readFileSync(allowlistPath, 'utf8'));
-  const nextAgents = new Set(Array.isArray(allowlist.agents) ? allowlist.agents : []);
-  nextAgents.add(VENDORED_AGENT_NAME);
-
-  const nextSkills = new Set(Array.isArray(allowlist.skills) ? allowlist.skills : []);
-  for (const skillName of SKILL_NAMES) {
-    nextSkills.add(namespacedSkillName(skillName));
-  }
-
-  allowlist.agents = Array.from(nextAgents).sort((left, right) => left.localeCompare(right));
-  allowlist.skills = Array.from(nextSkills).sort((left, right) => left.localeCompare(right));
-
-  fs.writeFileSync(allowlistPath, `${JSON.stringify(allowlist, null, 2)}\n`, 'utf8');
-}
-
 function writeProvenance(engineRoot, sourceRoot, upstreamSha) {
   const provenancePath = path.join(engineRoot, 'engine-assets', 'superpowers-vendor.json');
   const provenance = {
@@ -267,7 +251,9 @@ function main() {
   maybeRewriteTextFile(targetAgentPath, (content) => rewriteAgentContent(content));
 
   updateManifest(path.join(engineRoot, 'engine-assets', 'manifest.json'));
-  updateCliAllowlist(path.join(engineRoot, '.cli', 'manifest.allowlist.json'));
+  // Keep vendored Superpowers assets available through the canonical engine manifest
+  // and optional bundle metadata, but do not auto-promote them into the public CLI
+  // shipping allowlist.
   writeProvenance(engineRoot, sourceRoot, args.upstreamSha);
 
   console.log(`Vendored Superpowers workflow pack from ${sourceRoot}`);

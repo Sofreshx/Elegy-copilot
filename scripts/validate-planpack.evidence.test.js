@@ -7,7 +7,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack.js');
+const EXECUTION_VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack-execution.js');
+const LEGACY_VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack.js');
 
 let passed = 0;
 
@@ -35,7 +36,14 @@ function withTempPlanFile(content, fn) {
 }
 
 function runValidator(filePath, args = []) {
-	return childProcess.spawnSync(process.execPath, [VALIDATOR_PATH, filePath, ...args], {
+	return childProcess.spawnSync(process.execPath, [EXECUTION_VALIDATOR_PATH, filePath, ...args], {
+		encoding: 'utf8',
+		stdio: 'pipe',
+	});
+}
+
+function runLegacyValidator(filePath, args = []) {
+	return childProcess.spawnSync(process.execPath, [LEGACY_VALIDATOR_PATH, filePath, ...args], {
 		encoding: 'utf8',
 		stdio: 'pipe',
 	});
@@ -134,6 +142,7 @@ ${versionLine}## Goal + Success Criteria
   - Validator enforces required streams for versioned plans.
 
 ## Context Loaded (exact files)
+- scripts/validate-planpack-execution.js
 - scripts/validate-planpack.js
 
 ## Assumptions + Constraints
@@ -178,7 +187,7 @@ ${versionLine}## Goal + Success Criteria
 - scripts/validate-planpack.js (modify)
 
 #### Validation
-- Run validate-planpack.js against sample content.
+- Run validate-planpack-execution.js against sample content.
 
 ## Execution Notes
 - Progress updates live in the progress tracker section.
@@ -187,7 +196,7 @@ ${versionLine}## Goal + Success Criteria
 - Risk: false negatives in evidence matching.
 
 ## Validation
-- node scripts/validate-planpack.js <planpack>
+- node scripts/validate-planpack-execution.js <planpack>
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -349,7 +358,7 @@ test('fails closed when no planpack version marker exists', () => {
 	});
 });
 
-test('supports explicit legacy best-effort override for unversioned planpacks', () => {
+test('supports explicit migration-only legacy best-effort override for unversioned planpacks', () => {
 	const planContent = buildPlanPack({
 		withVersion: false,
 		streamRows: [],
@@ -358,9 +367,10 @@ test('supports explicit legacy best-effort override for unversioned planpacks', 
 	});
 
 	withTempPlanFile(planContent, (filePath) => {
-		const result = runValidator(filePath, ['--allow-legacy-best-effort']);
+		const result = runLegacyValidator(filePath, ['--allow-legacy-best-effort']);
 		assert.strictEqual(result.status, 0, `validator should allow legacy override, stderr: ${result.stderr}`);
-		assert.match(result.stdout, /legacy best-effort override active/i);
+		assert.match(result.stderr, /migration-only compatibility entrypoint/i);
+		assert.match(result.stderr, /migration-only legacy best-effort override active/i);
 	});
 });
 

@@ -13,6 +13,7 @@ const storeMocks = vi.hoisted(() => ({
   enableAsset: vi.fn(),
   disableAsset: vi.fn(),
   registerRepo: vi.fn(),
+  saveCustomScanRoots: vi.fn(),
   unregisterRepo: vi.fn(),
   refreshRepo: vi.fn(),
   selectRepo: vi.fn(),
@@ -347,6 +348,15 @@ const mockState = {
   searchPreferLoadMode: 'all',
   repoInventoryLoading: false,
   repoInventory: {
+    workspaceScan: {
+      storage: {
+        path: 'C:\\Users\\tester\\.copilot\\catalog\\repo-discovery.json',
+        exists: true,
+      },
+      defaultRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+      customScanRoots: ['D:\\work\\repos'],
+      scanRoots: ['C:\\Users\\tester\\Documents\\GitHub', 'D:\\work\\repos'],
+    },
     repos: [
       {
         repoId: 'repo-1',
@@ -401,7 +411,6 @@ const mockState = {
       },
     },
   },
-  bundles: [],
   selectedBundleId: null,
 };
 
@@ -419,6 +428,7 @@ const mockCatalogWorkspaceStore = {
   enableAsset: storeMocks.enableAsset,
   disableAsset: storeMocks.disableAsset,
   registerRepo: storeMocks.registerRepo,
+  saveCustomScanRoots: storeMocks.saveCustomScanRoots,
   unregisterRepo: storeMocks.unregisterRepo,
   refreshRepo: storeMocks.refreshRepo,
   selectRepo: storeMocks.selectRepo,
@@ -457,15 +467,35 @@ describe('AssetsView catalog workspace', () => {
     expect(storeMocks.loadWorkspace).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Repo scope & registration')).toBeInTheDocument();
     expect(screen.getByText('Workflow packs')).toBeInTheDocument();
-    expect(screen.getByText('Superpowers Workflow Pack')).toBeInTheDocument();
+    expect(screen.getAllByText('Superpowers Workflow Pack').length).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: 'Create asset' })).toBeInTheDocument();
     expect(screen.getByText('Catalog browser')).toBeInTheDocument();
     expect(screen.getByText('Search & recommendations')).toBeInTheDocument();
     expect(screen.getByText('Usage & audit')).toBeInTheDocument();
     expect(screen.getByText('Runtime health')).toBeInTheDocument();
+    expect(screen.getByText(/Persisted custom roots:/)).toHaveTextContent('D:\\work\\repos');
     expect(screen.getByTestId('catalog-write-target-copy')).toHaveTextContent('authoritative repo-local asset');
     expect(screen.getByTestId('catalog-runtime-freshness')).toHaveTextContent('fresh');
     expect(screen.getByText('# Test skill')).toBeInTheDocument();
+  });
+
+  it('saves custom scan roots through the workspace store', async () => {
+    vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
+      catalogWorkspaceStore: mockCatalogWorkspaceStore,
+    }));
+
+    const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
+
+    render(<AssetsView />);
+
+    fireEvent.change(screen.getByTestId('catalog-custom-scan-roots-input'), {
+      target: { value: 'D:\\work\\repos\nE:\\client\\repos' },
+    });
+    fireEvent.click(screen.getByTestId('catalog-save-custom-scan-roots'));
+
+    await waitFor(() => {
+      expect(storeMocks.saveCustomScanRoots).toHaveBeenCalledWith(['D:\\work\\repos', 'E:\\client\\repos']);
+    });
   });
 
   it('dispatches bundle installation through the workspace store', async () => {

@@ -127,6 +127,20 @@ function createRepoInventory(repoPath) {
   };
 }
 
+function createEmptyRepoInventory() {
+  return {
+    listKnownRepos() {
+      return {
+        selectedRepo: null,
+        repos: [],
+      };
+    },
+    resolveRepoEntry() {
+      return null;
+    },
+  };
+}
+
 async function run() {
   console.log('\nRoadmap Route Tests\n');
 
@@ -203,6 +217,26 @@ async function run() {
       'utf8',
     );
     assert.match(markdown, /RM-platform-foundation-001/);
+  });
+
+  await test('POST /api/planning/roadmaps requires a selected catalog repo before slug validation', async () => {
+    const { engineRoot, copilotHomeAbs } = createFixture();
+    const routes = register({
+      repoInventory: createEmptyRepoInventory(),
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const response = await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'POST', '/api/planning/roadmaps', {});
+
+    assert.equal(response.res.statusCode, 409);
+    assert.equal(response.body.code, 'catalog_repo_not_selected');
   });
 
   await test('PATCH /api/planning/roadmaps/:slug updates metadata and upserts roadmap items', async () => {
