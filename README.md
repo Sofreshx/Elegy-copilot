@@ -28,7 +28,7 @@ pwsh -File scripts/cli-install.ps1 --all --force
 bash scripts/cli-install.sh --all --force
 ```
 
-This installs the shipped first-party agents, prompts, and global instructions file into `~/.copilot`, and installs shipped skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode. It does **not** install optional workflow packs or repo-local `.github/agents` / `.github/skills` content.
+This installs the shipped first-party agents, prompts, and global instructions file into `~/.copilot`, and installs shipped skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode. The installer also prunes stale previously managed shipped agents, prompts, and skills that are no longer part of `engine-assets/`, while leaving repo-local workflow packs and other user-managed `.github/agents` / `.github/skills` content alone.
 
 Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can then be installed explicitly from the local dashboard in `Catalog` -> `Workflow packs`. Repo-specific governance lanes only appear when you register/select a repo that provides repo-local `.github/*` assets or repo-scoped overrides.
 

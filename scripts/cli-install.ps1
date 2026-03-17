@@ -223,21 +223,55 @@ function Read-InstallState([string]$root) {
   }
 }
 
+function Get-NormalizedInstallStateItems([object[]]$items) {
+  if ($null -eq $items) {
+    return @()
+  }
+
+  return @(
+    $items |
+      ForEach-Object { [string]$_ } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+      Sort-Object -Unique
+  )
+}
+
 function Write-InstallState(
   [string]$root,
   [string[]]$managedSkills,
   [string[]]$alwaysLoadedSkills,
   [string[]]$vaultSkills,
   [string]$installProfile,
+  [string[]]$managedAgents,
+  [string[]]$managedPrompts,
   [switch]$DryRun
 ) {
+  $previousState = Read-InstallState $root
+  $resolvedManagedAgents =
+    if ($PSBoundParameters.ContainsKey('managedAgents')) {
+      Get-NormalizedInstallStateItems $managedAgents
+    } elseif ($previousState -and $previousState.PSObject.Properties['managedAgents']) {
+      Get-NormalizedInstallStateItems @($previousState.managedAgents)
+    } else {
+      @()
+    }
+  $resolvedManagedPrompts =
+    if ($PSBoundParameters.ContainsKey('managedPrompts')) {
+      Get-NormalizedInstallStateItems $managedPrompts
+    } elseif ($previousState -and $previousState.PSObject.Properties['managedPrompts']) {
+      Get-NormalizedInstallStateItems @($previousState.managedPrompts)
+    } else {
+      @()
+    }
   $statePath = Get-InstallStatePath $root
   $state = [ordered]@{
-    schemaVersion = 2
+    schemaVersion = 3
     installProfile = $installProfile
-    managedSkills = @($managedSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
-    alwaysLoadedSkills = @($alwaysLoadedSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
-    vaultSkills = @($vaultSkills | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    managedSkills = @(Get-NormalizedInstallStateItems $managedSkills)
+    alwaysLoadedSkills = @(Get-NormalizedInstallStateItems $alwaysLoadedSkills)
+    vaultSkills = @(Get-NormalizedInstallStateItems $vaultSkills)
+    managedAgents = @($resolvedManagedAgents)
+    managedPrompts = @($resolvedManagedPrompts)
   }
 
   if ($DryRun) {
@@ -249,7 +283,7 @@ function Write-InstallState(
   Write-Host "[STATE]  $statePath"
 }
 
-function Remove-SkillArtifact([string]$artifactPath, [switch]$DryRun) {
+function Remove-InstallArtifact([string]$artifactPath, [switch]$DryRun) {
   if (-not (Test-Path -LiteralPath $artifactPath)) {
     return
   }
@@ -261,6 +295,37 @@ function Remove-SkillArtifact([string]$artifactPath, [switch]$DryRun) {
 
   Remove-Item -LiteralPath $artifactPath -Recurse -Force
   Write-Host "[PRUNE]  $artifactPath"
+}
+
+function Prune-ManagedFileInstall(
+  [string]$root,
+  [string]$relativeDir,
+  [string]$statePropertyName,
+  [string[]]$currentFiles,
+  [string[]]$legacyFileNames,
+  [switch]$DryRun
+) {
+  $previousState = Read-InstallState $root
+  $previousFiles = @()
+  if ($previousState -and $previousState.PSObject.Properties[$statePropertyName]) {
+    $previousFiles = @($previousState.$statePropertyName)
+  }
+
+  $currentSet = @(Get-NormalizedInstallStateItems $currentFiles)
+  $pruneCandidates = @(
+    $currentSet + @($previousFiles) + @($legacyFileNames) |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+      Sort-Object -Unique
+  )
+
+  $targetRoot = Join-Path $root $relativeDir
+  foreach ($fileName in $pruneCandidates) {
+    if ($currentSet -contains $fileName) {
+      continue
+    }
+
+    Remove-InstallArtifact (Join-Path $targetRoot $fileName) -DryRun:$DryRun
+  }
 }
 
 function Prune-ManagedSkillInstall(
@@ -298,8 +363,8 @@ function Prune-ManagedSkillInstall(
       continue
     }
 
-    Remove-SkillArtifact (Join-Path $skillsRoot $skillName) -DryRun:$DryRun
-    Remove-SkillArtifact (Join-Path $skillsRoot "$skillName.md") -DryRun:$DryRun
+    Remove-InstallArtifact (Join-Path $skillsRoot $skillName) -DryRun:$DryRun
+    Remove-InstallArtifact (Join-Path $skillsRoot "$skillName.md") -DryRun:$DryRun
   }
 
   foreach ($skillName in $pruneCandidates) {
@@ -307,8 +372,8 @@ function Prune-ManagedSkillInstall(
       continue
     }
 
-    Remove-SkillArtifact (Join-Path $vaultRoot $skillName) -DryRun:$DryRun
-    Remove-SkillArtifact (Join-Path $vaultRoot "$skillName.md") -DryRun:$DryRun
+    Remove-InstallArtifact (Join-Path $vaultRoot $skillName) -DryRun:$DryRun
+    Remove-InstallArtifact (Join-Path $vaultRoot "$skillName.md") -DryRun:$DryRun
   }
 }
 
@@ -386,6 +451,16 @@ $legacyManagedSkillNames = @(
   'terraform',
   'tech-debt'
 )
+$legacyManagedAgentFiles = @(
+  'context-curator.agent.md',
+  'executive.agent.md',
+  'executive2.agent.md',
+  'executive2-fast.agent.md',
+  'executive2-planner.agent.md',
+  'executive2p5.agent.md',
+  'executive2p5-planner.agent.md'
+)
+$legacyManagedPromptFiles = @()
 
 if ($DoCli) {
   if (-not (Test-Path -LiteralPath $srcAgentsRoot)) { throw "Missing agents source: $srcAgentsRoot" }
@@ -428,6 +503,12 @@ function Get-SkillLoadMode([string]$skillName) {
 $managedSkillNames = @(
   Get-ChildItem -LiteralPath $srcSkillsRoot -Directory | ForEach-Object { $_.Name }
 )
+$managedAgentFiles = @(
+  Get-ChildItem -LiteralPath $srcAgentsRoot -Filter '*.agent.md' -File | ForEach-Object { $_.Name }
+)
+$managedPromptFiles = @(
+  Get-ChildItem -LiteralPath $srcPromptsRoot -Filter '*.prompt.md' -File | ForEach-Object { $_.Name }
+)
 $alwaysLoadedSkillNames = @(
   $managedSkillNames | Where-Object { (Get-SkillLoadMode $_) -eq 'always' }
 )
@@ -453,6 +534,7 @@ if ($DoCli) {
     $dst = Join-Path $copilotHome (Join-Path 'agents' $_.Name)
     Sync-File $_.FullName $dst -DryRun:$DryRun -Force:$Force
   }
+  Prune-ManagedFileInstall -root $copilotHome -relativeDir 'agents' -statePropertyName 'managedAgents' -currentFiles $managedAgentFiles -legacyFileNames $legacyManagedAgentFiles -DryRun:$DryRun
 
   # .github\skills\<skill>\** -> <copilotHome>\skills\<skill>\** (preserve folder)
   if ($Pointer) {
@@ -484,7 +566,7 @@ if ($DoCli) {
     }
   }
 
-  Write-InstallState -root $copilotHome -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -vaultSkills $vaultSkillNames -installProfile $InstallProfile -DryRun:$DryRun
+  Write-InstallState -root $copilotHome -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -vaultSkills $vaultSkillNames -managedAgents $managedAgentFiles -installProfile $InstallProfile -DryRun:$DryRun
 
   # engine-assets/copilot-instructions.md -> <copilotHome>\copilot-instructions.md
   $dstInstructions = Join-Path $copilotHome 'copilot-instructions.md'
@@ -503,6 +585,7 @@ if ($DoVscode) {
     $dst = Join-Path (Join-Path $vscodeHomeResolved 'agents') $_.Name
     Sync-File $_.FullName $dst -DryRun:$DryRun -Force:$Force
   }
+  Prune-ManagedFileInstall -root $vscodeHomeResolved -relativeDir 'agents' -statePropertyName 'managedAgents' -currentFiles $managedAgentFiles -legacyFileNames $legacyManagedAgentFiles -DryRun:$DryRun
 
   if ($Pointer) {
     $vscodeVault = Join-Path $vscodeHomeResolved 'skills-vault'
@@ -533,12 +616,13 @@ if ($DoVscode) {
     }
   }
 
-  Write-InstallState -root $vscodeHomeResolved -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -vaultSkills $vaultSkillNames -installProfile $InstallProfile -DryRun:$DryRun
-
   Get-ChildItem -LiteralPath $srcPromptsRoot -Filter '*.prompt.md' -File | ForEach-Object {
     $dst = Join-Path (Join-Path $vscodeHomeResolved 'prompts') $_.Name
     Sync-File $_.FullName $dst -DryRun:$DryRun -Force:$Force
   }
+  Prune-ManagedFileInstall -root $vscodeHomeResolved -relativeDir 'prompts' -statePropertyName 'managedPrompts' -currentFiles $managedPromptFiles -legacyFileNames $legacyManagedPromptFiles -DryRun:$DryRun
+
+  Write-InstallState -root $vscodeHomeResolved -managedSkills $managedSkillNames -alwaysLoadedSkills $alwaysLoadedSkillNames -vaultSkills $vaultSkillNames -managedAgents $managedAgentFiles -managedPrompts $managedPromptFiles -installProfile $InstallProfile -DryRun:$DryRun
 
   $dstVscodeInstructions = Join-Path $vscodeHomeResolved 'copilot-instructions.md'
   Sync-File $srcVscodeInstructions $dstVscodeInstructions -DryRun:$DryRun -Force:$Force

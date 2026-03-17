@@ -110,6 +110,16 @@ LEGACY_MANAGED_SKILLS=(
   terraform
   tech-debt
 )
+LEGACY_MANAGED_AGENTS=(
+  context-curator.agent.md
+  executive.agent.md
+  executive2.agent.md
+  executive2-fast.agent.md
+  executive2-planner.agent.md
+  executive2p5.agent.md
+  executive2p5-planner.agent.md
+)
+LEGACY_MANAGED_PROMPTS=()
 
 default_vscode_home() {
   echo "$HOME/.copilot"
@@ -371,16 +381,23 @@ remove_skill_artifact() {
 
 write_install_state() {
   local root="$1"
+  local prompt_mode="${2:-replace}"
   if ! command -v node >/dev/null 2>&1; then
     return 0
   fi
 
   local state_file
   state_file="$(install_state_path "$root")"
-  local managed_json always_json vault_json
+  local managed_json always_json vault_json agent_json prompt_json
   managed_json="$(node -e "console.log(JSON.stringify(process.argv.slice(1).filter(Boolean).sort()))" "${CURRENT_MANAGED_SKILLS[@]}")"
   always_json="$(node -e "console.log(JSON.stringify(process.argv.slice(1).filter(Boolean).sort()))" "${CURRENT_ALWAYS_SKILLS[@]}")"
   vault_json="$(node -e "console.log(JSON.stringify(process.argv.slice(1).filter(Boolean).sort()))" "${CURRENT_VAULT_SKILLS[@]}")"
+  agent_json="$(node -e "console.log(JSON.stringify(process.argv.slice(1).filter(Boolean).sort()))" "${CURRENT_MANAGED_AGENTS[@]}")"
+  if [[ "$prompt_mode" == "preserve" && -f "$state_file" ]]; then
+    prompt_json="$(node -e "try { const state = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')); console.log(JSON.stringify((state.managedPrompts || []).map(String).filter(Boolean).sort())); } catch { console.log('[]'); }" "$state_file")"
+  else
+    prompt_json="$(node -e "console.log(JSON.stringify(process.argv.slice(1).filter(Boolean).sort()))" "${CURRENT_MANAGED_PROMPTS[@]}")"
+  fi
 
   if $DRY_RUN; then
     echo "[DRY-RUN] WRITE-STATE $state_file"
@@ -388,8 +405,50 @@ write_install_state() {
   fi
 
   mkdir_if_needed "$(dirname "$state_file")"
-  printf '{\n  "schemaVersion": 2,\n  "installProfile": "%s",\n  "managedSkills": %s,\n  "alwaysLoadedSkills": %s,\n  "vaultSkills": %s\n}\n' "$INSTALL_PROFILE" "$managed_json" "$always_json" "$vault_json" > "$state_file"
+  printf '{\n  "schemaVersion": 3,\n  "installProfile": "%s",\n  "managedSkills": %s,\n  "alwaysLoadedSkills": %s,\n  "vaultSkills": %s,\n  "managedAgents": %s,\n  "managedPrompts": %s\n}\n' "$INSTALL_PROFILE" "$managed_json" "$always_json" "$vault_json" "$agent_json" "$prompt_json" > "$state_file"
   echo "[STATE]  $state_file"
+}
+
+prune_managed_file_install() {
+  local root="$1"
+  local relative_dir="$2"
+  local state_property="$3"
+  shift 3
+
+  local state_file
+  state_file="$(install_state_path "$root")"
+  local -a current_items=("$@")
+  local -a previous_items=()
+
+  if command -v node >/dev/null 2>&1 && [[ -f "$state_file" ]]; then
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && previous_items+=("$line")
+    done < <(node -e "try { const state = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')); for (const item of (state[process.argv[2]] || [])) console.log(String(item)); } catch {}" "$state_file" "$state_property")
+  fi
+
+  case "$state_property" in
+    managedAgents) previous_items+=("${LEGACY_MANAGED_AGENTS[@]}") ;;
+    managedPrompts) previous_items+=("${LEGACY_MANAGED_PROMPTS[@]}") ;;
+  esac
+
+  local -a prune_candidates=()
+  prune_candidates+=("${current_items[@]}")
+  prune_candidates+=("${previous_items[@]}")
+
+  local -a unique_candidates=()
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && unique_candidates+=("$line")
+  done < <(printf '%s\n' "${prune_candidates[@]}" | awk 'NF && !seen[$0]++')
+
+  local target_root="$root/$relative_dir"
+  local file_name
+  for file_name in "${unique_candidates[@]}"; do
+    if array_contains "$file_name" "${current_items[@]}"; then
+      continue
+    fi
+
+    remove_skill_artifact "$target_root/$file_name"
+  done
 }
 
 prune_managed_skill_install() {
@@ -565,6 +624,16 @@ for src_dir in "$SRC_SKILLS_ROOT"/*; do
   CURRENT_MANAGED_SKILLS+=("$(basename "$src_dir")")
 done
 
+CURRENT_MANAGED_AGENTS=()
+CURRENT_MANAGED_PROMPTS=()
+shopt -s nullglob
+for src in "$SRC_AGENTS_ROOT/"*.agent.md; do
+  CURRENT_MANAGED_AGENTS+=("$(basename "$src")")
+done
+for src in "$SRC_PROMPTS_ROOT/"*.prompt.md; do
+  CURRENT_MANAGED_PROMPTS+=("$(basename "$src")")
+done
+
 CURRENT_ALWAYS_SKILLS=()
 CURRENT_ON_DEMAND_SKILLS=()
 for skill_name in "${CURRENT_MANAGED_SKILLS[@]}"; do
@@ -591,6 +660,7 @@ if $DO_CLI; then
   for src in "$SRC_AGENTS_ROOT/"*.agent.md; do
     sync_file "$src" "$COPILOT_HOME/agents/$(basename "$src")"
   done
+  prune_managed_file_install "$COPILOT_HOME" "agents" "managedAgents" "${CURRENT_MANAGED_AGENTS[@]}"
 
   # engine-assets/skills/<skill>/** -> <copilotHome>/skills/<skill>/**
   mkdir_if_needed "$COPILOT_HOME/skills"
@@ -622,7 +692,7 @@ if $DO_CLI; then
     done
   fi
 
-  write_install_state "$COPILOT_HOME"
+  write_install_state "$COPILOT_HOME" "preserve"
 
   # engine-assets/copilot-instructions.md -> <copilotHome>/copilot-instructions.md
   sync_file "$SRC_INSTRUCTIONS" "$COPILOT_HOME/copilot-instructions.md"
@@ -635,6 +705,7 @@ if $DO_VSCODE; then
   for src in "$SRC_AGENTS_ROOT/"*.agent.md; do
     sync_file "$src" "$VSCODE_HOME_RESOLVED/agents/$(basename "$src")"
   done
+  prune_managed_file_install "$VSCODE_HOME_RESOLVED" "agents" "managedAgents" "${CURRENT_MANAGED_AGENTS[@]}"
 
   mkdir_if_needed "$VSCODE_HOME_RESOLVED/skills"
   echo "VS Code skills: installing managed=${#CURRENT_MANAGED_SKILLS[@]} always=${#CURRENT_ALWAYS_SKILLS[@]} on-demand=${#CURRENT_ON_DEMAND_SKILLS[@]} vault=${#CURRENT_VAULT_SKILLS[@]}"
@@ -665,12 +736,13 @@ if $DO_VSCODE; then
     done
   fi
 
-  write_install_state "$VSCODE_HOME_RESOLVED"
-
   mkdir_if_needed "$VSCODE_HOME_RESOLVED/prompts"
   for src in "$SRC_PROMPTS_ROOT/"*.prompt.md; do
     sync_file "$src" "$VSCODE_HOME_RESOLVED/prompts/$(basename "$src")"
   done
+  prune_managed_file_install "$VSCODE_HOME_RESOLVED" "prompts" "managedPrompts" "${CURRENT_MANAGED_PROMPTS[@]}"
+
+  write_install_state "$VSCODE_HOME_RESOLVED" "replace"
 
   sync_file "$SRC_VSCODE_INSTRUCTIONS" "$VSCODE_HOME_RESOLVED/copilot-instructions.md"
 
