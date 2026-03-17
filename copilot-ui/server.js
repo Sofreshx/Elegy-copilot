@@ -90,6 +90,7 @@ const {
   releasePlanningRouteLock,
   evictPlanningIdempotencyEntry,
 } = require('./lib/planningApiContracts');
+const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersistenceClient');
 const { createRegistry } = require('./routes');
 const {
   isNonLoopback,
@@ -1270,11 +1271,12 @@ function buildPlanningPersistenceOperationAuthorityFailure(pathname, method, pla
   }
 
   if (!authority.ready) {
+    const reasonCode = resolveWs5aPersistenceAuthorityReasonCode(authority, planningPersistenceState);
     return buildPlanningPersistenceFailure(pathname, method, {
       statusCode: 503,
       code: 'planning_persistence_unavailable',
       error: 'Planning persistence unavailable',
-      reason: authority.lastError || 'planning_persistence_not_ready',
+      reason: reasonCode,
       configured: authority.validation.configured,
       usable: authority.validation.usable,
       required: authority.validation.required,
@@ -1392,13 +1394,14 @@ async function hydratePlanningProjectionFromPersistence(input = {}) {
   }
 
   if (!authority.ready) {
+    const reasonCode = resolveWs5aPersistenceAuthorityReasonCode(authority, source.planningPersistenceState);
     return {
       ok: false,
       failure: buildPlanningPersistenceFailure(source.pathname, source.method, {
         statusCode: 503,
         code: 'planning_persistence_unavailable',
         error: 'Planning persistence unavailable',
-        reason: authority.lastError || 'planning_persistence_not_ready',
+        reason: reasonCode,
         configured: authority.validation.configured,
         usable: authority.validation.usable,
         required: authority.validation.required,
@@ -1508,13 +1511,14 @@ async function persistPlanningRecordToAuthority(input = {}) {
   }
 
   if (!authority.ready) {
+    const reasonCode = resolveWs5aPersistenceAuthorityReasonCode(authority, source.planningPersistenceState);
     return {
       ok: false,
       failure: buildPlanningPersistenceFailure(source.pathname, source.method, {
         statusCode: 503,
         code: 'planning_persistence_unavailable',
         error: 'Planning persistence unavailable',
-        reason: authority.lastError || 'planning_persistence_not_ready',
+        reason: reasonCode,
         configured: authority.validation.configured,
         usable: authority.validation.usable,
         required: authority.validation.required,
@@ -4103,6 +4107,18 @@ async function shutdownSdkBridgeSafely(sdkBridge) {
   }
 }
 
+async function closePlanningPersistenceClientSafely(client) {
+  if (!client || typeof client.close !== 'function') {
+    return;
+  }
+
+  try {
+    await client.close();
+  } catch {
+    // Best-effort shutdown on server close/error.
+  }
+}
+
 async function startServer(options = {}) {
   const env = options.env && typeof options.env === 'object' ? options.env : process.env;
   const args = {
@@ -4161,6 +4177,10 @@ async function startServer(options = {}) {
     },
   };
   const planningApiState = createPlanningApiState();
+  const createPlanningPersistenceClient = typeof options.createPlanningPersistenceClient === 'function'
+    ? options.createPlanningPersistenceClient
+    : ({ connectionString }) => createPostgresPlanningPersistenceClient({ connectionString });
+  let ownedPlanningPersistenceClient = null;
 
   if (planningValidation.required && !planningValidation.usable) {
     const detail = planningValidation.errors.length
@@ -4170,7 +4190,25 @@ async function startServer(options = {}) {
   }
 
   if (planningValidation.usable) {
-    const planningPersistenceClient = options.planningPersistenceClient;
+    let planningPersistenceClient = options.planningPersistenceClient;
+    if ((!planningPersistenceClient || typeof planningPersistenceClient.query !== 'function') && planningPersistenceConfig.databaseUrl) {
+      try {
+        ownedPlanningPersistenceClient = createPlanningPersistenceClient({
+          connectionString: planningPersistenceConfig.databaseUrl,
+        });
+        planningPersistenceClient = ownedPlanningPersistenceClient;
+      } catch (error) {
+        planningPersistenceState.status = 'configured_no_client';
+        planningPersistenceState.lastError = String(error && error.message ? error.message : error);
+        planningPersistenceState.client = null;
+
+        if (planningValidation.required) {
+          await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
+          throw new Error(`Planning persistence client startup failed: ${planningPersistenceState.lastError}`);
+        }
+      }
+    }
+
     if (!planningPersistenceClient || typeof planningPersistenceClient.query !== 'function') {
       planningPersistenceState.status = 'configured_no_client';
       planningPersistenceState.lastError = 'planning_persistence_client_unavailable';
@@ -4213,6 +4251,7 @@ async function startServer(options = {}) {
         };
 
         if (planningValidation.required) {
+          await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
           throw error;
         }
       }
@@ -4340,6 +4379,7 @@ async function startServer(options = {}) {
   } catch (error) {
     await shutdownSdkBridgeSafely(sdkBridge);
     changeTracker.close();
+    await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
     throw error;
   }
 
@@ -4386,6 +4426,7 @@ async function startServer(options = {}) {
       settled = true;
       Promise.resolve()
         .then(() => shutdownSdkBridgeSafely(sdkBridge))
+        .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
         .finally(() => {
           changeTracker.close();
           reject(error);
@@ -4428,6 +4469,7 @@ async function startServer(options = {}) {
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
             .then(() => shutdownSdkBridgeSafely(sdkBridge))
+            .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
             .finally(() => {
               changeTracker.close();
               server.close(() => closeResolve());

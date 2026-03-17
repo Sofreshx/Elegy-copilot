@@ -111,8 +111,8 @@ export class RequestsTreeProvider implements vscode.TreeDataProvider<Node> {
 		const activeSection: SectionNode = {
 			kind: 'section',
 			key: 'active-sessions',
-			label: 'Active Sessions',
-			description: activeSessions.length.toString(),
+			label: 'Active Extension Sessions',
+			description: `local ${activeSessions.length}`,
 			iconPath: new vscode.ThemeIcon('pulse'),
 			children: activeSessions.length
 				? activeSessions.map((s) => this.toSessionNode(s))
@@ -129,8 +129,8 @@ export class RequestsTreeProvider implements vscode.TreeDataProvider<Node> {
 		const recentSection: SectionNode = {
 			kind: 'section',
 			key: 'recent-sessions',
-			label: 'Recent Sessions',
-			description: recentSessions.length.toString(),
+			label: 'Recent Extension Sessions',
+			description: `local ${recentSessions.length}`,
 			iconPath: new vscode.ThemeIcon('history'),
 			children: recentSessions.length
 				? recentSessions.map((s) => this.toSessionNode(s))

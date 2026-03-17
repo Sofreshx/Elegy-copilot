@@ -44,6 +44,7 @@ import { printGatewayStatusSummary } from './status';
 import {
 	deriveMessagingGatewayReadiness,
 	MessagingGatewayStatusWriter,
+	readMessagingGatewayStatusFile,
 	resolveMessagingGatewayStatusPath,
 	type MessagingGatewayStatusV1,
 } from './statusFile';
@@ -641,6 +642,7 @@ async function main() {
 			const raw = await extensionClient.get_sessions();
 			return parseBridgeSessions(raw);
 		},
+		getStatus: () => readMessagingGatewayStatusFile(statusWriter.getPath()),
 		getPendingPermissions: () => permissionOrchestrator?.getPending() ?? [],
 		approvePermission: async (callbackId, resolvedBy) => {
 			if (!permissionOrchestrator) throw new Error('No permission orchestrator available');

@@ -11,7 +11,11 @@ import type {
   CatalogRepoInventoryEntry,
   CatalogRepoInventoryWorkspaceScan,
 } from '../../lib/types';
-import { catalogWorkspaceStore } from './catalogWorkspaceStore';
+import {
+  CATALOG_AUDIT_EVENT_LIMIT,
+  CATALOG_SEARCH_RESULT_LIMIT,
+  catalogWorkspaceStore,
+} from './catalogWorkspaceStore';
 
 type AuthoringScope = 'shared' | 'user-global' | 'repo-local';
 type SupportedAuthoringKind = 'skill' | 'agent';
@@ -2198,6 +2202,11 @@ export default function AssetsView() {
             </p>
           )}
 
+          <p className="catalog-inline-note">
+            Privacy-safe selection telemetry is only recorded when you inspect a result. It logs the sanitized query, chosen asset id, rank,
+            and explanation codes locally — never the asset content — and the visible list is capped to the top {CATALOG_SEARCH_RESULT_LIMIT} ranked matches.
+          </p>
+
           <ul className="catalog-search-result-list">
             {catalogState.searchResults.length === 0 ? (
               <li className="state-message">Run a search to inspect ranked results and explanations.</li>
@@ -2213,7 +2222,7 @@ export default function AssetsView() {
                     </div>
                     <Button
                       onClick={() => {
-                        void catalogWorkspaceStore.selectAsset(result.assetId);
+                        void catalogWorkspaceStore.inspectSearchResult(result);
                       }}
                       size="sm"
                       testId="catalog-search-inspect"
@@ -2246,6 +2255,9 @@ export default function AssetsView() {
           testId="catalog-audit-panel"
           title="Usage & audit"
         >
+          <p className="catalog-inline-note">
+            Showing the newest {CATALOG_AUDIT_EVENT_LIMIT} audit events for the current selection; older activity stays in the audit log.
+          </p>
           {catalogState.auditError ? (
             <p className="state-message state-error" role="alert">
               {catalogState.auditError}

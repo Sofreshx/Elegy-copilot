@@ -12,6 +12,7 @@ import {
 	MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
 	getDefaultMessagingGatewayStatusPath,
 	getLegacyMessagingGatewayStatusPath,
+	readMessagingGatewayStatusFile,
 	resolveMessagingGatewayStatusPath,
 } from '../statusFile';
 
@@ -163,6 +164,44 @@ describe('MessagingGatewayStatusWriter', () => {
 			const raw = fs.readFileSync(statusPath, 'utf8');
 			expect(() => JSON.parse(raw)).not.toThrow();
 		}
+	});
+
+	test('readMessagingGatewayStatusFile() returns canonical status from file', () => {
+		const statusPath = path.join(tmpDir, 'status.json');
+		const writer = new MessagingGatewayStatusWriter(statusPath, makeStatus());
+
+		writer.writeNow();
+
+		const content = readMessagingGatewayStatusFile(statusPath);
+		expect(content.schemaVersion).toBe(1);
+		expect(content.contractVersion).toBe(MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION);
+		expect(content.readiness.state).toBe('disconnected');
+	});
+
+	test('readMessagingGatewayStatusFile() normalizes legacy status input from disk', () => {
+		const statusPath = path.join(tmpDir, 'legacy-status.json');
+		fs.writeFileSync(statusPath, JSON.stringify({
+			configPath: '/legacy/config.json',
+			activeWorkspaceRoot: '/legacy/ws',
+			connected: true,
+			ready: false,
+			activeSessionThreadCount: 2,
+		}), 'utf8');
+
+		const content = readMessagingGatewayStatusFile(statusPath);
+		expect(content.schemaVersion).toBe(1);
+		expect(content.compatibility).toEqual({ normalizedFrom: 'v0', deterministic: true });
+		expect(content.readiness).toEqual({
+			state: 'not_ready',
+			reasonCode: 'gateway_not_ready',
+			deterministic: true,
+		});
+	});
+
+	test('readMessagingGatewayStatusFile() throws deterministic missing-file error', () => {
+		expect(() => readMessagingGatewayStatusFile(path.join(tmpDir, 'missing-status.json'))).toThrow(
+			'Status file not found',
+		);
 	});
 
 	test('update() calls mutator and writes', () => {

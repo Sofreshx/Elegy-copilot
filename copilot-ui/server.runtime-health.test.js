@@ -142,7 +142,50 @@ function startMockTrackerStatusServer(expectedToken = 'ws2-tracker-token') {
           return;
         }
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ ok: true, marker: 'tracker_ready' }));
+        res.end(JSON.stringify({
+          schemaVersion: 1,
+          contractVersion: 'messaging_gateway_readiness_v1',
+          compatibility: {
+            normalizedFrom: 'v1',
+            deterministic: true,
+          },
+          readiness: {
+            state: 'ready',
+            reasonCode: 'gateway_ready',
+            deterministic: true,
+          },
+          lastUpdatedUtc: new Date().toISOString(),
+          config: {
+            configPath: 'C:\\mock\\gateway-config.json',
+            mode: 'connected',
+            allowlists: {
+              discordUsersCount: 1,
+              workspaceRootsCount: 1,
+            },
+            workspaces: {
+              activeRoot: 'C:\\mock',
+            },
+          },
+          secrets: {
+            discordBotToken: { present: false, fromKeychain: false, fromEnv: false },
+            gatewayHttpToken: { present: true, fromKeychain: true, fromEnv: false },
+            telegramBotToken: { present: false, fromKeychain: false, fromEnv: false },
+          },
+          runtime: {
+            discord: { connected: true, ready: true },
+            discoveryTelemetry: {
+              contractVersion: 'skill_discovery_telemetry_v1',
+              sample: { capacity: 12, size: 0, dropped: 0, deterministic: true },
+              countersByReason: {
+                keyword_miss: 0,
+                ambiguity: 0,
+                stale_map: 0,
+                no_route: 0,
+              },
+              recent: [],
+            },
+          },
+        }));
         return;
       }
 
@@ -1019,7 +1062,7 @@ async function run() {
     });
   });
 
-  await test('planning routes fail closed with explicit persistence error when DB authority is configured without a client', async () => {
+  await test('planning routes fail closed with explicit persistence error when env-configured DB startup cannot connect', async () => {
     await withTempDir(async (root) => {
       const copilotHome = path.join(root, '.copilot');
       const vscodeHome = path.join(root, '.copilot-vscode');
@@ -1046,7 +1089,7 @@ async function run() {
         env: {
           ...process.env,
           INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
-          INSTRUCTION_ENGINE_PLANNING_DB_URL: 'postgres://localhost:5432/planning',
+          INSTRUCTION_ENGINE_PLANNING_DB_URL: 'postgres://127.0.0.1:1/planning',
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
@@ -1060,7 +1103,7 @@ async function run() {
       try {
         const health = await waitForHealth(baseUrl);
         assert.strictEqual(health.statusCode, 200);
-        assert.strictEqual(health.body.planningPersistence.status, 'configured_no_client');
+        assert.strictEqual(health.body.planningPersistence.status, 'migration_error');
 
         const create = await postJson(`${baseUrl}/api/planning/records`, {
           idempotencyKey: 'persistence-authority-no-client-1',
@@ -1073,7 +1116,7 @@ async function run() {
         assert.strictEqual(create.statusCode, 503);
         assert.strictEqual(create.body.error, 'Planning persistence unavailable');
         assert.strictEqual(create.body.code, 'planning_persistence_unavailable');
-        assert.strictEqual(create.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(create.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(create.body.kind, 'planning.create');
         assert.strictEqual(create.body.deterministic, true);
         assert.ok(create.body.planningPersistence);
@@ -1090,25 +1133,25 @@ async function run() {
         });
         assert.strictEqual(retention.statusCode, 503);
         assert.strictEqual(retention.body.code, 'planning_persistence_unavailable');
-        assert.strictEqual(retention.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(retention.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(retention.body.kind, 'planning.persistence.retention');
 
         const exported = await postJson(`${baseUrl}/api/planning/persistence/export`, {});
         assert.strictEqual(exported.statusCode, 503);
         assert.strictEqual(exported.body.code, 'planning_persistence_unavailable');
-        assert.strictEqual(exported.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(exported.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(exported.body.kind, 'planning.persistence.export');
 
         const imported = await postJson(`${baseUrl}/api/planning/persistence/import`, { records: [] });
         assert.strictEqual(imported.statusCode, 503);
         assert.strictEqual(imported.body.code, 'planning_persistence_unavailable');
-        assert.strictEqual(imported.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(imported.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(imported.body.kind, 'planning.persistence.import');
 
         const corruptionScan = await postJson(`${baseUrl}/api/planning/persistence/corruption/scan`, {});
         assert.strictEqual(corruptionScan.statusCode, 503);
         assert.strictEqual(corruptionScan.body.code, 'planning_persistence_unavailable');
-        assert.strictEqual(corruptionScan.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(corruptionScan.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(corruptionScan.body.kind, 'planning.persistence.corruption.scan');
       } finally {
         server.kill();

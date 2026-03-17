@@ -22,6 +22,7 @@ const storeMocks = vi.hoisted(() => ({
   clearRepoContext: vi.fn(),
   setFilters: vi.fn(),
   selectAsset: vi.fn(),
+  inspectSearchResult: vi.fn(),
   setSearchQuery: vi.fn(),
   setSearchIncludeVaultOnly: vi.fn(),
   setSearchPreferLoadMode: vi.fn(),
@@ -437,6 +438,7 @@ const mockCatalogWorkspaceStore = {
   clearRepoContext: storeMocks.clearRepoContext,
   setFilters: storeMocks.setFilters,
   selectAsset: storeMocks.selectAsset,
+  inspectSearchResult: storeMocks.inspectSearchResult,
   setSearchQuery: storeMocks.setSearchQuery,
   setSearchIncludeVaultOnly: storeMocks.setSearchIncludeVaultOnly,
   setSearchPreferLoadMode: storeMocks.setSearchPreferLoadMode,
@@ -458,6 +460,8 @@ describe('AssetsView catalog workspace', () => {
   it('renders repo inventory and actionable authoring controls', async () => {
     vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
       catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
     }));
 
     const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
@@ -477,11 +481,14 @@ describe('AssetsView catalog workspace', () => {
     expect(screen.getByTestId('catalog-write-target-copy')).toHaveTextContent('authoritative repo-local asset');
     expect(screen.getByTestId('catalog-runtime-freshness')).toHaveTextContent('fresh');
     expect(screen.getByText('# Test skill')).toBeInTheDocument();
+    expect(screen.getByText(/Privacy-safe selection telemetry/i)).toBeInTheDocument();
   });
 
   it('saves custom scan roots through the workspace store', async () => {
     vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
       catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
     }));
 
     const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
@@ -501,6 +508,8 @@ describe('AssetsView catalog workspace', () => {
   it('dispatches bundle installation through the workspace store', async () => {
     vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
       catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
     }));
 
     const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
@@ -517,6 +526,8 @@ describe('AssetsView catalog workspace', () => {
   it('submits create and update actions through the workspace store', async () => {
     vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
       catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
     }));
 
     const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
@@ -559,5 +570,25 @@ describe('AssetsView catalog workspace', () => {
         expectedHash: 'repo-hash',
       }));
     });
+  });
+
+  it('records search inspection telemetry through the workspace store', async () => {
+    vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
+      catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
+    }));
+
+    const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
+
+    render(<AssetsView />);
+
+    fireEvent.click(screen.getByTestId('catalog-search-inspect'));
+
+    expect(storeMocks.inspectSearchResult).toHaveBeenCalledWith(expect.objectContaining({
+      assetId: 'skill-test',
+      rank: 1,
+      score: 42,
+    }));
   });
 });

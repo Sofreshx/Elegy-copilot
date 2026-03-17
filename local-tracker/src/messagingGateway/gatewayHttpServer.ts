@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import http from 'http';
 
+import type { MessagingGatewayStatusV1 } from './statusFile';
 import {
     isLifecyclePayloadValidationError,
     validateOpenTerminalPayload,
@@ -81,6 +82,8 @@ export interface GatewayHttpServerOptions {
     bearerToken: string;
     /** Get live sessions from ACP */
     getSessions: () => Promise<unknown>;
+    /** Get canonical gateway readiness status. */
+    getStatus?: () => MessagingGatewayStatusV1;
     /** Get pending permissions */
     getPendingPermissions: () => unknown[];
     /** Approve a permission */
@@ -107,6 +110,7 @@ export class GatewayHttpServer {
     private readonly host: string;
     private readonly bearerToken: string;
     private readonly getSessions: () => Promise<unknown>;
+    private readonly getStatus: (() => MessagingGatewayStatusV1) | undefined;
     private readonly getPendingPermissions: () => unknown[];
     private readonly approvePermission: (callbackId: string, resolvedBy: string) => Promise<void>;
     private readonly denyPermission: (callbackId: string, resolvedBy: string) => Promise<void>;
@@ -132,6 +136,7 @@ export class GatewayHttpServer {
             throw new Error('[GatewayHttpServer] bearerToken is required');
         }
         this.getSessions = options.getSessions;
+        this.getStatus = options.getStatus;
         this.getPendingPermissions = options.getPendingPermissions;
         this.approvePermission = options.approvePermission;
         this.denyPermission = options.denyPermission;
@@ -324,14 +329,48 @@ export class GatewayHttpServer {
     }
 
     private handleStatus(res: http.ServerResponse): void {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            contractVersion: 'gateway_http_status_v1',
-            deterministic: true,
-            ok: true,
-            status: 'ready',
-            checkedAt: new Date().toISOString(),
-        }));
+        if (!this.getStatus) {
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+            res.end(JSON.stringify({
+                contractVersion: 'gateway_http_status_v1',
+                deterministic: true,
+                ok: true,
+                status: 'ready',
+                checkedAt: new Date().toISOString(),
+            }));
+            return;
+        }
+
+        try {
+            const status = this.getStatus();
+            const ready = status?.readiness?.state === 'ready';
+            res.writeHead(ready ? 200 : 503, {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-store',
+            });
+            res.end(JSON.stringify(status));
+        } catch (error) {
+            const code = typeof error === 'object' && error && 'code' in error && typeof (error as { code?: unknown }).code === 'string'
+                ? (error as { code: string }).code
+                : 'messaging_gateway_status_invalid';
+            const reason = code === 'messaging_gateway_status_missing'
+                ? 'gateway_status_missing'
+                : 'gateway_status_invalid';
+            const message = error instanceof Error ? error.message : String(error);
+
+            res.writeHead(503, {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-store',
+            });
+            res.end(JSON.stringify({
+                error: 'Gateway readiness unavailable',
+                code: 'gateway_status_unavailable',
+                reason,
+                message,
+                deterministic: true,
+                checkedAt: new Date().toISOString(),
+            }));
+        }
     }
 
     private sendLifecyclePayloadValidationError(

@@ -1,11 +1,11 @@
 ---
 created: 2026-03-14
-updated: 2026-03-14
+updated: 2026-03-17
 category: system
 status: current
 doc_kind: node
 id: domain-authorities-freeze
-summary: Frozen canonical authorities for state roots, asset mutation, enablement, sessions, provider catalog data, and tasks during cleanup.
+summary: Frozen canonical authorities for state roots, runtime/readiness state, asset mutation, enablement, sessions, provider catalog data, and tasks during cleanup.
 tags: [architecture, authority, cleanup, adr]
 related: [catalog-control-plane, session-state-artifacts, system-upgrade-direction-2026]
 ---
@@ -32,6 +32,7 @@ an incidental code change.
 | Domain | Canonical authority | Canonical location / surface | Legacy / secondary surfaces |
 |---|---|---|---|
 | State roots and storage paths | Unified `~/.copilot` runtime state model | `~/.copilot/*` with the shared layout defined below | `~/.instruction-engine/*` only as migration-era exceptions, not a competing root |
+| Runtime and readiness state | Split by authority domain: control-plane runtime via `copilot-ui`, gateway readiness via status file | `copilot-ui` `GET /api/health` for backend runtime/control-plane state; `~/.copilot/messaging-gateway.status.json` for messaging-gateway readiness | `GET /api/gateway/state`, UI panels, and extension trees are projections/consumers; tracker live APIs are operational APIs, not readiness authority |
 | Asset mutation authority | `copilot-ui` local backend control plane | catalog mutation and install/enable/disable APIs | direct `RannIA` mutations are legacy behavior to retire |
 | Enablement persistence | Repo registry overlay | `~/.copilot/repo-state/<repoId>/registry.json` | VS Code settings are import/compatibility input only |
 | Session authority | ACP/runtime session state | runtime-backed session reconciliation, with runtime winning when present | filesystem artifacts remain durable projections and archive/offline fallback |
@@ -95,7 +96,68 @@ Current runtime behavior treats that namespace as migration-only input. For exam
 `local-tracker` messaging-gateway config/status artifacts may be rehomed into `~/.copilot`, but the
 legacy path is no longer a peer default that current surfaces should present as canonical.
 
-### 2) Asset mutation authority
+### 2) Runtime and readiness state
+
+**Decision**
+
+Runtime/state authority is frozen into distinct, non-overlapping domains:
+
+- `copilot-ui` `GET /api/health` is the canonical HTTP authority for backend runtime/control-plane
+  state
+- `~/.copilot/messaging-gateway.status.json` is the canonical authority for messaging-gateway
+  readiness
+- `copilot-ui` `GET /api/gateway/state`, HTTP responses derived from gateway probes, and UI surfaces
+  that render gateway state are projections or operational envelopes over those authorities, not peer
+  readiness authorities
+- tracker live APIs remain operational APIs for live interaction and probing, distinct from the
+  canonical readiness authority
+
+This freeze is specifically intended to stop new overlap between `copilot-ui`, `local-tracker`, and
+`RannIA` while current implementations are still converging.
+
+**Authority boundary**
+
+`GET /api/health` remains the control-plane runtime surface because it owns backend runtime health
+composition for capabilities, provider selection, policy, planning persistence, and related backend
+status.
+
+Messaging-gateway readiness is different. The canonical shared readiness contract is the status file
+written by `local-tracker` at:
+
+```text
+~/.copilot/messaging-gateway.status.json
+```
+
+The locked architectural choice is:
+
+1. the status file is canonical
+2. HTTP/UI surfaces project from it
+3. no new surface should present itself as an independent readiness source of truth
+
+That means:
+
+- `GET /api/gateway/state` may aggregate config state, tracker probe results, and planning
+  persistence context for the UI, but it must not become a competing readiness authority
+- UI badges, dashboards, and extension trees may summarize readiness for operators, but they are
+  consumers of the shared authority contract
+- tracker probe success/failure is useful live operational information, but it is not the canonical
+  answer to whether shared gateway readiness state is currently authoritative
+
+**RannIA boundary**
+
+`RannIA` surfaces are frozen into two different roles:
+
+- **Connections** may render shared runtime/readiness information from the canonical gateway status
+  authority and related connection state
+- **Requests** and **Permissions** remain extension-local operational state, not shared runtime
+  authority
+
+This prevents the extension's request/session/approval trees from being reinterpreted as shared
+cross-surface readiness state. Shared readiness belongs to the gateway status contract; extension
+workflow state remains local to the extension unless later promoted through an explicit architecture
+decision.
+
+### 3) Asset mutation authority
 
 **Decision**
 
@@ -117,7 +179,7 @@ mutation orchestration, validation, refresh, and conflict handling.
 direct-write behaviors in the extension are legacy behavior slated for later convergence behind the
 backend authority.
 
-### 3) Enablement persistence
+### 4) Enablement persistence
 
 **Decision**
 
@@ -147,7 +209,7 @@ Later cleanup streams should:
 3. stop treating settings as a durable peer authority
 4. remove dual-write behavior
 
-### 4) Session authority
+### 5) Session authority
 
 **Decision**
 
@@ -172,7 +234,7 @@ When only artifacts exist, the session may still be exposed as a historical/offl
 This freezes the current runtime-first precedence into an explicit contract and prevents later cleanup
 work from reintroducing artifact-first reconciliation logic.
 
-### 5) Provider catalog source
+### 6) Provider catalog source
 
 **Decision**
 
@@ -207,7 +269,7 @@ Until generation/sync tooling lands:
 - contract mirrors must remain semantically identical
 - parity drift is a bug
 
-### 6) Task authority
+### 7) Task authority
 
 **Decision**
 
@@ -275,8 +337,20 @@ The following constraints are now frozen:
   flows, confirming the remaining overlap with the backend control plane.
 - `local-tracker/src/watchers.ts` now targets canonical repo-state task paths and keeps repo-local
   `.instructions/tasks` watching behind an explicit legacy compatibility switch.
-- `local-tracker/src/messagingGateway/config.ts` still defaults messaging-gateway config under
-  `~/.instruction-engine`, confirming the remaining root split.
+- `local-tracker/src/messagingGateway/config.ts` now defaults messaging-gateway config under
+  `~/.copilot` and treats `~/.instruction-engine` as a legacy compatibility rehome input rather than
+  a competing default.
+- `local-tracker/src/messagingGateway/statusFile.ts` defines `~/.copilot/messaging-gateway.status.json`
+  as the canonical status path and keeps `~/.instruction-engine` only as a legacy compatibility
+  source for rehome.
+- `copilot-ui/routes/lifecycle.js` and `copilot-ui/lib/server/runtimeHealth.js` already centralize
+  backend runtime/control-plane health behind `GET /api/health`.
+- `copilot-ui/routes/gateway.js` assembles gateway state from config, tracker probes, and planning
+  persistence, confirming that `GET /api/gateway/state` is an operational envelope rather than the
+  canonical readiness authority itself.
+- `RannIA/src/operationsConnectionsTree.ts` reads the shared messaging-gateway status contract, while
+  `RannIA/src/operationsRequestsTree.ts` and `RannIA/src/operationsPermissionsTree.ts` represent
+  extension-local request and approval state rather than shared readiness authority.
 - `copilot-ui/lib/runtimeContracts.js` and `copilot-ui/routes/sessions.js` already encode a
   runtime-first session reconciliation model.
 - `engine-assets/providers.json` and `contracts/src/providerCatalog.ts` duplicate provider catalog

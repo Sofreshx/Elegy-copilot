@@ -422,6 +422,38 @@ export function resolveMessagingGatewayStatusPath(configPath: string): string {
 	return canonicalPath;
 }
 
+export function readMessagingGatewayStatusFile(statusPath: string): MessagingGatewayStatusV1 {
+	const resolvedPath = path.resolve(statusPath);
+
+	let raw: string;
+	try {
+		raw = fs.readFileSync(resolvedPath, 'utf8');
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+			throw Object.assign(
+				new Error(`[Gateway] Status file not found: ${resolvedPath}`),
+				{ code: 'messaging_gateway_status_missing' },
+			);
+		}
+
+		const message = error instanceof Error ? error.message : String(error);
+		throw Object.assign(
+			new Error(`[Gateway] Failed to read status file: ${resolvedPath} (${message})`),
+			{ code: 'messaging_gateway_status_invalid' },
+		);
+	}
+
+	try {
+		return normalizeMessagingGatewayStatusV1(JSON.parse(raw));
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		throw Object.assign(
+			new Error(`[Gateway] Invalid status file: ${resolvedPath} (${message})`),
+			{ code: 'messaging_gateway_status_invalid' },
+		);
+	}
+}
+
 function ensureParentDir(filePath: string): void {
 	const dir = path.dirname(filePath);
 	if (!dir) return;

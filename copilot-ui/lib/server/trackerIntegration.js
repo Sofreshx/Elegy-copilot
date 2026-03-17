@@ -263,6 +263,25 @@ function parseJsonBodySafe(raw) {
   }
 }
 
+function parseCanonicalTrackerStatus(payload) {
+  const source = payload && typeof payload === 'object' ? payload : null;
+  const readiness = source && source.readiness && typeof source.readiness === 'object'
+    ? source.readiness
+    : null;
+
+  if (!source || source.schemaVersion !== 1 || typeof source.lastUpdatedUtc !== 'string' || !readiness) {
+    return null;
+  }
+
+  const state = typeof readiness.state === 'string' ? readiness.state.trim() : '';
+  const reasonCode = typeof readiness.reasonCode === 'string' ? readiness.reasonCode.trim() : '';
+  if (!state || !reasonCode) {
+    return null;
+  }
+
+  return source;
+}
+
 function buildGatewayProbeFailure(code, reason, message, statusCode = null) {
   return {
     deterministic: true,
@@ -338,6 +357,29 @@ async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
         const raw = Buffer.concat(chunks).toString('utf8');
         const body = parseJsonBodySafe(raw);
         const statusCode = response.statusCode || null;
+        const canonicalStatus = parseCanonicalTrackerStatus(body);
+
+        if (canonicalStatus) {
+          const ready = canonicalStatus.readiness.state === 'ready';
+          resolve({
+            deterministic: true,
+            checkedAt,
+            ready,
+            status: ready ? 'ready' : canonicalStatus.readiness.state,
+            statusCode,
+            body,
+            canonicalStatus,
+            error: ready
+              ? null
+              : buildGatewayProbeFailure(
+                'tracker_status_unhealthy',
+                canonicalStatus.readiness.reasonCode,
+                `Tracker readiness is ${canonicalStatus.readiness.state}`,
+                statusCode,
+              ),
+          });
+          return;
+        }
 
         if (statusCode && statusCode >= 200 && statusCode < 300) {
           resolve({
@@ -414,13 +456,30 @@ function buildGatewayStateEnvelope(input = {}) {
   const planningPersistence = source.planningPersistence && typeof source.planningPersistence === 'object'
     ? source.planningPersistence
     : buildPlanningPersistenceHealthEnvelope({});
+  const trackerCanonicalStatus = tracker && tracker.canonicalStatus && typeof tracker.canonicalStatus === 'object'
+    ? tracker.canonicalStatus
+    : null;
+  const trackerCanonicalReadiness = trackerCanonicalStatus
+    && trackerCanonicalStatus.readiness
+    && typeof trackerCanonicalStatus.readiness === 'object'
+    ? trackerCanonicalStatus.readiness
+    : null;
 
   const trackerReady = Boolean(tracker && tracker.ready === true);
-  const trackerStatus = String(tracker && tracker.status || (trackerReady ? 'ready' : 'unavailable')).trim() || 'unavailable';
+  const trackerStatus = String(
+    trackerCanonicalReadiness && typeof trackerCanonicalReadiness.state === 'string'
+      ? trackerCanonicalReadiness.state
+      : tracker && tracker.status || (trackerReady ? 'ready' : 'unavailable')
+  ).trim() || 'unavailable';
+  const hasCanonicalGatewayAuthority = Boolean(
+    trackerCanonicalReadiness && typeof trackerCanonicalReadiness.state === 'string'
+  );
   const planningReady = String(planningPersistence.status || '') === 'ready';
   const planningRequired = Boolean(planningPersistence.required);
   const gatewayConfigured = Boolean(gatewayConfig);
-  const gatewayReady = gatewayConfigured && trackerReady && (planningReady || !planningRequired);
+  const gatewayReady = hasCanonicalGatewayAuthority
+    ? trackerCanonicalReadiness.state === 'ready'
+    : false;
 
   const normalizedConfig = gatewayConfig && typeof gatewayConfig === 'object' ? gatewayConfig : {};
   const workspaceConfig = normalizedConfig.workspaces && typeof normalizedConfig.workspaces === 'object'
@@ -455,7 +514,16 @@ function buildGatewayStateEnvelope(input = {}) {
     error: errors.length ? errors[0] : null,
     gateway: {
       ready: gatewayReady,
-      status: gatewayReady ? 'ready' : gatewayConfigured ? 'degraded' : 'not_configured',
+      status: hasCanonicalGatewayAuthority
+        ? trackerCanonicalReadiness.state
+        : gatewayConfigured ? trackerStatus : 'not_configured',
+      source: hasCanonicalGatewayAuthority ? 'messaging_gateway_status_file' : null,
+      lastUpdatedUtc: trackerCanonicalStatus && typeof trackerCanonicalStatus.lastUpdatedUtc === 'string'
+        ? trackerCanonicalStatus.lastUpdatedUtc
+        : null,
+      reasonCode: hasCanonicalGatewayAuthority && typeof trackerCanonicalReadiness.reasonCode === 'string'
+        ? trackerCanonicalReadiness.reasonCode
+        : null,
       config: {
         exists: gatewayConfigured,
         path: configPath,
@@ -470,6 +538,11 @@ function buildGatewayStateEnvelope(input = {}) {
       statusCode: tracker && Number.isFinite(tracker.statusCode) ? Number(tracker.statusCode) : null,
       url: String(source.trackerUrl || '').trim() || null,
       checkedAt: tracker && tracker.checkedAt ? tracker.checkedAt : null,
+      source: trackerCanonicalStatus ? 'status_file_projection' : 'tracker_http_probe',
+      readiness: trackerCanonicalReadiness || null,
+      lastUpdatedUtc: trackerCanonicalStatus && typeof trackerCanonicalStatus.lastUpdatedUtc === 'string'
+        ? trackerCanonicalStatus.lastUpdatedUtc
+        : null,
       error: tracker && tracker.error ? tracker.error : null,
     },
     planningPersistence: {

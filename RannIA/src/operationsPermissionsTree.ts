@@ -89,8 +89,8 @@ export class PermissionsTreeProvider implements vscode.TreeDataProvider<Node> {
 		const pendingSection: SectionNode = {
 			kind: 'section',
 			key: 'pending',
-			label: 'Pending Permissions',
-			description: pending.length.toString(),
+			label: 'Pending Extension Permissions',
+			description: `local ${pending.length}`,
 			iconPath: new vscode.ThemeIcon('shield'),
 			children: pending.length
 				? pending.map((p) => this.toPendingNode(p))
@@ -107,8 +107,8 @@ export class PermissionsTreeProvider implements vscode.TreeDataProvider<Node> {
 		const resolvedSection: SectionNode = {
 			kind: 'section',
 			key: 'recent-resolved',
-			label: 'Recent Decisions',
-			description: resolvedEvents.length.toString(),
+			label: 'Recent Extension Decisions',
+			description: `local ${resolvedEvents.length}`,
 			iconPath: new vscode.ThemeIcon('history'),
 			children: resolvedEvents.length
 				? resolvedEvents.map((event) => this.toResolvedNode(event))
@@ -126,7 +126,7 @@ export class PermissionsTreeProvider implements vscode.TreeDataProvider<Node> {
 			kind: 'section',
 			key: 'example',
 			label: 'Example Hook',
-			description: 'Copilot permission flow',
+			description: 'extension-local approval flow',
 			iconPath: new vscode.ThemeIcon('info'),
 			children: [
 				{

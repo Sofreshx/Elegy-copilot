@@ -1,7 +1,9 @@
 import { useEffect, useMemo } from 'react';
 import { Button, Panel, StatusBadge, Toolbar } from '../../components';
 import {
+  formatGatewaySegmentSummary,
   formatTimestampLabel,
+  humanizeToken,
   resolveSessionStatus,
   resolveSessionUpdatedAt,
   summarizeSdkHealth,
@@ -67,6 +69,15 @@ function buildStatusToken(record: Record<string, unknown>, fallback: string): st
 
 function joinDetails(parts: Array<string | null | undefined>): string {
   return parts.map((part) => String(part || '').trim()).filter(Boolean).join(' | ');
+}
+
+function formatOptionalTimestampLabel(value: string): string {
+  const parsed = Date.parse(value);
+  if (Number.isFinite(parsed)) {
+    return formatTimestampLabel(parsed);
+  }
+
+  return value;
 }
 
 function pickMostRecentSession(sessions: SessionSummary[]): SessionSummary | null {
@@ -144,6 +155,36 @@ export default function HomeRuntimeView() {
       detail,
     };
   }, [overviewState.health]);
+
+  const gatewayCard = useMemo(() => {
+    const gatewayState = overviewState.gatewayState;
+    const gateway = asRecord(gatewayState?.gateway);
+    const tracker = asRecord(gatewayState?.tracker);
+    const gatewaySummary = formatGatewaySegmentSummary(
+      Object.keys(gateway).length ? gateway : null,
+      gatewayState?.ready ? 'ready' : 'not_ready',
+    );
+    const config = asRecord(gateway.config);
+    const source = readString(gateway, 'source');
+    const reasonCode = readString(gateway, 'reasonCode');
+    const lastUpdatedUtc = readString(gateway, 'lastUpdatedUtc') || readString(tracker, 'lastUpdatedUtc');
+    const trackerSource = readString(tracker, 'source');
+    const detail = joinDetails([
+      source ? `authority: ${humanizeToken(source)}` : 'authority: shared gateway readiness',
+      reasonCode ? `reason: ${humanizeToken(reasonCode)}` : '',
+      trackerSource ? `projection: ${humanizeToken(trackerSource)}` : '',
+      gatewaySummary.detail || '',
+      lastUpdatedUtc ? `updated: ${formatOptionalTimestampLabel(lastUpdatedUtc)}` : '',
+      readBoolean(config, 'exists') === true ? 'config present' : 'config missing',
+    ]) || 'Authoritative gateway readiness from /api/gateway/state.';
+
+    return {
+      title: 'Gateway Authority',
+      status: readString(gateway, 'status') || (gatewayState?.ready ? 'ready' : 'not_ready'),
+      copy: 'Projects canonical gateway readiness from the shared status-file contract.',
+      detail,
+    };
+  }, [overviewState.gatewayState]);
 
   const catalogCard = useMemo(() => {
     const projection = overviewState.catalogHealth?.projection;
@@ -275,6 +316,7 @@ export default function HomeRuntimeView() {
 
   const cards = [
     runtimeCard,
+    gatewayCard,
     persistenceCard,
     catalogCard,
     sdkCard,

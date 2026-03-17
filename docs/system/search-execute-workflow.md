@@ -1,6 +1,6 @@
 ---
 created: 2026-03-07
-updated: 2026-03-16
+updated: 2026-03-17
 category: system
 status: current
 doc_kind: node
@@ -91,6 +91,31 @@ Deterministic ranking considers:
 - recommendation signals
 
 Results include explanation codes so search, UI, and telemetry all describe *why* a skill matched.
+
+## Skill-discovery resolver contract
+
+When work needs a vault-first skill and no deterministic core-lane route already applies, use this exact order:
+
+1. direct load when the user or caller already named the exact skill
+2. stack detection plus nearby manifest/index hints for project/framework clues
+3. catalog-backed metadata search using the shared ranking service
+4. semantic fallback only when the earlier steps do not produce a confident answer
+
+Resolver rules:
+
+- stop at the first confident match instead of continuing to broader search
+- prefer the narrowest domain fit over broader/general skills
+- on equally narrow skill ties, choose lexical order by skill name
+- load one primary skill first, then at most two supporting skills only if the current step requires them
+
+Load the resolved `SKILL.md` as soon as one of these is true:
+
+- the exact skill was explicitly named
+- stack detection yields a clear relevant skill
+- catalog search returns a confident top candidate
+- only one narrow candidate remains after deterministic tie-breaking
+
+If no confident match exists, surface the best candidate plus the ambiguity; do not speculatively load multiple broad skills.
 
 ## Default orchestration policy: `balanced-default`
 

@@ -133,6 +133,13 @@ export interface SessionTextArtifactResponse {
   [key: string]: unknown;
 }
 
+export interface SessionAgentUsageResponse {
+  id: string;
+  source: string;
+  usage: Record<string, number>;
+  [key: string]: unknown;
+}
+
 export interface SessionPropositionResponse extends SessionTextArtifactResponse {
   entries?: SessionPropositionEntry[];
   latestEntry?: SessionPropositionEntry | null;
@@ -739,6 +746,61 @@ export interface CatalogSearchResponse {
     path?: string;
     eventIds?: string[];
     errors?: string[];
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface CatalogSearchSelectionResult {
+  assetId?: string;
+  score?: number;
+  rank?: number;
+  explanations?: CatalogSearchExplanation[];
+  effectiveState?: {
+    assetKey?: string;
+    kind?: string;
+    scope?: {
+      repoId?: string | null;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
+  entry?: {
+    assetKey?: string;
+    kind?: string;
+    scope?: {
+      repoId?: string | null;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogSearchSelectionPayload {
+  query?: Partial<CatalogSearchRequest> | Record<string, unknown>;
+  searchQuery?: Partial<CatalogSearchRequest> | Record<string, unknown>;
+  result?: CatalogSearchSelectionResult | null;
+  resultCount?: number;
+  assetId?: string;
+  assetKey?: string;
+  [key: string]: unknown;
+}
+
+export interface CatalogSearchSelectionResponse {
+  kind?: string;
+  deterministic?: boolean;
+  recorded?: boolean;
+  telemetry?: {
+    path?: string;
+    eventId?: string;
+    [key: string]: unknown;
+  };
+  audit?: {
+    logged?: boolean;
+    path?: string;
+    eventId?: string;
+    error?: string | null;
     [key: string]: unknown;
   };
   [key: string]: unknown;

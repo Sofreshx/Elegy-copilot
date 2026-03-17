@@ -38,6 +38,10 @@ type Node = SectionNode | StatusNode | ClientNode | DetailNode;
 interface MessagingGatewayStatusV1 {
 	schemaVersion: 1;
 	lastUpdatedUtc: string;
+	readiness?: {
+		state?: string;
+		reasonCode?: string;
+	};
 	runtime?: {
 		discord?: { connected?: boolean; ready?: boolean };
 		sessions?: { activeSessionThreadCount?: number };
@@ -64,6 +68,21 @@ function capText(input: string, max = 120): string {
 	const t = input.trim();
 	if (t.length <= max) return t;
 	return `${t.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+function humanizeToken(value: string, fallback = 'unknown'): string {
+	const token = value.trim();
+	if (!token) {
+		return fallback;
+	}
+
+	return token
+		.replace(/[._-]+/g, ' ')
+		.trim()
+		.split(/\s+/)
+		.filter(Boolean)
+		.map((entry) => entry.charAt(0).toUpperCase() + entry.slice(1).toLowerCase())
+		.join(' ');
 }
 
 function tryReadMessagingGatewayStatus():
@@ -297,8 +316,12 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 		}
 
 		const status = result.status;
+		const readinessState = typeof status.readiness?.state === 'string' ? status.readiness.state.trim() : '';
+		const readinessReason = typeof status.readiness?.reasonCode === 'string' ? status.readiness.reasonCode.trim() : '';
 		const discordReady = status.runtime?.discord?.ready;
 		const activeSessions = status.runtime?.sessions?.activeSessionThreadCount;
+		const readinessKnown = readinessState.length > 0;
+		const ready = readinessState === 'ready';
 
 		children.push(
 			{
@@ -310,15 +333,34 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 			},
 			{
 				kind: 'status',
+				key: 'gw-scope',
+				label: 'Scope: shared runtime readiness',
+				description: 'Connections reads the machine-wide gateway status file; Requests and Permissions stay extension-local.',
+				iconPath: new vscode.ThemeIcon('globe')
+			},
+			{
+				kind: 'status',
 				key: 'gw-last-updated',
 				label: `Last updated: ${formatTimestamp(status.lastUpdatedUtc)}`,
 				iconPath: new vscode.ThemeIcon('clock')
 			},
 			{
 				kind: 'status',
-				key: 'gw-discord-ready',
-				label: `Discord ready: ${discordReady === true ? 'yes' : discordReady === false ? 'no' : 'unknown'}`,
-				iconPath: new vscode.ThemeIcon(discordReady === true ? 'check' : 'circle-outline')
+				key: 'gw-shared-readiness',
+				label: `Shared readiness: ${readinessKnown ? humanizeToken(readinessState) : 'Unknown'}`,
+				iconPath: new vscode.ThemeIcon(ready ? 'check' : readinessKnown ? 'warning' : 'circle-outline')
+			},
+			{
+				kind: 'status',
+				key: 'gw-readiness-reason',
+				label: `Reason: ${readinessReason ? humanizeToken(readinessReason) : 'Unknown'}`,
+				iconPath: new vscode.ThemeIcon(readinessReason ? 'info' : 'question')
+			},
+			{
+				kind: 'status',
+				key: 'gw-discord-runtime',
+				label: `Discord runtime: ${discordReady === true ? 'ready' : discordReady === false ? 'not ready' : 'unknown'}`,
+				iconPath: new vscode.ThemeIcon(discordReady === true ? 'plug' : 'circle-outline')
 			},
 			{
 				kind: 'status',
@@ -328,12 +370,11 @@ export class ConnectionsTreeProvider implements vscode.TreeDataProvider<Node> {
 			}
 		);
 
-		const ok = discordReady === true;
 		return {
 			kind: 'section',
 			key: 'messaging-gateway',
 			label: 'Messaging Gateway',
-			description: ok ? 'ready' : 'not ready',
+			description: readinessKnown ? readinessState : 'readiness unknown',
 			iconPath: new vscode.ThemeIcon('hubot'),
 			children
 		};

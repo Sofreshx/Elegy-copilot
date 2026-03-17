@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Panel, StatusBadge, Toolbar } from '../../components';
-import { formatTimestampLabel, summarizeSdkHealth } from '../../lib/stateDiagnostics';
+import {
+  formatGatewaySegmentSummary,
+  formatTimestampLabel,
+  humanizeToken,
+  summarizeSdkHealth,
+} from '../../lib/stateDiagnostics';
 import { useStoreValue } from '../../lib/store';
 import { sdkHealthStore } from '../../stores/sdkHealthStore';
 import GatewayView from '../Gateway/GatewayView';
@@ -56,6 +61,15 @@ function joinDetails(parts: Array<string | null | undefined>): string {
   return parts.map((part) => String(part || '').trim()).filter(Boolean).join(' | ');
 }
 
+function formatOptionalTimestampLabel(value: string): string {
+  const parsed = Date.parse(value);
+  if (Number.isFinite(parsed)) {
+    return formatTimestampLabel(parsed);
+  }
+
+  return value;
+}
+
 export default function StateView() {
   const [activeSection, setActiveSection] = useState<StateSectionId>('overview');
   const overviewState = useStoreValue(stateOverviewStore);
@@ -104,6 +118,36 @@ export default function StateView() {
     };
   }, [overviewState.health]);
 
+  const gatewayCard = useMemo(() => {
+    const gatewayState = overviewState.gatewayState;
+    const gateway = asRecord(gatewayState?.gateway);
+    const tracker = asRecord(gatewayState?.tracker);
+    const gatewaySummary = formatGatewaySegmentSummary(
+      Object.keys(gateway).length ? gateway : null,
+      gatewayState?.ready ? 'ready' : 'not_ready',
+    );
+    const config = asRecord(gateway.config);
+    const source = readString(gateway, 'source');
+    const reasonCode = readString(gateway, 'reasonCode');
+    const lastUpdatedUtc = readString(gateway, 'lastUpdatedUtc') || readString(tracker, 'lastUpdatedUtc');
+    const trackerSource = readString(tracker, 'source');
+    const detail = joinDetails([
+      source ? `authority: ${humanizeToken(source)}` : 'authority: shared gateway readiness',
+      reasonCode ? `reason: ${humanizeToken(reasonCode)}` : '',
+      trackerSource ? `projection: ${humanizeToken(trackerSource)}` : '',
+      gatewaySummary.detail || '',
+      lastUpdatedUtc ? `updated: ${formatOptionalTimestampLabel(lastUpdatedUtc)}` : '',
+      readBoolean(config, 'exists') === true ? 'config present' : 'config missing',
+    ]) || 'Authoritative gateway readiness from /api/gateway/state.';
+
+    return {
+      title: 'Gateway Authority',
+      status: readString(gateway, 'status') || (gatewayState?.ready ? 'ready' : 'not_ready'),
+      copy: 'Projects canonical gateway readiness from the shared status-file contract.',
+      detail,
+    };
+  }, [overviewState.gatewayState]);
+
   const catalogCard = useMemo(() => {
     const projection = overviewState.catalogHealth?.projection;
     const freshness = projection?.freshness?.status || '';
@@ -149,7 +193,7 @@ export default function StateView() {
     };
   }, [overviewState.health]);
 
-  const cards = [runtimeCard, persistenceCard, catalogCard, sdkCard, policyCard];
+  const cards = [runtimeCard, gatewayCard, persistenceCard, catalogCard, sdkCard, policyCard];
   const sectionLabel =
     activeSection === 'overview'
       ? 'System Overview'
@@ -165,8 +209,8 @@ export default function StateView() {
         <div className="state-summary">
           <p className="state-title">System State</p>
           <p className="state-copy">
-            Unified readiness view for runtime health, planning persistence, catalog projection,
-            SDK bridge state, and operator tools.
+            Unified readiness view for runtime health, gateway authority, planning persistence,
+            catalog projection, SDK bridge state, and operator tools.
           </p>
         </div>
 
@@ -226,7 +270,7 @@ export default function StateView() {
       {activeSection === 'overview' ? (
         <div className="state-grid">
           <Panel
-            subtitle="Current readiness snapshot from lifecycle, catalog, and SDK health endpoints."
+            subtitle="Current readiness snapshot from lifecycle, gateway, catalog, and SDK health endpoints."
             testId="state-overview-panel"
             title="System Overview"
             footer={
@@ -258,6 +302,10 @@ export default function StateView() {
               <div className="state-meta-card">
                 <p className="state-meta-label">Health Endpoint</p>
                 <pre className="code-block">{JSON.stringify(overviewState.health, null, 2) || '{}'}</pre>
+              </div>
+              <div className="state-meta-card">
+                <p className="state-meta-label">Gateway State</p>
+                <pre className="code-block">{JSON.stringify(overviewState.gatewayState, null, 2) || '{}'}</pre>
               </div>
               <div className="state-meta-card">
                 <p className="state-meta-label">Catalog Health</p>

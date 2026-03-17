@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   ApiError,
+  getSessionAgentUsage,
   getSessionHandoff,
   getSessionProposition,
   getSessionStructuredState,
@@ -32,6 +33,11 @@ interface SessionDetailProps {
   session?: SessionSummary | null;
 }
 
+interface SessionAgentUsageEntry {
+  agent: string;
+  count: number;
+}
+
 interface SessionArtifactsState {
   loading: boolean;
   error: string | null;
@@ -45,7 +51,10 @@ interface SessionArtifactsState {
   resumeMeta: SessionStructuredMeta['resume'] | null;
   reviewLedgerApproved: boolean | null;
   verificationGuide: string | null;
+  agentUsage: SessionAgentUsageEntry[];
 }
+
+const SESSION_AGENT_USAGE_EVENT_LIMIT = 500;
 
 const EMPTY_ARTIFACTS_STATE: SessionArtifactsState = {
   loading: false,
@@ -60,6 +69,7 @@ const EMPTY_ARTIFACTS_STATE: SessionArtifactsState = {
   resumeMeta: null,
   reviewLedgerApproved: null,
   verificationGuide: null,
+  agentUsage: [],
 };
 
 const KNOWN_METADATA_KEYS = new Set([
@@ -135,12 +145,28 @@ function getLatestStructuredProposition(response: SessionPropositionResponse | n
   return response.entries[response.entries.length - 1] || null;
 }
 
+function normalizeAgentUsageEntries(input: Record<string, number> | undefined): SessionAgentUsageEntry[] {
+  return Object.entries(input ?? {})
+    .map(([agent, count]) => ({
+      agent: String(agent || '').trim(),
+      count: Number(count) || 0,
+    }))
+    .filter((entry) => entry.agent.length > 0 && entry.count > 0)
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.agent.localeCompare(right.agent);
+    });
+}
+
 export default function SessionDetail({ session = null }: SessionDetailProps) {
   const [artifacts, setArtifacts] = useState<SessionArtifactsState>(EMPTY_ARTIFACTS_STATE);
   const extraMetadata = session ? getExtraMetadata(session) : {};
   const extraMetadataJson = Object.keys(extraMetadata).length > 0 ? JSON.stringify(extraMetadata, null, 2) : null;
   const sessionReason = session ? resolveSessionReason(session) : null;
   const sessionSource = typeof session?.source === 'string' ? session.source : undefined;
+  const totalAgentInvocations = artifacts.agentUsage.reduce((sum, entry) => sum + entry.count, 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,12 +197,13 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
 
     void Promise.all([
       readOptional(() => listSessionPlans(session.id, { source: sessionSource })),
+      readOptional(() => getSessionAgentUsage(session.id, { source: sessionSource, limit: SESSION_AGENT_USAGE_EVENT_LIMIT })),
       readOptional(() => getSessionStructuredState(session.id, { source: sessionSource, planId: 'latest' })),
       readOptional(() => getSessionProposition(session.id, { source: sessionSource })),
       readOptional(() => getSessionHandoff(session.id, { source: sessionSource })),
       readOptional(() => getSessionVerificationGuide(session.id, { source: sessionSource })),
     ])
-      .then(([plansResponse, structuredState, propositionResponse, handoffResponse, verificationResponse]) => {
+      .then(([plansResponse, usageResponse, structuredState, propositionResponse, handoffResponse, verificationResponse]) => {
         if (cancelled) {
           return;
         }
@@ -231,6 +258,11 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
             verificationResponse && typeof verificationResponse.content === 'string'
               ? verificationResponse.content
               : null,
+          agentUsage: normalizeAgentUsageEntries(
+            usageResponse && typeof usageResponse.usage === 'object' && usageResponse.usage != null
+              ? (usageResponse.usage as Record<string, number>)
+              : undefined
+          ),
         });
       })
       .catch((error) => {
@@ -337,11 +369,13 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
 
             {!artifacts.loading
             && artifacts.plans.length === 0
+            && artifacts.agentUsage.length === 0
             && !artifacts.nextUnit
+            && !artifacts.handoff
             && !artifacts.proposition
             && !artifacts.verificationGuide ? (
-               <p className="session-detail-hint">No workflow artifacts found in this session folder.</p>
-            ) : null}
+                <p className="session-detail-hint">No workflow artifacts found in this session folder.</p>
+             ) : null}
 
             {artifacts.warnings.length > 0 ? (
               <ul className="session-detail-warnings">
@@ -349,6 +383,33 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
                   <li key={warning}>{warning}</li>
                 ))}
               </ul>
+            ) : null}
+
+            {!artifacts.loading ? (
+              <section className="metadata-block">
+                <h5>Observed agent / planner usage</h5>
+                <p className="session-detail-hint">
+                  Derived from the most recent {SESSION_AGENT_USAGE_EVENT_LIMIT} session events, so this is a bounded sample rather than a full historical ledger.
+                </p>
+                {artifacts.agentUsage.length > 0 ? (
+                  <>
+                    <p className="session-detail-suggestion">
+                      <span>Sampled invocations:</span> {totalAgentInvocations} across {artifacts.agentUsage.length} observed agent label(s).
+                    </p>
+                    <ul className="session-detail-warnings">
+                      {artifacts.agentUsage.map((entry) => (
+                        <li key={entry.agent}>
+                          <strong>{humanizeToken(entry.agent)}</strong>: {entry.count}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="session-detail-hint">
+                    No agent or planner usage was detected in the sampled events for this session.
+                  </p>
+                )}
+              </section>
             ) : null}
 
             {artifacts.proposition ? (

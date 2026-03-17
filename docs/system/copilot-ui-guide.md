@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-03-16
+updated: 2026-03-17
 category: system
 status: current
 doc_kind: node
@@ -40,7 +40,7 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
 - catalog projection refresh, search, repo selection, audit, and mutation flows
 - session browsing and session-artifact inspection
 - planning record comparison and persisted planning APIs
-- tracker and gateway status/proxy surfaces
+- gateway readiness projection plus tracker operational/proxy surfaces
 - optional packaged desktop lifecycle, updater wiring, and local runtime health reporting
 
 Catalog semantics and authoritative write paths are defined in [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md).
@@ -211,14 +211,22 @@ artifacts. They are not the target authority for the Repository Backlog + Roadma
 
 ### Gateway and tracker integration
 
+Gateway readiness authority is split intentionally:
+
+- `~/.copilot/messaging-gateway.status.json` is the canonical messaging-gateway readiness authority
+  produced by `local-tracker`
+- `GET /api/gateway/state` and `POST /api/gateway/connect` are `copilot-ui` control-plane
+  projections over that shared authority
+- tracker live APIs remain operational APIs and diagnostics, not competing readiness authorities
+
 | Method | Endpoint | Purpose | Primary test anchors |
 | --- | --- | --- | --- |
-| `GET` | `/api/gateway/state` | Returns current gateway state. | `copilot-ui/tests/api-contract.test.js` |
-| `POST` | `/api/gateway/connect` | Initiates or negotiates a gateway connection. | `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/gateway/state` | Returns the canonical gateway readiness projection plus tracker/planning diagnostics. | `copilot-ui/tests/api-contract.test.js`, `copilot-ui/server.runtime-health.test.js` |
+| `POST` | `/api/gateway/connect` | Negotiates gateway connection state using the same readiness projection contract. | `copilot-ui/tests/api-contract.test.js`, `copilot-ui/server.runtime-health.test.js` |
 | `GET` | `/api/gateway/config` | Returns gateway configuration. | `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/gateway/config` | Updates gateway configuration. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/gateway/scan-repos` | Scans local repos for gateway-relevant configuration. | `copilot-ui/tests/api-contract.test.js` |
-| `GET` | `/api/tracker/status` | Proxies tracker status. | `copilot-ui/routes/tracker.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/tracker/status` | Proxies tracker operational status; this is not the gateway readiness authority. | `copilot-ui/routes/tracker.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/tracker/sessions` | Proxies tracker session state. | `copilot-ui/routes/tracker.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/tracker/permissions` | Proxies pending tracker permission actions. | `copilot-ui/routes/tracker.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/tracker/events` | Proxies tracker event history. | `copilot-ui/routes/tracker.test.js`, `copilot-ui/tests/api-contract.test.js` |
@@ -238,33 +246,41 @@ artifacts. They are not the target authority for the Repository Backlog + Roadma
 
 ## UI tabs
 
-The React UI currently exposes **4 top-level sections** in the application shell:
+The React UI currently exposes **3 top-level hubs** in the application shell:
 
-- `Planning`
+- `Home / Runtime`
 - `Catalog`
-- `Sessions`
-- `State`
+- `Planning`
 
 Source of truth:
 
 - `copilot-ui/ui/src/App.tsx`
 - `copilot-ui/ui/src/stores/navigation.ts`
+- `copilot-ui/ui/src/tabs/HomeRuntime/HomeRuntimeView.tsx`
 
 The current shell maps to these primary surfaces:
 
-- `Planning` — ideas, planning records, compare/merge flows, research notes, and compile-to-runtime handoff.
+- `Home / Runtime` — default operational landing hub for overview, sessions, sandboxes, and diagnostics.
 - `Catalog` — asset workspace, installs, and skill/agent discovery surfaces.
-- `Sessions` — runtime sessions and sandbox workspaces.
-- `State` — system readiness, gateway, tracker, and LSP diagnostics.
+- `Planning` — ideas, planning records, compare/merge flows, research notes, and compile-to-runtime handoff.
 
 Primary implementation:
 
-- `copilot-ui/ui/src/tabs/Planning/PlanningView.tsx`
+- `copilot-ui/ui/src/tabs/HomeRuntime/HomeRuntimeView.tsx`
 - `copilot-ui/ui/src/tabs/Catalog/CatalogView.tsx`
-- `copilot-ui/ui/src/tabs/Sessions/SessionsWorkspaceView.tsx`
-- `copilot-ui/ui/src/tabs/State/StateView.tsx`
+- `copilot-ui/ui/src/tabs/Planning/PlanningView.tsx`
 
-The `ui/src/tabs/` directory still contains narrower feature surfaces such as `Assets`, `Gateway`, `LSP`, `Sandboxes`, `SkillsPreview`, and `Tracker`. Treat the application shell plus the navigation store as the authoritative UX model for which destinations are top-level.
+`Home / Runtime` currently owns these frozen sub-sections:
+
+- `Overview`
+- `Sessions`
+- `Sandboxes`
+- `Diagnostics`
+
+Diagnostics hosts the narrower `Gateway`, `Tracker`, and `LSP` operator surfaces. The
+`ui/src/tabs/` directory still contains narrower feature views such as `Gateway`, `Tracker`,
+`Sandboxes`, `SkillsPreview`, and the legacy `StateView`, but the application shell plus the
+navigation store remain the authoritative UX model for which destinations are top-level.
 
 ## Persistence and state model
 
@@ -299,12 +315,14 @@ Instruction Engine local state roots described in [[catalog-control-plane]] [doc
 
 Use the narrowest relevant checks after changes:
 
-1. `copilot-ui/tests/smoke.test.js` for route availability and basic server behavior.
-2. `copilot-ui/tests/api-contract.test.js` for broad public route response-shape regressions.
-3. `copilot-ui/routes/catalog.test.js` and `copilot-ui/routes/planning-artifacts.test.js` for additive catalog-bundle and planning-artifact coverage that sits outside the original broad inventory.
-4. `copilot-ui/tests/ui-react-smoke.test.js` and related `*.vitest.tsx` files when tab behavior or UI rendering changes.
-5. `copilot-ui/tests/catalog-projection-service.test.js`, `copilot-ui/tests/skill-search-service.test.js`, and `copilot-ui/lib/planningPersistence.test.js` when catalog or planning persistence behavior changes.
-6. `copilot-ui/VALIDATION.md` for manual curl verification of selected session-artifact endpoints.
+1. `copilot-ui/server.runtime-health.test.js` for runtime, gateway-authority, and degraded-envelope behavior.
+2. `copilot-ui/tests/runtime-home-navigation.test.js` for the frozen `Home / Runtime` shell and handoff invariants.
+3. `copilot-ui/tests/smoke.test.js` for route availability and basic server behavior.
+4. `copilot-ui/tests/api-contract.test.js` for broad public route response-shape regressions.
+5. `copilot-ui/routes/catalog.test.js` and `copilot-ui/routes/planning-artifacts.test.js` for additive catalog-bundle and planning-artifact coverage that sits outside the original broad inventory.
+6. `copilot-ui/tests/ui-react-smoke.test.js` and related `*.vitest.tsx` files when tab behavior or UI rendering changes.
+7. `copilot-ui/tests/catalog-projection-service.test.js`, `copilot-ui/tests/skill-search-service.test.js`, and `copilot-ui/lib/planningPersistence.test.js` when catalog or planning persistence behavior changes.
+8. `copilot-ui/VALIDATION.md` for manual curl verification of selected session-artifact endpoints.
 
 ## Documentation boundaries
 

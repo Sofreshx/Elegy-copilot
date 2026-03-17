@@ -10,6 +10,7 @@ const mockGetCatalogRepos = vi.fn();
 const mockGetAssetView = vi.fn();
 const mockRefreshCatalogProjection = vi.fn();
 const mockSearchCatalogAssets = vi.fn();
+const mockRecordCatalogSearchSelection = vi.fn();
 const mockSyncAllAssets = vi.fn();
 const mockCreateCatalogAsset = vi.fn();
 const mockUpdateCatalogAsset = vi.fn();
@@ -38,6 +39,7 @@ vi.mock('../ui/src/lib/api', () => ({
   getRuntimeCatalogHealth: mockGetRuntimeCatalogHealth,
   installCatalogAsset: mockInstallCatalogAsset,
   refreshCatalogProjection: mockRefreshCatalogProjection,
+  recordCatalogSearchSelection: mockRecordCatalogSearchSelection,
   refreshCatalogRepo: mockRefreshCatalogRepo,
   registerCatalogRepo: mockRegisterCatalogRepo,
   saveCatalogRepoScanRoots: mockSaveCatalogRepoScanRoots,
@@ -61,6 +63,7 @@ describe('catalogWorkspaceStore', () => {
     mockGetAssetView.mockReset();
     mockRefreshCatalogProjection.mockReset();
     mockSearchCatalogAssets.mockReset();
+    mockRecordCatalogSearchSelection.mockReset();
     mockSyncAllAssets.mockReset();
     mockCreateCatalogAsset.mockReset();
     mockUpdateCatalogAsset.mockReset();
@@ -416,12 +419,189 @@ describe('catalogWorkspaceStore', () => {
 
     expect(mockSearchCatalogAssets).toHaveBeenCalledWith({
       query: 'search',
-      kind: 'skill',
+      repoId: 'repo-1',
       repoPath: 'C:\\repo',
       includeVaultOnly: false,
       preferLoadMode: 'on-demand',
+      limit: 20,
     });
     expect(catalogWorkspaceStore.getState().searchResults).toHaveLength(1);
+  });
+
+  it('records search selection telemetry without blocking inspection', async () => {
+    mockGetCatalogRepos.mockResolvedValue({
+      repos: [
+        {
+          repoId: 'repo-1',
+          repoPath: 'C:\\repo',
+          selected: true,
+        },
+      ],
+      selectedRepo: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\repo',
+        selected: true,
+      },
+    });
+    mockGetCatalogSummary.mockResolvedValue({
+      summary: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+        repoContext: {
+          repoId: 'repo-1',
+        },
+        stats: {
+          effectiveCount: 1,
+          installedCount: 1,
+          overriddenCount: 0,
+        },
+      },
+    });
+    mockGetCatalogAssets.mockResolvedValue({
+      assets: [
+        {
+          assetId: 'skill-search',
+          assetKey: 'search-skill',
+          kind: 'skill',
+          installed: true,
+          enabled: true,
+          available: true,
+          selectedEntry: {
+            assetId: 'skill-search',
+            assetKey: 'search-skill',
+            kind: 'skill',
+            title: 'Search skill',
+          },
+        },
+      ],
+    });
+    mockGetRuntimeCatalogHealth.mockResolvedValue({
+      ok: true,
+      projection: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+      },
+    });
+    mockGetCatalogAssetDetail.mockResolvedValue({
+      asset: {
+        assetId: 'skill-search',
+        assetKey: 'search-skill',
+        kind: 'skill',
+      },
+      entries: [],
+    });
+    mockGetCatalogAuditEvents.mockResolvedValue({
+      events: [],
+    });
+    mockGetAssetView.mockResolvedValue('# Search skill');
+    mockRecordCatalogSearchSelection.mockRejectedValue(new Error('telemetry unavailable'));
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    await catalogWorkspaceStore.loadWorkspace();
+    catalogWorkspaceStore.setSearchQuery('search');
+    catalogWorkspaceStore.setSearchPreferLoadMode('on-demand');
+
+    await catalogWorkspaceStore.inspectSearchResult({
+      rank: 1,
+      assetId: 'skill-search',
+      score: 42,
+      explanations: [
+        {
+          code: 'name',
+          message: 'Matched asset name/title.',
+        },
+      ],
+      effectiveState: {
+        assetId: 'skill-search',
+        assetKey: 'search-skill',
+        kind: 'skill',
+        scope: {
+          repoId: 'repo-1',
+        },
+      },
+      entry: {
+        assetId: 'skill-search',
+        assetKey: 'search-skill',
+        kind: 'skill',
+        scope: {
+          repoId: 'repo-1',
+        },
+      },
+    });
+
+    expect(mockRecordCatalogSearchSelection).toHaveBeenCalledWith({
+      assetId: 'skill-search',
+      assetKey: 'search-skill',
+      resultCount: 0,
+      query: {
+        query: 'search',
+        repoId: 'repo-1',
+        repoPath: 'C:\\repo',
+        includeVaultOnly: false,
+        preferLoadMode: 'on-demand',
+        limit: 20,
+      },
+      result: {
+        assetId: 'skill-search',
+        score: 42,
+        rank: 1,
+        explanations: [
+          {
+            code: 'name',
+            message: 'Matched asset name/title.',
+          },
+        ],
+        effectiveState: {
+          assetKey: 'search-skill',
+          kind: 'skill',
+          scope: {
+            repoId: 'repo-1',
+          },
+        },
+        entry: {
+          assetKey: 'search-skill',
+          kind: 'skill',
+          scope: {
+            repoId: 'repo-1',
+          },
+        },
+      },
+    });
+    expect(catalogWorkspaceStore.getState().selectedAssetId).toBe('skill-search');
+    expect(mockGetCatalogAssetDetail).toHaveBeenCalledWith('skill-search', {
+      repoId: 'repo-1',
+      repoPath: 'C:\\repo',
+    });
+    expect(catalogWorkspaceStore.getState().auditError).toContain('telemetry unavailable');
+  });
+
+  it('preserves the active repo context when repo inventory refresh fails', async () => {
+    primeWorkspaceLoad();
+    mockGetCatalogRepos.mockResolvedValue({
+      repos: [],
+      selectedRepo: null,
+    });
+    mockSelectCatalogRepo.mockResolvedValue({
+      selectedRepo: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\repo',
+      },
+      repo: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\repo',
+      },
+    });
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    catalogWorkspaceStore.setRepoPathInput('C:\\repo');
+    await catalogWorkspaceStore.applyRepoContext();
+
+    mockGetCatalogRepos.mockRejectedValue(new Error('repo inventory unavailable'));
+    await catalogWorkspaceStore.loadWorkspace();
+
+    expect(catalogWorkspaceStore.getState().activeRepoPath).toBe('C:\\repo');
+    expect(catalogWorkspaceStore.getState().activeRepoId).toBe('repo-1');
   });
 
   it('installs a bundle by iterating installable bundle members and reloading workspace state', async () => {

@@ -12,6 +12,8 @@ import type {
   CatalogReposListResponse,
   CatalogRefreshResponse,
   CatalogSearchRequest,
+  CatalogSearchSelectionPayload,
+  CatalogSearchSelectionResponse,
   CatalogSearchResponse,
   CatalogSummaryResponse,
   GatewayConfig,
@@ -56,6 +58,7 @@ import type {
   SdkSessionSummary,
   SdkSessionsResponse,
   SessionPlansResponse,
+  SessionAgentUsageResponse,
   SessionStructuredStateResponse,
   SessionTextArtifactResponse,
   SkillsPreviewResponse,
@@ -93,6 +96,11 @@ export interface ListSessionsOptions {
 export interface SessionArtifactQueryOptions {
   source?: string;
   planId?: string;
+}
+
+export interface SessionAgentUsageQueryOptions {
+  source?: string;
+  limit?: number;
 }
 
 export interface PlanningContextQuery {
@@ -1601,6 +1609,20 @@ export function listSessionPlans(
   });
 }
 
+export function getSessionAgentUsage(
+  sessionId: string,
+  options: SessionAgentUsageQueryOptions = {},
+  baseUrl?: string
+): Promise<SessionAgentUsageResponse> {
+  return apiRequest<SessionAgentUsageResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/agent-usage`, {
+    baseUrl,
+    query: {
+      source: options.source,
+      limit: options.limit,
+    },
+  });
+}
+
 export function getSessionStructuredState(
   sessionId: string,
   options: SessionArtifactQueryOptions = {},
@@ -2118,6 +2140,20 @@ export function searchCatalogAssets(
   baseUrl?: string
 ): Promise<CatalogSearchResponse> {
   return apiRequest<CatalogSearchResponse>('/api/search/query', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function recordCatalogSearchSelection(
+  payload: CatalogSearchSelectionPayload,
+  baseUrl?: string
+): Promise<CatalogSearchSelectionResponse> {
+  return apiRequest<CatalogSearchSelectionResponse>('/api/search/selection', {
     baseUrl,
     method: 'POST',
     headers: {

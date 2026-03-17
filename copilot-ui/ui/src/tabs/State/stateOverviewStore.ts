@@ -1,11 +1,12 @@
-import { getHealth, getRuntimeCatalogHealth } from '../../lib/api';
+import { getGatewayState, getHealth, getRuntimeCatalogHealth } from '../../lib/api';
 import { createStore } from '../../lib/store';
-import type { HealthResponse, RuntimeCatalogHealthResponse } from '../../lib/types';
+import type { GatewayStateResponse, HealthResponse, RuntimeCatalogHealthResponse } from '../../lib/types';
 
 const STATE_OVERVIEW_POLL_INTERVAL_MS = 30_000;
 
 export interface StateOverviewState {
   health: HealthResponse | null;
+  gatewayState: GatewayStateResponse | null;
   catalogHealth: RuntimeCatalogHealthResponse | null;
   loading: boolean;
   error: string | null;
@@ -14,6 +15,7 @@ export interface StateOverviewState {
 
 const INITIAL_STATE: StateOverviewState = {
   health: null,
+  gatewayState: null,
   catalogHealth: null,
   loading: false,
   error: null,
@@ -43,7 +45,11 @@ function createStateOverviewStore() {
     }));
 
     try {
-      const [health, catalogHealth] = await Promise.all([getHealth(), getRuntimeCatalogHealth()]);
+      const [health, gatewayState, catalogHealth] = await Promise.all([
+        getHealth(),
+        getGatewayState(),
+        getRuntimeCatalogHealth(),
+      ]);
 
       store.setState((state) => {
         if (nextVersion !== requestVersion) {
@@ -53,6 +59,7 @@ function createStateOverviewStore() {
         return {
           ...state,
           health,
+          gatewayState,
           catalogHealth,
           loading: false,
           error: null,

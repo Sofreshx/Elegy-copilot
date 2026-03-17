@@ -17,6 +17,7 @@ import {
   refreshCatalogProjection,
   refreshCatalogRepo,
   registerCatalogRepo,
+  recordCatalogSearchSelection,
   saveCatalogRepoScanRoots,
   searchCatalogAssets,
   selectCatalogRepo,
@@ -37,6 +38,7 @@ import type {
   CatalogRepoInventoryWorkspaceScan,
   CatalogReposListResponse,
   CatalogSearchResult,
+  CatalogSearchSelectionPayload,
   CatalogSnapshotEnvelope,
   RuntimeCatalogHealthResponse,
 } from '../../lib/types';
@@ -143,6 +145,9 @@ const INITIAL_STATE: CatalogWorkspaceState = {
   repoInventoryLoading: false,
   repoInventory: null,
 };
+
+export const CATALOG_SEARCH_RESULT_LIMIT = 20;
+export const CATALOG_AUDIT_EVENT_LIMIT = 25;
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
@@ -334,8 +339,16 @@ function createCatalogWorkspaceStore() {
     repoInventory: CatalogReposListResponse | null
   ): { activeRepoPath: string; activeRepoId: string } {
     const requestedPath = normalizeRepoPath(state.activeRepoPath);
+    const requestedRepoId = typeof state.activeRepoId === 'string' ? state.activeRepoId.trim() : '';
 
-    if (requestedPath && repoInventory) {
+    if (!repoInventory) {
+      return {
+        activeRepoPath: requestedPath,
+        activeRepoId: requestedRepoId,
+      };
+    }
+
+    if (requestedPath) {
       const matchingRepo =
         repoInventory.repos.find((repo) => samePath(repo.repoPath, requestedPath)) ?? null;
       if (matchingRepo) {
@@ -344,12 +357,29 @@ function createCatalogWorkspaceStore() {
           activeRepoId: typeof matchingRepo.repoId === 'string' ? matchingRepo.repoId.trim() : '',
         };
       }
+
+      return {
+        activeRepoPath: requestedPath,
+        activeRepoId: requestedRepoId,
+      };
     }
 
     const selectedRepo = repoInventory?.selectedRepo ?? null;
     return {
-      activeRepoPath: normalizeRepoPath(selectedRepo?.repoPath),
-      activeRepoId: typeof selectedRepo?.repoId === 'string' ? selectedRepo.repoId.trim() : '',
+      activeRepoPath: normalizeRepoPath(selectedRepo?.repoPath) || requestedPath,
+      activeRepoId: typeof selectedRepo?.repoId === 'string' ? selectedRepo.repoId.trim() : requestedRepoId,
+    };
+  }
+
+  function buildSearchRequest(state: CatalogWorkspaceState, query: string) {
+    return {
+      query,
+      ...(state.filters.kind !== 'all' ? { kind: state.filters.kind } : {}),
+      repoId: state.activeRepoId || undefined,
+      repoPath: state.activeRepoPath || undefined,
+      includeVaultOnly: state.searchIncludeVaultOnly,
+      preferLoadMode: state.searchPreferLoadMode === 'all' ? undefined : state.searchPreferLoadMode,
+      limit: CATALOG_SEARCH_RESULT_LIMIT,
     };
   }
 
@@ -455,7 +485,7 @@ function createCatalogWorkspaceStore() {
       const response = await getCatalogAuditEvents({
         assetId: assetId || undefined,
         repoId,
-        limit: 25,
+        limit: CATALOG_AUDIT_EVENT_LIMIT,
       });
       if (nextVersion !== auditRequestVersion) {
         return;
@@ -492,6 +522,71 @@ function createCatalogWorkspaceStore() {
 
     const requestSelector = selector();
     await Promise.all([loadAssetDetail(assetId, requestSelector), loadAuditEvents(assetId, requestSelector)]);
+  }
+
+  async function inspectSearchResult(result: CatalogSearchResult): Promise<void> {
+    const assetId = String(result?.assetId || '').trim();
+    if (!assetId) {
+      return;
+    }
+
+    const state = store.getState();
+    const payload: CatalogSearchSelectionPayload = {
+      assetId,
+      assetKey: result.effectiveState?.assetKey || result.entry?.assetKey,
+      resultCount: state.searchResults.length,
+      query: buildSearchRequest(state, state.searchQuery.trim()),
+      result: {
+        assetId,
+        score: result.score,
+        rank: result.rank,
+        explanations: Array.isArray(result.explanations)
+          ? result.explanations.map((explanation) => ({
+            code: explanation.code,
+            message: explanation.message,
+          }))
+          : [],
+        effectiveState: result.effectiveState
+          ? {
+            assetKey: result.effectiveState.assetKey,
+            kind: result.effectiveState.kind,
+            scope: result.effectiveState.scope?.repoId
+              ? {
+                repoId: result.effectiveState.scope.repoId,
+              }
+              : undefined,
+          }
+          : null,
+        entry: result.entry
+          ? {
+            assetKey: result.entry.assetKey,
+            kind: result.entry.kind,
+            scope: result.entry.scope?.repoId
+              ? {
+                repoId: result.entry.scope.repoId,
+              }
+              : undefined,
+          }
+          : null,
+      },
+    };
+
+    let selectionError: string | null = null;
+
+    try {
+      await recordCatalogSearchSelection(payload);
+    } catch (error) {
+      selectionError = toErrorMessage(error, 'Unable to record search selection telemetry.');
+    }
+
+    await selectAsset(assetId);
+
+    if (selectionError) {
+      store.setState((state) => ({
+        ...state,
+        auditError: selectionError,
+      }));
+    }
   }
 
   async function loadWorkspace(): Promise<void> {
@@ -952,13 +1047,7 @@ function createCatalogWorkspaceStore() {
     }));
 
     try {
-      const response = await searchCatalogAssets({
-        query,
-        kind: state.filters.kind === 'all' ? 'skill' : state.filters.kind,
-        repoPath: state.activeRepoPath || undefined,
-        includeVaultOnly: state.searchIncludeVaultOnly,
-        preferLoadMode: state.searchPreferLoadMode === 'all' ? undefined : state.searchPreferLoadMode,
-      });
+      const response = await searchCatalogAssets(buildSearchRequest(state, query));
 
       if (nextVersion !== searchRequestVersion) {
         return;
@@ -1354,6 +1443,7 @@ function createCatalogWorkspaceStore() {
     setFilters,
     selectBundle,
     selectAsset,
+    inspectSearchResult,
     setSearchQuery,
     setSearchIncludeVaultOnly,
     setSearchPreferLoadMode,
