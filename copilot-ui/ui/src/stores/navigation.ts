@@ -18,6 +18,8 @@ export const RUNTIME_SECTION_IDS = [
 export type RuntimeSectionId = (typeof RUNTIME_SECTION_IDS)[number];
 
 export const DIAGNOSTICS_SECTION_IDS = [
+  'runtime',
+  'database',
   'gateway',
   'tracker',
   'lsp',
@@ -59,7 +61,7 @@ export const NAVIGATION_TABS: readonly NavigationTab[] = [
 const INITIAL_STATE: NavigationState = {
   activeTabId: 'home-runtime',
   runtimeSectionId: 'overview',
-  diagnosticsSectionId: 'gateway',
+  diagnosticsSectionId: 'runtime',
   catalogSectionId: 'overview',
   sessionsMode: 'local',
 };

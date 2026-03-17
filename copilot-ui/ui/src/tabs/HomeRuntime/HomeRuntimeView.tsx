@@ -80,6 +80,20 @@ function formatOptionalTimestampLabel(value: string): string {
   return value;
 }
 
+function formatDiagnosticsSectionLabel(sectionId: DiagnosticsSectionId): string {
+  if (sectionId === 'runtime') {
+    return 'Instruction Engine Runtime';
+  }
+  if (sectionId === 'database') {
+    return 'Planning Database';
+  }
+  if (sectionId === 'lsp') {
+    return 'LSP';
+  }
+
+  return sectionId.charAt(0).toUpperCase() + sectionId.slice(1);
+}
+
 function pickMostRecentSession(sessions: SessionSummary[]): SessionSummary | null {
   return sessions.reduce<SessionSummary | null>((latest, session) => {
     if (!latest) {
@@ -92,7 +106,201 @@ function pickMostRecentSession(sessions: SessionSummary[]): SessionSummary | nul
   }, null);
 }
 
-function renderDiagnosticsSection(activeSection: DiagnosticsSectionId) {
+function renderDiagnosticsSection(
+  activeSection: DiagnosticsSectionId,
+  health: ReturnType<typeof stateOverviewStore.getState>['health'],
+) {
+  if (activeSection === 'runtime') {
+    const runtime = asRecord(health?.runtime);
+    const provider = asRecord(runtime.provider);
+    const capabilities = asRecord(runtime.capabilities);
+    const capabilityEntries = Object.entries(capabilities)
+      .map(([key, value]) => `${humanizeToken(key)}: ${humanizeToken(value, 'Unknown')}`)
+      .sort((left, right) => left.localeCompare(right));
+
+    return (
+      <div className="state-grid">
+        <Panel
+          subtitle="Instruction Engine runtime compatibility contract and provider capability state from /api/health."
+          testId="home-runtime-diagnostics-runtime-panel"
+          title="Instruction Engine Runtime"
+        >
+          <div className="state-card-grid">
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">Runtime Contract</p>
+                <StatusBadge
+                  status={buildStatusToken(runtime, typeof health?.ok === 'boolean' ? (health.ok ? 'healthy' : 'degraded') : 'unknown')}
+                  testId="home-runtime-diagnostics-runtime-status"
+                />
+              </div>
+              <p className="state-card-copy">Current runtime mode plus the resolved engine root used by the backend.</p>
+              <p className="state-card-detail">
+                {joinDetails([
+                  readString(runtime, 'mode'),
+                  health?.engineRoot ? `engine: ${health.engineRoot}` : '',
+                  health?.copilotHome ? `copilot: ${health.copilotHome}` : '',
+                  health?.vscodeHome ? `vscode: ${health.vscodeHome}` : '',
+                ]) || 'No runtime contract details reported.'}
+              </p>
+            </article>
+
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">Provider Selection</p>
+                <StatusBadge status={readString(provider, 'selectionSource') || 'unknown'} testId="home-runtime-diagnostics-provider-status" />
+              </div>
+              <p className="state-card-copy">Shows the selected/default runtime providers and how the selection was derived.</p>
+              <p className="state-card-detail">
+                {joinDetails([
+                  readString(provider, 'selectedProvider') ? `selected: ${humanizeToken(readString(provider, 'selectedProvider'))}` : '',
+                  readString(provider, 'defaultProvider') ? `default: ${humanizeToken(readString(provider, 'defaultProvider'))}` : '',
+                  readString(provider, 'selectionSource') ? `source: ${humanizeToken(readString(provider, 'selectionSource'))}` : '',
+                ]) || 'No provider metadata reported.'}
+              </p>
+            </article>
+
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">Capabilities</p>
+                <StatusBadge status={capabilityEntries.length ? 'reported' : 'unknown'} testId="home-runtime-diagnostics-capabilities-status" />
+              </div>
+              <p className="state-card-copy">High-signal runtime capability probes used by the compatibility contract.</p>
+              <p className="state-card-detail">
+                {capabilityEntries.length ? capabilityEntries.join(' | ') : 'No capability probes reported.'}
+              </p>
+            </article>
+          </div>
+        </Panel>
+
+        <Panel
+          subtitle="Raw runtime diagnostics for debugging provider/capability mismatches."
+          testId="home-runtime-diagnostics-runtime-raw-panel"
+          title="Runtime Raw State"
+        >
+          <div className="state-meta-grid">
+            <div className="state-meta-card">
+              <p className="state-meta-label">Health Runtime</p>
+              <pre className="code-block">{JSON.stringify(runtime, null, 2) || '{}'}</pre>
+            </div>
+            <div className="state-meta-card">
+              <p className="state-meta-label">Health Envelope</p>
+              <pre className="code-block">{JSON.stringify(health || {}, null, 2) || '{}'}</pre>
+            </div>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
+  if (activeSection === 'database') {
+    const persistence = asRecord(health?.planningPersistence);
+    const governance = asRecord(persistence.governance);
+    const migrations = asRecord(persistence.migrations);
+    const dependencyGate = asRecord(health?.planningDurabilityDependencyGate);
+
+    return (
+      <div className="state-grid">
+        <Panel
+          subtitle="Planning persistence authority, migration state, and durability gate details from /api/health."
+          testId="home-runtime-diagnostics-database-panel"
+          title="Planning Database"
+        >
+          <div className="state-card-grid">
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">Database Status</p>
+                <StatusBadge status={buildStatusToken(persistence, 'unknown')} testId="home-runtime-diagnostics-database-status" />
+              </div>
+              <p className="state-card-copy">Current planning persistence readiness and configuration state.</p>
+              <p className="state-card-detail">
+                {joinDetails([
+                  readBoolean(persistence, 'configured') === true ? 'configured' : '',
+                  readBoolean(persistence, 'usable') === true ? 'usable' : '',
+                  readBoolean(persistence, 'required') === true ? 'required' : '',
+                  readString(persistence, 'lastError') ? `last error: ${readString(persistence, 'lastError')}` : '',
+                ]) || 'No planning persistence status reported.'}
+              </p>
+            </article>
+
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">Governance</p>
+                <StatusBadge status={buildStatusToken(governance, readString(governance, 'code') || 'unknown')} testId="home-runtime-diagnostics-governance-status" />
+              </div>
+              <p className="state-card-copy">Fail-closed planning database governance and readiness contract.</p>
+              <p className="state-card-detail">
+                {joinDetails([
+                  readString(governance, 'code') ? `code: ${humanizeToken(readString(governance, 'code'))}` : '',
+                  readString(governance, 'reason') ? `reason: ${humanizeToken(readString(governance, 'reason'))}` : '',
+                  readBoolean(governance, 'failClosed') === true ? 'fail closed' : '',
+                  readBoolean(governance, 'ready') === true ? 'ready' : 'not ready',
+                ]) || 'No governance state reported.'}
+              </p>
+            </article>
+
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">Migrations</p>
+                <StatusBadge
+                  status={
+                    readBoolean(migrations, 'baselineMismatch') === true || readBoolean(migrations, 'driftDetected') === true
+                      ? 'error'
+                      : 'verified'
+                  }
+                  testId="home-runtime-diagnostics-migrations-status"
+                />
+              </div>
+              <p className="state-card-copy">Migration manifest, checksum baseline, and applied version count.</p>
+              <p className="state-card-detail">
+                {joinDetails([
+                  readString(migrations, 'schemaTable') ? `table: ${readString(migrations, 'schemaTable')}` : '',
+                  readString(migrations, 'latestVersion') ? `latest: ${readString(migrations, 'latestVersion')}` : '',
+                  typeof migrations.appliedCount === 'number' ? `applied: ${migrations.appliedCount}` : '',
+                  typeof migrations.manifestCount === 'number' ? `manifest: ${migrations.manifestCount}` : '',
+                  readBoolean(migrations, 'baselineMismatch') === true ? 'baseline mismatch' : '',
+                  readBoolean(migrations, 'driftDetected') === true ? 'drift detected' : '',
+                ]) || 'No migration state reported.'}
+              </p>
+            </article>
+
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">Durability Gate</p>
+                <StatusBadge status={buildStatusToken(dependencyGate, 'unknown')} testId="home-runtime-diagnostics-gate-status" />
+              </div>
+              <p className="state-card-copy">Shows whether planning durability routes are currently allowed to mutate persistence.</p>
+              <p className="state-card-detail">
+                {joinDetails([
+                  readString(dependencyGate, 'marker') ? `marker: ${humanizeToken(readString(dependencyGate, 'marker'))}` : '',
+                  readString(dependencyGate, 'reason') ? `reason: ${humanizeToken(readString(dependencyGate, 'reason'))}` : '',
+                  readBoolean(dependencyGate, 'ready') === true ? 'ready' : 'not ready',
+                ]) || 'No durability gate state reported.'}
+              </p>
+            </article>
+          </div>
+        </Panel>
+
+        <Panel
+          subtitle="Raw planning persistence payloads for debugging migration/governance issues."
+          testId="home-runtime-diagnostics-database-raw-panel"
+          title="Database Raw State"
+        >
+          <div className="state-meta-grid">
+            <div className="state-meta-card">
+              <p className="state-meta-label">Planning Persistence</p>
+              <pre className="code-block">{JSON.stringify(persistence, null, 2) || '{}'}</pre>
+            </div>
+            <div className="state-meta-card">
+              <p className="state-meta-label">Durability Gate</p>
+              <pre className="code-block">{JSON.stringify(dependencyGate, null, 2) || '{}'}</pre>
+            </div>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
   if (activeSection === 'gateway') {
     return <GatewayView />;
   }
@@ -341,7 +549,7 @@ export default function HomeRuntimeView() {
     },
     diagnostics: {
       title: 'Diagnostics',
-      body: 'Open gateway, tracker, and LSP operator tools without leaving the runtime hub.',
+      body: 'Inspect Instruction Engine runtime, planning database, gateway, tracker, and LSP operator diagnostics from one runtime hub.',
     },
   };
 
@@ -555,6 +763,20 @@ export default function HomeRuntimeView() {
         <div className="workspace-stack" data-testid="home-runtime-diagnostics-view">
           <div className="workspace-nav" role="tablist" aria-label="Runtime diagnostics sections">
             <Button
+              onClick={() => navigationStore.setDiagnosticsSectionId('runtime')}
+              testId="home-runtime-diagnostics-runtime"
+              variant={navigationState.diagnosticsSectionId === 'runtime' ? 'primary' : 'ghost'}
+            >
+              Runtime
+            </Button>
+            <Button
+              onClick={() => navigationStore.setDiagnosticsSectionId('database')}
+              testId="home-runtime-diagnostics-database"
+              variant={navigationState.diagnosticsSectionId === 'database' ? 'primary' : 'ghost'}
+            >
+              Database
+            </Button>
+            <Button
               onClick={() => navigationStore.setDiagnosticsSectionId('gateway')}
               testId="home-runtime-diagnostics-gateway"
               variant={navigationState.diagnosticsSectionId === 'gateway' ? 'primary' : 'ghost'}
@@ -578,10 +800,10 @@ export default function HomeRuntimeView() {
           </div>
 
           <p className="workspace-section-label">
-            Diagnostics / {navigationState.diagnosticsSectionId.charAt(0).toUpperCase() + navigationState.diagnosticsSectionId.slice(1)}
+            Diagnostics / {formatDiagnosticsSectionLabel(navigationState.diagnosticsSectionId)}
           </p>
 
-          {renderDiagnosticsSection(navigationState.diagnosticsSectionId)}
+          {renderDiagnosticsSection(navigationState.diagnosticsSectionId, overviewState.health)}
         </div>
       ) : null}
     </section>

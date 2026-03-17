@@ -51,26 +51,31 @@ async function run() {
     assert.ok(fs.existsSync(path.join(uiSrcRoot, 'App.tsx')), 'Missing ui/src/App.tsx');
   });
 
-  await test('consolidated workspace view files exist for planning, catalog, sessions, and state', async () => {
+  await test('active workspace hub view files exist for home runtime, planning, and catalog', async () => {
     const expectedViews = [
+      path.join(uiSrcRoot, 'tabs', 'HomeRuntime', 'HomeRuntimeView.tsx'),
       path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningView.tsx'),
       path.join(uiSrcRoot, 'tabs', 'Catalog', 'CatalogView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsWorkspaceView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'State', 'StateView.tsx'),
     ];
 
     for (const expectedView of expectedViews) {
       assert.ok(fs.existsSync(expectedView), `Missing migrated tab view: ${expectedView}`);
     }
+
+    assert.ok(
+      !fs.existsSync(path.join(uiSrcRoot, 'tabs', 'State', 'StateView.tsx')),
+      'Expected legacy StateView component to be retired'
+    );
   });
 
-  await test('App.tsx references consolidated workspace views', async () => {
+  await test('App.tsx references the current 3-hub shell views', async () => {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
 
+    assert.ok(appSource.includes("./tabs/HomeRuntime/HomeRuntimeView"), 'Expected HomeRuntimeView import in App.tsx');
     assert.ok(appSource.includes("./tabs/Planning/PlanningView"), 'Expected PlanningView import in App.tsx');
     assert.ok(appSource.includes("./tabs/Catalog/CatalogView"), 'Expected CatalogView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/Sessions/SessionsWorkspaceView"), 'Expected SessionsWorkspaceView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/State/StateView"), 'Expected StateView import in App.tsx');
+    assert.ok(!appSource.includes("./tabs/Sessions/SessionsWorkspaceView"), 'Did not expect legacy SessionsWorkspaceView import in App.tsx');
+    assert.ok(!appSource.includes("./tabs/State/StateView"), 'Did not expect retired StateView import in App.tsx');
   });
 
   await test('responsive breakpoints for 1440px, 1024px, 768px, and 320px exist in app.css', async () => {

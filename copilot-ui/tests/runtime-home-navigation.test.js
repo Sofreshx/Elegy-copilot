@@ -36,6 +36,7 @@ async function run() {
     assert.ok(navigationSource.includes("'planning'"), 'Expected planning tab id');
     assert.ok(navigationSource.includes("activeTabId: 'home-runtime'"), 'Expected default tab to be home-runtime');
     assert.ok(navigationSource.includes("runtimeSectionId: 'overview'"), 'Expected default runtime section to be overview');
+    assert.ok(navigationSource.includes("diagnosticsSectionId: 'runtime'"), 'Expected default diagnostics section to be runtime');
   });
 
   await test('App handoff wiring routes planning back into Home / Runtime sessions', async () => {
@@ -67,10 +68,15 @@ async function run() {
     }
   });
 
-  await test('Diagnostics section absorbs gateway, tracker, and lsp surfaces', async () => {
+  await test('Diagnostics section exposes runtime, database, gateway, tracker, and lsp surfaces', async () => {
     assert.ok(homeRuntimeSource.includes('GatewayView'), 'Expected GatewayView in diagnostics');
     assert.ok(homeRuntimeSource.includes('TrackerView'), 'Expected TrackerView in diagnostics');
     assert.ok(homeRuntimeSource.includes('LspView'), 'Expected LspView in diagnostics');
+    assert.ok(homeRuntimeSource.includes('Instruction Engine Runtime'), 'Expected instruction engine runtime diagnostics copy');
+    assert.ok(homeRuntimeSource.includes('Planning Database'), 'Expected planning database diagnostics copy');
+    assert.ok(homeRuntimeSource.includes('planningDurabilityDependencyGate'), 'Expected planning durability gate diagnostics');
+    assert.ok(homeRuntimeSource.includes('home-runtime-diagnostics-runtime'), 'Expected runtime diagnostics tab');
+    assert.ok(homeRuntimeSource.includes('home-runtime-diagnostics-database'), 'Expected database diagnostics tab');
     assert.ok(homeRuntimeSource.includes('home-runtime-diagnostics-gateway'), 'Expected Gateway diagnostics tab');
     assert.ok(homeRuntimeSource.includes('home-runtime-diagnostics-tracker'), 'Expected Tracker diagnostics tab');
     assert.ok(homeRuntimeSource.includes('home-runtime-diagnostics-lsp'), 'Expected LSP diagnostics tab');

@@ -277,9 +277,10 @@ Primary implementation:
 - `Sandboxes`
 - `Diagnostics`
 
-Diagnostics hosts the narrower `Gateway`, `Tracker`, and `LSP` operator surfaces. The
+Diagnostics hosts the narrower `Instruction Engine Runtime`, `Planning Database`,
+`Gateway`, `Tracker`, and `LSP` operator surfaces. The
 `ui/src/tabs/` directory still contains narrower feature views such as `Gateway`, `Tracker`,
-`Sandboxes`, `SkillsPreview`, and the legacy `StateView`, but the application shell plus the
+`Sandboxes`, and `SkillsPreview`, but the application shell plus the
 navigation store remain the authoritative UX model for which destinations are top-level.
 
 ## Persistence and state model

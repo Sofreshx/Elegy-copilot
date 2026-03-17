@@ -19,16 +19,18 @@ overhaul phase. It is a **design decision**, not an implementation log.
 
 ## Current patterns and evidence
 
-The current shell and tab layout establish the baseline that the overhaul must absorb rather than
-replace from scratch.
+The current shell and tab layout establish the baseline that the overhaul absorbed rather than
+replacing from scratch.
 
-- Top-level tabs are currently `Planning`, `Catalog`, `Sessions`, and `State`
+- Top-level hubs are now `Home / Runtime`, `Catalog`, and `Planning`
   (`copilot-ui/ui/src/stores/navigation.ts`, `copilot-ui/ui/src/App.tsx`).
-- `StateView` already acts as the current status and diagnostics hub with an overview plus
-  `Gateway`, `Tracker`, and `LSP` sub-sections
-  (`copilot-ui/ui/src/tabs/State/StateView.tsx`).
-- `SessionsWorkspaceView` already acts as the runtime hub with `Runtime` and `Sandboxes`
-  sub-sections (`copilot-ui/ui/src/tabs/Sessions/SessionsWorkspaceView.tsx`).
+- `HomeRuntimeView` now acts as the runtime, status, and diagnostics hub with `Overview`,
+  `Sessions`, `Sandboxes`, and `Diagnostics` sub-sections
+  (`copilot-ui/ui/src/tabs/HomeRuntime/HomeRuntimeView.tsx`).
+- Diagnostics now exposes `Instruction Engine Runtime`, `Planning Database`, `Gateway`,
+  `Tracker`, and `LSP` operator surfaces from the active runtime hub.
+- `SessionsWorkspaceView` remains a narrower legacy/runtime workspace component rather than the
+  active shell destination (`copilot-ui/ui/src/tabs/Sessions/SessionsWorkspaceView.tsx`).
 - `CatalogView` already groups discovery surfaces under one top-level area and delegates to
   `AssetsView` and `SkillsPreviewView`
   (`copilot-ui/ui/src/tabs/Catalog/CatalogView.tsx`).
@@ -47,7 +49,7 @@ replace from scratch.
 2. **Catalog**
 3. **Planning**
 
-This is the final navigation model for the overhaul. The current standalone `Sessions` and `State`
+This is the final navigation model for the overhaul. The former standalone `Sessions` and `State`
 top-level tabs are retired as top-level destinations and folded into **Home / Runtime**.
 
 ## Hub definitions
@@ -61,7 +63,7 @@ Home / Runtime is the default operational landing hub. It combines the former `S
 
 **Why this is the chosen shape**
 
-- It preserves the current status hub capability from `StateView`.
+- It preserves the status hub capability formerly provided by `StateView`.
 - It preserves the runtime engagement capability from `SessionsWorkspaceView`.
 - It gives operators one first stop for “is the system healthy?” and “what do I do next?”
 - It avoids scattering readiness checks, session work, and sandbox actions across separate top-level
@@ -124,8 +126,10 @@ The Sandboxes section keeps sandbox lifecycle and follow-session behavior:
 
 **Diagnostics responsibilities**
 
-Diagnostics is where the operator tools from the current `StateView` live:
+Diagnostics is where the operator tools formerly hosted by `StateView` now live:
 
+- Instruction Engine Runtime
+- Planning Database
 - Gateway
 - Tracker
 - LSP
@@ -358,11 +362,11 @@ Current session-creation and sandbox-launch actions live inside `SessionsView` c
 and handlers. Home / Runtime Overview will need reusable action boundaries rather than duplicated
 UI logic.
 
-### 2. State overview composition is still embedded
+### 2. State overview composition must stay centralized
 
-The current status-card composition and polling live inside `StateView`. Reusing those summaries in
-Home / Runtime Overview will likely require extraction into shared helpers or a dedicated overview
-store/model.
+The former `StateView` composition is now absorbed into `HomeRuntimeView` plus shared
+`stateOverviewStore` polling. Future changes should extend those shared primitives rather than
+reintroducing a separate state/status hub.
 
 ### 3. Explicit cross-hub navigation is still lightweight
 
