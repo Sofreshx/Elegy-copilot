@@ -3,60 +3,15 @@
 const repoInventoryLib = require('../lib/repoInventoryService');
 const roadmapArtifactsLib = require('../lib/roadmapArtifacts');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
-
-const DEFAULT_PLANNING_API_CONTRACT_VERSION = 'planning_api_v1';
-
-function normalizeString(value) {
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-function firstDefined(...values) {
-  for (const value of values) {
-    if (value != null) {
-      return value;
-    }
-  }
-  return undefined;
-}
-
-function buildErrorBody(contractVersion, kind, error) {
-  return {
-    contractVersion,
-    kind,
-    deterministic: true,
-    error: String(error && error.message ? error.message : error),
-    code: normalizeString(error && error.code) || 'roadmap_route_failed',
-    reason: normalizeString(error && error.reason) || normalizeString(error && error.code) || 'roadmap_route_failed',
-  };
-}
-
-function sendRouteError(res, deps, kind, error) {
-  deps.sendJson(res, error && error.statusCode ? error.statusCode : 500, buildErrorBody(
-    deps.contractVersion,
-    kind,
-    error,
-  ));
-}
-
-function normalizeRepoSelector(searchParams, body = {}) {
-  const source = body && typeof body === 'object' ? body : {};
-  const repoId = normalizeString(firstDefined(source.repoId, searchParams && searchParams.get('repoId')));
-  const repoPath = normalizeString(firstDefined(source.repoPath, searchParams && searchParams.get('repoPath')));
-  return {
-    ...(repoId ? { repoId } : {}),
-    ...(repoPath ? { repoPath } : {}),
-  };
-}
-
-function summarizeRepo(repo) {
-  return repo
-    ? {
-      repoId: repo.repoId || null,
-      repoPath: repo.repoPath || null,
-      repoLabel: repo.repoLabel || null,
-    }
-    : null;
-}
+const {
+  DEFAULT_PLANNING_API_CONTRACT_VERSION,
+  normalizeString,
+  sendRouteError,
+  normalizeRepoSelector,
+  summarizeRepo,
+  resolveReadRepoContext,
+  resolveMutationRepoContext,
+} = require('./_planningRepoContext');
 
 function summarizeRoadmap(roadmap) {
   const items = Array.isArray(roadmap && roadmap.items) ? roadmap.items : [];
@@ -78,23 +33,6 @@ function summarizeRoadmap(roadmap) {
   };
 }
 
-function resolveRepoContext(ctx, deps, selector) {
-  const inventory = deps.repoInventory.listKnownRepos({
-    copilotHome: ctx.copilotHomeAbs,
-    engineRoot: ctx.engineRoot,
-    explicitRepoPaths: selector.repoPath ? [selector.repoPath] : [],
-  });
-  const repo = deps.repoInventory.resolveRepoEntry(inventory, selector);
-  if (!repo || !repo.repoPath) {
-    throw Object.assign(new Error('Catalog repo selection is required for roadmap artifacts'), {
-      statusCode: 409,
-      code: 'catalog_repo_not_selected',
-      reason: 'catalog_repo_not_selected',
-    });
-  }
-  return { inventory, repo };
-}
-
 function resolveRoadmapSlug(match, index = 1) {
   return decodeURIComponent((match && match[index]) || '').trim();
 }
@@ -106,7 +44,7 @@ function readRequestBody(req, deps) {
 function handleListRoadmaps(ctx, deps) {
   try {
     const selector = normalizeRepoSelector(ctx.u.searchParams);
-    const { repo } = resolveRepoContext(ctx, deps, selector);
+    const { repo } = resolveReadRepoContext(ctx, deps, selector);
     const roadmaps = deps.roadmapArtifacts.listRoadmapDocuments(repo.repoPath).map(summarizeRoadmap);
     deps.sendJson(ctx.res, 200, {
       contractVersion: deps.contractVersion,
@@ -125,7 +63,7 @@ function handleReadRoadmap(ctx, deps) {
   try {
     const slug = deps.roadmapArtifacts.assertRoadmapSlug(resolveRoadmapSlug(ctx.match, 1));
     const selector = normalizeRepoSelector(ctx.u.searchParams);
-    const { repo } = resolveRepoContext(ctx, deps, selector);
+    const { repo } = resolveReadRepoContext(ctx, deps, selector);
     const roadmap = deps.roadmapArtifacts.readRoadmapDocument(repo.repoPath, slug);
     deps.sendJson(ctx.res, 200, {
       contractVersion: deps.contractVersion,
@@ -150,7 +88,7 @@ function handleCreateRoadmap(ctx, deps) {
   readRequestBody(ctx.req, deps)
     .then((body) => {
       const selector = normalizeRepoSelector(ctx.u.searchParams, body);
-      const { repo } = resolveRepoContext(ctx, deps, selector);
+      const { repo } = resolveMutationRepoContext(ctx, deps, selector);
       const slug = deps.roadmapArtifacts.assertRoadmapSlug(body.slug || body.roadmapSlug);
       const filePath = deps.roadmapArtifacts.resolveRoadmapFilePath(repo.repoPath, slug);
       if (deps.fs.existsSync(filePath)) {
@@ -184,7 +122,7 @@ function handleUpdateRoadmap(ctx, deps) {
     .then((body) => {
       const slug = deps.roadmapArtifacts.assertRoadmapSlug(resolveRoadmapSlug(ctx.match, 1));
       const selector = normalizeRepoSelector(ctx.u.searchParams, body);
-      const { repo } = resolveRepoContext(ctx, deps, selector);
+      const { repo } = resolveMutationRepoContext(ctx, deps, selector);
       const existing = deps.roadmapArtifacts.readRoadmapDocument(repo.repoPath, slug);
       const roadmap = deps.roadmapArtifacts.writeRoadmapDocument(
         repo.repoPath,
@@ -216,7 +154,7 @@ function handleReconcileRoadmap(ctx, deps) {
     .then((body) => {
       const slug = deps.roadmapArtifacts.assertRoadmapSlug(resolveRoadmapSlug(ctx.match, 1));
       const selector = normalizeRepoSelector(ctx.u.searchParams, body);
-      const { repo } = resolveRepoContext(ctx, deps, selector);
+      const { repo } = resolveMutationRepoContext(ctx, deps, selector);
       const existing = deps.roadmapArtifacts.readRoadmapDocument(repo.repoPath, slug);
       const result = deps.roadmapArtifacts.reconcileRoadmapItem(existing, {
         itemId: body.itemId || body.id,

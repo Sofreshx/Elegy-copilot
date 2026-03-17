@@ -1,14 +1,12 @@
-import { useState } from 'react';
 import { Button, Toolbar } from '../../components';
-import { navigationStore } from '../../stores/navigation';
+import { useStoreValue } from '../../lib/store';
+import { navigationStore, type CatalogSectionId } from '../../stores/navigation';
 import { catalogWorkspaceStore } from '../Assets/catalogWorkspaceStore';
 import AssetsView from '../Assets/AssetsView';
 import SkillsPreviewView from '../SkillsPreview/SkillsPreviewView';
 import CatalogAgentsView from './CatalogAgentsView';
 import CatalogOverviewView from './CatalogOverviewView';
 import './catalog.css';
-
-type CatalogSectionId = 'overview' | 'assets' | 'skills' | 'agents';
 
 const SECTION_COPY: Record<CatalogSectionId, { title: string; body: string }> = {
   overview: {
@@ -34,12 +32,13 @@ function navigateToRuntimeWorkspace(): void {
 }
 
 export default function CatalogView() {
-  const [activeSection, setActiveSection] = useState<CatalogSectionId>('overview');
+  const navigationState = useStoreValue(navigationStore);
+  const activeSection = navigationState.catalogSectionId;
   const sectionCopy = SECTION_COPY[activeSection];
 
   const handleInspectAsset = async (assetId: string) => {
     await catalogWorkspaceStore.selectAsset(assetId);
-    setActiveSection('assets');
+    navigationStore.setCatalogSectionId('assets');
   };
 
   return (
@@ -52,28 +51,28 @@ export default function CatalogView() {
 
         <div className="workspace-nav" role="tablist" aria-label="Catalog workspaces">
           <Button
-            onClick={() => setActiveSection('overview')}
+            onClick={() => navigationStore.setCatalogSectionId('overview')}
             testId="catalog-section-overview"
             variant={activeSection === 'overview' ? 'primary' : 'ghost'}
           >
             Overview
           </Button>
           <Button
-            onClick={() => setActiveSection('assets')}
+            onClick={() => navigationStore.setCatalogSectionId('assets')}
             testId="catalog-section-assets"
             variant={activeSection === 'assets' ? 'primary' : 'ghost'}
           >
             Assets
           </Button>
           <Button
-            onClick={() => setActiveSection('skills')}
+            onClick={() => navigationStore.setCatalogSectionId('skills')}
             testId="catalog-section-skills"
             variant={activeSection === 'skills' ? 'primary' : 'ghost'}
           >
             Skills
           </Button>
           <Button
-            onClick={() => setActiveSection('agents')}
+            onClick={() => navigationStore.setCatalogSectionId('agents')}
             testId="catalog-section-agents"
             variant={activeSection === 'agents' ? 'primary' : 'ghost'}
           >
@@ -87,7 +86,7 @@ export default function CatalogView() {
       {activeSection === 'overview' ? (
         <CatalogOverviewView
           onEngageRuntime={navigateToRuntimeWorkspace}
-          onOpenSection={setActiveSection}
+          onOpenSection={navigationStore.setCatalogSectionId}
         />
       ) : null}
       {activeSection === 'assets' ? <AssetsView /> : null}
@@ -96,7 +95,7 @@ export default function CatalogView() {
         <CatalogAgentsView
           onEngageRuntime={navigateToRuntimeWorkspace}
           onInspectAsset={handleInspectAsset}
-          onOpenSection={setActiveSection}
+          onOpenSection={navigationStore.setCatalogSectionId}
         />
       ) : null}
     </section>

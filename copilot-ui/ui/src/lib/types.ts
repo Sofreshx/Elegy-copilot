@@ -957,6 +957,56 @@ export interface PolicyPreflightResponse {
   [key: string]: unknown;
 }
 
+export interface PlanningRepoSummary {
+  repoId: string;
+  repoPath: string;
+  repoLabel: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogKeyPoint {
+  date: string;
+  text: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogItem {
+  id: string;
+  title: string;
+  status: string;
+  summary?: string;
+  roadmapIds: string[];
+  planRefs: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints: PlanningBacklogKeyPoint[];
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogDocument {
+  backlogPath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  formatVersion?: string;
+  title?: string;
+  description?: string;
+  itemCount: number;
+  items: PlanningBacklogItem[];
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo?: PlanningRepoSummary | null;
+  backlog: PlanningBacklogDocument;
+  item?: PlanningBacklogItem | null;
+  [key: string]: unknown;
+}
+
 export interface PlanningRecordItem {
   recordId: string;
   scope: string;
@@ -972,6 +1022,110 @@ export interface PlanningRecordItem {
   createdAt?: string | null;
   updatedAt?: string | null;
   [key: string]: unknown;
+}
+
+export interface PlanningDraftItem {
+  draftId: string;
+  title: string;
+  summary?: string;
+  acceptanceCriteria?: string[];
+  acceptanceCriteriaText?: string;
+  targetRepoIds?: string[];
+  saveRepoId?: string | null;
+  state?: string;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningRepoSummary {
+  repoId: string;
+  repoPath: string;
+  repoLabel: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningRepositoryBacklogRef {
+  canonicalName: 'Repository Backlog';
+  repo: PlanningRepoSummary;
+  filePath: string;
+  repoRelativePath: 'docs/backlog.md';
+  stableIdPattern: 'RB-###';
+}
+
+export interface PlanningRoadmapDirectoryRef {
+  canonicalName: 'Roadmap';
+  repo: PlanningRepoSummary;
+  directoryPath: string;
+  repoRelativePath: 'docs/roadmaps';
+  stableIdPattern: 'RM-<roadmap-slug>-###';
+}
+
+export interface PlanningRoadmapItem {
+  id: string;
+  title: string;
+  phase: string;
+  status: string;
+  summary?: string;
+  backlogIds: string[];
+  planRefs: string[];
+}
+
+export interface PlanningRoadmap {
+  slug: string;
+  title: string;
+  overview?: string;
+  filePath: string;
+  repoRelativePath: string;
+  itemCount: number;
+  statusCounts: Record<string, number>;
+  items: PlanningRoadmapItem[];
+}
+
+export interface PlanningBacklogKeyPoint {
+  date: string;
+  text: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogItem {
+  id: string;
+  title: string;
+  status: string;
+  summary?: string;
+  roadmapIds: string[];
+  planRefs: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints: PlanningBacklogKeyPoint[];
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogSummary {
+  backlogPath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  formatVersion?: string;
+  title?: string;
+  description?: string;
+  itemCount: number;
+  items: PlanningBacklogItem[];
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  backlog: PlanningBacklogSummary;
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogMutationResponse extends PlanningBacklogResponse {
+  item?: PlanningBacklogItem | null;
 }
 
 export interface PlanningResearchNote {

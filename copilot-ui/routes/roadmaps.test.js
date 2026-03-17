@@ -239,6 +239,31 @@ async function run() {
     assert.equal(response.body.code, 'catalog_repo_not_selected');
   });
 
+  await test('POST /api/planning/roadmaps fails closed when mutation targets raw repoPath without repoId', async () => {
+    const { engineRoot, copilotHomeAbs, repoPath } = createFixture();
+    const routes = register({
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const response = await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'POST', '/api/planning/roadmaps', {
+      repoPath,
+      slug: 'platform-foundation',
+      title: 'Platform Foundation',
+      overview: 'Should fail closed.',
+    });
+
+    assert.equal(response.res.statusCode, 409);
+    assert.equal(response.body.code, 'catalog_repo_id_required_for_mutation');
+  });
+
   await test('PATCH /api/planning/roadmaps/:slug updates metadata and upserts roadmap items', async () => {
     const { engineRoot, copilotHomeAbs, repoPath } = createFixture();
     roadmapArtifacts.writeRoadmapDocument(repoPath, {

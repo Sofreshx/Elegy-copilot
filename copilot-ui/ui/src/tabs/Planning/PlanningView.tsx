@@ -66,6 +66,7 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
   const selectedCatalogRepo = useMemo(() => resolveCatalogRepoContext(catalogState), [catalogState]);
 
   useEffect(() => {
+    planningStore.applyCatalogRepoContext(selectedCatalogRepo);
     planningWorkspaceStore.syncCatalogRepoContext(selectedCatalogRepo);
 
     if (selectedCatalogRepo?.repoPath) {
@@ -108,8 +109,8 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
         </div>
 
         <div className="planning-toolbar-actions">
-          <Button onClick={() => navigationStore.goToCatalog()} testId="planning-open-catalog" variant="secondary">
-            Open Catalog repo selector
+          <Button onClick={() => navigationStore.goToCatalog('assets')} testId="planning-open-catalog" variant="secondary">
+            Open Catalog Assets
           </Button>
           <Button
             onClick={() => setShowLegacyArtifacts((value) => !value)}
@@ -128,6 +129,13 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
       ) : null}
 
       <div className="planning-grid">
+        <PlanningIdeasPanel
+          knownRepos={catalogState.repoInventory?.repos ?? []}
+          onOpenCatalogAssets={() => navigationStore.goToCatalog('assets')}
+          onSdkSessionReady={onSdkSessionReady}
+          planningState={planningState}
+        />
+
         <Panel
           subtitle="Planning uses the currently selected Catalog repo as the canonical source of backlog and roadmap files."
           testId="planning-backlog-surface-panel"
@@ -256,8 +264,6 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
             title="Legacy Planning Artifacts"
           >
             <div className="planning-controls">
-              <PlanningIdeasPanel onSdkSessionReady={onSdkSessionReady} planningState={planningState} />
-
               {planningState.records.length > 0 ? (
                 <label className="form-input" htmlFor="planning-legacy-record-select">
                   <span className="form-label">Legacy record</span>

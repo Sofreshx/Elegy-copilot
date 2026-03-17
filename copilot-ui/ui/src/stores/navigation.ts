@@ -25,6 +25,15 @@ export const DIAGNOSTICS_SECTION_IDS = [
 
 export type DiagnosticsSectionId = (typeof DIAGNOSTICS_SECTION_IDS)[number];
 
+export const CATALOG_SECTION_IDS = [
+  'overview',
+  'assets',
+  'skills',
+  'agents',
+] as const;
+
+export type CatalogSectionId = (typeof CATALOG_SECTION_IDS)[number];
+
 export type SessionsMode = 'local' | 'sdk';
 
 export type NavigationTab = {
@@ -37,6 +46,7 @@ export type NavigationState = {
   activeTabId: TabId;
   runtimeSectionId: RuntimeSectionId;
   diagnosticsSectionId: DiagnosticsSectionId;
+  catalogSectionId: CatalogSectionId;
   sessionsMode: SessionsMode;
 };
 
@@ -50,6 +60,7 @@ const INITIAL_STATE: NavigationState = {
   activeTabId: 'home-runtime',
   runtimeSectionId: 'overview',
   diagnosticsSectionId: 'gateway',
+  catalogSectionId: 'overview',
   sessionsMode: 'local',
 };
 
@@ -60,6 +71,7 @@ function createNavigationStore() {
     store.setState((state) => ({
       ...state,
       activeTabId,
+      catalogSectionId: activeTabId === 'catalog' ? 'overview' : state.catalogSectionId,
     }));
   }
 
@@ -95,10 +107,19 @@ function createNavigationStore() {
     }));
   }
 
-  function goToCatalog(): void {
+  function setCatalogSectionId(catalogSectionId: CatalogSectionId): void {
     store.setState((state) => ({
       ...state,
       activeTabId: 'catalog',
+      catalogSectionId,
+    }));
+  }
+
+  function goToCatalog(catalogSectionId: CatalogSectionId = 'overview'): void {
+    store.setState((state) => ({
+      ...state,
+      activeTabId: 'catalog',
+      catalogSectionId,
     }));
   }
 
@@ -119,6 +140,7 @@ function createNavigationStore() {
     setActiveTabId,
     setRuntimeSectionId,
     setDiagnosticsSectionId,
+    setCatalogSectionId,
     goToRuntime,
     goToCatalog,
     goToPlanning,

@@ -25,6 +25,8 @@ import type {
   LspConfigResponse,
   LspInstallResponse,
   ManagedAssetsResponse,
+  PlanningBacklogMutationResponse,
+  PlanningBacklogResponse,
   PlanningDiagram,
   PlanningDiagramsResponse,
   PlanningCompareReceipt,
@@ -35,6 +37,10 @@ import type {
   PlanningMergeResponse,
   PlanningPersistenceInitResponse,
   PlanningRecordItem,
+  PlanningRepositoryBacklogRef,
+  PlanningRoadmap,
+  PlanningRoadmapDirectoryRef,
+  PlanningRoadmapItem,
   PlanningResearchNote,
   PlanningResearchNotesResponse,
   PlanningRecordsResponse,
@@ -123,6 +129,57 @@ export interface PlanningUpdatePayload {
   targetRepoIds?: string[];
   state?: string;
   score?: number | null;
+}
+
+export interface PlanningBacklogKeyPointPayload {
+  date: string;
+  text: string;
+}
+
+export interface PlanningBacklogItemPayload {
+  title: string;
+  summary?: string;
+  status?: string;
+  roadmapIds?: string[];
+  planRefs?: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints?: PlanningBacklogKeyPointPayload[];
+}
+
+export interface PlanningBacklogCreatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  item?: PlanningBacklogItemPayload;
+  title?: string;
+  summary?: string;
+  status?: string;
+  roadmapIds?: string[];
+  planRefs?: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints?: PlanningBacklogKeyPointPayload[];
+}
+
+export interface PlanningBacklogUpdatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  item?: Partial<PlanningBacklogItemPayload>;
+  patch?: Partial<PlanningBacklogItemPayload>;
+  title?: string;
+  summary?: string;
+  status?: string;
+  roadmapIds?: string[];
+  planRefs?: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints?: PlanningBacklogKeyPointPayload[];
 }
 
 export interface PlanningComparePayload {
@@ -368,7 +425,7 @@ export interface PlanningRepoSummary {
   repoLabel: string;
 }
 
-export interface PlanningRepositoryBacklogRefApi {
+export interface PlanningRepositoryBacklogRefApi extends PlanningRepositoryBacklogRef {
   canonicalName: 'Repository Backlog';
   repo: PlanningRepoSummary;
   filePath: string;
@@ -376,7 +433,7 @@ export interface PlanningRepositoryBacklogRefApi {
   stableIdPattern: 'RB-###';
 }
 
-export interface PlanningRoadmapDirectoryRefApi {
+export interface PlanningRoadmapDirectoryRefApi extends PlanningRoadmapDirectoryRef {
   canonicalName: 'Roadmap';
   repo: PlanningRepoSummary;
   directoryPath: string;
@@ -384,7 +441,7 @@ export interface PlanningRoadmapDirectoryRefApi {
   stableIdPattern: 'RM-<roadmap-slug>-###';
 }
 
-export interface PlanningRoadmapItemApi {
+export interface PlanningRoadmapItemApi extends PlanningRoadmapItem {
   id: string;
   title: string;
   phase: string;
@@ -394,7 +451,7 @@ export interface PlanningRoadmapItemApi {
   planRefs: string[];
 }
 
-export interface PlanningRoadmapApi {
+export interface PlanningRoadmapApi extends PlanningRoadmap {
   slug: string;
   title: string;
   overview?: string;
@@ -409,6 +466,48 @@ export interface PlanningRoadmapsResponseApi {
   count: number;
   roadmaps: PlanningRoadmapApi[];
   repo: PlanningRepoSummary | null;
+}
+
+export interface PlanningBacklogKeyPointApi {
+  date: string;
+  text: string;
+}
+
+export interface PlanningBacklogItemApi {
+  id: string;
+  title: string;
+  status: string;
+  summary?: string;
+  roadmapIds: string[];
+  planRefs: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints: PlanningBacklogKeyPointApi[];
+}
+
+export interface PlanningBacklogSummaryApi {
+  backlogPath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  formatVersion?: string;
+  title?: string;
+  description?: string;
+  itemCount: number;
+  items: PlanningBacklogItemApi[];
+}
+
+export interface PlanningBacklogResponseApi extends PlanningBacklogResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  backlog: PlanningBacklogSummaryApi;
+}
+
+export interface PlanningBacklogMutationResponseApi extends PlanningBacklogMutationResponse {
+  item?: PlanningBacklogItemApi | null;
 }
 
 function trimTrailingPathSeparator(value: string): string {
@@ -506,6 +605,85 @@ function normalizePlanningRoadmapsResponse(payload: unknown): PlanningRoadmapsRe
     count: asNumber(record.count, roadmaps.length),
     roadmaps,
     repo: normalizePlanningRepoSummary(record.repo),
+  };
+}
+
+function normalizePlanningBacklogKeyPoint(value: unknown): PlanningBacklogKeyPointApi | null {
+  const record = asRecord(value);
+  const date = asTrimmedString(record.date);
+  const text = asTrimmedString(record.text);
+  if (!date || !text) {
+    return null;
+  }
+
+  return {
+    date,
+    text,
+  };
+}
+
+function normalizePlanningBacklogItem(value: unknown): PlanningBacklogItemApi | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  const title = asTrimmedString(record.title);
+  if (!id || !title) {
+    return null;
+  }
+
+  return {
+    id,
+    title,
+    status: asTrimmedString(record.status, 'proposed') || 'proposed',
+    summary: asTrimmedString(record.summary) || undefined,
+    roadmapIds: asStringList(record.roadmapIds),
+    planRefs: asStringList(record.planRefs),
+    satisfiedByPlanRef: asTrimmedString(record.satisfiedByPlanRef) || null,
+    supersededByPlanRef: asTrimmedString(record.supersededByPlanRef) || null,
+    abandonedByPlanRef: asTrimmedString(record.abandonedByPlanRef) || null,
+    importance: asNullableNumber(record.importance),
+    keyPoints: asArray(record.keyPoints)
+      .map((entry) => normalizePlanningBacklogKeyPoint(entry))
+      .filter((entry): entry is PlanningBacklogKeyPointApi => entry !== null),
+  };
+}
+
+function normalizePlanningBacklogSummary(value: unknown): PlanningBacklogSummaryApi {
+  const record = asRecord(value);
+  const items = asArray(record.items)
+    .map((entry) => normalizePlanningBacklogItem(entry))
+    .filter((entry): entry is PlanningBacklogItemApi => entry !== null);
+
+  return {
+    backlogPath: asTrimmedString(record.backlogPath) || null,
+    repoRelativePath: asTrimmedString(record.repoRelativePath) || undefined,
+    exists: asBoolean(record.exists, false),
+    formatVersion: asTrimmedString(record.formatVersion) || undefined,
+    title: asTrimmedString(record.title) || undefined,
+    description: asTrimmedString(record.description) || undefined,
+    itemCount: asNumber(record.itemCount, items.length),
+    items,
+  };
+}
+
+function normalizePlanningBacklogResponse(payload: unknown): PlanningBacklogResponseApi {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningRepoSummary(record.repo),
+    backlog: normalizePlanningBacklogSummary(record.backlog),
+  };
+}
+
+function normalizePlanningBacklogMutationResponse(payload: unknown): PlanningBacklogMutationResponseApi {
+  const record = asRecord(payload);
+  const response = normalizePlanningBacklogResponse(payload);
+  return {
+    ...response,
+    ...record,
+    item: normalizePlanningBacklogItem(record.item),
   };
 }
 
@@ -756,6 +934,7 @@ function normalizePlanningRecord(value: unknown): PlanningRecordItem | null {
     summary: asString(record.summary),
     acceptanceCriteria: acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
     acceptanceCriteriaText: acceptanceCriteriaText || undefined,
+    targetRepoIds: asStringList(record.targetRepoIds),
     state: asTrimmedString(record.state) || 'thought',
     score: asNullableNumber(record.score),
     createdAt: asTrimmedString(record.createdAt) || null,
@@ -2000,6 +2179,54 @@ export async function getPlanningRoadmaps(
   });
 
   return normalizePlanningRoadmapsResponse(payload);
+}
+
+export async function getPlanningBacklog(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<PlanningBacklogResponseApi> {
+  const payload = await apiRequest<unknown>('/api/planning/backlog', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+    },
+  });
+
+  return normalizePlanningBacklogResponse(payload);
+}
+
+export async function createPlanningBacklogItem(
+  payload: PlanningBacklogCreatePayload,
+  baseUrl?: string
+): Promise<PlanningBacklogMutationResponseApi> {
+  const response = await apiRequest<unknown>('/api/planning/backlog', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningBacklogMutationResponse(response);
+}
+
+export async function updatePlanningBacklogItem(
+  itemId: string,
+  payload: PlanningBacklogUpdatePayload,
+  baseUrl?: string
+): Promise<PlanningBacklogMutationResponseApi> {
+  const response = await apiRequest<unknown>(`/api/planning/backlog/${encodeURIComponent(itemId)}`, {
+    baseUrl,
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningBacklogMutationResponse(response);
 }
 
 export async function getPlanningRecords(query: PlanningContextQuery = {}, baseUrl?: string): Promise<PlanningRecordsResponse> {

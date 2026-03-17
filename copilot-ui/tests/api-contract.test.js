@@ -126,7 +126,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/lsp/config' },
   { method: 'POST', path: '/api/lsp/install' },
 
-  // Planning (25)
+  // Planning (28)
   { method: 'POST', path: '/api/planning/persistence/init' },
   { method: 'POST', path: '/api/planning/persistence/corruption/scan' },
   { method: 'POST', path: '/api/planning/persistence/retention' },
@@ -147,6 +147,9 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/planning/records/planning-000001/research' },
   { method: 'DELETE', path: '/api/planning/records/planning-000001/research/note-0001' },
   { method: 'GET', path: '/api/planning/records/planning-000001/diagrams' },
+  { method: 'GET', path: '/api/planning/backlog' },
+  { method: 'POST', path: '/api/planning/backlog' },
+  { method: 'PATCH', path: '/api/planning/backlog/RB-001' },
   { method: 'GET', path: '/api/planning/roadmaps' },
   { method: 'GET', path: '/api/planning/roadmaps/platform-foundation' },
   { method: 'POST', path: '/api/planning/roadmaps' },
@@ -395,7 +398,7 @@ async function run() {
 
     // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 96, `Expected 96 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 99, `Expected 99 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

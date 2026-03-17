@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Panel } from '../../components';
-import type { PlanningRecordItem } from '../../lib/types';
-import { isIdeaRecord, planningStore, type PlanningState } from './planningStore';
+import type { CatalogRepoInventoryEntry, PlanningDraftItem } from '../../lib/types';
+import { planningStore, type PlanningState } from './planningStore';
 
 function normalizeTargetRepoInput(raw: string): string[] {
   return [...new Set(
@@ -12,11 +12,11 @@ function normalizeTargetRepoInput(raw: string): string[] {
   )].sort((left, right) => left.localeCompare(right));
 }
 
-function formatTargetRepoInput(record: PlanningRecordItem): string {
+function formatTargetRepoInput(record: PlanningDraftItem): string {
   return Array.isArray(record.targetRepoIds) ? record.targetRepoIds.join(', ') : '';
 }
 
-function formatAcceptanceCriteria(record: PlanningRecordItem): string {
+function formatAcceptanceCriteria(record: PlanningDraftItem): string {
   if (typeof record.acceptanceCriteriaText === 'string' && record.acceptanceCriteriaText.trim()) {
     return record.acceptanceCriteriaText.trim();
   }
@@ -24,16 +24,43 @@ function formatAcceptanceCriteria(record: PlanningRecordItem): string {
   return Array.isArray(record.acceptanceCriteria) ? record.acceptanceCriteria.join('\n') : '';
 }
 
+function buildRepoOptionLabel(repo: CatalogRepoInventoryEntry): string {
+  const repoLabel = typeof repo.repoLabel === 'string' ? repo.repoLabel.trim() : '';
+  const repoId = typeof repo.repoId === 'string' ? repo.repoId.trim() : '';
+  const repoPath = typeof repo.repoPath === 'string' ? repo.repoPath.trim() : '';
+  return repoLabel || repoId || repoPath || '(unnamed repo)';
+}
+
+function resolveDraftSaveRepoId(record: PlanningDraftItem, selectedCatalogRepoId: string): string {
+  const explicitSaveRepoId = typeof record.saveRepoId === 'string' ? record.saveRepoId.trim() : '';
+  if (explicitSaveRepoId) {
+    return explicitSaveRepoId;
+  }
+
+  const targetRepoIds = Array.isArray(record.targetRepoIds)
+    ? record.targetRepoIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : [];
+  if (targetRepoIds.length === 1) {
+    return targetRepoIds[0];
+  }
+
+  return selectedCatalogRepoId.trim();
+}
+
 function IdeaRecordEditor(props: {
-  record: PlanningRecordItem;
+  record: PlanningDraftItem;
   checked: boolean;
   disabled: boolean;
+  saving: boolean;
+  knownRepos: CatalogRepoInventoryEntry[];
+  selectedCatalogRepoId: string;
 }) {
-  const { record, checked, disabled } = props;
+  const { record, checked, disabled, saving, knownRepos, selectedCatalogRepoId } = props;
   const [title, setTitle] = useState(String(record.title || ''));
   const [summary, setSummary] = useState(String(record.summary || ''));
   const [targetRepos, setTargetRepos] = useState(formatTargetRepoInput(record));
   const [acceptanceCriteria, setAcceptanceCriteria] = useState(formatAcceptanceCriteria(record));
+  const [saveRepoId, setSaveRepoId] = useState(resolveDraftSaveRepoId(record, selectedCatalogRepoId));
   const [state, setState] = useState(String(record.state || 'thought'));
 
   useEffect(() => {
@@ -41,62 +68,100 @@ function IdeaRecordEditor(props: {
     setSummary(String(record.summary || ''));
     setTargetRepos(formatTargetRepoInput(record));
     setAcceptanceCriteria(formatAcceptanceCriteria(record));
+    setSaveRepoId(resolveDraftSaveRepoId(record, selectedCatalogRepoId));
     setState(String(record.state || 'thought'));
-  }, [record]);
+  }, [record, selectedCatalogRepoId]);
+
+  const normalizedTargets = useMemo(() => normalizeTargetRepoInput(targetRepos), [targetRepos]);
+  const requiresSplit = normalizedTargets.length > 1;
+  const effectiveSaveRepoId =
+    saveRepoId.trim()
+    || (normalizedTargets.length === 1 ? normalizedTargets[0] : '')
+    || selectedCatalogRepoId.trim();
+  const saveDisabled = saving || title.trim().length === 0 || requiresSplit || effectiveSaveRepoId.length === 0;
+
+  const persistDraft = async (): Promise<void> => {
+    await planningStore.updateIdea(record.draftId, {
+      title: title.trim(),
+      summary: summary.trim(),
+      targetRepoIds: normalizedTargets,
+      acceptanceCriteriaText: acceptanceCriteria,
+      saveRepoId: saveRepoId.trim() || null,
+      state,
+    });
+  };
 
   return (
     <article className="idea-record-card">
       <div className="idea-record-card-header">
-        <label className="planning-checkbox" htmlFor={`idea-select-${record.recordId}`}>
+        <label className="planning-checkbox" htmlFor={`idea-select-${record.draftId}`}>
           <input
             checked={checked}
-            id={`idea-select-${record.recordId}`}
-            onChange={(event) => planningStore.toggleIdeaSelected(record.recordId, event.target.checked)}
+            id={`idea-select-${record.draftId}`}
+            onChange={(event) => planningStore.toggleIdeaSelected(record.draftId, event.target.checked)}
             type="checkbox"
           />
           <span>Select</span>
         </label>
 
         <div className="idea-record-actions">
+          {requiresSplit ? (
+            <Button
+              disabled={disabled || saving || title.trim().length === 0}
+              onClick={async () => {
+                await persistDraft();
+                planningStore.splitIdea(record.draftId);
+              }}
+              testId={`idea-split-${record.draftId}`}
+              variant="secondary"
+            >
+              Split by repo
+            </Button>
+          ) : null}
           <Button
-            onClick={() => planningStore.setSelectedRecordId(record.recordId)}
-            testId={`idea-inspect-${record.recordId}`}
-            variant="ghost"
-          >
-            Inspect
-          </Button>
-          <Button
-            disabled={disabled || title.trim().length === 0}
+            disabled={disabled || saving || title.trim().length === 0}
             onClick={() => {
-              void planningStore.updateIdea(record.recordId, {
-                title: title.trim(),
-                summary: summary.trim(),
-                targetRepoIds: normalizeTargetRepoInput(targetRepos),
-                acceptanceCriteriaText: acceptanceCriteria,
-                state,
-              });
+              void persistDraft();
             }}
-            testId={`idea-save-${record.recordId}`}
+            testId={`idea-save-${record.draftId}`}
             variant="secondary"
           >
-            {disabled ? 'Saving...' : 'Save'}
+            {disabled ? 'Saving...' : 'Save draft'}
+          </Button>
+          <Button
+            disabled={saveDisabled}
+            onClick={async () => {
+              await persistDraft();
+              await planningStore.saveIdeaDraft(record.draftId, effectiveSaveRepoId);
+            }}
+            testId={`idea-save-backlog-${record.draftId}`}
+          >
+            {saving ? 'Saving to backlog...' : 'Save to backlog'}
+          </Button>
+          <Button
+            disabled={disabled || saving}
+            onClick={() => planningStore.removeIdea(record.draftId)}
+            testId={`idea-remove-${record.draftId}`}
+            variant="ghost"
+          >
+            Remove
           </Button>
         </div>
       </div>
 
       <div className="planning-field-grid">
-        <label className="form-input" htmlFor={`idea-title-${record.recordId}`}>
+        <label className="form-input" htmlFor={`idea-title-${record.draftId}`}>
           <span className="form-label">Idea</span>
           <input
-            id={`idea-title-${record.recordId}`}
+            id={`idea-title-${record.draftId}`}
             onChange={(event) => setTitle(event.target.value)}
             value={title}
           />
         </label>
 
-        <label className="form-input" htmlFor={`idea-state-${record.recordId}`}>
+        <label className="form-input" htmlFor={`idea-state-${record.draftId}`}>
           <span className="form-label">State</span>
-          <select id={`idea-state-${record.recordId}`} onChange={(event) => setState(event.target.value)} value={state}>
+          <select id={`idea-state-${record.draftId}`} onChange={(event) => setState(event.target.value)} value={state}>
             <option value="thought">thought</option>
             <option value="research">research</option>
             <option value="pre-plan">pre-plan</option>
@@ -104,47 +169,97 @@ function IdeaRecordEditor(props: {
           </select>
         </label>
 
-        <label className="form-input" htmlFor={`idea-targets-${record.recordId}`}>
+        <label className="form-input" htmlFor={`idea-targets-${record.draftId}`}>
           <span className="form-label">Target Repos</span>
           <input
-            id={`idea-targets-${record.recordId}`}
+            id={`idea-targets-${record.draftId}`}
             onChange={(event) => setTargetRepos(event.target.value)}
             placeholder="repo-a, repo-b"
             value={targetRepos}
           />
         </label>
+
+        <label className="form-input" htmlFor={`idea-save-repo-${record.draftId}`}>
+          <span className="form-label">Save Repo</span>
+          <select
+            id={`idea-save-repo-${record.draftId}`}
+            onChange={(event) => setSaveRepoId(event.target.value)}
+            value={saveRepoId}
+          >
+            <option value="">
+              {knownRepos.length > 0 ? '(choose a Catalog repo)' : '(no Catalog repos available)'}
+            </option>
+            {knownRepos.map((repo) => {
+              const repoId = typeof repo.repoId === 'string' ? repo.repoId.trim() : '';
+              if (!repoId) {
+                return null;
+              }
+
+              return (
+                <option key={repoId} value={repoId}>
+                  {buildRepoOptionLabel(repo)}
+                </option>
+              );
+            })}
+          </select>
+        </label>
       </div>
 
-      <label className="form-input" htmlFor={`idea-summary-${record.recordId}`}>
+      <label className="form-input" htmlFor={`idea-summary-${record.draftId}`}>
         <span className="form-label">Summary</span>
         <textarea
-          id={`idea-summary-${record.recordId}`}
+          id={`idea-summary-${record.draftId}`}
           onChange={(event) => setSummary(event.target.value)}
           placeholder="What needs to happen?"
           value={summary}
         />
       </label>
 
-      <label className="form-input" htmlFor={`idea-criteria-${record.recordId}`}>
+      <label className="form-input" htmlFor={`idea-criteria-${record.draftId}`}>
         <span className="form-label">Acceptance Criteria</span>
         <textarea
-          id={`idea-criteria-${record.recordId}`}
+          id={`idea-criteria-${record.draftId}`}
           onChange={(event) => setAcceptanceCriteria(event.target.value)}
           placeholder="One acceptance criterion per line"
           value={acceptanceCriteria}
         />
       </label>
+
+      {requiresSplit ? (
+        <p className="state-message" data-testid={`idea-split-required-${record.draftId}`}>
+          This draft targets multiple repos. Split it into repo-specific drafts before saving to canonical backlog docs.
+        </p>
+      ) : effectiveSaveRepoId ? (
+        <p className="planning-copy">
+          Save target: <code>{effectiveSaveRepoId}</code>
+        </p>
+      ) : (
+        <p className="state-message">
+          Choose a known Catalog repo before saving this draft to <code>docs/backlog.md</code>.
+        </p>
+      )}
     </article>
   );
 }
 
 export default function PlanningIdeasPanel(props: {
   planningState: PlanningState;
+  knownRepos: CatalogRepoInventoryEntry[];
+  onOpenCatalogAssets?: () => void;
+  selectedCatalogRepoId?: string;
   onSdkSessionReady?: (sessionId: string) => void;
 }) {
-  const { planningState, onSdkSessionReady } = props;
-  const ideaRecords = planningState.records.filter(isIdeaRecord);
-  const selectedCount = planningState.selectedIdeaIds.length;
+  const {
+    planningState,
+    knownRepos,
+    onOpenCatalogAssets,
+    selectedCatalogRepoId = planningState.catalogRepoContext?.repoId || '',
+    onSdkSessionReady,
+  } = props;
+  const ideaRecords = planningState.draftIdeas;
+  const selectedCount = planningState.selectedIdeaIds.filter((draftId) =>
+    ideaRecords.some((record) => record.draftId === draftId)
+  ).length;
 
   const handleCompile = async () => {
     const sessionId = await planningStore.compileSelectedIdeas();
@@ -154,15 +269,15 @@ export default function PlanningIdeasPanel(props: {
   };
 
   return (
-    <div className="planning-grid">
+    <div className="planning-grid" data-testid="planning-bullet-intake">
       <Panel
-        subtitle="Type one idea per line, attach target repos, then add them as durable planning records."
+        subtitle="Draft locally first, then save repo-specific backlog items to canonical docs/backlog.md once you have a Catalog repo target."
         testId="planning-ideas-inbox-panel"
-        title="Idea Inbox"
+        title="Draft Intake"
       >
         <div className="planning-controls">
           <label className="form-input" htmlFor="planning-ideas-draft">
-            <span className="form-label">Ideas</span>
+            <span className="form-label">Bullets</span>
             <textarea
               id="planning-ideas-draft"
               onChange={(event) => planningStore.setIdeaDraft(event.target.value)}
@@ -175,6 +290,7 @@ export default function PlanningIdeasPanel(props: {
             <label className="form-input" htmlFor="planning-ideas-target-repos">
               <span className="form-label">Target Repos</span>
               <input
+                data-testid="planning-ideas-target-repos"
                 id="planning-ideas-target-repos"
                 onChange={(event) => planningStore.setIdeaTargetRepos(event.target.value)}
                 placeholder="instruction-engine, copilot-sdk"
@@ -197,7 +313,32 @@ export default function PlanningIdeasPanel(props: {
             </label>
           </div>
 
+          {selectedCatalogRepoId ? (
+            <p className="planning-copy">
+              Known repos from Catalog can be chosen at save time. Current Catalog repo:{' '}
+              <code>{selectedCatalogRepoId}</code>
+            </p>
+          ) : (
+            <p className="planning-copy">
+              No Catalog repo is selected yet. You can keep drafting now, then open <strong>Catalog &gt; Assets</strong> later to pick a repo save target.
+            </p>
+          )}
+
           <div className="planning-actions">
+            {selectedCatalogRepoId ? (
+              <Button
+                onClick={() => planningStore.setIdeaTargetRepos(selectedCatalogRepoId)}
+                testId="planning-ideas-use-catalog-repo"
+                variant="secondary"
+              >
+                Use Catalog repo
+              </Button>
+            ) : null}
+            {onOpenCatalogAssets ? (
+              <Button onClick={onOpenCatalogAssets} testId="planning-open-catalog-assets" variant="secondary">
+                Open Catalog Assets
+              </Button>
+            ) : null}
             <Button
               disabled={planningState.creating}
               onClick={() => {
@@ -205,7 +346,7 @@ export default function PlanningIdeasPanel(props: {
               }}
               testId="planning-ideas-add"
             >
-              {planningState.creating ? 'Adding...' : 'Add Ideas'}
+              {planningState.creating ? 'Adding...' : 'Add bullets as drafts'}
             </Button>
             <Button
               disabled={planningState.compiling || selectedCount === 0}
@@ -218,24 +359,34 @@ export default function PlanningIdeasPanel(props: {
               {planningState.compiling ? 'Compiling...' : `Compile Selected (${selectedCount})`}
             </Button>
           </div>
+
+          {planningState.error ? (
+            <p className="planning-error" role="alert">
+              {planningState.error}
+            </p>
+          ) : null}
+          {planningState.statusMessage ? <p className="planning-copy">{planningState.statusMessage}</p> : null}
         </div>
       </Panel>
 
       <Panel
-        subtitle="Editable idea records that can be selected and compiled into an SDK-backed planning session."
+        subtitle="Local drafts stay editable until you save them into a single repository backlog."
         testId="planning-idea-records-panel"
-        title="Idea Records"
+        title="Draft Backlog Items"
       >
         {ideaRecords.length === 0 ? (
-          <p className="planning-copy">No idea records yet. Add a few bullet ideas to start shaping the plan.</p>
+          <p className="planning-copy">No local drafts yet. Add a few bullet ideas to start shaping the plan.</p>
         ) : (
           <div className="idea-record-list">
             {ideaRecords.map((record) => (
               <IdeaRecordEditor
-                checked={planningState.selectedIdeaIds.includes(record.recordId)}
-                disabled={planningState.updatingRecordId === record.recordId}
-                key={record.recordId}
+                checked={planningState.selectedIdeaIds.includes(record.draftId)}
+                disabled={planningState.updatingRecordId === record.draftId}
+                key={record.draftId}
+                knownRepos={knownRepos}
                 record={record}
+                saving={planningState.savingIdeaId === record.draftId}
+                selectedCatalogRepoId={selectedCatalogRepoId}
               />
             ))}
           </div>

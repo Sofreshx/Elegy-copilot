@@ -24,11 +24,20 @@ const mocks = vi.hoisted(() => {
   const planningStore = createMockStore({
     userId: '',
     repoId: 'repo-1',
+    catalogRepoContext: {
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      sources: ['workspace', 'selected'],
+    },
+    repositoryBacklog: null,
+    roadmapDirectory: null,
     query: '',
     sessionId: '',
     scopeUser: true,
     scopeRepo: true,
     scopeGlobal: false,
+    draftIdeas: [],
     records: [
       {
         recordId: 'planning-1',
@@ -49,6 +58,7 @@ const mocks = vi.hoisted(() => {
     ideaTargetRepos: '',
     selectedIdeaIds: [],
     updatingRecordId: null,
+    savingIdeaId: null,
     compiling: false,
     selectedRecordId: 'planning-1',
     researchNotes: [],
@@ -288,6 +298,163 @@ describe('PlanningView', () => {
       mocks.refreshRepo,
       mocks.goToCatalog,
     ].forEach((mock) => mock.mockReset());
+
+    mocks.planningStore.setState({
+      userId: '',
+      repoId: 'repo-1',
+      catalogRepoContext: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\Repos\\instruction-engine',
+        repoLabel: 'Instruction Engine',
+        sources: ['workspace', 'selected'],
+      },
+      repositoryBacklog: null,
+      roadmapDirectory: null,
+      query: '',
+      sessionId: '',
+      scopeUser: true,
+      scopeRepo: true,
+      scopeGlobal: false,
+      draftIdeas: [],
+      records: [
+        {
+          recordId: 'planning-1',
+          scope: 'repo',
+          repoId: 'repo-1',
+          title: 'Backlog follow-up',
+          state: 'thought',
+        },
+      ],
+      deniedScopes: [],
+      searchResults: [],
+      createScope: 'repo',
+      createState: 'thought',
+      createTitle: '',
+      createSummary: '',
+      createAcceptanceCriteria: '',
+      ideaDraft: '',
+      ideaTargetRepos: '',
+      selectedIdeaIds: [],
+      updatingRecordId: null,
+      savingIdeaId: null,
+      compiling: false,
+      selectedRecordId: 'planning-1',
+      researchNotes: [],
+      diagrams: [],
+      selectedDiagramId: '',
+      artifactsLoading: false,
+      artifactsSaving: false,
+      artifactsDeleting: false,
+      artifactsError: null,
+      compareResponse: null,
+      gateState: 'pass',
+      gateReason: 'ready',
+      conflictRows: [],
+      reviewedConflictKeys: [],
+      mergeTargetId: '',
+      intentToken: null,
+      policyPreflight: null,
+      mutatingBlocked: false,
+      mutatingReason: '',
+      loading: false,
+      listing: false,
+      searching: false,
+      comparing: false,
+      creating: false,
+      preparingIntent: false,
+      merging: false,
+      preflightLoading: false,
+      error: null,
+      statusMessage: null,
+    });
+    mocks.planningWorkspaceStore.setState({
+      catalogRepoContext: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\Repos\\instruction-engine',
+        repoLabel: 'Instruction Engine',
+        sources: ['workspace'],
+      },
+      repositoryBacklog: {
+        canonicalName: 'Repository Backlog',
+        repo: {
+          repoId: 'repo-1',
+          repoPath: 'C:\\Repos\\instruction-engine',
+          repoLabel: 'Instruction Engine',
+        },
+        filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+        repoRelativePath: 'docs/backlog.md',
+        stableIdPattern: 'RB-###',
+      },
+      roadmapDirectory: {
+        canonicalName: 'Roadmap',
+        repo: {
+          repoId: 'repo-1',
+          repoPath: 'C:\\Repos\\instruction-engine',
+          repoLabel: 'Instruction Engine',
+        },
+        directoryPath: 'C:\\Repos\\instruction-engine\\docs\\roadmaps',
+        repoRelativePath: 'docs/roadmaps',
+        stableIdPattern: 'RM-<roadmap-slug>-###',
+      },
+      roadmaps: [
+        {
+          slug: 'platform-foundation',
+          title: 'Platform Foundation',
+          overview: 'Stage repo work into phased outcomes.',
+          filePath: 'C:\\Repos\\instruction-engine\\docs\\roadmaps\\platform-foundation.md',
+          repoRelativePath: 'docs/roadmaps/platform-foundation.md',
+          itemCount: 1,
+          statusCounts: { queued: 1 },
+          items: [
+            {
+              id: 'RM-platform-foundation-001',
+              title: 'Establish backlog/roadmap workflow',
+              phase: 'foundation',
+              status: 'queued',
+              backlogIds: ['RB-001'],
+              planRefs: [],
+            },
+          ],
+        },
+      ],
+      selectedRoadmapSlug: 'platform-foundation',
+      loading: false,
+      error: null,
+    });
+    mocks.catalogWorkspaceStore.setState({
+      loading: false,
+      refreshing: false,
+      activeRepoPath: 'C:\\Repos\\instruction-engine',
+      activeRepoId: 'repo-1',
+      repoInventory: {
+        repos: [
+          {
+            repoId: 'repo-1',
+            repoPath: 'C:\\Repos\\instruction-engine',
+            repoLabel: 'Instruction Engine',
+            sources: ['workspace', 'selected'],
+            lastRefreshAt: '2026-03-14T12:00:00.000Z',
+            hints: {
+              languages: ['TypeScript'],
+              frameworks: ['React'],
+              targets: ['frontend'],
+            },
+          },
+        ],
+        selectedRepo: {
+          repoId: 'repo-1',
+          repoPath: 'C:\\Repos\\instruction-engine',
+          repoLabel: 'Instruction Engine',
+          sources: ['workspace', 'selected'],
+          lastRefreshAt: '2026-03-14T12:00:00.000Z',
+          hints: {
+            languages: ['TypeScript'],
+            frameworks: ['React'],
+            targets: ['frontend'],
+          },
+        },
+      },
+    });
   });
 
   afterEach(() => {
@@ -305,7 +472,9 @@ describe('PlanningView', () => {
     expect(screen.getByTestId('planning-roadmap-list')).toHaveTextContent('Platform Foundation');
     expect(screen.getByTestId('planning-roadmap-detail')).toHaveTextContent('RM-platform-foundation-001');
     expect(screen.getByTestId('planning-repo-id-readonly')).toHaveValue('repo-1');
+    expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
     expect(screen.queryByTestId('research-notes-panel')).not.toBeInTheDocument();
+    expect(mocks.applyCatalogRepoContext).toHaveBeenCalled();
     expect(mocks.syncCatalogRepoContext).toHaveBeenCalled();
     expect(mocks.loadWorkspaceRoadmaps).toHaveBeenCalled();
 
@@ -316,5 +485,46 @@ describe('PlanningView', () => {
 
     fireEvent.click(screen.getByTestId('planning-show-legacy-artifacts'));
     expect(screen.getByTestId('research-notes-panel')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('planning-open-catalog'));
+    expect(mocks.goToCatalog).toHaveBeenCalledWith('assets');
+  });
+
+  it('keeps draft intake available even when no Catalog repo is currently selected', async () => {
+    mocks.catalogWorkspaceStore.setState({
+      loading: false,
+      refreshing: false,
+      activeRepoPath: '',
+      activeRepoId: '',
+      repoInventory: {
+        repos: [
+          {
+            repoId: 'repo-1',
+            repoPath: 'C:\\Repos\\instruction-engine',
+            repoLabel: 'Instruction Engine',
+            sources: ['workspace'],
+          },
+        ],
+        selectedRepo: null,
+      },
+    });
+    mocks.planningWorkspaceStore.setState({
+      catalogRepoContext: null,
+      repositoryBacklog: null,
+      roadmapDirectory: null,
+      roadmaps: [],
+      selectedRoadmapSlug: '',
+      loading: false,
+      error: null,
+    });
+
+    const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
+
+    render(<PlanningView />);
+
+    expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
+    expect(screen.getByText('Select a repository in Catalog to resolve backlog and roadmap surfaces.')).toBeInTheDocument();
+    expect(mocks.applyCatalogRepoContext).toHaveBeenCalledWith(null);
+    expect(mocks.loadWorkspaceRoadmaps).not.toHaveBeenCalled();
   });
 });
