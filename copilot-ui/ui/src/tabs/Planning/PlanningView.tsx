@@ -70,6 +70,7 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     planningWorkspaceStore.syncCatalogRepoContext(selectedCatalogRepo);
 
     if (selectedCatalogRepo?.repoPath) {
+      void planningWorkspaceStore.loadIntakeArtifacts();
       void planningWorkspaceStore.loadRoadmaps();
     }
   }, [
@@ -102,9 +103,9 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     <section className="planning-view" data-testid="planning-view">
       <Toolbar testId="planning-view-toolbar">
         <div className="planning-summary">
-          <p className="planning-title">Repository Backlog + Roadmaps</p>
+          <p className="planning-title">Planning Intake + Backlog + Roadmaps</p>
           <p className="planning-copy">
-            Repo-backed planning surfaces resolve from the selected Catalog repository before legacy planning records.
+            Repo-backed planning surfaces resolve from the selected Catalog repository. Intake artifacts hold unscheduled tracked work, while backlog and roadmap docs stay canonical for accepted work.
           </p>
         </div>
 
@@ -137,6 +138,58 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
         />
 
         <Panel
+          subtitle="Typed intake artifacts in docs/planning/intake are the authority for unscheduled tracked work items."
+          testId="planning-intake-surface-panel"
+          title="Planning Intake"
+        >
+          {selectedCatalogRepo ? (
+            <div className="planning-controls">
+              <p className="planning-copy">
+                <code>{planningWorkspaceState.planningIntakeDirectory?.directoryPath || '(no intake directory resolved)'}</code>
+              </p>
+              <p className="planning-copy">
+                Stable IDs: <code>{planningWorkspaceState.planningIntakeDirectory?.stableIdPattern || 'PI-###'}</code>
+              </p>
+              <p className="planning-copy">
+                Categories:{' '}
+                {planningWorkspaceState.planningIntakeDirectory?.supportedCategories.join(', ')
+                  || 'idea, research, refactor-candidate, design-complaint, audit-request, roadmap-request, commit-prep'}
+              </p>
+              {planningWorkspaceState.intakeLoading ? (
+                <p className="planning-copy">Loading intake artifacts…</p>
+              ) : null}
+              {planningWorkspaceState.intakeError ? (
+                <p className="planning-error" role="alert">
+                  {planningWorkspaceState.intakeError}
+                </p>
+              ) : null}
+              {planningWorkspaceState.intakeArtifacts.length > 0 ? (
+                <ul className="planning-record-list">
+                  {planningWorkspaceState.intakeArtifacts.map((artifact) => (
+                    <li key={artifact.id}>
+                      <p className="planning-item-title">{artifact.title}</p>
+                      <p className="planning-item-copy">
+                        <code>{artifact.id}</code> | category={artifact.category}
+                        {artifact.planningState ? ` | state=${artifact.planningState}` : ''}
+                      </p>
+                      {artifact.targetRepoIds.length > 0 ? (
+                        <p className="planning-item-copy">Targets: {artifact.targetRepoIds.join(', ')}</p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="state-message">No planning intake artifacts saved for the active repository.</p>
+              )}
+            </div>
+          ) : (
+            <div className="planning-controls">
+              <p className="state-message">Select a repository in Catalog to resolve intake, backlog, and roadmap surfaces.</p>
+            </div>
+          )}
+        </Panel>
+
+        <Panel
           subtitle="Planning uses the currently selected Catalog repo as the canonical source of backlog and roadmap files."
           testId="planning-backlog-surface-panel"
           title="Repository Backlog"
@@ -166,7 +219,7 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
             </div>
           ) : (
             <div className="planning-controls">
-              <p className="state-message">Select a repository in Catalog to resolve backlog and roadmap surfaces.</p>
+              <p className="state-message">Select a repository in Catalog to resolve intake, backlog, and roadmap surfaces.</p>
             </div>
           )}
         </Panel>

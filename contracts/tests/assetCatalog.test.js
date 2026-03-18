@@ -160,3 +160,15 @@ test('default provider catalog stays synced with engine-assets/providers.json', 
 
   assert.deepEqual(DEFAULT_PROVIDER_CATALOG, canonicalProviderCatalog);
 });
+
+test('audit contract declarations include explicit invocation fields', () => {
+  const declarationText = fs.readFileSync(path.join(__dirname, '..', 'dist', 'assetCatalog.d.ts'), 'utf8');
+
+  assert.match(declarationText, /'asset\.invoked'/);
+  assert.match(declarationText, /toolName\?: string;/);
+  assert.match(declarationText, /toolCallId\?: string;/);
+  assert.match(declarationText, /scopeKinds\?: AssetScopeKind\[\];/);
+  assert.match(declarationText, /type AssetBundleClassification = ExtensibleString<\s*'language' \| 'scope' \| 'workflow' \| 'core'/);
+  assert.match(declarationText, /interface AssetBundleUninstallPolicy/);
+  assert.match(declarationText, /preservesExternalPackages\?: boolean;/);
+});

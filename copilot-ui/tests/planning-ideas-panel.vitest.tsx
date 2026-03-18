@@ -72,7 +72,7 @@ describe('PlanningIdeasPanel', () => {
     expect(planningStoreMocks.createIdeaBatch).toHaveBeenCalled();
   });
 
-  it('supports repo-specific split and canonical backlog save controls for drafts', async () => {
+  it('supports repo-specific split and planning intake save controls for drafts', async () => {
     planningStoreMocks.compileSelectedIdeas.mockResolvedValueOnce('sdk-123');
 
     const onSdkSessionReady = vi.fn();
@@ -144,7 +144,7 @@ describe('PlanningIdeasPanel', () => {
     fireEvent.click(screen.getByTestId('idea-split-draft-multi'));
     await waitFor(() => expect(planningStoreMocks.splitIdea).toHaveBeenCalledWith('draft-multi'));
 
-    fireEvent.click(screen.getByTestId('idea-save-backlog-draft-single'));
+    fireEvent.click(screen.getByTestId('idea-save-intake-draft-single'));
     await waitFor(() => expect(planningStoreMocks.saveIdeaDraft).toHaveBeenCalledWith('draft-single', 'repo-1'));
 
     fireEvent.click(screen.getByTestId('planning-ideas-compile'));

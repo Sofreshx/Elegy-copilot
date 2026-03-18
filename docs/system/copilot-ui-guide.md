@@ -154,7 +154,7 @@ Behavior guarantees for those compatibility-discovered assets:
 | `POST` | `/api/catalog/assets/disable` | Writes overlay disablement for a repo-scoped asset. | `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/search/query` | Performs deterministic catalog-backed search. | `copilot-ui/tests/skill-search-service.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/search/selection` | Records bounded search-selection telemetry. | `copilot-ui/tests/api-contract.test.js` |
-| `GET` | `/api/audit/assets` | Returns asset audit analytics. | `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/audit/assets` | Returns asset audit analytics, including sampled search counts plus explicit vs proxy invocation rollups for Catalog and Sessions observability. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/audit/events` | Returns catalog audit event history. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/runtime/catalog-health` | Returns projection and audit-file runtime health. | `copilot-ui/tests/assets-sync-missing-source.test.js`, `copilot-ui/tests/api-contract.test.js` |
 
@@ -196,7 +196,7 @@ artifacts. They are not the target authority for the Repository Backlog + Roadma
 | --- | --- | --- | --- |
 | `GET` | `/api/sessions` | Lists CLI, VS Code, or sandbox sessions. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/events` | Returns recent event-log entries for a session. | `copilot-ui/tests/api-contract.test.js` |
-| `GET` | `/api/sessions/:id/agent-usage` | Returns agent-usage summaries for a session. | `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/sessions/:id/agent-usage` | Returns bounded agent-usage summaries plus additive `skillUsage` explicit invocation summaries for a session. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/plan` | Returns the current `plan.md` text for a session. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/plans` | Lists persisted plan revisions for a session. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/plans/:planId` | Returns one persisted plan artifact revision. | `copilot-ui/tests/api-contract.test.js` |
@@ -261,7 +261,7 @@ Source of truth:
 The current shell maps to these primary surfaces:
 
 - `Home / Runtime` — default operational landing hub for overview, sessions, sandboxes, and diagnostics.
-- `Catalog` — asset workspace, installs, and skill/agent discovery surfaces.
+- `Catalog` — asset workspace, installs, skill/agent discovery, and aggregate search/selection/invocation observability.
 - `Planning` — ideas, planning records, compare/merge flows, research notes, and compile-to-runtime handoff.
 
 Primary implementation:
@@ -276,6 +276,18 @@ Primary implementation:
 - `Sessions`
 - `Sandboxes`
 - `Diagnostics`
+
+The `Catalog` asset workspace now surfaces aggregate observability rollups sourced from
+`/api/audit/assets` and `/api/audit/events`, including:
+
+- sampled search visibility for the current scope and selected asset
+- explicit `asset.invoked` counts when runtime invocation evidence exists
+- proxy-only fallback invocation counts when only bounded planner/agent usage evidence exists
+
+The `Home / Runtime -> Sessions` detail pane now combines `/api/sessions/:id/agent-usage` with
+catalog audit analytics to show per-session skill search, selection, and invocation visibility.
+When explicit invocation evidence is absent, the UI labels the skill/session rollup as
+proxy-only visibility instead of implying authoritative execution telemetry.
 
 Diagnostics hosts the narrower `Instruction Engine Runtime`, `Planning Database`,
 `Gateway`, `Tracker`, and `LSP` operator surfaces. The

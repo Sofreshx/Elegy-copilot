@@ -3,6 +3,10 @@ import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components
 import { useStoreValue } from '../../lib/store';
 import type {
   CatalogActivationState,
+  CatalogAssetAuditAnalytics,
+  CatalogAuditAssetSummary,
+  CatalogAuditRepoSummary,
+  CatalogAuditUsageSummary,
   CatalogBundle,
   CatalogBundleMember,
   CatalogEffectiveAsset,
@@ -67,6 +71,17 @@ export interface AssetActivationSummary {
 
 const BALANCED_DEFAULT_PROFILE_ID = 'balanced-default';
 
+type ObservabilityEvidence = 'none' | 'proxy-only' | 'authoritative' | 'mixed';
+
+interface ObservabilitySummary {
+  searchedCount: number;
+  selectedCount: number;
+  invocationCount: number;
+  explicitInvocationCount: number;
+  proxyInvocationCount: number;
+  evidence: ObservabilityEvidence;
+}
+
 function formatCount(value: number | undefined): string {
   return Number.isFinite(value) ? String(value) : '0';
 }
@@ -82,6 +97,83 @@ function formatTimestamp(value: string | null | undefined): string {
   }
 
   return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+}
+
+function readCount(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function resolveObservabilityEvidence(
+  usage: CatalogAuditUsageSummary | null | undefined,
+  fallback?: string | null
+): ObservabilityEvidence {
+  const normalizedFallback = String(fallback || usage?.evidence || '').trim().toLowerCase();
+  if (
+    normalizedFallback === 'none'
+    || normalizedFallback === 'proxy-only'
+    || normalizedFallback === 'authoritative'
+    || normalizedFallback === 'mixed'
+  ) {
+    return normalizedFallback;
+  }
+
+  const explicitInvocationCount = readCount(usage?.explicitInvocationCount);
+  const proxyInvocationCount = readCount(usage?.proxyInvocationCount ?? usage?.proxyInferredCount);
+  if (explicitInvocationCount > 0 && proxyInvocationCount > 0) {
+    return 'mixed';
+  }
+  if (explicitInvocationCount > 0) {
+    return 'authoritative';
+  }
+  if (proxyInvocationCount > 0) {
+    return 'proxy-only';
+  }
+  return 'none';
+}
+
+function describeObservabilityEvidence(summary: ObservabilitySummary): string {
+  if (summary.evidence === 'mixed') {
+    return `Mixed evidence: ${summary.explicitInvocationCount} explicit + ${summary.proxyInvocationCount} proxy-only fallback invocation(s).`;
+  }
+  if (summary.evidence === 'authoritative') {
+    return `${summary.explicitInvocationCount} authoritative asset.invoked observation(s).`;
+  }
+  if (summary.evidence === 'proxy-only') {
+    return `${summary.proxyInvocationCount} proxy-only invocation(s) inferred from sampled planner/agent usage because no explicit asset.invoked event was recorded.`;
+  }
+  return 'No invocation evidence has been observed yet.';
+}
+
+function buildAssetObservabilitySummary(asset: CatalogAuditAssetSummary | null | undefined): ObservabilitySummary {
+  const explicitInvocationCount = readCount(asset?.usage?.explicitInvocationCount);
+  const proxyInvocationCount = readCount(asset?.usage?.proxyInvocationCount ?? asset?.usage?.proxyInferredCount);
+  return {
+    searchedCount: readCount(asset?.search?.sampled?.searchedCount ?? asset?.search?.sampled?.resultCount),
+    selectedCount: readCount(asset?.search?.sampled?.selectedCount),
+    invocationCount: readCount(asset?.usage?.invocationCount),
+    explicitInvocationCount,
+    proxyInvocationCount,
+    evidence: resolveObservabilityEvidence(asset?.usage),
+  };
+}
+
+function buildScopeObservabilitySummary(repos: CatalogAuditRepoSummary[]): ObservabilitySummary {
+  return repos.reduce<ObservabilitySummary>((summary, repo) => {
+    summary.searchedCount += readCount(repo.search?.searchedCount ?? repo.search?.queryCount);
+    summary.selectedCount += readCount(repo.search?.selectedCount);
+    summary.invocationCount += readCount(repo.usage?.invocationCount);
+    summary.explicitInvocationCount += readCount(repo.usage?.explicitInvocationCount);
+    summary.proxyInvocationCount += readCount(repo.usage?.proxyInvocationCount ?? repo.usage?.proxyInferredCount);
+    return summary;
+  }, {
+    searchedCount: 0,
+    selectedCount: 0,
+    invocationCount: 0,
+    explicitInvocationCount: 0,
+    proxyInvocationCount: 0,
+    evidence: 'none',
+  });
 }
 
 function normalizePath(input: string | null | undefined): string {
@@ -362,6 +454,106 @@ function bundleHasTag(bundle: CatalogBundle, tag: string): boolean {
   return readStringList(bundle.tags).some((value) => value.toLowerCase() === tag.toLowerCase());
 }
 
+interface BundleLifecycleSummary {
+  memberCount: number;
+  availableCount: number;
+  installedCount: number;
+  enabledCount: number;
+  missingCount: number;
+  partiallyInstalled: boolean;
+  fullyInstalled: boolean;
+}
+
+function summarizeBundleLifecycle(bundle: CatalogBundle | null | undefined): BundleLifecycleSummary {
+  const members = normalizeBundleMembers(bundle);
+  const stats = bundle?.stats ?? {};
+  const memberCount = Number(stats.memberCount ?? members.length ?? 0);
+  const availableCount = Number(stats.availableCount ?? members.filter((member) => member.available).length ?? 0);
+  const installedCount = Number(stats.installedCount ?? members.filter((member) => member.installed).length ?? 0);
+  const enabledCount = Number(stats.enabledCount ?? members.filter((member) => member.enabled).length ?? 0);
+  const missingCount = Number(stats.missingCount ?? members.filter((member) => member.missing).length ?? 0);
+  const fullyInstalled = memberCount > 0 && installedCount >= memberCount && missingCount === 0;
+  const partiallyInstalled = !fullyInstalled && (missingCount > 0 || (installedCount > 0 && installedCount < memberCount));
+  return {
+    memberCount,
+    availableCount,
+    installedCount,
+    enabledCount,
+    missingCount,
+    partiallyInstalled,
+    fullyInstalled,
+  };
+}
+
+function readBundlePolicy(bundle: CatalogBundle | null | undefined): Record<string, unknown> {
+  return bundle?.uninstallPolicy && typeof bundle.uninstallPolicy === 'object'
+    ? bundle.uninstallPolicy as Record<string, unknown>
+    : {};
+}
+
+function isBundleUninstallable(bundle: CatalogBundle | null | undefined): boolean {
+  return readBundlePolicy(bundle).removesInstalledMembers !== false;
+}
+
+function resolveBundleLifecycleStatus(bundle: CatalogBundle | null | undefined): string {
+  const lifecycle = summarizeBundleLifecycle(bundle);
+  if (lifecycle.missingCount > 0) {
+    return 'missing-members';
+  }
+  if (lifecycle.partiallyInstalled) {
+    return 'partial-members';
+  }
+  if (lifecycle.fullyInstalled) {
+    return 'installed-members';
+  }
+  return 'not-installed';
+}
+
+function describeBundleTargeting(bundle: CatalogBundle | null | undefined): string {
+  const targeting = bundle?.targeting && typeof bundle.targeting === 'object'
+    ? bundle.targeting as Record<string, unknown>
+    : {};
+  const segments: string[] = [];
+  const scopeKinds = readStringList(targeting.scopeKinds);
+  const frameworks = readStringList(targeting.frameworks);
+  const languages = readStringList(targeting.languages);
+  const stacks = readStringList(targeting.stacks);
+  const tags = readStringList(targeting.tags);
+  const loadMode = typeof targeting.loadMode === 'string' ? targeting.loadMode.trim() : '';
+
+  if (scopeKinds.length > 0) {
+    segments.push(`scope: ${scopeKinds.join(', ')}`);
+  }
+  if (frameworks.length > 0) {
+    segments.push(`frameworks: ${frameworks.join(', ')}`);
+  }
+  if (languages.length > 0) {
+    segments.push(`languages: ${languages.join(', ')}`);
+  }
+  if (stacks.length > 0) {
+    segments.push(`stacks: ${stacks.join(', ')}`);
+  }
+  if (tags.length > 0) {
+    segments.push(`tags: ${tags.join(', ')}`);
+  }
+  if (loadMode) {
+    segments.push(`preferred load: ${loadMode}`);
+  }
+
+  return segments.length > 0 ? segments.join(' · ') : 'No targeting metadata surfaced.';
+}
+
+function describeBundleUninstallPolicy(bundle: CatalogBundle | null | undefined): string {
+  const policy = readBundlePolicy(bundle);
+  const segments = [
+    policy.removesInstalledMembers !== false ? 'removes managed members' : 'leaves managed members installed',
+    policy.clearsActivationState !== false ? 'clears activation state' : 'leaves activation state in place',
+    policy.clearsRepoOverlayState !== false ? 'clears repo overlay state' : 'leaves repo overlay state in place',
+    policy.preservesExternalPackages !== false ? 'preserves external packages' : 'may remove external packages',
+  ];
+  return segments.join(' · ');
+}
+
 function describeActivationSource(source: string | null | undefined): string {
   const normalized = String(source || '').trim().toLowerCase();
   if (normalized === 'repo-override') {
@@ -620,6 +812,7 @@ export default function AssetsView() {
     }
     return Array.from(counts.entries()).slice(0, 5);
   }, [catalogState.auditEvents]);
+  const auditAnalytics: CatalogAssetAuditAnalytics | null = catalogState.auditAnalytics;
 
   const summaryStats = catalogState.summary?.stats;
   const activationState: CatalogActivationState | null = catalogState.summary?.activation ?? null;
@@ -707,6 +900,28 @@ export default function AssetsView() {
   const selectedProviderInstallable = Boolean(
     selectedProvider && String(selectedProvider.installStrategy || '').trim().toLowerCase() === 'managed-import'
   );
+  const selectedAssetAnalytics = useMemo(
+    () => auditAnalytics?.assets.find((asset) => asset.assetId === selectedAsset?.assetId) ?? null,
+    [auditAnalytics, selectedAsset?.assetId]
+  );
+  const selectedAssetObservability = useMemo(
+    () => buildAssetObservabilitySummary(selectedAssetAnalytics),
+    [selectedAssetAnalytics]
+  );
+  const scopeObservability = useMemo(() => {
+    const repoSummaries = Array.isArray(auditAnalytics?.repos) ? auditAnalytics.repos : [];
+    const matchingSummaries = catalogState.activeRepoId
+      ? repoSummaries.filter((repo) => repo.repoId === catalogState.activeRepoId)
+      : repoSummaries;
+    const summary = buildScopeObservabilitySummary(matchingSummaries.length > 0 ? matchingSummaries : repoSummaries);
+    return {
+      ...summary,
+      evidence: resolveObservabilityEvidence({
+        explicitInvocationCount: summary.explicitInvocationCount,
+        proxyInvocationCount: summary.proxyInvocationCount,
+      }),
+    };
+  }, [auditAnalytics?.repos, catalogState.activeRepoId]);
 
   useEffect(() => {
     setCreateDraft((current) => {
@@ -843,6 +1058,10 @@ export default function AssetsView() {
 
   const handleInstallBundle = async (bundleId: string) => {
     await catalogWorkspaceStore.installBundle(bundleId);
+  };
+
+  const handleUninstallBundle = async (bundleId: string) => {
+    await catalogWorkspaceStore.uninstallBundle(bundleId);
   };
 
   const handleToggleEnabled = async () => {
@@ -1001,6 +1220,13 @@ export default function AssetsView() {
             {activeRepo ? `Selected: ${buildRepoLabel(activeRepo)}` : 'No repo selected; working in global/user scope.'}
           </p>
         </article>
+        <article className="catalog-stat-card" data-testid="catalog-observability-summary">
+          <p className="catalog-stat-label">Observed usage</p>
+          <p className="catalog-stat-value">{scopeObservability.invocationCount}</p>
+          <p className="catalog-stat-copy">
+            Searched {scopeObservability.searchedCount} · Selected {scopeObservability.selectedCount} · Invoked {scopeObservability.invocationCount}
+          </p>
+        </article>
       </div>
 
       <Panel
@@ -1019,11 +1245,9 @@ export default function AssetsView() {
         ) : (
           <ul className="catalog-repo-list" data-testid="catalog-bundle-list">
             {workflowBundles.map((bundle) => {
-              const memberStats = bundle.stats ?? {};
-              const installedCount = Number(memberStats.installedCount ?? 0);
-              const memberCount = Number(memberStats.memberCount ?? 0);
-              const missingCount = Number(memberStats.missingCount ?? 0);
-              const isInstalled = memberCount > 0 && installedCount === memberCount && missingCount === 0;
+              const lifecycle = summarizeBundleLifecycle(bundle);
+              const isInstalled = lifecycle.fullyInstalled;
+              const canUninstall = isBundleUninstallable(bundle) && lifecycle.installedCount > 0;
 
               return (
                 <li key={bundle.bundleId}>
@@ -1035,12 +1259,23 @@ export default function AssetsView() {
                     <div className="catalog-badge-row">
                       <StatusBadge status={bundle.status || 'unknown'} testId="catalog-bundle-status" />
                       <StatusBadge status={bundle.materialization || 'unknown'} testId="catalog-bundle-materialization" />
+                      <StatusBadge status={resolveBundleLifecycleStatus(bundle)} testId="catalog-bundle-lifecycle-status" />
+                      {bundle.classification ? <StatusBadge status={bundle.classification} testId="catalog-bundle-classification" /> : null}
                       {bundle.defaultRecommended ? <StatusBadge status="recommended" testId="catalog-bundle-recommended" /> : null}
+                      {isBundleUninstallable(bundle) ? <StatusBadge status="uninstallable" testId="catalog-bundle-uninstallable" /> : null}
                     </div>
                   </div>
 
-                  <p className="catalog-inline-note">
-                    {formatCount(memberStats.memberCount)} assets · {formatCount(memberStats.installedCount)} installed · {formatCount(memberStats.availableCount)} available · {formatCount(memberStats.missingCount)} missing
+                  <p className="catalog-inline-note" data-testid={`catalog-bundle-lifecycle-${bundle.bundleId}`}>
+                    {lifecycle.partiallyInstalled || lifecycle.missingCount > 0 ? 'Partial member state' : isInstalled ? 'Installed member state' : 'Not installed yet'} ·{' '}
+                    {formatCount(lifecycle.memberCount)} assets · {formatCount(lifecycle.installedCount)} installed · {formatCount(lifecycle.availableCount)} available ·{' '}
+                    {formatCount(lifecycle.missingCount)} missing
+                  </p>
+                  <p className="catalog-inline-note" data-testid={`catalog-workflow-bundle-taxonomy-${bundle.bundleId}`}>
+                    Classification: {bundle.classification || 'unspecified'} · Targets: {describeBundleTargeting(bundle)}
+                  </p>
+                  <p className="catalog-inline-note" data-testid={`catalog-workflow-bundle-uninstall-policy-${bundle.bundleId}`}>
+                    Uninstall behavior: {describeBundleUninstallPolicy(bundle)}
                   </p>
 
                   <div className="catalog-action-row">
@@ -1053,6 +1288,16 @@ export default function AssetsView() {
                       variant="secondary"
                     >
                       {isInstalled ? 'Re-check bundle' : 'Install bundle'}
+                    </Button>
+                    <Button
+                      disabled={catalogState.loading || catalogState.installing || catalogState.refreshing || !canUninstall}
+                      onClick={() => {
+                        void handleUninstallBundle(bundle.bundleId);
+                      }}
+                      testId={`catalog-uninstall-workflow-bundle-${bundle.bundleId}`}
+                      variant="ghost"
+                    >
+                      Uninstall bundle
                     </Button>
                   </div>
                 </li>
@@ -1368,11 +1613,13 @@ export default function AssetsView() {
             <ul className="catalog-repo-list" data-testid="catalog-bundle-list">
               {catalogState.bundles.map((bundle) => {
                 const isSelectedBundle = selectedBundle?.bundleId === bundle.bundleId;
-                const memberCount = bundle.stats?.memberCount ?? normalizeBundleMembers(bundle).length;
-                const installedCount = bundle.stats?.installedCount ?? normalizeBundleMembers(bundle).filter((member) => member.installed).length;
-                const enabledCount = bundle.stats?.enabledCount ?? normalizeBundleMembers(bundle).filter((member) => member.enabled).length;
+                const lifecycle = summarizeBundleLifecycle(bundle);
+                const memberCount = lifecycle.memberCount;
+                const installedCount = lifecycle.installedCount;
+                const enabledCount = lifecycle.enabledCount;
                 const eligibleCount = countEligibleBundleMembers(bundle);
                 const inspectableMember = normalizeBundleMembers(bundle).find((member) => member.assetId);
+                const canUninstall = isBundleUninstallable(bundle) && installedCount > 0;
 
                 return (
                   <li className={isSelectedBundle ? 'is-selected' : ''} key={bundle.bundleId}>
@@ -1385,7 +1632,10 @@ export default function AssetsView() {
                         <StatusBadge status={bundle.activationStatus || 'inactive'} testId="catalog-bundle-activation-status" />
                         <StatusBadge status={bundle.status || 'unknown'} testId="catalog-bundle-status" />
                         <StatusBadge status={bundle.materialization || 'manual'} testId="catalog-bundle-materialization" />
+                        <StatusBadge status={resolveBundleLifecycleStatus(bundle)} testId="catalog-bundle-lifecycle-status" />
+                        {bundle.classification ? <StatusBadge status={bundle.classification} testId="catalog-bundle-classification" /> : null}
                         {bundle.defaultRecommended ? <StatusBadge status="default" testId="catalog-bundle-default" /> : null}
+                        {isBundleUninstallable(bundle) ? <StatusBadge status="uninstallable" testId="catalog-bundle-uninstallable" /> : null}
                       </div>
                     </div>
 
@@ -1400,6 +1650,12 @@ export default function AssetsView() {
                         <StatusBadge key={`${bundle.bundleId}-${dependency}`} status={`depends:${dependency}`} testId="catalog-bundle-dependency" />
                       ))}
                     </div>
+                    <p className="catalog-inline-note" data-testid={`catalog-activation-bundle-taxonomy-${bundle.bundleId}`}>
+                      Classification: {bundle.classification || 'unspecified'} · Targets: {describeBundleTargeting(bundle)}
+                    </p>
+                    <p className="catalog-inline-note" data-testid={`catalog-activation-bundle-uninstall-policy-${bundle.bundleId}`}>
+                      Uninstall behavior: {describeBundleUninstallPolicy(bundle)}
+                    </p>
 
                     <div className="catalog-action-row">
                       <Button
@@ -1420,6 +1676,17 @@ export default function AssetsView() {
                         variant="secondary"
                       >
                         {isSelectedBundle ? 'Selected' : 'Inspect bundle'}
+                      </Button>
+                      <Button
+                        disabled={catalogState.loading || catalogState.installing || catalogState.refreshing || !canUninstall}
+                        onClick={() => {
+                          void handleUninstallBundle(bundle.bundleId);
+                        }}
+                        size="sm"
+                        testId={`catalog-uninstall-managed-bundle-${bundle.bundleId}`}
+                        variant="ghost"
+                      >
+                        Uninstall bundle
                       </Button>
                       <Button
                         disabled={!inspectableMember?.assetId}
@@ -1446,6 +1713,12 @@ export default function AssetsView() {
               <summary>
                 Bundle members · {selectedBundle.title || selectedBundle.bundleId} ({selectedBundleMembers.length})
               </summary>
+              <p className="catalog-inline-note" data-testid="catalog-selected-bundle-taxonomy">
+                Classification: {selectedBundle.classification || 'unspecified'} · Targets: {describeBundleTargeting(selectedBundle)}
+              </p>
+              <p className="catalog-inline-note" data-testid="catalog-selected-bundle-uninstall-policy">
+                Uninstall behavior: {describeBundleUninstallPolicy(selectedBundle)}
+              </p>
               <ul className="catalog-entry-list">
                 {selectedBundleMembers.map((member) => {
                   const memberAsset = catalogState.assets.find((asset) => asset.assetId === member.assetId) ?? null;
@@ -2255,6 +2528,33 @@ export default function AssetsView() {
           testId="catalog-audit-panel"
           title="Usage & audit"
         >
+          <div className="catalog-summary-grid">
+            <article className="catalog-stat-card" data-testid="catalog-observability-rollup">
+              <p className="catalog-stat-label">Current scope rollup</p>
+              <p className="catalog-stat-value">{scopeObservability.invocationCount}</p>
+              <p className="catalog-stat-copy">
+                Searched {scopeObservability.searchedCount} · Selected {scopeObservability.selectedCount} · Invoked {scopeObservability.invocationCount}
+              </p>
+              <p className="catalog-inline-note">{describeObservabilityEvidence(scopeObservability)}</p>
+            </article>
+            <article className="catalog-stat-card" data-testid="catalog-selected-asset-observability">
+              <p className="catalog-stat-label">Selected asset</p>
+              <p className="catalog-stat-value">{selectedAssetObservability.invocationCount}</p>
+              <p className="catalog-stat-copy">
+                Searched {selectedAssetObservability.searchedCount} · Selected {selectedAssetObservability.selectedCount} · Invoked {selectedAssetObservability.invocationCount}
+              </p>
+              <p className="catalog-inline-note">
+                {selectedAsset
+                  ? describeObservabilityEvidence(selectedAssetObservability)
+                  : 'Select an asset to inspect asset-level search and invocation rollups.'}
+              </p>
+            </article>
+          </div>
+
+          <p className="catalog-inline-note">
+            Asset-level “searched” counts reflect how often the selected asset surfaced in sampled result sets. Scope-level “searched” counts reflect sampled search queries.
+            Invocation totals prefer authoritative asset.invoked evidence and only surface proxy-only fallback counts when explicit evidence is absent.
+          </p>
           <p className="catalog-inline-note">
             Showing the newest {CATALOG_AUDIT_EVENT_LIMIT} audit events for the current selection; older activity stays in the audit log.
           </p>
@@ -2263,6 +2563,12 @@ export default function AssetsView() {
               {catalogState.auditError}
             </p>
           ) : null}
+          {catalogState.auditAnalyticsError ? (
+            <p className="state-message state-error" role="alert">
+              {catalogState.auditAnalyticsError}
+            </p>
+          ) : null}
+          {catalogState.auditAnalyticsLoading ? <p className="state-message">Refreshing aggregate observability…</p> : null}
 
           {auditCounts.length > 0 ? (
             <div className="catalog-badge-row">

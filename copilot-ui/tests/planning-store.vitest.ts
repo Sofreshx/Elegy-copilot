@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const apiMocks = vi.hoisted(() => ({
-  createPlanningBacklogItem: vi.fn(),
+  createPlanningIntakeArtifact: vi.fn(),
   comparePlanningRecords: vi.fn(),
   createPlanningRecord: vi.fn(),
   createSdkSession: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock('../ui/src/lib/api', async () => {
   const actual = await vi.importActual<typeof import('../ui/src/lib/api')>('../ui/src/lib/api');
   return {
     ...actual,
-    createPlanningBacklogItem: apiMocks.createPlanningBacklogItem,
+    createPlanningIntakeArtifact: apiMocks.createPlanningIntakeArtifact,
     comparePlanningRecords: apiMocks.comparePlanningRecords,
     createPlanningRecord: apiMocks.createPlanningRecord,
     createSdkSession: apiMocks.createSdkSession,
@@ -57,37 +57,38 @@ describe('planningStore catalog repo context', () => {
     Object.values(apiMocks).forEach((mock) => mock.mockReset());
     sdkMocks.loadSessions.mockReset();
     sdkMocks.selectSession.mockReset();
-    apiMocks.createPlanningBacklogItem.mockResolvedValue({
-      kind: 'planning.backlog.create',
+    apiMocks.createPlanningIntakeArtifact.mockResolvedValue({
+      kind: 'planning.intake.create',
       deterministic: true,
       repo: {
         repoId: 'repo-1',
         repoPath: 'C:\\Repos\\instruction-engine',
         repoLabel: 'Instruction Engine',
       },
-      backlog: {
+      intake: {
         exists: true,
         itemCount: 1,
-        items: [
-          {
-            id: 'RB-001',
-            title: 'Draft title',
-            status: 'proposed',
-            summary: 'Draft summary',
-            roadmapIds: [],
-            planRefs: [],
-            keyPoints: [],
-          },
-        ],
+        directoryPath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake',
+        repoRelativePath: 'docs/planning/intake',
+        artifactCount: 1,
+        stableIdPattern: 'PI-###',
+        supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'commit-prep'],
       },
-      item: {
-        id: 'RB-001',
+      artifacts: [],
+      artifact: {
+        kind: 'planning.intake.artifact',
+        schemaVersion: 1,
+        id: 'PI-001',
+        category: 'idea',
         title: 'Draft title',
-        status: 'proposed',
         summary: 'Draft summary',
-        roadmapIds: [],
-        planRefs: [],
-        keyPoints: [],
+        acceptanceCriteria: ['First validation check', 'Second validation check'],
+        targetRepoIds: ['repo-2'],
+        planningState: 'thought',
+        createdAt: '2026-03-18T00:00:00.000Z',
+        updatedAt: '2026-03-18T00:00:00.000Z',
+        filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake\\PI-001.json',
+        repoRelativePath: 'docs/planning/intake/PI-001.json',
       },
     });
   });
@@ -108,6 +109,11 @@ describe('planningStore catalog repo context', () => {
       repoPath: 'C:\\Repos\\instruction-engine',
       repoLabel: 'Instruction Engine',
       sources: ['workspace', 'selected'],
+    });
+    expect(state.planningIntakeDirectory).toMatchObject({
+      canonicalName: 'Planning Intake',
+      directoryPath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake',
+      stableIdPattern: 'PI-###',
     });
     expect(state.repositoryBacklog).toMatchObject({
       canonicalName: 'Repository Backlog',
@@ -136,6 +142,7 @@ describe('planningStore catalog repo context', () => {
 
     const state = store.getState();
     expect(state.catalogRepoContext).toBeNull();
+    expect(state.planningIntakeDirectory).toBeNull();
     expect(state.repositoryBacklog).toBeNull();
     expect(state.roadmapDirectory).toBeNull();
     expect(state.repoId).toBe('');
@@ -154,7 +161,7 @@ describe('planningStore catalog repo context', () => {
     expect(apiMocks.createPlanningRecord).not.toHaveBeenCalled();
   });
 
-  it('saves a local draft to the repo backlog using repoId targeting', async () => {
+  it('saves a local draft to repo-backed planning intake using repoId targeting', async () => {
     const store = createPlanningStore();
 
     store.setIdeaDraft('- Draft title');
@@ -170,21 +177,22 @@ describe('planningStore catalog repo context', () => {
     });
     await store.saveIdeaDraft(draftId || '', 'repo-2');
 
-    expect(apiMocks.createPlanningBacklogItem).toHaveBeenCalledWith({
+    expect(apiMocks.createPlanningIntakeArtifact).toHaveBeenCalledWith({
       repoId: 'repo-2',
-      item: {
+      artifact: {
+        category: 'idea',
         title: 'Draft title',
-        summary: 'Draft summary\n\nAcceptance criteria:\n- First validation check\n- Second validation check',
-        status: 'proposed',
-        roadmapIds: [],
-        keyPoints: [],
+        summary: 'Draft summary',
+        acceptanceCriteria: ['First validation check', 'Second validation check'],
+        targetRepoIds: [],
+        planningState: 'thought',
       },
     });
     expect(store.getState().draftIdeas).toHaveLength(0);
-    expect(store.getState().statusMessage).toContain('RB-001');
+    expect(store.getState().statusMessage).toContain('PI-001');
   });
 
-  it('requires multi-repo drafts to be split before backlog save and can split them locally', async () => {
+  it('allows multi-repo drafts to save into a shared intake artifact and can still split them locally', async () => {
     const store = createPlanningStore();
 
     store.setIdeaDraft('- Shared draft');
@@ -194,12 +202,24 @@ describe('planningStore catalog repo context', () => {
     const draftId = store.getState().draftIdeas[0]?.draftId;
     expect(draftId).toBeTruthy();
 
-    await store.saveIdeaDraft(draftId || '');
-    expect(apiMocks.createPlanningBacklogItem).not.toHaveBeenCalled();
-    expect(store.getState().statusMessage).toContain('Split multi-repo drafts');
+    await store.saveIdeaDraft(draftId || '', 'repo-a');
+    expect(apiMocks.createPlanningIntakeArtifact).toHaveBeenCalledWith({
+      repoId: 'repo-a',
+      artifact: expect.objectContaining({
+        title: 'Shared draft',
+        targetRepoIds: ['repo-a', 'repo-b'],
+      }),
+    });
 
-    store.toggleIdeaSelected(draftId || '', true);
-    store.splitIdea(draftId || '');
+    store.setIdeaDraft('- Shared draft for split');
+    store.setIdeaTargetRepos('repo-a, repo-b');
+    await store.createIdeaBatch();
+
+    const splitDraftId = store.getState().draftIdeas[0]?.draftId;
+    expect(splitDraftId).toBeTruthy();
+
+    store.toggleIdeaSelected(splitDraftId || '', true);
+    store.splitIdea(splitDraftId || '');
 
     const state = store.getState();
     expect(state.draftIdeas).toHaveLength(2);

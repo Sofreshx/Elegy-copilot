@@ -4067,7 +4067,7 @@ function isSdkBridgeEnabled(env) {
   return String(source.COPILOT_SDK_BRIDGE || '').trim() === '1';
 }
 
-async function initializeSdkBridge({ engineRoot, env, policyPreflightFn }) {
+async function initializeSdkBridge({ engineRoot, copilotHome, env, policyPreflightFn }) {
   const sourceEnv = env && typeof env === 'object' ? env : process.env;
   if (!isSdkBridgeEnabled(sourceEnv)) {
     return null;
@@ -4087,6 +4087,7 @@ async function initializeSdkBridge({ engineRoot, env, policyPreflightFn }) {
   const bridgeConfig = bridgeModule.resolveBridgeConfig(sourceEnv, {
     enabled: true,
     cwd: engineRoot,
+    copilotHome,
     policyPreflightFn,
   });
 
@@ -4274,11 +4275,12 @@ async function startServer(options = {}) {
 
   if (sdkBridgeEnabled) {
     try {
-      sdkBridge = await initializeSdkBridge({
-        engineRoot,
-        env,
-        policyPreflightFn: () => getPolicyPreflight(engineRoot),
-      });
+        sdkBridge = await initializeSdkBridge({
+          engineRoot,
+          copilotHome,
+          env,
+          policyPreflightFn: () => getPolicyPreflight(engineRoot),
+        });
     } catch (error) {
       changeTracker.close();
       const detail = String(error && error.message ? error.message : error);

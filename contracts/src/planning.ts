@@ -62,6 +62,35 @@ export interface PlanningPersistenceHealth {
   error?: string;
 }
 
+export const PLANNING_INTAKE_CATEGORIES = [
+  'idea',
+  'research',
+  'refactor-candidate',
+  'design-complaint',
+  'audit-request',
+  'roadmap-request',
+  'commit-prep',
+] as const;
+
+export type PlanningIntakeCategory = typeof PLANNING_INTAKE_CATEGORIES[number];
+
+export const PLANNING_INTAKE_ARTIFACT_KIND = 'planning.intake.artifact';
+export const PLANNING_INTAKE_ARTIFACT_SCHEMA_VERSION = 1;
+
+export interface PlanningIntakeArtifact {
+  kind: typeof PLANNING_INTAKE_ARTIFACT_KIND;
+  schemaVersion: typeof PLANNING_INTAKE_ARTIFACT_SCHEMA_VERSION;
+  id: string;
+  category: PlanningIntakeCategory;
+  title: string;
+  summary: string;
+  acceptanceCriteria: string[];
+  targetRepoIds: string[];
+  planningState?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Supported runtime provider identifiers. */
 export type RuntimeProvider = 'non-docker' | 'docker';
 

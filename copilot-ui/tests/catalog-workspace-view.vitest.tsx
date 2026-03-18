@@ -6,6 +6,7 @@ const storeMocks = vi.hoisted(() => ({
   refreshWorkspace: vi.fn(),
   installAll: vi.fn(),
   installBundle: vi.fn(),
+  uninstallBundle: vi.fn(),
   createAsset: vi.fn(),
   updateAsset: vi.fn(),
   deleteAsset: vi.fn(),
@@ -70,14 +71,27 @@ const mockState = {
       bundleId: 'superpowers-workflow',
       title: 'Superpowers Workflow Pack',
       description: 'Optional workflow pack for disciplined planning, debugging, and TDD.',
+      classification: 'workflow',
+      targeting: {
+        frameworks: ['react'],
+        scopeKinds: ['repo'],
+        tags: ['superpowers', 'workflow'],
+      },
       materialization: 'on-demand',
       status: 'available',
       defaultRecommended: false,
+      uninstallPolicy: {
+        removesInstalledMembers: true,
+        clearsActivationState: true,
+        clearsRepoOverlayState: true,
+        preservesExternalPackages: true,
+      },
       stats: {
         memberCount: 15,
-        installedCount: 0,
+        installedCount: 3,
+        enabledCount: 2,
         availableCount: 15,
-        missingCount: 0,
+        missingCount: 1,
       },
       tags: ['superpowers', 'workflow'],
       members: [],
@@ -318,6 +332,44 @@ const mockState = {
   ],
   auditLoading: false,
   auditError: null,
+  auditAnalytics: {
+    assets: [
+      {
+        assetId: 'skill-test',
+        assetKey: 'test',
+        kind: 'skill',
+        search: {
+          sampled: {
+            resultCount: 3,
+            selectedCount: 2,
+          },
+        },
+        usage: {
+          invocationCount: 4,
+          explicitInvocationCount: 3,
+          proxyInvocationCount: 1,
+        },
+      },
+    ],
+    repos: [
+      {
+        repoId: 'repo-1',
+        search: {
+          queryCount: 5,
+          selectedCount: 2,
+        },
+        usage: {
+          invocationCount: 4,
+          explicitInvocationCount: 3,
+          proxyInvocationCount: 1,
+        },
+      },
+    ],
+    sessions: [],
+    recentEvents: [],
+  },
+  auditAnalyticsLoading: false,
+  auditAnalyticsError: null,
   searchQuery: '',
   searchResults: [
     {
@@ -412,7 +464,7 @@ const mockState = {
       },
     },
   },
-  selectedBundleId: null,
+  selectedBundleId: 'superpowers-workflow',
 };
 
 const mockCatalogWorkspaceStore = {
@@ -422,6 +474,7 @@ const mockCatalogWorkspaceStore = {
   refreshWorkspace: storeMocks.refreshWorkspace,
   installAll: storeMocks.installAll,
   installBundle: storeMocks.installBundle,
+  uninstallBundle: storeMocks.uninstallBundle,
   createAsset: storeMocks.createAsset,
   updateAsset: storeMocks.updateAsset,
   deleteAsset: storeMocks.deleteAsset,
@@ -449,6 +502,7 @@ describe('AssetsView catalog workspace', () => {
   beforeEach(() => {
     Object.values(storeMocks).forEach((mock) => mock.mockReset());
     storeMocks.installBundle.mockResolvedValue(undefined);
+    storeMocks.uninstallBundle.mockResolvedValue(undefined);
     storeMocks.createAsset.mockResolvedValue(undefined);
     storeMocks.updateAsset.mockResolvedValue(undefined);
   });
@@ -480,6 +534,9 @@ describe('AssetsView catalog workspace', () => {
     expect(screen.getByText(/Persisted custom roots:/)).toHaveTextContent('D:\\work\\repos');
     expect(screen.getByTestId('catalog-write-target-copy')).toHaveTextContent('authoritative repo-local asset');
     expect(screen.getByTestId('catalog-runtime-freshness')).toHaveTextContent('fresh');
+    expect(screen.getByTestId('catalog-observability-summary')).toHaveTextContent('Searched 5 · Selected 2 · Invoked 4');
+    expect(screen.getByTestId('catalog-selected-asset-observability')).toHaveTextContent('Searched 3 · Selected 2 · Invoked 4');
+    expect(screen.getAllByText(/Mixed evidence:/i).length).toBeGreaterThan(0);
     expect(screen.getByText('# Test skill')).toBeInTheDocument();
     expect(screen.getByText(/Privacy-safe selection telemetry/i)).toBeInTheDocument();
   });
@@ -520,6 +577,32 @@ describe('AssetsView catalog workspace', () => {
 
     await waitFor(() => {
       expect(storeMocks.installBundle).toHaveBeenCalledWith('superpowers-workflow');
+    });
+  });
+
+  it('surfaces bundle lifecycle metadata and dispatches bundle uninstall through the workspace store', async () => {
+    vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
+      catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
+    }));
+
+    const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
+
+    render(<AssetsView />);
+
+    expect(screen.getByTestId('catalog-bundle-lifecycle-superpowers-workflow')).toHaveTextContent('Partial member state');
+    expect(screen.getByTestId('catalog-workflow-bundle-taxonomy-superpowers-workflow'))
+      .toHaveTextContent('Classification: workflow · Targets: scope: repo · frameworks: react · tags: superpowers, workflow');
+    expect(screen.getByTestId('catalog-workflow-bundle-uninstall-policy-superpowers-workflow'))
+      .toHaveTextContent('removes managed members');
+    expect(screen.getByTestId('catalog-selected-bundle-uninstall-policy'))
+      .toHaveTextContent('preserves external packages');
+
+    fireEvent.click(screen.getByTestId('catalog-uninstall-workflow-bundle-superpowers-workflow'));
+
+    await waitFor(() => {
+      expect(storeMocks.uninstallBundle).toHaveBeenCalledWith('superpowers-workflow');
     });
   });
 

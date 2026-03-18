@@ -47,6 +47,13 @@ function resolveDraftSaveRepoId(record: PlanningDraftItem, selectedCatalogRepoId
   return selectedCatalogRepoId.trim();
 }
 
+function normalizeIdeaPlanningState(value: unknown): 'thought' | 'research' | 'pre-plan' {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'research') return 'research';
+  if (normalized === 'pre-plan') return 'pre-plan';
+  return 'thought';
+}
+
 function IdeaRecordEditor(props: {
   record: PlanningDraftItem;
   checked: boolean;
@@ -61,7 +68,7 @@ function IdeaRecordEditor(props: {
   const [targetRepos, setTargetRepos] = useState(formatTargetRepoInput(record));
   const [acceptanceCriteria, setAcceptanceCriteria] = useState(formatAcceptanceCriteria(record));
   const [saveRepoId, setSaveRepoId] = useState(resolveDraftSaveRepoId(record, selectedCatalogRepoId));
-  const [state, setState] = useState(String(record.state || 'thought'));
+  const [state, setState] = useState(normalizeIdeaPlanningState(record.state));
 
   useEffect(() => {
     setTitle(String(record.title || ''));
@@ -69,7 +76,7 @@ function IdeaRecordEditor(props: {
     setTargetRepos(formatTargetRepoInput(record));
     setAcceptanceCriteria(formatAcceptanceCriteria(record));
     setSaveRepoId(resolveDraftSaveRepoId(record, selectedCatalogRepoId));
-    setState(String(record.state || 'thought'));
+    setState(normalizeIdeaPlanningState(record.state));
   }, [record, selectedCatalogRepoId]);
 
   const normalizedTargets = useMemo(() => normalizeTargetRepoInput(targetRepos), [targetRepos]);
@@ -78,7 +85,7 @@ function IdeaRecordEditor(props: {
     saveRepoId.trim()
     || (normalizedTargets.length === 1 ? normalizedTargets[0] : '')
     || selectedCatalogRepoId.trim();
-  const saveDisabled = saving || title.trim().length === 0 || requiresSplit || effectiveSaveRepoId.length === 0;
+  const saveDisabled = saving || title.trim().length === 0 || effectiveSaveRepoId.length === 0;
 
   const persistDraft = async (): Promise<void> => {
     await planningStore.updateIdea(record.draftId, {
@@ -128,16 +135,16 @@ function IdeaRecordEditor(props: {
           >
             {disabled ? 'Saving...' : 'Save draft'}
           </Button>
-          <Button
-            disabled={saveDisabled}
-            onClick={async () => {
-              await persistDraft();
-              await planningStore.saveIdeaDraft(record.draftId, effectiveSaveRepoId);
-            }}
-            testId={`idea-save-backlog-${record.draftId}`}
-          >
-            {saving ? 'Saving to backlog...' : 'Save to backlog'}
-          </Button>
+            <Button
+              disabled={saveDisabled}
+              onClick={async () => {
+                await persistDraft();
+                await planningStore.saveIdeaDraft(record.draftId, effectiveSaveRepoId);
+              }}
+              testId={`idea-save-intake-${record.draftId}`}
+            >
+              {saving ? 'Saving to intake...' : 'Save to intake'}
+            </Button>
           <Button
             disabled={disabled || saving}
             onClick={() => planningStore.removeIdea(record.draftId)}
@@ -161,11 +168,14 @@ function IdeaRecordEditor(props: {
 
         <label className="form-input" htmlFor={`idea-state-${record.draftId}`}>
           <span className="form-label">State</span>
-          <select id={`idea-state-${record.draftId}`} onChange={(event) => setState(event.target.value)} value={state}>
+          <select
+            id={`idea-state-${record.draftId}`}
+            onChange={(event) => setState(normalizeIdeaPlanningState(event.target.value))}
+            value={state}
+          >
             <option value="thought">thought</option>
             <option value="research">research</option>
             <option value="pre-plan">pre-plan</option>
-            <option value="queued">queued</option>
           </select>
         </label>
 
@@ -227,15 +237,15 @@ function IdeaRecordEditor(props: {
 
       {requiresSplit ? (
         <p className="state-message" data-testid={`idea-split-required-${record.draftId}`}>
-          This draft targets multiple repos. Split it into repo-specific drafts before saving to canonical backlog docs.
+          This draft targets multiple repos. Split it if you want repo-specific artifacts, or save one shared intake artifact that keeps all targets.
         </p>
       ) : effectiveSaveRepoId ? (
         <p className="planning-copy">
-          Save target: <code>{effectiveSaveRepoId}</code>
+          Save target: <code>{effectiveSaveRepoId}</code> → <code>docs/planning/intake/*.json</code>
         </p>
       ) : (
         <p className="state-message">
-          Choose a known Catalog repo before saving this draft to <code>docs/backlog.md</code>.
+          Choose a known Catalog repo before saving this draft to <code>docs/planning/intake/*.json</code>.
         </p>
       )}
     </article>
@@ -271,7 +281,7 @@ export default function PlanningIdeasPanel(props: {
   return (
     <div className="planning-grid" data-testid="planning-bullet-intake">
       <Panel
-        subtitle="Draft locally first, then save repo-specific backlog items to canonical docs/backlog.md once you have a Catalog repo target."
+        subtitle="Draft locally first, then save typed repo-backed intake artifacts under docs/planning/intake. Accepted work can later move into canonical docs/backlog.md."
         testId="planning-ideas-inbox-panel"
         title="Draft Intake"
       >
@@ -320,7 +330,7 @@ export default function PlanningIdeasPanel(props: {
             </p>
           ) : (
             <p className="planning-copy">
-              No Catalog repo is selected yet. You can keep drafting now, then open <strong>Catalog &gt; Assets</strong> later to pick a repo save target.
+              No Catalog repo is selected yet. You can keep drafting now, then open <strong>Catalog &gt; Assets</strong> later to pick a repo intake target.
             </p>
           )}
 
@@ -369,8 +379,8 @@ export default function PlanningIdeasPanel(props: {
         </div>
       </Panel>
 
-      <Panel
-        subtitle="Local drafts stay editable until you save them into a single repository backlog."
+        <Panel
+          subtitle="Local drafts stay editable until you save them into repo-backed planning intake artifacts."
         testId="planning-idea-records-panel"
         title="Draft Backlog Items"
       >

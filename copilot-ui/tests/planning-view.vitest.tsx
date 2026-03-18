@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => {
       repoLabel: 'Instruction Engine',
       sources: ['workspace', 'selected'],
     },
+    planningIntakeDirectory: null,
     repositoryBacklog: null,
     roadmapDirectory: null,
     query: '',
@@ -96,6 +97,35 @@ const mocks = vi.hoisted(() => {
       repoLabel: 'Instruction Engine',
       sources: ['workspace'],
     },
+    planningIntakeDirectory: {
+      canonicalName: 'Planning Intake',
+      repo: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\Repos\\instruction-engine',
+        repoLabel: 'Instruction Engine',
+      },
+      directoryPath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake',
+      repoRelativePath: 'docs/planning/intake',
+      stableIdPattern: 'PI-###',
+      supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'commit-prep'],
+    },
+    intakeArtifacts: [
+      {
+        kind: 'planning.intake.artifact',
+        schemaVersion: 1,
+        id: 'PI-001',
+        category: 'idea',
+        title: 'Capture planning intake',
+        summary: 'Persist unscheduled tracked work.',
+        acceptanceCriteria: ['Write tests'],
+        targetRepoIds: ['repo-1'],
+        planningState: 'thought',
+        createdAt: '2026-03-18T00:00:00.000Z',
+        updatedAt: '2026-03-18T00:00:00.000Z',
+        filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake\\PI-001.json',
+        repoRelativePath: 'docs/planning/intake/PI-001.json',
+      },
+    ],
     repositoryBacklog: {
       canonicalName: 'Repository Backlog',
       repo: {
@@ -140,6 +170,9 @@ const mocks = vi.hoisted(() => {
       },
     ],
     selectedRoadmapSlug: 'platform-foundation',
+    intakeLoading: false,
+    intakeError: null,
+    roadmapsLoading: false,
     loading: false,
     error: null,
   });
@@ -187,6 +220,7 @@ const mocks = vi.hoisted(() => {
     refreshPolicyPreflight: vi.fn(),
     listRecords: vi.fn(),
     applyCatalogRepoContext: vi.fn(),
+    loadWorkspaceIntake: vi.fn(),
     loadWorkspaceRoadmaps: vi.fn(),
     syncCatalogRepoContext: vi.fn(),
     setSelectedRoadmapSlug: vi.fn(),
@@ -252,6 +286,7 @@ vi.mock('../ui/src/tabs/Planning/planningStore', () => ({
 vi.mock('../ui/src/tabs/Planning/planningWorkspaceStore', () => ({
   planningWorkspaceStore: {
     ...mocks.planningWorkspaceStore,
+    loadIntakeArtifacts: mocks.loadWorkspaceIntake,
     loadRoadmaps: mocks.loadWorkspaceRoadmaps,
     syncCatalogRepoContext: mocks.syncCatalogRepoContext,
     setSelectedRoadmapSlug: mocks.setSelectedRoadmapSlug,
@@ -291,6 +326,7 @@ describe('PlanningView', () => {
       mocks.refreshPolicyPreflight,
       mocks.listRecords,
       mocks.applyCatalogRepoContext,
+      mocks.loadWorkspaceIntake,
       mocks.loadWorkspaceRoadmaps,
       mocks.syncCatalogRepoContext,
       mocks.setSelectedRoadmapSlug,
@@ -308,6 +344,7 @@ describe('PlanningView', () => {
         repoLabel: 'Instruction Engine',
         sources: ['workspace', 'selected'],
       },
+      planningIntakeDirectory: null,
       repositoryBacklog: null,
       roadmapDirectory: null,
       query: '',
@@ -374,6 +411,35 @@ describe('PlanningView', () => {
         repoLabel: 'Instruction Engine',
         sources: ['workspace'],
       },
+      planningIntakeDirectory: {
+        canonicalName: 'Planning Intake',
+        repo: {
+          repoId: 'repo-1',
+          repoPath: 'C:\\Repos\\instruction-engine',
+          repoLabel: 'Instruction Engine',
+        },
+        directoryPath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake',
+        repoRelativePath: 'docs/planning/intake',
+        stableIdPattern: 'PI-###',
+        supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'commit-prep'],
+      },
+      intakeArtifacts: [
+        {
+          kind: 'planning.intake.artifact',
+          schemaVersion: 1,
+          id: 'PI-001',
+          category: 'idea',
+          title: 'Capture planning intake',
+          summary: 'Persist unscheduled tracked work.',
+          acceptanceCriteria: ['Write tests'],
+          targetRepoIds: ['repo-1'],
+          planningState: 'thought',
+          createdAt: '2026-03-18T00:00:00.000Z',
+          updatedAt: '2026-03-18T00:00:00.000Z',
+          filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake\\PI-001.json',
+          repoRelativePath: 'docs/planning/intake/PI-001.json',
+        },
+      ],
       repositoryBacklog: {
         canonicalName: 'Repository Backlog',
         repo: {
@@ -418,6 +484,9 @@ describe('PlanningView', () => {
         },
       ],
       selectedRoadmapSlug: 'platform-foundation',
+      intakeLoading: false,
+      intakeError: null,
+      roadmapsLoading: false,
       loading: false,
       error: null,
     });
@@ -461,12 +530,13 @@ describe('PlanningView', () => {
     vi.resetModules();
   });
 
-  it('prioritizes backlog and roadmap surfaces from Catalog repo context and demotes legacy notes', async () => {
+  it('prioritizes intake, backlog, and roadmap surfaces from Catalog repo context and demotes legacy notes', async () => {
     const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
 
     render(<PlanningView />);
 
-    expect(screen.getByText('Repository Backlog + Roadmaps')).toBeInTheDocument();
+    expect(screen.getByText('Planning Intake + Backlog + Roadmaps')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-intake-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\planning\\intake');
     expect(screen.getByTestId('planning-backlog-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\backlog.md');
     expect(screen.getByTestId('planning-roadmap-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\roadmaps');
     expect(screen.getByTestId('planning-roadmap-list')).toHaveTextContent('Platform Foundation');
@@ -476,6 +546,7 @@ describe('PlanningView', () => {
     expect(screen.queryByTestId('research-notes-panel')).not.toBeInTheDocument();
     expect(mocks.applyCatalogRepoContext).toHaveBeenCalled();
     expect(mocks.syncCatalogRepoContext).toHaveBeenCalled();
+    expect(mocks.loadWorkspaceIntake).toHaveBeenCalled();
     expect(mocks.loadWorkspaceRoadmaps).toHaveBeenCalled();
 
     fireEvent.change(screen.getByTestId('planning-roadmap-select'), {
@@ -510,10 +581,15 @@ describe('PlanningView', () => {
     });
     mocks.planningWorkspaceStore.setState({
       catalogRepoContext: null,
+      planningIntakeDirectory: null,
+      intakeArtifacts: [],
       repositoryBacklog: null,
       roadmapDirectory: null,
       roadmaps: [],
       selectedRoadmapSlug: '',
+      intakeLoading: false,
+      intakeError: null,
+      roadmapsLoading: false,
       loading: false,
       error: null,
     });
@@ -523,8 +599,9 @@ describe('PlanningView', () => {
     render(<PlanningView />);
 
     expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
-    expect(screen.getByText('Select a repository in Catalog to resolve backlog and roadmap surfaces.')).toBeInTheDocument();
+    expect(screen.getAllByText('Select a repository in Catalog to resolve intake, backlog, and roadmap surfaces.').length).toBeGreaterThan(0);
     expect(mocks.applyCatalogRepoContext).toHaveBeenCalledWith(null);
+    expect(mocks.loadWorkspaceIntake).not.toHaveBeenCalled();
     expect(mocks.loadWorkspaceRoadmaps).not.toHaveBeenCalled();
   });
 });

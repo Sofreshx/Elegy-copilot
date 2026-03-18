@@ -1,8 +1,9 @@
 import {
+  buildPlanningIntakeDirectoryRef,
   buildPlanningRepositoryBacklogRef,
   buildPlanningRoadmapDirectoryRef,
   comparePlanningRecords,
-  createPlanningBacklogItem,
+  createPlanningIntakeArtifact,
   createPlanningRecord,
   createSdkSession,
   deletePlanningResearchNote,
@@ -24,6 +25,7 @@ import type {
   PlanningDiagram,
   PlanningCompareReceipt,
   PlanningCompareResponse,
+  PlanningIntakeDirectoryRef,
   PlanningMergeIntentToken,
   PlanningRecordItem,
   PlanningRepositoryBacklogRef,
@@ -76,6 +78,7 @@ export interface PlanningState {
   userId: string;
   repoId: string;
   catalogRepoContext: PlanningCatalogRepoContext | null;
+  planningIntakeDirectory: PlanningIntakeDirectoryRef | null;
   repositoryBacklog: PlanningRepositoryBacklogRef | null;
   roadmapDirectory: PlanningRoadmapDirectoryRef | null;
   query: string;
@@ -132,6 +135,7 @@ const INITIAL_STATE: PlanningState = {
   userId: '',
   repoId: '',
   catalogRepoContext: null,
+  planningIntakeDirectory: null,
   repositoryBacklog: null,
   roadmapDirectory: null,
   query: '',
@@ -437,19 +441,11 @@ function resolveDraftAcceptanceCriteria(
   return Array.isArray(draft.acceptanceCriteria) ? draft.acceptanceCriteria.map((entry) => String(entry || '').trim()).filter(Boolean) : [];
 }
 
-function buildDraftBacklogSummary(draft: Pick<PlanningDraftItem, 'summary' | 'acceptanceCriteriaText' | 'acceptanceCriteria'>): string {
-  const sections: string[] = [];
-  const summary = String(draft.summary || '').trim();
-  if (summary) {
-    sections.push(summary);
-  }
-
-  const acceptanceCriteria = resolveDraftAcceptanceCriteria(draft);
-  if (acceptanceCriteria.length > 0) {
-    sections.push(`Acceptance criteria:\n${acceptanceCriteria.map((entry) => `- ${entry}`).join('\n')}`);
-  }
-
-  return sections.join('\n\n').trim();
+function normalizeIdeaPlanningState(value: unknown): string {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'research') return 'research';
+  if (normalized === 'pre-plan') return 'pre-plan';
+  return 'thought';
 }
 
 function resolveDraftSaveRepoId(
@@ -532,6 +528,11 @@ export function createPlanningStore() {
 
   function applyCatalogRepoContext(repo: Partial<CatalogRepoInventoryEntry> | null | undefined): void {
     const catalogRepoContext = normalizeCatalogRepoContext(repo);
+    const planningIntakeDirectory = buildPlanningIntakeDirectoryRef({
+      repoId: catalogRepoContext?.repoId || undefined,
+      repoPath: catalogRepoContext?.repoPath || undefined,
+      repoLabel: catalogRepoContext?.repoLabel || undefined,
+    });
     const repositoryBacklog = buildPlanningRepositoryBacklogRef({
       repoId: catalogRepoContext?.repoId || undefined,
       repoPath: catalogRepoContext?.repoPath || undefined,
@@ -546,6 +547,7 @@ export function createPlanningStore() {
     store.setState((state) => ({
       ...state,
       catalogRepoContext,
+      planningIntakeDirectory,
       repositoryBacklog,
       roadmapDirectory,
       draftIdeas: state.draftIdeas.map((draft) => {
@@ -1345,7 +1347,7 @@ export function createPlanningStore() {
 
     const stateSnapshot = store.getState();
     if (stateSnapshot.mutatingBlocked) {
-      setStatus(`Backlog save blocked: ${stateSnapshot.mutatingReason || 'policy gate active'}.`);
+      setStatus(`Planning intake save blocked: ${stateSnapshot.mutatingReason || 'policy gate active'}.`);
       return;
     }
 
@@ -1357,17 +1359,13 @@ export function createPlanningStore() {
 
     const title = String(draft.title || '').trim();
     if (!title) {
-      setStatus('Saving to backlog requires a draft title.');
+      setStatus('Saving to planning intake requires a draft title.');
       return;
     }
 
     const targetRepoIds = Array.isArray(draft.targetRepoIds)
       ? draft.targetRepoIds.map((entry) => String(entry || '').trim()).filter(Boolean)
       : [];
-    if (targetRepoIds.length > 1) {
-      setStatus('Split multi-repo drafts before saving to a repository backlog.');
-      return;
-    }
 
     const repoId = resolveDraftSaveRepoId(
       {
@@ -1377,7 +1375,7 @@ export function createPlanningStore() {
       stateSnapshot.catalogRepoContext?.repoId || '',
     );
     if (!repoId) {
-      setStatus('Choose a Catalog repo before saving this draft to the repository backlog.');
+      setStatus('Choose a Catalog repo before saving this draft to planning intake.');
       return;
     }
 
@@ -1385,39 +1383,40 @@ export function createPlanningStore() {
       ...state,
       savingIdeaId: normalizedRecordId,
       error: null,
-      statusMessage: `Saving draft to repository backlog for ${repoId}...`,
+      statusMessage: `Saving draft to planning intake for ${repoId}...`,
     }));
 
     try {
-      const response = await createPlanningBacklogItem({
+      const response = await createPlanningIntakeArtifact({
         repoId,
-        item: {
+        artifact: {
+          category: 'idea',
           title,
-          summary: buildDraftBacklogSummary(draft) || undefined,
-          status: 'proposed',
-          roadmapIds: [],
-          keyPoints: [],
+          summary: String(draft.summary || '').trim(),
+          acceptanceCriteria: resolveDraftAcceptanceCriteria(draft),
+          targetRepoIds,
+          planningState: normalizeIdeaPlanningState(draft.state),
         },
       });
-      const createdBacklogId = String(response.item?.id || '').trim();
+      const createdArtifactId = String(response.artifact?.id || '').trim();
 
       store.setState((state) => ({
         ...state,
         savingIdeaId: null,
         draftIdeas: state.draftIdeas.filter((entry) => entry.draftId !== normalizedRecordId),
         selectedIdeaIds: state.selectedIdeaIds.filter((draftId) => draftId !== normalizedRecordId),
-        statusMessage: createdBacklogId
-          ? `Saved draft to Repository Backlog as ${createdBacklogId} for ${repoId}.`
-          : `Saved draft to Repository Backlog for ${repoId}.`,
+        statusMessage: createdArtifactId
+          ? `Saved draft to Planning Intake as ${createdArtifactId} for ${repoId}.`
+          : `Saved draft to Planning Intake for ${repoId}.`,
       }));
     } catch (error) {
-      const message = toErrorMessage(error, 'Unable to save draft to the repository backlog.');
+      const message = toErrorMessage(error, 'Unable to save draft to planning intake.');
 
       store.setState((state) => ({
         ...state,
         savingIdeaId: null,
         error: message,
-        statusMessage: `Backlog save failed: ${message}`,
+        statusMessage: `Planning intake save failed: ${message}`,
       }));
     }
   }

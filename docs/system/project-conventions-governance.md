@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-03-13
+updated: 2026-03-18
 category: system
 status: current
 doc_kind: node
@@ -29,6 +29,27 @@ The default posture is **audit/propose first**:
 - surface gaps, conflicts, and drift
 - propose updates before mutating any source of truth
 - edit convention artifacts only when the user or an approved execution workflow explicitly asks
+
+## Entrypoint Workflow
+
+Use this node as the canonical policy entrypoint for repository conventions.
+
+For humans:
+
+1. start at `docs/system/index.md`
+2. open `docs/system/mocs/conventions-and-governance.md`
+3. read this node when the question is primarily "what are the rules, conventions, or governance expectations?"
+
+For AI or structured workflows:
+
+1. load this node first for convention policy, precedence, and output shape
+2. add `docs/system/documentation-structure-governance.md` only when discoverability, entrypoints, or
+   information architecture are part of the task
+3. add `docs/system/follow-up-discovery-governance.md` only when confirmed convention gaps need
+   planning-ready follow-up or backlog routing
+
+This keeps the route compact while preserving a consistent source-of-truth path for both humans and
+agents.
 
 ## Responsibilities
 
@@ -72,6 +93,19 @@ The conventions governance lane should work in this sequence:
 
 If a request is purely evaluative, the output should stop at audit/proposal.
 
+## Discoverability and Consistency Contract
+
+Convention guidance should be easy to locate without requiring hidden prompt context.
+
+- human-facing entrypoints should route through the system index and the governance MOC before opening
+  atomic rules
+- AI-facing entrypoints should rely on the same canonical nodes instead of carrying separate rule
+  copies in prompt text
+- convention docs should prefer minimal routing updates over duplicate policy summaries spread across
+  many files
+- local flexibility is allowed only when it does not conflict with explicit canonical rules or create
+  ambiguous outcomes
+
 ## Routing
 
 Route requests here when the user asks to:
@@ -89,6 +123,19 @@ Do not route here when the request is primarily:
 
 When the intent is explicit, this is a deterministic route and should not require broad capability
 search first.
+
+## Follow-Up Boundary
+
+This lane may identify missing standards, unclear rules, or convention drift that should become later
+planning or backlog inputs. It should not directly expand into broad planning execution on its own.
+
+When convention work produces validated next steps:
+
+1. keep the convention decision in canonical governance docs
+2. route concrete remaining-work or backlog-worthy items through
+   `docs/system/follow-up-discovery-governance.md`
+3. let approved planning artifacts consume that follow-up output later through the normal planning
+   contract rather than embedding planning state in this governance node
 
 ## Output Contract
 

@@ -5,6 +5,7 @@ import {
   disableCatalogAsset,
   enableCatalogAsset,
   getAssetView,
+  getCatalogAssetAnalytics,
   getCatalogAssetDetail,
   getCatalogAssets,
   getCatalogAuditEvents,
@@ -14,6 +15,7 @@ import {
   getRuntimeCatalogHealth,
   installCatalogProvider,
   installCatalogAsset,
+  uninstallCatalogBundle,
   refreshCatalogProjection,
   refreshCatalogRepo,
   registerCatalogRepo,
@@ -27,10 +29,12 @@ import {
 } from '../../lib/api';
 import type {
   CatalogActivationMutationResponse,
+  CatalogAssetAuditAnalytics,
   CatalogAssetDetailResponse,
   CatalogAssetMutationResponse,
   CatalogAuditEvent,
   CatalogBundle,
+  CatalogBundleUninstallResponse,
   CatalogEffectiveAsset,
   CatalogEntry,
   CatalogRepoInventoryEntry,
@@ -85,6 +89,9 @@ export interface CatalogWorkspaceState {
   auditEvents: CatalogAuditEvent[];
   auditLoading: boolean;
   auditError: string | null;
+  auditAnalytics: CatalogAssetAuditAnalytics | null;
+  auditAnalyticsLoading: boolean;
+  auditAnalyticsError: string | null;
   searchQuery: string;
   searchResults: CatalogSearchResult[];
   searchLoading: boolean;
@@ -136,6 +143,9 @@ const INITIAL_STATE: CatalogWorkspaceState = {
   auditEvents: [],
   auditLoading: false,
   auditError: null,
+  auditAnalytics: null,
+  auditAnalyticsLoading: false,
+  auditAnalyticsError: null,
   searchQuery: '',
   searchResults: [],
   searchLoading: false,
@@ -185,6 +195,26 @@ function normalizeSearchResults(input: CatalogSearchResult[] | undefined): Catal
   return Array.isArray(input)
     ? input.filter((result): result is CatalogSearchResult => Boolean(result?.assetId))
     : [];
+}
+
+function normalizeAuditAnalytics(input: CatalogAssetAuditAnalytics | null | undefined): CatalogAssetAuditAnalytics | null {
+  if (!input || typeof input !== 'object') {
+    return null;
+  }
+
+  return {
+    ...input,
+    assets: Array.isArray(input.assets)
+      ? input.assets.filter((asset) => Boolean(asset?.assetId))
+      : [],
+    repos: Array.isArray(input.repos)
+      ? input.repos
+      : [],
+    sessions: Array.isArray(input.sessions)
+      ? input.sessions
+      : [],
+    recentEvents: normalizeAuditEvents(input.recentEvents),
+  };
 }
 
 function normalizeRepoPath(input: string | null | undefined): string {
@@ -323,6 +353,7 @@ function createCatalogWorkspaceStore() {
   let workspaceRequestVersion = 0;
   let detailRequestVersion = 0;
   let auditRequestVersion = 0;
+  let auditAnalyticsRequestVersion = 0;
   let searchRequestVersion = 0;
 
   function selector(state = store.getState()) {
@@ -510,6 +541,57 @@ function createCatalogWorkspaceStore() {
     }
   }
 
+  async function loadAuditAnalytics(
+    selectorOverride?: { repoId?: string; repoPath?: string }
+  ): Promise<void> {
+    const nextVersion = ++auditAnalyticsRequestVersion;
+    const requestSelector = selectorOverride ?? selector();
+    const summaryRepoContext =
+      store.getState().summary?.repoContext && typeof store.getState().summary.repoContext === 'object'
+        ? store.getState().summary.repoContext
+        : null;
+    const repoId =
+      requestSelector.repoId ||
+      (typeof summaryRepoContext?.repoId === 'string' ? summaryRepoContext.repoId : undefined);
+    const repoPath =
+      requestSelector.repoPath ||
+      (typeof summaryRepoContext?.repoPath === 'string' ? summaryRepoContext.repoPath : undefined);
+
+    store.setState((state) => ({
+      ...state,
+      auditAnalyticsLoading: true,
+      auditAnalyticsError: null,
+    }));
+
+    try {
+      const response = await getCatalogAssetAnalytics({
+        ...(repoId ? { repoId } : {}),
+        ...(repoPath ? { repoPath } : {}),
+        limit: CATALOG_AUDIT_EVENT_LIMIT,
+      });
+      if (nextVersion !== auditAnalyticsRequestVersion) {
+        return;
+      }
+
+      store.setState((state) => ({
+        ...state,
+        auditAnalytics: normalizeAuditAnalytics(response.analytics),
+        auditAnalyticsLoading: false,
+        auditAnalyticsError: null,
+      }));
+    } catch (error) {
+      if (nextVersion !== auditAnalyticsRequestVersion) {
+        return;
+      }
+
+      store.setState((state) => ({
+        ...state,
+        auditAnalyticsLoading: false,
+        auditAnalyticsError: toErrorMessage(error, 'Unable to load catalog audit analytics.'),
+      }));
+    }
+  }
+
   async function selectAsset(assetId: string): Promise<void> {
     if (!assetId.trim()) {
       return;
@@ -521,7 +603,11 @@ function createCatalogWorkspaceStore() {
     }));
 
     const requestSelector = selector();
-    await Promise.all([loadAssetDetail(assetId, requestSelector), loadAuditEvents(assetId, requestSelector)]);
+    await Promise.all([
+      loadAssetDetail(assetId, requestSelector),
+      loadAuditEvents(assetId, requestSelector),
+      loadAuditAnalytics(requestSelector),
+    ]);
   }
 
   async function inspectSearchResult(result: CatalogSearchResult): Promise<void> {
@@ -706,11 +792,18 @@ function createCatalogWorkspaceStore() {
     }));
 
     if (selectedAssetId) {
-      await Promise.all([loadAssetDetail(selectedAssetId, requestSelector), loadAuditEvents(selectedAssetId, requestSelector)]);
+      await Promise.all([
+        loadAssetDetail(selectedAssetId, requestSelector),
+        loadAuditEvents(selectedAssetId, requestSelector),
+        loadAuditAnalytics(requestSelector),
+      ]);
       return;
     }
 
-    await loadAuditEvents(null, requestSelector);
+    await Promise.all([
+      loadAuditEvents(null, requestSelector),
+      loadAuditAnalytics(requestSelector),
+    ]);
   }
 
   async function refreshWorkspace(): Promise<void> {
@@ -822,6 +915,57 @@ function createCatalogWorkspaceStore() {
         installing: false,
         error: toErrorMessage(error, 'Unable to install bundle.'),
         installMessage: `Bundle install failed for ${normalizedBundleId}.`,
+      }));
+      throw error;
+    }
+  }
+
+  async function uninstallBundle(bundleId: string): Promise<CatalogBundleUninstallResponse> {
+    const normalizedBundleId = bundleId.trim();
+    if (!normalizedBundleId) {
+      return {
+        action: 'bundle-uninstall-skipped',
+        bundleId: normalizedBundleId,
+      };
+    }
+
+    const currentBundle =
+      normalizeBundles(store.getState().bundles).find((bundle) => bundle.bundleId === normalizedBundleId) ?? null;
+    const bundleLabel = currentBundle?.title || normalizedBundleId;
+
+    store.setState((state) => ({
+      ...state,
+      installing: true,
+      error: null,
+      installMessage: `Uninstalling bundle ${bundleLabel}...`,
+    }));
+
+    try {
+      const response = await uninstallCatalogBundle({
+        ...selector(),
+        bundleId: normalizedBundleId,
+      });
+      const removedAssetIds = Array.isArray(response.removedAssetIds)
+        ? response.removedAssetIds.filter((assetId): assetId is string => typeof assetId === 'string' && assetId.trim().length > 0)
+        : [];
+      const removedCount = removedAssetIds.length || Number(response.removedCount ?? 0);
+      await loadWorkspace();
+      store.setState((state) => ({
+        ...state,
+        installing: false,
+        installMessage:
+          `${removedCount > 0
+            ? `Uninstalled ${removedCount} bundle asset(s) from ${bundleLabel}.`
+            : `Bundle uninstall completed for ${bundleLabel}.`}`
+          + `${response.preserveExternalPackages ? ' External provider packages were preserved.' : ''}`,
+      }));
+      return response;
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        installing: false,
+        error: toErrorMessage(error, 'Unable to uninstall bundle.'),
+        installMessage: `Bundle uninstall failed for ${bundleLabel}.`,
       }));
       throw error;
     }
@@ -1059,6 +1203,7 @@ function createCatalogWorkspaceStore() {
         searchError: null,
         searchResults: normalizeSearchResults(response.results),
       }));
+      await loadAuditAnalytics(selector());
     } catch (error) {
       if (nextVersion !== searchRequestVersion) {
         return;
@@ -1421,6 +1566,7 @@ function createCatalogWorkspaceStore() {
     refreshWorkspace,
     installAll,
     installBundle,
+    uninstallBundle,
     createAsset,
     updateAsset,
     deleteAsset,

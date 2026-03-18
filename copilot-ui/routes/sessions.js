@@ -5,6 +5,7 @@ const path = require('path');
 
 const sessionsLib = require('../lib/sessions');
 const assetsLib = require('../lib/assets');
+const assetInvocationAuditLib = require('../lib/assetInvocationAudit');
 const planStateLib = require('../lib/planState');
 const repoInventoryLib = require('../lib/repoInventoryService');
 const roadmapArtifactsLib = require('../lib/roadmapArtifacts');
@@ -170,7 +171,15 @@ function handleSessionEvents(ctx, deps) {
 
 function handleSessionAgentUsage(ctx, deps) {
   const { req, res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
-  const { sendJson, parseNumberQuery, resolveSessionsHome, isValidSessionId, sessions, path } = deps;
+  const {
+    sendJson,
+    parseNumberQuery,
+    resolveSessionsHome,
+    isValidSessionId,
+    sessions,
+    assetInvocationAudit,
+    path,
+  } = deps;
 
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
@@ -179,7 +188,12 @@ function handleSessionAgentUsage(ctx, deps) {
   const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
   const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
   const usage = sessions.getAgentUsage(sessionDir, limit);
-  sendJson(res, 200, { id, source: home.source, usage });
+  const skillUsage = assetInvocationAudit.getSessionSkillUsageSummary({
+    copilotHome: path.resolve(home.home),
+    sessionId: id,
+    limit: Math.max(limit * 4, 200),
+  });
+  sendJson(res, 200, { id, source: home.source, usage, skillUsage });
 }
 
 function handleSessionPlan(ctx, deps) {
@@ -507,6 +521,7 @@ function register(deps = {}) {
     path: deps.path || path,
     sessions: deps.sessions || sessionsLib,
     assets: deps.assets || assetsLib,
+    assetInvocationAudit: deps.assetInvocationAudit || assetInvocationAuditLib,
     planState: deps.planState || planStateLib,
     repoInventory: deps.repoInventory || repoInventoryLib,
     roadmapArtifacts: deps.roadmapArtifacts || roadmapArtifactsLib,

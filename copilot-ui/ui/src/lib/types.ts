@@ -137,6 +137,26 @@ export interface SessionAgentUsageResponse {
   id: string;
   source: string;
   usage: Record<string, number>;
+  skillUsage?: SessionSkillUsageSummary | null;
+  [key: string]: unknown;
+}
+
+export interface SessionSkillUsageEntry {
+  assetId: string;
+  assetKey?: string | null;
+  assetKind?: string | null;
+  invocationCount: number;
+  lastInvokedAt?: string | null;
+  toolNames?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionSkillUsageSummary {
+  contractVersion?: string;
+  sessionId?: string | null;
+  totalInvocations: number;
+  uniqueSkillCount: number;
+  skills: SessionSkillUsageEntry[];
   [key: string]: unknown;
 }
 
@@ -441,6 +461,8 @@ export interface CatalogBundleMember {
   available?: boolean;
   installed?: boolean;
   enabled?: boolean;
+  loadMode?: string | null;
+  defaultLoadMode?: string | null;
   missing?: boolean;
   [key: string]: unknown;
 }
@@ -463,8 +485,12 @@ export interface CatalogBundle {
   activationStatus?: string;
   activationSource?: string | null;
   materialization?: string;
+  classification?: string | null;
+  targeting?: Record<string, unknown>;
   defaultRecommended?: boolean;
   dependsOn?: string[];
+  defaultMemberLoadMode?: string | null;
+  uninstallPolicy?: Record<string, unknown>;
   status?: string;
   selected?: boolean;
   members?: CatalogBundleMember[];
@@ -625,6 +651,8 @@ export interface CatalogBundleMember {
   installed?: boolean;
   enabled?: boolean;
   selectedLayer?: string | null;
+  loadMode?: string | null;
+  defaultLoadMode?: string | null;
   missing?: boolean;
   [key: string]: unknown;
 }
@@ -646,9 +674,16 @@ export interface CatalogBundle {
   installTarget?: string;
   activationScope?: string;
   materialization?: string;
+  classification?: string | null;
+  targeting?: Record<string, unknown>;
   tags?: string[];
   defaultRecommended?: boolean;
   dependsOn?: string[];
+  defaultMemberLoadMode?: string | null;
+  uninstallPolicy?: Record<string, unknown>;
+  activationStatus?: string;
+  activationSource?: string | null;
+  selected?: boolean;
   status?: string;
   stats?: CatalogBundleStats;
   members?: CatalogBundleMember[];
@@ -837,6 +872,123 @@ export interface CatalogAuditEventsResponse {
   [key: string]: unknown;
 }
 
+export interface CatalogAuditSearchSummary {
+  queryCount?: number;
+  searchedCount?: number;
+  resultCount?: number;
+  selectedCount?: number;
+  missCount?: number;
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditAssetSearchSummary {
+  sampled?: CatalogAuditSearchSummary | null;
+  lastEventAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditUsageSummary {
+  invocationCount?: number;
+  explicitInvocationCount?: number;
+  proxyInvocationCount?: number;
+  proxyInferredCount?: number;
+  sessionCount?: number;
+  repoCount?: number;
+  evidence?: string;
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditAssetSummary {
+  assetId: string;
+  assetKey?: string | null;
+  kind?: string | null;
+  current?: {
+    enabled?: boolean;
+    installed?: boolean;
+    available?: boolean;
+    recommended?: boolean;
+    selectedLayer?: string | null;
+    scope?: CatalogScope | null;
+    title?: string | null;
+    description?: string | null;
+    [key: string]: unknown;
+  };
+  lifecycle?: {
+    counts?: Record<string, number>;
+    lastEventAt?: string | null;
+    [key: string]: unknown;
+  };
+  search?: CatalogAuditAssetSearchSummary | null;
+  usage?: CatalogAuditUsageSummary | null;
+  activity?: {
+    repoIds?: string[];
+    sessionIds?: string[];
+    [key: string]: unknown;
+  };
+  recentEvents?: CatalogAuditEvent[];
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditRepoSummary {
+  repoId?: string | null;
+  repoLabel?: string | null;
+  assetIds?: string[];
+  sessionIds?: string[];
+  lifecycle?: Record<string, number>;
+  search?: CatalogAuditSearchSummary | null;
+  usage?: CatalogAuditUsageSummary | null;
+  lastEventAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditSessionSummary {
+  sessionId?: string | null;
+  status?: string | null;
+  startTime?: string | null;
+  lastEventTime?: string | null;
+  repoId?: string | null;
+  repoLabel?: string | null;
+  assetIds?: string[];
+  search?: CatalogAuditSearchSummary | null;
+  usage?: CatalogAuditUsageSummary | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogAssetAuditAnalytics {
+  contractVersion?: string;
+  generatedAt?: string;
+  deterministic?: boolean;
+  filters?: Record<string, unknown>;
+  telemetry?: {
+    contractVersion?: string | null;
+    sample?: Record<string, unknown> | null;
+    countersByEventType?: Record<string, number>;
+    countersByMissReason?: Record<string, number>;
+    [key: string]: unknown;
+  };
+  stats?: {
+    assetCount?: number;
+    repoCount?: number;
+    sessionCount?: number;
+    auditEventCount?: number;
+    sampledSearchEventCount?: number;
+    [key: string]: unknown;
+  };
+  assets: CatalogAuditAssetSummary[];
+  repos: CatalogAuditRepoSummary[];
+  sessions: CatalogAuditSessionSummary[];
+  recentEvents: CatalogAuditEvent[];
+  [key: string]: unknown;
+}
+
+export interface CatalogAssetAuditAnalyticsResponse {
+  kind?: string;
+  deterministic?: boolean;
+  snapshot?: CatalogSnapshotEnvelope | null;
+  analytics?: CatalogAssetAuditAnalytics | null;
+  [key: string]: unknown;
+}
+
 export interface RuntimeCatalogHealthResponse {
   kind?: string;
   deterministic?: boolean;
@@ -917,6 +1069,26 @@ export interface CatalogActivationMutationResponse {
   activeBundleIds?: string[];
   scope?: CatalogScope;
   repoId?: string | null;
+  refreshes?: CatalogMutationRefreshResult[];
+  audit?: CatalogMutationAuditResult;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundleUninstallResponse {
+  kind?: string;
+  deterministic?: boolean;
+  action?: string;
+  bundleId?: string;
+  scope?: CatalogScope;
+  repoId?: string | null;
+  removedAssetIds?: string[];
+  removedPaths?: string[];
+  removedCount?: number;
+  skippedAssetIds?: string[];
+  activationStateCleared?: boolean;
+  repoActivationCleared?: boolean;
+  overlayStateCleared?: boolean;
+  preserveExternalPackages?: boolean;
   refreshes?: CatalogMutationRefreshResult[];
   audit?: CatalogMutationAuditResult;
   [key: string]: unknown;
@@ -1115,12 +1287,68 @@ export interface PlanningRepositoryBacklogRef {
   stableIdPattern: 'RB-###';
 }
 
+export type PlanningIntakeCategory =
+  | 'idea'
+  | 'research'
+  | 'refactor-candidate'
+  | 'design-complaint'
+  | 'audit-request'
+  | 'roadmap-request'
+  | 'commit-prep';
+
+export interface PlanningIntakeDirectoryRef {
+  canonicalName: 'Planning Intake';
+  repo: PlanningRepoSummary;
+  directoryPath: string;
+  repoRelativePath: 'docs/planning/intake';
+  stableIdPattern: 'PI-###';
+  supportedCategories: PlanningIntakeCategory[];
+}
+
 export interface PlanningRoadmapDirectoryRef {
   canonicalName: 'Roadmap';
   repo: PlanningRepoSummary;
   directoryPath: string;
   repoRelativePath: 'docs/roadmaps';
   stableIdPattern: 'RM-<roadmap-slug>-###';
+}
+
+export interface PlanningIntakeArtifact {
+  kind: 'planning.intake.artifact';
+  schemaVersion: number;
+  id: string;
+  category: PlanningIntakeCategory;
+  title: string;
+  summary: string;
+  acceptanceCriteria: string[];
+  targetRepoIds: string[];
+  planningState?: string;
+  createdAt: string;
+  updatedAt: string;
+  filePath: string;
+  repoRelativePath: string;
+}
+
+export interface PlanningIntakeSummary {
+  directoryPath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  artifactCount: number;
+  stableIdPattern?: string;
+  supportedCategories: PlanningIntakeCategory[];
+  [key: string]: unknown;
+}
+
+export interface PlanningIntakeArtifactsResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  count?: number;
+  intake: PlanningIntakeSummary;
+  artifacts: PlanningIntakeArtifact[];
+  artifact?: PlanningIntakeArtifact | null;
+  [key: string]: unknown;
 }
 
 export interface PlanningRoadmapItem {

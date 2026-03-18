@@ -240,6 +240,90 @@ function normalizeList(values) {
     .filter(Boolean);
 }
 
+function uniqueStrings(values) {
+  return Array.from(new Set(normalizeList(values)));
+}
+
+const SUPPORTED_BUNDLE_CLASSIFICATIONS = new Set(['language', 'scope', 'workflow', 'core']);
+const SUPPORTED_SCOPE_KINDS = new Set(['global', 'user', 'repo', 'workspace', 'framework']);
+const SUPPORTED_BUNDLE_LOAD_MODES = new Set(['always', 'on-demand', 'manual']);
+
+function normalizeBundleClassification(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return SUPPORTED_BUNDLE_CLASSIFICATIONS.has(normalized) ? normalized : null;
+}
+
+function deriveBundleClassification(bundle) {
+  const explicitClassification = normalizeBundleClassification(
+    bundle?.classification || bundle?.bundleClassification || bundle?.kind
+  );
+  if (explicitClassification) {
+    return explicitClassification;
+  }
+
+  const tags = normalizeList(bundle?.tags).map((value) => value.toLowerCase());
+  if (tags.includes('core')) {
+    return 'core';
+  }
+  if (tags.includes('workflow') || tags.includes('orchestration') || tags.includes('planning')) {
+    return 'workflow';
+  }
+  if (tags.includes('repo') || tags.includes('workspace') || tags.includes('scope')) {
+    return 'scope';
+  }
+  return null;
+}
+
+function normalizeBundleLoadMode(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return SUPPORTED_BUNDLE_LOAD_MODES.has(normalized) ? normalized : null;
+}
+
+function normalizeBundleTargeting(bundle) {
+  const source = bundle?.targeting && typeof bundle.targeting === 'object' ? bundle.targeting : {};
+  const frameworks = uniqueStrings(source.frameworks || bundle?.frameworks);
+  const stacks = uniqueStrings(source.stacks || bundle?.stacks);
+  const languages = uniqueStrings(source.languages || bundle?.languages);
+  const tags = uniqueStrings([
+    ...normalizeList(source.tags),
+    ...normalizeList(bundle?.tags),
+  ]);
+  const scopeKinds = uniqueStrings(source.scopeKinds || bundle?.scopeKinds)
+    .map((value) => value.toLowerCase())
+    .filter((value) => SUPPORTED_SCOPE_KINDS.has(value));
+
+  const targeting = {};
+  if (frameworks.length > 0) {
+    targeting.frameworks = frameworks;
+  }
+  if (stacks.length > 0) {
+    targeting.stacks = stacks;
+  }
+  if (languages.length > 0) {
+    targeting.languages = languages;
+  }
+  if (tags.length > 0) {
+    targeting.tags = tags;
+  }
+  if (scopeKinds.length > 0) {
+    targeting.scopeKinds = scopeKinds;
+  }
+
+  return Object.keys(targeting).length > 0 ? targeting : undefined;
+}
+
+function buildBundleUninstallPolicy(bundle, classification) {
+  const source = bundle?.uninstallPolicy && typeof bundle.uninstallPolicy === 'object'
+    ? bundle.uninstallPolicy
+    : {};
+  return {
+    removesInstalledMembers: source.removesInstalledMembers !== false,
+    clearsActivationState: source.clearsActivationState !== false,
+    clearsRepoOverlayState: source.clearsRepoOverlayState !== false,
+    preservesExternalPackages: source.preservesExternalPackages !== false,
+  };
+}
+
 function splitCommaSeparated(value) {
   return String(value || '')
     .split(',')
@@ -624,6 +708,9 @@ function normalizeManifestBundles(manifest) {
     .map((bundle) => {
       const bundleId = String(bundle.id || bundle.bundleId || '').trim();
       const title = String(bundle.title || '').trim() || humanizeAssetKey(bundleId);
+      const classification = deriveBundleClassification(bundle);
+      const defaultMemberLoadMode = normalizeBundleLoadMode(bundle.defaultMemberLoadMode)
+        || (classification === 'core' ? 'always' : null);
       return {
         bundleId,
         title,
@@ -632,9 +719,13 @@ function normalizeManifestBundles(manifest) {
         installTarget: String(bundle.installTarget || '').trim() || null,
         activationScope: String(bundle.activationScope || '').trim() || null,
         materialization: String(bundle.materialization || '').trim() || null,
+        classification,
+        targeting: normalizeBundleTargeting(bundle),
         tags: normalizeList(bundle.tags),
         defaultRecommended: bundle.defaultRecommended === true,
         dependsOn: normalizeList(bundle.dependsOn),
+        defaultMemberLoadMode,
+        uninstallPolicy: buildBundleUninstallPolicy(bundle, classification),
       };
     })
     .filter((bundle) => bundle.bundleId);
@@ -1465,6 +1556,14 @@ function buildBundleMember(bundle, assetId, effectiveById, sourceEntriesById, ma
     effectiveAsset?.selectedEntry?.title ||
     sourceEntry?.title ||
     humanizeAssetKey(assetKey || assetId);
+  const loadMode = effectiveAsset?.installState?.loadMode
+    || sourceEntry?.installState?.loadMode
+    || normalizeBundleLoadMode(manifestAsset?.loadMode)
+    || null;
+  const defaultLoadMode = bundle.defaultMemberLoadMode
+    || normalizeBundleLoadMode(manifestAsset?.loadMode)
+    || loadMode
+    || null;
 
   return {
     assetId,
@@ -1475,6 +1574,8 @@ function buildBundleMember(bundle, assetId, effectiveById, sourceEntriesById, ma
     installed: Boolean(effectiveAsset?.installed),
     enabled: Boolean(effectiveAsset?.enabled),
     selectedLayer: effectiveAsset?.selectedLayer || null,
+    loadMode,
+    defaultLoadMode,
     missing: !effectiveAsset,
   };
 }
@@ -1526,9 +1627,13 @@ function buildBundleProjection(manifestBundles, effectiveAssets, sourceEntriesBy
       installTarget: bundle.installTarget,
       activationScope: bundle.activationScope,
       materialization: bundle.materialization,
+      classification: bundle.classification,
+      targeting: bundle.targeting ? { ...bundle.targeting } : undefined,
       tags: [...bundle.tags],
       defaultRecommended: bundle.defaultRecommended,
       dependsOn: [...bundle.dependsOn],
+      defaultMemberLoadMode: bundle.defaultMemberLoadMode,
+      uninstallPolicy: bundle.uninstallPolicy ? { ...bundle.uninstallPolicy } : undefined,
       status: resolveBundleStatus(stats),
       stats,
       members,
@@ -1714,12 +1819,19 @@ function collectSearchTerms(asset) {
 }
 
 function collectBundleSearchTerms(bundle) {
+  const targeting = bundle?.targeting && typeof bundle.targeting === 'object' ? bundle.targeting : {};
   const terms = [
     bundle.bundleId,
     bundle.title,
     bundle.description,
+    bundle.classification,
     bundle.status,
     ...(Array.isArray(bundle.tags) ? bundle.tags : []),
+    ...normalizeList(targeting.languages),
+    ...normalizeList(targeting.frameworks),
+    ...normalizeList(targeting.stacks),
+    ...normalizeList(targeting.tags),
+    ...normalizeList(targeting.scopeKinds),
     ...(Array.isArray(bundle.assetIds) ? bundle.assetIds : []),
     ...(Array.isArray(bundle.dependsOn) ? bundle.dependsOn : []),
   ];
@@ -1791,10 +1903,47 @@ function queryCatalogEntries(snapshot, filters = {}) {
 function queryCatalogBundles(snapshot, filters = {}) {
   const bundles = Array.isArray(snapshot?.bundles) ? snapshot.bundles : [];
   const includeText = String(filters.text || '').trim().toLowerCase();
+  const classificationFilter = String(filters.classification || '').trim().toLowerCase();
+  const languageFilter = String(filters.language || '').trim().toLowerCase();
+  const frameworkFilter = String(filters.framework || '').trim().toLowerCase();
+  const stackFilter = String(filters.stack || '').trim().toLowerCase();
+  const tagFilter = String(filters.tag || '').trim().toLowerCase();
+  const scopeKindFilter = String(filters.scopeKind || '').trim().toLowerCase();
 
   return bundles.filter((bundle) => {
+    const targeting = bundle?.targeting && typeof bundle.targeting === 'object' ? bundle.targeting : {};
     if (filters.bundleId && bundle.bundleId !== filters.bundleId) {
       return false;
+    }
+    if (classificationFilter && String(bundle.classification || '').trim().toLowerCase() !== classificationFilter) {
+      return false;
+    }
+    if (languageFilter && !normalizeList(targeting.languages).some((value) => value.toLowerCase() === languageFilter)) {
+      return false;
+    }
+    if (frameworkFilter && !normalizeList(targeting.frameworks).some((value) => value.toLowerCase() === frameworkFilter)) {
+      return false;
+    }
+    if (stackFilter && !normalizeList(targeting.stacks).some((value) => value.toLowerCase() === stackFilter)) {
+      return false;
+    }
+    if (tagFilter) {
+      const tags = new Set([
+        ...normalizeList(bundle.tags).map((value) => value.toLowerCase()),
+        ...normalizeList(targeting.tags).map((value) => value.toLowerCase()),
+      ]);
+      if (!tags.has(tagFilter)) {
+        return false;
+      }
+    }
+    if (scopeKindFilter) {
+      const scopeKinds = new Set([
+        ...normalizeList(targeting.scopeKinds).map((value) => value.toLowerCase()),
+        String(bundle.activationScope || '').trim().toLowerCase(),
+      ]);
+      if (!scopeKinds.has(scopeKindFilter)) {
+        return false;
+      }
     }
     if (includeText) {
       const terms = collectBundleSearchTerms(bundle);

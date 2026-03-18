@@ -328,6 +328,8 @@ See `local-tracker/docs/messaging-gateway.md` for full reference.
 
 ## Documentation
 
+- [System Docs Index (canonical start here)](docs/system/index.md)
+- [Conventions & Governance entrypoint](docs/system/mocs/conventions-and-governance.md)
 - [Domain Authorities Freeze](docs/system/domain-authorities-freeze.md)
 - [Catalog Control Plane](docs/system/catalog-control-plane.md)
 - [Copilot CLI Playbook](docs/system/copilot-cli-playbook.md)

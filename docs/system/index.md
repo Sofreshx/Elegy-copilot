@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-15
+updated: 2026-03-18
 category: system
 status: current
 doc_kind: index
@@ -26,6 +26,7 @@ related: [doc-graph-spec]
 - [[testing-and-e2e]] [docs/system/mocs/testing-and-e2e.md](docs/system/mocs/testing-and-e2e.md)
 - [[security-model-and-safety]] [docs/system/mocs/security-model-and-safety.md](docs/system/mocs/security-model-and-safety.md)
 - [[session-state]] [docs/system/mocs/session-state.md](docs/system/mocs/session-state.md)
+- [[moc-conventions-and-governance]] [docs/system/mocs/conventions-and-governance.md](docs/system/mocs/conventions-and-governance.md)
 - [[moc-skills-governance]] [docs/system/mocs/skills-governance.md](docs/system/mocs/skills-governance.md)
 - [[moc-software-design-concepts]] [docs/system/mocs/software-design-concepts.md](docs/system/mocs/software-design-concepts.md)
 
@@ -45,6 +46,7 @@ related: [doc-graph-spec]
 
 ## Governance
 
+- Start with [[moc-conventions-and-governance]] [docs/system/mocs/conventions-and-governance.md](docs/system/mocs/conventions-and-governance.md) when the task is about repo rules, convention discoverability, governance routing, or planning-ready follow-up from governance findings.
 - [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
 - [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
 - [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)

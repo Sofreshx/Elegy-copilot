@@ -233,6 +233,8 @@ function createCatalogAuditEvent(eventInput = {}, deps = {}) {
     ...(clampString(eventInput.repoId, 128) ? { repoId: clampString(eventInput.repoId, 128) } : {}),
     ...(clampString(eventInput.sessionId, 128) ? { sessionId: clampString(eventInput.sessionId, 128) } : {}),
     ...(clampString(eventInput.correlationId, 128) ? { correlationId: clampString(eventInput.correlationId, 128) } : {}),
+    ...(clampString(eventInput.toolName, 128) ? { toolName: clampString(eventInput.toolName, 128) } : {}),
+    ...(clampString(eventInput.toolCallId, 128) ? { toolCallId: clampString(eventInput.toolCallId, 128) } : {}),
     ...(sanitizeSearchPayload(eventInput.search) ? { search: sanitizeSearchPayload(eventInput.search) } : {}),
     ...(sanitizeDetails(eventInput.details) ? { details: sanitizeDetails(eventInput.details) } : {}),
     ...(clampString(eventInput.source, 64) ? { source: clampString(eventInput.source, 64) } : {}),
@@ -511,6 +513,8 @@ function createAssetSummary(asset) {
     },
     usage: {
       invocationCount: 0,
+      explicitInvocationCount: 0,
+      proxyInvocationCount: 0,
       sessionCount: 0,
       repoCount: 0,
     },
@@ -563,6 +567,8 @@ function ensureAssetSummary(assetMap, assetId, extras = {}) {
       },
       usage: {
         invocationCount: 0,
+        explicitInvocationCount: 0,
+        proxyInvocationCount: 0,
         sessionCount: 0,
         repoCount: 0,
       },
@@ -573,7 +579,17 @@ function ensureAssetSummary(assetMap, assetId, extras = {}) {
       recentEvents: [],
     });
   }
-  return assetMap.get(assetId);
+  const summary = assetMap.get(assetId);
+  if (extras.assetKey && !summary.assetKey) {
+    summary.assetKey = extras.assetKey;
+  }
+  if ((extras.kind || extras.assetKind) && !summary.kind) {
+    summary.kind = extras.kind || extras.assetKind;
+  }
+  if (extras.scope && !summary.current.scope) {
+    summary.current.scope = extras.scope;
+  }
+  return summary;
 }
 
 function ensureRepoSummary(repoMap, repoId, extras = {}) {
@@ -600,11 +616,17 @@ function ensureRepoSummary(repoMap, repoId, extras = {}) {
       },
       usage: {
         invocationCount: 0,
+        explicitInvocationCount: 0,
+        proxyInvocationCount: 0,
       },
       lastEventAt: null,
     });
   }
-  return repoMap.get(key);
+  const summary = repoMap.get(key);
+  if (extras.repoLabel && !summary.repoLabel) {
+    summary.repoLabel = extras.repoLabel;
+  }
+  return summary;
 }
 
 function ensureSessionSummary(sessionMap, sessionId, extras = {}) {
@@ -626,10 +648,28 @@ function ensureSessionSummary(sessionMap, sessionId, extras = {}) {
       },
       usage: {
         invocationCount: 0,
+        explicitInvocationCount: 0,
+        proxyInvocationCount: 0,
       },
     });
   }
-  return sessionMap.get(key);
+  const summary = sessionMap.get(key);
+  if (extras.status && !summary.status) {
+    summary.status = extras.status;
+  }
+  if (extras.startTime && !summary.startTime) {
+    summary.startTime = extras.startTime;
+  }
+  if (extras.lastEventTime && !summary.lastEventTime) {
+    summary.lastEventTime = extras.lastEventTime;
+  }
+  if (extras.repoId && !summary.repoId) {
+    summary.repoId = extras.repoId;
+  }
+  if (extras.repoLabel && !summary.repoLabel) {
+    summary.repoLabel = extras.repoLabel;
+  }
+  return summary;
 }
 
 function noteActivity(summary, repoId, sessionId) {
@@ -748,6 +788,7 @@ function buildAssetAuditAnalytics(options = {}) {
   const repoSummaries = new Map();
   const sessionSummaries = new Map();
   const recentEvents = [];
+  const explicitInvocationBySessionAsset = new Set();
   const effectiveAssets = Array.isArray(snapshot?.effectiveAssets) ? snapshot.effectiveAssets : [];
   const assetAliasMap = buildAssetAliasMap(snapshot);
 
@@ -793,6 +834,45 @@ function buildAssetAuditAnalytics(options = {}) {
       }
       if (event.sessionId) {
         repoSummary.sessionIds.add(event.sessionId);
+      }
+    }
+
+    if (event.eventType === 'asset.invoked' && event.assetId) {
+      const resolvedAssetSummary = assetSummary || ensureAssetSummary(assetSummaries, event.assetId, {
+        assetKey: event.assetKey,
+        assetKind: event.assetKind,
+        scope: event.scope,
+      });
+      const sessionSummary = event.sessionId
+        ? ensureSessionSummary(sessionSummaries, event.sessionId, {
+          repoId: event.repoId || event.scope?.repoId,
+          repoLabel: event.scope?.displayName,
+        })
+        : null;
+
+      if (resolvedAssetSummary) {
+        resolvedAssetSummary.usage.invocationCount += 1;
+        resolvedAssetSummary.usage.explicitInvocationCount += 1;
+        noteActivity(resolvedAssetSummary, event.repoId || event.scope?.repoId, event.sessionId);
+        addRecent(resolvedAssetSummary.recentEvents, { ...event, source: event.source || 'audit-log' }, MAX_RECENT_PER_ASSET);
+      }
+
+      repoSummary.usage.invocationCount += 1;
+      repoSummary.usage.explicitInvocationCount += 1;
+      repoSummary.lastEventAt = event.occurredAt || repoSummary.lastEventAt;
+      repoSummary.assetIds.add(event.assetId);
+      if (event.sessionId) {
+        repoSummary.sessionIds.add(event.sessionId);
+      }
+
+      if (sessionSummary) {
+        sessionSummary.usage.invocationCount += 1;
+        sessionSummary.usage.explicitInvocationCount += 1;
+        sessionSummary.assetIds.add(event.assetId);
+      }
+
+      if (event.sessionId) {
+        explicitInvocationBySessionAsset.add(`${event.sessionId}::${event.assetId}`);
       }
     }
 
@@ -925,13 +1005,19 @@ function buildAssetAuditAnalytics(options = {}) {
         continue;
       }
       const repoId = repoContext?.repoId || sessionSummary.repoId || null;
+      if (explicitInvocationBySessionAsset.has(`${session.id}::${assetId}`)) {
+        continue;
+      }
       assetSummary.usage.invocationCount += count;
+      assetSummary.usage.proxyInvocationCount += count;
       noteActivity(assetSummary, repoId, session.id);
       sessionSummary.usage.invocationCount += count;
+      sessionSummary.usage.proxyInvocationCount += count;
       sessionSummary.assetIds.add(assetId);
       if (repoId) {
         const repoSummary = ensureRepoSummary(repoSummaries, repoId, { repoLabel: repoContext?.repoLabel });
         repoSummary.usage.invocationCount += count;
+        repoSummary.usage.proxyInvocationCount += count;
         repoSummary.assetIds.add(assetId);
         repoSummary.sessionIds.add(session.id);
       }

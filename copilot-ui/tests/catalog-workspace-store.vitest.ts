@@ -6,6 +6,7 @@ const mockGetCatalogAssets = vi.fn();
 const mockGetRuntimeCatalogHealth = vi.fn();
 const mockGetCatalogAssetDetail = vi.fn();
 const mockGetCatalogAuditEvents = vi.fn();
+const mockGetCatalogAssetAnalytics = vi.fn();
 const mockGetCatalogRepos = vi.fn();
 const mockGetAssetView = vi.fn();
 const mockRefreshCatalogProjection = vi.fn();
@@ -16,6 +17,7 @@ const mockCreateCatalogAsset = vi.fn();
 const mockUpdateCatalogAsset = vi.fn();
 const mockDeleteCatalogAsset = vi.fn();
 const mockInstallCatalogAsset = vi.fn();
+const mockUninstallCatalogBundle = vi.fn();
 const mockEnableCatalogAsset = vi.fn();
 const mockDisableCatalogAsset = vi.fn();
 const mockRegisterCatalogRepo = vi.fn();
@@ -31,6 +33,7 @@ vi.mock('../ui/src/lib/api', () => ({
   enableCatalogAsset: mockEnableCatalogAsset,
   getAssetView: mockGetAssetView,
   getCatalogAssetDetail: mockGetCatalogAssetDetail,
+  getCatalogAssetAnalytics: mockGetCatalogAssetAnalytics,
   getCatalogAssets: mockGetCatalogAssets,
   getCatalogAuditEvents: mockGetCatalogAuditEvents,
   getCatalogBundles: mockGetCatalogBundles,
@@ -38,6 +41,7 @@ vi.mock('../ui/src/lib/api', () => ({
   getCatalogSummary: mockGetCatalogSummary,
   getRuntimeCatalogHealth: mockGetRuntimeCatalogHealth,
   installCatalogAsset: mockInstallCatalogAsset,
+  uninstallCatalogBundle: mockUninstallCatalogBundle,
   refreshCatalogProjection: mockRefreshCatalogProjection,
   recordCatalogSearchSelection: mockRecordCatalogSearchSelection,
   refreshCatalogRepo: mockRefreshCatalogRepo,
@@ -59,6 +63,7 @@ describe('catalogWorkspaceStore', () => {
     mockGetRuntimeCatalogHealth.mockReset();
     mockGetCatalogAssetDetail.mockReset();
     mockGetCatalogAuditEvents.mockReset();
+    mockGetCatalogAssetAnalytics.mockReset();
     mockGetCatalogRepos.mockReset();
     mockGetAssetView.mockReset();
     mockRefreshCatalogProjection.mockReset();
@@ -69,6 +74,7 @@ describe('catalogWorkspaceStore', () => {
     mockUpdateCatalogAsset.mockReset();
     mockDeleteCatalogAsset.mockReset();
     mockInstallCatalogAsset.mockReset();
+    mockUninstallCatalogBundle.mockReset();
     mockEnableCatalogAsset.mockReset();
     mockDisableCatalogAsset.mockReset();
     mockRegisterCatalogRepo.mockReset();
@@ -77,6 +83,14 @@ describe('catalogWorkspaceStore', () => {
     mockRefreshCatalogRepo.mockReset();
     mockUnregisterCatalogRepo.mockReset();
     mockGetCatalogBundles.mockResolvedValue({ bundles: [] });
+    mockGetCatalogAssetAnalytics.mockResolvedValue({
+      analytics: {
+        assets: [],
+        repos: [],
+        sessions: [],
+        recentEvents: [],
+      },
+    });
   });
 
   afterEach(() => {
@@ -110,6 +124,34 @@ describe('catalogWorkspaceStore', () => {
     });
     mockGetCatalogAuditEvents.mockResolvedValue({
       events: [],
+    });
+    mockGetCatalogAssetAnalytics.mockResolvedValue({
+      analytics: {
+        assets: [],
+        repos: [
+          {
+            repoId: 'repo-1',
+            search: {
+              queryCount: 1,
+            },
+            usage: {
+              invocationCount: 0,
+              explicitInvocationCount: 0,
+              proxyInvocationCount: 0,
+            },
+          },
+        ],
+        sessions: [],
+        recentEvents: [],
+      },
+    });
+    mockGetCatalogAssetAnalytics.mockResolvedValue({
+      analytics: {
+        assets: [],
+        repos: [],
+        sessions: [],
+        recentEvents: [],
+      },
     });
   }
 
@@ -229,6 +271,44 @@ describe('catalogWorkspaceStore', () => {
         },
       ],
     });
+    mockGetCatalogAssetAnalytics.mockResolvedValue({
+      analytics: {
+        assets: [
+          {
+            assetId: 'skill-test',
+            assetKey: 'test',
+            kind: 'skill',
+            search: {
+              sampled: {
+                resultCount: 2,
+                selectedCount: 1,
+              },
+            },
+            usage: {
+              invocationCount: 3,
+              explicitInvocationCount: 2,
+              proxyInvocationCount: 1,
+            },
+          },
+        ],
+        repos: [
+          {
+            repoId: 'repo-1',
+            search: {
+              queryCount: 4,
+              selectedCount: 1,
+            },
+            usage: {
+              invocationCount: 3,
+              explicitInvocationCount: 2,
+              proxyInvocationCount: 1,
+            },
+          },
+        ],
+        sessions: [],
+        recentEvents: [],
+      },
+    });
     mockGetAssetView.mockResolvedValue('# Test skill');
 
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
@@ -246,6 +326,10 @@ describe('catalogWorkspaceStore', () => {
       repoId: 'repo-1',
       limit: 25,
     });
+    expect(mockGetCatalogAssetAnalytics).toHaveBeenCalledWith({
+      repoId: 'repo-1',
+      limit: 25,
+    });
     expect(mockGetAssetView).toHaveBeenCalledWith('skills/test/SKILL.md');
 
     const state = catalogWorkspaceStore.getState();
@@ -253,6 +337,7 @@ describe('catalogWorkspaceStore', () => {
     expect(state.selectedAsset?.assetId).toBe('skill-test');
     expect(state.selectedEntries).toHaveLength(1);
     expect(state.auditEvents).toHaveLength(1);
+    expect(state.auditAnalytics?.assets[0]?.usage?.explicitInvocationCount).toBe(2);
     expect(state.selectedAssetContent).toContain('Test skill');
     expect(state.repoInventory?.workspaceScan?.customScanRoots).toEqual(['D:\\work\\repos']);
   });
@@ -424,6 +509,11 @@ describe('catalogWorkspaceStore', () => {
       includeVaultOnly: false,
       preferLoadMode: 'on-demand',
       limit: 20,
+    });
+    expect(mockGetCatalogAssetAnalytics).toHaveBeenLastCalledWith({
+      repoId: 'repo-1',
+      repoPath: 'C:\\repo',
+      limit: 25,
     });
     expect(catalogWorkspaceStore.getState().searchResults).toHaveLength(1);
   });
@@ -709,6 +799,118 @@ describe('catalogWorkspaceStore', () => {
     expect(mockInstallCatalogAsset).toHaveBeenNthCalledWith(1, { assetId: 'skill-superpowers-brainstorming' });
     expect(mockInstallCatalogAsset).toHaveBeenNthCalledWith(2, { assetId: 'agent-superpowers-code-reviewer' });
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Installed 2 bundle asset(s)');
+  });
+
+  it('uninstalls a bundle through the lifecycle route and reloads workspace state', async () => {
+    mockGetCatalogRepos.mockResolvedValue({
+      repos: [
+        {
+          repoId: 'repo-1',
+          repoPath: 'C:\\repo',
+          selected: true,
+        },
+      ],
+      selectedRepo: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\repo',
+        selected: true,
+      },
+    });
+    mockGetCatalogSummary.mockResolvedValue({
+      summary: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+        repoContext: {
+          repoId: 'repo-1',
+          repoPath: 'C:\\repo',
+        },
+        stats: {
+          effectiveCount: 0,
+          installedCount: 0,
+          overriddenCount: 0,
+        },
+      },
+    });
+    mockGetCatalogBundles
+      .mockResolvedValueOnce({
+        bundles: [
+          {
+            bundleId: 'superpowers-workflow',
+            title: 'Superpowers Workflow Pack',
+            activationStatus: 'active',
+            status: 'installed',
+            stats: {
+              memberCount: 2,
+              installedCount: 2,
+            },
+            uninstallPolicy: {
+              preservesExternalPackages: true,
+            },
+            members: [
+              {
+                assetId: 'skill-superpowers-brainstorming',
+                available: true,
+                installed: true,
+                enabled: true,
+              },
+              {
+                assetId: 'agent-superpowers-code-reviewer',
+                available: true,
+                installed: true,
+                enabled: true,
+              },
+            ],
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        bundles: [
+          {
+            bundleId: 'superpowers-workflow',
+            title: 'Superpowers Workflow Pack',
+            activationStatus: 'inactive',
+            status: 'available',
+            stats: {
+              memberCount: 2,
+              installedCount: 0,
+            },
+            members: [],
+          },
+        ],
+      });
+    mockGetCatalogAssets.mockResolvedValue({
+      assets: [],
+    });
+    mockGetRuntimeCatalogHealth.mockResolvedValue({
+      ok: true,
+      projection: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+      },
+    });
+    mockGetCatalogAuditEvents.mockResolvedValue({
+      events: [],
+    });
+    mockUninstallCatalogBundle.mockResolvedValue({
+      action: 'bundle-uninstalled',
+      bundleId: 'superpowers-workflow',
+      removedAssetIds: ['skill-superpowers-brainstorming', 'agent-superpowers-code-reviewer'],
+      preserveExternalPackages: true,
+    });
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    await catalogWorkspaceStore.loadWorkspace();
+    await catalogWorkspaceStore.uninstallBundle('superpowers-workflow');
+
+    expect(mockUninstallCatalogBundle).toHaveBeenCalledWith({
+      bundleId: 'superpowers-workflow',
+      repoId: 'repo-1',
+      repoPath: 'C:\\repo',
+    });
+    expect(mockGetCatalogSummary).toHaveBeenCalledTimes(2);
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Uninstalled 2 bundle asset(s)');
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('External provider packages were preserved');
   });
 
   it('registers repo metadata without auto-selecting the repo scope', async () => {

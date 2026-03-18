@@ -1147,6 +1147,277 @@ function setAssetEnabled(runtime, body, enabled, options = {}) {
   }
 }
 
+function resolveManagedBundleMemberDestinations(copilotHomeAbs, manifestAsset) {
+  if (!manifestAsset || typeof manifestAsset !== 'object') {
+    return [];
+  }
+
+  if (manifestAsset.type === 'skill') {
+    const assetKey = normalizeAssetKey('skill', path.basename(String(manifestAsset.source || '')));
+    if (!assetKey) {
+      return [];
+    }
+    return [
+      path.join(copilotHomeAbs, 'skills', assetKey),
+      path.join(copilotHomeAbs, 'skills-vault', assetKey),
+    ];
+  }
+
+  if (manifestAsset.type === 'agent') {
+    const destination = normalizeString(manifestAsset.destination);
+    return destination ? [path.join(copilotHomeAbs, destination)] : [];
+  }
+
+  return [];
+}
+
+function omitEmptySections(document) {
+  const nextDocument = document && typeof document === 'object' ? { ...document } : {};
+  for (const [sectionKey, sectionValue] of Object.entries(nextDocument)) {
+    if (Array.isArray(sectionValue)) {
+      if (sectionValue.length === 0) {
+        delete nextDocument[sectionKey];
+      }
+      continue;
+    }
+    if (!sectionValue || typeof sectionValue !== 'object') {
+      continue;
+    }
+    if (Object.keys(sectionValue).length === 0) {
+      delete nextDocument[sectionKey];
+    }
+  }
+  return nextDocument;
+}
+
+function isPlainObjectEmpty(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0);
+}
+
+function writeJsonDocumentOrDelete(ledger, targetPath, value, options = {}) {
+  if (isPlainObjectEmpty(value)) {
+    return ledger.deletePath(targetPath, { allowMissing: true });
+  }
+  ledger.replaceFile(targetPath, stringifyJson(value), options);
+  return true;
+}
+
+function uninstallBundle(runtime, body, options = {}) {
+  const bundleId = normalizeString(body.bundleId);
+  if (!bundleId) {
+    throw Object.assign(new Error('bundleId is required'), { statusCode: 400 });
+  }
+
+  const repoPath = normalizeString(body.repoPath)
+    ? ensureAbsolutePath(body.repoPath, 'repoPath')
+    : null;
+  const repoStateKey = repoPath ? getRepoStateKey(repoPath) : null;
+  const registryPath = repoStateKey
+    ? path.join(runtime.copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json')
+    : null;
+  const repoActivationPath = repoPath
+    ? resolveRepoActivationStatePath(runtime.copilotHomeAbs, repoPath).path
+    : null;
+
+  const { manifest } = loadManifestState(runtime.engineRoot);
+  const bundle = Array.isArray(manifest.bundles)
+    ? manifest.bundles.find((entry) => entry && (entry.id === bundleId || entry.bundleId === bundleId))
+    : null;
+  if (!bundle) {
+    throw Object.assign(new Error(`Unknown bundleId: ${bundleId}`), { statusCode: 404 });
+  }
+
+  const manifestAssetsById = new Map(
+    (Array.isArray(manifest.assets) ? manifest.assets : [])
+      .filter((entry) => entry && entry.id)
+      .map((entry) => [entry.id, entry])
+  );
+
+  const bundleMemberIds = normalizeArray(bundle.assetIds);
+  const memberAssetKeysByKind = {
+    skill: new Set(),
+    agent: new Set(),
+  };
+  const removedPaths = [];
+  const removedAssetIds = [];
+  const skippedAssetIds = [];
+  const managedMembers = [];
+
+  const ledger = createMutationLedger();
+  try {
+    for (const assetId of bundleMemberIds) {
+      const manifestAsset = manifestAssetsById.get(assetId) || null;
+      if (!manifestAsset || !SUPPORTED_KINDS.has(String(manifestAsset.type || '').trim())) {
+        skippedAssetIds.push(assetId);
+        continue;
+      }
+
+      managedMembers.push(manifestAsset);
+      if (manifestAsset.type === 'skill') {
+        memberAssetKeysByKind.skill.add(
+          normalizeAssetKey('skill', path.basename(String(manifestAsset.source || '')))
+        );
+      } else if (manifestAsset.type === 'agent') {
+        memberAssetKeysByKind.agent.add(
+          normalizeAssetKey('agent', path.basename(String(manifestAsset.destination || manifestAsset.source || '')))
+        );
+      }
+
+      let removedForAsset = false;
+      for (const destinationAbs of resolveManagedBundleMemberDestinations(runtime.copilotHomeAbs, manifestAsset)) {
+        const deleted = ledger.deletePath(destinationAbs, { allowMissing: true });
+        if (deleted) {
+          removedPaths.push(destinationAbs);
+          removedForAsset = true;
+        }
+      }
+      if (removedForAsset) {
+        removedAssetIds.push(assetId);
+      }
+    }
+
+    const defaults = loadActivationDefaults(runtime);
+    const globalActivationPath = resolveGlobalActivationStatePath(runtime.copilotHomeAbs);
+    const existingGlobalState = pathExists(globalActivationPath) ? readJson(globalActivationPath) : {};
+    const existingGlobalBundleIds = Array.isArray(existingGlobalState.activeBundleIds)
+      ? existingGlobalState.activeBundleIds
+      : defaults.activeBundleIds;
+    const nextGlobalDocument = buildActivationStateDocument({
+      ...existingGlobalState,
+      activeBundleIds: existingGlobalBundleIds.filter((candidate) => candidate !== bundleId),
+      plannerProfile: normalizeString(existingGlobalState.plannerProfile) || defaults.plannerProfile,
+      orchestrationPolicy:
+        normalizeString(existingGlobalState.orchestrationPolicy)
+        || normalizeString(existingGlobalState.plannerProfile)
+        || defaults.orchestrationPolicy,
+    });
+    ledger.replaceFile(globalActivationPath, stringifyJson(nextGlobalDocument), {});
+
+    let repoActivationCleared = false;
+    if (repoActivationPath) {
+      const existingRepoState = pathExists(repoActivationPath) ? readJson(repoActivationPath) : null;
+      if (existingRepoState) {
+        const nextRepoBundleIds = normalizeArray(existingRepoState.activeBundleIds)
+          .filter((candidate) => candidate !== bundleId);
+        const nextRepoDocument = buildActivationStateDocument({
+          ...existingRepoState,
+          activeBundleIds: nextRepoBundleIds,
+          repoId: repoStateKey.repoId,
+          repoPath,
+        });
+        const repoDocumentWithoutEmptyBundles = { ...nextRepoDocument };
+        if (nextRepoBundleIds.length === 0) {
+          delete repoDocumentWithoutEmptyBundles.activeBundleIds;
+        }
+        if (!normalizeString(repoDocumentWithoutEmptyBundles.plannerProfile)) {
+          delete repoDocumentWithoutEmptyBundles.plannerProfile;
+        }
+        if (!normalizeString(repoDocumentWithoutEmptyBundles.orchestrationPolicy)) {
+          delete repoDocumentWithoutEmptyBundles.orchestrationPolicy;
+        }
+        delete repoDocumentWithoutEmptyBundles.updatedAt;
+        delete repoDocumentWithoutEmptyBundles.schemaVersion;
+        delete repoDocumentWithoutEmptyBundles.repoId;
+        delete repoDocumentWithoutEmptyBundles.repoPath;
+
+        if (Object.keys(repoDocumentWithoutEmptyBundles).length === 0) {
+          repoActivationCleared = Boolean(ledger.deletePath(repoActivationPath, { allowMissing: true }));
+        } else {
+          ledger.replaceFile(repoActivationPath, stringifyJson(nextRepoDocument), {});
+          repoActivationCleared = true;
+        }
+      }
+    }
+
+    let registryUpdated = false;
+    if (registryPath && pathExists(registryPath)) {
+      const registry = readJson(registryPath);
+      const nextRegistry = omitEmptySections({
+        ...registry,
+        skills: registry.skills && typeof registry.skills === 'object'
+          ? omitEmptySections({
+            ...registry.skills,
+            enabled: normalizeArray(registry.skills.enabled)
+              .filter((entry) => !memberAssetKeysByKind.skill.has(normalizeAssetKey('skill', entry))),
+            disabled: normalizeArray(registry.skills.disabled)
+              .filter((entry) => !memberAssetKeysByKind.skill.has(normalizeAssetKey('skill', entry))),
+          })
+          : registry.skills,
+        agents: registry.agents && typeof registry.agents === 'object'
+          ? omitEmptySections({
+            ...registry.agents,
+            enabled: normalizeArray(registry.agents.enabled)
+              .filter((entry) => !memberAssetKeysByKind.agent.has(normalizeAssetKey('agent', entry))),
+            disabled: normalizeArray(registry.agents.disabled)
+              .filter((entry) => !memberAssetKeysByKind.agent.has(normalizeAssetKey('agent', entry))),
+          })
+          : registry.agents,
+      });
+
+      registryUpdated = JSON.stringify(nextRegistry) !== JSON.stringify(registry);
+      if (registryUpdated) {
+        writeJsonDocumentOrDelete(ledger, registryPath, nextRegistry, {});
+      }
+    }
+
+    const refreshSelectors = [{}];
+    if (repoPath) {
+      refreshSelectors.push({ repoPath });
+    }
+
+    return finalizeMutation(
+      runtime,
+      options,
+      ledger,
+      {
+        action: 'bundle-uninstalled',
+        bundleId,
+        repoId: repoStateKey?.repoId || null,
+        removedAssetIds,
+        removedPaths,
+        removedCount: removedPaths.length,
+        skippedAssetIds,
+        activationStateCleared: true,
+        repoActivationCleared,
+        overlayStateCleared: registryUpdated,
+        preserveExternalPackages: true,
+        refreshSelectors,
+        refreshReason: 'catalog_bundle_uninstall',
+      },
+      {
+        actor: {
+          kind: 'ui',
+          id: 'copilot-ui-backend',
+          label: 'copilot-ui-backend',
+        },
+        eventType: 'catalog.bundle.uninstalled',
+        repoId: repoStateKey?.repoId || null,
+        scope: repoPath
+          ? {
+            kind: 'repo',
+            repoId: repoStateKey.repoId,
+            repoPath,
+            displayName: repoStateKey.repoLabel,
+          }
+          : { kind: 'user' },
+        details: {
+          bundleId,
+          memberAssetIds: managedMembers.map((entry) => entry.id),
+          removedAssetIds,
+          removedPaths,
+          skippedAssetIds,
+          preserveExternalPackages: true,
+          repoActivationCleared,
+          overlayStateCleared: registryUpdated,
+        },
+      },
+    );
+  } catch (error) {
+    ledger.rollback();
+    throw error;
+  }
+}
+
 function normalizeActivationAction(value) {
   const normalized = normalizeString(value).toLowerCase();
   if (!['activate-bundle', 'deactivate-bundle', 'set-profile', 'clear-repo-override'].includes(normalized)) {
@@ -1362,6 +1633,7 @@ module.exports = {
   updateAsset,
   deleteAsset,
   installAsset,
+  uninstallBundle,
   setAssetEnabled,
   updateCatalogActivation,
   _internals: {

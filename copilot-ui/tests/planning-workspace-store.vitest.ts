@@ -5,6 +5,39 @@ vi.mock('../ui/src/lib/api', async () => {
 
   return {
     ...actual,
+    getPlanningIntakeArtifacts: vi.fn(async () => ({
+      count: 1,
+      intake: {
+        directoryPath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake',
+        repoRelativePath: 'docs/planning/intake',
+        exists: true,
+        artifactCount: 1,
+        stableIdPattern: 'PI-###',
+        supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'commit-prep'],
+      },
+      artifacts: [
+        {
+          kind: 'planning.intake.artifact',
+          schemaVersion: 1,
+          id: 'PI-001',
+          category: 'idea',
+          title: 'Capture planning intake',
+          summary: 'Persist repo-backed intake artifacts.',
+          acceptanceCriteria: ['Write tests'],
+          targetRepoIds: ['repo-1'],
+          planningState: 'thought',
+          createdAt: '2026-03-18T00:00:00.000Z',
+          updatedAt: '2026-03-18T00:00:00.000Z',
+          filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake\\PI-001.json',
+          repoRelativePath: 'docs/planning/intake/PI-001.json',
+        },
+      ],
+      repo: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\Repos\\instruction-engine',
+        repoLabel: 'Instruction Engine',
+      },
+    })),
     getPlanningRoadmaps: vi.fn(async () => ({
       count: 1,
       roadmaps: [
@@ -56,6 +89,12 @@ describe('planningWorkspaceStore', () => {
         repoLabel: 'Instruction Engine',
         sources: ['workspace', 'selected'],
       },
+      planningIntakeDirectory: {
+        canonicalName: 'Planning Intake',
+        directoryPath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake',
+        stableIdPattern: 'PI-###',
+        supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'commit-prep'],
+      },
       repositoryBacklog: {
         canonicalName: 'Repository Backlog',
         filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
@@ -80,8 +119,10 @@ describe('planningWorkspaceStore', () => {
     });
 
     await store.loadRoadmaps();
+    await store.loadIntakeArtifacts();
 
     expect(store.getState().roadmaps).toHaveLength(1);
+    expect(store.getState().intakeArtifacts).toHaveLength(1);
     expect(store.getState().selectedRoadmapSlug).toBe('platform-foundation');
 
     store.setSelectedRoadmapSlug('platform-foundation');

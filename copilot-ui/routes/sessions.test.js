@@ -336,6 +336,52 @@ Completed successfully.
     assert.equal(body.parsed.warnings.length, 0);
   });
 
+  await test('GET /api/sessions/:id/agent-usage exposes additive skill usage summaries', async () => {
+    const routes = register({
+      sessions: {
+        getAgentUsage(sessionDir, limit) {
+          assert.equal(sessionDir, 'C:\\cli-home\\session-state\\session-usage');
+          assert.equal(limit, 500);
+          return {
+            reviewer: 2,
+          };
+        },
+      },
+      assetInvocationAudit: {
+        getSessionSkillUsageSummary(input) {
+          assert.equal(input.copilotHome, 'C:\\cli-home');
+          assert.equal(input.sessionId, 'session-usage');
+          return {
+            contractVersion: 'session_skill_usage_v1',
+            sessionId: 'session-usage',
+            totalInvocations: 1,
+            uniqueSkillCount: 1,
+            skills: [
+              {
+                assetId: 'skill-react-query',
+                assetKey: 'react-query',
+                invocationCount: 1,
+              },
+            ],
+          };
+        },
+      },
+      sendJson: createSendJson(),
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\cli-home',
+      vscodeHome: 'C:\\vscode-home',
+      sandboxesHome: 'C:\\sandboxes-home',
+    }, 'GET', '/api/sessions/session-usage/agent-usage');
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(body.usage, { reviewer: 2 });
+    assert.equal(body.skillUsage.totalInvocations, 1);
+    assert.equal(body.skillUsage.uniqueSkillCount, 1);
+    assert.equal(body.skillUsage.skills[0].assetId, 'skill-react-query');
+  });
+
   await test('POST /api/sessions/:id/roadmap-sync reads linked plan markers and syncs roadmap/backlog state', async () => {
     const linkedPlan = [
       '# Plan Pack',

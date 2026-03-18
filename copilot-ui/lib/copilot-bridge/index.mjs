@@ -1,8 +1,14 @@
 import { CopilotClient } from "@github/copilot-sdk";
+import { createRequire } from "module";
 import path from "path";
 import { resolveBridgeConfig } from "./bridge-config.mjs";
 import { createPreToolUseHook, createSessionEndHook } from "./hooks.mjs";
 import { createPermissionRequestHandler } from "./permissions.mjs";
+
+const require = createRequire(import.meta.url);
+const {
+  recordExplicitAssetInvocation,
+} = require("../assetInvocationAudit.js");
 
 const DEFAULT_MAX_SSE_CLIENTS = 10;
 
@@ -103,6 +109,10 @@ export class SdkBridgeService {
           ? resolvedDeps.createClient
           : (options) => createBridgeClient(options),
       now: typeof resolvedDeps.now === "function" ? resolvedDeps.now : () => new Date(),
+      recordAssetInvocation:
+        typeof resolvedDeps.recordAssetInvocation === "function"
+          ? resolvedDeps.recordAssetInvocation
+          : (payload) => recordExplicitAssetInvocation(payload),
     };
 
     this._client = null;
@@ -346,6 +356,7 @@ export class SdkBridgeService {
       contextType: context.contextType,
       sandboxId: context.sandboxId,
       cwd: context.effectiveCwd,
+      availableTools: createRequest.availableTools || null,
       hooks: {
         onPreToolUse,
         onSessionEnd,
@@ -609,6 +620,29 @@ export class SdkBridgeService {
       arguments: event && isObject(event.data) ? event.data.arguments : undefined,
       toolCallId: event && isObject(event.data) ? event.data.toolCallId : undefined,
     };
+
+    if (typeof this._deps.recordAssetInvocation === "function") {
+      try {
+        await this._deps.recordAssetInvocation({
+          actor: {
+            kind: "runtime",
+            id: "sdk-bridge",
+            label: "sdk-bridge",
+          },
+          availableTools: record.availableTools,
+          copilotHome: this._config.copilotHome,
+          correlationId: event && isObject(event.data) ? event.data.correlationId : undefined,
+          eventData: event && isObject(event.data) ? event.data : undefined,
+          repoPath: record.cwd,
+          sessionId: record.sessionId,
+          source: "sdk-bridge",
+          toolCallId: toolRequest.toolCallId,
+          toolName: toolRequest.toolName,
+        });
+      } catch {
+        // Invocation audit failures should not break event processing.
+      }
+    }
 
     if (record.hooks && typeof record.hooks.onPreToolUse === "function") {
       try {

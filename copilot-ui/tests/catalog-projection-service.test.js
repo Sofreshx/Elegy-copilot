@@ -51,6 +51,33 @@ async function run() {
 
   try {
     writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
+      bundles: [
+        {
+          id: 'core-global',
+          title: 'Core Global Assets',
+          assetIds: ['skill-core-guardrails', 'agent-code-reviewer'],
+          installTarget: 'user-global',
+          activationScope: 'global',
+          materialization: 'always',
+          classification: 'core',
+          tags: ['core', 'global'],
+        },
+        {
+          id: 'react-language-kit',
+          title: 'React Language Kit',
+          assetIds: ['skill-react-query'],
+          installTarget: 'user-global',
+          activationScope: 'global',
+          materialization: 'on-demand',
+          classification: 'language',
+          targeting: {
+            languages: ['typescript', 'javascript'],
+            frameworks: ['react'],
+            tags: ['frontend'],
+          },
+          tags: ['frontend'],
+        },
+      ],
       assets: [
         {
           id: 'skill-react-query',
@@ -318,6 +345,30 @@ async function run() {
       assert.strictEqual(repoAgent.selectedLayer, 'repo-local');
       assert.strictEqual(repoAgent.enabled, true);
       assert.strictEqual(repoAgent.selectedEntry.title, 'Repo Code Reviewer');
+
+      const coreBundle = snapshot.bundles.find((bundle) => bundle.bundleId === 'core-global');
+      assert.ok(coreBundle, 'expected core bundle projection');
+      assert.strictEqual(coreBundle.classification, 'core');
+      assert.strictEqual(coreBundle.defaultMemberLoadMode, 'always');
+      assert.deepStrictEqual(coreBundle.targeting, {
+        tags: ['core', 'global'],
+      });
+      assert.deepStrictEqual(coreBundle.uninstallPolicy, {
+        removesInstalledMembers: true,
+        clearsActivationState: true,
+        clearsRepoOverlayState: true,
+        preservesExternalPackages: true,
+      });
+
+      const languageBundle = snapshot.bundles.find((bundle) => bundle.bundleId === 'react-language-kit');
+      assert.ok(languageBundle, 'expected language bundle projection');
+      assert.strictEqual(languageBundle.classification, 'language');
+      assert.deepStrictEqual(languageBundle.targeting, {
+        frameworks: ['react'],
+        languages: ['typescript', 'javascript'],
+        tags: ['frontend'],
+      });
+      assert.strictEqual(languageBundle.defaultMemberLoadMode, null);
 
       const pluginAgent = snapshot.effectiveAssets.find(
         (asset) => asset.selectedEntry?.metadata?.logicalName === 'code-reviewer' && asset.assetId !== 'agent-code-reviewer',

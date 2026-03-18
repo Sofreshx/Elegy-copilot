@@ -2,7 +2,9 @@ import type {
   CatalogActivationMutationResponse,
   CatalogAssetMutationResponse,
   CatalogAssetDetailResponse,
+  CatalogAssetAuditAnalyticsResponse,
   CatalogAssetsResponse,
+  CatalogBundleUninstallResponse,
   CatalogBundlesResponse,
   CatalogAuditEventsResponse,
   CatalogProviderInstallResponse,
@@ -38,6 +40,10 @@ import type {
   PlanningMergeIntentToken,
   PlanningMergeResponse,
   PlanningPersistenceInitResponse,
+  PlanningIntakeArtifact,
+  PlanningIntakeArtifactsResponse,
+  PlanningIntakeCategory,
+  PlanningIntakeDirectoryRef,
   PlanningRecordItem,
   PlanningRepositoryBacklogRef,
   PlanningRoadmap,
@@ -288,6 +294,12 @@ export interface CatalogAssetsQuery extends CatalogSelectorQuery {
 
 export interface CatalogBundlesQuery extends CatalogSelectorQuery {
   bundleId?: string;
+  classification?: string;
+  scopeKind?: string;
+  language?: string;
+  framework?: string;
+  stack?: string;
+  tag?: string;
   q?: string;
 }
 
@@ -298,6 +310,8 @@ export interface CatalogAuditEventsQuery extends CatalogSelectorQuery {
   correlationId?: string;
   limit?: number;
 }
+
+export interface CatalogAuditAssetsQuery extends CatalogAuditEventsQuery {}
 
 export interface CatalogRepoInventoryQuery {
   repoPath?: string;
@@ -356,6 +370,10 @@ export interface CatalogAssetDeletePayload {
 export interface CatalogAssetInstallPayload {
   assetId: string;
   force?: boolean;
+}
+
+export interface CatalogBundleUninstallPayload extends CatalogSelectorQuery {
+  bundleId: string;
 }
 
 export interface CatalogAssetEnablementPayload {
@@ -425,6 +443,40 @@ export interface PlanningRepoDocRefOptions {
   repoId?: string;
   repoPath?: string;
   repoLabel?: string;
+}
+
+export interface PlanningIntakeArtifactPayload {
+  category?: PlanningIntakeCategory;
+  title: string;
+  summary?: string;
+  acceptanceCriteria?: string[];
+  targetRepoIds?: string[];
+  planningState?: string;
+}
+
+export interface PlanningIntakeCreatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  artifact?: PlanningIntakeArtifactPayload;
+  category?: PlanningIntakeCategory;
+  title?: string;
+  summary?: string;
+  acceptanceCriteria?: string[];
+  targetRepoIds?: string[];
+  planningState?: string;
+}
+
+export interface PlanningIntakeUpdatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  artifact?: Partial<PlanningIntakeArtifactPayload>;
+  patch?: Partial<PlanningIntakeArtifactPayload>;
+  category?: PlanningIntakeCategory;
+  title?: string;
+  summary?: string;
+  acceptanceCriteria?: string[];
+  targetRepoIds?: string[];
+  planningState?: string;
 }
 
 export interface PlanningRepoSummary {
@@ -516,6 +568,51 @@ export interface PlanningBacklogResponseApi extends PlanningBacklogResponse {
 
 export interface PlanningBacklogMutationResponseApi extends PlanningBacklogMutationResponse {
   item?: PlanningBacklogItemApi | null;
+}
+
+export interface PlanningIntakeDirectoryRefApi extends PlanningIntakeDirectoryRef {
+  canonicalName: 'Planning Intake';
+  repo: PlanningRepoSummary;
+  directoryPath: string;
+  repoRelativePath: 'docs/planning/intake';
+  stableIdPattern: 'PI-###';
+  supportedCategories: PlanningIntakeCategory[];
+}
+
+export interface PlanningIntakeArtifactApi extends PlanningIntakeArtifact {
+  kind: 'planning.intake.artifact';
+  schemaVersion: number;
+  id: string;
+  category: PlanningIntakeCategory;
+  title: string;
+  summary: string;
+  acceptanceCriteria: string[];
+  targetRepoIds: string[];
+  planningState?: string;
+  createdAt: string;
+  updatedAt: string;
+  filePath: string;
+  repoRelativePath: string;
+}
+
+export interface PlanningIntakeSummaryApi {
+  directoryPath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  artifactCount: number;
+  stableIdPattern?: string;
+  supportedCategories: PlanningIntakeCategory[];
+}
+
+export interface PlanningIntakeArtifactsResponseApi extends PlanningIntakeArtifactsResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  count?: number;
+  intake: PlanningIntakeSummaryApi;
+  artifacts: PlanningIntakeArtifactApi[];
+  artifact?: PlanningIntakeArtifactApi | null;
 }
 
 function trimTrailingPathSeparator(value: string): string {
@@ -695,6 +792,81 @@ function normalizePlanningBacklogMutationResponse(payload: unknown): PlanningBac
   };
 }
 
+const PLANNING_INTAKE_CATEGORIES = [
+  'idea',
+  'research',
+  'refactor-candidate',
+  'design-complaint',
+  'audit-request',
+  'roadmap-request',
+  'commit-prep',
+] as const;
+
+function normalizePlanningIntakeCategory(value: unknown): PlanningIntakeCategory {
+  const normalized = asTrimmedString(value).toLowerCase();
+  if (PLANNING_INTAKE_CATEGORIES.includes(normalized as PlanningIntakeCategory)) {
+    return normalized as PlanningIntakeCategory;
+  }
+  return 'idea';
+}
+
+function normalizePlanningIntakeArtifact(value: unknown): PlanningIntakeArtifactApi | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    kind: 'planning.intake.artifact',
+    schemaVersion: asNumber(record.schemaVersion, 1),
+    id,
+    category: normalizePlanningIntakeCategory(record.category),
+    title: asTrimmedString(record.title) || id,
+    summary: asTrimmedString(record.summary),
+    acceptanceCriteria: asStringList(record.acceptanceCriteria),
+    targetRepoIds: asStringList(record.targetRepoIds),
+    planningState: asTrimmedString(record.planningState) || undefined,
+    createdAt: asTrimmedString(record.createdAt),
+    updatedAt: asTrimmedString(record.updatedAt),
+    filePath: asTrimmedString(record.filePath),
+    repoRelativePath: asTrimmedString(record.repoRelativePath),
+  };
+}
+
+function normalizePlanningIntakeSummary(value: unknown): PlanningIntakeSummaryApi {
+  const record = asRecord(value);
+  return {
+    directoryPath: asTrimmedString(record.directoryPath) || null,
+    repoRelativePath: asTrimmedString(record.repoRelativePath) || 'docs/planning/intake',
+    exists: asBoolean(record.exists, false),
+    artifactCount: asNumber(record.artifactCount, 0),
+    stableIdPattern: asTrimmedString(record.stableIdPattern) || 'PI-###',
+    supportedCategories: asArray(record.supportedCategories)
+      .map((entry) => normalizePlanningIntakeCategory(entry))
+      .filter((entry, index, list) => list.indexOf(entry) === index),
+  };
+}
+
+function normalizePlanningIntakeArtifactsResponse(payload: unknown): PlanningIntakeArtifactsResponseApi {
+  const record = asRecord(payload);
+  const artifacts = asArray(record.artifacts)
+    .map((entry) => normalizePlanningIntakeArtifact(entry))
+    .filter((entry): entry is PlanningIntakeArtifactApi => entry !== null);
+
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningRepoSummary(record.repo),
+    count: asNumber(record.count, artifacts.length),
+    intake: normalizePlanningIntakeSummary(record.intake),
+    artifacts,
+    artifact: normalizePlanningIntakeArtifact(record.artifact),
+  };
+}
+
 export function buildPlanningRepositoryBacklogRef(
   repo: PlanningRepoDocRefOptions = {}
 ): PlanningRepositoryBacklogRefApi | null {
@@ -720,6 +892,35 @@ export function buildPlanningRepositoryBacklogRef(
     filePath: buildRepoPath(normalizedRepoPath, 'docs', 'backlog.md'),
     repoRelativePath: 'docs/backlog.md',
     stableIdPattern: 'RB-###',
+  };
+}
+
+export function buildPlanningIntakeDirectoryRef(
+  repo: PlanningRepoDocRefOptions = {}
+): PlanningIntakeDirectoryRefApi | null {
+  const repoPath = asTrimmedString(repo.repoPath);
+  if (!repoPath) {
+    return null;
+  }
+
+  const normalizedRepoPath = trimTrailingPathSeparator(repoPath);
+  const repoId = asTrimmedString(repo.repoId);
+  const repoPathSegments = normalizedRepoPath.split(/[\\/]/).filter(Boolean);
+  const repoLabel = asTrimmedString(repo.repoLabel)
+    || repoPathSegments[repoPathSegments.length - 1]
+    || repoId;
+
+  return {
+    canonicalName: 'Planning Intake',
+    repo: {
+      repoId,
+      repoPath: normalizedRepoPath,
+      repoLabel,
+    },
+    directoryPath: buildRepoPath(normalizedRepoPath, 'docs', 'planning', 'intake'),
+    repoRelativePath: 'docs/planning/intake',
+    stableIdPattern: 'PI-###',
+    supportedCategories: [...PLANNING_INTAKE_CATEGORIES],
   };
 }
 
@@ -1993,6 +2194,12 @@ export function getCatalogBundles(
     query: {
       ...buildCatalogSelectorQuery(query),
       bundleId: query.bundleId,
+      classification: query.classification,
+      scopeKind: query.scopeKind,
+      language: query.language,
+      framework: query.framework,
+      stack: query.stack,
+      tag: query.tag,
       q: query.q,
     },
   });
@@ -2070,6 +2277,20 @@ export function installCatalogAsset(
   baseUrl?: string
 ): Promise<CatalogAssetMutationResponse> {
   return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/install', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function uninstallCatalogBundle(
+  payload: CatalogBundleUninstallPayload,
+  baseUrl?: string
+): Promise<CatalogBundleUninstallResponse> {
+  return apiRequest<CatalogBundleUninstallResponse>('/api/catalog/bundles/uninstall', {
     baseUrl,
     method: 'POST',
     headers: {
@@ -2180,6 +2401,23 @@ export function getCatalogAuditEvents(
   });
 }
 
+export function getCatalogAssetAnalytics(
+  query: CatalogAuditAssetsQuery = {},
+  baseUrl?: string
+): Promise<CatalogAssetAuditAnalyticsResponse> {
+  return apiRequest<CatalogAssetAuditAnalyticsResponse>('/api/audit/assets', {
+    baseUrl,
+    query: {
+      ...buildCatalogSelectorQuery(query),
+      eventType: query.eventType,
+      assetId: query.assetId,
+      sessionId: query.sessionId,
+      correlationId: query.correlationId,
+      limit: query.limit,
+    },
+  });
+}
+
 export function getRuntimeCatalogHealth(
   query: CatalogSelectorQuery = {},
   baseUrl?: string
@@ -2217,6 +2455,22 @@ export async function getPlanningRoadmaps(
   return normalizePlanningRoadmapsResponse(payload);
 }
 
+export async function getPlanningIntakeArtifacts(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<PlanningIntakeArtifactsResponseApi> {
+  const payload = await apiRequest<unknown>('/api/planning/artifacts/intake', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizePlanningIntakeArtifactsResponse(payload);
+}
+
 export async function getPlanningBacklog(
   query: PlanningRepoDocRefOptions = {},
   baseUrl?: string
@@ -2246,6 +2500,39 @@ export async function createPlanningBacklogItem(
   });
 
   return normalizePlanningBacklogMutationResponse(response);
+}
+
+export async function createPlanningIntakeArtifact(
+  payload: PlanningIntakeCreatePayload,
+  baseUrl?: string
+): Promise<PlanningIntakeArtifactsResponseApi> {
+  const response = await apiRequest<unknown>('/api/planning/artifacts/intake', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningIntakeArtifactsResponse(response);
+}
+
+export async function updatePlanningIntakeArtifact(
+  artifactId: string,
+  payload: PlanningIntakeUpdatePayload,
+  baseUrl?: string
+): Promise<PlanningIntakeArtifactsResponseApi> {
+  const response = await apiRequest<unknown>(`/api/planning/artifacts/intake/${encodeURIComponent(artifactId)}`, {
+    baseUrl,
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningIntakeArtifactsResponse(response);
 }
 
 export async function updatePlanningBacklogItem(

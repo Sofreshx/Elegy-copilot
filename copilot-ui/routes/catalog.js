@@ -553,6 +553,12 @@ function normalizeCatalogFilters(searchParams) {
 function normalizeBundleFilters(searchParams) {
   return {
     bundleId: normalizeString(searchParams.get('bundleId')),
+    classification: normalizeString(searchParams.get('classification')).toLowerCase(),
+    scopeKind: normalizeString(searchParams.get('scopeKind')).toLowerCase(),
+    language: normalizeString(searchParams.get('language')).toLowerCase(),
+    framework: normalizeString(searchParams.get('framework')).toLowerCase(),
+    stack: normalizeString(searchParams.get('stack')).toLowerCase(),
+    tag: normalizeString(searchParams.get('tag')).toLowerCase(),
     text: normalizeString(searchParams.get('q') || searchParams.get('text')),
   };
 }
@@ -1049,6 +1055,11 @@ function handleCatalogAssetDelete(ctx, deps) {
 function handleCatalogAssetInstall(ctx, deps) {
   executeCatalogMutation(ctx, deps, 'catalog.asset.install', (body, mutationOptions) =>
     deps.catalogMutation.installAsset(mutationOptions, body, mutationOptions));
+}
+
+function handleCatalogBundleUninstall(ctx, deps) {
+  executeCatalogMutation(ctx, deps, 'catalog.bundle.uninstall', (body, mutationOptions) =>
+    deps.catalogMutation.uninstallBundle(mutationOptions, body, mutationOptions));
 }
 
 function handleCatalogProviderInstall(ctx, deps) {
@@ -1845,6 +1856,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/assets/install',
       handler: (ctx) => handleCatalogAssetInstall(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/bundles/uninstall',
+      handler: (ctx) => handleCatalogBundleUninstall(ctx, resolvedDeps),
     },
     {
       method: 'POST',

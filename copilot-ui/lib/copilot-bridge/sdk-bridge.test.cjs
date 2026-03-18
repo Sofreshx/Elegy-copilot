@@ -209,19 +209,40 @@ async function run() {
 
   await test('createSdkSession wires hooks including permission handler', async () => {
     const policyCalls = [];
+    const invocationCalls = [];
     const mockClient = createMockClient();
     const service = new SdkBridgeService(
       {
+        copilotHome: '/tmp/copilot-home',
         policyPreflightFn: async (payload) => {
           policyCalls.push(payload);
           return { allow: true, reason: 'ok' };
         },
       },
-      { createClient: () => mockClient }
+      {
+        createClient: () => mockClient,
+        recordAssetInvocation: async (payload) => {
+          invocationCalls.push(payload);
+          return { logged: true };
+        },
+      }
     );
 
     await service.init();
-    await service.createSdkSession({ sessionId: 'session-hooks' });
+    await service.createSdkSession({
+      sessionId: 'session-hooks',
+      cwd: '/workspace/repo',
+      availableTools: [
+        {
+          toolName: 'edit_file',
+          metadata: {
+            assetId: 'skill-edit-file',
+            assetKey: 'edit-file',
+            assetKind: 'skill',
+          },
+        },
+      ],
+    });
 
     assert.equal(typeof mockClient.lastCreateConfig.onPreToolUse, 'function');
     assert.equal(typeof mockClient.lastCreateConfig.onSessionEnd, 'function');
@@ -241,6 +262,12 @@ async function run() {
     await sleep(0);
 
     assert.equal(policyCalls.length, 2);
+    assert.equal(invocationCalls.length, 1);
+    assert.equal(invocationCalls[0].copilotHome, '/tmp/copilot-home');
+    assert.equal(invocationCalls[0].repoPath, '/workspace/repo');
+    assert.equal(invocationCalls[0].toolName, 'edit_file');
+    assert.equal(invocationCalls[0].toolCallId, 'call-1');
+    assert.equal(invocationCalls[0].availableTools[0].metadata.assetId, 'skill-edit-file');
     assert.equal(policyCalls[0].stage, 'pre-tool-use');
     assert.equal(policyCalls[1].stage, 'permission-request');
     assert.equal(policyCalls[1].kind, 'tool_execution');

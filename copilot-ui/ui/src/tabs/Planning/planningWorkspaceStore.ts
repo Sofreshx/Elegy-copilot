@@ -1,11 +1,16 @@
 import {
+  buildPlanningIntakeDirectoryRef,
   buildPlanningRepositoryBacklogRef,
   buildPlanningRoadmapDirectoryRef,
+  getPlanningIntakeArtifacts,
   getPlanningRoadmaps,
 } from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type {
   CatalogRepoInventoryEntry,
+  PlanningIntakeArtifact,
+  PlanningIntakeDirectoryRef,
+  PlanningIntakeSummary,
   PlanningRepositoryBacklogRef,
   PlanningRoadmap,
   PlanningRoadmapDirectoryRef,
@@ -20,20 +25,32 @@ export interface PlanningCatalogRepoContext {
 
 export interface PlanningWorkspaceState {
   catalogRepoContext: PlanningCatalogRepoContext | null;
+  planningIntakeDirectory: PlanningIntakeDirectoryRef | null;
+  intakeSummary: PlanningIntakeSummary | null;
+  intakeArtifacts: PlanningIntakeArtifact[];
   repositoryBacklog: PlanningRepositoryBacklogRef | null;
   roadmapDirectory: PlanningRoadmapDirectoryRef | null;
   roadmaps: PlanningRoadmap[];
   selectedRoadmapSlug: string;
+  intakeLoading: boolean;
+  intakeError: string | null;
+  roadmapsLoading: boolean;
   loading: boolean;
   error: string | null;
 }
 
 const INITIAL_STATE: PlanningWorkspaceState = {
   catalogRepoContext: null,
+  planningIntakeDirectory: null,
+  intakeSummary: null,
+  intakeArtifacts: [],
   repositoryBacklog: null,
   roadmapDirectory: null,
   roadmaps: [],
   selectedRoadmapSlug: '',
+  intakeLoading: false,
+  intakeError: null,
+  roadmapsLoading: false,
   loading: false,
   error: null,
 };
@@ -77,9 +94,18 @@ function normalizeCatalogRepoContext(
 export function createPlanningWorkspaceStore() {
   const store = createStore<PlanningWorkspaceState>(INITIAL_STATE);
   let roadmapsRequestVersion = 0;
+  let intakeRequestVersion = 0;
 
   function syncCatalogRepoContext(repo: Partial<CatalogRepoInventoryEntry> | null | undefined): void {
     const catalogRepoContext = normalizeCatalogRepoContext(repo);
+    const previousRepoPath = store.getState().catalogRepoContext?.repoPath || '';
+    const nextRepoPath = catalogRepoContext?.repoPath || '';
+    const preserveRepoData = Boolean(previousRepoPath && previousRepoPath === nextRepoPath);
+    const planningIntakeDirectory = buildPlanningIntakeDirectoryRef({
+      repoId: catalogRepoContext?.repoId || undefined,
+      repoPath: catalogRepoContext?.repoPath || undefined,
+      repoLabel: catalogRepoContext?.repoLabel || undefined,
+    });
     const repositoryBacklog = buildPlanningRepositoryBacklogRef({
       repoId: catalogRepoContext?.repoId || undefined,
       repoPath: catalogRepoContext?.repoPath || undefined,
@@ -94,12 +120,83 @@ export function createPlanningWorkspaceStore() {
     store.setState((state) => ({
       ...state,
       catalogRepoContext,
+      planningIntakeDirectory,
+      intakeSummary: preserveRepoData ? state.intakeSummary : null,
+      intakeArtifacts: preserveRepoData ? state.intakeArtifacts : [],
       repositoryBacklog,
       roadmapDirectory,
-      roadmaps: catalogRepoContext?.repoPath ? state.roadmaps : [],
-      selectedRoadmapSlug: catalogRepoContext?.repoPath ? state.selectedRoadmapSlug : '',
+      roadmaps: preserveRepoData ? state.roadmaps : [],
+      selectedRoadmapSlug: preserveRepoData ? state.selectedRoadmapSlug : '',
+      intakeError: null,
       error: null,
     }));
+  }
+
+  async function loadIntakeArtifacts(): Promise<void> {
+    const nextVersion = ++intakeRequestVersion;
+    const stateSnapshot = store.getState();
+    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        intakeSummary: null,
+        intakeArtifacts: [],
+        intakeLoading: false,
+        loading: state.roadmapsLoading,
+        intakeError: null,
+      }));
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      intakeLoading: true,
+      loading: true,
+      intakeError: null,
+    }));
+
+    try {
+      const response = await getPlanningIntakeArtifacts({
+        repoId: repoId || undefined,
+        repoPath,
+        repoLabel: repoLabel || undefined,
+      });
+
+      store.setState((state) => {
+        if (nextVersion !== intakeRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          intakeSummary: response.intake,
+          intakeArtifacts: response.artifacts,
+          intakeLoading: false,
+          loading: state.roadmapsLoading,
+          intakeError: null,
+        };
+      });
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to load planning intake artifacts.');
+
+      store.setState((state) => {
+        if (nextVersion !== intakeRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          intakeSummary: null,
+          intakeArtifacts: [],
+          intakeLoading: false,
+          loading: state.roadmapsLoading,
+          intakeError: message,
+        };
+      });
+    }
   }
 
   async function loadRoadmaps(): Promise<void> {
@@ -114,7 +211,8 @@ export function createPlanningWorkspaceStore() {
         ...state,
         roadmaps: [],
         selectedRoadmapSlug: '',
-        loading: false,
+        roadmapsLoading: false,
+        loading: state.intakeLoading,
         error: null,
       }));
       return;
@@ -122,6 +220,7 @@ export function createPlanningWorkspaceStore() {
 
     store.setState((state) => ({
       ...state,
+      roadmapsLoading: true,
       loading: true,
       error: null,
     }));
@@ -148,7 +247,8 @@ export function createPlanningWorkspaceStore() {
           ...state,
           roadmaps: response.roadmaps,
           selectedRoadmapSlug,
-          loading: false,
+          roadmapsLoading: false,
+          loading: state.intakeLoading,
           error: null,
         };
       });
@@ -164,7 +264,8 @@ export function createPlanningWorkspaceStore() {
           ...state,
           roadmaps: [],
           selectedRoadmapSlug: '',
-          loading: false,
+          roadmapsLoading: false,
+          loading: state.intakeLoading,
           error: message,
         };
       });
@@ -187,6 +288,7 @@ export function createPlanningWorkspaceStore() {
     getState: store.getState,
     subscribe: store.subscribe,
     syncCatalogRepoContext,
+    loadIntakeArtifacts,
     loadRoadmaps,
     setSelectedRoadmapSlug,
     reset,

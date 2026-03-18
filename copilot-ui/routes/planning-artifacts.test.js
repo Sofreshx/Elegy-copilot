@@ -1,6 +1,9 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const { createPlanningApiState } = require('../lib/planningApiContracts');
 const { register } = require('./planning-artifacts');
@@ -94,16 +97,59 @@ function findRoute(routes, method, pathname) {
   throw new Error(`Route not found for ${method} ${pathname}`);
 }
 
-async function invoke(routes, planningApiState, method, pathname, body) {
+async function invoke(routes, ctxOrPlanningApiState, method, pathname, body) {
   const { route, match } = findRoute(routes, method, pathname);
   const req = createRequest(body);
   const res = createResponse();
   const u = new URL(`http://127.0.0.1${pathname}`);
+  const ctx =
+    ctxOrPlanningApiState
+    && typeof ctxOrPlanningApiState === 'object'
+    && ctxOrPlanningApiState.recordsById instanceof Map
+      ? { planningApiState: ctxOrPlanningApiState }
+      : (ctxOrPlanningApiState || {});
 
-  route.handler({ req, res, u, match, pathname, planningApiState });
+  route.handler({ ...ctx, req, res, u, match, pathname: u.pathname });
   await sleep(0);
 
   return { req, res };
+}
+
+function createFixture() {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-planning-artifacts-routes-'));
+  const engineRoot = path.join(tmpRoot, 'engine');
+  const copilotHomeAbs = path.join(tmpRoot, '.copilot');
+  const repoPath = path.join(tmpRoot, 'workspace-repo');
+  fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+  fs.mkdirSync(engineRoot, { recursive: true });
+  fs.mkdirSync(copilotHomeAbs, { recursive: true });
+  return { tmpRoot, engineRoot, copilotHomeAbs, repoPath };
+}
+
+function createRepoInventory(repoPath) {
+  const repo = {
+    repoId: 'repo-workspace-repo',
+    repoPath,
+    repoLabel: 'workspace-repo',
+    selected: true,
+  };
+  return {
+    listKnownRepos() {
+      return {
+        selectedRepo: repo,
+        repos: [repo],
+      };
+    },
+    resolveRepoEntry(inventory, selector = {}) {
+      if (!selector.repoId && !selector.repoPath) {
+        return inventory.selectedRepo;
+      }
+      return inventory.repos.find((entry) => (
+        (selector.repoId && entry.repoId === selector.repoId)
+        || (selector.repoPath && entry.repoPath === path.resolve(selector.repoPath))
+      )) || null;
+    },
+  };
 }
 
 function createSeedState() {
@@ -156,6 +202,141 @@ function createSeedState() {
 }
 
 async function run() {
+  await test('GET /api/planning/artifacts/intake returns canonical empty intake state for selected catalog repo', async () => {
+    const { engineRoot, copilotHomeAbs, repoPath } = createFixture();
+    const routes = register({
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, {
+          'Content-Type': 'application/json; charset=utf-8',
+        });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const { res } = await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'GET', '/api/planning/artifacts/intake');
+
+    assert.equal(res.statusCode, 200);
+    const body = parseJsonBody(res);
+    assert.equal(body.kind, 'planning.intake.list');
+    assert.equal(body.repo.repoPath, repoPath);
+    assert.equal(body.intake.exists, false);
+    assert.equal(body.intake.artifactCount, 0);
+    assert.deepEqual(body.artifacts, []);
+  });
+
+  await test('POST /api/planning/artifacts/intake creates typed intake artifacts via repoId authority', async () => {
+    const { engineRoot, copilotHomeAbs, repoPath } = createFixture();
+    const routes = register({
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const created = await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'POST', '/api/planning/artifacts/intake', {
+      repoId: 'repo-workspace-repo',
+      artifact: {
+        category: 'idea',
+        title: 'Capture repo-backed planning intake',
+        summary: 'Use docs/planning/intake/*.json for unscheduled tracked work.',
+        acceptanceCriteria: ['Write deterministic JSON'],
+        targetRepoIds: ['repo-workspace-repo'],
+        planningState: 'thought',
+      },
+    });
+
+    assert.equal(created.res.statusCode, 201);
+    assert.equal(parseJsonBody(created.res).kind, 'planning.intake.create');
+
+    const list = await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'GET', '/api/planning/artifacts/intake');
+    const listedBody = parseJsonBody(list.res);
+    assert.equal(listedBody.intake.exists, true);
+    assert.equal(listedBody.artifacts.length, 1);
+    assert.equal(listedBody.artifacts[0].id, 'PI-001');
+    assert.equal(listedBody.artifacts[0].category, 'idea');
+    assert.deepEqual(listedBody.artifacts[0].acceptanceCriteria, ['Write deterministic JSON']);
+  });
+
+  await test('PATCH /api/planning/artifacts/intake/:id updates typed intake artifacts', async () => {
+    const { engineRoot, copilotHomeAbs, repoPath } = createFixture();
+    const routes = register({
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'POST', '/api/planning/artifacts/intake', {
+      repoId: 'repo-workspace-repo',
+      title: 'Initial artifact',
+      summary: 'Initial summary',
+      category: 'idea',
+    });
+
+    const updated = await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'PATCH', '/api/planning/artifacts/intake/PI-001', {
+      repoId: 'repo-workspace-repo',
+      category: 'research',
+      title: 'Updated artifact',
+      acceptanceCriteria: ['Review existing routes'],
+    });
+
+    assert.equal(updated.res.statusCode, 200);
+    const updatedBody = parseJsonBody(updated.res);
+    assert.equal(updatedBody.kind, 'planning.intake.update');
+    assert.equal(updatedBody.artifact.id, 'PI-001');
+    assert.equal(updatedBody.artifact.category, 'research');
+    assert.deepEqual(updatedBody.artifact.acceptanceCriteria, ['Review existing routes']);
+  });
+
+  await test('planning intake mutations fail closed when repoPath is supplied without repoId', async () => {
+    const { engineRoot, copilotHomeAbs, repoPath } = createFixture();
+    const routes = register({
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const created = await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'POST', '/api/planning/artifacts/intake', {
+      repoPath,
+      title: 'Should fail closed',
+      category: 'idea',
+    });
+
+    assert.equal(created.res.statusCode, 409);
+    assert.equal(parseJsonBody(created.res).code, 'catalog_repo_id_required_for_mutation');
+  });
+
   await test('GET /api/planning/records/:id/research returns deterministic research notes', async () => {
     const planningApiState = createSeedState();
     const routes = register({

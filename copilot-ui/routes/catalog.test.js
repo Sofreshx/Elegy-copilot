@@ -118,6 +118,10 @@ function createFixtureRoot() {
         installTarget: 'user-global',
         activationScope: 'global',
         materialization: 'always',
+        classification: 'core',
+        targeting: {
+          tags: ['core', 'global'],
+        },
         tags: ['core', 'global'],
         defaultRecommended: true,
       },
@@ -129,6 +133,11 @@ function createFixtureRoot() {
         installTarget: 'repo-local',
         activationScope: 'repo',
         materialization: 'on-demand',
+        classification: 'scope',
+        targeting: {
+          scopeKinds: ['repo'],
+          tags: ['repo'],
+        },
         tags: ['repo'],
         dependsOn: ['core-global'],
       },
@@ -198,6 +207,10 @@ function createFixtureRoot() {
   writeText(path.join(copilotHomeAbs, 'skills', 'core-guardrails', 'SKILL.md'), '# Installed Core Guardrails\n');
   writeText(path.join(copilotHomeAbs, 'skills-vault', 'repo-helper', 'SKILL.md'), '# Repo Helper Vault\n');
   writeText(path.join(copilotHomeAbs, 'agents', 'repo-guide.agent.md'), '# Repo Guide Installed\n');
+  writeText(
+    path.join(copilotHomeAbs, 'skills', 'providers', 'external-vendor', 'market-helper', 'SKILL.md'),
+    '# External Market Helper\n',
+  );
   fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
   writeJson(path.join(repoPath, 'package.json'), {
     name: 'workspace-repo',
@@ -215,6 +228,10 @@ function createFixtureRoot() {
   writeJson(path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json'), {
     skills: {
       enabled: ['repo-helper'],
+      disabled: ['core-guardrails'],
+    },
+    agents: {
+      enabled: ['repo-guide'],
     },
   });
   writeJson(path.join(copilotHomeAbs, 'repo-state', 'placeholder', 'registry.json'), {});
@@ -315,7 +332,18 @@ async function run() {
       assert.equal(bundle.installTarget, 'user-global');
       assert.equal(bundle.activationScope, 'global');
       assert.equal(bundle.materialization, 'always');
+      assert.equal(bundle.classification, 'core');
+      assert.equal(bundle.defaultMemberLoadMode, 'always');
       assert.equal(bundle.defaultRecommended, true);
+      assert.deepEqual(bundle.targeting, {
+        tags: ['core', 'global'],
+      });
+      assert.deepEqual(bundle.uninstallPolicy, {
+        removesInstalledMembers: true,
+        clearsActivationState: true,
+        clearsRepoOverlayState: true,
+        preservesExternalPackages: true,
+      });
       assert.deepEqual(bundle.dependsOn, []);
       assert.equal(bundle.status, 'active');
       assert.equal(bundle.activationStatus, 'active');
@@ -356,6 +384,10 @@ async function run() {
       const searchResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/bundles?q=repo%20helper');
       assert.equal(searchResponse.res.statusCode, 200);
       assert.deepEqual(searchResponse.body.bundles.map((entry) => entry.bundleId), ['repo-helper-pack']);
+
+      const classificationResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/bundles?classification=scope');
+      assert.equal(classificationResponse.res.statusCode, 200);
+      assert.deepEqual(classificationResponse.body.bundles.map((entry) => entry.bundleId), ['repo-helper-pack']);
 
       const summaryResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/summary');
       assert.equal(summaryResponse.res.statusCode, 200);
@@ -451,6 +483,61 @@ async function run() {
       assert.deepEqual(clearedSummary.body.summary.activation.activeBundleIds, []);
       assert.equal(clearedSummary.body.summary.activation.bundleSource, 'user-global');
       assert.equal(fs.existsSync(repoActivationPath), false);
+    });
+
+    await test('POST /api/catalog/bundles/uninstall removes managed member installs and clears bundle activation/overlay state', async () => {
+      const repoBundleActivation = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'activate-bundle',
+        bundleId: 'core-global',
+        repoPath,
+      });
+      assert.equal(repoBundleActivation.res.statusCode, 200);
+
+      const response = await invoke(routes, baseCtx, 'POST', '/api/catalog/bundles/uninstall', {
+        bundleId: 'core-global',
+        repoPath,
+      });
+
+      assert.equal(response.res.statusCode, 200);
+      assert.equal(response.body.kind, 'catalog.bundle.uninstall');
+      assert.equal(response.body.action, 'bundle-uninstalled');
+      assert.equal(response.body.bundleId, 'core-global');
+      assert.deepEqual(response.body.removedAssetIds.sort(), ['agent-repo-guide', 'skill-core-guardrails']);
+      assert.equal(response.body.preserveExternalPackages, true);
+      assert.equal(fs.existsSync(path.join(copilotHomeAbs, 'skills', 'core-guardrails')), false);
+      assert.equal(fs.existsSync(path.join(copilotHomeAbs, 'agents', 'repo-guide.agent.md')), false);
+      assert.equal(
+        fs.existsSync(path.join(copilotHomeAbs, 'skills', 'providers', 'external-vendor', 'market-helper', 'SKILL.md')),
+        true,
+      );
+
+      const globalActivationPath = path.join(copilotHomeAbs, 'catalog', 'activation-state.json');
+      assert.deepEqual(JSON.parse(fs.readFileSync(globalActivationPath, 'utf8')).activeBundleIds, []);
+
+      const repoStateKey = getRepoStateKey(repoPath);
+      const repoActivationPath = path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'activation.json');
+      assert.equal(fs.existsSync(repoActivationPath), false);
+
+      const registry = JSON.parse(
+        fs.readFileSync(path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json'), 'utf8'),
+      );
+      assert.deepEqual(registry.skills.enabled, ['repo-helper']);
+      assert.equal(Array.isArray(registry.skills.disabled), false);
+      assert.equal(Array.isArray(registry.agents?.enabled), false);
+
+      const repoSummary = await invoke(routes, baseCtx, 'GET', `/api/catalog/summary?repoPath=${encodeURIComponent(repoPath)}`);
+      assert.deepEqual(repoSummary.body.summary.activation.activeBundleIds, []);
+      assert.equal(repoSummary.body.summary.activation.bundleSource, 'user-global');
+      assert.ok(
+        !repoSummary.body.summary.routingPolicy.eligibleAssetIds.includes('skill-core-guardrails'),
+        'expected uninstalled core bundle members to be absent from routing eligibility',
+      );
+
+      const repoBundles = await invoke(routes, baseCtx, 'GET', `/api/catalog/bundles?repoPath=${encodeURIComponent(repoPath)}`);
+      const coreBundle = repoBundles.body.bundles.find((entry) => entry.bundleId === 'core-global');
+      assert.equal(coreBundle.activationStatus, 'inactive');
+      const uninstalledCoreSkill = coreBundle.members.find((member) => member.assetId === 'skill-core-guardrails');
+      assert.equal(uninstalledCoreSkill.installed, false);
     });
 
     await test('POST /api/catalog/refresh persists a snapshot and logs a catalog rebuild audit event', async () => {

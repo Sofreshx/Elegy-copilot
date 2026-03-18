@@ -59,6 +59,7 @@ export type AssetAuditEventType = ExtensibleString<
   | 'asset.search.result'
   | 'asset.search.selected'
   | 'asset.search.miss'
+  | 'asset.invoked'
   | 'asset.used'
 >;
 
@@ -123,11 +124,68 @@ export interface TargetingMetadata {
   stacks?: string[];
   languages?: string[];
   tags?: string[];
+  scopeKinds?: AssetScopeKind[];
   repoIds?: string[];
   workspaceIds?: string[];
   pathGlobs?: string[];
   loadMode?: AssetLoadMode;
   recommendationReasons?: string[];
+}
+
+export type AssetBundleClassification = ExtensibleString<
+  'language' | 'scope' | 'workflow' | 'core'
+>;
+
+export interface AssetBundleUninstallPolicy {
+  removesInstalledMembers?: boolean;
+  clearsActivationState?: boolean;
+  clearsRepoOverlayState?: boolean;
+  preservesExternalPackages?: boolean;
+}
+
+export interface AssetBundleMemberState {
+  assetId: string;
+  assetKey?: string;
+  kind?: AssetKind;
+  title?: string;
+  available?: boolean;
+  installed?: boolean;
+  enabled?: boolean;
+  selectedLayer?: AssetCatalogLayer | null;
+  loadMode?: AssetLoadMode;
+  defaultLoadMode?: AssetLoadMode;
+  missing?: boolean;
+}
+
+export interface AssetBundleStats {
+  memberCount: number;
+  availableCount: number;
+  installedCount: number;
+  enabledCount: number;
+  missingCount: number;
+}
+
+export interface AssetBundleProjection {
+  bundleId: string;
+  title: string;
+  description?: string;
+  assetIds: string[];
+  installTarget?: string;
+  activationScope?: string;
+  materialization?: AssetLoadMode | string;
+  classification?: AssetBundleClassification;
+  targeting?: TargetingMetadata;
+  tags?: string[];
+  defaultRecommended?: boolean;
+  dependsOn?: string[];
+  defaultMemberLoadMode?: AssetLoadMode;
+  uninstallPolicy?: AssetBundleUninstallPolicy;
+  status?: ExtensibleString<'active' | 'installed' | 'available' | 'partial' | 'missing'>;
+  stats?: AssetBundleStats;
+  members?: AssetBundleMemberState[];
+  selected?: boolean;
+  activationStatus?: ExtensibleString<'active' | 'inactive'>;
+  activationSource?: string | null;
 }
 
 export interface InstallState {
@@ -293,6 +351,8 @@ export interface AssetAuditEvent {
   repoId?: string;
   sessionId?: string;
   correlationId?: string;
+  toolName?: string;
+  toolCallId?: string;
   search?: {
     query?: SkillSearchQuery;
     resultCount?: number;

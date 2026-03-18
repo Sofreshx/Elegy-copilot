@@ -82,6 +82,15 @@
       "installTarget": "user-global",
       "activationScope": "global",
       "materialization": "always",
+      "classification": "core",
+      "targeting": {
+        "tags": [
+          "core",
+          "global",
+          "search",
+          "review"
+        ]
+      },
       "tags": [
         "core",
         "global",
@@ -116,6 +125,17 @@
       "installTarget": "repo-local",
       "activationScope": "repo",
       "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "workflow",
+          "orchestration",
+          "planning"
+        ]
+      },
       "tags": [
         "workflow",
         "orchestration",
@@ -137,6 +157,18 @@
       "installTarget": "repo-local",
       "activationScope": "repo",
       "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "planning",
+          "roadmap",
+          "backlog",
+          "instruction-engine"
+        ]
+      },
       "tags": [
         "planning",
         "roadmap",
@@ -165,6 +197,18 @@
       "installTarget": "repo-local",
       "activationScope": "repo",
       "materialization": "on-demand",
+      "classification": "scope",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "instruction-engine",
+          "governance",
+          "review",
+          "follow-up"
+        ]
+      },
       "tags": [
         "instruction-engine",
         "governance",
@@ -200,6 +244,16 @@
       "installTarget": "user-global",
       "activationScope": "global",
       "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "tags": [
+          "superpowers",
+          "workflow",
+          "planning",
+          "debugging",
+          "tdd"
+        ]
+      },
       "tags": [
         "superpowers",
         "workflow",
