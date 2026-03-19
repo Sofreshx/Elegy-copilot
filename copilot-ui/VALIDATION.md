@@ -463,8 +463,8 @@ node copilot-ui/dist-electron/updater.rollback.test.js
 
 ## WS6 — CI Topology + Trigger Coverage + Required Checks (WU-WS6-01 / WU-WS6-03 / WU-WS6-04 / WU-WS6-05)
 
-Authoritative workflow: `.github/workflows/extension-ci.yml` (retained for WS6 evidence and
-required-check aggregation after legacy extension retirement).
+Authoritative workflow file: `.github/workflows/extension-ci.yml` (retained for WS6 evidence and
+required-check aggregation after legacy extension retirement, but now used as repo-wide PR CI).
 
 ### Fixed topology (must remain fail-closed)
 
@@ -476,17 +476,8 @@ required-check aggregation after legacy extension retirement).
 
 ### Trigger coverage checks
 
-For pull requests, confirm workflow path filters include WS6-owned files:
-
-- `.github/workflows/extension-ci.yml`
-- `copilot-ui/VALIDATION.md`
-- `docs/system/runtime-permissions-contracts.md`
-- `README.md`
-- `scripts/validate-planpack.js`
-- `scripts/validate-planpack.evidence.test.js`
-- `scripts/validate-planpack.final-gate.test.js`
-- `docs/system/session-state-artifacts.md`
-- `docs/system/planpack-spec.md`
+For pull requests, `extension-ci.yml` now runs repo-wide rather than relying on a narrow path filter.
+Do not reintroduce restrictive PR path filters that would allow WS6-owned changes to bypass required CI.
 
 ### Matrix evidence + artifact gate checks
 
@@ -631,8 +622,10 @@ Expected:
 
 ### CI release gate expectations
 
-- Workflow: `.github/workflows/desktop-release.yml`
-- Trigger with a desktop tag (`desktop-vx.y.z` or `desktop-vx.y.z-rc.1`) or manual dispatch with `release_tag`.
+- Signed workflow: `.github/workflows/desktop-release.yml`
+- Preview workflow: `.github/workflows/desktop-preview-release.yml`
+- Trigger the signed lane with a desktop tag (`desktop-vx.y.z` or `desktop-vx.y.z-rc.1`) and `release_tag`.
+- Trigger the preview lane with a target `ref` plus preview `tag_name`.
 
 ### Required repo configuration
 

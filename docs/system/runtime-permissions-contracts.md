@@ -117,7 +117,8 @@ Pass/fail contract:
 ## WS6 CI Topology + Required-Check Contract (WU-WS6-01 / WU-WS6-03 / WU-WS6-04 / WU-WS6-05)
 
 `.github/workflows/extension-ci.yml` remains the fail-closed WS6 topology with explicit evidence and
-aggregation semantics after retirement of the legacy VS Code extension lane.
+aggregation semantics after retirement of the legacy VS Code extension lane. Although the filename is
+legacy, the workflow now serves as repo-wide CI for pull requests.
 
 1. Fixed topology (authoritative)
   - `.github/workflows/extension-ci.yml` must keep this required dependency chain:

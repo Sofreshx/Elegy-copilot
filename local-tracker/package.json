@@ -2,6 +2,7 @@
   "name": "@instruction-engine/local-tracker",
   "version": "0.1.0",
   "description": "Local agent tracker - watches for session/task changes and bridges to relay",
+  "license": "MIT",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

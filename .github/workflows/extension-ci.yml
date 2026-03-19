@@ -1,34 +1,10 @@
-name: Extension CI/CD
+name: Repository CI (WS6)
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-    paths:
-      - 'engine-assets/policy/**'
-      - '.cli/policy/**'
-      - 'scripts/validate-policy-lockfiles.js'
-      - 'scripts/validate-manifest.js'
-      - 'scripts/validate-skill-discovery-map.js'
-      - 'scripts/validate-skill-discovery-map.test.js'
-      - 'engine-assets/manifest.json'
-      - 'scripts/validate-doc-graph.js'
-      - 'scripts/validate-planpack.js'
-      - 'scripts/validate-planpack.evidence.test.js'
-      - 'scripts/validate-planpack.final-gate.test.js'
-      - 'engine-assets/skills/skill-discovery/SKILL.md'
-      - 'engine-assets/skills/stack-detector/SKILL.md'
-      - 'engine-assets/copilot-instructions.md'
-      - '.github/copilot-instructions.md'
-      - 'copilot-ui/VALIDATION.md'
-      - 'docs/system/runtime-permissions-contracts.md'
-      - 'docs/system/session-state-artifacts.md'
-      - 'docs/system/planpack-spec.md'
-      - 'README.md'
-      - 'package.json'
-      - 'package-lock.json'
-      - '.github/workflows/extension-ci.yml'
   workflow_dispatch:
 
 env:

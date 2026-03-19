@@ -12,4 +12,5 @@ Generate the allowlisted shipping manifest with:
 node scripts/generate-cli-manifest.mjs
 ```
 
-The dashboard UI previously at `.cli/ui/` has been moved to `copilot-ui/` at the repo root.
+The legacy `.cli/ui/` dashboard remnants have been removed. The active local dashboard now lives in
+`copilot-ui/` at the repo root.

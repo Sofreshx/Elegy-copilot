@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Instruction Engine monorepo root",
+  "license": "MIT",
   "workspaces": [
     "contracts",
     "copilot-ui",

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Instruction Engine desktop wrapper for copilot-ui",
+  "license": "MIT",
   "main": "dist-electron/main.js",
   "scripts": {
     "test": "node scripts/test-with-ledger.js && npm run test:vitest",

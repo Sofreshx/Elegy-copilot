@@ -45,6 +45,23 @@ Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can
 - VS Code Chat → right-click → **Diagnostics** (shows loaded agents/skills/prompts)
 - Copilot CLI: run `/agents`, `/skills`
 
+### Open-source contributor quickstart
+
+```powershell
+npm ci
+npm run build:contracts
+npm run test:all
+```
+
+More contributor and community guidance:
+
+- [License](LICENSE)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Support](SUPPORT.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Releasing](RELEASING.md)
+
 ---
 
 ## Asset inventory
@@ -223,7 +240,8 @@ If a persisted projection is missing, the backend falls back to a filesystem bui
 
 Desktop release tag helper flow, when the optional packaging lane is exercised:
 - `.github/workflows/desktop-version-tag.yml` is a maintainer-only manual helper that can target a specific ref to create `desktop-v<version>` tags when an explicit desktop release flow should advance.
-- `.github/workflows/desktop-release.yml` remains the authoritative release publisher and is manually dispatched with a `desktop-v*` tag.
+- `.github/workflows/desktop-preview-release.yml` publishes unsigned preview artifacts to GitHub Releases for public/open-source evaluation.
+- `.github/workflows/desktop-release.yml` remains the signed maintainer release publisher and is manually dispatched with a `desktop-v*` tag.
 
 Release-safety rules (G-06-WU-03) for packaged desktop releases:
 - Migration checksum safety is explicit: `pass` only when persisted migration checksums match manifest checksums; checksum drift is release-blocking (`PLANNING_MIGRATION_CHECKSUM_DRIFT`).
@@ -240,7 +258,7 @@ Release-safety rules (G-06-WU-03) for packaged desktop releases:
 
 ### WS6 CI topology + required checks (locked)
 
-- Authoritative workflow: `.github/workflows/extension-ci.yml` (retained for WS6 validation after legacy extension retirement).
+- Authoritative workflow file: `.github/workflows/extension-ci.yml` (repo-wide CI; legacy filename retained for WS6 validation history after legacy extension retirement).
 - Required topology is fixed and fail-closed: `build` → `ws6-evidence` (matrix `WS6-E1`..`WS6-E5`) → `ws6-artifact-gate` → `required-checks`.
 - `required-checks` must fail when any required upstream job is non-`success`, skipped, or missing required artifact completeness output.
 - Legacy VS Code extension packaging/release jobs have been retired; desktop packaging remains in `.github/workflows/desktop-release.yml`.
@@ -317,11 +335,15 @@ See `local-tracker/docs/messaging-gateway.md` for full reference.
 
 ## Contributing
 
-1. Edit agents in `engine-assets/agents/` (flat `.agent.md` files)
-2. Edit skills in `engine-assets/skills/<name>/SKILL.md`
-3. Canonical asset metadata lives in `engine-assets/manifest.json`. If adding new assets to ship by default, also update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`
-4. Keep `engine-assets/copilot-instructions.md` concise — it loads into every Copilot session
-5. Document behaviour changes in `docs/`
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, validation commands, and PR expectations.
+
+Quick reminders:
+
+1. Edit agents in `engine-assets/agents/` and skills in `engine-assets/skills/<name>/SKILL.md`.
+2. Canonical shipped asset metadata lives in `engine-assets/manifest.json`.
+3. If shipped assets change, update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`.
+4. Keep `engine-assets/copilot-instructions.md` concise because it loads into every Copilot session.
+5. Document behavior and workflow changes in `docs/` and the relevant root community docs.
 
 ---
 

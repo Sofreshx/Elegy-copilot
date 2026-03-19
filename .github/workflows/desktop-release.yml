@@ -7,6 +7,14 @@ on:
         description: 'Desktop tag to release (desktop-v*)'
         required: true
         type: string
+      publish_mode:
+        description: 'Whether to keep the GitHub release as a draft or publish it immediately'
+        required: false
+        default: 'draft'
+        type: choice
+        options:
+          - draft
+          - published
 
 permissions:
   contents: read
@@ -18,7 +26,14 @@ jobs:
       release_tag: ${{ steps.meta.outputs.release_tag }}
       release_version: ${{ steps.meta.outputs.release_version }}
       prerelease: ${{ steps.meta.outputs.prerelease }}
+      publish_mode: ${{ steps.meta.outputs.publish_mode }}
     steps:
+      - name: Checkout repository metadata
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
       - name: Resolve release tag and channel
         id: meta
         shell: bash
@@ -46,14 +61,44 @@ jobs:
             exit 1
           fi
 
+          if ! git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
+            echo "Tag '${tag}' does not exist in this repository." >&2
+            exit 1
+          fi
+
+          package_version="$(python - "${tag}" <<'PY'
+          import json
+          import subprocess
+          import sys
+
+          tag = sys.argv[1]
+          payload = subprocess.check_output(
+              ["git", "show", f"{tag}:copilot-ui/package.json"],
+              text=True,
+          )
+          print(json.loads(payload)["version"])
+          PY
+          )"
+
+          if [[ "${package_version}" != "${version}" ]]; then
+            echo "Desktop tag '${tag}' resolves to version '${version}', but copilot-ui/package.json at that tag is '${package_version}'." >&2
+            exit 1
+          fi
+
           prerelease="false"
           if [[ "${version}" == *-* ]]; then
             prerelease="true"
           fi
 
+          publish_mode="${{ inputs.publish_mode }}"
+          if [[ -z "${publish_mode}" ]]; then
+            publish_mode="draft"
+          fi
+
           echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
           echo "release_version=${version}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+          echo "publish_mode=${publish_mode}" >> "$GITHUB_OUTPUT"
 
   build-windows:
     needs: resolve-release
@@ -61,6 +106,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.release_tag }}
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -87,7 +136,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-windows-unsigned
-          path: copilot-ui/release/*.exe
+          path: copilot-ui/release/**
           if-no-files-found: error
           retention-days: 14
 
@@ -215,6 +264,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.release_tag }}
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -327,6 +380,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.release_tag }}
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -500,12 +557,12 @@ jobs:
           test -f artifacts/macos/MAC_PREVIEW_UNSIGNED.txt || { echo "Missing macOS preview unsigned label." >&2; exit 1; }
           grep -qi "intentionally unsigned" artifacts/macos/MAC_PREVIEW_UNSIGNED.txt || { echo "macOS unsigned preview label is invalid." >&2; exit 1; }
 
-      - name: Publish desktop draft release
+      - name: Publish desktop GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.resolve-release.outputs.release_tag }}
           name: Desktop ${{ needs.resolve-release.outputs.release_version }}
-          draft: true
+          draft: ${{ needs.resolve-release.outputs.publish_mode == 'draft' }}
           prerelease: ${{ needs.resolve-release.outputs.prerelease == 'true' }}
           generate_release_notes: true
           files: |

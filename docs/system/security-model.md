@@ -51,12 +51,14 @@ Reference runbook: [Desktop Update Rollback + Kill Switch Runbook](desktop-updat
 
 ### CI Enforcement — Signing Trust Chain (G-02-WU-04)
 
-Desktop release CI is enforced by `.github/workflows/desktop-release.yml`, with `.github/workflows/desktop-version-tag.yml` kept only as an explicit helper for manual desktop release flows:
+Desktop release CI is split between a public preview lane and the signed maintainer lane:
 
-- Tag source:
+- Public preview lane:
+  - `.github/workflows/desktop-preview-release.yml` is manually dispatched with a target `ref` plus a preview `tag_name`.
+  - It publishes clearly labeled unsigned preview assets to GitHub Releases for open-source evaluation.
+- Signed maintainer lane:
   - `.github/workflows/desktop-version-tag.yml` is manually dispatched by maintainers to create `desktop-v*` tags from an explicit target ref when the desktop release helper is intentionally invoked.
-  - `.github/workflows/desktop-release.yml` is manually dispatched with `release_tag`.
-- Trigger: explicit maintainer dispatch for both tagging and publishing.
+  - `.github/workflows/desktop-release.yml` is manually dispatched with `release_tag` and validates that the requested tag matches `copilot-ui/package.json`.
 - Windows GA artifact flow:
   - Build unsigned installer on `windows-latest`.
   - Exchange GitHub OIDC token (`id-token: write`) for signing identity.
@@ -72,7 +74,8 @@ Desktop release CI is enforced by `.github/workflows/desktop-release.yml`, with 
 - macOS preview flow:
   - Publish preview artifact only with explicit unsigned label (`MAC_PREVIEW_UNSIGNED.txt`).
 - Publish gate:
-  - Draft GitHub release is created only after all verification checks pass.
+  - Public preview releases can publish unsigned assets without the private signing service.
+  - Signed GitHub releases are created only after all verification checks pass.
   - Prerelease flag is inferred from desktop tag semver suffix (`desktop-vx.y.z-*` => prerelease).
 
 Required repository configuration (placeholders, not committed secrets):
