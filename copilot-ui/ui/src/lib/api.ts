@@ -31,6 +31,11 @@ import type {
   ManagedAssetsResponse,
   PlanningBacklogMutationResponse,
   PlanningBacklogResponse,
+  PlanningBullet,
+  PlanningBulletsResponse,
+  PlanningBulletsSummary,
+  PlanningBulletFileRef,
+  PlanningBulletState,
   PlanningDiagram,
   PlanningDiagramsResponse,
   PlanningCompareReceipt,
@@ -107,10 +112,16 @@ export interface SessionArtifactQueryOptions {
 
 export interface SessionPlanSeedArtifactPayload {
   id: string;
-  category: PlanningIntakeCategory;
+  kind?: string;
+  category?: PlanningIntakeCategory | string;
   title: string;
   summary?: string;
   targetRepoIds?: string[];
+  state?: string;
+  repoId?: string;
+  originKind?: string;
+  promotedPlanRefs?: string[];
+  promotedBacklogRefs?: string[];
 }
 
 export interface SessionPlanMutationPayload {
@@ -498,6 +509,41 @@ export interface PlanningIntakeUpdatePayload extends PlanningRepoDocRefOptions {
   planningState?: string;
 }
 
+export interface PlanningBulletPayload {
+  title: string;
+  state?: PlanningBulletState;
+  repoId?: string;
+  summary?: string;
+  notes?: string[];
+  promotedPlanRefs?: string[];
+  promotedBacklogRefs?: string[];
+}
+
+export interface PlanningBulletCreatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  bullet?: PlanningBulletPayload;
+  title?: string;
+  state?: PlanningBulletState;
+  summary?: string;
+  notes?: string[];
+  promotedPlanRefs?: string[];
+  promotedBacklogRefs?: string[];
+}
+
+export interface PlanningBulletUpdatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  bullet?: Partial<PlanningBulletPayload>;
+  patch?: Partial<PlanningBulletPayload>;
+  title?: string;
+  state?: PlanningBulletState;
+  summary?: string;
+  notes?: string[];
+  promotedPlanRefs?: string[];
+  promotedBacklogRefs?: string[];
+}
+
 export interface PlanningRepoSummary {
   repoId: string;
   repoPath: string;
@@ -596,6 +642,50 @@ export interface PlanningIntakeDirectoryRefApi extends PlanningIntakeDirectoryRe
   repoRelativePath: 'docs/planning/intake';
   stableIdPattern: 'PI-###';
   supportedCategories: PlanningIntakeCategory[];
+}
+
+export interface PlanningBulletFileRefApi extends PlanningBulletFileRef {
+  canonicalName: 'Planning Bullets';
+  repo: PlanningRepoSummary;
+  filePath: string;
+  repoRelativePath: 'docs/planning/bullets.md';
+  stableIdPattern: 'PB-###';
+  supportedStates: PlanningBulletState[];
+}
+
+export interface PlanningBulletApi extends PlanningBullet {
+  kind: 'planning.bullet.artifact';
+  schemaVersion: number;
+  id: string;
+  title: string;
+  state: PlanningBulletState;
+  repoId: string;
+  summary: string;
+  notes: string[];
+  promotedPlanRefs: string[];
+  promotedBacklogRefs: string[];
+  filePath: string;
+  repoRelativePath: string;
+}
+
+export interface PlanningBulletsSummaryApi extends PlanningBulletsSummary {
+  filePath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  bulletCount: number;
+  stableIdPattern?: string;
+  supportedStates: PlanningBulletState[];
+}
+
+export interface PlanningBulletsResponseApi extends PlanningBulletsResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  count?: number;
+  bullets: PlanningBulletsSummaryApi;
+  artifacts: PlanningBulletApi[];
+  artifact?: PlanningBulletApi | null;
 }
 
 export interface PlanningIntakeArtifactApi extends PlanningIntakeArtifact {
@@ -822,12 +912,82 @@ const PLANNING_INTAKE_CATEGORIES = [
   'commit-prep',
 ] as const;
 
+const PLANNING_BULLET_STATES = [
+  'idea',
+  'research',
+  'pre-plan',
+] as const;
+
 function normalizePlanningIntakeCategory(value: unknown): PlanningIntakeCategory {
   const normalized = asTrimmedString(value).toLowerCase();
   if (PLANNING_INTAKE_CATEGORIES.includes(normalized as PlanningIntakeCategory)) {
     return normalized as PlanningIntakeCategory;
   }
   return 'idea';
+}
+
+function normalizePlanningBulletState(value: unknown): PlanningBulletState {
+  const normalized = asTrimmedString(value).toLowerCase();
+  if (PLANNING_BULLET_STATES.includes(normalized as PlanningBulletState)) {
+    return normalized as PlanningBulletState;
+  }
+  return 'idea';
+}
+
+function normalizePlanningBullet(value: unknown): PlanningBulletApi | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    kind: 'planning.bullet.artifact',
+    schemaVersion: asNumber(record.schemaVersion, 1),
+    id,
+    title: asTrimmedString(record.title) || id,
+    state: normalizePlanningBulletState(record.state),
+    repoId: asTrimmedString(record.repoId),
+    summary: asTrimmedString(record.summary),
+    notes: asStringList(record.notes),
+    promotedPlanRefs: asStringList(record.promotedPlanRefs),
+    promotedBacklogRefs: asStringList(record.promotedBacklogRefs),
+    filePath: asTrimmedString(record.filePath),
+    repoRelativePath: asTrimmedString(record.repoRelativePath),
+  };
+}
+
+function normalizePlanningBulletsSummary(value: unknown): PlanningBulletsSummaryApi {
+  const record = asRecord(value);
+  return {
+    filePath: asTrimmedString(record.filePath) || null,
+    repoRelativePath: asTrimmedString(record.repoRelativePath) || 'docs/planning/bullets.md',
+    exists: asBoolean(record.exists, false),
+    bulletCount: asNumber(record.bulletCount, 0),
+    stableIdPattern: asTrimmedString(record.stableIdPattern) || 'PB-###',
+    supportedStates: asArray(record.supportedStates)
+      .map((entry) => normalizePlanningBulletState(entry))
+      .filter((entry, index, list) => list.indexOf(entry) === index),
+  };
+}
+
+function normalizePlanningBulletsResponse(payload: unknown): PlanningBulletsResponseApi {
+  const record = asRecord(payload);
+  const artifacts = asArray(record.artifacts)
+    .map((entry) => normalizePlanningBullet(entry))
+    .filter((entry): entry is PlanningBulletApi => entry !== null);
+
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningRepoSummary(record.repo),
+    count: asNumber(record.count, artifacts.length),
+    bullets: normalizePlanningBulletsSummary(record.bullets),
+    artifacts,
+    artifact: normalizePlanningBullet(record.artifact),
+  };
 }
 
 function normalizePlanningIntakeArtifact(value: unknown): PlanningIntakeArtifactApi | null {
@@ -912,6 +1072,35 @@ export function buildPlanningRepositoryBacklogRef(
     filePath: buildRepoPath(normalizedRepoPath, 'docs', 'backlog.md'),
     repoRelativePath: 'docs/backlog.md',
     stableIdPattern: 'RB-###',
+  };
+}
+
+export function buildPlanningBulletsFileRef(
+  repo: PlanningRepoDocRefOptions = {}
+): PlanningBulletFileRefApi | null {
+  const repoPath = asTrimmedString(repo.repoPath);
+  if (!repoPath) {
+    return null;
+  }
+
+  const normalizedRepoPath = trimTrailingPathSeparator(repoPath);
+  const repoId = asTrimmedString(repo.repoId);
+  const repoPathSegments = normalizedRepoPath.split(/[\\/]/).filter(Boolean);
+  const repoLabel = asTrimmedString(repo.repoLabel)
+    || repoPathSegments[repoPathSegments.length - 1]
+    || repoId;
+
+  return {
+    canonicalName: 'Planning Bullets',
+    repo: {
+      repoId,
+      repoPath: normalizedRepoPath,
+      repoLabel,
+    },
+    filePath: buildRepoPath(normalizedRepoPath, 'docs', 'planning', 'bullets.md'),
+    repoRelativePath: 'docs/planning/bullets.md',
+    stableIdPattern: 'PB-###',
+    supportedStates: [...PLANNING_BULLET_STATES],
   };
 }
 
@@ -2518,6 +2707,22 @@ export async function getPlanningIntakeArtifacts(
   return normalizePlanningIntakeArtifactsResponse(payload);
 }
 
+export async function getPlanningBullets(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<PlanningBulletsResponseApi> {
+  const payload = await apiRequest<unknown>('/api/planning/artifacts/bullets', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizePlanningBulletsResponse(payload);
+}
+
 export async function getPlanningBacklog(
   query: PlanningRepoDocRefOptions = {},
   baseUrl?: string
@@ -2549,6 +2754,22 @@ export async function createPlanningBacklogItem(
   return normalizePlanningBacklogMutationResponse(response);
 }
 
+export async function createPlanningBullet(
+  payload: PlanningBulletCreatePayload,
+  baseUrl?: string
+): Promise<PlanningBulletsResponseApi> {
+  const response = await apiRequest<unknown>('/api/planning/artifacts/bullets', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningBulletsResponse(response);
+}
+
 export async function createPlanningIntakeArtifact(
   payload: PlanningIntakeCreatePayload,
   baseUrl?: string
@@ -2563,6 +2784,23 @@ export async function createPlanningIntakeArtifact(
   });
 
   return normalizePlanningIntakeArtifactsResponse(response);
+}
+
+export async function updatePlanningBullet(
+  bulletId: string,
+  payload: PlanningBulletUpdatePayload,
+  baseUrl?: string
+): Promise<PlanningBulletsResponseApi> {
+  const response = await apiRequest<unknown>(`/api/planning/artifacts/bullets/${encodeURIComponent(bulletId)}`, {
+    baseUrl,
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningBulletsResponse(response);
 }
 
 export async function updatePlanningIntakeArtifact(

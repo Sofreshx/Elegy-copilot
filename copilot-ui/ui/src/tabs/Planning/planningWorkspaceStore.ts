@@ -1,12 +1,22 @@
 import {
+  createPlanningBacklogItem,
+  createPlanningBullet,
+  getPlanningBacklog,
+  getPlanningBullets,
   buildPlanningIntakeDirectoryRef,
+  buildPlanningBulletsFileRef,
   buildPlanningRepositoryBacklogRef,
   buildPlanningRoadmapDirectoryRef,
   getPlanningIntakeArtifacts,
   getPlanningRoadmaps,
+  updatePlanningBullet,
 } from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type {
+  PlanningBacklogSummary,
+  PlanningBullet,
+  PlanningBulletFileRef,
+  PlanningBulletsSummary,
   CatalogRepoInventoryEntry,
   PlanningIntakeArtifact,
   PlanningIntakeDirectoryRef,
@@ -26,16 +36,24 @@ export interface PlanningCatalogRepoContext {
 
 export interface PlanningWorkspaceState {
   catalogRepoContext: PlanningCatalogRepoContext | null;
+  planningBulletsFile: PlanningBulletFileRef | null;
+  bulletsSummary: PlanningBulletsSummary | null;
+  bullets: PlanningBullet[];
   planningIntakeDirectory: PlanningIntakeDirectoryRef | null;
   intakeSummary: PlanningIntakeSummary | null;
   intakeArtifacts: PlanningIntakeArtifact[];
   intakeFilters: PlanningIntakeTrackerFilters;
   repositoryBacklog: PlanningRepositoryBacklogRef | null;
+  backlogSummary: PlanningBacklogSummary | null;
   roadmapDirectory: PlanningRoadmapDirectoryRef | null;
   roadmaps: PlanningRoadmap[];
   selectedRoadmapSlug: string;
+  bulletsLoading: boolean;
+  bulletsError: string | null;
   intakeLoading: boolean;
   intakeError: string | null;
+  backlogLoading: boolean;
+  backlogError: string | null;
   roadmapsLoading: boolean;
   loading: boolean;
   error: string | null;
@@ -49,16 +67,24 @@ const DEFAULT_INTAKE_FILTERS: PlanningIntakeTrackerFilters = {
 
 const INITIAL_STATE: PlanningWorkspaceState = {
   catalogRepoContext: null,
+  planningBulletsFile: null,
+  bulletsSummary: null,
+  bullets: [],
   planningIntakeDirectory: null,
   intakeSummary: null,
   intakeArtifacts: [],
   intakeFilters: DEFAULT_INTAKE_FILTERS,
   repositoryBacklog: null,
+  backlogSummary: null,
   roadmapDirectory: null,
   roadmaps: [],
   selectedRoadmapSlug: '',
+  bulletsLoading: false,
+  bulletsError: null,
   intakeLoading: false,
   intakeError: null,
+  backlogLoading: false,
+  backlogError: null,
   roadmapsLoading: false,
   loading: false,
   error: null,
@@ -104,12 +130,19 @@ export function createPlanningWorkspaceStore() {
   const store = createStore<PlanningWorkspaceState>(INITIAL_STATE);
   let roadmapsRequestVersion = 0;
   let intakeRequestVersion = 0;
+  let bulletsRequestVersion = 0;
+  let backlogRequestVersion = 0;
 
   function syncCatalogRepoContext(repo: Partial<CatalogRepoInventoryEntry> | null | undefined): void {
     const catalogRepoContext = normalizeCatalogRepoContext(repo);
     const previousRepoPath = store.getState().catalogRepoContext?.repoPath || '';
     const nextRepoPath = catalogRepoContext?.repoPath || '';
     const preserveRepoData = Boolean(previousRepoPath && previousRepoPath === nextRepoPath);
+    const planningBulletsFile = buildPlanningBulletsFileRef({
+      repoId: catalogRepoContext?.repoId || undefined,
+      repoPath: catalogRepoContext?.repoPath || undefined,
+      repoLabel: catalogRepoContext?.repoLabel || undefined,
+    });
     const planningIntakeDirectory = buildPlanningIntakeDirectoryRef({
       repoId: catalogRepoContext?.repoId || undefined,
       repoPath: catalogRepoContext?.repoPath || undefined,
@@ -129,17 +162,90 @@ export function createPlanningWorkspaceStore() {
     store.setState((state) => ({
       ...state,
       catalogRepoContext,
+      planningBulletsFile,
+      bulletsSummary: preserveRepoData ? state.bulletsSummary : null,
+      bullets: preserveRepoData ? state.bullets : [],
       planningIntakeDirectory,
       intakeSummary: preserveRepoData ? state.intakeSummary : null,
       intakeArtifacts: preserveRepoData ? state.intakeArtifacts : [],
       intakeFilters: preserveRepoData ? state.intakeFilters : DEFAULT_INTAKE_FILTERS,
       repositoryBacklog,
+      backlogSummary: preserveRepoData ? state.backlogSummary : null,
       roadmapDirectory,
       roadmaps: preserveRepoData ? state.roadmaps : [],
       selectedRoadmapSlug: preserveRepoData ? state.selectedRoadmapSlug : '',
+      bulletsError: null,
       intakeError: null,
+      backlogError: null,
       error: null,
     }));
+  }
+
+  async function loadBullets(): Promise<void> {
+    const nextVersion = ++bulletsRequestVersion;
+    const stateSnapshot = store.getState();
+    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        bulletsSummary: null,
+        bullets: [],
+        bulletsLoading: false,
+        loading: state.intakeLoading || state.roadmapsLoading || state.backlogLoading,
+        bulletsError: null,
+      }));
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      bulletsLoading: true,
+      loading: true,
+      bulletsError: null,
+    }));
+
+    try {
+      const response = await getPlanningBullets({
+        repoId: repoId || undefined,
+        repoPath,
+        repoLabel: repoLabel || undefined,
+      });
+
+      store.setState((state) => {
+        if (nextVersion !== bulletsRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          bulletsSummary: response.bullets,
+          bullets: response.artifacts,
+          bulletsLoading: false,
+          loading: state.intakeLoading || state.roadmapsLoading || state.backlogLoading,
+          bulletsError: null,
+        };
+      });
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to load planning bullets.');
+
+      store.setState((state) => {
+        if (nextVersion !== bulletsRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          bulletsSummary: null,
+          bullets: [],
+          bulletsLoading: false,
+          loading: state.intakeLoading || state.roadmapsLoading || state.backlogLoading,
+          bulletsError: message,
+        };
+      });
+    }
   }
 
   async function loadIntakeArtifacts(): Promise<void> {
@@ -155,7 +261,7 @@ export function createPlanningWorkspaceStore() {
         intakeSummary: null,
         intakeArtifacts: [],
         intakeLoading: false,
-        loading: state.roadmapsLoading,
+        loading: state.bulletsLoading || state.roadmapsLoading || state.backlogLoading,
         intakeError: null,
       }));
       return;
@@ -185,7 +291,7 @@ export function createPlanningWorkspaceStore() {
           intakeSummary: response.intake,
           intakeArtifacts: response.artifacts,
           intakeLoading: false,
-          loading: state.roadmapsLoading,
+          loading: state.bulletsLoading || state.roadmapsLoading || state.backlogLoading,
           intakeError: null,
         };
       });
@@ -202,8 +308,70 @@ export function createPlanningWorkspaceStore() {
           intakeSummary: null,
           intakeArtifacts: [],
           intakeLoading: false,
-          loading: state.roadmapsLoading,
+          loading: state.bulletsLoading || state.roadmapsLoading || state.backlogLoading,
           intakeError: message,
+        };
+      });
+    }
+  }
+
+  async function loadBacklog(): Promise<void> {
+    const nextVersion = ++backlogRequestVersion;
+    const stateSnapshot = store.getState();
+    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        backlogSummary: null,
+        backlogLoading: false,
+        loading: state.bulletsLoading || state.intakeLoading || state.roadmapsLoading,
+        backlogError: null,
+      }));
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      backlogLoading: true,
+      loading: true,
+      backlogError: null,
+    }));
+
+    try {
+      const response = await getPlanningBacklog({
+        repoId: repoId || undefined,
+        repoPath,
+      });
+
+      store.setState((state) => {
+        if (nextVersion !== backlogRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          backlogSummary: response.backlog,
+          backlogLoading: false,
+          loading: state.bulletsLoading || state.intakeLoading || state.roadmapsLoading,
+          backlogError: null,
+        };
+      });
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to load backlog.');
+
+      store.setState((state) => {
+        if (nextVersion !== backlogRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          backlogSummary: null,
+          backlogLoading: false,
+          loading: state.bulletsLoading || state.intakeLoading || state.roadmapsLoading,
+          backlogError: message,
         };
       });
     }
@@ -222,7 +390,7 @@ export function createPlanningWorkspaceStore() {
         roadmaps: [],
         selectedRoadmapSlug: '',
         roadmapsLoading: false,
-        loading: state.intakeLoading,
+        loading: state.bulletsLoading || state.intakeLoading || state.backlogLoading,
         error: null,
       }));
       return;
@@ -258,7 +426,7 @@ export function createPlanningWorkspaceStore() {
           roadmaps: response.roadmaps,
           selectedRoadmapSlug,
           roadmapsLoading: false,
-          loading: state.intakeLoading,
+          loading: state.bulletsLoading || state.intakeLoading || state.backlogLoading,
           error: null,
         };
       });
@@ -275,11 +443,130 @@ export function createPlanningWorkspaceStore() {
           roadmaps: [],
           selectedRoadmapSlug: '',
           roadmapsLoading: false,
-          loading: state.intakeLoading,
+          loading: state.bulletsLoading || state.intakeLoading || state.backlogLoading,
           error: message,
         };
       });
     }
+  }
+
+  async function createBullet(input: {
+    title: string;
+    state?: PlanningBullet['state'];
+    summary?: string;
+    notes?: string[];
+  }): Promise<PlanningBullet | null> {
+    const stateSnapshot = store.getState();
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    if (!repoId) {
+      store.setState((state) => ({
+        ...state,
+        bulletsError: 'Select a Catalog repo before creating bullets.',
+      }));
+      return null;
+    }
+
+    const response = await createPlanningBullet({
+      repoId,
+      bullet: {
+        title: input.title,
+        state: input.state,
+        repoId,
+        summary: input.summary,
+        notes: input.notes,
+      },
+    });
+
+    store.setState((state) => ({
+      ...state,
+      bulletsSummary: response.bullets,
+      bullets: response.artifacts,
+      bulletsError: null,
+    }));
+
+    return response.artifact ?? null;
+  }
+
+  async function patchBullet(
+    bulletId: string,
+    patch: {
+      title?: string;
+      state?: PlanningBullet['state'];
+      repoId?: string;
+      summary?: string;
+      notes?: string[];
+      promotedPlanRefs?: string[];
+      promotedBacklogRefs?: string[];
+    }
+  ): Promise<PlanningBullet | null> {
+    const stateSnapshot = store.getState();
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    if (!repoId) {
+      store.setState((state) => ({
+        ...state,
+        bulletsError: 'Select a Catalog repo before updating bullets.',
+      }));
+      return null;
+    }
+
+    const response = await updatePlanningBullet(bulletId, {
+      repoId,
+      patch,
+    });
+
+    store.setState((state) => ({
+      ...state,
+      bulletsSummary: response.bullets,
+      bullets: response.artifacts,
+      bulletsError: null,
+    }));
+
+    return response.artifact ?? null;
+  }
+
+  async function promoteBulletToBacklog(bulletId: string): Promise<string | null> {
+    const stateSnapshot = store.getState();
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
+    const bullet = stateSnapshot.bullets.find((entry) => entry.id === bulletId) || null;
+    if (!repoId || !repoPath || !bullet) {
+      store.setState((state) => ({
+        ...state,
+        backlogError: 'Select a Catalog repo and bullet before creating a backlog suggestion.',
+      }));
+      return null;
+    }
+
+    const backlogResponse = await createPlanningBacklogItem({
+      repoId,
+      repoPath,
+      item: {
+        title: bullet.title,
+        summary: [
+          bullet.summary,
+          `Promoted from ${bullet.id}.`,
+          bullet.notes.length > 0 ? `Notes: ${bullet.notes.join('; ')}` : '',
+        ].filter(Boolean).join(' '),
+        status: 'proposed',
+      },
+    });
+
+    const backlogId = String(backlogResponse.item?.id || '').trim();
+    const nextBacklogRefs = backlogId
+      ? [...new Set([...bullet.promotedBacklogRefs, backlogId])].sort()
+      : bullet.promotedBacklogRefs;
+
+    await patchBullet(bullet.id, {
+      promotedBacklogRefs: nextBacklogRefs,
+    });
+
+    store.setState((state) => ({
+      ...state,
+      backlogSummary: backlogResponse.backlog,
+      backlogError: null,
+    }));
+
+    return backlogId || null;
   }
 
   function setSelectedRoadmapSlug(value: string): void {
@@ -335,8 +622,13 @@ export function createPlanningWorkspaceStore() {
     getState: store.getState,
     subscribe: store.subscribe,
     syncCatalogRepoContext,
+    loadBullets,
     loadIntakeArtifacts,
+    loadBacklog,
     loadRoadmaps,
+    createBullet,
+    patchBullet,
+    promoteBulletToBacklog,
     setSelectedRoadmapSlug,
     setIntakeCategoryFilter,
     setIntakePlanningStateFilter,

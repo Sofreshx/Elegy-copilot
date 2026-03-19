@@ -122,6 +122,32 @@ const mocks = vi.hoisted(() => {
       repoLabel: 'Instruction Engine',
       sources: ['workspace'],
     },
+    planningBulletsFile: {
+      filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md',
+      repoRelativePath: 'docs/planning/bullets.md',
+      stableIdPattern: 'PB-###',
+      supportedStates: ['idea', 'research', 'pre-plan'],
+    },
+    bulletsSummary: {
+      filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md',
+      repoRelativePath: 'docs/planning/bullets.md',
+      exists: true,
+      bulletCount: 1,
+      stableIdPattern: 'PB-###',
+      supportedStates: ['idea', 'research', 'pre-plan'],
+    },
+    bullets: [
+      {
+        id: 'PB-001',
+        title: 'Clarify roadmap hierarchy',
+        state: 'idea',
+        repoId: 'repo-1',
+        summary: 'Explain roadmap above backlog above plans.',
+        notes: ['Keep bullets browse-first'],
+        promotedPlanRefs: ['plan-123'],
+        promotedBacklogRefs: [],
+      },
+    ],
     planningIntakeDirectory: {
       canonicalName: 'Planning Intake',
       repo: {
@@ -204,6 +230,22 @@ const mocks = vi.hoisted(() => {
       repoRelativePath: 'docs/backlog.md',
       stableIdPattern: 'RB-###',
     },
+    backlogSummary: {
+      filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+      repoRelativePath: 'docs/backlog.md',
+      stableIdPattern: 'RB-###',
+      description: 'Repo-scoped intake and queued work for the selected repo.',
+      items: [
+        {
+          id: 'RB-001',
+          title: 'Establish backlog/roadmap workflow',
+          status: 'proposed',
+          summary: 'Keep backlog authority explicit in Planning.',
+          roadmapIds: ['RM-platform-foundation-001'],
+          planRefs: ['plan-123'],
+        },
+      ],
+    },
     roadmapDirectory: {
       canonicalName: 'Roadmap',
       repo: {
@@ -237,8 +279,12 @@ const mocks = vi.hoisted(() => {
       },
     ],
     selectedRoadmapSlug: 'platform-foundation',
+    bulletsLoading: false,
+    bulletsError: null,
     intakeLoading: false,
     intakeError: null,
+    backlogLoading: false,
+    backlogError: null,
     roadmapsLoading: false,
     loading: false,
     error: null,
@@ -277,6 +323,7 @@ const mocks = vi.hoisted(() => {
         },
       },
     },
+    selectRepo: vi.fn(),
   });
   const sdkHealthStore = createMockStore({
     health: {
@@ -346,8 +393,12 @@ const mocks = vi.hoisted(() => {
     listRecords: vi.fn(),
     applyCatalogRepoContext: vi.fn(),
     loadWorkspaceIntake: vi.fn(),
+    loadWorkspaceBullets: vi.fn(),
+    loadWorkspaceBacklog: vi.fn(),
     loadWorkspaceRoadmaps: vi.fn(),
     syncCatalogRepoContext: vi.fn(),
+    patchBullet: vi.fn(),
+    promoteBulletToBacklog: vi.fn(),
     setSelectedRoadmapSlug: vi.fn(),
     setIntakeCategoryFilter: vi.fn(),
     setIntakePlanningStateFilter: vi.fn(),
@@ -375,6 +426,7 @@ const mocks = vi.hoisted(() => {
     removeResearchNote: vi.fn(),
     loadWorkspace: vi.fn(),
     refreshRepo: vi.fn(),
+    selectRepo: vi.fn(),
     goToCatalog: vi.fn(),
     sdkHealthRefresh: vi.fn(),
     sdkHealthStartPolling: vi.fn(),
@@ -434,9 +486,13 @@ vi.mock('../ui/src/tabs/Planning/planningStore', () => ({
 vi.mock('../ui/src/tabs/Planning/planningWorkspaceStore', () => ({
   planningWorkspaceStore: {
     ...mocks.planningWorkspaceStore,
+    loadBullets: mocks.loadWorkspaceBullets,
     loadIntakeArtifacts: mocks.loadWorkspaceIntake,
+    loadBacklog: mocks.loadWorkspaceBacklog,
     loadRoadmaps: mocks.loadWorkspaceRoadmaps,
     syncCatalogRepoContext: mocks.syncCatalogRepoContext,
+    patchBullet: mocks.patchBullet,
+    promoteBulletToBacklog: mocks.promoteBulletToBacklog,
     setSelectedRoadmapSlug: mocks.setSelectedRoadmapSlug,
     setIntakeCategoryFilter: mocks.setIntakeCategoryFilter,
     setIntakePlanningStateFilter: mocks.setIntakePlanningStateFilter,
@@ -450,6 +506,7 @@ vi.mock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
     ...mocks.catalogWorkspaceStore,
     loadWorkspace: mocks.loadWorkspace,
     refreshRepo: mocks.refreshRepo,
+    selectRepo: mocks.selectRepo,
   },
 }));
 
@@ -512,9 +569,13 @@ describe('PlanningView', () => {
       mocks.refreshPolicyPreflight,
       mocks.listRecords,
       mocks.applyCatalogRepoContext,
+      mocks.loadWorkspaceBullets,
       mocks.loadWorkspaceIntake,
+      mocks.loadWorkspaceBacklog,
       mocks.loadWorkspaceRoadmaps,
       mocks.syncCatalogRepoContext,
+      mocks.patchBullet,
+      mocks.promoteBulletToBacklog,
       mocks.setSelectedRoadmapSlug,
       mocks.setIntakeCategoryFilter,
       mocks.setIntakePlanningStateFilter,
@@ -522,6 +583,7 @@ describe('PlanningView', () => {
       mocks.clearIntakeFilters,
       mocks.loadWorkspace,
       mocks.refreshRepo,
+      mocks.selectRepo,
       mocks.goToCatalog,
       mocks.sdkHealthRefresh,
       mocks.sdkHealthStartPolling,
@@ -683,6 +745,32 @@ describe('PlanningView', () => {
         repoLabel: 'Instruction Engine',
         sources: ['workspace'],
       },
+      planningBulletsFile: {
+        filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md',
+        repoRelativePath: 'docs/planning/bullets.md',
+        stableIdPattern: 'PB-###',
+        supportedStates: ['idea', 'research', 'pre-plan'],
+      },
+      bulletsSummary: {
+        filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md',
+        repoRelativePath: 'docs/planning/bullets.md',
+        exists: true,
+        bulletCount: 1,
+        stableIdPattern: 'PB-###',
+        supportedStates: ['idea', 'research', 'pre-plan'],
+      },
+      bullets: [
+        {
+          id: 'PB-001',
+          title: 'Clarify roadmap hierarchy',
+          state: 'idea',
+          repoId: 'repo-1',
+          summary: 'Explain roadmap above backlog above plans.',
+          notes: ['Keep bullets browse-first'],
+          promotedPlanRefs: ['plan-123'],
+          promotedBacklogRefs: [],
+        },
+      ],
       planningIntakeDirectory: {
         canonicalName: 'Planning Intake',
         repo: {
@@ -765,6 +853,22 @@ describe('PlanningView', () => {
         repoRelativePath: 'docs/backlog.md',
         stableIdPattern: 'RB-###',
       },
+      backlogSummary: {
+        filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+        repoRelativePath: 'docs/backlog.md',
+        stableIdPattern: 'RB-###',
+        description: 'Repo-scoped intake and queued work for the selected repo.',
+        items: [
+          {
+            id: 'RB-001',
+            title: 'Establish backlog/roadmap workflow',
+            status: 'proposed',
+            summary: 'Keep backlog authority explicit in Planning.',
+            roadmapIds: ['RM-platform-foundation-001'],
+            planRefs: ['plan-123'],
+          },
+        ],
+      },
       roadmapDirectory: {
         canonicalName: 'Roadmap',
         repo: {
@@ -798,8 +902,12 @@ describe('PlanningView', () => {
         },
       ],
       selectedRoadmapSlug: 'platform-foundation',
+      bulletsLoading: false,
+      bulletsError: null,
       intakeLoading: false,
       intakeError: null,
+      backlogLoading: false,
+      backlogError: null,
       roadmapsLoading: false,
       loading: false,
       error: null,
@@ -906,34 +1014,20 @@ describe('PlanningView', () => {
 
     render(<PlanningView />);
 
-    expect(screen.getByText('Planning Intake + Backlog + Roadmaps')).toBeInTheDocument();
+    expect(screen.getByText('Planning')).toBeInTheDocument();
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('Create / Edit Plan');
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('plan-123');
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('Seeded from');
     expect(screen.getByTestId('planning-persistence-panel')).toHaveTextContent('Planning database ready');
-    expect(screen.getByTestId('planning-intake-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\planning\\intake');
-    expect(screen.getByTestId('planning-backlog-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\backlog.md');
-    expect(screen.getByTestId('planning-roadmap-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\roadmaps');
-    expect(screen.getByTestId('planning-roadmap-list')).toHaveTextContent('Platform Foundation');
-    expect(screen.getByTestId('planning-roadmap-detail')).toHaveTextContent('RM-platform-foundation-001');
-    expect(screen.getByTestId('planning-repo-id-readonly')).toHaveValue('repo-1');
-    expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
     expect(screen.queryByTestId('research-notes-panel')).not.toBeInTheDocument();
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Visible intake artifacts');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Idea (2)');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Research (1)');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Thought (1)');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Ready (1)');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Unscoped (1)');
-    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Capture planning intake');
-    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Validate tracker grouping');
-    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Triage unscoped follow-up');
     expect(screen.getByTestId('planning-sdk-lane-panel')).toHaveTextContent('Planning ↔ SDK Lane');
     expect(screen.getByTestId('planning-sdk-lane-panel')).toHaveTextContent('sdk-123');
     expect(screen.getByTestId('planning-sdk-lane-panel')).toHaveTextContent('Capture planning intake');
     expect(mocks.applyCatalogRepoContext).toHaveBeenCalled();
     expect(mocks.syncCatalogRepoContext).toHaveBeenCalled();
+    expect(mocks.loadWorkspaceBullets).toHaveBeenCalled();
     expect(mocks.loadWorkspaceIntake).toHaveBeenCalled();
+    expect(mocks.loadWorkspaceBacklog).toHaveBeenCalled();
     expect(mocks.loadWorkspaceRoadmaps).toHaveBeenCalled();
     expect(mocks.sdkHealthStartPolling).toHaveBeenCalled();
     expect(mocks.stateOverviewStartPolling).toHaveBeenCalled();
@@ -943,11 +1037,37 @@ describe('PlanningView', () => {
       selectSessionId: 'sdk-123',
     });
 
+    fireEvent.click(screen.getByTestId('planning-section-bullets'));
+    expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-bullets-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md');
+    expect(screen.getByTestId('planning-bullets-list')).toHaveTextContent('PB-001');
+    expect(screen.getByTestId('planning-intake-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\planning\\intake');
+    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Visible intake artifacts');
+    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Idea (2)');
+    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Research (1)');
+    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Thought (1)');
+    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Ready (1)');
+    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Unscoped (1)');
+    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Capture planning intake');
+    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Validate tracker grouping');
+    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Triage unscoped follow-up');
+
+    fireEvent.click(screen.getByTestId('planning-section-backlog'));
+    expect(screen.getByTestId('planning-backlog-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\backlog.md');
+    expect(screen.getByTestId('planning-repo-id-readonly')).toHaveValue('repo-1');
+    expect(screen.getByTestId('planning-backlog-list')).toHaveTextContent('RB-001');
+
+    fireEvent.click(screen.getByTestId('planning-section-roadmaps'));
+    expect(screen.getByTestId('planning-roadmap-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\roadmaps');
+    expect(screen.getByTestId('planning-roadmap-list')).toHaveTextContent('Platform Foundation');
+    expect(screen.getByTestId('planning-roadmap-detail')).toHaveTextContent('RM-platform-foundation-001');
+
     fireEvent.change(screen.getByTestId('planning-roadmap-select'), {
       target: { value: 'platform-foundation' },
     });
     expect(mocks.setSelectedRoadmapSlug).toHaveBeenCalledWith('platform-foundation');
 
+    fireEvent.click(screen.getByTestId('planning-section-plans'));
     fireEvent.click(screen.getByTestId('planning-show-legacy-artifacts'));
     expect(screen.getByTestId('research-notes-panel')).toBeInTheDocument();
 
@@ -1036,6 +1156,8 @@ describe('PlanningView', () => {
 
     render(<PlanningView />);
 
+    fireEvent.click(screen.getByTestId('planning-section-bullets'));
+
     fireEvent.change(screen.getByTestId('planning-intake-category-filter'), {
       target: { value: 'research' },
     });
@@ -1086,6 +1208,9 @@ describe('PlanningView', () => {
     });
     mocks.planningWorkspaceStore.setState({
       catalogRepoContext: null,
+      planningBulletsFile: null,
+      bulletsSummary: null,
+      bullets: [],
       planningIntakeDirectory: null,
       intakeSummary: null,
       intakeArtifacts: [],
@@ -1095,11 +1220,16 @@ describe('PlanningView', () => {
         targetRepoId: '__all__',
       },
       repositoryBacklog: null,
+      backlogSummary: null,
       roadmapDirectory: null,
       roadmaps: [],
       selectedRoadmapSlug: '',
+      bulletsLoading: false,
+      bulletsError: null,
       intakeLoading: false,
       intakeError: null,
+      backlogLoading: false,
+      backlogError: null,
       roadmapsLoading: false,
       loading: false,
       error: null,
@@ -1109,10 +1239,14 @@ describe('PlanningView', () => {
 
     render(<PlanningView />);
 
+    fireEvent.click(screen.getByTestId('planning-section-bullets'));
+
     expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
-    expect(screen.getAllByText('Select a repository in Catalog to resolve intake, backlog, and roadmap surfaces.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Select a repository in Catalog to resolve bullet, intake, backlog, and roadmap surfaces.').length).toBeGreaterThan(0);
     expect(mocks.applyCatalogRepoContext).toHaveBeenCalledWith(null);
+    expect(mocks.loadWorkspaceBullets).not.toHaveBeenCalled();
     expect(mocks.loadWorkspaceIntake).not.toHaveBeenCalled();
+    expect(mocks.loadWorkspaceBacklog).not.toHaveBeenCalled();
     expect(mocks.loadWorkspaceRoadmaps).not.toHaveBeenCalled();
   });
 });

@@ -516,16 +516,24 @@ describe('planningStore catalog repo context', () => {
       repoPath: 'C:\\Repos\\instruction-engine',
       seedArtifact: {
         id: 'PI-001',
+        kind: 'intake',
         category: 'audit-request',
         title: 'Audit planning workflow',
         summary: 'Inspect plan visibility and runtime status.',
         targetRepoIds: ['repo-1'],
+        state: 'requested',
+        repoId: undefined,
+        originKind: 'intake',
+        promotedPlanRefs: [],
+        promotedBacklogRefs: [],
       },
     });
     expect(store.getState().linkedPlanSession).toMatchObject({
       sessionId: 'plan-session-seeded',
       repoId: 'repo-1',
       source: 'seed-from-intake',
+      originKind: 'intake',
+      originArtifactId: 'PI-001',
       seedArtifactId: 'PI-001',
     });
   });

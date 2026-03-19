@@ -337,6 +337,113 @@ async function run() {
     assert.equal(parseJsonBody(created.res).code, 'catalog_repo_id_required_for_mutation');
   });
 
+  await test('GET /api/planning/artifacts/bullets returns canonical empty bullets state for selected catalog repo', async () => {
+    const { engineRoot, copilotHomeAbs, repoPath } = createFixture();
+    const routes = register({
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, {
+          'Content-Type': 'application/json; charset=utf-8',
+        });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const { res } = await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'GET', '/api/planning/artifacts/bullets');
+
+    assert.equal(res.statusCode, 200);
+    const body = parseJsonBody(res);
+    assert.equal(body.kind, 'planning.bullets.list');
+    assert.equal(body.repo.repoPath, repoPath);
+    assert.equal(body.bullets.exists, false);
+    assert.equal(body.bullets.bulletCount, 0);
+    assert.deepEqual(body.artifacts, []);
+  });
+
+  await test('POST /api/planning/artifacts/bullets creates repo-backed planning bullets', async () => {
+    const { engineRoot, copilotHomeAbs, repoPath } = createFixture();
+    const routes = register({
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const created = await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'POST', '/api/planning/artifacts/bullets', {
+      repoId: 'repo-workspace-repo',
+      bullet: {
+        repoId: 'repo-workspace-repo',
+        title: 'Clarify planning hierarchy',
+        state: 'research',
+        summary: 'Show bullets below backlog and roadmaps above plans.',
+        notes: ['Keep repo context explicit'],
+      },
+    });
+
+    assert.equal(created.res.statusCode, 201);
+    const createdBody = parseJsonBody(created.res);
+    assert.equal(createdBody.kind, 'planning.bullets.create');
+    assert.equal(createdBody.artifact.id, 'PB-001');
+    assert.equal(createdBody.artifact.state, 'research');
+    assert.deepEqual(createdBody.artifact.notes, ['Keep repo context explicit']);
+    assert.equal(createdBody.bullets.exists, true);
+    assert.equal(createdBody.count, 1);
+  });
+
+  await test('PATCH /api/planning/artifacts/bullets/:id updates promotion refs without breaking the bullet contract', async () => {
+    const { engineRoot, copilotHomeAbs, repoPath } = createFixture();
+    const routes = register({
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'POST', '/api/planning/artifacts/bullets', {
+      repoId: 'repo-workspace-repo',
+      bullet: {
+        repoId: 'repo-workspace-repo',
+        title: 'Clarify planning hierarchy',
+        summary: 'Show bullets below backlog and roadmaps above plans.',
+      },
+    });
+
+    const updated = await invoke(routes, {
+      engineRoot,
+      copilotHomeAbs,
+    }, 'PATCH', '/api/planning/artifacts/bullets/PB-001', {
+      repoId: 'repo-workspace-repo',
+      patch: {
+        promotedPlanRefs: ['plan-123'],
+        promotedBacklogRefs: ['RB-001'],
+      },
+    });
+
+    assert.equal(updated.res.statusCode, 200);
+    const updatedBody = parseJsonBody(updated.res);
+    assert.equal(updatedBody.kind, 'planning.bullets.update');
+    assert.deepEqual(updatedBody.artifact.promotedPlanRefs, ['plan-123']);
+    assert.deepEqual(updatedBody.artifact.promotedBacklogRefs, ['RB-001']);
+    assert.equal(updatedBody.count, 1);
+  });
+
   await test('GET /api/planning/records/:id/research returns deterministic research notes', async () => {
     const planningApiState = createSeedState();
     const routes = register({

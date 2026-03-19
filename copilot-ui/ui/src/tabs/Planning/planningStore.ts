@@ -22,6 +22,8 @@ import {
 } from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type {
+  PlanningBacklogItem,
+  PlanningBullet,
   CatalogRepoInventoryEntry,
   PlanningDraftItem,
   PlanningDiagram,
@@ -29,11 +31,14 @@ import type {
   PlanningCompareResponse,
   PlanningIntakeCategory,
   PlanningIntakeDirectoryRef,
+  PlanningIntakeArtifact,
   PlanningLinkedPlanSession,
   PlanningLinkedSdkSession,
   PlanningMergeIntentToken,
+  PlanningPlanOriginKind,
   PlanningRecordItem,
   PlanningRepositoryBacklogRef,
+  PlanningRoadmapItem,
   PlanningRoadmapDirectoryRef,
   PlanningResearchNote,
   PlanningSearchResultItem,
@@ -52,6 +57,7 @@ const PLANNING_ACTION_REQUEST_STATE = 'requested';
 const PLANNING_LINKED_SDK_SESSION_STORAGE_KEY = 'instruction-engine.planning.linked-sdk-session.v1';
 const PLANNING_LINKED_PLAN_SESSION_STORAGE_KEY = 'instruction-engine.planning.linked-plan-session.v1';
 const PLANNING_LINKED_SDK_SESSION_WORKSPACE_KEY = '__workspace__';
+const PLANNING_DIRECT_PLAN_ORIGIN_ID = '__direct__';
 
 const IDEA_RECORD_STATES = new Set(['thought', 'research', 'pre-plan']);
 type PlanningActionRequestKind = Extract<
@@ -59,6 +65,21 @@ type PlanningActionRequestKind = Extract<
   'audit-request' | 'roadmap-request' | 'review-prep' | 'commit-prep'
 >;
 type PlanningPrepRequestKind = Extract<PlanningActionRequestKind, 'review-prep' | 'commit-prep'>;
+
+interface PlanningPlanSeedArtifact {
+  id: string;
+  kind: PlanningPlanOriginKind;
+  category?: string;
+  title: string;
+  summary?: string;
+  targetRepoIds?: string[];
+  state?: string;
+  repoId?: string;
+  notes?: string[];
+  acceptanceCriteria?: string[];
+  backlogIds?: string[];
+  planRefs?: string[];
+}
 
 export interface PlanningConflictValue {
   scope: 'user' | 'repo' | 'global';
@@ -371,6 +392,12 @@ function normalizeLinkedPlanSession(value: unknown): PlanningLinkedPlanSession |
   const createdAt = typeof record.createdAt === 'string' ? record.createdAt.trim() : '';
   const updatedAt = typeof record.updatedAt === 'string' && record.updatedAt.trim() ? record.updatedAt.trim() : undefined;
   const repoId = typeof record.repoId === 'string' && record.repoId.trim() ? record.repoId.trim() : null;
+  const originKind = typeof record.originKind === 'string' && record.originKind.trim()
+    ? (record.originKind.trim() as PlanningPlanOriginKind)
+    : undefined;
+  const originArtifactId = typeof record.originArtifactId === 'string' && record.originArtifactId.trim()
+    ? record.originArtifactId.trim()
+    : undefined;
   const seedArtifactId = typeof record.seedArtifactId === 'string' && record.seedArtifactId.trim()
     ? record.seedArtifactId.trim()
     : undefined;
@@ -381,14 +408,39 @@ function normalizeLinkedPlanSession(value: unknown): PlanningLinkedPlanSession |
     ? record.seedArtifactTitle.trim()
     : undefined;
 
-  if (!sessionId || !createdAt || (source !== 'create-plan' && source !== 'seed-from-intake')) {
+  if (
+    !sessionId
+    || !createdAt
+    || ![
+      'create-plan',
+      'seed-from-intake',
+      'seed-from-bullet',
+      'seed-from-backlog',
+      'seed-from-roadmap',
+    ].includes(source)
+  ) {
     return null;
   }
+
+  const normalizedOriginKind = originKind
+    || (source === 'seed-from-intake'
+      ? 'intake'
+      : (source === 'seed-from-bullet'
+        ? 'bullet'
+        : (source === 'seed-from-backlog'
+          ? 'backlog'
+          : (source === 'seed-from-roadmap' ? 'roadmap' : 'direct'))));
+  const normalizedOriginArtifactId =
+    originArtifactId
+    || seedArtifactId
+    || (normalizedOriginKind === 'direct' ? PLANNING_DIRECT_PLAN_ORIGIN_ID : undefined);
 
   return {
     sessionId,
     repoId,
-    source,
+    source: source as PlanningLinkedPlanSession['source'],
+    originKind: normalizedOriginKind,
+    originArtifactId: normalizedOriginArtifactId,
     createdAt,
     updatedAt,
     seedArtifactId,
@@ -428,9 +480,47 @@ function readLinkedPlanSessionMap(): Record<string, PlanningLinkedPlanSession> {
   }
 }
 
-function readLinkedPlanSession(repoId: string | null | undefined): PlanningLinkedPlanSession | null {
-  const scope = resolveLinkedSdkSessionStorageScope(repoId);
-  return readLinkedPlanSessionMap()[scope] ?? null;
+function normalizePlanOriginKind(
+  value: PlanningPlanOriginKind | string | null | undefined,
+  fallback: PlanningPlanOriginKind = 'direct'
+): PlanningPlanOriginKind {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (normalized === 'intake') return 'intake';
+  if (normalized === 'bullet') return 'bullet';
+  if (normalized === 'backlog') return 'backlog';
+  if (normalized === 'roadmap') return 'roadmap';
+  if (normalized === 'direct') return 'direct';
+  return fallback;
+}
+
+function resolveLinkedPlanSessionStorageScope(input: {
+  repoId?: string | null;
+  originKind?: PlanningPlanOriginKind | string | null;
+  originArtifactId?: string | null;
+}): string {
+  const repoScope = resolveLinkedSdkSessionStorageScope(input.repoId);
+  const originKind = normalizePlanOriginKind(input.originKind, 'direct');
+  const originArtifactId = typeof input.originArtifactId === 'string' && input.originArtifactId.trim()
+    ? input.originArtifactId.trim()
+    : PLANNING_DIRECT_PLAN_ORIGIN_ID;
+  return `${repoScope}::${originKind}::${originArtifactId}::planning`;
+}
+
+function readLinkedPlanSession(input: {
+  repoId?: string | null;
+  originKind?: PlanningPlanOriginKind | string | null;
+  originArtifactId?: string | null;
+}): PlanningLinkedPlanSession | null {
+  const nextScope = resolveLinkedPlanSessionStorageScope(input);
+  const legacyScope = resolveLinkedSdkSessionStorageScope(input.repoId);
+  const planSessions = readLinkedPlanSessionMap();
+  return planSessions[nextScope]
+    ?? (
+      normalizePlanOriginKind(input.originKind, 'direct') === 'direct'
+      && (!input.originArtifactId || input.originArtifactId === PLANNING_DIRECT_PLAN_ORIGIN_ID)
+        ? (planSessions[legacyScope] ?? null)
+        : null
+    );
 }
 
 function persistLinkedPlanSession(linkedPlanSession: PlanningLinkedPlanSession): void {
@@ -439,7 +529,11 @@ function persistLinkedPlanSession(linkedPlanSession: PlanningLinkedPlanSession):
   }
 
   try {
-    const scope = resolveLinkedSdkSessionStorageScope(linkedPlanSession.repoId);
+    const scope = resolveLinkedPlanSessionStorageScope({
+      repoId: linkedPlanSession.repoId,
+      originKind: linkedPlanSession.originKind,
+      originArtifactId: linkedPlanSession.originArtifactId,
+    });
     const nextMap = {
       ...readLinkedPlanSessionMap(),
       [scope]: linkedPlanSession,
@@ -498,24 +592,45 @@ function buildSeededPlanContent(input: {
   repoLabel?: string;
   repoId?: string;
   repoPath?: string;
-  artifact: PlanningIntakeArtifact;
+  artifact: PlanningPlanSeedArtifact;
 }): string {
   const artifact = input.artifact;
   const seedTitle = input.title.trim() || artifact.title.trim() || 'Seeded plan';
   const targetRepos = artifact.targetRepoIds.length > 0 ? artifact.targetRepoIds.join(', ') : 'determine from Catalog context';
-  const acceptanceCriteria = artifact.acceptanceCriteria.length > 0
+  const acceptanceCriteria = Array.isArray(artifact.acceptanceCriteria) && artifact.acceptanceCriteria.length > 0
     ? artifact.acceptanceCriteria.map((entry) => `- ${entry}`)
     : ['- Capture concrete acceptance criteria during plan authoring'];
+  const originLabel =
+    artifact.kind === 'bullet'
+      ? 'Bullet'
+      : artifact.kind === 'backlog'
+        ? 'Backlog item'
+        : artifact.kind === 'roadmap'
+          ? 'Roadmap item'
+          : artifact.kind === 'intake'
+            ? 'Intake artifact'
+            : 'Planning artifact';
+  const originDetails = [
+    `- Origin kind: ${artifact.kind}`,
+    `- Origin id: ${artifact.id}`,
+    artifact.state ? `- Origin state: ${artifact.state}` : '',
+    Array.isArray(artifact.backlogIds) && artifact.backlogIds.length > 0
+      ? `- Linked backlog IDs: ${artifact.backlogIds.join(', ')}`
+      : '',
+    Array.isArray(artifact.planRefs) && artifact.planRefs.length > 0
+      ? `- Existing plan refs: ${artifact.planRefs.join(', ')}`
+      : '',
+  ].filter(Boolean);
 
   return [
     `# ${seedTitle}`,
     '',
     '## Seed Context',
     '',
-    `- Intake artifact: ${artifact.id}`,
-    `- Category: ${artifact.category}`,
+    `- ${originLabel}: ${artifact.id}`,
     `- Source title: ${artifact.title}`,
     `- Target repositories: ${targetRepos}`,
+    ...originDetails,
     '',
     '## Problem',
     '',
@@ -540,9 +655,72 @@ function buildSeededPlanContent(input: {
     '',
     '## Notes',
     '',
-    `Seeded from ${artifact.id} (${artifact.category}).`,
+    `Seeded from ${artifact.id}${artifact.category ? ` (${artifact.category})` : ''}.`,
     '',
   ].join('\n');
+}
+
+function normalizePlanSeedSource(artifact: PlanningPlanSeedArtifact | null | undefined): PlanningLinkedPlanSession['source'] {
+  if (!artifact) {
+    return 'create-plan';
+  }
+  if (artifact.kind === 'intake') return 'seed-from-intake';
+  if (artifact.kind === 'bullet') return 'seed-from-bullet';
+  if (artifact.kind === 'backlog') return 'seed-from-backlog';
+  if (artifact.kind === 'roadmap') return 'seed-from-roadmap';
+  return 'create-plan';
+}
+
+function normalizePlanSeedArtifact(
+  artifact: PlanningPlanSeedArtifact | PlanningIntakeArtifact | PlanningBullet | PlanningBacklogItem | PlanningRoadmapItem | null | undefined
+): PlanningPlanSeedArtifact | null {
+  if (!artifact || typeof artifact !== 'object') {
+    return null;
+  }
+
+  const id = String(artifact.id || '').trim();
+  const title = String(artifact.title || '').trim();
+  if (!id || !title) {
+    return null;
+  }
+
+  const record = artifact as Record<string, unknown>;
+  const inputKind = String(record.kind || '').trim().toLowerCase();
+  const kind: PlanningPlanOriginKind =
+    inputKind === 'planning.bullet.artifact'
+      ? 'bullet'
+      : inputKind === 'planning.intake.artifact'
+        ? 'intake'
+        : id.startsWith('PB-')
+          ? 'bullet'
+          : id.startsWith('RB-')
+            ? 'backlog'
+            : id.startsWith('RM-')
+              ? 'roadmap'
+              : 'direct';
+
+  return {
+    id,
+    kind,
+    category: String(record.category || '').trim() || undefined,
+    title,
+    summary: String(record.summary || '').trim() || undefined,
+    targetRepoIds: Array.isArray(record.targetRepoIds)
+      ? record.targetRepoIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [],
+    state: String(record.state || record.planningState || record.status || record.phase || '').trim() || undefined,
+    repoId: String(record.repoId || '').trim() || undefined,
+    notes: Array.isArray(record.notes) ? record.notes.map((entry) => String(entry || '').trim()).filter(Boolean) : [],
+    acceptanceCriteria: Array.isArray(record.acceptanceCriteria)
+      ? record.acceptanceCriteria.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [],
+    backlogIds: Array.isArray(record.backlogIds)
+      ? record.backlogIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [],
+    planRefs: Array.isArray(record.planRefs)
+      ? record.planRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [],
+  };
 }
 
 function normalizeCatalogRepoContext(
@@ -968,7 +1146,11 @@ export function createPlanningStore() {
       repoPath: catalogRepoContext?.repoPath || undefined,
       repoLabel: catalogRepoContext?.repoLabel || undefined,
     });
-    const persistedLinkedPlanSession = readLinkedPlanSession(catalogRepoContext?.repoId || '');
+      const persistedLinkedPlanSession = readLinkedPlanSession({
+        repoId: catalogRepoContext?.repoId || '',
+        originKind: 'direct',
+        originArtifactId: PLANNING_DIRECT_PLAN_ORIGIN_ID,
+      });
     const persistedLinkedSdkSession = readLinkedSdkSession(catalogRepoContext?.repoId || '');
 
     store.setState((state) => ({
@@ -1925,7 +2107,7 @@ export function createPlanningStore() {
   async function savePlanDraft(input: {
     title?: string;
     content?: string;
-    seedArtifact?: PlanningIntakeArtifact | null;
+    seedArtifact?: PlanningPlanSeedArtifact | PlanningIntakeArtifact | PlanningBullet | PlanningBacklogItem | PlanningRoadmapItem | null;
     createNewSession?: boolean;
   } = {}): Promise<string | null> {
     const stateSnapshot = store.getState();
@@ -1935,7 +2117,16 @@ export function createPlanningStore() {
     }
 
     const normalizedTitle = String(input.title ?? stateSnapshot.planTitleDraft ?? '').trim();
-    const seedArtifact = input.seedArtifact ?? null;
+    const seedArtifact = normalizePlanSeedArtifact(input.seedArtifact);
+    const originKind = seedArtifact?.kind ?? 'direct';
+    const originArtifactId = seedArtifact?.id ?? PLANNING_DIRECT_PLAN_ORIGIN_ID;
+    const existingLinkedPlanSession = input.createNewSession
+      ? null
+      : readLinkedPlanSession({
+          repoId: stateSnapshot.catalogRepoContext?.repoId || '',
+          originKind,
+          originArtifactId,
+        });
     const content = typeof input.content === 'string' && input.content.trim()
       ? input.content
       : (
@@ -1964,15 +2155,15 @@ export function createPlanningStore() {
       ...state,
       planSaving: true,
       planError: null,
-      error: null,
-      statusMessage: state.linkedPlanSession && !input.createNewSession
-        ? `Saving plan ${state.linkedPlanSession.sessionId}...`
-        : 'Creating plan session...',
-    }));
+        error: null,
+        statusMessage: existingLinkedPlanSession && !input.createNewSession
+          ? `Saving plan ${existingLinkedPlanSession.sessionId}...`
+          : 'Creating plan session...',
+      }));
 
     try {
       const response = await upsertSessionPlan({
-        sessionId: input.createNewSession ? undefined : stateSnapshot.linkedPlanSession?.sessionId,
+        sessionId: input.createNewSession ? undefined : existingLinkedPlanSession?.sessionId,
         title: normalizedTitle || undefined,
         content,
         repoId: stateSnapshot.catalogRepoContext?.repoId || undefined,
@@ -1980,10 +2171,16 @@ export function createPlanningStore() {
         seedArtifact: seedArtifact
           ? {
             id: seedArtifact.id,
-            category: seedArtifact.category,
+            kind: seedArtifact.kind,
+            category: seedArtifact.category || seedArtifact.kind,
             title: seedArtifact.title,
             summary: seedArtifact.summary,
             targetRepoIds: seedArtifact.targetRepoIds,
+            state: seedArtifact.state,
+            repoId: seedArtifact.repoId,
+            originKind: seedArtifact.kind,
+            promotedPlanRefs: seedArtifact.planRefs,
+            promotedBacklogRefs: seedArtifact.backlogIds,
           }
           : undefined,
       });
@@ -1995,13 +2192,17 @@ export function createPlanningStore() {
       const linkedPlanSession: PlanningLinkedPlanSession = {
         sessionId,
         repoId: stateSnapshot.catalogRepoContext?.repoId?.trim() || null,
-        source: seedArtifact ? 'seed-from-intake' : 'create-plan',
-        createdAt: stateSnapshot.linkedPlanSession?.sessionId === sessionId
-          ? (stateSnapshot.linkedPlanSession.createdAt || response.updatedAt)
+        source: normalizePlanSeedSource(seedArtifact),
+        originKind,
+        originArtifactId,
+        createdAt: existingLinkedPlanSession?.sessionId === sessionId
+          ? (existingLinkedPlanSession.createdAt || response.updatedAt)
           : response.updatedAt,
         updatedAt: response.updatedAt,
         seedArtifactId: seedArtifact?.id || undefined,
-        seedArtifactCategory: seedArtifact?.category,
+        seedArtifactCategory: seedArtifact?.kind === 'intake'
+          ? (seedArtifact.category as PlanningIntakeCategory | undefined)
+          : undefined,
         seedArtifactTitle: seedArtifact?.title,
       };
       persistLinkedPlanSession(linkedPlanSession);

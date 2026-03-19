@@ -1283,10 +1283,19 @@ export interface PlanningLinkedSdkSession {
   promptPreview?: string;
 }
 
+export type PlanningPlanOriginKind = 'direct' | 'intake' | 'bullet' | 'backlog' | 'roadmap';
+
 export interface PlanningLinkedPlanSession {
   sessionId: string;
   repoId?: string | null;
-  source: 'create-plan' | 'seed-from-intake';
+  source:
+    | 'create-plan'
+    | 'seed-from-intake'
+    | 'seed-from-bullet'
+    | 'seed-from-backlog'
+    | 'seed-from-roadmap';
+  originKind?: PlanningPlanOriginKind;
+  originArtifactId?: string;
   createdAt: string;
   updatedAt?: string;
   seedArtifactId?: string;
@@ -1309,6 +1318,8 @@ export interface PlanningRepositoryBacklogRef {
   stableIdPattern: 'RB-###';
 }
 
+export type PlanningBulletState = 'idea' | 'research' | 'pre-plan';
+
 export type PlanningIntakeCategory =
   | 'idea'
   | 'research'
@@ -1328,12 +1339,36 @@ export interface PlanningIntakeDirectoryRef {
   supportedCategories: PlanningIntakeCategory[];
 }
 
+export interface PlanningBulletFileRef {
+  canonicalName: 'Planning Bullets';
+  repo: PlanningRepoSummary;
+  filePath: string;
+  repoRelativePath: 'docs/planning/bullets.md';
+  stableIdPattern: 'PB-###';
+  supportedStates: PlanningBulletState[];
+}
+
 export interface PlanningRoadmapDirectoryRef {
   canonicalName: 'Roadmap';
   repo: PlanningRepoSummary;
   directoryPath: string;
   repoRelativePath: 'docs/roadmaps';
   stableIdPattern: 'RM-<roadmap-slug>-###';
+}
+
+export interface PlanningBullet {
+  kind: 'planning.bullet.artifact';
+  schemaVersion: number;
+  id: string;
+  title: string;
+  state: PlanningBulletState;
+  repoId: string;
+  summary: string;
+  notes: string[];
+  promotedPlanRefs: string[];
+  promotedBacklogRefs: string[];
+  filePath: string;
+  repoRelativePath: string;
 }
 
 export interface PlanningIntakeArtifact {
@@ -1370,6 +1405,16 @@ export interface PlanningIntakeSummary {
   [key: string]: unknown;
 }
 
+export interface PlanningBulletsSummary {
+  filePath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  bulletCount: number;
+  stableIdPattern?: string;
+  supportedStates: PlanningBulletState[];
+  [key: string]: unknown;
+}
+
 export interface PlanningIntakeArtifactsResponse {
   contractVersion?: string;
   kind?: string;
@@ -1379,6 +1424,18 @@ export interface PlanningIntakeArtifactsResponse {
   intake: PlanningIntakeSummary;
   artifacts: PlanningIntakeArtifact[];
   artifact?: PlanningIntakeArtifact | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningBulletsResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  count?: number;
+  bullets: PlanningBulletsSummary;
+  artifacts: PlanningBullet[];
+  artifact?: PlanningBullet | null;
   [key: string]: unknown;
 }
 

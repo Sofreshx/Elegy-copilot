@@ -1,6 +1,7 @@
 'use strict';
 
 const planningIntakeArtifactsLib = require('../lib/planningIntakeArtifacts');
+const planningBulletsLib = require('../lib/planningBullets');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const {
   DEFAULT_PLANNING_API_CONTRACT_VERSION,
@@ -203,6 +204,46 @@ function summarizePlanningIntakeState(state) {
     supportedCategories: Array.isArray(intake.supportedCategories)
       ? intake.supportedCategories.slice()
       : planningIntakeArtifactsLib.PLANNING_INTAKE_CATEGORIES.slice(),
+  };
+}
+
+function summarizePlanningBulletsState(state) {
+  const bulletsState = state && typeof state === 'object' ? state : {};
+  return {
+    filePath: bulletsState.filePath || null,
+    repoRelativePath:
+      bulletsState.repoRelativePath
+      || planningBulletsLib.PLANNING_BULLETS_FILE_REPO_RELATIVE_PATH,
+    exists: Boolean(bulletsState.exists),
+    bulletCount: Array.isArray(bulletsState.bullets) ? bulletsState.bullets.length : Number(bulletsState.bulletCount || 0),
+    stableIdPattern: bulletsState.stableIdPattern || 'PB-###',
+    supportedStates: Array.isArray(bulletsState.supportedStates)
+      ? bulletsState.supportedStates.slice()
+      : planningBulletsLib.PLANNING_BULLET_STATES.slice(),
+  };
+}
+
+function summarizePlanningBullet(artifact) {
+  const record = artifact && typeof artifact === 'object' ? artifact : {};
+  return {
+    kind: 'planning.bullet.artifact',
+    schemaVersion: 1,
+    id: normalizeTrimmedString(record.id),
+    title: typeof record.title === 'string' ? record.title : '',
+    state: normalizeTrimmedString(record.state) || 'idea',
+    repoId: normalizeTrimmedString(record.repoId),
+    summary: typeof record.summary === 'string' ? record.summary : '',
+    notes: Array.isArray(record.notes)
+      ? record.notes.map((entry) => normalizeTrimmedString(entry)).filter(Boolean)
+      : [],
+    promotedPlanRefs: Array.isArray(record.promotedPlanRefs)
+      ? record.promotedPlanRefs.map((entry) => normalizeTrimmedString(entry)).filter(Boolean)
+      : [],
+    promotedBacklogRefs: Array.isArray(record.promotedBacklogRefs)
+      ? record.promotedBacklogRefs.map((entry) => normalizeTrimmedString(entry)).filter(Boolean)
+      : [],
+    filePath: normalizeTrimmedString(record.filePath),
+    repoRelativePath: normalizeTrimmedString(record.repoRelativePath),
   };
 }
 
@@ -455,6 +496,121 @@ function mapPlanningIntakeError(error) {
   return buildRouteError(message, 400, 'planning_intake_validation_failed');
 }
 
+function mapPlanningBulletsError(error) {
+  if (error && error.statusCode) {
+    return error;
+  }
+
+  const message = normalizeTrimmedString(error && error.message ? error.message : error);
+  if (!message) {
+    return buildRouteError('planning bullets route failed', 500, 'planning_bullets_route_failed');
+  }
+
+  if (
+    message.includes('planning bullets document must begin with "# Planning Bullets"')
+    || message.includes('duplicate planning bullet id:')
+    || message.includes('invalid planning bullet heading:')
+  ) {
+    return buildRouteError(message, 409, 'planning_bullets_file_invalid');
+  }
+
+  if (message.includes('planning bullet not found:')) {
+    return buildRouteError(message, 404, 'planning_bullet_not_found');
+  }
+
+  return buildRouteError(message, 400, 'planning_bullets_validation_failed');
+}
+
+function handleListPlanningBullets(ctx, deps) {
+  try {
+    const selector = normalizeRepoSelector(ctx.u.searchParams);
+    const { repo } = resolveReadRepoContext(ctx, deps, selector);
+    const bulletsState = deps.planningBullets.listPlanningBullets(repo.repoPath);
+    const bullets = Array.isArray(bulletsState.bullets)
+      ? bulletsState.bullets.map((entry) => summarizePlanningBullet(entry))
+      : [];
+
+    deps.sendJson(ctx.res, 200, {
+      contractVersion: deps.contractVersion,
+      kind: 'planning.bullets.list',
+      deterministic: true,
+      repo: summarizeRepo(repo),
+      count: bullets.length,
+      bullets: summarizePlanningBulletsState(bulletsState),
+      artifacts: bullets,
+    });
+  } catch (error) {
+    sendRouteError(ctx.res, deps, 'planning.bullets.list', mapPlanningBulletsError(error));
+  }
+}
+
+function handleCreatePlanningBullet(ctx, deps) {
+  readRequestBody(ctx.req, deps)
+    .then((body) => {
+      const selector = normalizeRepoSelector(ctx.u.searchParams, body);
+      const { repo } = resolveMutationRepoContext(ctx, deps, selector);
+      const payload = body.bullet && typeof body.bullet === 'object' ? body.bullet : body;
+      const bullet = deps.planningBullets.createPlanningBullet(repo.repoPath, payload);
+      const bulletsState = deps.planningBullets.listPlanningBullets(repo.repoPath);
+
+      deps.sendJson(ctx.res, 201, {
+        contractVersion: deps.contractVersion,
+        kind: 'planning.bullets.create',
+        deterministic: true,
+        repo: summarizeRepo(repo),
+        count: bulletsState.bullets.length,
+        bullets: summarizePlanningBulletsState(bulletsState),
+        artifact: summarizePlanningBullet({
+          ...bullet,
+          filePath: bulletsState.filePath,
+          repoRelativePath: bulletsState.repoRelativePath,
+        }),
+        artifacts: bulletsState.bullets.map((entry) => summarizePlanningBullet(entry)),
+      });
+    })
+    .catch((error) => sendRouteError(
+      ctx.res,
+      deps,
+      'planning.bullets.create',
+      mapPlanningBulletsError(error),
+    ));
+}
+
+function handleUpdatePlanningBullet(ctx, deps) {
+  readRequestBody(ctx.req, deps)
+    .then((body) => {
+      const selector = normalizeRepoSelector(ctx.u.searchParams, body);
+      const { repo } = resolveMutationRepoContext(ctx, deps, selector);
+      const bulletId = decodeURIComponent((ctx.match && ctx.match[1]) || '').trim();
+      const payload = body.bullet && typeof body.bullet === 'object'
+        ? body.bullet
+        : (body.patch && typeof body.patch === 'object' ? body.patch : body);
+      const bullet = deps.planningBullets.updatePlanningBullet(repo.repoPath, bulletId, payload);
+      const bulletsState = deps.planningBullets.listPlanningBullets(repo.repoPath);
+
+      deps.sendJson(ctx.res, 200, {
+        contractVersion: deps.contractVersion,
+        kind: 'planning.bullets.update',
+        deterministic: true,
+        repo: summarizeRepo(repo),
+        count: bulletsState.bullets.length,
+        bullets: summarizePlanningBulletsState(bulletsState),
+        artifact: summarizePlanningBullet({
+          ...bullet,
+          filePath: bulletsState.filePath,
+          repoRelativePath: bulletsState.repoRelativePath,
+        }),
+        artifacts: bulletsState.bullets.map((entry) => summarizePlanningBullet(entry)),
+      });
+    })
+    .catch((error) => sendRouteError(
+      ctx.res,
+      deps,
+      'planning.bullets.update',
+      mapPlanningBulletsError(error),
+    ));
+}
+
 function handleListPlanningIntake(ctx, deps) {
   try {
     const selector = normalizeRepoSelector(ctx.u.searchParams);
@@ -544,9 +700,25 @@ function register(deps = {}) {
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     repoInventory: deps.repoInventory || repoInventoryLib,
     planningIntakeArtifacts: deps.planningIntakeArtifacts || planningIntakeArtifactsLib,
+    planningBullets: deps.planningBullets || planningBulletsLib,
   };
 
   return [
+    {
+      method: 'GET',
+      path: '/api/planning/artifacts/bullets',
+      handler: (ctx) => handleListPlanningBullets(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/artifacts/bullets',
+      handler: (ctx) => handleCreatePlanningBullet(ctx, resolvedDeps),
+    },
+    {
+      method: 'PATCH',
+      path: /^\/api\/planning\/artifacts\/bullets\/([^/]+)$/,
+      handler: (ctx) => handleUpdatePlanningBullet(ctx, resolvedDeps),
+    },
     {
       method: 'GET',
       path: '/api/planning/artifacts/intake',

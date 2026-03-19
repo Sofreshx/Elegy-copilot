@@ -549,23 +549,46 @@ function PlanningSdkLanePanel(props: {
 }
 
 export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?: (sessionId: string) => void }) {
+  type PlanningSection = 'plans' | 'bullets' | 'backlog' | 'roadmaps';
+
   const planningState = useStoreValue(planningStore);
   const planningWorkspaceState = useStoreValue(planningWorkspaceStore);
   const catalogState = useStoreValue(catalogWorkspaceStore);
   const sdkHealthState = useStoreValue(sdkHealthStore);
   const sdkSessionsState = useStoreValue(sdkSessionsStore);
   const overviewState = useStoreValue(stateOverviewStore);
+  const [activeSection, setActiveSection] = useState<PlanningSection>('plans');
   const [showLegacyArtifacts, setShowLegacyArtifacts] = useState(false);
 
   const selectedCatalogRepo = useMemo(() => resolveCatalogRepoContext(catalogState), [catalogState]);
+  const knownCatalogRepos = useMemo(() => {
+    const repos = Array.isArray(catalogState.repoInventory?.repos) ? catalogState.repoInventory.repos : [];
+    return repos.map((repo) => normalizeCatalogRepoEntry(repo)).filter(Boolean) as Array<ReturnType<typeof normalizeCatalogRepoEntry>>;
+  }, [catalogState.repoInventory?.repos]);
+  const selectedRoadmap =
+    planningWorkspaceState.roadmaps.find((roadmap) => roadmap.slug === planningWorkspaceState.selectedRoadmapSlug)
+    ?? planningWorkspaceState.roadmaps[0]
+    ?? null;
+  const selectedLegacyRecord =
+    planningState.records.find((record) => record.recordId === planningState.selectedRecordId)
+    ?? planningState.records[0]
+    ?? null;
+  const selectedLegacyDiagram =
+    planningState.diagrams.find((diagram) => diagram.id === planningState.selectedDiagramId)
+    ?? planningState.diagrams[0]
+    ?? null;
 
   useEffect(() => {
     planningStore.applyCatalogRepoContext(selectedCatalogRepo);
     planningWorkspaceStore.syncCatalogRepoContext(selectedCatalogRepo);
 
     if (selectedCatalogRepo?.repoPath) {
-      void planningWorkspaceStore.loadIntakeArtifacts();
-      void planningWorkspaceStore.loadRoadmaps();
+      void Promise.allSettled([
+        planningWorkspaceStore.loadBullets(),
+        planningWorkspaceStore.loadIntakeArtifacts(),
+        planningWorkspaceStore.loadBacklog(),
+        planningWorkspaceStore.loadRoadmaps(),
+      ]);
     }
   }, [
     selectedCatalogRepo?.repoId,
@@ -618,18 +641,6 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     void planningStore.loadLinkedPlan();
   }, [planningState.linkedPlanSession?.sessionId]);
 
-  const selectedRoadmap =
-    planningWorkspaceState.roadmaps.find((roadmap) => roadmap.slug === planningWorkspaceState.selectedRoadmapSlug)
-    ?? planningWorkspaceState.roadmaps[0]
-    ?? null;
-  const selectedLegacyRecord =
-    planningState.records.find((record) => record.recordId === planningState.selectedRecordId)
-    ?? planningState.records[0]
-    ?? null;
-  const selectedLegacyDiagram =
-    planningState.diagrams.find((diagram) => diagram.id === planningState.selectedDiagramId)
-    ?? planningState.diagrams[0]
-    ?? null;
   const supportedCategories = useMemo(() => {
     const knownCategories = new Set<PlanningIntakeCategory>(
       planningWorkspaceState.planningIntakeDirectory?.supportedCategories
@@ -647,6 +658,7 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     planningWorkspaceState.intakeSummary?.supportedCategories?.join('|'),
     planningWorkspaceState.intakeArtifacts,
   ]);
+
   const intakeCategoryCounts = useMemo(() => {
     return supportedCategories
       .map((category) => [
@@ -655,19 +667,18 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
       ] as [string, number])
       .filter(([, count]) => count > 0);
   }, [planningWorkspaceState.intakeArtifacts, supportedCategories]);
+
   const intakeStateCounts = useMemo(() => {
     const counts = new Map<string, number>();
-
     planningWorkspaceState.intakeArtifacts.forEach((artifact) => {
       const key = artifact.planningState?.trim() || INTAKE_FILTER_NONE;
       counts.set(key, (counts.get(key) || 0) + 1);
     });
-
     return Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right));
   }, [planningWorkspaceState.intakeArtifacts]);
+
   const intakeTargetCounts = useMemo(() => {
     const counts = new Map<string, number>();
-
     planningWorkspaceState.intakeArtifacts.forEach((artifact) => {
       if (artifact.targetRepoIds.length === 0) {
         counts.set(INTAKE_FILTER_NONE, (counts.get(INTAKE_FILTER_NONE) || 0) + 1);
@@ -678,9 +689,9 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
         counts.set(targetRepoId, (counts.get(targetRepoId) || 0) + 1);
       });
     });
-
     return Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right));
   }, [planningWorkspaceState.intakeArtifacts]);
+
   const filteredIntakeArtifacts = useMemo(() => {
     return planningWorkspaceState.intakeArtifacts.filter((artifact) => {
       if (
@@ -708,9 +719,9 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
       return true;
     });
   }, [planningWorkspaceState.intakeArtifacts, planningWorkspaceState.intakeFilters]);
+
   const groupedIntakeArtifacts = useMemo(() => {
     const groups = new Map<PlanningIntakeCategory, PlanningIntakeArtifact[]>();
-
     filteredIntakeArtifacts.forEach((artifact) => {
       const existing = groups.get(artifact.category);
       if (existing) {
@@ -719,37 +730,108 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
         groups.set(artifact.category, [artifact]);
       }
     });
-
     return Array.from(groups.entries()).sort(([left], [right]) => left.localeCompare(right));
   }, [filteredIntakeArtifacts]);
+
   const hasActiveIntakeFilters =
     planningWorkspaceState.intakeFilters.category !== INTAKE_FILTER_ALL
     || planningWorkspaceState.intakeFilters.planningState !== INTAKE_FILTER_ALL
     || planningWorkspaceState.intakeFilters.targetRepoId !== INTAKE_FILTER_ALL;
 
+  const sectionCopy: Record<PlanningSection, { title: string; body: string }> = {
+    plans: {
+      title: 'Plans',
+      body: 'Author or reopen one-session plan.md artifacts, then jump into local sessions when you are ready to execute.',
+    },
+    bullets: {
+      title: 'Bullets',
+      body: 'Capture repo-scoped bullet seeds in docs/planning/bullets.md and keep typed request intake visible without mixing it into backlog or roadmap authority.',
+    },
+    backlog: {
+      title: 'Backlog',
+      body: 'Browse docs/backlog.md as the canonical queued-work surface and start plans from accepted backlog slices.',
+    },
+    roadmaps: {
+      title: 'Roadmaps',
+      body: 'Explore docs/roadmaps/*.md as the multi-plan outcome layer above backlog and individual session plans.',
+    },
+  };
+
+  const seedPlanFromArtifact = async (artifact: Record<string, unknown> & { id: string; title: string }): Promise<void> => {
+    const sessionId = await planningStore.savePlanDraft({
+      title: planningState.planTitleDraft || artifact.title,
+      seedArtifact: artifact,
+    });
+
+    if (sessionId && artifact.id.startsWith('PB-')) {
+      const promotedPlanRefs = Array.isArray(artifact.promotedPlanRefs)
+        ? artifact.promotedPlanRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
+        : [];
+      await planningWorkspaceStore.patchBullet(artifact.id, {
+        promotedPlanRefs: [...new Set([...promotedPlanRefs, sessionId])].sort(),
+      });
+    }
+
+    if (sessionId) {
+      setActiveSection('plans');
+    }
+  };
+
   return (
     <section className="planning-view" data-testid="planning-view">
       <Toolbar testId="planning-view-toolbar">
-        <div className="planning-summary">
-          <p className="planning-title">Planning Intake + Backlog + Roadmaps</p>
-          <p className="planning-copy">
-            Repo-backed planning surfaces resolve from the selected Catalog repository. Intake artifacts hold unscheduled tracked work, while backlog and roadmap docs stay canonical for accepted work.
-          </p>
+        <div className="workspace-nav-summary">
+          <p className="workspace-nav-title">Planning</p>
+          <p className="workspace-nav-copy">{sectionCopy[activeSection].body}</p>
         </div>
 
         <div className="planning-toolbar-actions">
+          <label className="form-input" htmlFor="planning-active-repo-select">
+            <span className="form-label">Planning repo</span>
+            <select
+              data-testid="planning-active-repo-select"
+              id="planning-active-repo-select"
+              onChange={(event) => {
+                const repoId = event.target.value.trim();
+                if (!repoId) {
+                  return;
+                }
+                void catalogWorkspaceStore.selectRepo({ repoId });
+              }}
+              value={selectedCatalogRepo?.repoId || ''}
+            >
+              <option value="">
+                {knownCatalogRepos.length > 0 ? '(choose a Catalog repo)' : '(no Catalog repos available)'}
+              </option>
+              {knownCatalogRepos.map((repo) => (
+                <option key={repo.repoId} value={repo.repoId}>
+                  {repo.repoLabel || repo.repoId || repo.repoPath}
+                </option>
+              ))}
+            </select>
+          </label>
           <Button onClick={() => navigationStore.goToCatalog('assets')} testId="planning-open-catalog" variant="secondary">
             Open Catalog Assets
           </Button>
-          <Button
-            onClick={() => setShowLegacyArtifacts((value) => !value)}
-            testId="planning-show-legacy-artifacts"
-            variant="secondary"
-          >
-            {showLegacyArtifacts ? 'Hide legacy artifacts' : 'Show legacy artifacts'}
-          </Button>
         </div>
       </Toolbar>
+
+      <div className="workspace-nav" role="tablist" aria-label="Planning sections">
+        <Button onClick={() => setActiveSection('plans')} testId="planning-section-plans" variant={activeSection === 'plans' ? 'primary' : 'ghost'}>
+          Plans
+        </Button>
+        <Button onClick={() => setActiveSection('bullets')} testId="planning-section-bullets" variant={activeSection === 'bullets' ? 'primary' : 'ghost'}>
+          Bullets
+        </Button>
+        <Button onClick={() => setActiveSection('backlog')} testId="planning-section-backlog" variant={activeSection === 'backlog' ? 'primary' : 'ghost'}>
+          Backlog
+        </Button>
+        <Button onClick={() => setActiveSection('roadmaps')} testId="planning-section-roadmaps" variant={activeSection === 'roadmaps' ? 'primary' : 'ghost'}>
+          Roadmaps
+        </Button>
+      </div>
+
+      <p className="workspace-section-label">{sectionCopy[activeSection].title}</p>
 
       {planningWorkspaceState.error ? (
         <p className="planning-error" role="alert">
@@ -757,447 +839,611 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
         </p>
       ) : null}
 
-      <div className="planning-grid">
-        <PlanningPlanAuthoringPanel
-          intakeArtifacts={planningWorkspaceState.intakeArtifacts}
-          linkedPlanSession={planningState.linkedPlanSession}
-          onOpenLinkedPlanSession={(sessionId) => {
-            void sessionsStore.loadSessions().then(() => {
-              sessionsStore.selectSession(sessionId);
-              navigationStore.goToRuntime('sessions', { sessionsMode: 'local' });
-            });
-          }}
-          onPlanContentChange={(value) => planningStore.setPlanContentDraft(value)}
-          onPlanTitleChange={(value) => planningStore.setPlanTitleDraft(value)}
-          onReloadPlan={() => {
-            void planningStore.loadLinkedPlan();
-          }}
-          onSaveBlankPlan={() => {
-            void planningStore.savePlanDraft({
-              title: planningState.planTitleDraft,
-              content: planningState.planContentDraft,
-            });
-          }}
-          onSeedPlan={(artifactId) => {
-            const artifact = planningWorkspaceState.intakeArtifacts.find((entry) => entry.id === artifactId) ?? null;
-            if (!artifact) {
-              return;
-            }
+      {activeSection === 'plans' ? (
+        <div className="planning-grid">
+          <PlanningPlanAuthoringPanel
+            intakeArtifacts={planningWorkspaceState.intakeArtifacts}
+            linkedPlanSession={planningState.linkedPlanSession}
+            onOpenLinkedPlanSession={(sessionId) => {
+              void sessionsStore.loadSessions().then(() => {
+                sessionsStore.selectSession(sessionId);
+                navigationStore.goToRuntime('sessions', { sessionsMode: 'local' });
+              });
+            }}
+            onPlanContentChange={(value) => planningStore.setPlanContentDraft(value)}
+            onPlanTitleChange={(value) => planningStore.setPlanTitleDraft(value)}
+            onReloadPlan={() => {
+              void planningStore.loadLinkedPlan();
+            }}
+            onSaveBlankPlan={() => {
+              void planningStore.savePlanDraft({
+                title: planningState.planTitleDraft,
+                content: planningState.planContentDraft,
+              });
+            }}
+            onSeedPlan={(artifactId) => {
+              const artifact = planningWorkspaceState.intakeArtifacts.find((entry) => entry.id === artifactId) ?? null;
+              if (!artifact) {
+                return;
+              }
 
-            void planningStore.savePlanDraft({
-              title: planningState.planTitleDraft || artifact.title,
-              seedArtifact: artifact,
-            });
-          }}
-          planContentDraft={planningState.planContentDraft}
-          planError={planningState.planError}
-          planLoading={planningState.planLoading}
-          planSaving={planningState.planSaving}
-          planTitleDraft={planningState.planTitleDraft}
-          selectedCatalogRepoId={selectedCatalogRepo?.repoId || ''}
-          selectedCatalogRepoLabel={selectedCatalogRepo?.repoLabel || ''}
-        />
+              void planningStore.savePlanDraft({
+                title: planningState.planTitleDraft || artifact.title,
+                seedArtifact: artifact,
+              });
+            }}
+            planContentDraft={planningState.planContentDraft}
+            planError={planningState.planError}
+            planLoading={planningState.planLoading}
+            planSaving={planningState.planSaving}
+            planTitleDraft={planningState.planTitleDraft}
+            selectedCatalogRepoId={selectedCatalogRepo?.repoId || ''}
+            selectedCatalogRepoLabel={selectedCatalogRepo?.repoLabel || ''}
+          />
 
-        <PlanningPersistencePanel
-          error={overviewState.error}
-          health={overviewState.health}
-          loading={overviewState.loading}
-        />
+          <PlanningPersistencePanel
+            error={overviewState.error}
+            health={overviewState.health}
+            loading={overviewState.loading}
+          />
 
-        <PlanningSdkLanePanel
-          linkedSdkSession={planningState.linkedSdkSession}
-          onOpenLinkedSession={(sessionId) => {
-            void sdkSessionsStore.loadSessions({ selectSessionId: sessionId }).then(() => {
-              sdkSessionsStore.selectSession(sessionId);
-              onSdkSessionReady?.(sessionId);
-            });
-          }}
-          sdkHealth={sdkHealthState.health}
-          sdkHealthLoading={sdkHealthState.loading}
-          sdkSessionsState={sdkSessionsState}
-          selectedCatalogRepoId={selectedCatalogRepo?.repoId || ''}
-        />
+          <PlanningSdkLanePanel
+            linkedSdkSession={planningState.linkedSdkSession}
+            onOpenLinkedSession={(sessionId) => {
+              void sdkSessionsStore.loadSessions({ selectSessionId: sessionId }).then(() => {
+                sdkSessionsStore.selectSession(sessionId);
+                onSdkSessionReady?.(sessionId);
+              });
+            }}
+            sdkHealth={sdkHealthState.health}
+            sdkHealthLoading={sdkHealthState.loading}
+            sdkSessionsState={sdkSessionsState}
+            selectedCatalogRepoId={selectedCatalogRepo?.repoId || ''}
+          />
 
-        <PlanningIdeasPanel
-          knownRepos={catalogState.repoInventory?.repos ?? []}
-          onIntakeArtifactCreated={() => {
-            void planningWorkspaceStore.loadIntakeArtifacts();
-          }}
-          onOpenCatalogAssets={() => navigationStore.goToCatalog('assets')}
-          onSdkSessionReady={onSdkSessionReady}
-          planningState={planningState}
-        />
-
-        <Panel
-          subtitle="Typed intake artifacts in docs/planning/intake are the authority for unscheduled tracked work items."
-          testId="planning-intake-surface-panel"
-          title="Planning Intake"
-        >
-          {selectedCatalogRepo ? (
+          <Panel
+            subtitle="Legacy planning-record artifacts are no longer part of the primary Planning path, but can still be opened for operator/debug compatibility."
+            testId="planning-legacy-operator-panel"
+            title="Operator Compatibility"
+          >
             <div className="planning-controls">
-              <p className="planning-copy">
-                <code>{planningWorkspaceState.planningIntakeDirectory?.directoryPath || '(no intake directory resolved)'}</code>
-              </p>
-              <p className="planning-copy">
-                Stable IDs: <code>{planningWorkspaceState.planningIntakeDirectory?.stableIdPattern || 'PI-###'}</code>
-              </p>
-               <p className="planning-copy">
-                 Categories:{' '}
-                 {planningWorkspaceState.planningIntakeDirectory?.supportedCategories.join(', ')
-                  || 'idea, research, refactor-candidate, design-complaint, audit-request, roadmap-request, review-prep, commit-prep'}
-               </p>
-              {planningWorkspaceState.intakeLoading ? (
-                <p className="planning-copy">Loading intake artifacts…</p>
-              ) : null}
-              {planningWorkspaceState.intakeError ? (
-                <p className="planning-error" role="alert">
-                  {planningWorkspaceState.intakeError}
-                </p>
-              ) : null}
-              {planningWorkspaceState.intakeArtifacts.length > 0 ? (
-                <div className="planning-intake-stack">
-                  <div className="planning-metric-grid" data-testid="planning-intake-summary-grid">
-                    <div className="planning-metric-card">
-                      <p className="planning-metric-label">Visible intake artifacts</p>
-                      <p className="planning-metric-value">
-                        {filteredIntakeArtifacts.length}
-                        <span className="planning-metric-value planning-metric-value-small">
-                          {' '}
-                          / {planningWorkspaceState.intakeArtifacts.length}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="planning-metric-card">
-                      <p className="planning-metric-label">Categories</p>
-                      <p className="planning-metric-value planning-metric-value-small">
-                        {summarizeCounts(
-                          intakeCategoryCounts,
-                          'No categorized intake artifacts yet.'
-                        )}
-                      </p>
-                    </div>
-                    <div className="planning-metric-card">
-                      <p className="planning-metric-label">States</p>
-                      <p className="planning-metric-value planning-metric-value-small">
-                        {summarizeCounts(
-                          intakeStateCounts.map(([state, count]) => [formatPlanningStateLabel(state), count]),
-                          'No planning states assigned yet.'
-                        )}
-                      </p>
-                    </div>
-                    <div className="planning-metric-card">
-                      <p className="planning-metric-label">Targets</p>
-                      <p className="planning-metric-value planning-metric-value-small">
-                        {summarizeCounts(
-                          intakeTargetCounts.map(([targetRepoId, count]) => [
-                            targetRepoId === INTAKE_FILTER_NONE ? 'Unscoped' : targetRepoId,
-                            count,
-                          ]),
-                          'No target repositories assigned yet.'
-                        )}
-                      </p>
-                    </div>
-                  </div>
+              <div className="planning-actions">
+                <Button
+                  onClick={() => setShowLegacyArtifacts((value) => !value)}
+                  testId="planning-show-legacy-artifacts"
+                  variant="secondary"
+                >
+                  {showLegacyArtifacts ? 'Hide compatibility artifacts' : 'Show compatibility artifacts'}
+                </Button>
+              </div>
+            </div>
+          </Panel>
 
-                  <p className="planning-copy">
-                    Tip: requests created from the Planning action buttons above land here as typed intake artifacts. Use
-                    the category filter to jump straight to <strong>Audit Request</strong> or <strong>Roadmap Request</strong>.
-                  </p>
-
-                  <div className="planning-select-grid" data-testid="planning-intake-filter-bar">
-                    <label className="form-input" htmlFor="planning-intake-category-filter">
-                      <span className="form-label">Category filter</span>
-                      <select
-                        data-testid="planning-intake-category-filter"
-                        id="planning-intake-category-filter"
-                        onChange={(event) => {
-                          planningWorkspaceStore.setIntakeCategoryFilter(
-                            event.target.value as PlanningIntakeCategory | typeof INTAKE_FILTER_ALL
-                          );
-                        }}
-                        value={planningWorkspaceState.intakeFilters.category}
-                      >
-                        <option value={INTAKE_FILTER_ALL}>All categories</option>
-                        {supportedCategories.map((category) => (
-                          <option key={category} value={category}>
-                            {humanizePlanningIntakeCategory(category)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="form-input" htmlFor="planning-intake-state-filter">
-                      <span className="form-label">State filter</span>
-                      <select
-                        data-testid="planning-intake-state-filter"
-                        id="planning-intake-state-filter"
-                        onChange={(event) => planningWorkspaceStore.setIntakePlanningStateFilter(event.target.value)}
-                        value={planningWorkspaceState.intakeFilters.planningState}
-                      >
-                        <option value={INTAKE_FILTER_ALL}>All states</option>
-                        {intakeStateCounts.map(([state]) => (
-                          <option key={state} value={state}>
-                            {formatPlanningStateLabel(state)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="form-input" htmlFor="planning-intake-target-filter">
-                      <span className="form-label">Target filter</span>
-                      <select
-                        data-testid="planning-intake-target-filter"
-                        id="planning-intake-target-filter"
-                        onChange={(event) => planningWorkspaceStore.setIntakeTargetFilter(event.target.value)}
-                        value={planningWorkspaceState.intakeFilters.targetRepoId}
-                      >
-                        <option value={INTAKE_FILTER_ALL}>All targets</option>
-                        {intakeTargetCounts.map(([targetRepoId]) => (
-                          <option key={targetRepoId} value={targetRepoId}>
-                            {targetRepoId === INTAKE_FILTER_NONE ? 'Unscoped' : targetRepoId}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  {hasActiveIntakeFilters ? (
-                    <div className="planning-toolbar-actions">
-                      <p className="planning-copy">
-                        Showing {filteredIntakeArtifacts.length} of {planningWorkspaceState.intakeArtifacts.length} intake artifacts.
-                      </p>
-                      <Button
-                        onClick={() => planningWorkspaceStore.clearIntakeFilters()}
-                        testId="planning-intake-clear-filters"
-                        variant="secondary"
-                      >
-                        Clear intake filters
-                      </Button>
-                    </div>
-                  ) : null}
-
-                  {filteredIntakeArtifacts.length > 0 ? (
-                    <div className="planning-intake-group-stack" data-testid="planning-intake-grouped-list">
-                      {groupedIntakeArtifacts.map(([category, artifacts]) => (
-                        <section className="planning-intake-group" key={category}>
-                          <div className="planning-intake-group-header">
-                            <p className="planning-item-title">
-                              {humanizePlanningIntakeCategory(category)}
-                            </p>
-                            <p className="planning-item-copy">
-                              {artifacts.length} artifact{artifacts.length === 1 ? '' : 's'}
-                            </p>
-                          </div>
-                          <ul className="planning-record-list">
-                            {artifacts.map((artifact) => (
-                              <li key={artifact.id}>
-                                <div className="planning-intake-item">
-                                  <p className="planning-item-title">{artifact.title}</p>
-                                  <p className="planning-item-copy">{artifact.summary}</p>
-                                  <div className="planning-chip-row">
-                                    <span className="planning-chip">
-                                      <code>{artifact.id}</code>
-                                    </span>
-                                    <span className="planning-chip">
-                                      state: {formatPlanningStateLabel(artifact.planningState)}
-                                    </span>
-                                    <span className="planning-chip">
-                                      targets: {artifact.targetRepoIds.length > 0 ? artifact.targetRepoIds.join(', ') : 'Unscoped'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </section>
+          {showLegacyArtifacts ? (
+            <Panel
+              subtitle="Historical planning records and record-scoped artifacts remain available as compatibility-only context."
+              testId="planning-legacy-artifacts-panel"
+              title="Legacy Planning Artifacts"
+            >
+              <div className="planning-controls">
+                {planningState.records.length > 0 ? (
+                  <label className="form-input" htmlFor="planning-legacy-record-select">
+                    <span className="form-label">Legacy record</span>
+                    <select
+                      data-testid="planning-legacy-record-select"
+                      id="planning-legacy-record-select"
+                      onChange={(event) => planningStore.setSelectedRecordId(event.target.value)}
+                      value={selectedLegacyRecord?.recordId || ''}
+                    >
+                      {planningState.records.map((record) => (
+                        <option key={record.recordId} value={record.recordId}>
+                          {record.title || record.recordId}
+                        </option>
                       ))}
-                    </div>
-                  ) : (
-                    <p className="state-message">No intake artifacts match the active filters.</p>
-                  )}
-                </div>
-              ) : (
-                <p className="state-message">No planning intake artifacts saved for the active repository.</p>
-              )}
-            </div>
-          ) : (
-            <div className="planning-controls">
-              <p className="state-message">Select a repository in Catalog to resolve intake, backlog, and roadmap surfaces.</p>
-            </div>
-          )}
-        </Panel>
+                    </select>
+                  </label>
+                ) : (
+                  <p className="state-message">No legacy planning records available.</p>
+                )}
 
-        <Panel
-          subtitle="Planning uses the currently selected Catalog repo as the canonical source of backlog and roadmap files."
-          testId="planning-backlog-surface-panel"
-          title="Repository Backlog"
-        >
-          {selectedCatalogRepo ? (
-            <div className="planning-controls">
-              <label className="form-input" htmlFor="planning-repo-id-readonly">
-                <span className="form-label">Catalog Repo ID</span>
-                <input
-                  data-testid="planning-repo-id-readonly"
-                  id="planning-repo-id-readonly"
-                  readOnly
-                  type="text"
-                  value={selectedCatalogRepo.repoId}
+                <ResearchNotesPanel
+                  deleting={planningState.artifactsDeleting}
+                  error={planningState.artifactsError}
+                  loading={planningState.artifactsLoading}
+                  notes={planningState.researchNotes}
+                  onDelete={async (noteId) => {
+                    await planningStore.removeResearchNote(noteId);
+                  }}
+                  onRefresh={() => {
+                    void planningStore.loadArtifacts(selectedLegacyRecord?.recordId || '');
+                  }}
+                  onSave={async (note) => {
+                    await planningStore.saveResearchNote(note);
+                  }}
+                  recordId={selectedLegacyRecord?.recordId || planningState.selectedRecordId}
+                  saving={planningState.artifactsSaving}
                 />
-              </label>
 
-              <p className="planning-copy">
-                {planningWorkspaceState.repositoryBacklog?.canonicalName || 'Repository Backlog'}
-              </p>
-              <p className="planning-copy">
-                <code>{planningWorkspaceState.repositoryBacklog?.filePath || '(no backlog file resolved)'}</code>
-              </p>
-              <p className="planning-copy">
-                Stable IDs: <code>{planningWorkspaceState.repositoryBacklog?.stableIdPattern || 'RB-###'}</code>
-              </p>
-            </div>
-          ) : (
-            <div className="planning-controls">
-              <p className="state-message">Select a repository in Catalog to resolve intake, backlog, and roadmap surfaces.</p>
-            </div>
-          )}
-        </Panel>
+                <MermaidViewer diagram={selectedLegacyDiagram} />
+              </div>
+            </Panel>
+          ) : null}
+        </div>
+      ) : null}
 
-        <Panel
-          subtitle="Roadmaps come from docs/roadmaps in the selected repository."
-          testId="planning-roadmap-surface-panel"
-          title="Roadmap Surface"
-        >
-          <div className="planning-controls">
-            <p className="planning-copy">
-              <code>{planningWorkspaceState.roadmapDirectory?.directoryPath || '(no roadmap directory resolved)'}</code>
-            </p>
-            <p className="planning-copy">
-              Stable IDs: <code>{planningWorkspaceState.roadmapDirectory?.stableIdPattern || 'RM-<roadmap-slug>-###'}</code>
-            </p>
-            {planningWorkspaceState.loading ? (
-              <p className="planning-copy">Loading roadmaps…</p>
-            ) : null}
-          </div>
-        </Panel>
+      {activeSection === 'bullets' ? (
+        <div className="planning-grid">
+          <PlanningIdeasPanel
+            onBulletCreated={() => {
+              void planningWorkspaceStore.loadBullets();
+            }}
+            onIntakeArtifactCreated={() => {
+              void planningWorkspaceStore.loadIntakeArtifacts();
+            }}
+            onOpenCatalogAssets={() => navigationStore.goToCatalog('assets')}
+            planningState={planningState}
+            selectedCatalogRepoId={selectedCatalogRepo?.repoId || ''}
+            selectedCatalogRepoLabel={selectedCatalogRepo?.repoLabel || ''}
+          />
 
-        <Panel
-          subtitle="Choose a roadmap document for this repository."
-          testId="planning-roadmap-list"
-          title="Roadmaps"
-        >
-          <div className="planning-controls">
-            <label className="form-input" htmlFor="planning-roadmap-select">
-              <span className="form-label">Selected roadmap</span>
-              <select
-                data-testid="planning-roadmap-select"
-                id="planning-roadmap-select"
-                onChange={(event) => planningWorkspaceStore.setSelectedRoadmapSlug(event.target.value)}
-                value={selectedRoadmap?.slug || ''}
-              >
-                {planningWorkspaceState.roadmaps.length === 0 ? <option value="">(no roadmaps found)</option> : null}
-                {planningWorkspaceState.roadmaps.map((roadmap) => (
-                  <option key={roadmap.slug} value={roadmap.slug}>
-                    {roadmap.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <ul className="planning-record-list">
-              {planningWorkspaceState.roadmaps.map((roadmap) => (
-                <li key={roadmap.slug}>
-                  <p className="planning-item-title">{roadmap.title}</p>
-                  <p className="planning-item-copy">
-                    <code>{roadmap.repoRelativePath || roadmap.filePath}</code>
+          <Panel
+            subtitle="Repo-scoped bullets are stored in docs/planning/bullets.md and stay below backlog acceptance."
+            testId="planning-bullets-surface-panel"
+            title="Repo Bullets"
+          >
+            {selectedCatalogRepo ? (
+              <div className="planning-controls">
+                <p className="planning-copy">
+                  <code>{planningWorkspaceState.planningBulletsFile?.filePath || '(no bullets file resolved)'}</code>
+                </p>
+                <p className="planning-copy">
+                  Stable IDs: <code>{planningWorkspaceState.planningBulletsFile?.stableIdPattern || 'PB-###'}</code>
+                </p>
+                <p className="planning-copy">
+                  States: {planningWorkspaceState.planningBulletsFile?.supportedStates.join(', ') || 'idea, research, pre-plan'}
+                </p>
+                {planningWorkspaceState.bulletsLoading ? <p className="planning-copy">Loading bullets…</p> : null}
+                {planningWorkspaceState.bulletsError ? (
+                  <p className="planning-error" role="alert">
+                    {planningWorkspaceState.bulletsError}
                   </p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Panel>
+                ) : null}
+                {planningWorkspaceState.bullets.length > 0 ? (
+                  <ul className="planning-record-list" data-testid="planning-bullets-list">
+                    {planningWorkspaceState.bullets.map((bullet) => (
+                      <li key={bullet.id}>
+                        <p className="planning-item-title">{bullet.title}</p>
+                        <p className="planning-item-copy">{bullet.summary || 'No summary yet.'}</p>
+                        <div className="planning-chip-row">
+                          <span className="planning-chip"><code>{bullet.id}</code></span>
+                          <span className="planning-chip">state: {bullet.state}</span>
+                          <span className="planning-chip">repo: {bullet.repoId}</span>
+                        </div>
+                        {bullet.notes.length > 0 ? (
+                          <p className="planning-item-copy">Notes: {bullet.notes.join(' · ')}</p>
+                        ) : null}
+                        {bullet.promotedPlanRefs.length > 0 ? (
+                          <p className="planning-item-copy">Promoted to plans: {bullet.promotedPlanRefs.join(', ')}</p>
+                        ) : null}
+                        {bullet.promotedBacklogRefs.length > 0 ? (
+                          <p className="planning-item-copy">Promoted to backlog: {bullet.promotedBacklogRefs.join(', ')}</p>
+                        ) : null}
+                        <div className="planning-actions">
+                          <Button
+                            onClick={() => {
+                              void seedPlanFromArtifact(bullet);
+                            }}
+                            testId={`planning-bullet-seed-${bullet.id}`}
+                            variant="secondary"
+                          >
+                            Start plan
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              void planningWorkspaceStore.promoteBulletToBacklog(bullet.id).then((backlogId) => {
+                                if (backlogId) {
+                                  setActiveSection('backlog');
+                                }
+                              });
+                            }}
+                            testId={`planning-bullet-promote-${bullet.id}`}
+                          >
+                            Suggest backlog item
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="state-message">No bullets saved for the active repository yet.</p>
+                )}
+              </div>
+            ) : (
+              <div className="planning-controls">
+                <p className="state-message">Select a repository in Catalog to resolve bullet, intake, backlog, and roadmap surfaces.</p>
+              </div>
+            )}
+          </Panel>
 
-        <Panel
-          subtitle="Roadmap items are the repo-backed execution roll-up above plan packs."
-          testId="planning-roadmap-detail"
-          title={selectedRoadmap?.title || 'Roadmap detail'}
-        >
-          {selectedRoadmap ? (
-            <div className="planning-controls">
-              {selectedRoadmap.overview ? <p className="planning-copy">{selectedRoadmap.overview}</p> : null}
-              <p className="planning-copy">
-                <code>{selectedRoadmap.filePath}</code>
-              </p>
+          <Panel
+            subtitle="Typed intake artifacts remain the canonical structured request surface for audits, roadmap requests, review prep, and commit prep."
+            testId="planning-intake-surface-panel"
+            title="Typed Planning Intake"
+          >
+            {selectedCatalogRepo ? (
+              <div className="planning-controls">
+                <p className="planning-copy">
+                  <code>{planningWorkspaceState.planningIntakeDirectory?.directoryPath || '(no intake directory resolved)'}</code>
+                </p>
+                <p className="planning-copy">
+                  Stable IDs: <code>{planningWorkspaceState.planningIntakeDirectory?.stableIdPattern || 'PI-###'}</code>
+                </p>
+                <p className="planning-copy">
+                  Categories:{' '}
+                  {planningWorkspaceState.planningIntakeDirectory?.supportedCategories.join(', ')
+                    || 'idea, research, refactor-candidate, design-complaint, audit-request, roadmap-request, review-prep, commit-prep'}
+                </p>
+                {planningWorkspaceState.intakeLoading ? <p className="planning-copy">Loading intake artifacts…</p> : null}
+                {planningWorkspaceState.intakeError ? (
+                  <p className="planning-error" role="alert">
+                    {planningWorkspaceState.intakeError}
+                  </p>
+                ) : null}
+                {planningWorkspaceState.intakeArtifacts.length > 0 ? (
+                  <div className="planning-intake-stack">
+                    <div className="planning-metric-grid" data-testid="planning-intake-summary-grid">
+                      <div className="planning-metric-card">
+                        <p className="planning-metric-label">Visible intake artifacts</p>
+                        <p className="planning-metric-value">
+                          {filteredIntakeArtifacts.length}
+                          <span className="planning-metric-value planning-metric-value-small">
+                            {' '}
+                            / {planningWorkspaceState.intakeArtifacts.length}
+                          </span>
+                        </p>
+                      </div>
+                      <div className="planning-metric-card">
+                        <p className="planning-metric-label">Categories</p>
+                        <p className="planning-metric-value planning-metric-value-small">
+                          {summarizeCounts(intakeCategoryCounts, 'No categorized intake artifacts yet.')}
+                        </p>
+                      </div>
+                      <div className="planning-metric-card">
+                        <p className="planning-metric-label">States</p>
+                        <p className="planning-metric-value planning-metric-value-small">
+                          {summarizeCounts(
+                            intakeStateCounts.map(([state, count]) => [formatPlanningStateLabel(state), count]),
+                            'No planning states assigned yet.'
+                          )}
+                        </p>
+                      </div>
+                      <div className="planning-metric-card">
+                        <p className="planning-metric-label">Targets</p>
+                        <p className="planning-metric-value planning-metric-value-small">
+                          {summarizeCounts(
+                            intakeTargetCounts.map(([targetRepoId, count]) => [
+                              targetRepoId === INTAKE_FILTER_NONE ? 'Unscoped' : targetRepoId,
+                              count,
+                            ]),
+                            'No target repositories assigned yet.'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="planning-select-grid" data-testid="planning-intake-filter-bar">
+                      <label className="form-input" htmlFor="planning-intake-category-filter">
+                        <span className="form-label">Category filter</span>
+                        <select
+                          data-testid="planning-intake-category-filter"
+                          id="planning-intake-category-filter"
+                          onChange={(event) => {
+                            planningWorkspaceStore.setIntakeCategoryFilter(
+                              event.target.value as PlanningIntakeCategory | typeof INTAKE_FILTER_ALL
+                            );
+                          }}
+                          value={planningWorkspaceState.intakeFilters.category}
+                        >
+                          <option value={INTAKE_FILTER_ALL}>All categories</option>
+                          {supportedCategories.map((category) => (
+                            <option key={category} value={category}>
+                              {humanizePlanningIntakeCategory(category)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="form-input" htmlFor="planning-intake-state-filter">
+                        <span className="form-label">State filter</span>
+                        <select
+                          data-testid="planning-intake-state-filter"
+                          id="planning-intake-state-filter"
+                          onChange={(event) => planningWorkspaceStore.setIntakePlanningStateFilter(event.target.value)}
+                          value={planningWorkspaceState.intakeFilters.planningState}
+                        >
+                          <option value={INTAKE_FILTER_ALL}>All states</option>
+                          {intakeStateCounts.map(([state]) => (
+                            <option key={state} value={state}>
+                              {formatPlanningStateLabel(state)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="form-input" htmlFor="planning-intake-target-filter">
+                        <span className="form-label">Target filter</span>
+                        <select
+                          data-testid="planning-intake-target-filter"
+                          id="planning-intake-target-filter"
+                          onChange={(event) => planningWorkspaceStore.setIntakeTargetFilter(event.target.value)}
+                          value={planningWorkspaceState.intakeFilters.targetRepoId}
+                        >
+                          <option value={INTAKE_FILTER_ALL}>All targets</option>
+                          {intakeTargetCounts.map(([targetRepoId]) => (
+                            <option key={targetRepoId} value={targetRepoId}>
+                              {targetRepoId === INTAKE_FILTER_NONE ? 'Unscoped' : targetRepoId}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    {hasActiveIntakeFilters ? (
+                      <div className="planning-toolbar-actions">
+                        <p className="planning-copy">
+                          Showing {filteredIntakeArtifacts.length} of {planningWorkspaceState.intakeArtifacts.length} intake artifacts.
+                        </p>
+                        <Button
+                          onClick={() => planningWorkspaceStore.clearIntakeFilters()}
+                          testId="planning-intake-clear-filters"
+                          variant="secondary"
+                        >
+                          Clear intake filters
+                        </Button>
+                      </div>
+                    ) : null}
+
+                    {filteredIntakeArtifacts.length > 0 ? (
+                      <div className="planning-intake-group-stack" data-testid="planning-intake-grouped-list">
+                        {groupedIntakeArtifacts.map(([category, artifacts]) => (
+                          <section className="planning-intake-group" key={category}>
+                            <div className="planning-intake-group-header">
+                              <p className="planning-item-title">{humanizePlanningIntakeCategory(category)}</p>
+                              <p className="planning-item-copy">
+                                {artifacts.length} artifact{artifacts.length === 1 ? '' : 's'}
+                              </p>
+                            </div>
+                            <ul className="planning-record-list">
+                              {artifacts.map((artifact) => (
+                                <li key={artifact.id}>
+                                  <div className="planning-intake-item">
+                                    <p className="planning-item-title">{artifact.title}</p>
+                                    <p className="planning-item-copy">{artifact.summary}</p>
+                                    <div className="planning-chip-row">
+                                      <span className="planning-chip"><code>{artifact.id}</code></span>
+                                      <span className="planning-chip">state: {formatPlanningStateLabel(artifact.planningState)}</span>
+                                      <span className="planning-chip">
+                                        targets: {artifact.targetRepoIds.length > 0 ? artifact.targetRepoIds.join(', ') : 'Unscoped'}
+                                      </span>
+                                    </div>
+                                    <div className="planning-actions">
+                                      <Button
+                                        onClick={() => {
+                                          void seedPlanFromArtifact(artifact);
+                                        }}
+                                        testId={`planning-intake-seed-${artifact.id}`}
+                                        variant="secondary"
+                                      >
+                                        Start plan
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </section>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="state-message">No intake artifacts match the active filters.</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="state-message">No planning intake artifacts saved for the active repository.</p>
+                )}
+              </div>
+            ) : (
+              <div className="planning-controls">
+                <p className="state-message">Select a repository in Catalog to resolve bullet, intake, backlog, and roadmap surfaces.</p>
+              </div>
+            )}
+          </Panel>
+        </div>
+      ) : null}
+
+      {activeSection === 'backlog' ? (
+        <div className="planning-grid">
+          <Panel
+            subtitle="docs/backlog.md remains the canonical repo backlog authority."
+            testId="planning-backlog-surface-panel"
+            title="Repository Backlog"
+          >
+            {selectedCatalogRepo ? (
+              <div className="planning-controls">
+                <label className="form-input" htmlFor="planning-repo-id-readonly">
+                  <span className="form-label">Catalog Repo ID</span>
+                  <input
+                    data-testid="planning-repo-id-readonly"
+                    id="planning-repo-id-readonly"
+                    readOnly
+                    type="text"
+                    value={selectedCatalogRepo.repoId}
+                  />
+                </label>
+                <p className="planning-copy">
+                  <code>{planningWorkspaceState.repositoryBacklog?.filePath || '(no backlog file resolved)'}</code>
+                </p>
+                <p className="planning-copy">
+                  Stable IDs: <code>{planningWorkspaceState.repositoryBacklog?.stableIdPattern || 'RB-###'}</code>
+                </p>
+                <p className="planning-copy">
+                  {planningWorkspaceState.backlogSummary?.description || 'Repo-scoped intake and queued work for the selected repo.'}
+                </p>
+                {planningWorkspaceState.backlogLoading ? <p className="planning-copy">Loading backlog…</p> : null}
+                {planningWorkspaceState.backlogError ? (
+                  <p className="planning-error" role="alert">
+                    {planningWorkspaceState.backlogError}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="planning-controls">
+                <p className="state-message">Select a repository in Catalog to resolve bullet, intake, backlog, and roadmap surfaces.</p>
+              </div>
+            )}
+          </Panel>
+
+          <Panel
+            subtitle="Browse accepted and proposed backlog items without mixing them with bullets or one-session plans."
+            testId="planning-backlog-list"
+            title="Backlog Items"
+          >
+            {planningWorkspaceState.backlogSummary?.items?.length ? (
               <ul className="planning-record-list">
-                {selectedRoadmap.items.map((item) => (
+                {planningWorkspaceState.backlogSummary.items.map((item) => (
                   <li key={item.id}>
                     <p className="planning-item-title">{item.title}</p>
                     <p className="planning-item-copy">
-                      <code>{item.id}</code> | phase={item.phase} | status={item.status}
+                      <code>{item.id}</code> | status={item.status}
                     </p>
-                    {item.backlogIds.length > 0 ? (
-                      <p className="planning-item-copy">Backlog links: {item.backlogIds.join(', ')}</p>
+                    {item.summary ? <p className="planning-item-copy">{item.summary}</p> : null}
+                    {item.roadmapIds.length > 0 ? (
+                      <p className="planning-item-copy">Roadmap links: {item.roadmapIds.join(', ')}</p>
                     ) : null}
+                    {item.planRefs.length > 0 ? (
+                      <p className="planning-item-copy">Plan refs: {item.planRefs.join(', ')}</p>
+                    ) : null}
+                    <div className="planning-actions">
+                      <Button
+                        onClick={() => {
+                          void seedPlanFromArtifact(item);
+                        }}
+                        testId={`planning-backlog-seed-${item.id}`}
+                      >
+                        Start plan
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="state-message">No backlog items found for the active repository.</p>
+            )}
+          </Panel>
+        </div>
+      ) : null}
+
+      {activeSection === 'roadmaps' ? (
+        <div className="planning-grid">
+          <Panel
+            subtitle="Roadmaps come from docs/roadmaps in the selected repository."
+            testId="planning-roadmap-surface-panel"
+            title="Roadmap Surface"
+          >
+            <div className="planning-controls">
+              <p className="planning-copy">
+                <code>{planningWorkspaceState.roadmapDirectory?.directoryPath || '(no roadmap directory resolved)'}</code>
+              </p>
+              <p className="planning-copy">
+                Stable IDs: <code>{planningWorkspaceState.roadmapDirectory?.stableIdPattern || 'RM-<roadmap-slug>-###'}</code>
+              </p>
+              <p className="planning-copy">
+                Roadmaps sit above backlog and above one-session plans; use them for multi-plan outcome sequencing.
+              </p>
+              {planningWorkspaceState.roadmapsLoading ? <p className="planning-copy">Loading roadmaps…</p> : null}
+            </div>
+          </Panel>
+
+          <Panel
+            subtitle="Choose a roadmap document for this repository."
+            testId="planning-roadmap-list"
+            title="Roadmaps"
+          >
+            <div className="planning-controls">
+              <label className="form-input" htmlFor="planning-roadmap-select">
+                <span className="form-label">Selected roadmap</span>
+                <select
+                  data-testid="planning-roadmap-select"
+                  id="planning-roadmap-select"
+                  onChange={(event) => planningWorkspaceStore.setSelectedRoadmapSlug(event.target.value)}
+                  value={selectedRoadmap?.slug || ''}
+                >
+                  {planningWorkspaceState.roadmaps.length === 0 ? <option value="">(no roadmaps found)</option> : null}
+                  {planningWorkspaceState.roadmaps.map((roadmap) => (
+                    <option key={roadmap.slug} value={roadmap.slug}>
+                      {roadmap.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <ul className="planning-record-list">
+                {planningWorkspaceState.roadmaps.map((roadmap) => (
+                  <li key={roadmap.slug}>
+                    <p className="planning-item-title">{roadmap.title}</p>
+                    <p className="planning-item-copy">
+                      <code>{roadmap.repoRelativePath || roadmap.filePath}</code>
+                    </p>
                   </li>
                 ))}
               </ul>
             </div>
-          ) : (
-            <div className="planning-controls">
-              <p className="state-message">No roadmap selected for the active repository.</p>
-            </div>
-          )}
-        </Panel>
-
-        {showLegacyArtifacts ? (
-          <Panel
-            subtitle="Historical planning records and record-scoped artifacts remain available as compatibility-only context."
-            testId="planning-legacy-artifacts-panel"
-            title="Legacy Planning Artifacts"
-          >
-            <div className="planning-controls">
-              {planningState.records.length > 0 ? (
-                <label className="form-input" htmlFor="planning-legacy-record-select">
-                  <span className="form-label">Legacy record</span>
-                  <select
-                    data-testid="planning-legacy-record-select"
-                    id="planning-legacy-record-select"
-                    onChange={(event) => planningStore.setSelectedRecordId(event.target.value)}
-                    value={selectedLegacyRecord?.recordId || ''}
-                  >
-                    {planningState.records.map((record) => (
-                      <option key={record.recordId} value={record.recordId}>
-                        {record.title || record.recordId}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : (
-                <p className="state-message">No legacy planning records available.</p>
-              )}
-
-              <ResearchNotesPanel
-                deleting={planningState.artifactsDeleting}
-                error={planningState.artifactsError}
-                loading={planningState.artifactsLoading}
-                notes={planningState.researchNotes}
-                onDelete={async (noteId) => {
-                  await planningStore.removeResearchNote(noteId);
-                }}
-                onRefresh={() => {
-                  void planningStore.loadArtifacts(selectedLegacyRecord?.recordId || '');
-                }}
-                onSave={async (note) => {
-                  await planningStore.saveResearchNote(note);
-                }}
-                recordId={selectedLegacyRecord?.recordId || planningState.selectedRecordId}
-                saving={planningState.artifactsSaving}
-              />
-
-              <MermaidViewer diagram={selectedLegacyDiagram} />
-            </div>
           </Panel>
-        ) : null}
-      </div>
+
+          <Panel
+            subtitle="Roadmap items roll up accepted backlog work into phased outcomes."
+            testId="planning-roadmap-detail"
+            title={selectedRoadmap?.title || 'Roadmap detail'}
+          >
+            {selectedRoadmap ? (
+              <div className="planning-controls">
+                {selectedRoadmap.overview ? <p className="planning-copy">{selectedRoadmap.overview}</p> : null}
+                <p className="planning-copy">
+                  <code>{selectedRoadmap.filePath}</code>
+                </p>
+                <ul className="planning-record-list">
+                  {selectedRoadmap.items.map((item) => (
+                    <li key={item.id}>
+                      <p className="planning-item-title">{item.title}</p>
+                      <p className="planning-item-copy">
+                        <code>{item.id}</code> | phase={item.phase} | status={item.status}
+                      </p>
+                      {item.backlogIds.length > 0 ? (
+                        <p className="planning-item-copy">Backlog links: {item.backlogIds.join(', ')}</p>
+                      ) : null}
+                      <div className="planning-actions">
+                        <Button
+                          onClick={() => {
+                            void seedPlanFromArtifact(item);
+                          }}
+                          testId={`planning-roadmap-seed-${item.id}`}
+                          variant="secondary"
+                        >
+                          Start plan
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="planning-controls">
+                <p className="state-message">No roadmap selected for the active repository.</p>
+              </div>
+            )}
+          </Panel>
+        </div>
+      ) : null}
     </section>
   );
 }
