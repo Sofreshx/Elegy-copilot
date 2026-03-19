@@ -6,6 +6,7 @@ const apiMocks = vi.hoisted(() => ({
   createPlanningRecord: vi.fn(),
   createSdkSession: vi.fn(),
   deletePlanningResearchNote: vi.fn(),
+  getSessionPlanText: vi.fn(),
   getPlanningDiagrams: vi.fn(),
   getPlanningRecords: vi.fn(),
   getPlanningResearchNotes: vi.fn(),
@@ -15,9 +16,15 @@ const apiMocks = vi.hoisted(() => ({
   savePlanningResearchNote: vi.fn(),
   searchPlanningRecords: vi.fn(),
   sendSdkMessage: vi.fn(),
+  upsertSessionPlan: vi.fn(),
 }));
 
 const sdkMocks = vi.hoisted(() => ({
+  loadSessions: vi.fn(),
+  selectSession: vi.fn(),
+}));
+
+const localSessionMocks = vi.hoisted(() => ({
   loadSessions: vi.fn(),
   selectSession: vi.fn(),
 }));
@@ -31,6 +38,7 @@ vi.mock('../ui/src/lib/api', async () => {
     createPlanningRecord: apiMocks.createPlanningRecord,
     createSdkSession: apiMocks.createSdkSession,
     deletePlanningResearchNote: apiMocks.deletePlanningResearchNote,
+    getSessionPlanText: apiMocks.getSessionPlanText,
     getPlanningDiagrams: apiMocks.getPlanningDiagrams,
     getPlanningRecords: apiMocks.getPlanningRecords,
     getPlanningResearchNotes: apiMocks.getPlanningResearchNotes,
@@ -40,6 +48,7 @@ vi.mock('../ui/src/lib/api', async () => {
     savePlanningResearchNote: apiMocks.savePlanningResearchNote,
     searchPlanningRecords: apiMocks.searchPlanningRecords,
     sendSdkMessage: apiMocks.sendSdkMessage,
+    upsertSessionPlan: apiMocks.upsertSessionPlan,
   };
 });
 
@@ -50,13 +59,29 @@ vi.mock('../ui/src/tabs/Sessions/sdkSessionsStore', () => ({
   },
 }));
 
+vi.mock('../ui/src/tabs/Sessions/sessionsStore', () => ({
+  sessionsStore: {
+    loadSessions: localSessionMocks.loadSessions,
+    selectSession: localSessionMocks.selectSession,
+  },
+}));
+
 import { createPlanningStore } from '../ui/src/tabs/Planning/planningStore';
 
 describe('planningStore catalog repo context', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     Object.values(apiMocks).forEach((mock) => mock.mockReset());
     sdkMocks.loadSessions.mockReset();
     sdkMocks.selectSession.mockReset();
+    localSessionMocks.loadSessions.mockReset();
+    localSessionMocks.selectSession.mockReset();
+    apiMocks.createSdkSession.mockResolvedValue({
+      sessionId: 'sdk-session-default',
+    });
+    apiMocks.sendSdkMessage.mockResolvedValue({
+      messageId: 'sdk-message-default',
+    });
     apiMocks.createPlanningIntakeArtifact.mockResolvedValue({
       kind: 'planning.intake.create',
       deterministic: true,
@@ -72,7 +97,7 @@ describe('planningStore catalog repo context', () => {
         repoRelativePath: 'docs/planning/intake',
         artifactCount: 1,
         stableIdPattern: 'PI-###',
-        supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'commit-prep'],
+        supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'review-prep', 'commit-prep'],
       },
       artifacts: [],
       artifact: {
@@ -91,6 +116,16 @@ describe('planningStore catalog repo context', () => {
         repoRelativePath: 'docs/planning/intake/PI-001.json',
       },
     });
+    apiMocks.getSessionPlanText.mockResolvedValue('# Linked plan\n\n## Problem\n\nLoad existing content.\n');
+    apiMocks.upsertSessionPlan.mockResolvedValue({
+      sessionId: 'plan-session-1',
+      source: 'cli',
+      planPath: 'C:\\Users\\Dylan\\.copilot\\session-state\\plan-session-1\\plan.md',
+      created: true,
+      updatedAt: '2026-03-18T00:00:00.000Z',
+      content: '# Saved plan\n\n## Problem\n\nClose the planning gap.\n',
+    });
+    localSessionMocks.loadSessions.mockResolvedValue(undefined);
   });
 
   it('applies Catalog repo context and aligns repo-scoped planning capture', () => {
@@ -226,5 +261,272 @@ describe('planningStore catalog repo context', () => {
     expect(state.draftIdeas.map((draft) => draft.targetRepoIds)).toEqual([['repo-a'], ['repo-b']]);
     expect(state.draftIdeas.map((draft) => draft.saveRepoId)).toEqual(['repo-a', 'repo-b']);
     expect(state.selectedIdeaIds).toHaveLength(2);
+  });
+
+  it('creates explicit audit, roadmap, review-prep, and commit-prep intake requests as tracked artifacts', async () => {
+    const store = createPlanningStore();
+
+    store.applyCatalogRepoContext({
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      sources: ['workspace', 'selected'],
+    });
+
+    await store.createActionRequest('audit-request', {
+      title: 'Audit current planning workflows',
+      notes: 'Focus on intake tracker visibility and request discoverability.',
+      targetRepoIds: ['repo-1'],
+      saveRepoId: 'repo-1',
+    });
+
+    expect(apiMocks.createPlanningIntakeArtifact).toHaveBeenNthCalledWith(1, {
+      repoId: 'repo-1',
+      artifact: expect.objectContaining({
+        category: 'audit-request',
+        title: 'Audit current planning workflows',
+        targetRepoIds: ['repo-1'],
+        planningState: 'requested',
+      }),
+    });
+    expect(apiMocks.createPlanningIntakeArtifact.mock.calls[0]?.[0]?.artifact?.summary).toContain('repo-scoped audit');
+    expect(apiMocks.createPlanningIntakeArtifact.mock.calls[0]?.[0]?.artifact?.summary).toContain('does not silently mutate');
+
+    await store.createActionRequest('roadmap-request', {
+      title: 'Generate a roadmap proposal for planning actions',
+      notes: 'Capture scope, sequencing, and review checkpoints before editing docs.',
+      targetRepoIds: ['repo-1'],
+      saveRepoId: 'repo-1',
+    });
+
+    expect(apiMocks.createPlanningIntakeArtifact).toHaveBeenNthCalledWith(2, {
+      repoId: 'repo-1',
+      artifact: expect.objectContaining({
+        category: 'roadmap-request',
+        title: 'Generate a roadmap proposal for planning actions',
+        targetRepoIds: ['repo-1'],
+        planningState: 'requested',
+      }),
+    });
+    expect(apiMocks.createPlanningIntakeArtifact.mock.calls[1]?.[0]?.artifact?.summary).toContain('roadmap proposal');
+    expect(apiMocks.createPlanningIntakeArtifact.mock.calls[1]?.[0]?.artifact?.summary).toContain('must not silently mutate docs/roadmaps');
+
+    await store.createPrepRequest('review-prep', {
+      title: 'Package planning UI changes for review',
+      notes: 'Call out validation coverage and reviewer questions.',
+      targetRepoIds: ['repo-1'],
+      saveRepoId: 'repo-1',
+    });
+
+    expect(apiMocks.createPlanningIntakeArtifact).toHaveBeenNthCalledWith(3, {
+      repoId: 'repo-1',
+      artifact: expect.objectContaining({
+        category: 'review-prep',
+        title: 'Package planning UI changes for review',
+        targetRepoIds: ['repo-1'],
+        planningState: 'requested',
+      }),
+    });
+    expect(apiMocks.createPlanningIntakeArtifact.mock.calls[2]?.[0]?.artifact?.summary).toContain('AI review package');
+    expect(apiMocks.createPlanningIntakeArtifact.mock.calls[2]?.[0]?.artifact?.summary).toContain('must not perform the final git commit');
+
+    await store.createPrepRequest('commit-prep', {
+      title: 'Prepare commit-ready summary for planning lane',
+      notes: 'Include a concise subject line.',
+      targetRepoIds: ['repo-1'],
+      saveRepoId: 'repo-1',
+    });
+
+    expect(apiMocks.createPlanningIntakeArtifact).toHaveBeenNthCalledWith(4, {
+      repoId: 'repo-1',
+      artifact: expect.objectContaining({
+        category: 'commit-prep',
+        title: 'Prepare commit-ready summary for planning lane',
+        targetRepoIds: ['repo-1'],
+        planningState: 'requested',
+      }),
+    });
+    expect(apiMocks.createPlanningIntakeArtifact.mock.calls[3]?.[0]?.artifact?.summary).toContain('proposed commit messages');
+    expect(apiMocks.createPlanningIntakeArtifact.mock.calls[3]?.[0]?.artifact?.summary).toContain('must not execute the final git commit');
+  });
+
+  it('persists repo-scoped Planning to SDK linkage for compiled idea batches', async () => {
+    apiMocks.createSdkSession.mockResolvedValueOnce({
+      sessionId: 'sdk-123',
+    });
+    apiMocks.sendSdkMessage.mockResolvedValueOnce({
+      messageId: 'sdk-message-123',
+    });
+
+    const store = createPlanningStore();
+    store.applyCatalogRepoContext({
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      sources: ['workspace', 'selected'],
+    });
+
+    store.setIdeaDraft('- Link Planning compile to SDK');
+    await store.createIdeaBatch();
+
+    const draftId = store.getState().draftIdeas[0]?.draftId || '';
+    store.toggleIdeaSelected(draftId, true);
+
+    const sessionId = await store.compileSelectedIdeas();
+    expect(sessionId).toBe('sdk-123');
+    expect(apiMocks.createSdkSession).toHaveBeenCalledWith({});
+    expect(apiMocks.sendSdkMessage).toHaveBeenCalledWith({
+      sessionId: 'sdk-123',
+      prompt: expect.stringContaining('Link Planning compile to SDK'),
+    });
+    expect(sdkMocks.loadSessions).toHaveBeenCalled();
+    expect(sdkMocks.selectSession).toHaveBeenCalledWith('sdk-123');
+    expect(store.getState().linkedSdkSession).toMatchObject({
+      sessionId: 'sdk-123',
+      repoId: 'repo-1',
+      source: 'compile-selected-ideas',
+      selectedIdeaIds: [draftId],
+      selectedIdeaTitles: ['Link Planning compile to SDK'],
+      targetRepoIds: ['repo-1'],
+    });
+
+    const reloadedStore = createPlanningStore();
+    reloadedStore.applyCatalogRepoContext({
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      sources: ['workspace', 'selected'],
+    });
+
+    expect(reloadedStore.getState().linkedSdkSession).toMatchObject({
+      sessionId: 'sdk-123',
+      repoId: 'repo-1',
+      source: 'compile-selected-ideas',
+      selectedIdeaTitles: ['Link Planning compile to SDK'],
+    });
+  });
+
+  it('creates and persists repo-scoped linked plan sessions', async () => {
+    const store = createPlanningStore();
+    store.applyCatalogRepoContext({
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      sources: ['workspace', 'selected'],
+    });
+
+    const sessionId = await store.savePlanDraft({
+      title: 'Planning follow-up',
+      content: '# Planning follow-up\n\n## Problem\n\nAdd explicit plan authoring.\n',
+    });
+
+    expect(sessionId).toBe('plan-session-1');
+    expect(apiMocks.upsertSessionPlan).toHaveBeenCalledWith({
+      sessionId: undefined,
+      title: 'Planning follow-up',
+      content: '# Planning follow-up\n\n## Problem\n\nAdd explicit plan authoring.\n',
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      seedArtifact: undefined,
+    });
+    expect(localSessionMocks.loadSessions).toHaveBeenCalled();
+    expect(localSessionMocks.selectSession).toHaveBeenCalledWith('plan-session-1');
+    expect(store.getState().linkedPlanSession).toMatchObject({
+      sessionId: 'plan-session-1',
+      repoId: 'repo-1',
+      source: 'create-plan',
+    });
+
+    const reloadedStore = createPlanningStore();
+    reloadedStore.applyCatalogRepoContext({
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      sources: ['workspace', 'selected'],
+    });
+
+    expect(reloadedStore.getState().linkedPlanSession).toMatchObject({
+      sessionId: 'plan-session-1',
+      repoId: 'repo-1',
+      source: 'create-plan',
+    });
+  });
+
+  it('loads linked plan text and supports seeded plan saves from intake artifacts', async () => {
+    window.localStorage.setItem(
+      'instruction-engine.planning.linked-plan-session.v1',
+      JSON.stringify({
+        'repo-1': {
+          sessionId: 'plan-existing',
+          repoId: 'repo-1',
+          source: 'create-plan',
+          createdAt: '2026-03-18T00:00:00.000Z',
+        },
+      })
+    );
+    apiMocks.upsertSessionPlan.mockResolvedValueOnce({
+      sessionId: 'plan-session-seeded',
+      source: 'cli',
+      planPath: 'C:\\Users\\Dylan\\.copilot\\session-state\\plan-session-seeded\\plan.md',
+      created: true,
+      updatedAt: '2026-03-18T00:05:00.000Z',
+      content: '# Seeded plan\n\n## Problem\n\nSeed from intake.\n',
+    });
+
+    const store = createPlanningStore();
+    store.applyCatalogRepoContext({
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      sources: ['workspace', 'selected'],
+    });
+
+    await store.loadLinkedPlan();
+    expect(apiMocks.getSessionPlanText).toHaveBeenCalledWith('plan-existing');
+    expect(store.getState().planContentDraft).toContain('# Linked plan');
+
+    const seededArtifact = {
+      kind: 'planning.intake.artifact' as const,
+      schemaVersion: 1,
+      id: 'PI-001',
+      category: 'audit-request' as const,
+      title: 'Audit planning workflow',
+      summary: 'Inspect plan visibility and runtime status.',
+      acceptanceCriteria: ['Keep output traceable', 'Do not mutate docs silently'],
+      targetRepoIds: ['repo-1'],
+      planningState: 'requested',
+      createdAt: '2026-03-18T00:00:00.000Z',
+      updatedAt: '2026-03-18T00:00:00.000Z',
+      filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake\\PI-001.json',
+      repoRelativePath: 'docs/planning/intake/PI-001.json',
+    };
+
+    const sessionId = await store.savePlanDraft({
+      title: 'Seeded planning follow-up',
+      seedArtifact: seededArtifact,
+      createNewSession: true,
+    });
+
+    expect(sessionId).toBe('plan-session-seeded');
+    expect(apiMocks.upsertSessionPlan).toHaveBeenCalledWith({
+      sessionId: undefined,
+      title: 'Seeded planning follow-up',
+      content: expect.stringContaining('Seeded from PI-001'),
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      seedArtifact: {
+        id: 'PI-001',
+        category: 'audit-request',
+        title: 'Audit planning workflow',
+        summary: 'Inspect plan visibility and runtime status.',
+        targetRepoIds: ['repo-1'],
+      },
+    });
+    expect(store.getState().linkedPlanSession).toMatchObject({
+      sessionId: 'plan-session-seeded',
+      repoId: 'repo-1',
+      source: 'seed-from-intake',
+      seedArtifactId: 'PI-001',
+    });
   });
 });

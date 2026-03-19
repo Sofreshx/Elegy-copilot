@@ -7,7 +7,6 @@
  * Tag ownership rules (per plan R13):
  * - desktop-v* → copilot-ui (instruction-engine-desktop)
  * - tracker-v* → local-tracker (@instruction-engine/local-tracker)
- * - v* → RannIA (skill-installer)
  *
  * contracts/ is NOT independently released — it is linked with consumers.
  */
@@ -21,11 +20,6 @@ const TAG_MAP = Object.freeze({
   '@instruction-engine/local-tracker': {
     prefix: 'tracker-v',
     channel: 'tracker-release',
-    releasable: true,
-  },
-  'skill-installer': {
-    prefix: 'v',
-    channel: 'extension-ci',
     releasable: true,
   },
   '@instruction-engine/contracts': {

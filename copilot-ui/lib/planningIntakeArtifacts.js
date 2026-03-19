@@ -15,6 +15,7 @@ const PLANNING_INTAKE_CATEGORIES = Object.freeze([
   'design-complaint',
   'audit-request',
   'roadmap-request',
+  'review-prep',
   'commit-prep',
 ]);
 const PLANNING_INTAKE_DEFAULT_CATEGORY = 'idea';

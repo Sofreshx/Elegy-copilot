@@ -2,14 +2,6 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "RannIA: compile",
-			"type": "npm",
-			"script": "compile",
-			"path": "RannIA",
-			"problemMatcher": "$tsc",
-			"group": "build"
-		},
-		{
 			"label": "validate: manifest json",
 			"type": "shell",
 			"command": "node",
@@ -94,14 +86,6 @@
 			"group": "test"
 		},
 		{
-			"label": "test: RannIA",
-			"type": "npm",
-			"script": "test",
-			"path": "RannIA",
-			"problemMatcher": [],
-			"group": "test"
-		},
-		{
 			"label": "test: all",
 			"dependsOn": [
 				"test: scripts",
@@ -109,8 +93,7 @@
 				"validate: agentic schemas",
 				"validate: vue-free guard",
 				"test: copilot-ui",
-				"test: local-tracker",
-				"test: RannIA"
+				"test: local-tracker"
 			],
 			"problemMatcher": [],
 			"group": "test"

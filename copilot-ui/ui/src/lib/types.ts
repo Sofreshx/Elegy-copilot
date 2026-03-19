@@ -1272,6 +1272,28 @@ export interface PlanningDraftItem {
   [key: string]: unknown;
 }
 
+export interface PlanningLinkedSdkSession {
+  sessionId: string;
+  repoId?: string | null;
+  source: 'compile-selected-ideas';
+  createdAt: string;
+  selectedIdeaIds: string[];
+  selectedIdeaTitles: string[];
+  targetRepoIds: string[];
+  promptPreview?: string;
+}
+
+export interface PlanningLinkedPlanSession {
+  sessionId: string;
+  repoId?: string | null;
+  source: 'create-plan' | 'seed-from-intake';
+  createdAt: string;
+  updatedAt?: string;
+  seedArtifactId?: string;
+  seedArtifactCategory?: PlanningIntakeCategory;
+  seedArtifactTitle?: string;
+}
+
 export interface PlanningRepoSummary {
   repoId: string;
   repoPath: string;
@@ -1294,6 +1316,7 @@ export type PlanningIntakeCategory =
   | 'design-complaint'
   | 'audit-request'
   | 'roadmap-request'
+  | 'review-prep'
   | 'commit-prep';
 
 export interface PlanningIntakeDirectoryRef {
@@ -1329,6 +1352,14 @@ export interface PlanningIntakeArtifact {
   repoRelativePath: string;
 }
 
+export type PlanningIntakeTrackerFilterValue = '__all__' | '__none__';
+
+export interface PlanningIntakeTrackerFilters {
+  category: PlanningIntakeCategory | '__all__';
+  planningState: string | PlanningIntakeTrackerFilterValue;
+  targetRepoId: string | PlanningIntakeTrackerFilterValue;
+}
+
 export interface PlanningIntakeSummary {
   directoryPath?: string | null;
   repoRelativePath?: string;
@@ -1348,6 +1379,19 @@ export interface PlanningIntakeArtifactsResponse {
   intake: PlanningIntakeSummary;
   artifacts: PlanningIntakeArtifact[];
   artifact?: PlanningIntakeArtifact | null;
+  [key: string]: unknown;
+}
+
+export interface SessionPlanMutationResponse {
+  sessionId: string;
+  source: string;
+  planPath: string;
+  created: boolean;
+  updatedAt: string;
+  content: string;
+  linkedRepoId?: string;
+  linkedRepoPath?: string;
+  seededFromArtifactId?: string | null;
   [key: string]: unknown;
 }
 

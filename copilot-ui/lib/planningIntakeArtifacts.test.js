@@ -73,7 +73,7 @@ test('serializePlanningIntakeArtifact round-trips canonical planning intake JSON
 test('createPlanningIntakeArtifact stores deterministic files under docs/planning/intake', () => {
   withTempRepo((repoRoot) => {
     const created = createPlanningIntakeArtifact(repoRoot, {
-      category: 'idea',
+      category: 'review-prep',
       title: 'Draft intake artifact',
       summary: 'Typed planning intake foundation.',
       acceptanceCriteria: ['Add helper library'],
@@ -84,6 +84,7 @@ test('createPlanningIntakeArtifact stores deterministic files under docs/plannin
     });
 
     assert.equal(created.id, 'PI-001');
+    assert.equal(created.category, 'review-prep');
     assert.equal(
       created.filePath,
       path.join(repoRoot, 'docs', 'planning', 'intake', 'PI-001.json'),

@@ -240,10 +240,10 @@ Release-safety rules (G-06-WU-03) for packaged desktop releases:
 
 ### WS6 CI topology + required checks (locked)
 
-- Authoritative workflow: `.github/workflows/extension-ci.yml`.
+- Authoritative workflow: `.github/workflows/extension-ci.yml` (retained for WS6 validation after legacy extension retirement).
 - Required topology is fixed and fail-closed: `build` → `ws6-evidence` (matrix `WS6-E1`..`WS6-E5`) → `ws6-artifact-gate` → `required-checks`.
 - `required-checks` must fail when any required upstream job is non-`success`, skipped, or missing required artifact completeness output.
-- `release` requires both `build` and `required-checks`; tag publish is blocked until both succeed.
+- Legacy VS Code extension packaging/release jobs have been retired; desktop packaging remains in `.github/workflows/desktop-release.yml`.
 
 ### WS6 validation ladder + rollback contract (narrow → broad)
 
@@ -287,7 +287,6 @@ instruction-engine/
 │   └── manifest.json            generated install/shipping manifest
 ├── copilot-ui/             local dashboard (Node.js, not installed)
 ├── local-tracker/          session/task tracking daemon + Discord gateway
-├── RannIA/                 VS Code extension (Instruction Engine host)
 ├── scripts/
 │   ├── cli-install.ps1/.sh install scripts
 │   └── cli-ui.ps1/.sh      dashboard launch scripts

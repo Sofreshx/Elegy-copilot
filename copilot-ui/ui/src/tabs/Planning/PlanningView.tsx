@@ -1,8 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Panel, Toolbar } from '../../components';
+import type {
+  PlanningIntakeArtifact,
+  PlanningIntakeCategory,
+  PlanningIntakeTrackerFilterValue,
+  PlanningLinkedPlanSession,
+  PlanningLinkedSdkSession,
+  SdkHealthResponse,
+} from '../../lib/types';
 import { useStoreValue } from '../../lib/store';
+import { sdkHealthStore } from '../../stores/sdkHealthStore';
 import { navigationStore } from '../../stores/navigation';
+import { stateOverviewStore } from '../State/stateOverviewStore';
 import { catalogWorkspaceStore } from '../Assets/catalogWorkspaceStore';
+import { sessionsStore } from '../Sessions/sessionsStore';
+import { sdkSessionsStore, type SdkSessionsState } from '../Sessions/sdkSessionsStore';
 import MermaidViewer from './MermaidViewer';
 import PlanningIdeasPanel from './PlanningIdeasPanel';
 import { planningStore } from './planningStore';
@@ -57,10 +69,492 @@ function resolveCatalogRepoContext(catalogState: ReturnType<typeof catalogWorksp
   );
 }
 
+const INTAKE_FILTER_ALL: PlanningIntakeTrackerFilterValue = '__all__';
+const INTAKE_FILTER_NONE: PlanningIntakeTrackerFilterValue = '__none__';
+
+function humanizePlanningIntakeCategory(category: PlanningIntakeCategory): string {
+  return category
+    .split('-')
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
+}
+
+function formatPlanningStateLabel(value: string | null | undefined): string {
+  const normalized = (value || '').trim();
+  if (!normalized || normalized === INTAKE_FILTER_NONE) {
+    return 'Unassigned';
+  }
+
+  return normalized
+    .split(/[-_\s]+/)
+    .map((token) => token.charAt(0).toUpperCase() + token.slice(1))
+    .join(' ');
+}
+
+function summarizeCounts(entries: Array<[string, number]>, fallback: string): string {
+  if (entries.length === 0) {
+    return fallback;
+  }
+
+  return entries.map(([label, count]) => `${label} (${count})`).join(' · ');
+}
+
+function formatLinkedSdkTimestamp(value: string): string {
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
+    return value;
+  }
+
+  return new Date(parsed).toLocaleString();
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function readString(record: Record<string, unknown>, key: string): string {
+  const value = record[key];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function readBoolean(record: Record<string, unknown>, key: string): boolean | null {
+  const value = record[key];
+  return typeof value === 'boolean' ? value : null;
+}
+
+function summarizePlanningPersistence(health: unknown): {
+  label: string;
+  detail: string;
+  hint: string;
+} {
+  const persistence = asRecord(asRecord(health).planningPersistence);
+  const governance = asRecord(persistence.governance);
+  const migrations = asRecord(persistence.migrations);
+  const dependencyGate = asRecord(asRecord(health).planningDurabilityDependencyGate);
+  const status = readString(persistence, 'status') || 'unknown';
+  const configured = readBoolean(persistence, 'configured');
+  const usable = readBoolean(persistence, 'usable');
+  const lastError = readString(persistence, 'lastError');
+  const governanceCode = readString(governance, 'code');
+  const migrationApplied = readString(migrations, 'appliedAt');
+  const gateReady = readBoolean(dependencyGate, 'ready');
+
+  if (status === 'ready' && configured === true && usable === true) {
+    return {
+      label: 'Planning database ready',
+      detail: [
+        'Runtime auto-init completed and Planning persistence is usable.',
+        migrationApplied ? `Migrations applied: ${migrationApplied}.` : '',
+        gateReady === false ? 'Durability dependency gate still reports a warning.' : '',
+      ].filter(Boolean).join(' '),
+      hint: 'You can create or update session plans directly from Planning.',
+    };
+  }
+
+  if (status === 'migration_error' || lastError) {
+    return {
+      label: 'Planning database needs attention',
+      detail: lastError || 'Planning persistence reported a migration error.',
+      hint: 'Open Home / Runtime → Diagnostics → Planning Database for raw runtime details before relying on persistent planning state.',
+    };
+  }
+
+  if (configured === false || status === 'configured_no_client') {
+    return {
+      label: 'Planning database not configured',
+      detail: governanceCode ? `Governance: ${governanceCode}.` : 'Runtime did not report a usable planning persistence client.',
+      hint: 'Plan authoring still writes session plan artifacts, but runtime database-backed planning features are not fully ready.',
+    };
+  }
+
+  if (status === 'drift_detected') {
+    return {
+      label: 'Planning database degraded',
+      detail: 'Runtime detected planning persistence drift. Review diagnostics before depending on migrations or governance state.',
+      hint: 'Use Diagnostics for the authoritative failure details.',
+    };
+  }
+
+  return {
+    label: 'Checking planning database…',
+    detail: 'Planning is waiting for the shared runtime health view to confirm persistence readiness.',
+    hint: 'This panel uses the same /api/health readiness model as Runtime diagnostics.',
+  };
+}
+
+function PlanningPersistencePanel(props: {
+  health: unknown;
+  loading: boolean;
+  error: string | null;
+}) {
+  const summary = summarizePlanningPersistence(props.health);
+
+  return (
+    <Panel
+      subtitle="Uses the same runtime /api/health readiness model as Home / Runtime diagnostics."
+      testId="planning-persistence-panel"
+      title="Planning Runtime Status"
+    >
+      <div className="planning-controls">
+        <p className="planning-copy">
+          <strong>Status:</strong> {summary.label}
+        </p>
+        <p className="planning-copy">{summary.detail}</p>
+        <p className="planning-copy">{summary.hint}</p>
+        {props.loading ? <p className="planning-copy">Refreshing runtime health…</p> : null}
+        {props.error ? (
+          <p className="planning-error" role="alert">
+            {props.error}
+          </p>
+        ) : null}
+        <div className="planning-actions">
+          <Button
+            onClick={() => navigationStore.goToRuntime('diagnostics', { diagnosticsSectionId: 'database' })}
+            testId="planning-open-database-diagnostics"
+            variant="secondary"
+          >
+            Open Planning Database diagnostics
+          </Button>
+          <Button
+            onClick={() => {
+              void stateOverviewStore.refresh();
+            }}
+            testId="planning-refresh-runtime-status"
+            variant="ghost"
+          >
+            Refresh runtime status
+          </Button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function PlanningPlanAuthoringPanel(props: {
+  linkedPlanSession: PlanningLinkedPlanSession | null;
+  selectedCatalogRepoId: string;
+  selectedCatalogRepoLabel: string;
+  intakeArtifacts: PlanningIntakeArtifact[];
+  planTitleDraft: string;
+  planContentDraft: string;
+  planLoading: boolean;
+  planSaving: boolean;
+  planError: string | null;
+  onPlanTitleChange: (value: string) => void;
+  onPlanContentChange: (value: string) => void;
+  onSaveBlankPlan: () => void;
+  onSeedPlan: (artifactId: string) => void;
+  onReloadPlan: () => void;
+  onOpenLinkedPlanSession: (sessionId: string) => void;
+}) {
+  const [seedArtifactId, setSeedArtifactId] = useState('');
+  const seedableArtifacts = props.intakeArtifacts;
+  const selectedSeedArtifact = seedableArtifacts.find((artifact) => artifact.id === seedArtifactId) ?? null;
+
+  return (
+    <Panel
+      subtitle="Create or reopen a session plan.md directly from Planning, then optionally jump to Home / Runtime → Sessions for the linked local session."
+      testId="planning-plan-authoring-panel"
+      title="Create / Edit Plan"
+    >
+      <div className="planning-controls">
+        <p className="planning-copy">
+          <strong>Repo scope:</strong> <code>{props.selectedCatalogRepoId || '(workspace)'}</code>
+        </p>
+        <p className="planning-copy">
+          {props.linkedPlanSession
+            ? `Linked local session ${props.linkedPlanSession.sessionId} is ready for direct plan authoring.`
+            : `No linked local planning session yet for ${props.selectedCatalogRepoLabel || 'the current workspace'}.`}
+        </p>
+        {props.linkedPlanSession?.seedArtifactId ? (
+          <p className="planning-copy">
+            Seeded from <code>{props.linkedPlanSession.seedArtifactId}</code>
+            {props.linkedPlanSession.seedArtifactTitle ? ` — ${props.linkedPlanSession.seedArtifactTitle}` : ''}.
+          </p>
+        ) : null}
+        <label className="form-input" htmlFor="planning-plan-title">
+          <span className="form-label">Plan title</span>
+          <input
+            data-testid="planning-plan-title"
+            id="planning-plan-title"
+            onChange={(event) => props.onPlanTitleChange(event.target.value)}
+            placeholder="Instruction Engine planning follow-up"
+            type="text"
+            value={props.planTitleDraft}
+          />
+        </label>
+        <label className="form-input" htmlFor="planning-plan-seed">
+          <span className="form-label">Seed from intake/request artifact</span>
+          <select
+            data-testid="planning-plan-seed"
+            id="planning-plan-seed"
+            onChange={(event) => setSeedArtifactId(event.target.value)}
+            value={seedArtifactId}
+          >
+            <option value="">(optional) Start from a blank plan</option>
+            {seedableArtifacts.map((artifact) => (
+              <option key={artifact.id} value={artifact.id}>
+                {artifact.id} · {humanizePlanningIntakeCategory(artifact.category)} · {artifact.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        {selectedSeedArtifact ? (
+          <p className="planning-copy" data-testid="planning-plan-seed-summary">
+            Seed summary: {selectedSeedArtifact.summary}
+          </p>
+        ) : null}
+        <label className="form-input" htmlFor="planning-plan-content">
+          <span className="form-label">Session plan.md</span>
+          <textarea
+            data-testid="planning-plan-content"
+            id="planning-plan-content"
+            onChange={(event) => props.onPlanContentChange(event.target.value)}
+            placeholder="Use Create plan to generate a repo-scoped session plan, then continue editing here."
+            rows={18}
+            value={props.planContentDraft}
+          />
+        </label>
+        {props.planLoading ? <p className="planning-copy">Loading linked plan…</p> : null}
+        {props.planError ? (
+          <p className="planning-error" role="alert">
+            {props.planError}
+          </p>
+        ) : null}
+        <div className="planning-actions">
+          <Button
+            disabled={props.planSaving}
+            onClick={() => {
+              if (selectedSeedArtifact) {
+                props.onSeedPlan(selectedSeedArtifact.id);
+                return;
+              }
+              props.onSaveBlankPlan();
+            }}
+            testId="planning-save-plan"
+          >
+            {props.linkedPlanSession ? 'Save plan' : 'Create plan'}
+          </Button>
+          <Button
+            disabled={!selectedSeedArtifact || props.planSaving}
+            onClick={() => {
+              if (selectedSeedArtifact) {
+                props.onSeedPlan(selectedSeedArtifact.id);
+              }
+            }}
+            testId="planning-seed-plan"
+            variant="secondary"
+          >
+            Seed from artifact
+          </Button>
+          <Button
+            disabled={!props.linkedPlanSession || props.planSaving}
+            onClick={() => {
+              if (props.linkedPlanSession) {
+                props.onOpenLinkedPlanSession(props.linkedPlanSession.sessionId);
+              }
+            }}
+            testId="planning-open-linked-plan-session"
+            variant="secondary"
+          >
+            Open in Sessions
+          </Button>
+          <Button
+            disabled={!props.linkedPlanSession || props.planSaving}
+            onClick={props.onReloadPlan}
+            testId="planning-reload-linked-plan"
+            variant="ghost"
+          >
+            Reload linked plan
+          </Button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function summarizeLinkedSdkStatus(
+  linkedSdkSession: PlanningLinkedSdkSession | null,
+  sdkHealth: SdkHealthResponse | null,
+  sdkHealthLoading: boolean,
+  sdkSessionsState: SdkSessionsState
+): {
+  label: string;
+  detail: string;
+} {
+  if (!linkedSdkSession) {
+    return {
+      label: 'Optional helper lane',
+      detail: 'Compile selected Planning ideas when you want SDK assistance; backlog and intake artifacts remain canonical.',
+    };
+  }
+
+  if (sdkHealthLoading && !sdkHealth) {
+    return {
+      label: 'Checking SDK lane…',
+      detail: `Planning restored link ${linkedSdkSession.sessionId} and is checking current SDK bridge availability.`,
+    };
+  }
+
+  if (sdkHealth?.connected === false) {
+    return {
+      label: 'SDK disconnected',
+      detail: sdkHealth.reason || sdkHealth.error || sdkHealth.state || 'The SDK bridge is not currently connected.',
+    };
+  }
+
+  const visibleSession = sdkSessionsState.sessions.find((session) => session.sessionId === linkedSdkSession.sessionId);
+  if (visibleSession) {
+    return {
+      label: 'Linked session visible',
+      detail: `Session ${linkedSdkSession.sessionId} is available in the SDK lane${visibleSession.model ? ` (${visibleSession.model})` : ''}.`,
+    };
+  }
+
+  if (sdkSessionsState.loading) {
+    return {
+      label: 'Refreshing session visibility…',
+      detail: `Planning is refreshing SDK sessions for linked session ${linkedSdkSession.sessionId}.`,
+    };
+  }
+
+  return {
+    label: 'Linked metadata restored',
+    detail: `Planning kept the repo-scoped SDK link for ${linkedSdkSession.sessionId}, even if the live SDK session list has not confirmed it yet.`,
+  };
+}
+
+function PlanningSdkLanePanel(props: {
+  linkedSdkSession: PlanningLinkedSdkSession | null;
+  selectedCatalogRepoId: string;
+  sdkHealthLoading: boolean;
+  sdkHealth: SdkHealthResponse | null;
+  sdkSessionsState: SdkSessionsState;
+  onOpenLinkedSession?: (sessionId: string) => void;
+}) {
+  const {
+    linkedSdkSession,
+    selectedCatalogRepoId,
+    sdkHealthLoading,
+    sdkHealth,
+    sdkSessionsState,
+    onOpenLinkedSession,
+  } = props;
+
+  const visibleSession = linkedSdkSession
+    ? sdkSessionsState.sessions.find((session) => session.sessionId === linkedSdkSession.sessionId) ?? null
+    : null;
+  const statusSummary = summarizeLinkedSdkStatus(linkedSdkSession, sdkHealth, sdkHealthLoading, sdkSessionsState);
+
+  return (
+    <Panel
+      subtitle="Planning keeps SDK help optional and visible. This lane tracks Planning-originated compile work without making SDK the authority for intake, backlog, or roadmap artifacts."
+      testId="planning-sdk-lane-panel"
+      title="Planning ↔ SDK Lane"
+    >
+      <div className="planning-controls">
+        <p className="planning-copy">
+          <strong>Status:</strong> {statusSummary.label}
+        </p>
+        <p className="planning-copy">{statusSummary.detail}</p>
+
+        {linkedSdkSession ? (
+          <>
+            <div className="planning-field-grid">
+              <div className="form-input">
+                <span className="form-label">Linked session</span>
+                <p className="planning-copy" data-testid="planning-sdk-linked-session-id">
+                  <code>{linkedSdkSession.sessionId}</code>
+                </p>
+              </div>
+              <div className="form-input">
+                <span className="form-label">Repo scope</span>
+                <p className="planning-copy">
+                  <code>{linkedSdkSession.repoId || selectedCatalogRepoId || '(workspace)'}</code>
+                </p>
+              </div>
+              <div className="form-input">
+                <span className="form-label">Created</span>
+                <p className="planning-copy">{formatLinkedSdkTimestamp(linkedSdkSession.createdAt)}</p>
+              </div>
+              <div className="form-input">
+                <span className="form-label">Live stream</span>
+                <p className="planning-copy">
+                  {visibleSession ? sdkSessionsState.streamStatus : 'not attached from Planning'}
+                </p>
+              </div>
+            </div>
+
+            <p className="planning-copy">
+              From Planning compile: {linkedSdkSession.selectedIdeaTitles.length > 0
+                ? linkedSdkSession.selectedIdeaTitles.join(' · ')
+                : `${linkedSdkSession.selectedIdeaIds.length} selected draft idea(s)`}
+            </p>
+            <p className="planning-copy">
+              Target repos:{' '}
+              {linkedSdkSession.targetRepoIds.length > 0 ? (
+                <code>{linkedSdkSession.targetRepoIds.join(', ')}</code>
+              ) : (
+                <span>determine from Planning context</span>
+              )}
+            </p>
+            {linkedSdkSession.promptPreview ? (
+              <p className="planning-copy">
+                Prompt preview: <code>{linkedSdkSession.promptPreview}</code>
+              </p>
+            ) : null}
+            {visibleSession?.cwd ? (
+              <p className="planning-copy">
+                SDK cwd: <code>{visibleSession.cwd}</code>
+              </p>
+            ) : null}
+            <div className="planning-actions">
+              <Button
+                onClick={() => {
+                  onOpenLinkedSession?.(linkedSdkSession.sessionId);
+                }}
+                testId="planning-sdk-open-linked-session"
+                variant="secondary"
+              >
+                Open linked SDK session
+              </Button>
+              <Button
+                onClick={() => {
+                  void sdkHealthStore.refresh();
+                  void sdkSessionsStore.loadSessions({
+                    attachStream: false,
+                    preserveSelection: true,
+                    selectSessionId: linkedSdkSession.sessionId,
+                  });
+                }}
+                testId="planning-sdk-refresh-link"
+                variant="ghost"
+              >
+                Refresh SDK lane status
+              </Button>
+            </div>
+          </>
+        ) : (
+          <p className="planning-copy">
+            No Planning-originated SDK session is linked for the current repo context yet. Use <strong>Compile Selected</strong> when you want a plan draft in SDK, then return here to reopen it.
+          </p>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?: (sessionId: string) => void }) {
   const planningState = useStoreValue(planningStore);
   const planningWorkspaceState = useStoreValue(planningWorkspaceStore);
   const catalogState = useStoreValue(catalogWorkspaceStore);
+  const sdkHealthState = useStoreValue(sdkHealthStore);
+  const sdkSessionsState = useStoreValue(sdkSessionsStore);
+  const overviewState = useStoreValue(stateOverviewStore);
   const [showLegacyArtifacts, setShowLegacyArtifacts] = useState(false);
 
   const selectedCatalogRepo = useMemo(() => resolveCatalogRepoContext(catalogState), [catalogState]);
@@ -86,6 +580,44 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     }
   }, [showLegacyArtifacts]);
 
+  useEffect(() => {
+    sdkHealthStore.startPolling();
+    return () => {
+      sdkHealthStore.stopPolling();
+    };
+  }, []);
+
+  useEffect(() => {
+    stateOverviewStore.startPolling();
+    return () => {
+      stateOverviewStore.stopPolling();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!planningState.linkedSdkSession?.sessionId) {
+      return;
+    }
+
+    void sdkSessionsStore.loadSessions({
+      attachStream: false,
+      preserveSelection: true,
+      selectSessionId: planningState.linkedSdkSession.sessionId,
+    });
+  }, [planningState.linkedSdkSession?.sessionId]);
+
+  useEffect(() => {
+    if (!planningState.linkedPlanSession?.sessionId) {
+      return;
+    }
+
+    if (planningState.planContentDraft.trim()) {
+      return;
+    }
+
+    void planningStore.loadLinkedPlan();
+  }, [planningState.linkedPlanSession?.sessionId]);
+
   const selectedRoadmap =
     planningWorkspaceState.roadmaps.find((roadmap) => roadmap.slug === planningWorkspaceState.selectedRoadmapSlug)
     ?? planningWorkspaceState.roadmaps[0]
@@ -98,6 +630,102 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     planningState.diagrams.find((diagram) => diagram.id === planningState.selectedDiagramId)
     ?? planningState.diagrams[0]
     ?? null;
+  const supportedCategories = useMemo(() => {
+    const knownCategories = new Set<PlanningIntakeCategory>(
+      planningWorkspaceState.planningIntakeDirectory?.supportedCategories
+      ?? planningWorkspaceState.intakeSummary?.supportedCategories
+      ?? []
+    );
+
+    planningWorkspaceState.intakeArtifacts.forEach((artifact) => {
+      knownCategories.add(artifact.category);
+    });
+
+    return Array.from(knownCategories);
+  }, [
+    planningWorkspaceState.planningIntakeDirectory?.supportedCategories?.join('|'),
+    planningWorkspaceState.intakeSummary?.supportedCategories?.join('|'),
+    planningWorkspaceState.intakeArtifacts,
+  ]);
+  const intakeCategoryCounts = useMemo(() => {
+    return supportedCategories
+      .map((category) => [
+        humanizePlanningIntakeCategory(category),
+        planningWorkspaceState.intakeArtifacts.filter((artifact) => artifact.category === category).length,
+      ] as [string, number])
+      .filter(([, count]) => count > 0);
+  }, [planningWorkspaceState.intakeArtifacts, supportedCategories]);
+  const intakeStateCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    planningWorkspaceState.intakeArtifacts.forEach((artifact) => {
+      const key = artifact.planningState?.trim() || INTAKE_FILTER_NONE;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+
+    return Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right));
+  }, [planningWorkspaceState.intakeArtifacts]);
+  const intakeTargetCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    planningWorkspaceState.intakeArtifacts.forEach((artifact) => {
+      if (artifact.targetRepoIds.length === 0) {
+        counts.set(INTAKE_FILTER_NONE, (counts.get(INTAKE_FILTER_NONE) || 0) + 1);
+        return;
+      }
+
+      artifact.targetRepoIds.forEach((targetRepoId) => {
+        counts.set(targetRepoId, (counts.get(targetRepoId) || 0) + 1);
+      });
+    });
+
+    return Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right));
+  }, [planningWorkspaceState.intakeArtifacts]);
+  const filteredIntakeArtifacts = useMemo(() => {
+    return planningWorkspaceState.intakeArtifacts.filter((artifact) => {
+      if (
+        planningWorkspaceState.intakeFilters.category !== INTAKE_FILTER_ALL
+        && artifact.category !== planningWorkspaceState.intakeFilters.category
+      ) {
+        return false;
+      }
+
+      if (planningWorkspaceState.intakeFilters.planningState !== INTAKE_FILTER_ALL) {
+        const artifactPlanningState = artifact.planningState?.trim() || INTAKE_FILTER_NONE;
+        if (artifactPlanningState !== planningWorkspaceState.intakeFilters.planningState) {
+          return false;
+        }
+      }
+
+      if (planningWorkspaceState.intakeFilters.targetRepoId !== INTAKE_FILTER_ALL) {
+        if (planningWorkspaceState.intakeFilters.targetRepoId === INTAKE_FILTER_NONE) {
+          return artifact.targetRepoIds.length === 0;
+        }
+
+        return artifact.targetRepoIds.includes(planningWorkspaceState.intakeFilters.targetRepoId);
+      }
+
+      return true;
+    });
+  }, [planningWorkspaceState.intakeArtifacts, planningWorkspaceState.intakeFilters]);
+  const groupedIntakeArtifacts = useMemo(() => {
+    const groups = new Map<PlanningIntakeCategory, PlanningIntakeArtifact[]>();
+
+    filteredIntakeArtifacts.forEach((artifact) => {
+      const existing = groups.get(artifact.category);
+      if (existing) {
+        existing.push(artifact);
+      } else {
+        groups.set(artifact.category, [artifact]);
+      }
+    });
+
+    return Array.from(groups.entries()).sort(([left], [right]) => left.localeCompare(right));
+  }, [filteredIntakeArtifacts]);
+  const hasActiveIntakeFilters =
+    planningWorkspaceState.intakeFilters.category !== INTAKE_FILTER_ALL
+    || planningWorkspaceState.intakeFilters.planningState !== INTAKE_FILTER_ALL
+    || planningWorkspaceState.intakeFilters.targetRepoId !== INTAKE_FILTER_ALL;
 
   return (
     <section className="planning-view" data-testid="planning-view">
@@ -130,8 +758,71 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
       ) : null}
 
       <div className="planning-grid">
+        <PlanningPlanAuthoringPanel
+          intakeArtifacts={planningWorkspaceState.intakeArtifacts}
+          linkedPlanSession={planningState.linkedPlanSession}
+          onOpenLinkedPlanSession={(sessionId) => {
+            void sessionsStore.loadSessions().then(() => {
+              sessionsStore.selectSession(sessionId);
+              navigationStore.goToRuntime('sessions', { sessionsMode: 'local' });
+            });
+          }}
+          onPlanContentChange={(value) => planningStore.setPlanContentDraft(value)}
+          onPlanTitleChange={(value) => planningStore.setPlanTitleDraft(value)}
+          onReloadPlan={() => {
+            void planningStore.loadLinkedPlan();
+          }}
+          onSaveBlankPlan={() => {
+            void planningStore.savePlanDraft({
+              title: planningState.planTitleDraft,
+              content: planningState.planContentDraft,
+            });
+          }}
+          onSeedPlan={(artifactId) => {
+            const artifact = planningWorkspaceState.intakeArtifacts.find((entry) => entry.id === artifactId) ?? null;
+            if (!artifact) {
+              return;
+            }
+
+            void planningStore.savePlanDraft({
+              title: planningState.planTitleDraft || artifact.title,
+              seedArtifact: artifact,
+            });
+          }}
+          planContentDraft={planningState.planContentDraft}
+          planError={planningState.planError}
+          planLoading={planningState.planLoading}
+          planSaving={planningState.planSaving}
+          planTitleDraft={planningState.planTitleDraft}
+          selectedCatalogRepoId={selectedCatalogRepo?.repoId || ''}
+          selectedCatalogRepoLabel={selectedCatalogRepo?.repoLabel || ''}
+        />
+
+        <PlanningPersistencePanel
+          error={overviewState.error}
+          health={overviewState.health}
+          loading={overviewState.loading}
+        />
+
+        <PlanningSdkLanePanel
+          linkedSdkSession={planningState.linkedSdkSession}
+          onOpenLinkedSession={(sessionId) => {
+            void sdkSessionsStore.loadSessions({ selectSessionId: sessionId }).then(() => {
+              sdkSessionsStore.selectSession(sessionId);
+              onSdkSessionReady?.(sessionId);
+            });
+          }}
+          sdkHealth={sdkHealthState.health}
+          sdkHealthLoading={sdkHealthState.loading}
+          sdkSessionsState={sdkSessionsState}
+          selectedCatalogRepoId={selectedCatalogRepo?.repoId || ''}
+        />
+
         <PlanningIdeasPanel
           knownRepos={catalogState.repoInventory?.repos ?? []}
+          onIntakeArtifactCreated={() => {
+            void planningWorkspaceStore.loadIntakeArtifacts();
+          }}
           onOpenCatalogAssets={() => navigationStore.goToCatalog('assets')}
           onSdkSessionReady={onSdkSessionReady}
           planningState={planningState}
@@ -150,11 +841,11 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
               <p className="planning-copy">
                 Stable IDs: <code>{planningWorkspaceState.planningIntakeDirectory?.stableIdPattern || 'PI-###'}</code>
               </p>
-              <p className="planning-copy">
-                Categories:{' '}
-                {planningWorkspaceState.planningIntakeDirectory?.supportedCategories.join(', ')
-                  || 'idea, research, refactor-candidate, design-complaint, audit-request, roadmap-request, commit-prep'}
-              </p>
+               <p className="planning-copy">
+                 Categories:{' '}
+                 {planningWorkspaceState.planningIntakeDirectory?.supportedCategories.join(', ')
+                  || 'idea, research, refactor-candidate, design-complaint, audit-request, roadmap-request, review-prep, commit-prep'}
+               </p>
               {planningWorkspaceState.intakeLoading ? (
                 <p className="planning-copy">Loading intake artifacts…</p>
               ) : null}
@@ -164,20 +855,167 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
                 </p>
               ) : null}
               {planningWorkspaceState.intakeArtifacts.length > 0 ? (
-                <ul className="planning-record-list">
-                  {planningWorkspaceState.intakeArtifacts.map((artifact) => (
-                    <li key={artifact.id}>
-                      <p className="planning-item-title">{artifact.title}</p>
-                      <p className="planning-item-copy">
-                        <code>{artifact.id}</code> | category={artifact.category}
-                        {artifact.planningState ? ` | state=${artifact.planningState}` : ''}
+                <div className="planning-intake-stack">
+                  <div className="planning-metric-grid" data-testid="planning-intake-summary-grid">
+                    <div className="planning-metric-card">
+                      <p className="planning-metric-label">Visible intake artifacts</p>
+                      <p className="planning-metric-value">
+                        {filteredIntakeArtifacts.length}
+                        <span className="planning-metric-value planning-metric-value-small">
+                          {' '}
+                          / {planningWorkspaceState.intakeArtifacts.length}
+                        </span>
                       </p>
-                      {artifact.targetRepoIds.length > 0 ? (
-                        <p className="planning-item-copy">Targets: {artifact.targetRepoIds.join(', ')}</p>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                    </div>
+                    <div className="planning-metric-card">
+                      <p className="planning-metric-label">Categories</p>
+                      <p className="planning-metric-value planning-metric-value-small">
+                        {summarizeCounts(
+                          intakeCategoryCounts,
+                          'No categorized intake artifacts yet.'
+                        )}
+                      </p>
+                    </div>
+                    <div className="planning-metric-card">
+                      <p className="planning-metric-label">States</p>
+                      <p className="planning-metric-value planning-metric-value-small">
+                        {summarizeCounts(
+                          intakeStateCounts.map(([state, count]) => [formatPlanningStateLabel(state), count]),
+                          'No planning states assigned yet.'
+                        )}
+                      </p>
+                    </div>
+                    <div className="planning-metric-card">
+                      <p className="planning-metric-label">Targets</p>
+                      <p className="planning-metric-value planning-metric-value-small">
+                        {summarizeCounts(
+                          intakeTargetCounts.map(([targetRepoId, count]) => [
+                            targetRepoId === INTAKE_FILTER_NONE ? 'Unscoped' : targetRepoId,
+                            count,
+                          ]),
+                          'No target repositories assigned yet.'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="planning-copy">
+                    Tip: requests created from the Planning action buttons above land here as typed intake artifacts. Use
+                    the category filter to jump straight to <strong>Audit Request</strong> or <strong>Roadmap Request</strong>.
+                  </p>
+
+                  <div className="planning-select-grid" data-testid="planning-intake-filter-bar">
+                    <label className="form-input" htmlFor="planning-intake-category-filter">
+                      <span className="form-label">Category filter</span>
+                      <select
+                        data-testid="planning-intake-category-filter"
+                        id="planning-intake-category-filter"
+                        onChange={(event) => {
+                          planningWorkspaceStore.setIntakeCategoryFilter(
+                            event.target.value as PlanningIntakeCategory | typeof INTAKE_FILTER_ALL
+                          );
+                        }}
+                        value={planningWorkspaceState.intakeFilters.category}
+                      >
+                        <option value={INTAKE_FILTER_ALL}>All categories</option>
+                        {supportedCategories.map((category) => (
+                          <option key={category} value={category}>
+                            {humanizePlanningIntakeCategory(category)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="form-input" htmlFor="planning-intake-state-filter">
+                      <span className="form-label">State filter</span>
+                      <select
+                        data-testid="planning-intake-state-filter"
+                        id="planning-intake-state-filter"
+                        onChange={(event) => planningWorkspaceStore.setIntakePlanningStateFilter(event.target.value)}
+                        value={planningWorkspaceState.intakeFilters.planningState}
+                      >
+                        <option value={INTAKE_FILTER_ALL}>All states</option>
+                        {intakeStateCounts.map(([state]) => (
+                          <option key={state} value={state}>
+                            {formatPlanningStateLabel(state)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="form-input" htmlFor="planning-intake-target-filter">
+                      <span className="form-label">Target filter</span>
+                      <select
+                        data-testid="planning-intake-target-filter"
+                        id="planning-intake-target-filter"
+                        onChange={(event) => planningWorkspaceStore.setIntakeTargetFilter(event.target.value)}
+                        value={planningWorkspaceState.intakeFilters.targetRepoId}
+                      >
+                        <option value={INTAKE_FILTER_ALL}>All targets</option>
+                        {intakeTargetCounts.map(([targetRepoId]) => (
+                          <option key={targetRepoId} value={targetRepoId}>
+                            {targetRepoId === INTAKE_FILTER_NONE ? 'Unscoped' : targetRepoId}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  {hasActiveIntakeFilters ? (
+                    <div className="planning-toolbar-actions">
+                      <p className="planning-copy">
+                        Showing {filteredIntakeArtifacts.length} of {planningWorkspaceState.intakeArtifacts.length} intake artifacts.
+                      </p>
+                      <Button
+                        onClick={() => planningWorkspaceStore.clearIntakeFilters()}
+                        testId="planning-intake-clear-filters"
+                        variant="secondary"
+                      >
+                        Clear intake filters
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  {filteredIntakeArtifacts.length > 0 ? (
+                    <div className="planning-intake-group-stack" data-testid="planning-intake-grouped-list">
+                      {groupedIntakeArtifacts.map(([category, artifacts]) => (
+                        <section className="planning-intake-group" key={category}>
+                          <div className="planning-intake-group-header">
+                            <p className="planning-item-title">
+                              {humanizePlanningIntakeCategory(category)}
+                            </p>
+                            <p className="planning-item-copy">
+                              {artifacts.length} artifact{artifacts.length === 1 ? '' : 's'}
+                            </p>
+                          </div>
+                          <ul className="planning-record-list">
+                            {artifacts.map((artifact) => (
+                              <li key={artifact.id}>
+                                <div className="planning-intake-item">
+                                  <p className="planning-item-title">{artifact.title}</p>
+                                  <p className="planning-item-copy">{artifact.summary}</p>
+                                  <div className="planning-chip-row">
+                                    <span className="planning-chip">
+                                      <code>{artifact.id}</code>
+                                    </span>
+                                    <span className="planning-chip">
+                                      state: {formatPlanningStateLabel(artifact.planningState)}
+                                    </span>
+                                    <span className="planning-chip">
+                                      targets: {artifact.targetRepoIds.length > 0 ? artifact.targetRepoIds.join(', ') : 'Unscoped'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="state-message">No intake artifacts match the active filters.</p>
+                  )}
+                </div>
               ) : (
                 <p className="state-message">No planning intake artifacts saved for the active repository.</p>
               )}

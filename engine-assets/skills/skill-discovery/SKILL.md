@@ -14,7 +14,7 @@ In the first-class Instruction Engine workflow, `@search` handles capability dis
 ## Deterministic resolver chain
 
 Use this exact order unless the caller already named the exact skill:
-
+/
 1. Direct load for an explicit skill name
 2. Stack detection for project/framework clues
 3. Catalog-backed metadata search/resolution

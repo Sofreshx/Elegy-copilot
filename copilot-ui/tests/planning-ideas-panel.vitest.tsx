@@ -6,6 +6,8 @@ const planningStoreMocks = vi.hoisted(() => ({
   setIdeaTargetRepos: vi.fn(),
   setCreateScope: vi.fn(),
   createIdeaBatch: vi.fn(),
+  createActionRequest: vi.fn(),
+  createPrepRequest: vi.fn(),
   compileSelectedIdeas: vi.fn(),
   toggleIdeaSelected: vi.fn(),
   updateIdea: vi.fn(),
@@ -22,6 +24,8 @@ describe('PlanningIdeasPanel', () => {
   beforeEach(() => {
     Object.values(planningStoreMocks).forEach((mock) => mock.mockReset());
     planningStoreMocks.compileSelectedIdeas.mockResolvedValue(null);
+    planningStoreMocks.createActionRequest.mockResolvedValue(null);
+    planningStoreMocks.createPrepRequest.mockResolvedValue(null);
   });
 
   it('keeps first-class bullet intake available without an active Catalog repo', async () => {
@@ -54,6 +58,9 @@ describe('PlanningIdeasPanel', () => {
 
     expect(screen.getByTestId('planning-bullet-intake')).toBeInTheDocument();
     expect(screen.getByText(/No Catalog repo is selected yet/i)).toBeInTheDocument();
+    expect(screen.getByTestId('planning-action-workflows-panel')).toHaveTextContent(
+      /request tracked audit, roadmap proposal, review-prep, and commit-prep work directly from planning/i
+    );
 
     fireEvent.change(screen.getByLabelText('Bullets'), {
       target: { value: '- Draft backlog bullet' },
@@ -70,6 +77,72 @@ describe('PlanningIdeasPanel', () => {
 
     fireEvent.click(screen.getByTestId('planning-ideas-add'));
     expect(planningStoreMocks.createIdeaBatch).toHaveBeenCalled();
+  });
+
+  it('creates explicit audit and roadmap intake requests from the planning lane', async () => {
+    planningStoreMocks.createActionRequest
+      .mockResolvedValueOnce('PI-101')
+      .mockResolvedValueOnce('PI-102');
+
+    const onIntakeArtifactCreated = vi.fn();
+    const { default: PlanningIdeasPanel } = await import('../ui/src/tabs/Planning/PlanningIdeasPanel');
+
+    render(
+      <PlanningIdeasPanel
+        knownRepos={[
+          {
+            repoId: 'repo-1',
+            repoLabel: 'Instruction Engine',
+            repoPath: 'C:\\Repos\\instruction-engine',
+          },
+        ]}
+        onIntakeArtifactCreated={onIntakeArtifactCreated}
+        planningState={{
+          catalogRepoContext: {
+            repoId: 'repo-1',
+            repoLabel: 'Instruction Engine',
+            repoPath: 'C:\\Repos\\instruction-engine',
+            sources: ['workspace', 'selected'],
+          },
+          createScope: 'repo',
+          creating: false,
+          compiling: false,
+          draftIdeas: [],
+          ideaDraft: '',
+          ideaTargetRepos: '',
+          mutatingBlocked: false,
+          selectedIdeaIds: [],
+        } as never}
+      />
+    );
+
+    fireEvent.change(screen.getByTestId('planning-prep-title'), {
+      target: { value: 'Prepare Planning tab changes' },
+    });
+    fireEvent.change(screen.getByTestId('planning-prep-notes'), {
+      target: { value: 'Focus on validation notes and commit summary wording.' },
+    });
+
+    fireEvent.click(screen.getByTestId('planning-create-audit-request'));
+    await waitFor(() => expect(planningStoreMocks.createActionRequest).toHaveBeenCalledWith('audit-request', {
+      title: 'Prepare Planning tab changes',
+      notes: 'Focus on validation notes and commit summary wording.',
+      targetRepoIds: ['repo-1'],
+      saveRepoId: 'repo-1',
+    }));
+    await waitFor(() => expect(onIntakeArtifactCreated).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByTestId('planning-prep-title'), {
+      target: { value: 'Generate roadmap proposal for Planning tab summary' },
+    });
+    fireEvent.click(screen.getByTestId('planning-create-roadmap-request'));
+    await waitFor(() => expect(planningStoreMocks.createActionRequest).toHaveBeenCalledWith('roadmap-request', {
+      title: 'Generate roadmap proposal for Planning tab summary',
+      notes: '',
+      targetRepoIds: ['repo-1'],
+      saveRepoId: 'repo-1',
+    }));
+    await waitFor(() => expect(onIntakeArtifactCreated).toHaveBeenCalledTimes(2));
   });
 
   it('supports repo-specific split and planning intake save controls for drafts', async () => {

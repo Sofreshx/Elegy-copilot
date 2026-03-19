@@ -7,7 +7,6 @@ const SCHEMA_VERSION = 'v1';
 
 // Explicit allowlist for cache-eligible commands
 const ALLOWLIST = [
-    { workspace: 'RannIA', command: 'npm run test' },
     { workspace: 'local-tracker', command: 'npm run test' },
     { workspace: 'copilot-ui', command: 'npm run test' },
     { workspace: 'scripts', command: 'npm run test' }

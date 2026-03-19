@@ -24,6 +24,12 @@ export interface CreateSdkSessionOptions {
   sandboxId?: string;
 }
 
+export interface LoadSdkSessionsOptions {
+  attachStream?: boolean;
+  preserveSelection?: boolean;
+  selectSessionId?: string | null;
+}
+
 export interface SdkSessionsState {
   sessions: SdkSessionSummary[];
   selectedSessionId: string | null;
@@ -388,8 +394,13 @@ function createSdkSessionsStore() {
     eventSource = source;
   }
 
-  async function loadSessions(): Promise<void> {
+  async function loadSessions(options: LoadSdkSessionsOptions = {}): Promise<void> {
     const nextVersion = ++listRequestVersion;
+    const attachStreamAfterLoad = options.attachStream !== false;
+    const preserveSelection = options.preserveSelection !== false;
+    const requestedSelection = typeof options.selectSessionId === 'string'
+      ? options.selectSessionId.trim()
+      : '';
 
     store.setState((state) => ({
       ...state,
@@ -409,12 +420,22 @@ function createSdkSessionsStore() {
         }
 
         const hasCurrentSelection =
-          state.selectedSessionId != null
+          preserveSelection
+          && state.selectedSessionId != null
           && nextSessions.some((session) => session.sessionId === state.selectedSessionId);
+        const hasRequestedSelection =
+          requestedSelection.length > 0
+          && nextSessions.some((session) => session.sessionId === requestedSelection);
 
         nextSelectedSessionId = hasCurrentSelection
           ? state.selectedSessionId
-          : (nextSessions[0]?.sessionId ?? null);
+          : hasRequestedSelection
+            ? requestedSelection
+            : attachStreamAfterLoad
+              ? (nextSessions[0]?.sessionId ?? null)
+              : (state.selectedSessionId && nextSessions.some((session) => session.sessionId === state.selectedSessionId)
+                ? state.selectedSessionId
+                : null);
 
         return {
           ...state,
@@ -426,6 +447,10 @@ function createSdkSessionsStore() {
       });
 
       if (nextVersion !== listRequestVersion) {
+        return;
+      }
+
+      if (!attachStreamAfterLoad) {
         return;
       }
 

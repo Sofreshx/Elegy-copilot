@@ -15,7 +15,7 @@ related: [catalog-control-plane, session-state-artifacts, system-upgrade-directi
 ## Purpose
 
 This document freezes the canonical authority for the cleanup domains that were still split across
-`copilot-ui`, `RannIA`, `local-tracker`, docs, and shared contracts.
+`copilot-ui`, the retired `RannIA` extension, `local-tracker`, docs, and shared contracts.
 
 These decisions are intentionally conservative:
 
@@ -33,7 +33,7 @@ an incidental code change.
 |---|---|---|---|
 | State roots and storage paths | Unified `~/.copilot` runtime state model | `~/.copilot/*` with the shared layout defined below | `~/.instruction-engine/*` only as migration-era exceptions, not a competing root |
 | Runtime and readiness state | Split by authority domain: control-plane runtime via `copilot-ui`, gateway readiness via status file | `copilot-ui` `GET /api/health` for backend runtime/control-plane state; `~/.copilot/messaging-gateway.status.json` for messaging-gateway readiness | `GET /api/gateway/state`, UI panels, and extension trees are projections/consumers; tracker live APIs are operational APIs, not readiness authority |
-| Asset mutation authority | `copilot-ui` local backend control plane | catalog mutation and install/enable/disable APIs | direct `RannIA` mutations are legacy behavior to retire |
+| Asset mutation authority | `copilot-ui` local backend control plane | catalog mutation and install/enable/disable APIs | direct `RannIA` mutations were retired with the legacy extension |
 | Enablement persistence | Repo registry overlay | `~/.copilot/repo-state/<repoId>/registry.json` | VS Code settings are import/compatibility input only |
 | Session authority | ACP/runtime session state | runtime-backed session reconciliation, with runtime winning when present | filesystem artifacts remain durable projections and archive/offline fallback |
 | Provider catalog source | Shipped provider catalog data | `engine-assets/providers.json` | `contracts/src/providerCatalog.ts` remains schema/helpers plus a synced mirror until generation lands |
@@ -83,7 +83,6 @@ Root overrides are allowed only as **root remaps** that preserve this subdirecto
 
 That means:
 
-- `RannIA` may continue to honor `skillInstaller.state.root`
 - `copilot-ui` may continue to honor `--copilot-home`
 - downstream packages must not invent a different directory schema when the root changes
 
@@ -113,7 +112,7 @@ Runtime/state authority is frozen into distinct, non-overlapping domains:
   canonical readiness authority
 
 This freeze is specifically intended to stop new overlap between `copilot-ui`, `local-tracker`, and
-`RannIA` while current implementations are still converging.
+legacy editor surfaces while current implementations are still converging.
 
 **Authority boundary**
 
@@ -143,9 +142,9 @@ That means:
 - tracker probe success/failure is useful live operational information, but it is not the canonical
   answer to whether shared gateway readiness state is currently authoritative
 
-**RannIA boundary**
+**Legacy extension boundary**
 
-`RannIA` surfaces are frozen into two different roles:
+The retired `RannIA` surfaces were frozen into two different roles:
 
 - **Connections** may render shared runtime/readiness information from the canonical gateway status
   authority and related connection state
@@ -175,9 +174,8 @@ That includes:
 File-backed assets remain the content truth, but `copilot-ui` is the only product surface that owns
 mutation orchestration, validation, refresh, and conflict handling.
 
-`RannIA` is frozen as a discovery/consumer surface, not a peer control plane. Existing direct-copy or
-direct-write behaviors in the extension are legacy behavior slated for later convergence behind the
-backend authority.
+The retired `RannIA` extension is not a peer control plane. Any future editor integration must
+consume backend APIs rather than reintroducing direct-copy or direct-write mutation flows.
 
 ### 4) Enablement persistence
 
@@ -295,7 +293,7 @@ are frozen as legacy import/watch compatibility only.
 This means:
 
 - no new long-term task features should depend on `.instructions/tasks`
-- `RannIA` task discovery should continue converging on repo-state task paths
+- no replacement editor integration should reintroduce repo-local task authority
 - `local-tracker` legacy `.instructions/tasks` watching, if temporarily enabled, is a bounded
   compatibility shim rather than the contract to preserve
 
@@ -329,12 +327,9 @@ The following constraints are now frozen:
   control-plane role and limits repo-state to overlays.
 - `docs/system/session-state-artifacts.md` defines the canonical artifact file contract under
   `~/.copilot/session-state/<SESSION_ID>/`.
-- `RannIA/src/enginePaths.ts` already encodes the `~/.copilot` path schema for repo-state, sessions,
-  tasks, contexts, audit, and vault paths.
-- `RannIA/src/enablementStore.ts` still dual-reads/dual-writes VS Code settings plus repo registry,
-  confirming the need to freeze registry authority.
-- `RannIA/src/skillInitializer.ts` and `RannIA/src/extension.ts` still expose direct editor mutation
-  flows, confirming the remaining overlap with the backend control plane.
+- The retired `RannIA` extension previously encoded the same `~/.copilot` path schema and direct
+  editor mutation flows, which is why this document freezes those domains under current runtime
+  authorities instead of preserving extension-specific behavior.
 - `local-tracker/src/watchers.ts` now targets canonical repo-state task paths and keeps repo-local
   `.instructions/tasks` watching behind an explicit legacy compatibility switch.
 - `local-tracker/src/messagingGateway/config.ts` now defaults messaging-gateway config under
@@ -348,9 +343,9 @@ The following constraints are now frozen:
 - `copilot-ui/routes/gateway.js` assembles gateway state from config, tracker probes, and planning
   persistence, confirming that `GET /api/gateway/state` is an operational envelope rather than the
   canonical readiness authority itself.
-- `RannIA/src/operationsConnectionsTree.ts` reads the shared messaging-gateway status contract, while
-  `RannIA/src/operationsRequestsTree.ts` and `RannIA/src/operationsPermissionsTree.ts` represent
-  extension-local request and approval state rather than shared readiness authority.
+- The retired extension's connection/request/permission trees were extension-local operational
+  surfaces, reinforcing that shared readiness authority belongs to the messaging-gateway status
+  contract rather than any editor-specific tree.
 - `copilot-ui/lib/runtimeContracts.js` and `copilot-ui/routes/sessions.js` already encode a
   runtime-first session reconciliation model.
 - `engine-assets/providers.json` and `contracts/src/providerCatalog.ts` duplicate provider catalog

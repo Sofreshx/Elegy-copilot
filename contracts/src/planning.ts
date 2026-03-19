@@ -69,6 +69,7 @@ export const PLANNING_INTAKE_CATEGORIES = [
   'design-complaint',
   'audit-request',
   'roadmap-request',
+  'review-prep',
   'commit-prep',
 ] as const;
 

@@ -65,6 +65,7 @@ import type {
   SdkSessionsResponse,
   SessionPlansResponse,
   SessionAgentUsageResponse,
+  SessionPlanMutationResponse,
   SessionStructuredStateResponse,
   SessionTextArtifactResponse,
   SkillsPreviewResponse,
@@ -102,6 +103,24 @@ export interface ListSessionsOptions {
 export interface SessionArtifactQueryOptions {
   source?: string;
   planId?: string;
+}
+
+export interface SessionPlanSeedArtifactPayload {
+  id: string;
+  category: PlanningIntakeCategory;
+  title: string;
+  summary?: string;
+  targetRepoIds?: string[];
+}
+
+export interface SessionPlanMutationPayload {
+  sessionId?: string;
+  source?: string;
+  title?: string;
+  content: string;
+  repoId?: string;
+  repoPath?: string;
+  seedArtifact?: SessionPlanSeedArtifactPayload;
 }
 
 export interface SessionAgentUsageQueryOptions {
@@ -799,6 +818,7 @@ const PLANNING_INTAKE_CATEGORIES = [
   'design-complaint',
   'audit-request',
   'roadmap-request',
+  'review-prep',
   'commit-prep',
 ] as const;
 
@@ -1807,6 +1827,33 @@ export function listSessionPlans(
     query: {
       source: options.source,
     },
+  });
+}
+
+export function getSessionPlanText(
+  sessionId: string,
+  options: SessionArtifactQueryOptions = {},
+  baseUrl?: string
+): Promise<string> {
+  return apiRequest<string>(`/api/sessions/${encodeURIComponent(sessionId)}/plan`, {
+    baseUrl,
+    query: {
+      source: options.source,
+    },
+  });
+}
+
+export function upsertSessionPlan(
+  payload: SessionPlanMutationPayload,
+  baseUrl?: string
+): Promise<SessionPlanMutationResponse> {
+  return apiRequest<SessionPlanMutationResponse>('/api/sessions/plan', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
   });
 }
 

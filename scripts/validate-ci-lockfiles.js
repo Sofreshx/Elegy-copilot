@@ -5,7 +5,6 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const requiredLockfiles = [
   'package-lock.json',
-  path.join('RannIA', 'package-lock.json'),
   path.join('scripts', 'package-lock.json'),
   path.join('copilot-ui', 'package-lock.json'),
   path.join('local-tracker', 'package-lock.json'),

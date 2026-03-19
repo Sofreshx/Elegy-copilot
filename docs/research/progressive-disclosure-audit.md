@@ -140,7 +140,7 @@ User asks about how session state works
 → Agent has no instruction to check docs/system/
 → May grep for "session state" across entire workspace
 → Likely hits docs/system/session-state-artifacts.md eventually
-→ But may also hit noise from copilot-sdk/, RannIA/, etc.
+→ But may also hit noise from copilot-sdk/, legacy extension folders, etc.
 ```
 
 **Verdict**: Fragile. No structured discovery path. The doc-graph exists but nothing tells agents to use it.

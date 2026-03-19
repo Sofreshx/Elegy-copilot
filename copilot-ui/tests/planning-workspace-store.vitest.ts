@@ -13,7 +13,7 @@ vi.mock('../ui/src/lib/api', async () => {
         exists: true,
         artifactCount: 1,
         stableIdPattern: 'PI-###',
-        supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'commit-prep'],
+        supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'review-prep', 'commit-prep'],
       },
       artifacts: [
         {
@@ -89,11 +89,16 @@ describe('planningWorkspaceStore', () => {
         repoLabel: 'Instruction Engine',
         sources: ['workspace', 'selected'],
       },
+      intakeFilters: {
+        category: '__all__',
+        planningState: '__all__',
+        targetRepoId: '__all__',
+      },
       planningIntakeDirectory: {
         canonicalName: 'Planning Intake',
         directoryPath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake',
         stableIdPattern: 'PI-###',
-        supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'commit-prep'],
+        supportedCategories: ['idea', 'research', 'refactor-candidate', 'design-complaint', 'audit-request', 'roadmap-request', 'review-prep', 'commit-prep'],
       },
       repositoryBacklog: {
         canonicalName: 'Repository Backlog',
@@ -127,5 +132,50 @@ describe('planningWorkspaceStore', () => {
 
     store.setSelectedRoadmapSlug('platform-foundation');
     expect(store.getState().selectedRoadmapSlug).toBe('platform-foundation');
+  });
+
+  it('tracks intake filters and resets them after switching to a different repo context', () => {
+    const store = createPlanningWorkspaceStore();
+
+    store.syncCatalogRepoContext({
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      sources: ['workspace'],
+    });
+
+    store.setIntakeCategoryFilter('idea');
+    store.setIntakePlanningStateFilter('thought');
+    store.setIntakeTargetFilter('repo-1');
+
+    expect(store.getState().intakeFilters).toEqual({
+      category: 'idea',
+      planningState: 'thought',
+      targetRepoId: 'repo-1',
+    });
+
+    store.syncCatalogRepoContext({
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine (renamed)',
+      sources: ['workspace', 'selected'],
+    });
+    expect(store.getState().intakeFilters).toEqual({
+      category: 'idea',
+      planningState: 'thought',
+      targetRepoId: 'repo-1',
+    });
+
+    store.syncCatalogRepoContext({
+      repoId: 'repo-2',
+      repoPath: 'C:\\Repos\\other-repo',
+      repoLabel: 'Other Repo',
+      sources: ['workspace'],
+    });
+    expect(store.getState().intakeFilters).toEqual({
+      category: '__all__',
+      planningState: '__all__',
+      targetRepoId: '__all__',
+    });
   });
 });

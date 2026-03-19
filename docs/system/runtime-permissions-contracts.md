@@ -116,7 +116,8 @@ Pass/fail contract:
 
 ## WS6 CI Topology + Required-Check Contract (WU-WS6-01 / WU-WS6-03 / WU-WS6-04 / WU-WS6-05)
 
-`extension-ci` is a fail-closed topology with explicit WS6 evidence and aggregation semantics.
+`.github/workflows/extension-ci.yml` remains the fail-closed WS6 topology with explicit evidence and
+aggregation semantics after retirement of the legacy VS Code extension lane.
 
 1. Fixed topology (authoritative)
   - `.github/workflows/extension-ci.yml` must keep this required dependency chain:
@@ -142,7 +143,8 @@ Pass/fail contract:
   - Missing/skipped/non-success statuses are treated as hard failures.
 
 5. Release gate linkage
-  - `release` depends on both `build` and `required-checks`; publish is blocked when aggregator semantics fail.
+  - Legacy VS Code extension release packaging was retired with `RannIA`.
+  - Desktop packaging remains a separate workflow and is not published from `extension-ci.yml`.
 
 ## WS6 Narrow-to-Broad Validation + Rollback Contract (WU-WS6-07)
 

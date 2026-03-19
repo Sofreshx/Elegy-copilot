@@ -14,7 +14,7 @@ related: [system-docs-index]
 
 ## When to read
 
-- You are adding or updating test strategy for scripts, UI, local tracker, or RannIA.
+- You are adding or updating test strategy for scripts, UI, or local tracker.
 - You need E2E setup rules, browser workflow constraints, or hang prevention guidance.
 - You are deciding whether to run unit, integration, or E2E checks for a change.
 

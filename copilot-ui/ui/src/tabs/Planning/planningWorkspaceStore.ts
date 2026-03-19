@@ -11,6 +11,7 @@ import type {
   PlanningIntakeArtifact,
   PlanningIntakeDirectoryRef,
   PlanningIntakeSummary,
+  PlanningIntakeTrackerFilters,
   PlanningRepositoryBacklogRef,
   PlanningRoadmap,
   PlanningRoadmapDirectoryRef,
@@ -28,6 +29,7 @@ export interface PlanningWorkspaceState {
   planningIntakeDirectory: PlanningIntakeDirectoryRef | null;
   intakeSummary: PlanningIntakeSummary | null;
   intakeArtifacts: PlanningIntakeArtifact[];
+  intakeFilters: PlanningIntakeTrackerFilters;
   repositoryBacklog: PlanningRepositoryBacklogRef | null;
   roadmapDirectory: PlanningRoadmapDirectoryRef | null;
   roadmaps: PlanningRoadmap[];
@@ -39,11 +41,18 @@ export interface PlanningWorkspaceState {
   error: string | null;
 }
 
+const DEFAULT_INTAKE_FILTERS: PlanningIntakeTrackerFilters = {
+  category: '__all__',
+  planningState: '__all__',
+  targetRepoId: '__all__',
+};
+
 const INITIAL_STATE: PlanningWorkspaceState = {
   catalogRepoContext: null,
   planningIntakeDirectory: null,
   intakeSummary: null,
   intakeArtifacts: [],
+  intakeFilters: DEFAULT_INTAKE_FILTERS,
   repositoryBacklog: null,
   roadmapDirectory: null,
   roadmaps: [],
@@ -123,6 +132,7 @@ export function createPlanningWorkspaceStore() {
       planningIntakeDirectory,
       intakeSummary: preserveRepoData ? state.intakeSummary : null,
       intakeArtifacts: preserveRepoData ? state.intakeArtifacts : [],
+      intakeFilters: preserveRepoData ? state.intakeFilters : DEFAULT_INTAKE_FILTERS,
       repositoryBacklog,
       roadmapDirectory,
       roadmaps: preserveRepoData ? state.roadmaps : [],
@@ -280,6 +290,43 @@ export function createPlanningWorkspaceStore() {
     }));
   }
 
+  function setIntakeCategoryFilter(value: PlanningIntakeTrackerFilters['category']): void {
+    store.setState((state) => ({
+      ...state,
+      intakeFilters: {
+        ...state.intakeFilters,
+        category: value,
+      },
+    }));
+  }
+
+  function setIntakePlanningStateFilter(value: PlanningIntakeTrackerFilters['planningState']): void {
+    store.setState((state) => ({
+      ...state,
+      intakeFilters: {
+        ...state.intakeFilters,
+        planningState: typeof value === 'string' ? value.trim() || '__all__' : '__all__',
+      },
+    }));
+  }
+
+  function setIntakeTargetFilter(value: PlanningIntakeTrackerFilters['targetRepoId']): void {
+    store.setState((state) => ({
+      ...state,
+      intakeFilters: {
+        ...state.intakeFilters,
+        targetRepoId: typeof value === 'string' ? value.trim() || '__all__' : '__all__',
+      },
+    }));
+  }
+
+  function clearIntakeFilters(): void {
+    store.setState((state) => ({
+      ...state,
+      intakeFilters: DEFAULT_INTAKE_FILTERS,
+    }));
+  }
+
   function reset(): void {
     store.setState(INITIAL_STATE);
   }
@@ -291,6 +338,10 @@ export function createPlanningWorkspaceStore() {
     loadIntakeArtifacts,
     loadRoadmaps,
     setSelectedRoadmapSlug,
+    setIntakeCategoryFilter,
+    setIntakePlanningStateFilter,
+    setIntakeTargetFilter,
+    clearIntakeFilters,
     reset,
   };
 }

@@ -54,6 +54,225 @@ function normalizeIdeaPlanningState(value: unknown): 'thought' | 'research' | 'p
   return 'thought';
 }
 
+type PlanningActionRequestButtonKind =
+  | 'audit-request'
+  | 'roadmap-request'
+  | 'review-prep'
+  | 'commit-prep';
+
+function PlanningActionWorkflowsPanel(props: {
+  creating: boolean;
+  knownRepos: CatalogRepoInventoryEntry[];
+  onIntakeArtifactCreated?: () => void;
+  onOpenCatalogAssets?: () => void;
+  selectedCatalogRepoId: string;
+}) {
+  const { creating, knownRepos, onIntakeArtifactCreated, onOpenCatalogAssets, selectedCatalogRepoId } = props;
+  const [title, setTitle] = useState('');
+  const [notes, setNotes] = useState('');
+  const [targetRepos, setTargetRepos] = useState(selectedCatalogRepoId);
+  const [saveRepoId, setSaveRepoId] = useState(selectedCatalogRepoId);
+  const [submittingKind, setSubmittingKind] = useState<PlanningActionRequestButtonKind | null>(null);
+
+  useEffect(() => {
+    if (!saveRepoId.trim() && selectedCatalogRepoId.trim()) {
+      setSaveRepoId(selectedCatalogRepoId);
+    }
+    if (!targetRepos.trim() && selectedCatalogRepoId.trim()) {
+      setTargetRepos(selectedCatalogRepoId);
+    }
+  }, [saveRepoId, selectedCatalogRepoId, targetRepos]);
+
+  const normalizedTargets = useMemo(() => normalizeTargetRepoInput(targetRepos), [targetRepos]);
+  const effectiveSaveRepoId =
+    saveRepoId.trim()
+    || (normalizedTargets.length === 1 ? normalizedTargets[0] : '')
+    || selectedCatalogRepoId.trim();
+  const submitDisabled =
+    creating
+    || submittingKind !== null
+    || title.trim().length === 0
+    || effectiveSaveRepoId.length === 0;
+
+  const createRequest = async (kind: PlanningActionRequestButtonKind): Promise<void> => {
+    setSubmittingKind(kind);
+    try {
+      const artifactId = await planningStore.createActionRequest(kind, {
+        title: title.trim(),
+        notes: notes.trim(),
+        targetRepoIds: normalizedTargets,
+        saveRepoId: effectiveSaveRepoId,
+      });
+
+      if (artifactId) {
+        setTitle('');
+        setNotes('');
+        setTargetRepos(selectedCatalogRepoId.trim());
+        setSaveRepoId(selectedCatalogRepoId.trim());
+        onIntakeArtifactCreated?.();
+      }
+    } finally {
+      setSubmittingKind(null);
+    }
+  };
+
+  return (
+    <Panel
+      subtitle="Request tracked audit, roadmap proposal, review-prep, and commit-prep work directly from Planning. Every action saves a typed repo-backed intake artifact first."
+      testId="planning-action-workflows-panel"
+      title="Planning Action Workflows"
+    >
+      <div className="planning-controls">
+        <p className="planning-copy">
+          These actions save directly to <code>docs/planning/intake/*.json</code> so request scope stays repo-scoped,
+          explicit, and reviewable in the Planning intake tracker.
+        </p>
+
+        <div className="planning-field-grid">
+          <label className="form-input" htmlFor="planning-prep-title">
+            <span className="form-label">Request Title</span>
+            <input
+              data-testid="planning-prep-title"
+              id="planning-prep-title"
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="e.g. Package UI planning changes for review"
+              value={title}
+            />
+          </label>
+
+          <label className="form-input" htmlFor="planning-prep-target-repos">
+            <span className="form-label">Target Repos</span>
+            <input
+              data-testid="planning-prep-target-repos"
+              id="planning-prep-target-repos"
+              onChange={(event) => setTargetRepos(event.target.value)}
+              placeholder="instruction-engine"
+              value={targetRepos}
+            />
+          </label>
+
+          <label className="form-input" htmlFor="planning-prep-save-repo">
+            <span className="form-label">Save Repo</span>
+            <select
+              data-testid="planning-prep-save-repo"
+              id="planning-prep-save-repo"
+              onChange={(event) => setSaveRepoId(event.target.value)}
+              value={saveRepoId}
+            >
+              <option value="">
+                {knownRepos.length > 0 ? '(choose a Catalog repo)' : '(no Catalog repos available)'}
+              </option>
+              {knownRepos.map((repo) => {
+                const repoId = typeof repo.repoId === 'string' ? repo.repoId.trim() : '';
+                if (!repoId) {
+                  return null;
+                }
+
+                return (
+                  <option key={repoId} value={repoId}>
+                    {buildRepoOptionLabel(repo)}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+        </div>
+
+        <label className="form-input" htmlFor="planning-prep-notes">
+          <span className="form-label">Requested Output / Focus</span>
+          <textarea
+            data-testid="planning-prep-notes"
+            id="planning-prep-notes"
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Optional: note audit scope, roadmap goals, validation expectations, reviewer focus areas, sequencing constraints, or commit message tone."
+            value={notes}
+          />
+        </label>
+
+        <p className="planning-copy">
+          Audit requests capture repo-scoped review work without silently mutating docs. Roadmap requests create tracked
+          proposal intent first, not automatic roadmap edits. Review prep and commit prep remain human-reviewed output
+          preparation only.
+        </p>
+        <p className="planning-copy">
+          After you create a request, find it in <strong>Planning Intake</strong> under the matching category filter
+          such as <strong>Audit Request</strong> or <strong>Roadmap Request</strong>. The SDK lane can optionally help
+          later, but the intake artifact remains canonical.
+        </p>
+
+        <div className="planning-actions">
+          {selectedCatalogRepoId ? (
+            <Button
+              onClick={() => {
+                setTargetRepos(selectedCatalogRepoId);
+                setSaveRepoId(selectedCatalogRepoId);
+              }}
+              testId="planning-prep-use-catalog-repo"
+              variant="secondary"
+            >
+              Use Catalog repo
+            </Button>
+          ) : null}
+          {onOpenCatalogAssets ? (
+            <Button onClick={onOpenCatalogAssets} testId="planning-prep-open-catalog-assets" variant="secondary">
+              Open Catalog Assets
+            </Button>
+          ) : null}
+          <Button
+            disabled={submitDisabled}
+            onClick={() => {
+              void createRequest('audit-request');
+            }}
+            testId="planning-create-audit-request"
+            variant="secondary"
+          >
+            {submittingKind === 'audit-request' ? 'Creating audit request…' : 'Request audit'}
+          </Button>
+          <Button
+            disabled={submitDisabled}
+            onClick={() => {
+              void createRequest('roadmap-request');
+            }}
+            testId="planning-create-roadmap-request"
+            variant="secondary"
+          >
+            {submittingKind === 'roadmap-request' ? 'Creating roadmap request…' : 'Request roadmap proposal'}
+          </Button>
+          <Button
+            disabled={submitDisabled}
+            onClick={() => {
+              void createRequest('review-prep');
+            }}
+            testId="planning-create-review-prep"
+            variant="secondary"
+          >
+            {submittingKind === 'review-prep' ? 'Creating review prep…' : 'Create review prep request'}
+          </Button>
+          <Button
+            disabled={submitDisabled}
+            onClick={() => {
+              void createRequest('commit-prep');
+            }}
+            testId="planning-create-commit-prep"
+          >
+            {submittingKind === 'commit-prep' ? 'Creating commit prep…' : 'Create commit prep request'}
+          </Button>
+        </div>
+
+        {effectiveSaveRepoId ? (
+          <p className="planning-copy">
+            Save target: <code>{effectiveSaveRepoId}</code> → <code>docs/planning/intake/*.json</code>
+          </p>
+        ) : (
+          <p className="state-message">
+            Choose a known Catalog repo before creating repo-tracked Planning action requests.
+          </p>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 function IdeaRecordEditor(props: {
   record: PlanningDraftItem;
   checked: boolean;
@@ -255,6 +474,7 @@ function IdeaRecordEditor(props: {
 export default function PlanningIdeasPanel(props: {
   planningState: PlanningState;
   knownRepos: CatalogRepoInventoryEntry[];
+  onIntakeArtifactCreated?: () => void;
   onOpenCatalogAssets?: () => void;
   selectedCatalogRepoId?: string;
   onSdkSessionReady?: (sessionId: string) => void;
@@ -262,6 +482,7 @@ export default function PlanningIdeasPanel(props: {
   const {
     planningState,
     knownRepos,
+    onIntakeArtifactCreated,
     onOpenCatalogAssets,
     selectedCatalogRepoId = planningState.catalogRepoContext?.repoId || '',
     onSdkSessionReady,
@@ -280,6 +501,13 @@ export default function PlanningIdeasPanel(props: {
 
   return (
     <div className="planning-grid" data-testid="planning-bullet-intake">
+      <PlanningActionWorkflowsPanel
+        creating={planningState.creating}
+        knownRepos={knownRepos}
+        onIntakeArtifactCreated={onIntakeArtifactCreated}
+        onOpenCatalogAssets={onOpenCatalogAssets}
+        selectedCatalogRepoId={selectedCatalogRepoId}
+      />
       <Panel
         subtitle="Draft locally first, then save typed repo-backed intake artifacts under docs/planning/intake. Accepted work can later move into canonical docs/backlog.md."
         testId="planning-ideas-inbox-panel"

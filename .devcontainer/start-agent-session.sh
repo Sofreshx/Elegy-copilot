@@ -39,13 +39,6 @@ sleep 10
 # Check if Copilot is available
 if command -v code &> /dev/null; then
   echo "VS Code CLI available"
-  
-  # Install instruction-engine extension if present locally
-  if [ -d "/workspaces/instruction-engine/RannIA" ]; then
-    echo "Building and installing local extension..."
-    cd /workspaces/instruction-engine/RannIA
-    npm run compile 2>/dev/null || true
-  fi
 fi
 
 # If prompt is provided, execute agent session

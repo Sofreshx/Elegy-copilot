@@ -463,7 +463,8 @@ node copilot-ui/dist-electron/updater.rollback.test.js
 
 ## WS6 — CI Topology + Trigger Coverage + Required Checks (WU-WS6-01 / WU-WS6-03 / WU-WS6-04 / WU-WS6-05)
 
-Authoritative workflow: `.github/workflows/extension-ci.yml`.
+Authoritative workflow: `.github/workflows/extension-ci.yml` (retained for WS6 evidence and
+required-check aggregation after legacy extension retirement).
 
 ### Fixed topology (must remain fail-closed)
 
@@ -471,7 +472,7 @@ Authoritative workflow: `.github/workflows/extension-ci.yml`.
 - `ws6-evidence` matrix (`WS6-E1`..`WS6-E5`)
 - `ws6-artifact-gate`
 - `required-checks`
-- `release` (tag-only; depends on `build` + `required-checks`)
+- legacy extension release packaging removed; desktop packaging stays in `desktop-release.yml`
 
 ### Trigger coverage checks
 

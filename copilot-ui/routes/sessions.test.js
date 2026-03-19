@@ -382,6 +382,117 @@ Completed successfully.
     assert.equal(body.skillUsage.skills[0].assetId, 'skill-react-query');
   });
 
+  await test('POST /api/sessions/plan creates a linked local plan session and writes plan/events artifacts', async () => {
+    const writes = [];
+    const ensuredDirs = [];
+    const routes = register({
+      sendJson: createSendJson(),
+      readJsonBody: async (req) => req.__body || {},
+      crypto: {
+        randomUUID() {
+          return 'uuid-123';
+        },
+      },
+      ensureDir(targetPath) {
+        ensuredDirs.push(targetPath);
+      },
+      fs: {
+        existsSync(targetPath) {
+          return String(targetPath).endsWith('events.jsonl') ? false : false;
+        },
+        writeFileSync(targetPath, content, encoding) {
+          writes.push({ kind: 'write', targetPath, content, encoding });
+        },
+        appendFileSync(targetPath, content, encoding) {
+          writes.push({ kind: 'append', targetPath, content, encoding });
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\cli-home',
+      vscodeHome: 'C:\\vscode-home',
+      sandboxesHome: 'C:\\sandboxes-home',
+    }, 'POST', '/api/sessions/plan', {
+      title: 'Planning follow-up',
+      content: '# Planning follow-up\n\n## Problem\n\nClose the planning gap.\n',
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      seedArtifact: {
+        id: 'PI-001',
+        category: 'audit-request',
+        title: 'Audit planning workflow',
+      },
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.sessionId, 'planning-uuid-123');
+    assert.equal(body.created, true);
+    assert.equal(body.linkedRepoId, 'repo-1');
+    assert.equal(body.seededFromArtifactId, 'PI-001');
+    assert.deepEqual(ensuredDirs, ['C:\\cli-home\\session-state\\planning-uuid-123']);
+    assert.equal(writes.some((entry) => entry.kind === 'write' && String(entry.targetPath).endsWith('\\plan.md')), true);
+    assert.equal(
+      writes.some((entry) =>
+        entry.kind === 'append'
+        && String(entry.targetPath).endsWith('\\events.jsonl')
+        && String(entry.content).includes('"type":"session.start"')
+      ),
+      true
+    );
+    assert.equal(
+      writes.some((entry) =>
+        entry.kind === 'append'
+        && String(entry.targetPath).endsWith('\\events.jsonl')
+        && String(entry.content).includes('"type":"session.plan_updated"')
+      ),
+      true
+    );
+  });
+
+  await test('POST /api/sessions/plan updates an existing linked plan session without regenerating the session id', async () => {
+    const writes = [];
+    const routes = register({
+      sendJson: createSendJson(),
+      readJsonBody: async (req) => req.__body || {},
+      ensureDir() {},
+      fs: {
+        existsSync(targetPath) {
+          return String(targetPath).includes('existing-plan-session');
+        },
+        writeFileSync(targetPath, content, encoding) {
+          writes.push({ kind: 'write', targetPath, content, encoding });
+        },
+        appendFileSync(targetPath, content, encoding) {
+          writes.push({ kind: 'append', targetPath, content, encoding });
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\cli-home',
+      vscodeHome: 'C:\\vscode-home',
+      sandboxesHome: 'C:\\sandboxes-home',
+    }, 'POST', '/api/sessions/plan', {
+      sessionId: 'existing-plan-session',
+      title: 'Updated plan',
+      content: '# Updated plan\n',
+      repoId: 'repo-1',
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.sessionId, 'existing-plan-session');
+    assert.equal(body.created, false);
+    assert.equal(
+      writes.some((entry) =>
+        entry.kind === 'append'
+        && String(entry.targetPath).endsWith('\\events.jsonl')
+        && String(entry.content).includes('"type":"session.plan_updated"')
+      ),
+      true
+    );
+  });
+
   await test('POST /api/sessions/:id/roadmap-sync reads linked plan markers and syncs roadmap/backlog state', async () => {
     const linkedPlan = [
       '# Plan Pack',

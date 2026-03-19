@@ -31,8 +31,8 @@ deterministic view of the world.
 - deterministic skill search plus bounded search telemetry
 - asset audit events, analytics rollups, and runtime health reporting
 
-`RannIA` remains an in-editor consumer of the same catalog semantics rather than the primary
-management surface.
+The retired `RannIA` extension was an in-editor consumer of the same catalog semantics; active
+management now lives in `copilot-ui`.
 
 ## Truth hierarchy and storage
 

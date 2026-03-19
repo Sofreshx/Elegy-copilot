@@ -3,12 +3,9 @@ name: Extension CI/CD
 on:
   push:
     branches: [main]
-    tags:
-      - 'v*'
   pull_request:
     branches: [main]
     paths:
-      - 'RannIA/**'
       - 'engine-assets/policy/**'
       - '.cli/policy/**'
       - 'scripts/validate-policy-lockfiles.js'
@@ -29,6 +26,8 @@ on:
       - 'docs/system/session-state-artifacts.md'
       - 'docs/system/planpack-spec.md'
       - 'README.md'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/extension-ci.yml'
   workflow_dispatch:
 
@@ -53,25 +52,19 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
           cache-dependency-path: |
-            RannIA/package.json
-            scripts/package.json
+            package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js
 
       - name: Install dependencies
-        run: npm ci --workspaces=false
-        working-directory: RannIA
-
-      - name: Install scripts dependencies
-        run: npm ci --workspaces=false
-        working-directory: scripts
+        run: npm ci --ignore-scripts
 
       - name: Restore test cache
         uses: actions/cache@v4
         with:
           path: .tmp/test-ledger
-          key: test-cache-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ hashFiles('RannIA/package.json', 'scripts/package.json') }}
+          key: test-cache-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ hashFiles('package-lock.json', 'scripts/package.json', 'copilot-ui/package.json', 'local-tracker/package.json', 'contracts/package.json') }}
           restore-keys: |
             test-cache-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-
             test-cache-${{ runner.os }}-main-
@@ -79,32 +72,8 @@ jobs:
       - name: Validate policy lockfiles
         run: node scripts/validate-policy-lockfiles.js
 
-      - name: Lint
-        run: npm run lint --if-present
-        working-directory: RannIA
-
-      - name: Compile TypeScript
-        run: npm run compile
-        working-directory: RannIA
-
-      - name: Install Xvfb
-        run: sudo apt-get update && sudo apt-get install -y xvfb
-
-      - name: Run tests
-        run: xvfb-run --auto-servernum npm test --if-present
-        working-directory: RannIA
-
-      - name: Package extension
-        run: npx @vscode/vsce package --out skill-installer.vsix
-        working-directory: RannIA
-
-      - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: skill-installer-vsix
-          path: RannIA/skill-installer.vsix
-          if-no-files-found: error
-          retention-days: 30
+      - name: Build shared contracts
+        run: npm run build:contracts
 
   ws6-evidence:
     runs-on: ubuntu-latest
@@ -286,36 +255,3 @@ jobs:
             exit 1
           fi
 
-  release:
-    needs:
-      - build
-      - required-checks
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download VSIX artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: skill-installer-vsix
-          path: ./artifacts
-
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          name: Release v${{ steps.version.outputs.VERSION }}
-          draft: true
-          generate_release_notes: true
-          files: |
-            artifacts/skill-installer.vsix
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

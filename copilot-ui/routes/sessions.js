@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -46,6 +47,27 @@ function ensureDir(p) {
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizePlanContent(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const normalized = value.replace(/\r\n/g, '\n');
+  return normalized.endsWith('\n') ? normalized : `${normalized}\n`;
+}
+
+function buildGeneratedSessionId(cryptoLib) {
+  if (cryptoLib && typeof cryptoLib.randomUUID === 'function') {
+    return `planning-${cryptoLib.randomUUID()}`;
+  }
+
+  return `planning-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function appendJsonLine(fsLib, filePath, value) {
+  fsLib.appendFileSync(filePath, `${JSON.stringify(value)}\n`, 'utf8');
 }
 
 function firstDefined(...values) {
@@ -211,6 +233,105 @@ function handleSessionPlan(ctx, deps) {
     return;
   }
   sendText(res, 200, text, 'text/plain; charset=utf-8');
+}
+
+function handleSessionPlanMutation(ctx, deps) {
+  const { req, res, u, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    resolveSessionsHome,
+    isValidSessionId,
+    ensureDir,
+    fs,
+    path,
+    crypto,
+  } = deps;
+
+  readJsonBody(req)
+    .then((body) => {
+      const requestBody = body && typeof body === 'object' ? body : {};
+      const requestSource = normalizeString(firstDefined(requestBody.source, u.searchParams.get('source'))).toLowerCase();
+      const home = resolveSessionsHome(requestSource || 'cli', copilotHome, vscodeHome, sandboxesHome);
+      const requestedSessionId = normalizeString(requestBody.sessionId);
+      const sessionId = requestedSessionId || buildGeneratedSessionId(crypto);
+
+      if (!isValidSessionId(sessionId)) {
+        sendJson(res, 400, { error: 'Invalid session id' });
+        return;
+      }
+
+      const content = normalizePlanContent(requestBody.content);
+      if (!content.trim()) {
+        sendJson(res, 400, { error: 'Plan content is required' });
+        return;
+      }
+
+      const repoId = normalizeString(requestBody.repoId);
+      const repoPath = normalizeString(requestBody.repoPath);
+      const title = normalizeString(requestBody.title);
+      const seedArtifact = requestBody.seedArtifact && typeof requestBody.seedArtifact === 'object'
+        ? requestBody.seedArtifact
+        : null;
+      const seedArtifactId = normalizeString(seedArtifact && seedArtifact.id);
+      const seedArtifactCategory = normalizeString(seedArtifact && seedArtifact.category);
+      const seedArtifactTitle = normalizeString(seedArtifact && seedArtifact.title);
+
+      const sessionDir = path.join(path.resolve(home.home), 'session-state', sessionId);
+      const planPath = path.join(sessionDir, 'plan.md');
+      const eventsPath = path.join(sessionDir, 'events.jsonl');
+      const created = !fs.existsSync(sessionDir);
+      const wroteStartEvent = created || !fs.existsSync(eventsPath);
+      const timestamp = new Date().toISOString();
+
+      ensureDir(sessionDir);
+
+      if (wroteStartEvent) {
+        appendJsonLine(fs, eventsPath, {
+          type: 'session.start',
+          time: timestamp,
+          payload: {
+            sessionId,
+            source: 'instruction-engine-ui',
+            mode: 'planning',
+            startTime: timestamp,
+            cwd: repoPath || null,
+            repo: repoId || null,
+          },
+        });
+      }
+
+      fs.writeFileSync(planPath, content, 'utf8');
+      appendJsonLine(fs, eventsPath, {
+        type: 'session.plan_updated',
+        time: timestamp,
+        payload: {
+          sessionId,
+          title: title || null,
+          updatedAt: timestamp,
+          repoId: repoId || null,
+          repoPath: repoPath || null,
+          seededFromArtifactId: seedArtifactId || null,
+          seededFromArtifactCategory: seedArtifactCategory || null,
+          seededFromArtifactTitle: seedArtifactTitle || null,
+        },
+      });
+
+      sendJson(res, 200, {
+        sessionId,
+        source: home.source,
+        planPath,
+        created,
+        updatedAt: timestamp,
+        content,
+        linkedRepoId: repoId || undefined,
+        linkedRepoPath: repoPath || undefined,
+        seededFromArtifactId: seedArtifactId || null,
+      });
+    })
+    .catch((error) => {
+      sendJson(res, 400, { error: String(error.message || error) });
+    });
 }
 
 function handleSessionPlans(ctx, deps) {
@@ -517,6 +638,7 @@ function handleSessionDelete(ctx, deps) {
 
 function register(deps = {}) {
   const resolvedDeps = {
+    crypto: deps.crypto || crypto,
     fs: deps.fs || fs,
     path: deps.path || path,
     sessions: deps.sessions || sessionsLib,
@@ -560,6 +682,11 @@ function register(deps = {}) {
       method: 'GET',
       path: /^\/api\/sessions\/([^/]+)\/plan$/,
       handler: (ctx) => handleSessionPlan(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/sessions/plan',
+      handler: (ctx) => handleSessionPlanMutation(ctx, resolvedDeps),
     },
     {
       method: 'GET',
