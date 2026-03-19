@@ -737,6 +737,17 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     planningWorkspaceState.intakeFilters.category !== INTAKE_FILTER_ALL
     || planningWorkspaceState.intakeFilters.planningState !== INTAKE_FILTER_ALL
     || planningWorkspaceState.intakeFilters.targetRepoId !== INTAKE_FILTER_ALL;
+  const planningCounts = useMemo(() => ({
+    bullets: planningWorkspaceState.bullets.length,
+    intake: planningWorkspaceState.intakeArtifacts.length,
+    backlog: planningWorkspaceState.backlogSummary?.items?.length ?? 0,
+    roadmaps: planningWorkspaceState.roadmaps.length,
+  }), [
+    planningWorkspaceState.bullets,
+    planningWorkspaceState.intakeArtifacts,
+    planningWorkspaceState.backlogSummary?.items,
+    planningWorkspaceState.roadmaps,
+  ]);
 
   const sectionCopy: Record<PlanningSection, { title: string; body: string }> = {
     plans: {
@@ -777,6 +788,39 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     }
   };
 
+  const refreshPlanningContext = () => {
+    const work: Array<Promise<unknown>> = [stateOverviewStore.refresh()];
+
+    if (selectedCatalogRepo?.repoPath) {
+      work.push(
+        planningWorkspaceStore.loadBullets(),
+        planningWorkspaceStore.loadIntakeArtifacts(),
+        planningWorkspaceStore.loadBacklog(),
+        planningWorkspaceStore.loadRoadmaps(),
+      );
+    }
+
+    if (planningState.linkedSdkSession?.sessionId) {
+      work.push(
+        sdkHealthStore.refresh(),
+        sdkSessionsStore.loadSessions({
+          attachStream: false,
+          preserveSelection: true,
+          selectSessionId: planningState.linkedSdkSession.sessionId,
+        }),
+      );
+    }
+
+    if (showLegacyArtifacts) {
+      work.push(planningStore.loadInitial());
+      if (selectedLegacyRecord?.recordId) {
+        work.push(planningStore.loadArtifacts(selectedLegacyRecord.recordId));
+      }
+    }
+
+    void Promise.allSettled(work);
+  };
+
   return (
     <section className="planning-view" data-testid="planning-view">
       <Toolbar testId="planning-view-toolbar">
@@ -813,6 +857,14 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
           <Button onClick={() => navigationStore.goToCatalog('assets')} testId="planning-open-catalog" variant="secondary">
             Open Catalog Assets
           </Button>
+          <Button
+            disabled={!selectedCatalogRepo?.repoPath}
+            onClick={refreshPlanningContext}
+            testId="planning-refresh-context"
+            variant="ghost"
+          >
+            Refresh visible planning data
+          </Button>
         </div>
       </Toolbar>
 
@@ -821,17 +873,59 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
           Plans
         </Button>
         <Button onClick={() => setActiveSection('bullets')} testId="planning-section-bullets" variant={activeSection === 'bullets' ? 'primary' : 'ghost'}>
-          Bullets
+          Bullets ({planningCounts.bullets})
         </Button>
         <Button onClick={() => setActiveSection('backlog')} testId="planning-section-backlog" variant={activeSection === 'backlog' ? 'primary' : 'ghost'}>
-          Backlog
+          Backlog ({planningCounts.backlog})
         </Button>
         <Button onClick={() => setActiveSection('roadmaps')} testId="planning-section-roadmaps" variant={activeSection === 'roadmaps' ? 'primary' : 'ghost'}>
-          Roadmaps
+          Roadmaps ({planningCounts.roadmaps})
         </Button>
       </div>
 
       <p className="workspace-section-label">{sectionCopy[activeSection].title}</p>
+      <div className="planning-metric-grid" data-testid="planning-context-summary">
+        <div className="planning-metric-card">
+          <p className="planning-metric-label">Active repo</p>
+          <p className="planning-metric-value planning-metric-value-small">
+            {selectedCatalogRepo?.repoLabel || 'Select a Catalog repo'}
+          </p>
+          <p className="planning-copy">
+            <code>{selectedCatalogRepo?.repoId || '(no repo selected)'}</code>
+          </p>
+        </div>
+        <div className="planning-metric-card">
+          <p className="planning-metric-label">Bullets</p>
+          <p className="planning-metric-value">{planningCounts.bullets}</p>
+          <p className="planning-copy">Freeform future-plan seeds in <code>docs/planning/bullets.md</code>.</p>
+        </div>
+        <div className="planning-metric-card">
+          <p className="planning-metric-label">Typed intake</p>
+          <p className="planning-metric-value">{planningCounts.intake}</p>
+          <p className="planning-copy">Structured requests in <code>docs/planning/intake/*.json</code>.</p>
+        </div>
+        <div className="planning-metric-card">
+          <p className="planning-metric-label">Backlog items</p>
+          <p className="planning-metric-value">{planningCounts.backlog}</p>
+          <p className="planning-copy">Accepted or queued repo work in <code>docs/backlog.md</code>.</p>
+        </div>
+        <div className="planning-metric-card">
+          <p className="planning-metric-label">Roadmaps</p>
+          <p className="planning-metric-value">{planningCounts.roadmaps}</p>
+          <p className="planning-copy">Multi-plan outcomes in <code>docs/roadmaps</code>.</p>
+        </div>
+        <div className="planning-metric-card">
+          <p className="planning-metric-label">Plan link</p>
+          <p className="planning-metric-value planning-metric-value-small">
+            {planningState.linkedPlanSession?.sessionId || 'Not created yet'}
+          </p>
+          <p className="planning-copy">
+            {planningState.linkedPlanSession
+              ? 'Planning can reopen the repo-scoped local session plan.'
+              : 'Create or seed a plan from Plans, Bullets, Backlog, or Roadmaps.'}
+          </p>
+        </div>
+      </div>
 
       {planningWorkspaceState.error ? (
         <p className="planning-error" role="alert">

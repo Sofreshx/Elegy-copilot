@@ -1018,6 +1018,10 @@ describe('PlanningView', () => {
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('Create / Edit Plan');
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('plan-123');
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('Seeded from');
+    expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Instruction Engine');
+    expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('repo-1');
+    expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Bullets');
+    expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Typed intake');
     expect(screen.getByTestId('planning-persistence-panel')).toHaveTextContent('Planning database ready');
     expect(screen.queryByTestId('research-notes-panel')).not.toBeInTheDocument();
     expect(screen.getByTestId('planning-sdk-lane-panel')).toHaveTextContent('Planning ↔ SDK Lane');
@@ -1036,6 +1040,18 @@ describe('PlanningView', () => {
       preserveSelection: true,
       selectSessionId: 'sdk-123',
     });
+
+    const bulletsLoadCount = mocks.loadWorkspaceBullets.mock.calls.length;
+    const intakeLoadCount = mocks.loadWorkspaceIntake.mock.calls.length;
+    const backlogLoadCount = mocks.loadWorkspaceBacklog.mock.calls.length;
+    const roadmapLoadCount = mocks.loadWorkspaceRoadmaps.mock.calls.length;
+    fireEvent.click(screen.getByTestId('planning-refresh-context'));
+    expect(mocks.loadWorkspaceBullets.mock.calls.length).toBeGreaterThan(bulletsLoadCount);
+    expect(mocks.loadWorkspaceIntake.mock.calls.length).toBeGreaterThan(intakeLoadCount);
+    expect(mocks.loadWorkspaceBacklog.mock.calls.length).toBeGreaterThan(backlogLoadCount);
+    expect(mocks.loadWorkspaceRoadmaps.mock.calls.length).toBeGreaterThan(roadmapLoadCount);
+    expect(mocks.stateOverviewRefresh).toHaveBeenCalled();
+    expect(mocks.sdkHealthRefresh).toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId('planning-section-bullets'));
     expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
@@ -1242,6 +1258,8 @@ describe('PlanningView', () => {
     fireEvent.click(screen.getByTestId('planning-section-bullets'));
 
     expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Select a Catalog repo');
+    expect(screen.getByTestId('planning-refresh-context')).toBeDisabled();
     expect(screen.getAllByText('Select a repository in Catalog to resolve bullet, intake, backlog, and roadmap surfaces.').length).toBeGreaterThan(0);
     expect(mocks.applyCatalogRepoContext).toHaveBeenCalledWith(null);
     expect(mocks.loadWorkspaceBullets).not.toHaveBeenCalled();
