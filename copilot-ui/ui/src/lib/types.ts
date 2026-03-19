@@ -1288,6 +1288,7 @@ export type PlanningPlanOriginKind = 'direct' | 'intake' | 'bullet' | 'backlog' 
 export interface PlanningLinkedPlanSession {
   sessionId: string;
   repoId?: string | null;
+  planPath?: string;
   source:
     | 'create-plan'
     | 'seed-from-intake'

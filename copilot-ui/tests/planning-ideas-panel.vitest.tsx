@@ -25,6 +25,10 @@ const planningStoreMocks = vi.hoisted(() => ({
 const planningWorkspaceMocks = vi.hoisted(() => ({
   createBullet: vi.fn(),
   store: createMockStore({
+    planningBulletsFile: {
+      filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md',
+      repoRelativePath: 'docs/planning/bullets.md',
+    },
     bulletsError: null as string | null,
   }),
 }));
@@ -46,7 +50,13 @@ describe('PlanningIdeasPanel', () => {
   beforeEach(() => {
     planningStoreMocks.createActionRequest.mockReset();
     planningWorkspaceMocks.createBullet.mockReset();
-    planningWorkspaceMocks.store.setState({ bulletsError: null });
+    planningWorkspaceMocks.store.setState({
+      planningBulletsFile: {
+        filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md',
+        repoRelativePath: 'docs/planning/bullets.md',
+      },
+      bulletsError: null,
+    });
     planningStoreMocks.createActionRequest.mockResolvedValue(null);
     planningWorkspaceMocks.createBullet.mockResolvedValue(null);
   });
@@ -105,6 +115,9 @@ describe('PlanningIdeasPanel', () => {
     );
 
     expect(screen.getByTestId('planning-bullet-composer-panel')).toHaveTextContent('docs/planning/bullets.md');
+    expect(screen.getByTestId('planning-bullet-composer-file-path')).toHaveTextContent(
+      'C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md'
+    );
 
     fireEvent.change(screen.getByTestId('planning-bullet-title'), {
       target: { value: 'Clarify roadmap hierarchy' },

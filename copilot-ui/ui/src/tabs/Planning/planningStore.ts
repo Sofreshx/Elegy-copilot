@@ -2192,6 +2192,7 @@ export function createPlanningStore() {
       const linkedPlanSession: PlanningLinkedPlanSession = {
         sessionId,
         repoId: stateSnapshot.catalogRepoContext?.repoId?.trim() || null,
+        planPath: String(response.planPath || existingLinkedPlanSession?.planPath || '').trim() || undefined,
         source: normalizePlanSeedSource(seedArtifact),
         originKind,
         originArtifactId,

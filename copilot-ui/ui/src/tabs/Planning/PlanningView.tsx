@@ -17,6 +17,7 @@ import { sessionsStore } from '../Sessions/sessionsStore';
 import { sdkSessionsStore, type SdkSessionsState } from '../Sessions/sdkSessionsStore';
 import MermaidViewer from './MermaidViewer';
 import PlanningIdeasPanel from './PlanningIdeasPanel';
+import PlanningPathActions from './PlanningPathActions';
 import { planningStore } from './planningStore';
 import { planningWorkspaceStore } from './planningWorkspaceStore';
 import ResearchNotesPanel from './ResearchNotesPanel';
@@ -270,6 +271,14 @@ function PlanningPlanAuthoringPanel(props: {
             ? `Linked local session ${props.linkedPlanSession.sessionId} is ready for direct plan authoring.`
             : `No linked local planning session yet for ${props.selectedCatalogRepoLabel || 'the current workspace'}.`}
         </p>
+        {props.linkedPlanSession ? (
+          <PlanningPathActions
+            emptyMessage="The linked session exists, but its plan path has not been resolved yet."
+            openLabel="Open linked plan"
+            path={props.linkedPlanSession.planPath || null}
+            testIdPrefix="planning-linked-plan-file"
+          />
+        ) : null}
         {props.linkedPlanSession?.seedArtifactId ? (
           <p className="planning-copy">
             Seeded from <code>{props.linkedPlanSession.seedArtifactId}</code>
@@ -579,6 +588,14 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     ?? null;
 
   useEffect(() => {
+    if (catalogState.repoInventory || catalogState.repoInventoryLoading || catalogState.loading) {
+      return;
+    }
+
+    void catalogWorkspaceStore.loadWorkspace();
+  }, [catalogState.repoInventory, catalogState.repoInventoryLoading, catalogState.loading]);
+
+  useEffect(() => {
     planningStore.applyCatalogRepoContext(selectedCatalogRepo);
     planningWorkspaceStore.syncCatalogRepoContext(selectedCatalogRepo);
 
@@ -845,7 +862,11 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
               value={selectedCatalogRepo?.repoId || ''}
             >
               <option value="">
-                {knownCatalogRepos.length > 0 ? '(choose a Catalog repo)' : '(no Catalog repos available)'}
+                {catalogState.repoInventoryLoading
+                  ? '(loading known repos...)'
+                  : knownCatalogRepos.length > 0
+                    ? '(choose a Catalog repo)'
+                    : '(no Catalog repos available)'}
               </option>
               {knownCatalogRepos.map((repo) => (
                 <option key={repo.repoId} value={repo.repoId}>
@@ -1087,9 +1108,13 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
           >
             {selectedCatalogRepo ? (
               <div className="planning-controls">
-                <p className="planning-copy">
-                  <code>{planningWorkspaceState.planningBulletsFile?.filePath || '(no bullets file resolved)'}</code>
-                </p>
+                <PlanningPathActions
+                  emptyMessage="No bullets file resolved for the active repository yet."
+                  openLabel="Open bullet file"
+                  path={planningWorkspaceState.planningBulletsFile?.filePath}
+                  repoRelativePath={planningWorkspaceState.planningBulletsFile?.repoRelativePath}
+                  testIdPrefix="planning-bullets-surface-file"
+                />
                 <p className="planning-copy">
                   Stable IDs: <code>{planningWorkspaceState.planningBulletsFile?.stableIdPattern || 'PB-###'}</code>
                 </p>
@@ -1111,7 +1136,7 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
                         <div className="planning-chip-row">
                           <span className="planning-chip"><code>{bullet.id}</code></span>
                           <span className="planning-chip">state: {bullet.state}</span>
-                          <span className="planning-chip">repo: {bullet.repoId}</span>
+                          <span className="planning-chip">repo: {selectedCatalogRepo.repoLabel || bullet.repoId}</span>
                         </div>
                         {bullet.notes.length > 0 ? (
                           <p className="planning-item-copy">Notes: {bullet.notes.join(' · ')}</p>
@@ -1166,9 +1191,13 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
           >
             {selectedCatalogRepo ? (
               <div className="planning-controls">
-                <p className="planning-copy">
-                  <code>{planningWorkspaceState.planningIntakeDirectory?.directoryPath || '(no intake directory resolved)'}</code>
-                </p>
+                <PlanningPathActions
+                  emptyMessage="No intake directory resolved for the active repository yet."
+                  openLabel="Open intake folder"
+                  path={planningWorkspaceState.planningIntakeDirectory?.directoryPath}
+                  repoRelativePath={planningWorkspaceState.planningIntakeDirectory?.repoRelativePath}
+                  testIdPrefix="planning-intake-surface-directory"
+                />
                 <p className="planning-copy">
                   Stable IDs: <code>{planningWorkspaceState.planningIntakeDirectory?.stableIdPattern || 'PI-###'}</code>
                 </p>
@@ -1374,9 +1403,13 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
                     value={selectedCatalogRepo.repoId}
                   />
                 </label>
-                <p className="planning-copy">
-                  <code>{planningWorkspaceState.repositoryBacklog?.filePath || '(no backlog file resolved)'}</code>
-                </p>
+                <PlanningPathActions
+                  emptyMessage="No backlog file resolved for the active repository yet."
+                  openLabel="Open backlog file"
+                  path={planningWorkspaceState.repositoryBacklog?.filePath}
+                  repoRelativePath={planningWorkspaceState.repositoryBacklog?.repoRelativePath}
+                  testIdPrefix="planning-backlog-surface-file"
+                />
                 <p className="planning-copy">
                   Stable IDs: <code>{planningWorkspaceState.repositoryBacklog?.stableIdPattern || 'RB-###'}</code>
                 </p>
@@ -1445,9 +1478,13 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
             title="Roadmap Surface"
           >
             <div className="planning-controls">
-              <p className="planning-copy">
-                <code>{planningWorkspaceState.roadmapDirectory?.directoryPath || '(no roadmap directory resolved)'}</code>
-              </p>
+              <PlanningPathActions
+                emptyMessage="No roadmap directory resolved for the active repository yet."
+                openLabel="Open roadmap folder"
+                path={planningWorkspaceState.roadmapDirectory?.directoryPath}
+                repoRelativePath={planningWorkspaceState.roadmapDirectory?.repoRelativePath}
+                testIdPrefix="planning-roadmap-surface-directory"
+              />
               <p className="planning-copy">
                 Stable IDs: <code>{planningWorkspaceState.roadmapDirectory?.stableIdPattern || 'RM-<roadmap-slug>-###'}</code>
               </p>
@@ -1481,15 +1518,15 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
                 </select>
               </label>
 
-              <ul className="planning-record-list">
-                {planningWorkspaceState.roadmaps.map((roadmap) => (
-                  <li key={roadmap.slug}>
-                    <p className="planning-item-title">{roadmap.title}</p>
-                    <p className="planning-item-copy">
-                      <code>{roadmap.repoRelativePath || roadmap.filePath}</code>
-                    </p>
-                  </li>
-                ))}
+                <ul className="planning-record-list">
+                  {planningWorkspaceState.roadmaps.map((roadmap) => (
+                    <li key={roadmap.slug}>
+                      <p className="planning-item-title">{roadmap.title}</p>
+                      <p className="planning-item-copy">
+                        {roadmap.repoRelativePath || roadmap.filePath}
+                      </p>
+                    </li>
+                  ))}
               </ul>
             </div>
           </Panel>
@@ -1502,9 +1539,12 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
             {selectedRoadmap ? (
               <div className="planning-controls">
                 {selectedRoadmap.overview ? <p className="planning-copy">{selectedRoadmap.overview}</p> : null}
-                <p className="planning-copy">
-                  <code>{selectedRoadmap.filePath}</code>
-                </p>
+                <PlanningPathActions
+                  openLabel="Open roadmap file"
+                  path={selectedRoadmap.filePath}
+                  repoRelativePath={selectedRoadmap.repoRelativePath}
+                  testIdPrefix="planning-roadmap-detail-file"
+                />
                 <ul className="planning-record-list">
                   {selectedRoadmap.items.map((item) => (
                     <li key={item.id}>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Panel } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import type { PlanningBulletState } from '../../lib/types';
+import PlanningPathActions from './PlanningPathActions';
 import { planningStore, type PlanningState } from './planningStore';
 import { planningWorkspaceStore } from './planningWorkspaceStore';
 
@@ -230,10 +231,17 @@ export default function PlanningIdeasPanel(props: {
       >
         <div className="planning-controls">
           {selectedCatalogRepoId ? (
-            <p className="planning-copy">
-              Active repo: <code>{selectedCatalogRepoLabel || selectedCatalogRepoId}</code> →{' '}
-              <code>docs/planning/bullets.md</code>
-            </p>
+            <>
+              <p className="planning-copy">
+                Active repo: <code>{selectedCatalogRepoLabel || selectedCatalogRepoId}</code>
+              </p>
+              <PlanningPathActions
+                openLabel="Open bullet file"
+                path={planningWorkspaceState.planningBulletsFile?.filePath}
+                repoRelativePath={planningWorkspaceState.planningBulletsFile?.repoRelativePath}
+                testIdPrefix="planning-bullet-composer-file"
+              />
+            </>
           ) : (
             <p className="state-message">
               No Catalog repo is selected yet. Pick one first so new bullets land in the right repository file.

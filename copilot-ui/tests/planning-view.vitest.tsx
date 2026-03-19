@@ -63,6 +63,7 @@ const mocks = vi.hoisted(() => {
     compiling: false,
     linkedPlanSession: {
       sessionId: 'plan-123',
+      planPath: 'C:\\Users\\Dylan\\.copilot\\session-state\\plan-123\\plan.md',
       repoId: 'repo-1',
       source: 'seed-from-intake',
       createdAt: '2026-03-18T00:25:00.000Z',
@@ -293,6 +294,7 @@ const mocks = vi.hoisted(() => {
   const catalogWorkspaceStore = createMockStore({
     loading: false,
     refreshing: false,
+    repoInventoryLoading: false,
     activeRepoPath: 'C:\\Repos\\instruction-engine',
     activeRepoId: 'repo-1',
     repoInventory: {
@@ -686,6 +688,7 @@ describe('PlanningView', () => {
       compiling: false,
       linkedPlanSession: {
         sessionId: 'plan-123',
+        planPath: 'C:\\Users\\Dylan\\.copilot\\session-state\\plan-123\\plan.md',
         repoId: 'repo-1',
         source: 'seed-from-intake',
         createdAt: '2026-03-18T00:25:00.000Z',
@@ -915,6 +918,7 @@ describe('PlanningView', () => {
     mocks.catalogWorkspaceStore.setState({
       loading: false,
       refreshing: false,
+      repoInventoryLoading: false,
       activeRepoPath: 'C:\\Repos\\instruction-engine',
       activeRepoId: 'repo-1',
       repoInventory: {
@@ -1018,6 +1022,9 @@ describe('PlanningView', () => {
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('Create / Edit Plan');
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('plan-123');
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('Seeded from');
+    expect(screen.getByTestId('planning-linked-plan-file-path')).toHaveTextContent(
+      'C:\\Users\\Dylan\\.copilot\\session-state\\plan-123\\plan.md'
+    );
     expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Instruction Engine');
     expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('repo-1');
     expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Bullets');
@@ -1056,6 +1063,7 @@ describe('PlanningView', () => {
     fireEvent.click(screen.getByTestId('planning-section-bullets'));
     expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
     expect(screen.getByTestId('planning-bullets-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md');
+    expect(screen.getByTestId('planning-bullets-surface-file-open')).toBeInTheDocument();
     expect(screen.getByTestId('planning-bullets-list')).toHaveTextContent('PB-001');
     expect(screen.getByTestId('planning-intake-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\planning\\intake');
     expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Visible intake artifacts');
@@ -1070,11 +1078,13 @@ describe('PlanningView', () => {
 
     fireEvent.click(screen.getByTestId('planning-section-backlog'));
     expect(screen.getByTestId('planning-backlog-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\backlog.md');
+    expect(screen.getByTestId('planning-backlog-surface-file-open')).toBeInTheDocument();
     expect(screen.getByTestId('planning-repo-id-readonly')).toHaveValue('repo-1');
     expect(screen.getByTestId('planning-backlog-list')).toHaveTextContent('RB-001');
 
     fireEvent.click(screen.getByTestId('planning-section-roadmaps'));
     expect(screen.getByTestId('planning-roadmap-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\roadmaps');
+    expect(screen.getByTestId('planning-roadmap-surface-directory-open')).toBeInTheDocument();
     expect(screen.getByTestId('planning-roadmap-list')).toHaveTextContent('Platform Foundation');
     expect(screen.getByTestId('planning-roadmap-detail')).toHaveTextContent('RM-platform-foundation-001');
 
@@ -1167,6 +1177,23 @@ describe('PlanningView', () => {
     expect(mocks.sdkHealthRefresh).toHaveBeenCalled();
   });
 
+  it('bootstraps known repos when Planning opens before Catalog inventory has loaded', async () => {
+    mocks.catalogWorkspaceStore.setState({
+      loading: false,
+      refreshing: false,
+      repoInventoryLoading: false,
+      activeRepoPath: '',
+      activeRepoId: '',
+      repoInventory: null,
+    });
+
+    const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
+
+    render(<PlanningView />);
+
+    await waitFor(() => expect(mocks.loadWorkspace).toHaveBeenCalled());
+  });
+
   it('filters intake artifacts by category, state, and target without leaving the planning tracker', async () => {
     const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
 
@@ -1208,6 +1235,7 @@ describe('PlanningView', () => {
     mocks.catalogWorkspaceStore.setState({
       loading: false,
       refreshing: false,
+      repoInventoryLoading: false,
       activeRepoPath: '',
       activeRepoId: '',
       repoInventory: {
