@@ -253,6 +253,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.resolve-preview.outputs.tag_name }}
           RELEASE_TARGET: ${{ needs.resolve-preview.outputs.ref }}
           RELEASE_NAME: ${{ needs.resolve-preview.outputs.release_name }}
@@ -271,9 +272,9 @@ jobs:
             prerelease_flag=(--prerelease)
           fi
 
-          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-            gh release edit "${RELEASE_TAG}" --draft=false --target "${RELEASE_TARGET}" --title "${RELEASE_NAME}" "${prerelease_flag[@]}"
-            gh release upload "${RELEASE_TAG}" "${release_files[@]}" --clobber
+          if gh release view "${RELEASE_TAG}" --repo "${GH_REPO}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" --repo "${GH_REPO}" --draft=false --target "${RELEASE_TARGET}" --title "${RELEASE_NAME}" "${prerelease_flag[@]}"
+            gh release upload "${RELEASE_TAG}" --repo "${GH_REPO}" "${release_files[@]}" --clobber
           else
-            gh release create "${RELEASE_TAG}" "${release_files[@]}" --target "${RELEASE_TARGET}" --title "${RELEASE_NAME}" --generate-notes "${prerelease_flag[@]}"
+            gh release create "${RELEASE_TAG}" --repo "${GH_REPO}" "${release_files[@]}" --target "${RELEASE_TARGET}" --title "${RELEASE_NAME}" --generate-notes "${prerelease_flag[@]}"
           fi

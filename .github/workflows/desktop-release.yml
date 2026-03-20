@@ -237,6 +237,8 @@ jobs:
           }
 
           New-Item -ItemType Directory -Path 'release-artifacts/windows' -Force | Out-Null
+          Copy-Item -Path 'copilot-ui/release/*' -Destination 'release-artifacts/windows' -Recurse -Force
+          Copy-Item $signedInstaller (Join-Path 'release-artifacts/windows' $installer.Name) -Force
           Copy-Item $signedInstaller 'release-artifacts/windows/windows-signed-installer.exe' -Force
           Copy-Item $signatureManifest 'release-artifacts/windows/signature-manifest.json' -Force
           Copy-Item $provenanceAttestation 'release-artifacts/windows/provenance.attestation.json' -Force
@@ -558,6 +560,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
           RELEASE_NAME: Elegy Copilot Desktop ${{ needs.resolve-release.outputs.release_version }}
           RELEASE_DRAFT: ${{ needs.resolve-release.outputs.publish_mode == 'draft' }}
@@ -565,26 +568,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          release_files=(
-            artifacts/windows/windows-signed-installer.exe
-            artifacts/windows/signature-manifest.json
-            artifacts/windows/provenance.attestation.json
-            artifacts/windows/signing-response.json
-            artifacts/linux/linux-preview-unsigned.tar.gz
-            artifacts/linux/linux-preview-metadata.sha256
-            artifacts/linux/linux-preview-metadata.sig
-            artifacts/linux/linux-preview-signing-cert.pem
-            artifacts/linux/linux-signing-response.json
-            artifacts/macos/macos-preview-unsigned.tar.gz
-            artifacts/macos/MAC_PREVIEW_UNSIGNED.txt
-          )
-
-          for file in "${release_files[@]}"; do
-            if [[ ! -f "${file}" ]]; then
-              echo "Expected desktop release file is missing: ${file}" >&2
-              exit 1
-            fi
-          done
+          mapfile -t release_files < <(find artifacts/windows artifacts/linux artifacts/macos -type f | sort)
+          if [[ "${#release_files[@]}" -eq 0 ]]; then
+            echo "No desktop release files were found." >&2
+            exit 1
+          fi
 
           draft_flag=(--draft=false)
           if [[ "${RELEASE_DRAFT}" == "true" ]]; then
@@ -596,9 +584,9 @@ jobs:
             prerelease_flag=(--prerelease)
           fi
 
-          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
-            gh release edit "${RELEASE_TAG}" --title "${RELEASE_NAME}" "${draft_flag[@]}" "${prerelease_flag[@]}"
-            gh release upload "${RELEASE_TAG}" "${release_files[@]}" --clobber
+          if gh release view "${RELEASE_TAG}" --repo "${GH_REPO}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" --repo "${GH_REPO}" --title "${RELEASE_NAME}" "${draft_flag[@]}" "${prerelease_flag[@]}"
+            gh release upload "${RELEASE_TAG}" --repo "${GH_REPO}" "${release_files[@]}" --clobber
           else
-            gh release create "${RELEASE_TAG}" "${release_files[@]}" --title "${RELEASE_NAME}" --generate-notes "${draft_flag[@]}" "${prerelease_flag[@]}"
+            gh release create "${RELEASE_TAG}" --repo "${GH_REPO}" "${release_files[@]}" --title "${RELEASE_NAME}" --generate-notes "${draft_flag[@]}" "${prerelease_flag[@]}"
           fi
