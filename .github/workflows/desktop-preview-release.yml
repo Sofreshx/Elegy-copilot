@@ -1,6 +1,11 @@
 name: Elegy Copilot Desktop Preview Release
 
 on:
+  push:
+    tags:
+      - '*'
+    tags-ignore:
+      - 'desktop-v*'
   workflow_dispatch:
     inputs:
       ref:
@@ -45,6 +50,16 @@ jobs:
           tag_name="${{ inputs.tag_name }}"
           release_name="${{ inputs.release_name }}"
           prerelease="${{ inputs.prerelease }}"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            ref="${GITHUB_REF_NAME}"
+            tag_name="${GITHUB_REF_NAME}"
+            release_name="Elegy Copilot Desktop Preview ${tag_name}"
+            prerelease="false"
+            if [[ "${tag_name}" == *-* ]]; then
+              prerelease="true"
+            fi
+          fi
 
           if [[ -z "${ref}" ]]; then
             echo "A build ref is required." >&2

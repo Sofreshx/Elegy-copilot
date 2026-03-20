@@ -7,7 +7,10 @@ Elegy Copilot currently has two desktop distribution lanes:
 
 ## 1. Preview release lane
 
-Use `.github/workflows/desktop-preview-release.yml` when you need downloadable desktop artifacts on GitHub without the private signing service.
+`.github/workflows/desktop-preview-release.yml` is the default public distribution lane.
+
+- Pushing a normal release tag such as `1.0.0` or `1.0.0-rc.1` automatically builds and attaches unsigned desktop artifacts to that GitHub release.
+- Manual `workflow_dispatch` remains available when you need to backfill assets for an existing tag or build from a non-tag ref.
 
 Inputs:
 

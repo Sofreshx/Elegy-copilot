@@ -5,6 +5,15 @@
   "description": "Elegy Copilot desktop wrapper for copilot-ui",
   "license": "MIT",
   "main": "dist-electron/main.js",
+  "files": [
+    "dist-electron",
+    "server.js",
+    "lib",
+    "routes",
+    "ui-dist",
+    "public",
+    "package.json"
+  ],
   "scripts": {
     "test": "node scripts/test-with-ledger.js && npm run test:vitest",
     "test:vitest": "vitest run",
