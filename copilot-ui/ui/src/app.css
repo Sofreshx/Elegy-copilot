@@ -1156,6 +1156,36 @@
   flex-wrap: wrap;
 }
 
+.executor-form-grid {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.executor-retry-grid {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+}
+
+.executor-checkbox {
+  align-content: end;
+}
+
+.executor-checkbox input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.executor-job-list li.is-selected {
+  border-color: var(--color-brand-500);
+  background: rgba(47, 165, 157, 0.08);
+}
+
+.executor-run-detail {
+  display: grid;
+  gap: var(--space-sm);
+}
+
 .sessions-connection-grid {
   display: grid;
   gap: var(--space-sm);

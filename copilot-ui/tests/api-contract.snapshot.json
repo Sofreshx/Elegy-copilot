@@ -45,6 +45,14 @@
       "result"
     ]
   },
+  "POST /api/vscode/patch-github-mcp": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "result"
+    ]
+  },
   "POST /api/copilot/authorize": {
     "status": 200,
     "contentType": "application/json",
@@ -293,6 +301,159 @@
       "reason"
     ]
   },
+  "GET /api/planning/artifacts/bullets": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "POST /api/planning/artifacts/bullets": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "PATCH /api/planning/artifacts/bullets/bullet-0001": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/artifacts/intake": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "POST /api/planning/artifacts/intake": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "PATCH /api/planning/artifacts/intake/intake-0001": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/records/planning-000001/research": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error",
+      "recordId"
+    ]
+  },
+  "POST /api/planning/records/planning-000001/research": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error",
+      "recordId"
+    ]
+  },
+  "DELETE /api/planning/records/planning-000001/research/note-0001": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error",
+      "recordId"
+    ]
+  },
+  "GET /api/planning/records/planning-000001/diagrams": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error",
+      "recordId"
+    ]
+  },
+  "GET /api/planning/backlog": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "POST /api/planning/backlog": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "PATCH /api/planning/backlog/RB-001": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
   "GET /api/planning/roadmaps": {
     "status": 409,
     "contentType": "application/json",
@@ -383,6 +544,7 @@
     "bodyType": "json",
     "bodyKeys": [
       "id",
+      "skillUsage",
       "source",
       "usage"
     ]
@@ -392,6 +554,14 @@
     "contentType": "text/plain",
     "bodyType": "non-json",
     "bodyKeys": null
+  },
+  "POST /api/sessions/plan": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
   },
   "GET /api/sessions/test-session-id/plans": {
     "status": 404,
@@ -555,6 +725,295 @@
       "error"
     ]
   },
+  "GET /api/catalog/repos": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "count",
+      "deterministic",
+      "kind",
+      "repos",
+      "selectedRepo",
+      "storage",
+      "workspaceScan"
+    ]
+  },
+  "POST /api/catalog/repos/register": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/repos/scan-roots": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "count",
+      "deterministic",
+      "kind",
+      "repos",
+      "selectedRepo",
+      "storage",
+      "updated",
+      "workspaceScan"
+    ]
+  },
+  "POST /api/catalog/repos/unregister": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/repos/select": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/repos/refresh": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "GET /api/catalog/summary": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "kind",
+      "summary"
+    ]
+  },
+  "GET /api/catalog/assets": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "assets",
+      "count",
+      "deterministic",
+      "filters",
+      "kind",
+      "snapshot"
+    ]
+  },
+  "GET /api/catalog/bundles": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "bundles",
+      "count",
+      "deterministic",
+      "filters",
+      "kind",
+      "snapshot"
+    ]
+  },
+  "GET /api/catalog/entries": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "count",
+      "deterministic",
+      "entries",
+      "filters",
+      "kind",
+      "snapshot"
+    ]
+  },
+  "GET /api/catalog/assets/test-asset-id": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/refresh": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "audit",
+      "deterministic",
+      "kind",
+      "refreshed",
+      "snapshot"
+    ]
+  },
+  "POST /api/catalog/assets/create": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/assets/update": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/assets/delete": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/assets/install": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/bundles/uninstall": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/providers/install": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/assets/enable": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/assets/disable": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/activation": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/search/query": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/search/selection": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "audit",
+      "deterministic",
+      "kind",
+      "recorded",
+      "telemetry"
+    ]
+  },
+  "GET /api/audit/assets": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "analytics",
+      "deterministic",
+      "kind",
+      "snapshot"
+    ]
+  },
+  "GET /api/audit/events": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "count",
+      "deterministic",
+      "events",
+      "filters",
+      "kind",
+      "storage"
+    ]
+  },
+  "GET /api/runtime/catalog-health": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "audit",
+      "changes",
+      "deterministic",
+      "kind",
+      "ok",
+      "projection"
+    ]
+  },
   "GET /api/gateway/state": {
     "status": 200,
     "contentType": "application/json",
@@ -700,311 +1159,6 @@
       "status"
     ]
   },
-  "GET /api/catalog/summary": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "kind",
-      "summary"
-    ]
-  },
-  "GET /api/catalog/assets": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "assets",
-      "count",
-      "deterministic",
-      "filters",
-      "kind",
-      "snapshot"
-    ]
-  },
-  "GET /api/catalog/entries": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "count",
-      "deterministic",
-      "entries",
-      "filters",
-      "kind",
-      "snapshot"
-    ]
-  },
-  "GET /api/catalog/assets/test-asset-id": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/catalog/refresh": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "audit",
-      "deterministic",
-      "kind",
-      "refreshed",
-      "snapshot"
-    ]
-  },
-  "POST /api/catalog/assets/create": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/catalog/assets/update": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/catalog/assets/delete": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/catalog/assets/install": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/catalog/providers/install": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/catalog/assets/enable": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/catalog/assets/disable": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/search/query": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "GET /api/audit/events": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "count",
-      "deterministic",
-      "events",
-      "filters",
-      "kind",
-      "storage"
-    ]
-  },
-  "GET /api/runtime/catalog-health": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "audit",
-      "changes",
-      "deterministic",
-      "kind",
-      "ok",
-      "projection"
-    ]
-  },
-  "GET /api/catalog/repos": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "count",
-      "deterministic",
-      "kind",
-      "repos",
-      "selectedRepo",
-      "storage",
-      "workspaceScan"
-    ]
-  },
-  "POST /api/catalog/repos/register": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/catalog/repos/scan-roots": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "count",
-      "deterministic",
-      "kind",
-      "repos",
-      "selectedRepo",
-      "storage",
-      "updated",
-      "workspaceScan"
-    ]
-  },
-  "POST /api/catalog/repos/unregister": {
-    "status": 400,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/catalog/repos/select": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/catalog/repos/refresh": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
-  "POST /api/search/selection": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "audit",
-      "deterministic",
-      "kind",
-      "recorded",
-      "telemetry"
-    ]
-  },
-  "GET /api/audit/assets": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "analytics",
-      "deterministic",
-      "kind",
-      "snapshot"
-    ]
-  },
-  "GET /api/planning/records/planning-000001/research": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error",
-      "recordId"
-    ]
-  },
-  "POST /api/planning/records/planning-000001/research": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error",
-      "recordId"
-    ]
-  },
-  "DELETE /api/planning/records/planning-000001/research/note-0001": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error",
-      "recordId"
-    ]
-  },
-  "GET /api/planning/records/planning-000001/diagrams": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error",
-      "recordId"
-    ]
-  },
-  "GET /api/catalog/bundles": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "bundles",
-      "count",
-      "deterministic",
-      "filters",
-      "kind",
-      "snapshot"
-    ]
-  },
   "GET /api/sdk/health": {
     "status": 200,
     "contentType": "application/json",
@@ -1069,53 +1223,68 @@
       "reason"
     ]
   },
-  "POST /api/catalog/activation": {
-    "status": 400,
+  "GET /api/executor/health": {
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
+      "activeRunCount",
+      "enabled",
+      "jobCount",
+      "lastError",
+      "openedSessionCount",
+      "runCount",
+      "scheduledJobCount",
+      "state",
+      "statePath"
     ]
   },
-  "GET /api/planning/backlog": {
-    "status": 409,
+  "GET /api/executor/jobs": {
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
+      "jobs"
     ]
   },
-  "POST /api/planning/backlog": {
-    "status": 409,
+  "GET /api/executor/runs": {
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
+      "runs"
     ]
   },
-  "PATCH /api/planning/backlog/RB-001": {
-    "status": 409,
+  "GET /api/executor/runs/test-run-id": {
+    "status": 404,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
+      "error"
+    ]
+  },
+  "POST /api/executor/jobs": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/executor/jobs/test-job-id/trigger": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/executor/jobs/test-job-id/cancel": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
     ]
   }
 }

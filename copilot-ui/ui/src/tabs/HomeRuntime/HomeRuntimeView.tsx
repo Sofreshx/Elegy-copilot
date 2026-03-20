@@ -1,5 +1,6 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, Panel, StatusBadge, Toolbar } from '../../components';
+import { patchVscodeGithubMcp } from '../../lib/api';
 import {
   formatGatewaySegmentSummary,
   formatTimestampLabel,
@@ -17,6 +18,7 @@ import {
 } from '../../stores/navigation';
 import { sdkHealthStore } from '../../stores/sdkHealthStore';
 import GatewayView from '../Gateway/GatewayView';
+import ExecutorView from '../Executor/ExecutorView';
 import LspView from '../LSP/LspView';
 import SandboxesView from '../Sandboxes/SandboxesView';
 import { readSandboxId, sandboxesStore } from '../Sandboxes/sandboxesStore';
@@ -106,14 +108,26 @@ function pickMostRecentSession(sessions: SessionSummary[]): SessionSummary | nul
   }, null);
 }
 
+interface GithubWorkspaceControlState {
+  patching: boolean;
+  message: string | null;
+  error: string | null;
+}
+
 function renderDiagnosticsSection(
   activeSection: DiagnosticsSectionId,
   health: ReturnType<typeof stateOverviewStore.getState>['health'],
+  githubWorkspaceControl: GithubWorkspaceControlState,
+  onEnableGithubWorkspaceMcp: () => void,
 ) {
   if (activeSection === 'runtime') {
     const runtime = asRecord(health?.runtime);
     const provider = asRecord(runtime.provider);
     const capabilities = asRecord(runtime.capabilities);
+    const githubAccess = asRecord(runtime.githubAccess);
+    const githubCli = asRecord(githubAccess.cli);
+    const githubWorkspace = asRecord(githubAccess.workspace);
+    const githubGuidance = asRecord(githubAccess.guidance);
     const capabilityEntries = Object.entries(capabilities)
       .map(([key, value]) => `${humanizeToken(key)}: ${humanizeToken(value, 'Unknown')}`)
       .sort((left, right) => left.localeCompare(right));
@@ -168,6 +182,69 @@ function renderDiagnosticsSection(
               <p className="state-card-copy">High-signal runtime capability probes used by the compatibility contract.</p>
               <p className="state-card-detail">
                 {capabilityEntries.length ? capabilityEntries.join(' | ') : 'No capability probes reported.'}
+              </p>
+            </article>
+
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">GitHub CLI Access</p>
+                <StatusBadge
+                  status={buildStatusToken(githubCli, readString(githubCli, 'status') || 'unknown')}
+                  testId="home-runtime-diagnostics-github-cli-status"
+                />
+              </div>
+              <p className="state-card-copy">Copilot CLI sessions already expose the built-in GitHub troubleshooting lane.</p>
+              <p className="state-card-detail">
+                {joinDetails([
+                  readString(githubCli, 'serverId') ? `server: ${readString(githubCli, 'serverId')}` : '',
+                  readBoolean(githubCli, 'readOnlyDefault') === true ? 'read-only default' : '',
+                  readString(githubCli, 'detail'),
+                ]) || 'No CLI GitHub access details reported.'}
+              </p>
+            </article>
+
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">Workspace GitHub MCP</p>
+                <StatusBadge
+                  status={buildStatusToken(githubWorkspace, readString(githubWorkspace, 'status') || 'unknown')}
+                  testId="home-runtime-diagnostics-github-workspace-status"
+                />
+              </div>
+              <p className="state-card-copy">
+                Configure `.vscode/mcp.json` for read-only GitHub inspection in VS Code/Copilot workspace sessions.
+              </p>
+              <p className="state-card-detail">
+                {joinDetails([
+                  readString(githubWorkspace, 'configPath') ? `config: ${readString(githubWorkspace, 'configPath')}` : '',
+                  readString(githubWorkspace, 'tokenEnvVar') ? `env: ${readString(githubWorkspace, 'tokenEnvVar')}` : '',
+                  readBoolean(githubWorkspace, 'readOnlyDefault') === true ? 'read-only default' : '',
+                  readString(githubWorkspace, 'detail'),
+                ]) || 'No workspace GitHub MCP details reported.'}
+              </p>
+              <div className="workspace-nav">
+                <Button
+                  disabled={githubWorkspaceControl.patching}
+                  onClick={onEnableGithubWorkspaceMcp}
+                  testId="home-runtime-diagnostics-github-enable"
+                  variant="secondary"
+                >
+                  {githubWorkspaceControl.patching ? 'Enabling...' : 'Enable workspace GitHub MCP'}
+                </Button>
+              </div>
+              {githubWorkspaceControl.error ? (
+                <p className="state-message state-error" role="alert">
+                  {githubWorkspaceControl.error}
+                </p>
+              ) : null}
+              {githubWorkspaceControl.message ? (
+                <p className="state-message">{githubWorkspaceControl.message}</p>
+              ) : null}
+              <p className="state-card-detail">
+                {joinDetails([
+                  readString(githubGuidance, 'tokenEnvVar') ? `recommended token env: ${readString(githubGuidance, 'tokenEnvVar')}` : '',
+                  readString(githubGuidance, 'docPath') ? `docs: ${readString(githubGuidance, 'docPath')}` : '',
+                ]) || 'GitHub MCP guidance is not currently available.'}
               </p>
             </article>
           </div>
@@ -317,6 +394,11 @@ export default function HomeRuntimeView() {
   const sdkHealthState = useStoreValue(sdkHealthStore);
   const localSessionState = useStoreValue(sessionsStore);
   const sandboxState = useStoreValue(sandboxesStore);
+  const [githubWorkspaceControl, setGithubWorkspaceControl] = useState<GithubWorkspaceControlState>({
+    patching: false,
+    message: null,
+    error: null,
+  });
 
   useEffect(() => {
     stateOverviewStore.startPolling();
@@ -543,6 +625,10 @@ export default function HomeRuntimeView() {
       title: 'Sessions',
       body: 'Inspect local and SDK-backed sessions, stream messages, and continue runtime work.',
     },
+    executor: {
+      title: 'Executor',
+      body: 'Schedule SDK-backed prompts, monitor parallel runs, and retry rate-limited work with backoff.',
+    },
     sandboxes: {
       title: 'Sandboxes',
       body: 'Manage sandbox lifecycle, branch context, and follow sandbox work back into runtime sessions.',
@@ -563,6 +649,40 @@ export default function HomeRuntimeView() {
       sandboxesStore.refresh(),
       sdkHealthStore.refresh(),
     ]);
+  };
+
+  const handleEnableGithubWorkspaceMcp = () => {
+    void (async () => {
+      setGithubWorkspaceControl({
+        patching: true,
+        message: null,
+        error: null,
+      });
+
+      try {
+        const response = await patchVscodeGithubMcp();
+        const result = asRecord(response?.result);
+        const changed = readBoolean(result, 'changed');
+        const message = changed === false
+          ? 'Workspace GitHub MCP was already configured.'
+          : 'Workspace GitHub MCP was added to .vscode/mcp.json. Load your MCP env file before opening VS Code.';
+        setGithubWorkspaceControl({
+          patching: false,
+          message,
+          error: null,
+        });
+      } catch (error) {
+        setGithubWorkspaceControl({
+          patching: false,
+          message: null,
+          error: error instanceof Error && error.message.trim()
+            ? error.message
+            : 'Unable to patch workspace GitHub MCP config.',
+        });
+      } finally {
+        await stateOverviewStore.refresh();
+      }
+    })();
   };
 
   const handleFollowSandboxSession = (sessionId: string) => {
@@ -598,6 +718,13 @@ export default function HomeRuntimeView() {
             variant={activeSection === 'sessions' ? 'primary' : 'ghost'}
           >
             Sessions
+          </Button>
+          <Button
+            onClick={() => navigationStore.setRuntimeSectionId('executor')}
+            testId="home-runtime-section-executor"
+            variant={activeSection === 'executor' ? 'primary' : 'ghost'}
+          >
+            Executor
           </Button>
           <Button
             onClick={() => navigationStore.setRuntimeSectionId('sandboxes')}
@@ -705,6 +832,20 @@ export default function HomeRuntimeView() {
 
               <article className="state-card">
                 <div className="state-card-header">
+                  <p className="state-card-title">Open Executor</p>
+                </div>
+                <p className="state-card-copy">Schedule prompts, monitor active runs, and reopen linked SDK sessions.</p>
+                <Button
+                  onClick={() => navigationStore.goToRuntime('executor')}
+                  testId="runtime-overview-executor-action"
+                  variant="secondary"
+                >
+                  Open Executor
+                </Button>
+              </article>
+
+              <article className="state-card">
+                <div className="state-card-header">
                   <p className="state-card-title">Launch or continue sandbox-backed runtime work</p>
                 </div>
                 <p className="state-card-copy">Jump into sandbox lifecycle controls and follow sandbox sessions into runtime.</p>
@@ -750,6 +891,8 @@ export default function HomeRuntimeView() {
       ) : null}
 
       {activeSection === 'sessions' ? <SessionsView preferredMode={navigationState.sessionsMode} /> : null}
+
+      {activeSection === 'executor' ? <ExecutorView /> : null}
 
       {activeSection === 'sandboxes' ? (
         <SandboxesView
@@ -803,7 +946,12 @@ export default function HomeRuntimeView() {
             Diagnostics / {formatDiagnosticsSectionLabel(navigationState.diagnosticsSectionId)}
           </p>
 
-          {renderDiagnosticsSection(navigationState.diagnosticsSectionId, overviewState.health)}
+          {renderDiagnosticsSection(
+            navigationState.diagnosticsSectionId,
+            overviewState.health,
+            githubWorkspaceControl,
+            handleEnableGithubWorkspaceMcp,
+          )}
         </div>
       ) : null}
     </section>

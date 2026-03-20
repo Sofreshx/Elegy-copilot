@@ -82,6 +82,20 @@ function handlePatchVscodeSettings(ctx, deps) {
     .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
 }
 
+function handlePatchVscodeGithubMcp(ctx, deps) {
+  const { req, res, engineRoot } = ctx;
+  const { sendJson, readJsonBody, runVscodeGithubMcpPatcher } = deps;
+
+  readJsonBody(req)
+    .then((body) => {
+      const mcpPath = body && body.mcpPath ? String(body.mcpPath) : null;
+      const dryRun = Boolean(body && body.dryRun);
+      const result = runVscodeGithubMcpPatcher({ engineRoot, mcpPath, dryRun });
+      sendJson(res, result.ok ? 200 : 400, { result: result.payload || result });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+}
+
 function handleCopilotAuthorize(ctx, deps) {
   const { req, res, copilotHomeAbs, vscodeHomeAbs } = ctx;
   const { sendJson, readJsonBody, patchCopilotPermissionsConfig } = deps;
@@ -148,6 +162,7 @@ function register(deps = {}) {
     getPlanningPersistenceHealth: deps.getPlanningPersistenceHealth,
     buildPlanningPersistenceHealthEnvelope: deps.buildPlanningPersistenceHealthEnvelope,
     runVscodeSettingsPatcher: deps.runVscodeSettingsPatcher,
+    runVscodeGithubMcpPatcher: deps.runVscodeGithubMcpPatcher,
     patchCopilotPermissionsConfig: deps.patchCopilotPermissionsConfig,
     readJsonFileSafe: deps.readJsonFileSafe,
   };
@@ -172,6 +187,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/vscode/patch-settings',
       handler: (ctx) => handlePatchVscodeSettings(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/vscode/patch-github-mcp',
+      handler: (ctx) => handlePatchVscodeGithubMcp(ctx, resolvedDeps),
     },
     {
       method: 'POST',

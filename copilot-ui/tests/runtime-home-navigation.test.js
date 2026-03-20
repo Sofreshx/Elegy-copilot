@@ -48,6 +48,7 @@ async function run() {
     for (const sectionTestId of [
       'home-runtime-section-overview',
       'home-runtime-section-sessions',
+      'home-runtime-section-executor',
       'home-runtime-section-sandboxes',
       'home-runtime-section-diagnostics',
     ]) {
@@ -60,6 +61,7 @@ async function run() {
       'runtime-overview-refresh-action',
       'runtime-overview-sessions-action',
       'runtime-overview-sdk-action',
+      'runtime-overview-executor-action',
       'runtime-overview-sandbox-action',
       'runtime-overview-catalog-action',
       'runtime-overview-planning-action',
@@ -75,6 +77,9 @@ async function run() {
     assert.ok(homeRuntimeSource.includes('Instruction Engine Runtime'), 'Expected instruction engine runtime diagnostics copy');
     assert.ok(homeRuntimeSource.includes('Planning Database'), 'Expected planning database diagnostics copy');
     assert.ok(homeRuntimeSource.includes('planningDurabilityDependencyGate'), 'Expected planning durability gate diagnostics');
+    assert.ok(homeRuntimeSource.includes('GitHub CLI Access'), 'Expected GitHub CLI diagnostics card');
+    assert.ok(homeRuntimeSource.includes('Workspace GitHub MCP'), 'Expected workspace GitHub MCP diagnostics card');
+    assert.ok(homeRuntimeSource.includes('home-runtime-diagnostics-github-enable'), 'Expected workspace GitHub MCP enable button');
     assert.ok(homeRuntimeSource.includes('home-runtime-diagnostics-runtime'), 'Expected runtime diagnostics tab');
     assert.ok(homeRuntimeSource.includes('home-runtime-diagnostics-database'), 'Expected database diagnostics tab');
     assert.ok(homeRuntimeSource.includes('home-runtime-diagnostics-gateway'), 'Expected Gateway diagnostics tab');

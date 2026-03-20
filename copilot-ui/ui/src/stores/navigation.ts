@@ -11,6 +11,7 @@ export type TabId = (typeof TAB_IDS)[number];
 export const RUNTIME_SECTION_IDS = [
   'overview',
   'sessions',
+  'executor',
   'sandboxes',
   'diagnostics',
 ] as const;

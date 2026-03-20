@@ -200,6 +200,110 @@ export interface SdkSendResponse {
   messageId: string;
 }
 
+export interface ExecutorRetryPolicy {
+  enabled: boolean;
+  maxAttempts: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  backoffMultiplier: number;
+  jitterRatio: number;
+}
+
+export interface ExecutorHealthResponse {
+  enabled: boolean;
+  state: string;
+  jobCount: number;
+  runCount: number;
+  activeRunCount: number;
+  scheduledJobCount: number;
+  openedSessionCount: number;
+  lastError?: string | null;
+  statePath?: string;
+  [key: string]: unknown;
+}
+
+export interface ExecutorRunEvent {
+  at: string;
+  type: string;
+  level?: 'debug' | 'info' | 'warn' | 'error' | 'success' | string;
+  message: string;
+  data?: Record<string, unknown> | null;
+}
+
+export interface ExecutorRun {
+  id: string;
+  jobId: string;
+  repoId?: string | null;
+  status: string;
+  attemptCount: number;
+  maxAttempts: number;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  nextRetryAt?: string | null;
+  sessionId?: string | null;
+  messageId?: string | null;
+  error?: string | null;
+  summary?: string | null;
+  createdSession?: boolean;
+  events: ExecutorRunEvent[];
+}
+
+export interface ExecutorJob {
+  id: string;
+  title: string;
+  prompt: string;
+  repoId?: string | null;
+  targetType: 'create-session' | 'existing-session' | string;
+  existingSessionId?: string | null;
+  model?: string | null;
+  contextType?: string | null;
+  sandboxId?: string | null;
+  scheduleAt?: string | null;
+  retryPolicy: ExecutorRetryPolicy;
+  createdAt: string;
+  updatedAt: string;
+  lastRunId?: string | null;
+  activeRunId?: string | null;
+  status: string;
+}
+
+export interface ExecutorJobsResponse {
+  jobs: ExecutorJob[];
+}
+
+export interface ExecutorRunsResponse {
+  runs: ExecutorRun[];
+}
+
+export interface CreateExecutorJobPayload {
+  title?: string;
+  prompt: string;
+  targetType?: 'create-session' | 'existing-session';
+  existingSessionId?: string;
+  model?: string;
+  contextType?: string;
+  sandboxId?: string;
+  scheduleAt?: string;
+  retryPolicy?: Partial<ExecutorRetryPolicy>;
+  repoId?: string;
+}
+
+export interface CreateExecutorJobResponse {
+  job: ExecutorJob;
+  run?: ExecutorRun | null;
+}
+
+export interface TriggerExecutorJobResponse {
+  run: ExecutorRun;
+}
+
+export interface CancelExecutorJobResponse {
+  job: ExecutorJob;
+  run?: ExecutorRun | null;
+}
+
 export interface SdkRelayEvent {
   sessionId: string;
   type: string;

@@ -258,6 +258,25 @@
       }
     },
     {
+      "skill": "github-troubleshooting",
+      "name": "github-troubleshooting",
+      "description": "Inspect GitHub Actions runs, workflow jobs/logs, pull requests, issues, commits, branches, and release artifacts using the built-in CLI GitHub MCP tools or the configured workspace GitHub MCP lane. Triggers on: github actions, workflow run, job logs, CI failure, PR status, issue thread, release artifact, github troubleshooting.",
+      "triggersOn": [
+        "ci failure",
+        "github actions",
+        "github troubleshooting",
+        "issue thread",
+        "job logs",
+        "pr status",
+        "release artifact",
+        "workflow run"
+      ],
+      "manifest": {
+        "id": "skill-github-troubleshooting",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "implementation-friction",
       "name": "implementation-friction",
       "description": "Capture recurring implementation friction with minimal overhead and append concise findings for future refactor planning. Triggers on: shaky pattern, bad design, dead code, brittle code, hard to work with, architecture drag, recurring workaround, implementation friction.",
@@ -547,18 +566,8 @@
     {
       "skill": "skill-discovery",
       "name": "skill-discovery",
-      "description": "Dynamic skill discovery and resolution for the search/execute pattern. Teaches agents how to find, search, and load domain-specific skills from the vault instead of relying on always-loaded context. Use this when you need to find which skill applies to a task, resolve a pointer skill, or search the skill vault by keyword. Triggers on: find skill, which skill, search skills, discover skill, load skill, skill vault, pointer skill, resolve skill, skill for this task.",
-      "triggersOn": [
-        "discover skill",
-        "find skill",
-        "load skill",
-        "pointer skill",
-        "resolve skill",
-        "search skills",
-        "skill for this task",
-        "skill vault",
-        "which skill"
-      ],
+      "description": "Vault-first skill routing for the search/execute pattern. Use this to resolve the smallest matching on-demand skill, apply the deterministic resolver chain, and load only the skills needed for the current step.",
+      "triggersOn": [],
       "manifest": {
         "id": "skill-discovery",
         "loadMode": "always"
@@ -572,6 +581,8 @@
         "author skill",
         "create skill",
         "forge skill",
+        "phrase one",
+        "phrase two",
         "project skill",
         "runtime skill",
         "skill template"

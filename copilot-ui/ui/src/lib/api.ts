@@ -18,6 +18,16 @@ import type {
   CatalogSearchSelectionResponse,
   CatalogSearchResponse,
   CatalogSummaryResponse,
+  CancelExecutorJobResponse,
+  CreateExecutorJobPayload,
+  CreateExecutorJobResponse,
+  ExecutorHealthResponse,
+  ExecutorJob,
+  ExecutorJobsResponse,
+  ExecutorRetryPolicy,
+  ExecutorRun,
+  ExecutorRunEvent,
+  ExecutorRunsResponse,
   GatewayConfig,
   GatewayConfigResponse,
   GatewaySaveConfigResponse,
@@ -77,6 +87,7 @@ import type {
   SessionsListResponse,
   TrackerPermissionsResponse,
   TrackerSessionsResponse,
+  TriggerExecutorJobResponse,
   VersionResponse,
 } from './types';
 
@@ -1592,6 +1603,129 @@ function normalizeSdkHealthResponse(payload: unknown): SdkHealthResponse {
   };
 }
 
+function normalizeExecutorRetryPolicy(value: unknown): ExecutorRetryPolicy {
+  const record = asRecord(value);
+  return {
+    enabled: asBoolean(record.enabled, true),
+    maxAttempts: asNumber(record.maxAttempts, 3),
+    baseDelayMs: asNumber(record.baseDelayMs, 30_000),
+    maxDelayMs: asNumber(record.maxDelayMs, 300_000),
+    backoffMultiplier: asNumber(record.backoffMultiplier, 2),
+    jitterRatio: asNumber(record.jitterRatio, 0.15),
+  };
+}
+
+function normalizeExecutorRunEvent(value: unknown): ExecutorRunEvent | null {
+  const record = asRecord(value);
+  const at = asTrimmedString(record.at);
+  const type = asTrimmedString(record.type);
+  if (!at || !type) {
+    return null;
+  }
+
+  return {
+    at,
+    type,
+    level: asTrimmedString(record.level) || undefined,
+    message: asTrimmedString(record.message) || type,
+    data: record.data && typeof record.data === 'object'
+      ? (record.data as Record<string, unknown>)
+      : null,
+  };
+}
+
+function normalizeExecutorRun(value: unknown): ExecutorRun | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  const jobId = asTrimmedString(record.jobId);
+  if (!id || !jobId) {
+    return null;
+  }
+
+  return {
+    id,
+    jobId,
+    repoId: asTrimmedString(record.repoId) || null,
+    status: asTrimmedString(record.status) || 'unknown',
+    attemptCount: asNumber(record.attemptCount, 0),
+    maxAttempts: asNumber(record.maxAttempts, 0),
+    createdAt: asTrimmedString(record.createdAt),
+    updatedAt: asTrimmedString(record.updatedAt),
+    startedAt: asTrimmedString(record.startedAt) || null,
+    finishedAt: asTrimmedString(record.finishedAt) || null,
+    nextRetryAt: asTrimmedString(record.nextRetryAt) || null,
+    sessionId: asTrimmedString(record.sessionId) || null,
+    messageId: asTrimmedString(record.messageId) || null,
+    error: asTrimmedString(record.error) || null,
+    summary: asTrimmedString(record.summary) || null,
+    createdSession: asBoolean(record.createdSession, false),
+    events: asArray(record.events)
+      .map((entry) => normalizeExecutorRunEvent(entry))
+      .filter((entry): entry is ExecutorRunEvent => entry !== null),
+  };
+}
+
+function normalizeExecutorJob(value: unknown): ExecutorJob | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    title: asTrimmedString(record.title) || id,
+    prompt: asString(record.prompt),
+    repoId: asTrimmedString(record.repoId) || null,
+    targetType: (asTrimmedString(record.targetType) || 'create-session') as ExecutorJob['targetType'],
+    existingSessionId: asTrimmedString(record.existingSessionId) || null,
+    model: asTrimmedString(record.model) || null,
+    contextType: asTrimmedString(record.contextType) || null,
+    sandboxId: asTrimmedString(record.sandboxId) || null,
+    scheduleAt: asTrimmedString(record.scheduleAt) || null,
+    retryPolicy: normalizeExecutorRetryPolicy(record.retryPolicy),
+    createdAt: asTrimmedString(record.createdAt),
+    updatedAt: asTrimmedString(record.updatedAt),
+    lastRunId: asTrimmedString(record.lastRunId) || null,
+    activeRunId: asTrimmedString(record.activeRunId) || null,
+    status: asTrimmedString(record.status) || 'idle',
+  };
+}
+
+function normalizeExecutorHealthResponse(payload: unknown): ExecutorHealthResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    enabled: asBoolean(record.enabled, false),
+    state: asTrimmedString(record.state) || 'unknown',
+    jobCount: asNumber(record.jobCount, 0),
+    runCount: asNumber(record.runCount, 0),
+    activeRunCount: asNumber(record.activeRunCount, 0),
+    scheduledJobCount: asNumber(record.scheduledJobCount, 0),
+    openedSessionCount: asNumber(record.openedSessionCount, 0),
+    lastError: asTrimmedString(record.lastError) || null,
+    statePath: asTrimmedString(record.statePath) || undefined,
+  };
+}
+
+function normalizeExecutorJobsResponse(payload: unknown): ExecutorJobsResponse {
+  const record = asRecord(payload);
+  return {
+    jobs: asArray(record.jobs)
+      .map((entry) => normalizeExecutorJob(entry))
+      .filter((entry): entry is ExecutorJob => entry !== null),
+  };
+}
+
+function normalizeExecutorRunsResponse(payload: unknown): ExecutorRunsResponse {
+  const record = asRecord(payload);
+  return {
+    runs: asArray(record.runs)
+      .map((entry) => normalizeExecutorRun(entry))
+      .filter((entry): entry is ExecutorRun => entry !== null),
+  };
+}
+
 function normalizePlanningResearchNote(value: unknown): PlanningResearchNote | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id) || asTrimmedString(record.noteId);
@@ -2196,6 +2330,81 @@ export function createSdkStreamUrl(sessionId: string, baseUrl?: string): string 
   return createUrl(endpoint, 'http://127.0.0.1').toString();
 }
 
+export async function getExecutorHealth(baseUrl?: string): Promise<ExecutorHealthResponse> {
+  const payload = await apiRequest<unknown>('/api/executor/health', { baseUrl });
+  return normalizeExecutorHealthResponse(payload);
+}
+
+export async function listExecutorJobs(baseUrl?: string): Promise<ExecutorJobsResponse> {
+  const payload = await apiRequest<unknown>('/api/executor/jobs', { baseUrl });
+  return normalizeExecutorJobsResponse(payload);
+}
+
+export async function listExecutorRuns(baseUrl?: string): Promise<ExecutorRunsResponse> {
+  const payload = await apiRequest<unknown>('/api/executor/runs', { baseUrl });
+  return normalizeExecutorRunsResponse(payload);
+}
+
+export async function createExecutorJob(
+  payload: CreateExecutorJobPayload,
+  baseUrl?: string
+): Promise<CreateExecutorJobResponse> {
+  const response = await apiRequest<unknown>('/api/executor/jobs', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const record = asRecord(response);
+  const job = normalizeExecutorJob(record.job);
+  if (!job) {
+    throw new Error('invalid_executor_job_response');
+  }
+  return {
+    job,
+    run: normalizeExecutorRun(record.run),
+  };
+}
+
+export async function triggerExecutorJob(jobId: string, baseUrl?: string): Promise<TriggerExecutorJobResponse> {
+  const response = await apiRequest<unknown>(`/api/executor/jobs/${encodeURIComponent(jobId)}/trigger`, {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+  const record = asRecord(response);
+  const run = normalizeExecutorRun(record.run);
+  if (!run) {
+    throw new Error('invalid_executor_run_response');
+  }
+  return { run };
+}
+
+export async function cancelExecutorJob(jobId: string, baseUrl?: string): Promise<CancelExecutorJobResponse> {
+  const response = await apiRequest<unknown>(`/api/executor/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+  const record = asRecord(response);
+  const job = normalizeExecutorJob(record.job);
+  if (!job) {
+    throw new Error('invalid_executor_job_response');
+  }
+  return {
+    job,
+    run: normalizeExecutorRun(record.run),
+  };
+}
+
 export function getManagedAssets(baseUrl?: string): Promise<ManagedAssetsResponse> {
   return apiRequest<ManagedAssetsResponse>('/api/assets/managed', { baseUrl });
 }
@@ -2217,6 +2426,17 @@ export function syncAllAssets(force = false, baseUrl?: string, pointerMode = tru
 
 export function patchVscodeSettings(baseUrl?: string): Promise<{ result: unknown }> {
   return apiRequest<{ result: unknown }>('/api/vscode/patch-settings', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ dryRun: false }),
+  });
+}
+
+export function patchVscodeGithubMcp(baseUrl?: string): Promise<{ result: unknown }> {
+  return apiRequest<{ result: unknown }>('/api/vscode/patch-github-mcp', {
     baseUrl,
     method: 'POST',
     headers: {

@@ -64,6 +64,7 @@ The route registry in `copilot-ui/routes/index.js` mounts these current route mo
 - `gateway`
 - `tracker`
 - `sdk`
+- `executor`
 
 Treat those groups as the primary backend surface. The most important user-visible route families are:
 
@@ -73,6 +74,7 @@ Treat those groups as the primary backend surface. The most important user-visib
 - session artifact endpoints for structured state, proposition, and verification guides
 - gateway and tracker proxy/status endpoints
 - SDK-facing routes used by smoke and sandbox validation
+- executor routes for scheduled SDK-backed prompts, run history, and retry-aware runtime control
 
 `copilot-ui/tests/smoke.test.js` and `copilot-ui/tests/api-contract.test.js` are the best broad regression anchors for confirming that the public route surface still exists and responds with the expected contract shape. Route-specific additive behavior is covered by `copilot-ui/routes/catalog.test.js`, `copilot-ui/routes/planning-artifacts.test.js`, and related UI tests.
 
@@ -86,6 +88,7 @@ Treat those groups as the primary backend surface. The most important user-visib
 | `GET` | `/api/health` | Base server health contract. | `copilot-ui/tests/smoke.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/version` | Returns runtime/version metadata for the current backend. | `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/vscode/patch-settings` | Applies the recommended VS Code settings patch for Instruction Engine paths and approvals. | `copilot-ui/tests/api-contract.test.js` |
+| `POST` | `/api/vscode/patch-github-mcp` | Adds the recommended read-only GitHub MCP workspace entry to `.vscode/mcp.json`. | `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/copilot/authorize` | Handles local authorization flow for Copilot-related permissions. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/lsp/config` | Returns local language-server configuration state. | `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/lsp/install` | Installs or refreshes the language-server tooling expected by the UI/runtime. | `copilot-ui/tests/api-contract.test.js` |
@@ -244,6 +247,22 @@ Gateway readiness authority is split intentionally:
 | `POST` | `/api/sdk/send` | Sends a message through the SDK bridge. | `copilot-ui/routes/sdk.test.js`, `copilot-ui/tests/e2e/sdk-smoke.test.js` |
 | `GET` | `/api/sdk/stream/:sessionId` | Streams or reads SDK session output. | `copilot-ui/routes/sdk.test.js` |
 
+### Executor surface
+
+The Executor surface is an additive runtime control plane layered above the SDK bridge. It owns
+durable job/run state for schedule-later prompts, parallel run tracking, and rate-limit-focused
+automatic retries with configurable backoff.
+
+| Method | Endpoint | Purpose | Primary test anchors |
+| --- | --- | --- | --- |
+| `GET` | `/api/executor/health` | Returns executor runtime health, queue counts, and state-path metadata. | `copilot-ui/routes/executor.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/executor/jobs` | Lists persisted executor jobs. | `copilot-ui/routes/executor.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/executor/runs` | Lists persisted executor runs. | `copilot-ui/routes/executor.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/executor/runs/:runId` | Returns one executor run with captured event history. | `copilot-ui/routes/executor.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `POST` | `/api/executor/jobs` | Creates a run-now or schedule-later executor job. | `copilot-ui/routes/executor.test.js`, `copilot-ui/lib/executorService.test.js` |
+| `POST` | `/api/executor/jobs/:jobId/trigger` | Triggers an existing executor job immediately. | `copilot-ui/routes/executor.test.js`, `copilot-ui/lib/executorService.test.js` |
+| `POST` | `/api/executor/jobs/:jobId/cancel` | Cancels scheduled or active executor work when allowed. | `copilot-ui/routes/executor.test.js`, `copilot-ui/lib/executorService.test.js` |
+
 ## UI tabs
 
 The React UI currently exposes **3 top-level hubs** in the application shell:
@@ -251,6 +270,14 @@ The React UI currently exposes **3 top-level hubs** in the application shell:
 - `Home / Runtime`
 - `Catalog`
 - `Planning`
+
+Within `Home / Runtime`, the runtime subsections now include:
+
+- `Overview`
+- `Sessions`
+- `Executor`
+- `Sandboxes`
+- `Diagnostics`
 
 Source of truth:
 
@@ -290,7 +317,9 @@ When explicit invocation evidence is absent, the UI labels the skill/session rol
 proxy-only visibility instead of implying authoritative execution telemetry.
 
 Diagnostics hosts the narrower `Instruction Engine Runtime`, `Planning Database`,
-`Gateway`, `Tracker`, and `LSP` operator surfaces. The
+`Gateway`, `Tracker`, and `LSP` operator surfaces. The runtime diagnostics panel now also
+surfaces GitHub access state for the built-in CLI lane plus the workspace `.vscode/mcp.json`
+GitHub MCP lane, including a button to patch the recommended read-only workspace entry. The
 `ui/src/tabs/` directory still contains narrower feature views such as `Gateway`, `Tracker`,
 `Sandboxes`, and `SkillsPreview`, but the application shell plus the
 navigation store remain the authoritative UX model for which destinations are top-level.

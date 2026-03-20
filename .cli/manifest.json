@@ -72,6 +72,15 @@
       "installTarget": "user-global",
       "activationScope": "global",
       "materialization": "always",
+      "classification": "core",
+      "targeting": {
+        "tags": [
+          "core",
+          "global",
+          "search",
+          "review"
+        ]
+      },
       "tags": [
         "core",
         "global",
@@ -106,6 +115,17 @@
       "installTarget": "repo-local",
       "activationScope": "repo",
       "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "workflow",
+          "orchestration",
+          "planning"
+        ]
+      },
       "tags": [
         "workflow",
         "orchestration",
@@ -127,6 +147,18 @@
       "installTarget": "repo-local",
       "activationScope": "repo",
       "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "planning",
+          "roadmap",
+          "backlog",
+          "instruction-engine"
+        ]
+      },
       "tags": [
         "planning",
         "roadmap",
@@ -438,6 +470,13 @@
       "type": "skill",
       "source": "engine-assets/skills/frontend",
       "destination": "skills/frontend",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-github-troubleshooting",
+      "type": "skill",
+      "source": "engine-assets/skills/github-troubleshooting",
+      "destination": "skills/github-troubleshooting",
       "loadMode": "on-demand"
     },
     {

@@ -93,6 +93,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./tracker'), context);
 
   registry.registerModule(require('./sdk'), context);
+  registry.registerModule(require('./executor'), context);
 
   return registry;
 }

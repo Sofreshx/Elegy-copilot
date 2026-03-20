@@ -637,6 +637,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "skill-github-troubleshooting",
+      "type": "skill",
+      "source": "engine-assets/skills/github-troubleshooting",
+      "destination": "skills/github-troubleshooting",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "skill-friction-feedback",
       "type": "skill",
       "source": "engine-assets/skills/friction-feedback",

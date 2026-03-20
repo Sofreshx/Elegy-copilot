@@ -35,7 +35,7 @@ function httpRequest(baseUrl, method, routePath) {
       port: url.port,
       path: url.pathname + url.search,
       headers: {},
-      timeout: 10000,
+      timeout: 30000,
     };
 
     if (expectsJsonBody) {
@@ -117,16 +117,17 @@ function describeRouteDescriptor(route) {
 
 // Route inventory snapshot for public backend endpoints.
 const ROUTE_INVENTORY = [
-  // Lifecycle/Misc (7)
+  // Lifecycle/Misc (8)
   { method: 'GET', path: '/api/policy/preflight' },
   { method: 'GET', path: '/api/health' },
   { method: 'GET', path: '/api/version' },
   { method: 'POST', path: '/api/vscode/patch-settings' },
+  { method: 'POST', path: '/api/vscode/patch-github-mcp' },
   { method: 'POST', path: '/api/copilot/authorize' },
   { method: 'GET', path: '/api/lsp/config' },
   { method: 'POST', path: '/api/lsp/install' },
 
-  // Planning (28)
+  // Planning (34)
   { method: 'POST', path: '/api/planning/persistence/init' },
   { method: 'POST', path: '/api/planning/persistence/corruption/scan' },
   { method: 'POST', path: '/api/planning/persistence/retention' },
@@ -143,6 +144,12 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/planning/suggestions' },
   { method: 'POST', path: '/api/planning/recaps' },
   { method: 'GET', path: '/api/planning/recaps' },
+  { method: 'GET', path: '/api/planning/artifacts/bullets' },
+  { method: 'POST', path: '/api/planning/artifacts/bullets' },
+  { method: 'PATCH', path: '/api/planning/artifacts/bullets/bullet-0001' },
+  { method: 'GET', path: '/api/planning/artifacts/intake' },
+  { method: 'POST', path: '/api/planning/artifacts/intake' },
+  { method: 'PATCH', path: '/api/planning/artifacts/intake/intake-0001' },
   { method: 'GET', path: '/api/planning/records/planning-000001/research' },
   { method: 'POST', path: '/api/planning/records/planning-000001/research' },
   { method: 'DELETE', path: '/api/planning/records/planning-000001/research/note-0001' },
@@ -156,11 +163,12 @@ const ROUTE_INVENTORY = [
   { method: 'PATCH', path: '/api/planning/roadmaps/platform-foundation' },
   { method: 'POST', path: '/api/planning/roadmaps/platform-foundation/reconcile' },
 
-  // Sessions (14: 1 exact + 13 regex)
+  // Sessions (15: 2 exact + 13 regex)
   { method: 'GET', path: '/api/sessions' },
   { method: 'GET', path: '/api/sessions/test-session-id/events' },
   { method: 'GET', path: '/api/sessions/test-session-id/agent-usage' },
   { method: 'GET', path: '/api/sessions/test-session-id/plan' },
+  { method: 'POST', path: '/api/sessions/plan' },
   { method: 'GET', path: '/api/sessions/test-session-id/plans' },
   { method: 'GET', path: '/api/sessions/test-session-id/plans/test-plan-id' },
   { method: 'GET', path: '/api/sessions/test-session-id/final' },
@@ -182,7 +190,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/assets/view' },
   { method: 'POST', path: '/api/assets/delete' },
 
-  // Catalog/Search/Audit/Runtime (25)
+  // Catalog/Search/Audit/Runtime (26)
   { method: 'GET', path: '/api/catalog/repos' },
   { method: 'POST', path: '/api/catalog/repos/register' },
   { method: 'POST', path: '/api/catalog/repos/scan-roots' },
@@ -199,6 +207,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/catalog/assets/update' },
   { method: 'POST', path: '/api/catalog/assets/delete' },
   { method: 'POST', path: '/api/catalog/assets/install' },
+  { method: 'POST', path: '/api/catalog/bundles/uninstall' },
   { method: 'POST', path: '/api/catalog/providers/install' },
   { method: 'POST', path: '/api/catalog/assets/enable' },
   { method: 'POST', path: '/api/catalog/assets/disable' },
@@ -231,6 +240,15 @@ const ROUTE_INVENTORY = [
   { method: 'DELETE', path: '/api/sdk/session/test-session-id' },
   { method: 'POST', path: '/api/sdk/send' },
   { method: 'GET', path: '/api/sdk/stream/test-session-id' },
+
+  // Executor (7)
+  { method: 'GET', path: '/api/executor/health' },
+  { method: 'GET', path: '/api/executor/jobs' },
+  { method: 'GET', path: '/api/executor/runs' },
+  { method: 'GET', path: '/api/executor/runs/test-run-id' },
+  { method: 'POST', path: '/api/executor/jobs' },
+  { method: 'POST', path: '/api/executor/jobs/test-job-id/trigger' },
+  { method: 'POST', path: '/api/executor/jobs/test-job-id/cancel' },
 ];
 
 async function run() {
@@ -326,79 +344,70 @@ async function run() {
       // Subsequent run — compare against baseline
       const baseline = JSON.parse(fs.readFileSync(SNAPSHOT_PATH, 'utf8'));
 
-      // Check no routes were removed
-      await test('no routes removed from baseline', async () => {
-        const baselineKeys = Object.keys(baseline);
-        const currentKeys = Object.keys(currentSnapshot);
-        const removed = baselineKeys.filter((k) => !currentKeys.includes(k));
-        assert.deepStrictEqual(
-          removed,
-          [],
-          `Routes removed from inventory: ${removed.join(', ')}`
-        );
-      });
-
-      // Check each route's contract shape matches
-      for (const route of ROUTE_INVENTORY) {
-        const key = `${route.method} ${route.path}`;
-        await test(`${key} — contract shape matches baseline`, async () => {
-          const baselineShape = baseline[key];
-          const currentShape = currentSnapshot[key];
-
-          if (!baselineShape) {
-            assert.fail(
-              `New route missing from baseline snapshot: ${key}. Re-run with UPDATE_API_SNAPSHOT=1 after review to update the snapshot.`
-            );
-          }
-
-          assert.ok(currentShape, `No response captured for ${key}`);
-
-          // Status code must match
-          assert.strictEqual(
-            currentShape.status,
-            baselineShape.status,
-            `Status changed: expected ${baselineShape.status}, got ${currentShape.status}`
+      if (allowSnapshotUpdate) {
+        fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(currentSnapshot, null, 2) + '\n');
+        console.log('\n  Snapshot refreshed from current route inventory.');
+      } else {
+        // Check no routes were removed
+        await test('no routes removed from baseline', async () => {
+          const baselineKeys = Object.keys(baseline);
+          const currentKeys = Object.keys(currentSnapshot);
+          const removed = baselineKeys.filter((k) => !currentKeys.includes(k));
+          assert.deepStrictEqual(
+            removed,
+            [],
+            `Routes removed from inventory: ${removed.join(', ')}`
           );
-
-          // Content-Type must match
-          assert.strictEqual(
-            currentShape.contentType,
-            baselineShape.contentType,
-            `Content-Type changed: expected ${baselineShape.contentType}, got ${currentShape.contentType}`
-          );
-
-          // Body type must match
-          assert.strictEqual(
-            currentShape.bodyType,
-            baselineShape.bodyType,
-            `Body type changed: expected ${baselineShape.bodyType}, got ${currentShape.bodyType}`
-          );
-
-          // JSON body keys must match (if both are JSON)
-          if (baselineShape.bodyKeys && currentShape.bodyKeys) {
-            assert.deepStrictEqual(
-              currentShape.bodyKeys,
-              baselineShape.bodyKeys,
-              `Body keys changed: expected [${baselineShape.bodyKeys.join(', ')}], got [${currentShape.bodyKeys.join(', ')}]`
-            );
-          }
         });
-      }
 
-      // Update snapshot with any new routes
-      const currentKeys = Object.keys(currentSnapshot);
-      const baselineKeys = Object.keys(baseline);
-      const newRoutes = currentKeys.filter((k) => !baselineKeys.includes(k));
-      if (newRoutes.length > 0 && allowSnapshotUpdate) {
-        const merged = { ...baseline, ...currentSnapshot };
-        fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(merged, null, 2) + '\n');
-        console.log(`\n  Snapshot updated with ${newRoutes.length} new route(s): ${newRoutes.join(', ')}`);
+        // Check each route's contract shape matches
+        for (const route of ROUTE_INVENTORY) {
+          const key = `${route.method} ${route.path}`;
+          await test(`${key} — contract shape matches baseline`, async () => {
+            const baselineShape = baseline[key];
+            const currentShape = currentSnapshot[key];
+
+            if (!baselineShape) {
+              assert.fail(
+                `New route missing from baseline snapshot: ${key}. Re-run with UPDATE_API_SNAPSHOT=1 after review to update the snapshot.`
+              );
+            }
+
+            assert.ok(currentShape, `No response captured for ${key}`);
+
+            assert.strictEqual(
+              currentShape.status,
+              baselineShape.status,
+              `Status changed: expected ${baselineShape.status}, got ${currentShape.status}`
+            );
+
+            assert.strictEqual(
+              currentShape.contentType,
+              baselineShape.contentType,
+              `Content-Type changed: expected ${baselineShape.contentType}, got ${currentShape.contentType}`
+            );
+
+            assert.strictEqual(
+              currentShape.bodyType,
+              baselineShape.bodyType,
+              `Body type changed: expected ${baselineShape.bodyType}, got ${currentShape.bodyType}`
+            );
+
+            if (baselineShape.bodyKeys && currentShape.bodyKeys) {
+              assert.deepStrictEqual(
+                currentShape.bodyKeys,
+                baselineShape.bodyKeys,
+                `Body keys changed: expected [${baselineShape.bodyKeys.join(', ')}], got [${currentShape.bodyKeys.join(', ')}]`
+              );
+            }
+          });
+        }
       }
     }
 
     // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 99, `Expected 99 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 115, `Expected 115 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

@@ -92,6 +92,7 @@ const {
 } = require('./lib/planningApiContracts');
 const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersistenceClient');
 const { createRegistry } = require('./routes');
+const { createExecutorService } = require('./lib/executorService');
 const {
   isNonLoopback,
   checkAuth,
@@ -3428,6 +3429,45 @@ function runVscodeSettingsPatcher({ engineRoot, vscodeHome, settingsPath, dryRun
   };
 }
 
+function runVscodeGithubMcpPatcher({ engineRoot, mcpPath, dryRun }) {
+  const patcher = path.join(path.resolve(engineRoot), 'scripts', 'vscode-github-mcp-patch.mjs');
+  if (!fs.existsSync(patcher)) {
+    throw new Error(`Missing GitHub MCP patcher script: ${patcher}`);
+  }
+
+  const args = [patcher, '--workspace-root', path.resolve(engineRoot)];
+  if (dryRun) args.push('--dry-run');
+  if (mcpPath) args.push('--mcp', String(mcpPath));
+
+  const result = childProcess.spawnSync(process.execPath, args, {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 15_000,
+    maxBuffer: 2 * 1024 * 1024,
+  });
+
+  let parsedStdout = null;
+  const stdout = result.stdout || '';
+  if (stdout.trim()) {
+    try {
+      parsedStdout = JSON.parse(stdout);
+    } catch {
+      parsedStdout = null;
+    }
+  }
+
+  return {
+    ok: result.status === 0,
+    exitCode: result.status,
+    signal: result.signal || null,
+    patcher,
+    args: args.slice(1),
+    stdout,
+    stderr: result.stderr || '',
+    payload: parsedStdout,
+  };
+}
+
 const policyPreflightCache = new Map();
 
 function evaluatePolicyPreflight(engineRoot) {
@@ -4108,6 +4148,18 @@ async function shutdownSdkBridgeSafely(sdkBridge) {
   }
 }
 
+async function shutdownExecutorServiceSafely(executorService) {
+  if (!executorService || typeof executorService.shutdown !== 'function') {
+    return;
+  }
+
+  try {
+    await executorService.shutdown();
+  } catch {
+    // Best-effort shutdown on server close/error.
+  }
+}
+
 async function closePlanningPersistenceClientSafely(client) {
   if (!client || typeof client.close !== 'function') {
     return;
@@ -4272,6 +4324,7 @@ async function startServer(options = {}) {
   };
   const sdkBridgeEnabled = isSdkBridgeEnabled(env);
   let sdkBridge = null;
+  let executorService = null;
 
   if (sdkBridgeEnabled) {
     try {
@@ -4286,6 +4339,19 @@ async function startServer(options = {}) {
       const detail = String(error && error.message ? error.message : error);
       throw new Error(`SDK bridge startup failed with COPILOT_SDK_BRIDGE=1: ${detail}`);
     }
+  }
+
+  try {
+    executorService = await createExecutorService({
+      copilotHome,
+      sdkBridge,
+    }).init();
+  } catch (error) {
+    await shutdownSdkBridgeSafely(sdkBridge);
+    changeTracker.close();
+    await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
+    const detail = String(error && error.message ? error.message : error);
+    throw new Error(`Executor service startup failed: ${detail}`);
   }
 
   let routeRegistry;
@@ -4316,6 +4382,7 @@ async function startServer(options = {}) {
       sendText,
       readJsonBody,
       runVscodeSettingsPatcher,
+      runVscodeGithubMcpPatcher,
       patchCopilotPermissionsConfig,
       safeResolveUnder,
       extractTriggers,
@@ -4377,8 +4444,10 @@ async function startServer(options = {}) {
       persistPlanningRecap,
       readPlanningRecap,
       sdkBridge,
+      executorService,
     });
   } catch (error) {
+    await shutdownExecutorServiceSafely(executorService);
     await shutdownSdkBridgeSafely(sdkBridge);
     changeTracker.close();
     await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
@@ -4427,6 +4496,7 @@ async function startServer(options = {}) {
       if (settled) return;
       settled = true;
       Promise.resolve()
+        .then(() => shutdownExecutorServiceSafely(executorService))
         .then(() => shutdownSdkBridgeSafely(sdkBridge))
         .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
         .finally(() => {
@@ -4470,6 +4540,7 @@ async function startServer(options = {}) {
         trackerUrl,
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
+            .then(() => shutdownExecutorServiceSafely(executorService))
             .then(() => shutdownSdkBridgeSafely(sdkBridge))
             .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
             .finally(() => {

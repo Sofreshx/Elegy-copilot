@@ -32,6 +32,15 @@ This guide explains how Instruction Engine integrates MCP providers without load
 8. Use the provider-specific agent or skill.
 9. Disable the provider when done.
 
+### GitHub access default
+
+- **Copilot CLI sessions** already expose built-in read-only GitHub MCP tools.
+- **VS Code/workspace sessions** should add a GitHub entry to `.vscode/mcp.json` and keep credentials in the
+  external MCP env file rather than in the repository.
+- The recommended local token env var for the GitHub workspace lane is `GITHUB_MCP_PAT`.
+- In CI, map `GITHUB_MCP_PAT` from `GITHUB_TOKEN` or another least-privilege secret instead of committing
+  credentials into `mcp.json`.
+
 ## MCP Config Location
 
 The extension writes to the path configured in:
@@ -76,6 +85,39 @@ Adjust any provider config through VS Code settings.
 
 - No default MCP server is assumed.
 - Use Terraform or `wrangler` for deployments until a preferred MCP server is selected.
+
+### GitHub
+
+- **CLI**: use the built-in `github-mcp-server` read-only tool surface during Copilot CLI sessions.
+- **VS Code/workspace**: use the hosted GitHub MCP endpoint and store auth in external env files.
+- Recommended local token env var: `GITHUB_MCP_PAT`.
+- Recommended read-only scopes: repository metadata/contents, pull requests, issues, and Actions.
+
+Workspace MCP example:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${env:GITHUB_MCP_PAT}"
+      }
+    }
+  }
+}
+```
+
+CI snippet (GitHub Actions example):
+
+```yaml
+env:
+  GITHUB_MCP_PAT: ${{ github.token }}
+```
+
+Use the Home / Runtime diagnostics view to patch `.vscode/mcp.json`, then launch VS Code through
+`scripts/mcp-env.ps1` or `scripts/mcp-env.sh` so the token is present in the MCP client process.
 
 ## Supabase MCP
 

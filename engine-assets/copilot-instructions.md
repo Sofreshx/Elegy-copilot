@@ -90,6 +90,9 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   1. Match the task domain to a skill name (use the `skill-discovery` skill's keyword map or run `stack-detector` for project-wide detection).
   2. Load the full skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
   3. Follow the skill's instructions for the current task.
+- For GitHub Actions, workflow runs/logs, PR state, issues, commits, branches, or release-download troubleshooting in
+  **Copilot CLI**, load `github-troubleshooting` and prefer the built-in read-only `github-mcp-server` tools. The UI
+  workspace MCP patch flow is for VS Code/workspace sessions, not a prerequisite for the CLI lane.
 - If a skill is not found in the vault, it is not installed — proceed with general knowledge.
 - See `docs/system/search-execute-workflow.md` for the canonical staged-routing model.
 - Prefer canonical documentation in `docs/system/**` and exploratory notes in `docs/research/**`.
