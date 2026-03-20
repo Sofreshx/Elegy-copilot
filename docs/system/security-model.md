@@ -81,7 +81,7 @@ Desktop release CI is split between a public preview lane and the signed maintai
 Required repository configuration (placeholders, not committed secrets):
 
 - Repository variable: `DESKTOP_SIGNING_SERVICE_URL` (required)
-- Repository variable: `DESKTOP_SIGNING_SERVICE_AUDIENCE` (optional; default `instruction-engine-desktop-release`)
+- Repository variable: `DESKTOP_SIGNING_SERVICE_AUDIENCE` (optional; default `elegy-copilot-desktop-release`)
 - Repository secret: `DESKTOP_SIGNING_SERVICE_API_KEY` (optional, service-specific)
 
 ### Final Gate Trusted Evidence Binding + Retention (G-05-WU-06)

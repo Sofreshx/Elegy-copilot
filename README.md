@@ -1,6 +1,6 @@
-# Instruction Engine
+# Elegy Copilot
 
-Shared GitHub Copilot agents, skills, and workflow conventions for multi-repo development. Provides structured orchestration so planning, implementation, testing, and reviews stay consistent across all your projects.
+Shared GitHub Copilot agents, skills, and workflow conventions for multi-repo development. Elegy Copilot provides structured orchestration so planning, implementation, testing, and reviews stay consistent across all your projects.
 
 ## How it works
 

@@ -1,5 +1,5 @@
-appId: dev.instructionengine.desktop
-productName: Instruction Engine
+appId: dev.elegycopilot.desktop
+productName: Elegy Copilot
 directories:
   output: release
   buildResources: resources
@@ -41,9 +41,9 @@ win:
   signAndEditExecutable: false
   target:
     - nsis
-  artifactName: instruction-engine-${version}-${os}-${arch}.${ext}
+  artifactName: elegy-copilot-${version}-${os}-${arch}.${ext}
 publish:
   provider: github
   owner: Sofreshx
-  repo: instruction-engine
+  repo: Elegy-copilot
   releaseType: draft

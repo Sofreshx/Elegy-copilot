@@ -1,7 +1,7 @@
 {
-  "name": "@instruction-engine/contracts",
+  "name": "@elegy-copilot/contracts",
   "version": "0.1.0",
-  "description": "Shared type contracts for instruction-engine packages",
+  "description": "Shared type contracts for Elegy Copilot packages",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -16,5 +16,12 @@
   "files": [
     "dist"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sofreshx/Elegy-copilot.git"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
 }

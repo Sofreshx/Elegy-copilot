@@ -1,6 +1,6 @@
-# Contributing to Instruction Engine
+# Contributing to Elegy Copilot
 
-Thanks for helping improve Instruction Engine.
+Thanks for helping improve Elegy Copilot.
 
 ## Before you start
 

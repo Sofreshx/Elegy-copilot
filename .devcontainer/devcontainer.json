@@ -1,5 +1,5 @@
 {
-  "name": "Instruction Engine - Remote Agent",
+  "name": "Elegy Copilot - Remote Agent",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:20",
   
   "features": {
@@ -25,7 +25,7 @@
     },
     "codespaces": {
       "repositories": {
-        "Sofreshx/instruction-engine": {
+        "Sofreshx/Elegy-copilot": {
           "permissions": "write-all"
         }
       }

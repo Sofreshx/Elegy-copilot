@@ -2,7 +2,7 @@
 
 ## Supported reporting path
 
-If you discover a security issue in Instruction Engine:
+If you discover a security issue in Elegy Copilot:
 
 1. Do **not** open a public GitHub issue with exploit details.
 2. Prefer GitHub's private vulnerability reporting flow if it is enabled for this repository.

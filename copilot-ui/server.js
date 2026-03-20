@@ -9,13 +9,13 @@ const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 
 /**
- * @typedef {import('@instruction-engine/contracts').WorkflowStep} ContractWorkflowStep
- * @typedef {import('@instruction-engine/contracts').WorkflowDefinition} ContractWorkflowDefinition
- * @typedef {import('@instruction-engine/contracts').WorkflowRunResult} ContractWorkflowRunResult
- * @typedef {import('@instruction-engine/contracts').PlanningRecord} ContractPlanningRecord
- * @typedef {import('@instruction-engine/contracts').WorkflowPlanningBridge} ContractWorkflowPlanningBridge
- * @typedef {import('@instruction-engine/contracts').ExecutorPolicyRequest} ContractExecutorPolicyRequest
- * @typedef {import('@instruction-engine/contracts').ExecutorPolicyResponse} ContractExecutorPolicyResponse
+ * @typedef {import('@elegy-copilot/contracts').WorkflowStep} ContractWorkflowStep
+ * @typedef {import('@elegy-copilot/contracts').WorkflowDefinition} ContractWorkflowDefinition
+ * @typedef {import('@elegy-copilot/contracts').WorkflowRunResult} ContractWorkflowRunResult
+ * @typedef {import('@elegy-copilot/contracts').PlanningRecord} ContractPlanningRecord
+ * @typedef {import('@elegy-copilot/contracts').WorkflowPlanningBridge} ContractWorkflowPlanningBridge
+ * @typedef {import('@elegy-copilot/contracts').ExecutorPolicyRequest} ContractExecutorPolicyRequest
+ * @typedef {import('@elegy-copilot/contracts').ExecutorPolicyResponse} ContractExecutorPolicyResponse
  */
 
 const sessions = require('./lib/sessions');

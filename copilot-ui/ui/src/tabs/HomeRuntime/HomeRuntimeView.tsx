@@ -84,7 +84,7 @@ function formatOptionalTimestampLabel(value: string): string {
 
 function formatDiagnosticsSectionLabel(sectionId: DiagnosticsSectionId): string {
   if (sectionId === 'runtime') {
-    return 'Instruction Engine Runtime';
+    return 'Elegy Copilot Runtime';
   }
   if (sectionId === 'database') {
     return 'Planning Database';
@@ -135,9 +135,9 @@ function renderDiagnosticsSection(
     return (
       <div className="state-grid">
         <Panel
-          subtitle="Instruction Engine runtime compatibility contract and provider capability state from /api/health."
+          subtitle="Elegy Copilot runtime compatibility contract and provider capability state from /api/health."
           testId="home-runtime-diagnostics-runtime-panel"
-          title="Instruction Engine Runtime"
+          title="Elegy Copilot Runtime"
         >
           <div className="state-card-grid">
             <article className="state-card">
@@ -635,7 +635,7 @@ export default function HomeRuntimeView() {
     },
     diagnostics: {
       title: 'Diagnostics',
-      body: 'Inspect Instruction Engine runtime, planning database, gateway, tracker, and LSP operator diagnostics from one runtime hub.',
+      body: 'Inspect Elegy Copilot runtime, planning database, gateway, tracker, and LSP operator diagnostics from one runtime hub.',
     },
   };
 

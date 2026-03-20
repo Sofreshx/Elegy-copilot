@@ -3,7 +3,7 @@ import http from 'http';
 import {
     buildEmptyMessagingGatewayDiscoveryTelemetrySummary,
     buildMessagingGatewayReadinessMetadata,
-} from '@instruction-engine/contracts';
+} from '@elegy-copilot/contracts';
 import {
     GatewayHttpServer,
     LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,

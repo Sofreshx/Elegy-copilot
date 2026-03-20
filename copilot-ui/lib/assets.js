@@ -5,7 +5,7 @@ const {
   DEFAULT_PROVIDER_CATALOG,
   deriveProviderQualifiedAssetId,
   inferAssetProvenance,
-} = require('@instruction-engine/contracts');
+} = require('@elegy-copilot/contracts');
 
 const {
   appendCatalogAuditEvent,

@@ -13,7 +13,7 @@ tags: [contracts, planning, workflow]
 
 This document describes the shared type contracts that connect the **workflow engine** (`local-tracker`) to the **planning system** (`copilot-ui`) and how they are versioned across the monorepo.
 
-## Package: `@instruction-engine/contracts`
+## Package: `@elegy-copilot/contracts`
 
 Location: `contracts/`
 
@@ -78,7 +78,7 @@ execution state remains in session-state artifacts such as `plan.md`.
 ### Consumption
 
 - `local-tracker` (TypeScript) imports contracts directly. Compile-time conformance assertions in `workflowSchema.conformance.ts` verify that Zod-inferred types remain assignable to contract interfaces.
-- `copilot-ui` (plain JS) uses JSDoc `@typedef {import('@instruction-engine/contracts').X}` for editor intellisense. No runtime `require()` is needed.
+- `copilot-ui` (plain JS) uses JSDoc `@typedef {import('@elegy-copilot/contracts').X}` for editor intellisense. No runtime `require()` is needed.
 
 ### Schema Versioning
 

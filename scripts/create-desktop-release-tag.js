@@ -4,7 +4,7 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const DESKTOP_PACKAGE_NAME = 'instruction-engine-desktop';
+const DESKTOP_PACKAGE_NAME = 'elegy-copilot-desktop';
 const DESKTOP_PACKAGE_PATH = 'copilot-ui/package.json';
 const EXPLICIT_DESKTOP_RELEASE_FLAG = '--desktop-release';
 

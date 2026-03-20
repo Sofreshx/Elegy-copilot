@@ -4,7 +4,7 @@
   "commit": false,
   "fixed": [],
   "linked": [
-    ["@instruction-engine/contracts", "@instruction-engine/local-tracker", "instruction-engine-desktop"]
+    ["@elegy-copilot/contracts", "@elegy-copilot/local-tracker", "elegy-copilot-desktop"]
   ],
   "access": "restricted",
   "baseBranch": "main",

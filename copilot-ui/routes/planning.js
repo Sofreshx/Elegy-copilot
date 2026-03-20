@@ -2,7 +2,7 @@
 
 const {
   PLANNING_API_CONTRACT_VERSION: SHARED_PLANNING_API_CONTRACT_VERSION,
-} = require('@instruction-engine/contracts');
+} = require('@elegy-copilot/contracts');
 
 function handlePlanningPersistenceInit(ctx, deps) {
   const { req, res, planningPersistenceConfig, planningPersistenceState } = ctx;

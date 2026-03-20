@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 
 const {
   PLANNING_API_CONTRACT_VERSION,
-} = require('@instruction-engine/contracts');
+} = require('@elegy-copilot/contracts');
 const { register } = require('./planning');
 
 let passed = 0;

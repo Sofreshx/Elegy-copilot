@@ -12,7 +12,7 @@ const {
   DEFAULT_PROVIDER_CATALOG,
   inferAssetProvenance,
   resolveEffectiveAssetState,
-} = require('@instruction-engine/contracts');
+} = require('@elegy-copilot/contracts');
 const {
   buildProviderProjection,
   loadProviderCatalog,

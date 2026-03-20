@@ -11,7 +11,7 @@ import {
 	type MessagingGatewayDiscoveryMissReason,
 	type MessagingGatewayReadinessReasonCode,
 	type MessagingGatewayReadinessState,
-} from '@instruction-engine/contracts';
+} from '@elegy-copilot/contracts';
 
 export const MESSAGING_GATEWAY_STATUS_FILENAME = 'messaging-gateway.status.json';
 export const MESSAGING_GATEWAY_STATUS_DIRNAME = '.copilot';

@@ -74,7 +74,7 @@ async function run() {
     assert.ok(homeRuntimeSource.includes('GatewayView'), 'Expected GatewayView in diagnostics');
     assert.ok(homeRuntimeSource.includes('TrackerView'), 'Expected TrackerView in diagnostics');
     assert.ok(homeRuntimeSource.includes('LspView'), 'Expected LspView in diagnostics');
-    assert.ok(homeRuntimeSource.includes('Instruction Engine Runtime'), 'Expected instruction engine runtime diagnostics copy');
+    assert.ok(homeRuntimeSource.includes('Elegy Copilot Runtime'), 'Expected Elegy Copilot runtime diagnostics copy');
     assert.ok(homeRuntimeSource.includes('Planning Database'), 'Expected planning database diagnostics copy');
     assert.ok(homeRuntimeSource.includes('planningDurabilityDependencyGate'), 'Expected planning durability gate diagnostics');
     assert.ok(homeRuntimeSource.includes('GitHub CLI Access'), 'Expected GitHub CLI diagnostics card');

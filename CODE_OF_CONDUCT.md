@@ -1,6 +1,6 @@
 # Code of Conduct
 
-We want Instruction Engine to be a respectful, collaborative project.
+We want Elegy Copilot to be a respectful, collaborative project.
 
 ## Our standards
 

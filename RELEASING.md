@@ -1,6 +1,6 @@
-# Releasing Instruction Engine
+# Releasing Elegy Copilot
 
-Instruction Engine currently has two desktop distribution lanes:
+Elegy Copilot currently has two desktop distribution lanes:
 
 - `desktop-preview-release.yml` for public, unsigned preview artifacts on GitHub Releases
 - `desktop-release.yml` for the signed maintainer release flow

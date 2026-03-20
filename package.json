@@ -1,8 +1,8 @@
 {
-  "name": "@instruction-engine/root",
+  "name": "@elegy-copilot/root",
   "version": "0.0.0",
   "private": true,
-  "description": "Instruction Engine monorepo root",
+  "description": "Elegy Copilot monorepo root",
   "license": "MIT",
   "workspaces": [
     "contracts",

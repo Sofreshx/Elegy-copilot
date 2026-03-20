@@ -7,7 +7,7 @@ import CatalogView from './tabs/Catalog/CatalogView';
 import HomeRuntimeView from './tabs/HomeRuntime/HomeRuntimeView';
 import PlanningView from './tabs/Planning/PlanningView';
 
-const environmentLabel = 'Instruction Engine UI';
+const environmentLabel = 'Elegy Copilot UI';
 
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
@@ -37,13 +37,13 @@ export default function App() {
       : 'awaiting first poll';
 
   return (
-    <main aria-labelledby="instruction-engine-title" className="app-shell">
+    <main aria-labelledby="elegy-copilot-title" className="app-shell">
       <header className="hero-card">
         <p className="kicker">{environmentLabel}</p>
         <p className={`sdk-health-indicator sdk-health-${sdkHealthClassName}`}>
           SDK Health: {sdkHealthSummary}
         </p>
-        <h1 id="instruction-engine-title">Instruction Engine Control Plane</h1>
+        <h1 id="elegy-copilot-title">Elegy Copilot Control Plane</h1>
         <p>
           Planning-first workspace for turning ideas into repo-targeted plans, managing assets,
           operating sessions, and checking system readiness without scattering the workflow across
@@ -54,7 +54,7 @@ export default function App() {
       <TabShell
         activeTabId={navigationState.activeTabId}
         tabs={NAVIGATION_TABS}
-        tablistLabel="Instruction Engine sections"
+        tablistLabel="Elegy Copilot sections"
         onTabChange={(tabId) => navigationStore.setActiveTabId(tabId)}
       >
         {navigationState.activeTabId === 'home-runtime' ? <HomeRuntimeView /> : null}

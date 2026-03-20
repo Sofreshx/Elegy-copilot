@@ -1,4 +1,4 @@
-name: Desktop Preview Release
+name: Elegy Copilot Desktop Preview Release
 
 on:
   workflow_dispatch:
@@ -57,7 +57,7 @@ jobs:
           fi
 
           if [[ -z "${release_name}" ]]; then
-            release_name="Desktop Preview ${tag_name}"
+            release_name="Elegy Copilot Desktop Preview ${tag_name}"
           fi
 
           echo "ref=${ref}" >> "$GITHUB_OUTPUT"
@@ -81,6 +81,10 @@ jobs:
         with:
           node-version: '20.x'
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js
@@ -137,6 +141,10 @@ jobs:
         with:
           node-version: '20.x'
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js
@@ -189,6 +197,10 @@ jobs:
         with:
           node-version: '20.x'
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js

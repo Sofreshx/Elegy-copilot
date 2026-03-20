@@ -1,4 +1,4 @@
-name: Desktop Release
+name: Elegy Copilot Desktop Release
 
 on:
   workflow_dispatch:
@@ -116,6 +116,10 @@ jobs:
         with:
           node-version: '20.x'
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js
@@ -150,7 +154,7 @@ jobs:
       contents: read
     env:
       SIGNING_SERVICE_URL: ${{ vars.DESKTOP_SIGNING_SERVICE_URL }}
-      SIGNING_SERVICE_AUDIENCE: ${{ vars.DESKTOP_SIGNING_SERVICE_AUDIENCE || 'instruction-engine-desktop-release' }}
+      SIGNING_SERVICE_AUDIENCE: ${{ vars.DESKTOP_SIGNING_SERVICE_AUDIENCE || 'elegy-copilot-desktop-release' }}
       SIGNING_SERVICE_API_KEY: ${{ secrets.DESKTOP_SIGNING_SERVICE_API_KEY }}
     steps:
       - name: Download unsigned Windows package
@@ -176,7 +180,7 @@ jobs:
             exit 1
           }
 
-          $audience = if ([string]::IsNullOrWhiteSpace($env:SIGNING_SERVICE_AUDIENCE)) { 'instruction-engine-desktop-release' } else { $env:SIGNING_SERVICE_AUDIENCE }
+          $audience = if ([string]::IsNullOrWhiteSpace($env:SIGNING_SERVICE_AUDIENCE)) { 'elegy-copilot-desktop-release' } else { $env:SIGNING_SERVICE_AUDIENCE }
           $oidcUri = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)&audience=$([uri]::EscapeDataString($audience))"
           $oidcHeaders = @{ Authorization = "Bearer $($env:ACTIONS_ID_TOKEN_REQUEST_TOKEN)" }
           $oidcResponse = Invoke-RestMethod -Method Get -Uri $oidcUri -Headers $oidcHeaders
@@ -259,7 +263,7 @@ jobs:
       contents: read
     env:
       SIGNING_SERVICE_URL: ${{ vars.DESKTOP_SIGNING_SERVICE_URL }}
-      SIGNING_SERVICE_AUDIENCE: ${{ vars.DESKTOP_SIGNING_SERVICE_AUDIENCE || 'instruction-engine-desktop-release' }}
+      SIGNING_SERVICE_AUDIENCE: ${{ vars.DESKTOP_SIGNING_SERVICE_AUDIENCE || 'elegy-copilot-desktop-release' }}
       SIGNING_SERVICE_API_KEY: ${{ secrets.DESKTOP_SIGNING_SERVICE_API_KEY }}
     steps:
       - name: Checkout repository
@@ -274,6 +278,10 @@ jobs:
         with:
           node-version: '20.x'
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js
@@ -308,7 +316,7 @@ jobs:
             exit 1
           fi
 
-          audience="${SIGNING_SERVICE_AUDIENCE:-instruction-engine-desktop-release}"
+          audience="${SIGNING_SERVICE_AUDIENCE:-elegy-copilot-desktop-release}"
           oidc_token="$(curl -fsS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${audience}" | python -c "import json,sys; print(json.load(sys.stdin).get('value',''))")"
           if [[ -z "${oidc_token}" ]]; then
             echo "OIDC token exchange failed for Linux metadata signing." >&2
@@ -390,6 +398,10 @@ jobs:
         with:
           node-version: '20.x'
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js
@@ -561,7 +573,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.resolve-release.outputs.release_tag }}
-          name: Desktop ${{ needs.resolve-release.outputs.release_version }}
+          name: Elegy Copilot Desktop ${{ needs.resolve-release.outputs.release_version }}
           draft: ${{ needs.resolve-release.outputs.publish_mode == 'draft' }}
           prerelease: ${{ needs.resolve-release.outputs.prerelease == 'true' }}
           generate_release_notes: true

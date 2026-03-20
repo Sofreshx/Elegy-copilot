@@ -626,7 +626,7 @@ function buildCreateTargets(
       id: 'shared',
       authoringScope: 'shared',
       label: 'Shared shipped asset (engine-assets/*)',
-      description: 'Creates a shipped asset in engine-assets/* and updates the shared manifest in this instruction-engine workspace.',
+      description: 'Creates a shipped asset in engine-assets/* and updates the shared manifest in this Elegy Copilot workspace.',
       authoringRepoPath: normalizePath(workspaceRepo.repoPath),
     });
   }
@@ -2224,9 +2224,9 @@ export default function AssetsView() {
                     {selectedIsReadOnly
                       ? selectedProviderInstallable
                         ? `External provider assets remain read-only here. Use the provider install controls${selectedProvider ? ` for ${selectedProvider.title || selectedProvider.providerId}` : ''} to install or update the source package.`
-                        : 'External plugin-origin assets are read-only in Instruction Engine. Edit or remove them from their source installation instead.'
+                        : 'External plugin-origin assets are read-only in Elegy Copilot. Edit or remove them from their source installation instead.'
                       : sharedEditBlocked
-                      ? 'Shared shipped assets are only writable when the instruction-engine workspace repo is the selected write scope.'
+                      ? 'Shared shipped assets are only writable when the Elegy Copilot workspace repo is the selected write scope.'
                       : 'No authoritative write target is available for this effective asset in the current scope.'}
                   </p>
                 )}

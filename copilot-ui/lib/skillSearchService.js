@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const { compareAssetCatalogEntries } = require('@instruction-engine/contracts');
+const { compareAssetCatalogEntries } = require('@elegy-copilot/contracts');
 
 const {
   buildCatalogProjection,

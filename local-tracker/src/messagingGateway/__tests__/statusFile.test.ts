@@ -5,7 +5,7 @@ import {
 	buildEmptyMessagingGatewayDiscoveryTelemetrySummary,
 	buildMessagingGatewayReadinessMetadata,
 	MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
-} from '@instruction-engine/contracts';
+} from '@elegy-copilot/contracts';
 import {
 	MessagingGatewayStatusWriter,
 	MessagingGatewayStatusV1,

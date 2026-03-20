@@ -291,7 +291,7 @@ function PlanningPlanAuthoringPanel(props: {
             data-testid="planning-plan-title"
             id="planning-plan-title"
             onChange={(event) => props.onPlanTitleChange(event.target.value)}
-            placeholder="Instruction Engine planning follow-up"
+            placeholder="Elegy Copilot planning follow-up"
             type="text"
             value={props.planTitleDraft}
           />

@@ -5,7 +5,7 @@
 set -e
 
 echo "================================================"
-echo "Starting Instruction Engine Agent Session"
+echo "Starting Elegy Copilot Agent Session"
 echo "================================================"
 
 # Check required environment variables

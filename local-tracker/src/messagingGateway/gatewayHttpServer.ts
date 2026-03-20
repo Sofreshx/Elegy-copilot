@@ -15,6 +15,17 @@ import type {
     WorkflowStreamEvent,
     WorkflowStreamListener,
 } from './workflows/workflowStreaming';
+import {
+    issueMobileSession,
+    rotateMobileSession,
+    validateMobileSession,
+} from './mobileAuth';
+import {
+    getMobilePairingLeaseStatus,
+    issueMobilePairingLease,
+    resolveMobilePairingLease,
+    revokeMobilePairingLease,
+} from './mobilePairingLease';
 
 export type LifecycleAction = 'create' | 'start' | 'stop' | 'open-terminal' | 'pr-open' | 'finish';
 
@@ -98,6 +109,8 @@ export interface GatewayHttpServerOptions {
     getPolicyGateStatus?: () => PolicyGateStatus;
     /** Optional Telegram webhook endpoint (`POST /api/telegram/webhook`) configuration. */
     telegramWebhook?: TelegramWebhookOptions;
+    /** Enables mobile pairing and session endpoints (`/api/mobile/*`). */
+    mobilePairing?: boolean;
     /** Optional workflow streaming endpoint wiring (`GET /api/workflows/events?runId=<id>`). */
     workflowStreaming?: WorkflowStreamingSseOptions;
     /** Optional workflow CRUD + run endpoint wiring (`/api/workflows/*`). */
@@ -118,6 +131,7 @@ export class GatewayHttpServer {
     private readonly handleLifecycleAction: ((action: LifecycleAction, payload: unknown, req: http.IncomingMessage) => Promise<unknown>) | undefined;
     private readonly getPolicyGateStatus: (() => PolicyGateStatus) | undefined;
     private readonly telegramWebhook: TelegramWebhookOptions | undefined;
+    private readonly mobilePairingEnabled: boolean;
     private readonly workflowStreaming: WorkflowStreamingSseOptions | undefined;
     private readonly workflowApi: WorkflowHttpApiHandlers | undefined;
     private readonly telegramSeenUpdateIds = new Map<number, number>();
@@ -144,6 +158,7 @@ export class GatewayHttpServer {
         this.handleLifecycleAction = options.handleLifecycleAction;
         this.getPolicyGateStatus = options.getPolicyGateStatus;
         this.telegramWebhook = options.telegramWebhook;
+        this.mobilePairingEnabled = options.mobilePairing === true;
         this.workflowStreaming = options.workflowStreaming;
         this.workflowApi = options.workflowApi;
 
@@ -246,8 +261,12 @@ export class GatewayHttpServer {
             return;
         }
 
-        // Auth check on all endpoints
-        if (!this.authenticate(req)) {
+        const isMobileSessionRoute =
+            (method === 'POST' && pathname === '/api/mobile/command')
+            || (method === 'POST' && pathname === '/api/mobile/session/rotate');
+
+        // Auth check on all non-mobile-session endpoints.
+        if (!isMobileSessionRoute && !this.authenticate(req)) {
             res.writeHead(401, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: 'Unauthorized' }));
             return;
@@ -290,6 +309,18 @@ export class GatewayHttpServer {
         } else if (method === 'POST' && pathname.match(/^\/api\/permissions\/[^/]+\/deny$/)) {
             const callbackId = pathname.split('/')[3];
             void this.handlePermissionAction(callbackId, false, req, res);
+        } else if (method === 'POST' && pathname === '/api/mobile/pair/initiate') {
+            void this.handleMobilePairInitiate(req, res);
+        } else if (method === 'POST' && pathname === '/api/mobile/pair/complete') {
+            void this.handleMobilePairComplete(req, res);
+        } else if (method === 'GET' && pathname.match(/^\/api\/mobile\/pair\/[^/]+$/)) {
+            this.handleMobilePairStatus(decodeURIComponent(pathname.split('/')[4] ?? ''), res);
+        } else if (method === 'POST' && pathname.match(/^\/api\/mobile\/pair\/[^/]+\/revoke$/)) {
+            this.handleMobilePairRevoke(decodeURIComponent(pathname.split('/')[4] ?? ''), res);
+        } else if (method === 'POST' && pathname === '/api/mobile/command') {
+            void this.handleMobileCommand(req, res);
+        } else if (method === 'POST' && pathname === '/api/mobile/session/rotate') {
+            this.handleMobileSessionRotate(req, res);
         } else if (method === 'POST' && pathname.match(/^\/api\/lifecycle\/[^/]+$/)) {
             const rawAction = decodeURIComponent(pathname.split('/')[3] ?? '');
             const action = this.parseLifecycleAction(rawAction);
@@ -640,6 +671,172 @@ export class GatewayHttpServer {
             res.writeHead(500, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ error: message }));
         }
+    }
+
+    private ensureMobilePairingEnabled(res: http.ServerResponse): boolean {
+        if (this.mobilePairingEnabled) {
+            return true;
+        }
+
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Mobile pairing not configured' }));
+        return false;
+    }
+
+    private readMobileSessionToken(req: http.IncomingMessage): string {
+        return this.readSingleHeaderValue(req.headers['x-mobile-session-token']);
+    }
+
+    private validateMobileSessionRequest(
+        req: http.IncomingMessage,
+        res: http.ServerResponse,
+    ): { sessionId: string; leaseId?: string } | null {
+        if (!this.ensureMobilePairingEnabled(res)) {
+            return null;
+        }
+
+        const sessionToken = this.readMobileSessionToken(req);
+        const validation = validateMobileSession(sessionToken);
+        if (!validation.valid || !validation.sessionId) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                error: 'Invalid or expired session',
+                reason: validation.reason ?? 'invalid_token',
+            }));
+            return null;
+        }
+
+        return {
+            sessionId: validation.sessionId,
+            leaseId: validation.leaseId,
+        };
+    }
+
+    private async handleMobilePairInitiate(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+        if (!this.ensureMobilePairingEnabled(res)) {
+            return;
+        }
+
+        let payload: unknown;
+        try {
+            payload = await this.readJsonBody(req);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: message }));
+            return;
+        }
+
+        try {
+            const ttlMs = typeof payload === 'object' && payload !== null && typeof (payload as { ttlMs?: unknown }).ttlMs === 'number'
+                ? (payload as { ttlMs: number }).ttlMs
+                : undefined;
+            const lease = issueMobilePairingLease(ttlMs === undefined ? undefined : { ttlMs });
+            res.writeHead(201, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, ...lease }));
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: message }));
+        }
+    }
+
+    private async handleMobilePairComplete(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+        if (!this.ensureMobilePairingEnabled(res)) {
+            return;
+        }
+
+        let payload: unknown;
+        try {
+            payload = await this.readJsonBody(req);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: message }));
+            return;
+        }
+
+        const pairingToken = typeof payload === 'object' && payload !== null && typeof (payload as { pairingToken?: unknown }).pairingToken === 'string'
+            ? (payload as { pairingToken: string }).pairingToken.trim()
+            : '';
+        if (!pairingToken) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Missing pairingToken' }));
+            return;
+        }
+
+        const leaseId = resolveMobilePairingLease(pairingToken);
+        if (!leaseId) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid or expired pairingToken' }));
+            return;
+        }
+
+        const session = issueMobileSession(leaseId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, ...session }));
+    }
+
+    private handleMobilePairStatus(leaseId: string, res: http.ServerResponse): void {
+        if (!this.ensureMobilePairingEnabled(res)) {
+            return;
+        }
+
+        const status = getMobilePairingLeaseStatus(leaseId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(status));
+    }
+
+    private handleMobilePairRevoke(leaseId: string, res: http.ServerResponse): void {
+        if (!this.ensureMobilePairingEnabled(res)) {
+            return;
+        }
+
+        if (!revokeMobilePairingLease(leaseId)) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Lease not found' }));
+            return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, leaseId }));
+    }
+
+    private async handleMobileCommand(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+        const session = this.validateMobileSessionRequest(req, res);
+        if (!session) {
+            return;
+        }
+
+        let payload: unknown;
+        try {
+            payload = await this.readJsonBody(req);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: message }));
+            return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, sessionId: session.sessionId, leaseId: session.leaseId, command: payload }));
+    }
+
+    private handleMobileSessionRotate(req: http.IncomingMessage, res: http.ServerResponse): void {
+        const session = this.validateMobileSessionRequest(req, res);
+        if (!session) {
+            return;
+        }
+
+        const rotated = rotateMobileSession(session.sessionId);
+        if (!rotated) {
+            res.writeHead(401, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Invalid or expired session' }));
+            return;
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, ...rotated }));
     }
 
     private async readJsonBody(req: http.IncomingMessage, maxBytes = 128 * 1024): Promise<unknown> {

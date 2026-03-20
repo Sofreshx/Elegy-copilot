@@ -4,7 +4,7 @@ import path from 'path';
 import {
 	buildEmptyMessagingGatewayDiscoveryTelemetrySummary,
 	buildMessagingGatewayReadinessMetadata,
-} from '@instruction-engine/contracts';
+} from '@elegy-copilot/contracts';
 
 import type { LifecycleAction, MessagingGatewayConfig, MessagingGatewayMode, ResolvedSandboxLifecycleConfig } from './config';
 import { GatewayHttpServer } from './gatewayHttpServer';

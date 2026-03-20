@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { DEFAULT_PROVIDER_CATALOG } = require('@instruction-engine/contracts');
+const { DEFAULT_PROVIDER_CATALOG } = require('@elegy-copilot/contracts');
 const { loadProviderCatalog } = require('./providerCatalog');
 
 function makeTempEngineRoot() {

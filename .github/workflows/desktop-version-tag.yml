@@ -1,4 +1,4 @@
-name: Desktop Version Tag Helper
+name: Elegy Copilot Desktop Version Tag Helper
 
 on:
   workflow_dispatch:
@@ -28,6 +28,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js

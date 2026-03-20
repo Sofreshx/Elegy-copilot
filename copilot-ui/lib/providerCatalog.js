@@ -5,7 +5,7 @@ const path = require('path');
 
 const {
   normalizeProviderCatalogDocument,
-} = require('@instruction-engine/contracts');
+} = require('@elegy-copilot/contracts');
 
 function readJsonIfExists(absPath) {
   try {

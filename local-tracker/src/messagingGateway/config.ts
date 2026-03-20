@@ -7,7 +7,7 @@ import {
 	MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION,
 	resolveContractCompatibilitySource,
 	type ContractCompatibilitySource,
-} from '@instruction-engine/contracts';
+} from '@elegy-copilot/contracts';
 
 export type MessagingGatewayMode = 'auto' | 'connected' | 'disconnected';
 export const LIFECYCLE_ACTIONS = ['create', 'start', 'stop', 'open-terminal', 'pr-open', 'finish'] as const;

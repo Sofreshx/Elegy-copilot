@@ -131,7 +131,7 @@ async function run() {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
     const tabShellSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'TabShell.tsx'), 'utf8');
 
-    assert.ok(appSource.includes('<main aria-labelledby="instruction-engine-title" className="app-shell">'), 'Expected labelled main landmark in App.tsx');
+    assert.ok(appSource.includes('<main aria-labelledby="elegy-copilot-title" className="app-shell">'), 'Expected labelled main landmark in App.tsx');
     assert.ok(appSource.includes('<header className="hero-card">'), 'Expected semantic header landmark in App.tsx');
     assert.ok(tabShellSource.includes('role="tablist"'), 'Expected tablist role in TabShell.tsx');
     assert.ok(tabShellSource.includes('role="tabpanel"'), 'Expected tabpanel role in TabShell.tsx');
