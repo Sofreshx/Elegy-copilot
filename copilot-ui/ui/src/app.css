@@ -295,6 +295,19 @@
   color: var(--color-ink-500);
 }
 
+.hero-status-stack {
+  display: grid;
+  gap: var(--space-2xs);
+  margin-bottom: var(--space-sm);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
 .status-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
@@ -1100,7 +1113,11 @@
 }
 
 .sdk-health-indicator {
-  margin-bottom: var(--space-sm);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.desktop-updater-indicator {
   font-family: var(--font-mono);
   font-size: 0.82rem;
 }
@@ -1115,6 +1132,19 @@
 }
 
 .sdk-health-error {
+  color: var(--color-danger-500);
+}
+
+.desktop-updater-ok {
+  color: var(--color-success-500);
+}
+
+.desktop-updater-warn,
+.desktop-updater-loading {
+  color: var(--color-accent-600);
+}
+
+.desktop-updater-error {
   color: var(--color-danger-500);
 }
 

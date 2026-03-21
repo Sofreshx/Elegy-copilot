@@ -6,9 +6,10 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
-import { configureUpdater } from './updater';
+import { buildPackagedGatewayChildArgs, hasGatewayChildFlag, stripGatewayChildFlag } from './gatewayChildMode';
+import { configureUpdater, createUnavailableUpdaterState, type UpdaterState } from './updater';
 const { startEmbeddedPostgresRuntime } = require('../lib/embeddedPostgresRuntime.js') as {
   startEmbeddedPostgresRuntime: (options: Record<string, unknown>) => Promise<{
     connectionString: string;
@@ -37,6 +38,11 @@ let embeddedPostgresHandle: {
   };
   stop: () => Promise<void>;
 } | null = null;
+let updaterController: ReturnType<typeof configureUpdater> | null = null;
+let disposeUpdaterSubscription: (() => void) | null = null;
+
+const isGatewayChildProcess = hasGatewayChildFlag(process.argv);
+const DESKTOP_UPDATER_STATE_EVENT = 'desktop-updater:state';
 
 function resolveEngineRoot(): string {
   if (app.isPackaged) {
@@ -129,6 +135,15 @@ function spawnGatewayDependency(localTrackerRoot: string, trackerToken: string, 
 
   const distEntry = path.join(localTrackerRoot, 'dist', 'messagingGateway', 'index.js');
   if (fs.existsSync(distEntry)) {
+    if (app.isPackaged) {
+      return spawn(process.execPath, buildPackagedGatewayChildArgs(), {
+        cwd: localTrackerRoot,
+        env,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+    }
+
     return spawn(process.execPath, [distEntry], {
       cwd: localTrackerRoot,
       env,
@@ -189,6 +204,27 @@ async function startGatewayDependency(
   };
 }
 
+async function runPackagedGatewayChildProcess(): Promise<void> {
+  const runtimeRoot = resolveEngineRoot();
+  const distEntry = path.join(runtimeRoot, 'local-tracker', 'dist', 'messagingGateway', 'index.js');
+  if (!fs.existsSync(distEntry)) {
+    throw new Error(`[gateway-child] Missing bundled gateway entry: ${distEntry}`);
+  }
+
+  const gatewayModule = require(distEntry) as { main?: (argv?: string[]) => Promise<void> };
+  if (typeof gatewayModule.main !== 'function') {
+    throw new Error('[gateway-child] Bundled gateway entry does not export main(argv?)');
+  }
+
+  const originalArgv = process.argv.slice();
+  process.argv = stripGatewayChildFlag(process.argv);
+  try {
+    await gatewayModule.main([]);
+  } finally {
+    process.argv = originalArgv;
+  }
+}
+
 async function stopGatewayDependency(): Promise<void> {
   if (!gatewayProcess) return;
   const child = gatewayProcess;
@@ -238,6 +274,25 @@ function createWindow(baseUrl: string) {
   return window;
 }
 
+function focusOrRestoreMainWindow(): void {
+  const currentWindow = mainWindow && typeof mainWindow.isDestroyed === 'function' && !mainWindow.isDestroyed()
+    ? mainWindow
+    : BrowserWindow.getAllWindows()[0] || null;
+
+  if (currentWindow) {
+    if (typeof currentWindow.isMinimized === 'function' && currentWindow.isMinimized()) {
+      currentWindow.restore();
+    }
+    currentWindow.focus();
+    mainWindow = currentWindow;
+    return;
+  }
+
+  if (serverHandle) {
+    mainWindow = createWindow(`http://${serverHandle.host}:${serverHandle.port}/`);
+  }
+}
+
 async function startDashboardServer() {
   const home = os.homedir();
   const copilotHome = path.join(home, '.copilot');
@@ -247,38 +302,43 @@ async function startDashboardServer() {
 
   ensureSdkBridgeDefaultEnabled();
   ensureDefaultGatewayConfig(workspaceRoot);
-  const gateway = await startGatewayDependency(runtimeRoot, workspaceRoot);
-  if (app.isPackaged) {
-    try {
-      embeddedPostgresHandle = await startEmbeddedPostgresRuntime({
-        runtimeRoot,
-        logger: (message: string) => console.log(message),
-      });
+  try {
+    const gateway = await startGatewayDependency(runtimeRoot, workspaceRoot);
+    if (app.isPackaged) {
+      try {
+        embeddedPostgresHandle = await startEmbeddedPostgresRuntime({
+          runtimeRoot,
+          logger: (message: string) => console.log(message),
+        });
 
-      if (embeddedPostgresHandle) {
-        process.env.INSTRUCTION_ENGINE_PLANNING_DB_URL = embeddedPostgresHandle.connectionString;
-        process.env.INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED = '1';
+        if (embeddedPostgresHandle) {
+          process.env.INSTRUCTION_ENGINE_PLANNING_DB_URL = embeddedPostgresHandle.connectionString;
+          process.env.INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED = '1';
+        }
+      } catch (error) {
+        embeddedPostgresHandle = null;
+        console.warn('[embedded-postgres] startup failed; continuing without persistence', error);
       }
-    } catch (error) {
-      embeddedPostgresHandle = null;
-      console.warn('[embedded-postgres] startup failed; continuing without persistence', error);
     }
+
+    serverHandle = await startServer({
+      host: '127.0.0.1',
+      port: 0,
+      copilotHome,
+      vscodeHome: copilotHome,
+      sandboxesHome: path.join(copilotHome, 'sandboxes'),
+      trackerUrl: gateway.trackerUrl,
+      trackerToken: gateway.trackerToken,
+      planningPersistenceClient: embeddedPostgresHandle ? embeddedPostgresHandle.queryClient : undefined,
+      engineRoot: engineRootOverride,
+      quiet: true,
+    });
+
+    return `http://${serverHandle.host}:${serverHandle.port}/`;
+  } catch (error) {
+    await stopDashboardServer();
+    throw error;
   }
-
-  serverHandle = await startServer({
-    host: '127.0.0.1',
-    port: 0,
-    copilotHome,
-    vscodeHome: copilotHome,
-    sandboxesHome: path.join(copilotHome, 'sandboxes'),
-    trackerUrl: gateway.trackerUrl,
-    trackerToken: gateway.trackerToken,
-    planningPersistenceClient: embeddedPostgresHandle ? embeddedPostgresHandle.queryClient : undefined,
-    engineRoot: engineRootOverride,
-    quiet: true,
-  });
-
-  return `http://${serverHandle.host}:${serverHandle.port}/`;
 }
 
 async function stopDashboardServer() {
@@ -297,32 +357,103 @@ async function stopDashboardServer() {
   await stopGatewayDependency();
 }
 
+function getUpdaterState(): UpdaterState {
+  if (updaterController) {
+    return updaterController.getState();
+  }
+
+  return createUnavailableUpdaterState(app.getVersion(), 'updater_not_initialized');
+}
+
+function broadcastUpdaterState(state: UpdaterState): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (window.isDestroyed()) {
+      continue;
+    }
+    window.webContents.send(DESKTOP_UPDATER_STATE_EVENT, state);
+  }
+}
+
+ipcMain.handle('desktop-updater:get-state', async () => getUpdaterState());
+ipcMain.handle('desktop-updater:check-for-updates', async () => {
+  if (!updaterController) {
+    return getUpdaterState();
+  }
+  return updaterController.checkForUpdates();
+});
+ipcMain.handle('desktop-updater:download-update', async () => {
+  if (!updaterController) {
+    return getUpdaterState();
+  }
+  return updaterController.downloadUpdate();
+});
+ipcMain.handle('desktop-updater:restart-to-update', async () => {
+  if (!updaterController) {
+    return false;
+  }
+  return updaterController.restartToUpdate();
+});
+
 async function bootstrap() {
   const baseUrl = await startDashboardServer();
   mainWindow = createWindow(baseUrl);
 
-  const updater = configureUpdater({
+  updaterController = configureUpdater({
     appVersion: app.getVersion(),
     explicitChannel: process.env.INSTRUCTION_ENGINE_UPDATE_CHANNEL || null,
     rollbackPolicyJson: process.env.INSTRUCTION_ENGINE_ROLLBACK_POLICY_JSON || null,
     disableUpdates: process.env.INSTRUCTION_ENGINE_DISABLE_UPDATES || null,
     logger: (message) => console.log(message),
   });
-  void updater.checkForUpdates().catch(() => {
+  disposeUpdaterSubscription?.();
+  disposeUpdaterSubscription = updaterController.subscribe((state) => {
+    broadcastUpdaterState(state);
+  });
+  broadcastUpdaterState(updaterController.getState());
+
+  void updaterController.checkForUpdates().catch(() => {
     // best-effort baseline; update policy hardening follows in next work units
   });
 }
 
-app.whenReady().then(async () => {
-  await bootstrap();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0 && serverHandle) {
-      const baseUrl = `http://${serverHandle.host}:${serverHandle.port}/`;
-      mainWindow = createWindow(baseUrl);
-    }
+if (isGatewayChildProcess) {
+  app.whenReady().then(async () => {
+    await runPackagedGatewayChildProcess();
+  }).catch((error: unknown) => {
+    console.error('[gateway-child] startup failed', error);
+    app.exit(1);
   });
-});
+} else {
+  const hasSingleInstanceLock = app.requestSingleInstanceLock();
+  if (!hasSingleInstanceLock) {
+    app.quit();
+  } else {
+    app.on('second-instance', () => {
+      focusOrRestoreMainWindow();
+    });
+
+    app.whenReady().then(async () => {
+      try {
+        await bootstrap();
+      } catch (error) {
+        console.error('[desktop] bootstrap failed', error);
+        await stopDashboardServer();
+        app.exit(1);
+        return;
+      }
+
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0 && serverHandle) {
+          const baseUrl = `http://${serverHandle.host}:${serverHandle.port}/`;
+          mainWindow = createWindow(baseUrl);
+          return;
+        }
+
+        focusOrRestoreMainWindow();
+      });
+    });
+  }
+}
 
 app.on('window-all-closed', async () => {
   mainWindow = null;
@@ -333,6 +464,8 @@ app.on('window-all-closed', async () => {
 });
 
 app.on('before-quit', () => {
+  disposeUpdaterSubscription?.();
+  disposeUpdaterSubscription = null;
   if (mainWindow) {
     mainWindow.removeAllListeners('close');
   }

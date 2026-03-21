@@ -11,41 +11,13 @@ on:
       - 'vscode-skill-installer/**'
       - '.github/workflows/extension-ci.yml'
 
+defaults:
+  run:
+    working-directory: vscode-skill-installer
+
 jobs:
-  detect-legacy-surfaces:
-    runs-on: ubuntu-latest
-    outputs:
-      has_extension: ${{ steps.detect.outputs.has_extension }}
-      has_mobile: ${{ steps.detect.outputs.has_mobile }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Detect legacy extension and mobile surfaces
-        id: detect
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          if [[ -d "vscode-skill-installer" ]]; then
-            echo "has_extension=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_extension=false" >> "$GITHUB_OUTPUT"
-          fi
-
-          if [[ -d "mobile-companion" ]]; then
-            echo "has_mobile=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "has_mobile=false" >> "$GITHUB_OUTPUT"
-          fi
-
   build:
-    needs: detect-legacy-surfaces
     runs-on: ubuntu-latest
-    if: needs.detect-legacy-surfaces.outputs.has_extension == 'true'
-    defaults:
-      run:
-        working-directory: vscode-skill-installer
     strategy:
       matrix:
         node-version: [20.x]
@@ -84,11 +56,9 @@ jobs:
           retention-days: 30
 
   release:
-    needs:
-      - detect-legacy-surfaces
-      - build
+    needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') && needs.detect-legacy-surfaces.outputs.has_extension == 'true'
+    if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
 
@@ -118,10 +88,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   mobile-build:
-    needs: detect-legacy-surfaces
     runs-on: ubuntu-latest
     if: |
-      needs.detect-legacy-surfaces.outputs.has_mobile == 'true' &&
       github.event_name == 'push' && 
       (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
 

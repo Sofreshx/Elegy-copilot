@@ -2,7 +2,7 @@
   "name": "elegy-copilot-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Elegy Copilot desktop wrapper for copilot-ui",
+  "description": "Elegy Copilot desktop app",
   "license": "MIT",
   "main": "dist-electron/main.js",
   "files": [
@@ -22,6 +22,8 @@
     "electron:dev": "npm run build:electron && electron .",
     "package:preview": "npm run ui:build && npm run build:local-tracker && npm run build:electron && npm exec -- electron-builder --dir",
     "package:win": "npm run ui:build && npm run build:local-tracker && npm run build:electron && npm exec -- electron-builder --win nsis",
+    "smoke:win-updater": "node scripts/desktop-updater-smoke.js",
+    "package:win:smoke": "npm run package:win && npm run smoke:win-updater",
     "ui:dev": "vite --config vite.config.ts",
     "ui:build": "vite build --config vite.config.ts",
     "ui:preview": "vite preview --config vite.config.ts"

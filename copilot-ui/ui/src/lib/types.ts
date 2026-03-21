@@ -181,6 +181,33 @@ export interface SdkHealthResponse {
   [key: string]: unknown;
 }
 
+export type DesktopUpdaterStatus =
+  | 'idle'
+  | 'checking'
+  | 'blocked'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'up-to-date'
+  | 'error';
+
+export interface DesktopUpdaterState {
+  supported: boolean;
+  status: DesktopUpdaterStatus;
+  channel: string;
+  currentVersion: string;
+  availableVersion: string | null;
+  progressPercent: number | null;
+  transferredBytes: number | null;
+  totalBytes: number | null;
+  message: string | null;
+  reason: string | null;
+  lastUpdatedAtMs: number | null;
+  canCheckForUpdates: boolean;
+  canDownload: boolean;
+  canRestartToUpdate: boolean;
+}
+
 export interface SdkSessionSummary {
   sessionId: string;
   model?: string | null;

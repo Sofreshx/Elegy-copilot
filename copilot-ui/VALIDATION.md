@@ -11,6 +11,19 @@ This document provides curl commands to manually validate the Plan-Pack Progress
 1. Server must be running: `node copilot-ui/server.js`
 2. Use a valid session ID (example: `a04980e8-4804-411d-a774-0a4cbf88576e`)
 
+## Desktop Packaged Updater Smoke
+
+Run `npm run package:win:smoke` from `copilot-ui` when you need to validate the packaged Windows updater lane locally.
+
+This command:
+
+- rebuilds the desktop package
+- verifies `release/latest.yml`, the packaged installer, and the matching `.blockmap`
+- checks the packaged `win-unpacked/resources/app-update.yml` metadata against the current publish settings
+- executes the packaged updater regression tests shipped in `release/win-unpacked/resources/app/dist-electron`
+
+This smoke command is an artifact-level release preflight. It does not simulate a live GitHub-hosted update download or an installed-app replacement on restart.
+
 ## Endpoint 1: GET /api/sessions/:id/structured-state
 
 ### Description

@@ -269,7 +269,7 @@ async function handleSecretUtilityFlags(args: CliArgs): Promise<boolean> {
 	return false;
 }
 
-async function main() {
+export async function main(argv: string[] = process.argv.slice(2)) {
 	// OTel SDK initialization — feature-flagged
 	if (process.env.OTEL_WORKFLOW_TRACING_ENABLED === 'true') {
 		try {
@@ -288,7 +288,7 @@ async function main() {
 		}
 	}
 
-	const args = parseArgs(process.argv.slice(2));
+	const args = parseArgs(argv);
 	if (args.help) {
 		printHelp();
 		return;
@@ -1068,7 +1068,7 @@ async function main() {
 	console.log('[Gateway] Status OK. Waiting for shutdown (Ctrl+C)...');
 
 	let shuttingDown = false;
-	process.on('SIGINT', () => {
+	const beginShutdown = () => {
 		if (shuttingDown) return;
 		shuttingDown = true;
 		console.log('[Gateway] Shutting down');
@@ -1098,7 +1098,10 @@ async function main() {
 				process.exit(0);
 			}
 		})();
-	});
+	};
+
+	process.on('SIGINT', beginShutdown);
+	process.on('SIGTERM', beginShutdown);
 
 	await new Promise(() => {
 		// keep process alive

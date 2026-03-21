@@ -46,7 +46,24 @@ Required repository configuration:
 
 The signed release lane is intentionally fail-closed when signing evidence is unavailable.
 
-## 3. CI expectations
+## 3. Local packaged updater smoke
+
+Run `npm --prefix copilot-ui run package:win:smoke` before cutting or validating a Windows desktop release when you need a local integrity check for the packaged updater lane.
+
+What it validates:
+
+- `copilot-ui/release/latest.yml` version and installer path match the packaged desktop version
+- the referenced installer and `.blockmap` exist in `copilot-ui/release`
+- the packaged `win-unpacked/resources/app-update.yml` still matches the current GitHub publish metadata
+- the packaged updater regression tests shipped under `win-unpacked/resources/app/dist-electron` still execute successfully
+
+What it does not validate:
+
+- GitHub Release publishing
+- live update discovery against GitHub
+- installer replacement and restart behavior on a second installed build
+
+## 4. CI expectations
 
 - `.github/workflows/extension-ci.yml` is the repo-wide required CI workflow and must stay fail-closed.
 - Release docs and workflow behavior must stay aligned.
