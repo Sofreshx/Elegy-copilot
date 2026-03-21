@@ -217,7 +217,7 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
           </p>
         </div>
 
-        <div className="showcase-toolbar-group">
+        <div className="showcase-toolbar-group showcase-toolbar-group-stable">
           <Button
             onClick={() => setMode('local')}
             testId="sessions-mode-local"

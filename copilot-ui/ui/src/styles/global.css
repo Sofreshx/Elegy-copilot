@@ -13,6 +13,7 @@ body {
     linear-gradient(180deg, #f8fbff 0%, #edf2ff 100%);
   line-height: 1.5;
   min-height: 100vh;
+  scrollbar-gutter: stable;
 }
 
 body::before {

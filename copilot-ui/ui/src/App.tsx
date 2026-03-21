@@ -8,6 +8,7 @@ import { sdkHealthStore } from './stores/sdkHealthStore';
 import CatalogView from './tabs/Catalog/CatalogView';
 import HomeRuntimeView from './tabs/HomeRuntime/HomeRuntimeView';
 import PlanningView from './tabs/Planning/PlanningView';
+import StatsView from './tabs/Stats/StatsView';
 
 const environmentLabel = 'Desktop app';
 const productName = 'Elegy Copilot';
@@ -114,6 +115,7 @@ export default function App() {
             navigationStore.goToRuntime('sessions', { sessionsMode: 'sdk' });
           }} />
         ) : null}
+        {navigationState.activeTabId === 'stats' ? <StatsView /> : null}
       </TabShell>
     </main>
   );

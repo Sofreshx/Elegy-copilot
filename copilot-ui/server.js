@@ -210,6 +210,66 @@ function createChangeTracker(copilotHomeAbs, vscodeHomeAbs, sandboxesHomeAbs) {
   };
 }
 
+function getUniqueManagedAssetHomes(homes) {
+  const uniqueHomes = [];
+  const seen = new Set();
+
+  for (const home of Array.isArray(homes) ? homes : []) {
+    if (typeof home !== 'string' || !home.trim()) {
+      continue;
+    }
+
+    const resolvedHome = path.resolve(home.trim());
+    const key = process.platform === 'win32' ? resolvedHome.toLowerCase() : resolvedHome;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    uniqueHomes.push(resolvedHome);
+  }
+
+  return uniqueHomes;
+}
+
+function runStartupManagedAssetSync(engineRoot, homes, options = {}) {
+  const quiet = options.quiet === true;
+  const summaries = [];
+
+  for (const home of getUniqueManagedAssetHomes(homes)) {
+    try {
+      const result = assets.syncManagedInstall(engineRoot, home, {
+        force: options.force !== false,
+        pointerMode: options.pointerMode !== false,
+      });
+      const summary = {
+        home,
+        syncedCount: Array.isArray(result.synced) ? result.synced.length : 0,
+        prunedCount: Array.isArray(result.prunedPaths) ? result.prunedPaths.length : 0,
+      };
+      summaries.push(summary);
+
+      if (!quiet && (summary.syncedCount > 0 || summary.prunedCount > 0)) {
+        console.log(`[startup-sync] ${home}: synced ${summary.syncedCount}, pruned ${summary.prunedCount}`);
+      }
+    } catch (error) {
+      const detail = String(error && error.message ? error.message : error);
+      summaries.push({
+        home,
+        syncedCount: 0,
+        prunedCount: 0,
+        error: detail,
+      });
+
+      if (!quiet) {
+        console.warn(`[startup-sync] ${home}: ${detail}`);
+      }
+    }
+  }
+
+  return summaries;
+}
+
 function parseArgs(argv) {
   const args = { port: 3210, host: '127.0.0.1', token: null, copilotHome: null, vscodeHome: null, sandboxesHome: null, trackerUrl: null, trackerToken: null };
   for (let i = 0; i < argv.length; i++) {
@@ -4186,6 +4246,8 @@ async function startServer(options = {}) {
   };
 
   const quiet = options.quiet === true;
+  const managedAssetSyncOnStart = options.managedAssetSyncOnStart !== false
+    && String(env.INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC || '').trim() !== '1';
   const engineRoot =
     typeof options.engineRoot === 'string' && options.engineRoot.trim()
       ? path.resolve(options.engineRoot.trim())
@@ -4322,6 +4384,13 @@ async function startServer(options = {}) {
   const planningAuthContext = {
     userId: derivePlanningActorId(token),
   };
+  const managedAssetSyncSummary = managedAssetSyncOnStart
+    ? runStartupManagedAssetSync(engineRoot, [copilotHome, vscodeHome], {
+      force: true,
+      pointerMode: true,
+      quiet,
+    })
+    : [];
   const sdkBridgeEnabled = isSdkBridgeEnabled(env);
   let sdkBridge = null;
   let executorService = null;
@@ -4538,6 +4607,7 @@ async function startServer(options = {}) {
         vscodeHome,
         sandboxesHome,
         trackerUrl,
+        managedAssetSyncSummary,
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
             .then(() => shutdownExecutorServiceSafely(executorService))

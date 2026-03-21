@@ -7,7 +7,7 @@
   },
   "installDefaults": {
     "copilotHome": "~/.copilot",
-    "agentsDir": "~/.copilot/agents",
+      "description": "Repo-scoped orchestration agents and support skills for reframing, planning, implementation routing, research, verification, and final review. This is the current home of the former Elegy planner and orchestrator lane.",
     "skillsDir": "~/.copilot/skills",
     "promptsDir": "~/.copilot/prompts",
     "instructionsFile": "~/.copilot/copilot-instructions.md"

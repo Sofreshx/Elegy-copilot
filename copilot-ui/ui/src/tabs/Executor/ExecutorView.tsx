@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, FormInput, LogViewer, Panel, Toolbar } from '../../components';
-import { formatTimestampLabel, summarizeSdkHealth } from '../../lib/stateDiagnostics';
+import {
+  formatTimestampLabel,
+  resolveSessionSourceLabel,
+  resolveSessionStartedAt,
+  resolveSessionStatus,
+  resolveSessionUpdatedAt,
+  summarizeSdkHealth,
+} from '../../lib/stateDiagnostics';
 import { useStoreValue } from '../../lib/store';
 import type { CreateExecutorJobPayload } from '../../lib/types';
 import { navigationStore } from '../../stores/navigation';
 import { sdkHealthStore } from '../../stores/sdkHealthStore';
+import SandboxesView from '../Sandboxes/SandboxesView';
+import { sessionsStore } from '../Sessions/sessionsStore';
 import { sdkSessionsStore } from '../Sessions/sdkSessionsStore';
 import { executorStore } from './executorStore';
 
@@ -59,7 +68,16 @@ export default function ExecutorView() {
     : null;
   const activeRuns = executorState.runs.filter((run) => ['starting', 'running', 'retrying'].includes(run.status));
   const openedSessions = Array.from(new Set(executorState.runs.map((run) => run.sessionId).filter(Boolean))) as string[];
+  const observedExternalSessions = executorState.observedExternalSessions;
   const sdkSummary = summarizeSdkHealth(sdkHealthState.health, sdkHealthState.error);
+  const executorRuntimeStatus = executorState.health.enabled ? executorState.health.state : 'Managed Off';
+  const executorRuntimeDetail = executorState.health.enabled
+    ? `${executorState.health.jobCount} jobs, ${executorState.health.runCount} runs, ${executorState.health.scheduledJobCount} scheduled`
+    : 'Managed execution is off. External CLI and VS Code session observation still works below; set COPILOT_SDK_BRIDGE=1 to enable queued and SDK-backed runs.';
+  const sdkBridgeStatus = sdkSummary.status === 'Disabled' ? 'Managed Off' : sdkSummary.status;
+  const sdkBridgeDetail = sdkSummary.status === 'Disabled'
+    ? 'Managed SDK sessions and streaming are off. External CLI and VS Code session observation still works; set COPILOT_SDK_BRIDGE=1 to enable SDK-backed execution.'
+    : sdkSummary.detail;
 
   const handleSubmit = async () => {
     const payload: CreateExecutorJobPayload = {
@@ -99,6 +117,17 @@ export default function ExecutorView() {
     });
   };
 
+  const handleFollowSandboxSession = (sessionId: string) => {
+    void (async () => {
+      try {
+        await sessionsStore.loadSessions();
+        sessionsStore.selectSession(sessionId);
+      } finally {
+        navigationStore.goToRuntime('sessions', { sessionsMode: 'local' });
+      }
+    })();
+  };
+
   return (
     <section className="sessions-view executor-view" data-testid="executor-view">
       <Toolbar testId="executor-view-toolbar">
@@ -126,18 +155,14 @@ export default function ExecutorView() {
       <div className="sessions-connection-grid" data-testid="executor-connection-grid">
         <article className="sessions-connection-card">
           <p className="sessions-connection-title">Executor Runtime</p>
-          <p className="sessions-connection-status">{executorState.health.state}</p>
-          <p className="sessions-connection-copy">
-            {executorState.health.enabled
-              ? `${executorState.health.jobCount} jobs, ${executorState.health.runCount} runs, ${executorState.health.scheduledJobCount} scheduled`
-              : (executorState.health.lastError || 'Enable COPILOT_SDK_BRIDGE=1 to use the executor.')}
-          </p>
+          <p className="sessions-connection-status">{executorRuntimeStatus}</p>
+          <p className="sessions-connection-copy">{executorRuntimeDetail}</p>
         </article>
 
         <article className="sessions-connection-card">
           <p className="sessions-connection-title">SDK Bridge</p>
-          <p className="sessions-connection-status">{sdkSummary.status}</p>
-          <p className="sessions-connection-copy">{sdkSummary.detail}</p>
+          <p className="sessions-connection-status">{sdkBridgeStatus}</p>
+          <p className="sessions-connection-copy">{sdkBridgeDetail}</p>
         </article>
 
         <article className="sessions-connection-card">
@@ -145,6 +170,18 @@ export default function ExecutorView() {
           <p className="sessions-connection-status">{openedSessions.length}</p>
           <p className="sessions-connection-copy">
             {openedSessions.length > 0 ? openedSessions.join(', ') : 'No executor-linked SDK sessions yet.'}
+          </p>
+        </article>
+
+        <article className="sessions-connection-card">
+          <p className="sessions-connection-title">Observed External Sessions</p>
+          <p className="sessions-connection-status">{observedExternalSessions.length}</p>
+          <p className="sessions-connection-copy">
+            {executorState.observationError
+              ? executorState.observationError
+              : observedExternalSessions.length > 0
+                ? 'Watching recent CLI and VS Code sessions discovered outside executor-managed runs.'
+                : 'No recent CLI or VS Code sessions observed yet.'}
           </p>
         </article>
       </div>
@@ -394,6 +431,51 @@ export default function ExecutorView() {
             </ul>
           )}
         </Panel>
+
+        <Panel
+          subtitle="Read-only view of recent CLI and VS Code sessions discovered outside executor-managed runs."
+          testId="executor-observed-sessions-panel"
+          title="Observed External Sessions"
+        >
+          {executorState.observationError ? (
+            <p className="sessions-error" role="alert">
+              {executorState.observationError}
+            </p>
+          ) : null}
+
+          {observedExternalSessions.length === 0 ? (
+            <p className="state-message">No recent CLI or VS Code sessions observed yet.</p>
+          ) : (
+            <ul className="tracker-session-list executor-job-list">
+              {observedExternalSessions.map((session) => {
+                const startedAt = resolveSessionStartedAt(session);
+                const updatedAt = resolveSessionUpdatedAt(session);
+                const cwd = typeof session.cwd === 'string' && session.cwd.trim() ? session.cwd.trim() : null;
+
+                return (
+                  <li key={session.id}>
+                    <div>
+                      <p className="tracker-item-title">{session.id}</p>
+                      <p className="tracker-item-copy">
+                        {resolveSessionSourceLabel(session)}
+                        {' | '}
+                        {resolveSessionStatus(session)}
+                        {startedAt ? ` | started ${formatTimestampLabel(startedAt)}` : ''}
+                        {updatedAt ? ` | updated ${formatTimestampLabel(updatedAt)}` : ''}
+                      </p>
+                      {cwd ? <p className="tracker-item-copy">{cwd}</p> : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Panel>
+
+        <div className="workspace-stack" data-testid="executor-sandbox-mode-section">
+          <p className="workspace-section-label">Executor / Sandbox Mode</p>
+          <SandboxesView onFollowSessions={handleFollowSandboxSession} />
+        </div>
 
         <Panel
           subtitle="Shows the selected run, linked session, retry state, and captured executor events."

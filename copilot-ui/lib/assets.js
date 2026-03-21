@@ -14,6 +14,9 @@ const {
   buildCatalogProjection,
 } = require('./catalogProjectionService');
 
+const INSTALL_STATE_FILE_NAME = '.instruction-engine-install-state.json';
+const INSTALL_STATE_SCHEMA_VERSION = 3;
+
 function toPosixRelPath(p) {
   return String(p || '').replace(/\\/g, '/');
 }
@@ -279,6 +282,228 @@ function readJsonIfExists(absPath) {
   } catch {
     return null;
   }
+}
+
+function getInstallStatePath(home) {
+  return path.join(path.resolve(home), INSTALL_STATE_FILE_NAME);
+}
+
+function normalizeInstallStateItems(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      items
+        .map((item) => String(item || '').trim())
+        .filter(Boolean)
+    )
+  ).sort((left, right) => left.localeCompare(right));
+}
+
+function readInstallState(home) {
+  const state = readJsonIfExists(getInstallStatePath(home));
+  if (!state || typeof state !== 'object') {
+    return null;
+  }
+
+  const managedSkills = normalizeInstallStateItems(state.managedSkills);
+  return {
+    schemaVersion: Number(state.schemaVersion) || INSTALL_STATE_SCHEMA_VERSION,
+    installProfile:
+      typeof state.installProfile === 'string' && state.installProfile.trim()
+        ? state.installProfile.trim()
+        : 'copilot-ui',
+    managedSkills,
+    alwaysLoadedSkills: normalizeInstallStateItems(state.alwaysLoadedSkills),
+    vaultSkills: Array.isArray(state.vaultSkills)
+      ? normalizeInstallStateItems(state.vaultSkills)
+      : managedSkills,
+    managedAgents: normalizeInstallStateItems(state.managedAgents),
+    managedPrompts: normalizeInstallStateItems(state.managedPrompts),
+  };
+}
+
+function writeInstallState(home, state) {
+  const statePath = getInstallStatePath(home);
+  fs.mkdirSync(path.dirname(statePath), { recursive: true });
+  fs.writeFileSync(
+    statePath,
+    JSON.stringify(
+      {
+        schemaVersion: INSTALL_STATE_SCHEMA_VERSION,
+        installProfile:
+          typeof state.installProfile === 'string' && state.installProfile.trim()
+            ? state.installProfile.trim()
+            : 'copilot-ui',
+        managedSkills: normalizeInstallStateItems(state.managedSkills),
+        alwaysLoadedSkills: normalizeInstallStateItems(state.alwaysLoadedSkills),
+        vaultSkills: normalizeInstallStateItems(state.vaultSkills),
+        managedAgents: normalizeInstallStateItems(state.managedAgents),
+        managedPrompts: normalizeInstallStateItems(state.managedPrompts),
+      },
+      null,
+      2
+    ) + '\n',
+    'utf8'
+  );
+}
+
+function getManagedSkillName(asset) {
+  const destination = String(asset && asset.destination ? asset.destination : asset && asset.source ? asset.source : '').replace(/[\\/]+$/, '');
+  return path.basename(destination).trim() || null;
+}
+
+function getManagedFileName(asset) {
+  const destination = String(asset && asset.destination ? asset.destination : asset && asset.source ? asset.source : '').trim();
+  return destination ? path.basename(destination) : null;
+}
+
+function buildManagedInstallState(manifest, opts = {}) {
+  const pointerMode = opts.pointerMode !== false;
+  const state = {
+    schemaVersion: INSTALL_STATE_SCHEMA_VERSION,
+    installProfile: 'copilot-ui',
+    managedSkills: [],
+    alwaysLoadedSkills: [],
+    vaultSkills: [],
+    managedAgents: [],
+    managedPrompts: [],
+  };
+
+  for (const asset of Array.isArray(manifest.assets) ? manifest.assets : []) {
+    if (!asset || typeof asset !== 'object') {
+      continue;
+    }
+
+    if (asset.type === 'skill') {
+      const skillName = getManagedSkillName(asset);
+      if (!skillName) {
+        continue;
+      }
+
+      state.managedSkills.push(skillName);
+      if (pointerMode) {
+        state.vaultSkills.push(skillName);
+        if ((asset.loadMode || 'on-demand') === 'always') {
+          state.alwaysLoadedSkills.push(skillName);
+        }
+      } else {
+        state.alwaysLoadedSkills.push(skillName);
+      }
+      continue;
+    }
+
+    if (asset.type === 'agent') {
+      const fileName = getManagedFileName(asset);
+      if (fileName) {
+        state.managedAgents.push(fileName);
+      }
+      continue;
+    }
+
+    if (asset.type === 'prompt') {
+      const fileName = getManagedFileName(asset);
+      if (fileName) {
+        state.managedPrompts.push(fileName);
+      }
+    }
+  }
+
+  state.managedSkills = normalizeInstallStateItems(state.managedSkills);
+  state.alwaysLoadedSkills = normalizeInstallStateItems(state.alwaysLoadedSkills);
+  state.vaultSkills = normalizeInstallStateItems(state.vaultSkills);
+  state.managedAgents = normalizeInstallStateItems(state.managedAgents);
+  state.managedPrompts = normalizeInstallStateItems(state.managedPrompts);
+  return state;
+}
+
+function removeInstallArtifact(home, artifactAbs, options = {}) {
+  const dryRun = options.dryRun === true;
+  const resolvedHome = path.resolve(home);
+  const resolvedArtifact = path.resolve(artifactAbs);
+
+  if (!fs.existsSync(resolvedArtifact)) {
+    return false;
+  }
+
+  const stat = fs.statSync(resolvedArtifact);
+  if (!dryRun) {
+    if (stat.isDirectory()) {
+      fs.rmSync(resolvedArtifact, { recursive: true, force: true });
+    } else {
+      fs.unlinkSync(resolvedArtifact);
+    }
+    tryRemoveEmptyDirsUp(path.dirname(resolvedArtifact), resolvedHome);
+  }
+
+  return true;
+}
+
+function pruneManagedFileInstall(home, relativeDir, currentFiles, previousFiles, options = {}) {
+  const dryRun = options.dryRun === true;
+  const targetRoot = path.join(path.resolve(home), relativeDir);
+  const currentSet = new Set(normalizeInstallStateItems(currentFiles));
+  const pruneCandidates = normalizeInstallStateItems([...(previousFiles || []), ...(currentFiles || [])]);
+  const removed = [];
+
+  for (const fileName of pruneCandidates) {
+    if (currentSet.has(fileName)) {
+      continue;
+    }
+
+    const artifactAbs = path.join(targetRoot, fileName);
+    if (removeInstallArtifact(home, artifactAbs, { dryRun })) {
+      removed.push(toPosixPath(path.join(relativeDir, fileName)));
+    }
+  }
+
+  return removed;
+}
+
+function pruneManagedSkillInstall(home, currentState, previousState, options = {}) {
+  const dryRun = options.dryRun === true;
+  const resolvedHome = path.resolve(home);
+  const currentAlways = new Set(normalizeInstallStateItems(currentState.alwaysLoadedSkills));
+  const currentVault = new Set(normalizeInstallStateItems(currentState.vaultSkills));
+  const previousManaged = normalizeInstallStateItems(previousState && previousState.managedSkills);
+  const previousVault = previousState && Array.isArray(previousState.vaultSkills)
+    ? normalizeInstallStateItems(previousState.vaultSkills)
+    : previousManaged;
+  const pruneCandidates = normalizeInstallStateItems([
+    ...(currentState.managedSkills || []),
+    ...(currentState.vaultSkills || []),
+    ...previousManaged,
+    ...previousVault,
+  ]);
+  const removed = [];
+
+  for (const skillName of pruneCandidates) {
+    if (!currentAlways.has(skillName)) {
+      const skillDir = path.join(resolvedHome, 'skills', skillName);
+      const pointerFile = path.join(resolvedHome, 'skills', `${skillName}.md`);
+      if (removeInstallArtifact(home, skillDir, { dryRun })) {
+        removed.push(toPosixPath(path.join('skills', skillName)));
+      }
+      if (removeInstallArtifact(home, pointerFile, { dryRun })) {
+        removed.push(toPosixPath(path.join('skills', `${skillName}.md`)));
+      }
+    }
+
+    if (!currentVault.has(skillName)) {
+      const vaultDir = path.join(resolvedHome, 'skills-vault', skillName);
+      const vaultFile = path.join(resolvedHome, 'skills-vault', `${skillName}.md`);
+      if (removeInstallArtifact(home, vaultDir, { dryRun })) {
+        removed.push(toPosixPath(path.join('skills-vault', skillName)));
+      }
+      if (removeInstallArtifact(home, vaultFile, { dryRun })) {
+        removed.push(toPosixPath(path.join('skills-vault', `${skillName}.md`)));
+      }
+    }
+  }
+
+  return removed;
 }
 
 function getAssetPaths(engineRoot, destinationHome, asset, opts) {
@@ -990,10 +1215,32 @@ function syncAsset(engineRoot, destinationHome, assetId, opts) {
 }
 
 function syncAll(engineRoot, destinationHome, opts) {
+  return syncManagedInstall(engineRoot, destinationHome, opts).synced;
+}
+
+function syncManagedInstall(engineRoot, destinationHome, opts) {
   const manifest = loadManifest(engineRoot);
-  return manifest.assets
+  const previousState = readInstallState(destinationHome);
+  const synced = manifest.assets
     .map((a) => syncAsset(engineRoot, destinationHome, a.id, opts))
     .filter((result) => !(result && result.reason === 'source_missing_or_unreadable'));
+
+  const nextState = buildManagedInstallState(manifest, opts);
+  const prunedPaths = [
+    ...pruneManagedSkillInstall(destinationHome, nextState, previousState, opts),
+    ...pruneManagedFileInstall(destinationHome, 'agents', nextState.managedAgents, previousState && previousState.managedAgents, opts),
+    ...pruneManagedFileInstall(destinationHome, 'prompts', nextState.managedPrompts, previousState && previousState.managedPrompts, opts),
+  ];
+
+  if (!(opts && opts.dryRun === true)) {
+    writeInstallState(destinationHome, nextState);
+  }
+
+  return {
+    synced,
+    prunedPaths,
+    installState: nextState,
+  };
 }
 
 function tryRemoveEmptyDirsUp(startDirAbs, stopDirAbs) {
@@ -1133,6 +1380,7 @@ module.exports = {
   readTextFileSafe,
   syncAsset,
   syncAll,
+  syncManagedInstall,
   removeAsset,
   generatePointer,
   isPointerFile,

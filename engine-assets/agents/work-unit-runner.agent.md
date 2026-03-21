@@ -18,13 +18,16 @@ Execute one or more work units provided inline by the caller (typically `@orches
 - `wuSpecs`: inline WU specs (required for group mode)
 - `targetRepo`: repo/workspace root (if ambiguous)
 - `explorationContext`: structured summary from orchestrator (optional)
-- `progressTracker`: path to progress tracker (optional, group mode)
+- `previousAttemptSummary`: one short summary of the most recent failed or revised step (optional)
+- `sessionStateSummary`: compact active-goal / next-unit / blocker state from orchestrator (optional)
 
 ## Non-Negotiables
 - Treat the provided `spec` / `wuSpecs` as the source of truth.
 - Do NOT create or modify repo-local `.instructions/*`.
 - Do NOT execute integration or E2E tests unless the spec explicitly requires it; request them instead.
 - If scope/unknowns exceed the spec, request replanning.
+- Do not silently absorb discovered work that changes goals, dependencies, or success criteria. Surface it as `REPLAN_REQUESTED` or `NEW_WORK_UNIT_REQUEST`.
+- When blocked by a missing user decision, return the exact decision needed instead of guessing.
 
 ## Execution Workflow
 1. **Load context**: Parse spec(s), identify AC/approach/validation, incorporate `explorationContext`.
@@ -42,6 +45,7 @@ Execute one or more work units provided inline by the caller (typically `@orches
 
 ## Group Execution Mode
 - `workUnitIds` + `wuSpecs` provided instead of single `workUnitId`/`spec`.
+- This is the default mode for orchestrator long-work delivery.
 - Execute WUs sequentially in listed order using the same workflow per WU.
 - **If a WU fails or needs replanning, STOP** — return results for completed WUs plus the failure.
 - Return one `WORK_UNIT_RESULT` block per completed WU.

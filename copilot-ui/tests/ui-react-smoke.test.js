@@ -51,11 +51,12 @@ async function run() {
     assert.ok(fs.existsSync(path.join(uiSrcRoot, 'App.tsx')), 'Missing ui/src/App.tsx');
   });
 
-  await test('active workspace hub view files exist for home runtime, planning, and catalog', async () => {
+  await test('active workspace hub view files exist for home runtime, planning, catalog, and stats', async () => {
     const expectedViews = [
       path.join(uiSrcRoot, 'tabs', 'HomeRuntime', 'HomeRuntimeView.tsx'),
       path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningView.tsx'),
       path.join(uiSrcRoot, 'tabs', 'Catalog', 'CatalogView.tsx'),
+      path.join(uiSrcRoot, 'tabs', 'Stats', 'StatsView.tsx'),
     ];
 
     for (const expectedView of expectedViews) {
@@ -68,12 +69,13 @@ async function run() {
     );
   });
 
-  await test('App.tsx references the current 3-hub shell views', async () => {
+  await test('App.tsx references the current 4-hub shell views', async () => {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
 
     assert.ok(appSource.includes("./tabs/HomeRuntime/HomeRuntimeView"), 'Expected HomeRuntimeView import in App.tsx');
     assert.ok(appSource.includes("./tabs/Planning/PlanningView"), 'Expected PlanningView import in App.tsx');
     assert.ok(appSource.includes("./tabs/Catalog/CatalogView"), 'Expected CatalogView import in App.tsx');
+    assert.ok(appSource.includes("./tabs/Stats/StatsView"), 'Expected StatsView import in App.tsx');
     assert.ok(!appSource.includes("./tabs/Sessions/SessionsWorkspaceView"), 'Did not expect legacy SessionsWorkspaceView import in App.tsx');
     assert.ok(!appSource.includes("./tabs/State/StateView"), 'Did not expect retired StateView import in App.tsx');
   });
@@ -92,6 +94,111 @@ async function run() {
 
     assert.ok(appCss.includes(':focus-visible'), 'Expected :focus-visible styles in app.css');
     assert.ok(appCss.includes('@media (prefers-reduced-motion: reduce)'), 'Expected reduced-motion media query in app.css');
+  });
+
+  await test('global layout reserves scrollbar space and runtime workspace tabs use stable nav styling', async () => {
+    const globalCss = fs.readFileSync(path.join(uiSrcRoot, 'styles', 'global.css'), 'utf8');
+    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
+    const homeRuntimeSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'HomeRuntime', 'HomeRuntimeView.tsx'), 'utf8');
+
+    assert.ok(globalCss.includes('scrollbar-gutter: stable;'), 'Expected stable scrollbar gutter in global.css');
+    assert.ok(appCss.includes('.workspace-nav-stable {'), 'Expected stable workspace nav selector in app.css');
+    assert.ok(
+      homeRuntimeSource.includes('className="workspace-nav workspace-nav-stable"'),
+      'Expected HomeRuntimeView to opt into stable workspace nav styling'
+    );
+  });
+
+  await test('runtime no longer exposes a standalone sandbox tab and sessions mode buttons use stable toolbar layout', async () => {
+    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
+    const homeRuntimeSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'HomeRuntime', 'HomeRuntimeView.tsx'), 'utf8');
+    const sessionsViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsView.tsx'), 'utf8');
+
+    assert.ok(appCss.includes('.showcase-toolbar-group-stable {'), 'Expected stable toolbar group selector in app.css');
+    assert.ok(
+      sessionsViewSource.includes('className="showcase-toolbar-group showcase-toolbar-group-stable"'),
+      'Expected SessionsView mode toolbar to opt into stable layout styling'
+    );
+    assert.ok(
+      !homeRuntimeSource.includes('testId="home-runtime-section-sandboxes"'),
+      'Did not expect HomeRuntimeView to expose a standalone sandboxes runtime section'
+    );
+    assert.ok(
+      homeRuntimeSource.includes('Open Executor Sandbox Mode'),
+      'Expected sandbox quick action to route through the executor surface'
+    );
+  });
+
+  await test('executor observes merged external CLI and VS Code sessions', async () => {
+    const executorStoreSource = fs.readFileSync(
+      path.join(uiSrcRoot, 'tabs', 'Executor', 'executorStore.ts'),
+      'utf8'
+    );
+    const executorViewSource = fs.readFileSync(
+      path.join(uiSrcRoot, 'tabs', 'Executor', 'ExecutorView.tsx'),
+      'utf8'
+    );
+
+    assert.ok(
+      executorStoreSource.includes("listSessions(undefined, { source: 'all', dedupe: 'on' })"),
+      'Expected executorStore to load merged external sessions with source=all and dedupe=on'
+    );
+    assert.ok(
+      executorStoreSource.includes('observedExternalSessions'),
+      'Expected executorStore to track observedExternalSessions'
+    );
+    assert.ok(
+      executorViewSource.includes('Observed External Sessions'),
+      'Expected ExecutorView to expose the Observed External Sessions surface'
+    );
+    assert.ok(
+      executorViewSource.includes('executor-observed-sessions-panel'),
+      'Expected ExecutorView to expose a stable test id for observed external sessions'
+    );
+    assert.ok(
+      executorViewSource.includes('executor-sandbox-mode-section'),
+      'Expected ExecutorView to absorb sandbox lifecycle as an embedded execution mode section'
+    );
+  });
+
+  await test('stats tab aggregates runtime, catalog, and sampled recent session telemetry', async () => {
+    const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
+    const navigationSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'navigation.ts'), 'utf8');
+    const statsStoreSource = fs.readFileSync(
+      path.join(uiSrcRoot, 'tabs', 'Stats', 'statsStore.ts'),
+      'utf8'
+    );
+    const statsViewSource = fs.readFileSync(
+      path.join(uiSrcRoot, 'tabs', 'Stats', 'StatsView.tsx'),
+      'utf8'
+    );
+
+    assert.ok(navigationSource.includes("'stats'"), 'Expected navigation.ts to register the stats tab id');
+    assert.ok(
+      navigationSource.includes("label: 'Stats'"),
+      'Expected navigation.ts to register the Stats tab label'
+    );
+    assert.ok(
+      appSource.includes("activeTabId === 'stats' ? <StatsView /> : null"),
+      'Expected App.tsx to render StatsView from the shell'
+    );
+    assert.ok(statsStoreSource.includes('getHealth()'), 'Expected statsStore to load runtime health');
+    assert.ok(statsStoreSource.includes('getRuntimeCatalogHealth()'), 'Expected statsStore to load catalog health');
+    assert.ok(statsStoreSource.includes('getCatalogAssetAnalytics()'), 'Expected statsStore to load catalog telemetry');
+    assert.ok(statsStoreSource.includes('getSdkHealth()'), 'Expected statsStore to load SDK health');
+    assert.ok(statsStoreSource.includes('getExecutorHealth()'), 'Expected statsStore to load executor health');
+    assert.ok(
+      statsStoreSource.includes("listSessions(undefined, { source: 'all', dedupe: 'on' })"),
+      'Expected statsStore to load merged sessions with source=all and dedupe=on'
+    );
+    assert.ok(
+      statsStoreSource.includes('getSessionAgentUsage(session.id'),
+      'Expected statsStore to sample recent per-session usage'
+    );
+    assert.ok(statsViewSource.includes('data-testid="stats-view"'), 'Expected StatsView root test id');
+    assert.ok(statsViewSource.includes('Runtime Health'), 'Expected StatsView runtime health section');
+    assert.ok(statsViewSource.includes('Catalog Telemetry'), 'Expected StatsView catalog telemetry section');
+    assert.ok(statsViewSource.includes('Recent Usage'), 'Expected StatsView recent usage section');
   });
 
   await test('session selector contract is present in source app.css', async () => {

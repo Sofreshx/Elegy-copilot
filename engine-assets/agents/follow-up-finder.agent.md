@@ -29,6 +29,8 @@ implement changes or run validation.
 - `remaining_work_signal`: output from `remaining-work` when available
 - `review_outputs`: reviewer findings, governance audits, or post-mortem notes
 - `validation_evidence`: checks run, checks skipped, artifacts, or explicit absence of evidence
+- `active_goal_context`: current active goals and known completion state when available
+- `carryover_snapshot`: unresolved-goal or planning carryover context when relevant
 - `constraints`: scope limits, deadlines, explicit deferrals, or blocker context
 
 ## Workflow
@@ -39,10 +41,11 @@ implement changes or run validation.
    - `defer_or_backlog` for real but non-blocking future work
    - `research_threads` for topics that need `research-ideation` before planning
    - `blockers` for items that prevent responsible completion now
-3. Prefer reviewer findings, missing validation, and explicit scope gaps over speculative polish.
+3. Prefer blockers, active-goal gaps, missing validation, and reviewer findings over speculative polish.
 4. Escalate to research only when the next step is unclear without option analysis, outside
    evidence, or adoption framing.
 5. Keep every task planning-ready: state the missing thing, why it matters, and the next action.
+6. When carryover context is present, distinguish active-session continuation from non-active carryover so old goals do not become zombie follow-ups.
 
 ## Hard Rules
 - Read-only lane: do not edit files, run commands, or invoke other agents.

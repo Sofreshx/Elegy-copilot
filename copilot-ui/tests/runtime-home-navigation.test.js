@@ -30,10 +30,11 @@ async function run() {
   const navigationSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'navigation.ts'), 'utf8');
   const homeRuntimeSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'HomeRuntime', 'HomeRuntimeView.tsx'), 'utf8');
 
-  await test('navigation store freezes the 3 top-level hubs and default landing state', async () => {
+  await test('navigation store freezes the 4 top-level hubs and default landing state', async () => {
     assert.ok(navigationSource.includes("'home-runtime'"), 'Expected home-runtime tab id');
     assert.ok(navigationSource.includes("'catalog'"), 'Expected catalog tab id');
     assert.ok(navigationSource.includes("'planning'"), 'Expected planning tab id');
+    assert.ok(navigationSource.includes("'stats'"), 'Expected stats tab id');
     assert.ok(navigationSource.includes("activeTabId: 'home-runtime'"), 'Expected default tab to be home-runtime');
     assert.ok(navigationSource.includes("runtimeSectionId: 'overview'"), 'Expected default runtime section to be overview');
     assert.ok(navigationSource.includes("diagnosticsSectionId: 'runtime'"), 'Expected default diagnostics section to be runtime');
@@ -42,6 +43,7 @@ async function run() {
   await test('App handoff wiring routes planning back into Home / Runtime sessions', async () => {
     assert.ok(appSource.includes("navigationStore.goToRuntime('sessions', { sessionsMode: 'sdk' });"), 'Expected planning handoff to runtime sessions');
     assert.ok(appSource.includes("activeTabId === 'home-runtime' ? <HomeRuntimeView /> : null"), 'Expected HomeRuntimeView as the runtime tab panel');
+    assert.ok(appSource.includes("activeTabId === 'stats' ? <StatsView /> : null"), 'Expected StatsView as a top-level tab panel');
   });
 
   await test('HomeRuntimeView exposes the frozen runtime subsections', async () => {
@@ -49,11 +51,15 @@ async function run() {
       'home-runtime-section-overview',
       'home-runtime-section-sessions',
       'home-runtime-section-executor',
-      'home-runtime-section-sandboxes',
       'home-runtime-section-diagnostics',
     ]) {
       assert.ok(homeRuntimeSource.includes(sectionTestId), `Expected ${sectionTestId} in HomeRuntimeView`);
     }
+
+    assert.ok(
+      !homeRuntimeSource.includes('home-runtime-section-sandboxes'),
+      'Did not expect a standalone sandbox runtime section in HomeRuntimeView'
+    );
   });
 
   await test('Overview quick actions cover runtime refresh and cross-hub handoffs', async () => {

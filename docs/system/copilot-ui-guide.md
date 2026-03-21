@@ -265,18 +265,18 @@ automatic retries with configurable backoff.
 
 ## UI tabs
 
-The React UI currently exposes **3 top-level hubs** in the application shell:
+The React UI currently exposes **4 top-level hubs** in the application shell:
 
 - `Home / Runtime`
 - `Catalog`
 - `Planning`
+- `Stats`
 
 Within `Home / Runtime`, the runtime subsections now include:
 
 - `Overview`
 - `Sessions`
 - `Executor`
-- `Sandboxes`
 - `Diagnostics`
 
 Source of truth:
@@ -287,21 +287,23 @@ Source of truth:
 
 The current shell maps to these primary surfaces:
 
-- `Home / Runtime` — default operational landing hub for overview, sessions, sandboxes, and diagnostics.
+- `Home / Runtime` — default operational landing hub for overview, sessions, executor-managed runtime work, and diagnostics.
 - `Catalog` — asset workspace, installs, skill/agent discovery, and aggregate search/selection/invocation observability.
 - `Planning` — ideas, planning records, compare/merge flows, research notes, and compile-to-runtime handoff.
+- `Stats` — runtime health, deduped merged session coverage, catalog telemetry rollups, and recent sampled agent/skill usage.
 
 Primary implementation:
 
 - `copilot-ui/ui/src/tabs/HomeRuntime/HomeRuntimeView.tsx`
 - `copilot-ui/ui/src/tabs/Catalog/CatalogView.tsx`
 - `copilot-ui/ui/src/tabs/Planning/PlanningView.tsx`
+- `copilot-ui/ui/src/tabs/Stats/StatsView.tsx`
 
 `Home / Runtime` currently owns these frozen sub-sections:
 
 - `Overview`
 - `Sessions`
-- `Sandboxes`
+- `Executor`
 - `Diagnostics`
 
 The `Catalog` asset workspace now surfaces aggregate observability rollups sourced from
@@ -316,12 +318,19 @@ catalog audit analytics to show per-session skill search, selection, and invocat
 When explicit invocation evidence is absent, the UI labels the skill/session rollup as
 proxy-only visibility instead of implying authoritative execution telemetry.
 
+The top-level `Stats` surface now consolidates the same existing telemetry contracts into one
+read-only observability dashboard. It combines `/api/health`, `/api/runtime/catalog-health`,
+`/api/audit/assets`, `/api/sdk/health`, `/api/executor/health`, and merged `/api/sessions`
+inventory, then samples recent `/api/sessions/:id/agent-usage` data from a bounded recent
+session window to surface top recent agents and skills without implying exhaustive historical or
+token-level accounting.
+
 Diagnostics hosts the narrower `Instruction Engine Runtime`, `Planning Database`,
 `Gateway`, `Tracker`, and `LSP` operator surfaces. The runtime diagnostics panel now also
 surfaces GitHub access state for the built-in CLI lane plus the workspace `.vscode/mcp.json`
 GitHub MCP lane, including a button to patch the recommended read-only workspace entry. The
 `ui/src/tabs/` directory still contains narrower feature views such as `Gateway`, `Tracker`,
-`Sandboxes`, and `SkillsPreview`, but the application shell plus the
+embedded sandbox lifecycle helpers, and `SkillsPreview`, but the application shell plus the
 navigation store remain the authoritative UX model for which destinations are top-level.
 
 ## Persistence and state model

@@ -331,6 +331,17 @@
   gap: var(--space-xs);
 }
 
+.showcase-toolbar-group-stable {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.showcase-toolbar-group-stable > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .workspace-stack {
   display: grid;
   gap: var(--space-lg);
@@ -341,6 +352,8 @@
 .state-summary {
   display: grid;
   gap: var(--space-2xs);
+  flex: 1 1 18rem;
+  min-width: min(100%, 18rem);
 }
 
 .workspace-nav-title,
@@ -371,6 +384,18 @@
   flex-wrap: wrap;
   gap: var(--space-xs);
   align-items: center;
+}
+
+.workspace-nav-stable {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.workspace-nav-stable > * {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .idea-record-list {

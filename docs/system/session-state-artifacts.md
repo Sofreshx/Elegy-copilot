@@ -19,6 +19,8 @@ it may include reconciliation metadata, but it does not override the runtime-fir
 
 ## Canonical Session Root
 
+These artifacts are canonical **when a persisted session workflow or host-managed artifact flow is in use**. The default chat-first orchestrator path does not have to materialize this directory for every run; it may keep active state in chat plus host/runtime state and only rely on this directory when the workflow explicitly persists artifacts.
+
 All session state lives under:
 
 ```
@@ -87,6 +89,8 @@ The plan artifact contains **two top-level documents in one markdown file**:
 
 This dual-document approach matches the persisted session planning workflow output used by the planning/execution lane.
 
+In the default chat-first orchestrator path, the same conceptual state may remain in chat and host/runtime state instead of being written immediately to `plan.md`. When a persisted lane is chosen later, the artifact should still follow this shape.
+
 High-level goal intent and completion semantics for planning/review workflows are governed by
 [[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md).
 
@@ -130,6 +134,8 @@ An append-only file that accumulates guidance at key milestones:
 - **after-execution** — Retrospective notes after execution completes
 
 Use durable structured sections so resumptions and downstream planning can extract the next move without re-reading the entire session.
+
+This remains an optional persisted artifact for the chat-first default path. The orchestrator may instead keep the equivalent guidance in concise chat/host state summaries until an explicit persisted workflow or host/runtime artifact flow writes it out.
 
 - `direction` entries should include: `Summary`, `Watch Outs`, `Open Risks`, and `Details`.
 - `after-planning` and `after-execution` entries should include: `Summary`, `Immediate Next Actions`, `Next Plan Ideas`, `Watch Outs`, `Open Risks`, and `Details`.

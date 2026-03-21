@@ -4,6 +4,7 @@ export const TAB_IDS = [
   'home-runtime',
   'catalog',
   'planning',
+  'stats',
 ] as const;
 
 export type TabId = (typeof TAB_IDS)[number];
@@ -12,7 +13,6 @@ export const RUNTIME_SECTION_IDS = [
   'overview',
   'sessions',
   'executor',
-  'sandboxes',
   'diagnostics',
 ] as const;
 
@@ -54,9 +54,10 @@ export type NavigationState = {
 };
 
 export const NAVIGATION_TABS: readonly NavigationTab[] = [
-  { id: 'home-runtime', label: 'Home / Runtime', description: 'Overview, sessions, sandboxes, and diagnostics' },
+  { id: 'home-runtime', label: 'Home / Runtime', description: 'Overview, sessions, executor, and diagnostics' },
   { id: 'catalog', label: 'Catalog', description: 'Asset workspace, installs, and skill discovery' },
   { id: 'planning', label: 'Planning', description: 'Repo-backed backlog, roadmaps, and planning workflows' },
+  { id: 'stats', label: 'Stats', description: 'Runtime health, catalog telemetry, and recent sampled usage' },
 ];
 
 const INITIAL_STATE: NavigationState = {

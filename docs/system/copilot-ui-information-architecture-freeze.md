@@ -3,9 +3,9 @@ created: 2026-03-14
 updated: 2026-03-14
 category: system
 status: current
-doc_kind: decision
+doc_kind: node
 id: copilot-ui-information-architecture-freeze
-summary: Approved information architecture freeze for the copilot-ui overhaul, including the 3-hub shell, migration map, parallel workstreams, and known risks.
+summary: Approved information architecture freeze for the copilot-ui overhaul, including the 4-hub shell, migration map, parallel workstreams, and known risks.
 tags: [copilot-ui, information-architecture, navigation, planning, catalog, sessions]
 related: [copilot-ui-guide, catalog-control-plane, session-state-artifacts, workflow-planning-contract]
 ---
@@ -22,10 +22,11 @@ overhaul phase. It is a **design decision**, not an implementation log.
 The current shell and tab layout establish the baseline that the overhaul absorbed rather than
 replacing from scratch.
 
-- Top-level hubs are now `Home / Runtime`, `Catalog`, and `Planning`
+- Top-level hubs are now `Home / Runtime`, `Catalog`, `Planning`, and `Stats`
   (`copilot-ui/ui/src/stores/navigation.ts`, `copilot-ui/ui/src/App.tsx`).
 - `HomeRuntimeView` now acts as the runtime, status, and diagnostics hub with `Overview`,
-  `Sessions`, `Sandboxes`, and `Diagnostics` sub-sections
+  `Sessions`, `Executor`, and `Diagnostics` sub-sections, with sandbox lifecycle embedded under
+  `Executor`
   (`copilot-ui/ui/src/tabs/HomeRuntime/HomeRuntimeView.tsx`).
 - Diagnostics now exposes `Instruction Engine Runtime`, `Planning Database`, `Gateway`,
   `Tracker`, and `LSP` operator surfaces from the active runtime hub.
@@ -43,11 +44,12 @@ replacing from scratch.
 
 ## Frozen top-level IA
 
-`copilot-ui` will move to exactly **3 top-level hubs**:
+`copilot-ui` will move to exactly **4 top-level hubs**:
 
 1. **Home / Runtime**
 2. **Catalog**
 3. **Planning**
+4. **Stats**
 
 This is the final navigation model for the overhaul. The former standalone `Sessions` and `State`
 top-level tabs are retired as top-level destinations and folded into **Home / Runtime**.
@@ -75,7 +77,7 @@ Home / Runtime will contain these sub-sections:
 
 1. **Overview** — default landing
 2. **Sessions**
-3. **Sandboxes**
+3. **Executor**
 4. **Diagnostics**
 
 **Overview responsibilities**
@@ -116,10 +118,12 @@ The Sessions section becomes the main runtime engagement workspace and absorbs t
 - SDK message streaming
 - session deletion / lifecycle controls already supported by policy
 
-**Sandboxes responsibilities**
+**Executor responsibilities**
 
-The Sandboxes section keeps sandbox lifecycle and follow-session behavior:
+The Executor section owns queued/runtime work plus embedded sandbox lifecycle behavior:
 
+- executor job and run management
+- external CLI and VS Code session observation
 - manual sandbox lifecycle controls
 - sandbox inventory
 - follow sandbox session into runtime engagement
@@ -165,6 +169,28 @@ Catalog Overview is the discovery dashboard for:
 **Assets responsibilities**
 
 Assets remains the management workspace currently anchored by `AssetsView`:
+
+### 4. Stats
+
+**Purpose**
+
+Stats is the top-level observability hub for runtime, session, asset, search, and recent sampled
+usage telemetry.
+
+**Frozen responsibilities**
+
+Stats owns cross-cutting read-only observability that is already available through existing
+contracts but was previously split across Runtime, Catalog, and Session detail views:
+
+- instruction-engine runtime health summary
+- catalog projection/runtime health summary
+- SDK bridge and executor health summary
+- deduped merged session inventory summary across CLI, VS Code, and sandbox sources
+- aggregate catalog audit analytics for assets, repos, sessions, search, and invocation counts
+- bounded recent agent and skill rollups sampled from recent merged sessions
+
+Stats must not imply exhaustive token usage or full historical accounting unless an authoritative
+backend source is introduced later.
 
 - effective asset table
 - installed inventory
@@ -225,7 +251,7 @@ already has stable affordances.
 | Top-level `Catalog` | Top-level `Catalog` | Expand to include dedicated Overview and Agents sections. |
 | Top-level `Sessions` | `Home / Runtime` | Retire as top-level tab. |
 | `Sessions > Runtime` | `Home / Runtime > Sessions` | Runtime engagement stays intact under the new home hub. |
-| `Sessions > Sandboxes` | `Home / Runtime > Sandboxes` | Sandbox lifecycle stays intact under the new home hub. |
+| `Sessions > Sandboxes` | `Home / Runtime > Executor` | Sandbox lifecycle stays intact, but as an embedded executor mode instead of a standalone runtime destination. |
 | Top-level `State` | `Home / Runtime` | Retire as top-level tab. |
 | `State > Overview` | `Home / Runtime > Overview` | Becomes the default dashboard landing section. |
 | `State > Gateway` | `Home / Runtime > Diagnostics > Gateway` | Diagnostics-only move; no separate top-level ownership. |
@@ -292,7 +318,7 @@ Keep this stream out of `Catalog` and `Planning` files except for agreed navigat
 **Scope**
 
 - move current sessions runtime UI under Home / Runtime
-- move sandboxes under Home / Runtime
+- move sandboxes under Executor inside Home / Runtime
 - preserve follow-session behavior and SDK flow behavior
 
 **Conflict notes**

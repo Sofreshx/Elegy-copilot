@@ -20,7 +20,6 @@ import { sdkHealthStore } from '../../stores/sdkHealthStore';
 import GatewayView from '../Gateway/GatewayView';
 import ExecutorView from '../Executor/ExecutorView';
 import LspView from '../LSP/LspView';
-import SandboxesView from '../Sandboxes/SandboxesView';
 import { readSandboxId, sandboxesStore } from '../Sandboxes/sandboxesStore';
 import SessionsView from '../Sessions/SessionsView';
 import { sessionsStore } from '../Sessions/sessionsStore';
@@ -627,11 +626,7 @@ export default function HomeRuntimeView() {
     },
     executor: {
       title: 'Executor',
-      body: 'Schedule SDK-backed prompts, monitor parallel runs, and retry rate-limited work with backoff.',
-    },
-    sandboxes: {
-      title: 'Sandboxes',
-      body: 'Manage sandbox lifecycle, branch context, and follow sandbox work back into runtime sessions.',
+      body: 'Schedule SDK-backed prompts, monitor runs, observe external sessions, and manage sandbox execution mode.',
     },
     diagnostics: {
       title: 'Diagnostics',
@@ -685,17 +680,6 @@ export default function HomeRuntimeView() {
     })();
   };
 
-  const handleFollowSandboxSession = (sessionId: string) => {
-    void (async () => {
-      try {
-        await sessionsStore.loadSessions();
-        sessionsStore.selectSession(sessionId);
-      } finally {
-        navigationStore.goToRuntime('sessions', { sessionsMode: 'local' });
-      }
-    })();
-  };
-
   return (
     <section className="workspace-stack home-runtime-view" data-testid="home-runtime-view">
       <Toolbar testId="home-runtime-toolbar">
@@ -704,7 +688,7 @@ export default function HomeRuntimeView() {
           <p className="workspace-nav-copy">{activeSectionCopy.body}</p>
         </div>
 
-        <div className="workspace-nav" role="tablist" aria-label="Home and runtime sections">
+        <div className="workspace-nav workspace-nav-stable" role="tablist" aria-label="Home and runtime sections">
           <Button
             onClick={() => navigationStore.setRuntimeSectionId('overview')}
             testId="home-runtime-section-overview"
@@ -725,13 +709,6 @@ export default function HomeRuntimeView() {
             variant={activeSection === 'executor' ? 'primary' : 'ghost'}
           >
             Executor
-          </Button>
-          <Button
-            onClick={() => navigationStore.setRuntimeSectionId('sandboxes')}
-            testId="home-runtime-section-sandboxes"
-            variant={activeSection === 'sandboxes' ? 'primary' : 'ghost'}
-          >
-            Sandboxes
           </Button>
           <Button
             onClick={() => navigationStore.setRuntimeSectionId('diagnostics')}
@@ -848,13 +825,13 @@ export default function HomeRuntimeView() {
                 <div className="state-card-header">
                   <p className="state-card-title">Launch or continue sandbox-backed runtime work</p>
                 </div>
-                <p className="state-card-copy">Jump into sandbox lifecycle controls and follow sandbox sessions into runtime.</p>
+                <p className="state-card-copy">Open Executor to manage sandbox lifecycle, launch sandbox-backed runs, and follow sandbox sessions into runtime.</p>
                 <Button
-                  onClick={() => navigationStore.goToRuntime('sandboxes')}
+                  onClick={() => navigationStore.goToRuntime('executor')}
                   testId="runtime-overview-sandbox-action"
                   variant="secondary"
                 >
-                  Open Sandboxes
+                  Open Executor Sandbox Mode
                 </Button>
               </article>
 
@@ -894,17 +871,9 @@ export default function HomeRuntimeView() {
 
       {activeSection === 'executor' ? <ExecutorView /> : null}
 
-      {activeSection === 'sandboxes' ? (
-        <SandboxesView
-          onFollowSessions={(sessionId) => {
-            handleFollowSandboxSession(sessionId);
-          }}
-        />
-      ) : null}
-
       {activeSection === 'diagnostics' ? (
         <div className="workspace-stack" data-testid="home-runtime-diagnostics-view">
-          <div className="workspace-nav" role="tablist" aria-label="Runtime diagnostics sections">
+          <div className="workspace-nav workspace-nav-stable" role="tablist" aria-label="Runtime diagnostics sections">
             <Button
               onClick={() => navigationStore.setDiagnosticsSectionId('runtime')}
               testId="home-runtime-diagnostics-runtime"

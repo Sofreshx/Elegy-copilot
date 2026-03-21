@@ -2,22 +2,26 @@ import {
   cancelExecutorJob,
   createExecutorJob,
   getExecutorHealth,
+  listSessions,
   listExecutorJobs,
   listExecutorRuns,
   triggerExecutorJob,
 } from '../../lib/api';
+import { resolveSessionStartedAt, resolveSessionUpdatedAt } from '../../lib/stateDiagnostics';
 import { createStore } from '../../lib/store';
 import type {
   CreateExecutorJobPayload,
   ExecutorHealthResponse,
   ExecutorJob,
   ExecutorRun,
+  SessionSummary,
 } from '../../lib/types';
 
 export interface ExecutorState {
   health: ExecutorHealthResponse;
   jobs: ExecutorJob[];
   runs: ExecutorRun[];
+  observedExternalSessions: SessionSummary[];
   selectedJobId: string | null;
   selectedRunId: string | null;
   loading: boolean;
@@ -25,6 +29,7 @@ export interface ExecutorState {
   triggering: boolean;
   cancelling: boolean;
   error: string | null;
+  observationError: string | null;
 }
 
 const INITIAL_HEALTH: ExecutorHealthResponse = {
@@ -42,6 +47,7 @@ const INITIAL_STATE: ExecutorState = {
   health: INITIAL_HEALTH,
   jobs: [],
   runs: [],
+  observedExternalSessions: [],
   selectedJobId: null,
   selectedRunId: null,
   loading: false,
@@ -49,6 +55,7 @@ const INITIAL_STATE: ExecutorState = {
   triggering: false,
   cancelling: false,
   error: null,
+  observationError: null,
 };
 
 function toErrorMessage(error: unknown, fallback: string): string {
@@ -56,6 +63,49 @@ function toErrorMessage(error: unknown, fallback: string): string {
     return error.message;
   }
   return fallback;
+}
+
+function toSourceSet(session: SessionSummary): string[] {
+  const sourceCandidates = [session.resolvedSourceSet, session.sources, session.source];
+  const collected = new Set<string>();
+
+  for (const candidate of sourceCandidates) {
+    if (Array.isArray(candidate)) {
+      for (const entry of candidate) {
+        const normalized = typeof entry === 'string' ? entry.trim().toLowerCase() : '';
+        if (normalized) {
+          collected.add(normalized);
+        }
+      }
+      continue;
+    }
+
+    const normalized = typeof candidate === 'string' ? candidate.trim().toLowerCase() : '';
+    if (normalized) {
+      collected.add(normalized);
+    }
+  }
+
+  return Array.from(collected);
+}
+
+function isObservedExternalSession(session: SessionSummary): boolean {
+  const sourceSet = toSourceSet(session);
+  return sourceSet.includes('cli') || sourceSet.includes('vscode');
+}
+
+function sortObservedExternalSessions(left: SessionSummary, right: SessionSummary): number {
+  const rightUpdatedAt = resolveSessionUpdatedAt(right) ?? resolveSessionStartedAt(right) ?? 0;
+  const leftUpdatedAt = resolveSessionUpdatedAt(left) ?? resolveSessionStartedAt(left) ?? 0;
+  if (rightUpdatedAt !== leftUpdatedAt) {
+    return rightUpdatedAt - leftUpdatedAt;
+  }
+
+  return String(left.id || '').localeCompare(String(right.id || ''));
+}
+
+function normalizeObservedExternalSessions(sessions: SessionSummary[]): SessionSummary[] {
+  return sessions.filter(isObservedExternalSession).sort(sortObservedExternalSessions).slice(0, 8);
 }
 
 function createExecutorStore() {
@@ -81,10 +131,19 @@ function createExecutorStore() {
     store.setState((state) => ({ ...state, loading: true, error: null }));
 
     try {
-      const [health, jobsResponse, runsResponse] = await Promise.all([
+      const [health, jobsResponse, runsResponse, sessionsResult] = await Promise.all([
         getExecutorHealth(),
         listExecutorJobs(),
         listExecutorRuns(),
+        listSessions(undefined, { source: 'all', dedupe: 'on' })
+          .then((response) => ({
+            sessions: normalizeObservedExternalSessions(response.sessions),
+            error: null,
+          }))
+          .catch((error) => ({
+            sessions: [],
+            error: toErrorMessage(error, 'Unable to observe external sessions.'),
+          })),
       ]);
 
       if (requestVersion !== loadVersion) {
@@ -97,10 +156,12 @@ function createExecutorStore() {
         health,
         jobs: jobsResponse.jobs,
         runs: runsResponse.runs,
+        observedExternalSessions: sessionsResult.sessions,
         selectedJobId: selection.selectedJobId,
         selectedRunId: selection.selectedRunId,
         loading: false,
         error: null,
+        observationError: sessionsResult.error,
       }));
     } catch (error) {
       if (requestVersion !== loadVersion) {

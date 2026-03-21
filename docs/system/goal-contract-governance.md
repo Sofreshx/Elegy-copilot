@@ -66,8 +66,9 @@ Execution workflows must treat `GOAL_REVIEW.status` as authoritative for goal cl
 Carryover persistence/removal is routed separately from the review lane:
 
 1. `@goal-reviewer` emits read-only sync instructions (`unresolved_goals_path`, `carryover_goals`, `resolved_goals_to_remove`), including the provenance needed by the unresolved-goals doc schema.
-2. The workflow routes those instructions through `@doc-writer` or another explicit docs-writing lane.
-3. No workflow should let `@goal-reviewer` write `docs/issues/unresolved-goals.md` directly.
+2. Workflows should pass an explicit carryover owner when one is known. If no stronger owner is available, use a deterministic fallback such as `workflow-orchestrator` rather than leaving Owner undefined.
+3. The workflow routes those instructions through `@doc-writer` or another explicit docs-writing lane.
+4. No workflow should let `@goal-reviewer` write `docs/issues/unresolved-goals.md` directly.
 
 ### Unresolved Goal Persistence Contract
 

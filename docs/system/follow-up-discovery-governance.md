@@ -38,6 +38,7 @@ The follow-up discovery lane is responsible for:
 - separating immediate follow-up work from deeper research threads
 - applying the unresolved-goal carryover rule from [[goal-contract-governance]]
   [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md) when goals are `partial` or `not-complete`
+- prioritizing blockers, active-goal gaps, and missing validation ahead of speculative polish
 
 The research lane is responsible for:
 
@@ -115,6 +116,7 @@ RESEARCH_IDEATION
    notes.
 4. Keep research additive; do not introduce a separate research-scout lane until the upgraded
    `research-ideation` contract proves insufficient.
+5. When carryover context is present, distinguish active-session continuation from non-active carryover so stale goals are not reintroduced as zombie follow-ups.
 
 ## Persistent Discovery Surfaces
 

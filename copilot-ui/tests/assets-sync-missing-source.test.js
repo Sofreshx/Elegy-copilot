@@ -108,6 +108,72 @@ async function run() {
         'Expected canonical asset.installed audit event for managed sync',
       );
     });
+
+    await test('sync-all prunes stale managed assets recorded in the prior install state', async () => {
+      const staleStatePath = path.join(copilotHomeAbs, '.instruction-engine-install-state.json');
+      writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
+        assets: [
+          {
+            id: 'skill-valid',
+            type: 'skill',
+            source: 'engine-assets/skills/valid-skill',
+            destination: 'skills/valid-skill',
+            loadMode: 'always',
+          },
+          {
+            id: 'agent-current',
+            type: 'agent',
+            source: 'engine-assets/agents/current.agent.md',
+            destination: 'agents/current.agent.md',
+          },
+          {
+            id: 'prompt-current',
+            type: 'prompt',
+            source: 'engine-assets/prompts/current.prompt.md',
+            destination: 'prompts/current.prompt.md',
+          },
+        ],
+      });
+      writeText(path.join(engineRoot, 'engine-assets', 'agents', 'current.agent.md'), '# Current Agent\n');
+      writeText(path.join(engineRoot, 'engine-assets', 'prompts', 'current.prompt.md'), '# Current Prompt\n');
+
+      writeText(path.join(copilotHomeAbs, 'skills', 'stale-skill', 'SKILL.md'), '# Stale Skill\n');
+      writeText(path.join(copilotHomeAbs, 'skills-vault', 'stale-skill', 'SKILL.md'), '# Stale Skill Vault\n');
+      writeText(path.join(copilotHomeAbs, 'agents', 'stale.agent.md'), '# Stale Agent\n');
+      writeText(path.join(copilotHomeAbs, 'prompts', 'stale.prompt.md'), '# Stale Prompt\n');
+      writeJson(staleStatePath, {
+        schemaVersion: 3,
+        installProfile: 'minimal',
+        managedSkills: ['stale-skill'],
+        alwaysLoadedSkills: ['stale-skill'],
+        vaultSkills: ['stale-skill'],
+        managedAgents: ['stale.agent.md'],
+        managedPrompts: ['stale.prompt.md'],
+      });
+
+      const response = await invokeSyncAllRoute(engineRoot, copilotHomeAbs, {
+        dryRun: false,
+        force: true,
+        pointerMode: true,
+      });
+
+      assert.strictEqual(response.status, 200);
+      assert.deepStrictEqual(
+        response.payload.result.map((entry) => entry.id),
+        ['skill-valid', 'agent-current', 'prompt-current']
+      );
+      assert.ok(!fs.existsSync(path.join(copilotHomeAbs, 'skills', 'stale-skill')), 'Expected stale skill install to be pruned');
+      assert.ok(!fs.existsSync(path.join(copilotHomeAbs, 'skills-vault', 'stale-skill')), 'Expected stale skill vault entry to be pruned');
+      assert.ok(!fs.existsSync(path.join(copilotHomeAbs, 'agents', 'stale.agent.md')), 'Expected stale agent to be pruned');
+      assert.ok(!fs.existsSync(path.join(copilotHomeAbs, 'prompts', 'stale.prompt.md')), 'Expected stale prompt to be pruned');
+
+      const nextState = JSON.parse(fs.readFileSync(staleStatePath, 'utf8'));
+      assert.deepStrictEqual(nextState.managedSkills, ['valid-skill']);
+      assert.deepStrictEqual(nextState.alwaysLoadedSkills, ['valid-skill']);
+      assert.deepStrictEqual(nextState.vaultSkills, ['valid-skill']);
+      assert.deepStrictEqual(nextState.managedAgents, ['current.agent.md']);
+      assert.deepStrictEqual(nextState.managedPrompts, ['current.prompt.md']);
+    });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
