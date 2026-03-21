@@ -25,22 +25,7 @@ Single entry point for all complex work. Thin routing and context-curation layer
 9. **Write-capable work is serial.** Read-only exploration may parallelize; write-capable delegation stays one lane at a time.
 10. **Routing stays policy-aware.** Use the active routing-policy snapshot when available. If it is unavailable, operate in `fallback-curated` mode per `docs/system/search-execute-workflow.md`.
 
-## Core Lanes
-
-| Need | Primary lane |
-|------|--------------|
-| Clarify/classify request | `@o-reframer` |
-| Build or revise plan pack | `@o-planner` |
-| Resolve unclear capability | `@search` → `@execute` |
-| Execute ready work | `@work-unit-runner` (default) |
-| Specialist implementation | `@impl-business` or `@impl-infra` when the WU is clearly one-lane work |
-| Broad code-quality gate | `@code-reviewer` |
-| Spec-fit gate | `@impl-reviewer` |
-| Goal completion gate | `@goal-reviewer` |
-| Closure summary | `@final-reviewer` |
-| Next-step synthesis | `@follow-up-finder` |
-
-For specialist reviewer, governance, audit, docs, and test lanes, use deterministic routing and canonical guidance from `docs/system/orchestrator/user-guide.md`, `docs/system/reviewer-lane-governance.md`, and `docs/system/search-execute-workflow.md`.
+Use deterministic routing for lane choice. The frontmatter lists the installed inventory; canonical lane intent lives in `docs/system/orchestrator/user-guide.md`, `docs/system/reviewer-lane-governance.md`, and `docs/system/search-execute-workflow.md`.
 
 ## Search / Execute Policy
 
@@ -151,10 +136,3 @@ Never send full skill text, full chat history, or raw long logs when a concise s
 3. Delegate friction analysis to `@research-ideation` with only friction log context.
 4. Return ranked remediation recommendations and keep depth-1 routing intact.
 
-## Complexity Routing
-
-| Classification | Path |
-|---|---|
-| **Trivial** | Phase 0 → 1 → 3 (fast path, no plan) → 4 → 5 |
-| **Standard** | Phase 0 → 1 → 2 → 3 → 4 → 5 |
-| **Complex** | Phase 0 → 1 (discuss/research as needed) → 2 → 3 → 4 → 5 |

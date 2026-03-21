@@ -109,6 +109,40 @@ async function run() {
       );
     });
 
+    await test('sync-all prunes missing-source manifest assets from disk and install state', async () => {
+      const staleStatePath = path.join(copilotHomeAbs, '.instruction-engine-install-state.json');
+      writeText(path.join(copilotHomeAbs, 'skills', 'missing-skill', 'SKILL.md'), '# Missing Skill\n');
+      writeText(path.join(copilotHomeAbs, 'skills-vault', 'missing-skill', 'SKILL.md'), '# Missing Skill Vault\n');
+      writeJson(staleStatePath, {
+        schemaVersion: 3,
+        installProfile: 'copilot-ui',
+        managedSkills: ['missing-skill'],
+        alwaysLoadedSkills: [],
+        vaultSkills: ['missing-skill'],
+        managedAgents: [],
+        managedPrompts: [],
+      });
+
+      const response = await invokeSyncAllRoute(engineRoot, copilotHomeAbs, {
+        dryRun: false,
+        force: true,
+        pointerMode: true,
+      });
+
+      assert.strictEqual(response.status, 200);
+      assert.deepStrictEqual(
+        response.payload.result.map((entry) => entry.id),
+        ['skill-valid']
+      );
+      assert.ok(!fs.existsSync(path.join(copilotHomeAbs, 'skills', 'missing-skill')), 'Expected missing-source skill install to be pruned');
+      assert.ok(!fs.existsSync(path.join(copilotHomeAbs, 'skills-vault', 'missing-skill')), 'Expected missing-source skill vault entry to be pruned');
+
+      const nextState = JSON.parse(fs.readFileSync(staleStatePath, 'utf8'));
+      assert.deepStrictEqual(nextState.managedSkills, ['valid-skill']);
+      assert.deepStrictEqual(nextState.alwaysLoadedSkills, ['valid-skill']);
+      assert.deepStrictEqual(nextState.vaultSkills, ['valid-skill']);
+    });
+
     await test('sync-all prunes stale managed assets recorded in the prior install state', async () => {
       const staleStatePath = path.join(copilotHomeAbs, '.instruction-engine-install-state.json');
       writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {

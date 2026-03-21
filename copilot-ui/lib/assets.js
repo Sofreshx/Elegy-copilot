@@ -360,8 +360,13 @@ function getManagedFileName(asset) {
   return destination ? path.basename(destination) : null;
 }
 
-function buildManagedInstallState(manifest, opts = {}) {
+function buildManagedInstallState(manifestOrAssets, opts = {}) {
   const pointerMode = opts.pointerMode !== false;
+  const assets = Array.isArray(manifestOrAssets)
+    ? manifestOrAssets
+    : Array.isArray(manifestOrAssets && manifestOrAssets.assets)
+      ? manifestOrAssets.assets
+      : [];
   const state = {
     schemaVersion: INSTALL_STATE_SCHEMA_VERSION,
     installProfile: 'copilot-ui',
@@ -372,7 +377,7 @@ function buildManagedInstallState(manifest, opts = {}) {
     managedPrompts: [],
   };
 
-  for (const asset of Array.isArray(manifest.assets) ? manifest.assets : []) {
+  for (const asset of assets) {
     if (!asset || typeof asset !== 'object') {
       continue;
     }
@@ -1224,8 +1229,12 @@ function syncManagedInstall(engineRoot, destinationHome, opts) {
   const synced = manifest.assets
     .map((a) => syncAsset(engineRoot, destinationHome, a.id, opts))
     .filter((result) => !(result && result.reason === 'source_missing_or_unreadable'));
+  const syncedAssetIds = new Set(synced.map((result) => result && result.id).filter(Boolean));
+  const syncedAssets = Array.isArray(manifest.assets)
+    ? manifest.assets.filter((asset) => asset && syncedAssetIds.has(asset.id))
+    : [];
 
-  const nextState = buildManagedInstallState(manifest, opts);
+  const nextState = buildManagedInstallState(syncedAssets, opts);
   const prunedPaths = [
     ...pruneManagedSkillInstall(destinationHome, nextState, previousState, opts),
     ...pruneManagedFileInstall(destinationHome, 'agents', nextState.managedAgents, previousState && previousState.managedAgents, opts),

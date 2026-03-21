@@ -595,20 +595,6 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "skill-debug",
-      "type": "skill",
-      "source": "engine-assets/skills/debug",
-      "destination": "skills/debug",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-deployment-compose",
-      "type": "skill",
-      "source": "engine-assets/skills/deployment-compose",
-      "destination": "skills/deployment-compose",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "skill-discovery",
       "type": "skill",
       "source": "engine-assets/skills/skill-discovery",
@@ -900,13 +886,6 @@
       "type": "skill",
       "source": "engine-assets/skills/system-cleanup",
       "destination": "skills/system-cleanup",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-terraform",
-      "type": "skill",
-      "source": "engine-assets/skills/terraform",
-      "destination": "skills/terraform",
       "loadMode": "on-demand"
     },
     {
