@@ -30,6 +30,8 @@ run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 **THE RULE:**
 - ALWAYS set `isBackground: false` for ALL commands
 - NEVER use `isBackground: true` for ANY command
+- For builds, tests, servers, and health checks, ALWAYS set a non-zero timeout; `timeout: 0` is forbidden
+- NEVER run watch, interactive, or debug test modes through agent tooling
 - If unsure, default to `false`
 
 ## Core Guardrails Backstop

@@ -38,15 +38,109 @@ function extractFrontmatter(content) {
 	return '';
 }
 
-function parseFrontmatterValue(frontmatter, key) {
-	const regex = new RegExp(`^${key}:\\s*(.+)$`, 'm');
-	const match = frontmatter.match(regex);
-	if (!match) return '';
-	const value = match[1].trim();
-	if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-		return value.slice(1, -1).trim();
+function escapeRegExp(value) {
+	return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function readFrontmatterValue(frontmatter, keys) {
+	for (const key of keys) {
+		const regex = new RegExp(`^${escapeRegExp(key)}:\\s*(.+)$`, 'm');
+		const match = frontmatter.match(regex);
+		if (!match) continue;
+		return match[1].trim();
 	}
-	return value;
+	return '';
+}
+
+function unquoteValue(value) {
+	const trimmed = String(value || '').trim();
+	if (
+		(trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+		(trimmed.startsWith("'") && trimmed.endsWith("'"))
+	) {
+		return trimmed.slice(1, -1).trim();
+	}
+	return trimmed;
+}
+
+function parseFrontmatterValue(frontmatter, key) {
+	return unquoteValue(readFrontmatterValue(frontmatter, [key]));
+}
+
+function normalizeListValues(values) {
+	const normalized = new Set();
+	for (const value of Array.isArray(values) ? values : [values]) {
+		for (const candidate of splitInlineList(value)) {
+			const cleaned = normalizeListValue(candidate);
+			if (cleaned) normalized.add(cleaned);
+		}
+	}
+	return Array.from(normalized).sort((a, b) => a.localeCompare(b));
+}
+
+function parseFrontmatterMetadata(frontmatter) {
+	const rawValue = readFrontmatterValue(frontmatter, ['metadata']);
+	if (!rawValue) return {};
+
+	try {
+		const parsed = JSON.parse(rawValue);
+		return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+	} catch {
+		return {};
+	}
+}
+
+function splitInlineList(rawValue) {
+	const trimmed = String(rawValue || '').trim();
+	if (!trimmed) return [];
+
+	const source = trimmed.startsWith('[') && trimmed.endsWith(']')
+		? trimmed.slice(1, -1)
+		: trimmed;
+
+	const values = [];
+	let current = '';
+	let quote = '';
+
+	for (let i = 0; i < source.length; i++) {
+		const char = source[i];
+		if (quote) {
+			if (char === quote) {
+				quote = '';
+				continue;
+			}
+			current += char;
+			continue;
+		}
+
+		if (char === '"' || char === "'") {
+			quote = char;
+			continue;
+		}
+
+		if (char === ',') {
+			values.push(current);
+			current = '';
+			continue;
+		}
+
+		current += char;
+	}
+
+	values.push(current);
+	return values;
+}
+
+function normalizeListValue(value) {
+	return unquoteValue(value)
+		.replace(/\s+/g, ' ')
+		.toLowerCase();
+}
+
+function parseFrontmatterList(frontmatter, key, fallbackKeys = []) {
+	const rawValue = readFrontmatterValue(frontmatter, [key, ...fallbackKeys]);
+	if (!rawValue) return [];
+	return normalizeListValues(rawValue);
 }
 
 function normalizeTrigger(raw) {
@@ -115,9 +209,15 @@ function generateIndex() {
 		const skillPath = path.join(skillsRoot, skillKey, 'SKILL.md');
 		const content = readText(skillPath);
 		const frontmatter = extractFrontmatter(content);
+		const metadata = parseFrontmatterMetadata(frontmatter);
 		const name = parseFrontmatterValue(frontmatter, 'name') || skillKey;
 		const description = parseFrontmatterValue(frontmatter, 'description');
 		const triggersOn = extractTriggers(content, description);
+		const aliasKeys = normalizeListValues(metadata.aliasKeys || parseFrontmatterList(frontmatter, 'aliasKeys', ['aliases']));
+		const frameworks = normalizeListValues(metadata.frameworks || parseFrontmatterList(frontmatter, 'frameworks'));
+		const stacks = normalizeListValues(metadata.stacks || parseFrontmatterList(frontmatter, 'stacks'));
+		const languages = normalizeListValues(metadata.languages || parseFrontmatterList(frontmatter, 'languages'));
+		const tags = normalizeListValues(metadata.tags || metadata.keywords || parseFrontmatterList(frontmatter, 'tags', ['keywords']));
 		const manifestMeta = manifestSkills.get(skillKey);
 
 		return {
@@ -125,6 +225,11 @@ function generateIndex() {
 			name,
 			description,
 			triggersOn,
+			...(aliasKeys.length ? { aliasKeys } : {}),
+			...(frameworks.length ? { frameworks } : {}),
+			...(stacks.length ? { stacks } : {}),
+			...(languages.length ? { languages } : {}),
+			...(tags.length ? { tags } : {}),
 			...(manifestMeta ? { manifest: manifestMeta } : {}),
 		};
 	});

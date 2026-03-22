@@ -38,6 +38,21 @@ function readIndex() {
 	return JSON.parse(readIndexRaw());
 }
 
+function assertSortedUniqueList(entry, fieldName) {
+	if (!Object.prototype.hasOwnProperty.call(entry, fieldName)) {
+		return;
+	}
+
+	assert.ok(Array.isArray(entry[fieldName]), `${fieldName} should be array for ${entry.skill}`);
+	const sorted = [...entry[fieldName]].sort((a, b) => a.localeCompare(b));
+	assert.deepStrictEqual(entry[fieldName], sorted, `${fieldName} not sorted for ${entry.skill}`);
+	assert.strictEqual(
+		new Set(entry[fieldName]).size,
+		entry[fieldName].length,
+		`${fieldName} not deduplicated for ${entry.skill}`,
+	);
+}
+
 runGenerator();
 const firstRaw = readIndexRaw();
 const first = readIndex();
@@ -59,11 +74,17 @@ test('entries are deterministically sorted by skill key', () => {
 
 test('triggersOn values are sorted and deduplicated per skill', () => {
 	for (const entry of first.entries) {
-		assert.ok(Array.isArray(entry.triggersOn), `triggersOn should be array for ${entry.skill}`);
-		const sorted = [...entry.triggersOn].sort((a, b) => a.localeCompare(b));
-		assert.deepStrictEqual(entry.triggersOn, sorted, `triggersOn not sorted for ${entry.skill}`);
-		const uniqueCount = new Set(entry.triggersOn).size;
-		assert.strictEqual(uniqueCount, entry.triggersOn.length, `triggersOn not deduplicated for ${entry.skill}`);
+		assertSortedUniqueList(entry, 'triggersOn');
+	}
+});
+
+test('supported metadata list fields are sorted and deduplicated when present', () => {
+	for (const entry of first.entries) {
+		assertSortedUniqueList(entry, 'aliasKeys');
+		assertSortedUniqueList(entry, 'frameworks');
+		assertSortedUniqueList(entry, 'stacks');
+		assertSortedUniqueList(entry, 'languages');
+		assertSortedUniqueList(entry, 'tags');
 	}
 });
 
@@ -78,6 +99,22 @@ test('manifest metadata is present when attached and has deterministic fields', 
 test('output is deterministic across repeated generation', () => {
 	assert.strictEqual(firstRaw, secondRaw, 'raw JSON output changed between runs');
 	assert.deepStrictEqual(first, second, 'parsed JSON changed between runs');
+});
+
+test('first-wave metadata carriers are emitted for normalized source skills', () => {
+	const skillDiscovery = first.entries.find((entry) => entry.skill === 'skill-discovery');
+	assert.ok(skillDiscovery, 'expected skill-discovery entry');
+	assert.deepStrictEqual(skillDiscovery.aliasKeys, ['search-execute']);
+	assert.deepStrictEqual(skillDiscovery.stacks, ['orchestration']);
+	assert.deepStrictEqual(skillDiscovery.tags, ['catalog', 'discovery', 'routing', 'workflow']);
+
+	const stackDetector = first.entries.find((entry) => entry.skill === 'stack-detector');
+	assert.ok(stackDetector, 'expected stack-detector entry');
+	assert.deepStrictEqual(stackDetector.aliasKeys, ['target-context-detector']);
+	assert.deepStrictEqual(stackDetector.frameworks, ['angular', 'aspire', 'orleans', 'react', 'signalr', 'vue']);
+	assert.deepStrictEqual(stackDetector.languages, ['csharp', 'go', 'javascript', 'python', 'typescript']);
+	assert.deepStrictEqual(stackDetector.stacks, ['api', 'desktop', 'frontend', 'infra']);
+	assert.deepStrictEqual(stackDetector.tags, ['classification', 'detection', 'routing', 'targeting']);
 });
 
 console.log(`\n${passed} tests passed`);

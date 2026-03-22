@@ -1,6 +1,7 @@
 ---
 name: skill-discovery
 description: "Vault-first skill routing for the search/execute pattern. Use this to resolve the smallest matching on-demand skill, apply the deterministic resolver chain, and load only the skills needed for the current step."
+metadata: {"aliasKeys":["search-execute"],"stacks":["orchestration"],"tags":["catalog","discovery","routing","workflow"]}
 ---
 
 # Skill Discovery

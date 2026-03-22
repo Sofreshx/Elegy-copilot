@@ -24,16 +24,18 @@ Execute one or more work units provided inline by the caller (typically `@orches
 ## Non-Negotiables
 - Treat the provided `spec` / `wuSpecs` as the source of truth.
 - Do NOT create or modify repo-local `.instructions/*`.
+- Do NOT run unit, integration, or E2E tests directly. Return requested test scope so orchestrator can route to the dedicated runners.
 - Do NOT execute integration or E2E tests unless the spec explicitly requires it; request them instead.
 - If scope/unknowns exceed the spec, request replanning.
 - Do not silently absorb discovered work that changes goals, dependencies, or success criteria. Surface it as `REPLAN_REQUESTED` or `NEW_WORK_UNIT_REQUEST`.
 - When blocked by a missing user decision, return the exact decision needed instead of guessing.
+- Any validation command you do run must be one-shot and bounded with an explicit timeout. If it stalls or times out, stop and report the last known state instead of waiting.
 
 ## Execution Workflow
 1. **Load context**: Parse spec(s), identify AC/approach/validation, incorporate `explorationContext`.
 2. **Feasibility check**: If prerequisites are missing or WU is ambiguous, do not proceed.
 3. **Implement**: Make changes directly (do not call subagents).
-4. **Validate**: Run targeted builds/lints if specified; do NOT run integration/E2E tests by default.
+4. **Validate**: Run targeted build, lint, or typecheck commands if specified; do NOT run test commands. If a validation command stalls or times out, stop and report it as blocked or inconclusive.
 
 ## Structured Output Signals
 

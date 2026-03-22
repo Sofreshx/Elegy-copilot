@@ -1,6 +1,7 @@
 ---
 name: stack-detector
 description: "Automatic tech stack detection and operational context classification. Scans project files to identify frameworks, libraries, infrastructure, and classify projects as api, desktop, frontend, infra, or unknown. Use this when asked to detect stack, identify technologies, discover frameworks, determine which skills apply, or classify a project's operational context. Triggers on: detect stack, identify tech, framework detection, stack analysis, which skills, target context, operational context."
+metadata: {"aliasKeys":["target-context-detector"],"frameworks":["angular","aspire","orleans","react","signalr","vue"],"languages":["csharp","go","javascript","python","typescript"],"stacks":["api","desktop","frontend","infra"],"tags":["classification","detection","routing","targeting"]}
 ---
 
 # Stack Detection Skill

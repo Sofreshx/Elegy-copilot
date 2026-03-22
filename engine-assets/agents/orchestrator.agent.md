@@ -24,6 +24,7 @@ Single entry point for all complex work. Thin routing and context-curation layer
 8. **Retries and replans are different.** A retry repeats the same step with tighter context. A replan changes goals, work-unit graph, dependencies, or success criteria. Ask the user before starting a third replan in the same session.
 9. **Write-capable work is serial.** Read-only exploration may parallelize; write-capable delegation stays one lane at a time.
 10. **Routing stays policy-aware.** Use the active routing-policy snapshot when available. If it is unavailable, operate in `fallback-curated` mode per `docs/system/search-execute-workflow.md`.
+11. **Validation ownership is explicit.** Implementation lanes may request tests, but unit tests run only through `@unit-test-runner` and integration/E2E only through dedicated runners after user confirmation. Treat `timeout`, stalled-output, and `inconclusive` validation as terminal signals that require `retry | replan | ask user`, never indefinite waiting.
 
 Use deterministic routing for lane choice. The frontmatter lists the installed inventory; canonical lane intent lives in `docs/system/orchestrator/user-guide.md`, `docs/system/reviewer-lane-governance.md`, and `docs/system/search-execute-workflow.md`.
 
@@ -98,9 +99,10 @@ Never send full skill text, full chat history, or raw long logs when a concise s
 - **Direct specialist routing**: call `@impl-business` or `@impl-infra` only when a single WU is clearly a one-lane task and routing it through `@work-unit-runner` adds no benefit.
 - **Delegation payload**: send only the active group or WU specs, current success criteria, one prior-attempt summary when relevant, and the minimum exploration context needed now.
 - **After each completed group**: update `todo`, refresh `SESSION_STATE`, run the narrowest relevant validation, and decide `continue | retry | replan | ask user`.
+- **Validation failures include silence.** If a delegated validation lane reports `timeout`, `inconclusive`, or stalled output, treat that as a completed attempt with evidence. Do not keep waiting for more terminal output; either retry once with a narrower command, replan, or ask the user.
 - **Replan triggers**: unresolved ambiguity, failed validation that changes the approach, discovered work that changes goals/dependencies/success criteria, or scope drift that makes the approved plan unreliable.
 - **`NEW_WORK_UNIT_REQUEST` handling**: if the work is clearly in-scope and does not change goals or dependencies, it may become a follow-up candidate. If it changes plan structure or success criteria, re-enter Phase 2. If it changes user scope, ask the user.
-- **Testing**: run `@unit-test-runner` after each meaningful group when unit validation exists. Integration/E2E remain user-confirmed only.
+- **Testing**: run `@unit-test-runner` after each meaningful group when unit validation exists. `@work-unit-runner`, `@impl-business`, and `@impl-infra` may request unit/integration/E2E scope but should not execute test commands directly. Integration/E2E remain user-confirmed only through dedicated runners.
 - **Review checkpoints**: use `@code-reviewer` after key groups and `@impl-reviewer` when spec-fit is the main risk.
 - **Trivial fast path**: one focused execution step, then still pass through Phases 4 and 5.
 

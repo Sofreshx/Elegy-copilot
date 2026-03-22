@@ -568,6 +568,18 @@
       "name": "skill-discovery",
       "description": "Vault-first skill routing for the search/execute pattern. Use this to resolve the smallest matching on-demand skill, apply the deterministic resolver chain, and load only the skills needed for the current step.",
       "triggersOn": [],
+      "aliasKeys": [
+        "search-execute"
+      ],
+      "stacks": [
+        "orchestration"
+      ],
+      "tags": [
+        "catalog",
+        "discovery",
+        "routing",
+        "workflow"
+      ],
       "manifest": {
         "id": "skill-discovery",
         "loadMode": "always"
@@ -620,6 +632,36 @@
         "stack analysis",
         "target context",
         "which skills"
+      ],
+      "aliasKeys": [
+        "target-context-detector"
+      ],
+      "frameworks": [
+        "angular",
+        "aspire",
+        "orleans",
+        "react",
+        "signalr",
+        "vue"
+      ],
+      "stacks": [
+        "api",
+        "desktop",
+        "frontend",
+        "infra"
+      ],
+      "languages": [
+        "csharp",
+        "go",
+        "javascript",
+        "python",
+        "typescript"
+      ],
+      "tags": [
+        "classification",
+        "detection",
+        "routing",
+        "targeting"
       ],
       "manifest": {
         "id": "skill-stack-detector",

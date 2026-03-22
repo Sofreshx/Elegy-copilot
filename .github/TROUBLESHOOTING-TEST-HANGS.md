@@ -93,6 +93,16 @@ dotnet test --no-restore --logger trx
 dotnet test | tee output.log  # May behave differently across shells
 ```
 
+### 5. Wrong Execution Lane
+**Symptom**: A generic implementation subagent starts running tests inline and then stalls or waits forever for more output.
+
+**Common triggers**:
+- `work-unit-runner`, `impl-business`, or `impl-infra` runs a test command directly
+- validation scope mixes builds and tests in one unbounded command
+- caller treats stalled output as a reason to keep waiting instead of classifying the attempt
+
+**Fix**: Route unit tests only through `unit-test-runner` and integration/E2E only through their dedicated runners. Generic implementation lanes may request test scope, but should limit themselves to targeted build, lint, or typecheck validation with explicit timeouts.
+
 ## Prevention Checklist
 
 When executing tests via agents, ensure ALL of these:
@@ -104,6 +114,7 @@ When executing tests via agents, ensure ALL of these:
 - [ ] **Logger flag** for capturing results (`--logger trx`)
 - [ ] **Environment variables** set when required (e.g., `RUN_INTEGRATION_TESTS=1`)
 - [ ] **Explicit timeout** always set on `run_in_terminal`
+- [ ] **Dedicated lane ownership**: generic implementation agents request tests, but do not execute test commands directly
 
 ### If Hooks Are Enabled
 If `.github/hooks/*.json` is enabled for the repo/session, the pre-tool hook will **deny** terminal test/E2E commands that:
@@ -124,7 +135,7 @@ Test execution is centralized in two agents:
 Execution flow:
 - `orchestrator.agent.md` delegates unit-test checkpoints to `unit-test-runner`.
 - `orchestrator.agent.md` asks the user before running `integration-test-runner` or `e2e-browser`.
-- `work-unit-runner.agent.md` can carry test requests but does not own long-running test execution policy.
+- `work-unit-runner.agent.md`, `impl-business.agent.md`, and `impl-infra.agent.md` can carry test requests but do not own long-running test execution policy.
 
 ## Emergency Recovery
 

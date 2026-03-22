@@ -15,7 +15,10 @@ Execute unit tests safely, quickly, and deterministically. This agent is used as
 - Do NOT call other subagents.
 - Do NOT run tests in watch/interactive mode.
 - Always use explicit timeouts.
+- Never omit the timeout or use `timeout: 0`.
+- Prefer an existing dedicated test task when the repo already defines one; otherwise use a one-shot terminal command.
 - Prefer targeted test filters over full-suite runs.
+- Do not keep polling or waiting indefinitely for more terminal output after a run starts.
 - If a test command is unclear, report the gap and request clarification from the caller.
 
 ## Coverage Expectations
@@ -34,9 +37,12 @@ Execute unit tests safely, quickly, and deterministically. This agent is used as
 - Keep output concise and capture a pass/fail count.
 
 ## Awaiting Results / Hang Prevention
-- Always set a timeout on `run_in_terminal`.
-- If output stalls, fetch logs via `read/getTaskOutput` or rerun with narrower filters.
-- If the process times out, report it with last known output and do not retry without adjustment.
+- Every test command must be one-shot, non-interactive, and bounded with a non-zero timeout.
+- Prefer `runTask` for an existing dedicated test task; otherwise use `run_in_terminal` with explicit timeout and non-watch flags.
+- Use `read/getTaskOutput` only for a single follow-up snapshot when a task ran; do not poll in loops waiting for more output.
+- Silence until the timeout expires counts as `status: timeout`, not "still running".
+- If the process times out or output stalls, report the last known output or artifact state and stop. Retry at most once, and only with a narrower or materially adjusted command.
+- If artifact verification is missing after exit code 0, return `inconclusive` instead of rerunning by default.
 
 ## Skill References (Use When Applicable)
 - For C#/.NET unit tests, follow `testing-dotnet-unit`.
