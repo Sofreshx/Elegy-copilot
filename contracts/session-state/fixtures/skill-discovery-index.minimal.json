@@ -5,7 +5,16 @@
       "skill": "example-skill",
       "name": "Example Skill",
       "description": "A minimal skill for validation.",
-      "triggersOn": ["example"]
+      "triggersOn": ["example"],
+      "aliasKeys": ["example-skill"],
+      "frameworks": ["node"],
+      "stacks": ["infra"],
+      "languages": ["javascript"],
+      "tags": ["example"],
+      "manifest": {
+        "id": "skill-example-skill",
+        "loadMode": "on-demand"
+      }
     }
   ]
 }

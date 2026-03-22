@@ -70,6 +70,7 @@ import {
 } from './workflows/workflowStore';
 import { WorkflowHttpError } from './workflows/workflowHttpRoutes';
 import { createWorkflowStreamingModule } from './workflows/workflowStreaming';
+import { SyncedNoteSourceStore } from './syncedNotes/syncedNoteSourceStore';
 
 function isLoopbackAddress(address: string | undefined): boolean {
 	if (!address) return false;
@@ -629,6 +630,7 @@ export async function main(argv: string[] = process.argv.slice(2)) {
 	const workflowStreaming = createWorkflowStreamingModule();
 	const workflowDiscovery = new WorkflowDiscovery();
 	const workflowStore = new WorkflowStore();
+	const syncedNoteSourceStore = new SyncedNoteSourceStore();
 	const workflowHistory = new WorkflowHistory({
 		historyDir: path.join(path.dirname(getDefaultWorkflowDefinitionsDir()), 'history'),
 	});
@@ -890,6 +892,13 @@ export async function main(argv: string[] = process.argv.slice(2)) {
 					...(runId ? { runId } : {}),
 				};
 			},
+		},
+		syncedNoteSourceApi: {
+			listSources: () => syncedNoteSourceStore.list(),
+			getSource: (id) => syncedNoteSourceStore.load(id),
+			createSource: (payload) => syncedNoteSourceStore.create(payload),
+			updateSource: (id, payload) => syncedNoteSourceStore.update(id, payload),
+			deleteSource: (id) => syncedNoteSourceStore.delete(id),
 		},
 	});
 

@@ -2,28 +2,49 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://instruction-engine/contracts/session-state/1.0.0/skill-discovery-index.schema.json",
   "title": "Skill Discovery Index",
-  "description": "Index of discoverable skills with metadata for search/execute pattern.",
+  "description": "Runtime contract for engine-assets/skills/skill-metadata-index.json, used by catalog projection and search discovery.",
   "type": "object",
   "required": ["schemaVersion", "entries"],
+  "additionalProperties": false,
+  "$defs": {
+    "normalizedStringList": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "manifest": {
+      "type": "object",
+      "required": ["id", "loadMode"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "loadMode": {
+          "type": "string",
+          "minLength": 1,
+          "enum": ["always", "on-demand"]
+        }
+      }
+    }
+  },
   "properties": {
-    "schemaVersion": { "type": "integer" },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
     "entries": {
       "type": "array",
       "items": {
         "type": "object",
         "required": ["skill", "name", "description", "triggersOn"],
+        "additionalProperties": false,
         "properties": {
           "skill": { "type": "string" },
           "name": { "type": "string" },
           "description": { "type": "string" },
-          "triggersOn": { "type": "array", "items": { "type": "string" } },
-          "manifest": {
-            "type": "object",
-            "properties": {
-              "id": { "type": "string" },
-              "loadMode": { "type": "string" }
-            }
-          }
+          "triggersOn": { "$ref": "#/$defs/normalizedStringList" },
+          "aliasKeys": { "$ref": "#/$defs/normalizedStringList" },
+          "frameworks": { "$ref": "#/$defs/normalizedStringList" },
+          "stacks": { "$ref": "#/$defs/normalizedStringList" },
+          "languages": { "$ref": "#/$defs/normalizedStringList" },
+          "tags": { "$ref": "#/$defs/normalizedStringList" },
+          "manifest": { "$ref": "#/$defs/manifest" }
         }
       }
     }

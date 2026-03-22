@@ -170,4 +170,4 @@ agent-browser open "http://localhost:5173/workspace?ws=eyJhY3RpdmVWaWV3Ijoid29ya
 - ❌ Don't use `wait --load networkidle` with SignalR apps
 - ❌ Don't skip `--ignore-https-errors` with Aspire-hosted apps
 - ❌ Don't create `.js` test scripts — agent-browser is CLI-driven, not script-driven
-- ❌ Don't take screenshots at every step unless investigating a failure — follow the project screenshot policy in `.instructions/e2e.config.md` (if present)
+- ❌ Don't take screenshots at every step unless investigating a failure — follow the repo-documented screenshot policy, or consult legacy `.instructions/e2e.config.md` only when the repo explicitly opts into that compatibility file

@@ -33,10 +33,10 @@ Load `e2e-workflow` skill for execution modes, evidence requirements, report for
 4. Re-snapshot after page changes to verify state
 
 ## Mode Selection Priority
-1. Explicit input → 2. VS Code setting `e2e.executionMode` → 3. Project config `.instructions/e2e.config.md` → 4. Default: `report`
+1. Explicit input → 2. VS Code setting `e2e.executionMode` → 3. Repo-documented E2E policy/config (legacy `.instructions/e2e.config.md` is compatibility-only when a repo explicitly opts in) → 4. Default: `report`
 
 ## Evidence Mode Selection Priority
-1. Explicit input → 2. Project config → 3. Default: `snapshot-only`
+1. Explicit input → 2. Repo-documented E2E policy/config (legacy `.instructions/e2e.config.md` is compatibility-only when a repo explicitly opts in) → 3. Default: `snapshot-only`
 
 ## Output
-Reports, screenshots, and logs → `.instructions-output/e2e/`
+Return a concise run summary in chat. Persist reports, screenshots, and logs only to a caller-provided or repo-documented destination.

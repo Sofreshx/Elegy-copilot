@@ -25,6 +25,7 @@ test('validate-skill-discovery-map passes on current repository state', () => {
 	});
 
 	assert.strictEqual(result.status, 0, `validator should pass: ${result.stderr}`);
+	assert.match(String(result.stdout || ''), /Skill Metadata Parity Gate ok/);
 });
 
 console.log(`\n${passed} tests passed`);

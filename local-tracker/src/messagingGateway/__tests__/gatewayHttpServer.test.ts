@@ -44,6 +44,19 @@ const PERSISTED_DEFINITION: WorkflowDefinition = {
     }],
 };
 
+const SYNCED_NOTE_SOURCE = {
+    id: 'snsrc_1234567890abcdef1234567890abcd',
+    provider: 'github',
+    host: 'github.com',
+    owner: 'InstructionEngine',
+    repo: 'workspace',
+    branch: 'main',
+    notesPath: 'docs/planning/synced-note.md',
+    localCheckoutPath: 'C:\\Repos\\instruction-engine',
+    createdAt: '2026-03-18T00:00:00.000Z',
+    updatedAt: '2026-03-18T00:00:00.000Z',
+};
+
 function makeGatewayStatus(overrides: Partial<MessagingGatewayStatusV1> = {}): MessagingGatewayStatusV1 {
     return {
         ...buildMessagingGatewayReadinessMetadata({ normalizedFrom: 'v1' }),
@@ -173,6 +186,18 @@ describe('GatewayHttpServer', () => {
         },
         runId: 'run-http-1',
     }));
+    const mockListSyncedNoteSources = jest.fn(() => [SYNCED_NOTE_SOURCE]);
+    const mockGetSyncedNoteSource = jest.fn((id: string) => (id === SYNCED_NOTE_SOURCE.id ? SYNCED_NOTE_SOURCE : undefined));
+    const mockCreateSyncedNoteSource = jest.fn((payload: unknown) => ({
+        ...SYNCED_NOTE_SOURCE,
+        ...(payload as Record<string, unknown>),
+    }));
+    const mockUpdateSyncedNoteSource = jest.fn((id: string, payload: unknown) => ({
+        ...SYNCED_NOTE_SOURCE,
+        ...((payload as Record<string, unknown>) || {}),
+        id,
+    }));
+    const mockDeleteSyncedNoteSource = jest.fn((id: string) => id === SYNCED_NOTE_SOURCE.id);
 
     beforeAll(async () => {
         server = new GatewayHttpServer({
@@ -201,6 +226,13 @@ describe('GatewayHttpServer', () => {
                 updatePersistedDefinition: mockUpdatePersistedDefinition,
                 deletePersistedDefinition: mockDeletePersistedDefinition,
                 runPersistedDefinition: mockRunPersistedDefinition,
+            },
+            syncedNoteSourceApi: {
+                listSources: mockListSyncedNoteSources,
+                getSource: mockGetSyncedNoteSource,
+                createSource: mockCreateSyncedNoteSource,
+                updateSource: mockUpdateSyncedNoteSource,
+                deleteSource: mockDeleteSyncedNoteSource,
             },
         });
         await server.start();
@@ -244,6 +276,18 @@ describe('GatewayHttpServer', () => {
             },
             runId: 'run-http-1',
         });
+        mockListSyncedNoteSources.mockReturnValue([SYNCED_NOTE_SOURCE]);
+        mockGetSyncedNoteSource.mockImplementation((id: string) => (id === SYNCED_NOTE_SOURCE.id ? SYNCED_NOTE_SOURCE : undefined));
+        mockCreateSyncedNoteSource.mockImplementation((payload: unknown) => ({
+            ...SYNCED_NOTE_SOURCE,
+            ...(payload as Record<string, unknown>),
+        }));
+        mockUpdateSyncedNoteSource.mockImplementation((id: string, payload: unknown) => ({
+            ...SYNCED_NOTE_SOURCE,
+            ...((payload as Record<string, unknown>) || {}),
+            id,
+        }));
+        mockDeleteSyncedNoteSource.mockImplementation((id: string) => id === SYNCED_NOTE_SOURCE.id);
         workflowListeners.clear();
     });
 
@@ -583,6 +627,43 @@ describe('GatewayHttpServer', () => {
             error: 'Workflow runtime unavailable: no extension client connected',
             code: 'workflow_runtime_unavailable',
         });
+    });
+
+    it('GET /api/synced-notes/sources returns persisted synced-note sources', async () => {
+        const res = await makeRequest(port, {
+            method: 'GET',
+            path: '/api/synced-notes/sources',
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual([SYNCED_NOTE_SOURCE]);
+        expect(mockListSyncedNoteSources).toHaveBeenCalledTimes(1);
+    });
+
+    it('POST /api/synced-notes/sources creates a synced-note source and returns 201', async () => {
+        const payload = {
+            provider: 'github',
+            host: 'github.com',
+            owner: 'InstructionEngine',
+            repo: 'workspace',
+            branch: 'main',
+            notesPath: 'docs/planning/seed.md',
+        };
+
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/synced-notes/sources',
+            token: TEST_TOKEN,
+            body: JSON.stringify(payload),
+        });
+
+        expect(res.statusCode).toBe(201);
+        expect(JSON.parse(res.body)).toEqual({
+            ...SYNCED_NOTE_SOURCE,
+            ...payload,
+        });
+        expect(mockCreateSyncedNoteSource).toHaveBeenCalledWith(payload);
     });
 
     it('GET /api/workflows/events requires auth', async () => {

@@ -10,6 +10,10 @@ import {
     handleWorkflowHttpRoute,
     type WorkflowHttpApiHandlers,
 } from './workflows/workflowHttpRoutes';
+import {
+    handleSyncedNoteSourceHttpRoute,
+    type SyncedNoteSourceHttpApiHandlers,
+} from './syncedNotes/syncedNoteSourceHttpRoutes';
 import type {
     WorkflowBacklogSnapshot,
     WorkflowStreamEvent,
@@ -115,6 +119,8 @@ export interface GatewayHttpServerOptions {
     workflowStreaming?: WorkflowStreamingSseOptions;
     /** Optional workflow CRUD + run endpoint wiring (`/api/workflows/*`). */
     workflowApi?: WorkflowHttpApiHandlers;
+    /** Optional synced-note source CRUD endpoint wiring (`/api/synced-notes/sources/*`). */
+    syncedNoteSourceApi?: SyncedNoteSourceHttpApiHandlers;
 }
 
 export class GatewayHttpServer {
@@ -134,6 +140,7 @@ export class GatewayHttpServer {
     private readonly mobilePairingEnabled: boolean;
     private readonly workflowStreaming: WorkflowStreamingSseOptions | undefined;
     private readonly workflowApi: WorkflowHttpApiHandlers | undefined;
+    private readonly syncedNoteSourceApi: SyncedNoteSourceHttpApiHandlers | undefined;
     private readonly telegramSeenUpdateIds = new Map<number, number>();
 
     // SSE connections
@@ -161,6 +168,7 @@ export class GatewayHttpServer {
         this.mobilePairingEnabled = options.mobilePairing === true;
         this.workflowStreaming = options.workflowStreaming;
         this.workflowApi = options.workflowApi;
+        this.syncedNoteSourceApi = options.syncedNoteSourceApi;
 
         if (this.telegramWebhook) {
             if (typeof this.telegramWebhook.secretToken !== 'string' || this.telegramWebhook.secretToken.trim().length === 0) {
@@ -299,6 +307,8 @@ export class GatewayHttpServer {
             this.handleWorkflowEventsSSE(req, res, parsedUrl.searchParams.get('runId'));
         } else if (pathname.startsWith('/api/workflows/')) {
             void this.handleWorkflowApiRequest(method, pathname, req, res);
+        } else if (pathname.startsWith('/api/synced-notes/')) {
+            void this.handleSyncedNoteSourceApiRequest(method, pathname, req, res);
         } else if (method === 'GET' && pathname === '/api/sessions/live') {
             void this.handleGetSessions(res);
         } else if (method === 'GET' && pathname === '/api/permissions/pending') {
@@ -348,6 +358,29 @@ export class GatewayHttpServer {
             req,
             res,
             handlers: this.workflowApi,
+            readJsonBody: (request, maxBytes) => this.readJsonBody(request, maxBytes),
+        });
+
+        if (handled) {
+            return;
+        }
+
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not found' }));
+    }
+
+    private async handleSyncedNoteSourceApiRequest(
+        method: string,
+        pathname: string,
+        req: http.IncomingMessage,
+        res: http.ServerResponse,
+    ): Promise<void> {
+        const handled = await handleSyncedNoteSourceHttpRoute({
+            method,
+            pathname,
+            req,
+            res,
+            handlers: this.syncedNoteSourceApi,
             readJsonBody: (request, maxBytes) => this.readJsonBody(request, maxBytes),
         });
 

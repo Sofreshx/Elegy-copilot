@@ -70,10 +70,10 @@ Missing evidence artifacts → INCONCLUSIVE, not PASS.
 ## Mode Selection Priority
 1. Explicit input in prompt (`mode: stealth|report|live`)
 2. VS Code setting (`e2e.executionMode`)
-3. Project config (`.instructions/e2e.config.md`)
+3. Repo-documented E2E policy/config (legacy `.instructions/e2e.config.md` is compatibility-only when a repo explicitly opts in)
 4. Default: `report`
 
 ## Evidence Mode Selection Priority
 1. Explicit input (`evidenceMode: snapshot-only|screenshots`)
-2. Project config (`.instructions/e2e.config.md`)
+2. Repo-documented E2E policy/config (legacy `.instructions/e2e.config.md` is compatibility-only when a repo explicitly opts in)
 3. Default: `snapshot-only`

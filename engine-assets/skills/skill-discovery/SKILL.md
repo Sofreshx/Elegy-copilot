@@ -15,7 +15,6 @@ In the first-class Instruction Engine workflow, `@search` handles capability dis
 ## Deterministic resolver chain
 
 Use this exact order unless the caller already named the exact skill:
-/
 1. Direct load for an explicit skill name
 2. Stack detection for project/framework clues
 3. Catalog-backed metadata search/resolution
@@ -29,7 +28,7 @@ Rules:
 ## Multi-Skill Orchestration Policy
 
 - Select one **primary skill** that directly matches the core task domain.
-- Add **supporting skills** only for concrete cross-cutting needs (testing, security, deployment, audit format).
+- Add **supporting skills** only for concrete cross-cutting needs (testing, risk review, deployment checks, audit formatting).
 - Cap loaded skills per turn at 3 total: 1 primary + up to 2 supporting.
 - Budget context intentionally: load primary first, then add supporting skills only when the current step needs them.
 - If unsure, load fewer skills and re-evaluate after reading the primary one.
@@ -47,18 +46,16 @@ If no confident match exists, return the best candidate plus the ambiguity inste
 
 ## Source of truth
 
+- Runtime skill metadata index: `engine-assets/skills/skill-metadata-index.json`
+- Skill manifest metadata: `engine-assets/manifest.json`
 - Canonical workflow and routing policy: `docs/system/search-execute-workflow.md`
 - Skills governance: `docs/system/skills-governance.md`
 - System docs index: `docs/system/index.md`
 
-## Compact skill reference index
+## Reference discipline
 
-Keep detailed behavior in the canonical docs and individual skills. Use this compact index only to anchor deterministic vault references.
+Keep detailed behavior in the canonical docs, the runtime skill metadata index, and the individual skills themselves.
 
-- Auth, security, and trust → `auth`, `firebase-auth`, `security`, `truth-sync`
-- .NET and backend frameworks → `csharp-expert`, `wolverine-core`, `wolverine-http`, `marten-documents`, `marten-events`, `marten-linq-querying`, `orleans`, `signalr`, `aspire-apphost`, `aspire-deployment`
-- Frontend, AI, and automation → `frontend`, `react-query`, `openai-compatible`, `microsoft-agent-framework`, `agent-browser`
-- Testing, observability, and delivery → `testing-dotnet-unit`, `testing-frontend-unit`, `alba-integration-tests`, `e2e-workflow`, `test-caching-verification`, `logging-observability`
-- Planning, governance, and audits → `planning-feature`, `planpack-authoring`, `roadmap-authoring`, `project-conventions-governance`, `documentation-structure-governance`, `audit-report-formats`, `stack-audit-patterns`, `skill-forge`
-- Review, debugging, and workflow support → `code-review`, `critic`, `debug`, `github-troubleshooting`, `refactor`, `friction-feedback`, `instruction-quality`, `system-cleanup`
-- Superpowers workflow pack → `superpowers-brainstorming`, `superpowers-dispatching-parallel-agents`, `superpowers-executing-plans`, `superpowers-finishing-a-development-branch`, `superpowers-receiving-code-review`, `superpowers-requesting-code-review`, `superpowers-subagent-driven-development`, `superpowers-systematic-debugging`, `superpowers-test-driven-development`, `superpowers-using-git-worktrees`, `superpowers-using-superpowers`, `superpowers-verification-before-completion`, `superpowers-writing-plans`, `superpowers-writing-skills`
+- Do not treat this file as a correctness-critical catalog of first-party exact skill names.
+- Resolve names, aliases, load modes, and targeting metadata from the runtime index and manifest-backed metadata instead of duplicating them here.
+- When examples are needed, keep them schematic, such as `<resolved-skill>`, rather than embedding exhaustive name inventories that can drift.

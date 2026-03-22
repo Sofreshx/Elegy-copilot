@@ -73,7 +73,7 @@ async function run() {
           description: 'Repo helper skill.',
           triggersOn: ['repo'],
           frameworks: ['react'],
-          manifest: { loadMode: 'always' },
+          manifest: { id: 'skill-repo-helper', loadMode: 'always' },
         },
       ],
     });

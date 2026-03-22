@@ -65,6 +65,7 @@
       "name": "skill-discovery-index",
       "schemaVersion": "1.0.0",
       "file": "skill-discovery-index.schema.json",
+      "runtimeArtifact": "engine-assets/skills/skill-metadata-index.json",
       "fixtures": [
         "fixtures/skill-discovery-index.minimal.json"
       ]

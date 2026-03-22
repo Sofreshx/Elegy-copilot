@@ -6,8 +6,8 @@ description: "Frontend UI development for React and similar frameworks. Creates 
 # Frontend Skill
 
 ## Inputs
-- Task from a task file under `.instructions/tasks/`.
-- `../../warnings.md`, `../../contexts/project.patterns.md`, `../../contexts/frontend.context.md`.
+- Explicit task request or active host/session work unit.
+- Relevant repo docs, area READMEs, and established frontend patterns already present in the codebase.
 
 ## Aesthetics (Critical)
 Apply this mindset to avoid generic "AI slop" UI:
@@ -40,25 +40,24 @@ Adopt a **Feature-based** organization to keep the codebase scalable and segment
 - Prefer using **Zustand** for global state: lightweight, hook-based stores that are easy to test and scale. Use local React state or Context for small, component-scoped state and avoid heavy global solutions unless necessary.
 
 ## Steps
-1. Read warnings and patterns to align with existing frontend approach (framework, state mgmt, styling).
+1. Read repo docs, existing feature structure, and established frontend conventions to align with the current approach (framework, state management, styling).
 2. Mode selection: auto -> deep if prior failures or architectural smell; shallow for local component fixes.
-3. Confirm scope; if unclear, add a clarifying entry to `raw.tasks.md` and pause.
+3. Confirm scope; if unclear, capture the blocker in host/session context or a user-requested note instead of assuming legacy task files.
 4. Implement changes: components, hooks/composables, state, API integration, routing.
 	- **Apply the Aesthetics guidelines above.**
-5. Add/update tests (unit, integration, e2e as appropriate per `frontend.context.md`).
-6. Note any inconsistencies in `../../warnings.md` (mixed patterns, outdated deps, accessibility gaps).
+5. Add/update tests using the repo-documented validation surface for the area you changed.
+6. Record any systemic inconsistencies in chat, host/session artifacts, or a user-requested destination instead of assuming legacy warning/context files.
 
 ## Output
 - Frontend code and tests.
-- Updated docs/contexts if patterns evolve.
-- Updated warnings/tasks/raw tasks as applicable.
+- Updated docs or area documentation if patterns evolve.
+- Follow-up notes only in chat, host/session artifacts, or a user-requested destination.
 
 ## Session Summary Format
 - **Done**: [what was completed]
 - **Changes**: [files/links modified]
-- **New tasks**: [any new task files created]
-- **New raw.tasks.md**: [any new unrefined tasks]
-- **Warnings**: [any ../../warnings.md updates]
+- **New follow-ups**: [any tracked follow-up work]
+- **Risks/notes**: [any systemic frontend concerns]
 - **Next**: [suggested next actions]
 
 

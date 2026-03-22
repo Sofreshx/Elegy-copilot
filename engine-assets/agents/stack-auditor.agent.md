@@ -1,7 +1,7 @@
 ---
 name: stack-auditor
 description: Tech stack pattern validator. Detects frameworks using stack-detector, loads relevant skills, and runs pattern-based compliance checks for common runtime failures and best practice violations.
-tools: [read, search, terminal]
+tools: [read, search]
 user-invocable: false
 disable-model-invocation: false
 ---
@@ -22,10 +22,10 @@ Detect the tech stack in a project and validate code against framework-specific 
 1. Run `stack-detector` skill to identify frameworks in the codebase.
 2. Load relevant skills for each detected framework (including `stack-audit-patterns`).
 3. Execute pattern checks via grep/search against the codebase — only check detected frameworks.
-4. Generate report to `.instructions-output/stack-audit.md`.
+4. Generate the report in chat by default. Persist it only to a caller-provided or repo-documented destination.
 
 ## Report
-Write `.instructions-output/stack-audit.md` with:
+Produce a stack audit report with:
 - YAML frontmatter: generated, detected_stack, overall_status, stats (critical/high/medium/low/passed)
 - Sections: Detected Frameworks, findings grouped by severity, Recommended Actions
 - Each finding: severity, [Framework] tag, file path + line, description, remediation
@@ -35,3 +35,4 @@ Write `.instructions-output/stack-audit.md` with:
 - Scope to detected frameworks only — never check patterns for absent frameworks.
 - Every finding must have a file path and line number.
 - Note when manual review is needed (some patterns have legitimate uses).
+- Legacy `.instructions-output/stack-audit.md` paths are compatibility-only when a repo explicitly opts in or the caller explicitly requests that destination.

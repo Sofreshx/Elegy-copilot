@@ -96,7 +96,7 @@ async function run() {
           stacks: ['frontend'],
           languages: ['typescript'],
           tags: ['cache', 'frontend', 'query'],
-          manifest: { loadMode: 'on-demand' },
+          manifest: { id: 'skill-react-query', loadMode: 'on-demand' },
         },
         {
           skill: 'testing-dotnet-unit',
@@ -107,7 +107,7 @@ async function run() {
           stacks: ['backend'],
           languages: ['csharp'],
           tags: ['test', 'backend'],
-          manifest: { loadMode: 'always' },
+          manifest: { id: 'skill-testing-dotnet-unit', loadMode: 'always' },
         },
       ],
     });

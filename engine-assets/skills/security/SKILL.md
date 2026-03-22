@@ -27,7 +27,7 @@ description: "Security review and vulnerability detection. Checks secure coding 
 - Copilot CLI playbook: `docs/system/copilot-cli-playbook.md`
 
 ## Steps
-1. Read security-relevant contexts in /docs or /documentation and existing warnings.
+1. Read security-relevant docs in `docs/` or `documentation/` and any existing issue notes or session context for the affected area.
 2. **Audit Secrets Infrastructure**:
    - **Git**: Verify `.env` is in `.gitignore`.
    - **.NET**: Check `.csproj` for `<UserSecretsId>` (enforce User Secrets).
@@ -72,15 +72,14 @@ description: "Security review and vulnerability detection. Checks secure coding 
 
 ## Output
 - Security review with categorized findings.
-- `.instructions/raw.tasks.md` entries for critical/high issues.
-- `../../warnings.md` entry for systemic security concerns.
+- Critical/high follow-ups captured in chat, host/session artifacts, or a user-requested security tracking surface.
+- Systemic security concerns captured only in repo-documented docs/issues surfaces or other explicitly requested destinations.
 
 ## Session Summary Format
 - **Done**: [security review completed]
-- **Changes**: [none�review only, or quick fixes applied]
-- **New tasks**: [none]
-- **New raw.tasks.md**: [security fixes needed]
-- **Warnings**: [systemic security issues]
+- **Changes**: [none-review only, or quick fixes applied]
+- **New follow-ups**: [security fixes needed]
+- **Risks/notes**: [systemic security issues]
 - **Next**: [address critical issues immediately]
 
 

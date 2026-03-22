@@ -110,14 +110,14 @@ async function run() {
           name: 'React Query',
           description: 'Shared React Query guidance from engine assets.',
           triggersOn: ['react query', 'tanstack query', 'query cache'],
-          manifest: { loadMode: 'on-demand' },
+          manifest: { id: 'skill-react-query', loadMode: 'on-demand' },
         },
         {
           skill: 'core-guardrails',
           name: 'Core Guardrails',
           description: 'Always-loaded safety rules.',
           triggersOn: ['safety', 'terminal'],
-          manifest: { loadMode: 'always' },
+          manifest: { id: 'skill-core-guardrails', loadMode: 'always' },
         },
       ],
     });

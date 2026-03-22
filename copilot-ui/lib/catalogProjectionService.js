@@ -402,7 +402,7 @@ function mergeAliasKeys(...lists) {
   return Array.from(aliases);
 }
 
-function buildAssetAliasKeys(kind, assetKey, assetId, logicalName, origin) {
+function buildAssetAliasKeys(kind, assetKey, assetId, logicalName, origin, extraAliasKeys = []) {
   const logicalAssetKey = normalizeAssetKey(kind, logicalName);
   const legacyQualifiedKey = buildLegacyProviderQualifiedAssetKey(kind, logicalName, origin?.provenance);
   return mergeAliasKeys(
@@ -411,6 +411,7 @@ function buildAssetAliasKeys(kind, assetKey, assetId, logicalName, origin) {
     origin?.namespace && logicalAssetKey ? [`${origin.namespace}/${logicalAssetKey}`] : [],
     origin?.sourcePackage && logicalAssetKey ? [`${origin.sourcePackage}/${logicalAssetKey}`] : [],
     legacyQualifiedKey ? [legacyQualifiedKey] : [],
+    extraAliasKeys,
   );
 }
 
@@ -950,7 +951,7 @@ function createSourceEntries(engineRoot, metadataBySkill, warnings) {
           manifestDestination: asset.destination,
           manifestLoadMode: asset.loadMode,
           triggersOn: metadataEntry?.triggersOn || parsedAsset.triggers,
-          aliasKeys: buildAliasKeys(kind, assetKey, assetId),
+          aliasKeys: mergeAliasKeys(buildAliasKeys(kind, assetKey, assetId), metadataEntry?.aliasKeys),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
       }),
@@ -1149,7 +1150,7 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex, providerCatal
           resolvedRealPath: origin.realPath,
           viewPath: skill.viewPath,
           triggersOn: metadataEntry?.triggersOn || parsedAsset.triggers,
-          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
+          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin, metadataEntry?.aliasKeys),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
         provenance: origin.provenance,
@@ -1221,7 +1222,7 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex, providerCatal
           resolvedRealPath: origin.realPath,
           viewPath: skill.viewPath,
           triggersOn: metadataEntry?.triggersOn || parsedAsset.triggers,
-          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
+          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin, metadataEntry?.aliasKeys),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
         provenance: origin.provenance,
@@ -1349,7 +1350,7 @@ function scanRepoLocalEntries(
           resolvedRealPath: origin.realPath,
           viewPath: skill.viewPath,
           triggersOn: metadataEntry?.triggersOn || parsedAsset.triggers,
-          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
+          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin, metadataEntry?.aliasKeys),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
         provenance: origin.provenance,

@@ -82,14 +82,11 @@
     {
       "skill": "auth",
       "name": "auth",
-      "description": "Backward-compatible alias for firebase-auth. Primary auth implementation is Firebase Authentication. Triggers on: auth, authentication, login, firebase, firebase auth, id token, custom claims.",
+      "description": "Deprecated compatibility alias for firebase-auth. Not auto-selected in normal routing; load only for explicit auth-skill requests or legacy compatibility. Triggers on: auth, authentication, login, firebase auth alias.",
       "triggersOn": [
         "auth",
         "authentication",
-        "custom claims",
-        "firebase",
-        "firebase auth",
-        "id token",
+        "firebase auth alias",
         "login"
       ],
       "manifest": {
@@ -503,7 +500,7 @@
     {
       "skill": "refactor",
       "name": "refactor",
-      "description": "Code restructuring and cleanup. Improves readability, reduces duplication, and aligns with patterns without changing behavior. Triggers on: refactor, clean up, reorganize, simplify.",
+      "description": "Default-handled compatibility surface for generic code cleanup. Base models usually handle refactor requests directly; load this skill only for explicit refactor-skill requests or legacy compatibility. Triggers on: refactor, clean up, reorganize, simplify.",
       "triggersOn": [
         "clean up",
         "refactor",
@@ -811,8 +808,10 @@
     {
       "skill": "system-cleanup",
       "name": "system-cleanup",
-      "description": ">",
+      "description": "Deprecated compatibility surface for legacy task and backlog cleanup flows. Not auto-selected in normal routing; load only for explicit system-cleanup requests or legacy compatibility. Triggers on: system cleanup, archive completed tasks, cleanup tasks.",
       "triggersOn": [
+        "archive completed tasks",
+        "cleanup tasks",
         "system cleanup"
       ],
       "manifest": {

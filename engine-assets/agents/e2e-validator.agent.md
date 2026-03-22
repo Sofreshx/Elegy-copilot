@@ -26,7 +26,7 @@ Load `e2e-workflow` skill for health endpoints, execution modes, and PASS/FAIL/I
 2. **Health Endpoints** — probe /health, /api/health, /ready, /healthz, / (base URL). At least one must respond.
 3. **Critical Pages** — delegate to `e2e-browser`: home page (renders, no JS errors), login page (if present), one protected page (if auth configured).
 4. **Auth Flow** (conditional) — only if login page found + test credentials available (env vars or `.env.test`). Fill, submit, verify redirect + token.
-5. **Report** — generate `.instructions-output/e2e-validation.md`.
+5. **Report** — return a concise validation summary in chat and persist it only to a caller-provided or repo-documented destination.
 
 ## Status Rules
 - **PASS**: all required checks pass AND browser validation ran.
@@ -34,5 +34,5 @@ Load `e2e-workflow` skill for health endpoints, execution modes, and PASS/FAIL/I
 - **INCONCLUSIVE**: browser automation was skipped for any reason.
 
 ## Output
-- Report: `.instructions-output/e2e-validation.md`
-- Failure screenshots: `.instructions-output/e2e-validation/screenshots/`
+- Report: in-chat by default; persist only to a caller-provided or repo-documented destination.
+- Failure screenshots: caller-provided path, host/session artifact, or sanctioned temp directory when persistence is needed.

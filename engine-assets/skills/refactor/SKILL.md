@@ -1,9 +1,11 @@
 ---
 name: refactor
-description: "Code restructuring and cleanup. Improves readability, reduces duplication, and aligns with patterns without changing behavior. Triggers on: refactor, clean up, reorganize, simplify."
+description: "Default-handled compatibility surface for generic code cleanup. Base models usually handle refactor requests directly; load this skill only for explicit refactor-skill requests or legacy compatibility. Triggers on: refactor, clean up, reorganize, simplify."
 ---
 
 # Refactor Skill
+
+This skill is a default-handled compatibility surface. In normal routing, generic refactor and cleanup work should be handled directly without auto-selecting this skill. Load it only when the caller explicitly asks for the `refactor` skill or an older workflow still depends on it.
 
 ## When to Use (LLM Routing Guide)
 - User says "refactor this", "clean up this code", "extract this into..."
@@ -13,19 +15,19 @@ description: "Code restructuring and cleanup. Improves readability, reduces dupl
 - Preparing code for new features (pre-refactor)
 
 ## When NOT to Use
-- Adding new functionality ? domain agents
-- Fixing bugs ? `debug.agent.md`
-- Performance optimization ? `performance-auditer.agent.md`
-- Code review without changes ? `code-review.agent.md`
+- Adding new functionality - use the relevant domain lane
+- Fixing bugs - use the debugging lane
+- Performance optimization - use the performance audit lane
+- Code review without changes - use the review lane
 
 ## Inputs
 - Code to refactor.
-- `../../contexts/project.patterns.md` (target patterns).
-- `../../warnings.md` (known issues to address or avoid).
+- Relevant repo docs and nearby code conventions that define the target patterns.
+- Existing issue notes or session context for known issues to address or avoid.
 
 ## Steps
-1. Read project patterns to understand target conventions.
-2. Mode selection: auto ? **deep** if touching shared code or prior refactor failures; **shallow** for isolated cleanup.
+1. Read repo docs and nearby code to understand the target conventions.
+2. Mode selection: auto -> **deep** if touching shared code or prior refactor failures; **shallow** for isolated cleanup.
 3. Analyze current code for:
    - Duplication
    - Long methods/classes
@@ -33,7 +35,7 @@ description: "Code restructuring and cleanup. Improves readability, reduces dupl
    - Pattern violations
    - Tight coupling
 4. Plan refactoring steps (small, incremental changes).
-5. Apply changes while **preserving behavior**�no functional changes.
+5. Apply changes while **preserving behavior** - no functional changes.
 6. Ensure tests pass after each step (if tests exist).
 7. If tests don't exist, flag as risk and consider adding them first.
 
@@ -53,14 +55,14 @@ description: "Code restructuring and cleanup. Improves readability, reduces dupl
 ## Output
 - Refactored code.
 - Updated tests if needed.
-- `../../warnings.md` entry if risk discovered.
+- Risk note in chat, host/session artifacts, or a user-requested destination if a follow-up concern is discovered.
 
 ## Session Summary Format
 - **Done**: [refactoring completed]
 - **Changes**: [files modified]
 - **New tasks**: [none]
-- **New raw.tasks.md**: [if follow-up needed, e.g., add tests]
-- **Warnings**: [if risk found]
+- **New follow-ups**: [if follow-up needed, e.g., add tests]
+- **Risks/notes**: [if risk found]
 - **Next**: [verify behavior, continue refactoring, or done]
 
 

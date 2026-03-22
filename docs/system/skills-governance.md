@@ -30,12 +30,25 @@ Classify each skill as one of:
 - **Default-handled**: generic reasoning tasks already well handled by base models.
 - **Deprecated**: kept for compatibility, hidden by default.
 
+Routing policy for the last two classes:
+- **Default-handled** skills stay available for explicit opt-in or compatibility needs, but normal routing should let the base model handle the work directly.
+- **Deprecated** skills are compatibility surfaces only and should load only on explicit request or when older prompts/docs still depend on them.
+
+In `engine-assets/manifest.json`, governance annotations for these classes are descriptive only. They document the approved routing posture, but current runtime/catalog/search consumers do not enforce those manifest labels directly.
+
 ## Current default-handled set
 These are hidden in extension skill discovery by default:
 - `debug`
 - `docs`
 - `refactor`
 - `design`
+
+`refactor` remains in the catalog as a compatibility surface, but generic cleanup and restructuring requests should be handled directly unless the caller explicitly asks for the skill.
+
+## Current deprecated compatibility surfaces
+These remain installed only to preserve older routing and prompt references:
+- `auth`: compatibility alias surface; prefer `firebase-auth` for implementation work and `security` for review.
+- `system-cleanup`: compatibility surface for legacy task/backlog cleanup flows.
 
 Setting to show them:
 - `skillInstaller.skills.showDefaultHandled = true`

@@ -3,6 +3,7 @@ const assert = require('assert');
 const childProcess = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 const repoRoot = path.resolve(__dirname, '..');
 const generatorPath = path.resolve(__dirname, 'generate-skill-metadata-index.mjs');
@@ -36,6 +37,14 @@ function readIndexRaw() {
 
 function readIndex() {
 	return JSON.parse(readIndexRaw());
+}
+
+function runModuleSnippet(source) {
+	return childProcess.spawnSync(process.execPath, ['--input-type=module', '--eval', source], {
+		cwd: repoRoot,
+		stdio: 'pipe',
+		encoding: 'utf8',
+	});
 }
 
 function assertSortedUniqueList(entry, fieldName) {
@@ -93,6 +102,44 @@ test('manifest metadata is present when attached and has deterministic fields', 
 		if (!entry.manifest) continue;
 		assert.ok(typeof entry.manifest.id === 'string' && entry.manifest.id.length > 0, `manifest.id missing for ${entry.skill}`);
 		assert.ok(typeof entry.manifest.loadMode === 'string' && entry.manifest.loadMode.length > 0, `manifest.loadMode missing for ${entry.skill}`);
+	}
+});
+
+test('manifest skill metadata rejects empty ids and load modes', () => {
+	const generatorUrl = pathToFileURL(generatorPath).href;
+	const cases = [
+		{
+			field: 'id',
+			manifest: {
+				assets: [
+					{ type: 'skill', source: 'engine-assets/skills/example-skill', id: '', loadMode: 'always' },
+				],
+			},
+		},
+		{
+			field: 'loadMode',
+			manifest: {
+				assets: [
+					{ type: 'skill', source: 'engine-assets/skills/example-skill', id: 'skill-example-skill', loadMode: '   ' },
+				],
+			},
+		},
+	];
+
+	for (const testCase of cases) {
+		const result = runModuleSnippet(
+			[
+				`import { collectManifestSkillMetadata } from ${JSON.stringify(generatorUrl)};`,
+				`collectManifestSkillMetadata(${JSON.stringify(testCase.manifest)});`,
+			].join('\n'),
+		);
+
+		assert.notStrictEqual(result.status, 0, `expected failure for empty manifest ${testCase.field}`);
+		assert.match(
+			`${result.stderr || ''}${result.stdout || ''}`,
+			new RegExp(`empty ${testCase.field}`),
+			`expected empty ${testCase.field} error output`,
+		);
 	}
 });
 

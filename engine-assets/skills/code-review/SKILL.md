@@ -19,12 +19,12 @@ description: "Code review for quality, patterns, and bugs. Reviews PRs, identifi
 
 ## Inputs
 - Code to review (file, diff, or PR).
-- `../../warnings.md`, `../../contexts/project.patterns.md`.
-- Relevant domain context (e.g., `../../contexts/auth.context.md` if reviewing auth code).
+- Relevant repo docs and conventions from `README.md`, `docs/`, or area-specific documentation.
+- Existing issue notes, session context, or explicitly provided background for the reviewed area.
 
 ## Steps
-1. Read project patterns to understand expected conventions.
-2. Check `../../warnings.md` for known issues in the area being reviewed.
+1. Read repo docs, nearby code, and established conventions to understand expected behavior.
+2. Check existing issue notes or session context for known issues in the area being reviewed.
 3. Analyze code for:
    - **Correctness**: Logic errors, edge cases, null handling
    - **Patterns**: Alignment with project conventions
@@ -33,7 +33,7 @@ description: "Code review for quality, patterns, and bugs. Reviews PRs, identifi
    - **Performance**: Obvious inefficiencies (defer deep analysis to performance.agent)
    - **Security**: Obvious vulnerabilities (defer deep analysis to security.agent)
 4. Categorize findings by severity: **Critical** | **Warning** | **Suggestion** | **Nitpick**
-5. If issues found, suggest specific fixes or add to `raw.tasks.md` for follow-up.
+5. If issues found, suggest specific fixes or capture follow-up work in chat, host/session artifacts, or a user-requested tracking surface.
 
 ## Review Output Format
 ```markdown
@@ -57,14 +57,13 @@ description: "Code review for quality, patterns, and bugs. Reviews PRs, identifi
 
 ## Output
 - Review summary with categorized findings.
-- Optional: `raw.tasks.md` entries for issues that need tracked fixes.
+- Optional: follow-up notes in chat, host/session artifacts, or a user-requested tracking surface.
 
 ## Session Summary Format
 - **Done**: [review completed]
-- **Changes**: [none�review only]
-- **New tasks**: [none]
-- **New raw.tasks.md**: [issues needing fixes]
-- **Warnings**: [if systemic issue found]
+- **Changes**: [none-review only]
+- **New follow-ups**: [issues needing fixes]
+- **Risks/notes**: [if systemic issue found]
 - **Next**: [address critical issues or approve]
 
 

@@ -73,15 +73,24 @@ export interface AgentCreateRequest {
   scope?: 'Session' | 'Workspace' | 'Global';
 }
 
+export type SkillDiscoveryLoadMode = 'always' | 'on-demand';
+
+export interface SkillDiscoveryEntryManifest {
+  id: string;
+  loadMode: SkillDiscoveryLoadMode;
+}
+
 export interface SkillDiscoveryEntry {
   skill: string;
   name: string;
   description: string;
   triggersOn: string[];
-  manifest?: {
-    id?: string;
-    loadMode?: string;
-  };
+  aliasKeys?: string[];
+  frameworks?: string[];
+  stacks?: string[];
+  languages?: string[];
+  tags?: string[];
+  manifest?: SkillDiscoveryEntryManifest;
 }
 
 export interface SkillDiscoveryIndex {

@@ -117,6 +117,15 @@ Load the resolved `SKILL.md` as soon as one of these is true:
 
 If no confident match exists, surface the best candidate plus the ambiguity; do not speculatively load multiple broad skills.
 
+### Compatibility and default-handled exclusions
+
+The approved routing posture in `balanced-default` mode is to avoid auto-selecting skills classified in [docs/system/skills-governance.md](docs/system/skills-governance.md) as either deprecated compatibility surfaces or default-handled surfaces.
+
+- Deprecated skills load only when the user/caller explicitly names them or when compatibility with older prompts/docs requires that exact surface.
+- Default-handled skills load only on explicit request or compatibility need; otherwise the work should proceed through direct/base-model handling without auto-selecting the skill.
+- Until explicit runtime enforcement exists, treat this as prompt/orchestrator guidance and approved routing posture rather than catalog-backed enforcement.
+- Manifest governance labels remain descriptive only; current catalog/runtime consumers must not treat them as enforced runtime policy.
+
 ## Default orchestration policy: `balanced-default`
 
 The default planning/orchestration posture is **balanced-default**:
@@ -147,6 +156,7 @@ Until all runtime surfaces can provide the routing-policy snapshot, prompts shou
 
 - declare that routing is operating in `fallback-curated` mode
 - keep automatic selection inside the shipped first-party orchestrator baseline
+- do not auto-select deprecated compatibility surfaces or default-handled skills from fallback alone
 - do not auto-select provider/imported capabilities, optional audit lanes, cross-model reviewers,
   or persisted session-state workflows from fallback alone
 

@@ -173,18 +173,24 @@ function createFixtureRoot() {
         name: 'core-guardrails',
         description: 'Always-loaded safety guidance.',
         triggersOn: ['safety', 'terminal'],
+        aliasKeys: ['terminal-safety'],
         tags: ['safety'],
         frameworks: ['node'],
-        manifest: { loadMode: 'always' },
+        stacks: ['infra'],
+        languages: ['javascript'],
+        manifest: { id: 'skill-core-guardrails', loadMode: 'always' },
       },
       {
         skill: 'repo-helper',
         name: 'repo-helper',
         description: 'Repo helper for workspace tasks.',
         triggersOn: ['repo', 'workspace'],
+        aliasKeys: ['workspace concierge'],
         tags: ['repo'],
         frameworks: ['node'],
-        manifest: { loadMode: 'on-demand' },
+        stacks: ['repo'],
+        languages: ['javascript'],
+        manifest: { id: 'skill-repo-helper', loadMode: 'on-demand' },
       },
     ],
   });
@@ -877,6 +883,41 @@ async function run() {
       assert.ok(eligibleResponse.body.count >= 1);
       assert.equal(eligibleResponse.body.results[0].assetId, 'skill-repo-helper');
       assert.equal(eligibleResponse.body.routingPolicy.mode, 'eligible-only');
+    });
+
+    await test('POST /api/search/query resolves contract alias keys and targeting metadata from the runtime skill index', async () => {
+      await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'activate-bundle',
+        bundleId: 'repo-helper-pack',
+        repoPath,
+      });
+
+      const response = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
+        query: 'workspace concierge',
+        kind: 'skill',
+        includeVaultOnly: true,
+        frameworks: ['node'],
+        stacks: ['repo'],
+        languages: ['javascript'],
+        tags: ['repo'],
+        limit: 5,
+        repoPath,
+        sessionId: 'session-asset-1',
+      });
+
+      assert.equal(response.res.statusCode, 200);
+      assert.equal(response.body.kind, 'catalog.search.query');
+      assert.ok(response.body.count >= 1);
+      assert.equal(response.body.results[0].assetId, 'skill-repo-helper');
+      assert.ok(response.body.results[0].entry.metadata.aliasKeys.includes('workspace concierge'));
+      assert.deepEqual(response.body.results[0].entry.targeting.frameworks, ['node']);
+      assert.deepEqual(response.body.results[0].entry.targeting.stacks, ['repo']);
+      assert.deepEqual(response.body.results[0].entry.targeting.languages, ['javascript']);
+      assert.deepEqual(response.body.results[0].entry.targeting.tags, ['repo']);
+      assert.ok(
+        response.body.results[0].explanations.some((item) => item.code === 'exact-name' || item.code === 'name'),
+        'expected alias-key match explanation from contract metadata',
+      );
     });
 
     await test('POST /api/search/selection persists selection telemetry for backend/UI consumers', async () => {

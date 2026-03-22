@@ -417,6 +417,7 @@ function normalizeLinkedPlanSession(value: unknown): PlanningLinkedPlanSession |
       'seed-from-bullet',
       'seed-from-backlog',
       'seed-from-roadmap',
+      'seed-from-synced-note',
     ].includes(source)
   ) {
     return null;
@@ -429,7 +430,9 @@ function normalizeLinkedPlanSession(value: unknown): PlanningLinkedPlanSession |
         ? 'bullet'
         : (source === 'seed-from-backlog'
           ? 'backlog'
-          : (source === 'seed-from-roadmap' ? 'roadmap' : 'direct'))));
+          : (source === 'seed-from-roadmap'
+            ? 'roadmap'
+            : (source === 'seed-from-synced-note' ? 'synced-note' : 'direct')))));
   const normalizedOriginArtifactId =
     originArtifactId
     || seedArtifactId
@@ -489,6 +492,7 @@ function normalizePlanOriginKind(
   if (normalized === 'bullet') return 'bullet';
   if (normalized === 'backlog') return 'backlog';
   if (normalized === 'roadmap') return 'roadmap';
+  if (normalized === 'synced-note') return 'synced-note';
   if (normalized === 'direct') return 'direct';
   return fallback;
 }
@@ -607,6 +611,8 @@ function buildSeededPlanContent(input: {
         ? 'Backlog item'
         : artifact.kind === 'roadmap'
           ? 'Roadmap item'
+          : artifact.kind === 'synced-note'
+            ? 'Synced note seed'
           : artifact.kind === 'intake'
             ? 'Intake artifact'
             : 'Planning artifact';
@@ -668,6 +674,7 @@ function normalizePlanSeedSource(artifact: PlanningPlanSeedArtifact | null | und
   if (artifact.kind === 'bullet') return 'seed-from-bullet';
   if (artifact.kind === 'backlog') return 'seed-from-backlog';
   if (artifact.kind === 'roadmap') return 'seed-from-roadmap';
+  if (artifact.kind === 'synced-note') return 'seed-from-synced-note';
   return 'create-plan';
 }
 
@@ -691,6 +698,8 @@ function normalizePlanSeedArtifact(
       ? 'bullet'
       : inputKind === 'planning.intake.artifact'
         ? 'intake'
+        : inputKind === 'synced-note' || inputKind === 'planning.synced-note.source'
+          ? 'synced-note'
         : id.startsWith('PB-')
           ? 'bullet'
           : id.startsWith('RB-')

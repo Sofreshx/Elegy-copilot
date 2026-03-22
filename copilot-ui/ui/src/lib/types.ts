@@ -1414,7 +1414,7 @@ export interface PlanningLinkedSdkSession {
   promptPreview?: string;
 }
 
-export type PlanningPlanOriginKind = 'direct' | 'intake' | 'bullet' | 'backlog' | 'roadmap';
+export type PlanningPlanOriginKind = 'direct' | 'intake' | 'bullet' | 'backlog' | 'roadmap' | 'synced-note';
 
 export interface PlanningLinkedPlanSession {
   sessionId: string;
@@ -1425,7 +1425,8 @@ export interface PlanningLinkedPlanSession {
     | 'seed-from-intake'
     | 'seed-from-bullet'
     | 'seed-from-backlog'
-    | 'seed-from-roadmap';
+    | 'seed-from-roadmap'
+    | 'seed-from-synced-note';
   originKind?: PlanningPlanOriginKind;
   originArtifactId?: string;
   createdAt: string;

@@ -564,7 +564,11 @@
       "type": "skill",
       "source": "engine-assets/skills/auth",
       "destination": "skills/auth",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Informational only; approved posture is explicit or compatibility-driven use."
+      }
     },
     {
       "id": "skill-code-review",
@@ -746,7 +750,11 @@
       "type": "skill",
       "source": "engine-assets/skills/refactor",
       "destination": "skills/refactor",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "default-handled",
+        "routingNote": "Informational only; normal routing should handle this directly unless explicit or compatibility use is needed."
+      }
     },
     {
       "id": "skill-security",
@@ -886,7 +894,11 @@
       "type": "skill",
       "source": "engine-assets/skills/system-cleanup",
       "destination": "skills/system-cleanup",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Informational only; approved posture is explicit or compatibility-driven use."
+      }
     },
     {
       "id": "skill-test-caching-verification",

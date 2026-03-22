@@ -93,21 +93,33 @@ async function run() {
           name: 'core-guardrails',
           description: 'Always-loaded safety rules.',
           triggersOn: ['safety', 'terminal'],
-          manifest: { loadMode: 'always' },
+          aliasKeys: ['terminal-safety'],
+          frameworks: ['node'],
+          languages: ['javascript'],
+          tags: ['safety'],
+          manifest: { id: 'skill-core-guardrails', loadMode: 'always' },
         },
         {
           skill: 'wolverine-core',
           name: 'wolverine-core',
           description: 'On-demand Wolverine guidance.',
           triggersOn: ['wolverine', 'message handler'],
-          manifest: { loadMode: 'on-demand' },
+          aliasKeys: ['message dispatcher'],
+          frameworks: ['dotnet'],
+          languages: ['csharp'],
+          tags: ['messaging'],
+          manifest: { id: 'skill-wolverine-core', loadMode: 'on-demand' },
         },
         {
           skill: 'missing-skill',
           name: 'missing-skill',
           description: 'Managed but not installed yet.',
           triggersOn: ['missing'],
-          manifest: { loadMode: 'on-demand' },
+          aliasKeys: ['preview placeholder'],
+          frameworks: ['node'],
+          languages: ['javascript'],
+          tags: ['missing'],
+          manifest: { id: 'skill-missing-skill', loadMode: 'on-demand' },
         },
       ],
     });
@@ -154,6 +166,7 @@ async function run() {
       assert.strictEqual(byName.get('missing-skill').kind, 'missing');
       assert.strictEqual(byName.get('missing-skill').availability, 'not-installed');
       assert.strictEqual(byName.get('missing-skill').loadMode, 'on-demand');
+      assert.strictEqual(byName.get('missing-skill').triggers, 'missing');
     });
 
     await test('preview keeps plugin-installed skills distinct with explicit view paths and read-only provenance', async () => {

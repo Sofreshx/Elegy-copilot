@@ -1,24 +1,24 @@
 ---
 name: auth
-description: "Backward-compatible alias for firebase-auth. Primary auth implementation is Firebase Authentication. Triggers on: auth, authentication, login, firebase, firebase auth, id token, custom claims."
+description: "Deprecated compatibility alias for firebase-auth. Not auto-selected in normal routing; load only for explicit auth-skill requests or legacy compatibility. Triggers on: auth, authentication, login, firebase auth alias."
 ---
 
-# Auth Skill (Alias)
+# Auth Skill (Deprecated Compatibility Alias)
 
-This skill is retained for backward compatibility.
+This skill is a deprecated compatibility surface. Normal routing should prefer `firebase-auth` for implementation work and `security` for review. Load `auth` only when an older prompt or explicit request still names this alias.
 
 Use the canonical Firebase skill instead:
 
-- Full instructions: `.github/skills/firebase-auth/SKILL.md`
+- `firebase-auth`
 
 
 ## When NOT to Use
-- For Firebase-specific auth ? use `firebase-auth` (custom claims, Admin SDK)
-- For generic security review ? use `security`
+- For Firebase-specific auth, use `firebase-auth` (custom claims, Admin SDK)
+- For generic security review, use `security`
 
 ## Inputs
-- Task from a task file under `.instructions/tasks/`
-- `../../warnings.md`, `../../contexts/project.patterns.md`
+- Explicit task request or active host/session work unit
+- Relevant repo docs and current auth/security guidance under `docs/` or area-specific documentation
 - Check for existing auth: look for JWT, OIDC, cookie auth patterns in codebase
 
 ## Auth Patterns to Detect
@@ -33,18 +33,17 @@ Use the canonical Firebase skill instead:
 3. **Mode**: Use deep mode if touching shared auth infra; shallow for config changes
 4. **Implement**: Config, middleware/filters, token handling, user model impacts
 5. **Test**: Add auth-specific tests (token validation, role checks, expiry)
-6. **Warn**: Note inconsistencies in `../../warnings.md` (e.g., mixed providers, missing HTTPS)
+6. **Record risks**: Capture systemic inconsistencies in chat, host/session artifacts, or a user-requested doc instead of assuming legacy warning files
 
 ## Output
 - Auth changes plus tests.
-- Updated tasks/raw tasks/warnings as applicable.
+- Follow-up notes only in chat, host/session artifacts, or a user-requested destination.
 
 ## Session Summary Format
 - **Done**: [what was completed]
 - **Changes**: [files/links modified]
-- **New tasks**: [any new task files created]
-- **New raw.tasks.md**: [any new unrefined tasks]
-- **Warnings**: [any ../../warnings.md updates]
+- **New follow-ups**: [any tracked follow-up work]
+- **Risks/notes**: [security or auth concerns captured]
 - **Next**: [suggested next actions]
 
 

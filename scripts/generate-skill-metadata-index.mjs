@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -175,7 +175,15 @@ function extractTriggers(content, description) {
 	return Array.from(result).sort((a, b) => a.localeCompare(b));
 }
 
-function collectManifestSkillMetadata(manifest) {
+function readNonEmptyManifestValue(asset, fieldName, skillKey) {
+	const value = String(asset?.[fieldName] ?? '').trim();
+	if (!value) {
+		throw new Error(`skill manifest entry '${skillKey}' has empty ${fieldName}`);
+	}
+	return value;
+}
+
+export function collectManifestSkillMetadata(manifest) {
 	const map = new Map();
 	const assets = Array.isArray(manifest?.assets) ? manifest.assets : [];
 
@@ -187,15 +195,16 @@ function collectManifestSkillMetadata(manifest) {
 
 		const skillKey = match[1];
 		map.set(skillKey, {
-			id: String(asset.id || ''),
-			loadMode: String(asset.loadMode || ''),
+			id: readNonEmptyManifestValue(asset, 'id', skillKey),
+			loadMode: readNonEmptyManifestValue(asset, 'loadMode', skillKey),
 		});
 	}
 
 	return map;
 }
 
-function generateIndex() {
+export function generateIndex(options = {}) {
+	const { write = true } = options;
 	const manifest = readJson(manifestPath);
 	const manifestSkills = collectManifestSkillMetadata(manifest);
 
@@ -239,9 +248,17 @@ function generateIndex() {
 		entries: skills,
 	};
 
-	fs.writeFileSync(outputPath, `${JSON.stringify(index, null, 2)}\n`, 'utf8');
+	if (write) {
+		fs.writeFileSync(outputPath, `${JSON.stringify(index, null, 2)}\n`, 'utf8');
+	}
 	return index;
 }
 
-const index = generateIndex();
-console.log(`Generated skill metadata index: ${path.relative(repoRoot, outputPath)} (skills=${index.entries.length})`);
+const isMainModule = process.argv[1]
+	? import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+	: false;
+
+if (isMainModule) {
+	const index = generateIndex();
+	console.log(`Generated skill metadata index: ${path.relative(repoRoot, outputPath)} (skills=${index.entries.length})`);
+}

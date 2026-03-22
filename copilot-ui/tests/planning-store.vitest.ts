@@ -537,4 +537,78 @@ describe('planningStore catalog repo context', () => {
       seedArtifactId: 'PI-001',
     });
   });
+
+  it('round-trips synced-note seeded plan linkage from localStorage and preserves synced-note provenance', async () => {
+    window.localStorage.setItem(
+      'instruction-engine.planning.linked-plan-session.v1',
+      JSON.stringify({
+        'repo-1::synced-note::snsrc_1234567890abcdef1234567890abcd::planning': {
+          sessionId: 'plan-synced-note',
+          repoId: 'repo-1',
+          source: 'seed-from-synced-note',
+          createdAt: '2026-03-18T00:00:00.000Z',
+          seedArtifactId: 'snsrc_1234567890abcdef1234567890abcd',
+          seedArtifactTitle: 'Weekly synced planning note',
+        },
+      })
+    );
+    apiMocks.upsertSessionPlan.mockResolvedValueOnce({
+      sessionId: 'plan-synced-note',
+      source: 'cli',
+      planPath: 'C:\\Users\\Dylan\\.copilot\\session-state\\plan-synced-note\\plan.md',
+      created: false,
+      updatedAt: '2026-03-18T00:06:00.000Z',
+      content: '# Synced note seeded plan\n\n## Problem\n\nRefine the synced note into implementation steps.\n',
+    });
+
+    const store = createPlanningStore();
+    store.applyCatalogRepoContext({
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      sources: ['workspace', 'selected'],
+    });
+
+    const sessionId = await store.savePlanDraft({
+      title: 'Promote synced note seed',
+      seedArtifact: {
+        id: 'snsrc_1234567890abcdef1234567890abcd',
+        kind: 'synced-note',
+        title: 'Weekly synced planning note',
+        summary: 'Use the synced note as a planning seed, not as the source of truth.',
+        targetRepoIds: ['repo-1'],
+      },
+    });
+
+    expect(sessionId).toBe('plan-synced-note');
+    expect(apiMocks.upsertSessionPlan).toHaveBeenCalledWith({
+      sessionId: 'plan-synced-note',
+      title: 'Promote synced note seed',
+      content: expect.stringContaining('Synced note seed'),
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      seedArtifact: {
+        id: 'snsrc_1234567890abcdef1234567890abcd',
+        kind: 'synced-note',
+        category: 'synced-note',
+        title: 'Weekly synced planning note',
+        summary: 'Use the synced note as a planning seed, not as the source of truth.',
+        targetRepoIds: ['repo-1'],
+        state: undefined,
+        repoId: undefined,
+        originKind: 'synced-note',
+        promotedPlanRefs: [],
+        promotedBacklogRefs: [],
+      },
+    });
+    expect(store.getState().linkedPlanSession).toMatchObject({
+      sessionId: 'plan-synced-note',
+      repoId: 'repo-1',
+      source: 'seed-from-synced-note',
+      originKind: 'synced-note',
+      originArtifactId: 'snsrc_1234567890abcdef1234567890abcd',
+      seedArtifactId: 'snsrc_1234567890abcdef1234567890abcd',
+      seedArtifactTitle: 'Weekly synced planning note',
+    });
+  });
 });

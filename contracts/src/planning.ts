@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 /** Planning record as persisted by the planning API. */
 export interface PlanningRecord {
   id: string;
@@ -90,6 +92,154 @@ export interface PlanningIntakeArtifact {
   planningState?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export const SYNCED_NOTE_SOURCE_PROVIDERS = ['github', 'gitea', 'git'] as const;
+export type SyncedNoteSourceProvider = typeof SYNCED_NOTE_SOURCE_PROVIDERS[number];
+
+export const SYNCED_NOTE_SOURCE_ID_PREFIX = 'snsrc';
+export const SYNCED_NOTE_SOURCE_ID_PATTERN = /^snsrc_[a-f0-9]{32}$/;
+
+export interface SyncedNoteSourceLocator {
+  provider: SyncedNoteSourceProvider;
+  host: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  notesPath: string;
+}
+
+export interface SyncedNoteSourceRecord extends SyncedNoteSourceLocator {
+  id: string;
+  localCheckoutPath?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export class SyncedNoteSourceContractError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SyncedNoteSourceContractError';
+  }
+}
+
+function requireNonEmptyString(value: unknown, fieldName: string): string {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) {
+    throw new SyncedNoteSourceContractError(`Synced-note source ${fieldName} is required`);
+  }
+  return normalized;
+}
+
+function hasControlCharacters(value: string): boolean {
+  return /[\u0000-\u001f\u007f]/.test(value);
+}
+
+function normalizeHost(value: unknown): string {
+  const normalized = requireNonEmptyString(value, 'host').toLowerCase();
+  if (
+    normalized.includes('://')
+    || normalized.includes('/')
+    || normalized.includes('\\')
+    || normalized.includes('@')
+    || /\s/.test(normalized)
+    || hasControlCharacters(normalized)
+  ) {
+    throw new SyncedNoteSourceContractError('Synced-note source host must be a bare host[:port] value');
+  }
+  return normalized;
+}
+
+function normalizeRepoSegment(value: unknown, fieldName: 'owner' | 'repo'): string {
+  const normalized = requireNonEmptyString(value, fieldName);
+  if (normalized.includes('/') || normalized.includes('\\') || hasControlCharacters(normalized)) {
+    throw new SyncedNoteSourceContractError(`Synced-note source ${fieldName} must be a single path segment`);
+  }
+  return normalized;
+}
+
+function normalizeBranch(value: unknown): string {
+  const normalized = requireNonEmptyString(value, 'branch');
+  if (
+    normalized.includes('\\')
+    || normalized.startsWith('/')
+    || normalized.endsWith('/')
+    || normalized.includes('..')
+    || normalized.endsWith('.lock')
+    || hasControlCharacters(normalized)
+  ) {
+    throw new SyncedNoteSourceContractError('Synced-note source branch must be a valid deterministic git ref name');
+  }
+  return normalized;
+}
+
+function normalizeNotesPath(value: unknown): string {
+  const raw = requireNonEmptyString(value, 'notesPath').replace(/\\/g, '/');
+  const segments = raw
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0 && segment !== '.');
+
+  if (segments.length === 0) {
+    throw new SyncedNoteSourceContractError('Synced-note source notesPath must contain at least one path segment');
+  }
+
+  for (const segment of segments) {
+    if (segment === '..' || hasControlCharacters(segment)) {
+      throw new SyncedNoteSourceContractError('Synced-note source notesPath must not contain parent-directory traversal');
+    }
+  }
+
+  return segments.join('/');
+}
+
+export function canonicalizeSyncedNoteSourceLocator(locator: SyncedNoteSourceLocator): SyncedNoteSourceLocator {
+  const provider = requireNonEmptyString(locator?.provider, 'provider').toLowerCase() as SyncedNoteSourceProvider;
+  if (!SYNCED_NOTE_SOURCE_PROVIDERS.includes(provider)) {
+    throw new SyncedNoteSourceContractError(`Unsupported synced-note source provider: ${String(locator?.provider ?? '')}`);
+  }
+
+  return {
+    provider,
+    host: normalizeHost(locator?.host),
+    owner: normalizeRepoSegment(locator?.owner, 'owner'),
+    repo: normalizeRepoSegment(locator?.repo, 'repo'),
+    branch: normalizeBranch(locator?.branch),
+    notesPath: normalizeNotesPath(locator?.notesPath),
+  };
+}
+
+export function buildCanonicalSyncedNoteSourceTuple(locator: SyncedNoteSourceLocator): string {
+  const canonical = canonicalizeSyncedNoteSourceLocator(locator);
+  return [
+    `provider=${canonical.provider}`,
+    `host=${canonical.host}`,
+    `owner=${canonical.owner}`,
+    `repo=${canonical.repo}`,
+    `branch=${canonical.branch}`,
+    `notesPath=${canonical.notesPath}`,
+  ].join('\n');
+}
+
+export function deriveSyncedNoteSourceId(locator: SyncedNoteSourceLocator): string {
+  const digest = createHash('sha256')
+    .update(buildCanonicalSyncedNoteSourceTuple(locator), 'utf8')
+    .digest('hex')
+    .slice(0, 32);
+  return `${SYNCED_NOTE_SOURCE_ID_PREFIX}_${digest}`;
+}
+
+export function assertSyncedNoteSourceIdMatches(locator: SyncedNoteSourceLocator, expectedId: string): string {
+  const normalizedExpectedId = requireNonEmptyString(expectedId, 'id');
+  const derivedId = deriveSyncedNoteSourceId(locator);
+
+  if (normalizedExpectedId !== derivedId) {
+    throw new SyncedNoteSourceContractError(
+      `Synced-note source id mismatch: expected ${normalizedExpectedId}, derived ${derivedId}`,
+    );
+  }
+
+  return derivedId;
 }
 
 /** Supported runtime provider identifiers. */

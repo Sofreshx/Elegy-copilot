@@ -74,7 +74,7 @@ Flag duplications with skills, global `copilot-instructions.md`, or other agents
 
 ### Phase 4: Report Generation
 
-Generate report using the Report Output Format below. If invoked as subagent, return in-chat; otherwise write to `.instructions-output/instruction-audit.md`.
+Generate report using the Report Output Format below. Return it in chat by default, and persist it only to a caller-provided or repo-documented destination.
 
 ## Creation Workflow
 
@@ -87,18 +87,18 @@ Triggered by explicit request ("create agent `<name>`"). Not triggered during au
 
 ## Report Output Format
 
-Generate `.instructions-output/instruction-audit.md` with these sections:
+Generate an Instruction Audit Report with these sections:
 
 1. **Header**: `# Instruction Audit Report` with Date (ISO 8601), Scope (paths audited), Skill Version
 2. **Stats table**: `## Summary Stats` — Severity × Count (Critical, High, Medium, Low)
 3. **Metrics table**: `## Structural Metrics` — columns: File, Lines, Sections, Tools, Landmine %, Osmani Violations
 4. **Findings** (ordered Critical → Low): each has Principle (IQ-XX), Location (file + lines), Description, Recommendation
-5. **Trends** (conditional, only if `.instructions-output/instruction-audit.prev.md` exists): New/Resolved/Net counts
+5. **Trends** (conditional, only if the caller supplies a previous report or a repo-documented prior report exists): New/Resolved/Net counts
 6. **Audit Status** (last line): `AUDIT_STATUS: PASS` (0 Critical, 0 High) | `WARN` (0 Critical, ≥1 High) | `FAIL` (≥1 Critical)
 
 ## Instructions
 
 - When auditing multiple files, one Findings section per file but a single aggregate Stats table.
-- Default: return report in-chat. Write to `.instructions-output/instruction-audit.md` only when explicitly requested.
+- Default: return report in chat. Persist to a caller-provided or repo-documented destination only when explicitly requested.
 - Never inline skill content into the report — reference principle names only.
 - If invoked as a subagent, return `AUDIT_STATUS` as the last line of output.

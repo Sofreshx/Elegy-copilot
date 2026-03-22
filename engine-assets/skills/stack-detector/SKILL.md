@@ -7,11 +7,11 @@ metadata: {"aliasKeys":["target-context-detector"],"frameworks":["angular","aspi
 # Stack Detection Skill
 
 ## Purpose
-Automatically detect frameworks, libraries, and infrastructure from project files, return the relevant skill names that exist in installed Copilot skill paths (`~/.copilot/skills-vault/` for on-demand skills and `~/.copilot/skills/` for always-loaded skills), and classify each project's operational context (api, desktop, frontend, infra, or unknown).
+Automatically detect frameworks, libraries, and infrastructure from project files, resolve the relevant installed skills from runtime metadata, and classify each project's operational context (api, desktop, frontend, infra, or unknown).
 
 ## When NOT to Use
 - When the user explicitly specifies which technologies to use
-- When only code review or general guidance is needed (use `code-review`, `csharp-expert`, etc.)
+- When only code review or general guidance is needed
 
 ## Detection Process
 
@@ -50,72 +50,34 @@ Look for these files in the workspace:
 
 ## Detection Rules
 
-### .NET Packages (from `.csproj`)
+Map technical signals to capability families first, then resolve concrete installed skills from `engine-assets/skills/skill-metadata-index.json`. This document defines the routing policy, not an exhaustive first-party skill-name inventory.
 
-| Package Pattern | Detected Skills |
-|-----------------|-----------------|
-| `Marten` | `marten-documents`, `marten-events`, `marten-linq-querying` |
-| `WolverineFx` | `wolverine-core` |
-| `WolverineFx.Http` | `wolverine-http` |
-| `Microsoft.Orleans.*` | `orleans` |
-| `Microsoft.AspNetCore.SignalR*` | `signalr` |
-| `Aspire.Hosting*` | `aspire-apphost`, `aspire-deployment`, `alba-integration-tests` |
-| `Alba` | `alba-integration-tests` |
-| `Aspire.*` | `aspire-apphost`, `aspire-deployment` |
-| `FirebaseAdmin` | `firebase-auth` |
-| `Microsoft.SemanticKernel*` | `microsoft-agent-framework` |
-| `Microsoft.Agents*` | `microsoft-agent-framework` |
-| `Azure.AI.OpenAI`, `OpenAI` | `openai-compatible` |
-| `OpenTelemetry*` | `logging-observability` |
-| `NSubstitute`, `xunit`, `Shouldly` | `testing-dotnet-unit` |
+### Capability family mapping
 
-### Node.js Packages (from `package.json`)
+- Persistence and eventing: document stores, event stores, query libraries, and related storage frameworks.
+- Messaging and realtime: message buses, HTTP messaging adapters, actor frameworks, and hub/realtime stacks.
+- Hosting and delivery: API hosts, app hosts, deployment tooling, compose workflows, and infrastructure assets.
+- Frontend and state management: UI frameworks, browser automation, and client data/query libraries.
+- Identity and AI: authentication providers, agent SDKs, and LLM client libraries.
+- Quality and observability: unit test frameworks, integration-test tooling, telemetry, and logging packages.
 
-| Package Pattern | Detected Skills |
-|-----------------|-----------------|
-| `@tanstack/react-query` | `react-query` |
-| `firebase`, `firebase-admin` | `firebase-auth` |
-| `@testing-library/react`, `vitest`, `jest` | `testing-frontend-unit` |
-| `react`, `vue`, `@angular/core` | `frontend` |
-| `openai`, `@azure/openai`, `@azure/ai-inference` | `openai-compatible` |
-| `@microsoft/agent-framework`, `@microsoft/agents`, `@microsoft/agents-*` | `microsoft-agent-framework` |
+### Language and platform hints
 
-### Python Packages (from `pyproject.toml` / `requirements*.txt`)
+- .NET package references should drive the primary match. Prefer the most specific package over umbrella packages.
+- Node.js package detection should prefer direct runtime and test dependencies over transitive framework packages.
+- Python and Go should use declared dependencies before source-pattern fallback.
+- Infrastructure files may contribute infra, deployment, or observability candidates even when app code is absent.
 
-| Package Pattern | Detected Skills |
-|-----------------|-----------------|
-| `openai`, `azure-ai-inference`, `azure-ai-openai` | `openai-compatible` |
-| `semantic-kernel` | `microsoft-agent-framework` |
+### Resolution rules
 
-### Go Modules (from `go.mod`)
-
-| Module Pattern | Detected Skills |
-|----------------|-----------------|
-| `github.com/openai/openai-go`, `github.com/Azure/azure-sdk-for-go/sdk/ai/azopenai` | `openai-compatible` |
-
-### Infrastructure Files
-
-| File Pattern | Detected Skills |
-|--------------|-----------------|
-| `*.tf` files exist | `terraform` |
-| `docker-compose*.yml` exists | `deployment-compose` |
-| `config.alloy` exists | `logging-observability` |
+- Use package and module evidence to derive candidate capability families.
+- Intersect those families with installed first-party metadata from the runtime skill index.
+- Prefer the narrowest installed match over broader umbrella skills.
+- When multiple candidates remain, keep the selection deterministic by using the same lexical tie-breaker defined by skill-discovery.
 
 ### Secondary Signals (Namespace/Import Patterns)
 
-If package detection is inconclusive, scan source files for:
-
-| Pattern in Code | Detected Skills |
-|-----------------|-----------------|
-| `using Marten;` | `marten-documents` |
-| `using Wolverine;` | `wolverine-core` |
-| `using Orleans;` | `orleans` |
-| `using Microsoft.AspNetCore.SignalR;` | `signalr` |
-| `using Microsoft.Agents` | `microsoft-agent-framework` |
-| `using Azure.AI.OpenAI;`, `using OpenAI;` | `openai-compatible` |
-| `import { useQuery }` | `react-query` |
-| `import OpenAI from 'openai'` | `openai-compatible` |
-| `from openai import OpenAI` | `openai-compatible` |
+If package detection is inconclusive, scan source files for imports and namespaces that reinforce the same capability families. Examples include persistence namespaces, messaging namespaces, frontend query hooks, and LLM client imports.
 
 ### Step 4: Classify Operational Context
 
@@ -144,14 +106,13 @@ After skill detection, classify each project (or workspace root) into an operati
 
 ## Output Format
 
-Return a deduplicated list of skill names that exist in installed Copilot skill paths, followed by an optional Target Context classification:
+Return a deduplicated list of resolved installed skills, followed by an optional Target Context classification:
 
 ```text
 Detected Skills:
-- <skill-a>
-- <skill-b>
-- <skill-c>
-- deployment-compose
+- <resolved-skill-a>
+- <resolved-skill-b>
+- <resolved-skill-c>
 
 Target Context:
 - api
@@ -162,10 +123,9 @@ When a workspace contains multiple projects with different contexts:
 
 ```text
 Detected Skills:
-- terraform
-- deployment-compose
-- <skill-a>
-- <skill-b>
+- <resolved-infra-skill>
+- <resolved-skill-a>
+- <resolved-skill-b>
 
 Target Context:
 - infra (terraform/)
@@ -188,7 +148,7 @@ When an agent needs to understand a codebase:
 ```text
 Agent: "I need to understand this codebase"
 → Run stack-detector
-→ Detects: <skill-a>, <skill-b>, <skill-c>
+→ Detects: <resolved-skill-a>, <resolved-skill-b>, <resolved-skill-c>
 → Target Context: api
 → Agent loads those 3 skills for specialized guidance
 → Agent knows this is an API project (not desktop/infra/frontend)
@@ -205,7 +165,7 @@ ls ~/.copilot/skills/
 ls ~/.copilot/skills-vault/
 
 # Confirm detected on-demand skill exists
-test -f "$HOME/.copilot/skills-vault/wolverine-core/SKILL.md" && echo "exists"
+test -f "$HOME/.copilot/skills-vault/<resolved-skill>/SKILL.md" && echo "exists"
 ```
 
 ## Consumer Guardrails
