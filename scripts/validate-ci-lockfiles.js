@@ -1,3 +1,6 @@
+#!/usr/bin/env node
+'use strict';
+
 const fs = require('fs');
 const path = require('path');
 
@@ -11,16 +14,16 @@ const requiredLockfiles = [
 ];
 
 const missing = requiredLockfiles.filter((relativePath) => {
-  const fullPath = path.join(repoRoot, relativePath);
-  return !fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile();
+const fullPath = path.join(repoRoot, relativePath);
+return !fs.existsSync(fullPath) || !fs.statSync(fullPath).isFile();
 });
 
 if (missing.length > 0) {
-  console.error('CI lockfile preflight failed. Missing required lockfile(s):');
-  for (const relativePath of missing) {
-    console.error(`- ${relativePath}`);
-  }
-  process.exit(1);
+console.error('CI lockfile preflight failed. Missing required lockfile(s):');
+for (const relativePath of missing) {
+console.error(`  - ${relativePath}`);
+}
+process.exit(1);
 }
 
 console.log(`CI lockfile preflight passed (${requiredLockfiles.length} lockfiles found).`);

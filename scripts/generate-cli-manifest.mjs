@@ -3,10 +3,10 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-function repoRoot() {
-	return path.resolve(new URL('..', import.meta.url).pathname);
-}
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function listFiles(dirAbs, predicate) {
 	let entries;
@@ -47,7 +47,11 @@ const MANDATORY_ALLOWLIST_ITEMS = Object.freeze({
 function parseArgs(argv) {
 	const args = { all: false };
 	for (const a of argv || []) {
-		if (a === '--all') args.all = true;
+		if (a === '--all') {
+			args.all = true;
+		} else {
+			throw new Error(`Unknown arg: ${a} (supported: --all)`);
+		}
 	}
 	return args;
 }
@@ -125,7 +129,7 @@ function filterBundlesForCli(bundles, availableAssetIds) {
 
 function main() {
 	const args = parseArgs(process.argv.slice(2));
-	const engineRoot = path.resolve(process.cwd());
+	const engineRoot = path.resolve(__dirname, '..');
 	const manifestPath = path.join(engineRoot, '.cli', 'manifest.json');
 	const engineManifestPath = path.join(engineRoot, 'engine-assets', 'manifest.json');
 	const assetsRoot = path.join(engineRoot, 'engine-assets');

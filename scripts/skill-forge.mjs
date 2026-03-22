@@ -1,15 +1,11 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { repoRoot } from './lib/cli-utils.mjs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
 const skillsRoot = path.join(repoRoot, 'engine-assets', 'skills');
-const schemaPath = path.join(repoRoot, 'contracts', 'session-state', 'skill-forge-request.schema.json');
-const generatorPath = path.join(__dirname, 'generate-skill-metadata-index.mjs');
+const generatorPath = path.join(repoRoot, 'scripts', 'generate-skill-metadata-index.mjs');
 
 const KEBAB_CASE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -19,17 +15,67 @@ function parseArgs(argv) {
 		const arg = argv[i];
 		if (arg === '--dry-run') {
 			args.dryRun = true;
-		} else if (arg === '--name' && argv[i + 1]) {
-			args.name = argv[++i];
-		} else if (arg === '--description' && argv[i + 1]) {
-			args.description = argv[++i];
-		} else if (arg === '--triggers' && argv[i + 1]) {
-			args.triggers = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
-		} else if (arg === '--constraints' && argv[i + 1]) {
-			args.constraints = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
-		} else if (arg === '--keywords' && argv[i + 1]) {
-			args.keywords = argv[++i].split(',').map((s) => s.trim()).filter(Boolean);
+			continue;
 		}
+		if (arg === '--name') {
+			args.name = argv[++i] ?? null;
+			if (!args.name) throw new Error('Missing value for --name');
+			continue;
+		}
+		if (arg.startsWith('--name=')) {
+			args.name = arg.slice('--name='.length);
+			if (!args.name) throw new Error('Missing value for --name');
+			continue;
+		}
+		if (arg === '--description') {
+			args.description = argv[++i] ?? null;
+			if (!args.description) throw new Error('Missing value for --description');
+			continue;
+		}
+		if (arg.startsWith('--description=')) {
+			args.description = arg.slice('--description='.length);
+			if (!args.description) throw new Error('Missing value for --description');
+			continue;
+		}
+		if (arg === '--triggers') {
+			const raw = argv[++i] ?? null;
+			if (!raw) throw new Error('Missing value for --triggers');
+			args.triggers = raw.split(',').map((s) => s.trim()).filter(Boolean);
+			continue;
+		}
+		if (arg.startsWith('--triggers=')) {
+			const raw = arg.slice('--triggers='.length);
+			if (!raw) throw new Error('Missing value for --triggers');
+			args.triggers = raw.split(',').map((s) => s.trim()).filter(Boolean);
+			continue;
+		}
+		if (arg === '--constraints') {
+			const raw = argv[++i] ?? null;
+			if (!raw) throw new Error('Missing value for --constraints');
+			args.constraints = raw.split(',').map((s) => s.trim()).filter(Boolean);
+			continue;
+		}
+		if (arg.startsWith('--constraints=')) {
+			const raw = arg.slice('--constraints='.length);
+			if (!raw) throw new Error('Missing value for --constraints');
+			args.constraints = raw.split(',').map((s) => s.trim()).filter(Boolean);
+			continue;
+		}
+		if (arg === '--keywords') {
+			const raw = argv[++i] ?? null;
+			if (!raw) throw new Error('Missing value for --keywords');
+			args.keywords = raw.split(',').map((s) => s.trim()).filter(Boolean);
+			continue;
+		}
+		if (arg.startsWith('--keywords=')) {
+			const raw = arg.slice('--keywords='.length);
+			if (!raw) throw new Error('Missing value for --keywords');
+			args.keywords = raw.split(',').map((s) => s.trim()).filter(Boolean);
+			continue;
+		}
+		throw new Error(
+			`Unknown arg: ${arg} (supported: --dry-run, --name, --description, --triggers, --constraints, --keywords)`
+		);
 	}
 	return args;
 }

@@ -5,8 +5,11 @@ const fs = require('fs');
 const path = require('path');
 const { validateWorkflowPayload, loadContractManifest } = require('./session-state-contract-consumer');
 
-const payloadArg = process.argv[2] || path.join('contracts', 'session-state', 'fixtures', 'canonical-workflow.minimal.json');
-const payloadPath = path.resolve(process.cwd(), payloadArg);
+const repoRoot = path.resolve(__dirname, '..');
+const payloadArg = process.argv[2];
+const payloadPath = payloadArg
+	? path.resolve(process.cwd(), payloadArg)
+	: path.join(repoRoot, 'contracts', 'session-state', 'fixtures', 'canonical-workflow.minimal.json');
 
 function readPayload(filePath) {
 	let raw;

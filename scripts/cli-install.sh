@@ -112,6 +112,7 @@ LEGACY_MANAGED_SKILLS=(
 )
 LEGACY_MANAGED_AGENTS=(
   context-curator.agent.md
+  elegy-orchestrator.agent.md
   executive.agent.md
   executive2.agent.md
   executive2-fast.agent.md

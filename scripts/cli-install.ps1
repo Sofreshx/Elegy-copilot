@@ -453,6 +453,7 @@ $legacyManagedSkillNames = @(
 )
 $legacyManagedAgentFiles = @(
   'context-curator.agent.md',
+  'elegy-orchestrator.agent.md',
   'executive.agent.md',
   'executive2.agent.md',
   'executive2-fast.agent.md',
