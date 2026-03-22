@@ -116,7 +116,9 @@ Pass/fail contract:
 
 ## WS6 CI Topology + Required-Check Contract (WU-WS6-01 / WU-WS6-03 / WU-WS6-04 / WU-WS6-05)
 
-`extension-ci` is a fail-closed topology with explicit WS6 evidence and aggregation semantics.
+`.github/workflows/extension-ci.yml` remains the fail-closed WS6 topology with explicit evidence and
+aggregation semantics after retirement of the legacy VS Code extension lane. Although the filename is
+legacy, the workflow now serves as repo-wide CI for pull requests.
 
 1. Fixed topology (authoritative)
   - `.github/workflows/extension-ci.yml` must keep this required dependency chain:
@@ -142,7 +144,8 @@ Pass/fail contract:
   - Missing/skipped/non-success statuses are treated as hard failures.
 
 5. Release gate linkage
-  - `release` depends on both `build` and `required-checks`; publish is blocked when aggregator semantics fail.
+  - Legacy VS Code extension release packaging was retired with `RannIA`.
+  - Desktop packaging remains a separate workflow and is not published from `extension-ci.yml`.
 
 ## WS6 Narrow-to-Broad Validation + Rollback Contract (WU-WS6-07)
 
@@ -193,8 +196,8 @@ WS4 closure is complete only when freeze evidence and tracker alignment semantic
   - `npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/lifecycleOperations.test.ts src/messagingGateway/__tests__/gatewayHttpServer.test.ts`
 
 2. Path alignment requirement
-  - copilot-ui gateway-state/config surfaces must resolve tracker config deterministically with `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` override support.
-  - Canonical machine-global default remains under `~/.instruction-engine`.
+   - copilot-ui gateway-state/config surfaces must resolve tracker config deterministically with `INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH` override support.
+   - Canonical machine-global default is `~/.copilot/messaging-gateway.config.json`; legacy `~/.instruction-engine` config is compatibility-only rehome input.
 
 3. Idempotency alignment requirement
   - lifecycle retry and conflict behavior remains deterministic and explicit.

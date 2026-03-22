@@ -1,11 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 
 const {
   compareAssetCatalogEntries,
   getAssetLayerPrecedence,
   resolveEffectiveAssetState,
   ASSET_CATALOG_LAYER_PRECEDENCE,
+  DEFAULT_PROVIDER_CATALOG,
 } = require('../dist');
 
 function entry(overrides = {}) {
@@ -22,6 +25,8 @@ function entry(overrides = {}) {
     recommendation: overrides.recommendation,
     lifecycle: overrides.lifecycle,
     metadata: overrides.metadata,
+    provenance: overrides.provenance,
+    activation: overrides.activation,
     contentPath: overrides.contentPath,
   };
 }
@@ -116,4 +121,54 @@ test('vault content wins over pointer stubs in user install location', () => {
   assert.equal(state.hiddenFromAutoLoad, true);
   assert.equal(state.installState?.installedPaths?.['vault-only'], '~/.copilot/skills-vault/react-query/SKILL.md');
   assert.ok(state.reasons.some((reason) => reason.code === 'vault-preferred-over-pointer'));
+});
+
+test('effective asset state carries provenance and activation metadata from the selected entry', () => {
+  const state = resolveEffectiveAssetState([
+    entry({
+      layer: 'user-installed',
+      assetId: 'skill-superpowers-copilot-superpowers-brainstorming',
+      assetKey: 'superpowers-copilot-superpowers-brainstorming',
+      contentPath: '~/.copilot/skills/providers/superpowers/brainstorming/SKILL.md',
+      provenance: {
+        providerId: 'superpowers-copilot',
+        namespace: 'superpowers',
+        readOnly: true,
+        discoveryMode: 'managed-import',
+      },
+      activation: {
+        eligible: true,
+        scope: 'global-and-repo',
+        repoOverrides: true,
+      },
+      installState: {
+        availability: 'installed',
+        isInstalled: true,
+      },
+    }),
+  ]);
+
+  assert.equal(state.provenance?.providerId, 'superpowers-copilot');
+  assert.equal(state.provenance?.discoveryMode, 'managed-import');
+  assert.equal(state.activation?.scope, 'global-and-repo');
+});
+
+test('default provider catalog stays synced with engine-assets/providers.json', () => {
+  const canonicalProviderCatalog = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '..', '..', 'engine-assets', 'providers.json'), 'utf8'),
+  );
+
+  assert.deepEqual(DEFAULT_PROVIDER_CATALOG, canonicalProviderCatalog);
+});
+
+test('audit contract declarations include explicit invocation fields', () => {
+  const declarationText = fs.readFileSync(path.join(__dirname, '..', 'dist', 'assetCatalog.d.ts'), 'utf8');
+
+  assert.match(declarationText, /'asset\.invoked'/);
+  assert.match(declarationText, /toolName\?: string;/);
+  assert.match(declarationText, /toolCallId\?: string;/);
+  assert.match(declarationText, /scopeKinds\?: AssetScopeKind\[\];/);
+  assert.match(declarationText, /type AssetBundleClassification = ExtensibleString<\s*'language' \| 'scope' \| 'workflow' \| 'core'/);
+  assert.match(declarationText, /interface AssetBundleUninstallPolicy/);
+  assert.match(declarationText, /preservesExternalPackages\?: boolean;/);
 });

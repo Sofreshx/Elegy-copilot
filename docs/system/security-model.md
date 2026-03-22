@@ -51,12 +51,14 @@ Reference runbook: [Desktop Update Rollback + Kill Switch Runbook](desktop-updat
 
 ### CI Enforcement — Signing Trust Chain (G-02-WU-04)
 
-Desktop release CI is enforced by `.github/workflows/desktop-release.yml` and `.github/workflows/desktop-version-tag.yml`:
+Desktop release CI is split between a public preview lane and the signed maintainer lane:
 
-- Tag source:
-  - `.github/workflows/desktop-version-tag.yml` creates `desktop-v*` tags from Changesets version commits on `main` (`Version Packages`).
-  - `.github/workflows/desktop-release.yml` also supports manual dispatch (`release_tag`).
-- Trigger: `desktop-v*` tags.
+- Public preview lane:
+  - `.github/workflows/desktop-preview-release.yml` is manually dispatched with a target `ref` plus a preview `tag_name`.
+  - It publishes clearly labeled unsigned preview assets to GitHub Releases for open-source evaluation.
+- Signed maintainer lane:
+  - `.github/workflows/desktop-version-tag.yml` is manually dispatched by maintainers to create `desktop-v*` tags from an explicit target ref when the desktop release helper is intentionally invoked.
+  - `.github/workflows/desktop-release.yml` is manually dispatched with `release_tag` and validates that the requested tag matches `copilot-ui/package.json`.
 - Windows GA artifact flow:
   - Build unsigned installer on `windows-latest`.
   - Exchange GitHub OIDC token (`id-token: write`) for signing identity.
@@ -72,18 +74,19 @@ Desktop release CI is enforced by `.github/workflows/desktop-release.yml` and `.
 - macOS preview flow:
   - Publish preview artifact only with explicit unsigned label (`MAC_PREVIEW_UNSIGNED.txt`).
 - Publish gate:
-  - Draft GitHub release is created only after all verification checks pass.
+  - Public preview releases can publish unsigned assets without the private signing service.
+  - Signed GitHub releases are created only after all verification checks pass.
   - Prerelease flag is inferred from desktop tag semver suffix (`desktop-vx.y.z-*` => prerelease).
 
 Required repository configuration (placeholders, not committed secrets):
 
 - Repository variable: `DESKTOP_SIGNING_SERVICE_URL` (required)
-- Repository variable: `DESKTOP_SIGNING_SERVICE_AUDIENCE` (optional; default `instruction-engine-desktop-release`)
+- Repository variable: `DESKTOP_SIGNING_SERVICE_AUDIENCE` (optional; default `elegy-copilot-desktop-release`)
 - Repository secret: `DESKTOP_SIGNING_SERVICE_API_KEY` (optional, service-specific)
 
 ### Final Gate Trusted Evidence Binding + Retention (G-05-WU-06)
 
-Planpack final-gate validation (`scripts/validate-planpack.js`) requires release evidence to be bound to deployment context before `trustedEvidenceBindingRetention` can pass:
+Planpack final-gate validation (`scripts/validate-planpack-execution.js`, backed by the shared `scripts/validate-planpack.js` implementation) requires release evidence to be bound to deployment context before `trustedEvidenceBindingRetention` can pass:
 
 - Trusted binding must include commit SHA, release tag, channel, producer identity, attestation status, and evidence timestamp.
 - Missing fields, attestation false, stale evidence, or expected binding mismatch fail closed.

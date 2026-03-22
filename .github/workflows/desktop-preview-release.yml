@@ -1,0 +1,295 @@
+name: Elegy Copilot Desktop Preview Release
+
+on:
+  push:
+    tags:
+      - '*'
+    tags-ignore:
+      - 'desktop-v*'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or commit to build'
+        required: false
+        default: 'main'
+        type: string
+      tag_name:
+        description: 'GitHub release tag to create or update'
+        required: true
+        type: string
+      release_name:
+        description: 'Optional GitHub release title'
+        required: false
+        default: ''
+        type: string
+      prerelease:
+        description: 'Publish as a prerelease'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-preview:
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.meta.outputs.ref }}
+      tag_name: ${{ steps.meta.outputs.tag_name }}
+      release_name: ${{ steps.meta.outputs.release_name }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+    steps:
+      - name: Resolve preview release inputs
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          ref="${{ inputs.ref }}"
+          tag_name="${{ inputs.tag_name }}"
+          release_name="${{ inputs.release_name }}"
+          prerelease="${{ inputs.prerelease }}"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            ref="${GITHUB_REF_NAME}"
+            tag_name="${GITHUB_REF_NAME}"
+            release_name="Elegy Copilot Desktop Preview ${tag_name}"
+            prerelease="false"
+            if [[ "${tag_name}" == *-* ]]; then
+              prerelease="true"
+            fi
+          fi
+
+          if [[ -z "${ref}" ]]; then
+            echo "A build ref is required." >&2
+            exit 1
+          fi
+
+          if [[ -z "${tag_name}" ]]; then
+            echo "A preview tag name is required." >&2
+            exit 1
+          fi
+
+          if [[ -z "${release_name}" ]]; then
+            release_name="Elegy Copilot Desktop Preview ${tag_name}"
+          fi
+
+          echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "tag_name=${tag_name}" >> "$GITHUB_OUTPUT"
+          echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+
+  build-windows-preview:
+    needs: resolve-preview
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-preview.outputs.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
+
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Build Windows preview package (unsigned)
+        working-directory: copilot-ui
+        run: npm run package:win
+
+      - name: Stage Windows preview artifacts
+        shell: pwsh
+        run: |
+          $artifacts = Get-ChildItem -Path 'copilot-ui/release' -Recurse -Force
+          if (-not $artifacts) {
+            Write-Error 'No Windows preview artifacts were produced in copilot-ui/release.'
+            exit 1
+          }
+
+          New-Item -ItemType Directory -Path 'release-artifacts/windows' -Force | Out-Null
+          Copy-Item -Path 'copilot-ui/release\*' -Destination 'release-artifacts/windows' -Recurse -Force
+          Set-Content -Path 'release-artifacts/windows/WINDOWS_UNSIGNED_PREVIEW.txt' -Value @'
+          Windows preview artifacts are intentionally unsigned in this workflow.
+          Use them for preview/testing only, not GA desktop distribution.
+          '@
+
+      - name: Upload Windows preview artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows-preview
+          path: release-artifacts/windows
+          if-no-files-found: error
+          retention-days: 14
+
+  build-linux-preview:
+    needs: resolve-preview
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-preview.outputs.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
+
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Build Linux preview package (unsigned)
+        working-directory: copilot-ui
+        run: npm run package:preview
+
+      - name: Stage Linux preview artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts/linux
+          tar -czf release-artifacts/linux/linux-preview-unsigned.tar.gz -C copilot-ui/release .
+          sha256sum release-artifacts/linux/linux-preview-unsigned.tar.gz > release-artifacts/linux/linux-preview-unsigned.sha256
+          cat > release-artifacts/linux/LINUX_UNSIGNED_PREVIEW.txt <<'EOF'
+          Linux preview artifacts are intentionally unsigned in this workflow.
+          Use them for preview/testing only, not GA desktop distribution.
+          EOF
+
+      - name: Upload Linux preview artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-preview-unsigned
+          path: release-artifacts/linux
+          if-no-files-found: error
+          retention-days: 14
+
+  build-macos-preview:
+    needs: resolve-preview
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-preview.outputs.ref }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
+
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Build macOS preview package (unsigned)
+        working-directory: copilot-ui
+        run: npm run package:preview
+
+      - name: Stage macOS preview artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-artifacts/macos
+          tar -czf release-artifacts/macos/macos-preview-unsigned.tar.gz -C copilot-ui/release .
+          cat > release-artifacts/macos/MAC_UNSIGNED_PREVIEW.txt <<'EOF'
+          macOS preview artifacts are intentionally unsigned in this workflow.
+          Use them for preview/testing only, not GA desktop distribution.
+          EOF
+
+      - name: Upload macOS preview artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos-preview-unsigned
+          path: release-artifacts/macos
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-preview-release:
+    needs:
+      - resolve-preview
+      - build-windows-preview
+      - build-linux-preview
+      - build-macos-preview
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows preview artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-windows-preview
+          path: artifacts/windows
+
+      - name: Download Linux preview artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-linux-preview-unsigned
+          path: artifacts/linux
+
+      - name: Download macOS preview artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-macos-preview-unsigned
+          path: artifacts/macos
+
+      - name: Publish desktop preview GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.resolve-preview.outputs.tag_name }}
+          RELEASE_TARGET: ${{ needs.resolve-preview.outputs.ref }}
+          RELEASE_NAME: ${{ needs.resolve-preview.outputs.release_name }}
+          RELEASE_PRERELEASE: ${{ needs.resolve-preview.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t release_files < <(find artifacts/windows artifacts/linux artifacts/macos -type f | sort)
+          if [[ "${#release_files[@]}" -eq 0 ]]; then
+            echo "No desktop preview release files were found." >&2
+            exit 1
+          fi
+
+          prerelease_flag=(--prerelease=false)
+          if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
+            prerelease_flag=(--prerelease)
+          fi
+
+          if gh release view "${RELEASE_TAG}" --repo "${GH_REPO}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" --repo "${GH_REPO}" --draft=false --target "${RELEASE_TARGET}" --title "${RELEASE_NAME}" "${prerelease_flag[@]}"
+            gh release upload "${RELEASE_TAG}" --repo "${GH_REPO}" "${release_files[@]}" --clobber
+          else
+            gh release create "${RELEASE_TAG}" --repo "${GH_REPO}" "${release_files[@]}" --target "${RELEASE_TARGET}" --title "${RELEASE_NAME}" --generate-notes "${prerelease_flag[@]}"
+          fi

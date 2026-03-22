@@ -1,28 +1,51 @@
 import {
+  buildPlanningIntakeDirectoryRef,
+  buildPlanningRepositoryBacklogRef,
+  buildPlanningRoadmapDirectoryRef,
   comparePlanningRecords,
+  createPlanningIntakeArtifact,
   createPlanningRecord,
+  createSdkSession,
   deletePlanningResearchNote,
+  getSessionPlanText,
   getPlanningDiagrams,
   getPlanningResearchNotes,
   getPlanningRecords,
   getPolicyPreflight,
   mergePlanningRecords,
+  sendSdkMessage,
   type PlanningResearchNoteInput,
   preparePlanningMergeIntent,
   savePlanningResearchNote,
   searchPlanningRecords,
+  upsertSessionPlan,
 } from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type {
+  PlanningBacklogItem,
+  PlanningBullet,
+  CatalogRepoInventoryEntry,
+  PlanningDraftItem,
   PlanningDiagram,
   PlanningCompareReceipt,
   PlanningCompareResponse,
+  PlanningIntakeCategory,
+  PlanningIntakeDirectoryRef,
+  PlanningIntakeArtifact,
+  PlanningLinkedPlanSession,
+  PlanningLinkedSdkSession,
   PlanningMergeIntentToken,
+  PlanningPlanOriginKind,
   PlanningRecordItem,
+  PlanningRepositoryBacklogRef,
+  PlanningRoadmapItem,
+  PlanningRoadmapDirectoryRef,
   PlanningResearchNote,
   PlanningSearchResultItem,
   PolicyPreflightResponse,
 } from '../../lib/types';
+import { sessionsStore } from '../Sessions/sessionsStore';
+import { sdkSessionsStore } from '../Sessions/sdkSessionsStore';
 
 const PLANNING_GATE_PASS = 'pass';
 const PLANNING_GATE_DEGRADED = 'degraded';
@@ -30,6 +53,33 @@ const PLANNING_GATE_INSUFFICIENT_DATA = 'insufficient-data';
 const PLANNING_GATE_POLICY_BLOCKED = 'policy-blocked';
 const PLANNING_GATE_AUTH_DENIED = 'auth-denied';
 const PLANNING_MERGE_INTENT_DEFAULT_TTL_MS = 5 * 60 * 1000;
+const PLANNING_ACTION_REQUEST_STATE = 'requested';
+const PLANNING_LINKED_SDK_SESSION_STORAGE_KEY = 'instruction-engine.planning.linked-sdk-session.v1';
+const PLANNING_LINKED_PLAN_SESSION_STORAGE_KEY = 'instruction-engine.planning.linked-plan-session.v1';
+const PLANNING_LINKED_SDK_SESSION_WORKSPACE_KEY = '__workspace__';
+const PLANNING_DIRECT_PLAN_ORIGIN_ID = '__direct__';
+
+const IDEA_RECORD_STATES = new Set(['thought', 'research', 'pre-plan']);
+type PlanningActionRequestKind = Extract<
+  PlanningIntakeCategory,
+  'audit-request' | 'roadmap-request' | 'review-prep' | 'commit-prep'
+>;
+type PlanningPrepRequestKind = Extract<PlanningActionRequestKind, 'review-prep' | 'commit-prep'>;
+
+interface PlanningPlanSeedArtifact {
+  id: string;
+  kind: PlanningPlanOriginKind;
+  category?: string;
+  title: string;
+  summary?: string;
+  targetRepoIds?: string[];
+  state?: string;
+  repoId?: string;
+  notes?: string[];
+  acceptanceCriteria?: string[];
+  backlogIds?: string[];
+  planRefs?: string[];
+}
 
 export interface PlanningConflictValue {
   scope: 'user' | 'repo' | 'global';
@@ -53,14 +103,26 @@ export interface PlanningConflictRow {
   winnerValue: string;
 }
 
+export interface PlanningCatalogRepoContext {
+  repoId: string;
+  repoPath: string;
+  repoLabel: string;
+  sources: string[];
+}
+
 export interface PlanningState {
   userId: string;
   repoId: string;
+  catalogRepoContext: PlanningCatalogRepoContext | null;
+  planningIntakeDirectory: PlanningIntakeDirectoryRef | null;
+  repositoryBacklog: PlanningRepositoryBacklogRef | null;
+  roadmapDirectory: PlanningRoadmapDirectoryRef | null;
   query: string;
   sessionId: string;
   scopeUser: boolean;
   scopeRepo: boolean;
   scopeGlobal: boolean;
+  draftIdeas: PlanningDraftItem[];
   records: PlanningRecordItem[];
   deniedScopes: string[];
   searchResults: PlanningSearchResultItem[];
@@ -69,6 +131,19 @@ export interface PlanningState {
   createTitle: string;
   createSummary: string;
   createAcceptanceCriteria: string;
+  ideaDraft: string;
+  ideaTargetRepos: string;
+  selectedIdeaIds: string[];
+  updatingRecordId: string | null;
+  savingIdeaId: string | null;
+  compiling: boolean;
+  linkedPlanSession: PlanningLinkedPlanSession | null;
+  linkedSdkSession: PlanningLinkedSdkSession | null;
+  planTitleDraft: string;
+  planContentDraft: string;
+  planLoading: boolean;
+  planSaving: boolean;
+  planError: string | null;
   selectedRecordId: string;
   researchNotes: PlanningResearchNote[];
   diagrams: PlanningDiagram[];
@@ -102,11 +177,16 @@ export interface PlanningState {
 const INITIAL_STATE: PlanningState = {
   userId: '',
   repoId: '',
+  catalogRepoContext: null,
+  planningIntakeDirectory: null,
+  repositoryBacklog: null,
+  roadmapDirectory: null,
   query: '',
   sessionId: '',
   scopeUser: true,
   scopeRepo: true,
   scopeGlobal: true,
+  draftIdeas: [],
   records: [],
   deniedScopes: [],
   searchResults: [],
@@ -115,6 +195,19 @@ const INITIAL_STATE: PlanningState = {
   createTitle: '',
   createSummary: '',
   createAcceptanceCriteria: '',
+  ideaDraft: '',
+  ideaTargetRepos: '',
+  selectedIdeaIds: [],
+  updatingRecordId: null,
+  savingIdeaId: null,
+  compiling: false,
+  linkedPlanSession: null,
+  linkedSdkSession: null,
+  planTitleDraft: '',
+  planContentDraft: '',
+  planLoading: false,
+  planSaving: false,
+  planError: null,
   selectedRecordId: '',
   researchNotes: [],
   diagrams: [],
@@ -189,6 +282,473 @@ function parseIsoMs(value: unknown): number {
 
   const parsed = Date.parse(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeLinkedSdkSession(value: unknown): PlanningLinkedSdkSession | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const sessionId = typeof record.sessionId === 'string' ? record.sessionId.trim() : '';
+  const source = typeof record.source === 'string' ? record.source.trim() : '';
+  const createdAt = typeof record.createdAt === 'string' ? record.createdAt.trim() : '';
+  const repoId = typeof record.repoId === 'string' && record.repoId.trim() ? record.repoId.trim() : null;
+  const promptPreview = typeof record.promptPreview === 'string' && record.promptPreview.trim()
+    ? record.promptPreview.trim()
+    : undefined;
+  const selectedIdeaIds = Array.isArray(record.selectedIdeaIds)
+    ? [...new Set(record.selectedIdeaIds.map((entry) => String(entry || '').trim()).filter(Boolean))]
+    : [];
+  const selectedIdeaTitles = Array.isArray(record.selectedIdeaTitles)
+    ? [...new Set(record.selectedIdeaTitles.map((entry) => String(entry || '').trim()).filter(Boolean))]
+    : [];
+  const targetRepoIds = Array.isArray(record.targetRepoIds)
+    ? [...new Set(record.targetRepoIds.map((entry) => String(entry || '').trim()).filter(Boolean))]
+    : [];
+
+  if (!sessionId || source !== 'compile-selected-ideas' || !createdAt) {
+    return null;
+  }
+
+  return {
+    sessionId,
+    repoId,
+    source: 'compile-selected-ideas',
+    createdAt,
+    selectedIdeaIds,
+    selectedIdeaTitles,
+    targetRepoIds,
+    promptPreview,
+  };
+}
+
+function resolveLinkedSdkSessionStorageScope(repoId: string | null | undefined): string {
+  const normalizedRepoId = typeof repoId === 'string' ? repoId.trim() : '';
+  return normalizedRepoId || PLANNING_LINKED_SDK_SESSION_WORKSPACE_KEY;
+}
+
+function readLinkedSdkSessionMap(): Record<string, PlanningLinkedSdkSession> {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(PLANNING_LINKED_SDK_SESSION_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.entries(parsed as Record<string, unknown>).reduce<Record<string, PlanningLinkedSdkSession>>(
+      (accumulator, [scope, value]) => {
+        const normalized = normalizeLinkedSdkSession(value);
+        if (normalized) {
+          accumulator[scope] = normalized;
+        }
+        return accumulator;
+      },
+      {}
+    );
+  } catch {
+    return {};
+  }
+}
+
+function readLinkedSdkSession(repoId: string | null | undefined): PlanningLinkedSdkSession | null {
+  const scope = resolveLinkedSdkSessionStorageScope(repoId);
+  return readLinkedSdkSessionMap()[scope] ?? null;
+}
+
+function persistLinkedSdkSession(linkedSdkSession: PlanningLinkedSdkSession): void {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return;
+  }
+
+  try {
+    const scope = resolveLinkedSdkSessionStorageScope(linkedSdkSession.repoId);
+    const nextMap = {
+      ...readLinkedSdkSessionMap(),
+      [scope]: linkedSdkSession,
+    };
+    window.localStorage.setItem(PLANNING_LINKED_SDK_SESSION_STORAGE_KEY, JSON.stringify(nextMap));
+  } catch {
+    // Local persistence is best-effort only for SDK linkage metadata.
+  }
+}
+
+function normalizeLinkedPlanSession(value: unknown): PlanningLinkedPlanSession | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const sessionId = typeof record.sessionId === 'string' ? record.sessionId.trim() : '';
+  const source = typeof record.source === 'string' ? record.source.trim() : '';
+  const createdAt = typeof record.createdAt === 'string' ? record.createdAt.trim() : '';
+  const updatedAt = typeof record.updatedAt === 'string' && record.updatedAt.trim() ? record.updatedAt.trim() : undefined;
+  const repoId = typeof record.repoId === 'string' && record.repoId.trim() ? record.repoId.trim() : null;
+  const originKind = typeof record.originKind === 'string' && record.originKind.trim()
+    ? (record.originKind.trim() as PlanningPlanOriginKind)
+    : undefined;
+  const originArtifactId = typeof record.originArtifactId === 'string' && record.originArtifactId.trim()
+    ? record.originArtifactId.trim()
+    : undefined;
+  const seedArtifactId = typeof record.seedArtifactId === 'string' && record.seedArtifactId.trim()
+    ? record.seedArtifactId.trim()
+    : undefined;
+  const seedArtifactCategory = typeof record.seedArtifactCategory === 'string' && record.seedArtifactCategory.trim()
+    ? (record.seedArtifactCategory.trim() as PlanningIntakeCategory)
+    : undefined;
+  const seedArtifactTitle = typeof record.seedArtifactTitle === 'string' && record.seedArtifactTitle.trim()
+    ? record.seedArtifactTitle.trim()
+    : undefined;
+
+  if (
+    !sessionId
+    || !createdAt
+    || ![
+      'create-plan',
+      'seed-from-intake',
+      'seed-from-bullet',
+      'seed-from-backlog',
+      'seed-from-roadmap',
+    ].includes(source)
+  ) {
+    return null;
+  }
+
+  const normalizedOriginKind = originKind
+    || (source === 'seed-from-intake'
+      ? 'intake'
+      : (source === 'seed-from-bullet'
+        ? 'bullet'
+        : (source === 'seed-from-backlog'
+          ? 'backlog'
+          : (source === 'seed-from-roadmap' ? 'roadmap' : 'direct'))));
+  const normalizedOriginArtifactId =
+    originArtifactId
+    || seedArtifactId
+    || (normalizedOriginKind === 'direct' ? PLANNING_DIRECT_PLAN_ORIGIN_ID : undefined);
+
+  return {
+    sessionId,
+    repoId,
+    source: source as PlanningLinkedPlanSession['source'],
+    originKind: normalizedOriginKind,
+    originArtifactId: normalizedOriginArtifactId,
+    createdAt,
+    updatedAt,
+    seedArtifactId,
+    seedArtifactCategory,
+    seedArtifactTitle,
+  };
+}
+
+function readLinkedPlanSessionMap(): Record<string, PlanningLinkedPlanSession> {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(PLANNING_LINKED_PLAN_SESSION_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return Object.entries(parsed as Record<string, unknown>).reduce<Record<string, PlanningLinkedPlanSession>>(
+      (accumulator, [scope, value]) => {
+        const normalized = normalizeLinkedPlanSession(value);
+        if (normalized) {
+          accumulator[scope] = normalized;
+        }
+        return accumulator;
+      },
+      {}
+    );
+  } catch {
+    return {};
+  }
+}
+
+function normalizePlanOriginKind(
+  value: PlanningPlanOriginKind | string | null | undefined,
+  fallback: PlanningPlanOriginKind = 'direct'
+): PlanningPlanOriginKind {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (normalized === 'intake') return 'intake';
+  if (normalized === 'bullet') return 'bullet';
+  if (normalized === 'backlog') return 'backlog';
+  if (normalized === 'roadmap') return 'roadmap';
+  if (normalized === 'direct') return 'direct';
+  return fallback;
+}
+
+function resolveLinkedPlanSessionStorageScope(input: {
+  repoId?: string | null;
+  originKind?: PlanningPlanOriginKind | string | null;
+  originArtifactId?: string | null;
+}): string {
+  const repoScope = resolveLinkedSdkSessionStorageScope(input.repoId);
+  const originKind = normalizePlanOriginKind(input.originKind, 'direct');
+  const originArtifactId = typeof input.originArtifactId === 'string' && input.originArtifactId.trim()
+    ? input.originArtifactId.trim()
+    : PLANNING_DIRECT_PLAN_ORIGIN_ID;
+  return `${repoScope}::${originKind}::${originArtifactId}::planning`;
+}
+
+function readLinkedPlanSession(input: {
+  repoId?: string | null;
+  originKind?: PlanningPlanOriginKind | string | null;
+  originArtifactId?: string | null;
+}): PlanningLinkedPlanSession | null {
+  const nextScope = resolveLinkedPlanSessionStorageScope(input);
+  const legacyScope = resolveLinkedSdkSessionStorageScope(input.repoId);
+  const planSessions = readLinkedPlanSessionMap();
+  return planSessions[nextScope]
+    ?? (
+      normalizePlanOriginKind(input.originKind, 'direct') === 'direct'
+      && (!input.originArtifactId || input.originArtifactId === PLANNING_DIRECT_PLAN_ORIGIN_ID)
+        ? (planSessions[legacyScope] ?? null)
+        : null
+    );
+}
+
+function persistLinkedPlanSession(linkedPlanSession: PlanningLinkedPlanSession): void {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return;
+  }
+
+  try {
+    const scope = resolveLinkedPlanSessionStorageScope({
+      repoId: linkedPlanSession.repoId,
+      originKind: linkedPlanSession.originKind,
+      originArtifactId: linkedPlanSession.originArtifactId,
+    });
+    const nextMap = {
+      ...readLinkedPlanSessionMap(),
+      [scope]: linkedPlanSession,
+    };
+    window.localStorage.setItem(PLANNING_LINKED_PLAN_SESSION_STORAGE_KEY, JSON.stringify(nextMap));
+  } catch {
+    // Local persistence is best-effort only for plan linkage metadata.
+  }
+}
+
+function buildBlankPlanContent(input: {
+  title: string;
+  repoLabel?: string;
+  repoId?: string;
+  repoPath?: string;
+}): string {
+  const title = input.title.trim() || 'New plan';
+  const lines = [
+    `# ${title}`,
+    '',
+    '## Problem',
+    '',
+    `Describe the outcome for ${input.repoLabel || input.repoId || 'the selected repository'}.`,
+    '',
+    '## Scope',
+    '',
+    '- In scope:',
+    '- Out of scope:',
+    '',
+    '## Proposed Approach',
+    '',
+    `- Repository: ${input.repoId || '(determine from Catalog context)'}`,
+    `- Path: ${input.repoPath || '(determine from Catalog context)'}`,
+    '- Key decisions:',
+    '',
+    '## Todos',
+    '',
+    '- [ ] Define the first implementation slice',
+    '- [ ] Validate the changed surfaces',
+    '',
+    '## Risks',
+    '',
+    '- Identify delivery, product, and migration risks here.',
+    '',
+    '## Validation',
+    '',
+    '- Narrow tests/build commands to run',
+    '',
+  ];
+
+  return `${lines.join('\n')}\n`;
+}
+
+function buildSeededPlanContent(input: {
+  title: string;
+  repoLabel?: string;
+  repoId?: string;
+  repoPath?: string;
+  artifact: PlanningPlanSeedArtifact;
+}): string {
+  const artifact = input.artifact;
+  const seedTitle = input.title.trim() || artifact.title.trim() || 'Seeded plan';
+  const targetRepos = artifact.targetRepoIds.length > 0 ? artifact.targetRepoIds.join(', ') : 'determine from Catalog context';
+  const acceptanceCriteria = Array.isArray(artifact.acceptanceCriteria) && artifact.acceptanceCriteria.length > 0
+    ? artifact.acceptanceCriteria.map((entry) => `- ${entry}`)
+    : ['- Capture concrete acceptance criteria during plan authoring'];
+  const originLabel =
+    artifact.kind === 'bullet'
+      ? 'Bullet'
+      : artifact.kind === 'backlog'
+        ? 'Backlog item'
+        : artifact.kind === 'roadmap'
+          ? 'Roadmap item'
+          : artifact.kind === 'intake'
+            ? 'Intake artifact'
+            : 'Planning artifact';
+  const originDetails = [
+    `- Origin kind: ${artifact.kind}`,
+    `- Origin id: ${artifact.id}`,
+    artifact.state ? `- Origin state: ${artifact.state}` : '',
+    Array.isArray(artifact.backlogIds) && artifact.backlogIds.length > 0
+      ? `- Linked backlog IDs: ${artifact.backlogIds.join(', ')}`
+      : '',
+    Array.isArray(artifact.planRefs) && artifact.planRefs.length > 0
+      ? `- Existing plan refs: ${artifact.planRefs.join(', ')}`
+      : '',
+  ].filter(Boolean);
+
+  return [
+    `# ${seedTitle}`,
+    '',
+    '## Seed Context',
+    '',
+    `- ${originLabel}: ${artifact.id}`,
+    `- Source title: ${artifact.title}`,
+    `- Target repositories: ${targetRepos}`,
+    ...originDetails,
+    '',
+    '## Problem',
+    '',
+    artifact.summary || `Plan the follow-up for ${artifact.title}.`,
+    '',
+    '## Proposed Approach',
+    '',
+    `- Active repository: ${input.repoLabel || input.repoId || 'selected Catalog repo'}`,
+    `- Active path: ${input.repoPath || '(determine from Catalog context)'}`,
+    '- Translate the seeded intake/request into explicit implementation steps.',
+    '- Keep backlog and roadmap promotion explicit after plan review.',
+    '',
+    '## Acceptance Criteria',
+    '',
+    ...acceptanceCriteria,
+    '',
+    '## Todos',
+    '',
+    '- [ ] Confirm scope boundaries from the seeded request',
+    '- [ ] Break implementation into validated steps',
+    '- [ ] Record rollout and verification guidance',
+    '',
+    '## Notes',
+    '',
+    `Seeded from ${artifact.id}${artifact.category ? ` (${artifact.category})` : ''}.`,
+    '',
+  ].join('\n');
+}
+
+function normalizePlanSeedSource(artifact: PlanningPlanSeedArtifact | null | undefined): PlanningLinkedPlanSession['source'] {
+  if (!artifact) {
+    return 'create-plan';
+  }
+  if (artifact.kind === 'intake') return 'seed-from-intake';
+  if (artifact.kind === 'bullet') return 'seed-from-bullet';
+  if (artifact.kind === 'backlog') return 'seed-from-backlog';
+  if (artifact.kind === 'roadmap') return 'seed-from-roadmap';
+  return 'create-plan';
+}
+
+function normalizePlanSeedArtifact(
+  artifact: PlanningPlanSeedArtifact | PlanningIntakeArtifact | PlanningBullet | PlanningBacklogItem | PlanningRoadmapItem | null | undefined
+): PlanningPlanSeedArtifact | null {
+  if (!artifact || typeof artifact !== 'object') {
+    return null;
+  }
+
+  const id = String(artifact.id || '').trim();
+  const title = String(artifact.title || '').trim();
+  if (!id || !title) {
+    return null;
+  }
+
+  const record = artifact as Record<string, unknown>;
+  const inputKind = String(record.kind || '').trim().toLowerCase();
+  const kind: PlanningPlanOriginKind =
+    inputKind === 'planning.bullet.artifact'
+      ? 'bullet'
+      : inputKind === 'planning.intake.artifact'
+        ? 'intake'
+        : id.startsWith('PB-')
+          ? 'bullet'
+          : id.startsWith('RB-')
+            ? 'backlog'
+            : id.startsWith('RM-')
+              ? 'roadmap'
+              : 'direct';
+
+  return {
+    id,
+    kind,
+    category: String(record.category || '').trim() || undefined,
+    title,
+    summary: String(record.summary || '').trim() || undefined,
+    targetRepoIds: Array.isArray(record.targetRepoIds)
+      ? record.targetRepoIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [],
+    state: String(record.state || record.planningState || record.status || record.phase || '').trim() || undefined,
+    repoId: String(record.repoId || '').trim() || undefined,
+    notes: Array.isArray(record.notes) ? record.notes.map((entry) => String(entry || '').trim()).filter(Boolean) : [],
+    acceptanceCriteria: Array.isArray(record.acceptanceCriteria)
+      ? record.acceptanceCriteria.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [],
+    backlogIds: Array.isArray(record.backlogIds)
+      ? record.backlogIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [],
+    planRefs: Array.isArray(record.planRefs)
+      ? record.planRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [],
+  };
+}
+
+function normalizeCatalogRepoContext(
+  repo: Partial<CatalogRepoInventoryEntry> | null | undefined
+): PlanningCatalogRepoContext | null {
+  if (!repo || typeof repo !== 'object') {
+    return null;
+  }
+
+  const repoId = typeof repo.repoId === 'string' ? repo.repoId.trim() : '';
+  const repoPath = typeof repo.repoPath === 'string' ? repo.repoPath.trim() : '';
+  const repoLabel = typeof repo.repoLabel === 'string' ? repo.repoLabel.trim() : '';
+  const sources = Array.isArray(repo.sources)
+    ? repo.sources
+      .map((entry) => String(entry || '').trim())
+      .filter((entry) => entry.length > 0)
+    : [];
+
+  if (!repoId && !repoPath && !repoLabel && sources.length === 0) {
+    return null;
+  }
+
+  return {
+    repoId,
+    repoPath,
+    repoLabel,
+    sources,
+  };
 }
 
 function scopeRank(scope: string): number {
@@ -340,6 +900,203 @@ function normalizeAcceptanceCriteriaInput(raw: string): string[] {
     .filter((entry) => entry.length > 0);
 }
 
+function normalizeIdeaLines(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((entry) => entry.replace(/^[-*•]\s*/, '').trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function normalizeRepoTargetsInput(raw: string): string[] {
+  return [...new Set(
+    raw
+      .split(/[\n,]+/)
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+  )].sort((left, right) => left.localeCompare(right));
+}
+
+function nowIsoString(): string {
+  return new Date().toISOString();
+}
+
+function resolveDraftAcceptanceCriteria(
+  draft: Pick<PlanningDraftItem, 'acceptanceCriteriaText' | 'acceptanceCriteria'>
+): string[] {
+  if (typeof draft.acceptanceCriteriaText === 'string' && draft.acceptanceCriteriaText.trim()) {
+    return normalizeAcceptanceCriteriaInput(draft.acceptanceCriteriaText);
+  }
+
+  return Array.isArray(draft.acceptanceCriteria) ? draft.acceptanceCriteria.map((entry) => String(entry || '').trim()).filter(Boolean) : [];
+}
+
+function normalizeIdeaPlanningState(value: unknown): string {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'research') return 'research';
+  if (normalized === 'pre-plan') return 'pre-plan';
+  return 'thought';
+}
+
+function resolveDraftSaveRepoId(
+  draft: Pick<PlanningDraftItem, 'saveRepoId' | 'targetRepoIds'>,
+  fallbackRepoId = ''
+): string {
+  const explicitSaveRepoId = typeof draft.saveRepoId === 'string' ? draft.saveRepoId.trim() : '';
+  if (explicitSaveRepoId) {
+    return explicitSaveRepoId;
+  }
+
+  const targetRepoIds = Array.isArray(draft.targetRepoIds)
+    ? draft.targetRepoIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : [];
+  if (targetRepoIds.length === 1) {
+    return targetRepoIds[0];
+  }
+
+  return fallbackRepoId.trim();
+}
+
+function createDraftIdeaItem(
+  title: string,
+  targetRepoIds: string[],
+  defaultSaveRepoId = ''
+): PlanningDraftItem {
+  const timestamp = nowIsoString();
+  const normalizedTitle = title.trim();
+  const normalizedSaveRepoId = (targetRepoIds.length === 1 ? targetRepoIds[0] : defaultSaveRepoId).trim();
+
+  return {
+    draftId: buildIdempotencyKey('planning-draft'),
+    title: normalizedTitle,
+    summary: normalizedTitle,
+    acceptanceCriteria: [],
+    acceptanceCriteriaText: '',
+    targetRepoIds,
+    saveRepoId: normalizedSaveRepoId || null,
+    state: 'thought',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+}
+
+function humanizeActionRequestKind(kind: PlanningActionRequestKind): string {
+  switch (kind) {
+    case 'audit-request':
+      return 'Audit request';
+    case 'roadmap-request':
+      return 'Roadmap proposal request';
+    case 'review-prep':
+      return 'Review prep';
+    case 'commit-prep':
+    default:
+      return 'Commit prep';
+  }
+}
+
+function buildActionRequestArtifact(
+  kind: PlanningActionRequestKind,
+  input: {
+    title: string;
+    notes?: string;
+    targetRepoIds?: string[];
+  }
+): {
+  category: PlanningActionRequestKind;
+  title: string;
+  summary: string;
+  acceptanceCriteria: string[];
+  targetRepoIds: string[];
+  planningState: string;
+} {
+  const normalizedTitle = input.title.trim();
+  const normalizedNotes = String(input.notes || '').trim();
+  const targetRepoIds = Array.isArray(input.targetRepoIds)
+    ? input.targetRepoIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+    : [];
+
+  if (kind === 'review-prep') {
+    return {
+      category: kind,
+      title: normalizedTitle,
+      summary: [
+        `Prepare an AI review package for "${normalizedTitle}" in the selected repository scope.`,
+        normalizedNotes ? `Requested focus: ${normalizedNotes}` : '',
+        'AI may prepare changed-file summaries, reviewer notes, risks, validation context, and open questions.',
+        'AI must not perform the final git commit or any other autonomous repository action in this slice.',
+      ].filter(Boolean).join(' '),
+      acceptanceCriteria: [
+        'Produce a repo-scoped review package that a human can inspect before any follow-up action.',
+        'Include review-ready context such as changed-file summaries, risks, validation notes, or explicit open questions.',
+        'Keep the result traceable in Planning intake and do not perform the final git commit.',
+      ],
+      targetRepoIds,
+      planningState: PLANNING_ACTION_REQUEST_STATE,
+    };
+  }
+
+  if (kind === 'commit-prep') {
+    return {
+      category: kind,
+      title: normalizedTitle,
+      summary: [
+        `Prepare an AI commit-ready package for "${normalizedTitle}" in the selected repository scope.`,
+        normalizedNotes ? `Requested focus: ${normalizedNotes}` : '',
+        'AI may prepare commit-ready summaries, validation notes, and proposed commit messages for human review.',
+        'AI must not execute the final git commit in this PREPARE-COMMIT-ONLY slice.',
+      ].filter(Boolean).join(' '),
+      acceptanceCriteria: [
+        'Produce a repo-scoped commit-ready summary with explicit human-reviewable outputs.',
+        'Include at least one proposed commit message plus the validation context needed before a human commits.',
+        'Do not execute the final git commit or any autonomous repository mutation.',
+      ],
+      targetRepoIds,
+      planningState: PLANNING_ACTION_REQUEST_STATE,
+    };
+  }
+
+  if (kind === 'audit-request') {
+    return {
+      category: kind,
+      title: normalizedTitle,
+      summary: [
+        `Request a repo-scoped audit for "${normalizedTitle}" in the selected repository scope.`,
+        normalizedNotes ? `Audit focus: ${normalizedNotes}` : '',
+        'Capture findings, risks, and recommended follow-up as a tracked Planning intake request.',
+        'This workflow does not silently mutate roadmap, backlog, or repository documents.',
+      ].filter(Boolean).join(' '),
+      acceptanceCriteria: [
+        'Produce a repo-scoped audit request that clearly states the intended scope and focus areas.',
+        'Keep findings and follow-up recommendations traceable in Planning intake for later triage.',
+        'Do not silently mutate roadmap, backlog, or other canonical repository documents in this slice.',
+      ],
+      targetRepoIds,
+      planningState: PLANNING_ACTION_REQUEST_STATE,
+    };
+  }
+
+  return {
+    category: kind,
+    title: normalizedTitle,
+    summary: [
+      `Request a repo-scoped roadmap proposal for "${normalizedTitle}" in the selected repository scope.`,
+      normalizedNotes ? `Roadmap scope: ${normalizedNotes}` : '',
+      'Create a tracked proposal/request artifact first so humans can review intent, sequencing, and scope before any roadmap doc changes.',
+      'This workflow must not silently mutate docs/roadmaps or other canonical planning documents.',
+    ].filter(Boolean).join(' '),
+    acceptanceCriteria: [
+      'Produce a repo-scoped roadmap proposal request with the intended scope, sequencing, and decision points.',
+      'Create proposal/request artifacts first so roadmap changes remain explicit and reviewable in Planning.',
+      'Do not silently mutate docs/roadmaps or other canonical planning documents in this slice.',
+    ],
+    targetRepoIds,
+    planningState: PLANNING_ACTION_REQUEST_STATE,
+  };
+}
+
+export function isIdeaRecord(record: PlanningRecordItem): boolean {
+  return IDEA_RECORD_STATES.has(String(record.state || '').trim().toLowerCase());
+}
+
 function readCompareReceipt(compareResponse: PlanningCompareResponse | null): PlanningCompareReceipt | null {
   if (!compareResponse || !compareResponse.compareReceipt) {
     return null;
@@ -362,7 +1119,7 @@ export function hasReviewedAllPlanningConflicts(conflicts: PlanningConflictRow[]
   return conflicts.every((row) => reviewed.has(row.conflictKey));
 }
 
-function createPlanningStore() {
+export function createPlanningStore() {
   const store = createStore<PlanningState>(INITIAL_STATE);
 
   let recordsRequestVersion = 0;
@@ -371,6 +1128,65 @@ function createPlanningStore() {
   let preflightRequestVersion = 0;
   let artifactsRequestVersion = 0;
   let artifactsMutationVersion = 0;
+
+  function applyCatalogRepoContext(repo: Partial<CatalogRepoInventoryEntry> | null | undefined): void {
+    const catalogRepoContext = normalizeCatalogRepoContext(repo);
+    const planningIntakeDirectory = buildPlanningIntakeDirectoryRef({
+      repoId: catalogRepoContext?.repoId || undefined,
+      repoPath: catalogRepoContext?.repoPath || undefined,
+      repoLabel: catalogRepoContext?.repoLabel || undefined,
+    });
+    const repositoryBacklog = buildPlanningRepositoryBacklogRef({
+      repoId: catalogRepoContext?.repoId || undefined,
+      repoPath: catalogRepoContext?.repoPath || undefined,
+      repoLabel: catalogRepoContext?.repoLabel || undefined,
+    });
+    const roadmapDirectory = buildPlanningRoadmapDirectoryRef({
+      repoId: catalogRepoContext?.repoId || undefined,
+      repoPath: catalogRepoContext?.repoPath || undefined,
+      repoLabel: catalogRepoContext?.repoLabel || undefined,
+    });
+      const persistedLinkedPlanSession = readLinkedPlanSession({
+        repoId: catalogRepoContext?.repoId || '',
+        originKind: 'direct',
+        originArtifactId: PLANNING_DIRECT_PLAN_ORIGIN_ID,
+      });
+    const persistedLinkedSdkSession = readLinkedSdkSession(catalogRepoContext?.repoId || '');
+
+    store.setState((state) => ({
+      ...state,
+      catalogRepoContext,
+      planningIntakeDirectory,
+      repositoryBacklog,
+      roadmapDirectory,
+      linkedPlanSession: persistedLinkedPlanSession ?? (
+        state.linkedPlanSession
+        && resolveLinkedSdkSessionStorageScope(state.linkedPlanSession.repoId) === resolveLinkedSdkSessionStorageScope(catalogRepoContext?.repoId || '')
+          ? state.linkedPlanSession
+          : null
+      ),
+      linkedSdkSession: persistedLinkedSdkSession ?? (
+        state.linkedSdkSession
+        && resolveLinkedSdkSessionStorageScope(state.linkedSdkSession.repoId) === resolveLinkedSdkSessionStorageScope(catalogRepoContext?.repoId || '')
+          ? state.linkedSdkSession
+          : null
+      ),
+      draftIdeas: state.draftIdeas.map((draft) => {
+        if ((Array.isArray(draft.targetRepoIds) && draft.targetRepoIds.length > 0) || String(draft.saveRepoId || '').trim()) {
+          return draft;
+        }
+
+        return {
+          ...draft,
+          saveRepoId: catalogRepoContext?.repoId || null,
+          updatedAt: draft.updatedAt || nowIsoString(),
+        };
+      }),
+      repoId: catalogRepoContext?.repoId || '',
+      createScope: catalogRepoContext?.repoId ? 'repo' : (state.createScope === 'repo' ? 'user' : state.createScope),
+      error: null,
+    }));
+  }
 
   function setStatus(statusMessage: string): void {
     store.setState((state) => ({
@@ -471,10 +1287,15 @@ function createPlanningStore() {
           ? state.selectedRecordId
           : (response.records[0]?.recordId ?? '');
 
+        const nextSelectedIdeas = state.selectedIdeaIds.filter((recordId) =>
+          response.records.some((record) => record.recordId === recordId)
+        );
+
         return {
           ...state,
           records: response.records,
           deniedScopes: response.deniedScopes,
+          selectedIdeaIds: nextSelectedIdeas,
           selectedRecordId: nextSelectedRecordId,
           listing: false,
           error: null,
@@ -867,6 +1688,645 @@ function createPlanningStore() {
     }
   }
 
+  async function createIdeaBatch(): Promise<void> {
+    const stateSnapshot = store.getState();
+    const ideas = normalizeIdeaLines(stateSnapshot.ideaDraft);
+    const targetRepoIds = normalizeRepoTargetsInput(stateSnapshot.ideaTargetRepos);
+    const defaultSaveRepoId = stateSnapshot.catalogRepoContext?.repoId || '';
+
+    if (stateSnapshot.mutatingBlocked) {
+      setStatus(`Idea capture blocked: ${stateSnapshot.mutatingReason || 'policy gate active'}.`);
+      return;
+    }
+
+    if (ideas.length === 0) {
+      setStatus('Type one or more bullet ideas before adding them.');
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      creating: true,
+      error: null,
+      statusMessage: `Creating ${ideas.length} local planning draft${ideas.length === 1 ? '' : 's'}...`,
+    }));
+
+    try {
+      const createdDrafts = ideas.map((idea) => createDraftIdeaItem(idea, targetRepoIds, defaultSaveRepoId));
+
+      store.setState((state) => ({
+        ...state,
+        creating: false,
+        draftIdeas: [...createdDrafts, ...state.draftIdeas],
+        ideaDraft: '',
+        statusMessage: `Captured ${ideas.length} idea record${ideas.length === 1 ? '' : 's'}.`,
+      }));
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to create idea records.');
+
+      store.setState((state) => ({
+        ...state,
+        creating: false,
+        error: message,
+        statusMessage: `Idea capture failed: ${message}`,
+      }));
+    }
+  }
+
+  async function updateIdea(
+    recordId: string,
+    input: {
+      title?: string;
+      summary?: string;
+      targetRepoIds?: string[];
+      acceptanceCriteriaText?: string;
+      saveRepoId?: string | null;
+      state?: string;
+    }
+  ): Promise<void> {
+    const normalizedRecordId = recordId.trim();
+    if (!normalizedRecordId) {
+      return;
+    }
+
+    const stateSnapshot = store.getState();
+    if (stateSnapshot.mutatingBlocked) {
+      setStatus(`Idea update blocked: ${stateSnapshot.mutatingReason || 'policy gate active'}.`);
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      updatingRecordId: normalizedRecordId,
+      error: null,
+      statusMessage: 'Saving idea changes...',
+    }));
+
+    try {
+      const updatedAt = nowIsoString();
+      store.setState((state) => {
+        const nextDrafts = state.draftIdeas.map((draft) => {
+          if (draft.draftId !== normalizedRecordId) {
+            return draft;
+          }
+
+          const acceptanceCriteriaText =
+            input.acceptanceCriteriaText != null ? input.acceptanceCriteriaText : String(draft.acceptanceCriteriaText || '');
+
+          return {
+            ...draft,
+            title: input.title != null ? input.title : draft.title,
+            summary: input.summary != null ? input.summary : draft.summary,
+            targetRepoIds: input.targetRepoIds != null ? input.targetRepoIds : draft.targetRepoIds,
+            acceptanceCriteriaText,
+            acceptanceCriteria: normalizeAcceptanceCriteriaInput(acceptanceCriteriaText),
+            saveRepoId: input.saveRepoId != null ? input.saveRepoId : draft.saveRepoId,
+            state: input.state != null ? input.state : draft.state,
+            updatedAt,
+          };
+        });
+
+        return {
+          ...state,
+          draftIdeas: nextDrafts,
+          updatingRecordId: null,
+          statusMessage: 'Draft updated locally.',
+        };
+      });
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to update idea.');
+
+      store.setState((state) => ({
+        ...state,
+        updatingRecordId: null,
+        error: message,
+        statusMessage: `Idea update failed: ${message}`,
+      }));
+    }
+  }
+
+  async function compileSelectedIdeas(): Promise<string | null> {
+    const stateSnapshot = store.getState();
+    const selectedIdeas = stateSnapshot.draftIdeas.filter(
+      (record) => stateSnapshot.selectedIdeaIds.includes(record.draftId)
+    );
+
+    if (selectedIdeas.length === 0) {
+      setStatus('Select one or more ideas before compiling a plan.');
+      return null;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      compiling: true,
+      error: null,
+      statusMessage: 'Creating SDK planning session...',
+    }));
+
+    try {
+      const response = await createSdkSession({});
+      const sessionId = String(response.sessionId || '').trim();
+      if (!sessionId) {
+        throw new Error('sdk_session_missing');
+      }
+
+      const allTargetRepoIds = [...new Set(selectedIdeas.flatMap((record) =>
+        [
+          ...(Array.isArray(record.targetRepoIds) ? record.targetRepoIds.map((entry) => String(entry).trim()).filter(Boolean) : []),
+          String(record.saveRepoId || '').trim(),
+        ].filter(Boolean)
+      ))].sort((left, right) => left.localeCompare(right));
+
+      const effectiveTargets = allTargetRepoIds.length > 0
+        ? allTargetRepoIds
+        : (stateSnapshot.catalogRepoContext?.repoId?.trim() ? [stateSnapshot.catalogRepoContext.repoId.trim()] : []);
+
+      const prompt = [
+        'Create a repo-targeted implementation plan from the following planning ideas.',
+        effectiveTargets.length > 0 ? `Target repositories: ${effectiveTargets.join(', ')}` : 'Target repositories: determine from the supplied idea context.',
+        'Requirements:',
+        '- Produce a concrete implementation plan with phases, risks, validation, and rollout guidance.',
+        '- Do not execute changes.',
+        '- Keep the output ready for follow-up implementation work.',
+        'Ideas:',
+        ...selectedIdeas.map((record, index) => {
+          const acceptanceCriteria = resolveDraftAcceptanceCriteria(record);
+          const acceptance = acceptanceCriteria.length > 0
+            ? ` Acceptance criteria: ${acceptanceCriteria.join('; ')}`
+            : '';
+          const targets = Array.isArray(record.targetRepoIds) && record.targetRepoIds.length > 0
+            ? ` Targets: ${record.targetRepoIds.join(', ')}.`
+            : '';
+          const saveTarget = String(record.saveRepoId || '').trim();
+          const saveTargetText = saveTarget ? ` Save target: ${saveTarget}.` : '';
+          return `${index + 1}. ${String(record.title || '').trim() || '(untitled idea)'}${String(record.summary || '').trim() ? ` Summary: ${String(record.summary).trim()}.` : ''}${targets}${saveTargetText}${acceptance}`;
+        }),
+      ].join('\n');
+
+      await sendSdkMessage({
+        sessionId,
+        prompt,
+      });
+
+      await sdkSessionsStore.loadSessions();
+      sdkSessionsStore.selectSession(sessionId);
+
+      const linkedSdkSession: PlanningLinkedSdkSession = {
+        sessionId,
+        repoId: stateSnapshot.catalogRepoContext?.repoId?.trim() || null,
+        source: 'compile-selected-ideas',
+        createdAt: nowIsoString(),
+        selectedIdeaIds: selectedIdeas.map((record) => record.draftId),
+        selectedIdeaTitles: selectedIdeas
+          .map((record) => String(record.title || '').trim())
+          .filter((title) => title.length > 0),
+        targetRepoIds: effectiveTargets,
+        promptPreview: prompt.slice(0, 280),
+      };
+      persistLinkedSdkSession(linkedSdkSession);
+
+      store.setState((state) => ({
+        ...state,
+        compiling: false,
+        linkedSdkSession,
+        statusMessage: `Plan compilation started in SDK session ${sessionId}. Linked from Planning for this workspace.`,
+      }));
+
+      return sessionId;
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to compile ideas into an SDK planning session.');
+
+      store.setState((state) => ({
+        ...state,
+        compiling: false,
+        error: message,
+        statusMessage: `Idea compile failed: ${message}`,
+      }));
+
+      return null;
+    }
+  }
+
+  function removeIdea(recordId: string): void {
+    const normalizedRecordId = recordId.trim();
+    if (!normalizedRecordId) {
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      draftIdeas: state.draftIdeas.filter((draft) => draft.draftId !== normalizedRecordId),
+      selectedIdeaIds: state.selectedIdeaIds.filter((draftId) => draftId !== normalizedRecordId),
+      updatingRecordId: state.updatingRecordId === normalizedRecordId ? null : state.updatingRecordId,
+      savingIdeaId: state.savingIdeaId === normalizedRecordId ? null : state.savingIdeaId,
+      statusMessage: 'Draft removed from the local planning inbox.',
+    }));
+  }
+
+  function splitIdea(recordId: string): void {
+    const normalizedRecordId = recordId.trim();
+    if (!normalizedRecordId) {
+      return;
+    }
+
+    store.setState((state) => {
+      const draftIndex = state.draftIdeas.findIndex((draft) => draft.draftId === normalizedRecordId);
+      if (draftIndex < 0) {
+        return state;
+      }
+
+      const draft = state.draftIdeas[draftIndex];
+      const targetRepoIds = Array.isArray(draft.targetRepoIds)
+        ? draft.targetRepoIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+        : [];
+      if (targetRepoIds.length < 2) {
+        return {
+          ...state,
+          statusMessage: 'Only multi-repo drafts need to be split before saving.',
+        };
+      }
+
+      const replacementDrafts = targetRepoIds.map((targetRepoId) => ({
+        ...draft,
+        draftId: buildIdempotencyKey('planning-draft'),
+        targetRepoIds: [targetRepoId],
+        saveRepoId: targetRepoId,
+        createdAt: nowIsoString(),
+        updatedAt: nowIsoString(),
+      }));
+      const nextDraftIdeas = [
+        ...state.draftIdeas.slice(0, draftIndex),
+        ...replacementDrafts,
+        ...state.draftIdeas.slice(draftIndex + 1),
+      ];
+
+      const selectedIdeaIds = new Set(state.selectedIdeaIds);
+      const wasSelected = selectedIdeaIds.delete(normalizedRecordId);
+      if (wasSelected) {
+        replacementDrafts.forEach((draftEntry) => selectedIdeaIds.add(draftEntry.draftId));
+      }
+
+      return {
+        ...state,
+        draftIdeas: nextDraftIdeas,
+        selectedIdeaIds: [...selectedIdeaIds],
+        statusMessage: `Split draft into ${replacementDrafts.length} repo-specific draft${replacementDrafts.length === 1 ? '' : 's'}.`,
+      };
+    });
+  }
+
+  async function saveIdeaDraft(recordId: string, requestedRepoId?: string): Promise<void> {
+    const normalizedRecordId = recordId.trim();
+    if (!normalizedRecordId) {
+      return;
+    }
+
+    const stateSnapshot = store.getState();
+    if (stateSnapshot.mutatingBlocked) {
+      setStatus(`Planning intake save blocked: ${stateSnapshot.mutatingReason || 'policy gate active'}.`);
+      return;
+    }
+
+    const draft = stateSnapshot.draftIdeas.find((entry) => entry.draftId === normalizedRecordId);
+    if (!draft) {
+      setStatus('Draft not found. Refresh the planning inbox and try again.');
+      return;
+    }
+
+    const title = String(draft.title || '').trim();
+    if (!title) {
+      setStatus('Saving to planning intake requires a draft title.');
+      return;
+    }
+
+    const targetRepoIds = Array.isArray(draft.targetRepoIds)
+      ? draft.targetRepoIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [];
+
+    const repoId = resolveDraftSaveRepoId(
+      {
+        ...draft,
+        saveRepoId: typeof requestedRepoId === 'string' && requestedRepoId.trim() ? requestedRepoId.trim() : draft.saveRepoId,
+      },
+      stateSnapshot.catalogRepoContext?.repoId || '',
+    );
+    if (!repoId) {
+      setStatus('Choose a Catalog repo before saving this draft to planning intake.');
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      savingIdeaId: normalizedRecordId,
+      error: null,
+      statusMessage: `Saving draft to planning intake for ${repoId}...`,
+    }));
+
+    try {
+      const response = await createPlanningIntakeArtifact({
+        repoId,
+        artifact: {
+          category: 'idea',
+          title,
+          summary: String(draft.summary || '').trim(),
+          acceptanceCriteria: resolveDraftAcceptanceCriteria(draft),
+          targetRepoIds,
+          planningState: normalizeIdeaPlanningState(draft.state),
+        },
+      });
+      const createdArtifactId = String(response.artifact?.id || '').trim();
+
+      store.setState((state) => ({
+        ...state,
+        savingIdeaId: null,
+        draftIdeas: state.draftIdeas.filter((entry) => entry.draftId !== normalizedRecordId),
+        selectedIdeaIds: state.selectedIdeaIds.filter((draftId) => draftId !== normalizedRecordId),
+        statusMessage: createdArtifactId
+          ? `Saved draft to Planning Intake as ${createdArtifactId} for ${repoId}.`
+          : `Saved draft to Planning Intake for ${repoId}.`,
+      }));
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to save draft to planning intake.');
+
+      store.setState((state) => ({
+        ...state,
+        savingIdeaId: null,
+        error: message,
+        statusMessage: `Planning intake save failed: ${message}`,
+      }));
+    }
+  }
+
+  async function loadLinkedPlan(): Promise<void> {
+    const stateSnapshot = store.getState();
+    const linkedPlanSession = stateSnapshot.linkedPlanSession;
+    if (!linkedPlanSession?.sessionId) {
+      store.setState((state) => ({
+        ...state,
+        planTitleDraft: '',
+        planContentDraft: '',
+        planLoading: false,
+        planError: null,
+      }));
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      planLoading: true,
+      planError: null,
+    }));
+
+    try {
+      const content = await getSessionPlanText(linkedPlanSession.sessionId);
+      const firstHeading = content
+        .split('\n')
+        .map((line) => line.trim())
+        .find((line) => line.startsWith('# '));
+
+      store.setState((state) => ({
+        ...state,
+        planTitleDraft: firstHeading ? firstHeading.replace(/^#\s+/, '').trim() : state.planTitleDraft,
+        planContentDraft: content,
+        planLoading: false,
+        planError: null,
+        statusMessage: `Loaded linked plan ${linkedPlanSession.sessionId}.`,
+      }));
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to load the linked plan.');
+      store.setState((state) => ({
+        ...state,
+        planLoading: false,
+        planError: message,
+        error: message,
+        statusMessage: `Plan load failed: ${message}`,
+      }));
+    }
+  }
+
+  async function savePlanDraft(input: {
+    title?: string;
+    content?: string;
+    seedArtifact?: PlanningPlanSeedArtifact | PlanningIntakeArtifact | PlanningBullet | PlanningBacklogItem | PlanningRoadmapItem | null;
+    createNewSession?: boolean;
+  } = {}): Promise<string | null> {
+    const stateSnapshot = store.getState();
+    if (stateSnapshot.mutatingBlocked) {
+      setStatus(`Plan authoring blocked: ${stateSnapshot.mutatingReason || 'policy gate active'}.`);
+      return null;
+    }
+
+    const normalizedTitle = String(input.title ?? stateSnapshot.planTitleDraft ?? '').trim();
+    const seedArtifact = normalizePlanSeedArtifact(input.seedArtifact);
+    const originKind = seedArtifact?.kind ?? 'direct';
+    const originArtifactId = seedArtifact?.id ?? PLANNING_DIRECT_PLAN_ORIGIN_ID;
+    const existingLinkedPlanSession = input.createNewSession
+      ? null
+      : readLinkedPlanSession({
+          repoId: stateSnapshot.catalogRepoContext?.repoId || '',
+          originKind,
+          originArtifactId,
+        });
+    const content = typeof input.content === 'string' && input.content.trim()
+      ? input.content
+      : (
+        seedArtifact
+          ? buildSeededPlanContent({
+            title: normalizedTitle || seedArtifact.title,
+            repoId: stateSnapshot.catalogRepoContext?.repoId,
+            repoLabel: stateSnapshot.catalogRepoContext?.repoLabel,
+            repoPath: stateSnapshot.catalogRepoContext?.repoPath,
+            artifact: seedArtifact,
+          })
+          : buildBlankPlanContent({
+            title: normalizedTitle || 'New plan',
+            repoId: stateSnapshot.catalogRepoContext?.repoId,
+            repoLabel: stateSnapshot.catalogRepoContext?.repoLabel,
+            repoPath: stateSnapshot.catalogRepoContext?.repoPath,
+          })
+      );
+
+    if (!content.trim()) {
+      setStatus('Plan authoring requires content.');
+      return null;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      planSaving: true,
+      planError: null,
+        error: null,
+        statusMessage: existingLinkedPlanSession && !input.createNewSession
+          ? `Saving plan ${existingLinkedPlanSession.sessionId}...`
+          : 'Creating plan session...',
+      }));
+
+    try {
+      const response = await upsertSessionPlan({
+        sessionId: input.createNewSession ? undefined : existingLinkedPlanSession?.sessionId,
+        title: normalizedTitle || undefined,
+        content,
+        repoId: stateSnapshot.catalogRepoContext?.repoId || undefined,
+        repoPath: stateSnapshot.catalogRepoContext?.repoPath || undefined,
+        seedArtifact: seedArtifact
+          ? {
+            id: seedArtifact.id,
+            kind: seedArtifact.kind,
+            category: seedArtifact.category || seedArtifact.kind,
+            title: seedArtifact.title,
+            summary: seedArtifact.summary,
+            targetRepoIds: seedArtifact.targetRepoIds,
+            state: seedArtifact.state,
+            repoId: seedArtifact.repoId,
+            originKind: seedArtifact.kind,
+            promotedPlanRefs: seedArtifact.planRefs,
+            promotedBacklogRefs: seedArtifact.backlogIds,
+          }
+          : undefined,
+      });
+      const sessionId = String(response.sessionId || '').trim();
+      if (!sessionId) {
+        throw new Error('plan_session_missing');
+      }
+
+      const linkedPlanSession: PlanningLinkedPlanSession = {
+        sessionId,
+        repoId: stateSnapshot.catalogRepoContext?.repoId?.trim() || null,
+        planPath: String(response.planPath || existingLinkedPlanSession?.planPath || '').trim() || undefined,
+        source: normalizePlanSeedSource(seedArtifact),
+        originKind,
+        originArtifactId,
+        createdAt: existingLinkedPlanSession?.sessionId === sessionId
+          ? (existingLinkedPlanSession.createdAt || response.updatedAt)
+          : response.updatedAt,
+        updatedAt: response.updatedAt,
+        seedArtifactId: seedArtifact?.id || undefined,
+        seedArtifactCategory: seedArtifact?.kind === 'intake'
+          ? (seedArtifact.category as PlanningIntakeCategory | undefined)
+          : undefined,
+        seedArtifactTitle: seedArtifact?.title,
+      };
+      persistLinkedPlanSession(linkedPlanSession);
+
+      await sessionsStore.loadSessions();
+      sessionsStore.selectSession(sessionId);
+
+      store.setState((state) => ({
+        ...state,
+        linkedPlanSession,
+        planTitleDraft: normalizedTitle || state.planTitleDraft,
+        planContentDraft: response.content || content,
+        planSaving: false,
+        planError: null,
+        statusMessage: response.created
+          ? `Created linked plan session ${sessionId}.`
+          : `Saved linked plan session ${sessionId}.`,
+      }));
+
+      return sessionId;
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to save the linked plan.');
+      store.setState((state) => ({
+        ...state,
+        planSaving: false,
+        planError: message,
+        error: message,
+        statusMessage: `Plan save failed: ${message}`,
+      }));
+      return null;
+    }
+  }
+
+  async function createActionRequest(
+    kind: PlanningActionRequestKind,
+    input: {
+      title: string;
+      notes?: string;
+      targetRepoIds?: string[];
+      saveRepoId?: string | null;
+    }
+  ): Promise<string | null> {
+    const stateSnapshot = store.getState();
+    if (stateSnapshot.mutatingBlocked) {
+      setStatus(`${humanizeActionRequestKind(kind)} blocked: ${stateSnapshot.mutatingReason || 'policy gate active'}.`);
+      return null;
+    }
+
+    const title = String(input.title || '').trim();
+    if (!title) {
+      setStatus(`${humanizeActionRequestKind(kind)} requires a title.`);
+      return null;
+    }
+
+    const targetRepoIds = Array.isArray(input.targetRepoIds)
+      ? input.targetRepoIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : [];
+    const repoId = resolveDraftSaveRepoId(
+      {
+        saveRepoId: input.saveRepoId,
+        targetRepoIds,
+      },
+      stateSnapshot.catalogRepoContext?.repoId || '',
+    );
+
+    if (!repoId) {
+      setStatus(`Choose a Catalog repo before creating ${humanizeActionRequestKind(kind).toLowerCase()}.`);
+      return null;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      creating: true,
+      error: null,
+      statusMessage: `Creating ${humanizeActionRequestKind(kind).toLowerCase()} for ${repoId}...`,
+    }));
+
+    try {
+      const response = await createPlanningIntakeArtifact({
+        repoId,
+        artifact: buildActionRequestArtifact(kind, {
+          title,
+          notes: input.notes,
+          targetRepoIds,
+        }),
+      });
+      const createdArtifactId = String(response.artifact?.id || '').trim();
+
+      store.setState((state) => ({
+        ...state,
+        creating: false,
+        statusMessage: createdArtifactId
+          ? `${humanizeActionRequestKind(kind)} saved to Planning Intake as ${createdArtifactId} for ${repoId}.`
+          : `${humanizeActionRequestKind(kind)} saved to Planning Intake for ${repoId}.`,
+      }));
+
+      return createdArtifactId || null;
+    } catch (error) {
+      const message = toErrorMessage(error, `Unable to create ${humanizeActionRequestKind(kind).toLowerCase()}.`);
+
+      store.setState((state) => ({
+        ...state,
+        creating: false,
+        error: message,
+        statusMessage: `${humanizeActionRequestKind(kind)} failed: ${message}`,
+      }));
+
+      return null;
+    }
+  }
+
+  async function createPrepRequest(
+    kind: PlanningPrepRequestKind,
+    input: {
+      title: string;
+      notes?: string;
+      targetRepoIds?: string[];
+      saveRepoId?: string | null;
+    }
+  ): Promise<string | null> {
+    return createActionRequest(kind, input);
+  }
+
   async function prepareMergeIntent(): Promise<void> {
     const stateSnapshot = store.getState();
 
@@ -1124,6 +2584,55 @@ function createPlanningStore() {
     }));
   }
 
+  function setIdeaDraft(value: string): void {
+    store.setState((state) => ({
+      ...state,
+      ideaDraft: value,
+    }));
+  }
+
+  function setIdeaTargetRepos(value: string): void {
+    store.setState((state) => ({
+      ...state,
+      ideaTargetRepos: value,
+    }));
+  }
+
+  function setPlanTitleDraft(value: string): void {
+    store.setState((state) => ({
+      ...state,
+      planTitleDraft: value,
+    }));
+  }
+
+  function setPlanContentDraft(value: string): void {
+    store.setState((state) => ({
+      ...state,
+      planContentDraft: value,
+    }));
+  }
+
+  function toggleIdeaSelected(recordId: string, checked: boolean): void {
+    const normalizedRecordId = recordId.trim();
+    if (!normalizedRecordId) {
+      return;
+    }
+
+    store.setState((state) => {
+      const nextIds = new Set(state.selectedIdeaIds);
+      if (checked) {
+        nextIds.add(normalizedRecordId);
+      } else {
+        nextIds.delete(normalizedRecordId);
+      }
+
+      return {
+        ...state,
+        selectedIdeaIds: [...nextIds],
+      };
+    });
+  }
+
   function setSelectedRecordId(value: string): void {
     const selectedRecordId = value.trim();
 
@@ -1181,6 +2690,7 @@ function createPlanningStore() {
   return {
     getState: store.getState,
     subscribe: store.subscribe,
+    applyCatalogRepoContext,
     loadInitial,
     refreshPolicyPreflight,
     listRecords,
@@ -1190,6 +2700,16 @@ function createPlanningStore() {
     removeResearchNote,
     compareRecords,
     createRecord,
+    createIdeaBatch,
+    updateIdea,
+    compileSelectedIdeas,
+    loadLinkedPlan,
+    savePlanDraft,
+    removeIdea,
+    splitIdea,
+    saveIdeaDraft,
+    createActionRequest,
+    createPrepRequest,
     prepareMergeIntent,
     confirmMerge,
     setUserId,
@@ -1202,6 +2722,11 @@ function createPlanningStore() {
     setCreateTitle,
     setCreateSummary,
     setCreateAcceptanceCriteria,
+    setIdeaDraft,
+    setIdeaTargetRepos,
+    setPlanTitleDraft,
+    setPlanContentDraft,
+    toggleIdeaSelected,
     setSelectedRecordId,
     setSelectedDiagramId,
     setMergeTargetId,

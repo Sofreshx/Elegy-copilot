@@ -120,6 +120,11 @@ export function resolveBridgeConfig(env, opts = {}) {
     config.policyPreflightFn = sourceOpts.policyPreflightFn;
   }
 
+  const copilotHome = firstNonEmptyString([sourceOpts.copilotHome, sourceEnv.COPILOT_HOME]);
+  if (copilotHome) {
+    config.copilotHome = copilotHome;
+  }
+
   if (typeof sourceOpts.cliVersion === "string" && sourceOpts.cliVersion.trim()) {
     config.cliVersion = sourceOpts.cliVersion.trim();
   }

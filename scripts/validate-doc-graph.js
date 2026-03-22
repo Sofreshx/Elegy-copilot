@@ -3,8 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const repoRoot = path.resolve(__dirname, '..');
-const docsRoot = path.join(repoRoot, 'docs');
+const defaultRepoRoot = path.resolve(__dirname, '..');
 
 const allowedCategory = new Set(['system', 'research', 'adr', 'meta']);
 const allowedStatus = new Set(['current', 'stale', 'draft', 'archived']);
@@ -171,16 +170,20 @@ function ensure(condition, message, errors) {
 	errors.push(message);
 }
 
-function main() {
+function isRepoBackedPlanningArtifact(rel) {
+	return rel === 'docs/backlog.md' || rel.startsWith('docs/roadmaps/');
+}
+
+function validateDocGraph({ repoRoot = defaultRepoRoot } = {}) {
 	/** @type {string[]} */
 	const errors = [];
 	/** @type {string[]} */
 	const warnings = [];
+	const docsRoot = path.join(repoRoot, 'docs');
 
 	if (!fs.existsSync(docsRoot)) {
-		console.error('ERROR: docs/ folder not found');
-		process.exitCode = 1;
-		return;
+		errors.push('docs/ folder not found');
+		return { errors, warnings, docCount: 0 };
 	}
 
 	const docFiles = walkDir(docsRoot);
@@ -245,7 +248,8 @@ function main() {
 		if (rel.startsWith('docs/research/') && meta.category !== 'research') {
 			errors.push(`${rel}: docs/research/** must have category: research.`);
 		}
-		if (rel.startsWith('docs/') && !rel.slice('docs/'.length).includes('/') && docKind !== 'redirect') {
+		const isTopLevelDocsFile = rel.startsWith('docs/') && !rel.slice('docs/'.length).includes('/');
+		if (isTopLevelDocsFile && docKind !== 'redirect' && !isRepoBackedPlanningArtifact(rel)) {
 			errors.push(`${rel}: Top-level docs/*.md must be doc_kind: redirect.`);
 		}
 
@@ -459,6 +463,12 @@ function main() {
 		});
 	}
 
+	return { errors, warnings, docCount: docsByRel.size };
+}
+
+function main() {
+	const { errors, warnings, docCount } = validateDocGraph();
+
 	if (warnings.length > 0) {
 		console.warn('Warnings:');
 		for (const warning of warnings) console.warn(`- ${warning}`);
@@ -472,7 +482,14 @@ function main() {
 		return;
 	}
 
-	console.log(`OK: docs graph validation passed (${docsByRel.size} markdown files).`);
+	console.log(`OK: docs graph validation passed (${docCount} markdown files).`);
 }
 
-main();
+if (require.main === module) {
+	main();
+}
+
+module.exports = {
+	isRepoBackedPlanningArtifact,
+	validateDocGraph,
+};

@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const repoDiscovery = require('../lib/repoDiscoveryService');
 
 function handleGatewayState(ctx, deps) {
   const { res, copilotHomeAbs } = ctx;
@@ -244,54 +245,35 @@ function handleGatewayConfigPost(ctx, deps) {
 }
 
 function handleGatewayScanRepos(ctx, deps) {
-  const { res, u } = ctx;
-  const { sendJson, fs, path, os } = deps;
+  const { res, u, copilotHomeAbs } = ctx;
+  const { sendJson, fs, path } = deps;
 
   const extraParam = u.searchParams.get('extra');
-  const home = os.homedir();
-  const isWin = process.platform === 'win32';
-  const candidateRoots = [
-    isWin ? path.join(home, 'Documents', 'GitHub') : null,
-    isWin ? path.join(home, 'source', 'repos') : null,
-    path.join(home, 'GitHub'),
-    path.join(home, 'projects'),
-    path.join(home, 'dev'),
-    path.join(home, 'workspace'),
-    path.join(home, 'code'),
-    path.join(home, 'repos'),
-  ].filter(Boolean);
-  if (extraParam && extraParam.trim()) {
-    candidateRoots.push(path.resolve(extraParam.trim()));
-  }
-  function isDir(p) {
-    try { return fs.statSync(p).isDirectory(); } catch { return false; }
-  }
-  function hasGit(p) {
-    return isDir(path.join(p, '.git'));
-  }
-  function listSubdirs(p) {
-    try { return fs.readdirSync(p).map((n) => path.join(p, n)).filter(isDir); } catch { return []; }
-  }
-  const roots = [];
-  for (const scanRoot of candidateRoots) {
-    if (!isDir(scanRoot)) continue;
-    const repos = [];
-    const level1 = listSubdirs(scanRoot);
-    for (const l1 of level1) {
-      if (hasGit(l1)) {
-        repos.push({ absPath: l1, name: path.basename(l1), isGit: true });
-      } else {
-        const level2 = listSubdirs(l1);
-        for (const l2 of level2) {
-          if (hasGit(l2)) {
-            repos.push({ absPath: l2, name: path.join(path.basename(l1), path.basename(l2)), isGit: true });
-          }
-        }
-      }
-    }
-    if (repos.length > 0) roots.push({ scanRoot, repos });
-  }
-  sendJson(res, 200, { roots });
+  const scanConfig = repoDiscovery.resolveWorkspaceScanRoots({
+    copilotHome: copilotHomeAbs,
+    extraRoots: extraParam && extraParam.trim() ? [extraParam.trim()] : [],
+    fsModule: fs,
+    pathModule: path,
+  });
+  const discovered = repoDiscovery.discoverReposFromRoots({
+    roots: scanConfig.scanRoots,
+    fsModule: fs,
+    pathModule: path,
+  });
+  sendJson(res, 200, {
+    storage: scanConfig.storage,
+    defaultRoots: scanConfig.defaultRoots,
+    customScanRoots: scanConfig.customScanRoots,
+    scanRoots: scanConfig.scanRoots,
+    roots: discovered.roots.map((root) => ({
+      scanRoot: root.scanRoot,
+      repos: root.repos.map((repo) => ({
+        absPath: repo.repoPath,
+        name: repo.repoLabel || path.basename(repo.repoPath),
+        isGit: true,
+      })),
+    })),
+  });
 }
 
 function register(deps = {}) {

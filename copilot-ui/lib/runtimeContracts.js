@@ -32,7 +32,7 @@ const SESSION_RECONCILIATION_SOURCES = Object.freeze({
 
 const SESSION_STATE_AUTHORITIES = Object.freeze({
   RUNTIME: 'acp',
-  RUNTIME_ONLY: 'acp-only',
+  RUNTIME_ONLY: 'acp',
   ARTIFACT: 'fs',
 });
 
@@ -43,7 +43,6 @@ const SESSION_RECONCILIATION_SOURCE_PRECEDENCE = Object.freeze({
 
 const SESSION_RECONCILIATION_SOURCE_OF_TRUTH = Object.freeze({
   [SESSION_STATE_AUTHORITIES.RUNTIME]: SESSION_RECONCILIATION_SOURCES.RUNTIME,
-  [SESSION_STATE_AUTHORITIES.RUNTIME_ONLY]: SESSION_RECONCILIATION_SOURCES.RUNTIME,
   [SESSION_STATE_AUTHORITIES.ARTIFACT]: SESSION_RECONCILIATION_SOURCES.ARTIFACT,
 });
 
@@ -108,12 +107,9 @@ function resolveSessionReconciliationAuthority(input) {
   const hasRuntimeState = hasStatePresence(source.hasRuntimeState, source.runtimeState);
   const hasArtifactState = hasStatePresence(source.hasArtifactState, source.artifactState);
 
-  let authority = SESSION_STATE_AUTHORITIES.ARTIFACT;
-  if (hasRuntimeState && hasArtifactState) {
-    authority = SESSION_STATE_AUTHORITIES.RUNTIME;
-  } else if (hasRuntimeState) {
-    authority = SESSION_STATE_AUTHORITIES.RUNTIME_ONLY;
-  }
+  const authority = hasRuntimeState
+    ? SESSION_STATE_AUTHORITIES.RUNTIME
+    : SESSION_STATE_AUTHORITIES.ARTIFACT;
 
   const sourcePrecedence = [];
   if (hasRuntimeState) {

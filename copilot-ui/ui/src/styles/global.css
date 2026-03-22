@@ -13,6 +13,7 @@ body {
     linear-gradient(180deg, #f8fbff 0%, #edf2ff 100%);
   line-height: 1.5;
   min-height: 100vh;
+  scrollbar-gutter: stable;
 }
 
 body::before {
@@ -31,6 +32,11 @@ body::before {
   position: relative;
   z-index: var(--z-content);
   min-height: 100vh;
+  min-width: 0;
+}
+
+#app > * {
+  min-width: 0;
 }
 
 h1,
@@ -51,4 +57,11 @@ code {
   color: var(--color-ink-700);
   border-radius: var(--radius-sm);
   padding: 0.125rem 0.375rem;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
 }

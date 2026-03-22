@@ -19,6 +19,7 @@ Implement business-logic work units end-to-end with clear correctness boundaries
 
 ## Rules
 - Prefer small, verifiable changes.
+- Do not execute unit, integration, or E2E test commands directly. Request test scope from orchestrator and keep your own validation to targeted one-shot build, lint, or typecheck checks with explicit timeouts.
 - Add/adjust unit tests when the spec implies behavior changes.
 - Defer integration/E2E test requests until the end of the business-logic group unless the spec is infra-adjacent.
 

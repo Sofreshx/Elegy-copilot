@@ -1,10 +1,10 @@
-# Instruction Engine
+# Elegy Copilot
 
-Shared GitHub Copilot agents, skills, and workflow conventions for multi-repo development. Provides structured orchestration so planning, implementation, testing, and reviews stay consistent across all your projects.
+Shared GitHub Copilot agents, skills, and workflow conventions for multi-repo development. Elegy Copilot provides structured orchestration so planning, implementation, testing, and reviews stay consistent across all your projects.
 
 ## How it works
 
-Assets are installed from `engine-assets/` into `~/.copilot`. Agents, prompts, and instructions land there directly, and skills install into `skills/` and/or `skills-vault/` depending on pointer mode. Both **VS Code Copilot Chat** and the **Copilot CLI** discover assets from that location — no per-repo setup needed.
+Assets are installed from `engine-assets/` into `~/.copilot`. The default source install copies the shipped first-party agents, prompts, instructions, and skills there. Optional workflow packs and repo-local `.github/*` assets are separate post-install layers. Both **VS Code Copilot Chat** and the **Copilot CLI** discover user-global assets from that location — no per-repo setup needed for the default baseline.
 
 ```
 engine-assets/  →  ~/.copilot/
@@ -28,7 +28,9 @@ pwsh -File scripts/cli-install.ps1 --all --force
 bash scripts/cli-install.sh --all --force
 ```
 
-This installs all agents, prompts, and the global instructions file into `~/.copilot`, and installs skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode.
+This installs the shipped first-party agents, prompts, and global instructions file into `~/.copilot`, and installs shipped skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode. The installer also prunes stale previously managed shipped agents, prompts, and skills that are no longer part of `engine-assets/`, while leaving repo-local workflow packs and other user-managed `.github/agents` / `.github/skills` content alone.
+
+Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can then be installed explicitly from the local dashboard in `Catalog` -> `Workflow packs`. Repo-specific governance lanes only appear when you register/select a repo that provides repo-local `.github/*` assets or repo-scoped overrides.
 
 ### Enable subagent delegation in VS Code
 
@@ -43,17 +45,35 @@ This installs all agents, prompts, and the global instructions file into `~/.cop
 - VS Code Chat → right-click → **Diagnostics** (shows loaded agents/skills/prompts)
 - Copilot CLI: run `/agents`, `/skills`
 
+### Open-source contributor quickstart
+
+```powershell
+npm ci
+npm run build:contracts
+npm run test:all
+```
+
+More contributor and community guidance:
+
+- [License](LICENSE)
+- [Contributing](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Support](SUPPORT.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Releasing](RELEASING.md)
+
 ---
 
 ## Asset inventory
 
 | Type | Count | Location |
 |------|-------|----------|
-| Agents | 32 | `engine-assets/agents/*.agent.md` |
-| Skills | 41 | `engine-assets/skills/<name>/SKILL.md` |
+| Agents | 45 | `engine-assets/agents/*.agent.md` |
+| Skills | 57 | `engine-assets/skills/<name>/SKILL.md` |
 | Prompts | 3 | `engine-assets/prompts/*.prompt.md` |
 | Instructions | 1 | `engine-assets/copilot-instructions.md` |
-| Manifest (install/shipping) | — | `.cli/manifest.json` |
+| Canonical asset manifest | — | `engine-assets/manifest.json` |
+| Generated shipping manifest | — | `.cli/manifest.json` |
 
 ---
 
@@ -66,21 +86,22 @@ This installs all agents, prompts, and the global instructions file into `~/.cop
 | `@code-architect` | Designs feature architectures from existing patterns |
 | `@impl-business` | Implements app/domain work units (endpoints, services, UI) |
 | `@impl-infra` | Implements infra work units (CI, Docker, config, deployments) |
-| `@elegy-planner` | Persisted planning entry point — assembles approved session-state plan packs for Elegy execution |
-| `@elegy-orchestrator` | Executes an approved persisted Elegy plan end-to-end |
 | `@code-reviewer` | Bug, logic, and security review |
+| `@goal-reviewer` | End-gate goal completion assessor (`complete|partial|not-complete`) that emits read-only unresolved-goal sync instructions for the workflow/docs lane |
+| `@final-reviewer` | Requested-vs-delivered and remaining-work post-mortem summary |
 | `@unit-test-runner` | Runs unit tests safely with timeouts |
 | `@security-scanner` | Scans for OWASP/endpoint vulnerabilities |
-| `@agent-governor` | Read-only structural audit pointer for existing agent files; authoring moved to Elegy AgentFactoryService |
+| `@agent-governor` | Read-only structural audit pointer for existing agent files |
 
-`@orchestrator` is the recommended default for new work. Use the `@elegy-planner` + `@elegy-orchestrator`
-path when you explicitly want persisted session-state artifacts and a reviewer-approved plan handoff.
+`@orchestrator` is the recommended default for new work. Persisted session-state artifacts remain
+available for workflows that explicitly hand off approved plan packs into
+`~/.copilot/session-state/<SESSION_ID>/`.
 
 ---
 
 ## State location
 
-Everything lives under `~/.copilot`:
+Primary runtime state lives under `~/.copilot`:
 
 ```
 ~/.copilot/
@@ -98,19 +119,30 @@ Everything lives under `~/.copilot`:
   repo-state/           per-repo task/artefact state
 ```
 
-Override the default location with `skillInstaller.state.root` in VS Code settings, or pass `--copilot-home` to the dashboard server.
+Override the default location with `skillInstaller.state.root` in VS Code settings, or pass
+`--copilot-home` to the dashboard server.
+
+Migration note:
+
+- `~/.copilot` is the canonical runtime state root for assets, session state, catalog state, and
+  repo-state.
+- remaining `~/.instruction-engine/*` inputs are legacy migration-only surfaces. Current runtime
+  components rehome gateway config/status artifacts into `~/.copilot` when possible rather than
+  treating `~/.instruction-engine` as a second root.
 
 Persisted session-state artifacts live under `~/.copilot/session-state/<SESSION_ID>/`.
-The preserved Elegy workflow writes its plan and proposition artifacts there, and `copilot-ui`
-reads the same location in its Sessions and Planning surfaces. The recommended `@orchestrator`
-path keeps planning in chat unless a downstream workflow explicitly hands off to persisted artifacts.
+File-backed planning workflows write their `plan.md` and `proposition.md` artifacts there, and
+`copilot-ui` reads the same location in its Sessions and Planning surfaces. The recommended
+`@orchestrator` path keeps planning in chat unless a downstream workflow explicitly hands off to
+persisted artifacts.
 
 ---
 
 ## Dashboard (local UI)
 
 A local UI and control plane for viewing sessions, managing assets, and operating your `~/.copilot`
-installation. `copilot-ui` can run as the local Node.js server or inside the packaged Electron shell.
+installation. The default/recommended runtime is the local Node.js server. `copilot-ui` can also run
+inside the packaged Electron shell when maintainers need a standalone desktop distribution.
 `copilot-ui` is also the **catalog control plane** for the delivered asset system: it owns the
 authoritative local catalog/search/audit APIs, repo inventory, projection refresh, and mutation
 flows for shared, user-global, and repo-local assets.
@@ -129,6 +161,8 @@ Open: http://127.0.0.1:3210
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.
 For the current tabs, route groups, persistence model, and validation anchors, see
 `docs/system/copilot-ui-guide.md`.
+
+The Catalog surface includes a `Workflow packs` panel for optional bundles that install multiple assets together. The first shipped bundle is `Superpowers Workflow Pack`, which installs the vendored Superpowers skills and reviewer agent into the user-global Copilot surface. Profiles and routing policy can mark bundles active, but optional bundle members are still copied only when you explicitly install that pack. Repo-specific governance lanes stay repo-scoped and are discovered from the selected repo's `.github/*` assets instead of being copied into the user-global baseline.
 
 ### Catalog control plane at a glance
 
@@ -189,34 +223,12 @@ Verification surfaces:
 If a persisted projection is missing, the backend falls back to a filesystem build
 (`readMode: "filesystem-fallback"`). Refreshing persists the snapshot again.
 
-## Elegy canonical contracts (consumer integration)
+### Optional desktop packaging lane (locked)
 
-Instruction Engine includes a minimal consumer for Elegy canonical workflow contracts under `contracts/elegy/`.
-
-- Contract consumer module: `scripts/elegy-contract-consumer.js`
-- Sync/import script: `scripts/sync-elegy-contracts.js`
-- Validation CLI: `scripts/validate-elegy-canonical.js`
-
-Use the following root npm scripts:
-
-```bash
-# Refresh local contracts from sibling Elegy repo artifacts
-npm run contracts:sync:elegy
-
-# Validate a sample canonical payload (defaults to local minimal fixture)
-npm run contracts:validate:elegy-sample
-```
-
-Optional source override for sync:
-
-```bash
-node scripts/sync-elegy-contracts.js "C:/path/to/Elegy/artifacts/contracts"
-```
-
-### Desktop distribution policy (locked)
-
+- Desktop packaging is an **optional maintainer distribution lane**, not the default expectation for
+  normal repo changes or releases.
 - Packaging runtime: Electron (`electron-builder`) with in-app updates (`electron-updater`)
-- Release scope: Windows GA first; Linux/macOS preview until signing parity
+- Release scope when packaging is used: Windows GA first; Linux/macOS preview until signing parity
 - Signing custody: managed external signing service via OIDC (no private keys in repo)
 - Rollback authority: Release Engineering owns channel rollback + kill switch decisions
 - Desktop package bundle includes runtime assets required for standalone mode:
@@ -226,11 +238,12 @@ node scripts/sync-elegy-contracts.js "C:/path/to/Elegy/artifacts/contracts"
   - helper scripts required by dashboard/runtime operations
 - Packaged desktop runtime attempts embedded Postgres bootstrap in packaged mode (Windows-first). If runtime binaries are unavailable, app continues in non-persistent mode and surfaces a warning.
 
-Desktop version automation:
-- `.github/workflows/desktop-version-tag.yml` watches `copilot-ui/package.json` on `main` and creates `desktop-v<version>` tags for Changesets version commits (`Version Packages`).
-- `.github/workflows/desktop-release.yml` remains the authoritative release publisher and is triggered by `desktop-v*` tags.
+Desktop release tag helper flow, when the optional packaging lane is exercised:
+- `.github/workflows/desktop-version-tag.yml` is a maintainer-only manual helper that can target a specific ref to create `desktop-v<version>` tags when an explicit desktop release flow should advance.
+- `.github/workflows/desktop-preview-release.yml` publishes unsigned preview artifacts to GitHub Releases for public/open-source evaluation.
+- `.github/workflows/desktop-release.yml` remains the signed maintainer release publisher and is manually dispatched with a `desktop-v*` tag.
 
-Release-safety rules (G-06-WU-03):
+Release-safety rules (G-06-WU-03) for packaged desktop releases:
 - Migration checksum safety is explicit: `pass` only when persisted migration checksums match manifest checksums; checksum drift is release-blocking (`PLANNING_MIGRATION_CHECKSUM_DRIFT`).
 - Rollback threshold `R1`: any single deterministic safety failure (`PLANNING_MIGRATION_CHECKSUM_DRIFT`, `current_version_below_minimum_safe`, `candidate_version_above_channel_ceiling`) triggers immediate channel rollback actions.
 - Rollback threshold `R2`: two consecutive fail-closed policy load cycles (`rollback_policy_source_unavailable` / `rollback_policy_malformed`) after remediation trigger escalation.
@@ -240,14 +253,15 @@ Release-safety rules (G-06-WU-03):
 
 - WS6 is a post-WS1 gate: execute WS6 compatibility/release-safety work only after the WS1 contract freeze (`G-01-WU-04`).
 - WS2 owns the primary non-Docker default runtime behavior.
-- WS6 non-Docker scope is compatibility/upgrade safety only (mixed-version compatibility, rollback, release safety), not primary default behavior changes.
+- WS6 non-Docker scope is compatibility/upgrade safety for the optional desktop packaging lane only
+  (mixed-version compatibility, rollback, release safety), not primary default behavior changes.
 
 ### WS6 CI topology + required checks (locked)
 
-- Authoritative workflow: `.github/workflows/extension-ci.yml`.
+- Authoritative workflow file: `.github/workflows/extension-ci.yml` (repo-wide CI; legacy filename retained for WS6 validation history after legacy extension retirement).
 - Required topology is fixed and fail-closed: `build` → `ws6-evidence` (matrix `WS6-E1`..`WS6-E5`) → `ws6-artifact-gate` → `required-checks`.
 - `required-checks` must fail when any required upstream job is non-`success`, skipped, or missing required artifact completeness output.
-- `release` requires both `build` and `required-checks`; tag publish is blocked until both succeed.
+- Legacy VS Code extension packaging/release jobs have been retired; desktop packaging remains in `.github/workflows/desktop-release.yml`.
 
 ### WS6 validation ladder + rollback contract (narrow → broad)
 
@@ -291,7 +305,6 @@ instruction-engine/
 │   └── manifest.json            generated install/shipping manifest
 ├── copilot-ui/             local dashboard (Node.js, not installed)
 ├── local-tracker/          session/task tracking daemon + Discord gateway
-├── RannIA/                 VS Code extension (Instruction Engine host)
 ├── scripts/
 │   ├── cli-install.ps1/.sh install scripts
 │   └── cli-ui.ps1/.sh      dashboard launch scripts
@@ -322,16 +335,23 @@ See `local-tracker/docs/messaging-gateway.md` for full reference.
 
 ## Contributing
 
-1. Edit agents in `engine-assets/agents/` (flat `.agent.md` files)
-2. Edit skills in `engine-assets/skills/<name>/SKILL.md`
-3. If adding new assets to ship by default, update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`
-4. Keep `engine-assets/copilot-instructions.md` concise — it loads into every Copilot session
-5. Document behaviour changes in `docs/`
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, validation commands, and PR expectations.
+
+Quick reminders:
+
+1. Edit agents in `engine-assets/agents/` and skills in `engine-assets/skills/<name>/SKILL.md`.
+2. Canonical shipped asset metadata lives in `engine-assets/manifest.json`.
+3. If shipped assets change, update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`.
+4. Keep `engine-assets/copilot-instructions.md` concise because it loads into every Copilot session.
+5. Document behavior and workflow changes in `docs/` and the relevant root community docs.
 
 ---
 
 ## Documentation
 
+- [System Docs Index (canonical start here)](docs/system/index.md)
+- [Conventions & Governance entrypoint](docs/system/mocs/conventions-and-governance.md)
+- [Domain Authorities Freeze](docs/system/domain-authorities-freeze.md)
 - [Catalog Control Plane](docs/system/catalog-control-plane.md)
 - [Copilot CLI Playbook](docs/system/copilot-cli-playbook.md)
 - [Agents vs Skills](docs/system/agents-vs-skills.md)
@@ -340,5 +360,5 @@ See `local-tracker/docs/messaging-gateway.md` for full reference.
 - [Skills Governance](docs/system/skills-governance.md)
 - [MCP Workflow](docs/system/mcp-workflow.md)
 - [Security Model](docs/system/security-model.md)
-- [Elegy Model Audit](docs/research/elegy-model-audit.md)
+- [Session-State Artifacts](docs/system/session-state-artifacts.md)
 - [Instruction Changelog](docs/system/instruction-changelog.md)

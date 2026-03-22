@@ -1,16 +1,43 @@
+import { createStore } from '../lib/store';
+
 export const TAB_IDS = [
-  'sessions',
-  'assets',
+  'home-runtime',
+  'catalog',
   'planning',
-  'gateway',
-  'sandboxes',
-  'lsp',
-  'tracker',
-  'skills-preview',
-  'workflows',
+  'stats',
 ] as const;
 
 export type TabId = (typeof TAB_IDS)[number];
+
+export const RUNTIME_SECTION_IDS = [
+  'overview',
+  'sessions',
+  'executor',
+  'diagnostics',
+] as const;
+
+export type RuntimeSectionId = (typeof RUNTIME_SECTION_IDS)[number];
+
+export const DIAGNOSTICS_SECTION_IDS = [
+  'runtime',
+  'database',
+  'gateway',
+  'tracker',
+  'lsp',
+] as const;
+
+export type DiagnosticsSectionId = (typeof DIAGNOSTICS_SECTION_IDS)[number];
+
+export const CATALOG_SECTION_IDS = [
+  'overview',
+  'assets',
+  'skills',
+  'agents',
+] as const;
+
+export type CatalogSectionId = (typeof CATALOG_SECTION_IDS)[number];
+
+export type SessionsMode = 'local' | 'sdk';
 
 export type NavigationTab = {
   id: TabId;
@@ -18,14 +45,111 @@ export type NavigationTab = {
   description: string;
 };
 
+export type NavigationState = {
+  activeTabId: TabId;
+  runtimeSectionId: RuntimeSectionId;
+  diagnosticsSectionId: DiagnosticsSectionId;
+  catalogSectionId: CatalogSectionId;
+  sessionsMode: SessionsMode;
+};
+
 export const NAVIGATION_TABS: readonly NavigationTab[] = [
-  { id: 'sessions', label: 'Sessions', description: 'Runtime and active sessions' },
-  { id: 'assets', label: 'Catalog', description: 'Unified catalog workspace and installs' },
-  { id: 'planning', label: 'Planning', description: 'Plan packs and sequencing' },
-  { id: 'gateway', label: 'Gateway', description: 'Policy and command routing' },
-  { id: 'sandboxes', label: 'Sandboxes', description: 'Workspace isolation controls' },
-  { id: 'lsp', label: 'LSP', description: 'Language server lifecycle' },
-  { id: 'tracker', label: 'Tracker', description: 'Local tracker diagnostics' },
-  { id: 'skills-preview', label: 'Skills Preview', description: 'Skill discovery and previews' },
-  { id: 'workflows', label: 'Workflows', description: 'Migration wave orchestration' },
+  { id: 'home-runtime', label: 'Home / Runtime', description: 'Overview, sessions, executor, and diagnostics' },
+  { id: 'catalog', label: 'Catalog', description: 'Asset workspace, installs, and skill discovery' },
+  { id: 'planning', label: 'Planning', description: 'Repo-backed backlog, roadmaps, and planning workflows' },
+  { id: 'stats', label: 'Stats', description: 'Runtime health, catalog telemetry, and recent sampled usage' },
 ];
+
+const INITIAL_STATE: NavigationState = {
+  activeTabId: 'home-runtime',
+  runtimeSectionId: 'overview',
+  diagnosticsSectionId: 'runtime',
+  catalogSectionId: 'overview',
+  sessionsMode: 'local',
+};
+
+function createNavigationStore() {
+  const store = createStore<NavigationState>(INITIAL_STATE);
+
+  function setActiveTabId(activeTabId: TabId): void {
+    store.setState((state) => ({
+      ...state,
+      activeTabId,
+      catalogSectionId: activeTabId === 'catalog' ? 'overview' : state.catalogSectionId,
+    }));
+  }
+
+  function setRuntimeSectionId(runtimeSectionId: RuntimeSectionId): void {
+    store.setState((state) => ({
+      ...state,
+      activeTabId: 'home-runtime',
+      runtimeSectionId,
+      sessionsMode: runtimeSectionId === 'sessions' ? state.sessionsMode : state.sessionsMode,
+    }));
+  }
+
+  function setDiagnosticsSectionId(diagnosticsSectionId: DiagnosticsSectionId): void {
+    store.setState((state) => ({
+      ...state,
+      activeTabId: 'home-runtime',
+      runtimeSectionId: 'diagnostics',
+      diagnosticsSectionId,
+    }));
+  }
+
+  function goToRuntime(
+    runtimeSectionId: RuntimeSectionId,
+    options: { sessionsMode?: SessionsMode; diagnosticsSectionId?: DiagnosticsSectionId } = {},
+  ): void {
+    store.setState((state) => ({
+      ...state,
+      activeTabId: 'home-runtime',
+      runtimeSectionId,
+      sessionsMode: options.sessionsMode || (runtimeSectionId === 'sessions' ? state.sessionsMode : state.sessionsMode),
+      diagnosticsSectionId:
+        options.diagnosticsSectionId || (runtimeSectionId === 'diagnostics' ? state.diagnosticsSectionId : state.diagnosticsSectionId),
+    }));
+  }
+
+  function setCatalogSectionId(catalogSectionId: CatalogSectionId): void {
+    store.setState((state) => ({
+      ...state,
+      activeTabId: 'catalog',
+      catalogSectionId,
+    }));
+  }
+
+  function goToCatalog(catalogSectionId: CatalogSectionId = 'overview'): void {
+    store.setState((state) => ({
+      ...state,
+      activeTabId: 'catalog',
+      catalogSectionId,
+    }));
+  }
+
+  function goToPlanning(): void {
+    store.setState((state) => ({
+      ...state,
+      activeTabId: 'planning',
+    }));
+  }
+
+  function reset(): void {
+    store.setState(INITIAL_STATE);
+  }
+
+  return {
+    getState: store.getState,
+    subscribe: store.subscribe,
+    setActiveTabId,
+    setRuntimeSectionId,
+    setDiagnosticsSectionId,
+    setCatalogSectionId,
+    goToRuntime,
+    goToCatalog,
+    goToPlanning,
+    reset,
+  };
+}
+
+export const navigationStore = createNavigationStore();

@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "discord.js": ["src/messagingGateway/shims/discord-js"],
+      "grammy": ["src/messagingGateway/shims/grammy"],
+      "grammy/types": ["src/messagingGateway/shims/grammy-types"]
+    },
+    "types": ["node"]
+  },
+  "include": ["src/messagingGateway/**/*"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/messagingGateway/**/__tests__/**",
+    "src/messagingGateway/**/*.test.ts",
+    "src/messagingGateway/**/*.spec.ts"
+  ]
+}

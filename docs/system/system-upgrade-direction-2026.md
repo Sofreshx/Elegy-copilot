@@ -239,8 +239,8 @@ sequenceDiagram
 | WU | Deliverable | Primary Files | Acceptance Checks |
 |---|---|---|---|
 | WS3-WU-01 | Shared explorer/reviewer output schemas formalized | `engine-assets/agents/code-explorer.agent.md`, `engine-assets/agents/code-reviewer.agent.md`, `engine-assets/agents/final-reviewer.agent.md` | Schema examples and required fields enforced in prompts |
-| WS3-WU-02 | Context-budget and fan-out rules standardized in planner/orchestrator agents | `engine-assets/agents/elegy-planner.agent.md`, `engine-assets/agents/elegy-orchestrator.agent.md`, `engine-assets/agents/orchestrator.agent.md` | Budget/fan-out rules present and consistent |
-| WS3-WU-03 | Handoff contract metadata standardized | `engine-assets/agents/elegy-direction.agent.md`, `engine-assets/agents/elegy-subplanner.agent.md` | Planner-to-executor outputs include deterministic required fields |
+| WS3-WU-02 | Context-budget and fan-out rules standardized in planner/orchestrator agents | `engine-assets/agents/o-planner.agent.md`, `engine-assets/agents/work-unit-runner.agent.md`, `engine-assets/agents/orchestrator.agent.md` | Budget/fan-out rules present and consistent |
+| WS3-WU-03 | Handoff contract metadata standardized | `engine-assets/agents/o-reframer.agent.md`, `engine-assets/agents/o-planner.agent.md`, `engine-assets/agents/work-unit-runner.agent.md` | Planner-to-executor outputs include deterministic required fields |
 | WS3-WU-04 | Orchestration contract validator implemented | `scripts/validate-orchestration-contracts.js` (new) | Validator fails on schema drift and missing required sections |
 
 ## WS4: File-First Memory 2.0 with Optional MCP Checkpoints
@@ -422,7 +422,7 @@ Run the narrowest relevant checks:
 
 1. `node scripts/validate-doc-graph.js`
 2. `node scripts/validate-manifest.js`
-3. `node scripts/validate-planpack.js <path>` when planning-contract changes are touched
+3. `node scripts/validate-planpack-planning.js <path> --ac-enforcement fail` for plan-authoring changes, or `node scripts/validate-planpack-execution.js <path>` for execution/final-gate changes (`validate-planpack.js` is migration-only compatibility)
 4. `node scripts/validate-skill-discovery-map.js` for skill mapping parity (new)
 5. `node scripts/validate-orchestration-contracts.js` for output schema conformance (new)
 6. `node scripts/validate-session-memory-conventions.js` for index/compaction rules (new)

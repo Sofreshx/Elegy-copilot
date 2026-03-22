@@ -9,12 +9,14 @@ Before proceeding, apply `core-guardrails` safety constraints (especially termin
 
 Requirements:
 - Include: goals, assumptions, explicit scope boundaries, phased steps, risks, validation, and rollback.
+- Add an explicit **High-Level Goals** bullet list for intended outcomes before decomposition.
+- Use canonical goal completion wording only: `complete`, `partial`, `not-complete` (default new planning goals to `not-complete`).
 - Keep the plan actionable (file-level where possible).
 - Do not write code yet.
 
 Then request plan review from BOTH:
 - @reviewer-opus-4-6
-- @reviewer-gpt-5-3-codex
+- @reviewer-gpt-5-4
 
 Review loop rules:
 - Reviewers MUST return a strict line: `Verdict: APPROVED | NEEDS_REVISION | BLOCKED`.

@@ -1,13 +1,13 @@
 {
-  "name": "@instruction-engine/root",
+  "name": "@elegy-copilot/root",
   "version": "0.0.0",
   "private": true,
-  "description": "Instruction Engine monorepo root",
+  "description": "Elegy Copilot monorepo root",
+  "license": "MIT",
   "workspaces": [
     "contracts",
     "copilot-ui",
     "local-tracker",
-    "RannIA",
     "scripts"
   ],
   "scripts": {
@@ -16,8 +16,7 @@
     "changeset:publish": "changeset publish",
     "postinstall": "npm run build:contracts",
     "build:contracts": "npm run build --workspace=contracts",
-    "contracts:sync:elegy": "node scripts/sync-elegy-contracts.js",
-    "contracts:validate:elegy-sample": "node scripts/validate-elegy-canonical.js",
+    "contracts:validate:session-state-sample": "node scripts/validate-session-state-canonical.js",
     "test:all": "npm run test --workspaces --if-present",
     "clean": "npm run clean --workspaces --if-present"
   },

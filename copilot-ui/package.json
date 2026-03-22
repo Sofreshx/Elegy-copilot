@@ -1,17 +1,29 @@
 {
-  "name": "instruction-engine-desktop",
+  "name": "elegy-copilot-desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Instruction Engine desktop wrapper for copilot-ui",
+  "description": "Elegy Copilot desktop app",
+  "license": "MIT",
   "main": "dist-electron/main.js",
+  "files": [
+    "dist-electron",
+    "server.js",
+    "lib",
+    "routes",
+    "ui-dist",
+    "public",
+    "package.json"
+  ],
   "scripts": {
     "test": "node scripts/test-with-ledger.js && npm run test:vitest",
     "test:vitest": "vitest run",
     "build:local-tracker": "npm --prefix ../local-tracker run build",
-    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:electron": "npm exec -- tsc -p tsconfig.electron.json",
     "electron:dev": "npm run build:electron && electron .",
-    "package:preview": "npm run ui:build && npm run build:local-tracker && npm run build:electron && electron-builder --dir",
-    "package:win": "npm run ui:build && npm run build:local-tracker && npm run build:electron && electron-builder --win nsis",
+    "package:preview": "npm run ui:build && npm run build:local-tracker && npm run build:electron && npm exec -- electron-builder --dir",
+    "package:win": "npm run ui:build && npm run build:local-tracker && npm run build:electron && npm exec -- electron-builder --win nsis",
+    "smoke:win-updater": "node scripts/desktop-updater-smoke.js",
+    "package:win:smoke": "npm run package:win && npm run smoke:win-updater",
     "ui:dev": "vite --config vite.config.ts",
     "ui:build": "vite build --config vite.config.ts",
     "ui:preview": "vite preview --config vite.config.ts"
@@ -21,7 +33,7 @@
   },
   "dependencies": {
     "@github/copilot-sdk": "0.1.9",
-    "@instruction-engine/contracts": "file:../contracts",
+    "@elegy-copilot/contracts": "file:../contracts",
     "dompurify": "^3.3.1",
     "electron-updater": "^6.3.9",
     "mermaid": "^11.12.3",

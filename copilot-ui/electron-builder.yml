@@ -1,17 +1,35 @@
-appId: dev.instructionengine.desktop
-productName: Instruction Engine
+appId: dev.elegycopilot.desktop
+productName: Elegy Copilot
 directories:
   output: release
   buildResources: resources
+asar: false
 files:
-  - dist-electron/**
-  - server.js
-  - lib/**
-  - routes/**
-  - ui-dist/**
-  - public/**
-  - package.json
+  - from: .
+    filter:
+      - server.js
+      - package.json
 extraResources:
+  - from: dist-electron
+    to: app/dist-electron
+    filter:
+      - '**/*'
+  - from: lib
+    to: app/lib
+    filter:
+      - '**/*'
+  - from: routes
+    to: app/routes
+    filter:
+      - '**/*'
+  - from: ui-dist
+    to: app/ui-dist
+    filter:
+      - '**/*'
+  - from: public
+    to: app/public
+    filter:
+      - '**/*'
   - from: ../engine-assets
     to: engine-assets
     filter:
@@ -41,7 +59,7 @@ win:
   signAndEditExecutable: false
   target:
     - nsis
-  artifactName: instruction-engine-${version}-${os}-${arch}.${ext}
+  artifactName: elegy-copilot-${version}-${os}-${arch}.${ext}
 publish:
   provider: github
   owner: Sofreshx

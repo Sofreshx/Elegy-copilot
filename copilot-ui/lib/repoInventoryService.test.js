@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 
 const { getRepoStateKey, rebuildCatalogProjection } = require('./catalogProjectionService');
+const { saveRepoDiscoveryState } = require('./repoDiscoveryService');
 const {
   listKnownRepos,
   registerRepo,
@@ -48,6 +49,8 @@ async function run() {
   const copilotHome = path.join(tmpRoot, '.copilot');
   const repoPath = path.join(tmpRoot, 'workspace-repo');
   const manualRepoPath = path.join(tmpRoot, 'manual-repo');
+  const scanRoot = path.join(tmpRoot, 'discovery-root');
+  const discoveredRepoPath = path.join(scanRoot, 'org', 'discovered-repo');
 
   try {
     writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
@@ -106,6 +109,17 @@ async function run() {
     fs.mkdirSync(path.join(manualRepoPath, '.git'), { recursive: true });
     writeText(path.join(manualRepoPath, 'pyproject.toml'), '[project]\nname = "manual-repo"\n');
 
+    fs.mkdirSync(path.join(discoveredRepoPath, '.git'), { recursive: true });
+    writeJson(path.join(discoveredRepoPath, 'package.json'), {
+      name: 'discovered-repo',
+      dependencies: {
+        express: '^4.0.0',
+      },
+    });
+    saveRepoDiscoveryState(copilotHome, {
+      customScanRoots: [scanRoot],
+    });
+
     writeText(
       path.join(copilotHome, 'session-state', 'session-1', 'events.jsonl'),
       JSON.stringify({
@@ -142,12 +156,14 @@ async function run() {
         engineRoot,
         repoPath: manualRepoPath,
         repoLabel: 'Manual Repo',
+        workspaceScanRoots: [scanRoot],
       });
 
       const inventory = listKnownRepos({
         copilotHome,
         engineRoot,
         explicitRepoPaths: [manualRepoPath],
+        workspaceScanRoots: [scanRoot],
       });
 
       const workspaceRepo = resolveRepoEntry(inventory, { repoPath });
@@ -173,6 +189,15 @@ async function run() {
       assert.equal(manualRepo.registered, true);
       assert.ok(manualRepo.sources.includes('manual'));
 
+      const discoveredRepo = resolveRepoEntry(inventory, { repoPath: discoveredRepoPath });
+      assert.ok(discoveredRepo, 'expected workspace scan entry');
+      assert.ok(discoveredRepo.sources.includes('workspace-scan'));
+      assert.equal(discoveredRepo.registered, false);
+      assert.equal(discoveredRepo.selected, false);
+
+      assert.deepEqual(inventory.workspaceScan.customScanRoots, [path.resolve(scanRoot)]);
+      assert.deepEqual(inventory.workspaceScan.scanRoots, [path.resolve(scanRoot)]);
+
       const orphanRepo = resolveRepoEntry(inventory, { repoId: 'orphan-repo-id' });
       assert.ok(orphanRepo, 'expected orphan repo-state entry');
       assert.equal(orphanRepo.scanStatus, 'unresolved');
@@ -184,6 +209,7 @@ async function run() {
         copilotHome,
         engineRoot,
         repoPath: manualRepoPath,
+        workspaceScanRoots: [scanRoot],
       });
       assert.ok(result.repo, 'expected selected repo');
       assert.equal(result.repo.selected, true);
@@ -192,6 +218,7 @@ async function run() {
         copilotHome,
         engineRoot,
         repoPath: manualRepoPath,
+        workspaceScanRoots: [scanRoot],
       });
       assert.equal(result.selectionCleared, true);
 
@@ -199,6 +226,7 @@ async function run() {
         copilotHome,
         engineRoot,
         explicitRepoPaths: [manualRepoPath],
+        workspaceScanRoots: [scanRoot],
       });
       const manualRepo = resolveRepoEntry(inventory, { repoPath: manualRepoPath });
       assert.ok(manualRepo, 'expected repo to remain discoverable via explicit path');

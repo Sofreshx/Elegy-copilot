@@ -1,8 +1,6 @@
 # .copilotignore — excludes files from GitHub Copilot's context/indexing
 
-# ── Compiled extension outputs ─────────────────────────────────────────────────
-RannIA/dist/
-RannIA/out/
+# ── Compiled outputs ───────────────────────────────────────────────────────────
 local-tracker/dist/
 vscode-skill-installer/dist/
 

@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const skillsRoot = path.join(repoRoot, 'engine-assets', 'skills');
 
-// --- Path security (mirrors RannIA/src/utils/pathSecurity.ts) ---
+// --- Path security (shared with former legacy extension path checks) ---
 
 function containsTraversalSegment(pathStr) {
 	const normalized = pathStr.replace(/\\/g, '/');

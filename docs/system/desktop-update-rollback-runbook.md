@@ -1,6 +1,6 @@
 ---
 created: 2026-02-25
-updated: 2026-02-25
+updated: 2026-03-16
 category: system
 status: current
 doc_kind: node
@@ -11,6 +11,12 @@ related: [runtime-permissions-contracts, security-model]
 ---
 
 # Desktop Update Rollback + Kill Switch Runbook
+
+## Scope
+
+This runbook applies only when maintainers are exercising the optional packaged Electron desktop
+distribution lane. The default/local runtime expectation for day-to-day use remains the Node.js
+server mode described in [[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md).
 
 ## Ownership
 

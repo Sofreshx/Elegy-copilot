@@ -1,41 +1,31 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect } from 'react';
 import TabShell from './components/TabShell';
+import { getDesktopUpdaterPresentation } from './lib/desktopUpdaterPresentation';
 import { useStoreValue } from './lib/store';
-import { NAVIGATION_TABS, TabId } from './stores/navigation';
+import { navigationStore, NAVIGATION_TABS } from './stores/navigation';
+import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { sdkHealthStore } from './stores/sdkHealthStore';
-import AssetsView from './tabs/Assets/AssetsView';
-import LspView from './tabs/LSP/LspView';
-import GatewayView from './tabs/Gateway/GatewayView';
+import CatalogView from './tabs/Catalog/CatalogView';
+import HomeRuntimeView from './tabs/HomeRuntime/HomeRuntimeView';
 import PlanningView from './tabs/Planning/PlanningView';
-import SandboxesView from './tabs/Sandboxes/SandboxesView';
-import SessionsView from './tabs/Sessions/SessionsView';
-import SkillsPreviewView from './tabs/SkillsPreview/SkillsPreviewView';
-import TrackerView from './tabs/Tracker/TrackerView';
+import StatsView from './tabs/Stats/StatsView';
 
-const environmentLabel = 'Instruction Engine UI';
-
-const tabPlaceholderCopy: Partial<Record<TabId, { title: string; body: string }>> = {
-  workflows: {
-    title: 'Workflows Wave Placeholder',
-    body: 'Cross-tab workflow orchestration and migration progress controls will be anchored in this new tab.',
-  },
-};
-
-const PLACEHOLDER_TAB_IDS: readonly TabId[] = ['workflows'];
+const environmentLabel = 'Desktop app';
+const productName = 'Elegy Copilot';
 
 export default function App() {
-  const [activeTabId, setActiveTabId] = useState<TabId>('assets');
+  const navigationState = useStoreValue(navigationStore);
   const sdkHealthState = useStoreValue(sdkHealthStore);
+  const desktopUpdaterState = useStoreValue(desktopUpdaterStore);
 
   useEffect(() => {
     sdkHealthStore.startPolling();
+    desktopUpdaterStore.startListening();
     return () => {
       sdkHealthStore.stopPolling();
+      desktopUpdaterStore.stopListening();
     };
   }, []);
-
-  const placeholder = useMemo(() => tabPlaceholderCopy[activeTabId] ?? null, [activeTabId]);
-  const showPlaceholder = PLACEHOLDER_TAB_IDS.includes(activeTabId);
 
   const sdkHealthClassName = sdkHealthState.error
     ? 'error'
@@ -53,44 +43,79 @@ export default function App() {
         : ''}`
       : 'awaiting first poll';
 
+  const desktopUpdaterPresentation = getDesktopUpdaterPresentation(desktopUpdaterState);
+
   return (
-    <main aria-labelledby="instruction-engine-title" className="app-shell">
+    <main aria-labelledby="elegy-copilot-title" className="app-shell">
       <header className="hero-card">
         <p className="kicker">{environmentLabel}</p>
-        <p className={`sdk-health-indicator sdk-health-${sdkHealthClassName}`}>
-          SDK Health: {sdkHealthSummary}
-        </p>
-        <h1 id="instruction-engine-title">Instruction Engine Catalog Workspace</h1>
+        <div className="hero-status-stack">
+          <p className={`sdk-health-indicator sdk-health-${sdkHealthClassName}`}>
+            SDK Health: {sdkHealthSummary}
+          </p>
+          <p className={`desktop-updater-indicator desktop-updater-${desktopUpdaterPresentation.tone}`} data-testid="desktop-updater-status">
+            Update status: {desktopUpdaterPresentation.summary}
+          </p>
+        </div>
+        <h1 id="elegy-copilot-title">{productName}</h1>
         <p>
-          Catalog-focused dashboard workspace with unified browsing, search, audit, and runtime
-          visibility while preserving the broader operations tabs.
+          Planning-first workspace for turning ideas into repo-targeted plans, managing assets,
+          operating sessions, and checking system readiness without scattering the workflow across
+          overlapping tabs.
         </p>
+        <div className="hero-actions" data-testid="desktop-updater-actions">
+          <button
+            className="button button-secondary button-sm"
+            data-testid="desktop-updater-check"
+            disabled={!desktopUpdaterState.canCheckForUpdates}
+            onClick={() => {
+              void desktopUpdaterStore.checkForUpdates();
+            }}
+            type="button"
+          >
+            Check for updates
+          </button>
+          {desktopUpdaterState.canDownload ? (
+            <button
+              className="button button-primary button-sm"
+              data-testid="desktop-updater-download"
+              onClick={() => {
+                void desktopUpdaterStore.downloadUpdate();
+              }}
+              type="button"
+            >
+              Download update
+            </button>
+          ) : null}
+          {desktopUpdaterState.canRestartToUpdate ? (
+            <button
+              className="button button-primary button-sm"
+              data-testid="desktop-updater-restart"
+              onClick={() => {
+                void desktopUpdaterStore.restartToUpdate();
+              }}
+              type="button"
+            >
+              Restart to update
+            </button>
+          ) : null}
+        </div>
       </header>
 
       <TabShell
-        activeTabId={activeTabId}
+        activeTabId={navigationState.activeTabId}
         tabs={NAVIGATION_TABS}
-        tablistLabel="Instruction Engine sections"
-        onTabChange={setActiveTabId}
+        tablistLabel="Elegy Copilot sections"
+        onTabChange={(tabId) => navigationStore.setActiveTabId(tabId)}
       >
-        {activeTabId === 'sessions' ? <SessionsView /> : null}
-        {activeTabId === 'assets' ? <AssetsView /> : null}
-        {activeTabId === 'planning' ? <PlanningView /> : null}
-        {activeTabId === 'gateway' ? <GatewayView /> : null}
-        {activeTabId === 'sandboxes' ? <SandboxesView onFollowSessions={() => setActiveTabId('sessions')} /> : null}
-        {activeTabId === 'lsp' ? <LspView /> : null}
-        {activeTabId === 'tracker' ? <TrackerView /> : null}
-        {activeTabId === 'skills-preview' ? <SkillsPreviewView /> : null}
-
-        {showPlaceholder && placeholder ? (
-          <section aria-live="polite" className="status-grid">
-            <article className="status-card placeholder-card">
-              <p className="kicker">Migration Wave Placeholder</p>
-              <h2>{placeholder.title}</h2>
-              <p>{placeholder.body}</p>
-            </article>
-          </section>
+        {navigationState.activeTabId === 'home-runtime' ? <HomeRuntimeView /> : null}
+        {navigationState.activeTabId === 'catalog' ? <CatalogView /> : null}
+        {navigationState.activeTabId === 'planning' ? (
+          <PlanningView onSdkSessionReady={() => {
+            navigationStore.goToRuntime('sessions', { sessionsMode: 'sdk' });
+          }} />
         ) : null}
+        {navigationState.activeTabId === 'stats' ? <StatsView /> : null}
       </TabShell>
     </main>
   );

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-28
-updated: 2026-03-01
+updated: 2026-03-16
 category: system
 status: current
 doc_kind: node
@@ -13,7 +13,7 @@ tags: [contracts, planning, workflow]
 
 This document describes the shared type contracts that connect the **workflow engine** (`local-tracker`) to the **planning system** (`copilot-ui`) and how they are versioned across the monorepo.
 
-## Package: `@instruction-engine/contracts`
+## Package: `@elegy-copilot/contracts`
 
 Location: `contracts/`
 
@@ -24,12 +24,13 @@ A TypeScript-only package that emits compiled CommonJS `.js` + `.d.ts` declarati
 | Module | Exports | Purpose |
 |---|---|---|
 | `workflow` | `WorkflowStep`, `WorkflowDefinition`, `WorkflowStepResult`, `WorkflowRunResult`, `ExecutorRiskLevel` | DAG step/definition shapes and execution results |
-| `planning` | `PlanningRecord`, `ResearchNote`, `PlanningDiagram`, `PlanningPersistenceHealth`, `RuntimeProvider` | Planning API record and artifact shapes |
+| `planning` | `PlanningRecord`, `ResearchNote`, `PlanningDiagram`, `PlanningPersistenceHealth`, `RuntimeProvider` | Planning API record shapes plus legacy planning-artifact compatibility fields |
 | `bridge` | `WorkflowPlanningBridge`, `ExecutorPolicyRequest`, `ExecutorPolicyResponse` | Connects workflow outcomes to planning state |
 
 ### Planning Artifact Export Shape
 
-`planning` exports include planned artifact fields used by the planning API routes.
+`planning` exports include planning record fields used by the planning API routes, including
+backward-compatible legacy planning-artifact surfaces that remain exported for older records.
 
 ```ts
 export interface ResearchNote {
@@ -61,10 +62,23 @@ export interface PlanningDiagram {
 }
 ```
 
+### Deprecated Planning-Artifact Compatibility Surfaces
+
+The following `planning` exports remain available for backward-compatible reads/writes of older
+planning records, but they are deprecated for new planning workflows:
+
+- `PlanningRecord.researchNotes`
+- `PlanningRecord.diagrams`
+- `ResearchNote.noteId`, `ResearchNote.summary`, `ResearchNote.source`, `ResearchNote.updatedAt`
+- `PlanningDiagram.diagramId`, `PlanningDiagram.updatedAt`
+
+New planning flows should prefer repo-backed Repository Backlog and Roadmap docs, while session
+execution state remains in session-state artifacts such as `plan.md`.
+
 ### Consumption
 
 - `local-tracker` (TypeScript) imports contracts directly. Compile-time conformance assertions in `workflowSchema.conformance.ts` verify that Zod-inferred types remain assignable to contract interfaces.
-- `copilot-ui` (plain JS) uses JSDoc `@typedef {import('@instruction-engine/contracts').X}` for editor intellisense. No runtime `require()` is needed.
+- `copilot-ui` (plain JS) uses JSDoc `@typedef {import('@elegy-copilot/contracts').X}` for editor intellisense. No runtime `require()` is needed.
 
 ### Schema Versioning
 

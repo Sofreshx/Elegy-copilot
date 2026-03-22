@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-01
+updated: 2026-03-15
 category: system
 status: current
 doc_kind: moc
@@ -31,6 +31,12 @@ related: [system-docs-index]
 - Agent architecture simplicity: `docs/system/agent-architecture-simplicity.md`
 - Agent hooks: `docs/system/agent-hooks.md`
 - Channel capability matrix: `docs/system/channel-capability-matrix.md`
+- Repository backlog, roadmap, and plan-pack boundaries: [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md)
+- Governance lanes: [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
+- Documentation/structure governance: [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
+- Reviewer lane contract: [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
+- Follow-up and research governance: [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
+- High-level goal contract and unresolved-goal carryover: [[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md)
 - System upgrade direction: [[system-upgrade-direction-2026]] [docs/system/system-upgrade-direction-2026.md](docs/system/system-upgrade-direction-2026.md)
 - Software design concepts: [[moc-software-design-concepts]] [docs/system/mocs/software-design-concepts.md](docs/system/mocs/software-design-concepts.md)
 

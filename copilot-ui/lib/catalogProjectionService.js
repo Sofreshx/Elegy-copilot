@@ -7,8 +7,17 @@ const path = require('path');
 
 const {
   compareAssetCatalogEntries,
+  buildLegacyProviderQualifiedAssetKey,
+  buildProviderQualifiedAssetKey: buildSharedProviderQualifiedAssetKey,
+  DEFAULT_PROVIDER_CATALOG,
+  inferAssetProvenance,
   resolveEffectiveAssetState,
-} = require('@instruction-engine/contracts');
+} = require('@elegy-copilot/contracts');
+const {
+  buildProviderProjection,
+  loadProviderCatalog,
+  loadProviderInstallState,
+} = require('./providerCatalog');
 
 const CATALOG_PROJECTION_SCHEMA_VERSION = 1;
 const DEFAULT_SNAPSHOT_NAME = 'global';
@@ -50,6 +59,46 @@ function safeStat(absPath) {
   } catch {
     return null;
   }
+}
+
+function safeRealpath(absPath) {
+  try {
+    if (typeof fs.realpathSync.native === 'function') {
+      return fs.realpathSync.native(absPath);
+    }
+    return fs.realpathSync(absPath);
+  } catch {
+    return null;
+  }
+}
+
+function toPosixPath(inputPath) {
+  return String(inputPath || '').replace(/\\/g, '/');
+}
+
+function isDirectoryLike(entry, absPath) {
+  if (entry && typeof entry.isDirectory === 'function' && entry.isDirectory()) {
+    return true;
+  }
+  return Boolean(safeStat(absPath)?.isDirectory());
+}
+
+function isFileLike(entry, absPath) {
+  if (entry && typeof entry.isFile === 'function' && entry.isFile()) {
+    return true;
+  }
+  return Boolean(safeStat(absPath)?.isFile());
+}
+
+function toCopilotRelativePath(copilotHome, absPath) {
+  if (!absPath) {
+    return null;
+  }
+  const relativePath = path.relative(path.resolve(copilotHome), path.resolve(absPath));
+  if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    return null;
+  }
+  return toPosixPath(relativePath);
 }
 
 function readTextIfExists(absPath, maxBytes = 256 * 1024) {
@@ -191,6 +240,90 @@ function normalizeList(values) {
     .filter(Boolean);
 }
 
+function uniqueStrings(values) {
+  return Array.from(new Set(normalizeList(values)));
+}
+
+const SUPPORTED_BUNDLE_CLASSIFICATIONS = new Set(['language', 'scope', 'workflow', 'core']);
+const SUPPORTED_SCOPE_KINDS = new Set(['global', 'user', 'repo', 'workspace', 'framework']);
+const SUPPORTED_BUNDLE_LOAD_MODES = new Set(['always', 'on-demand', 'manual']);
+
+function normalizeBundleClassification(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return SUPPORTED_BUNDLE_CLASSIFICATIONS.has(normalized) ? normalized : null;
+}
+
+function deriveBundleClassification(bundle) {
+  const explicitClassification = normalizeBundleClassification(
+    bundle?.classification || bundle?.bundleClassification || bundle?.kind
+  );
+  if (explicitClassification) {
+    return explicitClassification;
+  }
+
+  const tags = normalizeList(bundle?.tags).map((value) => value.toLowerCase());
+  if (tags.includes('core')) {
+    return 'core';
+  }
+  if (tags.includes('workflow') || tags.includes('orchestration') || tags.includes('planning')) {
+    return 'workflow';
+  }
+  if (tags.includes('repo') || tags.includes('workspace') || tags.includes('scope')) {
+    return 'scope';
+  }
+  return null;
+}
+
+function normalizeBundleLoadMode(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return SUPPORTED_BUNDLE_LOAD_MODES.has(normalized) ? normalized : null;
+}
+
+function normalizeBundleTargeting(bundle) {
+  const source = bundle?.targeting && typeof bundle.targeting === 'object' ? bundle.targeting : {};
+  const frameworks = uniqueStrings(source.frameworks || bundle?.frameworks);
+  const stacks = uniqueStrings(source.stacks || bundle?.stacks);
+  const languages = uniqueStrings(source.languages || bundle?.languages);
+  const tags = uniqueStrings([
+    ...normalizeList(source.tags),
+    ...normalizeList(bundle?.tags),
+  ]);
+  const scopeKinds = uniqueStrings(source.scopeKinds || bundle?.scopeKinds)
+    .map((value) => value.toLowerCase())
+    .filter((value) => SUPPORTED_SCOPE_KINDS.has(value));
+
+  const targeting = {};
+  if (frameworks.length > 0) {
+    targeting.frameworks = frameworks;
+  }
+  if (stacks.length > 0) {
+    targeting.stacks = stacks;
+  }
+  if (languages.length > 0) {
+    targeting.languages = languages;
+  }
+  if (tags.length > 0) {
+    targeting.tags = tags;
+  }
+  if (scopeKinds.length > 0) {
+    targeting.scopeKinds = scopeKinds;
+  }
+
+  return Object.keys(targeting).length > 0 ? targeting : undefined;
+}
+
+function buildBundleUninstallPolicy(bundle, classification) {
+  const source = bundle?.uninstallPolicy && typeof bundle.uninstallPolicy === 'object'
+    ? bundle.uninstallPolicy
+    : {};
+  return {
+    removesInstalledMembers: source.removesInstalledMembers !== false,
+    clearsActivationState: source.clearsActivationState !== false,
+    clearsRepoOverlayState: source.clearsRepoOverlayState !== false,
+    preservesExternalPackages: source.preservesExternalPackages !== false,
+  };
+}
+
 function splitCommaSeparated(value) {
   return String(value || '')
     .split(',')
@@ -218,6 +351,67 @@ function normalizeAssetKey(kind, rawValue) {
     return raw.replace(/\.prompt\.md$/i, '');
   }
   return raw.replace(/[\\/]+$/, '');
+}
+
+function normalizeIdentityPart(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function inferExternalAssetOrigin(absPath, options = {}) {
+  const namespaceInput = options.namespace || '';
+  const realPath = safeRealpath(absPath) || path.resolve(absPath);
+  const provenance = inferAssetProvenance({
+    kind: options.kind === 'agent' ? 'agent' : 'skill',
+    resolvedPath: toPosixPath(realPath),
+    namespace:
+      normalizeAssetKey(options.kind === 'agent' ? 'agent' : 'skill', namespaceInput) ||
+      normalizeAssetKey(options.kind === 'agent' ? 'agent' : 'skill', options.detectedNamespace || ''),
+    fileKind: options.fileKind,
+    providers: options.providers || DEFAULT_PROVIDER_CATALOG,
+  });
+
+  return {
+    isExternal: provenance.readOnly === true,
+    provider: provenance.providerId,
+    legacyProviderId: provenance.legacyProviderId,
+    sourcePackage: provenance.sourcePackage,
+    namespace: provenance.namespace,
+    provenance,
+    realPath,
+  };
+}
+
+function buildProviderQualifiedAssetKey(kind, logicalName, origin) {
+  return buildSharedProviderQualifiedAssetKey(kind, logicalName, origin?.provenance);
+}
+
+function mergeAliasKeys(...lists) {
+  const aliases = new Set();
+  for (const list of lists) {
+    for (const value of Array.isArray(list) ? list : []) {
+      const normalized = String(value || '').trim();
+      if (normalized) {
+        aliases.add(normalized);
+      }
+    }
+  }
+  return Array.from(aliases);
+}
+
+function buildAssetAliasKeys(kind, assetKey, assetId, logicalName, origin) {
+  const logicalAssetKey = normalizeAssetKey(kind, logicalName);
+  const legacyQualifiedKey = buildLegacyProviderQualifiedAssetKey(kind, logicalName, origin?.provenance);
+  return mergeAliasKeys(
+    buildAliasKeys(kind, assetKey, assetId),
+    logicalAssetKey ? [logicalAssetKey] : [],
+    origin?.namespace && logicalAssetKey ? [`${origin.namespace}/${logicalAssetKey}`] : [],
+    origin?.sourcePackage && logicalAssetKey ? [`${origin.sourcePackage}/${logicalAssetKey}`] : [],
+    legacyQualifiedKey ? [legacyQualifiedKey] : [],
+  );
 }
 
 function deriveAssetId(kind, assetKey) {
@@ -259,6 +453,7 @@ function parseMarkdownAsset(absPath) {
       triggers: [],
       frontmatter: {},
       text: '',
+      bodyText: '',
     };
   }
 
@@ -292,7 +487,101 @@ function parseMarkdownAsset(absPath) {
     ),
     frontmatter: attributes,
     text,
+    bodyText: body,
   };
+}
+
+function isRecognizedAgentMarkdownFile(fileName, parsedAsset) {
+  const normalizedFileName = String(fileName || '').trim().toLowerCase();
+  if (normalizedFileName.endsWith('.agent.md')) {
+    return true;
+  }
+  if (!normalizedFileName.endsWith('.md') || normalizedFileName.endsWith('.prompt.md')) {
+    return false;
+  }
+  return Boolean(
+    String(parsedAsset?.frontmatter?.name || '').trim() &&
+      String(parsedAsset?.bodyText || '').trim(),
+  );
+}
+
+function parseSkillArtifact(relativeRoot, relativeSegments, skillRootPath) {
+  if (!Array.isArray(relativeSegments) || relativeSegments.length === 0) {
+    return null;
+  }
+
+  let logicalName = '';
+  let namespace = null;
+  if (relativeSegments.length === 1) {
+    logicalName = normalizeAssetKey('skill', relativeSegments[0]);
+  } else if (relativeSegments[0] === 'providers' && relativeSegments.length >= 3) {
+    namespace = normalizeAssetKey('skill', relativeSegments[1]);
+    logicalName = normalizeAssetKey('skill', relativeSegments[2]);
+  } else if (relativeSegments.length >= 2) {
+    namespace = normalizeAssetKey('skill', relativeSegments[0]);
+    logicalName = normalizeAssetKey('skill', relativeSegments[1]);
+  }
+
+  if (!logicalName) {
+    return null;
+  }
+
+  const skillContent =
+    (safeStat(path.join(skillRootPath, 'SKILL.md'))?.isFile() && {
+      contentPath: path.join(skillRootPath, 'SKILL.md'),
+      fileName: 'SKILL.md',
+    }) ||
+    (safeStat(path.join(skillRootPath, 'index.md'))?.isFile() && {
+      contentPath: path.join(skillRootPath, 'index.md'),
+      fileName: 'index.md',
+    });
+  if (!skillContent) {
+    return null;
+  }
+
+  return {
+    logicalName,
+    namespace,
+    rootPath: skillRootPath,
+    contentPath: skillContent.contentPath,
+    viewPath: `${relativeRoot}/${relativeSegments.join('/')}/${skillContent.fileName}`,
+  };
+}
+
+function discoverSkillArtifacts(baseDir, relativeRoot) {
+  const discovered = [];
+  const queue = [{ dirPath: baseDir, relativeSegments: [] }];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    for (const entry of safeReadDir(current.dirPath, { withFileTypes: true })) {
+      const entryPath = path.join(current.dirPath, entry.name);
+      if (!isDirectoryLike(entry, entryPath)) {
+        continue;
+      }
+
+      const relativeSegments = [...current.relativeSegments, entry.name];
+      const artifact = parseSkillArtifact(relativeRoot, relativeSegments, entryPath);
+      if (artifact) {
+        discovered.push(artifact);
+      }
+
+      if (relativeSegments.length < 3) {
+        queue.push({ dirPath: entryPath, relativeSegments });
+      }
+    }
+  }
+
+  return discovered.sort((left, right) => {
+    const nameCompare = String(left.logicalName || '').localeCompare(String(right.logicalName || ''));
+    if (nameCompare !== 0) {
+      return nameCompare;
+    }
+    const namespaceCompare = String(left.namespace || '').localeCompare(String(right.namespace || ''));
+    if (namespaceCompare !== 0) {
+      return namespaceCompare;
+    }
+    return String(left.viewPath || '').localeCompare(String(right.viewPath || ''));
+  });
 }
 
 function isPointerFile(absPath) {
@@ -419,6 +708,9 @@ function normalizeManifestBundles(manifest) {
     .map((bundle) => {
       const bundleId = String(bundle.id || bundle.bundleId || '').trim();
       const title = String(bundle.title || '').trim() || humanizeAssetKey(bundleId);
+      const classification = deriveBundleClassification(bundle);
+      const defaultMemberLoadMode = normalizeBundleLoadMode(bundle.defaultMemberLoadMode)
+        || (classification === 'core' ? 'always' : null);
       return {
         bundleId,
         title,
@@ -427,9 +719,13 @@ function normalizeManifestBundles(manifest) {
         installTarget: String(bundle.installTarget || '').trim() || null,
         activationScope: String(bundle.activationScope || '').trim() || null,
         materialization: String(bundle.materialization || '').trim() || null,
+        classification,
+        targeting: normalizeBundleTargeting(bundle),
         tags: normalizeList(bundle.tags),
         defaultRecommended: bundle.defaultRecommended === true,
         dependsOn: normalizeList(bundle.dependsOn),
+        defaultMemberLoadMode,
+        uninstallPolicy: buildBundleUninstallPolicy(bundle, classification),
       };
     })
     .filter((bundle) => bundle.bundleId);
@@ -479,6 +775,8 @@ function createCatalogEntry({
   lifecycle,
   metadata,
   targeting,
+  provenance,
+  activation,
   overlay,
 }) {
   return {
@@ -494,6 +792,8 @@ function createCatalogEntry({
     lifecycle,
     metadata,
     targeting,
+    provenance,
+    activation,
     overlay,
   };
 }
@@ -539,6 +839,29 @@ function loadManifest(engineRoot) {
     manifest,
     manifestAssetIndex: buildManifestAssetIndex(manifest.assets),
     bundles: normalizeManifestBundles(manifest),
+  };
+}
+
+function buildProviderActivation(provider) {
+  if (!provider || typeof provider !== 'object') {
+    return undefined;
+  }
+  const defaults = provider.activationDefaults;
+  if (!defaults || typeof defaults !== 'object') {
+    return undefined;
+  }
+  return {
+    eligible: true,
+    scope: defaults.scope,
+    repoOverrides: defaults.repoOverrides,
+    plannerProfile: defaults.plannerProfile,
+    orchestrationPolicy: defaults.orchestrationPolicy,
+    defaultBundles: Array.isArray(defaults.defaultBundles)
+      ? defaults.defaultBundles
+      : Array.isArray(provider.defaultBundles)
+        ? provider.defaultBundles
+        : undefined,
+    preferredLoadMode: defaults.preferredLoadMode,
   };
 }
 
@@ -637,22 +960,36 @@ function createSourceEntries(engineRoot, metadataBySkill, warnings) {
   return { manifestPath, manifestAssetIndex, bundles, entries };
 }
 
-function scanUserAgents(copilotHome) {
+function scanUserAgents(copilotHome, providerCatalog = DEFAULT_PROVIDER_CATALOG) {
   const agentsDir = path.join(copilotHome, 'agents');
   return safeReadDir(agentsDir, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.agent.md'))
+    .filter((entry) => isFileLike(entry, path.join(agentsDir, entry.name)))
     .map((entry) => {
       const contentPath = path.join(agentsDir, entry.name);
-      const assetKey = normalizeAssetKey('agent', entry.name);
-      const assetId = deriveAssetId('agent', assetKey);
       const parsedAsset = parseMarkdownAsset(contentPath);
+      if (!isRecognizedAgentMarkdownFile(entry.name, parsedAsset)) {
+        return null;
+      }
+
+      const logicalName = normalizeAssetKey('agent', parsedAsset.frontmatter.name || entry.name);
+        const origin = inferExternalAssetOrigin(contentPath, {
+          kind: 'agent',
+          fileKind: entry.name.toLowerCase().endsWith('.agent.md') ? 'agent-md' : 'plain-md',
+          providers: providerCatalog,
+        });
+      const assetKey = origin.isExternal
+        ? buildProviderQualifiedAssetKey('agent', logicalName, origin)
+        : logicalName;
+      const assetId = deriveAssetId('agent', assetKey);
+      const viewPath = toCopilotRelativePath(copilotHome, contentPath) || `agents/${entry.name}`;
+
       return createCatalogEntry({
         kind: 'agent',
         assetKey,
         assetId,
         layer: 'user-installed',
         scope: buildScope('user'),
-        title: parsedAsset.title || humanizeAssetKey(assetKey),
+        title: parsedAsset.title || humanizeAssetKey(logicalName),
         description: parsedAsset.description || undefined,
         contentPath,
         installState: {
@@ -665,11 +1002,24 @@ function scanUserAgents(copilotHome) {
           },
         },
         metadata: {
-          source: 'user-home',
-          aliasKeys: buildAliasKeys('agent', assetKey, assetId),
+          source: origin.provider || 'user-home',
+          provider: origin.provider || 'user-home',
+          sourcePackage: origin.sourcePackage,
+          namespace: origin.namespace,
+          logicalName,
+          readOnly: origin.isExternal,
+          resolvedRealPath: origin.realPath,
+          viewPath,
+          aliasKeys: buildAssetAliasKeys('agent', assetKey, assetId, logicalName, origin),
         },
+        provenance: origin.provenance,
+        activation: buildProviderActivation(
+          providerCatalog.providers.find((provider) => provider.id === origin.provenance?.providerId),
+        ),
       });
-    });
+    })
+    .filter(Boolean)
+    .sort((left, right) => String(left.assetId || '').localeCompare(String(right.assetId || '')));
 }
 
 function scanUserPrompts(copilotHome) {
@@ -732,28 +1082,25 @@ function buildSourceIndex(entries) {
   return { byId, byKeyAndKind };
 }
 
-function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
+function scanUserSkills(copilotHome, metadataBySkill, sourceIndex, providerCatalog = DEFAULT_PROVIDER_CATALOG) {
   const skillsDir = path.join(copilotHome, 'skills');
   const vaultDir = path.join(copilotHome, 'skills-vault');
   const entries = [];
 
-  for (const entry of safeReadDir(skillsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const skillRoot = path.join(skillsDir, entry.name);
-    const contentPath = path.join(skillRoot, 'SKILL.md');
-    if (!safeStat(contentPath)?.isFile()) {
-      continue;
-    }
-
-    const assetKey = normalizeAssetKey('skill', entry.name);
-    const sourceEntry = sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
+  for (const skill of discoverSkillArtifacts(skillsDir, 'skills')) {
+    const origin = inferExternalAssetOrigin(skill.contentPath, {
+      kind: 'skill',
+      namespace: skill.namespace,
+      providers: providerCatalog,
+    });
+    const assetKey = origin.isExternal
+      ? buildProviderQualifiedAssetKey('skill', skill.logicalName, origin)
+      : skill.logicalName;
+    const sourceEntry = origin.isExternal ? null : sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
     const assetId = sourceEntry?.assetId || deriveAssetId('skill', assetKey);
-    const parsedAsset = parseMarkdownAsset(contentPath);
-    const metadataEntry = metadataBySkill.get(assetKey);
-    const pointer = isPointerFile(contentPath);
+    const parsedAsset = parseMarkdownAsset(skill.contentPath);
+    const metadataEntry = origin.isExternal ? null : metadataBySkill.get(skill.logicalName);
+    const pointer = isPointerFile(skill.contentPath);
     const loadMode = resolveSkillLoadMode({
       layer: 'user-installed',
       hasPointerStub: pointer,
@@ -773,51 +1120,59 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
           parsedAsset.title ||
           sourceEntry?.title ||
           String(metadataEntry?.name || '').trim() ||
-          humanizeAssetKey(assetKey),
+          humanizeAssetKey(skill.logicalName),
         description:
           parsedAsset.description ||
           String(metadataEntry?.description || '').trim() ||
           sourceEntry?.description ||
           undefined,
-        contentPath,
+        contentPath: skill.contentPath,
         installState: {
           availability: 'installed',
           isInstalled: true,
           isAutoLoaded: loadMode === 'always',
           materialization: pointer ? 'pointer' : 'materialized',
           loadMode,
-          contentHash: sha256PathHex(skillRoot) || undefined,
+          contentHash: sha256PathHex(skill.rootPath) || undefined,
           installedPaths: {
-            'user-installed': contentPath,
+            'user-installed': skill.contentPath,
           },
         },
         metadata: {
-          source: 'user-home',
-          sourceRootPath: skillRoot,
+          source: origin.provider || 'user-home',
+          provider: origin.provider || 'user-home',
+          sourcePackage: origin.sourcePackage,
+          namespace: origin.namespace,
+          logicalName: skill.logicalName,
+          readOnly: origin.isExternal,
+          sourceRootPath: skill.rootPath,
+          resolvedRealPath: origin.realPath,
+          viewPath: skill.viewPath,
           triggersOn: metadataEntry?.triggersOn || parsedAsset.triggers,
-          aliasKeys: buildAliasKeys('skill', assetKey, assetId),
+          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
+        provenance: origin.provenance,
+        activation: buildProviderActivation(
+          providerCatalog.providers.find((provider) => provider.id === origin.provenance?.providerId),
+        ),
       }),
     );
   }
 
-  for (const entry of safeReadDir(vaultDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const skillRoot = path.join(vaultDir, entry.name);
-    const contentPath = path.join(skillRoot, 'SKILL.md');
-    if (!safeStat(contentPath)?.isFile()) {
-      continue;
-    }
-
-    const assetKey = normalizeAssetKey('skill', entry.name);
-    const sourceEntry = sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
+  for (const skill of discoverSkillArtifacts(vaultDir, 'skills-vault')) {
+    const origin = inferExternalAssetOrigin(skill.contentPath, {
+      kind: 'skill',
+      namespace: skill.namespace,
+      providers: providerCatalog,
+    });
+    const assetKey = origin.isExternal
+      ? buildProviderQualifiedAssetKey('skill', skill.logicalName, origin)
+      : skill.logicalName;
+    const sourceEntry = origin.isExternal ? null : sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
     const assetId = sourceEntry?.assetId || deriveAssetId('skill', assetKey);
-    const parsedAsset = parseMarkdownAsset(contentPath);
-    const metadataEntry = metadataBySkill.get(assetKey);
+    const parsedAsset = parseMarkdownAsset(skill.contentPath);
+    const metadataEntry = origin.isExternal ? null : metadataBySkill.get(skill.logicalName);
     const loadMode = resolveSkillLoadMode({
       layer: 'vault-only',
       hasPointerStub: true,
@@ -837,31 +1192,42 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
           parsedAsset.title ||
           sourceEntry?.title ||
           String(metadataEntry?.name || '').trim() ||
-          humanizeAssetKey(assetKey),
+          humanizeAssetKey(skill.logicalName),
         description:
           parsedAsset.description ||
           String(metadataEntry?.description || '').trim() ||
           sourceEntry?.description ||
           undefined,
-        contentPath,
+        contentPath: skill.contentPath,
         installState: {
           availability: 'vault-only',
           isInstalled: true,
           isAutoLoaded: false,
           materialization: 'vault-only',
           loadMode,
-          contentHash: sha256PathHex(skillRoot) || undefined,
+          contentHash: sha256PathHex(skill.rootPath) || undefined,
           installedPaths: {
-            'vault-only': contentPath,
+            'vault-only': skill.contentPath,
           },
         },
         metadata: {
-          source: 'user-home',
-          sourceRootPath: skillRoot,
+          source: origin.provider || 'user-home',
+          provider: origin.provider || 'user-home',
+          sourcePackage: origin.sourcePackage,
+          namespace: origin.namespace,
+          logicalName: skill.logicalName,
+          readOnly: origin.isExternal,
+          sourceRootPath: skill.rootPath,
+          resolvedRealPath: origin.realPath,
+          viewPath: skill.viewPath,
           triggersOn: metadataEntry?.triggersOn || parsedAsset.triggers,
-          aliasKeys: buildAliasKeys('skill', assetKey, assetId),
+          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
+        provenance: origin.provenance,
+        activation: buildProviderActivation(
+          providerCatalog.providers.find((provider) => provider.id === origin.provenance?.providerId),
+        ),
       }),
     );
   }
@@ -869,7 +1235,12 @@ function scanUserSkills(copilotHome, metadataBySkill, sourceIndex) {
   return entries;
 }
 
-function scanRepoLocalEntries(repoContext, metadataBySkill, sourceIndex) {
+function scanRepoLocalEntries(
+  repoContext,
+  metadataBySkill,
+  sourceIndex,
+  providerCatalog = DEFAULT_PROVIDER_CATALOG,
+) {
   if (!repoContext?.repoPath) {
     return [];
   }
@@ -916,25 +1287,23 @@ function scanRepoLocalEntries(repoContext, metadataBySkill, sourceIndex) {
     );
   }
 
-  for (const entry of safeReadDir(skillsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const skillRoot = path.join(skillsDir, entry.name);
-    const contentPath = path.join(skillRoot, 'SKILL.md');
-    if (!safeStat(contentPath)?.isFile()) {
-      continue;
-    }
-
-    const assetKey = normalizeAssetKey('skill', entry.name);
-    const sourceEntry = sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
+  for (const skill of discoverSkillArtifacts(skillsDir, '.github/skills')) {
+    const origin = inferExternalAssetOrigin(skill.contentPath, {
+      kind: 'skill',
+      namespace: skill.namespace,
+      providers: providerCatalog,
+    });
+    const assetKey = origin.isExternal
+      ? buildProviderQualifiedAssetKey('skill', skill.logicalName, origin)
+      : skill.logicalName;
+    const sourceEntry = origin.isExternal ? null : sourceIndex.byKeyAndKind.get(`skill:${assetKey}`);
     const assetId = sourceEntry?.assetId || deriveAssetId('skill', assetKey);
-    const parsedAsset = parseMarkdownAsset(contentPath);
-    const metadataEntry = metadataBySkill.get(assetKey);
+    const parsedAsset = parseMarkdownAsset(skill.contentPath);
+    const metadataEntry = origin.isExternal ? null : metadataBySkill.get(skill.logicalName);
+    const pointer = isPointerFile(skill.contentPath);
     const loadMode = resolveSkillLoadMode({
       layer: 'repo-local',
-      hasPointerStub: false,
+      hasPointerStub: pointer,
       metadataEntry,
       parsedAsset,
       sourceEntry,
@@ -951,31 +1320,42 @@ function scanRepoLocalEntries(repoContext, metadataBySkill, sourceIndex) {
           parsedAsset.title ||
           sourceEntry?.title ||
           String(metadataEntry?.name || '').trim() ||
-          humanizeAssetKey(assetKey),
+          humanizeAssetKey(skill.logicalName),
         description:
           parsedAsset.description ||
           sourceEntry?.description ||
           String(metadataEntry?.description || '').trim() ||
           undefined,
-        contentPath,
+        contentPath: skill.contentPath,
         installState: {
           availability: 'repo-local',
           isInstalled: true,
           isAutoLoaded: loadMode === 'always',
-          materialization: 'materialized',
+          materialization: pointer ? 'pointer' : 'materialized',
           loadMode,
-          contentHash: sha256PathHex(skillRoot) || undefined,
+          contentHash: sha256PathHex(skill.rootPath) || undefined,
           installedPaths: {
-            'repo-local': contentPath,
+            'repo-local': skill.contentPath,
           },
         },
         metadata: {
-          source: 'repo-local',
-          sourceRootPath: skillRoot,
+          source: origin.provider || 'repo-local',
+          provider: origin.provider || 'repo-local',
+          sourcePackage: origin.sourcePackage,
+          namespace: origin.namespace,
+          logicalName: skill.logicalName,
+          readOnly: origin.isExternal,
+          sourceRootPath: skill.rootPath,
+          resolvedRealPath: origin.realPath,
+          viewPath: skill.viewPath,
           triggersOn: metadataEntry?.triggersOn || parsedAsset.triggers,
-          aliasKeys: buildAliasKeys('skill', assetKey, assetId),
+          aliasKeys: buildAssetAliasKeys('skill', assetKey, assetId, skill.logicalName, origin),
         },
         targeting: buildTargeting(metadataEntry, parsedAsset, loadMode),
+        provenance: origin.provenance,
+        activation: buildProviderActivation(
+          providerCatalog.providers.find((provider) => provider.id === origin.provenance?.providerId),
+        ),
       }),
     );
   }
@@ -1176,6 +1556,14 @@ function buildBundleMember(bundle, assetId, effectiveById, sourceEntriesById, ma
     effectiveAsset?.selectedEntry?.title ||
     sourceEntry?.title ||
     humanizeAssetKey(assetKey || assetId);
+  const loadMode = effectiveAsset?.installState?.loadMode
+    || sourceEntry?.installState?.loadMode
+    || normalizeBundleLoadMode(manifestAsset?.loadMode)
+    || null;
+  const defaultLoadMode = bundle.defaultMemberLoadMode
+    || normalizeBundleLoadMode(manifestAsset?.loadMode)
+    || loadMode
+    || null;
 
   return {
     assetId,
@@ -1186,6 +1574,8 @@ function buildBundleMember(bundle, assetId, effectiveById, sourceEntriesById, ma
     installed: Boolean(effectiveAsset?.installed),
     enabled: Boolean(effectiveAsset?.enabled),
     selectedLayer: effectiveAsset?.selectedLayer || null,
+    loadMode,
+    defaultLoadMode,
     missing: !effectiveAsset,
   };
 }
@@ -1237,9 +1627,13 @@ function buildBundleProjection(manifestBundles, effectiveAssets, sourceEntriesBy
       installTarget: bundle.installTarget,
       activationScope: bundle.activationScope,
       materialization: bundle.materialization,
+      classification: bundle.classification,
+      targeting: bundle.targeting ? { ...bundle.targeting } : undefined,
       tags: [...bundle.tags],
       defaultRecommended: bundle.defaultRecommended,
       dependsOn: [...bundle.dependsOn],
+      defaultMemberLoadMode: bundle.defaultMemberLoadMode,
+      uninstallPolicy: bundle.uninstallPolicy ? { ...bundle.uninstallPolicy } : undefined,
       status: resolveBundleStatus(stats),
       stats,
       members,
@@ -1306,6 +1700,8 @@ function buildCatalogProjection(options = {}) {
   const storage = resolveProjectionStorage(options);
   const repoContext = storage.repoContext;
   const warnings = [];
+  const providerCatalogScan = loadProviderCatalog(engineRoot);
+  const providerStateScan = loadProviderInstallState(storage.copilotHome);
 
   const metadataIndex = buildMetadataIndex(engineRoot);
   warnings.push(...metadataIndex.warnings);
@@ -1313,11 +1709,21 @@ function buildCatalogProjection(options = {}) {
   const sourceScan = createSourceEntries(engineRoot, metadataIndex.metadataBySkill, warnings);
   const sourceIndex = buildSourceIndex(sourceScan.entries);
   const userEntries = [
-    ...scanUserAgents(storage.copilotHome),
+    ...scanUserAgents(storage.copilotHome, providerCatalogScan.providerCatalog),
     ...scanUserPrompts(storage.copilotHome),
-    ...scanUserSkills(storage.copilotHome, metadataIndex.metadataBySkill, sourceIndex),
+    ...scanUserSkills(
+      storage.copilotHome,
+      metadataIndex.metadataBySkill,
+      sourceIndex,
+      providerCatalogScan.providerCatalog,
+    ),
   ];
-  const repoLocalEntries = scanRepoLocalEntries(repoContext, metadataIndex.metadataBySkill, sourceIndex);
+  const repoLocalEntries = scanRepoLocalEntries(
+    repoContext,
+    metadataIndex.metadataBySkill,
+    sourceIndex,
+    providerCatalogScan.providerCatalog,
+  );
   const overlayScan = buildRepoOverlayEntries(storage.copilotHome, repoContext, [
     ...sourceScan.entries,
     ...userEntries,
@@ -1338,6 +1744,11 @@ function buildCatalogProjection(options = {}) {
     sourceScan.manifestAssetIndex,
     warnings,
   );
+  const providers = buildProviderProjection(
+    providerCatalogScan.providerCatalog,
+    providerStateScan.state,
+    effectiveAssets,
+  );
 
   return {
     schemaVersion: CATALOG_PROJECTION_SCHEMA_VERSION,
@@ -1350,11 +1761,14 @@ function buildCatalogProjection(options = {}) {
       manifestPath: sourceScan.manifestPath,
       metadataIndexPath: metadataIndex.metadataIndexPath,
       registryPath: overlayScan.registryPath,
+      providerCatalogPath: providerCatalogScan.providerCatalogPath,
+      providerStatePath: providerStateScan.statePath,
     },
     warnings,
     entries,
     effectiveAssets,
     bundles,
+    providers,
     stats: buildStats(entries, effectiveAssets, bundles),
   };
 }
@@ -1378,6 +1792,10 @@ function collectSearchTerms(asset) {
     asset.kind,
     selectedEntry?.title,
     selectedEntry?.description,
+    selectedEntry?.metadata?.provider,
+    selectedEntry?.metadata?.sourcePackage,
+    selectedEntry?.metadata?.namespace,
+    selectedEntry?.metadata?.logicalName,
   ];
 
   const tags = selectedEntry?.targeting?.tags;
@@ -1390,18 +1808,30 @@ function collectSearchTerms(asset) {
     terms.push(...triggers);
   }
 
+  const aliases = selectedEntry?.metadata?.aliasKeys;
+  if (Array.isArray(aliases)) {
+    terms.push(...aliases);
+  }
+
   return terms
     .map((term) => String(term || '').trim().toLowerCase())
     .filter(Boolean);
 }
 
 function collectBundleSearchTerms(bundle) {
+  const targeting = bundle?.targeting && typeof bundle.targeting === 'object' ? bundle.targeting : {};
   const terms = [
     bundle.bundleId,
     bundle.title,
     bundle.description,
+    bundle.classification,
     bundle.status,
     ...(Array.isArray(bundle.tags) ? bundle.tags : []),
+    ...normalizeList(targeting.languages),
+    ...normalizeList(targeting.frameworks),
+    ...normalizeList(targeting.stacks),
+    ...normalizeList(targeting.tags),
+    ...normalizeList(targeting.scopeKinds),
     ...(Array.isArray(bundle.assetIds) ? bundle.assetIds : []),
     ...(Array.isArray(bundle.dependsOn) ? bundle.dependsOn : []),
   ];
@@ -1473,10 +1903,47 @@ function queryCatalogEntries(snapshot, filters = {}) {
 function queryCatalogBundles(snapshot, filters = {}) {
   const bundles = Array.isArray(snapshot?.bundles) ? snapshot.bundles : [];
   const includeText = String(filters.text || '').trim().toLowerCase();
+  const classificationFilter = String(filters.classification || '').trim().toLowerCase();
+  const languageFilter = String(filters.language || '').trim().toLowerCase();
+  const frameworkFilter = String(filters.framework || '').trim().toLowerCase();
+  const stackFilter = String(filters.stack || '').trim().toLowerCase();
+  const tagFilter = String(filters.tag || '').trim().toLowerCase();
+  const scopeKindFilter = String(filters.scopeKind || '').trim().toLowerCase();
 
   return bundles.filter((bundle) => {
+    const targeting = bundle?.targeting && typeof bundle.targeting === 'object' ? bundle.targeting : {};
     if (filters.bundleId && bundle.bundleId !== filters.bundleId) {
       return false;
+    }
+    if (classificationFilter && String(bundle.classification || '').trim().toLowerCase() !== classificationFilter) {
+      return false;
+    }
+    if (languageFilter && !normalizeList(targeting.languages).some((value) => value.toLowerCase() === languageFilter)) {
+      return false;
+    }
+    if (frameworkFilter && !normalizeList(targeting.frameworks).some((value) => value.toLowerCase() === frameworkFilter)) {
+      return false;
+    }
+    if (stackFilter && !normalizeList(targeting.stacks).some((value) => value.toLowerCase() === stackFilter)) {
+      return false;
+    }
+    if (tagFilter) {
+      const tags = new Set([
+        ...normalizeList(bundle.tags).map((value) => value.toLowerCase()),
+        ...normalizeList(targeting.tags).map((value) => value.toLowerCase()),
+      ]);
+      if (!tags.has(tagFilter)) {
+        return false;
+      }
+    }
+    if (scopeKindFilter) {
+      const scopeKinds = new Set([
+        ...normalizeList(targeting.scopeKinds).map((value) => value.toLowerCase()),
+        String(bundle.activationScope || '').trim().toLowerCase(),
+      ]);
+      if (!scopeKinds.has(scopeKindFilter)) {
+        return false;
+      }
     }
     if (includeText) {
       const terms = collectBundleSearchTerms(bundle);
@@ -1499,11 +1966,15 @@ function getCatalogBundle(snapshot, bundleId) {
 module.exports = {
   CATALOG_PROJECTION_SCHEMA_VERSION,
   buildCatalogProjection,
+  buildProviderQualifiedAssetKey,
+  inferExternalAssetOrigin,
   rebuildCatalogProjection,
   loadCatalogProjectionSnapshot,
+  parseMarkdownAsset,
   resolveProjectionStorage,
   resolveRepoContext,
   getRepoStateKey,
+  toCopilotRelativePath,
   queryCatalogEntries,
   queryEffectiveCatalog,
   queryCatalogBundles,

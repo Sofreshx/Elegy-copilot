@@ -142,7 +142,50 @@ function startMockTrackerStatusServer(expectedToken = 'ws2-tracker-token') {
           return;
         }
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-        res.end(JSON.stringify({ ok: true, marker: 'tracker_ready' }));
+        res.end(JSON.stringify({
+          schemaVersion: 1,
+          contractVersion: 'messaging_gateway_readiness_v1',
+          compatibility: {
+            normalizedFrom: 'v1',
+            deterministic: true,
+          },
+          readiness: {
+            state: 'ready',
+            reasonCode: 'gateway_ready',
+            deterministic: true,
+          },
+          lastUpdatedUtc: new Date().toISOString(),
+          config: {
+            configPath: 'C:\\mock\\gateway-config.json',
+            mode: 'connected',
+            allowlists: {
+              discordUsersCount: 1,
+              workspaceRootsCount: 1,
+            },
+            workspaces: {
+              activeRoot: 'C:\\mock',
+            },
+          },
+          secrets: {
+            discordBotToken: { present: false, fromKeychain: false, fromEnv: false },
+            gatewayHttpToken: { present: true, fromKeychain: true, fromEnv: false },
+            telegramBotToken: { present: false, fromKeychain: false, fromEnv: false },
+          },
+          runtime: {
+            discord: { connected: true, ready: true },
+            discoveryTelemetry: {
+              contractVersion: 'skill_discovery_telemetry_v1',
+              sample: { capacity: 12, size: 0, dropped: 0, deterministic: true },
+              countersByReason: {
+                keyword_miss: 0,
+                ambiguity: 0,
+                stale_map: 0,
+                no_route: 0,
+              },
+              recent: [],
+            },
+          },
+        }));
         return;
       }
 
@@ -519,7 +562,7 @@ async function run() {
       fs.mkdirSync(copilotHome, { recursive: true });
       fs.mkdirSync(vscodeHome, { recursive: true });
 
-      const gatewayConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
+      const gatewayConfigPath = path.join(root, '.copilot', 'messaging-gateway.config.json');
       fs.mkdirSync(path.dirname(gatewayConfigPath), { recursive: true });
       fs.writeFileSync(gatewayConfigPath, JSON.stringify({
         mode: 'auto',
@@ -598,7 +641,7 @@ async function run() {
     });
   });
 
-  await test('gateway config deterministically rehomes legacy copilot-home path to canonical default path when env override is absent', async () => {
+  await test('gateway config deterministically rehomes legacy instruction-engine path to canonical copilot path when env override is absent', async () => {
     await withTempDir(async (root) => {
       const copilotHome = path.join(root, '.copilot');
       const vscodeHome = path.join(root, '.copilot-vscode');
@@ -606,7 +649,7 @@ async function run() {
       fs.mkdirSync(copilotHome, { recursive: true });
       fs.mkdirSync(vscodeHome, { recursive: true });
 
-      const legacyConfigPath = path.join(copilotHome, 'messaging-gateway.config.json');
+      const legacyConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
       const legacyConfig = {
         mode: 'auto',
         workspaces: {
@@ -614,6 +657,7 @@ async function run() {
           activeRoot: root,
         },
       };
+      fs.mkdirSync(path.dirname(legacyConfigPath), { recursive: true });
       fs.writeFileSync(legacyConfigPath, JSON.stringify(legacyConfig, null, 2));
 
       const port = await getFreePort();
@@ -657,7 +701,7 @@ async function run() {
         assert.strictEqual(configResponse.body.exists, true);
         const resolvedConfigPath = path.resolve(configResponse.body.configPath);
         assert.ok(
-          resolvedConfigPath.toLowerCase().endsWith(path.join('.instruction-engine', 'messaging-gateway.config.json').toLowerCase())
+          resolvedConfigPath.toLowerCase().endsWith(path.join('.copilot', 'messaging-gateway.config.json').toLowerCase())
         );
         assert.notStrictEqual(resolvedConfigPath.toLowerCase(), path.resolve(legacyConfigPath).toLowerCase());
         assert.deepStrictEqual(configResponse.body.config, legacyConfig);
@@ -686,8 +730,8 @@ async function run() {
       fs.mkdirSync(copilotHome, { recursive: true });
       fs.mkdirSync(vscodeHome, { recursive: true });
 
-      const legacyConfigPath = path.join(copilotHome, 'messaging-gateway.config.json');
-      const canonicalConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
+      const legacyConfigPath = path.join(root, '.instruction-engine', 'messaging-gateway.config.json');
+      const canonicalConfigPath = path.join(root, '.copilot', 'messaging-gateway.config.json');
       const envConfigPath = path.join(root, 'config-overrides', 'gateway-config.json');
 
       const legacyConfig = {
@@ -712,6 +756,7 @@ async function run() {
         },
       };
 
+      fs.mkdirSync(path.dirname(legacyConfigPath), { recursive: true });
       fs.writeFileSync(legacyConfigPath, JSON.stringify(legacyConfig, null, 2));
       fs.mkdirSync(path.dirname(canonicalConfigPath), { recursive: true });
       fs.writeFileSync(canonicalConfigPath, JSON.stringify(canonicalConfig, null, 2));
@@ -1017,7 +1062,7 @@ async function run() {
     });
   });
 
-  await test('planning routes fail closed with explicit persistence error when DB authority is configured without a client', async () => {
+  await test('planning routes fail closed with explicit persistence error when env-configured DB startup cannot connect', async () => {
     await withTempDir(async (root) => {
       const copilotHome = path.join(root, '.copilot');
       const vscodeHome = path.join(root, '.copilot-vscode');
@@ -1044,7 +1089,7 @@ async function run() {
         env: {
           ...process.env,
           INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
-          INSTRUCTION_ENGINE_PLANNING_DB_URL: 'postgres://localhost:5432/planning',
+          INSTRUCTION_ENGINE_PLANNING_DB_URL: 'postgres://127.0.0.1:1/planning',
         },
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
@@ -1058,7 +1103,7 @@ async function run() {
       try {
         const health = await waitForHealth(baseUrl);
         assert.strictEqual(health.statusCode, 200);
-        assert.strictEqual(health.body.planningPersistence.status, 'configured_no_client');
+        assert.strictEqual(health.body.planningPersistence.status, 'migration_error');
 
         const create = await postJson(`${baseUrl}/api/planning/records`, {
           idempotencyKey: 'persistence-authority-no-client-1',
@@ -1071,7 +1116,7 @@ async function run() {
         assert.strictEqual(create.statusCode, 503);
         assert.strictEqual(create.body.error, 'Planning persistence unavailable');
         assert.strictEqual(create.body.code, 'planning_persistence_unavailable');
-        assert.strictEqual(create.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(create.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(create.body.kind, 'planning.create');
         assert.strictEqual(create.body.deterministic, true);
         assert.ok(create.body.planningPersistence);
@@ -1088,25 +1133,25 @@ async function run() {
         });
         assert.strictEqual(retention.statusCode, 503);
         assert.strictEqual(retention.body.code, 'planning_persistence_unavailable');
-        assert.strictEqual(retention.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(retention.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(retention.body.kind, 'planning.persistence.retention');
 
         const exported = await postJson(`${baseUrl}/api/planning/persistence/export`, {});
         assert.strictEqual(exported.statusCode, 503);
         assert.strictEqual(exported.body.code, 'planning_persistence_unavailable');
-        assert.strictEqual(exported.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(exported.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(exported.body.kind, 'planning.persistence.export');
 
         const imported = await postJson(`${baseUrl}/api/planning/persistence/import`, { records: [] });
         assert.strictEqual(imported.statusCode, 503);
         assert.strictEqual(imported.body.code, 'planning_persistence_unavailable');
-        assert.strictEqual(imported.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(imported.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(imported.body.kind, 'planning.persistence.import');
 
         const corruptionScan = await postJson(`${baseUrl}/api/planning/persistence/corruption/scan`, {});
         assert.strictEqual(corruptionScan.statusCode, 503);
         assert.strictEqual(corruptionScan.body.code, 'planning_persistence_unavailable');
-        assert.strictEqual(corruptionScan.body.reason, 'planning_persistence_client_unavailable');
+        assert.strictEqual(corruptionScan.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(corruptionScan.body.kind, 'planning.persistence.corruption.scan');
       } finally {
         server.kill();
@@ -1323,6 +1368,95 @@ async function run() {
       if (stderr.trim()) {
         assert.ok(!/Error:/i.test(stderr), `Server stderr contained error output: ${stderr}`);
       }
+    });
+  });
+
+  await test('runtime health reports GitHub workspace MCP as unconfigured when no workspace entry exists', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(copilotHome, 'sandboxes');
+
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+
+      const server = await startServer({
+        host: '127.0.0.1',
+        port: await getFreePort(),
+        engineRoot: root,
+        copilotHome,
+        vscodeHome,
+        sandboxesHome,
+        quiet: true,
+      });
+
+      try {
+        const address = server.server.address();
+        const port = address && typeof address === 'object' ? address.port : null;
+        const health = await fetchJson(`http://127.0.0.1:${port}/api/health`);
+        assert.strictEqual(health.statusCode, 200);
+        assert.ok(health.body.runtime.githubAccess);
+        assert.strictEqual(health.body.runtime.githubAccess.cli.status, 'documented-default');
+        assert.strictEqual(health.body.runtime.githubAccess.workspace.status, 'unconfigured');
+        assert.strictEqual(
+          health.body.runtime.githubAccess.workspace.configPath,
+          path.join(root, '.vscode', 'mcp.json'),
+        );
+      } finally {
+        await server.close();
+      }
+    });
+  });
+
+  await test('runtime health reports GitHub workspace MCP as configured when auth env is present', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(copilotHome, 'sandboxes');
+      const mcpPath = path.join(root, '.vscode', 'mcp.json');
+
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+      fs.mkdirSync(path.dirname(mcpPath), { recursive: true });
+      fs.writeFileSync(
+        mcpPath,
+        `${JSON.stringify({
+          mcpServers: {
+            github: {
+              type: 'http',
+              url: 'https://api.githubcopilot.com/mcp/',
+              headers: {
+                Authorization: 'Bearer ${env:GITHUB_MCP_PAT}',
+              },
+            },
+          },
+        }, null, 2)}\n`,
+        'utf8',
+      );
+
+      await withPatchedEnv({ GITHUB_MCP_PAT: 'test-token' }, async () => {
+        const server = await startServer({
+          host: '127.0.0.1',
+          port: await getFreePort(),
+          engineRoot: root,
+          copilotHome,
+          vscodeHome,
+          sandboxesHome,
+          quiet: true,
+        });
+
+        try {
+          const address = server.server.address();
+          const port = address && typeof address === 'object' ? address.port : null;
+          const health = await fetchJson(`http://127.0.0.1:${port}/api/health`);
+          assert.strictEqual(health.statusCode, 200);
+          assert.strictEqual(health.body.runtime.githubAccess.workspace.status, 'configured');
+          assert.strictEqual(health.body.runtime.githubAccess.workspace.authPresent, true);
+          assert.strictEqual(health.body.runtime.githubAccess.workspace.tokenEnvVar, 'GITHUB_MCP_PAT');
+        } finally {
+          await server.close();
+        }
+      });
     });
   });
 

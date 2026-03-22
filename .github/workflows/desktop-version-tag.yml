@@ -1,18 +1,19 @@
-name: Desktop Version Tag Automation
+name: Elegy Copilot Desktop Version Tag Helper
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'copilot-ui/package.json'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch or commit to tag from'
+        required: false
+        default: 'main'
+        type: string
 
 permissions:
   contents: write
 
 jobs:
   tag-desktop-version:
-    if: contains(github.event.head_commit.message, 'Version Packages')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -20,12 +21,17 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
+          ref: ${{ inputs.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
 
       - name: CI lockfile preflight
         run: node scripts/validate-ci-lockfiles.js
@@ -33,5 +39,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Create desktop release tag if version changed
-        run: node scripts/create-desktop-release-tag.js
+      - name: Create desktop release tag helper result
+        run: node scripts/create-desktop-release-tag.js --desktop-release

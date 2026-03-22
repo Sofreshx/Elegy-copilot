@@ -1,8 +1,8 @@
-# Telegram Bot Setup (Messaging Gateway)
+# Telegram Bot Setup for the Optional Messaging Gateway
 
-Control your **Copilot CLI** agent sessions from **Telegram** using bot commands, inline keyboards, and webhook-based messaging.
+If you opt into the Messaging Gateway, you can control your **Copilot CLI** agent sessions from **Telegram** using bot commands, inline keyboards, and webhook-based messaging.
 
-The messaging gateway supports dual-channel operation — Discord and Telegram can run simultaneously. The Telegram integration uses:
+The optional messaging gateway supports dual-channel operation — Discord and Telegram can run simultaneously. The Telegram integration uses:
 
 - **Grammy** (npm) as the Bot Framework
 - **Webhook-only mode** (no polling)
@@ -14,7 +14,7 @@ The messaging gateway supports dual-channel operation — Discord and Telegram c
 ## Prerequisites
 
 - **Node.js**: `>=20`
-- **Messaging gateway** already set up and running (see [messaging-gateway.md](messaging-gateway.md) for general setup)
+- **Optional messaging gateway** already set up and running (see [messaging-gateway.md](messaging-gateway.md) for general setup)
 - **A Telegram account**
 
 ---
@@ -50,10 +50,10 @@ This is the simplest approach for local development. Set it in your shell profil
 Keychain storage will follow the same pattern as Discord (`--store-discord-bot-token`). Once the CLI flag is available:
 
 ```bash
-node local-tracker/src/messagingGateway/index.js --store-telegram-bot-token
+npm run dev:gateway -- --store-telegram-bot-token
 ```
 
-> **Note:** The `--store-telegram-bot-token` CLI flag may not exist yet. Use the environment variable approach for now. The gateway reads `telegramBotToken` from keychain first, falling back to `IE_TELEGRAM_BOT_TOKEN`.
+> **Note:** The `--store-telegram-bot-token` CLI flag does not exist yet. Use the environment variable approach for now. The gateway reads `telegramBotToken` from keychain first, falling back to `IE_TELEGRAM_BOT_TOKEN`.
 
 ---
 
@@ -76,7 +76,7 @@ Look for `message.from.id` in the response.
 
 ### Step 4: Configure the Gateway
 
-Add a `telegram` block to your config file at `~/.instruction-engine/gateway-config.json`:
+Add a `telegram` block to your gateway config file at `~/.copilot/messaging-gateway.config.json`:
 
 ```json
 {
@@ -151,8 +151,8 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
 1. Start the gateway:
 
    ```bash
-   node local-tracker/src/messagingGateway/index.js \
-     --config ~/.instruction-engine/gateway-config.json
+   npm install --include=optional   # only needed if you previously omitted optional deps
+   npm run dev:gateway -- --config ~/.copilot/messaging-gateway.config.json
    ```
 
 2. Open Telegram and send `/status` to your bot.
@@ -162,7 +162,7 @@ curl -X POST "https://api.telegram.org/bot<TOKEN>/setWebhook" \
 4. Check the gateway status file:
 
    ```bash
-   cat ~/.instruction-engine/messaging-gateway.status.json
+   cat ~/.copilot/messaging-gateway.status.json
    ```
 
    It should show `telegram.connected: true`.

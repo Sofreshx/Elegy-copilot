@@ -61,6 +61,7 @@ test('create idempotency supports replay, conflict, and expiry handling', () => 
     scope: 'repo',
     title: 'WS4 idea',
     summary: 'idempotency behavior',
+    targetRepoIds: ['instruction-engine', 'copilot-sdk'],
     state: 'thought',
     score: 0.3,
     idempotencyKey: 'idem-create-1',
@@ -73,6 +74,7 @@ test('create idempotency supports replay, conflict, and expiry handling', () => 
   });
   assert.strictEqual(first.statusCode, 200);
   assert.strictEqual(first.body.idempotency.outcome, 'applied');
+  assert.deepStrictEqual(first.body.record.targetRepoIds, ['copilot-sdk', 'instruction-engine']);
   const firstRecordId = first.body.record.recordId;
 
   const replay = createPlanningRecordOperation(state, {

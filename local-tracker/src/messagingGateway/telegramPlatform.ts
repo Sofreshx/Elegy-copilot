@@ -296,7 +296,7 @@ export class TelegramPlatform implements MessagePlatform, PlatformPermissionProm
 			.editMessageText(pending.chatId, pending.messageId, '⏰ Confirmation timed out.', {
 				reply_markup: { inline_keyboard: [] },
 			})
-			.catch((err) => {
+			.catch((err: unknown) => {
 				console.error('[Gateway] Telegram confirmation timeout edit failed:', err);
 			});
 	}

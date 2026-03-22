@@ -14,6 +14,7 @@ const {
   getPlanningScopePrecedence,
   isValidPlanningTransition,
   comparePlanningRecords,
+  parseStructuredState,
 } = require('./planState');
 
 let passed = 0;
@@ -133,6 +134,265 @@ test('comparePlanningRecords falls back to source when scope is absent', () => {
 
   records.sort(comparePlanningRecords);
   assert.deepStrictEqual(records.map((entry) => entry.recordId), ['1', '2']);
+});
+
+test('parseStructuredState supports comma-separated parallel next-unit batches', () => {
+  const text = `# Plan Pack — Parallel Resume Example
+<!-- IE_PLAN_PACK_VERSION: 1 -->
+## Goal + Success Criteria
+- Goal: Example
+
+## Context Loaded
+- file.md
+
+## Assumptions + Constraints
+- none
+
+## Decisions
+- none
+
+## Dropped / Deferred
+- none
+
+## Work Unit Groups
+- none
+
+## Work Unit Graph
+- none
+
+## Work Unit Index
+- none
+
+## Work Unit Specs
+- none
+
+## Execution Notes
+- none
+
+## Risks / Rollback
+- none
+
+## Validation
+- none
+
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Foundation | in-progress | 1 | 3 | — |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | WU-002, WU-003 | ready for parallel-safe fan-out |
+
+## Next Unit
+**WU-002, WU-003** — parallel-safe sibling work units for G-01
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: pending |
+
+## Execution Log
+- 2026-03-12T00:00:00Z — WU-001 completed (status: passed)
+`;
+
+  const structured = parseStructuredState(text);
+  assert.ok(structured.nextUnit);
+  assert.deepStrictEqual(structured.nextUnit.workUnitIds, ['WU-002', 'WU-003']);
+  assert.strictEqual(structured.nextUnit.parallelCandidate, true);
+});
+
+test('parseStructuredState emits review-ledger and handoff warnings for blocked resume state', () => {
+  const text = `# Plan Pack — Resume Blocked Example
+<!-- IE_PLAN_PACK_VERSION: 1 -->
+## Goal + Success Criteria
+- Goal: Example
+
+## Context Loaded
+- file.md
+
+## Assumptions + Constraints
+- none
+
+## Decisions
+- none
+
+## Dropped / Deferred
+- none
+
+## Work Unit Groups
+- none
+
+## Work Unit Graph
+- none
+
+## Work Unit Index
+- none
+
+## Work Unit Specs
+- none
+
+## Execution Notes
+- none
+
+## Risks / Rollback
+- none
+
+## Validation
+- none
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Foundation | not-started | 0 | 1 | — |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | not-started | WU-001 | waiting |
+
+## Next Unit
+**WU-001** — waiting to begin
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: pending |
+
+## Execution Log
+- 2026-03-12T00:00:00Z — planning artifact created
+`;
+
+  const structured = parseStructuredState(text, {
+    handoffText: `## Handoff Manifest\n- Session: wrong-session\n- Plan: plan.md (status: DRAFT)\n`,
+    requireHandoff: true,
+    sessionId: 'expected-session',
+  });
+
+  assert.strictEqual(structured.meta.resume.ready, false);
+  assert.ok(structured.meta.resume.blockers.includes('review_approval_missing'));
+  assert.ok(structured.meta.resume.blockers.includes('handoff_invalid'));
+  assert.ok(structured.warnings.some((warning) => warning.includes('Review Ledger: missing review ledger section')));
+  assert.ok(structured.warnings.some((warning) => warning.includes('Handoff: handoff manifest Session mismatch')));
+});
+
+test('parseStructuredState marks resume ready when review ledger approval and handoff are valid', () => {
+  const text = `# Plan Pack — Resume Ready Example
+<!-- IE_PLAN_PACK_VERSION: 1 -->
+## Goal + Success Criteria
+- Goal: Example
+
+## Context Loaded
+- file.md
+
+## Assumptions + Constraints
+- none
+
+## Decisions
+- none
+
+## Dropped / Deferred
+- none
+
+## Work Unit Groups
+- none
+
+## Work Unit Graph
+- none
+
+## Work Unit Index
+- none
+
+## Work Unit Specs
+- none
+
+## Execution Notes
+- none
+
+## Risks / Rollback
+- none
+
+## Validation
+- none
+
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Foundation | in-progress | 0 | 1 | — |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | not-started | WU-001 | waiting |
+
+## Next Unit
+**WU-001** — waiting to begin
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: pending |
+
+## Execution Log
+- 2026-03-12T00:00:00Z — planning artifact created
+`;
+
+  const handoffText = `## Handoff Manifest
+- Session: expected-session
+- Plan: plan.md (status: APPROVED)
+- Reviewer: Verdict: APPROVED
+
+## Key Decisions
+- Keep execution sequential until explicit parallel-safe ownership exists.
+
+## Exploration Summary
+- docs/system/session-state-artifacts.md
+
+## User Constraints
+- none
+
+## Immediate Next Actions
+- Execute WU-001.
+
+## Next Plan Ideas
+- Consider broader resume-contract hardening later.
+
+## Watch Outs
+- Preserve expected-file ownership for parallel-safe work.
+
+## Open Risks
+- none
+`;
+
+  const structured = parseStructuredState(text, {
+    handoffText,
+    requireHandoff: true,
+    sessionId: 'expected-session',
+  });
+
+  assert.strictEqual(structured.meta.reviewLedger.approved, true);
+  assert.strictEqual(structured.meta.resume.ready, true);
+  assert.deepStrictEqual(structured.meta.resume.blockers, []);
 });
 
 console.log(`\n${passed} tests passed`);

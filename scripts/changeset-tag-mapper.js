@@ -5,30 +5,24 @@
  * Used by CI to determine which tag pattern to use when publishing.
  *
  * Tag ownership rules (per plan R13):
- * - desktop-v* → copilot-ui (instruction-engine-desktop)
- * - tracker-v* → local-tracker (@instruction-engine/local-tracker)
- * - v* → RannIA (skill-installer)
+ * - desktop-v* → copilot-ui (elegy-copilot-desktop)
+ * - tracker-v* → local-tracker (@elegy-copilot/local-tracker)
  *
  * contracts/ is NOT independently released — it is linked with consumers.
  */
 
 const TAG_MAP = Object.freeze({
-  'instruction-engine-desktop': {
+  'elegy-copilot-desktop': {
     prefix: 'desktop-v',
     channel: 'desktop-release',
     releasable: true,
   },
-  '@instruction-engine/local-tracker': {
+  '@elegy-copilot/local-tracker': {
     prefix: 'tracker-v',
     channel: 'tracker-release',
     releasable: true,
   },
-  'skill-installer': {
-    prefix: 'v',
-    channel: 'extension-ci',
-    releasable: true,
-  },
-  '@instruction-engine/contracts': {
+  '@elegy-copilot/contracts': {
     prefix: null,
     channel: null,
     releasable: false,
@@ -83,9 +77,9 @@ function validateChangesetTargets(packageNames) {
   }
 
   // Check if contracts is included — requires synchronized bumps
-  const hasContracts = packageNames.includes('@instruction-engine/contracts');
+  const hasContracts = packageNames.includes('@elegy-copilot/contracts');
   if (hasContracts) {
-    const consumers = ['instruction-engine-desktop', '@instruction-engine/local-tracker'];
+    const consumers = ['elegy-copilot-desktop', '@elegy-copilot/local-tracker'];
     const missingConsumers = consumers.filter(c => !packageNames.includes(c));
     if (missingConsumers.length > 0) {
       return {

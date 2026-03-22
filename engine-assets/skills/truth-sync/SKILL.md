@@ -54,6 +54,9 @@ When the hierarchy cannot resolve the conflict:
 - Use `vscode/askQuestions` to ask the user which source is authoritative.
 - Record the decision in the completion summary so future agents have context.
 
-## Elegy Governance Integration
+## Governance Integration
 
-Truth hierarchy ranks map to Elegy governance tiers via `Elegy.Formalization.Governance`. The `GovernancePolicy` record supports `GovernanceResolutionStrategy` (Reject, Reconcile, Override) and `GovernanceEnforcementMode` (Strict, Warn) for canonical authority resolution. See `Elegy.Formalization.Governance` module for the C# domain model.
+When a conflict affects canonical docs, prompts, or workflow policy, record which source won and
+why. Prefer explicit resolution language such as `Reject`, `Reconcile`, or `Override`, and pair it
+with an enforcement stance such as `Strict` or `Warn` so the decision is easy to audit in repo
+artifacts and completion summaries.

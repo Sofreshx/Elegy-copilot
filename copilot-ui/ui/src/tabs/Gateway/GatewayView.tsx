@@ -87,7 +87,7 @@ export default function GatewayView() {
 
       <div className="gateway-grid">
         <Panel
-          subtitle="Current state from /api/gateway/state."
+          subtitle="Authoritative readiness from /api/gateway/state, with tracker and planning kept as diagnostics."
           testId="gateway-state-panel"
           title="Gateway State"
         >
@@ -126,20 +126,20 @@ export default function GatewayView() {
 
             <div className="gateway-state-list">
               <div className="gateway-state-row">
-                <p className="gateway-item-title">Gateway</p>
+                <p className="gateway-item-title">Gateway Authority</p>
                 <p className="gateway-item-copy">{gatewaySummary}</p>
               </div>
               <div className="gateway-state-row">
-                <p className="gateway-item-title">Tracker</p>
+                <p className="gateway-item-title">Tracker Projection</p>
                 <p className="gateway-item-copy">{trackerSummary}</p>
               </div>
               <div className="gateway-state-row">
-                <p className="gateway-item-title">Planning Persistence</p>
+                <p className="gateway-item-title">Planning DB Diagnostic</p>
                 <p className="gateway-item-copy">{planningPersistenceSummary}</p>
               </div>
             </div>
 
-            <p className="gateway-copy">Detailed diagnostics</p>
+            <p className="gateway-copy">Detailed diagnostics and reason codes</p>
             <pre className="code-block" data-testid="gateway-errors-block">
               {gatewayErrorsText}
             </pre>

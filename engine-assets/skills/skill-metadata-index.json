@@ -170,6 +170,24 @@
       }
     },
     {
+      "skill": "documentation-structure-governance",
+      "name": "documentation-structure-governance",
+      "description": "Governance rules for documentation and project-structure entrypoints, discoverability, and aligned human-friendly plus LLM-friendly access paths. Triggers on: documentation structure, docs IA, docs entrypoint, project structure guidance, LLM-friendly entrypoint, human-friendly entrypoint, doc structure governance.",
+      "triggersOn": [
+        "doc structure governance",
+        "docs entrypoint",
+        "docs ia",
+        "documentation structure",
+        "human-friendly entrypoint",
+        "llm-friendly entrypoint",
+        "project structure guidance"
+      ],
+      "manifest": {
+        "id": "skill-documentation-structure-governance",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "e2e-workflow",
       "name": "e2e-workflow",
       "description": "E2E test workflow patterns: execution modes, evidence requirements, health endpoints, and pass/fail rules. Triggers on: e2e workflow, e2e modes, e2e evidence, e2e report format, health endpoints.",
@@ -236,6 +254,25 @@
       ],
       "manifest": {
         "id": "skill-frontend",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "github-troubleshooting",
+      "name": "github-troubleshooting",
+      "description": "Inspect GitHub Actions runs, workflow jobs/logs, pull requests, issues, commits, branches, and release artifacts using the built-in CLI GitHub MCP tools or the configured workspace GitHub MCP lane. Triggers on: github actions, workflow run, job logs, CI failure, PR status, issue thread, release artifact, github troubleshooting.",
+      "triggersOn": [
+        "ci failure",
+        "github actions",
+        "github troubleshooting",
+        "issue thread",
+        "job logs",
+        "pr status",
+        "release artifact",
+        "workflow run"
+      ],
+      "manifest": {
+        "id": "skill-github-troubleshooting",
         "loadMode": "on-demand"
       }
     },
@@ -432,6 +469,23 @@
       }
     },
     {
+      "skill": "project-conventions-governance",
+      "name": "project-conventions-governance",
+      "description": "Governance rules for identifying, auditing, and proposing project conventions with canonical-vs-inferred separation. Triggers on: project conventions, repo conventions, convention audit, convention drift, convention governance, propose conventions.",
+      "triggersOn": [
+        "convention audit",
+        "convention drift",
+        "convention governance",
+        "project conventions",
+        "propose conventions",
+        "repo conventions"
+      ],
+      "manifest": {
+        "id": "skill-project-conventions-governance",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "react-query",
       "name": "react-query",
       "description": ">",
@@ -458,6 +512,24 @@
       ],
       "manifest": {
         "id": "skill-refactor",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "roadmap-authoring",
+      "name": "roadmap-authoring",
+      "description": "Canonical authoring and maintenance rules for Repository Backlog and Roadmap artifacts, including Roadmap Sync-ready linked IDs and plan-pack handoff boundaries. Triggers on: repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio.",
+      "triggersOn": [
+        "backlog item",
+        "phased planning",
+        "planning portfolio",
+        "repository backlog",
+        "roadmap",
+        "roadmap item",
+        "roadmap sync"
+      ],
+      "manifest": {
+        "id": "skill-roadmap-authoring",
         "loadMode": "on-demand"
       }
     },
@@ -494,17 +566,19 @@
     {
       "skill": "skill-discovery",
       "name": "skill-discovery",
-      "description": "Dynamic skill discovery and resolution for the search/execute pattern. Teaches agents how to find, search, and load domain-specific skills from the vault instead of relying on always-loaded context. Use this when you need to find which skill applies to a task, resolve a pointer skill, or search the skill vault by keyword. Triggers on: find skill, which skill, search skills, discover skill, load skill, skill vault, pointer skill, resolve skill, skill for this task.",
-      "triggersOn": [
-        "discover skill",
-        "find skill",
-        "load skill",
-        "pointer skill",
-        "resolve skill",
-        "search skills",
-        "skill for this task",
-        "skill vault",
-        "which skill"
+      "description": "Vault-first skill routing for the search/execute pattern. Use this to resolve the smallest matching on-demand skill, apply the deterministic resolver chain, and load only the skills needed for the current step.",
+      "triggersOn": [],
+      "aliasKeys": [
+        "search-execute"
+      ],
+      "stacks": [
+        "orchestration"
+      ],
+      "tags": [
+        "catalog",
+        "discovery",
+        "routing",
+        "workflow"
       ],
       "manifest": {
         "id": "skill-discovery",
@@ -514,11 +588,13 @@
     {
       "skill": "skill-forge",
       "name": "skill-forge",
-      "description": "Pointer stub — skill creation is now handled by Elegy SkillForgeService. Triggers on: create skill, author skill, skill template, forge skill, project skill, runtime skill.",
+      "description": "Guidance for creating and updating repo-managed skills, including frontmatter, triggers, and metadata sync. Triggers on: create skill, author skill, skill template, forge skill, project skill, runtime skill.",
       "triggersOn": [
         "author skill",
         "create skill",
         "forge skill",
+        "phrase one",
+        "phrase two",
         "project skill",
         "runtime skill",
         "skill template"
@@ -557,9 +633,179 @@
         "target context",
         "which skills"
       ],
+      "aliasKeys": [
+        "target-context-detector"
+      ],
+      "frameworks": [
+        "angular",
+        "aspire",
+        "orleans",
+        "react",
+        "signalr",
+        "vue"
+      ],
+      "stacks": [
+        "api",
+        "desktop",
+        "frontend",
+        "infra"
+      ],
+      "languages": [
+        "csharp",
+        "go",
+        "javascript",
+        "python",
+        "typescript"
+      ],
+      "tags": [
+        "classification",
+        "detection",
+        "routing",
+        "targeting"
+      ],
       "manifest": {
         "id": "skill-stack-detector",
         "loadMode": "always"
+      }
+    },
+    {
+      "skill": "superpowers-brainstorming",
+      "name": "superpowers-brainstorming",
+      "description": "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-brainstorming",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-dispatching-parallel-agents",
+      "name": "superpowers-dispatching-parallel-agents",
+      "description": "Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-dispatching-parallel-agents",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-executing-plans",
+      "name": "superpowers-executing-plans",
+      "description": "Use when you have a written implementation plan to execute in a separate session with review checkpoints",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-executing-plans",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-finishing-a-development-branch",
+      "name": "superpowers-finishing-a-development-branch",
+      "description": "Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-finishing-a-development-branch",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-receiving-code-review",
+      "name": "superpowers-receiving-code-review",
+      "description": "Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-receiving-code-review",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-requesting-code-review",
+      "name": "superpowers-requesting-code-review",
+      "description": "Use when completing tasks, implementing major features, or before merging to verify work meets requirements",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-requesting-code-review",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-subagent-driven-development",
+      "name": "superpowers-subagent-driven-development",
+      "description": "Use when executing implementation plans with independent tasks in the current session",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-subagent-driven-development",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-systematic-debugging",
+      "name": "superpowers-systematic-debugging",
+      "description": "Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-systematic-debugging",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-test-driven-development",
+      "name": "superpowers-test-driven-development",
+      "description": "Use when implementing any feature or bugfix, before writing implementation code",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-test-driven-development",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-using-git-worktrees",
+      "name": "superpowers-using-git-worktrees",
+      "description": "Use when starting feature work that needs isolation from current workspace or before executing implementation plans - creates isolated git worktrees with smart directory selection and safety verification",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-using-git-worktrees",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-using-superpowers",
+      "name": "superpowers-using-superpowers",
+      "description": "Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-using-superpowers",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-verification-before-completion",
+      "name": "superpowers-verification-before-completion",
+      "description": "Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-verification-before-completion",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-writing-plans",
+      "name": "superpowers-writing-plans",
+      "description": "Use when you have a spec or requirements for a multi-step task, before touching code",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-writing-plans",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "superpowers-writing-skills",
+      "name": "superpowers-writing-skills",
+      "description": "Use when creating new skills, editing existing skills, or verifying skills work before deployment",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-superpowers-writing-skills",
+        "loadMode": "on-demand"
       }
     },
     {

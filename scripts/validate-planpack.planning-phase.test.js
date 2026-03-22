@@ -8,7 +8,7 @@ const os = require('os');
 const path = require('path');
 
 const PLANNING_VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack-planning.js');
-const FULL_VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack.js');
+const LEGACY_VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack.js');
 
 let passed = 0;
 
@@ -42,7 +42,7 @@ function runValidator(validatorPath, filePath, args = []) {
 	});
 }
 
-function buildPlanningPlanPack({ omitNextUnit = false, omitStatusTable = false } = {}) {
+function buildPlanningPlanPack({ omitNextUnit = false, omitStatusTable = false, graphRow } = {}) {
 	return `# Plan Pack — Planning Validation Test
 <!-- IE_PLAN_PACK_VERSION: 1 -->
 ## Goal + Success Criteria
@@ -70,7 +70,7 @@ function buildPlanningPlanPack({ omitNextUnit = false, omitStatusTable = false }
 ## Work Unit Graph
 | Group | Work Unit ID | Title | Depends On | Next Units | Parallel Safe |
 | --- | --- | --- | --- | --- | --- |
-| G-01-foundation | WU-001 | Establish planning validation | [] | [] | no |
+${graphRow || '| G-01-foundation | WU-001 | Establish planning validation | [] | [] | no |'}
 
 ## Work Unit Index
 | Group | Work Unit ID | Title | Spec Heading |
@@ -140,8 +140,9 @@ test('planning validator accepts a structurally valid pre-execution planpack wit
 		const planningResult = runValidator(PLANNING_VALIDATOR_PATH, filePath, ['--ac-enforcement', 'fail']);
 		assert.strictEqual(planningResult.status, 0, `planning validator should pass, stderr: ${planningResult.stderr}`);
 
-		const fullResult = runValidator(FULL_VALIDATOR_PATH, filePath);
-		assert.notStrictEqual(fullResult.status, 0, 'full validator should still fail without execution evidence sections');
+		const fullResult = runValidator(LEGACY_VALIDATOR_PATH, filePath);
+		assert.notStrictEqual(fullResult.status, 0, 'legacy compatibility validator should still fail without execution evidence sections');
+		assert.match(fullResult.stderr, /migration-only compatibility entrypoint/i);
 		assert.match(fullResult.stderr, /missing required stream evidence|missing required progress section: ## Final Gate Controls/i);
 	});
 });
@@ -155,12 +156,34 @@ test('planning validator still requires the base progress tracker next-unit sect
 	});
 });
 
+test('legacy compatibility validator still requires the base progress tracker next-unit section', () => {
+	const planContent = buildPlanningPlanPack({ omitNextUnit: true });
+	withTempPlanFile(planContent, (filePath) => {
+		const result = runValidator(LEGACY_VALIDATOR_PATH, filePath);
+		assert.notStrictEqual(result.status, 0, 'legacy compatibility validator should fail when Next Unit is missing');
+		assert.match(result.stderr, /migration-only compatibility entrypoint/i);
+		assert.match(result.stderr, /missing required progress section: ## Next Unit section required/i);
+	});
+});
+
 test('planning validator still requires the base progress tracker status table', () => {
 	const planContent = buildPlanningPlanPack({ omitStatusTable: true });
 	withTempPlanFile(planContent, (filePath) => {
 		const result = runValidator(PLANNING_VALIDATOR_PATH, filePath, ['--ac-enforcement', 'fail']);
 		assert.notStrictEqual(result.status, 0, 'planning validator should fail when Work Unit Status Table is missing');
 		assert.match(result.stderr, /missing required progress section: ## Work Unit Status Table section required \(markdown table required\)/i);
+	});
+});
+
+test('planning validator rejects Work Unit Graph references to missing WU IDs', () => {
+	const planContent = buildPlanningPlanPack({
+		graphRow: '| G-01-foundation | WU-001 | Establish planning validation | ["WU-999"] | ["WU-998"] | no |',
+	});
+	withTempPlanFile(planContent, (filePath) => {
+		const result = runValidator(PLANNING_VALIDATOR_PATH, filePath, ['--ac-enforcement', 'fail']);
+		assert.notStrictEqual(result.status, 0, 'planning validator should fail on dangling Work Unit Graph references');
+		assert.match(result.stderr, /WU-001 Work Unit Graph Depends On references missing WU-ID: WU-999/i);
+		assert.match(result.stderr, /WU-001 Work Unit Graph Next Units references missing WU-ID: WU-998/i);
 	});
 });
 

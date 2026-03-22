@@ -6,8 +6,9 @@ const path = require('path');
 const Ajv2020 = require('ajv/dist/2020').default;
 
 const repoRoot = path.resolve(__dirname, '..');
-const contractsDir = path.join(repoRoot, 'contracts', 'elegy');
-const manifestPath = path.join(contractsDir, 'compatibility-manifest.json');
+const contractsDir = path.join(repoRoot, 'contracts', 'session-state');
+const contractManifestPath = path.join(contractsDir, 'contract-manifest.json');
+const compatibilityManifestPath = path.join(contractsDir, 'compatibility-manifest.json');
 
 const requiredSchemas = [
 	'agent-definition.schema.json',
@@ -54,7 +55,8 @@ if (!fs.existsSync(contractsDir) || !fs.statSync(contractsDir).isDirectory()) {
 	fail(`missing contracts directory: ${path.relative(repoRoot, contractsDir)}`);
 }
 
-const manifest = readJson(manifestPath);
+const manifest = readJson(contractManifestPath);
+const compatibilityManifest = readJson(compatibilityManifestPath);
 const manifestSchemaFiles = new Set(
 	Array.isArray(manifest?.schemas)
 		? manifest.schemas.map((entry) => String(entry?.file || '')).filter(Boolean)
@@ -86,7 +88,41 @@ for (const schemaFile of requiredSchemas) {
 	readJson(schemaPath);
 
 	if (!manifestSchemaFiles.has(schemaFile)) {
-		fail(`compatibility-manifest missing schema entry for: ${schemaFile}`);
+		fail(`contract-manifest missing schema entry for: ${schemaFile}`);
+	}
+}
+
+if (compatibilityManifest) {
+	const canonicalSchema = Array.isArray(manifest?.schemas)
+		? manifest.schemas.find((entry) => entry?.name === 'canonical-workflow')
+		: null;
+
+	if (compatibilityManifest.metadataKind !== 'legacy-compatibility') {
+		fail('compatibility-manifest metadataKind must be legacy-compatibility');
+	}
+	if (compatibilityManifest.contractManifestFile !== path.basename(contractManifestPath)) {
+		fail('compatibility-manifest must point to contract-manifest.json');
+	}
+	if (Array.isArray(compatibilityManifest.schemas)) {
+		fail('compatibility-manifest must not embed schema listings');
+	}
+	if (compatibilityManifest.package?.version !== manifest?.package?.version) {
+		fail('compatibility-manifest package version must match contract-manifest');
+	}
+	if (compatibilityManifest.package?.name !== manifest?.package?.name) {
+		fail('compatibility-manifest package name must match contract-manifest');
+	}
+	if (canonicalSchema) {
+		const compatibilityCanonical = compatibilityManifest.canonicalSchema || {};
+		if (compatibilityCanonical.name !== canonicalSchema.name) {
+			fail('compatibility-manifest canonical schema name must match contract-manifest');
+		}
+		if (compatibilityCanonical.schemaVersion !== canonicalSchema.schemaVersion) {
+			fail('compatibility-manifest canonical schema version must match contract-manifest');
+		}
+		if (compatibilityCanonical.file !== canonicalSchema.file) {
+			fail('compatibility-manifest canonical schema file must match contract-manifest');
+		}
 	}
 }
 

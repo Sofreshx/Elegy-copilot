@@ -8,38 +8,17 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'RannIA/**'
-      - 'engine-assets/policy/**'
-      - '.cli/policy/**'
-      - 'scripts/validate-policy-lockfiles.js'
-      - 'scripts/validate-manifest.js'
-      - 'scripts/validate-skill-discovery-map.js'
-      - 'scripts/validate-skill-discovery-map.test.js'
-      - 'engine-assets/manifest.json'
-      - 'scripts/validate-doc-graph.js'
-      - 'scripts/validate-planpack.js'
-      - 'scripts/validate-planpack.evidence.test.js'
-      - 'scripts/validate-planpack.final-gate.test.js'
-      - 'engine-assets/skills/skill-discovery/SKILL.md'
-      - 'engine-assets/skills/stack-detector/SKILL.md'
-      - 'engine-assets/copilot-instructions.md'
-      - '.github/copilot-instructions.md'
-      - 'copilot-ui/VALIDATION.md'
-      - 'docs/system/runtime-permissions-contracts.md'
-      - 'docs/system/session-state-artifacts.md'
-      - 'docs/system/planpack-spec.md'
-      - 'README.md'
+      - 'vscode-skill-installer/**'
       - '.github/workflows/extension-ci.yml'
-  workflow_dispatch:
 
-env:
-  WS6_CI_TOPOLOGY_VERSION: ws6-v1
+defaults:
+  run:
+    working-directory: vscode-skill-installer
 
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         node-version: [20.x]
 
@@ -52,244 +31,32 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
-          cache-dependency-path: |
-            RannIA/package.json
-            scripts/package.json
-
-      - name: CI lockfile preflight
-        run: node scripts/validate-ci-lockfiles.js
+          cache-dependency-path: vscode-skill-installer/package-lock.json
 
       - name: Install dependencies
-        run: npm ci --workspaces=false
-        working-directory: RannIA
-
-      - name: Install scripts dependencies
-        run: npm ci --workspaces=false
-        working-directory: scripts
-
-      - name: Restore test cache
-        uses: actions/cache@v4
-        with:
-          path: .tmp/test-ledger
-          key: test-cache-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-${{ hashFiles('RannIA/package.json', 'scripts/package.json') }}
-          restore-keys: |
-            test-cache-${{ runner.os }}-${{ github.head_ref || github.ref_name }}-
-            test-cache-${{ runner.os }}-main-
-
-      - name: Validate policy lockfiles
-        run: node scripts/validate-policy-lockfiles.js
+        run: npm ci
 
       - name: Lint
         run: npm run lint --if-present
-        working-directory: RannIA
 
       - name: Compile TypeScript
         run: npm run compile
-        working-directory: RannIA
-
-      - name: Install Xvfb
-        run: sudo apt-get update && sudo apt-get install -y xvfb
 
       - name: Run tests
-        run: xvfb-run --auto-servernum npm test --if-present
-        working-directory: RannIA
+        run: npm test --if-present
 
       - name: Package extension
         run: npx @vscode/vsce package --out skill-installer.vsix
-        working-directory: RannIA
 
       - name: Upload VSIX artifact
         uses: actions/upload-artifact@v4
         with:
           name: skill-installer-vsix
-          path: RannIA/skill-installer.vsix
-          if-no-files-found: error
+          path: vscode-skill-installer/skill-installer.vsix
           retention-days: 30
 
-  ws6-evidence:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - evidence_id: WS6-E1
-            commands: |
-              node scripts/validate-doc-graph.js
-              node scripts/validate-skill-discovery-map.js
-              node scripts/validate-manifest.js
-          - evidence_id: WS6-E2
-            commands: |
-              node copilot-ui/server.lifecycle-proxy.test.js
-              npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/gatewayHttpServer.test.ts
-          - evidence_id: WS6-E3
-            commands: |
-              node copilot-ui/lib/planningPersistence.test.js
-              node copilot-ui/server.runtime-health.test.js
-          - evidence_id: WS6-E4
-            commands: |
-              node copilot-ui/dist-electron/rollbackPolicy.test.js
-              node copilot-ui/dist-electron/updatePolicy.rollback.test.js
-          - evidence_id: WS6-E5
-            commands: |
-              node copilot-ui/dist-electron/updater.rollback.test.js
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 20.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-          cache-dependency-path: |
-            scripts/package.json
-            copilot-ui/package.json
-            local-tracker/package.json
-
-      - name: CI lockfile preflight
-        run: node scripts/validate-ci-lockfiles.js
-
-      - name: Install scripts dependencies
-        run: npm ci
-        working-directory: scripts
-
-      - name: Install copilot-ui dependencies
-        run: npm ci
-        working-directory: copilot-ui
-
-      - name: Install local-tracker dependencies
-        run: npm ci
-        working-directory: local-tracker
-
-      - name: Execute WS6 evidence command pack
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p ws6-evidence
-          {
-            echo "ws6_ci_topology_version=${WS6_CI_TOPOLOGY_VERSION}"
-            echo "evidence_id=${{ matrix.evidence_id }}"
-            echo "run_id=${GITHUB_RUN_ID}"
-            echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
-            echo "sha=${GITHUB_SHA}"
-            echo "ref=${GITHUB_REF}"
-            echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "node=$(node --version)"
-            echo "---"
-            ${{ matrix.commands }}
-            echo "---"
-            echo "completed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          } 2>&1 | tee ws6-evidence/command.log
-
-      - name: Materialize WS6 evidence metadata + checksums
-        shell: bash
-        run: |
-          set -euo pipefail
-          node -e "const fs=require('fs');fs.writeFileSync('ws6-evidence/metadata.json',JSON.stringify({topologyVersion:process.env.WS6_CI_TOPOLOGY_VERSION,evidenceId:'${{ matrix.evidence_id }}',workflow:process.env.GITHUB_WORKFLOW,runId:process.env.GITHUB_RUN_ID,runAttempt:process.env.GITHUB_RUN_ATTEMPT,sha:process.env.GITHUB_SHA,ref:process.env.GITHUB_REF,eventName:process.env.GITHUB_EVENT_NAME},null,2));"
-          (
-            cd ws6-evidence
-            sha256sum command.log > command.log.sha256
-            sha256sum metadata.json > metadata.json.sha256
-          )
-
-      - name: Upload WS6 evidence artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ws6-evidence-${{ matrix.evidence_id }}
-          path: ws6-evidence/
-          if-no-files-found: error
-          retention-days: 14
-
-  ws6-artifact-gate:
-    needs: ws6-evidence
-    runs-on: ubuntu-latest
-    outputs:
-      complete: ${{ steps.verify.outputs.complete }}
-
-    steps:
-      - name: Download WS6 evidence artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: ws6-evidence-*
-          path: ws6-artifacts
-
-      - name: Enforce WS6 evidence completeness + integrity (fail closed)
-        id: verify
-        shell: bash
-        run: |
-          set -euo pipefail
-          expected=(WS6-E1 WS6-E2 WS6-E3 WS6-E4 WS6-E5)
-          shopt -s nullglob
-          found_dirs=(ws6-artifacts/ws6-evidence-*)
-
-          if [ "${#found_dirs[@]}" -ne "${#expected[@]}" ]; then
-            echo "Expected ${#expected[@]} WS6 evidence artifacts, found ${#found_dirs[@]}." >&2
-            exit 1
-          fi
-
-          for evidence_id in "${expected[@]}"; do
-            evidence_dir="ws6-artifacts/ws6-evidence-${evidence_id}"
-            if [ ! -d "${evidence_dir}" ]; then
-              echo "Missing evidence directory: ${evidence_dir}" >&2
-              exit 1
-            fi
-
-            for required_file in command.log command.log.sha256 metadata.json metadata.json.sha256; do
-              if [ ! -f "${evidence_dir}/${required_file}" ]; then
-                echo "Missing required evidence file: ${evidence_dir}/${required_file}" >&2
-                exit 1
-              fi
-            done
-
-            (cd "${evidence_dir}"; sha256sum -c command.log.sha256; sha256sum -c metadata.json.sha256)
-
-            EVIDENCE_DIR="${evidence_dir}" EXPECTED_ID="${evidence_id}" node -e "const fs=require('fs');const metadata=JSON.parse(fs.readFileSync(process.env.EVIDENCE_DIR + '/metadata.json','utf8'));if(metadata.evidenceId!==process.env.EXPECTED_ID){console.error('Evidence ID mismatch for ' + process.env.EVIDENCE_DIR + ': expected ' + process.env.EXPECTED_ID + ', got ' + metadata.evidenceId);process.exit(1);}"
-          done
-
-          echo "complete=true" >> "$GITHUB_OUTPUT"
-
-  required-checks:
-    if: always()
-    needs:
-      - build
-      - ws6-evidence
-      - ws6-artifact-gate
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Enforce strict required-check status semantics
-        shell: bash
-        env:
-          BUILD_RESULT: ${{ needs.build.result }}
-          WS6_EVIDENCE_RESULT: ${{ needs.ws6-evidence.result }}
-          WS6_ARTIFACT_GATE_RESULT: ${{ needs.ws6-artifact-gate.result }}
-          WS6_ARTIFACT_COMPLETE: ${{ needs.ws6-artifact-gate.outputs.complete }}
-        run: |
-          set -euo pipefail
-          failed=0
-
-          for result_var in BUILD_RESULT WS6_EVIDENCE_RESULT WS6_ARTIFACT_GATE_RESULT; do
-            value="${!result_var}"
-            if [ "${value}" != "success" ]; then
-              echo "Required check ${result_var} is not success (got: ${value})." >&2
-              failed=1
-            fi
-          done
-
-          if [ "${WS6_ARTIFACT_COMPLETE}" != "true" ]; then
-            echo "WS6 artifact completeness signal missing or false (WS6_ARTIFACT_COMPLETE=${WS6_ARTIFACT_COMPLETE:-<unset>})." >&2
-            failed=1
-          fi
-
-          if [ "${failed}" -ne 0 ]; then
-            exit 1
-          fi
-
   release:
-    needs:
-      - build
-      - required-checks
+    needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -319,3 +86,40 @@ jobs:
             artifacts/skill-installer.vsix
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  mobile-build:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'push' && 
+      (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main')
+
+    defaults:
+      run:
+        working-directory: mobile-companion
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'npm'
+          cache-dependency-path: mobile-companion/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test --if-present
+
+      - name: Build PWA
+        run: npm run build
+
+      - name: Upload PWA build
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-companion-pwa
+          path: mobile-companion/dist
+          retention-days: 30

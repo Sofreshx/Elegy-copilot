@@ -16,6 +16,50 @@ function safeResolveUnder(baseAbs, relPath) {
   return abs;
 }
 
+function safeRealpath(absPath, fsImpl = fs) {
+  try {
+    if (typeof fsImpl.realpathSync?.native === 'function') {
+      return fsImpl.realpathSync.native(absPath);
+    }
+    if (typeof fsImpl.realpathSync === 'function') {
+      return fsImpl.realpathSync(absPath);
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function isPathWithinRoot(rootAbs, candidateAbs) {
+  const normalizeComparablePath = (inputPath) => {
+    const resolved = path.resolve(inputPath);
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
+
+  const root = normalizeComparablePath(rootAbs);
+  const candidate = normalizeComparablePath(candidateAbs);
+  if (candidate === root) {
+    return true;
+  }
+  const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  return candidate.startsWith(prefix);
+}
+
+function assertInspectableAssetPath(absPath, assetsHomeAbs, fsImpl = fs) {
+  if (!fsImpl.existsSync(absPath)) {
+    return absPath;
+  }
+
+  const realPath = safeRealpath(absPath, fsImpl);
+  if (!realPath) {
+    throw Object.assign(new Error('Unable to resolve asset path'), { statusCode: 404 });
+  }
+  if (!isPathWithinRoot(assetsHomeAbs, realPath)) {
+    throw Object.assign(new Error('Resolved asset path escapes supported Copilot roots'), { statusCode: 400 });
+  }
+  return realPath;
+}
+
 function extractTriggers(absPath, fsImpl = fs) {
   try {
     const text = fsImpl.readFileSync(absPath, 'utf8');
@@ -24,6 +68,31 @@ function extractTriggers(absPath, fsImpl = fs) {
   } catch {
     return '';
   }
+}
+
+function resolvePointerTarget(relPath, absPath, assetsHomeAbs, assets, fsImpl, safeResolveUnderFn) {
+  if (!assets.isPointerFile || !assets.isPointerFile(absPath)) {
+    return absPath;
+  }
+
+  const pointerText = assets.readTextFileSafe(absPath, 64 * 1024);
+  const vaultRefMatch = String(pointerText || '').match(/vault-ref:\s*(\S+)/i);
+  if (!vaultRefMatch?.[1]) {
+    return absPath;
+  }
+
+  const pointerTarget = vaultRefMatch[1].trim().replace(/[\\/]+$/, '');
+  const candidatePath = /\.md$/i.test(pointerTarget) ? pointerTarget : `${pointerTarget}/SKILL.md`;
+  try {
+    const resolvedTarget = safeResolveUnderFn(assetsHomeAbs, candidatePath);
+    if (fsImpl.existsSync(resolvedTarget)) {
+      return resolvedTarget;
+    }
+  } catch {
+    // Keep the original pointer path when the vault-ref is malformed or escapes the home.
+  }
+
+  return absPath;
 }
 
 function handleAssetsManaged(ctx, deps) {
@@ -39,7 +108,9 @@ function handleAssetsInstalled(ctx, deps) {
   const { sendJson, assets } = deps;
   const assetsHomeAbs = copilotHomeAbs;
   const agents = assets.listInstalledAgents(assetsHomeAbs);
-  const skills = assets.listInstalledSkills(assetsHomeAbs);
+  const skills = typeof assets.listInstalledSkillInventory === 'function'
+    ? assets.listInstalledSkillInventory(assetsHomeAbs)
+    : assets.listInstalledSkills(assetsHomeAbs);
   const prompts = assets.listInstalledPrompts(assetsHomeAbs);
   const instructions = assets.getInstalledInstructions(assetsHomeAbs);
   sendJson(res, 200, { agents, skills, prompts, instructions });
@@ -93,20 +164,31 @@ function handleSkillsPreview(ctx, deps) {
       return;
     }
 
-    const skills = assets.listInstalledSkills(assetsHomeAbs);
+    const skills = typeof assets.listInstalledSkillInventory === 'function'
+      ? assets.listInstalledSkillInventory(assetsHomeAbs)
+      : assets.listInstalledSkills(assetsHomeAbs);
     const vaultDir = assets.getVaultDir ? assets.getVaultDir(assetsHomeAbs) : path.join(assetsHomeAbs, 'skills-vault');
     const result = skills.map((s) => {
       const triggers = extractTriggers(s.absPath);
-      const vaultPath = s.kind === 'pointer' ? path.join(vaultDir, s.name, 'SKILL.md') : null;
+      const vaultPath = s.kind === 'pointer'
+        ? path.join(vaultDir, ...(s.namespace ? [s.namespace] : []), s.name, 'SKILL.md')
+        : s.kind === 'vault'
+          ? s.absPath
+        : null;
       return {
+        assetId: s.assetId,
         name: s.name,
         kind: s.kind || 'full',
-        loadMode: 'always',
-        availability: s.kind === 'pointer' ? 'scan+vault' : 'scan-path',
+        loadMode: s.kind === 'vault' ? 'on-demand' : 'always',
+        availability: s.kind === 'pointer' ? 'scan+vault' : s.kind === 'vault' ? 'vault-only' : 'scan-path',
         triggers,
         absPath: s.absPath,
         vaultPath,
-        viewPath: `skills/${s.name}/SKILL.md`,
+        viewPath: s.viewPath || `skills/${s.name}/SKILL.md`,
+        namespace: s.namespace,
+        provider: s.provider,
+        sourcePackage: s.sourcePackage,
+        readOnly: s.readOnly === true,
       };
     });
     sendJson(res, 200, { skills: result });
@@ -145,17 +227,9 @@ function handleAssetsView(ctx, deps) {
   }
   try {
     let abs = safeResolveUnder(assetsHomeAbs, rel);
-    if (assets.isPointerFile && assets.isPointerFile(abs)) {
-      const vaultDir = assets.getVaultDir ? assets.getVaultDir(assetsHomeAbs) : path.join(assetsHomeAbs, 'skills-vault');
-      const relNorm = rel.split('\\').join('/').replace(/^\/+/, '');
-      const match = relNorm.match(/^skills\/([^/]+)\//);
-      if (match && match[1] !== '..' && match[1] !== '.') {
-        const vaultPath = path.join(vaultDir, match[1], 'SKILL.md');
-        if (fs.existsSync(vaultPath)) {
-          abs = vaultPath;
-        }
-      }
-    }
+    abs = assertInspectableAssetPath(abs, assetsHomeAbs, fs);
+    abs = resolvePointerTarget(rel, abs, assetsHomeAbs, assets, fs, safeResolveUnder);
+    abs = assertInspectableAssetPath(abs, assetsHomeAbs, fs);
     const text = assets.readTextFileSafe(abs, 512 * 1024);
     if (text == null) {
       sendText(res, 404, 'Not found');
@@ -179,7 +253,7 @@ function handleAssetsDelete(ctx, deps) {
       if (typeof relPath !== 'string' || !relPath.trim()) throw Object.assign(new Error('path is required'), { statusCode: 400 });
 
       // Guardrails: only delete within agents/ or skills/.
-      const normalized = relPath.split('\\').join('/').replace(/^\/+/, '');
+      let normalized = relPath.split('\\').join('/').replace(/^\/+/, '');
       if (!(normalized.startsWith('agents/') || normalized.startsWith('skills/'))) {
         throw Object.assign(new Error('Only agents/* or skills/* may be deleted'), { statusCode: 400 });
       }
@@ -188,6 +262,18 @@ function handleAssetsDelete(ctx, deps) {
       }
       if (normalized.startsWith('agents/') && !normalized.toLowerCase().endsWith('.agent.md')) {
         throw Object.assign(new Error('Refusing to delete non-agent file under agents/ (expected *.agent.md)'), { statusCode: 400 });
+      }
+      if (normalized.startsWith('skills/')) {
+        const match = normalized.match(/^skills\/([^/]+)(?:\/SKILL\.md)?$/i);
+        if (!match) {
+          throw Object.assign(new Error('Refusing to delete nested skill paths under skills/'), { statusCode: 400 });
+        }
+        const skillRoot = safeResolveUnder(assetsHomeAbs, `skills/${match[1]}`);
+        const skillFile = path.join(skillRoot, 'SKILL.md');
+        if (!fs.existsSync(skillFile)) {
+          throw Object.assign(new Error('Refusing to delete unsupported skill namespace roots'), { statusCode: 400 });
+        }
+        normalized = `skills/${match[1]}`;
       }
 
       if (!force) {

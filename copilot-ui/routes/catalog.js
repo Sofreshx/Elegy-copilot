@@ -1,12 +1,20 @@
 'use strict';
 
 const crypto = require('crypto');
+const childProcess = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+const {
+  applyActivationToBundles,
+  buildRoutingPolicySnapshot,
+  resolveCatalogActivationState,
+} = require('../lib/catalogActivationState');
 const catalogProjectionLib = require('../lib/catalogProjectionService');
 const catalogMutationLib = require('../lib/catalogMutationService');
+const providerCatalogLib = require('../lib/providerCatalog');
 const repoInventoryLib = require('../lib/repoInventoryService');
+const repoDiscoveryLib = require('../lib/repoDiscoveryService');
 const {
   appendCatalogAuditEvent,
   buildAssetAuditAnalytics,
@@ -178,6 +186,165 @@ function describeFile(absPath, fsImpl = fs) {
   };
 }
 
+function writeJsonAtomic(absPath, value, fsImpl = fs, pathImpl = path) {
+  const dirPath = pathImpl.dirname(absPath);
+  const tempPath = pathImpl.join(
+    dirPath,
+    `.${pathImpl.basename(absPath)}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`,
+  );
+  fsImpl.mkdirSync(dirPath, { recursive: true });
+  fsImpl.writeFileSync(tempPath, JSON.stringify(value, null, 2) + '\n', 'utf8');
+  fsImpl.renameSync(tempPath, absPath);
+}
+
+function normalizeProviderAction(value) {
+  const normalized = normalizeString(value).toLowerCase() || 'install';
+  if (normalized !== 'install' && normalized !== 'update') {
+    throw Object.assign(new Error('action must be "install" or "update"'), { statusCode: 400 });
+  }
+  return normalized;
+}
+
+function resolveManagedImportProvider(providerCatalog, providerId) {
+  const provider = (Array.isArray(providerCatalog?.providers) ? providerCatalog.providers : [])
+    .find((entry) => normalizeString(entry?.id) === providerId);
+
+  if (!provider) {
+    throw Object.assign(new Error(`Unknown providerId: ${providerId}`), { statusCode: 404 });
+  }
+
+  if (normalizeString(provider.installStrategy) !== 'managed-import') {
+    throw Object.assign(new Error(`Provider ${providerId} does not support managed installs`), { statusCode: 400 });
+  }
+
+  const namespace = normalizeString(provider?.assetLayout?.namespace);
+  const owner = normalizeString(provider?.source?.owner);
+  const repo = normalizeString(provider?.source?.repo);
+  if (!namespace || !owner || !repo) {
+    throw Object.assign(new Error(`Provider ${providerId} is missing managed install metadata`), { statusCode: 400 });
+  }
+
+  return {
+    provider,
+    namespace,
+    marketplaceRef: `${owner}/${repo}`,
+    pluginRef: `${namespace}@${providerId}`,
+  };
+}
+
+function runProviderCommand(deps, command, args, timeoutMs) {
+  if (typeof deps.executeProviderCommand === 'function') {
+    return deps.executeProviderCommand({ command, args, timeoutMs });
+  }
+
+  return new Promise((resolve, reject) => {
+    deps.childProcess.execFile(
+      command,
+      args,
+      {
+        timeout: timeoutMs,
+        windowsHide: true,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(Object.assign(error, { stdout, stderr }));
+          return;
+        }
+
+        resolve({ stdout, stderr });
+      },
+    );
+  });
+}
+
+async function executeManagedProviderInstall(deps, providerInstall, action) {
+  const commandCandidates = deps.process.platform === 'win32'
+    ? ['copilot.cmd', 'copilot']
+    : ['copilot'];
+  const steps = [
+    {
+      id: 'marketplace-add',
+      args: ['plugin', 'marketplace', 'add', providerInstall.marketplaceRef],
+    },
+    {
+      id: action === 'update' ? 'plugin-update' : 'plugin-install',
+      args: ['plugin', action === 'update' ? 'update' : 'install', providerInstall.pluginRef],
+    },
+  ];
+  const results = [];
+
+  for (const step of steps) {
+    let completed = false;
+    let lastError = null;
+
+    for (const command of commandCandidates) {
+      try {
+        const output = await runProviderCommand(deps, command, step.args, 120000);
+        results.push({
+          step: step.id,
+          command,
+          args: step.args,
+          ok: true,
+          stdout: String(output.stdout || ''),
+          stderr: String(output.stderr || ''),
+        });
+        completed = true;
+        break;
+      } catch (error) {
+        lastError = error;
+        if (error && (error.code === 'ENOENT' || error.code === 'UNKNOWN')) {
+          continue;
+        }
+
+        results.push({
+          step: step.id,
+          command,
+          args: step.args,
+          ok: false,
+          stdout: String(error?.stdout || ''),
+          stderr: String(error?.stderr || ''),
+          error: String(error?.message || error),
+        });
+        throw Object.assign(new Error(`Provider command failed: ${step.id}`), {
+          statusCode: 502,
+          commandResults: results,
+        });
+      }
+    }
+
+    if (!completed) {
+      results.push({
+        step: step.id,
+        command: commandCandidates[0],
+        args: step.args,
+        ok: false,
+        stdout: String(lastError?.stdout || ''),
+        stderr: String(lastError?.stderr || ''),
+        error: String(lastError?.message || 'copilot command not found'),
+      });
+      throw Object.assign(new Error('Copilot CLI command was not found on PATH'), {
+        statusCode: 503,
+        commandResults: results,
+      });
+    }
+  }
+
+  return results;
+}
+
+function persistProviderInstallState(deps, copilotHomeAbs, providerId, entry) {
+  const { statePath, state } = deps.providerCatalog.loadProviderInstallState(copilotHomeAbs);
+  const nextState = {
+    schemaVersion: Number(state?.schemaVersion) || 1,
+    providers: {
+      ...(state?.providers && typeof state.providers === 'object' ? state.providers : {}),
+      [providerId]: entry,
+    },
+  };
+  writeJsonAtomic(statePath, nextState, deps.fs, deps.path);
+  return nextState.providers[providerId];
+}
+
 function normalizeRepoSelector(searchParams, body) {
   const source = body && typeof body === 'object' ? body : {};
   const repoPath = normalizeString(source.repoPath || searchParams?.get('repoPath'));
@@ -194,6 +361,31 @@ function buildCatalogOptions(ctx, selector) {
     copilotHome: ctx.copilotHomeAbs,
     ...(selector && typeof selector === 'object' ? selector : {}),
   };
+}
+
+function buildActivationStateForProjection(ctx, projectionContext) {
+  const repoPath = projectionContext?.snapshot?.repoContext?.repoPath || projectionContext?.storage?.repoContext?.repoPath || null;
+  if (!projectionContext?.snapshot) {
+    return null;
+  }
+  return resolveCatalogActivationState({
+    snapshot: projectionContext.snapshot,
+    copilotHome: ctx.copilotHomeAbs,
+    repoPath,
+  });
+}
+
+function buildRoutingPolicyForProjection(ctx, projectionContext, activationState = null) {
+  const repoPath = projectionContext?.snapshot?.repoContext?.repoPath || projectionContext?.storage?.repoContext?.repoPath || null;
+  if (!projectionContext?.snapshot) {
+    return null;
+  }
+  return buildRoutingPolicySnapshot({
+    snapshot: projectionContext.snapshot,
+    activationState: activationState || buildActivationStateForProjection(ctx, projectionContext),
+    copilotHome: ctx.copilotHomeAbs,
+    repoPath,
+  });
 }
 
 function createCatalogRuntimeState() {
@@ -308,6 +500,8 @@ function buildSnapshotEnvelope(snapshot, projectionContext, deps, runtimeState, 
     manifest: describeFile(snapshot?.inputs?.manifestPath, deps.fs),
     metadataIndex: describeFile(snapshot?.inputs?.metadataIndexPath, deps.fs),
     registry: describeFile(snapshot?.inputs?.registryPath, deps.fs),
+    providerCatalog: describeFile(snapshot?.inputs?.providerCatalogPath, deps.fs),
+    providerState: describeFile(snapshot?.inputs?.providerStatePath, deps.fs),
     snapshot: describeFile(projectionContext.storage.snapshotPath, deps.fs),
   };
   const warnings = summarizeWarnings(snapshot);
@@ -317,6 +511,7 @@ function buildSnapshotEnvelope(snapshot, projectionContext, deps, runtimeState, 
     generatedAt: snapshot?.generatedAt || null,
     readMode: projectionContext.readMode,
     repoContext: snapshot?.repoContext || projectionContext.storage.repoContext || null,
+    providers: Array.isArray(snapshot?.providers) ? snapshot.providers : [],
     storage: {
       catalogRoot: projectionContext.storage.catalogRoot,
       snapshotPath: projectionContext.storage.snapshotPath,
@@ -329,6 +524,8 @@ function buildSnapshotEnvelope(snapshot, projectionContext, deps, runtimeState, 
       manifest: inputFiles.manifest,
       metadataIndex: inputFiles.metadataIndex,
       registry: inputFiles.registry,
+      providerCatalog: inputFiles.providerCatalog,
+      providerState: inputFiles.providerState,
     }),
     rebuild: {
       ...runtimeState,
@@ -356,6 +553,12 @@ function normalizeCatalogFilters(searchParams) {
 function normalizeBundleFilters(searchParams) {
   return {
     bundleId: normalizeString(searchParams.get('bundleId')),
+    classification: normalizeString(searchParams.get('classification')).toLowerCase(),
+    scopeKind: normalizeString(searchParams.get('scopeKind')).toLowerCase(),
+    language: normalizeString(searchParams.get('language')).toLowerCase(),
+    framework: normalizeString(searchParams.get('framework')).toLowerCase(),
+    stack: normalizeString(searchParams.get('stack')).toLowerCase(),
+    tag: normalizeString(searchParams.get('tag')).toLowerCase(),
     text: normalizeString(searchParams.get('q') || searchParams.get('text')),
   };
 }
@@ -477,8 +680,13 @@ function buildSearchExplanations(effectiveState, query) {
   return explanations;
 }
 
-function buildSearchResults(snapshot, request) {
+function buildSearchResults(snapshot, request, routingPolicy = null) {
   const list = Array.isArray(snapshot?.effectiveAssets) ? snapshot.effectiveAssets : [];
+  const eligibleAssetIds = new Set(
+    !request.overrideRoutingPolicy && Array.isArray(routingPolicy?.eligibleAssetIds)
+      ? routingPolicy.eligibleAssetIds
+      : []
+  );
   const filtered = list.filter((asset) => {
     if (!asset || typeof asset !== 'object') {
       return false;
@@ -496,6 +704,12 @@ function buildSearchResults(snapshot, request) {
       return false;
     }
     if (!request.includeVaultOnly && asset.installState?.availability === 'vault-only') {
+      return false;
+    }
+    if (eligibleAssetIds.size > 0 && !eligibleAssetIds.has(asset.assetId)) {
+      return false;
+    }
+    if (!request.overrideRoutingPolicy && routingPolicy && eligibleAssetIds.size === 0) {
       return false;
     }
     if (request.tags.length > 0 && !listIncludesAny(asset.selectedEntry?.targeting?.tags, request.tags)) {
@@ -575,6 +789,7 @@ function parseSearchRequest(body = {}) {
     includeVaultOnly: Boolean(source.includeVaultOnly),
     includeDisabled: Boolean(source.includeDisabled),
     includeDeprecated: Boolean(source.includeDeprecated),
+    overrideRoutingPolicy: Boolean(source.overrideRoutingPolicy),
     preferLoadMode: normalizeString(source.preferLoadMode),
     workspaceId: normalizeString(source.workspaceId),
     workspacePath: normalizeString(source.workspacePath),
@@ -654,10 +869,18 @@ function handleCatalogSummary(ctx, deps) {
     return;
   }
 
+  const activation = buildActivationStateForProjection(ctx, projectionContext);
+  const routingPolicy = buildRoutingPolicyForProjection(ctx, projectionContext, activation);
   deps.sendJson(ctx.res, 200, {
     kind: 'catalog.summary',
     deterministic: true,
-    summary: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState),
+    summary: buildSnapshotEnvelope(
+      projectionContext.snapshot,
+      projectionContext,
+      deps,
+      deps.catalogRuntimeState,
+      { activation, routingPolicy },
+    ),
   });
 }
 
@@ -696,13 +919,17 @@ function handleCatalogBundles(ctx, deps) {
   }
 
   const filters = stripEmptyFields(normalizeBundleFilters(ctx.u.searchParams));
-  const bundles = deps.catalogProjection.queryCatalogBundles(projectionContext.snapshot, filters);
+  const activation = buildActivationStateForProjection(ctx, projectionContext);
+  const bundles = applyActivationToBundles(
+    deps.catalogProjection.queryCatalogBundles(projectionContext.snapshot, filters),
+    activation,
+  );
   deps.sendJson(ctx.res, 200, {
     kind: 'catalog.bundles.list',
     deterministic: true,
     filters,
     count: bundles.length,
-    snapshot: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState),
+    snapshot: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState, { activation }),
     bundles,
   });
 }
@@ -830,6 +1057,101 @@ function handleCatalogAssetInstall(ctx, deps) {
     deps.catalogMutation.installAsset(mutationOptions, body, mutationOptions));
 }
 
+function handleCatalogBundleUninstall(ctx, deps) {
+  executeCatalogMutation(ctx, deps, 'catalog.bundle.uninstall', (body, mutationOptions) =>
+    deps.catalogMutation.uninstallBundle(mutationOptions, body, mutationOptions));
+}
+
+function handleCatalogProviderInstall(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const providerId = normalizeString(body?.providerId);
+      if (!providerId) {
+        throw Object.assign(new Error('providerId is required'), { statusCode: 400 });
+      }
+
+      const action = normalizeProviderAction(body?.action);
+      const { providerCatalog } = deps.providerCatalog.loadProviderCatalog(ctx.engineRoot);
+      const providerInstall = resolveManagedImportProvider(providerCatalog, providerId);
+      const attemptedAt = new Date().toISOString();
+
+      try {
+        const commandResults = await executeManagedProviderInstall(deps, providerInstall, action);
+        const stateEntry = persistProviderInstallState(deps, ctx.copilotHomeAbs, providerId, {
+          providerId,
+          title: providerInstall.provider.title || providerId,
+          installStrategy: providerInstall.provider.installStrategy || null,
+          bridgeStrategy: providerInstall.provider.bridgeStrategy || null,
+          installed: true,
+          pluginRef: providerInstall.pluginRef,
+          marketplaceRef: providerInstall.marketplaceRef,
+          lastAction: action,
+          lastAttemptAt: attemptedAt,
+          lastSuccessAt: attemptedAt,
+          lastError: null,
+          lastCommandResults: commandResults,
+        });
+
+        const snapshot = rebuildProjection(ctx, deps, {}, 'catalog_provider_install');
+        const projectionContext = {
+          storage: deps.catalogProjection.resolveProjectionStorage(buildCatalogOptions(ctx, {})),
+          readMode: 'persisted-snapshot',
+        };
+
+        deps.sendJson(ctx.res, 200, {
+          kind: 'catalog.provider.install',
+          deterministic: true,
+          action,
+          providerId,
+          provider: {
+            providerId,
+            title: providerInstall.provider.title || providerId,
+            installStrategy: providerInstall.provider.installStrategy || null,
+            bridgeStrategy: providerInstall.provider.bridgeStrategy || null,
+            pluginRef: providerInstall.pluginRef,
+            marketplaceRef: providerInstall.marketplaceRef,
+          },
+          state: stateEntry,
+          commands: commandResults,
+          snapshot: buildSnapshotEnvelope(snapshot, projectionContext, deps, deps.catalogRuntimeState),
+        });
+      } catch (error) {
+        const commandResults = Array.isArray(error?.commandResults) ? error.commandResults : [];
+        const stateEntry = persistProviderInstallState(deps, ctx.copilotHomeAbs, providerId, {
+          providerId,
+          title: providerInstall.provider.title || providerId,
+          installStrategy: providerInstall.provider.installStrategy || null,
+          bridgeStrategy: providerInstall.provider.bridgeStrategy || null,
+          installed: false,
+          pluginRef: providerInstall.pluginRef,
+          marketplaceRef: providerInstall.marketplaceRef,
+          lastAction: action,
+          lastAttemptAt: attemptedAt,
+          lastFailureAt: attemptedAt,
+          lastError: String(error?.message || error),
+          lastCommandResults: commandResults,
+        });
+
+        deps.sendJson(ctx.res, error.statusCode || 500, {
+          kind: 'catalog.provider.install',
+          deterministic: true,
+          error: String(error?.message || error),
+          action,
+          providerId,
+          state: stateEntry,
+          commands: commandResults,
+        });
+      }
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.provider.install',
+      String(error.message || error),
+    ));
+}
+
 function handleCatalogAssetEnable(ctx, deps) {
   executeCatalogMutation(ctx, deps, 'catalog.asset.enable', (body, mutationOptions) =>
     deps.catalogMutation.setAssetEnabled(mutationOptions, body, true, mutationOptions));
@@ -838,6 +1160,11 @@ function handleCatalogAssetEnable(ctx, deps) {
 function handleCatalogAssetDisable(ctx, deps) {
   executeCatalogMutation(ctx, deps, 'catalog.asset.disable', (body, mutationOptions) =>
     deps.catalogMutation.setAssetEnabled(mutationOptions, body, false, mutationOptions));
+}
+
+function handleCatalogActivationUpdate(ctx, deps) {
+  executeCatalogMutation(ctx, deps, 'catalog.activation.update', (body, mutationOptions) =>
+    deps.catalogMutation.updateCatalogActivation(mutationOptions, body, mutationOptions));
 }
 
 function handleSearchQuery(ctx, deps) {
@@ -856,18 +1183,27 @@ function handleSearchQuery(ctx, deps) {
         sendJsonError(ctx.res, deps.sendJson, 503, 'catalog.search.query', detail);
         return;
       }
+      const activation = buildActivationStateForProjection(ctx, projectionContext);
+      const routingPolicy = buildRoutingPolicyForProjection(ctx, projectionContext, activation);
 
       const searchResponse = request.kind === 'skill'
         ? searchSkills(request, {
           snapshot: projectionContext.snapshot,
           copilotHome: ctx.copilotHomeAbs,
+          routingPolicy,
           repoId: request.repoId || projectionContext.snapshot?.repoContext?.repoId,
           repoPath: request.repoPath || projectionContext.snapshot?.repoContext?.repoPath,
           workspaceId: request.workspaceId || undefined,
           workspacePath: request.workspacePath || undefined,
         })
         : {
-          results: buildSearchResults(projectionContext.snapshot, request),
+          results: buildSearchResults(projectionContext.snapshot, request, routingPolicy),
+          routingPolicy: routingPolicy
+            ? {
+              ...routingPolicy,
+              mode: request.overrideRoutingPolicy ? 'explicit-override' : 'eligible-only',
+            }
+            : null,
           totalCandidates: Array.isArray(projectionContext.snapshot?.effectiveAssets)
             ? projectionContext.snapshot.effectiveAssets.length
             : 0,
@@ -938,6 +1274,7 @@ function handleSearchQuery(ctx, deps) {
           includeVaultOnly: request.includeVaultOnly,
           includeDisabled: request.includeDisabled,
           includeDeprecated: request.includeDeprecated,
+          overrideRoutingPolicy: request.overrideRoutingPolicy,
           preferLoadMode: request.preferLoadMode || null,
           workspaceId: request.workspaceId || null,
           workspacePath: request.workspacePath || null,
@@ -946,7 +1283,14 @@ function handleSearchQuery(ctx, deps) {
         },
         count: results.length,
         results,
-        snapshot: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState),
+        routingPolicy: searchResponse.routingPolicy || null,
+        snapshot: buildSnapshotEnvelope(
+          projectionContext.snapshot,
+          projectionContext,
+          deps,
+          deps.catalogRuntimeState,
+          { activation, routingPolicy: searchResponse.routingPolicy || routingPolicy || null },
+        ),
         audit: {
           logged: Boolean(searchAudit.logged && resultAudit.logged),
           path: searchAudit.path,
@@ -1123,7 +1467,16 @@ function handleRuntimeCatalogHealth(ctx, deps) {
     kind: 'runtime.catalog-health',
     deterministic: true,
     ok: true,
-    projection: buildSnapshotEnvelope(projectionContext.snapshot, projectionContext, deps, deps.catalogRuntimeState),
+    projection: buildSnapshotEnvelope(
+      projectionContext.snapshot,
+      projectionContext,
+      deps,
+      deps.catalogRuntimeState,
+      {
+        activation: buildActivationStateForProjection(ctx, projectionContext),
+        routingPolicy: buildRoutingPolicyForProjection(ctx, projectionContext),
+      },
+    ),
     audit: {
       path: auditLogPath,
       exists: auditFile.exists,
@@ -1197,8 +1550,36 @@ function handleCatalogReposList(ctx, deps) {
     count: inventory.repos.length,
     selectedRepo: inventory.selectedRepo,
     storage: inventory.storage,
+    workspaceScan: inventory.workspaceScan,
     repos: inventory.repos,
   }));
+}
+
+function handleCatalogRepoScanRoots(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then((body) => {
+      const source = body && typeof body === 'object' ? body : {};
+      const customScanRoots = normalizeArray(source.customScanRoots || source.scanRoots);
+      deps.repoDiscovery.saveRepoDiscoveryState(ctx.copilotHomeAbs, {
+        customScanRoots,
+      });
+      const inventory = listRepoInventory(ctx, deps);
+      deps.sendJson(ctx.res, 200, buildRepoInventoryResponse('catalog.repos.scan-roots', {
+        updated: true,
+        count: inventory.repos.length,
+        selectedRepo: inventory.selectedRepo,
+        storage: inventory.storage,
+        workspaceScan: inventory.workspaceScan,
+        repos: inventory.repos,
+      }));
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'catalog.repos.scan-roots',
+      String(error.message || error),
+    ));
 }
 
 function handleCatalogRepoRegister(ctx, deps) {
@@ -1220,6 +1601,7 @@ function handleCatalogRepoRegister(ctx, deps) {
         repo: result.repo,
         selectedRepo: result.inventory.selectedRepo,
         storage: result.inventory.storage,
+        workspaceScan: result.inventory.workspaceScan,
       }));
     })
     .catch((error) => sendJsonError(
@@ -1247,6 +1629,7 @@ function handleCatalogRepoUnregister(ctx, deps) {
         selectionCleared: result.selectionCleared,
         selectedRepo: result.inventory.selectedRepo,
         storage: result.inventory.storage,
+        workspaceScan: result.inventory.workspaceScan,
       }));
     })
     .catch((error) => sendJsonError(
@@ -1274,6 +1657,7 @@ function handleCatalogRepoSelect(ctx, deps) {
         repo: result.repo,
         selectedRepo: result.inventory.selectedRepo,
         storage: result.inventory.storage,
+        workspaceScan: result.inventory.workspaceScan,
       }));
     })
     .catch((error) => sendJsonError(
@@ -1341,6 +1725,7 @@ function handleCatalogRepoRefresh(ctx, deps) {
         repo: refreshedRepo,
         selectedRepo: refreshedInventory.selectedRepo,
         storage: refreshedInventory.storage,
+        workspaceScan: refreshedInventory.workspaceScan,
         audit: {
           logged: audit.logged,
           path: audit.path,
@@ -1375,12 +1760,17 @@ function sendJsonError(res, sendJson, statusCode, kind, error) {
 
 function register(deps = {}) {
   const resolvedDeps = {
+    childProcess: deps.childProcess || childProcess,
     fs: deps.fs || fs,
     path: deps.path || path,
+    process: deps.process || process,
     crypto: deps.crypto || crypto,
     catalogProjection: deps.catalogProjection || catalogProjectionLib,
     catalogMutation: deps.catalogMutation || catalogMutationLib,
+    providerCatalog: deps.providerCatalog || providerCatalogLib,
+    executeProviderCommand: deps.executeProviderCommand,
     repoInventory: deps.repoInventory || repoInventoryLib,
+    repoDiscovery: deps.repoDiscovery || repoDiscoveryLib,
     sendJson: deps.sendJson || defaultSendJson,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     catalogRuntimeState: deps.catalogRuntimeState || createCatalogRuntimeState(),
@@ -1396,6 +1786,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/repos/register',
       handler: (ctx) => handleCatalogRepoRegister(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/repos/scan-roots',
+      handler: (ctx) => handleCatalogRepoScanRoots(ctx, resolvedDeps),
     },
     {
       method: 'POST',
@@ -1464,6 +1859,16 @@ function register(deps = {}) {
     },
     {
       method: 'POST',
+      path: '/api/catalog/bundles/uninstall',
+      handler: (ctx) => handleCatalogBundleUninstall(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/providers/install',
+      handler: (ctx) => handleCatalogProviderInstall(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
       path: '/api/catalog/assets/enable',
       handler: (ctx) => handleCatalogAssetEnable(ctx, resolvedDeps),
     },
@@ -1471,6 +1876,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/assets/disable',
       handler: (ctx) => handleCatalogAssetDisable(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/activation',
+      handler: (ctx) => handleCatalogActivationUpdate(ctx, resolvedDeps),
     },
     {
       method: 'POST',

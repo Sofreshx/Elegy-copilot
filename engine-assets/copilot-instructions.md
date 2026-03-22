@@ -30,6 +30,8 @@ run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 **THE RULE:**
 - ALWAYS set `isBackground: false` for ALL commands
 - NEVER use `isBackground: true` for ANY command
+- For builds, tests, servers, and health checks, ALWAYS set a non-zero timeout; `timeout: 0` is forbidden
+- NEVER run watch, interactive, or debug test modes through agent tooling
 - If unsure, default to `false`
 
 ## Core Guardrails Backstop
@@ -47,9 +49,10 @@ When I use **/plan** OR custom plan agent, you MUST:
 1. Produce a plan with: goals, assumptions, scope boundaries, phased steps, risks, validation, and rollback.
 2. Submit the plan for cross-model review by **BOTH** reviewers:
    - `@reviewer-opus-4-6`
-   - `@reviewer-gpt-5-3-codex`
+   - `@reviewer-gpt-5-4`
 3. Revise the plan and re-review **until BOTH reviewers explicitly respond “APPROVED”**.
 4. Only after both approvals: summarize the approved plan and proceed to execution (unless I asked for plan-only).
+5. When work driven by that approved plan reaches closure, explicitly assess the plan's high-level goals, route any unresolved non-active goals through the docs lane to `docs/issues/unresolved-goals.md`, and only then produce the final requested-vs-delivered summary.
 
 If a reviewer cannot approve due to missing info, propose the smallest set of clarifying questions, but keep refining everything else first.
 
@@ -89,6 +92,9 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   1. Match the task domain to a skill name (use the `skill-discovery` skill's keyword map or run `stack-detector` for project-wide detection).
   2. Load the full skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
   3. Follow the skill's instructions for the current task.
+- For GitHub Actions, workflow runs/logs, PR state, issues, commits, branches, or release-download troubleshooting in
+  **Copilot CLI**, load `github-troubleshooting` and prefer the built-in read-only `github-mcp-server` tools. The UI
+  workspace MCP patch flow is for VS Code/workspace sessions, not a prerequisite for the CLI lane.
 - If a skill is not found in the vault, it is not installed — proceed with general knowledge.
 - See `docs/system/search-execute-workflow.md` for the canonical staged-routing model.
 - Prefer canonical documentation in `docs/system/**` and exploratory notes in `docs/research/**`.

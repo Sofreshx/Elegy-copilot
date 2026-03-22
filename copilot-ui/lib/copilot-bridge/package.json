@@ -1,5 +1,5 @@
 {
-  "name": "@instruction-engine/copilot-bridge",
+  "name": "@elegy-copilot/copilot-bridge",
   "private": true,
   "type": "module"
 }

@@ -1,0 +1,119 @@
+.catalog-overview-view,
+.catalog-agents-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.catalog-overview-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+}
+
+.catalog-metric-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.catalog-metric-card,
+.catalog-agent-card,
+.catalog-spotlight-card {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 0.9rem;
+  padding: 0.9rem;
+  background: rgba(15, 23, 42, 0.22);
+}
+
+.catalog-metric-label,
+.catalog-spotlight-kicker {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.catalog-metric-value {
+  margin: 0.35rem 0 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.catalog-metric-value-small {
+  font-size: 1rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.catalog-overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.catalog-definition-grid {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  margin: 0;
+}
+
+.catalog-definition-grid dt {
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.catalog-definition-grid dd {
+  margin: 0;
+}
+
+.catalog-spotlight-header,
+.catalog-agent-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.catalog-spotlight-header h4,
+.catalog-agent-card h4 {
+  margin: 0.2rem 0 0.35rem;
+}
+
+.catalog-spotlight-copy,
+.catalog-agent-description {
+  margin: 0;
+}
+
+.catalog-agent-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.catalog-featured-provider-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 0.9rem;
+  background: rgba(30, 41, 59, 0.4);
+}
+
+.catalog-featured-provider-banner p {
+  margin: 0.2rem 0;
+}
+
+@media (max-width: 900px) {
+  .catalog-featured-provider-banner,
+  .catalog-agent-card-header,
+  .catalog-spotlight-header {
+    flex-direction: column;
+  }
+}

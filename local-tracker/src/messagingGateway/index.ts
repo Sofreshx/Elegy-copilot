@@ -1,11 +1,16 @@
 import fs from 'fs';
 import childProcess from 'child_process';
 import path from 'path';
+import {
+	buildEmptyMessagingGatewayDiscoveryTelemetrySummary,
+	buildMessagingGatewayReadinessMetadata,
+} from '@elegy-copilot/contracts';
 
 import type { LifecycleAction, MessagingGatewayConfig, MessagingGatewayMode, ResolvedSandboxLifecycleConfig } from './config';
 import { GatewayHttpServer } from './gatewayHttpServer';
 import {
 	getDefaultMessagingGatewayConfigPath,
+	getLegacyMessagingGatewayConfigPath,
 	loadMessagingGatewayConfig,
 	resolveMessagingGatewayConfigPath,
 	resolveSandboxLifecycleConfig,
@@ -39,7 +44,7 @@ import { printGatewayStatusSummary } from './status';
 import {
 	deriveMessagingGatewayReadiness,
 	MessagingGatewayStatusWriter,
-	MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
+	readMessagingGatewayStatusFile,
 	resolveMessagingGatewayStatusPath,
 	type MessagingGatewayStatusV1,
 } from './statusFile';
@@ -172,7 +177,7 @@ Utility:
 	--print-config-path     Print the resolved config path (or env JSON source) and exit
 
 Config:
-  INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path> (default: ~/.instruction-engine/messaging-gateway.config.json)
+  INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH=<path> (default: ~/.copilot/messaging-gateway.config.json; legacy ~/.instruction-engine config is rehomed automatically when possible)
   INSTRUCTION_ENGINE_GATEWAY_CONFIG_JSON=<inline-json>
 
 Secrets (preferred: OS keychain; fallback: env vars):
@@ -264,7 +269,7 @@ async function handleSecretUtilityFlags(args: CliArgs): Promise<boolean> {
 	return false;
 }
 
-async function main() {
+export async function main(argv: string[] = process.argv.slice(2)) {
 	// OTel SDK initialization — feature-flagged
 	if (process.env.OTEL_WORKFLOW_TRACING_ENABLED === 'true') {
 		try {
@@ -283,7 +288,7 @@ async function main() {
 		}
 	}
 
-	const args = parseArgs(process.argv.slice(2));
+	const args = parseArgs(argv);
 	if (args.help) {
 		printHelp();
 		return;
@@ -296,6 +301,7 @@ async function main() {
 		}
 		console.log(resolveMessagingGatewayConfigPath(args.configPath || process.env.INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH));
 		console.log(`(default: ${getDefaultMessagingGatewayConfigPath()})`);
+		console.log(`(legacy rehome source: ${getLegacyMessagingGatewayConfigPath()})`);
 		return;
 	}
 
@@ -398,12 +404,9 @@ async function main() {
 	const statusWriter = new MessagingGatewayStatusWriter(
 		resolveMessagingGatewayStatusPath(loaded.configPath),
 		{
-			schemaVersion: 1,
-			contractVersion: MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION,
-			compatibility: {
+			...buildMessagingGatewayReadinessMetadata({
 				normalizedFrom: loaded.config.compatibility?.normalizedFrom ?? 'v1',
-				deterministic: true,
-			},
+			}),
 			readiness: {
 				state: 'disconnected',
 				reasonCode: 'gateway_disconnected',
@@ -453,22 +456,9 @@ async function main() {
 					connected: false,
 					ready: false,
 				},
-				discoveryTelemetry: {
-					contractVersion: COMMAND_ROUTER_DISCOVERY_TELEMETRY_CONTRACT_VERSION,
-					sample: {
-						capacity: COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY,
-						size: 0,
-						dropped: 0,
-						deterministic: true,
-					},
-					countersByReason: {
-						keyword_miss: 0,
-						ambiguity: 0,
-						stale_map: 0,
-						no_route: 0,
-					},
-					recent: [],
-				},
+				discoveryTelemetry: buildEmptyMessagingGatewayDiscoveryTelemetrySummary({
+					capacity: COMMAND_ROUTER_DISCOVERY_SAMPLE_CAPACITY,
+				}),
 				telegram: telegramConfig
 					? {
 						connected: false,
@@ -652,6 +642,7 @@ async function main() {
 			const raw = await extensionClient.get_sessions();
 			return parseBridgeSessions(raw);
 		},
+		getStatus: () => readMessagingGatewayStatusFile(statusWriter.getPath()),
 		getPendingPermissions: () => permissionOrchestrator?.getPending() ?? [],
 		approvePermission: async (callbackId, resolvedBy) => {
 			if (!permissionOrchestrator) throw new Error('No permission orchestrator available');
@@ -1077,7 +1068,7 @@ async function main() {
 	console.log('[Gateway] Status OK. Waiting for shutdown (Ctrl+C)...');
 
 	let shuttingDown = false;
-	process.on('SIGINT', () => {
+	const beginShutdown = () => {
 		if (shuttingDown) return;
 		shuttingDown = true;
 		console.log('[Gateway] Shutting down');
@@ -1107,7 +1098,10 @@ async function main() {
 				process.exit(0);
 			}
 		})();
-	});
+	};
+
+	process.on('SIGINT', beginShutdown);
+	process.on('SIGTERM', beginShutdown);
 
 	await new Promise(() => {
 		// keep process alive

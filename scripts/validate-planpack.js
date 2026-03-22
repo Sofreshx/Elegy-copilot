@@ -79,6 +79,69 @@ function normalizeFieldName(value) {
 	return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+function normalizeSubsectionName(value) {
+	return String(value || '')
+		.trim()
+		.replace(/\s*\([^)]*\)\s*$/, '')
+		.toLowerCase()
+		.replace(/[^a-z0-9]/g, '');
+}
+
+function subsectionMatches(actualTitle, expectedTitle) {
+	const actual = normalizeSubsectionName(actualTitle);
+	const expected = normalizeSubsectionName(expectedTitle);
+	return actual === expected || actual.startsWith(expected);
+}
+
+function wuHasSubsection(subsections, expectedTitle) {
+	if (!(subsections instanceof Set)) {
+		return false;
+	}
+
+	for (const subsection of subsections) {
+		if (subsectionMatches(subsection, expectedTitle)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function getWuSubsectionLines(wuSubContent, wuId, expectedTitle) {
+	if (!(wuSubContent instanceof Map) || !wuSubContent.has(wuId)) {
+		return [];
+	}
+
+	const subsectionMap = wuSubContent.get(wuId);
+	for (const [subsectionTitle, lines] of subsectionMap.entries()) {
+		if (subsectionMatches(subsectionTitle, expectedTitle)) {
+			return Array.isArray(lines) ? lines : [];
+		}
+	}
+
+	return [];
+}
+
+function parseJsonArrayCell(value) {
+	const trimmed = String(value || '').trim();
+	if (!trimmed) {
+		return { ok: false, reason: 'missing JSON array value' };
+	}
+
+	try {
+		const parsed = JSON.parse(trimmed);
+		if (!Array.isArray(parsed)) {
+			return { ok: false, reason: 'value is not a JSON array' };
+		}
+		if (!parsed.every(item => typeof item === 'string')) {
+			return { ok: false, reason: 'array items must be strings' };
+		}
+		return { ok: true, value: parsed };
+	} catch (error) {
+		return { ok: false, reason: 'invalid JSON array syntax' };
+	}
+}
+
 function getRowValue(row, fieldNames) {
 	if (!row || typeof row !== 'object') {
 		return '';
@@ -431,7 +494,7 @@ function parseAcceptanceCriteriaQuality(lines, wuSubs) {
 			continue;
 		}
 
-		if (currentSubsection !== 'Acceptance Criteria') {
+		if (!subsectionMatches(currentSubsection, 'Acceptance Criteria')) {
 			continue;
 		}
 
@@ -503,6 +566,7 @@ function findPolicyRow(table, policyAliases) {
 
 function validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions) {
 	const validationErrors = [];
+	let trustedReleaseValue = '';
 	const nowTimestampMs = cliOptions.nowIso ? Date.parse(cliOptions.nowIso) : Date.now();
 
 	if (cliOptions.nowIso && Number.isNaN(nowTimestampMs)) {
@@ -522,6 +586,7 @@ function validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions)
 		const hasProducerHeader = normalizedHeaders.includes('produceridentity') || normalizedHeaders.includes('producer') || normalizedHeaders.includes('attestedproduceridentity');
 		const hasAttestationHeader = normalizedHeaders.includes('attestationstatus') || normalizedHeaders.includes('attestation') || normalizedHeaders.includes('attested');
 		const hasTimestampHeader = normalizedHeaders.includes('evidencetimestamp') || normalizedHeaders.includes('timestamp') || normalizedHeaders.includes('observedat') || normalizedHeaders.includes('capturedat');
+		const hasEvidenceHeader = normalizedHeaders.includes('evidence') || normalizedHeaders.includes('evidenceref') || normalizedHeaders.includes('artifactref');
 
 		if (!hasCommitHeader) {
 			validationErrors.push('invalid Trusted Evidence Binding table: missing Commit SHA column');
@@ -541,29 +606,54 @@ function validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions)
 		if (!hasTimestampHeader) {
 			validationErrors.push('invalid Trusted Evidence Binding table: missing Evidence Timestamp column');
 		}
+		if (!hasEvidenceHeader) {
+			validationErrors.push('invalid Trusted Evidence Binding table: missing Evidence column');
+		}
 
 		if (trustedBindingTable.rows.length === 0) {
 			validationErrors.push('trusted evidence binding missing row data');
 		} else {
 			let rowCandidates = trustedBindingTable.rows;
-			if (cliOptions.expectedRelease) {
-				const matchingReleaseRows = trustedBindingTable.rows.filter((row) => {
-					const releaseValue = getRowValue(row, ['Release Tag', 'Release', 'Release ID', 'ReleaseId']);
-					return normalizeComparable(releaseValue) === normalizeComparable(cliOptions.expectedRelease);
+			const selectorChecks = [
+				{
+					label: 'release',
+					expectedValue: cliOptions.expectedRelease,
+					keys: ['Release Tag', 'Release', 'Release ID', 'ReleaseId'],
+				},
+				{
+					label: 'commit',
+					expectedValue: cliOptions.expectedCommit,
+					keys: ['Commit SHA', 'Commit', 'Commit ID', 'CommitId'],
+				},
+				{
+					label: 'channel',
+					expectedValue: cliOptions.expectedChannel,
+					keys: ['Channel', 'Release Channel'],
+				},
+			];
+			for (const selector of selectorChecks) {
+				if (!selector.expectedValue) {
+					continue;
+				}
+
+				const matchingRows = rowCandidates.filter((row) => {
+					const rowValue = getRowValue(row, selector.keys);
+					return normalizeComparable(rowValue) === normalizeComparable(selector.expectedValue);
 				});
 
-				if (matchingReleaseRows.length === 0) {
+				if (matchingRows.length === 0) {
 					validationErrors.push(
-						`trusted evidence release mismatch: expected ${cliOptions.expectedRelease}, found no matching Trusted Evidence Binding row`
+						`trusted evidence ${selector.label} mismatch: expected ${selector.expectedValue}, found no matching Trusted Evidence Binding row`
 					);
 				} else {
-					if (matchingReleaseRows.length > 1) {
-						validationErrors.push(
-							`trusted evidence release match is ambiguous: expected ${cliOptions.expectedRelease}, found ${matchingReleaseRows.length} matching rows`
-						);
-					}
-					rowCandidates = matchingReleaseRows;
+					rowCandidates = matchingRows;
 				}
+			}
+
+			if (rowCandidates.length > 1) {
+				validationErrors.push(
+					`trusted evidence selection is ambiguous: found ${rowCandidates.length} matching Trusted Evidence Binding rows`
+				);
 			}
 
 			const trustedRow = rowCandidates[0] || trustedBindingTable.rows[0];
@@ -573,18 +663,24 @@ function validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions)
 			const producerIdentityValue = getRowValue(trustedRow, ['Producer Identity', 'Producer', 'Attested Producer Identity']);
 			const attestationValue = getRowValue(trustedRow, ['Attestation Status', 'Attestation', 'Attested']);
 			const timestampValue = getRowValue(trustedRow, ['Evidence Timestamp', 'Timestamp', 'Observed At', 'Captured At']);
+			const evidenceValue = getRowValue(trustedRow, ['Evidence', 'Evidence Ref', 'EvidenceRef', 'Artifact Ref', 'ArtifactRef']);
 
 			if (!commitValue) {
 				validationErrors.push('trusted evidence missing required field: Commit SHA');
 			}
 			if (!releaseValue) {
 				validationErrors.push('trusted evidence missing required field: Release Tag');
+			} else {
+				trustedReleaseValue = String(releaseValue);
 			}
 			if (!channelValue) {
 				validationErrors.push('trusted evidence missing required field: Channel');
 			}
 			if (!producerIdentityValue) {
 				validationErrors.push('trusted evidence missing required field: Producer Identity');
+			}
+			if (!evidenceValue) {
+				validationErrors.push('trusted evidence missing required field: Evidence');
 			}
 			if (!attestationValue) {
 				validationErrors.push('trusted evidence missing required field: Attestation Status');
@@ -699,6 +795,9 @@ function validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions)
 			if (cliOptions.expectedRelease && releaseValue && normalizeComparable(releaseValue) !== normalizeComparable(cliOptions.expectedRelease)) {
 				validationErrors.push(`per-release evidence release mismatch: expected ${cliOptions.expectedRelease}, got ${releaseValue}`);
 			}
+			if (trustedReleaseValue && releaseValue && normalizeComparable(releaseValue) !== normalizeComparable(trustedReleaseValue)) {
+				validationErrors.push(`per-release evidence release mismatch: expected ${trustedReleaseValue}, got ${releaseValue}`);
+			}
 
 			const evidenceRaw = getRowValue(perReleaseRow, ['Evidence', 'Evidence Ref', 'EvidenceRef', 'Artifact Ref', 'ArtifactRef']);
 			if (!evidenceRaw) {
@@ -707,7 +806,10 @@ function validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions)
 		}
 	}
 
-	return validationErrors;
+	return {
+		validationErrors,
+		trustedReleaseValue,
+	};
 }
 
 const cliOptions = parseCliArgs(process.argv.slice(2));
@@ -719,6 +821,13 @@ if (!fs.existsSync(filePath)) {
 }
 
 const content = fs.readFileSync(filePath, 'utf8');
+const legacyCompatibilityMode = cliOptions.phase === 'full';
+
+if (legacyCompatibilityMode) {
+	console.error(
+		'planpack warning: validate-planpack.js is a migration-only compatibility entrypoint; prefer validate-planpack-planning.js or validate-planpack-execution.js'
+	);
+}
 
 // Stop parsing at progress tracker heading
 const stopMarker = '# Plan-Pack Progress Tracker';
@@ -731,7 +840,7 @@ const versionRe = /<!--\s*IE_PLAN_PACK_VERSION:\s*(\d+)\s*-->/;
 const versionMatch = body.match(versionRe);
 if (!versionMatch) {
 	if (cliOptions.allowLegacyBestEffort) {
-		console.log('planpack warning: no version marker found (legacy best-effort override active)');
+		console.error('planpack warning: no version marker found (migration-only legacy best-effort override active)');
 		process.exit(0);
 	}
 	console.error('planpack invalid:\n  missing required version marker: <!-- IE_PLAN_PACK_VERSION: N -->');
@@ -748,7 +857,7 @@ const lines = body.split(/\r?\n/);
 const errors = [];
 const warnings = [];
 const requiresExecutionGateChecks = cliOptions.phase !== 'planning';
-const requiresPlanningBaseProgressChecks = cliOptions.phase === 'planning';
+const requiresPlanningBaseProgressChecks = true;
 
 // --- 1. Required H2 headings ---
 const requiredH2 = [
@@ -787,12 +896,15 @@ const requiredWuSubs = ['Context', 'Acceptance Criteria', 'Plan / Approach', 'Va
 const specWUs = [];
 const seenWuIds = new Set();
 let currentWU = null;
+let currentSubsection = '';
 const wuSubs = new Map(); // wuId -> Set of h4 titles
+const wuSubContent = new Map(); // wuId -> Map<h4 title, lines[]>
 
 for (const line of lines) {
 	const wuMatch = line.match(wuSpecRe);
 	if (wuMatch) {
 		currentWU = wuMatch[1];
+		currentSubsection = '';
 		specWUs.push(currentWU);
 
 		// Duplicate check
@@ -801,19 +913,28 @@ for (const line of lines) {
 		}
 		seenWuIds.add(currentWU);
 		wuSubs.set(currentWU, new Set());
+		wuSubContent.set(currentWU, new Map());
 		continue;
 	}
 
 	// Reset current WU on next H2 or H3 that isn't a WU spec
 	if (/^##\s+/.test(line) || (/^###\s+/.test(line) && !wuSpecRe.test(line))) {
 		currentWU = null;
+		currentSubsection = '';
 		continue;
 	}
 
 	if (currentWU) {
 		const h4Match = line.match(h4Re);
 		if (h4Match) {
-			wuSubs.get(currentWU).add(h4Match[1].trim());
+			currentSubsection = h4Match[1].trim();
+			wuSubs.get(currentWU).add(currentSubsection);
+			wuSubContent.get(currentWU).set(currentSubsection, []);
+			continue;
+		}
+
+		if (currentSubsection && wuSubContent.has(currentWU) && wuSubContent.get(currentWU).has(currentSubsection)) {
+			wuSubContent.get(currentWU).get(currentSubsection).push(line);
 		}
 	}
 }
@@ -829,7 +950,7 @@ for (const id of specWUs) {
 // --- 4. Required WU subsections ---
 for (const [wuId, subs] of wuSubs) {
 	for (const req of requiredWuSubs) {
-		if (!subs.has(req)) {
+		if (!wuHasSubsection(subs, req)) {
 			errors.push(`${wuId} missing required subsection: #### ${req}`);
 		}
 	}
@@ -852,36 +973,96 @@ if (acQualityDiagnostics.length > 0) {
 // --- 5. Parse Work Unit Graph table for group IDs and WU IDs ---
 const graphWUs = [];
 const groupIds = new Set();
-let inGraphSection = false;
-let graphTableStarted = false;
+const graphParallelSafety = new Map();
+const graphReferenceChecks = [];
+const graphSection = extractH2Section(body, 'Work Unit Graph');
+const graphTable = parseMarkdownTable(graphSection);
 
-for (const line of lines) {
-	if (/^##\s+Work Unit Graph/.test(line)) {
-		inGraphSection = true;
-		graphTableStarted = false;
-		continue;
+if (!graphTable) {
+	errors.push('invalid Work Unit Graph table: markdown table required');
+} else {
+	const normalizedHeaders = graphTable.headers.map(normalizeFieldName);
+	const requiredGraphHeaders = [
+		'group',
+		'workunitid',
+		'title',
+		'dependson',
+		'nextunits',
+		'parallelsafe',
+	];
+
+	for (const header of requiredGraphHeaders) {
+		if (!normalizedHeaders.includes(header)) {
+			errors.push(`invalid Work Unit Graph table: missing ${header} column`);
+		}
 	}
-	if (inGraphSection && /^##\s+/.test(line)) {
-		inGraphSection = false;
-		continue;
-	}
-	if (!inGraphSection) continue;
 
-	// Skip header row and separator
-	if (/^\|\s*Group\s*\|/.test(line)) { graphTableStarted = true; continue; }
-	if (/^\|\s*-+/.test(line)) continue;
-	if (!graphTableStarted) continue;
+	const seenGraphWuIds = new Set();
+	for (const row of graphTable.rows) {
+		const groupId = getRowValue(row, ['Group']);
+		const wuId = getRowValue(row, ['Work Unit ID', 'WorkUnitID']);
+		const dependsOnRaw = getRowValue(row, ['Depends On', 'DependsOn']);
+		const nextUnitsRaw = getRowValue(row, ['Next Units', 'NextUnits']);
+		const parallelSafeRaw = normalizeComparable(getRowValue(row, ['Parallel Safe', 'ParallelSafe']));
 
-	const cells = line.split('|').map(c => c.trim()).filter(Boolean);
-	if (cells.length < 2) continue;
+		if (!groupId) {
+			errors.push('Work Unit Graph row missing Group value');
+		} else {
+			groupIds.add(groupId);
+		}
 
-	const groupId = cells[0];
-	const wuId = cells[1];
+		if (!wuId) {
+			errors.push('Work Unit Graph row missing Work Unit ID value');
+			continue;
+		}
 
-	groupIds.add(groupId);
+		if (seenGraphWuIds.has(wuId)) {
+			errors.push(`duplicate WU-ID in graph: ${wuId}`);
+		} else {
+			seenGraphWuIds.add(wuId);
+		}
 
-	if (wuIdFormatRe.test(wuId)) {
 		graphWUs.push(wuId);
+
+		const dependsOnParsed = parseJsonArrayCell(dependsOnRaw);
+		if (!dependsOnParsed.ok) {
+			errors.push(`${wuId} Work Unit Graph Depends On must be a JSON array (${dependsOnParsed.reason})`);
+		} else {
+			for (const dependencyId of dependsOnParsed.value) {
+				if (!wuIdFormatRe.test(dependencyId)) {
+					errors.push(`${wuId} Work Unit Graph Depends On contains invalid WU-ID: ${dependencyId}`);
+				} else {
+					graphReferenceChecks.push({
+						wuId,
+						targetWuId: dependencyId,
+						field: 'Depends On',
+					});
+				}
+			}
+		}
+
+		const nextUnitsParsed = parseJsonArrayCell(nextUnitsRaw);
+		if (!nextUnitsParsed.ok) {
+			errors.push(`${wuId} Work Unit Graph Next Units must be a JSON array (${nextUnitsParsed.reason})`);
+		} else {
+			for (const nextUnitId of nextUnitsParsed.value) {
+				if (!wuIdFormatRe.test(nextUnitId)) {
+					errors.push(`${wuId} Work Unit Graph Next Units contains invalid WU-ID: ${nextUnitId}`);
+				} else {
+					graphReferenceChecks.push({
+						wuId,
+						targetWuId: nextUnitId,
+						field: 'Next Units',
+					});
+				}
+			}
+		}
+
+		if (parallelSafeRaw !== 'yes' && parallelSafeRaw !== 'no') {
+			errors.push(`${wuId} Work Unit Graph Parallel Safe must be yes or no (got ${parallelSafeRaw || 'missing'})`);
+		} else {
+			graphParallelSafety.set(wuId, parallelSafeRaw);
+		}
 	}
 }
 
@@ -898,6 +1079,30 @@ const graphWUSet = new Set(graphWUs);
 for (const wuId of specWUs) {
 	if (!graphWUSet.has(wuId)) {
 		errors.push(`orphan WU spec (not in graph): ${wuId}`);
+	}
+}
+for (const reference of graphReferenceChecks) {
+	if (!graphWUSet.has(reference.targetWuId)) {
+		errors.push(`${reference.wuId} Work Unit Graph ${reference.field} references missing WU-ID: ${reference.targetWuId}`);
+	}
+}
+
+// --- 7a. Parallel-safe WUs require ownership declaration ---
+for (const wuId of graphWUs) {
+	if (graphParallelSafety.get(wuId) !== 'yes') {
+		continue;
+	}
+
+	const subsections = wuSubs.get(wuId);
+	if (!wuHasSubsection(subsections, 'Expected Files')) {
+		errors.push(`${wuId} marked Parallel Safe=yes must include subsection: #### Expected Files`);
+		continue;
+	}
+
+	const expectedFileLines = getWuSubsectionLines(wuSubContent, wuId, 'Expected Files');
+	const hasExpectedFileBullet = expectedFileLines.some(line => /^\s*[-*]\s+\S+/.test(line));
+	if (!hasExpectedFileBullet) {
+		errors.push(`${wuId} marked Parallel Safe=yes must list at least one expected file bullet`);
 	}
 }
 
@@ -958,6 +1163,7 @@ if (requiresExecutionGateChecks) {
 	];
 	const finalGateSection = extractH2Section(progressContent, 'Final Gate Controls');
 	const finalGateTable = parseMarkdownTable(finalGateSection);
+	const trustedEvidenceValidation = validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions);
 
 	if (!finalGateTable) {
 		errors.push('missing required progress section: ## Final Gate Controls (markdown table required)');
@@ -1007,8 +1213,7 @@ if (requiresExecutionGateChecks) {
 
 			if (isPassed) {
 				if (controlId.toLowerCase() === 'trustedevidencebindingretention') {
-					const trustedEvidenceErrors = validateTrustedEvidenceBindingAndRetention(progressContent, cliOptions);
-					for (const trustedEvidenceError of trustedEvidenceErrors) {
+					for (const trustedEvidenceError of trustedEvidenceValidation.validationErrors) {
 						errors.push(`final gate control failed: trustedEvidenceBindingRetention (${trustedEvidenceError})`);
 					}
 				}
@@ -1047,6 +1252,13 @@ if (requiresExecutionGateChecks) {
 				errors.push(
 					`final gate waiver missing release-linked audit trail: ${controlId} (Waiver Release and Waiver Audit are required when Status=waived)`
 				);
+			} else {
+				const expectedWaiverRelease = cliOptions.expectedRelease || trustedEvidenceValidation.trustedReleaseValue;
+				if (expectedWaiverRelease && normalizeComparable(waiverRelease) !== normalizeComparable(expectedWaiverRelease)) {
+					errors.push(
+						`final gate waiver release mismatch: ${controlId} (expected ${expectedWaiverRelease}, got ${waiverRelease})`
+					);
+				}
 			}
 		}
 	}

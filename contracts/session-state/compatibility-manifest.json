@@ -1,0 +1,16 @@
+{
+  "manifestVersion": "1.0.0",
+  "metadataKind": "legacy-compatibility",
+  "deprecated": true,
+  "contractManifestFile": "contract-manifest.json",
+  "package": {
+    "name": "InstructionEngine.SessionState.Contracts",
+    "version": "0.1.0"
+  },
+  "canonicalSchema": {
+    "name": "canonical-workflow",
+    "schemaVersion": "1.0.0",
+    "file": "canonical-workflow.schema.json"
+  },
+  "migrationNotes": "Legacy compatibility metadata for consumers that still probe compatibility-manifest.json before moving to contract-manifest.json."
+}

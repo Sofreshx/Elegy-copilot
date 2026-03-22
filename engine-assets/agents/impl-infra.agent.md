@@ -20,6 +20,7 @@ Implement an infra-focused work unit end-to-end with minimal risk: small diffs, 
 ## Rules
 - Prefer the smallest safe change that satisfies the acceptance criteria.
 - Never introduce secrets into repo files.
+- Do not execute unit, integration, or E2E test commands directly. Request test scope from orchestrator and keep your own validation to targeted one-shot build, lint, or typecheck checks with explicit timeouts.
 - If change affects runtime topology, auth, networking, deployments, or data stores: request **integration tests** (Alba) after implementation.
 - Do not run destructive commands unless the spec explicitly requires it.
 

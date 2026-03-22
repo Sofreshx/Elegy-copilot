@@ -118,6 +118,10 @@ function createFixtureRoot() {
         installTarget: 'user-global',
         activationScope: 'global',
         materialization: 'always',
+        classification: 'core',
+        targeting: {
+          tags: ['core', 'global'],
+        },
         tags: ['core', 'global'],
         defaultRecommended: true,
       },
@@ -129,6 +133,11 @@ function createFixtureRoot() {
         installTarget: 'repo-local',
         activationScope: 'repo',
         materialization: 'on-demand',
+        classification: 'scope',
+        targeting: {
+          scopeKinds: ['repo'],
+          tags: ['repo'],
+        },
         tags: ['repo'],
         dependsOn: ['core-global'],
       },
@@ -198,6 +207,10 @@ function createFixtureRoot() {
   writeText(path.join(copilotHomeAbs, 'skills', 'core-guardrails', 'SKILL.md'), '# Installed Core Guardrails\n');
   writeText(path.join(copilotHomeAbs, 'skills-vault', 'repo-helper', 'SKILL.md'), '# Repo Helper Vault\n');
   writeText(path.join(copilotHomeAbs, 'agents', 'repo-guide.agent.md'), '# Repo Guide Installed\n');
+  writeText(
+    path.join(copilotHomeAbs, 'skills', 'providers', 'external-vendor', 'market-helper', 'SKILL.md'),
+    '# External Market Helper\n',
+  );
   fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
   writeJson(path.join(repoPath, 'package.json'), {
     name: 'workspace-repo',
@@ -215,6 +228,10 @@ function createFixtureRoot() {
   writeJson(path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json'), {
     skills: {
       enabled: ['repo-helper'],
+      disabled: ['core-guardrails'],
+    },
+    agents: {
+      enabled: ['repo-guide'],
     },
   });
   writeJson(path.join(copilotHomeAbs, 'repo-state', 'placeholder', 'registry.json'), {});
@@ -315,9 +332,22 @@ async function run() {
       assert.equal(bundle.installTarget, 'user-global');
       assert.equal(bundle.activationScope, 'global');
       assert.equal(bundle.materialization, 'always');
+      assert.equal(bundle.classification, 'core');
+      assert.equal(bundle.defaultMemberLoadMode, 'always');
       assert.equal(bundle.defaultRecommended, true);
+      assert.deepEqual(bundle.targeting, {
+        tags: ['core', 'global'],
+      });
+      assert.deepEqual(bundle.uninstallPolicy, {
+        removesInstalledMembers: true,
+        clearsActivationState: true,
+        clearsRepoOverlayState: true,
+        preservesExternalPackages: true,
+      });
       assert.deepEqual(bundle.dependsOn, []);
       assert.equal(bundle.status, 'active');
+      assert.equal(bundle.activationStatus, 'active');
+      assert.equal(bundle.activationSource, 'provider-defaults');
       assert.deepEqual(bundle.stats, {
         memberCount: 2,
         availableCount: 2,
@@ -355,9 +385,25 @@ async function run() {
       assert.equal(searchResponse.res.statusCode, 200);
       assert.deepEqual(searchResponse.body.bundles.map((entry) => entry.bundleId), ['repo-helper-pack']);
 
+      const classificationResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/bundles?classification=scope');
+      assert.equal(classificationResponse.res.statusCode, 200);
+      assert.deepEqual(classificationResponse.body.bundles.map((entry) => entry.bundleId), ['repo-helper-pack']);
+
       const summaryResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/summary');
       assert.equal(summaryResponse.res.statusCode, 200);
       assert.equal(summaryResponse.body.kind, 'catalog.summary');
+      assert.deepEqual(summaryResponse.body.summary.activation.activeBundleIds, ['core-global']);
+      assert.equal(summaryResponse.body.summary.activation.plannerProfile, 'balanced-default');
+      assert.equal(summaryResponse.body.summary.activation.bundleSource, 'provider-defaults');
+      assert.deepEqual(summaryResponse.body.summary.routingPolicy.activeBundleIds, ['core-global']);
+      assert.ok(
+        summaryResponse.body.summary.routingPolicy.eligibleAssetIds.includes('skill-core-guardrails'),
+        'expected active core bundle member to appear in routing policy snapshot',
+      );
+      assert.ok(
+        !summaryResponse.body.summary.routingPolicy.eligibleAssetIds.includes('skill-repo-helper'),
+        'expected inactive repo bundle member to be excluded from routing policy snapshot',
+      );
       assert.deepEqual(summaryResponse.body.summary.stats.bundles, {
         totalCount: 2,
         defaultRecommendedCount: 1,
@@ -372,6 +418,126 @@ async function run() {
         enabledMemberCount: 3,
         missingMemberCount: 0,
       });
+    });
+
+    await test('POST /api/catalog/activation persists global defaults and repo overrides for bundles/profile state', async () => {
+      const globalDeactivate = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'deactivate-bundle',
+        bundleId: 'core-global',
+      });
+
+      assert.equal(globalDeactivate.res.statusCode, 200);
+      assert.equal(globalDeactivate.body.kind, 'catalog.activation.update');
+      assert.equal(globalDeactivate.body.action, 'bundle-deactivated');
+      assert.deepEqual(
+        JSON.parse(fs.readFileSync(path.join(copilotHomeAbs, 'catalog', 'activation-state.json'), 'utf8')).activeBundleIds,
+        [],
+      );
+
+      const globalSummary = await invoke(routes, baseCtx, 'GET', '/api/catalog/summary');
+      assert.deepEqual(globalSummary.body.summary.activation.activeBundleIds, []);
+      assert.equal(globalSummary.body.summary.activation.bundleSource, 'user-global');
+
+      const repoActivate = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'activate-bundle',
+        bundleId: 'repo-helper-pack',
+        repoPath,
+      });
+      assert.equal(repoActivate.res.statusCode, 200);
+      assert.equal(repoActivate.body.action, 'bundle-activated');
+
+      const repoStateKey = getRepoStateKey(repoPath);
+      const repoActivationPath = path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'activation.json');
+      assert.deepEqual(JSON.parse(fs.readFileSync(repoActivationPath, 'utf8')).activeBundleIds, ['repo-helper-pack']);
+
+      const repoProfile = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'set-profile',
+        plannerProfile: 'manual-review',
+        repoPath,
+      });
+      assert.equal(repoProfile.res.statusCode, 200);
+      assert.equal(repoProfile.body.action, 'planner-profile-set');
+
+      const repoSummary = await invoke(routes, baseCtx, 'GET', `/api/catalog/summary?repoPath=${encodeURIComponent(repoPath)}`);
+      assert.equal(repoSummary.body.summary.activation.plannerProfile, 'manual-review');
+      assert.equal(repoSummary.body.summary.activation.plannerProfileSource, 'repo-override');
+      assert.deepEqual(repoSummary.body.summary.activation.activeBundleIds, ['repo-helper-pack']);
+      assert.equal(repoSummary.body.summary.activation.bundleSource, 'repo-override');
+
+      const repoBundles = await invoke(routes, baseCtx, 'GET', `/api/catalog/bundles?repoPath=${encodeURIComponent(repoPath)}`);
+      const repoHelperBundle = repoBundles.body.bundles.find((entry) => entry.bundleId === 'repo-helper-pack');
+      const coreBundle = repoBundles.body.bundles.find((entry) => entry.bundleId === 'core-global');
+      assert.equal(repoHelperBundle.activationStatus, 'active');
+      assert.equal(repoHelperBundle.activationSource, 'repo-override');
+      assert.equal(coreBundle.activationStatus, 'inactive');
+
+      const clearOverride = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'clear-repo-override',
+        repoPath,
+      });
+      assert.equal(clearOverride.res.statusCode, 200);
+      assert.equal(clearOverride.body.action, 'repo-override-cleared');
+
+      const clearedSummary = await invoke(routes, baseCtx, 'GET', `/api/catalog/summary?repoPath=${encodeURIComponent(repoPath)}`);
+      assert.equal(clearedSummary.body.summary.activation.plannerProfile, 'balanced-default');
+      assert.deepEqual(clearedSummary.body.summary.activation.activeBundleIds, []);
+      assert.equal(clearedSummary.body.summary.activation.bundleSource, 'user-global');
+      assert.equal(fs.existsSync(repoActivationPath), false);
+    });
+
+    await test('POST /api/catalog/bundles/uninstall removes managed member installs and clears bundle activation/overlay state', async () => {
+      const repoBundleActivation = await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'activate-bundle',
+        bundleId: 'core-global',
+        repoPath,
+      });
+      assert.equal(repoBundleActivation.res.statusCode, 200);
+
+      const response = await invoke(routes, baseCtx, 'POST', '/api/catalog/bundles/uninstall', {
+        bundleId: 'core-global',
+        repoPath,
+      });
+
+      assert.equal(response.res.statusCode, 200);
+      assert.equal(response.body.kind, 'catalog.bundle.uninstall');
+      assert.equal(response.body.action, 'bundle-uninstalled');
+      assert.equal(response.body.bundleId, 'core-global');
+      assert.deepEqual(response.body.removedAssetIds.sort(), ['agent-repo-guide', 'skill-core-guardrails']);
+      assert.equal(response.body.preserveExternalPackages, true);
+      assert.equal(fs.existsSync(path.join(copilotHomeAbs, 'skills', 'core-guardrails')), false);
+      assert.equal(fs.existsSync(path.join(copilotHomeAbs, 'agents', 'repo-guide.agent.md')), false);
+      assert.equal(
+        fs.existsSync(path.join(copilotHomeAbs, 'skills', 'providers', 'external-vendor', 'market-helper', 'SKILL.md')),
+        true,
+      );
+
+      const globalActivationPath = path.join(copilotHomeAbs, 'catalog', 'activation-state.json');
+      assert.deepEqual(JSON.parse(fs.readFileSync(globalActivationPath, 'utf8')).activeBundleIds, []);
+
+      const repoStateKey = getRepoStateKey(repoPath);
+      const repoActivationPath = path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'activation.json');
+      assert.equal(fs.existsSync(repoActivationPath), false);
+
+      const registry = JSON.parse(
+        fs.readFileSync(path.join(copilotHomeAbs, 'repo-state', repoStateKey.repoId, 'registry.json'), 'utf8'),
+      );
+      assert.deepEqual(registry.skills.enabled, ['repo-helper']);
+      assert.equal(Array.isArray(registry.skills.disabled), false);
+      assert.equal(Array.isArray(registry.agents?.enabled), false);
+
+      const repoSummary = await invoke(routes, baseCtx, 'GET', `/api/catalog/summary?repoPath=${encodeURIComponent(repoPath)}`);
+      assert.deepEqual(repoSummary.body.summary.activation.activeBundleIds, []);
+      assert.equal(repoSummary.body.summary.activation.bundleSource, 'user-global');
+      assert.ok(
+        !repoSummary.body.summary.routingPolicy.eligibleAssetIds.includes('skill-core-guardrails'),
+        'expected uninstalled core bundle members to be absent from routing eligibility',
+      );
+
+      const repoBundles = await invoke(routes, baseCtx, 'GET', `/api/catalog/bundles?repoPath=${encodeURIComponent(repoPath)}`);
+      const coreBundle = repoBundles.body.bundles.find((entry) => entry.bundleId === 'core-global');
+      assert.equal(coreBundle.activationStatus, 'inactive');
+      const uninstalledCoreSkill = coreBundle.members.find((member) => member.assetId === 'skill-core-guardrails');
+      assert.equal(uninstalledCoreSkill.installed, false);
     });
 
     await test('POST /api/catalog/refresh persists a snapshot and logs a catalog rebuild audit event', async () => {
@@ -411,6 +577,8 @@ async function run() {
       assert.equal(listResponse.res.statusCode, 200);
       assert.equal(listResponse.body.kind, 'catalog.repos.list');
       assert.ok(Array.isArray(listResponse.body.repos));
+      assert.ok(listResponse.body.workspaceScan, 'expected workspace scan metadata');
+      assert.deepEqual(listResponse.body.workspaceScan.customScanRoots, []);
       const workspaceRepo = listResponse.body.repos.find((repo) => repo.repoPath === repoPath);
       assert.ok(workspaceRepo, 'expected workspace repo inventory entry');
       assert.ok(workspaceRepo.sources.includes('session-state'));
@@ -450,6 +618,35 @@ async function run() {
       assert.equal(unregisterResponse.body.kind, 'catalog.repos.unregister');
       assert.equal(unregisterResponse.body.removed, true);
       assert.equal(unregisterResponse.body.repo.repoPath, manualRepoPath);
+    });
+
+    await test('repo inventory routes persist custom scan roots and surface discovered repos without selecting them', async () => {
+      const customScanRoot = path.join(tmpRoot, 'scanned-roots');
+      const discoveredRepoPath = path.join(customScanRoot, 'catalog-app');
+      fs.mkdirSync(path.join(discoveredRepoPath, '.git'), { recursive: true });
+      writeJson(path.join(discoveredRepoPath, 'package.json'), {
+        name: 'catalog-app',
+        dependencies: {
+          react: '^18.0.0',
+        },
+      });
+
+      const updateResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/repos/scan-roots', {
+        customScanRoots: [customScanRoot],
+      });
+      assert.equal(updateResponse.res.statusCode, 200);
+      assert.equal(updateResponse.body.kind, 'catalog.repos.scan-roots');
+      assert.equal(updateResponse.body.updated, true);
+      assert.deepEqual(updateResponse.body.workspaceScan.customScanRoots, [customScanRoot]);
+
+      const listResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/repos');
+      assert.equal(listResponse.res.statusCode, 200);
+      assert.deepEqual(listResponse.body.workspaceScan.customScanRoots, [customScanRoot]);
+      const discoveredRepo = listResponse.body.repos.find((repo) => repo.repoPath === discoveredRepoPath);
+      assert.ok(discoveredRepo, 'expected discovered repo inventory entry');
+      assert.ok(discoveredRepo.sources.includes('workspace-scan'));
+      assert.equal(discoveredRepo.selected, false);
+      assert.notEqual(listResponse.body.selectedRepo?.repoPath, discoveredRepoPath);
     });
 
     await test('catalog mutation routes create, update, and delete user-global skills on authoritative paths', async () => {
@@ -534,6 +731,57 @@ async function run() {
       assert.ok(fs.existsSync(path.join(copilotHomeAbs, 'skills-vault', 'shared-authoring', 'SKILL.md')));
     });
 
+    await test('catalog provider install route executes managed-import provider commands and persists provider state', async () => {
+      writeJson(path.join(engineRoot, 'engine-assets', 'providers.json'), {
+        schemaVersion: 1,
+        providers: [
+          {
+            id: 'superpowers-copilot',
+            title: 'Superpowers for GitHub Copilot',
+            sourceType: 'github-repo',
+            source: {
+              owner: 'DwainTR',
+              repo: 'superpowers-copilot',
+            },
+            installStrategy: 'managed-import',
+            bridgeStrategy: 'plugin-layout',
+            assetLayout: {
+              namespace: 'superpowers',
+            },
+          },
+        ],
+      });
+
+      const providerRoutes = register({
+        readJsonBody: async (req) => req.__body || {},
+        sendJson(res, code, payload) {
+          res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify(payload, null, 2));
+        },
+        executeProviderCommand: async ({ command, args }) => ({
+          stdout: `${command} ${args.join(' ')} ok`,
+          stderr: '',
+        }),
+      });
+
+      const installResponse = await invoke(providerRoutes, baseCtx, 'POST', '/api/catalog/providers/install', {
+        providerId: 'superpowers-copilot',
+        action: 'install',
+      });
+
+      assert.equal(installResponse.res.statusCode, 200);
+      assert.equal(installResponse.body.kind, 'catalog.provider.install');
+      assert.equal(installResponse.body.providerId, 'superpowers-copilot');
+      assert.equal(installResponse.body.action, 'install');
+      assert.ok(Array.isArray(installResponse.body.commands));
+      assert.equal(installResponse.body.commands.length, 2);
+
+      const providerStatePath = path.join(copilotHomeAbs, 'catalog', 'providers-state.json');
+      const providerState = JSON.parse(fs.readFileSync(providerStatePath, 'utf8'));
+      assert.equal(providerState.providers['superpowers-copilot'].installed, true);
+      assert.equal(providerState.providers['superpowers-copilot'].pluginRef, 'superpowers@superpowers-copilot');
+    });
+
     await test('catalog mutation routes disable and enable repo overlays via repo-state only', async () => {
       const disableResponse = await invoke(routes, baseCtx, 'POST', '/api/catalog/assets/disable', {
         kind: 'skill',
@@ -571,8 +819,8 @@ async function run() {
       assert.equal(Array.isArray(registry.skills.disabled), false);
     });
 
-    await test('POST /api/search/query ranks projection-backed search results and writes audit events', async () => {
-      const response = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
+    await test('POST /api/search/query enforces routing policy by default and exposes an explicit override', async () => {
+      const defaultResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
         query: 'repo',
         kind: 'skill',
         includeVaultOnly: true,
@@ -582,15 +830,61 @@ async function run() {
         sessionId: 'session-asset-1',
       });
 
-      assert.equal(response.res.statusCode, 200);
-      assert.equal(response.body.kind, 'catalog.search.query');
-      assert.ok(response.body.count >= 1);
-      assert.equal(response.body.results[0].assetId, 'skill-repo-helper');
-      assert.ok(Array.isArray(response.body.results[0].explanations));
-      assert.ok(response.body.audit.logged, 'expected search audit logging to succeed');
+      assert.equal(defaultResponse.res.statusCode, 200);
+      assert.equal(defaultResponse.body.kind, 'catalog.search.query');
+      assert.equal(defaultResponse.body.count, 0);
+      assert.equal(defaultResponse.body.routingPolicy.mode, 'eligible-only');
+      assert.ok(
+        !defaultResponse.body.routingPolicy.eligibleAssetIds.includes('skill-repo-helper'),
+        'expected inactive repo bundle member to be excluded from default routing',
+      );
+
+      const overrideResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
+        query: 'repo',
+        kind: 'skill',
+        includeVaultOnly: true,
+        frameworks: ['node'],
+        limit: 5,
+        repoPath,
+        sessionId: 'session-asset-1',
+        overrideRoutingPolicy: true,
+      });
+
+      assert.equal(overrideResponse.res.statusCode, 200);
+      assert.equal(overrideResponse.body.routingPolicy.mode, 'explicit-override');
+      assert.ok(overrideResponse.body.count >= 1);
+      assert.equal(overrideResponse.body.results[0].assetId, 'skill-repo-helper');
+      assert.ok(Array.isArray(overrideResponse.body.results[0].explanations));
+      assert.ok(overrideResponse.body.audit.logged, 'expected search audit logging to succeed');
+
+      await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'activate-bundle',
+        bundleId: 'repo-helper-pack',
+        repoPath,
+      });
+
+      const eligibleResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
+        query: 'repo',
+        kind: 'skill',
+        includeVaultOnly: true,
+        frameworks: ['node'],
+        limit: 5,
+        repoPath,
+        sessionId: 'session-asset-1',
+      });
+
+      assert.equal(eligibleResponse.res.statusCode, 200);
+      assert.ok(eligibleResponse.body.count >= 1);
+      assert.equal(eligibleResponse.body.results[0].assetId, 'skill-repo-helper');
+      assert.equal(eligibleResponse.body.routingPolicy.mode, 'eligible-only');
     });
 
     await test('POST /api/search/selection persists selection telemetry for backend/UI consumers', async () => {
+      await invoke(routes, baseCtx, 'POST', '/api/catalog/activation', {
+        action: 'activate-bundle',
+        bundleId: 'repo-helper-pack',
+        repoPath,
+      });
       const searchResponse = await invoke(routes, baseCtx, 'POST', '/api/search/query', {
         query: 'repo helper',
         kind: 'skill',

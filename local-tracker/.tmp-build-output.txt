@@ -1,0 +1,23 @@
+
+> @instruction-engine/local-tracker@0.1.0 build
+> tsc -p tsconfig.build.json
+
+src/messagingGateway/config.ts(5,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'buildMessagingGatewayConfigMetadata'.
+src/messagingGateway/config.ts(6,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'MESSAGING_GATEWAY_CONFIG_CONTRACT_VERSION'.
+src/messagingGateway/config.ts(7,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'MESSAGING_GATEWAY_CONFIG_SCHEMA_VERSION'.
+src/messagingGateway/config.ts(8,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'resolveContractCompatibilitySource'.
+src/messagingGateway/config.ts(9,7): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'ContractCompatibilitySource'.
+src/messagingGateway/index.ts(5,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'buildEmptyMessagingGatewayDiscoveryTelemetrySummary'.
+src/messagingGateway/index.ts(6,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'buildMessagingGatewayReadinessMetadata'.
+src/messagingGateway/statusFile.ts(5,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'buildEmptyMessagingGatewayDiscoveryTelemetrySummary'.
+src/messagingGateway/statusFile.ts(6,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'buildMessagingGatewayReadinessMetadata'.
+src/messagingGateway/statusFile.ts(7,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_CONTRACT_VERSION'.
+src/messagingGateway/statusFile.ts(8,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'MESSAGING_GATEWAY_DISCOVERY_TELEMETRY_DEFAULT_SAMPLE_CAPACITY'.
+src/messagingGateway/statusFile.ts(9,2): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'MESSAGING_GATEWAY_READINESS_CONTRACT_VERSION'.
+src/messagingGateway/statusFile.ts(10,7): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'ContractCompatibilitySource'.
+src/messagingGateway/statusFile.ts(11,7): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'MessagingGatewayDiscoveryMissReason'.
+src/messagingGateway/statusFile.ts(12,7): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'MessagingGatewayReadinessReasonCode'.
+src/messagingGateway/statusFile.ts(13,7): error TS2305: Module '"@instruction-engine/contracts"' has no exported member 'MessagingGatewayReadinessState'.
+
+__EXIT_CODE__=2
+__DURATION_MS__=30743

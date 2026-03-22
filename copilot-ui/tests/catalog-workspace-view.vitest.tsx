@@ -5,6 +5,8 @@ const storeMocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
   refreshWorkspace: vi.fn(),
   installAll: vi.fn(),
+  installBundle: vi.fn(),
+  uninstallBundle: vi.fn(),
   createAsset: vi.fn(),
   updateAsset: vi.fn(),
   deleteAsset: vi.fn(),
@@ -12,6 +14,7 @@ const storeMocks = vi.hoisted(() => ({
   enableAsset: vi.fn(),
   disableAsset: vi.fn(),
   registerRepo: vi.fn(),
+  saveCustomScanRoots: vi.fn(),
   unregisterRepo: vi.fn(),
   refreshRepo: vi.fn(),
   selectRepo: vi.fn(),
@@ -20,6 +23,7 @@ const storeMocks = vi.hoisted(() => ({
   clearRepoContext: vi.fn(),
   setFilters: vi.fn(),
   selectAsset: vi.fn(),
+  inspectSearchResult: vi.fn(),
   setSearchQuery: vi.fn(),
   setSearchIncludeVaultOnly: vi.fn(),
   setSearchPreferLoadMode: vi.fn(),
@@ -35,6 +39,7 @@ const mockState = {
   summaryError: null,
   healthError: null,
   repoInventoryError: null,
+  bundlesError: null,
   installMessage: 'Catalog projection refreshed.',
   repoPathInput: 'C:\\repo',
   activeRepoPath: 'C:\\repo',
@@ -61,6 +66,37 @@ const mockState = {
       },
     },
   },
+  bundles: [
+    {
+      bundleId: 'superpowers-workflow',
+      title: 'Superpowers Workflow Pack',
+      description: 'Optional workflow pack for disciplined planning, debugging, and TDD.',
+      classification: 'workflow',
+      targeting: {
+        frameworks: ['react'],
+        scopeKinds: ['repo'],
+        tags: ['superpowers', 'workflow'],
+      },
+      materialization: 'on-demand',
+      status: 'available',
+      defaultRecommended: false,
+      uninstallPolicy: {
+        removesInstalledMembers: true,
+        clearsActivationState: true,
+        clearsRepoOverlayState: true,
+        preservesExternalPackages: true,
+      },
+      stats: {
+        memberCount: 15,
+        installedCount: 3,
+        enabledCount: 2,
+        availableCount: 15,
+        missingCount: 1,
+      },
+      tags: ['superpowers', 'workflow'],
+      members: [],
+    },
+  ],
   assets: [
     {
       assetId: 'skill-test',
@@ -296,6 +332,44 @@ const mockState = {
   ],
   auditLoading: false,
   auditError: null,
+  auditAnalytics: {
+    assets: [
+      {
+        assetId: 'skill-test',
+        assetKey: 'test',
+        kind: 'skill',
+        search: {
+          sampled: {
+            resultCount: 3,
+            selectedCount: 2,
+          },
+        },
+        usage: {
+          invocationCount: 4,
+          explicitInvocationCount: 3,
+          proxyInvocationCount: 1,
+        },
+      },
+    ],
+    repos: [
+      {
+        repoId: 'repo-1',
+        search: {
+          queryCount: 5,
+          selectedCount: 2,
+        },
+        usage: {
+          invocationCount: 4,
+          explicitInvocationCount: 3,
+          proxyInvocationCount: 1,
+        },
+      },
+    ],
+    sessions: [],
+    recentEvents: [],
+  },
+  auditAnalyticsLoading: false,
+  auditAnalyticsError: null,
   searchQuery: '',
   searchResults: [
     {
@@ -327,6 +401,15 @@ const mockState = {
   searchPreferLoadMode: 'all',
   repoInventoryLoading: false,
   repoInventory: {
+    workspaceScan: {
+      storage: {
+        path: 'C:\\Users\\tester\\.copilot\\catalog\\repo-discovery.json',
+        exists: true,
+      },
+      defaultRoots: ['C:\\Users\\tester\\Documents\\GitHub'],
+      customScanRoots: ['D:\\work\\repos'],
+      scanRoots: ['C:\\Users\\tester\\Documents\\GitHub', 'D:\\work\\repos'],
+    },
     repos: [
       {
         repoId: 'repo-1',
@@ -381,6 +464,7 @@ const mockState = {
       },
     },
   },
+  selectedBundleId: 'superpowers-workflow',
 };
 
 const mockCatalogWorkspaceStore = {
@@ -389,6 +473,8 @@ const mockCatalogWorkspaceStore = {
   loadWorkspace: storeMocks.loadWorkspace,
   refreshWorkspace: storeMocks.refreshWorkspace,
   installAll: storeMocks.installAll,
+  installBundle: storeMocks.installBundle,
+  uninstallBundle: storeMocks.uninstallBundle,
   createAsset: storeMocks.createAsset,
   updateAsset: storeMocks.updateAsset,
   deleteAsset: storeMocks.deleteAsset,
@@ -396,6 +482,7 @@ const mockCatalogWorkspaceStore = {
   enableAsset: storeMocks.enableAsset,
   disableAsset: storeMocks.disableAsset,
   registerRepo: storeMocks.registerRepo,
+  saveCustomScanRoots: storeMocks.saveCustomScanRoots,
   unregisterRepo: storeMocks.unregisterRepo,
   refreshRepo: storeMocks.refreshRepo,
   selectRepo: storeMocks.selectRepo,
@@ -404,6 +491,7 @@ const mockCatalogWorkspaceStore = {
   clearRepoContext: storeMocks.clearRepoContext,
   setFilters: storeMocks.setFilters,
   selectAsset: storeMocks.selectAsset,
+  inspectSearchResult: storeMocks.inspectSearchResult,
   setSearchQuery: storeMocks.setSearchQuery,
   setSearchIncludeVaultOnly: storeMocks.setSearchIncludeVaultOnly,
   setSearchPreferLoadMode: storeMocks.setSearchPreferLoadMode,
@@ -413,6 +501,8 @@ const mockCatalogWorkspaceStore = {
 describe('AssetsView catalog workspace', () => {
   beforeEach(() => {
     Object.values(storeMocks).forEach((mock) => mock.mockReset());
+    storeMocks.installBundle.mockResolvedValue(undefined);
+    storeMocks.uninstallBundle.mockResolvedValue(undefined);
     storeMocks.createAsset.mockResolvedValue(undefined);
     storeMocks.updateAsset.mockResolvedValue(undefined);
   });
@@ -424,6 +514,8 @@ describe('AssetsView catalog workspace', () => {
   it('renders repo inventory and actionable authoring controls', async () => {
     vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
       catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
     }));
 
     const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
@@ -432,19 +524,93 @@ describe('AssetsView catalog workspace', () => {
 
     expect(storeMocks.loadWorkspace).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Repo scope & registration')).toBeInTheDocument();
+    expect(screen.getByText('Workflow packs')).toBeInTheDocument();
+    expect(screen.getAllByText('Superpowers Workflow Pack').length).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: 'Create asset' })).toBeInTheDocument();
     expect(screen.getByText('Catalog browser')).toBeInTheDocument();
     expect(screen.getByText('Search & recommendations')).toBeInTheDocument();
     expect(screen.getByText('Usage & audit')).toBeInTheDocument();
     expect(screen.getByText('Runtime health')).toBeInTheDocument();
+    expect(screen.getByText(/Persisted custom roots:/)).toHaveTextContent('D:\\work\\repos');
     expect(screen.getByTestId('catalog-write-target-copy')).toHaveTextContent('authoritative repo-local asset');
     expect(screen.getByTestId('catalog-runtime-freshness')).toHaveTextContent('fresh');
+    expect(screen.getByTestId('catalog-observability-summary')).toHaveTextContent('Searched 5 · Selected 2 · Invoked 4');
+    expect(screen.getByTestId('catalog-selected-asset-observability')).toHaveTextContent('Searched 3 · Selected 2 · Invoked 4');
+    expect(screen.getAllByText(/Mixed evidence:/i).length).toBeGreaterThan(0);
     expect(screen.getByText('# Test skill')).toBeInTheDocument();
+    expect(screen.getByText(/Privacy-safe selection telemetry/i)).toBeInTheDocument();
+  });
+
+  it('saves custom scan roots through the workspace store', async () => {
+    vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
+      catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
+    }));
+
+    const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
+
+    render(<AssetsView />);
+
+    fireEvent.change(screen.getByTestId('catalog-custom-scan-roots-input'), {
+      target: { value: 'D:\\work\\repos\nE:\\client\\repos' },
+    });
+    fireEvent.click(screen.getByTestId('catalog-save-custom-scan-roots'));
+
+    await waitFor(() => {
+      expect(storeMocks.saveCustomScanRoots).toHaveBeenCalledWith(['D:\\work\\repos', 'E:\\client\\repos']);
+    });
+  });
+
+  it('dispatches bundle installation through the workspace store', async () => {
+    vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
+      catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
+    }));
+
+    const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
+
+    render(<AssetsView />);
+
+    fireEvent.click(screen.getByTestId('catalog-install-bundle-superpowers-workflow'));
+
+    await waitFor(() => {
+      expect(storeMocks.installBundle).toHaveBeenCalledWith('superpowers-workflow');
+    });
+  });
+
+  it('surfaces bundle lifecycle metadata and dispatches bundle uninstall through the workspace store', async () => {
+    vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
+      catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
+    }));
+
+    const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
+
+    render(<AssetsView />);
+
+    expect(screen.getByTestId('catalog-bundle-lifecycle-superpowers-workflow')).toHaveTextContent('Partial member state');
+    expect(screen.getByTestId('catalog-workflow-bundle-taxonomy-superpowers-workflow'))
+      .toHaveTextContent('Classification: workflow · Targets: scope: repo · frameworks: react · tags: superpowers, workflow');
+    expect(screen.getByTestId('catalog-workflow-bundle-uninstall-policy-superpowers-workflow'))
+      .toHaveTextContent('removes managed members');
+    expect(screen.getByTestId('catalog-selected-bundle-uninstall-policy'))
+      .toHaveTextContent('preserves external packages');
+
+    fireEvent.click(screen.getByTestId('catalog-uninstall-workflow-bundle-superpowers-workflow'));
+
+    await waitFor(() => {
+      expect(storeMocks.uninstallBundle).toHaveBeenCalledWith('superpowers-workflow');
+    });
   });
 
   it('submits create and update actions through the workspace store', async () => {
     vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
       catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
     }));
 
     const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
@@ -487,5 +653,25 @@ describe('AssetsView catalog workspace', () => {
         expectedHash: 'repo-hash',
       }));
     });
+  });
+
+  it('records search inspection telemetry through the workspace store', async () => {
+    vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
+      catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
+    }));
+
+    const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
+
+    render(<AssetsView />);
+
+    fireEvent.click(screen.getByTestId('catalog-search-inspect'));
+
+    expect(storeMocks.inspectSearchResult).toHaveBeenCalledWith(expect.objectContaining({
+      assetId: 'skill-test',
+      rank: 1,
+      score: 42,
+    }));
   });
 });

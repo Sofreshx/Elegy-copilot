@@ -31,6 +31,8 @@ run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 **THE RULE:**
 - ALWAYS set `isBackground: false` for ALL commands
 - NEVER use `isBackground: true` for ANY command
+- For builds, tests, servers, and health checks, ALWAYS set a non-zero timeout; `timeout: 0` is forbidden
+- NEVER run watch, interactive, or debug test modes through agent tooling
 - If unsure, default to `false`
 
 ## Core Guardrails Backstop
@@ -189,10 +191,12 @@ If a task maps to a known domain, treat skills as the default path:
 - Run the narrowest relevant tests after changes.
 - When adding features or fixing bugs, add relevant unit/integration tests.
 - **Unit test execution**: Use `@unit-test-runner` (timeouts, non-interactive mode, safe flags).
+- Generic implementation lanes may request test scope, but they should not execute test commands directly.
 - **Integration test execution**: Use `@integration-test-runner` only when explicitly requested.
 - **Integration test authoring**: Prefer Alba (`alba-integration-tests`).
 - **Long E2E/integration runs**: Ask the user before running them and capture any decline in chat or host/session artifacts when a durable note is needed.
 - **Segment large test suites** into smaller batches (e.g., by test class filter).
+- Treat timeout, stalled-output, and inconclusive validation as results to handle, not reasons to keep waiting for terminal output.
 
 ## Temp File Safety Controls
 <a id="temp-file-safety-controls-v1"></a>

@@ -1,4 +1,5 @@
-import { FileWatcher, EventHandler } from "../watchers";
+import path from "path";
+import { FileWatcher, __watcherTestExports } from "../watchers";
 import { TrackerConfig } from "../config";
 import { TrackerEvent } from "../types";
 
@@ -63,6 +64,16 @@ afterEach(() => {
 });
 
 describe("FileWatcher", () => {
+  const workspacePath = "/test/workspace";
+  const canonicalTasksPath = __watcherTestExports.getCanonicalTasksPath(workspacePath);
+  const canonicalTasksPathPosix = canonicalTasksPath.replace(/\\/g, "/");
+  const legacyTasksPath = __watcherTestExports.getLegacyTasksPath(workspacePath);
+  const canonicalTaskFile = path.join(canonicalTasksPath, "t-001.md");
+
+  afterEach(() => {
+    delete process.env.TRACKER_ENABLE_LEGACY_TASK_SURFACE;
+  });
+
   describe("handler registration", () => {
     it("registers an event handler", () => {
       const watcher = new FileWatcher(makeConfig());
@@ -92,21 +103,39 @@ describe("FileWatcher", () => {
       expect(chokidar.watch).toHaveBeenCalledTimes(2);
     });
 
-    it("watches .instructions/tasks/*.md", () => {
+    it("watches the canonical repo-state task store", () => {
       const chokidar = require("chokidar");
       const watcher = new FileWatcher(makeConfig());
       watcher.start();
 
       const firstCallPath = chokidar.watch.mock.calls[0][0];
-      expect(firstCallPath).toContain(".instructions");
+      expect(firstCallPath).toContain(".copilot");
+      expect(firstCallPath).toContain("repo-state");
       expect(firstCallPath).toContain("tasks");
       expect(firstCallPath).toContain("*.md");
     });
 
+    it("only watches the legacy repo-local task surface when explicitly enabled", () => {
+      process.env.TRACKER_ENABLE_LEGACY_TASK_SURFACE = "true";
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
+      try {
+        const chokidar = require("chokidar");
+        const watcher = new FileWatcher(makeConfig());
+        watcher.start();
+
+        expect(chokidar.watch).toHaveBeenCalledTimes(2);
+        expect(chokidar.watch.mock.calls[0][0]).toContain(canonicalTasksPath);
+        expect(chokidar.watch.mock.calls[1][0]).toContain(legacyTasksPath);
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("compatibility-only surface"));
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
   });
 
   describe("debounced event emission", () => {
-    it("emits task_update when a task file changes", () => {
+    it("emits task_update when a canonical task file changes", () => {
       const handler = jest.fn();
       const watcher = new FileWatcher(makeConfig(), 100);
       watcher.on(handler);
@@ -114,7 +143,7 @@ describe("FileWatcher", () => {
 
       // The first mockWatcherInstance is the task file watcher
       const taskWatcher = mockWatcherInstances[0];
-      taskWatcher.simulateEvent("all", "change", "/test/workspace/.instructions/tasks/t-001.md");
+      taskWatcher.simulateEvent("all", "change", canonicalTaskFile);
 
       jest.advanceTimersByTime(150);
 
@@ -122,8 +151,12 @@ describe("FileWatcher", () => {
       const event: TrackerEvent = handler.mock.calls[0][0];
       expect(event.type).toBe("task_update");
       expect(event.data).toMatchObject({
+        authority: "canonical",
         event: "change",
-        path: "/test/workspace/.instructions/tasks/t-001.md",
+        path: canonicalTaskFile,
+        relativePath: "t-001.md",
+        taskStorePath: canonicalTasksPathPosix,
+        workspacePath,
       });
     });
 
@@ -134,7 +167,7 @@ describe("FileWatcher", () => {
       watcher.start();
 
       const taskWatcher = mockWatcherInstances[0];
-      const filePath = "/test/workspace/.instructions/tasks/t-001.md";
+      const filePath = canonicalTaskFile;
 
       // Fire 5 events in quick succession for the SAME file
       for (let i = 0; i < 5; i++) {
@@ -160,8 +193,8 @@ describe("FileWatcher", () => {
 
       const taskWatcher = mockWatcherInstances[0];
 
-      taskWatcher.simulateEvent("all", "change", "/test/workspace/.instructions/tasks/t-001.md");
-      taskWatcher.simulateEvent("all", "change", "/test/workspace/.instructions/tasks/t-002.md");
+      taskWatcher.simulateEvent("all", "change", canonicalTaskFile);
+      taskWatcher.simulateEvent("all", "change", path.join(canonicalTasksPath, "t-002.md"));
 
       jest.advanceTimersByTime(150);
 
@@ -184,7 +217,7 @@ describe("FileWatcher", () => {
       watcher.start();
 
       const taskWatcher = mockWatcherInstances[0];
-      taskWatcher.simulateEvent("all", "add", "/test/workspace/.instructions/tasks/t-001.md");
+      taskWatcher.simulateEvent("all", "add", canonicalTaskFile);
 
       jest.advanceTimersByTime(100);
 
@@ -213,7 +246,7 @@ describe("FileWatcher", () => {
       watcher.start();
 
       const taskWatcher = mockWatcherInstances[0];
-      taskWatcher.simulateEvent("all", "change", "/test/workspace/.instructions/tasks/t-001.md");
+      taskWatcher.simulateEvent("all", "change", canonicalTaskFile);
 
       // Stop before debounce fires
       await watcher.stop();

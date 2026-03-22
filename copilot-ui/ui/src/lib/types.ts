@@ -49,7 +49,70 @@ export interface SessionPlansResponse {
 
 export interface SessionStructuredNextUnit {
   workUnitId?: string;
+  workUnitIds?: string[];
+  parallelCandidate?: boolean;
   rationale?: string;
+  [key: string]: unknown;
+}
+
+export interface SessionArtifactSection {
+  title: string;
+  key?: string;
+  content: string;
+  items?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionPropositionEntry {
+  heading: string;
+  occurredAt?: string | null;
+  phase?: string | null;
+  agent?: string | null;
+  sections: SessionArtifactSection[];
+  [key: string]: unknown;
+}
+
+export interface SessionHandoffManifest {
+  session?: string | null;
+  plan?: string | null;
+  planStatus?: string | null;
+  reviewer?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SessionParsedHandoff {
+  manifest?: SessionHandoffManifest | null;
+  sections?: SessionArtifactSection[];
+  warnings?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionStructuredReviewLedgerRow {
+  round?: string;
+  reviewer?: string;
+  verdict?: string;
+  requiredRevisions?: string;
+  resolution?: string;
+  [key: string]: unknown;
+}
+
+export interface SessionStructuredReviewLedger {
+  rows?: SessionStructuredReviewLedgerRow[];
+  approved?: boolean;
+  warnings?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionStructuredResume {
+  ready?: boolean;
+  blockers?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionStructuredMeta {
+  reviewLedger?: SessionStructuredReviewLedger;
+  handoff?: SessionParsedHandoff | null;
+  resume?: SessionStructuredResume;
   [key: string]: unknown;
 }
 
@@ -59,6 +122,7 @@ export interface SessionStructuredStateResponse {
   planId?: string;
   nextUnit?: SessionStructuredNextUnit | null;
   warnings?: string[];
+  meta?: SessionStructuredMeta;
   [key: string]: unknown;
 }
 
@@ -67,6 +131,42 @@ export interface SessionTextArtifactResponse {
   source: string;
   content: string;
   [key: string]: unknown;
+}
+
+export interface SessionAgentUsageResponse {
+  id: string;
+  source: string;
+  usage: Record<string, number>;
+  skillUsage?: SessionSkillUsageSummary | null;
+  [key: string]: unknown;
+}
+
+export interface SessionSkillUsageEntry {
+  assetId: string;
+  assetKey?: string | null;
+  assetKind?: string | null;
+  invocationCount: number;
+  lastInvokedAt?: string | null;
+  toolNames?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionSkillUsageSummary {
+  contractVersion?: string;
+  sessionId?: string | null;
+  totalInvocations: number;
+  uniqueSkillCount: number;
+  skills: SessionSkillUsageEntry[];
+  [key: string]: unknown;
+}
+
+export interface SessionPropositionResponse extends SessionTextArtifactResponse {
+  entries?: SessionPropositionEntry[];
+  latestEntry?: SessionPropositionEntry | null;
+}
+
+export interface SessionHandoffResponse extends SessionTextArtifactResponse {
+  parsed?: SessionParsedHandoff;
 }
 
 export interface SdkHealthResponse {
@@ -79,6 +179,33 @@ export interface SdkHealthResponse {
   cliVersion?: string;
   error?: string;
   [key: string]: unknown;
+}
+
+export type DesktopUpdaterStatus =
+  | 'idle'
+  | 'checking'
+  | 'blocked'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'up-to-date'
+  | 'error';
+
+export interface DesktopUpdaterState {
+  supported: boolean;
+  status: DesktopUpdaterStatus;
+  channel: string;
+  currentVersion: string;
+  availableVersion: string | null;
+  progressPercent: number | null;
+  transferredBytes: number | null;
+  totalBytes: number | null;
+  message: string | null;
+  reason: string | null;
+  lastUpdatedAtMs: number | null;
+  canCheckForUpdates: boolean;
+  canDownload: boolean;
+  canRestartToUpdate: boolean;
 }
 
 export interface SdkSessionSummary {
@@ -98,6 +225,110 @@ export interface SdkSessionsResponse {
 
 export interface SdkSendResponse {
   messageId: string;
+}
+
+export interface ExecutorRetryPolicy {
+  enabled: boolean;
+  maxAttempts: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+  backoffMultiplier: number;
+  jitterRatio: number;
+}
+
+export interface ExecutorHealthResponse {
+  enabled: boolean;
+  state: string;
+  jobCount: number;
+  runCount: number;
+  activeRunCount: number;
+  scheduledJobCount: number;
+  openedSessionCount: number;
+  lastError?: string | null;
+  statePath?: string;
+  [key: string]: unknown;
+}
+
+export interface ExecutorRunEvent {
+  at: string;
+  type: string;
+  level?: 'debug' | 'info' | 'warn' | 'error' | 'success' | string;
+  message: string;
+  data?: Record<string, unknown> | null;
+}
+
+export interface ExecutorRun {
+  id: string;
+  jobId: string;
+  repoId?: string | null;
+  status: string;
+  attemptCount: number;
+  maxAttempts: number;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  nextRetryAt?: string | null;
+  sessionId?: string | null;
+  messageId?: string | null;
+  error?: string | null;
+  summary?: string | null;
+  createdSession?: boolean;
+  events: ExecutorRunEvent[];
+}
+
+export interface ExecutorJob {
+  id: string;
+  title: string;
+  prompt: string;
+  repoId?: string | null;
+  targetType: 'create-session' | 'existing-session' | string;
+  existingSessionId?: string | null;
+  model?: string | null;
+  contextType?: string | null;
+  sandboxId?: string | null;
+  scheduleAt?: string | null;
+  retryPolicy: ExecutorRetryPolicy;
+  createdAt: string;
+  updatedAt: string;
+  lastRunId?: string | null;
+  activeRunId?: string | null;
+  status: string;
+}
+
+export interface ExecutorJobsResponse {
+  jobs: ExecutorJob[];
+}
+
+export interface ExecutorRunsResponse {
+  runs: ExecutorRun[];
+}
+
+export interface CreateExecutorJobPayload {
+  title?: string;
+  prompt: string;
+  targetType?: 'create-session' | 'existing-session';
+  existingSessionId?: string;
+  model?: string;
+  contextType?: string;
+  sandboxId?: string;
+  scheduleAt?: string;
+  retryPolicy?: Partial<ExecutorRetryPolicy>;
+  repoId?: string;
+}
+
+export interface CreateExecutorJobResponse {
+  job: ExecutorJob;
+  run?: ExecutorRun | null;
+}
+
+export interface TriggerExecutorJobResponse {
+  run: ExecutorRun;
+}
+
+export interface CancelExecutorJobResponse {
+  job: ExecutorJob;
+  run?: ExecutorRun | null;
 }
 
 export interface SdkRelayEvent {
@@ -149,15 +380,26 @@ export interface ManagedAssetsResponse {
 }
 
 export interface InstalledAgent {
+  assetId?: string;
   name: string;
   fileName: string;
   absPath: string;
+  provider?: string;
+  sourcePackage?: string;
+  namespace?: string;
+  readOnly?: boolean;
 }
 
 export interface InstalledSkill {
+  assetId?: string;
   name: string;
   absPath: string;
   kind: 'pointer' | 'full' | string;
+  viewPath?: string;
+  provider?: string;
+  sourcePackage?: string;
+  namespace?: string;
+  readOnly?: boolean;
 }
 
 export interface InstalledPrompt {
@@ -239,6 +481,7 @@ export interface TrackerSessionsResponse {
 }
 
 export interface SkillPreviewItem {
+  assetId?: string;
   name: string;
   kind: 'pointer' | 'full' | string;
   loadMode?: 'always' | 'on-demand' | string;
@@ -248,6 +491,10 @@ export interface SkillPreviewItem {
   absPath?: string;
   vaultPath?: string | null;
   viewPath?: string;
+  provider?: string;
+  sourcePackage?: string;
+  namespace?: string;
+  readOnly?: boolean;
   [key: string]: unknown;
 }
 
@@ -336,6 +583,98 @@ export interface CatalogEffectiveAsset {
   [key: string]: unknown;
 }
 
+export interface CatalogBundleMember {
+  assetId: string;
+  assetKey?: string;
+  kind?: string;
+  title?: string;
+  description?: string;
+  available?: boolean;
+  installed?: boolean;
+  enabled?: boolean;
+  loadMode?: string | null;
+  defaultLoadMode?: string | null;
+  missing?: boolean;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundleStats {
+  memberCount?: number;
+  availableCount?: number;
+  installedCount?: number;
+  enabledCount?: number;
+  missingCount?: number;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundle {
+  bundleId: string;
+  title?: string;
+  description?: string;
+  installTarget?: string;
+  activationScope?: string;
+  activationStatus?: string;
+  activationSource?: string | null;
+  materialization?: string;
+  classification?: string | null;
+  targeting?: Record<string, unknown>;
+  defaultRecommended?: boolean;
+  dependsOn?: string[];
+  defaultMemberLoadMode?: string | null;
+  uninstallPolicy?: Record<string, unknown>;
+  status?: string;
+  selected?: boolean;
+  members?: CatalogBundleMember[];
+  stats?: CatalogBundleStats;
+  [key: string]: unknown;
+}
+
+export interface CatalogActivationLayerState {
+  exists?: boolean;
+  active?: boolean;
+  path?: string | null;
+  plannerProfile?: string | null;
+  orchestrationPolicy?: string | null;
+  activeBundleIds?: string[] | null;
+  updatedAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogActivationState {
+  schemaVersion?: number;
+  plannerProfile: string;
+  plannerProfileSource?: string;
+  orchestrationPolicy: string;
+  orchestrationPolicySource?: string;
+  activeBundleIds: string[];
+  bundleSource?: string;
+  availableBundleIds?: string[];
+  availablePlannerProfiles?: string[];
+  managedImportProviderIds?: string[];
+  globalDefaults?: CatalogActivationLayerState;
+  repoOverride?: CatalogActivationLayerState | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogProviderProjection {
+  providerId: string;
+  title?: string | null;
+  description?: string | null;
+  sourceType?: string | null;
+  installStrategy?: string | null;
+  bridgeStrategy?: string | null;
+  activationDefaults?: Record<string, unknown> | null;
+  defaultBundles?: string[];
+  state?: Record<string, unknown> | null;
+  discoveredAssets?: {
+    count?: number;
+    assetIds?: string[];
+    byKind?: Record<string, number>;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
 export interface CatalogSnapshotWarningSummary {
   count: number;
   items: unknown[];
@@ -372,6 +711,21 @@ export interface CatalogSnapshotStats {
   installedCount?: number;
   recommendedCount?: number;
   overriddenCount?: number;
+  bundles?: {
+    totalCount?: number;
+    defaultRecommendedCount?: number;
+    activeCount?: number;
+    installedCount?: number;
+    availableCount?: number;
+    partialCount?: number;
+    missingCount?: number;
+    memberCount?: number;
+    availableMemberCount?: number;
+    installedMemberCount?: number;
+    enabledMemberCount?: number;
+    missingMemberCount?: number;
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 }
 
@@ -380,6 +734,8 @@ export interface CatalogSnapshotEnvelope {
   generatedAt: string | null;
   readMode?: string;
   repoContext?: CatalogRepoContext | null;
+  activation?: CatalogActivationState;
+  providers?: CatalogProviderProjection[];
   storage?: {
     catalogRoot?: string;
     snapshotPath?: string;
@@ -417,12 +773,80 @@ export interface CatalogAssetsResponse {
   [key: string]: unknown;
 }
 
+export interface CatalogBundleMember {
+  assetId: string;
+  assetKey?: string;
+  kind?: string;
+  title?: string;
+  available?: boolean;
+  installed?: boolean;
+  enabled?: boolean;
+  selectedLayer?: string | null;
+  loadMode?: string | null;
+  defaultLoadMode?: string | null;
+  missing?: boolean;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundleStats {
+  memberCount?: number;
+  availableCount?: number;
+  installedCount?: number;
+  enabledCount?: number;
+  missingCount?: number;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundle {
+  bundleId: string;
+  title?: string;
+  description?: string;
+  assetIds?: string[];
+  installTarget?: string;
+  activationScope?: string;
+  materialization?: string;
+  classification?: string | null;
+  targeting?: Record<string, unknown>;
+  tags?: string[];
+  defaultRecommended?: boolean;
+  dependsOn?: string[];
+  defaultMemberLoadMode?: string | null;
+  uninstallPolicy?: Record<string, unknown>;
+  activationStatus?: string;
+  activationSource?: string | null;
+  selected?: boolean;
+  status?: string;
+  stats?: CatalogBundleStats;
+  members?: CatalogBundleMember[];
+  [key: string]: unknown;
+}
+
+export interface CatalogBundlesResponse {
+  kind?: string;
+  deterministic?: boolean;
+  filters?: Record<string, unknown>;
+  count: number;
+  snapshot?: CatalogSnapshotEnvelope;
+  bundles: CatalogBundle[];
+  [key: string]: unknown;
+}
+
 export interface CatalogAssetDetailResponse {
   kind?: string;
   deterministic?: boolean;
   asset?: CatalogEffectiveAsset;
   entries?: CatalogEntry[];
   snapshot?: CatalogSnapshotEnvelope;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundlesResponse {
+  kind?: string;
+  deterministic?: boolean;
+  filters?: Record<string, unknown>;
+  count: number;
+  snapshot?: CatalogSnapshotEnvelope;
+  bundles: CatalogBundle[];
   [key: string]: unknown;
 }
 
@@ -493,6 +917,61 @@ export interface CatalogSearchResponse {
   [key: string]: unknown;
 }
 
+export interface CatalogSearchSelectionResult {
+  assetId?: string;
+  score?: number;
+  rank?: number;
+  explanations?: CatalogSearchExplanation[];
+  effectiveState?: {
+    assetKey?: string;
+    kind?: string;
+    scope?: {
+      repoId?: string | null;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
+  entry?: {
+    assetKey?: string;
+    kind?: string;
+    scope?: {
+      repoId?: string | null;
+      [key: string]: unknown;
+    } | null;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogSearchSelectionPayload {
+  query?: Partial<CatalogSearchRequest> | Record<string, unknown>;
+  searchQuery?: Partial<CatalogSearchRequest> | Record<string, unknown>;
+  result?: CatalogSearchSelectionResult | null;
+  resultCount?: number;
+  assetId?: string;
+  assetKey?: string;
+  [key: string]: unknown;
+}
+
+export interface CatalogSearchSelectionResponse {
+  kind?: string;
+  deterministic?: boolean;
+  recorded?: boolean;
+  telemetry?: {
+    path?: string;
+    eventId?: string;
+    [key: string]: unknown;
+  };
+  audit?: {
+    logged?: boolean;
+    path?: string;
+    eventId?: string;
+    error?: string | null;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 export interface CatalogAuditEvent {
   eventId: string;
   eventType: string;
@@ -521,6 +1000,123 @@ export interface CatalogAuditEventsResponse {
     [key: string]: unknown;
   };
   events: CatalogAuditEvent[];
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditSearchSummary {
+  queryCount?: number;
+  searchedCount?: number;
+  resultCount?: number;
+  selectedCount?: number;
+  missCount?: number;
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditAssetSearchSummary {
+  sampled?: CatalogAuditSearchSummary | null;
+  lastEventAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditUsageSummary {
+  invocationCount?: number;
+  explicitInvocationCount?: number;
+  proxyInvocationCount?: number;
+  proxyInferredCount?: number;
+  sessionCount?: number;
+  repoCount?: number;
+  evidence?: string;
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditAssetSummary {
+  assetId: string;
+  assetKey?: string | null;
+  kind?: string | null;
+  current?: {
+    enabled?: boolean;
+    installed?: boolean;
+    available?: boolean;
+    recommended?: boolean;
+    selectedLayer?: string | null;
+    scope?: CatalogScope | null;
+    title?: string | null;
+    description?: string | null;
+    [key: string]: unknown;
+  };
+  lifecycle?: {
+    counts?: Record<string, number>;
+    lastEventAt?: string | null;
+    [key: string]: unknown;
+  };
+  search?: CatalogAuditAssetSearchSummary | null;
+  usage?: CatalogAuditUsageSummary | null;
+  activity?: {
+    repoIds?: string[];
+    sessionIds?: string[];
+    [key: string]: unknown;
+  };
+  recentEvents?: CatalogAuditEvent[];
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditRepoSummary {
+  repoId?: string | null;
+  repoLabel?: string | null;
+  assetIds?: string[];
+  sessionIds?: string[];
+  lifecycle?: Record<string, number>;
+  search?: CatalogAuditSearchSummary | null;
+  usage?: CatalogAuditUsageSummary | null;
+  lastEventAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogAuditSessionSummary {
+  sessionId?: string | null;
+  status?: string | null;
+  startTime?: string | null;
+  lastEventTime?: string | null;
+  repoId?: string | null;
+  repoLabel?: string | null;
+  assetIds?: string[];
+  search?: CatalogAuditSearchSummary | null;
+  usage?: CatalogAuditUsageSummary | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogAssetAuditAnalytics {
+  contractVersion?: string;
+  generatedAt?: string;
+  deterministic?: boolean;
+  filters?: Record<string, unknown>;
+  telemetry?: {
+    contractVersion?: string | null;
+    sample?: Record<string, unknown> | null;
+    countersByEventType?: Record<string, number>;
+    countersByMissReason?: Record<string, number>;
+    [key: string]: unknown;
+  };
+  stats?: {
+    assetCount?: number;
+    repoCount?: number;
+    sessionCount?: number;
+    auditEventCount?: number;
+    sampledSearchEventCount?: number;
+    [key: string]: unknown;
+  };
+  assets: CatalogAuditAssetSummary[];
+  repos: CatalogAuditRepoSummary[];
+  sessions: CatalogAuditSessionSummary[];
+  recentEvents: CatalogAuditEvent[];
+  [key: string]: unknown;
+}
+
+export interface CatalogAssetAuditAnalyticsResponse {
+  kind?: string;
+  deterministic?: boolean;
+  snapshot?: CatalogSnapshotEnvelope | null;
+  analytics?: CatalogAssetAuditAnalytics | null;
   [key: string]: unknown;
 }
 
@@ -581,6 +1177,54 @@ export interface CatalogAssetMutationResponse {
   [key: string]: unknown;
 }
 
+export interface CatalogProviderInstallResponse {
+  kind?: string;
+  deterministic?: boolean;
+  action?: string;
+  providerId?: string;
+  provider?: Record<string, unknown>;
+  state?: Record<string, unknown>;
+  commands?: Array<Record<string, unknown>>;
+  snapshot?: CatalogSnapshotEnvelope;
+  error?: string;
+  [key: string]: unknown;
+}
+
+export interface CatalogActivationMutationResponse {
+  kind?: string;
+  deterministic?: boolean;
+  action?: string;
+  bundleId?: string;
+  plannerProfile?: string;
+  orchestrationPolicy?: string;
+  activeBundleIds?: string[];
+  scope?: CatalogScope;
+  repoId?: string | null;
+  refreshes?: CatalogMutationRefreshResult[];
+  audit?: CatalogMutationAuditResult;
+  [key: string]: unknown;
+}
+
+export interface CatalogBundleUninstallResponse {
+  kind?: string;
+  deterministic?: boolean;
+  action?: string;
+  bundleId?: string;
+  scope?: CatalogScope;
+  repoId?: string | null;
+  removedAssetIds?: string[];
+  removedPaths?: string[];
+  removedCount?: number;
+  skippedAssetIds?: string[];
+  activationStateCleared?: boolean;
+  repoActivationCleared?: boolean;
+  overlayStateCleared?: boolean;
+  preserveExternalPackages?: boolean;
+  refreshes?: CatalogMutationRefreshResult[];
+  audit?: CatalogMutationAuditResult;
+  [key: string]: unknown;
+}
+
 export interface CatalogRepoAssetSummary {
   hasRepoAssets?: boolean;
   hasSkills?: boolean;
@@ -627,12 +1271,21 @@ export interface CatalogRepoInventoryStorage {
   [key: string]: unknown;
 }
 
+export interface CatalogRepoInventoryWorkspaceScan {
+  storage?: CatalogRepoInventoryStorage;
+  defaultRoots?: string[];
+  customScanRoots?: string[];
+  scanRoots?: string[];
+  [key: string]: unknown;
+}
+
 export interface CatalogReposListResponse {
   kind?: string;
   deterministic?: boolean;
   count?: number;
   selectedRepo?: CatalogRepoInventoryEntry | null;
   storage?: CatalogRepoInventoryStorage;
+  workspaceScan?: CatalogRepoInventoryWorkspaceScan | null;
   repos: CatalogRepoInventoryEntry[];
   [key: string]: unknown;
 }
@@ -648,9 +1301,14 @@ export interface CatalogRepoMutationResponse {
   repo?: CatalogRepoInventoryEntry | null;
   selectedRepo?: CatalogRepoInventoryEntry | null;
   storage?: CatalogRepoInventoryStorage;
+  workspaceScan?: CatalogRepoInventoryWorkspaceScan | null;
   snapshot?: CatalogSnapshotEnvelope | null;
   audit?: CatalogMutationAuditResult;
   [key: string]: unknown;
+}
+
+export interface CatalogRepoScanRootsMutationResponse extends CatalogReposListResponse {
+  updated?: boolean;
 }
 
 export interface PolicyPreflightResponse {
@@ -664,6 +1322,56 @@ export interface PolicyPreflightResponse {
   [key: string]: unknown;
 }
 
+export interface PlanningRepoSummary {
+  repoId: string;
+  repoPath: string;
+  repoLabel: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogKeyPoint {
+  date: string;
+  text: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogItem {
+  id: string;
+  title: string;
+  status: string;
+  summary?: string;
+  roadmapIds: string[];
+  planRefs: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints: PlanningBacklogKeyPoint[];
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogDocument {
+  backlogPath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  formatVersion?: string;
+  title?: string;
+  description?: string;
+  itemCount: number;
+  items: PlanningBacklogItem[];
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo?: PlanningRepoSummary | null;
+  backlog: PlanningBacklogDocument;
+  item?: PlanningBacklogItem | null;
+  [key: string]: unknown;
+}
+
 export interface PlanningRecordItem {
   recordId: string;
   scope: string;
@@ -673,11 +1381,274 @@ export interface PlanningRecordItem {
   summary?: string;
   acceptanceCriteria?: string[];
   acceptanceCriteriaText?: string;
+  targetRepoIds?: string[];
   state?: string;
   score?: number | null;
   createdAt?: string | null;
   updatedAt?: string | null;
   [key: string]: unknown;
+}
+
+export interface PlanningDraftItem {
+  draftId: string;
+  title: string;
+  summary?: string;
+  acceptanceCriteria?: string[];
+  acceptanceCriteriaText?: string;
+  targetRepoIds?: string[];
+  saveRepoId?: string | null;
+  state?: string;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningLinkedSdkSession {
+  sessionId: string;
+  repoId?: string | null;
+  source: 'compile-selected-ideas';
+  createdAt: string;
+  selectedIdeaIds: string[];
+  selectedIdeaTitles: string[];
+  targetRepoIds: string[];
+  promptPreview?: string;
+}
+
+export type PlanningPlanOriginKind = 'direct' | 'intake' | 'bullet' | 'backlog' | 'roadmap';
+
+export interface PlanningLinkedPlanSession {
+  sessionId: string;
+  repoId?: string | null;
+  planPath?: string;
+  source:
+    | 'create-plan'
+    | 'seed-from-intake'
+    | 'seed-from-bullet'
+    | 'seed-from-backlog'
+    | 'seed-from-roadmap';
+  originKind?: PlanningPlanOriginKind;
+  originArtifactId?: string;
+  createdAt: string;
+  updatedAt?: string;
+  seedArtifactId?: string;
+  seedArtifactCategory?: PlanningIntakeCategory;
+  seedArtifactTitle?: string;
+}
+
+export interface PlanningRepoSummary {
+  repoId: string;
+  repoPath: string;
+  repoLabel: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningRepositoryBacklogRef {
+  canonicalName: 'Repository Backlog';
+  repo: PlanningRepoSummary;
+  filePath: string;
+  repoRelativePath: 'docs/backlog.md';
+  stableIdPattern: 'RB-###';
+}
+
+export type PlanningBulletState = 'idea' | 'research' | 'pre-plan';
+
+export type PlanningIntakeCategory =
+  | 'idea'
+  | 'research'
+  | 'refactor-candidate'
+  | 'design-complaint'
+  | 'audit-request'
+  | 'roadmap-request'
+  | 'review-prep'
+  | 'commit-prep';
+
+export interface PlanningIntakeDirectoryRef {
+  canonicalName: 'Planning Intake';
+  repo: PlanningRepoSummary;
+  directoryPath: string;
+  repoRelativePath: 'docs/planning/intake';
+  stableIdPattern: 'PI-###';
+  supportedCategories: PlanningIntakeCategory[];
+}
+
+export interface PlanningBulletFileRef {
+  canonicalName: 'Planning Bullets';
+  repo: PlanningRepoSummary;
+  filePath: string;
+  repoRelativePath: 'docs/planning/bullets.md';
+  stableIdPattern: 'PB-###';
+  supportedStates: PlanningBulletState[];
+}
+
+export interface PlanningRoadmapDirectoryRef {
+  canonicalName: 'Roadmap';
+  repo: PlanningRepoSummary;
+  directoryPath: string;
+  repoRelativePath: 'docs/roadmaps';
+  stableIdPattern: 'RM-<roadmap-slug>-###';
+}
+
+export interface PlanningBullet {
+  kind: 'planning.bullet.artifact';
+  schemaVersion: number;
+  id: string;
+  title: string;
+  state: PlanningBulletState;
+  repoId: string;
+  summary: string;
+  notes: string[];
+  promotedPlanRefs: string[];
+  promotedBacklogRefs: string[];
+  filePath: string;
+  repoRelativePath: string;
+}
+
+export interface PlanningIntakeArtifact {
+  kind: 'planning.intake.artifact';
+  schemaVersion: number;
+  id: string;
+  category: PlanningIntakeCategory;
+  title: string;
+  summary: string;
+  acceptanceCriteria: string[];
+  targetRepoIds: string[];
+  planningState?: string;
+  createdAt: string;
+  updatedAt: string;
+  filePath: string;
+  repoRelativePath: string;
+}
+
+export type PlanningIntakeTrackerFilterValue = '__all__' | '__none__';
+
+export interface PlanningIntakeTrackerFilters {
+  category: PlanningIntakeCategory | '__all__';
+  planningState: string | PlanningIntakeTrackerFilterValue;
+  targetRepoId: string | PlanningIntakeTrackerFilterValue;
+}
+
+export interface PlanningIntakeSummary {
+  directoryPath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  artifactCount: number;
+  stableIdPattern?: string;
+  supportedCategories: PlanningIntakeCategory[];
+  [key: string]: unknown;
+}
+
+export interface PlanningBulletsSummary {
+  filePath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  bulletCount: number;
+  stableIdPattern?: string;
+  supportedStates: PlanningBulletState[];
+  [key: string]: unknown;
+}
+
+export interface PlanningIntakeArtifactsResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  count?: number;
+  intake: PlanningIntakeSummary;
+  artifacts: PlanningIntakeArtifact[];
+  artifact?: PlanningIntakeArtifact | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningBulletsResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  count?: number;
+  bullets: PlanningBulletsSummary;
+  artifacts: PlanningBullet[];
+  artifact?: PlanningBullet | null;
+  [key: string]: unknown;
+}
+
+export interface SessionPlanMutationResponse {
+  sessionId: string;
+  source: string;
+  planPath: string;
+  created: boolean;
+  updatedAt: string;
+  content: string;
+  linkedRepoId?: string;
+  linkedRepoPath?: string;
+  seededFromArtifactId?: string | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningRoadmapItem {
+  id: string;
+  title: string;
+  phase: string;
+  status: string;
+  summary?: string;
+  backlogIds: string[];
+  planRefs: string[];
+}
+
+export interface PlanningRoadmap {
+  slug: string;
+  title: string;
+  overview?: string;
+  filePath: string;
+  repoRelativePath: string;
+  itemCount: number;
+  statusCounts: Record<string, number>;
+  items: PlanningRoadmapItem[];
+}
+
+export interface PlanningBacklogKeyPoint {
+  date: string;
+  text: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogItem {
+  id: string;
+  title: string;
+  status: string;
+  summary?: string;
+  roadmapIds: string[];
+  planRefs: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints: PlanningBacklogKeyPoint[];
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogSummary {
+  backlogPath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  formatVersion?: string;
+  title?: string;
+  description?: string;
+  itemCount: number;
+  items: PlanningBacklogItem[];
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  backlog: PlanningBacklogSummary;
+  [key: string]: unknown;
+}
+
+export interface PlanningBacklogMutationResponse extends PlanningBacklogResponse {
+  item?: PlanningBacklogItem | null;
 }
 
 export interface PlanningResearchNote {

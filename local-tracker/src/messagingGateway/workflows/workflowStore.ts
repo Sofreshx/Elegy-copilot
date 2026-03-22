@@ -4,7 +4,37 @@ import path from 'node:path';
 import { parseWorkflowDefinition, type WorkflowDefinition } from './workflowSchema';
 
 export function getDefaultWorkflowDefinitionsDir(): string {
+    const canonicalDir = path.join(os.homedir(), '.copilot', 'workflows', 'definitions');
+    rehomeLegacyWorkflowDefinitionsDirIfNeeded(canonicalDir);
+    return canonicalDir;
+}
+
+export function getLegacyWorkflowDefinitionsDir(): string {
     return path.join(os.homedir(), '.instruction-engine', 'workflows', 'definitions');
+}
+
+function isExistingDirectory(candidatePath: string): boolean {
+    try {
+        return fs.existsSync(candidatePath) && fs.statSync(candidatePath).isDirectory();
+    } catch {
+        return false;
+    }
+}
+
+function rehomeLegacyWorkflowDefinitionsDirIfNeeded(canonicalDir: string): void {
+    const canonicalDirAbs = path.resolve(canonicalDir);
+    const legacyDirAbs = path.resolve(getLegacyWorkflowDefinitionsDir());
+
+    if (legacyDirAbs === canonicalDirAbs || !isExistingDirectory(legacyDirAbs) || isExistingDirectory(canonicalDirAbs)) {
+        return;
+    }
+
+    try {
+        fs.mkdirSync(path.dirname(canonicalDirAbs), { recursive: true });
+        fs.renameSync(legacyDirAbs, canonicalDirAbs);
+    } catch {
+        // Leave the legacy directory in place if rehome fails; callers will still use the canonical dir.
+    }
 }
 
 export interface WorkflowStoreOptions {

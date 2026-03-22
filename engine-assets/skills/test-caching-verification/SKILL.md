@@ -89,7 +89,6 @@ Use `--force` when:
 
 | Workspace | Command | Runner |
 |-----------|---------|--------|
-| RannIA | `cd RannIA && npm test` | Mocha (VS Code extension host) |
 | local-tracker | `cd local-tracker && npm test` | Jest |
 | copilot-ui | `cd copilot-ui && npm test` | Node.js (custom) |
 | scripts | `cd scripts && npm test` | Node.js (custom) |

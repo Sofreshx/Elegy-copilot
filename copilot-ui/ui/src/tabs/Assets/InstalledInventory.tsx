@@ -15,6 +15,27 @@ interface InstalledInventoryProps {
 
 const PREVIEW_LIMIT = 4;
 
+function describeInstalledMetadata(item: {
+  provider?: string;
+  sourcePackage?: string;
+  namespace?: string;
+  readOnly?: boolean;
+}): string {
+  const segments: string[] = [];
+  if (item.sourcePackage) {
+    segments.push(item.sourcePackage);
+  } else if (item.provider && item.provider !== 'user-home') {
+    segments.push(item.provider);
+  }
+  if (item.namespace) {
+    segments.push(`namespace: ${item.namespace}`);
+  }
+  if (item.readOnly) {
+    segments.push('read-only');
+  }
+  return segments.join(' · ');
+}
+
 function displayAgent(item: InstalledAgent): string {
   return item.name || item.fileName || 'Unknown agent';
 }
@@ -91,6 +112,7 @@ export default function InstalledInventory({
                         type="button"
                       >
                         <span>{displayAgent(item)}</span>
+                        {describeInstalledMetadata(item) ? <small>{describeInstalledMetadata(item)}</small> : null}
                       </button>
                     </li>
                   ))}
@@ -111,6 +133,7 @@ export default function InstalledInventory({
                         type="button"
                       >
                         <span>{displaySkill(item)}</span>
+                        {describeInstalledMetadata(item) ? <small>{describeInstalledMetadata(item)}</small> : null}
                       </button>
                     </li>
                   ))}

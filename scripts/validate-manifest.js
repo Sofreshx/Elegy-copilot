@@ -6,7 +6,7 @@ const path = require('path');
 const root = path.resolve(__dirname, '..');
 const manifestFiles = [
 	{ path: '.cli/manifest.json', enforceSourceExists: true },
-	{ path: 'engine-assets/manifest.json', enforceSourceExists: false },
+	{ path: 'engine-assets/manifest.json', enforceSourceExists: true },
 ];
 
 const REQUIRED_G05_CONTROLS = {

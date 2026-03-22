@@ -10,8 +10,34 @@ function matchesQuery(skill: SkillPreviewItem, query: string): boolean {
     return true;
   }
 
-  const fields = [skill.name, skill.kind, skill.loadMode ?? '', skill.availability ?? '', skill.description ?? '', skill.triggers ?? ''];
+  const fields = [
+    skill.name,
+    skill.kind,
+    skill.loadMode ?? '',
+    skill.availability ?? '',
+    skill.description ?? '',
+    skill.triggers ?? '',
+    skill.provider ?? '',
+    skill.sourcePackage ?? '',
+    skill.namespace ?? '',
+  ];
   return fields.some((field) => field.toLowerCase().includes(normalizedQuery));
+}
+
+function buildSkillSourceLabel(skill: SkillPreviewItem): string {
+  const segments: string[] = [];
+  if (skill.sourcePackage) {
+    segments.push(skill.sourcePackage);
+  } else if (skill.provider && skill.provider !== 'user-home') {
+    segments.push(skill.provider);
+  }
+  if (skill.namespace) {
+    segments.push(`namespace: ${skill.namespace}`);
+  }
+  if (skill.readOnly) {
+    segments.push('read-only');
+  }
+  return segments.join(' · ');
 }
 
 export default function SkillsPreviewView() {
@@ -32,13 +58,19 @@ export default function SkillsPreviewView() {
   const vaultFirstCount = useMemo(() => {
     return skillsState.skills.filter((skill) => skill.loadMode !== 'always').length;
   }, [skillsState.skills]);
+  const providerBackedCount = useMemo(() => {
+    return skillsState.skills.filter((skill) => skill.provider && skill.provider !== 'user-home').length;
+  }, [skillsState.skills]);
+  const featuredProviderSkills = useMemo(() => {
+    return skillsState.skills.filter((skill) => skill.provider === 'superpowers-copilot' || skill.namespace === 'superpowers');
+  }, [skillsState.skills]);
 
   const handleRefresh = async () => {
     await skillsPreviewStore.refresh();
   };
 
-  const handleSelectSkill = async (skillName: string) => {
-    await skillsPreviewStore.loadSkillDetail(skillName);
+  const handleSelectSkill = async (skillId: string) => {
+    await skillsPreviewStore.loadSkillDetail(skillId);
   };
 
   return (
@@ -47,7 +79,7 @@ export default function SkillsPreviewView() {
         <div className="skills-preview-summary">
           <p className="skills-preview-title">Skills Catalog Preview</p>
           <p className="skills-preview-copy">
-            {skillsState.skills.length} total skills, {alwaysLoadedCount} always-loaded, {vaultFirstCount} vault-first
+            {skillsState.skills.length} total skills, {alwaysLoadedCount} always-loaded, {vaultFirstCount} vault-first, {providerBackedCount} provider-backed
           </p>
         </div>
 
@@ -77,6 +109,23 @@ export default function SkillsPreviewView() {
         </p>
       ) : null}
 
+      {featuredProviderSkills.length > 0 ? (
+        <div className="catalog-featured-provider-banner" data-testid="skills-preview-featured-provider">
+          <div>
+            <p className="catalog-spotlight-kicker">Provider spotlight</p>
+            <p><strong>superpowers-copilot</strong> is surfaced directly in skills discovery with provider-qualified identity intact.</p>
+            <p>{featuredProviderSkills.length} skill(s) from the provider are visible in this preview.</p>
+          </div>
+          <Button
+            onClick={() => skillsPreviewStore.setSearchQuery('superpowers-copilot')}
+            testId="skills-preview-filter-superpowers"
+            variant="secondary"
+          >
+            Show superpowers
+          </Button>
+        </div>
+      ) : null}
+
       <div className="skills-preview-grid">
         <Panel
           subtitle="Vault-first catalog from GET /api/skills/preview with scan-path and vault awareness."
@@ -104,12 +153,14 @@ export default function SkillsPreviewView() {
               </thead>
               <tbody>
                 {filteredSkills.map((skill: SkillPreviewItem) => {
-                  const isSelected = skill.name === skillsState.selectedSkillName;
+                  const isSelected = skill.assetId === skillsState.selectedSkillId;
+                  const sourceLabel = buildSkillSourceLabel(skill);
                   return (
-                    <tr className={isSelected ? 'is-selected' : ''} key={skill.name}>
+                    <tr className={isSelected ? 'is-selected' : ''} key={skill.assetId || `${skill.name}:${skill.viewPath || skill.absPath || ''}`}>
                       <td>
                         <div>{skill.name}</div>
                         {skill.description ? <small>{skill.description}</small> : null}
+                        {sourceLabel ? <small>{sourceLabel}</small> : null}
                       </td>
                       <td>
                         <StatusBadge status={skill.loadMode ?? 'unknown'} testId="skills-preview-kind-badge" />
@@ -122,7 +173,7 @@ export default function SkillsPreviewView() {
                         <Button
                           disabled={skill.kind === 'missing'}
                           onClick={() => {
-                            void handleSelectSkill(skill.name);
+                            void handleSelectSkill(skill.assetId || skill.name);
                           }}
                           size="sm"
                           testId="skills-preview-view-button"

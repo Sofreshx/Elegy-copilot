@@ -93,10 +93,10 @@ Evaluate how effectively instruction-engine layers information from surface-leve
 
 ### Layer 3: Agent Specialization (agents/)
 
-**32 agents** with specialized personas:
-- Orchestrators: orchestrator, elegy-planner, elegy-direction, elegy-subplanner
+**Current agent families** with specialized personas:
+- Control lane: orchestrator, o-reframer, o-planner, work-unit-runner
 - Implementers: impl-business, impl-infra
-- Reviewers: code-reviewer, reviewer-opus-4-6, reviewer-gpt-5-3-codex
+- Reviewers: code-reviewer, reviewer-opus-4-6, reviewer-gpt-5-4
 - Scanners: security-scanner, stack-auditor, deploy-auditor
 - Utilities: agent-governor, instruction-auditor
 
@@ -140,7 +140,7 @@ User asks about how session state works
 → Agent has no instruction to check docs/system/
 → May grep for "session state" across entire workspace
 → Likely hits docs/system/session-state-artifacts.md eventually
-→ But may also hit noise from copilot-sdk/, RannIA/, etc.
+→ But may also hit noise from copilot-sdk/, legacy extension folders, etc.
 ```
 
 **Verdict**: Fragile. No structured discovery path. The doc-graph exists but nothing tells agents to use it.

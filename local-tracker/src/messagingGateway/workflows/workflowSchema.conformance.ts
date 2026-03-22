@@ -8,7 +8,7 @@ import type {
   WorkflowDefinition as ContractDefinition,
   WorkflowStepResult as ContractStepResult,
   WorkflowRunResult as ContractRunResult,
-} from '@instruction-engine/contracts';
+} from '@elegy-copilot/contracts';
 
 import type { WorkflowStep, WorkflowDefinition, WorkflowStepResult, WorkflowRunResult } from './workflowSchema';
 

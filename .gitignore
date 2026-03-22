@@ -3,7 +3,6 @@ node_modules/
 package-lock.json
 **/package-lock.json
 !/package-lock.json
-!/RannIA/package-lock.json
 !/scripts/package-lock.json
 !/copilot-ui/package-lock.json
 !/local-tracker/package-lock.json
@@ -27,10 +26,11 @@ yarn-error.log*
 # System & Temp
 .DS_Store
 tmpclaude-*
+.playwright-mcp/
 .vscode-test/
 **/.vscode-test/
 .vscode/mcp.json
-*.vsix
+instruction-engine.code-workspace
 *.tsbuildinfo
 
 # Skill installer local artifacts

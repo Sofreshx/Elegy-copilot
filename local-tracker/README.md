@@ -1,32 +1,50 @@
 # Local Agent Tracker
 
-Lightweight Node.js service that runs locally alongside VS Code. It watches for task file and git changes, and also hosts the Discord-first Messaging Gateway for remote control.
+Lightweight Node.js service that runs locally alongside VS Code. By default it watches task file and git changes, forwards local state to connected surfaces, and exposes the local extension bridge. The Messaging Gateway is an optional companion runtime for people who want Discord/Telegram-based remote control.
 
 ## Overview
 
 The tracker monitors:
-- **Task files** — watches `.instructions/tasks/` for task status updates
+- **Task files** — watches the canonical repo-state task store at `~/.copilot/repo-state/<repoId>/tasks/`
 - **Git status** — polls workspace repos for branch, ahead/behind, and working-tree changes
 - **Relay bridge** — forwards snapshots to the cloud relay over WebSocket
 
+Repo-local `.instructions/tasks/` is no longer a default watched surface. If you need temporary
+legacy compatibility during migration, set `TRACKER_ENABLE_LEGACY_TASK_SURFACE=true` to opt in to
+watching that repo-local path as a bounded compatibility shim. The tracker now logs that opt-in
+explicitly so repo-local task watching is not mistaken for a peer authority.
+
 It also exposes a local WebSocket server (default port `9821`) for the VS Code extension to connect to.
 
-## Messaging Gateway
+## Optional Messaging Gateway
 
-For the Discord-first Messaging Gateway (remote control surface), see:
+If you want a separate remote-control surface, the Messaging Gateway can be started independently of the default tracker process. Core tracking, repo-state watching, and the VS Code extension bridge do **not** require it.
+
+For the optional Messaging Gateway docs, see:
 - [docs/messaging-gateway.md](docs/messaging-gateway.md)
+- [docs/telegram-setup.md](docs/telegram-setup.md)
 
 ## Setup
 
 ```bash
-npm install
+npm install --omit=optional
 npm run build
+```
+
+This keeps the default tracker install/build lighter and builds the tracker only.
+
+If you want the optional Messaging Gateway too, install its optional runtime dependencies first (or re-include them if you previously used `--omit=optional`), then compile the gateway entrypoint:
+
+```bash
+npm install --include=optional
+npm run build:gateway
 ```
 
 ## Development
 
 ```bash
-npm run dev
+npm run dev          # default tracker
+npm run dev:gateway  # optional messaging gateway (requires optional deps installed)
 ```
 
 ## Authentication

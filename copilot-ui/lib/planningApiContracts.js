@@ -1069,6 +1069,9 @@ function createPlanningRecordOperation(state, input = {}) {
   const summary = normalizeString(request.summary || request.text);
   const normalizedState = normalizeState(request.state || request.status);
   const score = normalizeScore(request.score);
+  const targetRepoIds = Array.isArray(request.targetRepoIds)
+    ? [...new Set(request.targetRepoIds.map((entry) => normalizeIdentity(entry)).filter(Boolean))].sort((left, right) => left.localeCompare(right))
+    : [];
   const { acceptanceCriteria, acceptanceCriteriaText } = normalizeAcceptanceCriteria(
     request.acceptanceCriteria,
     request.acceptanceCriteriaText || request.acceptanceCriteriaSummary,
@@ -1092,6 +1095,7 @@ function createPlanningRecordOperation(state, input = {}) {
       summary,
       acceptanceCriteria,
       acceptanceCriteriaText,
+      targetRepoIds,
       state: normalizedState,
       score,
     },
@@ -1109,6 +1113,7 @@ function createPlanningRecordOperation(state, input = {}) {
         summary,
         ...(acceptanceCriteria.length ? { acceptanceCriteria } : {}),
         ...(acceptanceCriteriaText ? { acceptanceCriteriaText } : {}),
+        ...(targetRepoIds.length ? { targetRepoIds } : {}),
         state: normalizedState,
         score,
         createdAt,

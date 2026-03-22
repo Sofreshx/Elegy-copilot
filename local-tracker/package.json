@@ -1,10 +1,12 @@
 {
-  "name": "@instruction-engine/local-tracker",
+  "name": "@elegy-copilot/local-tracker",
   "version": "0.1.0",
   "description": "Local agent tracker - watches for session/task changes and bridges to relay",
+  "license": "MIT",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "build:gateway": "tsc -p tsconfig.build.gateway.json",
     "dev": "ts-node src/index.ts",
     "dev:gateway": "ts-node src/messagingGateway/index.ts",
     "start": "node dist/index.js",
@@ -15,16 +17,17 @@
     "test:compliance": "jest --testPathPattern compliance --no-cache"
   },
   "dependencies": {
-    "@instruction-engine/contracts": "file:../contracts",
-    "@instruction-engine/local-tracker": "file:",
+    "@elegy-copilot/contracts": "file:../contracts",
     "@napi-rs/keyring": "^1.2.0",
     "chokidar": "^4.0.0",
-    "discord.js": "^14.0.0",
     "dockerode": "^4.0.6",
     "dotenv": "^16.4.7",
-    "grammy": "^1.40.1",
     "ws": "^8.18.0",
     "zod": "^3.24.2"
+  },
+  "optionalDependencies": {
+    "discord.js": "^14.0.0",
+    "grammy": "^1.40.1"
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
@@ -39,5 +42,12 @@
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Sofreshx/Elegy-copilot.git"
+  },
+  "publishConfig": {
+    "access": "restricted"
   }
 }

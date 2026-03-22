@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import {
   ApiError,
+  getCatalogAssetAnalytics,
+  getSessionAgentUsage,
+  getSessionHandoff,
   getSessionProposition,
   getSessionStructuredState,
   getSessionVerificationGuide,
@@ -8,7 +11,15 @@ import {
 } from '../../lib/api';
 import type { SessionSummary } from '../../lib/types';
 import type {
+  CatalogAuditAssetSummary,
+  CatalogAuditSessionSummary,
+  SessionAgentUsageResponse,
+  SessionArtifactSection,
+  SessionHandoffResponse,
   SessionPlanArtifact,
+  SessionPropositionEntry,
+  SessionPropositionResponse,
+  SessionStructuredMeta,
   SessionStructuredNextUnit,
 } from '../../lib/types';
 import {
@@ -26,6 +37,24 @@ interface SessionDetailProps {
   session?: SessionSummary | null;
 }
 
+interface SessionAgentUsageEntry {
+  agent: string;
+  count: number;
+}
+
+interface SessionSkillUsageEntryView {
+  assetId: string;
+  assetKey: string;
+  searchedCount: number;
+  selectedCount: number;
+  invocationCount: number;
+  explicitInvocationCount: number;
+  proxyInvocationCount: number;
+  evidence: 'none' | 'proxy-only' | 'authoritative' | 'mixed';
+  lastInvokedAt: string | null;
+  toolNames: string[];
+}
+
 interface SessionArtifactsState {
   loading: boolean;
   error: string | null;
@@ -33,8 +62,20 @@ interface SessionArtifactsState {
   nextUnit: SessionStructuredNextUnit | null;
   warnings: string[];
   proposition: string | null;
+  propositionEntries: SessionPropositionEntry[];
+  handoff: string | null;
+  handoffParsed: SessionHandoffResponse['parsed'] | null;
+  resumeMeta: SessionStructuredMeta['resume'] | null;
+  reviewLedgerApproved: boolean | null;
   verificationGuide: string | null;
+  agentUsage: SessionAgentUsageEntry[];
+  skillUsage: SessionAgentUsageResponse['skillUsage'] | null;
+  sessionObservability: CatalogAuditSessionSummary | null;
+  sessionSkills: CatalogAuditAssetSummary[];
+  sessionObservabilityError: string | null;
 }
+
+const SESSION_AGENT_USAGE_EVENT_LIMIT = 500;
 
 const EMPTY_ARTIFACTS_STATE: SessionArtifactsState = {
   loading: false,
@@ -43,7 +84,17 @@ const EMPTY_ARTIFACTS_STATE: SessionArtifactsState = {
   nextUnit: null,
   warnings: [],
   proposition: null,
+  propositionEntries: [],
+  handoff: null,
+  handoffParsed: null,
+  resumeMeta: null,
+  reviewLedgerApproved: null,
   verificationGuide: null,
+  agentUsage: [],
+  skillUsage: null,
+  sessionObservability: null,
+  sessionSkills: [],
+  sessionObservabilityError: null,
 };
 
 const KNOWN_METADATA_KEYS = new Set([
@@ -86,8 +137,180 @@ function toErrorMessage(error: unknown): string {
   return 'Unable to read session folder artifacts.';
 }
 
+function formatIsoTimestampLabel(value: string | null | undefined): string {
+  if (!value) {
+    return 'Unknown';
+  }
+  const parsed = Date.parse(value);
+  if (Number.isNaN(parsed)) {
+    return value;
+  }
+  return new Date(parsed).toLocaleString();
+}
+
 function isNotFoundError(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
+}
+
+function renderArtifactSection(section: SessionArtifactSection) {
+  const items = Array.isArray(section.items)
+    ? section.items.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+
+  return (
+    <div key={`${section.key || section.title}-${section.content}`} className="metadata-block">
+      <h5>{section.title}</h5>
+      {items.length > 0 ? (
+        <ul className="session-detail-warnings">
+          {items.map((item) => (
+            <li key={`${section.title}-${item}`}>{item}</li>
+          ))}
+        </ul>
+      ) : (
+        <pre>{section.content || '-'}</pre>
+      )}
+    </div>
+  );
+}
+
+function getLatestStructuredProposition(response: SessionPropositionResponse | null): SessionPropositionEntry | null {
+  if (!response || !Array.isArray(response.entries) || response.entries.length === 0) {
+    return null;
+  }
+
+  return response.entries[response.entries.length - 1] || null;
+}
+
+function normalizeAgentUsageEntries(input: Record<string, number> | undefined): SessionAgentUsageEntry[] {
+  return Object.entries(input ?? {})
+    .map(([agent, count]) => ({
+      agent: String(agent || '').trim(),
+      count: Number(count) || 0,
+    }))
+    .filter((entry) => entry.agent.length > 0 && entry.count > 0)
+    .sort((left, right) => {
+      if (right.count !== left.count) {
+        return right.count - left.count;
+      }
+      return left.agent.localeCompare(right.agent);
+    });
+}
+
+function readCount(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function resolveEvidence(
+  explicitInvocationCount: number,
+  proxyInvocationCount: number,
+  fallback?: string | null
+): SessionSkillUsageEntryView['evidence'] {
+  const normalizedFallback = String(fallback || '').trim().toLowerCase();
+  if (
+    normalizedFallback === 'none'
+    || normalizedFallback === 'proxy-only'
+    || normalizedFallback === 'authoritative'
+    || normalizedFallback === 'mixed'
+  ) {
+    return normalizedFallback;
+  }
+  if (explicitInvocationCount > 0 && proxyInvocationCount > 0) {
+    return 'mixed';
+  }
+  if (explicitInvocationCount > 0) {
+    return 'authoritative';
+  }
+  if (proxyInvocationCount > 0) {
+    return 'proxy-only';
+  }
+  return 'none';
+}
+
+function isSkillAssetSummary(input: CatalogAuditAssetSummary | null | undefined): input is CatalogAuditAssetSummary {
+  const assetId = String(input?.assetId || '').trim().toLowerCase();
+  const kind = String(input?.kind || '').trim().toLowerCase();
+  return Boolean(assetId) && (kind === 'skill' || assetId.startsWith('skill-'));
+}
+
+function normalizeSessionSkillUsageEntries(
+  skillUsage: SessionAgentUsageResponse['skillUsage'] | null | undefined,
+  sessionSkills: CatalogAuditAssetSummary[]
+): SessionSkillUsageEntryView[] {
+  const entries = new Map<string, SessionSkillUsageEntryView>();
+
+  for (const skill of sessionSkills.filter(isSkillAssetSummary)) {
+    const assetId = String(skill.assetId || '').trim();
+    if (!assetId) {
+      continue;
+    }
+    const explicitInvocationCount = readCount(skill.usage?.explicitInvocationCount);
+    const proxyInvocationCount = readCount(skill.usage?.proxyInvocationCount ?? skill.usage?.proxyInferredCount);
+    entries.set(assetId, {
+      assetId,
+      assetKey: String(skill.assetKey || assetId.replace(/^skill-/i, '') || assetId),
+      searchedCount: readCount(skill.search?.sampled?.searchedCount ?? skill.search?.sampled?.resultCount),
+      selectedCount: readCount(skill.search?.sampled?.selectedCount),
+      invocationCount: readCount(skill.usage?.invocationCount),
+      explicitInvocationCount,
+      proxyInvocationCount,
+      evidence: resolveEvidence(explicitInvocationCount, proxyInvocationCount, typeof skill.usage?.evidence === 'string' ? skill.usage.evidence : null),
+      lastInvokedAt: null,
+      toolNames: [],
+    });
+  }
+
+  for (const skill of Array.isArray(skillUsage?.skills) ? skillUsage.skills : []) {
+    const assetId = String(skill?.assetId || '').trim();
+    if (!assetId) {
+      continue;
+    }
+    const current = entries.get(assetId);
+    const explicitInvocationCount = Math.max(readCount(skill.invocationCount), current?.explicitInvocationCount ?? 0);
+    const proxyInvocationCount = current?.proxyInvocationCount ?? 0;
+    entries.set(assetId, {
+      assetId,
+      assetKey: String(skill.assetKey || current?.assetKey || assetId.replace(/^skill-/i, '') || assetId),
+      searchedCount: current?.searchedCount ?? 0,
+      selectedCount: current?.selectedCount ?? 0,
+      invocationCount: Math.max(current?.invocationCount ?? 0, explicitInvocationCount + proxyInvocationCount),
+      explicitInvocationCount,
+      proxyInvocationCount,
+      evidence: resolveEvidence(explicitInvocationCount, proxyInvocationCount, current?.evidence),
+      lastInvokedAt: typeof skill.lastInvokedAt === 'string' ? skill.lastInvokedAt : current?.lastInvokedAt ?? null,
+      toolNames: Array.isArray(skill.toolNames)
+        ? skill.toolNames.filter((toolName): toolName is string => typeof toolName === 'string' && toolName.trim().length > 0)
+        : current?.toolNames ?? [],
+    });
+  }
+
+  return Array.from(entries.values())
+    .filter((entry) => entry.searchedCount > 0 || entry.selectedCount > 0 || entry.invocationCount > 0)
+    .sort((left, right) => {
+      if (right.invocationCount !== left.invocationCount) {
+        return right.invocationCount - left.invocationCount;
+      }
+      if (right.selectedCount !== left.selectedCount) {
+        return right.selectedCount - left.selectedCount;
+      }
+      if (right.searchedCount !== left.searchedCount) {
+        return right.searchedCount - left.searchedCount;
+      }
+      return left.assetId.localeCompare(right.assetId);
+    });
+}
+
+function describeEvidence(entry: SessionSkillUsageEntryView): string {
+  if (entry.evidence === 'mixed') {
+    return `${entry.explicitInvocationCount} explicit + ${entry.proxyInvocationCount} proxy-only fallback invocation(s).`;
+  }
+  if (entry.evidence === 'authoritative') {
+    return `${entry.explicitInvocationCount} authoritative asset.invoked observation(s).`;
+  }
+  if (entry.evidence === 'proxy-only') {
+    return `${entry.proxyInvocationCount} proxy-only invocation(s); no explicit asset.invoked evidence was recorded for this session.`;
+  }
+  return 'No invocation evidence recorded.';
 }
 
 export default function SessionDetail({ session = null }: SessionDetailProps) {
@@ -96,6 +319,20 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
   const extraMetadataJson = Object.keys(extraMetadata).length > 0 ? JSON.stringify(extraMetadata, null, 2) : null;
   const sessionReason = session ? resolveSessionReason(session) : null;
   const sessionSource = typeof session?.source === 'string' ? session.source : undefined;
+  const totalAgentInvocations = artifacts.agentUsage.reduce((sum, entry) => sum + entry.count, 0);
+  const sessionSkillUsage = normalizeSessionSkillUsageEntries(artifacts.skillUsage, artifacts.sessionSkills);
+  const skillRollup = {
+    searchedCount: readCount(artifacts.sessionObservability?.search?.searchedCount ?? artifacts.sessionObservability?.search?.queryCount),
+    selectedCount: readCount(artifacts.sessionObservability?.search?.selectedCount),
+    invocationCount: readCount(artifacts.sessionObservability?.usage?.invocationCount ?? artifacts.skillUsage?.totalInvocations),
+    explicitInvocationCount: readCount(artifacts.sessionObservability?.usage?.explicitInvocationCount ?? artifacts.skillUsage?.totalInvocations),
+    proxyInvocationCount: readCount(artifacts.sessionObservability?.usage?.proxyInvocationCount ?? artifacts.sessionObservability?.usage?.proxyInferredCount),
+  };
+  const skillRollupEvidence = resolveEvidence(
+    skillRollup.explicitInvocationCount,
+    skillRollup.proxyInvocationCount,
+    typeof artifacts.sessionObservability?.usage?.evidence === 'string' ? artifacts.sessionObservability.usage.evidence : null
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -124,13 +361,21 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
       error: null,
     }));
 
+    const sessionAuditAnalyticsPromise = getCatalogAssetAnalytics({
+      sessionId: session.id,
+      limit: SESSION_AGENT_USAGE_EVENT_LIMIT,
+    }).catch((error) => ({ __error: error as unknown }));
+
     void Promise.all([
       readOptional(() => listSessionPlans(session.id, { source: sessionSource })),
+      readOptional(() => getSessionAgentUsage(session.id, { source: sessionSource, limit: SESSION_AGENT_USAGE_EVENT_LIMIT })),
       readOptional(() => getSessionStructuredState(session.id, { source: sessionSource, planId: 'latest' })),
       readOptional(() => getSessionProposition(session.id, { source: sessionSource })),
+      readOptional(() => getSessionHandoff(session.id, { source: sessionSource })),
       readOptional(() => getSessionVerificationGuide(session.id, { source: sessionSource })),
+      sessionAuditAnalyticsPromise,
     ])
-      .then(([plansResponse, structuredState, propositionResponse, verificationResponse]) => {
+      .then(([plansResponse, usageResponse, structuredState, propositionResponse, handoffResponse, verificationResponse, sessionAuditAnalyticsResponse]) => {
         if (cancelled) {
           return;
         }
@@ -143,7 +388,33 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
         const warnings = Array.isArray(structuredState?.warnings)
           ? structuredState.warnings
             .filter((entry): entry is string => typeof entry === 'string')
-            .slice(0, 4)
+            .slice(0, 8)
+          : [];
+
+        const latestPropositionEntry = getLatestStructuredProposition(propositionResponse as SessionPropositionResponse | null);
+        const propositionEntries = Array.isArray((propositionResponse as SessionPropositionResponse | null)?.entries)
+          ? ((propositionResponse as SessionPropositionResponse).entries as SessionPropositionEntry[])
+          : [];
+        const structuredMeta = structuredState && typeof structuredState.meta === 'object' && structuredState.meta != null
+          ? (structuredState.meta as SessionStructuredMeta)
+          : null;
+        const sessionObservabilityError =
+          sessionAuditAnalyticsResponse && typeof sessionAuditAnalyticsResponse === 'object' && '__error' in sessionAuditAnalyticsResponse
+            ? toErrorMessage((sessionAuditAnalyticsResponse as { __error: unknown }).__error)
+            : null;
+        const sessionAnalytics =
+          sessionAuditAnalyticsResponse
+          && typeof sessionAuditAnalyticsResponse === 'object'
+          && !('__error' in sessionAuditAnalyticsResponse)
+          && sessionAuditAnalyticsResponse.analytics
+          && typeof sessionAuditAnalyticsResponse.analytics === 'object'
+            ? sessionAuditAnalyticsResponse.analytics
+            : null;
+        const sessionObservability = Array.isArray(sessionAnalytics?.sessions)
+          ? sessionAnalytics.sessions.find((entry) => entry?.sessionId === session.id) ?? null
+          : null;
+        const sessionSkills = Array.isArray(sessionAnalytics?.assets)
+          ? sessionAnalytics.assets.filter((entry): entry is CatalogAuditAssetSummary => Boolean(entry?.assetId))
           : [];
 
         setArtifacts({
@@ -156,10 +427,39 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
             propositionResponse && typeof propositionResponse.content === 'string'
               ? propositionResponse.content
               : null,
+          propositionEntries: latestPropositionEntry ? latestPropositionEntry.sections.length > 0 ? propositionEntries : propositionEntries : propositionEntries,
+          handoff:
+            handoffResponse && typeof handoffResponse.content === 'string'
+              ? handoffResponse.content
+              : null,
+          handoffParsed:
+            handoffResponse && typeof handoffResponse.parsed === 'object' && handoffResponse.parsed != null
+              ? handoffResponse.parsed
+              : null,
+          resumeMeta:
+            structuredMeta && typeof structuredMeta.resume === 'object' && structuredMeta.resume != null
+              ? structuredMeta.resume
+              : null,
+          reviewLedgerApproved:
+            structuredMeta && typeof structuredMeta.reviewLedger?.approved === 'boolean'
+              ? structuredMeta.reviewLedger.approved
+              : null,
           verificationGuide:
             verificationResponse && typeof verificationResponse.content === 'string'
               ? verificationResponse.content
               : null,
+          agentUsage: normalizeAgentUsageEntries(
+            usageResponse && typeof usageResponse.usage === 'object' && usageResponse.usage != null
+              ? (usageResponse.usage as Record<string, number>)
+              : undefined
+          ),
+          skillUsage:
+            usageResponse && typeof usageResponse.skillUsage === 'object' && usageResponse.skillUsage != null
+              ? usageResponse.skillUsage
+              : null,
+          sessionObservability,
+          sessionSkills,
+          sessionObservabilityError,
         });
       })
       .catch((error) => {
@@ -218,7 +518,7 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
           </p>
 
           <section className="session-detail-artifacts">
-            <h4>Plans and Suggestions</h4>
+            <h4>Plans and Workflow Artifacts</h4>
             {artifacts.loading ? (
               <p className="session-detail-hint">Loading session folder artifacts...</p>
             ) : null}
@@ -226,9 +526,25 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
             {!artifacts.loading && artifacts.nextUnit ? (
               <p className="session-detail-suggestion">
                 <span>Next suggested unit:</span>{' '}
-                {artifacts.nextUnit.workUnitId || 'unknown'}
+                {Array.isArray(artifacts.nextUnit.workUnitIds) && artifacts.nextUnit.workUnitIds.length > 0
+                  ? artifacts.nextUnit.workUnitIds.join(', ')
+                  : artifacts.nextUnit.workUnitId || 'unknown'}
                 {artifacts.nextUnit.rationale ? ` - ${artifacts.nextUnit.rationale}` : ''}
               </p>
+            ) : null}
+
+            {!artifacts.loading && artifacts.resumeMeta ? (
+              <p className="session-detail-suggestion">
+                <span>Resume readiness:</span>{' '}
+                {artifacts.resumeMeta.ready ? 'ready' : 'needs attention'}
+                {Array.isArray(artifacts.resumeMeta.blockers) && artifacts.resumeMeta.blockers.length > 0
+                  ? ` - ${artifacts.resumeMeta.blockers.join(', ')}`
+                  : ''}
+              </p>
+            ) : null}
+
+            {!artifacts.loading && artifacts.reviewLedgerApproved === false ? (
+              <p className="session-detail-hint">Review ledger does not currently show a resumable approval verdict.</p>
             ) : null}
 
             {!artifacts.loading && artifacts.plans.length > 0 ? (
@@ -248,13 +564,16 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
               </ul>
             ) : null}
 
-            {!artifacts.loading
-            && artifacts.plans.length === 0
-            && !artifacts.nextUnit
-            && !artifacts.proposition
+             {!artifacts.loading
+             && artifacts.plans.length === 0
+             && artifacts.agentUsage.length === 0
+             && sessionSkillUsage.length === 0
+             && !artifacts.nextUnit
+             && !artifacts.handoff
+             && !artifacts.proposition
             && !artifacts.verificationGuide ? (
-              <p className="session-detail-hint">No plan artifacts found in this session folder.</p>
-            ) : null}
+                <p className="session-detail-hint">No workflow artifacts found in this session folder.</p>
+             ) : null}
 
             {artifacts.warnings.length > 0 ? (
               <ul className="session-detail-warnings">
@@ -264,10 +583,122 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
               </ul>
             ) : null}
 
+            {!artifacts.loading ? (
+              <section className="metadata-block">
+                <h5>Observed agent / planner usage</h5>
+                <p className="session-detail-hint">
+                  Derived from the most recent {SESSION_AGENT_USAGE_EVENT_LIMIT} session events, so this is a bounded sample rather than a full historical ledger.
+                </p>
+                {artifacts.agentUsage.length > 0 ? (
+                  <>
+                    <p className="session-detail-suggestion">
+                      <span>Sampled invocations:</span> {totalAgentInvocations} across {artifacts.agentUsage.length} observed agent label(s).
+                    </p>
+                    <ul className="session-detail-warnings">
+                      {artifacts.agentUsage.map((entry) => (
+                        <li key={entry.agent}>
+                          <strong>{humanizeToken(entry.agent)}</strong>: {entry.count}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="session-detail-hint">
+                    No agent or planner usage was detected in the sampled events for this session.
+                  </p>
+                )}
+              </section>
+            ) : null}
+
+            {!artifacts.loading ? (
+              <section className="metadata-block">
+                <h5>Observed skill usage</h5>
+                <p className="session-detail-hint">
+                  Search and selection counts come from catalog search telemetry for this session when available. Invocation totals prefer
+                  authoritative asset.invoked events and only fall back to proxy planner/agent usage when no explicit evidence exists.
+                </p>
+                <p className="session-detail-suggestion">
+                  <span>Session rollup:</span> Searched {skillRollup.searchedCount} · Selected {skillRollup.selectedCount} · Invoked {skillRollup.invocationCount}
+                </p>
+                <p className="session-detail-hint">
+                  {describeEvidence({
+                    assetId: 'session-rollup',
+                    assetKey: 'session-rollup',
+                    searchedCount: skillRollup.searchedCount,
+                    selectedCount: skillRollup.selectedCount,
+                    invocationCount: skillRollup.invocationCount,
+                    explicitInvocationCount: skillRollup.explicitInvocationCount,
+                    proxyInvocationCount: skillRollup.proxyInvocationCount,
+                    evidence: skillRollupEvidence,
+                    lastInvokedAt: null,
+                    toolNames: [],
+                  })}
+                </p>
+                {sessionSkillUsage.length > 0 ? (
+                  <ul className="session-detail-warnings">
+                    {sessionSkillUsage.map((entry) => (
+                      <li key={entry.assetId}>
+                        <strong>{humanizeToken(entry.assetKey)}</strong>: searched {entry.searchedCount} · selected {entry.selectedCount} · invoked {entry.invocationCount}
+                        <br />
+                        <span>{describeEvidence(entry)}</span>
+                        {entry.lastInvokedAt ? ` · last invoked ${formatIsoTimestampLabel(entry.lastInvokedAt)}` : ''}
+                        {entry.toolNames.length > 0 ? ` · tools: ${entry.toolNames.join(', ')}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="session-detail-hint">
+                    No skill-specific search, selection, or invocation activity was detected for this session.
+                  </p>
+                )}
+                {artifacts.sessionObservabilityError ? (
+                  <p className="session-detail-hint">
+                    Session search/selection observability is currently unavailable: {artifacts.sessionObservabilityError}
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
+
             {artifacts.proposition ? (
               <details className="metadata-block">
                 <summary>Proposition</summary>
+                {artifacts.propositionEntries.length > 0 ? (
+                  <>
+                    <p className="session-detail-hint">
+                      Latest guidance: {artifacts.propositionEntries[artifacts.propositionEntries.length - 1]?.phase || 'unknown phase'}
+                    </p>
+                    {artifacts.propositionEntries[artifacts.propositionEntries.length - 1]?.sections.map((section) => renderArtifactSection(section))}
+                  </>
+                ) : null}
                 <pre>{artifacts.proposition}</pre>
+              </details>
+            ) : null}
+
+            {artifacts.handoff ? (
+              <details className="metadata-block">
+                <summary>Handoff</summary>
+                {artifacts.handoffParsed?.manifest ? (
+                  <dl className="detail-grid">
+                    <div>
+                      <dt>Session</dt>
+                      <dd>{artifacts.handoffParsed.manifest.session || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Plan Status</dt>
+                      <dd>{artifacts.handoffParsed.manifest.planStatus || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Reviewer</dt>
+                      <dd>{artifacts.handoffParsed.manifest.reviewer || '—'}</dd>
+                    </div>
+                  </dl>
+                ) : null}
+                {Array.isArray(artifacts.handoffParsed?.sections)
+                  ? artifacts.handoffParsed.sections
+                    .filter((section) => section.key !== 'handoffManifest')
+                    .map((section) => renderArtifactSection(section))
+                  : null}
+                <pre>{artifacts.handoff}</pre>
               </details>
             ) : null}
 

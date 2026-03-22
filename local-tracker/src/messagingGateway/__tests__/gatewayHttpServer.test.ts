@@ -1,10 +1,15 @@
 import http from 'http';
 
 import {
+    buildEmptyMessagingGatewayDiscoveryTelemetrySummary,
+    buildMessagingGatewayReadinessMetadata,
+} from '@elegy-copilot/contracts';
+import {
     GatewayHttpServer,
     LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
     LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
 } from '../gatewayHttpServer';
+import type { MessagingGatewayStatusV1 } from '../statusFile';
 import type { WorkflowHttpRunResponse } from '../workflows/workflowHttpRoutes';
 import { parseWorkflowDefinition, type WorkflowDefinition } from '../workflows/workflowSchema';
 
@@ -38,6 +43,39 @@ const PERSISTED_DEFINITION: WorkflowDefinition = {
         dependsOn: [],
     }],
 };
+
+function makeGatewayStatus(overrides: Partial<MessagingGatewayStatusV1> = {}): MessagingGatewayStatusV1 {
+    return {
+        ...buildMessagingGatewayReadinessMetadata({ normalizedFrom: 'v1' }),
+        readiness: {
+            state: 'ready',
+            reasonCode: 'gateway_ready',
+            deterministic: true,
+        },
+        lastUpdatedUtc: '2026-03-17T00:00:00.000Z',
+        config: {
+            configPath: '/tmp/gateway-config.json',
+            mode: 'connected',
+            allowlists: {
+                discordUsersCount: 1,
+                workspaceRootsCount: 1,
+            },
+            workspaces: {
+                activeRoot: '/tmp/workspace',
+            },
+        },
+        secrets: {
+            discordBotToken: { present: false, fromKeychain: false, fromEnv: false },
+            gatewayHttpToken: { present: true, fromKeychain: true, fromEnv: false },
+            telegramBotToken: { present: false, fromKeychain: false, fromEnv: false },
+        },
+        runtime: {
+            discord: { connected: true, ready: true },
+            discoveryTelemetry: buildEmptyMessagingGatewayDiscoveryTelemetrySummary(),
+        },
+        ...overrides,
+    };
+}
 
 function makeRequest(
     port: number,
@@ -102,6 +140,7 @@ describe('GatewayHttpServer', () => {
     const mockAuthorizeLifecycleAction = jest.fn().mockReturnValue({ allowed: true });
     const mockHandleLifecycleAction = jest.fn<Promise<unknown>, [string, unknown, http.IncomingMessage]>().mockResolvedValue({ status: 'queued' });
     const mockGetPolicyGateStatus = jest.fn().mockReturnValue({ ok: true });
+    const mockGetStatus = jest.fn<MessagingGatewayStatusV1, []>().mockReturnValue(makeGatewayStatus());
     const mockWorkflowSubscribe = jest.fn((listener: (event: any) => void) => {
         workflowListeners.add(listener);
     });
@@ -141,6 +180,7 @@ describe('GatewayHttpServer', () => {
             host: '127.0.0.1',
             bearerToken: TEST_TOKEN,
             getSessions: mockGetSessions,
+            getStatus: mockGetStatus,
             getPendingPermissions: mockGetPendingPermissions,
             approvePermission: mockApprovePermission,
             denyPermission: mockDenyPermission,
@@ -185,6 +225,7 @@ describe('GatewayHttpServer', () => {
         mockAuthorizeLifecycleAction.mockReturnValue({ allowed: true });
         mockHandleLifecycleAction.mockResolvedValue({ status: 'queued' });
         mockGetPolicyGateStatus.mockReturnValue({ ok: true });
+        mockGetStatus.mockReturnValue(makeGatewayStatus());
         mockGetWorkflowBacklog.mockReturnValue({ events: [], droppedCount: 0 });
         mockListTemplateDefinitions.mockReturnValue([TEMPLATE_DEFINITION]);
         mockGetTemplateDefinition.mockImplementation((id: string) => (id === TEMPLATE_DEFINITION.id ? TEMPLATE_DEFINITION : undefined));
@@ -222,6 +263,53 @@ describe('GatewayHttpServer', () => {
         const res = await makeRequest(port, { path: '/api/sessions/live', token: 'wrong-token' });
         expect(res.statusCode).toBe(401);
         expect(JSON.parse(res.body)).toEqual({ error: 'Unauthorized' });
+    });
+
+    it('GET /api/status returns canonical readiness payload when ready', async () => {
+        const res = await makeRequest(port, { path: '/api/status', token: TEST_TOKEN });
+        expect(res.statusCode).toBe(200);
+        const body = JSON.parse(res.body);
+        expect(body.schemaVersion).toBe(1);
+        expect(body.contractVersion).toBe('messaging_gateway_readiness_v1');
+        expect(body.readiness).toEqual({
+            state: 'ready',
+            reasonCode: 'gateway_ready',
+            deterministic: true,
+        });
+        expect(mockGetStatus).toHaveBeenCalledTimes(1);
+    });
+
+    it('GET /api/status returns canonical readiness payload with 503 when not ready', async () => {
+        mockGetStatus.mockReturnValue(makeGatewayStatus({
+            readiness: {
+                state: 'not_ready',
+                reasonCode: 'gateway_not_ready',
+                deterministic: true,
+            },
+            runtime: {
+                discord: { connected: true, ready: false },
+                discoveryTelemetry: buildEmptyMessagingGatewayDiscoveryTelemetrySummary(),
+            },
+        }));
+
+        const res = await makeRequest(port, { path: '/api/status', token: TEST_TOKEN });
+        expect(res.statusCode).toBe(503);
+        const body = JSON.parse(res.body);
+        expect(body.readiness.state).toBe('not_ready');
+        expect(body.readiness.reasonCode).toBe('gateway_not_ready');
+    });
+
+    it('GET /api/status returns deterministic 503 error when canonical status is unavailable', async () => {
+        mockGetStatus.mockImplementation(() => {
+            throw Object.assign(new Error('status file missing'), { code: 'messaging_gateway_status_missing' });
+        });
+
+        const res = await makeRequest(port, { path: '/api/status', token: TEST_TOKEN });
+        expect(res.statusCode).toBe(503);
+        const body = JSON.parse(res.body);
+        expect(body.code).toBe('gateway_status_unavailable');
+        expect(body.reason).toBe('gateway_status_missing');
+        expect(body.deterministic).toBe(true);
     });
 
     it('GET /api/sessions/live returns sessions', async () => {

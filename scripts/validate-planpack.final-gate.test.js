@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack.js');
+const VALIDATOR_PATH = path.resolve(__dirname, 'validate-planpack-execution.js');
 
 let passed = 0;
 
@@ -97,6 +97,7 @@ function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows, plan
   - Validator enforces deterministic final controls.
 
 ## Context Loaded (exact files)
+- scripts/validate-planpack-execution.js
 - scripts/validate-planpack.js
 
 ## Assumptions + Constraints
@@ -137,8 +138,11 @@ function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows, plan
 #### Plan / Approach
 - Validate final gate table rows.
 
+#### Expected Files (optional)
+- scripts/validate-planpack.js (modify)
+
 #### Validation
-- node scripts/validate-planpack.js <planpack>
+- node scripts/validate-planpack-execution.js <planpack>
 
 ## Execution Notes
 - Progress tracker is append-only.
@@ -147,7 +151,7 @@ function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows, plan
 - Risk: waiver scope broadening.
 
 ## Validation
-- node scripts/validate-planpack.js <planpack>
+- node scripts/validate-planpack-execution.js <planpack>
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -169,6 +173,9 @@ function buildPlanPack({ finalGateRows, trustedEvidenceRows, retentionRows, plan
 | Group | Work Unit ID | Status | Next Unit | Notes |
 | --- | --- | --- | --- | --- |
 | G-01 | WU-001 | done | — | baseline complete |
+
+## Next Unit
+**WU-002** — continue final gate validation
 
 ## Checkpoints
 | Group | Checkpoint | Trigger | Notes |
@@ -294,6 +301,29 @@ test('fails when waiver is missing release-linked audit trail fields', () => {
 	});
 });
 
+test('fails when waiver release does not match the attested trusted-evidence release', () => {
+	const planContent = buildPlanPack({
+		finalGateRows: [
+			{ control: 'evidencePredicates', status: 'passed', waiverScope: '', waiverRelease: '', waiverAudit: '', notes: 'streams valid' },
+			{
+				control: 'finalGateWaiverPrecedence',
+				status: 'waived',
+				waiverScope: 'finalGateWaiverPrecedence',
+				waiverRelease: 'release-2026.02.25.999',
+				waiverAudit: 'audit://release-2026.02.25.999/final-gate-waiver',
+				notes: 'mismatched release',
+			},
+			{ control: 'trustedEvidenceBindingRetention', status: 'passed', waiverScope: '', waiverRelease: '', waiverAudit: '', notes: 'retention valid' },
+		],
+	});
+
+	withTempPlanFile(planContent, (filePath) => {
+		const result = runValidator(filePath);
+		assert.notStrictEqual(result.status, 0, 'validator should fail when waiver release does not match trusted evidence');
+		assert.match(result.stderr, /final gate waiver release mismatch: finalGateWaiverPrecedence/i);
+	});
+});
+
 test('fails when a required final control row is missing and not waived', () => {
 	const planContent = buildPlanPack({
 		finalGateRows: [
@@ -338,6 +368,111 @@ test('passes with trusted evidence binding and retention when expected commit/re
 			'--now', '2026-02-25T12:00:00Z',
 		]);
 		assert.strictEqual(result.status, 0, `validator should pass, stderr: ${result.stderr}`);
+	});
+});
+
+test('rejects per-release evidence that does not match the trusted evidence release even without --expected-release', () => {
+	const planContent = buildPlanPack({
+		trustedEvidenceRows: [
+			{
+				commitSha: 'deadbeefcafebabe',
+				releaseTag: 'release-2026.02.25.16',
+				channel: 'stable',
+				producerIdentity: 'github-actions://instruction-engine/desktop-release',
+				attestationStatus: 'true',
+				evidenceTimestamp: '2026-02-25T11:00:00Z',
+				evidence: 'attestation://release-2026.02.25.16',
+				notes: 'trusted binding release',
+			},
+		],
+		retentionRows: [
+			{ policy: 'opsLogs', retentionDays: '30', retained: 'true', releaseTag: 'release-2026.02.25.16', evidence: 'ops-log://retention/current', notes: '>= 30d' },
+			{ policy: 'perReleaseEvidence', retentionDays: '365', retained: 'true', releaseTag: 'release-2026.02.25.99', evidence: 'evidence://release-2026.02.25.99', notes: 'mismatched release should fail' },
+		],
+	});
+
+	withTempPlanFile(planContent, (filePath) => {
+		const result = runValidator(filePath, [
+			'--expected-commit', 'deadbeefcafebabe',
+			'--expected-channel', 'stable',
+			'--max-evidence-age-hours', '24',
+			'--now', '2026-02-25T12:00:00Z',
+		]);
+		assert.notStrictEqual(result.status, 0, 'validator should fail on per-release evidence mismatch without expected release');
+		assert.match(result.stderr, /per-release evidence release mismatch: expected release-2026.02.25.16, got release-2026.02.25.99/i);
+	});
+});
+
+test('rejects trusted evidence rows that omit the evidence reference', () => {
+	const planContent = buildPlanPack({
+		trustedEvidenceRows: [
+			{
+				commitSha: 'deadbeefcafebabe',
+				releaseTag: 'release-2026.02.25.19',
+				channel: 'stable',
+				producerIdentity: 'github-actions://instruction-engine/desktop-release',
+				attestationStatus: 'true',
+				evidenceTimestamp: '2026-02-25T11:00:00Z',
+				evidence: '',
+				notes: 'missing evidence reference',
+			},
+		],
+		retentionRows: [
+			{ policy: 'opsLogs', retentionDays: '30', retained: 'true', releaseTag: 'release-2026.02.25.19', evidence: 'ops-log://retention/current', notes: '>= 30d' },
+			{ policy: 'perReleaseEvidence', retentionDays: '365', retained: 'true', releaseTag: 'release-2026.02.25.19', evidence: 'evidence://release-2026.02.25.19', notes: 'present' },
+		],
+	});
+
+	withTempPlanFile(planContent, (filePath) => {
+		const result = runValidator(filePath, [
+			'--expected-commit', 'deadbeefcafebabe',
+			'--expected-release', 'release-2026.02.25.19',
+			'--expected-channel', 'stable',
+			'--max-evidence-age-hours', '24',
+			'--now', '2026-02-25T12:00:00Z',
+		]);
+		assert.notStrictEqual(result.status, 0, 'validator should fail when trusted evidence reference is missing');
+		assert.match(result.stderr, /trusted evidence missing required field: Evidence/i);
+	});
+});
+
+test('rejects ambiguous trusted evidence selection when multiple rows exist without selectors', () => {
+	const planContent = buildPlanPack({
+		trustedEvidenceRows: [
+			{
+				commitSha: 'deadbeefcafebabe',
+				releaseTag: 'release-2026.02.25.17',
+				channel: 'stable',
+				producerIdentity: 'github-actions://instruction-engine/desktop-release',
+				attestationStatus: 'true',
+				evidenceTimestamp: '2026-02-25T11:00:00Z',
+				evidence: 'attestation://release-2026.02.25.17',
+				notes: 'first candidate',
+			},
+			{
+				commitSha: 'feedfacecafebeef',
+				releaseTag: 'release-2026.02.25.18',
+				channel: 'stable',
+				producerIdentity: 'github-actions://instruction-engine/desktop-release',
+				attestationStatus: 'true',
+				evidenceTimestamp: '2026-02-25T11:05:00Z',
+				evidence: 'attestation://release-2026.02.25.18',
+				notes: 'second candidate',
+			},
+		],
+		retentionRows: [
+			{ policy: 'opsLogs', retentionDays: '30', retained: 'true', releaseTag: 'release-2026.02.25.17', evidence: 'ops-log://retention/current', notes: '>= 30d' },
+			{ policy: 'perReleaseEvidence', retentionDays: '365', retained: 'true', releaseTag: 'release-2026.02.25.17', evidence: 'evidence://release-2026.02.25.17', notes: 'present' },
+		],
+	});
+
+	withTempPlanFile(planContent, (filePath) => {
+		const result = runValidator(filePath, [
+			'--max-evidence-age-hours', '24',
+			'--now', '2026-02-25T12:00:00Z',
+		]);
+		assert.notStrictEqual(result.status, 0, 'validator should fail when trusted evidence selection is ambiguous');
+		assert.match(result.stderr, /trusted evidence selection is ambiguous/i);
 	});
 });
 

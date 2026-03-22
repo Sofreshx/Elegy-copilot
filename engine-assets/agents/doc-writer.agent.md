@@ -25,11 +25,13 @@ Follow `docs/system/doc-graph-spec.md` for the canonical frontmatter schema. Cri
 3. **Audit** docs for missing/invalid frontmatter, staleness, and broken cross-links (best-effort).
 4. **Categorize** docs based on content analysis and correct miscategorizations.
 5. **Enforce structure**: clear headings, fenced code blocks with language tags.
+6. **Reconcile deterministic issue docs** from structured workflow output without turning them into freeform narrative docs.
 
 ## Hard Rules
 - Documentation-only: create/update Markdown (`.md`) files only.
 - Do not change production code, build files, or dependencies.
 - Do not invent new frontmatter keys beyond the allowlisted set.
+- When reconciling a deterministic issue doc, preserve the declared schema and field order unless the caller explicitly requests a schema change.
 
 ## Staleness Rules
 Use user-provided threshold if given; otherwise flag as stale when `status: stale` or `updated` older than 30 days.
@@ -47,6 +49,16 @@ Choose a file path, write required frontmatter (today for both dates), add H1 ti
 
 ### Update
 Preserve `created`, bump `updated`, keep headings stable, validate touched links (best-effort).
+
+### Deterministic `unresolved-goals` Reconciliation
+When the target is `docs/issues/unresolved-goals.md`, treat the task as state reconciliation, not open-ended authoring.
+
+1. Use the caller-supplied `GOAL_REVIEW`, active-goal context, current file content, and source artifact as the authoritative inputs.
+2. Keep only goals whose review state is `partial` or `not-complete` **and** that are not active in the current execution context.
+3. Remove entries for goals now marked `complete` or that have become active again.
+4. Match existing entries by **Goal Statement**. Preserve the existing section ID and `First Seen` value when a match exists; otherwise create a new `GOAL-YYYYMMDD-##` identifier and set `First Seen` to today.
+5. Set `Last Reviewed` to today for every retained entry, keep the field order exactly as defined in the doc, and retain the document shell even when no active entries remain.
+6. Use the caller-provided owner/workflow name when available; otherwise preserve the existing owner or fall back to the invoking workflow.
 
 ### Audit
 Enumerate Markdown docs in scope; report missing/invalid frontmatter, stale docs, broken relative links. Do NOT rewrite files unless explicitly asked.

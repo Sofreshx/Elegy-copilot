@@ -69,6 +69,19 @@ Recorded event payloads must stay explicit and privacy-safe:
 Search storage is shared across UI/API/CLI flows so `scripts/skill-search.mjs` and the dashboard
 observe the same telemetry contract.
 
+## Explicit runtime invocation contract
+
+The canonical v1 design for explicit runtime skill invocation telemetry now lives in:
+
+- `docs/system/skill-invocation-observability-contract.md`
+
+That contract introduces:
+
+- `asset.invoked` as the authoritative runtime event
+- top-level `toolName` / `toolCallId` correlation keys
+- search-to-selection-to-invocation correlation through bounded existing telemetry
+- proxy-only fallback visibility when explicit invocation evidence is absent
+
 ## Asset audit analytics projection
 
 - `contractVersion`: `asset_audit_analytics_v1`
@@ -77,9 +90,10 @@ observe the same telemetry contract.
   - `GET /api/audit/events`
   - `GET /api/audit/assets`
   - `POST /api/search/selection`
-- asset analytics merge three bounded/local sources:
+- asset analytics merge four bounded/local sources:
   - lifecycle audit events (`asset.lifecycle.*`) from install/remove hooks and projection-diff repo overlay changes
   - shared search telemetry (`asset.search.query|result|selected|miss`)
+  - explicit runtime invocation audit events (`asset.invoked`)
   - session-derived usage rollups from local `session-state/*/events.jsonl`
 
 Operational expectations:

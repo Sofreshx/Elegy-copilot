@@ -4,12 +4,15 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const { compareAssetCatalogEntries } = require('@instruction-engine/contracts');
+const { compareAssetCatalogEntries } = require('@elegy-copilot/contracts');
 
 const {
   buildCatalogProjection,
   resolveProjectionStorage,
 } = require('./catalogProjectionService');
+const {
+  buildRoutingPolicySnapshot,
+} = require('./catalogActivationState');
 
 const SKILL_SEARCH_TELEMETRY_CONTRACT_VERSION = 'skill_search_telemetry_v1';
 const DEFAULT_SEARCH_LIMIT = 10;
@@ -91,6 +94,7 @@ function normalizeSearchQuery(query) {
     includeVaultOnly: raw.includeVaultOnly !== false,
     includeDisabled: raw.includeDisabled === true,
     includeDeprecated: raw.includeDeprecated === true,
+    overrideRoutingPolicy: raw.overrideRoutingPolicy === true,
     preferLoadMode: raw.preferLoadMode ? String(raw.preferLoadMode).trim() : undefined,
     sessionId: raw.sessionId ? String(raw.sessionId).trim() : undefined,
     correlationId: raw.correlationId ? String(raw.correlationId).trim() : undefined,
@@ -438,6 +442,31 @@ function resolveSkillSearchSnapshot(options = {}) {
   return options.snapshot || buildCatalogProjection(options);
 }
 
+function resolveRoutingPolicy(query, options, snapshot) {
+  if (options.routingPolicy && typeof options.routingPolicy === 'object') {
+    return options.routingPolicy;
+  }
+  if (!options.copilotHome || !snapshot) {
+    return null;
+  }
+  return buildRoutingPolicySnapshot({
+    snapshot,
+    copilotHome: options.copilotHome,
+    repoPath: query.repoPath || options.repoPath || snapshot?.repoContext?.repoPath,
+  });
+}
+
+function filterAssetIdsByRoutingPolicy(assetStates, routingPolicy, overrideRoutingPolicy) {
+  if (!routingPolicy || overrideRoutingPolicy) {
+    return Array.isArray(assetStates) ? assetStates : [];
+  }
+
+  const eligibleAssetIds = new Set(
+    Array.isArray(routingPolicy.eligibleAssetIds) ? routingPolicy.eligibleAssetIds : []
+  );
+  return (Array.isArray(assetStates) ? assetStates : []).filter((asset) => eligibleAssetIds.has(asset.assetId));
+}
+
 function sanitizeQueryForTelemetry(query) {
   return {
     query: normalizeText(query.query).slice(0, 160) || undefined,
@@ -451,6 +480,7 @@ function sanitizeQueryForTelemetry(query) {
     includeVaultOnly: query.includeVaultOnly,
     includeDisabled: query.includeDisabled,
     includeDeprecated: query.includeDeprecated,
+    overrideRoutingPolicy: query.overrideRoutingPolicy,
     preferLoadMode: query.preferLoadMode,
     sessionId: query.sessionId,
     correlationId: query.correlationId,
@@ -570,16 +600,22 @@ function persistTelemetryEvent(eventType, payload, options = {}) {
 function searchSkills(inputQuery, options = {}) {
   const snapshot = resolveSkillSearchSnapshot(options);
   const query = normalizeSearchQuery(inputQuery);
+  const routingPolicy = resolveRoutingPolicy(query, options, snapshot);
   const allSkills = Array.isArray(snapshot?.effectiveAssets)
     ? snapshot.effectiveAssets.filter((asset) => asset.kind === 'skill')
     : [];
+  const policyScopedSkills = filterAssetIdsByRoutingPolicy(
+    allSkills,
+    routingPolicy,
+    query.overrideRoutingPolicy,
+  );
 
   let missReason = null;
   if (!allSkills.length) {
     missReason = 'empty-catalog';
   }
 
-  const scored = allSkills
+  const scored = policyScopedSkills
     .map((asset) => scoreSkill(asset, query))
     .filter(Boolean)
     .sort(compareResults)
@@ -597,6 +633,12 @@ function searchSkills(inputQuery, options = {}) {
   const response = {
     query,
     snapshot,
+    routingPolicy: routingPolicy
+      ? {
+        ...routingPolicy,
+        mode: query.overrideRoutingPolicy ? 'explicit-override' : 'eligible-only',
+      }
+      : null,
     totalCandidates: allSkills.length,
     filteredCount,
     results,
@@ -626,6 +668,7 @@ function searchSkills(inputQuery, options = {}) {
           totalCandidates: allSkills.length,
           includeDisabled: query.includeDisabled,
           includeDeprecated: query.includeDeprecated,
+          routingPolicyMode: response.routingPolicy?.mode || null,
         },
       },
       telemetryOptions,
@@ -653,6 +696,7 @@ function searchSkills(inputQuery, options = {}) {
           },
           details: {
             topResults,
+            routingPolicyMode: response.routingPolicy?.mode || null,
           },
         },
         telemetryOptions,
@@ -673,6 +717,7 @@ function searchSkills(inputQuery, options = {}) {
           details: {
             totalCandidates: allSkills.length,
             filteredCount,
+            routingPolicyMode: response.routingPolicy?.mode || null,
           },
         },
         telemetryOptions,

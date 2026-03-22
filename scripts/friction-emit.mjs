@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { repoRoot } from './lib/cli-utils.mjs';
 
-const schemaPath = path.join(repoRoot, 'contracts', 'elegy', 'monitoring-event.schema.json');
+const schemaPath = path.join(repoRoot, 'contracts', 'session-state', 'monitoring-event.schema.json');
 const eventsDir = path.join(repoRoot, 'docs', 'issues', 'friction-events');
 
 const VALID_IMPORTANCE = ['low', 'medium', 'high', 'critical'];

@@ -32,21 +32,6 @@ jobs:
         run: node --test test-ledger-core.test.js
         working-directory: scripts
 
-      - name: Install RannIA dependencies
-        run: npm ci
-        working-directory: RannIA
-
-      - name: Compile RannIA
-        run: npm run compile
-        working-directory: RannIA
-
-      - name: Install Xvfb
-        run: sudo apt-get update && sudo apt-get install -y xvfb
-
-      - name: Run RannIA tests (force)
-        run: xvfb-run --auto-servernum npm test -- --force
-        working-directory: RannIA
-
       - name: Install local-tracker dependencies
         run: npm ci
         working-directory: local-tracker

@@ -9,13 +9,13 @@ const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 
 /**
- * @typedef {import('@instruction-engine/contracts').WorkflowStep} ContractWorkflowStep
- * @typedef {import('@instruction-engine/contracts').WorkflowDefinition} ContractWorkflowDefinition
- * @typedef {import('@instruction-engine/contracts').WorkflowRunResult} ContractWorkflowRunResult
- * @typedef {import('@instruction-engine/contracts').PlanningRecord} ContractPlanningRecord
- * @typedef {import('@instruction-engine/contracts').WorkflowPlanningBridge} ContractWorkflowPlanningBridge
- * @typedef {import('@instruction-engine/contracts').ExecutorPolicyRequest} ContractExecutorPolicyRequest
- * @typedef {import('@instruction-engine/contracts').ExecutorPolicyResponse} ContractExecutorPolicyResponse
+ * @typedef {import('@elegy-copilot/contracts').WorkflowStep} ContractWorkflowStep
+ * @typedef {import('@elegy-copilot/contracts').WorkflowDefinition} ContractWorkflowDefinition
+ * @typedef {import('@elegy-copilot/contracts').WorkflowRunResult} ContractWorkflowRunResult
+ * @typedef {import('@elegy-copilot/contracts').PlanningRecord} ContractPlanningRecord
+ * @typedef {import('@elegy-copilot/contracts').WorkflowPlanningBridge} ContractWorkflowPlanningBridge
+ * @typedef {import('@elegy-copilot/contracts').ExecutorPolicyRequest} ContractExecutorPolicyRequest
+ * @typedef {import('@elegy-copilot/contracts').ExecutorPolicyResponse} ContractExecutorPolicyResponse
  */
 
 const sessions = require('./lib/sessions');
@@ -23,15 +23,11 @@ const assets = require('./lib/assets');
 const planState = require('./lib/planState');
 const { resolvePermissionLocations } = require('./lib/permissionLocationsResolver');
 const {
-  CAPABILITY_STATES,
-  RUNTIME_PROVIDER_SELECTION_SOURCES,
   SESSION_RECONCILIATION_CONTRACT_VERSION,
   SESSION_RECONCILIATION_SOURCES,
   SESSION_RECONCILIATION_SOURCE_PRECEDENCE,
   SESSION_RECONCILIATION_SOURCE_OF_TRUTH,
   SESSION_STATE_AUTHORITIES,
-  normalizeCapabilityState,
-  buildCompatibilityRuntimeContract,
 } = require('./lib/runtimeContracts');
 const {
   buildPlanningScopeIsolationPredicate,
@@ -78,11 +74,6 @@ const {
   evaluateSemanticGate,
 } = require('./lib/planningSemantic');
 const {
-  SANDBOX_TOKEN_CANONICAL_STATE,
-  SANDBOX_TOKEN_CANONICAL_CODE,
-  toCanonicalMissingTokenError,
-} = require('./lib/sandboxLifecycleTokenContract');
-const {
   PLANNING_API_CONTRACT_VERSION,
   buildPlanningPersistenceHealthEnvelope,
   buildFinishCompatibilityHookContract,
@@ -99,9 +90,38 @@ const {
   releasePlanningRouteLock,
   evictPlanningIdempotencyEntry,
 } = require('./lib/planningApiContracts');
+const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersistenceClient');
 const { createRegistry } = require('./routes');
-const LOCAL_TRACKER_SECRETS_MODULE_PATH = path.join(__dirname, '..', 'local-tracker', 'dist', 'messagingGateway', 'secrets.js');
-const GATEWAY_HTTP_SECRET_KIND = 'gatewayHttpToken';
+const { createExecutorService } = require('./lib/executorService');
+const {
+  isNonLoopback,
+  checkAuth,
+  resolveToken,
+  derivePlanningActorId,
+} = require('./lib/server/auth');
+const {
+  resolveCopilotHome,
+  resolveVscodeHome,
+  resolveSandboxesHome,
+  resolveMessagingGatewayConfigPath,
+  resolveSessionsHome,
+} = require('./lib/server/paths');
+const { createRuntimeHealthResolver } = require('./lib/server/runtimeHealth');
+const {
+  resolveTrackerUrl,
+  resolveTrackerToken,
+  createLifecycleCompatibilityRequestHeaders,
+  LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
+  LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
+  buildLifecycleMixedVersionUnsupportedMarker,
+  evaluateLifecycleMixedVersionCompatibility,
+  buildGatewayProbeFailure,
+  probeTrackerReadiness,
+  buildGatewayStateEnvelope,
+  shouldRemapTrackerMissingTokenPayload,
+  buildTrackerProxyPassThroughHeaders,
+  buildTrackerProxyResponsePlan,
+} = require('./lib/server/trackerIntegration');
 
 const WS3_AUTHORITY_DEPENDENCY_GATE_CONTRACT_VERSION = '1';
 const WS3_AUTHORITY_DEPENDENCY_NAME = 'ws3_authority_reconciliation_contract';
@@ -116,143 +136,7 @@ const WS5A_DURABILITY_CRITICAL_ROUTES = Object.freeze(new Set([
   '/api/planning/suggestions',
   '/api/planning/recaps',
 ]));
-const MESSAGING_GATEWAY_CONFIG_PATH_ENV = 'INSTRUCTION_ENGINE_GATEWAY_CONFIG_PATH';
-const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION = '1';
-const LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY = 'mixed-version-lifecycle-v1';
-const LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION = 'x-instruction-engine-lifecycle-contract-version';
-const LIFECYCLE_COMPATIBILITY_HEADER_CAPABILITY = 'x-instruction-engine-lifecycle-capability';
-const TRACKER_PROXY_RESPONSE_HEADER_ALLOWLIST = Object.freeze([
-  'content-type',
-  'www-authenticate',
-  'retry-after',
-  'x-instruction-engine-lifecycle-contract-version',
-  'x-instruction-engine-lifecycle-capability',
-]);
-const TRACKER_PROXY_RESPONSE_HEADER_MAP = Object.freeze({
-  'content-type': 'Content-Type',
-  'www-authenticate': 'WWW-Authenticate',
-  'retry-after': 'Retry-After',
-  'x-instruction-engine-lifecycle-contract-version': 'X-Instruction-Engine-Lifecycle-Contract-Version',
-  'x-instruction-engine-lifecycle-capability': 'X-Instruction-Engine-Lifecycle-Capability',
-});
-
-function normalizeLifecycleCompatibilityToken(value) {
-  if (Array.isArray(value)) {
-    return normalizeLifecycleCompatibilityToken(value.length > 0 ? value[0] : '');
-  }
-  if (typeof value !== 'string') {
-    return '';
-  }
-  return value.trim().toLowerCase();
-}
-
-function readLifecycleCompatibilityHeaderToken(headers, headerName) {
-  const source = headers && typeof headers === 'object' ? headers : {};
-  const token = source[String(headerName || '').toLowerCase()];
-  return normalizeLifecycleCompatibilityToken(token);
-}
-
-function createLifecycleCompatibilityRequestHeaders() {
-  return {
-    'X-Instruction-Engine-Lifecycle-Contract-Version': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
-    'X-Instruction-Engine-Lifecycle-Capability': LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
-  };
-}
-
-function buildLifecycleMixedVersionUnsupportedMarker(input = {}) {
-  const source = input && typeof input === 'object' ? input : {};
-  const directionToken = String(source.direction || '').trim().toLowerCase();
-  const direction = directionToken === 'old_client_new_tracker'
-    ? 'old_client_new_tracker'
-    : 'new_client_old_tracker';
-
-  return {
-    error: 'Lifecycle compatibility unsupported',
-    code: 'lifecycle_compatibility_unsupported',
-    action: String(source.action || '').trim() || null,
-    reason: String(source.reason || '').trim() || 'compatibility_check_failed',
-    deterministic: true,
-    unsupported: {
-      marker: 'unsupported',
-      direction,
-      expected: {
-        contractVersion: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
-        capability: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
-      },
-      received: {
-        contractVersion: String(source.receivedContractVersion || '').trim() || null,
-        capability: String(source.receivedCapability || '').trim() || null,
-      },
-    },
-    compatibility: {
-      contractVersion: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION,
-      capability: LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY,
-      direction,
-    },
-  };
-}
-
-function evaluateLifecycleMixedVersionCompatibility(input = {}) {
-  const source = input && typeof input === 'object' ? input : {};
-  const directionToken = String(source.direction || '').trim().toLowerCase();
-  const direction = directionToken === 'old_client_new_tracker'
-    ? 'old_client_new_tracker'
-    : 'new_client_old_tracker';
-  const reasonPrefix = direction === 'old_client_new_tracker' ? 'client' : 'tracker';
-
-  const receivedContractVersion = readLifecycleCompatibilityHeaderToken(
-    source.headers,
-    LIFECYCLE_COMPATIBILITY_HEADER_CONTRACT_VERSION
-  );
-  const receivedCapability = readLifecycleCompatibilityHeaderToken(
-    source.headers,
-    LIFECYCLE_COMPATIBILITY_HEADER_CAPABILITY
-  );
-
-  const expectedContractVersion = normalizeLifecycleCompatibilityToken(
-    LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CONTRACT_VERSION
-  );
-  const expectedCapability = normalizeLifecycleCompatibilityToken(
-    LIFECYCLE_MIXED_VERSION_COMPATIBILITY_CAPABILITY
-  );
-
-  let reason = '';
-  if (!receivedContractVersion) {
-    reason = `${reasonPrefix}_contract_version_missing`;
-  } else if (receivedContractVersion !== expectedContractVersion) {
-    reason = `${reasonPrefix}_contract_version_unsupported`;
-  } else if (!receivedCapability) {
-    reason = `${reasonPrefix}_capability_missing`;
-  } else if (receivedCapability !== expectedCapability) {
-    reason = `${reasonPrefix}_capability_unsupported`;
-  }
-
-  if (!reason) {
-    return {
-      compatible: true,
-      direction,
-      reason: 'compatibility_supported',
-      receivedContractVersion: receivedContractVersion || null,
-      receivedCapability: receivedCapability || null,
-    };
-  }
-
-  return {
-    compatible: false,
-    statusCode: 501,
-    direction,
-    reason,
-    receivedContractVersion: receivedContractVersion || null,
-    receivedCapability: receivedCapability || null,
-    body: buildLifecycleMixedVersionUnsupportedMarker({
-      action: source.action,
-      direction,
-      reason,
-      receivedContractVersion,
-      receivedCapability,
-    }),
-  };
-}
+const getRuntimeHealth = createRuntimeHealthResolver();
 
 function createChangeTracker(copilotHomeAbs, vscodeHomeAbs, sandboxesHomeAbs) {
   let version = 0;
@@ -324,6 +208,66 @@ function createChangeTracker(copilotHomeAbs, vscodeHomeAbs, sandboxesHomeAbs) {
       }
     },
   };
+}
+
+function getUniqueManagedAssetHomes(homes) {
+  const uniqueHomes = [];
+  const seen = new Set();
+
+  for (const home of Array.isArray(homes) ? homes : []) {
+    if (typeof home !== 'string' || !home.trim()) {
+      continue;
+    }
+
+    const resolvedHome = path.resolve(home.trim());
+    const key = process.platform === 'win32' ? resolvedHome.toLowerCase() : resolvedHome;
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    uniqueHomes.push(resolvedHome);
+  }
+
+  return uniqueHomes;
+}
+
+function runStartupManagedAssetSync(engineRoot, homes, options = {}) {
+  const quiet = options.quiet === true;
+  const summaries = [];
+
+  for (const home of getUniqueManagedAssetHomes(homes)) {
+    try {
+      const result = assets.syncManagedInstall(engineRoot, home, {
+        force: options.force !== false,
+        pointerMode: options.pointerMode !== false,
+      });
+      const summary = {
+        home,
+        syncedCount: Array.isArray(result.synced) ? result.synced.length : 0,
+        prunedCount: Array.isArray(result.prunedPaths) ? result.prunedPaths.length : 0,
+      };
+      summaries.push(summary);
+
+      if (!quiet && (summary.syncedCount > 0 || summary.prunedCount > 0)) {
+        console.log(`[startup-sync] ${home}: synced ${summary.syncedCount}, pruned ${summary.prunedCount}`);
+      }
+    } catch (error) {
+      const detail = String(error && error.message ? error.message : error);
+      summaries.push({
+        home,
+        syncedCount: 0,
+        prunedCount: 0,
+        error: detail,
+      });
+
+      if (!quiet) {
+        console.warn(`[startup-sync] ${home}: ${detail}`);
+      }
+    }
+  }
+
+  return summaries;
 }
 
 function parseArgs(argv) {
@@ -422,344 +366,6 @@ function parseArgs(argv) {
   return args;
 }
 
-function isNonLoopback(host) {
-  return host !== '127.0.0.1' && host !== '::1' && host !== 'localhost';
-}
-
-function isLoopbackRequest(req) {
-  const addr = req.socket.remoteAddress || '';
-  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
-}
-
-// Bearer-only auth. No cookies, no query-param tokens, no CSRF surface.
-function checkAuth(req, token, options = {}) {
-  // No token configured → pass (only possible on loopback bind)
-  if (!token) return true;
-  const allowLoopbackBypass = options.allowLoopbackBypass !== false;
-  if (allowLoopbackBypass && isLoopbackRequest(req)) return true;
-  // Extract bearer token from Authorization header
-  const authHeader = req.headers['authorization'] || '';
-  if (!authHeader.startsWith('Bearer ')) return false;
-  const provided = authHeader.slice('Bearer '.length);
-  // Constant-time comparison to prevent timing attacks
-  const a = Buffer.from(token);
-  const b = Buffer.from(provided);
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
-
-function resolveToken(args, host) {
-  // 3-tier precedence: --token CLI arg > COPILOT_UI_TOKEN env var > auto-generated
-  if (args.token) return args.token;
-  if (process.env.COPILOT_UI_TOKEN) return process.env.COPILOT_UI_TOKEN;
-  if (isNonLoopback(host)) return crypto.randomBytes(32).toString('hex');
-  return null;
-}
-
-function derivePlanningActorId(token) {
-  if (typeof token === 'string' && token.trim()) {
-    const digest = crypto.createHash('sha256').update(token.trim(), 'utf8').digest('hex');
-    return `auth-${digest.slice(0, 16)}`;
-  }
-  return 'local-loopback-user';
-}
-
-function resolveCopilotHome(args) {
-  if (args && typeof args.copilotHome === 'string' && args.copilotHome.trim()) {
-    return path.resolve(args.copilotHome);
-  }
-  if (process.env.XDG_CONFIG_HOME && process.env.XDG_CONFIG_HOME.trim()) {
-    return path.resolve(process.env.XDG_CONFIG_HOME);
-  }
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  return path.join(path.resolve(home), '.copilot');
-}
-
-function defaultVscodeHome() {
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  return path.join(path.resolve(home), '.copilot');
-}
-
-function resolveVscodeHome(args) {
-  if (args && typeof args.vscodeHome === 'string' && args.vscodeHome.trim()) {
-    return path.resolve(args.vscodeHome);
-  }
-  return defaultVscodeHome();
-}
-
-function resolveSandboxesHome(args) {
-  if (args && typeof args.sandboxesHome === 'string' && args.sandboxesHome.trim()) {
-    return path.resolve(args.sandboxesHome);
-  }
-  const home = process.env.HOME || process.env.USERPROFILE || os.homedir();
-  return path.join(path.resolve(home), '.copilot', 'sandboxes');
-}
-
-function resolveTrackerUrl(args) {
-  if (args && typeof args.trackerUrl === 'string' && args.trackerUrl.trim()) return args.trackerUrl.trim();
-  if (process.env.INSTRUCTION_ENGINE_TRACKER_URL) return process.env.INSTRUCTION_ENGINE_TRACKER_URL.trim();
-  return 'http://127.0.0.1:4100';
-}
-
-async function resolveTrackerTokenFromGatewaySecrets() {
-  try {
-    if (!fs.existsSync(LOCAL_TRACKER_SECRETS_MODULE_PATH)) {
-      return null;
-    }
-  } catch {
-    return null;
-  }
-
-  let secretsModule;
-  try {
-    secretsModule = require(LOCAL_TRACKER_SECRETS_MODULE_PATH);
-  } catch {
-    return null;
-  }
-
-  if (!secretsModule || typeof secretsModule.getGatewaySecret !== 'function') {
-    return null;
-  }
-
-  try {
-    const secretResult = await secretsModule.getGatewaySecret(GATEWAY_HTTP_SECRET_KIND);
-    const token = secretResult && typeof secretResult.value === 'string'
-      ? secretResult.value.trim()
-      : '';
-    if (!token) {
-      return null;
-    }
-
-    const source = secretResult && typeof secretResult.source === 'string'
-      ? secretResult.source
-      : 'keychain';
-
-    return {
-      value: token,
-      source: source === 'env' ? 'env' : 'keychain',
-    };
-  } catch {
-    return null;
-  }
-}
-
-async function resolveTrackerToken(args) {
-  if (args && typeof args.trackerToken === 'string' && args.trackerToken.trim()) {
-    return {
-      value: args.trackerToken.trim(),
-      source: 'arg',
-    };
-  }
-
-  if (Object.prototype.hasOwnProperty.call(process.env, 'INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN')) {
-    const envToken = typeof process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN === 'string'
-      ? process.env.INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.trim()
-      : '';
-    if (!envToken) {
-      return {
-        value: null,
-        source: 'missing',
-      };
-    }
-
-    return {
-      value: envToken,
-      source: 'env',
-    };
-  }
-
-  const fromGatewaySecrets = await resolveTrackerTokenFromGatewaySecrets();
-  if (fromGatewaySecrets) {
-    return fromGatewaySecrets;
-  }
-
-  return {
-    value: null,
-    source: 'missing',
-  };
-}
-
-function getDefaultMessagingGatewayConfigPath() {
-  const canonicalHome = path.resolve(os.homedir());
-  return path.resolve(path.join(canonicalHome, '.instruction-engine', 'messaging-gateway.config.json'));
-}
-
-function rehomeLegacyMessagingGatewayConfigIfNeeded(copilotHomeAbs, canonicalPath) {
-  if (typeof copilotHomeAbs !== 'string' || !copilotHomeAbs.trim()) {
-    return;
-  }
-
-  const legacyPath = path.resolve(path.join(copilotHomeAbs, 'messaging-gateway.config.json'));
-  const canonicalPathAbs = path.resolve(canonicalPath);
-
-  if (legacyPath === canonicalPathAbs) {
-    return;
-  }
-
-  try {
-    if (!fs.existsSync(legacyPath) || !fs.statSync(legacyPath).isFile()) {
-      return;
-    }
-  } catch {
-    return;
-  }
-
-  try {
-    if (fs.existsSync(canonicalPathAbs)) {
-      return;
-    }
-  } catch {
-    return;
-  }
-
-  try {
-    ensureDir(path.dirname(canonicalPathAbs));
-    fs.renameSync(legacyPath, canonicalPathAbs);
-    return;
-  } catch {
-    // fallback to copy + atomic rename below
-  }
-
-  const tmpPath = `${canonicalPathAbs}.tmp.${process.pid}.${Date.now()}`;
-  try {
-    const legacyContents = fs.readFileSync(legacyPath);
-    fs.writeFileSync(tmpPath, legacyContents);
-    fs.renameSync(tmpPath, canonicalPathAbs);
-
-    try {
-      fs.unlinkSync(legacyPath);
-    } catch {
-      // best-effort legacy cleanup after successful rehome
-    }
-  } catch {
-    try {
-      if (fs.existsSync(tmpPath)) {
-        fs.unlinkSync(tmpPath);
-      }
-    } catch {
-      // best-effort temp cleanup
-    }
-  }
-}
-
-function resolveMessagingGatewayConfigPath(copilotHomeAbs) {
-  const explicitPath = process.env[MESSAGING_GATEWAY_CONFIG_PATH_ENV];
-  if (typeof explicitPath === 'string' && explicitPath.trim()) {
-    return path.resolve(explicitPath.trim());
-  }
-
-  const defaultPath = getDefaultMessagingGatewayConfigPath();
-  rehomeLegacyMessagingGatewayConfigIfNeeded(copilotHomeAbs, defaultPath);
-  return defaultPath;
-}
-
-function resolveForcedCapabilityState(capabilityName) {
-  const key = `INSTRUCTION_ENGINE_FORCE_${String(capabilityName || '').trim().toUpperCase()}_STATE`;
-  const raw = process.env[key];
-  if (!raw || !raw.trim()) return null;
-  return normalizeCapabilityState(raw);
-}
-
-function probeCapability(command, args, timeoutMs = 1500) {
-  try {
-    const result = childProcess.spawnSync(command, args, {
-      encoding: 'utf8',
-      windowsHide: true,
-      timeout: timeoutMs,
-      maxBuffer: 256 * 1024,
-    });
-    return result.status === 0 ? CAPABILITY_STATES.AVAILABLE : CAPABILITY_STATES.UNAVAILABLE;
-  } catch {
-    return CAPABILITY_STATES.UNAVAILABLE;
-  }
-}
-
-function detectDockerCapability() {
-  const forced = resolveForcedCapabilityState('docker');
-  if (forced) return forced;
-  return probeCapability('docker', ['version', '--format', '{{.Server.Version}}']);
-}
-
-function detectWsl2Capability() {
-  const forced = resolveForcedCapabilityState('wsl2');
-  if (forced) return forced;
-  if (process.platform !== 'win32') return CAPABILITY_STATES.UNKNOWN;
-  return probeCapability('wsl.exe', ['--status']);
-}
-
-function detectSandboxCapability(dockerCapability, sandboxesHome) {
-  const forced = resolveForcedCapabilityState('sandbox');
-  if (forced) return forced;
-
-  if (dockerCapability !== CAPABILITY_STATES.AVAILABLE) {
-    return CAPABILITY_STATES.UNAVAILABLE;
-  }
-
-  if (typeof sandboxesHome !== 'string' || !sandboxesHome.trim()) {
-    return CAPABILITY_STATES.UNAVAILABLE;
-  }
-
-  try {
-    const sandboxesHomeAbs = path.resolve(sandboxesHome);
-    fs.mkdirSync(sandboxesHomeAbs, { recursive: true });
-    fs.accessSync(sandboxesHomeAbs, fs.constants.R_OK | fs.constants.W_OK);
-    return CAPABILITY_STATES.AVAILABLE;
-  } catch {
-    return CAPABILITY_STATES.UNAVAILABLE;
-  }
-}
-
-let runtimeHealthCache = {
-  expiresAtMs: 0,
-  value: null,
-};
-
-function getRuntimeHealth({ engineRoot, sandboxesHome, providerState }) {
-  const now = Date.now();
-  if (runtimeHealthCache.value && now < runtimeHealthCache.expiresAtMs) {
-    return runtimeHealthCache.value;
-  }
-
-  const docker = detectDockerCapability();
-  const wsl2 = detectWsl2Capability();
-  const sandbox = detectSandboxCapability(docker, sandboxesHome);
-  const resolvedProviderState = readPlanningProviderState({
-    persistedState: providerState,
-    env: process.env,
-  });
-  const canonicalProviderState = buildPlanningProviderStatePersistencePayload(resolvedProviderState);
-
-  const runtime = buildCompatibilityRuntimeContract({
-    mode: process.env.INSTRUCTION_ENGINE_RUNTIME_MODE,
-    selectedProvider: canonicalProviderState.selectionSource === RUNTIME_PROVIDER_SELECTION_SOURCES.EXPLICIT
-      ? canonicalProviderState.selectedProvider
-      : null,
-    defaultProvider: canonicalProviderState.defaultProvider,
-    engineRoot,
-    capabilities: {
-      docker,
-      wsl2,
-      sandbox,
-    },
-  });
-
-  runtime.finishCompatibilityHook = buildFinishCompatibilityHookContract();
-
-  runtimeHealthCache = {
-    value: runtime,
-    expiresAtMs: now + 15_000,
-  };
-
-  return runtime;
-}
-
-function resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome) {
-  const s = String(source || '').trim().toLowerCase();
-  if (s === 'vscode') return { source: 'vscode', home: vscodeHome };
-  if (s === 'sandbox') return { source: 'sandbox', home: sandboxesHome };
-  return { source: 'cli', home: copilotHome };
-}
-
 function isValidSessionId(id) {
   if (typeof id !== 'string' || id.length === 0 || id.length > 256) return false;
   if (id.includes('..') || id.includes('/') || id.includes('\\')) return false;
@@ -839,234 +445,6 @@ async function readJsonBody(req, maxBytes = 256 * 1024) {
     });
     req.on('error', reject);
   });
-}
-
-function parseJsonBodySafe(raw) {
-  const text = String(raw || '').trim();
-  if (!text) return null;
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function buildGatewayProbeFailure(code, reason, message, statusCode = null) {
-  return {
-    deterministic: true,
-    code: String(code || 'gateway_probe_failed'),
-    reason: String(reason || 'gateway_probe_failed'),
-    message: String(message || reason || code || 'gateway_probe_failed'),
-    statusCode: Number.isFinite(statusCode) ? Number(statusCode) : null,
-  };
-}
-
-async function probeTrackerReadiness(trackerUrl, trackerToken, options = {}) {
-  const timeoutMs = Number.isFinite(options.timeoutMs) ? Number(options.timeoutMs) : 5000;
-  const checkedAt = new Date().toISOString();
-
-  if (!trackerToken) {
-    const missingTokenError = toCanonicalMissingTokenError({
-      status: SANDBOX_TOKEN_CANONICAL_STATE,
-    });
-    return {
-      deterministic: true,
-      checkedAt,
-      ready: false,
-      status: SANDBOX_TOKEN_CANONICAL_STATE,
-      statusCode: null,
-      error: buildGatewayProbeFailure(
-        missingTokenError && typeof missingTokenError.legacyCode === 'string'
-          ? missingTokenError.legacyCode
-          : 'tracker_missing_token',
-        missingTokenError && typeof missingTokenError.legacyReason === 'string'
-          ? missingTokenError.legacyReason
-          : SANDBOX_TOKEN_CANONICAL_STATE,
-        missingTokenError && typeof missingTokenError.message === 'string'
-          ? missingTokenError.message
-          : 'Sandbox token missing',
-      ),
-    };
-  }
-
-  let parsedUrl;
-  try {
-    parsedUrl = new URL('/api/status', trackerUrl);
-  } catch {
-    return {
-      deterministic: true,
-      checkedAt,
-      ready: false,
-      status: 'invalid_url',
-      statusCode: null,
-      error: buildGatewayProbeFailure(
-        'tracker_url_invalid',
-        'tracker_url_invalid',
-        'Tracker URL is invalid',
-      ),
-    };
-  }
-
-  return new Promise((resolve) => {
-    const request = http.request({
-      hostname: parsedUrl.hostname,
-      port: parsedUrl.port,
-      path: parsedUrl.pathname + parsedUrl.search,
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${trackerToken}`,
-        'Accept': 'application/json',
-      },
-      timeout: timeoutMs,
-    }, (response) => {
-      const chunks = [];
-      response.on('data', (chunk) => chunks.push(chunk));
-      response.on('end', () => {
-        const raw = Buffer.concat(chunks).toString('utf8');
-        const body = parseJsonBodySafe(raw);
-        const statusCode = response.statusCode || null;
-
-        if (statusCode && statusCode >= 200 && statusCode < 300) {
-          resolve({
-            deterministic: true,
-            checkedAt,
-            ready: true,
-            status: 'ready',
-            statusCode,
-            body,
-            error: null,
-          });
-          return;
-        }
-
-        const isAuthFailure = statusCode === 401 || statusCode === 403;
-        const errorCode = isAuthFailure ? 'tracker_auth_failed' : 'tracker_status_unhealthy';
-        const reason = isAuthFailure ? 'tracker_auth_failed' : 'tracker_status_unhealthy';
-        const message = (body && typeof body.error === 'string' && body.error.trim())
-          || raw.trim()
-          || `Tracker returned status ${statusCode || 'unknown'}`;
-
-        resolve({
-          deterministic: true,
-          checkedAt,
-          ready: false,
-          status: isAuthFailure ? 'auth_failed' : 'status_unhealthy',
-          statusCode,
-          body,
-          error: buildGatewayProbeFailure(errorCode, reason, message, statusCode),
-        });
-      });
-    });
-
-    request.on('timeout', () => {
-      request.destroy();
-      resolve({
-        deterministic: true,
-        checkedAt,
-        ready: false,
-        status: 'timeout',
-        statusCode: null,
-        error: buildGatewayProbeFailure('tracker_timeout', 'tracker_request_timeout', 'Tracker request timed out'),
-      });
-    });
-
-    request.on('error', (error) => {
-      resolve({
-        deterministic: true,
-        checkedAt,
-        ready: false,
-        status: 'unreachable',
-        statusCode: null,
-        error: buildGatewayProbeFailure(
-          'tracker_unreachable',
-          'tracker_request_failed',
-          String(error && error.message ? error.message : error),
-        ),
-      });
-    });
-
-    request.end();
-  });
-}
-
-function buildGatewayStateEnvelope(input = {}) {
-  const source = input && typeof input === 'object' ? input : {};
-  const configPath = String(source.configPath || '');
-  const gatewayConfig = source.gatewayConfig && typeof source.gatewayConfig === 'object'
-    ? source.gatewayConfig
-    : null;
-  const tracker = source.trackerProbe && typeof source.trackerProbe === 'object'
-    ? source.trackerProbe
-    : null;
-  const planningPersistence = source.planningPersistence && typeof source.planningPersistence === 'object'
-    ? source.planningPersistence
-    : buildPlanningPersistenceHealthEnvelope({});
-
-  const trackerReady = Boolean(tracker && tracker.ready === true);
-  const trackerStatus = String(tracker && tracker.status || (trackerReady ? 'ready' : 'unavailable')).trim() || 'unavailable';
-  const planningReady = String(planningPersistence.status || '') === 'ready';
-  const planningRequired = Boolean(planningPersistence.required);
-  const gatewayConfigured = Boolean(gatewayConfig);
-  const gatewayReady = gatewayConfigured && trackerReady && (planningReady || !planningRequired);
-
-  const normalizedConfig = gatewayConfig && typeof gatewayConfig === 'object' ? gatewayConfig : {};
-  const workspaceConfig = normalizedConfig.workspaces && typeof normalizedConfig.workspaces === 'object'
-    ? normalizedConfig.workspaces
-    : {};
-
-  const errors = [];
-  if (!gatewayConfigured) {
-    errors.push(buildGatewayProbeFailure(
-      'gateway_config_missing',
-      'gateway_config_missing',
-      'Messaging gateway config is not initialized',
-    ));
-  }
-  if (tracker && tracker.error) {
-    errors.push(tracker.error);
-  }
-  if (planningRequired && !planningReady) {
-    errors.push(buildGatewayProbeFailure(
-      'planning_persistence_not_ready',
-      'planning_persistence_not_ready',
-      String(planningPersistence.lastError || planningPersistence.status || 'planning_persistence_not_ready'),
-    ));
-  }
-
-  return {
-    contractVersion: '1',
-    kind: 'gateway.state',
-    deterministic: true,
-    checkedAt: new Date().toISOString(),
-    ready: gatewayReady,
-    error: errors.length ? errors[0] : null,
-    gateway: {
-      ready: gatewayReady,
-      status: gatewayReady ? 'ready' : gatewayConfigured ? 'degraded' : 'not_configured',
-      config: {
-        exists: gatewayConfigured,
-        path: configPath,
-        mode: String(normalizedConfig.mode || '').trim() || null,
-        activeRoot: String(workspaceConfig.activeRoot || '').trim() || null,
-        allowedRootCount: Array.isArray(workspaceConfig.allowedRoots) ? workspaceConfig.allowedRoots.length : 0,
-      },
-    },
-    tracker: {
-      ready: trackerReady,
-      status: trackerStatus,
-      statusCode: tracker && Number.isFinite(tracker.statusCode) ? Number(tracker.statusCode) : null,
-      url: String(source.trackerUrl || '').trim() || null,
-      checkedAt: tracker && tracker.checkedAt ? tracker.checkedAt : null,
-      error: tracker && tracker.error ? tracker.error : null,
-    },
-    planningPersistence: {
-      ...planningPersistence,
-      ready: planningReady,
-      initSupported: Boolean(source.planningAuthority && source.planningAuthority.persistedAuthority),
-      initRequired: Boolean(source.planningAuthority && source.planningAuthority.persistedAuthority) && !planningReady,
-    },
-    errors,
-  };
 }
 
 async function initializePlanningPersistenceAuthority(planningPersistenceConfig, planningPersistenceState) {
@@ -1954,11 +1332,12 @@ function buildPlanningPersistenceOperationAuthorityFailure(pathname, method, pla
   }
 
   if (!authority.ready) {
+    const reasonCode = resolveWs5aPersistenceAuthorityReasonCode(authority, planningPersistenceState);
     return buildPlanningPersistenceFailure(pathname, method, {
       statusCode: 503,
       code: 'planning_persistence_unavailable',
       error: 'Planning persistence unavailable',
-      reason: authority.lastError || 'planning_persistence_not_ready',
+      reason: reasonCode,
       configured: authority.validation.configured,
       usable: authority.validation.usable,
       required: authority.validation.required,
@@ -2076,13 +1455,14 @@ async function hydratePlanningProjectionFromPersistence(input = {}) {
   }
 
   if (!authority.ready) {
+    const reasonCode = resolveWs5aPersistenceAuthorityReasonCode(authority, source.planningPersistenceState);
     return {
       ok: false,
       failure: buildPlanningPersistenceFailure(source.pathname, source.method, {
         statusCode: 503,
         code: 'planning_persistence_unavailable',
         error: 'Planning persistence unavailable',
-        reason: authority.lastError || 'planning_persistence_not_ready',
+        reason: reasonCode,
         configured: authority.validation.configured,
         usable: authority.validation.usable,
         required: authority.validation.required,
@@ -2192,13 +1572,14 @@ async function persistPlanningRecordToAuthority(input = {}) {
   }
 
   if (!authority.ready) {
+    const reasonCode = resolveWs5aPersistenceAuthorityReasonCode(authority, source.planningPersistenceState);
     return {
       ok: false,
       failure: buildPlanningPersistenceFailure(source.pathname, source.method, {
         statusCode: 503,
         code: 'planning_persistence_unavailable',
         error: 'Planning persistence unavailable',
-        reason: authority.lastError || 'planning_persistence_not_ready',
+        reason: reasonCode,
         configured: authority.validation.configured,
         usable: authority.validation.usable,
         required: authority.validation.required,
@@ -4108,10 +3489,46 @@ function runVscodeSettingsPatcher({ engineRoot, vscodeHome, settingsPath, dryRun
   };
 }
 
-let policyPreflightCache = {
-  expiresAtMs: 0,
-  value: null,
-};
+function runVscodeGithubMcpPatcher({ engineRoot, mcpPath, dryRun }) {
+  const patcher = path.join(path.resolve(engineRoot), 'scripts', 'vscode-github-mcp-patch.mjs');
+  if (!fs.existsSync(patcher)) {
+    throw new Error(`Missing GitHub MCP patcher script: ${patcher}`);
+  }
+
+  const args = [patcher, '--workspace-root', path.resolve(engineRoot)];
+  if (dryRun) args.push('--dry-run');
+  if (mcpPath) args.push('--mcp', String(mcpPath));
+
+  const result = childProcess.spawnSync(process.execPath, args, {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 15_000,
+    maxBuffer: 2 * 1024 * 1024,
+  });
+
+  let parsedStdout = null;
+  const stdout = result.stdout || '';
+  if (stdout.trim()) {
+    try {
+      parsedStdout = JSON.parse(stdout);
+    } catch {
+      parsedStdout = null;
+    }
+  }
+
+  return {
+    ok: result.status === 0,
+    exitCode: result.status,
+    signal: result.signal || null,
+    patcher,
+    args: args.slice(1),
+    stdout,
+    stderr: result.stderr || '',
+    payload: parsedStdout,
+  };
+}
+
+const policyPreflightCache = new Map();
 
 function evaluatePolicyPreflight(engineRoot) {
   const validatorPath = path.join(path.resolve(engineRoot), 'scripts', 'validate-policy-lockfiles.js');
@@ -4160,15 +3577,17 @@ function evaluatePolicyPreflight(engineRoot) {
 
 function getPolicyPreflight(engineRoot, { refresh = false } = {}) {
   const now = Date.now();
-  if (!refresh && policyPreflightCache.value && now < policyPreflightCache.expiresAtMs) {
-    return policyPreflightCache.value;
+  const cacheKey = path.resolve(engineRoot);
+  const cached = policyPreflightCache.get(cacheKey);
+  if (!refresh && cached && cached.value && now < cached.expiresAtMs) {
+    return cached.value;
   }
 
-  const value = evaluatePolicyPreflight(engineRoot);
-  policyPreflightCache = {
+  const value = evaluatePolicyPreflight(cacheKey);
+  policyPreflightCache.set(cacheKey, {
     value,
     expiresAtMs: now + 10_000,
-  };
+  });
 
   return value;
 }
@@ -4392,97 +3811,6 @@ function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }
   fs.writeFileSync(filePath, JSON.stringify(root, null, 2) + '\n', 'utf8');
 
   return { ok: true, action: 'patched', filePath, backup, locations: desired };
-}
-
-function shouldRemapTrackerMissingTokenPayload(payload) {
-  if (!payload || typeof payload !== 'object') {
-    return false;
-  }
-
-  const hasMissingStatus = payload.status === 'missing_token';
-  const hasLegacyErrorCode = payload.error
-    && typeof payload.error === 'object'
-    && payload.error.code === 'tracker_token_missing';
-  const hasLegacyErrorString = typeof payload.error === 'string'
-    && payload.error.startsWith('Tracker token not configured');
-  const hasLegacyErrorMessage = payload.error
-    && typeof payload.error === 'object'
-    && typeof payload.error.message === 'string'
-    && payload.error.message.startsWith('Tracker token not configured');
-
-  return Boolean(hasMissingStatus || hasLegacyErrorCode || hasLegacyErrorString || hasLegacyErrorMessage);
-}
-
-function buildCanonicalTrackerMissingTokenEnvelope(payload) {
-  if (!shouldRemapTrackerMissingTokenPayload(payload)) {
-    return null;
-  }
-
-  const legacyMessage = typeof payload.error === 'string'
-    ? payload.error
-    : payload.error && typeof payload.error === 'object' && typeof payload.error.message === 'string'
-      ? payload.error.message
-      : 'Tracker token not configured';
-
-  return toCanonicalMissingTokenError(payload) || {
-    status: SANDBOX_TOKEN_CANONICAL_STATE,
-    code: SANDBOX_TOKEN_CANONICAL_CODE,
-    reason: SANDBOX_TOKEN_CANONICAL_STATE,
-    message: legacyMessage,
-  };
-}
-
-function buildTrackerProxyPassThroughHeaders(headers) {
-  const source = headers && typeof headers === 'object' ? headers : {};
-  const outbound = { 'Cache-Control': 'no-store' };
-
-  for (const headerName of TRACKER_PROXY_RESPONSE_HEADER_ALLOWLIST) {
-    const value = source[headerName];
-    if (value == null) {
-      continue;
-    }
-
-    if (Array.isArray(value)) {
-      if (value.length === 0) {
-        continue;
-      }
-      outbound[TRACKER_PROXY_RESPONSE_HEADER_MAP[headerName]] = value.join(', ');
-      continue;
-    }
-
-    outbound[TRACKER_PROXY_RESPONSE_HEADER_MAP[headerName]] = String(value);
-  }
-
-  return outbound;
-}
-
-function buildTrackerProxyResponsePlan({ statusCode, headers, bodyText }) {
-  const resolvedStatusCode = Number.isFinite(statusCode) ? Number(statusCode) : 502;
-  const responseBodyText = typeof bodyText === 'string' ? bodyText : '';
-  const parsedPayload = parseJsonBodySafe(responseBodyText);
-
-  if (resolvedStatusCode >= 400 && parsedPayload) {
-    const canonicalMissingToken = buildCanonicalTrackerMissingTokenEnvelope(parsedPayload);
-    if (canonicalMissingToken) {
-      const remapHeaders = buildTrackerProxyPassThroughHeaders({
-        ...(headers && typeof headers === 'object' ? headers : {}),
-        'content-type': 'application/json; charset=utf-8',
-      });
-      return {
-        statusCode: 502,
-        headers: remapHeaders,
-        bodyText: JSON.stringify(canonicalMissingToken, null, 2),
-        remapped: true,
-      };
-    }
-  }
-
-  return {
-    statusCode: resolvedStatusCode,
-    headers: buildTrackerProxyPassThroughHeaders(headers),
-    bodyText: responseBodyText,
-    remapped: false,
-  };
 }
 
 function writeTrackerProxyResponse(res, responsePlan) {
@@ -4768,7 +4096,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
   const copilotHomeAbs = path.resolve(copilotHome);
-  const vscodeHomeAbs = copilotHomeAbs;
+  const vscodeHomeAbs = path.resolve(vscodeHome);
   const activePlanningDurabilityDependencyGate = planningDurabilityDependencyGate
     && typeof planningDurabilityDependencyGate === 'object'
     ? planningDurabilityDependencyGate
@@ -4839,7 +4167,7 @@ function isSdkBridgeEnabled(env) {
   return String(source.COPILOT_SDK_BRIDGE || '').trim() === '1';
 }
 
-async function initializeSdkBridge({ engineRoot, env, policyPreflightFn }) {
+async function initializeSdkBridge({ engineRoot, copilotHome, env, policyPreflightFn }) {
   const sourceEnv = env && typeof env === 'object' ? env : process.env;
   if (!isSdkBridgeEnabled(sourceEnv)) {
     return null;
@@ -4859,6 +4187,7 @@ async function initializeSdkBridge({ engineRoot, env, policyPreflightFn }) {
   const bridgeConfig = bridgeModule.resolveBridgeConfig(sourceEnv, {
     enabled: true,
     cwd: engineRoot,
+    copilotHome,
     policyPreflightFn,
   });
 
@@ -4879,7 +4208,32 @@ async function shutdownSdkBridgeSafely(sdkBridge) {
   }
 }
 
+async function shutdownExecutorServiceSafely(executorService) {
+  if (!executorService || typeof executorService.shutdown !== 'function') {
+    return;
+  }
+
+  try {
+    await executorService.shutdown();
+  } catch {
+    // Best-effort shutdown on server close/error.
+  }
+}
+
+async function closePlanningPersistenceClientSafely(client) {
+  if (!client || typeof client.close !== 'function') {
+    return;
+  }
+
+  try {
+    await client.close();
+  } catch {
+    // Best-effort shutdown on server close/error.
+  }
+}
+
 async function startServer(options = {}) {
+  const env = options.env && typeof options.env === 'object' ? options.env : process.env;
   const args = {
     port: Number.isFinite(options.port) ? Number(options.port) : 3210,
     host: typeof options.host === 'string' && options.host.trim() ? options.host.trim() : '127.0.0.1',
@@ -4892,6 +4246,8 @@ async function startServer(options = {}) {
   };
 
   const quiet = options.quiet === true;
+  const managedAssetSyncOnStart = options.managedAssetSyncOnStart !== false
+    && String(env.INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC || '').trim() !== '1';
   const engineRoot =
     typeof options.engineRoot === 'string' && options.engineRoot.trim()
       ? path.resolve(options.engineRoot.trim())
@@ -4902,12 +4258,12 @@ async function startServer(options = {}) {
   const trackerUrl = resolveTrackerUrl(args);
   const trackerTokenResolution = await resolveTrackerToken(args);
   const trackerToken = trackerTokenResolution.value;
-  const planningPersistenceConfig = readPlanningPersistenceConfig(process.env);
+  const planningPersistenceConfig = readPlanningPersistenceConfig(env);
   const planningValidation = validatePlanningPersistenceConfig(planningPersistenceConfig);
-  const planningDurabilityDependencyGate = evaluatePlanningDurabilityDependencyGate({ env: process.env });
+  const planningDurabilityDependencyGate = evaluatePlanningDurabilityDependencyGate({ env });
   const providerState = readPlanningProviderState({
     persistedState: options.providerState,
-    env: process.env,
+    env,
   });
   const canonicalProviderState = buildPlanningProviderStatePersistencePayload(providerState);
   const planningPersistenceState = {
@@ -4936,6 +4292,10 @@ async function startServer(options = {}) {
     },
   };
   const planningApiState = createPlanningApiState();
+  const createPlanningPersistenceClient = typeof options.createPlanningPersistenceClient === 'function'
+    ? options.createPlanningPersistenceClient
+    : ({ connectionString }) => createPostgresPlanningPersistenceClient({ connectionString });
+  let ownedPlanningPersistenceClient = null;
 
   if (planningValidation.required && !planningValidation.usable) {
     const detail = planningValidation.errors.length
@@ -4945,7 +4305,25 @@ async function startServer(options = {}) {
   }
 
   if (planningValidation.usable) {
-    const planningPersistenceClient = options.planningPersistenceClient;
+    let planningPersistenceClient = options.planningPersistenceClient;
+    if ((!planningPersistenceClient || typeof planningPersistenceClient.query !== 'function') && planningPersistenceConfig.databaseUrl) {
+      try {
+        ownedPlanningPersistenceClient = createPlanningPersistenceClient({
+          connectionString: planningPersistenceConfig.databaseUrl,
+        });
+        planningPersistenceClient = ownedPlanningPersistenceClient;
+      } catch (error) {
+        planningPersistenceState.status = 'configured_no_client';
+        planningPersistenceState.lastError = String(error && error.message ? error.message : error);
+        planningPersistenceState.client = null;
+
+        if (planningValidation.required) {
+          await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
+          throw new Error(`Planning persistence client startup failed: ${planningPersistenceState.lastError}`);
+        }
+      }
+    }
+
     if (!planningPersistenceClient || typeof planningPersistenceClient.query !== 'function') {
       planningPersistenceState.status = 'configured_no_client';
       planningPersistenceState.lastError = 'planning_persistence_client_unavailable';
@@ -4988,6 +4366,7 @@ async function startServer(options = {}) {
         };
 
         if (planningValidation.required) {
+          await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
           throw error;
         }
       }
@@ -5005,21 +4384,43 @@ async function startServer(options = {}) {
   const planningAuthContext = {
     userId: derivePlanningActorId(token),
   };
-  const sdkBridgeEnabled = isSdkBridgeEnabled(process.env);
+  const managedAssetSyncSummary = managedAssetSyncOnStart
+    ? runStartupManagedAssetSync(engineRoot, [copilotHome, vscodeHome], {
+      force: true,
+      pointerMode: true,
+      quiet,
+    })
+    : [];
+  const sdkBridgeEnabled = isSdkBridgeEnabled(env);
   let sdkBridge = null;
+  let executorService = null;
 
   if (sdkBridgeEnabled) {
     try {
-      sdkBridge = await initializeSdkBridge({
-        engineRoot,
-        env: process.env,
-        policyPreflightFn: () => getPolicyPreflight(engineRoot),
-      });
+        sdkBridge = await initializeSdkBridge({
+          engineRoot,
+          copilotHome,
+          env,
+          policyPreflightFn: () => getPolicyPreflight(engineRoot),
+        });
     } catch (error) {
       changeTracker.close();
       const detail = String(error && error.message ? error.message : error);
       throw new Error(`SDK bridge startup failed with COPILOT_SDK_BRIDGE=1: ${detail}`);
     }
+  }
+
+  try {
+    executorService = await createExecutorService({
+      copilotHome,
+      sdkBridge,
+    }).init();
+  } catch (error) {
+    await shutdownSdkBridgeSafely(sdkBridge);
+    changeTracker.close();
+    await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
+    const detail = String(error && error.message ? error.message : error);
+    throw new Error(`Executor service startup failed: ${detail}`);
   }
 
   let routeRegistry;
@@ -5050,6 +4451,7 @@ async function startServer(options = {}) {
       sendText,
       readJsonBody,
       runVscodeSettingsPatcher,
+      runVscodeGithubMcpPatcher,
       patchCopilotPermissionsConfig,
       safeResolveUnder,
       extractTriggers,
@@ -5111,10 +4513,13 @@ async function startServer(options = {}) {
       persistPlanningRecap,
       readPlanningRecap,
       sdkBridge,
+      executorService,
     });
   } catch (error) {
+    await shutdownExecutorServiceSafely(executorService);
     await shutdownSdkBridgeSafely(sdkBridge);
     changeTracker.close();
+    await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
     throw error;
   }
 
@@ -5160,7 +4565,9 @@ async function startServer(options = {}) {
       if (settled) return;
       settled = true;
       Promise.resolve()
+        .then(() => shutdownExecutorServiceSafely(executorService))
         .then(() => shutdownSdkBridgeSafely(sdkBridge))
+        .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
         .finally(() => {
           changeTracker.close();
           reject(error);
@@ -5182,7 +4589,7 @@ async function startServer(options = {}) {
         if (sdkBridgeEnabled) console.log('sdkBridge:      enabled');
         if (trackerToken) console.log(`trackerAuth:    configured (${trackerTokenResolution.source})`);
         if (token) {
-          console.log(`auth token:  ${token}`);
+          console.log('auth token:     configured (redacted)');
         }
         if (isNonLoopback(host)) {
           console.error('[WARN] Binding to non-loopback address without HTTPS. Auth token is transmitted in cleartext.');
@@ -5192,6 +4599,7 @@ async function startServer(options = {}) {
 
       resolve({
         server,
+        routeRegistry,
         host,
         port: actualPort,
         token,
@@ -5199,9 +4607,12 @@ async function startServer(options = {}) {
         vscodeHome,
         sandboxesHome,
         trackerUrl,
+        managedAssetSyncSummary,
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
+            .then(() => shutdownExecutorServiceSafely(executorService))
             .then(() => shutdownSdkBridgeSafely(sdkBridge))
+            .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
             .finally(() => {
               changeTracker.close();
               server.close(() => closeResolve());

@@ -1,14 +1,33 @@
 import type {
+  CatalogActivationMutationResponse,
   CatalogAssetMutationResponse,
   CatalogAssetDetailResponse,
+  CatalogAssetAuditAnalyticsResponse,
   CatalogAssetsResponse,
+  CatalogBundleUninstallResponse,
+  CatalogBundlesResponse,
   CatalogAuditEventsResponse,
+  CatalogProviderInstallResponse,
+  CatalogBundlesResponse,
   CatalogRepoMutationResponse,
+  CatalogRepoScanRootsMutationResponse,
   CatalogReposListResponse,
   CatalogRefreshResponse,
   CatalogSearchRequest,
+  CatalogSearchSelectionPayload,
+  CatalogSearchSelectionResponse,
   CatalogSearchResponse,
   CatalogSummaryResponse,
+  CancelExecutorJobResponse,
+  CreateExecutorJobPayload,
+  CreateExecutorJobResponse,
+  ExecutorHealthResponse,
+  ExecutorJob,
+  ExecutorJobsResponse,
+  ExecutorRetryPolicy,
+  ExecutorRun,
+  ExecutorRunEvent,
+  ExecutorRunsResponse,
   GatewayConfig,
   GatewayConfigResponse,
   GatewaySaveConfigResponse,
@@ -20,6 +39,13 @@ import type {
   LspConfigResponse,
   LspInstallResponse,
   ManagedAssetsResponse,
+  PlanningBacklogMutationResponse,
+  PlanningBacklogResponse,
+  PlanningBullet,
+  PlanningBulletsResponse,
+  PlanningBulletsSummary,
+  PlanningBulletFileRef,
+  PlanningBulletState,
   PlanningDiagram,
   PlanningDiagramsResponse,
   PlanningCompareReceipt,
@@ -29,7 +55,15 @@ import type {
   PlanningMergeIntentToken,
   PlanningMergeResponse,
   PlanningPersistenceInitResponse,
+  PlanningIntakeArtifact,
+  PlanningIntakeArtifactsResponse,
+  PlanningIntakeCategory,
+  PlanningIntakeDirectoryRef,
   PlanningRecordItem,
+  PlanningRepositoryBacklogRef,
+  PlanningRoadmap,
+  PlanningRoadmapDirectoryRef,
+  PlanningRoadmapItem,
   PlanningResearchNote,
   PlanningResearchNotesResponse,
   PlanningRecordsResponse,
@@ -45,12 +79,15 @@ import type {
   SdkSessionSummary,
   SdkSessionsResponse,
   SessionPlansResponse,
+  SessionAgentUsageResponse,
+  SessionPlanMutationResponse,
   SessionStructuredStateResponse,
   SessionTextArtifactResponse,
   SkillsPreviewResponse,
   SessionsListResponse,
   TrackerPermissionsResponse,
   TrackerSessionsResponse,
+  TriggerExecutorJobResponse,
   VersionResponse,
 } from './types';
 
@@ -84,6 +121,35 @@ export interface SessionArtifactQueryOptions {
   planId?: string;
 }
 
+export interface SessionPlanSeedArtifactPayload {
+  id: string;
+  kind?: string;
+  category?: PlanningIntakeCategory | string;
+  title: string;
+  summary?: string;
+  targetRepoIds?: string[];
+  state?: string;
+  repoId?: string;
+  originKind?: string;
+  promotedPlanRefs?: string[];
+  promotedBacklogRefs?: string[];
+}
+
+export interface SessionPlanMutationPayload {
+  sessionId?: string;
+  source?: string;
+  title?: string;
+  content: string;
+  repoId?: string;
+  repoPath?: string;
+  seedArtifact?: SessionPlanSeedArtifactPayload;
+}
+
+export interface SessionAgentUsageQueryOptions {
+  source?: string;
+  limit?: number;
+}
+
 export interface PlanningContextQuery {
   userId?: string;
   repoId?: string;
@@ -103,8 +169,72 @@ export interface PlanningCreatePayload {
   summary?: string;
   acceptanceCriteria?: string[];
   acceptanceCriteriaText?: string;
+  targetRepoIds?: string[];
   state?: string;
   idempotencyKey?: string;
+}
+
+export interface PlanningUpdatePayload {
+  userId?: string;
+  repoId?: string;
+  title?: string;
+  summary?: string;
+  acceptanceCriteria?: string[];
+  acceptanceCriteriaText?: string;
+  targetRepoIds?: string[];
+  state?: string;
+  score?: number | null;
+}
+
+export interface PlanningBacklogKeyPointPayload {
+  date: string;
+  text: string;
+}
+
+export interface PlanningBacklogItemPayload {
+  title: string;
+  summary?: string;
+  status?: string;
+  roadmapIds?: string[];
+  planRefs?: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints?: PlanningBacklogKeyPointPayload[];
+}
+
+export interface PlanningBacklogCreatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  item?: PlanningBacklogItemPayload;
+  title?: string;
+  summary?: string;
+  status?: string;
+  roadmapIds?: string[];
+  planRefs?: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints?: PlanningBacklogKeyPointPayload[];
+}
+
+export interface PlanningBacklogUpdatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  item?: Partial<PlanningBacklogItemPayload>;
+  patch?: Partial<PlanningBacklogItemPayload>;
+  title?: string;
+  summary?: string;
+  status?: string;
+  roadmapIds?: string[];
+  planRefs?: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints?: PlanningBacklogKeyPointPayload[];
 }
 
 export interface PlanningComparePayload {
@@ -203,6 +333,17 @@ export interface CatalogAssetsQuery extends CatalogSelectorQuery {
   available?: boolean;
 }
 
+export interface CatalogBundlesQuery extends CatalogSelectorQuery {
+  bundleId?: string;
+  classification?: string;
+  scopeKind?: string;
+  language?: string;
+  framework?: string;
+  stack?: string;
+  tag?: string;
+  q?: string;
+}
+
 export interface CatalogAuditEventsQuery extends CatalogSelectorQuery {
   eventType?: string;
   assetId?: string;
@@ -210,6 +351,8 @@ export interface CatalogAuditEventsQuery extends CatalogSelectorQuery {
   correlationId?: string;
   limit?: number;
 }
+
+export interface CatalogAuditAssetsQuery extends CatalogAuditEventsQuery {}
 
 export interface CatalogRepoInventoryQuery {
   repoPath?: string;
@@ -225,6 +368,11 @@ export interface CatalogRepoMutationPayload {
   repoPaths?: string[];
 }
 
+export interface CatalogRepoScanRootsPayload {
+  customScanRoots?: string[];
+  scanRoots?: string[];
+}
+
 export interface CatalogAssetCreatePayload {
   authoringScope: 'shared' | 'user-global' | 'repo-local' | string;
   kind: 'agent' | 'skill' | string;
@@ -236,6 +384,11 @@ export interface CatalogAssetCreatePayload {
   triggersOn?: string[];
   repoPath?: string;
   authoringRepoPath?: string;
+}
+
+export interface CatalogProviderInstallPayload {
+  providerId: string;
+  action?: 'install' | 'update' | string;
 }
 
 export interface CatalogAssetUpdatePayload extends Omit<CatalogAssetCreatePayload, 'content'> {
@@ -260,12 +413,23 @@ export interface CatalogAssetInstallPayload {
   force?: boolean;
 }
 
+export interface CatalogBundleUninstallPayload extends CatalogSelectorQuery {
+  bundleId: string;
+}
+
 export interface CatalogAssetEnablementPayload {
   kind?: 'agent' | 'skill' | string;
   assetId?: string;
   assetKey?: string;
   repoPath: string;
   expectedRegistryHash?: string;
+}
+
+export interface CatalogActivationMutationPayload {
+  action: 'activate-bundle' | 'deactivate-bundle' | 'set-profile' | 'clear-repo-override' | string;
+  bundleId?: string;
+  plannerProfile?: string;
+  repoPath?: string;
 }
 
 function buildCatalogSelectorQuery(query: CatalogSelectorQuery = {}): ApiRequestOptions['query'] {
@@ -314,6 +478,698 @@ function asStringList(value: unknown): string[] {
   return asArray(value)
     .map((entry) => asTrimmedString(entry))
     .filter((entry) => entry.length > 0);
+}
+
+export interface PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  repoLabel?: string;
+}
+
+export interface PlanningIntakeArtifactPayload {
+  category?: PlanningIntakeCategory;
+  title: string;
+  summary?: string;
+  acceptanceCriteria?: string[];
+  targetRepoIds?: string[];
+  planningState?: string;
+}
+
+export interface PlanningIntakeCreatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  artifact?: PlanningIntakeArtifactPayload;
+  category?: PlanningIntakeCategory;
+  title?: string;
+  summary?: string;
+  acceptanceCriteria?: string[];
+  targetRepoIds?: string[];
+  planningState?: string;
+}
+
+export interface PlanningIntakeUpdatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  artifact?: Partial<PlanningIntakeArtifactPayload>;
+  patch?: Partial<PlanningIntakeArtifactPayload>;
+  category?: PlanningIntakeCategory;
+  title?: string;
+  summary?: string;
+  acceptanceCriteria?: string[];
+  targetRepoIds?: string[];
+  planningState?: string;
+}
+
+export interface PlanningBulletPayload {
+  title: string;
+  state?: PlanningBulletState;
+  repoId?: string;
+  summary?: string;
+  notes?: string[];
+  promotedPlanRefs?: string[];
+  promotedBacklogRefs?: string[];
+}
+
+export interface PlanningBulletCreatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  bullet?: PlanningBulletPayload;
+  title?: string;
+  state?: PlanningBulletState;
+  summary?: string;
+  notes?: string[];
+  promotedPlanRefs?: string[];
+  promotedBacklogRefs?: string[];
+}
+
+export interface PlanningBulletUpdatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  bullet?: Partial<PlanningBulletPayload>;
+  patch?: Partial<PlanningBulletPayload>;
+  title?: string;
+  state?: PlanningBulletState;
+  summary?: string;
+  notes?: string[];
+  promotedPlanRefs?: string[];
+  promotedBacklogRefs?: string[];
+}
+
+export interface PlanningRepoSummary {
+  repoId: string;
+  repoPath: string;
+  repoLabel: string;
+}
+
+export interface PlanningRepositoryBacklogRefApi extends PlanningRepositoryBacklogRef {
+  canonicalName: 'Repository Backlog';
+  repo: PlanningRepoSummary;
+  filePath: string;
+  repoRelativePath: 'docs/backlog.md';
+  stableIdPattern: 'RB-###';
+}
+
+export interface PlanningRoadmapDirectoryRefApi extends PlanningRoadmapDirectoryRef {
+  canonicalName: 'Roadmap';
+  repo: PlanningRepoSummary;
+  directoryPath: string;
+  repoRelativePath: 'docs/roadmaps';
+  stableIdPattern: 'RM-<roadmap-slug>-###';
+}
+
+export interface PlanningRoadmapItemApi extends PlanningRoadmapItem {
+  id: string;
+  title: string;
+  phase: string;
+  status: string;
+  summary?: string;
+  backlogIds: string[];
+  planRefs: string[];
+}
+
+export interface PlanningRoadmapApi extends PlanningRoadmap {
+  slug: string;
+  title: string;
+  overview?: string;
+  filePath: string;
+  repoRelativePath: string;
+  itemCount: number;
+  statusCounts: Record<string, number>;
+  items: PlanningRoadmapItemApi[];
+}
+
+export interface PlanningRoadmapsResponseApi {
+  count: number;
+  roadmaps: PlanningRoadmapApi[];
+  repo: PlanningRepoSummary | null;
+}
+
+export interface PlanningBacklogKeyPointApi {
+  date: string;
+  text: string;
+}
+
+export interface PlanningBacklogItemApi {
+  id: string;
+  title: string;
+  status: string;
+  summary?: string;
+  roadmapIds: string[];
+  planRefs: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+  importance?: number | null;
+  keyPoints: PlanningBacklogKeyPointApi[];
+}
+
+export interface PlanningBacklogSummaryApi {
+  backlogPath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  formatVersion?: string;
+  title?: string;
+  description?: string;
+  itemCount: number;
+  items: PlanningBacklogItemApi[];
+}
+
+export interface PlanningBacklogResponseApi extends PlanningBacklogResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  backlog: PlanningBacklogSummaryApi;
+}
+
+export interface PlanningBacklogMutationResponseApi extends PlanningBacklogMutationResponse {
+  item?: PlanningBacklogItemApi | null;
+}
+
+export interface PlanningIntakeDirectoryRefApi extends PlanningIntakeDirectoryRef {
+  canonicalName: 'Planning Intake';
+  repo: PlanningRepoSummary;
+  directoryPath: string;
+  repoRelativePath: 'docs/planning/intake';
+  stableIdPattern: 'PI-###';
+  supportedCategories: PlanningIntakeCategory[];
+}
+
+export interface PlanningBulletFileRefApi extends PlanningBulletFileRef {
+  canonicalName: 'Planning Bullets';
+  repo: PlanningRepoSummary;
+  filePath: string;
+  repoRelativePath: 'docs/planning/bullets.md';
+  stableIdPattern: 'PB-###';
+  supportedStates: PlanningBulletState[];
+}
+
+export interface PlanningBulletApi extends PlanningBullet {
+  kind: 'planning.bullet.artifact';
+  schemaVersion: number;
+  id: string;
+  title: string;
+  state: PlanningBulletState;
+  repoId: string;
+  summary: string;
+  notes: string[];
+  promotedPlanRefs: string[];
+  promotedBacklogRefs: string[];
+  filePath: string;
+  repoRelativePath: string;
+}
+
+export interface PlanningBulletsSummaryApi extends PlanningBulletsSummary {
+  filePath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  bulletCount: number;
+  stableIdPattern?: string;
+  supportedStates: PlanningBulletState[];
+}
+
+export interface PlanningBulletsResponseApi extends PlanningBulletsResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  count?: number;
+  bullets: PlanningBulletsSummaryApi;
+  artifacts: PlanningBulletApi[];
+  artifact?: PlanningBulletApi | null;
+}
+
+export interface PlanningIntakeArtifactApi extends PlanningIntakeArtifact {
+  kind: 'planning.intake.artifact';
+  schemaVersion: number;
+  id: string;
+  category: PlanningIntakeCategory;
+  title: string;
+  summary: string;
+  acceptanceCriteria: string[];
+  targetRepoIds: string[];
+  planningState?: string;
+  createdAt: string;
+  updatedAt: string;
+  filePath: string;
+  repoRelativePath: string;
+}
+
+export interface PlanningIntakeSummaryApi {
+  directoryPath?: string | null;
+  repoRelativePath?: string;
+  exists: boolean;
+  artifactCount: number;
+  stableIdPattern?: string;
+  supportedCategories: PlanningIntakeCategory[];
+}
+
+export interface PlanningIntakeArtifactsResponseApi extends PlanningIntakeArtifactsResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  count?: number;
+  intake: PlanningIntakeSummaryApi;
+  artifacts: PlanningIntakeArtifactApi[];
+  artifact?: PlanningIntakeArtifactApi | null;
+}
+
+function trimTrailingPathSeparator(value: string): string {
+  return value.replace(/[\\/]+$/g, '');
+}
+
+function detectPathSeparator(value: string): '\\' | '/' {
+  return value.includes('\\') ? '\\' : '/';
+}
+
+function buildRepoPath(value: string, ...segments: string[]): string {
+  const normalizedBase = trimTrailingPathSeparator(value.trim());
+  const separator = detectPathSeparator(normalizedBase);
+  const normalizedSegments = segments
+    .map((segment) => String(segment || '').replace(/[\\/]+/g, separator))
+    .filter((segment) => segment.length > 0);
+
+  return [normalizedBase, ...normalizedSegments].join(separator);
+}
+
+function normalizePlanningRepoSummary(input: unknown): PlanningRepoSummary | null {
+  const record = asRecord(input);
+  const repoId = asTrimmedString(record.repoId);
+  const repoPath = asTrimmedString(record.repoPath);
+  const repoLabel = asTrimmedString(record.repoLabel);
+
+  if (!repoId && !repoPath && !repoLabel) {
+    return null;
+  }
+
+  return {
+    repoId,
+    repoPath,
+    repoLabel,
+  };
+}
+
+function normalizePlanningRoadmapItem(value: unknown): PlanningRoadmapItemApi | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    title: asTrimmedString(record.title) || id,
+    phase: asTrimmedString(record.phase) || 'unscheduled',
+    status: asTrimmedString(record.status) || 'planned',
+    summary: asTrimmedString(record.summary) || undefined,
+    backlogIds: asStringList(record.backlogIds),
+    planRefs: asStringList(record.planRefs),
+  };
+}
+
+function normalizePlanningRoadmap(value: unknown): PlanningRoadmapApi | null {
+  const record = asRecord(value);
+  const slug = asTrimmedString(record.slug);
+  if (!slug) {
+    return null;
+  }
+
+  const items = asArray(record.items)
+    .map((entry) => normalizePlanningRoadmapItem(entry))
+    .filter((entry): entry is PlanningRoadmapItemApi => entry !== null);
+  const rawStatusCounts = asRecord(record.statusCounts);
+  const statusCounts = Object.entries(rawStatusCounts).reduce<Record<string, number>>((acc, [key, count]) => {
+    const normalizedKey = key.trim();
+    if (!normalizedKey) {
+      return acc;
+    }
+    acc[normalizedKey] = asNumber(count, 0);
+    return acc;
+  }, {});
+
+  return {
+    slug,
+    title: asTrimmedString(record.title) || slug,
+    overview: asTrimmedString(record.overview) || undefined,
+    filePath: asTrimmedString(record.filePath),
+    repoRelativePath: asTrimmedString(record.repoRelativePath),
+    itemCount: asNumber(record.itemCount, items.length),
+    statusCounts,
+    items,
+  };
+}
+
+function normalizePlanningRoadmapsResponse(payload: unknown): PlanningRoadmapsResponseApi {
+  const record = asRecord(payload);
+  const roadmaps = asArray(record.roadmaps)
+    .map((entry) => normalizePlanningRoadmap(entry))
+    .filter((entry): entry is PlanningRoadmapApi => entry !== null);
+
+  return {
+    count: asNumber(record.count, roadmaps.length),
+    roadmaps,
+    repo: normalizePlanningRepoSummary(record.repo),
+  };
+}
+
+function normalizePlanningBacklogKeyPoint(value: unknown): PlanningBacklogKeyPointApi | null {
+  const record = asRecord(value);
+  const date = asTrimmedString(record.date);
+  const text = asTrimmedString(record.text);
+  if (!date || !text) {
+    return null;
+  }
+
+  return {
+    date,
+    text,
+  };
+}
+
+function normalizePlanningBacklogItem(value: unknown): PlanningBacklogItemApi | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  const title = asTrimmedString(record.title);
+  if (!id || !title) {
+    return null;
+  }
+
+  return {
+    id,
+    title,
+    status: asTrimmedString(record.status, 'proposed') || 'proposed',
+    summary: asTrimmedString(record.summary) || undefined,
+    roadmapIds: asStringList(record.roadmapIds),
+    planRefs: asStringList(record.planRefs),
+    satisfiedByPlanRef: asTrimmedString(record.satisfiedByPlanRef) || null,
+    supersededByPlanRef: asTrimmedString(record.supersededByPlanRef) || null,
+    abandonedByPlanRef: asTrimmedString(record.abandonedByPlanRef) || null,
+    importance: asNullableNumber(record.importance),
+    keyPoints: asArray(record.keyPoints)
+      .map((entry) => normalizePlanningBacklogKeyPoint(entry))
+      .filter((entry): entry is PlanningBacklogKeyPointApi => entry !== null),
+  };
+}
+
+function normalizePlanningBacklogSummary(value: unknown): PlanningBacklogSummaryApi {
+  const record = asRecord(value);
+  const items = asArray(record.items)
+    .map((entry) => normalizePlanningBacklogItem(entry))
+    .filter((entry): entry is PlanningBacklogItemApi => entry !== null);
+
+  return {
+    backlogPath: asTrimmedString(record.backlogPath) || null,
+    repoRelativePath: asTrimmedString(record.repoRelativePath) || undefined,
+    exists: asBoolean(record.exists, false),
+    formatVersion: asTrimmedString(record.formatVersion) || undefined,
+    title: asTrimmedString(record.title) || undefined,
+    description: asTrimmedString(record.description) || undefined,
+    itemCount: asNumber(record.itemCount, items.length),
+    items,
+  };
+}
+
+function normalizePlanningBacklogResponse(payload: unknown): PlanningBacklogResponseApi {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningRepoSummary(record.repo),
+    backlog: normalizePlanningBacklogSummary(record.backlog),
+  };
+}
+
+function normalizePlanningBacklogMutationResponse(payload: unknown): PlanningBacklogMutationResponseApi {
+  const record = asRecord(payload);
+  const response = normalizePlanningBacklogResponse(payload);
+  return {
+    ...response,
+    ...record,
+    item: normalizePlanningBacklogItem(record.item),
+  };
+}
+
+const PLANNING_INTAKE_CATEGORIES = [
+  'idea',
+  'research',
+  'refactor-candidate',
+  'design-complaint',
+  'audit-request',
+  'roadmap-request',
+  'review-prep',
+  'commit-prep',
+] as const;
+
+const PLANNING_BULLET_STATES = [
+  'idea',
+  'research',
+  'pre-plan',
+] as const;
+
+function normalizePlanningIntakeCategory(value: unknown): PlanningIntakeCategory {
+  const normalized = asTrimmedString(value).toLowerCase();
+  if (PLANNING_INTAKE_CATEGORIES.includes(normalized as PlanningIntakeCategory)) {
+    return normalized as PlanningIntakeCategory;
+  }
+  return 'idea';
+}
+
+function normalizePlanningBulletState(value: unknown): PlanningBulletState {
+  const normalized = asTrimmedString(value).toLowerCase();
+  if (PLANNING_BULLET_STATES.includes(normalized as PlanningBulletState)) {
+    return normalized as PlanningBulletState;
+  }
+  return 'idea';
+}
+
+function normalizePlanningBullet(value: unknown): PlanningBulletApi | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    kind: 'planning.bullet.artifact',
+    schemaVersion: asNumber(record.schemaVersion, 1),
+    id,
+    title: asTrimmedString(record.title) || id,
+    state: normalizePlanningBulletState(record.state),
+    repoId: asTrimmedString(record.repoId),
+    summary: asTrimmedString(record.summary),
+    notes: asStringList(record.notes),
+    promotedPlanRefs: asStringList(record.promotedPlanRefs),
+    promotedBacklogRefs: asStringList(record.promotedBacklogRefs),
+    filePath: asTrimmedString(record.filePath),
+    repoRelativePath: asTrimmedString(record.repoRelativePath),
+  };
+}
+
+function normalizePlanningBulletsSummary(value: unknown): PlanningBulletsSummaryApi {
+  const record = asRecord(value);
+  return {
+    filePath: asTrimmedString(record.filePath) || null,
+    repoRelativePath: asTrimmedString(record.repoRelativePath) || 'docs/planning/bullets.md',
+    exists: asBoolean(record.exists, false),
+    bulletCount: asNumber(record.bulletCount, 0),
+    stableIdPattern: asTrimmedString(record.stableIdPattern) || 'PB-###',
+    supportedStates: asArray(record.supportedStates)
+      .map((entry) => normalizePlanningBulletState(entry))
+      .filter((entry, index, list) => list.indexOf(entry) === index),
+  };
+}
+
+function normalizePlanningBulletsResponse(payload: unknown): PlanningBulletsResponseApi {
+  const record = asRecord(payload);
+  const artifacts = asArray(record.artifacts)
+    .map((entry) => normalizePlanningBullet(entry))
+    .filter((entry): entry is PlanningBulletApi => entry !== null);
+
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningRepoSummary(record.repo),
+    count: asNumber(record.count, artifacts.length),
+    bullets: normalizePlanningBulletsSummary(record.bullets),
+    artifacts,
+    artifact: normalizePlanningBullet(record.artifact),
+  };
+}
+
+function normalizePlanningIntakeArtifact(value: unknown): PlanningIntakeArtifactApi | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    kind: 'planning.intake.artifact',
+    schemaVersion: asNumber(record.schemaVersion, 1),
+    id,
+    category: normalizePlanningIntakeCategory(record.category),
+    title: asTrimmedString(record.title) || id,
+    summary: asTrimmedString(record.summary),
+    acceptanceCriteria: asStringList(record.acceptanceCriteria),
+    targetRepoIds: asStringList(record.targetRepoIds),
+    planningState: asTrimmedString(record.planningState) || undefined,
+    createdAt: asTrimmedString(record.createdAt),
+    updatedAt: asTrimmedString(record.updatedAt),
+    filePath: asTrimmedString(record.filePath),
+    repoRelativePath: asTrimmedString(record.repoRelativePath),
+  };
+}
+
+function normalizePlanningIntakeSummary(value: unknown): PlanningIntakeSummaryApi {
+  const record = asRecord(value);
+  return {
+    directoryPath: asTrimmedString(record.directoryPath) || null,
+    repoRelativePath: asTrimmedString(record.repoRelativePath) || 'docs/planning/intake',
+    exists: asBoolean(record.exists, false),
+    artifactCount: asNumber(record.artifactCount, 0),
+    stableIdPattern: asTrimmedString(record.stableIdPattern) || 'PI-###',
+    supportedCategories: asArray(record.supportedCategories)
+      .map((entry) => normalizePlanningIntakeCategory(entry))
+      .filter((entry, index, list) => list.indexOf(entry) === index),
+  };
+}
+
+function normalizePlanningIntakeArtifactsResponse(payload: unknown): PlanningIntakeArtifactsResponseApi {
+  const record = asRecord(payload);
+  const artifacts = asArray(record.artifacts)
+    .map((entry) => normalizePlanningIntakeArtifact(entry))
+    .filter((entry): entry is PlanningIntakeArtifactApi => entry !== null);
+
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningRepoSummary(record.repo),
+    count: asNumber(record.count, artifacts.length),
+    intake: normalizePlanningIntakeSummary(record.intake),
+    artifacts,
+    artifact: normalizePlanningIntakeArtifact(record.artifact),
+  };
+}
+
+export function buildPlanningRepositoryBacklogRef(
+  repo: PlanningRepoDocRefOptions = {}
+): PlanningRepositoryBacklogRefApi | null {
+  const repoPath = asTrimmedString(repo.repoPath);
+  if (!repoPath) {
+    return null;
+  }
+
+  const normalizedRepoPath = trimTrailingPathSeparator(repoPath);
+  const repoId = asTrimmedString(repo.repoId);
+  const repoPathSegments = normalizedRepoPath.split(/[\\/]/).filter(Boolean);
+  const repoLabel = asTrimmedString(repo.repoLabel)
+    || repoPathSegments[repoPathSegments.length - 1]
+    || repoId;
+
+  return {
+    canonicalName: 'Repository Backlog',
+    repo: {
+      repoId,
+      repoPath: normalizedRepoPath,
+      repoLabel,
+    },
+    filePath: buildRepoPath(normalizedRepoPath, 'docs', 'backlog.md'),
+    repoRelativePath: 'docs/backlog.md',
+    stableIdPattern: 'RB-###',
+  };
+}
+
+export function buildPlanningBulletsFileRef(
+  repo: PlanningRepoDocRefOptions = {}
+): PlanningBulletFileRefApi | null {
+  const repoPath = asTrimmedString(repo.repoPath);
+  if (!repoPath) {
+    return null;
+  }
+
+  const normalizedRepoPath = trimTrailingPathSeparator(repoPath);
+  const repoId = asTrimmedString(repo.repoId);
+  const repoPathSegments = normalizedRepoPath.split(/[\\/]/).filter(Boolean);
+  const repoLabel = asTrimmedString(repo.repoLabel)
+    || repoPathSegments[repoPathSegments.length - 1]
+    || repoId;
+
+  return {
+    canonicalName: 'Planning Bullets',
+    repo: {
+      repoId,
+      repoPath: normalizedRepoPath,
+      repoLabel,
+    },
+    filePath: buildRepoPath(normalizedRepoPath, 'docs', 'planning', 'bullets.md'),
+    repoRelativePath: 'docs/planning/bullets.md',
+    stableIdPattern: 'PB-###',
+    supportedStates: [...PLANNING_BULLET_STATES],
+  };
+}
+
+export function buildPlanningIntakeDirectoryRef(
+  repo: PlanningRepoDocRefOptions = {}
+): PlanningIntakeDirectoryRefApi | null {
+  const repoPath = asTrimmedString(repo.repoPath);
+  if (!repoPath) {
+    return null;
+  }
+
+  const normalizedRepoPath = trimTrailingPathSeparator(repoPath);
+  const repoId = asTrimmedString(repo.repoId);
+  const repoPathSegments = normalizedRepoPath.split(/[\\/]/).filter(Boolean);
+  const repoLabel = asTrimmedString(repo.repoLabel)
+    || repoPathSegments[repoPathSegments.length - 1]
+    || repoId;
+
+  return {
+    canonicalName: 'Planning Intake',
+    repo: {
+      repoId,
+      repoPath: normalizedRepoPath,
+      repoLabel,
+    },
+    directoryPath: buildRepoPath(normalizedRepoPath, 'docs', 'planning', 'intake'),
+    repoRelativePath: 'docs/planning/intake',
+    stableIdPattern: 'PI-###',
+    supportedCategories: [...PLANNING_INTAKE_CATEGORIES],
+  };
+}
+
+export function buildPlanningRoadmapDirectoryRef(
+  repo: PlanningRepoDocRefOptions = {}
+): PlanningRoadmapDirectoryRefApi | null {
+  const repoPath = asTrimmedString(repo.repoPath);
+  if (!repoPath) {
+    return null;
+  }
+
+  const normalizedRepoPath = trimTrailingPathSeparator(repoPath);
+  const repoId = asTrimmedString(repo.repoId);
+  const repoPathSegments = normalizedRepoPath.split(/[\\/]/).filter(Boolean);
+  const repoLabel = asTrimmedString(repo.repoLabel)
+    || repoPathSegments[repoPathSegments.length - 1]
+    || repoId;
+
+  return {
+    canonicalName: 'Roadmap',
+    repo: {
+      repoId,
+      repoPath: normalizedRepoPath,
+      repoLabel,
+    },
+    directoryPath: buildRepoPath(normalizedRepoPath, 'docs', 'roadmaps'),
+    repoRelativePath: 'docs/roadmaps',
+    stableIdPattern: 'RM-<roadmap-slug>-###',
+  };
 }
 
 export const SANDBOX_TOKEN_CANONICAL_STATE = 'token_missing';
@@ -507,6 +1363,7 @@ function normalizePlanningRecord(value: unknown): PlanningRecordItem | null {
     summary: asString(record.summary),
     acceptanceCriteria: acceptanceCriteria.length > 0 ? acceptanceCriteria : undefined,
     acceptanceCriteriaText: acceptanceCriteriaText || undefined,
+    targetRepoIds: asStringList(record.targetRepoIds),
     state: asTrimmedString(record.state) || 'thought',
     score: asNullableNumber(record.score),
     createdAt: asTrimmedString(record.createdAt) || null,
@@ -746,6 +1603,129 @@ function normalizeSdkHealthResponse(payload: unknown): SdkHealthResponse {
   };
 }
 
+function normalizeExecutorRetryPolicy(value: unknown): ExecutorRetryPolicy {
+  const record = asRecord(value);
+  return {
+    enabled: asBoolean(record.enabled, true),
+    maxAttempts: asNumber(record.maxAttempts, 3),
+    baseDelayMs: asNumber(record.baseDelayMs, 30_000),
+    maxDelayMs: asNumber(record.maxDelayMs, 300_000),
+    backoffMultiplier: asNumber(record.backoffMultiplier, 2),
+    jitterRatio: asNumber(record.jitterRatio, 0.15),
+  };
+}
+
+function normalizeExecutorRunEvent(value: unknown): ExecutorRunEvent | null {
+  const record = asRecord(value);
+  const at = asTrimmedString(record.at);
+  const type = asTrimmedString(record.type);
+  if (!at || !type) {
+    return null;
+  }
+
+  return {
+    at,
+    type,
+    level: asTrimmedString(record.level) || undefined,
+    message: asTrimmedString(record.message) || type,
+    data: record.data && typeof record.data === 'object'
+      ? (record.data as Record<string, unknown>)
+      : null,
+  };
+}
+
+function normalizeExecutorRun(value: unknown): ExecutorRun | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  const jobId = asTrimmedString(record.jobId);
+  if (!id || !jobId) {
+    return null;
+  }
+
+  return {
+    id,
+    jobId,
+    repoId: asTrimmedString(record.repoId) || null,
+    status: asTrimmedString(record.status) || 'unknown',
+    attemptCount: asNumber(record.attemptCount, 0),
+    maxAttempts: asNumber(record.maxAttempts, 0),
+    createdAt: asTrimmedString(record.createdAt),
+    updatedAt: asTrimmedString(record.updatedAt),
+    startedAt: asTrimmedString(record.startedAt) || null,
+    finishedAt: asTrimmedString(record.finishedAt) || null,
+    nextRetryAt: asTrimmedString(record.nextRetryAt) || null,
+    sessionId: asTrimmedString(record.sessionId) || null,
+    messageId: asTrimmedString(record.messageId) || null,
+    error: asTrimmedString(record.error) || null,
+    summary: asTrimmedString(record.summary) || null,
+    createdSession: asBoolean(record.createdSession, false),
+    events: asArray(record.events)
+      .map((entry) => normalizeExecutorRunEvent(entry))
+      .filter((entry): entry is ExecutorRunEvent => entry !== null),
+  };
+}
+
+function normalizeExecutorJob(value: unknown): ExecutorJob | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    title: asTrimmedString(record.title) || id,
+    prompt: asString(record.prompt),
+    repoId: asTrimmedString(record.repoId) || null,
+    targetType: (asTrimmedString(record.targetType) || 'create-session') as ExecutorJob['targetType'],
+    existingSessionId: asTrimmedString(record.existingSessionId) || null,
+    model: asTrimmedString(record.model) || null,
+    contextType: asTrimmedString(record.contextType) || null,
+    sandboxId: asTrimmedString(record.sandboxId) || null,
+    scheduleAt: asTrimmedString(record.scheduleAt) || null,
+    retryPolicy: normalizeExecutorRetryPolicy(record.retryPolicy),
+    createdAt: asTrimmedString(record.createdAt),
+    updatedAt: asTrimmedString(record.updatedAt),
+    lastRunId: asTrimmedString(record.lastRunId) || null,
+    activeRunId: asTrimmedString(record.activeRunId) || null,
+    status: asTrimmedString(record.status) || 'idle',
+  };
+}
+
+function normalizeExecutorHealthResponse(payload: unknown): ExecutorHealthResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    enabled: asBoolean(record.enabled, false),
+    state: asTrimmedString(record.state) || 'unknown',
+    jobCount: asNumber(record.jobCount, 0),
+    runCount: asNumber(record.runCount, 0),
+    activeRunCount: asNumber(record.activeRunCount, 0),
+    scheduledJobCount: asNumber(record.scheduledJobCount, 0),
+    openedSessionCount: asNumber(record.openedSessionCount, 0),
+    lastError: asTrimmedString(record.lastError) || null,
+    statePath: asTrimmedString(record.statePath) || undefined,
+  };
+}
+
+function normalizeExecutorJobsResponse(payload: unknown): ExecutorJobsResponse {
+  const record = asRecord(payload);
+  return {
+    jobs: asArray(record.jobs)
+      .map((entry) => normalizeExecutorJob(entry))
+      .filter((entry): entry is ExecutorJob => entry !== null),
+  };
+}
+
+function normalizeExecutorRunsResponse(payload: unknown): ExecutorRunsResponse {
+  const record = asRecord(payload);
+  return {
+    runs: asArray(record.runs)
+      .map((entry) => normalizeExecutorRun(entry))
+      .filter((entry): entry is ExecutorRun => entry !== null),
+  };
+}
+
 function normalizePlanningResearchNote(value: unknown): PlanningResearchNote | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id) || asTrimmedString(record.noteId);
@@ -966,6 +1946,76 @@ function normalizeGatewayScanReposResponse(payload: unknown): GatewayScanReposRe
   };
 }
 
+function normalizeCatalogRepoInventoryStorage(payload: unknown): Record<string, unknown> {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    path: asTrimmedString(record.path) || undefined,
+    exists: asBoolean(record.exists, false),
+  };
+}
+
+function normalizeCatalogRepoInventoryEntry(payload: unknown): Record<string, unknown> | null {
+  const record = asRecord(payload);
+  const repoId = asTrimmedString(record.repoId);
+  const repoPath = asTrimmedString(record.repoPath);
+  if (!repoId && !repoPath && !asTrimmedString(record.repoLabel)) {
+    return null;
+  }
+
+  return {
+    ...record,
+    repoId: repoId || undefined,
+    repoPath: repoPath || undefined,
+    repoLabel: asTrimmedString(record.repoLabel) || undefined,
+    sources: asStringList(record.sources),
+  };
+}
+
+function normalizeCatalogWorkspaceScan(payload: unknown): Record<string, unknown> | null {
+  const record = asRecord(payload);
+  const defaultRoots = asStringList(record.defaultRoots);
+  const customScanRoots = asStringList(record.customScanRoots);
+  const scanRoots = asStringList(record.scanRoots);
+  if (!defaultRoots.length && !customScanRoots.length && !scanRoots.length && !Object.keys(record).length) {
+    return null;
+  }
+
+  return {
+    ...record,
+    storage: normalizeCatalogRepoInventoryStorage(record.storage),
+    defaultRoots,
+    customScanRoots,
+    scanRoots,
+  };
+}
+
+function normalizeCatalogReposListResponse(payload: unknown): CatalogReposListResponse {
+  const record = asRecord(payload);
+  const repos = asArray(record.repos)
+    .map((entry) => normalizeCatalogRepoInventoryEntry(entry))
+    .filter((entry): entry is Record<string, unknown> => entry !== null);
+  const selectedRepo = normalizeCatalogRepoInventoryEntry(record.selectedRepo);
+
+  return {
+    ...record,
+    count: asNumber(record.count, repos.length),
+    selectedRepo,
+    storage: normalizeCatalogRepoInventoryStorage(record.storage),
+    workspaceScan: normalizeCatalogWorkspaceScan(record.workspaceScan),
+    repos,
+  };
+}
+
+function normalizeCatalogRepoScanRootsMutationResponse(payload: unknown): CatalogRepoScanRootsMutationResponse {
+  const normalized = normalizeCatalogReposListResponse(payload);
+  const record = asRecord(payload);
+  return {
+    ...normalized,
+    updated: asBoolean(record.updated, false),
+  };
+}
+
 function normalizePlanningPersistenceInitResponse(payload: unknown): PlanningPersistenceInitResponse {
   const record = asRecord(payload);
 
@@ -1103,6 +2153,47 @@ export function listSessionPlans(
   });
 }
 
+export function getSessionPlanText(
+  sessionId: string,
+  options: SessionArtifactQueryOptions = {},
+  baseUrl?: string
+): Promise<string> {
+  return apiRequest<string>(`/api/sessions/${encodeURIComponent(sessionId)}/plan`, {
+    baseUrl,
+    query: {
+      source: options.source,
+    },
+  });
+}
+
+export function upsertSessionPlan(
+  payload: SessionPlanMutationPayload,
+  baseUrl?: string
+): Promise<SessionPlanMutationResponse> {
+  return apiRequest<SessionPlanMutationResponse>('/api/sessions/plan', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getSessionAgentUsage(
+  sessionId: string,
+  options: SessionAgentUsageQueryOptions = {},
+  baseUrl?: string
+): Promise<SessionAgentUsageResponse> {
+  return apiRequest<SessionAgentUsageResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/agent-usage`, {
+    baseUrl,
+    query: {
+      source: options.source,
+      limit: options.limit,
+    },
+  });
+}
+
 export function getSessionStructuredState(
   sessionId: string,
   options: SessionArtifactQueryOptions = {},
@@ -1124,8 +2215,21 @@ export function getSessionProposition(
   sessionId: string,
   options: SessionArtifactQueryOptions = {},
   baseUrl?: string
-): Promise<SessionTextArtifactResponse> {
-  return apiRequest<SessionTextArtifactResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/proposition`, {
+): Promise<SessionPropositionResponse> {
+  return apiRequest<SessionPropositionResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/proposition`, {
+    baseUrl,
+    query: {
+      source: options.source,
+    },
+  });
+}
+
+export function getSessionHandoff(
+  sessionId: string,
+  options: SessionArtifactQueryOptions = {},
+  baseUrl?: string
+): Promise<SessionHandoffResponse> {
+  return apiRequest<SessionHandoffResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/handoff`, {
     baseUrl,
     query: {
       source: options.source,
@@ -1226,6 +2330,81 @@ export function createSdkStreamUrl(sessionId: string, baseUrl?: string): string 
   return createUrl(endpoint, 'http://127.0.0.1').toString();
 }
 
+export async function getExecutorHealth(baseUrl?: string): Promise<ExecutorHealthResponse> {
+  const payload = await apiRequest<unknown>('/api/executor/health', { baseUrl });
+  return normalizeExecutorHealthResponse(payload);
+}
+
+export async function listExecutorJobs(baseUrl?: string): Promise<ExecutorJobsResponse> {
+  const payload = await apiRequest<unknown>('/api/executor/jobs', { baseUrl });
+  return normalizeExecutorJobsResponse(payload);
+}
+
+export async function listExecutorRuns(baseUrl?: string): Promise<ExecutorRunsResponse> {
+  const payload = await apiRequest<unknown>('/api/executor/runs', { baseUrl });
+  return normalizeExecutorRunsResponse(payload);
+}
+
+export async function createExecutorJob(
+  payload: CreateExecutorJobPayload,
+  baseUrl?: string
+): Promise<CreateExecutorJobResponse> {
+  const response = await apiRequest<unknown>('/api/executor/jobs', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const record = asRecord(response);
+  const job = normalizeExecutorJob(record.job);
+  if (!job) {
+    throw new Error('invalid_executor_job_response');
+  }
+  return {
+    job,
+    run: normalizeExecutorRun(record.run),
+  };
+}
+
+export async function triggerExecutorJob(jobId: string, baseUrl?: string): Promise<TriggerExecutorJobResponse> {
+  const response = await apiRequest<unknown>(`/api/executor/jobs/${encodeURIComponent(jobId)}/trigger`, {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+  const record = asRecord(response);
+  const run = normalizeExecutorRun(record.run);
+  if (!run) {
+    throw new Error('invalid_executor_run_response');
+  }
+  return { run };
+}
+
+export async function cancelExecutorJob(jobId: string, baseUrl?: string): Promise<CancelExecutorJobResponse> {
+  const response = await apiRequest<unknown>(`/api/executor/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({}),
+  });
+  const record = asRecord(response);
+  const job = normalizeExecutorJob(record.job);
+  if (!job) {
+    throw new Error('invalid_executor_job_response');
+  }
+  return {
+    job,
+    run: normalizeExecutorRun(record.run),
+  };
+}
+
 export function getManagedAssets(baseUrl?: string): Promise<ManagedAssetsResponse> {
   return apiRequest<ManagedAssetsResponse>('/api/assets/managed', { baseUrl });
 }
@@ -1247,6 +2426,17 @@ export function syncAllAssets(force = false, baseUrl?: string, pointerMode = tru
 
 export function patchVscodeSettings(baseUrl?: string): Promise<{ result: unknown }> {
   return apiRequest<{ result: unknown }>('/api/vscode/patch-settings', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ dryRun: false }),
+  });
+}
+
+export function patchVscodeGithubMcp(baseUrl?: string): Promise<{ result: unknown }> {
+  return apiRequest<{ result: unknown }>('/api/vscode/patch-github-mcp', {
     baseUrl,
     method: 'POST',
     headers: {
@@ -1354,12 +2544,12 @@ export function getCatalogRepos(
   query: CatalogRepoInventoryQuery = {},
   baseUrl?: string
 ): Promise<CatalogReposListResponse> {
-  return apiRequest<CatalogReposListResponse>('/api/catalog/repos', {
+  return apiRequest<unknown>('/api/catalog/repos', {
     baseUrl,
     query: {
       repoPath: query.repoPath,
     },
-  });
+  }).then((payload) => normalizeCatalogReposListResponse(payload));
 }
 
 export function registerCatalogRepo(
@@ -1418,6 +2608,20 @@ export function refreshCatalogRepo(
   });
 }
 
+export function saveCatalogRepoScanRoots(
+  payload: CatalogRepoScanRootsPayload,
+  baseUrl?: string
+): Promise<CatalogRepoScanRootsMutationResponse> {
+  return apiRequest<unknown>('/api/catalog/repos/scan-roots', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  }).then((response) => normalizeCatalogRepoScanRootsMutationResponse(response));
+}
+
 export function getCatalogAssets(query: CatalogAssetsQuery = {}, baseUrl?: string): Promise<CatalogAssetsResponse> {
   return apiRequest<CatalogAssetsResponse>('/api/catalog/assets', {
     baseUrl,
@@ -1433,6 +2637,26 @@ export function getCatalogAssets(query: CatalogAssetsQuery = {}, baseUrl?: strin
       enabled: query.enabled,
       recommended: query.recommended,
       available: query.available,
+    },
+  });
+}
+
+export function getCatalogBundles(
+  query: CatalogBundlesQuery = {},
+  baseUrl?: string
+): Promise<CatalogBundlesResponse> {
+  return apiRequest<CatalogBundlesResponse>('/api/catalog/bundles', {
+    baseUrl,
+    query: {
+      ...buildCatalogSelectorQuery(query),
+      bundleId: query.bundleId,
+      classification: query.classification,
+      scopeKind: query.scopeKind,
+      language: query.language,
+      framework: query.framework,
+      stack: query.stack,
+      tag: query.tag,
+      q: query.q,
     },
   });
 }
@@ -1518,6 +2742,34 @@ export function installCatalogAsset(
   });
 }
 
+export function uninstallCatalogBundle(
+  payload: CatalogBundleUninstallPayload,
+  baseUrl?: string
+): Promise<CatalogBundleUninstallResponse> {
+  return apiRequest<CatalogBundleUninstallResponse>('/api/catalog/bundles/uninstall', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function installCatalogProvider(
+  payload: CatalogProviderInstallPayload,
+  baseUrl?: string
+): Promise<CatalogProviderInstallResponse> {
+  return apiRequest<CatalogProviderInstallResponse>('/api/catalog/providers/install', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function enableCatalogAsset(
   payload: CatalogAssetEnablementPayload,
   baseUrl?: string
@@ -1546,6 +2798,20 @@ export function disableCatalogAsset(
   });
 }
 
+export function updateCatalogActivation(
+  payload: CatalogActivationMutationPayload,
+  baseUrl?: string
+): Promise<CatalogActivationMutationResponse> {
+  return apiRequest<CatalogActivationMutationResponse>('/api/catalog/activation', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function searchCatalogAssets(
   payload: CatalogSearchRequest,
   baseUrl?: string
@@ -1560,11 +2826,42 @@ export function searchCatalogAssets(
   });
 }
 
+export function recordCatalogSearchSelection(
+  payload: CatalogSearchSelectionPayload,
+  baseUrl?: string
+): Promise<CatalogSearchSelectionResponse> {
+  return apiRequest<CatalogSearchSelectionResponse>('/api/search/selection', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getCatalogAuditEvents(
   query: CatalogAuditEventsQuery = {},
   baseUrl?: string
 ): Promise<CatalogAuditEventsResponse> {
   return apiRequest<CatalogAuditEventsResponse>('/api/audit/events', {
+    baseUrl,
+    query: {
+      ...buildCatalogSelectorQuery(query),
+      eventType: query.eventType,
+      assetId: query.assetId,
+      sessionId: query.sessionId,
+      correlationId: query.correlationId,
+      limit: query.limit,
+    },
+  });
+}
+
+export function getCatalogAssetAnalytics(
+  query: CatalogAuditAssetsQuery = {},
+  baseUrl?: string
+): Promise<CatalogAssetAuditAnalyticsResponse> {
+  return apiRequest<CatalogAssetAuditAnalyticsResponse>('/api/audit/assets', {
     baseUrl,
     query: {
       ...buildCatalogSelectorQuery(query),
@@ -1598,6 +2895,168 @@ export async function getPolicyPreflight(baseUrl?: string, forceRefresh = false)
   return normalizePolicyPreflight(payload);
 }
 
+export async function getPlanningRoadmaps(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<PlanningRoadmapsResponseApi> {
+  const payload = await apiRequest<unknown>('/api/planning/roadmaps', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizePlanningRoadmapsResponse(payload);
+}
+
+export async function getPlanningIntakeArtifacts(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<PlanningIntakeArtifactsResponseApi> {
+  const payload = await apiRequest<unknown>('/api/planning/artifacts/intake', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizePlanningIntakeArtifactsResponse(payload);
+}
+
+export async function getPlanningBullets(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<PlanningBulletsResponseApi> {
+  const payload = await apiRequest<unknown>('/api/planning/artifacts/bullets', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizePlanningBulletsResponse(payload);
+}
+
+export async function getPlanningBacklog(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<PlanningBacklogResponseApi> {
+  const payload = await apiRequest<unknown>('/api/planning/backlog', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+    },
+  });
+
+  return normalizePlanningBacklogResponse(payload);
+}
+
+export async function createPlanningBacklogItem(
+  payload: PlanningBacklogCreatePayload,
+  baseUrl?: string
+): Promise<PlanningBacklogMutationResponseApi> {
+  const response = await apiRequest<unknown>('/api/planning/backlog', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningBacklogMutationResponse(response);
+}
+
+export async function createPlanningBullet(
+  payload: PlanningBulletCreatePayload,
+  baseUrl?: string
+): Promise<PlanningBulletsResponseApi> {
+  const response = await apiRequest<unknown>('/api/planning/artifacts/bullets', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningBulletsResponse(response);
+}
+
+export async function createPlanningIntakeArtifact(
+  payload: PlanningIntakeCreatePayload,
+  baseUrl?: string
+): Promise<PlanningIntakeArtifactsResponseApi> {
+  const response = await apiRequest<unknown>('/api/planning/artifacts/intake', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningIntakeArtifactsResponse(response);
+}
+
+export async function updatePlanningBullet(
+  bulletId: string,
+  payload: PlanningBulletUpdatePayload,
+  baseUrl?: string
+): Promise<PlanningBulletsResponseApi> {
+  const response = await apiRequest<unknown>(`/api/planning/artifacts/bullets/${encodeURIComponent(bulletId)}`, {
+    baseUrl,
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningBulletsResponse(response);
+}
+
+export async function updatePlanningIntakeArtifact(
+  artifactId: string,
+  payload: PlanningIntakeUpdatePayload,
+  baseUrl?: string
+): Promise<PlanningIntakeArtifactsResponseApi> {
+  const response = await apiRequest<unknown>(`/api/planning/artifacts/intake/${encodeURIComponent(artifactId)}`, {
+    baseUrl,
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningIntakeArtifactsResponse(response);
+}
+
+export async function updatePlanningBacklogItem(
+  itemId: string,
+  payload: PlanningBacklogUpdatePayload,
+  baseUrl?: string
+): Promise<PlanningBacklogMutationResponseApi> {
+  const response = await apiRequest<unknown>(`/api/planning/backlog/${encodeURIComponent(itemId)}`, {
+    baseUrl,
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningBacklogMutationResponse(response);
+}
+
 export async function getPlanningRecords(query: PlanningContextQuery = {}, baseUrl?: string): Promise<PlanningRecordsResponse> {
   const endpoint = appendPlanningQuery('/api/planning/records', query);
   const payload = await apiRequest<unknown>(endpoint, { baseUrl });
@@ -1617,6 +3076,23 @@ export async function createPlanningRecord(payload: PlanningCreatePayload, baseU
   const response = await apiRequest<unknown>('/api/planning/records', {
     baseUrl,
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningCreateResponse(response);
+}
+
+export async function updatePlanningRecord(
+  recordId: string,
+  payload: PlanningUpdatePayload,
+  baseUrl?: string
+): Promise<PlanningCreateResponse> {
+  const response = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}`, {
+    baseUrl,
+    method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
     },

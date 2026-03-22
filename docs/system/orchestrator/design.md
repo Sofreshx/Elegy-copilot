@@ -76,7 +76,7 @@ User
         ├── @unit-test-runner (test execution)
         ├── @integration-test-runner (with user approval)
         ├── @reviewer-opus-4-6 (cross-model review)
-        ├── @reviewer-gpt-5-3-codex (cross-model review)
+        ├── @reviewer-gpt-5-4 (cross-model review)
         ├── @e2e-browser (E2E testing with user approval)
         └── @doc-writer (documentation)
 ```
@@ -149,7 +149,7 @@ User
 
 Cross-model review (complex plans only):
 - Send plan to @reviewer-opus-4-6
-- Send plan + opus feedback to @reviewer-gpt-5-3-codex
+- Send plan + opus feedback to @reviewer-gpt-5-4
 - Reconcile and update plan if needed
 
 #### Phase 3: Execute
@@ -311,7 +311,8 @@ Research notes stay exploratory until promoted into canonical docs.
 | planpack-writer | Merged into @o-planner or kept as-is |
 
 ### What Gets Deprecated (Not Deleted Yet)
-Executive-era names are historical references only. The shipped surface should point new work to `@orchestrator` or the preserved Elegy workflow.
+Executive-era names are historical references only. The shipped surface should point new work to
+`@orchestrator` or another current persisted session-state workflow.
 
 ## Risks
 

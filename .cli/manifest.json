@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "package": {
-    "name": "instruction-engine",
+    "name": "elegy-copilot",
     "version": "0.1.0",
     "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
   },
@@ -67,11 +67,20 @@
         "agent-stack-auditor",
         "agent-unit-test-runner",
         "agent-reviewer-opus-4-6",
-        "agent-reviewer-gpt-5-3-codex"
+        "agent-reviewer-gpt-5-4"
       ],
       "installTarget": "user-global",
       "activationScope": "global",
       "materialization": "always",
+      "classification": "core",
+      "targeting": {
+        "tags": [
+          "core",
+          "global",
+          "search",
+          "review"
+        ]
+      },
       "tags": [
         "core",
         "global",
@@ -84,22 +93,39 @@
     {
       "id": "orchestrator-workflow",
       "title": "Orchestrator Workflow Agents",
-      "description": "Repo-scoped orchestration agents for reframing, planning, implementation routing, verification, and final review.",
+      "description": "Repo-scoped orchestration agents and support skills for reframing, planning, implementation routing, research, verification, and final review.",
       "assetIds": [
         "agent-orchestrator",
         "agent-o-reframer",
         "agent-o-planner",
+        "skill-planning-feature",
+        "skill-planpack-authoring",
         "agent-work-unit-runner",
         "agent-final-reviewer",
+        "agent-goal-reviewer",
         "agent-remaining-work",
+        "agent-research-ideation",
+        "agent-doc-writer",
         "agent-verification-guide",
         "agent-impl-business",
         "agent-impl-infra",
-        "agent-impl-reviewer"
+        "agent-impl-reviewer",
+        "skill-friction-feedback"
       ],
       "installTarget": "repo-local",
       "activationScope": "repo",
       "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "workflow",
+          "orchestration",
+          "planning"
+        ]
+      },
       "tags": [
         "workflow",
         "orchestration",
@@ -111,26 +137,37 @@
       ]
     },
     {
-      "id": "elegy-planning",
-      "title": "Elegy Planning Agents",
-      "description": "Repo-scoped Elegy planning agents for ideation, direction, and orchestration workflows.",
+      "id": "roadmap-planning-lane",
+      "title": "Repository Backlog & Roadmap Planning Lane",
+      "description": "Repo-local roadmap planning lane for Repository Backlog and Roadmap authoring, maintenance, and Roadmap Sync-ready linking above plan packs.",
       "assetIds": [
-        "agent-elegy-planner",
-        "agent-elegy-orchestrator",
-        "agent-elegy-direction",
-        "agent-elegy-ideation"
+        "skill-roadmap-authoring",
+        "agent-roadmap-planner"
       ],
       "installTarget": "repo-local",
       "activationScope": "repo",
       "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "scopeKinds": [
+          "repo"
+        ],
+        "tags": [
+          "planning",
+          "roadmap",
+          "backlog",
+          "instruction-engine"
+        ]
+      },
       "tags": [
-        "elegy",
         "planning",
-        "direction"
+        "roadmap",
+        "backlog",
+        "instruction-engine"
       ],
       "defaultRecommended": false,
       "dependsOn": [
-        "core-global"
+        "orchestrator-workflow"
       ]
     }
   ],
@@ -160,12 +197,6 @@
       "destination": "agents/deploy-auditor.agent.md"
     },
     {
-      "id": "agent-execute",
-      "type": "agent",
-      "source": "engine-assets/agents/execute.agent.md",
-      "destination": "agents/execute.agent.md"
-    },
-    {
       "id": "agent-doc-writer",
       "type": "agent",
       "source": "engine-assets/agents/doc-writer.agent.md",
@@ -184,34 +215,22 @@
       "destination": "agents/e2e-validator.agent.md"
     },
     {
-      "id": "agent-elegy-direction",
+      "id": "agent-execute",
       "type": "agent",
-      "source": "engine-assets/agents/elegy-direction.agent.md",
-      "destination": "agents/elegy-direction.agent.md"
-    },
-    {
-      "id": "agent-elegy-ideation",
-      "type": "agent",
-      "source": "engine-assets/agents/elegy-ideation.agent.md",
-      "destination": "agents/elegy-ideation.agent.md"
-    },
-    {
-      "id": "agent-elegy-orchestrator",
-      "type": "agent",
-      "source": "engine-assets/agents/elegy-orchestrator.agent.md",
-      "destination": "agents/elegy-orchestrator.agent.md"
-    },
-    {
-      "id": "agent-elegy-planner",
-      "type": "agent",
-      "source": "engine-assets/agents/elegy-planner.agent.md",
-      "destination": "agents/elegy-planner.agent.md"
+      "source": "engine-assets/agents/execute.agent.md",
+      "destination": "agents/execute.agent.md"
     },
     {
       "id": "agent-final-reviewer",
       "type": "agent",
       "source": "engine-assets/agents/final-reviewer.agent.md",
       "destination": "agents/final-reviewer.agent.md"
+    },
+    {
+      "id": "agent-goal-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/goal-reviewer.agent.md",
+      "destination": "agents/goal-reviewer.agent.md"
     },
     {
       "id": "agent-governor",
@@ -280,22 +299,28 @@
       "destination": "agents/research-ideation.agent.md"
     },
     {
-      "id": "agent-reviewer-gpt-5-3-codex",
+      "id": "agent-reviewer-gpt-5-4",
       "type": "agent",
-      "source": "engine-assets/agents/reviewer-gpt-5-3-codex.agent.md",
-      "destination": "agents/reviewer-gpt-5-3-codex.agent.md"
-    },
-    {
-      "id": "agent-search",
-      "type": "agent",
-      "source": "engine-assets/agents/search.agent.md",
-      "destination": "agents/search.agent.md"
+      "source": "engine-assets/agents/reviewer-gpt-5-4.agent.md",
+      "destination": "agents/reviewer-gpt-5-4.agent.md"
     },
     {
       "id": "agent-reviewer-opus-4-6",
       "type": "agent",
       "source": "engine-assets/agents/reviewer-opus-4-6.agent.md",
       "destination": "agents/reviewer-opus-4-6.agent.md"
+    },
+    {
+      "id": "agent-roadmap-planner",
+      "type": "agent",
+      "source": "engine-assets/agents/roadmap-planner.agent.md",
+      "destination": "agents/roadmap-planner.agent.md"
+    },
+    {
+      "id": "agent-search",
+      "type": "agent",
+      "source": "engine-assets/agents/search.agent.md",
+      "destination": "agents/search.agent.md"
     },
     {
       "id": "agent-security-auditor",
@@ -367,151 +392,204 @@
       "id": "skill-agent-browser",
       "type": "skill",
       "source": "engine-assets/skills/agent-browser",
-      "destination": "skills/agent-browser"
+      "destination": "skills/agent-browser",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-alba-integration-tests",
       "type": "skill",
       "source": "engine-assets/skills/alba-integration-tests",
-      "destination": "skills/alba-integration-tests"
+      "destination": "skills/alba-integration-tests",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-aspire-apphost",
       "type": "skill",
       "source": "engine-assets/skills/aspire-apphost",
-      "destination": "skills/aspire-apphost"
+      "destination": "skills/aspire-apphost",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-aspire-deployment",
       "type": "skill",
       "source": "engine-assets/skills/aspire-deployment",
-      "destination": "skills/aspire-deployment"
+      "destination": "skills/aspire-deployment",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-audit-report-formats",
       "type": "skill",
       "source": "engine-assets/skills/audit-report-formats",
-      "destination": "skills/audit-report-formats"
+      "destination": "skills/audit-report-formats",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-code-review",
       "type": "skill",
       "source": "engine-assets/skills/code-review",
-      "destination": "skills/code-review"
+      "destination": "skills/code-review",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-core-guardrails",
       "type": "skill",
       "source": "engine-assets/skills/core-guardrails",
-      "destination": "skills/core-guardrails"
+      "destination": "skills/core-guardrails",
+      "loadMode": "always"
     },
     {
       "id": "skill-csharp-expert",
       "type": "skill",
       "source": "engine-assets/skills/csharp-expert",
-      "destination": "skills/csharp-expert"
-    },
-    {
-      "id": "skill-e2e-workflow",
-      "type": "skill",
-      "source": "engine-assets/skills/e2e-workflow",
-      "destination": "skills/e2e-workflow"
-    },
-    {
-      "id": "skill-frontend",
-      "type": "skill",
-      "source": "engine-assets/skills/frontend",
-      "destination": "skills/frontend"
-    },
-    {
-      "id": "skill-implementation-friction",
-      "type": "skill",
-      "source": "engine-assets/skills/implementation-friction",
-      "destination": "skills/implementation-friction"
-    },
-    {
-      "id": "skill-instruction-quality",
-      "type": "skill",
-      "source": "engine-assets/skills/instruction-quality",
-      "destination": "skills/instruction-quality"
-    },
-    {
-      "id": "skill-marten-documents",
-      "type": "skill",
-      "source": "engine-assets/skills/marten-documents",
-      "destination": "skills/marten-documents"
-    },
-    {
-      "id": "skill-marten-linq-querying",
-      "type": "skill",
-      "source": "engine-assets/skills/marten-linq-querying",
-      "destination": "skills/marten-linq-querying"
-    },
-    {
-      "id": "skill-openai-compatible",
-      "type": "skill",
-      "source": "engine-assets/skills/openai-compatible",
-      "destination": "skills/openai-compatible"
-    },
-    {
-      "id": "skill-planpack-authoring",
-      "type": "skill",
-      "source": "engine-assets/skills/planpack-authoring",
-      "destination": "skills/planpack-authoring"
-    },
-    {
-      "id": "skill-react-query",
-      "type": "skill",
-      "source": "engine-assets/skills/react-query",
-      "destination": "skills/react-query"
-    },
-    {
-      "id": "skill-security",
-      "type": "skill",
-      "source": "engine-assets/skills/security",
-      "destination": "skills/security"
-    },
-    {
-      "id": "skill-stack-audit-patterns",
-      "type": "skill",
-      "source": "engine-assets/skills/stack-audit-patterns",
-      "destination": "skills/stack-audit-patterns"
-    },
-    {
-      "id": "skill-stack-detector",
-      "type": "skill",
-      "source": "engine-assets/skills/stack-detector",
-      "destination": "skills/stack-detector"
+      "destination": "skills/csharp-expert",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-discovery",
       "type": "skill",
       "source": "engine-assets/skills/skill-discovery",
-      "destination": "skills/skill-discovery"
+      "destination": "skills/skill-discovery",
+      "loadMode": "always"
+    },
+    {
+      "id": "skill-e2e-workflow",
+      "type": "skill",
+      "source": "engine-assets/skills/e2e-workflow",
+      "destination": "skills/e2e-workflow",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-friction-feedback",
+      "type": "skill",
+      "source": "engine-assets/skills/friction-feedback",
+      "destination": "skills/friction-feedback",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-frontend",
+      "type": "skill",
+      "source": "engine-assets/skills/frontend",
+      "destination": "skills/frontend",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-github-troubleshooting",
+      "type": "skill",
+      "source": "engine-assets/skills/github-troubleshooting",
+      "destination": "skills/github-troubleshooting",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-implementation-friction",
+      "type": "skill",
+      "source": "engine-assets/skills/implementation-friction",
+      "destination": "skills/implementation-friction",
+      "loadMode": "always"
+    },
+    {
+      "id": "skill-instruction-quality",
+      "type": "skill",
+      "source": "engine-assets/skills/instruction-quality",
+      "destination": "skills/instruction-quality",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-marten-documents",
+      "type": "skill",
+      "source": "engine-assets/skills/marten-documents",
+      "destination": "skills/marten-documents",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-marten-linq-querying",
+      "type": "skill",
+      "source": "engine-assets/skills/marten-linq-querying",
+      "destination": "skills/marten-linq-querying",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-openai-compatible",
+      "type": "skill",
+      "source": "engine-assets/skills/openai-compatible",
+      "destination": "skills/openai-compatible",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-planning-feature",
+      "type": "skill",
+      "source": "engine-assets/skills/planning-feature",
+      "destination": "skills/planning-feature",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-planpack-authoring",
+      "type": "skill",
+      "source": "engine-assets/skills/planpack-authoring",
+      "destination": "skills/planpack-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-react-query",
+      "type": "skill",
+      "source": "engine-assets/skills/react-query",
+      "destination": "skills/react-query",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-roadmap-authoring",
+      "type": "skill",
+      "source": "engine-assets/skills/roadmap-authoring",
+      "destination": "skills/roadmap-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-security",
+      "type": "skill",
+      "source": "engine-assets/skills/security",
+      "destination": "skills/security",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-stack-audit-patterns",
+      "type": "skill",
+      "source": "engine-assets/skills/stack-audit-patterns",
+      "destination": "skills/stack-audit-patterns",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-stack-detector",
+      "type": "skill",
+      "source": "engine-assets/skills/stack-detector",
+      "destination": "skills/stack-detector",
+      "loadMode": "always"
     },
     {
       "id": "skill-testing-dotnet-unit",
       "type": "skill",
       "source": "engine-assets/skills/testing-dotnet-unit",
-      "destination": "skills/testing-dotnet-unit"
+      "destination": "skills/testing-dotnet-unit",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-testing-frontend-unit",
       "type": "skill",
       "source": "engine-assets/skills/testing-frontend-unit",
-      "destination": "skills/testing-frontend-unit"
+      "destination": "skills/testing-frontend-unit",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-wolverine-core",
       "type": "skill",
       "source": "engine-assets/skills/wolverine-core",
-      "destination": "skills/wolverine-core"
+      "destination": "skills/wolverine-core",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-wolverine-http",
       "type": "skill",
       "source": "engine-assets/skills/wolverine-http",
-      "destination": "skills/wolverine-http"
+      "destination": "skills/wolverine-http",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": [

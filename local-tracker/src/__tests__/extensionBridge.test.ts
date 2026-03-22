@@ -1,7 +1,9 @@
+import path from "path";
 import WebSocket from "ws";
 import { ExtensionBridge } from "../extensionBridge";
 import { TrackerConfig } from "../config";
 import { TrackerEvent } from "../types";
+import { __watcherTestExports } from "../watchers";
 
 // ---------- Helpers ----------
 
@@ -17,10 +19,19 @@ function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
 }
 
 function makeSampleEvent(type: TrackerEvent["type"] = "task_update"): TrackerEvent {
+  const workspacePath = "/test/workspace";
+  const taskStorePath = __watcherTestExports.getCanonicalTasksPath(workspacePath);
   return {
     type,
     timestamp: new Date().toISOString(),
-    data: { event: "change", path: "/test/.instructions/tasks/t-001.md" },
+    data: {
+      authority: "canonical",
+      event: "change",
+      path: path.join(taskStorePath, "t-001.md"),
+      relativePath: "t-001.md",
+      taskStorePath,
+      workspacePath,
+    },
   };
 }
 

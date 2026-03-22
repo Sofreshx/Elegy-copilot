@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-27
+updated: 2026-03-15
 category: system
 status: draft
 doc_kind: node
@@ -11,9 +11,24 @@ tags: [planpack, spec, planning]
 
 # Plan Pack Specification
 
-This document defines the canonical structure of an assembled Plan Pack — the output of `@o-planner` (or `@elegy-planner`) and the input consumed by `work-unit-runner` and `elegy-orchestrator`.
+This document defines the canonical structure of an assembled Plan Pack — the first top-level
+document persisted in a session's `plan.md` artifact, produced by `@o-planner` or another
+planner that writes persisted session-state artifacts, and consumed by `work-unit-runner` and
+session-state execution workflows.
 
-> **Scope**: This spec covers the **final assembled** plan pack only. Sub-planners (`@elegy-subplanner`) produce preliminary output that gets normalized by the planner during assembly; those intermediate forms are not specified here.
+> **Scope**: This spec covers the **final assembled** plan pack only. Sub-planning stages may
+> produce preliminary output that gets normalized by the planner during assembly; those
+> intermediate forms are not specified here.
+
+In canonical persisted session state, `plan.md` contains two top-level markdown documents in sequence:
+
+1. `# Plan Pack — <Title>`
+2. `# Plan-Pack Progress Tracker`
+
+This document specifies the Plan Pack portion. The Progress Tracker portion is defined by [[session-state-artifacts]]
+[docs/system/session-state-artifacts.md](docs/system/session-state-artifacts.md). Separate
+`x-PLANPACK-PROGRESS-<SESSION_ID>.md` files are legacy compatibility artifacts only and are not the canonical
+persisted layout for fresh plans.
 
 ## Top-Level Heading Order
 
@@ -36,6 +51,8 @@ A conforming Plan Pack must contain the following top-level sections in this ord
 ```
 
 All sections are required. Sections without content should retain the heading with a single `-` placeholder.
+These 12 H2 sections define the Plan Pack portion only; in persisted session state, the combined `plan.md`
+continues after `## Validation` with a separate `# Plan-Pack Progress Tracker` document.
 
 ---
 
@@ -48,7 +65,13 @@ The H1 heading. `<Title>` is a short human-readable label for the plan (e.g., `P
 ### `## Goal + Success Criteria`
 
 - **Goal** — One-line statement of what the plan achieves.
+- **High-Level Goals** — Explicit bullet list of intended outcomes used as the planning intent surface
+  for end-of-execution goal assessment.
 - **Success Criteria** — Bullet list of 2+ measurable outcomes that define "done."
+
+High-level goal completion states are governed by [[goal-contract-governance]]
+[docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md), using
+`complete`, `partial`, and `not-complete`.
 
 ### `## Context Loaded`
 
@@ -90,6 +113,11 @@ A markdown table that defines the dependency graph across all work units.
 | `Next Units` | JSON array of WU IDs that depend on this WU, or `[]` |
 | `Parallel Safe` | `yes` or `no` — whether this WU can run in parallel with siblings |
 
+Contract rules:
+- `Depends On` and `Next Units` must remain parseable JSON arrays in the assembled plan pack.
+- `Parallel Safe = yes` is reserved for WUs that do not rely on sibling ordering, do not mutate shared state that needs sequencing, and do not contend on the same expected files or ownership boundary.
+- Any WU marked `Parallel Safe = yes` must declare an `Expected Files` subsection in its WU spec so executors can reason about file ownership before fan-out.
+
 ### `## Work Unit Index`
 
 A lookup table mapping each WU to its spec heading for navigation.
@@ -108,7 +136,9 @@ Contains all individual work unit specifications as H3 subsections. See **Work U
 ### `## Execution Notes`
 
 Operational notes for the runner:
-- The plan pack is **read-only** during execution. Progress is tracked in a separate Progress Tracker section (see [[session-state-artifacts]](docs/system/session-state-artifacts.md)).
+- The plan pack is **read-only** during execution. Progress is tracked in the appended `# Plan-Pack Progress Tracker`
+  document within the same `plan.md` artifact (see [[session-state-artifacts]]
+  [docs/system/session-state-artifacts.md](docs/system/session-state-artifacts.md)).
 - Each work unit is executed via `work-unit-runner`.
 
 ### `## Risks / Rollback`
@@ -148,7 +178,7 @@ Where `NNN` is a zero-padded three-digit number.
 
 | Section | Heading | Description |
 | --- | --- | --- |
-| Expected Files | `#### Expected Files (optional)` | Explicit list of files to create or modify. |
+| Expected Files | `#### Expected Files (optional)` | Explicit list of files to create or modify. Required when the WU is marked `Parallel Safe = yes` in the Work Unit Graph. |
 | Risks / Notes | `#### Risks / Notes` | Edge cases, caveats, or known limitations. |
 
 ### Example
@@ -181,6 +211,10 @@ to enforce email format and password strength before persisting.
 - Password strength rules may need alignment with the frontend — confirm before merging.
 ```
 
+### Parallel-Safe Ownership Rule
+
+If a WU is marked `Parallel Safe = yes`, its `#### Expected Files` subsection must enumerate the concrete file paths or directory ownership boundaries it expects to touch. Sibling WUs in the same group may run concurrently only when those ownership declarations are disjoint or an explicit merge strategy is documented elsewhere in the plan.
+
 ---
 
 ## Naming Conventions
@@ -201,14 +235,18 @@ to enforce email format and password strength before persisting.
 
 ## Progress Tracking
 
-The Plan Pack itself is **read-only** after approval. Execution progress is tracked in a **Plan-Pack Progress Tracker** section appended to the session's `plan.md` file. See [[session-state-artifacts]](docs/system/session-state-artifacts.md) for the full Progress Tracker format, including:
+The Plan Pack itself is **read-only** after approval. Execution progress is tracked in a separate
+`# Plan-Pack Progress Tracker` document appended to the same session `plan.md` file. See
+[[session-state-artifacts]] [docs/system/session-state-artifacts.md](docs/system/session-state-artifacts.md)
+for the full Progress Tracker format, including:
 
 - Work Unit Groups Overview table
 - Work Unit Status table
 - Next Unit pointer
 - Checkpoint log
 
-The progress tracker file is typically named `x-PLANPACK-PROGRESS-<SESSION_ID>.md` or appended directly to `plan.md` under a `# Plan-Pack Progress Tracker` heading.
+Dedicated `x-PLANPACK-PROGRESS-<SESSION_ID>.md` files are legacy/non-canonical compatibility inputs only.
+Fresh planning output should persist the tracker in `plan.md` under a `# Plan-Pack Progress Tracker` heading.
 
 ### Final Gate Controls Contract (G-05-WU-05)
 
@@ -264,14 +302,14 @@ Validation is phase-aware:
 
 - `scripts/validate-planpack-planning.js` enforces the v1 planning schema for fresh plans. It validates the plan pack structure, WU shape, AC quality mode, and the base progress-tracker sections required before execution starts.
 - `scripts/validate-planpack-execution.js` enforces execution-time progress, evidence, and final-gate contracts for versioned planpacks.
-- `scripts/validate-planpack.js` remains the compatibility entrypoint for full execution/final-gate validation.
+- `scripts/validate-planpack.js` remains a migration-only compatibility entrypoint for legacy callers that have not yet moved to the phase-specific validators.
 
 Fail-closed defaults:
 - Missing `IE_PLAN_PACK_VERSION` marker fails validation.
 - Unsupported marker version fails validation.
 
 Explicit compatibility override:
-- `--allow-legacy-best-effort` allows missing version marker for legacy plans only.
+- `--allow-legacy-best-effort` allows a missing version marker for migration-only legacy plans; do not use it for normal v1 validation flows.
 
 ### What Validation Checks
 Planning validation (`validate-planpack-planning.js`) checks:
@@ -283,7 +321,7 @@ Planning validation (`validate-planpack-planning.js`) checks:
 6. No duplicate WU-IDs
 7. Base progress-tracker sections required for planning-time resume/bootstrap are present
 
-Execution validation (`validate-planpack-execution.js` or `validate-planpack.js`) additionally checks:
+Execution validation (`validate-planpack-execution.js`) additionally checks:
 1. All 12 required H2 sections are present (see v1 Field Contract)
 2. Each WU spec has required subsections (Context, Acceptance Criteria, Plan/Approach, Validation)
 3. WU-ID format matches `^WU-\d{3}$`
@@ -293,6 +331,8 @@ Execution validation (`validate-planpack-execution.js` or `validate-planpack.js`
 7. Required stream evidence predicates for all streams derived from `Work Unit Groups Overview`
 8. Final gate control rows (`evidencePredicates`, `finalGateWaiverPrecedence`, `trustedEvidenceBindingRetention`) with waiver scope/audit semantics
 9. Trusted evidence binding + evidence retention checks when `trustedEvidenceBindingRetention` is passed
+
+The legacy `validate-planpack.js` entrypoint still invokes the same full execution/final-gate rules, but only as a migration-only compatibility path.
 
 ### What Validation Does NOT Check
 - Content quality (that's the reviewers' job)
@@ -313,7 +353,7 @@ The version marker is an HTML comment placed as the **second line** of the Plan 
 ### Parser Behavior
 | Marker | Behavior |
 |--------|----------|
-| Missing (no marker) | fail-closed (unless explicit `--allow-legacy-best-effort`) |
+| Missing (no marker) | fail-closed (unless explicit migration-only `--allow-legacy-best-effort`) |
 | `<!-- IE_PLAN_PACK_VERSION: 1 -->` | v1 — validate against spec |
 | Unknown version (> 1) | fail-closed (unsupported version) |
 

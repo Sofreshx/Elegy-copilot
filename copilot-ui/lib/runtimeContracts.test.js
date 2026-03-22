@@ -176,7 +176,7 @@ test('resolveSessionReconciliationAuthority applies frozen authority matrix', ()
   ]);
 
   const runtimeOnly = resolveSessionReconciliationAuthority({ runtimeState: { status: 'active' } });
-  assert.strictEqual(runtimeOnly.authority, SESSION_STATE_AUTHORITIES.RUNTIME_ONLY);
+  assert.strictEqual(runtimeOnly.authority, SESSION_STATE_AUTHORITIES.RUNTIME);
   assert.strictEqual(runtimeOnly.sourceOfTruth, SESSION_RECONCILIATION_SOURCES.RUNTIME);
   assert.deepStrictEqual(runtimeOnly.sourcePrecedence, [SESSION_RECONCILIATION_SOURCES.RUNTIME]);
 

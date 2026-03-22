@@ -991,6 +991,9 @@ async function run() {
       repoId: 'Repo-1',
       title: '  Durable title  ',
       summary: '  Durable summary  ',
+      acceptanceCriteria: [' first check ', 'second check'],
+      acceptanceCriteriaText: '  first check\nsecond check  ',
+      targetRepoIds: ['copilot-sdk', ' instruction-engine ', 'copilot-sdk'],
       state: 'Queued',
       score: '0.75',
       createdAt: '2026-02-26T00:00:00.000Z',
@@ -1003,6 +1006,9 @@ async function run() {
     assert.strictEqual(normalized.repoId, 'repo-1');
     assert.strictEqual(normalized.title, 'Durable title');
     assert.strictEqual(normalized.summary, 'Durable summary');
+    assert.deepStrictEqual(normalized.acceptanceCriteria, ['first check', 'second check']);
+    assert.strictEqual(normalized.acceptanceCriteriaText, 'first check\nsecond check');
+    assert.deepStrictEqual(normalized.targetRepoIds, ['copilot-sdk', 'instruction-engine']);
     assert.strictEqual(normalized.state, 'queued');
     assert.strictEqual(normalized.score, 0.75);
     assert.strictEqual(deriveNextPlanningRecordNumber([
@@ -1024,6 +1030,9 @@ async function run() {
         repoId: 'repo-1',
         title: 'Repo record',
         summary: 'Persist me',
+        acceptanceCriteria: ['Validate planning UI state'],
+        acceptanceCriteriaText: 'Validate planning UI state',
+        targetRepoIds: ['instruction-engine', 'copilot-sdk'],
         state: 'queued',
         score: 0.9,
         createdAt: '2026-02-26T00:00:00.000Z',
@@ -1032,6 +1041,9 @@ async function run() {
     });
     assert.strictEqual(repoWrite.ok, true);
     assert.strictEqual(repoWrite.record.recordId, 'planning-000002');
+    assert.deepStrictEqual(repoWrite.record.acceptanceCriteria, ['Validate planning UI state']);
+    assert.strictEqual(repoWrite.record.acceptanceCriteriaText, 'Validate planning UI state');
+    assert.deepStrictEqual(repoWrite.record.targetRepoIds, ['copilot-sdk', 'instruction-engine']);
 
     const userWrite = await persistPlanningRecord(client, {
       actorId: 'user-1',
