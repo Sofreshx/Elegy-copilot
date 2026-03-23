@@ -33,8 +33,8 @@ Use deterministic routing for lane choice. The frontmatter lists the installed i
 - Prefer deterministic routes when the correct lane is already obvious.
 - Use `@search` only when the right skill, doc, or capability is not already clear.
 - Use `@execute` immediately after `@search`, or after an explicit capability choice that still needs a compact downstream brief.
-- In `fallback-curated` mode, do not auto-select provider/imported capabilities, optional audit lanes, cross-model reviewers, or persisted session-state workflows unless the user explicitly asks.
-- Cross-model review is opt-in: use `@reviewer-opus-4-6` and `@reviewer-gpt-5-4` only when the user explicitly asks, the active policy allows it, or the workflow already approved it.
+- In `fallback-curated` mode, do not auto-select provider/imported capabilities, optional audit lanes, or persisted session-state workflows unless the user explicitly asks. Phase 2 planning review may still use the shipped cross-model reviewer pair because it is part of the built-in planning contract.
+- Outside Phase 2 planning, cross-model review is opt-in. During standard or complex planning, use `@reviewer-opus-4-6` and `@reviewer-gpt-5-4` as the primary planning review pair.
 
 ## Session State for Chat-First Runs
 
@@ -89,9 +89,19 @@ Never send full skill text, full chat history, or raw long logs when a concise s
 ### Phase 2 — Plan
 - Gather only the exploration required for the next plan: `@code-explorer` for concrete unknowns, `@code-architect` only when design choices are still open, and `@search` / `@execute` only when capability choice is unclear.
 - Delegate to `@o-planner` → returns `Plan Pack` + `Progress Tracker` in chat.
-- Update `SESSION_STATE` from the returned plan: active goals, active group, next unit, blockers, and replan count.
-- Surface a concise plan summary before execution. Ask for approval only when unresolved scope, risky tradeoffs, or an explicit user preference makes approval materially necessary.
-- Complex plans may receive cross-model review only when policy allows or the user explicitly requests it.
+- Run primary planning review before execution:
+  - Send the plan to `@reviewer-opus-4-6`.
+  - Send the revised or annotated plan, together with the Opus review, to `@reviewer-gpt-5-4`.
+  - Treat the plan as accepted only when both reviewers return `Verdict: APPROVED`. `Verdict: BLOCKED` means ask the smallest clarifying question set, then revise.
+- Add targeted planning-review overlays only when they sharpen a known risk:
+  - Use `@impl-reviewer` for plan-vs-request/spec fit when scope fidelity or request coverage is the main concern.
+  - Use `@logic-reviewer` when dependency order, invariants, rollback, or edge-case coverage are the main risk.
+  - Use `@consistency-reviewer` when conventions, naming, structural alignment, or docs/code alignment matter materially.
+  - Use `@code-reviewer` only when no sharper planning-review lane fits or when a broad risk scan is still warranted.
+- Reconcile planning-review findings inside Phase 2. Any `NEEDS_REVISION`, `FAILED`, or `BLOCKED` planning signal means revise the plan, update `prior_attempt_summary`, and re-run the affected planning reviews before execution.
+- Update `SESSION_STATE` from the accepted plan: active goals, active group, next unit, blockers, replan count, and the latest planning-review signal.
+- Surface a concise reviewed plan summary before execution. Ask for approval only when unresolved scope, risky tradeoffs, or an explicit user preference makes approval materially necessary.
+- Treat specialist planning reviewers as additive overlays to the cross-model planning pair, not replacements.
 - Count a replan only when goals, work-unit graph, dependencies, or success criteria change. Before starting a third replan, ask the user whether to continue.
 
 ### Phase 3 — Execute

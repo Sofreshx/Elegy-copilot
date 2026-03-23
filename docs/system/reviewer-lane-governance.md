@@ -64,9 +64,20 @@ If the user does not specify a narrow lane, use the broad default review path fi
 2. `code-reviewer` remains the broad default when no sharper route is obvious.
 3. `impl-reviewer` remains the gate for request/spec compliance even when specialist reviews run.
 4. `verification-guide` tells the user how to verify; it does not decide whether the change works.
-5. Cross-model reviewers remain optional overlays, not the canonical primary lane definitions.
+5. Cross-model reviewers are workflow-specific planning reviewers. They are not generic replacements for the core reviewer lanes outside workflows that explicitly require them.
 6. `@goal-reviewer` does not replace `@final-reviewer`; the lanes are intentionally complementary.
 7. `@goal-reviewer` remains read-only. Persisting or removing entries in `docs/issues/unresolved-goals.md` should be routed through `@doc-writer` or another explicit docs lane.
+
+## Planning-Phase Use
+
+During orchestrator Phase 2 planning review:
+
+- `@reviewer-opus-4-6` and `@reviewer-gpt-5-4` are the default plan-approval pair.
+- `impl-reviewer` is a targeted overlay when the main planning risk is whether the plan matches the request, scope, and approved constraints.
+- `logic-reviewer` may be added when the main planning risk is sequencing, invariants, rollback, or edge-case coverage.
+- `consistency-reviewer` may be added when convention fit, naming, structural alignment, or docs/code alignment is the main planning risk.
+- `code-reviewer` stays the broad fallback when no sharper planning-review lane fits.
+- These cross-model reviewers are primary for orchestrator planning review, but they do not replace the canonical responsibilities of the specialist and end-of-execution reviewers elsewhere.
 
 ## Working Reviewer Operating Contract
 

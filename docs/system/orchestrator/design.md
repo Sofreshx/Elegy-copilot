@@ -141,13 +141,21 @@ User
    - Project context (compressed)
    - Exploration findings
    - Skill instructions
-3. Present plan to user:
-   - For standard: use `planReview` (Seamless Agent) for inline feedback
-   - For complex: use `planReview` with cross-model review first
-4. If user requests changes: incorporate feedback, re-invoke o-planner
-5. If approved: persist plan pack, proceed to Phase 3
+3. Run planning review:
+   - Send the plan to `@reviewer-opus-4-6`
+   - Send the plan plus Opus feedback to `@reviewer-gpt-5-4`
+   - Revise until both reviewers return `Verdict: APPROVED`
+   - Add `@impl-reviewer` only when plan-vs-request/spec fit still needs a sharper gate
+   - Add `@logic-reviewer` when sequencing, rollback, invariants, or edge cases are the main risk
+   - Add `@consistency-reviewer` when convention or alignment fit is the main risk
+   - Use `@code-reviewer` only when no sharper planning-review lane fits
+4. Present the reviewed plan to the user:
+   - For standard: use `planReview` (Seamless Agent) for inline feedback after the cross-model review pair converges
+   - For complex: use `planReview` after the cross-model review pair converges; add specialist overlays as needed
+5. If reviewers or user request changes: incorporate feedback, re-invoke o-planner, and re-run the relevant planning review
+6. If approved: persist plan pack, proceed to Phase 3
 
-Cross-model review (complex plans only):
+Cross-model review (primary planning gate):
 - Send plan to @reviewer-opus-4-6
 - Send plan + opus feedback to @reviewer-gpt-5-4
 - Reconcile and update plan if needed
