@@ -4,6 +4,7 @@ import { GitMonitor } from "./gitMonitor";
 import { ExtensionBridge } from "./extensionBridge";
 import { StatusServer } from "./statusServer";
 import { TrackerAuth } from "./auth";
+import { ObsidianMonitor } from "./obsidianMonitor";
 
 async function main() {
   const config = loadConfig();
@@ -40,6 +41,15 @@ async function main() {
   });
   watcher.start();
 
+  const obsidianMonitor = new ObsidianMonitor(config);
+  obsidianMonitor.on((event) => {
+    console.log(`[Tracker] Obsidian event: ${event.type}`, JSON.stringify(event.data));
+    bridge.broadcast(event);
+    statusServer.pushEvent(event);
+    statusServer.updateExtensionCount(bridge.getClientCount());
+  });
+  obsidianMonitor.start();
+
   // Initialize git monitor
   const gitMonitor = new GitMonitor(config);
   gitMonitor.on((event) => {
@@ -60,6 +70,7 @@ async function main() {
   process.on("SIGINT", async () => {
     console.log("[Tracker] Shutting down...");
     gitMonitor.stop();
+    await obsidianMonitor.stop();
     await watcher.stop();
     await bridge.stop();
     await statusServer.stop();

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-03-19
+updated: 2026-03-23
 category: system
 status: current
 doc_kind: node
@@ -41,11 +41,45 @@ Do not introduce alternate product names for these same concepts in canonical do
 | Repository Backlog | Repo docs file | `<repo>/docs/backlog.md` | Repo-wide intake, triage, and queued work | Session execution state, work-unit decomposition |
 | Roadmap | Repo docs files | `<repo>/docs/roadmaps/<roadmap-slug>.md` | Phased outcomes, sequencing, and status across work | Detailed execution instructions |
 | Plan Pack | Session-state artifact | `~/.copilot/session-state/<SESSION_ID>/plan.md` | One execution session | Repo backlog ownership or roadmap prioritization |
+| External Obsidian notes + mirrors | External/non-canonical compatibility surface | Local Obsidian vault configured for `copilot-ui` | Repo-contextual supplemental notes plus deterministic mirror representations of canonical bullets/roadmaps for the selected repo | Canonical backlog, roadmap, bullets, typed intake, or active execution authority |
 | Legacy planning-record notes | Local planning persistence | `copilot-ui` planning DB plus record artifact routes | Historical/compatibility-only planning notes | New backlog or roadmap authority |
 
 Repo context for Repository Backlog and Roadmap resolution MUST reuse the existing Catalog repo
 selection/source flow in `copilot-ui`; Planning must not create a separate repo registry or competing
 repo-selection authority.
+
+External Obsidian notes may be surfaced inside Planning for the selected Catalog repo, but they MUST be
+labeled as external/non-canonical everywhere they are shown. Reading or seeding from that surface does
+not change canonical authority: repo docs and the active session `plan.md` still win.
+
+SAFE interpretation for canonical planning mirrors:
+
+- Obsidian may host deterministic mirror notes for `docs/planning/bullets.md` and `docs/roadmaps/*.md`.
+- Those mirror notes are a convenience representation only, not an alternate write-authority lane.
+- Mirror generation must be repo-scoped, deterministic, and refreshable from canonical repo artifacts.
+- Mirror metadata or freshness checks may be read, but mirror bodies must not be parsed back into
+  canonical authority.
+
+## Orchestrator Planning Model
+
+The orchestrator planning model is intentionally layered:
+
+1. **Planning Bullets / Typed Planning Intake** capture candidate ideas and structured requests.
+2. **Repository Backlog** is the durable repo-wide queue and triage surface.
+3. **Roadmap** organizes selected backlog work into phased outcomes and sequencing.
+4. **Plan Pack** turns one approved slice into active execution work for a single session.
+5. **Follow-up / carryover issue docs** capture post-run unresolved goals, planning ideas, and
+   out-of-scope findings that should persist outside the active session.
+
+This means the orchestrator's active execution TODO state is not the same authority as the durable repo
+backlog:
+
+- active execution TODO state lives in the current plan pack, progress tracker, chat-first session
+  state, or equivalent persisted session artifacts
+- durable repo backlog state lives in backlog/roadmap/issue-doc surfaces under the selected repo
+
+The orchestrator may read repo planning surfaces to frame or close work, but it must not pretend that a
+session plan pack replaces repo backlog ownership or roadmap prioritization.
 
 ## File Locations
 
@@ -118,7 +152,7 @@ Contract rules:
 3. `IE_LINKED_BULLET_IDS` lists canonical `PB-*` IDs when a plan was seeded from repo bullets.
 4. `IE_PLAN_REF` is the preferred explicit plan reference marker; `IE_SESSION_REF` remains an accepted
    compatibility alias.
-5. `IE_PLAN_ORIGIN_KIND` uses `bullet`, `backlog`, `roadmap`, or `direct`.
+5. `IE_PLAN_ORIGIN_KIND` uses `bullet`, `backlog`, `roadmap`, `synced-note`, or `direct`.
 6. `IE_PLAN_OUTCOME` uses `completed`, `superseded`, or `abandoned`.
 7. If these markers are absent, malformed, or inconsistent with roadmap coverage, Roadmap Sync MUST fail
    closed.
@@ -140,6 +174,41 @@ Operationally:
 - Backlog is the canonical repo TODO/backlog surface.
 - Roadmap is the canonical phase/outcome surface above execution.
 - Plan Pack remains the canonical execution artifact.
+
+The orchestrator should therefore move from planning bullets/intake toward backlog and roadmap for
+durable planning, then into a plan pack for active execution, and finally back out to follow-up or
+carryover docs only when the post-run work is no longer active session execution.
+
+## Logical Planning Surfaces and Default Paths
+
+Logical planning surfaces are the conceptual planning/carryover slots the orchestrator may target.
+Today, this contract defines the default repo/session paths listed below plus the implemented External
+Obsidian Notes compatibility surface. Other provider-specific routing or storage locations remain future
+extensions and must not be implied unless separately implemented and approved.
+
+| Logical surface | Today’s default path | Primary authority | Notes |
+| --- | --- | --- | --- |
+| Planning Bullets | `<repo>/docs/planning/bullets.md` | Repo docs | Freeform seed ideas before backlog acceptance |
+| Typed Planning Intake | `<repo>/docs/planning/intake/` | Repo docs | Typed structured planning requests |
+| Repository Backlog | `<repo>/docs/backlog.md` | Repo docs | Durable queued/triaged repo work |
+| Roadmaps | `<repo>/docs/roadmaps/*.md` | Repo docs | Phased outcomes above execution |
+| Active Plan Pack | `~/.copilot/session-state/<SESSION_ID>/plan.md` | Session artifact | Active execution plan, not durable repo backlog |
+| External Obsidian Notes | Configured Obsidian vault path for selected repo context | External/non-canonical | Optional note-reading surface plus deterministic mirrors of canonical bullets/roadmaps |
+| Unresolved Goals | `<repo>/docs/issues/unresolved-goals.md` | Repo docs | Non-active unresolved goal carryover |
+| Planning Ideas Log | `<repo>/docs/issues/planning-ideas-log.md` | Repo docs | Cross-session planning ideas not accepted as active work |
+| Out-of-Scope Findings | `<repo>/docs/issues/out-of-scope-findings.md` | Repo docs | Discoveries intentionally outside current approved scope |
+
+Fail-closed rules:
+
+1. If the selected repo root is missing or unsupported, do not guess an alternate planning location.
+2. If a required logical surface path is absent, treat the surface as unavailable rather than inventing
+   a substitute path.
+3. If linkage between plan packs and repo planning docs is missing or malformed, reconciliation MUST
+   fail closed.
+4. If deterministic Obsidian mirror metadata is malformed or a mirror cannot be written safely, mirror
+   refresh MUST fail closed instead of silently overwriting or inventing fallback content.
+5. Future provider-specific routing may define alternate physical locations, but no such routing should
+   be implied in current prompts or docs unless separately implemented and approved.
 
 ## Roadmap Sync Contract
 

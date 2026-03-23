@@ -2,12 +2,15 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  OBSIDIAN_SYNCED_NOTE_ID_PREFIX,
   PLANNING_API_CONTRACT_VERSION,
   SYNCED_NOTE_SOURCE_ID_PATTERN,
   assertSyncedNoteSourceIdMatches,
   buildPlanningApiEnvelope,
   buildPlanningApiErrorEnvelope,
+  canonicalizeObsidianSyncedNoteConfig,
   canonicalizeSyncedNoteSourceLocator,
+  deriveObsidianSyncedNoteId,
   deriveSyncedNoteSourceId,
 } = require('../dist');
 
@@ -103,5 +106,48 @@ test('synced-note source ids fail closed when the locator tuple changes', () => 
   assert.throws(
     () => assertSyncedNoteSourceIdMatches({ ...locator, branch: 'feature/seed' }, derivedId),
     /id mismatch/i,
+  );
+});
+
+test('obsidian synced-note config canonicalizes the external notes template without changing authority semantics', () => {
+  assert.deepEqual(
+    canonicalizeObsidianSyncedNoteConfig({
+      vaultPath: 'C:\\Users\\planner\\Obsidian',
+      notesPathTemplate: './Planning\\{repoId}',
+      cliPath: 'C:\\Tools\\obsidian.exe',
+      syncCommand: ['obsidian', 'pull'],
+    }),
+    {
+      vaultPath: 'C:\\Users\\planner\\Obsidian',
+      notesPathTemplate: 'Planning/{repoId}',
+      cliPath: 'C:\\Tools\\obsidian.exe',
+      syncCommand: ['obsidian', 'pull'],
+    },
+  );
+});
+
+test('obsidian synced-note ids stay deterministic for the selected repo context', () => {
+  const derivedId = deriveObsidianSyncedNoteId({
+    repoId: 'repo-instruction-engine',
+    vaultName: 'Ops Planning',
+    notePath: 'Planning/repo-instruction-engine/current-work.md',
+  });
+
+  assert.match(derivedId, new RegExp(`^${OBSIDIAN_SYNCED_NOTE_ID_PREFIX}_[a-f0-9]{32}$`));
+  assert.equal(
+    derivedId,
+    deriveObsidianSyncedNoteId({
+      repoId: 'repo-instruction-engine',
+      vaultName: 'Ops Planning',
+      notePath: 'Planning\\repo-instruction-engine\\current-work.md',
+    }),
+  );
+  assert.notEqual(
+    derivedId,
+    deriveObsidianSyncedNoteId({
+      repoId: 'repo-instruction-engine',
+      vaultName: 'Ops Planning',
+      notePath: 'Planning/repo-instruction-engine/follow-up.md',
+    }),
   );
 });

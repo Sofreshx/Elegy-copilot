@@ -242,6 +242,195 @@ export function assertSyncedNoteSourceIdMatches(locator: SyncedNoteSourceLocator
   return derivedId;
 }
 
+export const OBSIDIAN_SYNC_STATES = [
+  'ready',
+  'not-configured',
+  'vault-unavailable',
+  'notes-unavailable',
+] as const;
+export type ObsidianSyncState = typeof OBSIDIAN_SYNC_STATES[number];
+
+export const OBSIDIAN_SYNCED_NOTE_ID_PREFIX = 'obsnote';
+
+export interface ObsidianSyncedNoteConfig {
+  vaultPath: string;
+  notesPathTemplate?: string;
+  cliPath?: string;
+  syncCommand?: string[];
+}
+
+export interface ObsidianSyncedNoteSummary {
+  kind: 'synced-note';
+  provider: 'obsidian';
+  id: string;
+  title: string;
+  summary: string;
+  repoId?: string;
+  targetRepoIds: string[];
+  vaultName: string;
+  notePath: string;
+  filePath?: string;
+  lastModifiedAt?: string;
+  external: true;
+  canonicalAuthority: false;
+}
+
+export interface ObsidianSyncedNoteDetail extends ObsidianSyncedNoteSummary {
+  content: string;
+  headings: string[];
+}
+
+export type ObsidianPlanningRepresentationKind = 'bullets' | 'roadmap';
+export type ObsidianPlanningRepresentationFreshness =
+  | 'current'
+  | 'stale'
+  | 'missing'
+  | 'invalid'
+  | 'source-missing';
+
+export interface ObsidianPlanningRepresentationSummary {
+  kind: 'planning-representation';
+  provider: 'obsidian';
+  id: string;
+  representationKind: ObsidianPlanningRepresentationKind;
+  title: string;
+  summary: string;
+  repoId?: string;
+  targetRepoIds: string[];
+  roadmapSlug?: string;
+  sourceExists: boolean;
+  sourceFilePath?: string;
+  sourceRepoRelativePath: string;
+  sourceUpdatedAt?: string;
+  sourceContentHash?: string;
+  notePath: string;
+  filePath?: string;
+  noteExists: boolean;
+  noteUpdatedAt?: string;
+  generatedAt?: string;
+  freshness: ObsidianPlanningRepresentationFreshness;
+  metadataValid: boolean;
+  external: true;
+  canonicalAuthority: false;
+  message: string;
+  bulletCount?: number;
+  itemCount?: number;
+}
+
+export interface ObsidianPlanningRepresentationsStatus {
+  totalCount: number;
+  writeAvailable: boolean;
+  currentCount: number;
+  staleCount: number;
+  missingCount: number;
+  invalidCount: number;
+  sourceMissingCount: number;
+  message: string;
+}
+
+export interface ObsidianSyncedNoteStatus {
+  state: ObsidianSyncState;
+  configured: boolean;
+  readAvailable: boolean;
+  syncAvailable: boolean;
+  external: true;
+  canonicalAuthority: false;
+  message: string;
+  code?: string;
+  configPath?: string;
+  vaultName?: string;
+  vaultPath?: string;
+  notesPathTemplate?: string;
+  notesDirectoryPath?: string;
+  cliPath?: string;
+  syncCommand?: string[];
+}
+
+function normalizePathSegments(
+  value: unknown,
+  fieldName: string,
+): string[] {
+  const raw = requireNonEmptyString(value, fieldName).replace(/\\/g, '/');
+  const segments = raw
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0 && segment !== '.');
+
+  if (segments.length === 0) {
+    throw new SyncedNoteSourceContractError(`Obsidian ${fieldName} must contain at least one path segment`);
+  }
+
+  for (const segment of segments) {
+    if (segment === '..' || hasControlCharacters(segment)) {
+      throw new SyncedNoteSourceContractError(`Obsidian ${fieldName} must not contain parent-directory traversal`);
+    }
+  }
+
+  return segments;
+}
+
+function normalizeOptionalObsidianString(value: unknown, fieldName: string): string | undefined {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) {
+    return undefined;
+  }
+  if (hasControlCharacters(normalized)) {
+    throw new SyncedNoteSourceContractError(`Obsidian ${fieldName} must not contain control characters`);
+  }
+  return normalized;
+}
+
+function normalizeOptionalObsidianStringList(value: unknown, fieldName: string): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const normalized = value
+    .map((entry) => normalizeOptionalObsidianString(entry, fieldName))
+    .filter((entry): entry is string => Boolean(entry));
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+export function normalizeObsidianNotesPathTemplate(value: unknown): string {
+  return normalizePathSegments(value, 'notesPathTemplate').join('/');
+}
+
+export function normalizeObsidianSyncedNotePath(value: unknown): string {
+  return normalizePathSegments(value, 'notePath').join('/');
+}
+
+export function canonicalizeObsidianSyncedNoteConfig(
+  config: ObsidianSyncedNoteConfig,
+): ObsidianSyncedNoteConfig {
+  return {
+    vaultPath: requireNonEmptyString(config?.vaultPath, 'vaultPath'),
+    notesPathTemplate: config?.notesPathTemplate
+      ? normalizeObsidianNotesPathTemplate(config.notesPathTemplate)
+      : 'Planning/{repoId}',
+    cliPath: normalizeOptionalObsidianString(config?.cliPath, 'cliPath'),
+    syncCommand: normalizeOptionalObsidianStringList(config?.syncCommand, 'syncCommand'),
+  };
+}
+
+export function deriveObsidianSyncedNoteId(input: {
+  repoId?: string;
+  vaultName: string;
+  notePath: string;
+}): string {
+  const repoId = String(input?.repoId ?? '').trim();
+  const vaultName = requireNonEmptyString(input?.vaultName, 'vaultName');
+  const notePath = normalizeObsidianSyncedNotePath(input?.notePath);
+  const digest = createHash('sha256')
+    .update([
+      'provider=obsidian',
+      `repoId=${repoId || '_'}`,
+      `vaultName=${vaultName}`,
+      `notePath=${notePath}`,
+    ].join('\n'), 'utf8')
+    .digest('hex')
+    .slice(0, 32);
+  return `${OBSIDIAN_SYNCED_NOTE_ID_PREFIX}_${digest}`;
+}
+
 /** Supported runtime provider identifiers. */
 export type RuntimeProvider = 'non-docker' | 'docker';
 

@@ -2,6 +2,8 @@ import { WebSocketServer, WebSocket } from "ws";
 import { TrackerConfig } from "./config";
 import { TrackerEvent } from "./types";
 
+const LOOPBACK_HOST = "127.0.0.1";
+
 export class ExtensionBridge {
   private wss: WebSocketServer | null = null;
   private clients: Set<WebSocket> = new Set();
@@ -15,7 +17,10 @@ export class ExtensionBridge {
   /** Start the local WebSocket server */
   start(): void {
     this.stopping = false;
-    this.wss = new WebSocketServer({ port: this.config.localWsPort });
+    this.wss = new WebSocketServer({
+      host: LOOPBACK_HOST,
+      port: this.config.localWsPort,
+    });
 
     this.wss.on("connection", (ws, req) => {
       console.log(`[Bridge] Extension connected from ${req.socket.remoteAddress}`);
@@ -43,7 +48,9 @@ export class ExtensionBridge {
       console.error("[Bridge] Server error:", err.message);
     });
 
-    console.log(`[Bridge] WebSocket server listening on port ${this.config.localWsPort}`);
+    console.log(
+      `[Bridge] WebSocket server listening on ${LOOPBACK_HOST}:${this.config.localWsPort}`
+    );
   }
 
   /** Broadcast a TrackerEvent to all connected clients */

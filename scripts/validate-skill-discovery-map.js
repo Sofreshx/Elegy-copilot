@@ -5,23 +5,14 @@ const fs = require('fs');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const repoRoot = path.resolve(__dirname, '..');
+const defaultRepoRoot = path.resolve(__dirname, '..');
 const gateName = 'Skill Metadata Parity Gate';
-const committedIndexPath = path.join(repoRoot, 'engine-assets', 'skills', 'skill-metadata-index.json');
-const generatorModulePath = path.join(__dirname, 'generate-skill-metadata-index.mjs');
 
-let hasFailures = false;
-
-function fail(message) {
-	console.error(`${gateName} failed: ${message}`);
-	hasFailures = true;
-}
-
-function readJson(filePath) {
+function readJson(filePath, repoRoot, errors) {
 	try {
 		return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 	} catch (error) {
-		fail(`failed to parse JSON ${path.relative(repoRoot, filePath)}: ${error.message}`);
+		errors.push(`failed to parse JSON ${path.relative(repoRoot, filePath)}: ${error.message}`);
 		return null;
 	}
 }
@@ -82,27 +73,37 @@ function summarizeEntryDrift(committed, expected) {
 	return details.join('; ');
 }
 
-async function loadGeneratedIndex() {
+async function loadGeneratedIndex(options = {}) {
+	const {
+		repoRoot = defaultRepoRoot,
+		generatorModulePath = path.join(__dirname, 'generate-skill-metadata-index.mjs'),
+		errors = [],
+	} = options;
+
 	try {
 		const module = await import(pathToFileURL(generatorModulePath).href);
 		if (typeof module.generateIndex !== 'function') {
 			throw new Error('generateIndex export is missing');
 		}
-		return module.generateIndex({ write: false });
+		return module.generateIndex({ write: false, repoRoot });
 	} catch (error) {
-		fail(`failed to load metadata generator: ${error.message}`);
+		errors.push(`failed to load metadata generator: ${error.message}`);
 		return null;
 	}
 }
 
-async function main() {
-	const committedIndex = readJson(committedIndexPath);
-	const expectedIndex = await loadGeneratedIndex();
+async function validateSkillMetadataParityGate(options = {}) {
+	const repoRoot = options.repoRoot || defaultRepoRoot;
+	const committedIndexPath = options.committedIndexPath || path.join(repoRoot, 'engine-assets', 'skills', 'skill-metadata-index.json');
+	const generatorModulePath = options.generatorModulePath || path.join(__dirname, 'generate-skill-metadata-index.mjs');
+	const errors = [];
+	const committedIndex = readJson(committedIndexPath, repoRoot, errors);
+	const expectedIndex = await loadGeneratedIndex({ repoRoot, generatorModulePath, errors });
 
 	if (committedIndex && expectedIndex) {
 		if (stringifyJson(committedIndex) !== stringifyJson(expectedIndex)) {
 			const driftSummary = summarizeEntryDrift(committedIndex, expectedIndex);
-			fail(
+			errors.push(
 				[
 					`${path.relative(repoRoot, committedIndexPath)} is stale relative to skill frontmatter and manifest metadata.`,
 					driftSummary,
@@ -114,14 +115,36 @@ async function main() {
 		}
 	}
 
-	if (hasFailures) {
+	return {
+		gateName,
+		committedIndexPath,
+		errors,
+	};
+}
+
+async function main() {
+	const result = await validateSkillMetadataParityGate();
+
+	if (result.errors.length > 0) {
+		for (const message of result.errors) {
+			console.error(`${gateName} failed: ${message}`);
+		}
 		process.exit(1);
 	}
 
-	console.log(`${gateName} ok (${path.relative(repoRoot, committedIndexPath)})`);
+	console.log(`${gateName} ok (${path.relative(defaultRepoRoot, result.committedIndexPath)})`);
 }
 
-main().catch((error) => {
-	fail(error.message || String(error));
-	process.exit(1);
-});
+if (require.main === module) {
+	main().catch((error) => {
+		console.error(`${gateName} failed: ${error.message || String(error)}`);
+		process.exit(1);
+	});
+}
+
+module.exports = {
+	gateName,
+	summarizeEntryDrift,
+	loadGeneratedIndex,
+	validateSkillMetadataParityGate,
+};

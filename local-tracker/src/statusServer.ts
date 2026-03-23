@@ -8,6 +8,7 @@ import {
 import { GitSnapshot, TrackerEvent } from "./types";
 
 const TRACKER_STATUS_CONTRACT_VERSION = "tracker_status_v1";
+const LOOPBACK_HOST = "127.0.0.1";
 
 function createMissingTokenReadiness(source: TrackerRelayTokenSource): TrackerTokenReadinessV1 {
   return {
@@ -86,9 +87,9 @@ export class StatusServer {
         }
       });
 
-      this.server.listen(this.config.statusPort, () => {
+      this.server.listen(this.config.statusPort, LOOPBACK_HOST, () => {
         console.log(
-          `[Status] Dashboard at http://localhost:${this.config.statusPort}`
+          `[Status] Dashboard at http://${LOOPBACK_HOST}:${this.config.statusPort}`
         );
         resolve();
       });
@@ -145,33 +146,96 @@ export class StatusServer {
   <p class="subtitle">Local status dashboard &mdash; auto-refreshes every 3s</p>
   <div id="content">Loading...</div>
   <script>
+    const content = document.getElementById('content');
+
+    function createCard(title) {
+      const card = document.createElement('div');
+      card.className = 'card';
+      const heading = document.createElement('h2');
+      heading.textContent = title;
+      card.appendChild(heading);
+      return card;
+    }
+
+    function createStat(value, label) {
+      const stat = document.createElement('div');
+      stat.className = 'stat';
+      const statValue = document.createElement('div');
+      statValue.className = 'stat-value';
+      statValue.textContent = value;
+      const statLabel = document.createElement('div');
+      statLabel.className = 'stat-label';
+      statLabel.textContent = label;
+      stat.appendChild(statValue);
+      stat.appendChild(statLabel);
+      return stat;
+    }
+
     async function refresh() {
       try {
         const r = await fetch('/api/status');
         const d = await r.json();
-        let h = '';
-        // Overview
-        h += '<div class="card"><h2>Overview</h2>';
-        h += '<div class="stat"><div class="stat-value">' + Math.round(d.uptime) + 's</div><div class="stat-label">Uptime</div></div>';
-        h += '<div class="stat"><div class="stat-value">' + d.connectedExtensions + '</div><div class="stat-label">Extensions</div></div>';
-        h += '<div class="stat"><div class="stat-value">' + d.recentEvents.length + '</div><div class="stat-label">Events</div></div>';
-        h += '</div>';
-        // Git
+        const fragment = document.createDocumentFragment();
+
+        const overviewCard = createCard('Overview');
+        overviewCard.appendChild(createStat(Math.round(d.uptime) + 's', 'Uptime'));
+        overviewCard.appendChild(createStat(String(d.connectedExtensions), 'Extensions'));
+        overviewCard.appendChild(createStat(String(d.recentEvents.length), 'Events'));
+        fragment.appendChild(overviewCard);
+
         if (d.gitSnapshots.length > 0) {
-          h += '<div class="card"><h2>Git</h2><table><tr><th>Repo</th><th>Branch</th><th>Mod</th><th>Ahead</th></tr>';
-          d.gitSnapshots.forEach(function(g) {
-            h += '<tr><td>' + g.repo + '</td><td>' + g.branch + '</td><td>' + g.modified + '</td><td>' + g.ahead + '</td></tr>';
+          const gitCard = createCard('Git');
+          const table = document.createElement('table');
+          const headerRow = document.createElement('tr');
+          ['Repo', 'Branch', 'Mod', 'Ahead'].forEach(function(label) {
+            const th = document.createElement('th');
+            th.textContent = label;
+            headerRow.appendChild(th);
           });
-          h += '</table></div>';
+          table.appendChild(headerRow);
+          d.gitSnapshots.forEach(function(g) {
+            const row = document.createElement('tr');
+            [g.repo, g.branch, String(g.modified), String(g.ahead)].forEach(function(value) {
+              const td = document.createElement('td');
+              td.textContent = value;
+              row.appendChild(td);
+            });
+            table.appendChild(row);
+          });
+          gitCard.appendChild(table);
+          fragment.appendChild(gitCard);
         }
-        // Events
-        h += '<div class="card"><h2>Recent Events</h2><div class="event-list">';
+
+        const eventsCard = createCard('Recent Events');
+        const eventList = document.createElement('div');
+        eventList.className = 'event-list';
         d.recentEvents.slice(0, 20).forEach(function(e) {
-          h += '<div class="event"><span class="event-type">' + e.type + '</span> <span class="event-time">' + new Date(e.timestamp).toLocaleTimeString() + '</span></div>';
+          const eventRow = document.createElement('div');
+          eventRow.className = 'event';
+
+          const eventType = document.createElement('span');
+          eventType.className = 'event-type';
+          eventType.textContent = e.type;
+
+          const spacer = document.createTextNode(' ');
+
+          const eventTime = document.createElement('span');
+          eventTime.className = 'event-time';
+          eventTime.textContent = new Date(e.timestamp).toLocaleTimeString();
+
+          eventRow.appendChild(eventType);
+          eventRow.appendChild(spacer);
+          eventRow.appendChild(eventTime);
+          eventList.appendChild(eventRow);
         });
-        h += '</div></div>';
-        document.getElementById('content').innerHTML = h;
-      } catch(e) { document.getElementById('content').innerHTML = 'Error: ' + e.message; }
+        eventsCard.appendChild(eventList);
+        fragment.appendChild(eventsCard);
+
+        content.replaceChildren(fragment);
+      } catch (e) {
+        const message = e && typeof e.message === 'string' ? e.message : String(e);
+        content.textContent = 'Error: ' + message;
+      }
     }
     refresh();
     setInterval(refresh, 3000);

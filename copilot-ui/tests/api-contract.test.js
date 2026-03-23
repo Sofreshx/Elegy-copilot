@@ -127,7 +127,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/lsp/config' },
   { method: 'POST', path: '/api/lsp/install' },
 
-  // Planning (34)
+  // Planning (40)
   { method: 'POST', path: '/api/planning/persistence/init' },
   { method: 'POST', path: '/api/planning/persistence/corruption/scan' },
   { method: 'POST', path: '/api/planning/persistence/retention' },
@@ -154,6 +154,13 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/planning/records/planning-000001/research' },
   { method: 'DELETE', path: '/api/planning/records/planning-000001/research/note-0001' },
   { method: 'GET', path: '/api/planning/records/planning-000001/diagrams' },
+  { method: 'GET', path: '/api/planning/obsidian/status' },
+  { method: 'GET', path: '/api/planning/obsidian/notes' },
+  { method: 'GET', path: '/api/planning/obsidian/notes/obsnote-0001' },
+  { method: 'POST', path: '/api/planning/obsidian/sync' },
+  { method: 'GET', path: '/api/planning/obsidian/representations/status' },
+  { method: 'GET', path: '/api/planning/obsidian/representations' },
+  { method: 'POST', path: '/api/planning/obsidian/representations/refresh' },
   { method: 'GET', path: '/api/planning/backlog' },
   { method: 'POST', path: '/api/planning/backlog' },
   { method: 'PATCH', path: '/api/planning/backlog/RB-001' },
@@ -407,7 +414,7 @@ async function run() {
 
     // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 115, `Expected 115 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 122, `Expected 122 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

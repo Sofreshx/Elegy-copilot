@@ -39,6 +39,18 @@ import type {
   LspConfigResponse,
   LspInstallResponse,
   ManagedAssetsResponse,
+  ObsidianPlanningNoteDetail,
+  ObsidianPlanningNoteResponse,
+  ObsidianPlanningNotesResponse,
+  ObsidianPlanningRepresentationSummary,
+  ObsidianPlanningRepresentationsRefreshResponse,
+  ObsidianPlanningRepresentationsResponse,
+  ObsidianPlanningRepresentationsStatusResponse,
+  ObsidianPlanningNoteSummary,
+  ObsidianPlanningSyncResponse,
+  ObsidianPlanningSyncResult,
+  ObsidianPlanningStatus,
+  ObsidianPlanningStatusResponse,
   PlanningBacklogMutationResponse,
   PlanningBacklogResponse,
   PlanningBullet,
@@ -118,6 +130,7 @@ export interface ListSessionsOptions {
 
 export interface SessionArtifactQueryOptions {
   source?: string;
+  sandbox?: string;
   planId?: string;
 }
 
@@ -133,6 +146,11 @@ export interface SessionPlanSeedArtifactPayload {
   originKind?: string;
   promotedPlanRefs?: string[];
   promotedBacklogRefs?: string[];
+  provider?: string;
+  notePath?: string;
+  vaultName?: string;
+  external?: boolean;
+  canonicalAuthority?: boolean;
 }
 
 export interface SessionPlanMutationPayload {
@@ -147,6 +165,7 @@ export interface SessionPlanMutationPayload {
 
 export interface SessionAgentUsageQueryOptions {
   source?: string;
+  sandbox?: string;
   limit?: number;
 }
 
@@ -1055,6 +1074,313 @@ function normalizePlanningIntakeArtifactsResponse(payload: unknown): PlanningInt
     intake: normalizePlanningIntakeSummary(record.intake),
     artifacts,
     artifact: normalizePlanningIntakeArtifact(record.artifact),
+  };
+}
+
+function normalizeObsidianPlanningStatus(value: unknown): ObsidianPlanningStatus {
+  const record = asRecord(value);
+  const state = asTrimmedString(record.state).toLowerCase();
+  return {
+    state:
+      state === 'ready'
+      || state === 'vault-unavailable'
+      || state === 'notes-unavailable'
+      || state === 'not-configured'
+        ? state
+        : 'not-configured',
+    configured: asBoolean(record.configured, false),
+    readAvailable: asBoolean(record.readAvailable, false),
+    syncAvailable: asBoolean(record.syncAvailable, false),
+    external: true,
+    canonicalAuthority: false,
+    message: asTrimmedString(record.message) || 'External Obsidian notes are unavailable.',
+    code: asTrimmedString(record.code) || undefined,
+    configPath: asTrimmedString(record.configPath) || undefined,
+    vaultName: asTrimmedString(record.vaultName) || undefined,
+    vaultPath: asTrimmedString(record.vaultPath) || undefined,
+    notesPathTemplate: asTrimmedString(record.notesPathTemplate) || undefined,
+    notesDirectoryPath: asTrimmedString(record.notesDirectoryPath) || undefined,
+    cliPath: asTrimmedString(record.cliPath) || undefined,
+    syncCommand: asStringList(record.syncCommand),
+    cli: normalizeObsidianCliStatus(record.cli),
+    remoteSync: normalizeObsidianRemoteSyncStatus(record.remoteSync),
+  };
+}
+
+function normalizeObsidianCliStatus(value: unknown): ObsidianPlanningStatus['cli'] {
+  const record = asRecord(value);
+  const state = asTrimmedString(record.state).toLowerCase();
+  return {
+    state:
+      state === 'configured'
+      || state === 'ready'
+      || state === 'unavailable'
+      || state === 'error'
+      || state === 'not-configured'
+        ? state
+        : 'not-configured',
+    message: asTrimmedString(record.message) || 'No Obsidian CLI command contract is configured.',
+    checkedAt: asTrimmedString(record.checkedAt) || undefined,
+    probeConfigured: asBoolean(record.probeConfigured, false),
+    syncStatusConfigured: asBoolean(record.syncStatusConfigured, false),
+    refreshInventoryConfigured: asBoolean(record.refreshInventoryConfigured, false),
+    manualSyncConfigured: asBoolean(record.manualSyncConfigured, false),
+    lastError: asTrimmedString(record.lastError) || undefined,
+  };
+}
+
+function normalizeObsidianRemoteSyncStatus(value: unknown): ObsidianPlanningStatus['remoteSync'] {
+  const record = asRecord(value);
+  const state = asTrimmedString(record.state).toLowerCase();
+  const pollIntervalRaw = typeof record.pollIntervalMs === 'number' ? record.pollIntervalMs : Number(record.pollIntervalMs);
+  return {
+    state:
+      state === 'idle'
+      || state === 'syncing'
+      || state === 'success'
+      || state === 'error'
+      || state === 'conflict'
+      || state === 'disabled'
+        ? state
+        : 'disabled',
+    configured: asBoolean(record.configured, false),
+    pollEnabled: asBoolean(record.pollEnabled, false),
+    pollIntervalMs: Number.isFinite(pollIntervalRaw) ? pollIntervalRaw : undefined,
+    syncing: asBoolean(record.syncing, false),
+    message: asTrimmedString(record.message) || 'Remote pull sync is not configured.',
+    lastAttemptAt: asTrimmedString(record.lastAttemptAt) || undefined,
+    lastSuccessAt: asTrimmedString(record.lastSuccessAt) || undefined,
+    lastManualSyncAt: asTrimmedString(record.lastManualSyncAt) || undefined,
+    lastError: asTrimmedString(record.lastError) || undefined,
+    conflictCount: asNumber(record.conflictCount, 0),
+    appliedCount: asNumber(record.appliedCount, 0),
+    deletedCount: asNumber(record.deletedCount, 0),
+    skippedCount: asNumber(record.skippedCount, 0),
+    cursor: asTrimmedString(record.cursor) || undefined,
+    updatedAt: asTrimmedString(record.updatedAt) || undefined,
+  };
+}
+
+function normalizeObsidianPlanningNoteSummary(value: unknown): ObsidianPlanningNoteSummary | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  const title = asTrimmedString(record.title);
+  if (!id || !title) {
+    return null;
+  }
+
+  return {
+    kind: 'synced-note',
+    provider: 'obsidian',
+    id,
+    title,
+    summary: asTrimmedString(record.summary) || '',
+    repoId: asTrimmedString(record.repoId) || undefined,
+    targetRepoIds: asStringList(record.targetRepoIds),
+    vaultName: asTrimmedString(record.vaultName) || '',
+    notePath: asTrimmedString(record.notePath) || '',
+    filePath: asTrimmedString(record.filePath) || undefined,
+    lastModifiedAt: asTrimmedString(record.lastModifiedAt) || undefined,
+    external: true,
+    canonicalAuthority: false,
+  };
+}
+
+function normalizeObsidianPlanningNoteDetail(value: unknown): ObsidianPlanningNoteDetail | null {
+  const summary = normalizeObsidianPlanningNoteSummary(value);
+  if (!summary) {
+    return null;
+  }
+  const record = asRecord(value);
+  return {
+    ...summary,
+    content: asTrimmedString(record.content),
+    headings: asStringList(record.headings),
+  };
+}
+
+function normalizeObsidianPlanningRepresentationSummary(value: unknown): ObsidianPlanningRepresentationSummary | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  const title = asTrimmedString(record.title);
+  const representationKind = asTrimmedString(record.representationKind).toLowerCase();
+  if (!id || !title || (representationKind !== 'bullets' && representationKind !== 'roadmap')) {
+    return null;
+  }
+
+  const freshness = asTrimmedString(record.freshness).toLowerCase();
+  return {
+    kind: 'planning-representation',
+    provider: 'obsidian',
+    id,
+    representationKind,
+    title,
+    summary: asTrimmedString(record.summary) || '',
+    repoId: asTrimmedString(record.repoId) || undefined,
+    targetRepoIds: asStringList(record.targetRepoIds),
+    roadmapSlug: asTrimmedString(record.roadmapSlug) || undefined,
+    sourceExists: asBoolean(record.sourceExists, false),
+    sourceFilePath: asTrimmedString(record.sourceFilePath) || undefined,
+    sourceRepoRelativePath: asTrimmedString(record.sourceRepoRelativePath) || '',
+    sourceUpdatedAt: asTrimmedString(record.sourceUpdatedAt) || undefined,
+    sourceContentHash: asTrimmedString(record.sourceContentHash) || undefined,
+    notePath: asTrimmedString(record.notePath) || '',
+    filePath: asTrimmedString(record.filePath) || undefined,
+    noteExists: asBoolean(record.noteExists, false),
+    noteUpdatedAt: asTrimmedString(record.noteUpdatedAt) || undefined,
+    generatedAt: asTrimmedString(record.generatedAt) || undefined,
+    freshness:
+      freshness === 'current'
+      || freshness === 'stale'
+      || freshness === 'missing'
+      || freshness === 'invalid'
+      || freshness === 'source-missing'
+        ? freshness
+        : 'missing',
+    metadataValid: asBoolean(record.metadataValid, false),
+    external: true,
+    canonicalAuthority: false,
+    message: asTrimmedString(record.message) || 'Deterministic planning mirror metadata is unavailable.',
+    bulletCount: typeof record.bulletCount === 'number' ? record.bulletCount : undefined,
+    itemCount: typeof record.itemCount === 'number' ? record.itemCount : undefined,
+  };
+}
+
+function normalizeObsidianPlanningRepresentationsStatus(value: unknown): ObsidianPlanningRepresentationsStatusResponse['representationsStatus'] {
+  const record = asRecord(value);
+  return {
+    totalCount: asNumber(record.totalCount, 0),
+    writeAvailable: asBoolean(record.writeAvailable, false),
+    currentCount: asNumber(record.currentCount, 0),
+    staleCount: asNumber(record.staleCount, 0),
+    missingCount: asNumber(record.missingCount, 0),
+    invalidCount: asNumber(record.invalidCount, 0),
+    sourceMissingCount: asNumber(record.sourceMissingCount, 0),
+    message: asTrimmedString(record.message) || 'Deterministic Obsidian planning mirrors are unavailable.',
+  };
+}
+
+function normalizeObsidianPlanningStatusResponse(payload: unknown): ObsidianPlanningStatusResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningRepoSummary(record.repo),
+    status: normalizeObsidianPlanningStatus(record.status),
+  };
+}
+
+function normalizeObsidianPlanningNotesResponse(payload: unknown): ObsidianPlanningNotesResponse {
+  const record = asRecord(payload);
+  const base = normalizeObsidianPlanningStatusResponse(payload);
+  const notes = asArray(record.notes)
+    .map((entry) => normalizeObsidianPlanningNoteSummary(entry))
+    .filter((entry): entry is ObsidianPlanningNoteSummary => entry !== null);
+  return {
+    ...base,
+    ...record,
+    count: asNumber(record.count, notes.length),
+    notes,
+  };
+}
+
+function normalizeObsidianPlanningNoteResponse(payload: unknown): ObsidianPlanningNoteResponse {
+  const record = asRecord(payload);
+  const base = normalizeObsidianPlanningStatusResponse(payload);
+  return {
+    ...base,
+    ...record,
+    note: normalizeObsidianPlanningNoteDetail(record.note),
+  };
+}
+
+function normalizeObsidianPlanningSyncResult(value: unknown): ObsidianPlanningSyncResult | null {
+  const record = asRecord(value);
+  const state = asTrimmedString(record.state).toLowerCase();
+  if (!state) {
+    return null;
+  }
+  const cliManualCommandRecord = asRecord(record.cliManualCommand);
+  const cliManualCommand =
+    record.cliManualCommand && typeof record.cliManualCommand === 'object'
+      ? {
+        exitCode: typeof cliManualCommandRecord.exitCode === 'number' ? cliManualCommandRecord.exitCode : null,
+        durationMs: typeof cliManualCommandRecord.durationMs === 'number' ? cliManualCommandRecord.durationMs : undefined,
+      }
+      : null;
+  return {
+    trigger: asTrimmedString(record.trigger) || undefined,
+    state:
+      state === 'idle'
+      || state === 'syncing'
+      || state === 'success'
+      || state === 'error'
+      || state === 'conflict'
+      || state === 'disabled'
+        ? state
+        : 'disabled',
+    appliedCount: asNumber(record.appliedCount, 0),
+    deletedCount: asNumber(record.deletedCount, 0),
+    skippedCount: asNumber(record.skippedCount, 0),
+    conflictCount: asNumber(record.conflictCount, 0),
+    conflicts: asStringList(record.conflicts),
+    cursor: asTrimmedString(record.cursor) || undefined,
+    message: asTrimmedString(record.message) || undefined,
+    cliManualCommand,
+  };
+}
+
+function normalizeObsidianPlanningSyncResponse(payload: unknown): ObsidianPlanningSyncResponse {
+  const record = asRecord(payload);
+  const base = normalizeObsidianPlanningStatusResponse(payload);
+  return {
+    ...base,
+    ...record,
+    result: normalizeObsidianPlanningSyncResult(record.result),
+  };
+}
+
+function normalizeObsidianPlanningRepresentationsStatusResponse(payload: unknown): ObsidianPlanningRepresentationsStatusResponse {
+  const record = asRecord(payload);
+  const base = normalizeObsidianPlanningStatusResponse(payload);
+  return {
+    ...base,
+    ...record,
+    representationsStatus: normalizeObsidianPlanningRepresentationsStatus(record.representationsStatus),
+  };
+}
+
+function normalizeObsidianPlanningRepresentationsResponse(payload: unknown): ObsidianPlanningRepresentationsResponse {
+  const record = asRecord(payload);
+  const base = normalizeObsidianPlanningRepresentationsStatusResponse(payload);
+  const representations = asArray(record.representations)
+    .map((entry) => normalizeObsidianPlanningRepresentationSummary(entry))
+    .filter((entry): entry is ObsidianPlanningRepresentationSummary => entry !== null);
+  return {
+    ...base,
+    ...record,
+    count: asNumber(record.count, representations.length),
+    representations,
+  };
+}
+
+function normalizeObsidianPlanningRepresentationsRefreshResponse(payload: unknown): ObsidianPlanningRepresentationsRefreshResponse {
+  const record = asRecord(payload);
+  const base = normalizeObsidianPlanningRepresentationsResponse(payload);
+  const resultRecord = asRecord(record.result);
+  const result = record.result
+    ? {
+      refreshedCount: asNumber(resultRecord.refreshedCount, 0),
+      skippedCount: asNumber(resultRecord.skippedCount, 0),
+      skippedIds: asStringList(resultRecord.skippedIds),
+    }
+    : null;
+  return {
+    ...base,
+    ...record,
+    result,
   };
 }
 
@@ -2146,11 +2472,12 @@ export function listSessionPlans(
   baseUrl?: string
 ): Promise<SessionPlansResponse> {
   return apiRequest<SessionPlansResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/plans`, {
-    baseUrl,
-    query: {
-      source: options.source,
-    },
-  });
+      baseUrl,
+      query: {
+        source: options.source,
+        sandbox: options.sandbox,
+      },
+    });
 }
 
 export function getSessionPlanText(
@@ -2159,11 +2486,12 @@ export function getSessionPlanText(
   baseUrl?: string
 ): Promise<string> {
   return apiRequest<string>(`/api/sessions/${encodeURIComponent(sessionId)}/plan`, {
-    baseUrl,
-    query: {
-      source: options.source,
-    },
-  });
+      baseUrl,
+      query: {
+        source: options.source,
+        sandbox: options.sandbox,
+      },
+    });
 }
 
 export function upsertSessionPlan(
@@ -2186,12 +2514,13 @@ export function getSessionAgentUsage(
   baseUrl?: string
 ): Promise<SessionAgentUsageResponse> {
   return apiRequest<SessionAgentUsageResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/agent-usage`, {
-    baseUrl,
-    query: {
-      source: options.source,
-      limit: options.limit,
-    },
-  });
+      baseUrl,
+      query: {
+        source: options.source,
+        sandbox: options.sandbox,
+        limit: options.limit,
+      },
+    });
 }
 
 export function getSessionStructuredState(
@@ -2202,12 +2531,13 @@ export function getSessionStructuredState(
   return apiRequest<SessionStructuredStateResponse>(
     `/api/sessions/${encodeURIComponent(sessionId)}/structured-state`,
     {
-      baseUrl,
-      query: {
-        source: options.source,
-        planId: options.planId,
-      },
-    }
+        baseUrl,
+        query: {
+          source: options.source,
+          sandbox: options.sandbox,
+          planId: options.planId,
+        },
+      }
   );
 }
 
@@ -2220,6 +2550,7 @@ export function getSessionProposition(
     baseUrl,
     query: {
       source: options.source,
+      sandbox: options.sandbox,
     },
   });
 }
@@ -2233,6 +2564,7 @@ export function getSessionHandoff(
     baseUrl,
     query: {
       source: options.source,
+      sandbox: options.sandbox,
     },
   });
 }
@@ -2248,6 +2580,7 @@ export function getSessionVerificationGuide(
       baseUrl,
       query: {
         source: options.source,
+        sandbox: options.sandbox,
       },
     }
   );
@@ -2941,6 +3274,121 @@ export async function getPlanningBullets(
   });
 
   return normalizePlanningBulletsResponse(payload);
+}
+
+export async function getPlanningObsidianStatus(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<ObsidianPlanningStatusResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/obsidian/status', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizeObsidianPlanningStatusResponse(payload);
+}
+
+export async function listPlanningObsidianNotes(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<ObsidianPlanningNotesResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/obsidian/notes', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizeObsidianPlanningNotesResponse(payload);
+}
+
+export async function getPlanningObsidianNote(
+  noteId: string,
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<ObsidianPlanningNoteResponse> {
+  const payload = await apiRequest<unknown>(`/api/planning/obsidian/notes/${encodeURIComponent(noteId)}`, {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizeObsidianPlanningNoteResponse(payload);
+}
+
+export async function triggerPlanningObsidianSync(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<ObsidianPlanningSyncResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/obsidian/sync', {
+    baseUrl,
+    method: 'POST',
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizeObsidianPlanningSyncResponse(payload);
+}
+
+export async function getPlanningObsidianRepresentationsStatus(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<ObsidianPlanningRepresentationsStatusResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/obsidian/representations/status', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizeObsidianPlanningRepresentationsStatusResponse(payload);
+}
+
+export async function listPlanningObsidianRepresentations(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<ObsidianPlanningRepresentationsResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/obsidian/representations', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizeObsidianPlanningRepresentationsResponse(payload);
+}
+
+export async function refreshPlanningObsidianRepresentations(
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string
+): Promise<ObsidianPlanningRepresentationsRefreshResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/obsidian/representations/refresh', {
+    baseUrl,
+    method: 'POST',
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizeObsidianPlanningRepresentationsRefreshResponse(payload);
 }
 
 export async function getPlanningBacklog(

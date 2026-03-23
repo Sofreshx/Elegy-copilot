@@ -20,6 +20,7 @@ import PlanningIdeasPanel from './PlanningIdeasPanel';
 import PlanningPathActions from './PlanningPathActions';
 import { planningStore } from './planningStore';
 import { planningWorkspaceStore } from './planningWorkspaceStore';
+import ObsidianNotesPanel from './ObsidianNotesPanel';
 import ResearchNotesPanel from './ResearchNotesPanel';
 
 function normalizeCatalogRepoEntry(repo: unknown) {
@@ -69,6 +70,17 @@ function resolveCatalogRepoContext(catalogState: ReturnType<typeof catalogWorksp
     ?? null
   );
 }
+
+type NormalizedCatalogRepoEntry = NonNullable<ReturnType<typeof normalizeCatalogRepoEntry>>;
+
+type SeedablePlanningArtifact =
+  | PlanningIntakeArtifact
+  | {
+    id: string;
+    title: string;
+    promotedPlanRefs?: string[];
+    [key: string]: unknown;
+  };
 
 const INTAKE_FILTER_ALL: PlanningIntakeTrackerFilterValue = '__all__';
 const INTAKE_FILTER_NONE: PlanningIntakeTrackerFilterValue = '__none__';
@@ -572,7 +584,9 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
   const selectedCatalogRepo = useMemo(() => resolveCatalogRepoContext(catalogState), [catalogState]);
   const knownCatalogRepos = useMemo(() => {
     const repos = Array.isArray(catalogState.repoInventory?.repos) ? catalogState.repoInventory.repos : [];
-    return repos.map((repo) => normalizeCatalogRepoEntry(repo)).filter(Boolean) as Array<ReturnType<typeof normalizeCatalogRepoEntry>>;
+    return repos
+      .map((repo) => normalizeCatalogRepoEntry(repo))
+      .filter((repo): repo is NormalizedCatalogRepoEntry => repo !== null);
   }, [catalogState.repoInventory?.repos]);
   const selectedRoadmap =
     planningWorkspaceState.roadmaps.find((roadmap) => roadmap.slug === planningWorkspaceState.selectedRoadmapSlug)
@@ -605,6 +619,8 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
         planningWorkspaceStore.loadIntakeArtifacts(),
         planningWorkspaceStore.loadBacklog(),
         planningWorkspaceStore.loadRoadmaps(),
+        planningWorkspaceStore.loadObsidianNotes(),
+        planningWorkspaceStore.loadObsidianRepresentations(),
       ]);
     }
   }, [
@@ -769,7 +785,7 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
   const sectionCopy: Record<PlanningSection, { title: string; body: string }> = {
     plans: {
       title: 'Plans',
-      body: 'Author or reopen one-session plan.md artifacts, then jump into local sessions when you are ready to execute.',
+      body: 'Author or reopen one-session plan.md artifacts, while the Planning Obsidian panel surfaces both external notes and deterministic non-canonical mirrors of canonical bullets and roadmaps for the selected repo.',
     },
     bullets: {
       title: 'Bullets',
@@ -785,7 +801,7 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     },
   };
 
-  const seedPlanFromArtifact = async (artifact: Record<string, unknown> & { id: string; title: string }): Promise<void> => {
+  const seedPlanFromArtifact = async (artifact: SeedablePlanningArtifact): Promise<void> => {
     const sessionId = await planningStore.savePlanDraft({
       title: planningState.planTitleDraft || artifact.title,
       seedArtifact: artifact,
@@ -814,6 +830,8 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
         planningWorkspaceStore.loadIntakeArtifacts(),
         planningWorkspaceStore.loadBacklog(),
         planningWorkspaceStore.loadRoadmaps(),
+        planningWorkspaceStore.loadObsidianNotes(),
+        planningWorkspaceStore.loadObsidianRepresentations(),
       );
     }
 
@@ -994,6 +1012,39 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
             planTitleDraft={planningState.planTitleDraft}
             selectedCatalogRepoId={selectedCatalogRepo?.repoId || ''}
             selectedCatalogRepoLabel={selectedCatalogRepo?.repoLabel || ''}
+          />
+
+          <ObsidianNotesPanel
+            detailLoading={planningWorkspaceState.obsidianDetailLoading}
+            error={planningWorkspaceState.obsidianError}
+            loading={planningWorkspaceState.obsidianLoading}
+            notes={planningWorkspaceState.obsidianNotes}
+            representations={planningWorkspaceState.obsidianRepresentations}
+            representationsLoading={planningWorkspaceState.obsidianRepresentationsLoading}
+            representationsRefreshing={planningWorkspaceState.obsidianRepresentationsRefreshing}
+            representationsStatus={planningWorkspaceState.obsidianRepresentationsStatus}
+            onManualSync={() => {
+              void planningWorkspaceStore.syncObsidianNotes();
+            }}
+            onRefreshRepresentations={() => {
+              void planningWorkspaceStore.refreshObsidianRepresentationsInVault();
+            }}
+            onRefresh={() => {
+              void Promise.allSettled([
+                planningWorkspaceStore.loadObsidianNotes(),
+                planningWorkspaceStore.loadObsidianRepresentations(),
+              ]);
+            }}
+            onSeedPlan={(note) => {
+              void seedPlanFromArtifact(note);
+            }}
+            onSelectNote={(noteId) => {
+              void planningWorkspaceStore.loadObsidianNote(noteId);
+            }}
+            selectedNote={planningWorkspaceState.selectedObsidianNote}
+            selectedNoteId={planningWorkspaceState.selectedObsidianNoteId}
+            status={planningWorkspaceState.obsidianStatus}
+            syncing={planningWorkspaceState.obsidianSyncing}
           />
 
           <PlanningPersistencePanel

@@ -1,6 +1,6 @@
 ---
 name: o-planner
-description: "Planning subagent for the Orchestrator. Successor to the legacy Elegy planner lane; produces plan packs (2-file Markdown state) from enriched briefs. Leaf agent — never calls subagents."
+description: "Planning subagent for the Orchestrator. Successor to the legacy Elegy planner lane; produces plan pack + progress tracker markdown aligned to the canonical single `plan.md` persisted shape. Leaf agent — never calls subagents."
 tools: [read, search]
 user-invocable: false
 disable-model-invocation: false
@@ -33,6 +33,7 @@ Produce actionable plan packs from enriched briefs. Called by `@orchestrator` on
 - High-level goal bullets must use only canonical completion states: `complete`, `partial`, `not-complete`.
 - For fresh plans, default high-level goals to `not-complete`; use `partial` only when carrying forward in-flight progress.
 - The returned `Progress Tracker` must make the next execution step obvious: include active group, next unit, blockers, and current replan count if known.
+- When a persisted workflow writes the result, the two returned documents become the two top-level markdown documents inside one canonical `plan.md` artifact.
 
 Load `planpack-authoring` skill for plan-pack schema, progress tracker format, required sections, quality gate, and WU sizing rules.
 
@@ -41,7 +42,7 @@ Load `planpack-authoring` skill for plan-pack schema, progress tracker format, r
 2. **Draft high-level goals** — explicit outcome bullets with canonical completion-state wording.
 3. **Decompose** into work units — ordered groups with dependencies.
 4. **Write WU specs** — per `planpack-authoring` schema (context, AC, approach, files, validation, risks).
-5. **Produce** plan pack + progress tracker — per `planpack-authoring` required sections.
+5. **Produce** plan pack + progress tracker — per `planpack-authoring` required sections and the canonical single-`plan.md` persisted layout.
 
 ## Planning Depth
 - **Lightweight** (bugfix, ad-hoc): 1-3 WUs, 1 group, minimal risk assessment.

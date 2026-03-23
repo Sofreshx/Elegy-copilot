@@ -39,14 +39,24 @@ Return **exactly one** brief using this schema (fenced YAML). Keep it concise an
 ```yaml
 classification: trivial|standard|complex|uncertain
 type: feature|bugfix|refactor|testing|review|research|docs|ad-hoc
+intent_summary: <one short sentence describing the user's immediate intent>
 scope:
   - <impacted area: folder, subsystem, component, service>  # 3-8 items
+scope_edges:
+  in:
+    - <explicitly in scope item>
+  out:
+    - <explicitly out of scope item or NONE>
 ambiguities:
   - <question the orchestrator should ask>  # 0-6 items
+completion_signals:
+  - <observable condition that would indicate the request is done>
 risks:
   level: low|medium|high
   rationale:
     - <why risky / what could go wrong>
+limitations_or_carryover_hints:
+  - <limits, resumability hints, carryover signals, or future follow-up cues>  # optional
 suggested_next_steps:
   - <agent-to-call>  # orchestrator chooses; you only recommend
 notes:

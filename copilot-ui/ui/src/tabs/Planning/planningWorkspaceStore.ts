@@ -3,12 +3,19 @@ import {
   createPlanningBullet,
   getPlanningBacklog,
   getPlanningBullets,
+  getPlanningObsidianNote,
+  getPlanningObsidianRepresentationsStatus,
+  getPlanningObsidianStatus,
   buildPlanningIntakeDirectoryRef,
   buildPlanningBulletsFileRef,
   buildPlanningRepositoryBacklogRef,
   buildPlanningRoadmapDirectoryRef,
   getPlanningIntakeArtifacts,
+  listPlanningObsidianNotes,
+  listPlanningObsidianRepresentations,
   getPlanningRoadmaps,
+  refreshPlanningObsidianRepresentations,
+  triggerPlanningObsidianSync,
   updatePlanningBullet,
 } from '../../lib/api';
 import { createStore } from '../../lib/store';
@@ -18,6 +25,11 @@ import type {
   PlanningBulletFileRef,
   PlanningBulletsSummary,
   CatalogRepoInventoryEntry,
+  ObsidianPlanningNoteDetail,
+  ObsidianPlanningNoteSummary,
+  ObsidianPlanningRepresentationSummary,
+  ObsidianPlanningRepresentationsStatus,
+  ObsidianPlanningStatus,
   PlanningIntakeArtifact,
   PlanningIntakeDirectoryRef,
   PlanningIntakeSummary,
@@ -48,6 +60,12 @@ export interface PlanningWorkspaceState {
   roadmapDirectory: PlanningRoadmapDirectoryRef | null;
   roadmaps: PlanningRoadmap[];
   selectedRoadmapSlug: string;
+  obsidianStatus: ObsidianPlanningStatus | null;
+  obsidianNotes: ObsidianPlanningNoteSummary[];
+  obsidianRepresentationsStatus: ObsidianPlanningRepresentationsStatus | null;
+  obsidianRepresentations: ObsidianPlanningRepresentationSummary[];
+  selectedObsidianNoteId: string;
+  selectedObsidianNote: ObsidianPlanningNoteDetail | null;
   bulletsLoading: boolean;
   bulletsError: string | null;
   intakeLoading: boolean;
@@ -55,6 +73,12 @@ export interface PlanningWorkspaceState {
   backlogLoading: boolean;
   backlogError: string | null;
   roadmapsLoading: boolean;
+  obsidianLoading: boolean;
+  obsidianDetailLoading: boolean;
+  obsidianSyncing: boolean;
+  obsidianRepresentationsLoading: boolean;
+  obsidianRepresentationsRefreshing: boolean;
+  obsidianError: string | null;
   loading: boolean;
   error: string | null;
 }
@@ -79,6 +103,12 @@ const INITIAL_STATE: PlanningWorkspaceState = {
   roadmapDirectory: null,
   roadmaps: [],
   selectedRoadmapSlug: '',
+  obsidianStatus: null,
+  obsidianNotes: [],
+  obsidianRepresentationsStatus: null,
+  obsidianRepresentations: [],
+  selectedObsidianNoteId: '',
+  selectedObsidianNote: null,
   bulletsLoading: false,
   bulletsError: null,
   intakeLoading: false,
@@ -86,6 +116,12 @@ const INITIAL_STATE: PlanningWorkspaceState = {
   backlogLoading: false,
   backlogError: null,
   roadmapsLoading: false,
+  obsidianLoading: false,
+  obsidianDetailLoading: false,
+  obsidianSyncing: false,
+  obsidianRepresentationsLoading: false,
+  obsidianRepresentationsRefreshing: false,
+  obsidianError: null,
   loading: false,
   error: null,
 };
@@ -96,6 +132,27 @@ function toErrorMessage(error: unknown, fallback: string): string {
   }
 
   return fallback;
+}
+
+function computeWorkspaceLoading(state: Pick<
+  PlanningWorkspaceState,
+  'bulletsLoading'
+  | 'intakeLoading'
+  | 'backlogLoading'
+  | 'roadmapsLoading'
+  | 'obsidianLoading'
+  | 'obsidianDetailLoading'
+  | 'obsidianRepresentationsLoading'
+>): boolean {
+  return Boolean(
+    state.bulletsLoading
+    || state.intakeLoading
+    || state.backlogLoading
+    || state.roadmapsLoading
+    || state.obsidianLoading
+    || state.obsidianDetailLoading
+    || state.obsidianRepresentationsLoading
+  );
 }
 
 function normalizeCatalogRepoContext(
@@ -132,12 +189,28 @@ export function createPlanningWorkspaceStore() {
   let intakeRequestVersion = 0;
   let bulletsRequestVersion = 0;
   let backlogRequestVersion = 0;
+  let obsidianRequestVersion = 0;
+  let obsidianDetailRequestVersion = 0;
+  let obsidianRepresentationsRequestVersion = 0;
+
+  function invalidateRepoScopedRequests(): void {
+    roadmapsRequestVersion += 1;
+    intakeRequestVersion += 1;
+    bulletsRequestVersion += 1;
+    backlogRequestVersion += 1;
+    obsidianRequestVersion += 1;
+    obsidianDetailRequestVersion += 1;
+    obsidianRepresentationsRequestVersion += 1;
+  }
 
   function syncCatalogRepoContext(repo: Partial<CatalogRepoInventoryEntry> | null | undefined): void {
     const catalogRepoContext = normalizeCatalogRepoContext(repo);
     const previousRepoPath = store.getState().catalogRepoContext?.repoPath || '';
     const nextRepoPath = catalogRepoContext?.repoPath || '';
     const preserveRepoData = Boolean(previousRepoPath && previousRepoPath === nextRepoPath);
+    if (!preserveRepoData) {
+      invalidateRepoScopedRequests();
+    }
     const planningBulletsFile = buildPlanningBulletsFileRef({
       repoId: catalogRepoContext?.repoId || undefined,
       repoPath: catalogRepoContext?.repoPath || undefined,
@@ -174,10 +247,36 @@ export function createPlanningWorkspaceStore() {
       roadmapDirectory,
       roadmaps: preserveRepoData ? state.roadmaps : [],
       selectedRoadmapSlug: preserveRepoData ? state.selectedRoadmapSlug : '',
+      obsidianStatus: preserveRepoData ? state.obsidianStatus : null,
+      obsidianNotes: preserveRepoData ? state.obsidianNotes : [],
+      obsidianRepresentationsStatus: preserveRepoData ? state.obsidianRepresentationsStatus : null,
+      obsidianRepresentations: preserveRepoData ? state.obsidianRepresentations : [],
+      selectedObsidianNoteId: preserveRepoData ? state.selectedObsidianNoteId : '',
+      selectedObsidianNote: preserveRepoData ? state.selectedObsidianNote : null,
+      bulletsLoading: preserveRepoData ? state.bulletsLoading : false,
+      intakeLoading: preserveRepoData ? state.intakeLoading : false,
+      backlogLoading: preserveRepoData ? state.backlogLoading : false,
+      roadmapsLoading: preserveRepoData ? state.roadmapsLoading : false,
+      obsidianLoading: preserveRepoData ? state.obsidianLoading : false,
+      obsidianDetailLoading: preserveRepoData ? state.obsidianDetailLoading : false,
+      obsidianSyncing: preserveRepoData ? state.obsidianSyncing : false,
+      obsidianRepresentationsLoading: preserveRepoData ? state.obsidianRepresentationsLoading : false,
+      obsidianRepresentationsRefreshing: preserveRepoData ? state.obsidianRepresentationsRefreshing : false,
       bulletsError: null,
       intakeError: null,
       backlogError: null,
+      obsidianError: null,
       error: null,
+      loading: computeWorkspaceLoading({
+        ...state,
+        bulletsLoading: preserveRepoData ? state.bulletsLoading : false,
+        intakeLoading: preserveRepoData ? state.intakeLoading : false,
+        backlogLoading: preserveRepoData ? state.backlogLoading : false,
+        roadmapsLoading: preserveRepoData ? state.roadmapsLoading : false,
+        obsidianLoading: preserveRepoData ? state.obsidianLoading : false,
+        obsidianDetailLoading: preserveRepoData ? state.obsidianDetailLoading : false,
+        obsidianRepresentationsLoading: preserveRepoData ? state.obsidianRepresentationsLoading : false,
+      }),
     }));
   }
 
@@ -194,7 +293,7 @@ export function createPlanningWorkspaceStore() {
         bulletsSummary: null,
         bullets: [],
         bulletsLoading: false,
-        loading: state.intakeLoading || state.roadmapsLoading || state.backlogLoading,
+        loading: computeWorkspaceLoading({ ...state, bulletsLoading: false }),
         bulletsError: null,
       }));
       return;
@@ -203,7 +302,7 @@ export function createPlanningWorkspaceStore() {
     store.setState((state) => ({
       ...state,
       bulletsLoading: true,
-      loading: true,
+      loading: computeWorkspaceLoading({ ...state, bulletsLoading: true }),
       bulletsError: null,
     }));
 
@@ -224,7 +323,7 @@ export function createPlanningWorkspaceStore() {
           bulletsSummary: response.bullets,
           bullets: response.artifacts,
           bulletsLoading: false,
-          loading: state.intakeLoading || state.roadmapsLoading || state.backlogLoading,
+          loading: computeWorkspaceLoading({ ...state, bulletsLoading: false }),
           bulletsError: null,
         };
       });
@@ -241,7 +340,7 @@ export function createPlanningWorkspaceStore() {
           bulletsSummary: null,
           bullets: [],
           bulletsLoading: false,
-          loading: state.intakeLoading || state.roadmapsLoading || state.backlogLoading,
+          loading: computeWorkspaceLoading({ ...state, bulletsLoading: false }),
           bulletsError: message,
         };
       });
@@ -261,7 +360,7 @@ export function createPlanningWorkspaceStore() {
         intakeSummary: null,
         intakeArtifacts: [],
         intakeLoading: false,
-        loading: state.bulletsLoading || state.roadmapsLoading || state.backlogLoading,
+        loading: computeWorkspaceLoading({ ...state, intakeLoading: false }),
         intakeError: null,
       }));
       return;
@@ -270,7 +369,7 @@ export function createPlanningWorkspaceStore() {
     store.setState((state) => ({
       ...state,
       intakeLoading: true,
-      loading: true,
+      loading: computeWorkspaceLoading({ ...state, intakeLoading: true }),
       intakeError: null,
     }));
 
@@ -291,7 +390,7 @@ export function createPlanningWorkspaceStore() {
           intakeSummary: response.intake,
           intakeArtifacts: response.artifacts,
           intakeLoading: false,
-          loading: state.bulletsLoading || state.roadmapsLoading || state.backlogLoading,
+          loading: computeWorkspaceLoading({ ...state, intakeLoading: false }),
           intakeError: null,
         };
       });
@@ -308,7 +407,7 @@ export function createPlanningWorkspaceStore() {
           intakeSummary: null,
           intakeArtifacts: [],
           intakeLoading: false,
-          loading: state.bulletsLoading || state.roadmapsLoading || state.backlogLoading,
+          loading: computeWorkspaceLoading({ ...state, intakeLoading: false }),
           intakeError: message,
         };
       });
@@ -326,7 +425,7 @@ export function createPlanningWorkspaceStore() {
         ...state,
         backlogSummary: null,
         backlogLoading: false,
-        loading: state.bulletsLoading || state.intakeLoading || state.roadmapsLoading,
+        loading: computeWorkspaceLoading({ ...state, backlogLoading: false }),
         backlogError: null,
       }));
       return;
@@ -335,7 +434,7 @@ export function createPlanningWorkspaceStore() {
     store.setState((state) => ({
       ...state,
       backlogLoading: true,
-      loading: true,
+      loading: computeWorkspaceLoading({ ...state, backlogLoading: true }),
       backlogError: null,
     }));
 
@@ -354,7 +453,7 @@ export function createPlanningWorkspaceStore() {
           ...state,
           backlogSummary: response.backlog,
           backlogLoading: false,
-          loading: state.bulletsLoading || state.intakeLoading || state.roadmapsLoading,
+          loading: computeWorkspaceLoading({ ...state, backlogLoading: false }),
           backlogError: null,
         };
       });
@@ -370,7 +469,7 @@ export function createPlanningWorkspaceStore() {
           ...state,
           backlogSummary: null,
           backlogLoading: false,
-          loading: state.bulletsLoading || state.intakeLoading || state.roadmapsLoading,
+          loading: computeWorkspaceLoading({ ...state, backlogLoading: false }),
           backlogError: message,
         };
       });
@@ -390,7 +489,7 @@ export function createPlanningWorkspaceStore() {
         roadmaps: [],
         selectedRoadmapSlug: '',
         roadmapsLoading: false,
-        loading: state.bulletsLoading || state.intakeLoading || state.backlogLoading,
+        loading: computeWorkspaceLoading({ ...state, roadmapsLoading: false }),
         error: null,
       }));
       return;
@@ -399,7 +498,7 @@ export function createPlanningWorkspaceStore() {
     store.setState((state) => ({
       ...state,
       roadmapsLoading: true,
-      loading: true,
+      loading: computeWorkspaceLoading({ ...state, roadmapsLoading: true }),
       error: null,
     }));
 
@@ -426,7 +525,7 @@ export function createPlanningWorkspaceStore() {
           roadmaps: response.roadmaps,
           selectedRoadmapSlug,
           roadmapsLoading: false,
-          loading: state.bulletsLoading || state.intakeLoading || state.backlogLoading,
+          loading: computeWorkspaceLoading({ ...state, roadmapsLoading: false }),
           error: null,
         };
       });
@@ -443,10 +542,378 @@ export function createPlanningWorkspaceStore() {
           roadmaps: [],
           selectedRoadmapSlug: '',
           roadmapsLoading: false,
-          loading: state.bulletsLoading || state.intakeLoading || state.backlogLoading,
+          loading: computeWorkspaceLoading({ ...state, roadmapsLoading: false }),
           error: message,
         };
       });
+    }
+  }
+
+  async function loadObsidianNote(noteId?: string): Promise<void> {
+    const selectedNoteId = String(noteId || '').trim();
+    const nextVersion = ++obsidianDetailRequestVersion;
+    const stateSnapshot = store.getState();
+    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+
+    if (!repoPath || !selectedNoteId) {
+      store.setState((state) => ({
+        ...state,
+        selectedObsidianNote: null,
+        obsidianDetailLoading: false,
+        loading: computeWorkspaceLoading({ ...state, obsidianDetailLoading: false }),
+        obsidianError: null,
+      }));
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      selectedObsidianNoteId: selectedNoteId,
+      selectedObsidianNote:
+        state.selectedObsidianNote && state.selectedObsidianNote.id === selectedNoteId
+          ? state.selectedObsidianNote
+          : null,
+      obsidianDetailLoading: true,
+      loading: computeWorkspaceLoading({ ...state, obsidianDetailLoading: true }),
+      obsidianError: null,
+    }));
+
+    try {
+      const response = await getPlanningObsidianNote(selectedNoteId, {
+        repoId: repoId || undefined,
+        repoPath,
+        repoLabel: repoLabel || undefined,
+      });
+
+      store.setState((state) => {
+        if (nextVersion !== obsidianDetailRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          obsidianStatus: response.status,
+          selectedObsidianNote: response.note,
+          obsidianDetailLoading: false,
+          loading: computeWorkspaceLoading({ ...state, obsidianDetailLoading: false }),
+          obsidianError: null,
+        };
+      });
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to load the selected external Obsidian note.');
+
+      store.setState((state) => {
+        if (nextVersion !== obsidianDetailRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          selectedObsidianNote: null,
+          obsidianDetailLoading: false,
+          loading: computeWorkspaceLoading({ ...state, obsidianDetailLoading: false }),
+          obsidianError: message,
+        };
+      });
+    }
+  }
+
+  async function loadObsidianNotes(): Promise<void> {
+    const nextVersion = ++obsidianRequestVersion;
+    const stateSnapshot = store.getState();
+    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        obsidianStatus: null,
+        obsidianNotes: [],
+        obsidianRepresentationsStatus: null,
+        obsidianRepresentations: [],
+        selectedObsidianNoteId: '',
+        selectedObsidianNote: null,
+        obsidianLoading: false,
+        obsidianDetailLoading: false,
+        obsidianSyncing: false,
+        obsidianRepresentationsLoading: false,
+        loading: computeWorkspaceLoading({
+          ...state,
+          obsidianLoading: false,
+          obsidianDetailLoading: false,
+          obsidianRepresentationsLoading: false,
+        }),
+        obsidianError: null,
+      }));
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      obsidianLoading: true,
+      loading: computeWorkspaceLoading({ ...state, obsidianLoading: true }),
+      obsidianError: null,
+    }));
+
+    try {
+      const [statusResponse, notesResponse] = await Promise.all([
+        getPlanningObsidianStatus({
+          repoId: repoId || undefined,
+          repoPath,
+          repoLabel: repoLabel || undefined,
+        }),
+        listPlanningObsidianNotes({
+          repoId: repoId || undefined,
+          repoPath,
+          repoLabel: repoLabel || undefined,
+        }),
+      ]);
+
+      let nextSelectedNoteId = '';
+      store.setState((state) => {
+        if (nextVersion !== obsidianRequestVersion) {
+          return state;
+        }
+
+        nextSelectedNoteId =
+          (state.selectedObsidianNoteId
+            && notesResponse.notes.some((entry) => entry.id === state.selectedObsidianNoteId)
+            ? state.selectedObsidianNoteId
+            : (notesResponse.notes[0]?.id ?? ''));
+
+        return {
+          ...state,
+          obsidianStatus: notesResponse.status || statusResponse.status,
+          obsidianNotes: notesResponse.notes,
+          selectedObsidianNoteId: nextSelectedNoteId,
+          selectedObsidianNote:
+            state.selectedObsidianNote && state.selectedObsidianNote.id === nextSelectedNoteId
+              ? state.selectedObsidianNote
+              : null,
+          obsidianLoading: false,
+          loading: computeWorkspaceLoading({ ...state, obsidianLoading: false }),
+          obsidianError: null,
+        };
+      });
+
+      const latestState = store.getState();
+      const repoContextUnchanged =
+        latestState.catalogRepoContext?.repoPath === repoPath
+        && (latestState.catalogRepoContext?.repoId || '') === repoId
+        && (latestState.catalogRepoContext?.repoLabel || '') === repoLabel;
+
+      if (nextSelectedNoteId && nextVersion === obsidianRequestVersion && repoContextUnchanged) {
+        await loadObsidianNote(nextSelectedNoteId);
+      } else if (nextVersion === obsidianRequestVersion && repoContextUnchanged) {
+        store.setState((state) => ({
+          ...state,
+          selectedObsidianNote: null,
+          obsidianDetailLoading: false,
+          loading: computeWorkspaceLoading({ ...state, obsidianDetailLoading: false }),
+        }));
+      }
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to load external Obsidian notes.');
+
+      store.setState((state) => {
+        if (nextVersion !== obsidianRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          obsidianStatus: null,
+          obsidianNotes: [],
+          obsidianRepresentationsStatus: null,
+          obsidianRepresentations: [],
+          selectedObsidianNoteId: '',
+          selectedObsidianNote: null,
+          obsidianLoading: false,
+          obsidianDetailLoading: false,
+          obsidianSyncing: false,
+          obsidianRepresentationsLoading: false,
+          loading: computeWorkspaceLoading({
+            ...state,
+            obsidianLoading: false,
+            obsidianDetailLoading: false,
+            obsidianRepresentationsLoading: false,
+          }),
+          obsidianError: message,
+        };
+      });
+    }
+  }
+
+  async function loadObsidianRepresentations(): Promise<void> {
+    const nextVersion = ++obsidianRepresentationsRequestVersion;
+    const stateSnapshot = store.getState();
+    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        obsidianRepresentationsStatus: null,
+        obsidianRepresentations: [],
+        obsidianRepresentationsLoading: false,
+        loading: computeWorkspaceLoading({ ...state, obsidianRepresentationsLoading: false }),
+        obsidianError: null,
+      }));
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      obsidianRepresentationsLoading: true,
+      loading: computeWorkspaceLoading({ ...state, obsidianRepresentationsLoading: true }),
+      obsidianError: null,
+    }));
+
+    try {
+      const [statusResponse, listResponse] = await Promise.all([
+        getPlanningObsidianRepresentationsStatus({
+          repoId: repoId || undefined,
+          repoPath,
+          repoLabel: repoLabel || undefined,
+        }),
+        listPlanningObsidianRepresentations({
+          repoId: repoId || undefined,
+          repoPath,
+          repoLabel: repoLabel || undefined,
+        }),
+      ]);
+
+      store.setState((state) => {
+        if (nextVersion !== obsidianRepresentationsRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          obsidianRepresentationsStatus: listResponse.representationsStatus || statusResponse.representationsStatus,
+          obsidianRepresentations: listResponse.representations,
+          obsidianRepresentationsLoading: false,
+          loading: computeWorkspaceLoading({ ...state, obsidianRepresentationsLoading: false }),
+          obsidianError: null,
+        };
+      });
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to load Obsidian planning mirrors.');
+      store.setState((state) => {
+        if (nextVersion !== obsidianRepresentationsRequestVersion) {
+          return state;
+        }
+
+        return {
+          ...state,
+          obsidianRepresentationsStatus: null,
+          obsidianRepresentations: [],
+          obsidianRepresentationsLoading: false,
+          loading: computeWorkspaceLoading({ ...state, obsidianRepresentationsLoading: false }),
+          obsidianError: message,
+        };
+      });
+    }
+  }
+
+  async function syncObsidianNotes(): Promise<void> {
+    const stateSnapshot = store.getState();
+    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        obsidianError: 'Select a Catalog repo before syncing Obsidian notes.',
+      }));
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      obsidianSyncing: true,
+      obsidianError: null,
+    }));
+
+    try {
+      const response = await triggerPlanningObsidianSync({
+        repoId: repoId || undefined,
+        repoPath,
+        repoLabel: repoLabel || undefined,
+      });
+
+      store.setState((state) => ({
+        ...state,
+        obsidianStatus: response.status,
+        obsidianError: null,
+      }));
+
+      await loadObsidianNotes();
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to sync external Obsidian notes.');
+      store.setState((state) => ({
+        ...state,
+        obsidianError: message,
+      }));
+    } finally {
+      store.setState((state) => ({
+        ...state,
+        obsidianSyncing: false,
+      }));
+    }
+  }
+
+  async function refreshObsidianRepresentationsInVault(): Promise<void> {
+    const stateSnapshot = store.getState();
+    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        obsidianError: 'Select a Catalog repo before refreshing Obsidian planning mirrors.',
+      }));
+      return;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      obsidianRepresentationsRefreshing: true,
+      obsidianError: null,
+    }));
+
+    try {
+      const response = await refreshPlanningObsidianRepresentations({
+        repoId: repoId || undefined,
+        repoPath,
+        repoLabel: repoLabel || undefined,
+      });
+
+      store.setState((state) => ({
+        ...state,
+        obsidianRepresentationsStatus: response.representationsStatus,
+        obsidianRepresentations: response.representations,
+        obsidianError: null,
+      }));
+
+      await loadObsidianNotes();
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to refresh Obsidian planning mirrors.');
+      store.setState((state) => ({
+        ...state,
+        obsidianError: message,
+      }));
+    } finally {
+      store.setState((state) => ({
+        ...state,
+        obsidianRepresentationsRefreshing: false,
+      }));
     }
   }
 
@@ -626,6 +1093,11 @@ export function createPlanningWorkspaceStore() {
     loadIntakeArtifacts,
     loadBacklog,
     loadRoadmaps,
+    loadObsidianNotes,
+    loadObsidianRepresentations,
+    loadObsidianNote,
+    syncObsidianNotes,
+    refreshObsidianRepresentationsInVault,
     createBullet,
     patchBullet,
     promoteBulletToBacklog,

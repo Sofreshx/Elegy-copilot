@@ -20,6 +20,8 @@ const {
 const sessionArtifactsLib = require('../lib/sessionArtifacts');
 const { sendJson: defaultSendJson, sendText: defaultSendText, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
+const SANDBOX_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/;
+
 function parseNumberQuery(searchParams, key, defaultValue) {
   const v = searchParams.get(key);
   if (v == null || v === '') return defaultValue;
@@ -35,6 +37,48 @@ function resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome) {
   return { source: 'cli', home: copilotHome };
 }
 
+function resolveSessionRequestHome(ctx, deps, source) {
+  const { u, copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const { resolveSessionsHome, path } = deps;
+  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
+  if (home.source !== 'sandbox') {
+    return home;
+  }
+
+  const sandboxId = normalizeString(u && u.searchParams ? u.searchParams.get('sandbox') : '');
+  if (!sandboxId) {
+    const error = new Error('Missing sandbox id');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!SANDBOX_ID_PATTERN.test(sandboxId)) {
+    const error = new Error('sandboxId must use only alphanumeric and hyphen characters');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const sandboxHome = normalizeString(home.home);
+  if (!sandboxHome) {
+    const error = new Error('Sandbox root is unavailable on the server.');
+    error.statusCode = 503;
+    throw error;
+  }
+
+  return {
+    ...home,
+    sandbox: sandboxId,
+    home: path.resolve(sandboxHome, sandboxId),
+  };
+}
+
+function resolveSessionRequestDir(ctx, deps, id, source) {
+  const home = resolveSessionRequestHome(ctx, deps, source);
+  return {
+    home,
+    sessionDir: deps.path.join(deps.path.resolve(home.home), 'session-state', id),
+  };
+}
+
 function isValidSessionId(id) {
   if (typeof id !== 'string' || id.length === 0 || id.length > 256) return false;
   if (id.includes('..') || id.includes('/') || id.includes('\\')) return false;
@@ -47,6 +91,35 @@ function ensureDir(p) {
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+const TERMINAL_EXECUTION_STATE_TOKENS = new Set([
+  'aborted',
+  'canceled',
+  'cancelled',
+  'closed',
+  'complete',
+  'completed',
+  'done',
+  'error',
+  'failed',
+  'finished',
+  'stopped',
+  'terminated',
+]);
+
+function isTerminalExecutionState(executionState) {
+  if (!executionState || typeof executionState !== 'object') {
+    return false;
+  }
+
+  const lifecycle = normalizeString(executionState.lifecycle).toLowerCase();
+  const status = normalizeString(executionState.status).toLowerCase();
+  return TERMINAL_EXECUTION_STATE_TOKENS.has(lifecycle) || TERMINAL_EXECUTION_STATE_TOKENS.has(status);
+}
+
+function hasCompatibilityFinalCloseoutEvidence(executionState) {
+  return isTerminalExecutionState(executionState);
 }
 
 function normalizePlanContent(value) {
@@ -185,10 +258,13 @@ function handleSessionEvents(ctx, deps) {
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const limit = Math.max(1, Math.min(500, Math.floor(parseNumberQuery(u.searchParams, 'limit', 20))));
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
-  const events = sessions.readRecentEvents(sessionDir, limit);
-  sendJson(res, 200, { id, source: home.source, events });
+  try {
+    const { home, sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
+    const events = sessions.readRecentEvents(sessionDir, limit);
+    sendJson(res, 200, { id, source: home.source, events });
+  } catch (e) {
+    sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source });
+  }
 }
 
 function handleSessionAgentUsage(ctx, deps) {
@@ -207,15 +283,18 @@ function handleSessionAgentUsage(ctx, deps) {
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const limit = Math.max(1, Math.min(500, Math.floor(parseNumberQuery(u.searchParams, 'limit', 500))));
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
-  const usage = sessions.getAgentUsage(sessionDir, limit);
-  const skillUsage = assetInvocationAudit.getSessionSkillUsageSummary({
-    copilotHome: path.resolve(home.home),
-    sessionId: id,
-    limit: Math.max(limit * 4, 200),
-  });
-  sendJson(res, 200, { id, source: home.source, usage, skillUsage });
+  try {
+    const { home, sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
+    const usage = sessions.getAgentUsage(sessionDir, limit);
+    const skillUsage = assetInvocationAudit.getSessionSkillUsageSummary({
+      copilotHome: path.resolve(home.home),
+      sessionId: id,
+      limit: Math.max(limit * 4, 200),
+    });
+    sendJson(res, 200, { id, source: home.source, usage, skillUsage });
+  } catch (e) {
+    sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source });
+  }
 }
 
 function handleSessionPlan(ctx, deps) {
@@ -225,14 +304,18 @@ function handleSessionPlan(ctx, deps) {
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const planPath = path.join(path.resolve(home.home), 'session-state', id, 'plan.md');
-  const text = assets.readTextFileSafe(planPath, 512 * 1024);
-  if (text == null) {
+  try {
+    const { sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
+    const planPath = path.join(sessionDir, 'plan.md');
+    const text = assets.readTextFileSafe(planPath, 512 * 1024);
+    if (text == null) {
+      sendText(res, 404, 'Not found');
+      return;
+    }
+    sendText(res, 200, text, 'text/plain; charset=utf-8');
+  } catch {
     sendText(res, 404, 'Not found');
-    return;
   }
-  sendText(res, 200, text, 'text/plain; charset=utf-8');
 }
 
 function handleSessionPlanMutation(ctx, deps) {
@@ -240,7 +323,6 @@ function handleSessionPlanMutation(ctx, deps) {
   const {
     sendJson,
     readJsonBody,
-    resolveSessionsHome,
     isValidSessionId,
     ensureDir,
     fs,
@@ -252,7 +334,7 @@ function handleSessionPlanMutation(ctx, deps) {
     .then((body) => {
       const requestBody = body && typeof body === 'object' ? body : {};
       const requestSource = normalizeString(firstDefined(requestBody.source, u.searchParams.get('source'))).toLowerCase();
-      const home = resolveSessionsHome(requestSource || 'cli', copilotHome, vscodeHome, sandboxesHome);
+      const home = resolveSessionRequestHome(ctx, deps, requestSource || 'cli');
       const requestedSessionId = normalizeString(requestBody.sessionId);
       const sessionId = requestedSessionId || buildGeneratedSessionId(crypto);
 
@@ -341,9 +423,8 @@ function handleSessionPlans(ctx, deps) {
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
   try {
+    const { home, sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
     if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
       sendJson(res, 404, { error: 'Session not found', id, source: home.source });
       return;
@@ -351,7 +432,7 @@ function handleSessionPlans(ctx, deps) {
     const plans = listPlanArtifacts(sessionDir);
     sendJson(res, 200, { id, source: home.source, plans });
   } catch (e) {
-    sendJson(res, 400, { error: String(e.message || e), id, source: home.source });
+    sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source });
   }
 }
 
@@ -363,31 +444,144 @@ function handleSessionPlanById(ctx, deps) {
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const planId = decodeURIComponent(match[2]);
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
-  const text = readPlanArtifact(sessionDir, planId);
-  if (text == null) {
+  try {
+    const { sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
+    const text = readPlanArtifact(sessionDir, planId);
+    if (text == null) {
+      sendText(res, 404, 'Not found');
+      return;
+    }
+    sendText(res, 200, text, 'text/plain; charset=utf-8');
+  } catch {
     sendText(res, 404, 'Not found');
-    return;
   }
-  sendText(res, 200, text, 'text/plain; charset=utf-8');
 }
 
 function handleSessionFinal(ctx, deps) {
   const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
-  const { sendJson, sendText, resolveSessionsHome, isValidSessionId, assets, path } = deps;
+  const {
+    sendJson,
+    sendText,
+    resolveSessionsHome,
+    isValidSessionId,
+    assets,
+    fs,
+    path,
+    readPlanArtifact,
+    planState,
+  } = deps;
 
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const finalPath = path.join(path.resolve(home.home), 'session-state', id, 'final.md');
-  const text = assets.readTextFileSafe(finalPath, 2 * 1024 * 1024);
-  if (text == null) {
+  try {
+    const { sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
+    const finalPath = path.join(sessionDir, 'final.md');
+    const text = assets.readTextFileSafe(finalPath, 2 * 1024 * 1024);
+    if (text != null) {
+      sendText(res, 200, text, 'text/plain; charset=utf-8');
+      return;
+    }
+
+    if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
+      sendText(res, 404, 'Not found');
+      return;
+    }
+
+    if (typeof readPlanArtifact !== 'function' || !planState || typeof planState.parseStructuredState !== 'function') {
+      sendText(res, 404, 'Not found');
+      return;
+    }
+
+    const planText = readPlanArtifact(sessionDir, 'latest');
+    if (!planText) {
+      sendText(res, 404, 'Not found');
+      return;
+    }
+
+    const handoffText = assets.readTextFileSafe(path.join(sessionDir, 'handoff.md'), 256 * 1024);
+    const propositionText = assets.readTextFileSafe(path.join(sessionDir, 'proposition.md'), 512 * 1024);
+    const verificationGuideText = assets.readTextFileSafe(path.join(sessionDir, 'verification-guide.md'), 512 * 1024);
+    const executionStateText = assets.readTextFileSafe(path.join(sessionDir, 'execution-state.json'), 512 * 1024);
+    const structured = planState.parseStructuredState(planText, {
+      handoffText,
+      propositionText,
+      verificationGuideText,
+      executionStateText,
+      sessionId: id,
+    });
+    const compatibilityFinal = formatCompatibilityFinalCloseout(structured);
+    if (!compatibilityFinal) {
+      sendText(res, 404, 'Not found');
+      return;
+    }
+    sendText(res, 200, compatibilityFinal, 'text/plain; charset=utf-8');
+  } catch {
     sendText(res, 404, 'Not found');
-    return;
   }
-  sendText(res, 200, text, 'text/plain; charset=utf-8');
+}
+
+function formatCompatibilityFinalCloseout(structured) {
+  const closureSummary = structured && structured.meta && structured.meta.closureSummary
+    && typeof structured.meta.closureSummary === 'object'
+    ? structured.meta.closureSummary
+    : null;
+  const executionState = structured && structured.meta && structured.meta.executionState
+    && typeof structured.meta.executionState === 'object'
+    ? structured.meta.executionState
+    : null;
+  const terminalExecutionState = isTerminalExecutionState(executionState);
+
+  if (!hasCompatibilityFinalCloseoutEvidence(executionState)) {
+    return null;
+  }
+
+  const summary = normalizeString(closureSummary && closureSummary.summary)
+    || (terminalExecutionState ? normalizeString(executionState && executionState.summary) : '');
+  if (!summary) {
+    return null;
+  }
+
+  const lines = [
+    '## Summary',
+    `- ${summary}`,
+  ];
+
+  const statusItems = [
+    closureSummary && closureSummary.outcome ? `Outcome: ${closureSummary.outcome}` : null,
+    closureSummary && closureSummary.confidence ? `Confidence: ${closureSummary.confidence}` : null,
+    closureSummary && closureSummary.reviewVerdict ? `Review verdict: ${closureSummary.reviewVerdict}` : null,
+    executionState && executionState.status ? `Execution status: ${executionState.status}` : null,
+  ].filter(Boolean);
+
+  if (statusItems.length > 0) {
+    lines.push('', '## Status', ...statusItems.map((item) => `- ${item}`));
+  }
+
+  const delivered = closureSummary && Array.isArray(closureSummary.delivered)
+    ? closureSummary.delivered.filter((item) => normalizeString(item))
+    : [];
+  if (delivered.length > 0) {
+    lines.push('', '## Delivered', ...delivered.map((item) => `- ${item}`));
+  }
+
+  const validationEvidence = closureSummary && Array.isArray(closureSummary.validationEvidence)
+    ? closureSummary.validationEvidence.filter((item) => normalizeString(item))
+    : [];
+  if (validationEvidence.length > 0) {
+    lines.push('', '## Validation Evidence', ...validationEvidence.map((item) => `- ${item}`));
+  }
+
+  const activeContinuation = closureSummary
+    && closureSummary.followUps
+    && Array.isArray(closureSummary.followUps.activeContinuation)
+    ? closureSummary.followUps.activeContinuation.filter((item) => normalizeString(item))
+    : [];
+  if (activeContinuation.length > 0) {
+    lines.push('', '## Immediate Next Actions', ...activeContinuation.map((item) => `- ${item}`));
+  }
+
+  return `${lines.join('\n')}\n`;
 }
 
 function handleSessionStructuredState(ctx, deps) {
@@ -398,10 +592,9 @@ function handleSessionStructuredState(ctx, deps) {
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
   const planId = u.searchParams.get('planId') || 'latest';
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
 
   try {
+    const { home, sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
     if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
       sendJson(res, 404, { error: 'Session not found', id, source: home.source });
       return;
@@ -413,11 +606,29 @@ function handleSessionStructuredState(ctx, deps) {
       return;
     }
 
+    const useLatestSessionArtifacts = planId === 'latest';
     const handoffPath = path.join(sessionDir, 'handoff.md');
-    const handoffText = assets.readTextFileSafe(handoffPath, 256 * 1024);
+    const propositionPath = path.join(sessionDir, 'proposition.md');
+    const verificationGuidePath = path.join(sessionDir, 'verification-guide.md');
+    const executionStatePath = path.join(sessionDir, 'execution-state.json');
+    const handoffText = useLatestSessionArtifacts
+      ? assets.readTextFileSafe(handoffPath, 256 * 1024)
+      : null;
+    const propositionText = useLatestSessionArtifacts
+      ? assets.readTextFileSafe(propositionPath, 512 * 1024)
+      : null;
+    const verificationGuideText = useLatestSessionArtifacts
+      ? assets.readTextFileSafe(verificationGuidePath, 512 * 1024)
+      : null;
+    const executionStateText = useLatestSessionArtifacts
+      ? assets.readTextFileSafe(executionStatePath, 512 * 1024)
+      : null;
     const structured = planState.parseStructuredState(planText, {
       handoffText,
-      requireHandoff: true,
+      propositionText,
+      verificationGuideText,
+      executionStateText,
+      requireHandoff: useLatestSessionArtifacts,
       sessionId: id,
     });
     sendJson(res, 200, {
@@ -427,7 +638,7 @@ function handleSessionStructuredState(ctx, deps) {
       ...structured,
     });
   } catch (e) {
-    sendJson(res, 400, { error: String(e.message || e), id, source: home.source });
+    sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source });
   }
 }
 
@@ -438,22 +649,25 @@ function handleSessionProposition(ctx, deps) {
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
-  const propositionPath = path.join(sessionDir, 'proposition.md');
+  try {
+    const { home, sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
+    const propositionPath = path.join(sessionDir, 'proposition.md');
 
-  const text = assets.readTextFileSafe(propositionPath, 512 * 1024);
-  if (text == null) {
-    sendJson(res, 404, { error: 'Proposition not found', id, source: home.source });
-    return;
+    const text = assets.readTextFileSafe(propositionPath, 512 * 1024);
+    if (text == null) {
+      sendJson(res, 404, { error: 'Proposition not found', id, source: home.source });
+      return;
+    }
+
+    sendJson(res, 200, {
+      id,
+      source: home.source,
+      content: text,
+      ...sessionArtifacts.parsePropositionText(text),
+    });
+  } catch (e) {
+    sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source });
   }
-
-  sendJson(res, 200, {
-    id,
-    source: home.source,
-    content: text,
-    ...sessionArtifacts.parsePropositionText(text),
-  });
 }
 
 function handleSessionHandoff(ctx, deps) {
@@ -463,22 +677,25 @@ function handleSessionHandoff(ctx, deps) {
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
-  const handoffPath = path.join(sessionDir, 'handoff.md');
+  try {
+    const { home, sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
+    const handoffPath = path.join(sessionDir, 'handoff.md');
 
-  const text = assets.readTextFileSafe(handoffPath, 256 * 1024);
-  if (text == null) {
-    sendJson(res, 404, { error: 'Handoff not found', id, source: home.source });
-    return;
+    const text = assets.readTextFileSafe(handoffPath, 256 * 1024);
+    if (text == null) {
+      sendJson(res, 404, { error: 'Handoff not found', id, source: home.source });
+      return;
+    }
+
+    sendJson(res, 200, {
+      id,
+      source: home.source,
+      content: text,
+      parsed: sessionArtifacts.parseHandoffText(text, { sessionId: id }),
+    });
+  } catch (e) {
+    sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source });
   }
-
-  sendJson(res, 200, {
-    id,
-    source: home.source,
-    content: text,
-    parsed: sessionArtifacts.parseHandoffText(text, { sessionId: id }),
-  });
 }
 
 function handleSessionRoadmapSync(ctx, deps) {
@@ -502,8 +719,7 @@ function handleSessionRoadmapSync(ctx, deps) {
       const repo = resolveRepoContext(ctx, deps, selector);
 
       const source = (u.searchParams.get('source') || requestBody.source || 'cli').toLowerCase();
-      const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-      const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
+      const { home, sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
       const planId = normalizeString(requestBody.planId || u.searchParams.get('planId')) || 'latest';
       const planText = readPlanArtifact(sessionDir, planId);
       if (!planText) {
@@ -561,21 +777,24 @@ function handleSessionVerificationGuide(ctx, deps) {
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const sessionDir = path.join(path.resolve(home.home), 'session-state', id);
-  const guidePath = path.join(sessionDir, 'verification-guide.md');
+  try {
+    const { home, sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
+    const guidePath = path.join(sessionDir, 'verification-guide.md');
 
-  const text = assets.readTextFileSafe(guidePath, 512 * 1024);
-  if (text == null) {
-    sendJson(res, 404, { error: 'Verification guide not found', id, source: home.source });
-    return;
+    const text = assets.readTextFileSafe(guidePath, 512 * 1024);
+    if (text == null) {
+      sendJson(res, 404, { error: 'Verification guide not found', id, source: home.source });
+      return;
+    }
+
+    sendJson(res, 200, {
+      id,
+      source: home.source,
+      content: text,
+    });
+  } catch (e) {
+    sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source });
   }
-
-  sendJson(res, 200, {
-    id,
-    source: home.source,
-    content: text,
-  });
 }
 
 function handleSessionArchive(ctx, deps) {
@@ -585,11 +804,11 @@ function handleSessionArchive(ctx, deps) {
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const homeAbs = path.resolve(home.home);
-  const sessionDir = path.join(homeAbs, 'session-state', id);
-  const archiveRoot = path.join(homeAbs, 'sessions-archive');
   try {
+    const { home } = resolveSessionRequestDir(ctx, deps, id, source);
+    const homeAbs = path.resolve(home.home);
+    const sessionDir = path.join(homeAbs, 'session-state', id);
+    const archiveRoot = path.join(homeAbs, 'sessions-archive');
     if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
       sendJson(res, 404, { error: 'Session not found', id, source: home.source });
       return;
@@ -599,7 +818,7 @@ function handleSessionArchive(ctx, deps) {
     fs.renameSync(sessionDir, dest);
     sendJson(res, 200, { ok: true, id, source: home.source, archivedTo: dest });
   } catch (e) {
-    sendJson(res, 400, { error: String(e.message || e), id, source: home.source });
+    sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source });
   }
 }
 
@@ -610,12 +829,12 @@ function handleSessionDelete(ctx, deps) {
   const id = decodeURIComponent(match[1]);
   if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
-  const home = resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome);
-  const homeAbs = path.resolve(home.home);
-  const sessionDir = path.join(homeAbs, 'session-state', id);
 
   readJsonBody(req)
     .then((body) => {
+      const { home } = resolveSessionRequestDir(ctx, deps, id, source);
+      const homeAbs = path.resolve(home.home);
+      const sessionDir = path.join(homeAbs, 'session-state', id);
       const force = Boolean(body && (body.force || body.confirm));
       if (!force) throw Object.assign(new Error('Deletion requires {"force": true}'), { statusCode: 400 });
       if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
@@ -633,7 +852,7 @@ function handleSessionDelete(ctx, deps) {
       fs.rmSync(sessionDir, { recursive: true, force: true });
       sendJson(res, 200, { ok: true, id, source: home.source, deleted: true });
     })
-    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source: home.source }));
+    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source }));
 }
 
 function register(deps = {}) {

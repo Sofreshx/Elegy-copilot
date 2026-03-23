@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-03-17
+updated: 2026-03-23
 category: system
 status: current
 doc_kind: node
@@ -39,13 +39,13 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
 
 - catalog projection refresh, search, repo selection, audit, and mutation flows
 - session browsing and session-artifact inspection
-- planning record comparison and persisted planning APIs
+- repo-backed planning surfaces, external Obsidian note sync/seeding, deterministic Obsidian planning mirrors, and planning-record compatibility APIs
 - gateway readiness projection plus tracker operational/proxy surfaces
 - optional packaged desktop lifecycle, updater wiring, and local runtime health reporting
 
 Catalog semantics and authoritative write paths are defined in [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md).
 
-The Planning workflow is also gaining a repo-backed authority layer defined in
+The Planning workflow uses the repo-backed authority layer defined in
 [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md):
 Catalog repo selection remains the repo-context source, `docs/backlog.md` becomes the canonical
 Repository Backlog location, `docs/roadmaps/*.md` becomes the canonical Roadmap location, and plan
@@ -60,6 +60,7 @@ The route registry in `copilot-ui/routes/index.js` mounts these current route mo
 - `catalog`
 - `planning`
 - `planning-artifacts`
+- `planning-obsidian`
 - `sessions`
 - `gateway`
 - `tracker`
@@ -71,6 +72,7 @@ Treat those groups as the primary backend surface. The most important user-visib
 - `/api/health` and lifecycle/runtime health endpoints
 - catalog summary, repo, refresh, search, audit, and asset-management endpoints
 - planning record, compare, merge, suggestion, and persistence-health endpoints
+- repo-contextual external Obsidian note status/list/detail/sync plus deterministic mirror status/list/refresh endpoints that stay explicitly non-canonical
 - session artifact endpoints for structured state, proposition, and verification guides
 - gateway and tracker proxy/status endpoints
 - SDK-facing routes used by smoke and sandbox validation
@@ -177,9 +179,9 @@ Behavior guarantees for those compatibility-discovered assets:
 | `POST` | `/api/planning/merge-intent` | Persists merge-intent state for later merge execution. | `copilot-ui/tests/api-contract.test.js`, `copilot-ui/lib/planningApiContracts.test.js` |
 | `POST` | `/api/planning/merge` | Executes an approved merge flow. | `copilot-ui/tests/api-contract.test.js`, `copilot-ui/lib/planningApiContracts.test.js` |
 | `POST` | `/api/planning/suggestions` | Creates planning suggestions. | `copilot-ui/tests/api-contract.test.js`, `copilot-ui/lib/planningApiContracts.test.js` |
-| `GET` | `/api/planning/suggestions` | Lists planning suggestions. | `copilot-ui/tests/api-contract.test.js`, `copilot-ui/lib/planningApiContracts.test.js` |
+| `GET` | `/api/planning/suggestions?suggestionId=<id>` | Reads one planning suggestion by query-param ID. | `copilot-ui/tests/api-contract.test.js`, `copilot-ui/lib/planningApiContracts.test.js` |
 | `POST` | `/api/planning/recaps` | Creates planning recaps. | `copilot-ui/tests/api-contract.test.js`, `copilot-ui/lib/planningApiContracts.test.js` |
-| `GET` | `/api/planning/recaps` | Lists planning recaps. | `copilot-ui/tests/api-contract.test.js`, `copilot-ui/lib/planningApiContracts.test.js` |
+| `GET` | `/api/planning/recaps?recapId=<id>` | Reads one planning recap by query-param ID. | `copilot-ui/tests/api-contract.test.js`, `copilot-ui/lib/planningApiContracts.test.js` |
 
 ### Planning artifacts on records
 
@@ -193,6 +195,63 @@ Behavior guarantees for those compatibility-discovered assets:
 These record-scoped research/diagram routes remain legacy compatibility surfaces for planning-record
 artifacts. They are not the target authority for the Repository Backlog + Roadmap workflow.
 
+### External Obsidian planning notes
+
+`copilot-ui` also exposes an additive external note surface for operators who keep supplemental planning
+context in Obsidian. This surface is intentionally bounded:
+
+- it reuses the selected Catalog repo as the repo-context source
+- it is non-canonical, but it now supports local pull-only note sync plus manual refresh/sync controls
+- it also supports deterministic mirror notes for canonical bullets and roadmap docs, refreshable from repo sources
+- it must be labeled external/non-canonical in the UI and docs
+- it may seed a local `plan.md`, but it must not replace repo docs or the session plan as authority
+
+Current endpoints:
+
+| Method | Endpoint | Purpose | Primary test anchors |
+| --- | --- | --- | --- |
+| `GET` | `/api/planning/obsidian/status` | Returns deterministic Obsidian availability/config status for the selected Catalog repo context. | `copilot-ui/routes/planning-obsidian.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/planning/obsidian/notes` | Lists repo-contextual external Obsidian notes when configured. | `copilot-ui/routes/planning-obsidian.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/planning/obsidian/notes/:noteId` | Reads one external Obsidian note detail deterministically. | `copilot-ui/routes/planning-obsidian.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `POST` | `/api/planning/obsidian/sync` | Triggers pull-only remote note sync, applies safe vault updates, and returns additive sync status. | `copilot-ui/routes/planning-obsidian.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/planning/obsidian/representations/status` | Returns deterministic freshness/writeability counts for canonical bullet/roadmap mirror notes. | `copilot-ui/routes/planning-obsidian.test.js` |
+| `GET` | `/api/planning/obsidian/representations` | Lists repo-scoped deterministic Obsidian mirrors of canonical bullets and roadmap docs. | `copilot-ui/routes/planning-obsidian.test.js` |
+| `POST` | `/api/planning/obsidian/representations/refresh` | Regenerates deterministic bullet/roadmap mirror notes from canonical repo artifacts; malformed metadata fails closed. | `copilot-ui/routes/planning-obsidian.test.js` |
+
+Configuration is local-only and intentionally avoids secrets. By default, `copilot-ui` looks for
+`~/.copilot/obsidian-planning.json` (or `IE_OBSIDIAN_*` overrides) with fields such as:
+
+```json
+{
+  "vaultPath": "C:/Users/example/Documents/PlanningVault",
+  "notesPathTemplate": "Planning/{repoId}",
+  "cliPath": "C:/Tools/obsidian-cli.exe",
+  "cliCommands": {
+    "probe": ["C:/Program Files/nodejs/node.exe", "-e", "process.exit(0)"],
+    "refreshInventory": ["C:/Tools/obsidian-cli.exe", "refresh"],
+    "manualSync": ["C:/Tools/obsidian-cli.exe", "pull"]
+  },
+  "remoteSyncUrl": "https://notes.example.net/feed?repoId={repoId}"
+}
+```
+
+The Planning tab now treats **External Obsidian Notes** as its primary supplemental note surface for the
+selected repo. It surfaces:
+
+- base note availability for the repo-contextual notes folder
+- CLI seam/probe state plus pull-sync status with last-success/conflict metadata
+- a manual **Sync now** action
+- note list, selection, and note-detail viewing
+- deterministic mirror freshness for canonical `docs/planning/bullets.md` and `docs/roadmaps/*.md`
+- a manual **Refresh canonical mirrors** action that regenerates those notes from repo docs
+- seed-to-plan actions that preserve `synced-note` provenance
+- legacy planning-record research notes only as compatibility surfaces
+
+Remote sync state is stored under `~/.copilot/obsidian-sync/` instead of repo files. The upstream
+Vultr service remains outside this repo. Deterministic mirror notes are written under the selected
+repo-scoped note folder in `_instruction-engine/planning-mirrors/` and remain explicitly
+external/non-canonical.
+
 ### Sessions and persisted session artifacts
 
 | Method | Endpoint | Purpose | Primary test anchors |
@@ -203,8 +262,8 @@ artifacts. They are not the target authority for the Repository Backlog + Roadma
 | `GET` | `/api/sessions/:id/plan` | Returns the current `plan.md` text for a session. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/plans` | Lists persisted plan revisions for a session. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/plans/:planId` | Returns one persisted plan artifact revision. | `copilot-ui/tests/api-contract.test.js` |
-| `GET` | `/api/sessions/:id/final` | Returns the final execution summary artifact when present. | `copilot-ui/tests/api-contract.test.js` |
-| `GET` | `/api/sessions/:id/structured-state` | Parses the progress tracker into structured JSON. | `copilot-ui/VALIDATION.md`, `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/sessions/:id/final` | Compatibility-only read/inspection surface for an optional materialized or derived final closeout summary. | `copilot-ui/tests/api-contract.test.js` |
+| `GET` | `/api/sessions/:id/structured-state` | Parses the progress tracker into structured JSON and publishes the primary derived Sessions summary metadata in `meta.intentFrame` / `meta.closureSummary`. | `copilot-ui/VALIDATION.md`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/proposition` | Returns `proposition.md` plus parsed closeout entries and latest-entry sections when present. | `copilot-ui/VALIDATION.md`, `copilot-ui/routes/sessions.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/handoff` | Returns `handoff.md` plus parsed manifest, required sections, and parser warnings when present. | `copilot-ui/VALIDATION.md`, `copilot-ui/routes/sessions.test.js` |
 | `GET` | `/api/sessions/:id/verification-guide` | Returns `verification-guide.md` when present. | `copilot-ui/tests/api-contract.test.js` |
@@ -289,7 +348,8 @@ The current shell maps to these primary surfaces:
 
 - `Home / Runtime` — default operational landing hub for overview, sessions, executor-managed runtime work, and diagnostics.
 - `Catalog` — asset workspace, installs, skill/agent discovery, and aggregate search/selection/invocation observability.
-- `Planning` — ideas, planning records, compare/merge flows, research notes, and compile-to-runtime handoff.
+- `Planning` — repo-contextual planning surfaces, the primary External Obsidian Notes panel, plan seeding,
+  and legacy planning-record compatibility flows.
 - `Stats` — runtime health, deduped merged session coverage, catalog telemetry rollups, and recent sampled agent/skill usage.
 
 Primary implementation:
@@ -343,9 +403,26 @@ Persisted session artifacts live under `~/.copilot/session-state/<SESSION_ID>/`.
 
 - `plan.md`
 - `proposition.md`
+- `handoff.md`
 - `verification-guide.md`
 
 The canonical artifact contract is defined in [[session-state-artifacts]] [docs/system/session-state-artifacts.md](docs/system/session-state-artifacts.md).
+
+In the Sessions detail workflow, the primary normalized summary surface is the derived metadata returned
+from `GET /api/sessions/:id/structured-state`:
+
+- `meta.intentFrame`
+- `meta.closureSummary`
+
+Those summaries are derived from `plan.md` plus supporting persisted inputs such as `handoff.md`,
+`proposition.md`, `verification-guide.md`, review-ledger state, checkpoints, next-unit state, and resume
+metadata. Trackerless plans can still publish this metadata with warnings when the persisted review and
+supporting artifacts provide enough signal, and review approval follows the effective latest review
+verdict fail-closed.
+
+`GET /api/sessions/:id/final` remains an optional compatibility surface for a materialized or derived
+**Session Closure Summary** view. It is not the authoritative Sessions summary path and does not, by
+itself, establish a new required canonical artifact file for every session.
 
 ### Planning records
 

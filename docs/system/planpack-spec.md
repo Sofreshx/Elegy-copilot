@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-15
+updated: 2026-03-23
 category: system
 status: draft
 doc_kind: node
@@ -72,6 +72,21 @@ The H1 heading. `<Title>` is a short human-readable label for the plan (e.g., `P
 High-level goal completion states are governed by [[goal-contract-governance]]
 [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md), using
 `complete`, `partial`, and `not-complete`.
+
+Canonical `High-Level Goals` bullet syntax:
+
+- Each bullet must use `- <completion-state> — <goal text>`.
+- `<completion-state>` must be exactly one of `complete`, `partial`, or `not-complete`.
+- Use a literal em dash (`—`) between the state token and the goal text.
+- Fresh plans default every high-level goal bullet to `not-complete`.
+- `partial` is reserved for carried in-flight work from a resumed/replanned session; do not use it for untouched fresh-plan goals.
+
+Example:
+
+```markdown
+- not-complete — Land the Session Intent Frame prompt updates in orchestrator and reviewer contracts.
+- not-complete — Preserve chat-first closure behavior without introducing a new required artifact.
+```
 
 ### `## Context Loaded`
 
