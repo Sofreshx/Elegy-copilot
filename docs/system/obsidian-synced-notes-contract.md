@@ -1,6 +1,6 @@
 ---
 created: 2026-03-23
-updated: 2026-03-23
+updated: 2026-03-24
 category: system
 status: current
 doc_kind: node
@@ -26,6 +26,7 @@ They may:
 - provide operator context inside the Planning tab
 - help seed a local session `plan.md`
 - preserve explicit synced-note provenance for seeded plans
+- suggest canonical backlog items or add items to the selected roadmap through explicit operator actions
 - host deterministic mirror notes for canonical planning bullets and roadmap docs
 
 They must not:
@@ -35,7 +36,7 @@ They must not:
 - override `docs/backlog.md`
 - override `docs/roadmaps/*.md`
 - become the canonical execution authority instead of the active session `plan.md`
-- accept mirror edits as canonical promotion back into repo bullets or roadmap files
+- use note bodies or mirror edits as canonical write authority for repo planning docs
 
 ## Repo context
 
@@ -54,6 +55,14 @@ Example:
 
 - `Planning/{repoId}`
 - `Planning/{repoLabel}`
+
+Tracker-synced note source records are resolved from the tracker source registry. Local Obsidian config
+remains the authority for vault path, notes path template, CLI commands, remote sync settings, and
+other runtime behavior.
+
+Repo-scoped active source selection is persisted under `~/.copilot/obsidian-sync/` as local runtime
+state. Source-placeholder remote sync never binds implicitly: if the configured URL depends on source
+fields, operators must explicitly select a tracker source even when only one source record exists.
 
 ## Local configuration
 
@@ -103,13 +112,19 @@ Rules:
 3. `cliCommands` define the local CLI seam. `manualSyncCommand` and top-level `syncCommand` are accepted
    backward-compatible aliases for `cliCommands.manualSync`.
 4. `remoteSyncUrl` is optional and pull-only. Request construction supports `{repoId}`, `{repoLabel}`,
-   `{repoPath}`, and `{cursor}` placeholders. When those fields are not already represented in the URL,
-   the client appends `repoId`, `repoLabel`, and a non-empty `cursor` query param automatically; an
-   existing `repoPath=` query param is rewritten to the selected repo path when present.
+   `{repoPath}`, `{cursor}`, `{sourceId}`, `{provider}`, `{host}`, `{owner}`, `{repo}`, `{branch}`,
+   and `{notesPath}` placeholders. When source placeholders are used, sync requires an explicit
+   selected tracker source for the current repo; there is no implicit singleton binding. When repo
+   fields are not already represented in the URL, the client appends `repoId`, `repoLabel`, and a
+   non-empty `cursor` query param automatically; an existing `repoPath=` query param is rewritten to
+   the selected repo path when present, and existing source query params are rewritten from the
+   effective selected source when present.
 5. Remote feed payloads may use `notes` or `items`, `nextCursor` or `cursor`, and note entries may use
    `notePath` or `path`. `deleted: true` requests safe local deletion.
 6. `remoteSyncAuthTokenEnv` may name an environment variable that contains a bearer token. No secrets or
    tokens belong in this config.
+7. Source records are not configured in `obsidian-planning.json`; they come from the tracker synced-note
+   source registry.
 
 ## Backend routes
 
@@ -119,6 +134,7 @@ Rules:
 | `GET` | `/api/planning/obsidian/notes` | Returns deterministic note summaries or an unavailable/not-configured state |
 | `GET` | `/api/planning/obsidian/notes/:noteId` | Returns one deterministic note detail or a fail-closed error |
 | `POST` | `/api/planning/obsidian/sync` | Triggers a pull-only sync, applies safe local note updates, and returns additive sync status |
+| `POST` | `/api/planning/obsidian/source-selection` | Persists or clears the repo-scoped active tracker synced-note source selection |
 | `GET` | `/api/planning/obsidian/representations/status` | Returns aggregated deterministic status/freshness counts for canonical bullets/roadmap mirror notes |
 | `GET` | `/api/planning/obsidian/representations` | Lists deterministic Obsidian mirror notes for canonical bullets and roadmaps in the selected repo |
 | `POST` | `/api/planning/obsidian/representations/refresh` | Regenerates deterministic mirror notes from canonical repo artifacts; malformed metadata fails closed |
@@ -126,9 +142,14 @@ Rules:
 `status` responses now include:
 
 - `cli`: probe/configuration state for the configured CLI seam
-- `remoteSync`: pull-loop/manual-sync status, timestamps, counts, and conflict state
+- `sourceResolution`: tracker source availability, repo-scoped active selection, effective source,
+  and whether explicit selection is required before sync is available
+- `remoteSync`: pull-loop/manual-sync status, timestamps, counts, conflict state, cooldown/backoff,
+  lease metadata, and stale-lease recovery timestamps
 
 Persistent sync state lives under `~/.copilot/obsidian-sync/` and remains non-canonical runtime state.
+That runtime state includes repo-scoped source selection plus per-repo sync cursors, summaries, and
+lease files.
 
 Deterministic planning mirror notes live under the selected repo's resolved Obsidian note folder in a
 tool-managed subdirectory:
@@ -179,6 +200,20 @@ Rules:
 4. the cursor persisted under `~/.copilot/obsidian-sync/` is reused for timer polls and manual syncs.
 5. this repo only implements the local client, status persistence, and polling loop.
 
+## Sync safety rules
+
+Remote sync remains local, pull-only, and fail-closed.
+
+Rules:
+
+1. Each repo sync acquires a file-backed lease under `~/.copilot/obsidian-sync/` before any local note
+   mutation runs.
+2. Stale lease recovery is explicit and bounded; active leases block overlapping sync work instead of
+   allowing concurrent mutation.
+3. Timer sync respects cooldown and retry/backoff state, and that metadata is surfaced in status.
+4. Conflicting local note edits fail closed and surface conflict metadata instead of being overwritten.
+5. Source-placeholder remote sync requires a resolved selected tracker source for the current repo.
+
 ## UI rules
 
 Planning must label this surface as:
@@ -192,7 +227,7 @@ compatibility-only.
 Planning also surfaces deterministic mirror freshness/actions for canonical bullets and roadmap docs.
 Those mirrors must be labeled as generated representations, not authoring surfaces.
 
-## Seeding rules
+## Seeding and promotion rules
 
 When a plan is seeded from an Obsidian note:
 
@@ -202,10 +237,19 @@ When a plan is seeded from an Obsidian note:
 4. the plan body should remind operators to promote durable decisions into canonical repo docs or the
    active session plan
 
+Operators may also explicitly promote an external note into canonical planning docs.
+
+Rules:
+
+1. Suggesting a backlog item or adding an item to the selected roadmap is an explicit operator action,
+   never an implicit sync side effect.
+2. Promotions must preserve synced-note provenance in the canonical repo artifact they create or update.
+3. After promotion, canonical authority lives in repo docs and does not flow back from the note body.
+
 ## Out of scope in this block
 
 - push sync
 - webhook-driven updates
-- promotion into backlog or roadmap files
-- using mirror notes as a canonical write path
+- automatic or heuristic promotion from note content into canonical repo planning docs
+- using note bodies or mirror notes as a canonical write path
 - changing top-level tabs or repo-authority rules

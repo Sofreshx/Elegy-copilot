@@ -584,6 +584,27 @@ export interface TrackerSessionsResponse {
   sessions: TrackerSession[];
 }
 
+export interface SyncedNoteSourceLocator {
+  provider: string;
+  host: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  notesPath: string;
+}
+
+export interface SyncedNoteSourceRecord extends SyncedNoteSourceLocator {
+  id: string;
+  localCheckoutPath?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SyncedNoteSourceDeleteResponse {
+  ok: boolean;
+  id: string;
+}
+
 export interface SkillPreviewItem {
   assetId?: string;
   name: string;
@@ -1591,12 +1612,45 @@ export interface ObsidianRemoteSyncStatus {
   lastSuccessAt?: string;
   lastManualSyncAt?: string;
   lastError?: string;
+  reason?: string;
+  nextAttemptAt?: string;
+  cooldownUntil?: string;
+  retryCount?: number;
+  retryLimit?: number;
+  lastFailureAt?: string;
+  lastFailureReason?: string;
+  leaseAcquiredAt?: string;
+  leaseExpiresAt?: string;
+  leaseTrigger?: string;
+  lastStaleLeaseRecoveredAt?: string;
   conflictCount?: number;
   appliedCount?: number;
   deletedCount?: number;
   skippedCount?: number;
   cursor?: string;
   updatedAt?: string;
+}
+
+export interface ObsidianSyncedNoteSourceRef {
+  id: string;
+  provider: string;
+  host: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  notesPath: string;
+}
+
+export interface ObsidianSourceResolutionStatus {
+  availableSources: ObsidianSyncedNoteSourceRef[];
+  activeSourceConfigured: boolean;
+  activeSourceId?: string;
+  activeSourceMatched?: boolean;
+  effectiveSource?: ObsidianSyncedNoteSourceRef | null;
+  requiresSource: boolean;
+  resolved: boolean;
+  reason?: string;
+  message: string;
 }
 
 export interface ObsidianPlanningStatus {
@@ -1617,6 +1671,7 @@ export interface ObsidianPlanningStatus {
   syncCommand?: string[];
   cli?: ObsidianCliStatus;
   remoteSync?: ObsidianRemoteSyncStatus;
+  sourceResolution?: ObsidianSourceResolutionStatus;
 }
 
 export interface ObsidianPlanningNoteSummary {
@@ -1727,6 +1782,17 @@ export interface ObsidianPlanningSyncResult {
   conflicts?: string[];
   cursor?: string;
   message?: string;
+  reason?: string;
+  nextAttemptAt?: string;
+  cooldownUntil?: string;
+  retryCount?: number;
+  retryLimit?: number;
+  lastFailureAt?: string;
+  lastFailureReason?: string;
+  leaseAcquiredAt?: string;
+  leaseExpiresAt?: string;
+  leaseTrigger?: string;
+  lastStaleLeaseRecoveredAt?: string;
   cliManualCommand?: {
     exitCode?: number | null;
     durationMs?: number;
@@ -1735,6 +1801,10 @@ export interface ObsidianPlanningSyncResult {
 
 export interface ObsidianPlanningSyncResponse extends ObsidianPlanningStatusResponse {
   result: ObsidianPlanningSyncResult | null;
+}
+
+export interface ObsidianPlanningSourceSelectionResponse extends ObsidianPlanningStatusResponse {
+  sourceSelection?: ObsidianSourceResolutionStatus;
 }
 
 export interface PlanningRepoSummary {

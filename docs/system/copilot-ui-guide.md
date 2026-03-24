@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-03-23
+updated: 2026-03-24
 category: system
 status: current
 doc_kind: node
@@ -201,10 +201,11 @@ artifacts. They are not the target authority for the Repository Backlog + Roadma
 context in Obsidian. This surface is intentionally bounded:
 
 - it reuses the selected Catalog repo as the repo-context source
-- it is non-canonical, but it now supports local pull-only note sync plus manual refresh/sync controls
+- tracker source records are managed through the tracker-backed source registry, while local Obsidian config remains the authority for vault, CLI, and sync runtime settings
+- it is non-canonical, but it now supports local pull-only note sync plus repo-scoped source selection and manual refresh/sync controls
 - it also supports deterministic mirror notes for canonical bullets and roadmap docs, refreshable from repo sources
 - it must be labeled external/non-canonical in the UI and docs
-- it may seed a local `plan.md`, but it must not replace repo docs or the session plan as authority
+- it may seed a local `plan.md`, suggest backlog items, and add items to the selected roadmap, but it must not replace repo docs or the session plan as authority
 
 Current endpoints:
 
@@ -214,6 +215,7 @@ Current endpoints:
 | `GET` | `/api/planning/obsidian/notes` | Lists repo-contextual external Obsidian notes when configured. | `copilot-ui/routes/planning-obsidian.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/planning/obsidian/notes/:noteId` | Reads one external Obsidian note detail deterministically. | `copilot-ui/routes/planning-obsidian.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/planning/obsidian/sync` | Triggers pull-only remote note sync, applies safe vault updates, and returns additive sync status. | `copilot-ui/routes/planning-obsidian.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `POST` | `/api/planning/obsidian/source-selection` | Persists or clears the repo-scoped active tracker synced-note source selection used by source-placeholder remote sync. | `copilot-ui/routes/planning-obsidian.test.js` |
 | `GET` | `/api/planning/obsidian/representations/status` | Returns deterministic freshness/writeability counts for canonical bullet/roadmap mirror notes. | `copilot-ui/routes/planning-obsidian.test.js` |
 | `GET` | `/api/planning/obsidian/representations` | Lists repo-scoped deterministic Obsidian mirrors of canonical bullets and roadmap docs. | `copilot-ui/routes/planning-obsidian.test.js` |
 | `POST` | `/api/planning/obsidian/representations/refresh` | Regenerates deterministic bullet/roadmap mirror notes from canonical repo artifacts; malformed metadata fails closed. | `copilot-ui/routes/planning-obsidian.test.js` |
@@ -239,12 +241,14 @@ The Planning tab now treats **External Obsidian Notes** as its primary supplemen
 selected repo. It surfaces:
 
 - base note availability for the repo-contextual notes folder
-- CLI seam/probe state plus pull-sync status with last-success/conflict metadata
+- tracker-backed source management plus repo-scoped active-source selection
+- CLI seam/probe state plus pull-sync status with conflict, cooldown, retry, and lease metadata
 - a manual **Sync now** action
 - note list, selection, and note-detail viewing
 - deterministic mirror freshness for canonical `docs/planning/bullets.md` and `docs/roadmaps/*.md`
 - a manual **Refresh canonical mirrors** action that regenerates those notes from repo docs
 - seed-to-plan actions that preserve `synced-note` provenance
+- explicit **Suggest backlog item** and **Add to roadmap** actions for the selected roadmap
 - legacy planning-record research notes only as compatibility surfaces
 
 Remote sync state is stored under `~/.copilot/obsidian-sync/` instead of repo files. The upstream

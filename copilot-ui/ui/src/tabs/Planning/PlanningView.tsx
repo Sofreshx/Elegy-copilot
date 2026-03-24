@@ -1019,6 +1019,9 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
             error={planningWorkspaceState.obsidianError}
             loading={planningWorkspaceState.obsidianLoading}
             notes={planningWorkspaceState.obsidianNotes}
+            onClearActiveSource={() => planningWorkspaceStore.setObsidianSourceSelection(null)}
+            onCreateSource={(source) => planningWorkspaceStore.createObsidianSource(source)}
+            onDeleteSource={(sourceId) => planningWorkspaceStore.deleteObsidianSource(sourceId)}
             representations={planningWorkspaceState.obsidianRepresentations}
             representationsLoading={planningWorkspaceState.obsidianRepresentationsLoading}
             representationsRefreshing={planningWorkspaceState.obsidianRepresentationsRefreshing}
@@ -1038,11 +1041,34 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
             onSeedPlan={(note) => {
               void seedPlanFromArtifact(note);
             }}
+            onPromoteToBacklog={async (note) => {
+              const backlogId = await planningWorkspaceStore.promoteObsidianNoteToBacklog(note);
+              if (backlogId) {
+                setActiveSection('backlog');
+              }
+              return backlogId;
+            }}
+            onPromoteToRoadmap={async (note) => {
+              const result = await planningWorkspaceStore.promoteObsidianNoteToRoadmap(note);
+              if (result?.roadmapItemId) {
+                setActiveSection('roadmaps');
+              }
+              return result;
+            }}
+            onSetActiveSource={(sourceId) => planningWorkspaceStore.setObsidianSourceSelection(sourceId)}
             onSelectNote={(noteId) => {
               void planningWorkspaceStore.loadObsidianNote(noteId);
             }}
+            onUpdateSource={(sourceId, source) => planningWorkspaceStore.updateObsidianSource(sourceId, source)}
+            promotionSaving={planningWorkspaceState.obsidianPromotionSaving}
+            repoContextLabel={selectedCatalogRepo?.repoLabel || selectedCatalogRepo?.repoId || ''}
+            repoContextSelected={Boolean(selectedCatalogRepo?.repoPath)}
+            selectedRoadmapTitle={selectedRoadmap?.title || ''}
             selectedNote={planningWorkspaceState.selectedObsidianNote}
             selectedNoteId={planningWorkspaceState.selectedObsidianNoteId}
+            sourceDeletingId={planningWorkspaceState.obsidianSourceDeletingId}
+            sourceSaving={planningWorkspaceState.obsidianSourceSaving}
+            sourceSelectionSaving={planningWorkspaceState.obsidianSourceSelectionSaving}
             status={planningWorkspaceState.obsidianStatus}
             syncing={planningWorkspaceState.obsidianSyncing}
           />

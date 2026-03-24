@@ -170,6 +170,17 @@ function createFetchStub(feedPayload) {
   });
 }
 
+function writeRepoLeaseFile(copilotHomeAbs, repo, lease) {
+  const leasePath = path.join(
+    obsidianRemoteSyncLib.resolveSyncRoot(copilotHomeAbs),
+    'leases',
+    `${obsidianRemoteSyncLib.deriveRepoSyncKey(repo)}.lock.json`,
+  );
+  fs.mkdirSync(path.dirname(leasePath), { recursive: true });
+  fs.writeFileSync(leasePath, JSON.stringify(lease, null, 2) + '\n', 'utf8');
+  return leasePath;
+}
+
 async function run() {
   await test('GET /api/planning/obsidian/status returns a deterministic not-configured state when config is absent', async () => {
     const { copilotHomeAbs, repoPath } = createFixture();
@@ -346,6 +357,207 @@ async function run() {
     assert.equal(body.code, 'obsidian_note_not_found');
   });
 
+  await test('GET /api/planning/obsidian/status requires an explicit repo-scoped source selection even when tracker has a single source', async () => {
+    const { copilotHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const notesDir = path.join(vaultPath, 'Planning', 'repo-workspace-repo');
+    fs.mkdirSync(notesDir, { recursive: true });
+    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+      vaultPath,
+      notesPathTemplate: 'Planning/{repoId}',
+      remoteSyncUrl: 'https://notes.example.test/feed?sourceId={sourceId}',
+    }, null, 2));
+
+    const source = {
+      id: 'snsrc_0123456789abcdef0123456789abcdef',
+      provider: 'github',
+      host: 'github.com',
+      owner: 'InstructionEngine',
+      repo: 'workspace',
+      branch: 'main',
+      notesPath: 'docs/planning/synced-note.md',
+    };
+
+    const routes = register({
+      listTrackerSyncedNoteSources: async () => [source],
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload, null, 2));
+      },
+    });
+
+    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/status');
+    const body = parseJsonBody(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.kind, 'planning.obsidian.status');
+    assert.equal(body.status.state, 'ready');
+    assert.equal(body.status.syncAvailable, false);
+    assert.deepEqual(body.status.sourceResolution.availableSources, [source]);
+    assert.equal(body.status.sourceResolution.activeSourceConfigured, false);
+    assert.equal(body.status.sourceResolution.requiresSource, true);
+    assert.equal(body.status.sourceResolution.resolved, false);
+    assert.equal(body.status.sourceResolution.reason, 'explicit_source_selection_required');
+    assert.match(body.status.sourceResolution.message, /explicitly select/i);
+    assert.equal(body.status.sourceResolution.effectiveSource, null);
+  });
+
+  await test('GET /api/planning/obsidian/status surfaces additive remoteSync lease and retry metadata without breaking existing fields', async () => {
+    const { copilotHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    fs.mkdirSync(path.join(vaultPath, 'Planning', 'repo-workspace-repo'), { recursive: true });
+    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+      vaultPath,
+      notesPathTemplate: 'Planning/{repoId}',
+      remoteSyncUrl: 'https://notes.example.test/feed',
+    }, null, 2));
+
+    const activeLease = {
+      token: 'lease-active',
+      acquiredAt: '2026-03-24T12:00:00.000Z',
+      expiresAt: '2026-03-24T12:01:00.000Z',
+      trigger: 'timer',
+    };
+    const repo = {
+      repoId: 'repo-workspace-repo',
+      repoPath,
+      repoLabel: 'workspace-repo',
+    };
+    const config = {
+      vaultPath,
+      notesPathTemplate: 'Planning/{repoId}',
+      remoteSyncUrl: 'https://notes.example.test/feed',
+      remoteSyncPollIntervalMs: 60_000,
+      remoteSyncTimeoutMs: 15_000,
+    };
+    const repoState = obsidianRemoteSyncLib.readRepoSyncState({
+      copilotHomeAbs,
+      repo,
+      config,
+    });
+    obsidianRemoteSyncLib.writeRepoSyncState({
+      copilotHomeAbs,
+      repo,
+      state: {
+        ...repoState,
+        syncLease: activeLease,
+        summary: {
+          ...repoState.summary,
+          state: 'error',
+          syncing: true,
+          message: 'Timer-based Obsidian sync poll is running.',
+          reason: 'timer_backoff_scheduled',
+          retryCount: 2,
+          retryLimit: 4,
+          nextAttemptAt: '2026-03-24T12:02:00.000Z',
+          cooldownUntil: '2026-03-24T12:02:00.000Z',
+          lastFailureAt: '2026-03-24T11:59:00.000Z',
+          lastFailureReason: 'network_down',
+          leaseAcquiredAt: activeLease.acquiredAt,
+          leaseExpiresAt: activeLease.expiresAt,
+          leaseTrigger: activeLease.trigger,
+          lastStaleLeaseRecoveredAt: '2026-03-24T11:30:00.000Z',
+        },
+      },
+    });
+
+    const routes = register({
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload, null, 2));
+      },
+    });
+
+    const { res } = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/status');
+    const body = parseJsonBody(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.status.remoteSync.state, 'error');
+    assert.equal(body.status.remoteSync.reason, 'timer_backoff_scheduled');
+    assert.equal(body.status.remoteSync.retryCount, 2);
+    assert.equal(body.status.remoteSync.retryLimit, 4);
+    assert.equal(body.status.remoteSync.nextAttemptAt, '2026-03-24T12:02:00.000Z');
+    assert.equal(body.status.remoteSync.cooldownUntil, '2026-03-24T12:02:00.000Z');
+    assert.equal(body.status.remoteSync.lastFailureReason, 'network_down');
+    assert.equal(body.status.remoteSync.leaseAcquiredAt, activeLease.acquiredAt);
+    assert.equal(body.status.remoteSync.leaseExpiresAt, activeLease.expiresAt);
+    assert.equal(body.status.remoteSync.leaseTrigger, activeLease.trigger);
+    assert.equal(body.status.remoteSync.lastStaleLeaseRecoveredAt, '2026-03-24T11:30:00.000Z');
+  });
+
+  await test('POST /api/planning/obsidian/source-selection persists repo-scoped active source selection under obsidian sync runtime state', async () => {
+    const { copilotHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const notesDir = path.join(vaultPath, 'Planning', 'repo-workspace-repo');
+    fs.mkdirSync(notesDir, { recursive: true });
+    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+      vaultPath,
+      notesPathTemplate: 'Planning/{repoId}',
+      remoteSyncUrl: 'https://notes.example.test/feed?sourceId={sourceId}',
+    }, null, 2));
+
+    const sources = [
+      {
+        id: 'snsrc_0123456789abcdef0123456789abcdef',
+        provider: 'github',
+        host: 'github.com',
+        owner: 'InstructionEngine',
+        repo: 'workspace',
+        branch: 'main',
+        notesPath: 'docs/planning/first.md',
+      },
+      {
+        id: 'snsrc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        provider: 'github',
+        host: 'github.com',
+        owner: 'InstructionEngine',
+        repo: 'workspace',
+        branch: 'main',
+        notesPath: 'docs/planning/second.md',
+      },
+    ];
+
+    const routes = register({
+      listTrackerSyncedNoteSources: async () => sources,
+      readJsonBody: async () => ({
+        repoId: 'repo-workspace-repo',
+        sourceId: sources[1].id,
+      }),
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload, null, 2));
+      },
+    });
+
+    const selection = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/source-selection');
+    const selectionBody = parseJsonBody(selection.res);
+    const repoState = obsidianRemoteSyncLib.readRepoSyncState({
+      copilotHomeAbs,
+      repo: {
+        repoId: 'repo-workspace-repo',
+        repoPath,
+        repoLabel: 'workspace-repo',
+      },
+      config: {
+        vaultPath,
+        notesPathTemplate: 'Planning/{repoId}',
+        remoteSyncUrl: 'https://notes.example.test/feed?sourceId={sourceId}',
+      },
+    });
+
+    assert.equal(selection.res.statusCode, 200);
+    assert.equal(selectionBody.kind, 'planning.obsidian.source-selection');
+    assert.equal(selectionBody.status.sourceResolution.activeSourceConfigured, true);
+    assert.equal(selectionBody.status.sourceResolution.activeSourceId, sources[1].id);
+    assert.equal(selectionBody.status.sourceResolution.activeSourceMatched, true);
+    assert.equal(selectionBody.status.sourceResolution.reason, 'active_source_selected');
+    assert.deepEqual(selectionBody.status.sourceResolution.effectiveSource, sources[1]);
+    assert.equal(repoState.sourceSelection.activeSourceId, sources[1].id);
+  });
+
   await test('POST /api/planning/obsidian/sync pulls remote note changes and records sync status', async () => {
     const { copilotHomeAbs, repoPath } = createFixture();
     const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
@@ -388,6 +600,12 @@ async function run() {
     assert.equal(body.result.appliedCount, 1);
     assert.equal(body.status.remoteSync.state, 'success');
     assert.equal(body.status.remoteSync.cursor, 'cursor-002');
+    assert.equal(body.status.remoteSync.retryCount, 0);
+    assert.equal(body.result.retryCount, 0);
+    assert.equal(body.result.retryLimit, 4);
+    assert.equal(typeof body.status.remoteSync.nextAttemptAt, 'string');
+    assert.equal(typeof body.result.nextAttemptAt, 'string');
+    assert.equal(typeof body.result.cooldownUntil, 'string');
 
     const notePath = path.join(vaultPath, 'Planning', 'repo-workspace-repo', 'daily-sync.md');
     assert.equal(fs.existsSync(notePath), true);
@@ -409,6 +627,152 @@ async function run() {
       repoState.noteStates['daily-sync.md'].remoteHash,
       obsidianNotesLib.hashContent(fs.readFileSync(notePath, 'utf8')),
     );
+  });
+
+  await test('POST /api/planning/obsidian/sync surfaces active lease metadata when another process already holds the repo lease', async () => {
+    const { copilotHomeAbs, repoPath } = createFixture();
+    const repo = {
+      repoId: 'repo-workspace-repo',
+      repoPath,
+      repoLabel: 'workspace-repo',
+    };
+    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    const config = {
+      vaultPath,
+      notesPathTemplate: 'Planning/{repoId}',
+      remoteSyncUrl: 'https://vultr.example.test/notes-feed',
+      remoteSyncTimeoutMs: 15_000,
+    };
+    const activeLease = {
+      token: 'lease-active-route',
+      acquiredAt: new Date(Date.now() - 1_000).toISOString(),
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      trigger: 'timer',
+    };
+    fs.mkdirSync(path.join(vaultPath, 'Planning', 'repo-workspace-repo'), { recursive: true });
+    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify(config, null, 2));
+
+    const repoState = obsidianRemoteSyncLib.readRepoSyncState({
+      copilotHomeAbs,
+      repo,
+      config,
+    });
+    obsidianRemoteSyncLib.writeRepoSyncState({
+      copilotHomeAbs,
+      repo,
+      state: {
+        ...repoState,
+        syncLease: activeLease,
+        summary: {
+          ...repoState.summary,
+          state: 'syncing',
+          syncing: true,
+          message: 'Timer-based Obsidian sync poll is running.',
+          leaseAcquiredAt: activeLease.acquiredAt,
+          leaseExpiresAt: activeLease.expiresAt,
+          leaseTrigger: activeLease.trigger,
+        },
+      },
+    });
+    writeRepoLeaseFile(copilotHomeAbs, repo, activeLease);
+
+    let fetchCount = 0;
+    const routes = register({
+      fetch: async () => {
+        fetchCount += 1;
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return { notes: [] };
+          },
+        };
+      },
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload, null, 2));
+      },
+    });
+
+    const { res } = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const body = parseJsonBody(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.kind, 'planning.obsidian.sync');
+    assert.equal(body.result.state, 'syncing');
+    assert.equal(body.result.reason, 'lease_active');
+    assert.equal(body.result.leaseAcquiredAt, activeLease.acquiredAt);
+    assert.equal(body.result.leaseExpiresAt, activeLease.expiresAt);
+    assert.equal(body.result.leaseTrigger, activeLease.trigger);
+    assert.equal(body.status.remoteSync.leaseExpiresAt, activeLease.expiresAt);
+    assert.equal(fetchCount, 0);
+  });
+
+  await test('POST /api/planning/obsidian/sync fails closed when remote sync requires a source and multiple tracker sources remain unresolved', async () => {
+    const { copilotHomeAbs, repoPath } = createFixture();
+    const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
+    fs.mkdirSync(path.join(vaultPath, 'Planning', 'repo-workspace-repo'), { recursive: true });
+    fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
+      vaultPath,
+      notesPathTemplate: 'Planning/{repoId}',
+      remoteSyncUrl: 'https://notes.example.test/feed?sourceId={sourceId}',
+    }, null, 2));
+
+    const sources = [
+      {
+        id: 'snsrc_0123456789abcdef0123456789abcdef',
+        provider: 'github',
+        host: 'github.com',
+        owner: 'InstructionEngine',
+        repo: 'workspace',
+        branch: 'main',
+        notesPath: 'docs/planning/first.md',
+      },
+      {
+        id: 'snsrc_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        provider: 'github',
+        host: 'github.com',
+        owner: 'InstructionEngine',
+        repo: 'workspace',
+        branch: 'main',
+        notesPath: 'docs/planning/second.md',
+      },
+    ];
+    let remoteFetchCount = 0;
+
+    const routes = register({
+      fetch: async () => {
+        remoteFetchCount += 1;
+        return {
+          ok: true,
+          status: 200,
+          async json() {
+            return { notes: [] };
+          },
+        };
+      },
+      listTrackerSyncedNoteSources: async () => sources,
+      repoInventory: createRepoInventory(repoPath),
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload, null, 2));
+      },
+    });
+
+    const { res } = await invoke(routes, { copilotHomeAbs }, 'POST', '/api/planning/obsidian/sync');
+    const body = parseJsonBody(res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.kind, 'planning.obsidian.sync');
+    assert.equal(body.result.state, 'error');
+    assert.equal(body.result.appliedCount, 0);
+    assert.equal(body.result.conflictCount, 0);
+    assert.match(body.result.message, /requires a resolved synced-note source/i);
+    assert.equal(body.status.syncAvailable, false);
+    assert.equal(body.status.sourceResolution.reason, 'explicit_source_selection_required');
+    assert.match(body.status.sourceResolution.message, /explicitly select/i);
+    assert.equal(remoteFetchCount, 0);
   });
 
   await test('POST /api/planning/obsidian/sync fails closed when a previously synced local note was deleted before a remote update arrives', async () => {

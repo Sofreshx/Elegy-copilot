@@ -8,44 +8,24 @@ version: 1
 # Synced-Note Planner Replacement
 
 ## Overview
-Replace the current planner intake path with a synced-note-driven planning entrypoint that remains subordinate to the canonical planning authorities already defined in this repo. The current state already includes synced-note source contracts, tracker-side source persistence plus CRUD wiring, and Planning support for synced-note-seeded plan provenance. The remaining work is to validate the source-management slice, add deterministic sync and lock orchestration, promote note content into Repository Backlog and Roadmap surfaces instead of using notes as the source of truth, expose operator controls in the app, and harden the full flow for GitHub-first and self-host-friendly deployments.
+The repo-owned Obsidian bridge is now in place: tracker-backed source records and repo-scoped active-source selection are wired into `copilot-ui`, pull sync is hardened with lease/cooldown/retry/conflict handling, and external notes can seed plans or be explicitly promoted into canonical backlog and roadmap docs. The remaining work is outside the core bridge itself: finish the out-of-repo remote sync service deployment story, then validate rollout and operational guidance end to end.
 
 ## Roadmap Items
-### RM-synced-note-planner-replacement-001 — Validate source lifecycle and backend choice
-- Phase: foundation
+### RM-synced-note-planner-replacement-004 — Complete the out-of-repo remote sync service lane
+- Phase: deployment
 - Status: planned
-- Summary: Finish the source-management contract with full CRUD validation, explicit GitHub-first behavior, and Gitea or generic git compatibility that is safe for self-hosted deployments.
-- Backlog IDs: RB-001
+- Summary: Finish and deploy the external pull-feed service that the repo-owned client expects in production, including auth, hosting, operational ownership, and real source-backed feed behavior for selected synced-note sources.
+- Backlog IDs: RB-005
 - Plan Refs: none
 - Satisfied By Plan Ref: none
 - Superseded By Plan Ref: none
 - Abandoned By Plan Ref: none
 
-### RM-synced-note-planner-replacement-002 — Add deterministic sync refresh orchestration
-- Phase: runtime
-- Status: planned
-- Summary: Introduce the actual sync worker plus watcher, cooldown, lock, retry, and fail-closed execution rules that keep note refresh deterministic and prevent overlapping repo work.
-- Backlog IDs: RB-002
-- Plan Refs: none
-- Satisfied By Plan Ref: none
-- Superseded By Plan Ref: none
-- Abandoned By Plan Ref: none
-
-### RM-synced-note-planner-replacement-003 — Promote synced notes into canonical planning flow
-- Phase: promotion
-- Status: planned
-- Summary: Convert synced note content into canonical planning actions by supporting explicit promotion into Repository Backlog, Roadmap, and Plan Pack seeding flows, alongside operator-facing source management UI.
-- Backlog IDs: RB-003, RB-004
-- Plan Refs: none
-- Satisfied By Plan Ref: none
-- Superseded By Plan Ref: none
-- Abandoned By Plan Ref: none
-
-### RM-synced-note-planner-replacement-004 — Harden rollout and end-to-end validation
+### RM-synced-note-planner-replacement-005 — Validate rollout and operator guidance end to end
 - Phase: hardening
 - Status: planned
-- Summary: Prove the full feature is safe to ship through end-to-end validation, observability, operational safeguards, and rollout guidance for both hosted and self-hosted note-sync backends.
-- Backlog IDs: RB-002, RB-004, RB-005
+- Summary: Prove the shipped bridge against the deployed remote service with end-to-end validation, failure drills, rollout checks, and concise operator guidance for source selection, sync conflicts, cooldown/backoff, and recovery.
+- Backlog IDs: RB-005
 - Plan Refs: none
 - Satisfied By Plan Ref: none
 - Superseded By Plan Ref: none

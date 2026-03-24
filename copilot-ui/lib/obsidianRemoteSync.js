@@ -7,6 +7,10 @@ const path = require('path');
 const obsidianNotes = require('./obsidianNotes');
 
 const OBSIDIAN_SYNC_SCHEMA_VERSION = 1;
+const OBSIDIAN_SOURCE_FIELDS = ['sourceId', 'provider', 'host', 'owner', 'repo', 'branch', 'notesPath'];
+const DEFAULT_TIMER_RETRY_LIMIT = 4;
+const DEFAULT_SYNC_LEASE_MIN_MS = 30_000;
+const DEFAULT_SYNC_LEASE_MAX_MS = 120_000;
 
 class ObsidianSyncConflictError extends Error {
   constructor(message, details = {}) {
@@ -32,6 +36,53 @@ function normalizeIsoString(value) {
   }
   const parsed = new Date(normalized);
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+function normalizeTrigger(value) {
+  return normalizeString(value).toLowerCase() === 'timer' ? 'timer' : 'manual';
+}
+
+function resolveSyncLeaseDurationMs(config) {
+  const timeoutMs = Number.isFinite(config && config.remoteSyncTimeoutMs) && config.remoteSyncTimeoutMs > 0
+    ? config.remoteSyncTimeoutMs
+    : 15_000;
+  return Math.max(DEFAULT_SYNC_LEASE_MIN_MS, Math.min(DEFAULT_SYNC_LEASE_MAX_MS, timeoutMs * 2));
+}
+
+function normalizeSyncLease(value) {
+  const record = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const token = normalizeString(record.token);
+  const acquiredAt = normalizeIsoString(record.acquiredAt);
+  const expiresAt = normalizeIsoString(record.expiresAt);
+  if (!token || !acquiredAt || !expiresAt) {
+    return null;
+  }
+  return {
+    token,
+    acquiredAt,
+    expiresAt,
+    trigger: normalizeTrigger(record.trigger),
+  };
+}
+
+function isSyncLeaseActive(lease, nowMs = Date.now()) {
+  const normalizedLease = normalizeSyncLease(lease);
+  if (!normalizedLease) {
+    return false;
+  }
+  const expiresAtMs = Date.parse(normalizedLease.expiresAt);
+  return Number.isFinite(expiresAtMs) && expiresAtMs > nowMs;
+}
+
+function buildSyncLease(config, trigger, nowMs = Date.now()) {
+  return {
+    token: typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : crypto.randomBytes(16).toString('hex'),
+    acquiredAt: new Date(nowMs).toISOString(),
+    expiresAt: new Date(nowMs + resolveSyncLeaseDurationMs(config)).toISOString(),
+    trigger: normalizeTrigger(trigger),
+  };
 }
 
 function hashContent(content) {
@@ -64,6 +115,10 @@ function resolveRepoStatePath(copilotHomeAbs, repo) {
   return path.join(resolveSyncRoot(copilotHomeAbs), 'repos', `${deriveRepoSyncKey(repo)}.json`);
 }
 
+function resolveRepoLeasePath(copilotHomeAbs, repo) {
+  return path.join(resolveSyncRoot(copilotHomeAbs), 'leases', `${deriveRepoSyncKey(repo)}.lock.json`);
+}
+
 function resolveAggregateStatusPath(copilotHomeAbs) {
   return path.join(resolveSyncRoot(copilotHomeAbs), 'status.json');
 }
@@ -77,6 +132,7 @@ function buildDefaultRepoState(repo, config) {
     repoLabel: normalizeString(repo && repo.repoLabel) || undefined,
     cursor: undefined,
     noteStates: {},
+    syncLease: undefined,
     summary: {
       repoKey: deriveRepoSyncKey(repo),
       repoId: normalizeString(repo && repo.repoId) || undefined,
@@ -91,6 +147,17 @@ function buildDefaultRepoState(repo, config) {
       deletedCount: 0,
       skippedCount: 0,
       conflictCount: 0,
+      reason: undefined,
+      nextAttemptAt: undefined,
+      cooldownUntil: undefined,
+      retryCount: 0,
+      retryLimit: DEFAULT_TIMER_RETRY_LIMIT,
+      lastFailureAt: undefined,
+      lastFailureReason: undefined,
+      leaseAcquiredAt: undefined,
+      leaseExpiresAt: undefined,
+      leaseTrigger: undefined,
+      lastStaleLeaseRecoveredAt: undefined,
       message: config && config.remoteSyncUrl && config.vaultPath
         ? 'Remote pull sync is configured and waiting for the next poll.'
         : 'Remote pull sync is not configured.',
@@ -110,6 +177,72 @@ function readJsonFile(absPath, fallback) {
   }
 }
 
+function writeJsonExclusive(absPath, value) {
+  const dir = path.dirname(absPath);
+  fs.mkdirSync(dir, { recursive: true });
+  try {
+    fs.writeFileSync(absPath, JSON.stringify(value, null, 2) + '\n', {
+      encoding: 'utf8',
+      flag: 'wx',
+    });
+    return true;
+  } catch (error) {
+    if (error && error.code === 'EEXIST') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function removeFileIfExists(absPath) {
+  try {
+    fs.unlinkSync(absPath);
+  } catch (error) {
+    if (!error || error.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+}
+
+function readPersistedRepoSyncLease({ copilotHomeAbs, repo }) {
+  return normalizeSyncLease(readJsonFile(resolveRepoLeasePath(copilotHomeAbs, repo), null));
+}
+
+function resolveRepoLeaseClaimPath(copilotHomeAbs, repo, leaseToken) {
+  return path.join(resolveSyncRoot(copilotHomeAbs), 'leases', `${deriveRepoSyncKey(repo)}.${leaseToken}.reclaim.json`);
+}
+
+function tryReclaimStaleRepoSyncLease({ copilotHomeAbs, repo, lease }) {
+  const normalizedLease = normalizeSyncLease(lease);
+  if (!normalizedLease || isSyncLeaseActive(normalizedLease)) {
+    return false;
+  }
+
+  const claimPath = resolveRepoLeaseClaimPath(copilotHomeAbs, repo, normalizedLease.token);
+  if (!writeJsonExclusive(claimPath, {
+    token: normalizedLease.token,
+    claimedAt: new Date().toISOString(),
+    pid: process.pid,
+  })) {
+    return false;
+  }
+
+  try {
+    const persistedLease = readPersistedRepoSyncLease({ copilotHomeAbs, repo });
+    if (!persistedLease) {
+      return true;
+    }
+    if (persistedLease.token !== normalizedLease.token || isSyncLeaseActive(persistedLease)) {
+      return false;
+    }
+
+    removeFileIfExists(resolveRepoLeasePath(copilotHomeAbs, repo));
+    return true;
+  } finally {
+    removeFileIfExists(claimPath);
+  }
+}
+
 function readRepoSyncState({ copilotHomeAbs, repo, config }) {
   const fallback = buildDefaultRepoState(repo, config);
   const raw = readJsonFile(resolveRepoStatePath(copilotHomeAbs, repo), fallback);
@@ -122,6 +255,7 @@ function readRepoSyncState({ copilotHomeAbs, repo, config }) {
     noteStates: raw.noteStates && typeof raw.noteStates === 'object' && !Array.isArray(raw.noteStates)
       ? raw.noteStates
       : {},
+    syncLease: normalizeSyncLease(raw.syncLease) || undefined,
     summary: raw.summary && typeof raw.summary === 'object' && !Array.isArray(raw.summary)
       ? { ...fallback.summary, ...raw.summary }
       : fallback.summary,
@@ -174,6 +308,12 @@ function updateAggregateStatus({ copilotHomeAbs }) {
   writeJsonAtomic(statusPath, next);
 }
 
+function persistRepoState({ copilotHomeAbs, repo, state }) {
+  writeRepoSyncState({ copilotHomeAbs, repo, state });
+  updateAggregateStatus({ copilotHomeAbs });
+  return state;
+}
+
 function persistRepoSummary({ copilotHomeAbs, repo, config, summaryPatch }) {
   const current = readRepoSyncState({ copilotHomeAbs, repo, config });
   const summary = {
@@ -192,12 +332,109 @@ function persistRepoSummary({ copilotHomeAbs, repo, config, summaryPatch }) {
     ...current,
     summary,
   };
-  writeRepoSyncState({ copilotHomeAbs, repo, state: nextState });
-  updateAggregateStatus({ copilotHomeAbs, summary });
-  return nextState;
+  return persistRepoState({ copilotHomeAbs, repo, state: nextState });
 }
 
-function buildRemoteFeedUrl(config, repo, cursor) {
+function acquireRepoSyncLease({ copilotHomeAbs, repo, config, trigger }) {
+  const current = readRepoSyncState({ copilotHomeAbs, repo, config });
+  const persistedLease = readPersistedRepoSyncLease({ copilotHomeAbs, repo });
+  const activeLease = persistedLease || normalizeSyncLease(current.syncLease);
+  if (isSyncLeaseActive(activeLease)) {
+    return {
+      acquired: false,
+      activeLease,
+      staleLeaseRecovered: false,
+      state: current,
+    };
+  }
+
+  if (persistedLease && !tryReclaimStaleRepoSyncLease({ copilotHomeAbs, repo, lease: persistedLease })) {
+    const latestState = readRepoSyncState({ copilotHomeAbs, repo, config });
+    return {
+      acquired: false,
+      activeLease: readPersistedRepoSyncLease({ copilotHomeAbs, repo }) || normalizeSyncLease(latestState.syncLease),
+      staleLeaseRecovered: false,
+      state: latestState,
+    };
+  }
+
+  const nowMs = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+  const lease = buildSyncLease(config, trigger, nowMs);
+  if (!writeJsonExclusive(resolveRepoLeasePath(copilotHomeAbs, repo), lease)) {
+    const latestState = readRepoSyncState({ copilotHomeAbs, repo, config });
+    return {
+      acquired: false,
+      activeLease: readPersistedRepoSyncLease({ copilotHomeAbs, repo }) || normalizeSyncLease(latestState.syncLease),
+      staleLeaseRecovered: false,
+      state: latestState,
+    };
+  }
+
+  const staleLeaseRecovered = Boolean(activeLease);
+  const nextState = {
+    ...current,
+    syncLease: lease,
+    summary: {
+      ...current.summary,
+      state: 'syncing',
+      syncing: true,
+      lastAttemptAt: nowIso,
+      reason: staleLeaseRecovered ? 'stale_lease_recovered' : 'sync_in_progress',
+      message: normalizeTrigger(trigger) === 'manual'
+        ? 'Manual Obsidian sync is running.'
+        : 'Timer-based Obsidian sync poll is running.',
+      leaseAcquiredAt: lease.acquiredAt,
+      leaseExpiresAt: lease.expiresAt,
+      leaseTrigger: lease.trigger,
+      lastStaleLeaseRecoveredAt: staleLeaseRecovered ? nowIso : current.summary.lastStaleLeaseRecoveredAt,
+      updatedAt: nowIso,
+    },
+  };
+
+  return {
+    acquired: true,
+    activeLease: lease,
+    staleLeaseRecovered,
+    state: persistRepoState({ copilotHomeAbs, repo, state: nextState }),
+  };
+}
+
+function releaseRepoSyncLease({ copilotHomeAbs, repo, config, leaseToken, summaryPatch }) {
+  const current = readRepoSyncState({ copilotHomeAbs, repo, config });
+  const persistedLease = readPersistedRepoSyncLease({ copilotHomeAbs, repo });
+  const activeLease = persistedLease || normalizeSyncLease(current.syncLease);
+  const safeLeaseToken = normalizeString(leaseToken);
+
+  if (activeLease && activeLease.token !== safeLeaseToken && isSyncLeaseActive(activeLease)) {
+    return current;
+  }
+
+  const nextState = {
+    ...current,
+    summary: {
+      ...current.summary,
+      ...summaryPatch,
+      syncing: false,
+      leaseAcquiredAt: undefined,
+      leaseExpiresAt: undefined,
+      leaseTrigger: undefined,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+
+  if (!persistedLease || persistedLease.token === safeLeaseToken || !isSyncLeaseActive(persistedLease)) {
+    removeFileIfExists(resolveRepoLeasePath(copilotHomeAbs, repo));
+  }
+
+  if (!activeLease || activeLease.token === safeLeaseToken || !isSyncLeaseActive(activeLease)) {
+    delete nextState.syncLease;
+  }
+
+  return persistRepoState({ copilotHomeAbs, repo, state: nextState });
+}
+
+function buildRemoteFeedUrl(config, repo, cursor, effectiveSource) {
   const baseUrl = normalizeString(config && config.remoteSyncUrl);
   if (!baseUrl) {
     return '';
@@ -211,6 +448,17 @@ function buildRemoteFeedUrl(config, repo, cursor) {
   const hasRepoLabelQueryParam = /[?&]repoLabel=/.test(baseUrl);
   const hasRepoPathQueryParam = /[?&]repoPath=/.test(baseUrl);
   const hasCursorQueryParam = /[?&]cursor=/.test(baseUrl);
+  const sourceValues = effectiveSource && typeof effectiveSource === 'object'
+    ? {
+      sourceId: encodeURIComponent(normalizeString(effectiveSource.id)),
+      provider: encodeURIComponent(normalizeString(effectiveSource.provider)),
+      host: encodeURIComponent(normalizeString(effectiveSource.host)),
+      owner: encodeURIComponent(normalizeString(effectiveSource.owner)),
+      repo: encodeURIComponent(normalizeString(effectiveSource.repo)),
+      branch: encodeURIComponent(normalizeString(effectiveSource.branch)),
+      notesPath: encodeURIComponent(normalizeString(effectiveSource.notesPath)),
+    }
+    : {};
   const repoId = encodeURIComponent(normalizeString(repo && repo.repoId));
   const repoLabel = encodeURIComponent(normalizeString(repo && repo.repoLabel));
   const repoPath = encodeURIComponent(normalizeString(repo && repo.repoPath));
@@ -221,9 +469,20 @@ function buildRemoteFeedUrl(config, repo, cursor) {
     .replace(/\{repoPath\}/g, repoPath)
     .replace(/\{cursor\}/g, cursorValue);
 
+  OBSIDIAN_SOURCE_FIELDS.forEach((field) => {
+    nextUrl = nextUrl.replace(new RegExp(`\\{${field}\\}`, 'g'), sourceValues[field] || '');
+  });
+
   if (hasRepoPathQueryParam && repoPath && !hasRepoPathPlaceholder) {
     nextUrl = nextUrl.replace(/([?&]repoPath=)([^&#]*)/i, `$1${repoPath}`);
   }
+
+  OBSIDIAN_SOURCE_FIELDS.forEach((field) => {
+    const queryPattern = new RegExp(`([?&]${field}=)([^&#]*)`, 'i');
+    if (queryPattern.test(nextUrl) && sourceValues[field] && !baseUrl.includes(`{${field}}`)) {
+      nextUrl = nextUrl.replace(queryPattern, `$1${sourceValues[field]}`);
+    }
+  });
 
   if (!hasRepoIdPlaceholder && !hasRepoIdQueryParam && repoId) {
     nextUrl += `${nextUrl.includes('?') ? '&' : '?'}repoId=${repoId}`;
@@ -235,11 +494,18 @@ function buildRemoteFeedUrl(config, repo, cursor) {
     nextUrl += `${nextUrl.includes('?') ? '&' : '?'}cursor=${cursorValue}`;
   }
 
+  OBSIDIAN_SOURCE_FIELDS.forEach((field) => {
+    const queryPattern = new RegExp(`[?&]${field}=`, 'i');
+    if (!baseUrl.includes(`{${field}}`) && !queryPattern.test(baseUrl) && sourceValues[field]) {
+      nextUrl += `${nextUrl.includes('?') ? '&' : '?'}${field}=${sourceValues[field]}`;
+    }
+  });
+
   return nextUrl;
 }
 
-async function pullRemoteFeed({ config, repo, cursor, fetchImpl, processImpl }) {
-  const remoteUrl = buildRemoteFeedUrl(config, repo, cursor);
+async function pullRemoteFeed({ config, repo, cursor, effectiveSource, fetchImpl, processImpl }) {
+  const remoteUrl = buildRemoteFeedUrl(config, repo, cursor, effectiveSource);
   if (!remoteUrl) {
     return { notes: [], nextCursor: normalizeString(cursor) || undefined };
   }
@@ -659,13 +925,18 @@ function applyRemoteFeed({ copilotHomeAbs, repo, config, feed }) {
 
 module.exports = {
   OBSIDIAN_SYNC_SCHEMA_VERSION,
+  DEFAULT_TIMER_RETRY_LIMIT,
   ObsidianSyncConflictError,
   deriveRepoSyncKey,
   resolveSyncRoot,
   resolveAggregateStatusPath,
+  normalizeSyncLease,
+  isSyncLeaseActive,
   readRepoSyncState,
   writeRepoSyncState,
   persistRepoSummary,
+  acquireRepoSyncLease,
+  releaseRepoSyncLease,
   pullRemoteFeed,
   applyRemoteFeed,
 };

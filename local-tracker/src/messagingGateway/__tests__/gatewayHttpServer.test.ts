@@ -3,6 +3,7 @@ import http from 'http';
 import {
     buildEmptyMessagingGatewayDiscoveryTelemetrySummary,
     buildMessagingGatewayReadinessMetadata,
+    type SyncedNoteSourceRecord,
 } from '@elegy-copilot/contracts';
 import {
     GatewayHttpServer,
@@ -44,8 +45,8 @@ const PERSISTED_DEFINITION: WorkflowDefinition = {
     }],
 };
 
-const SYNCED_NOTE_SOURCE = {
-    id: 'snsrc_1234567890abcdef1234567890abcd',
+const SYNCED_NOTE_SOURCE: SyncedNoteSourceRecord = {
+    id: 'snsrc_1234567890abcdef1234567890abcdef',
     provider: 'github',
     host: 'github.com',
     owner: 'InstructionEngine',
@@ -56,6 +57,19 @@ const SYNCED_NOTE_SOURCE = {
     createdAt: '2026-03-18T00:00:00.000Z',
     updatedAt: '2026-03-18T00:00:00.000Z',
 };
+
+function buildSyncedNoteSourceResponse(payload: unknown, id = SYNCED_NOTE_SOURCE.id): SyncedNoteSourceRecord {
+    const overrides = payload && typeof payload === 'object'
+        ? payload as Partial<typeof SYNCED_NOTE_SOURCE>
+        : {};
+
+    return {
+        ...SYNCED_NOTE_SOURCE,
+        ...overrides,
+        provider: overrides.provider ?? SYNCED_NOTE_SOURCE.provider,
+        id,
+    };
+}
 
 function makeGatewayStatus(overrides: Partial<MessagingGatewayStatusV1> = {}): MessagingGatewayStatusV1 {
     return {
@@ -186,17 +200,16 @@ describe('GatewayHttpServer', () => {
         },
         runId: 'run-http-1',
     }));
-    const mockListSyncedNoteSources = jest.fn(() => [SYNCED_NOTE_SOURCE]);
-    const mockGetSyncedNoteSource = jest.fn((id: string) => (id === SYNCED_NOTE_SOURCE.id ? SYNCED_NOTE_SOURCE : undefined));
-    const mockCreateSyncedNoteSource = jest.fn((payload: unknown) => ({
-        ...SYNCED_NOTE_SOURCE,
-        ...(payload as Record<string, unknown>),
-    }));
-    const mockUpdateSyncedNoteSource = jest.fn((id: string, payload: unknown) => ({
-        ...SYNCED_NOTE_SOURCE,
-        ...((payload as Record<string, unknown>) || {}),
-        id,
-    }));
+    const mockListSyncedNoteSources = jest.fn<SyncedNoteSourceRecord[], []>(() => [SYNCED_NOTE_SOURCE]);
+    const mockGetSyncedNoteSource = jest.fn<SyncedNoteSourceRecord | undefined, [string]>(
+        (id: string) => (id === SYNCED_NOTE_SOURCE.id ? SYNCED_NOTE_SOURCE : undefined),
+    );
+    const mockCreateSyncedNoteSource = jest.fn<SyncedNoteSourceRecord, [unknown]>(
+        (payload: unknown) => buildSyncedNoteSourceResponse(payload),
+    );
+    const mockUpdateSyncedNoteSource = jest.fn<SyncedNoteSourceRecord, [string, unknown]>(
+        (id: string, payload: unknown) => buildSyncedNoteSourceResponse(payload, id),
+    );
     const mockDeleteSyncedNoteSource = jest.fn((id: string) => id === SYNCED_NOTE_SOURCE.id);
 
     beforeAll(async () => {
@@ -278,15 +291,8 @@ describe('GatewayHttpServer', () => {
         });
         mockListSyncedNoteSources.mockReturnValue([SYNCED_NOTE_SOURCE]);
         mockGetSyncedNoteSource.mockImplementation((id: string) => (id === SYNCED_NOTE_SOURCE.id ? SYNCED_NOTE_SOURCE : undefined));
-        mockCreateSyncedNoteSource.mockImplementation((payload: unknown) => ({
-            ...SYNCED_NOTE_SOURCE,
-            ...(payload as Record<string, unknown>),
-        }));
-        mockUpdateSyncedNoteSource.mockImplementation((id: string, payload: unknown) => ({
-            ...SYNCED_NOTE_SOURCE,
-            ...((payload as Record<string, unknown>) || {}),
-            id,
-        }));
+        mockCreateSyncedNoteSource.mockImplementation((payload: unknown) => buildSyncedNoteSourceResponse(payload));
+        mockUpdateSyncedNoteSource.mockImplementation((id: string, payload: unknown) => buildSyncedNoteSourceResponse(payload, id));
         mockDeleteSyncedNoteSource.mockImplementation((id: string) => id === SYNCED_NOTE_SOURCE.id);
         workflowListeners.clear();
     });
@@ -664,6 +670,144 @@ describe('GatewayHttpServer', () => {
             ...payload,
         });
         expect(mockCreateSyncedNoteSource).toHaveBeenCalledWith(payload);
+    });
+
+    it('GET /api/synced-notes/sources/:id returns the selected synced-note source', async () => {
+        const res = await makeRequest(port, {
+            method: 'GET',
+            path: `/api/synced-notes/sources/${SYNCED_NOTE_SOURCE.id}`,
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual(SYNCED_NOTE_SOURCE);
+        expect(mockGetSyncedNoteSource).toHaveBeenCalledWith(SYNCED_NOTE_SOURCE.id);
+    });
+
+    it('GET /api/synced-notes/sources/:id rejects malformed ids deterministically', async () => {
+        const res = await makeRequest(port, {
+            method: 'GET',
+            path: '/api/synced-notes/sources/not-a-valid-id',
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Invalid synced-note source id format',
+            code: 'invalid_synced_note_source_id',
+        });
+        expect(mockGetSyncedNoteSource).not.toHaveBeenCalled();
+    });
+
+    it('PUT /api/synced-notes/sources/:id updates a synced-note source', async () => {
+        const payload = {
+            provider: 'github',
+            host: 'github.com',
+            owner: 'InstructionEngine',
+            repo: 'workspace',
+            branch: 'main',
+            notesPath: 'docs/planning/updated.md',
+        };
+
+        const res = await makeRequest(port, {
+            method: 'PUT',
+            path: `/api/synced-notes/sources/${SYNCED_NOTE_SOURCE.id}`,
+            token: TEST_TOKEN,
+            body: JSON.stringify(payload),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual({
+            ...SYNCED_NOTE_SOURCE,
+            ...payload,
+            id: SYNCED_NOTE_SOURCE.id,
+        });
+        expect(mockUpdateSyncedNoteSource).toHaveBeenCalledWith(SYNCED_NOTE_SOURCE.id, {
+            ...payload,
+            id: SYNCED_NOTE_SOURCE.id,
+        });
+    });
+
+    it('PUT /api/synced-notes/sources/:id rejects body id mismatches before hitting the store', async () => {
+        const res = await makeRequest(port, {
+            method: 'PUT',
+            path: `/api/synced-notes/sources/${SYNCED_NOTE_SOURCE.id}`,
+            token: TEST_TOKEN,
+            body: JSON.stringify({
+                id: 'snsrc_abcdefabcdefabcdefabcdefabcdefab',
+                provider: 'github',
+                host: 'github.com',
+                owner: 'InstructionEngine',
+                repo: 'workspace',
+                branch: 'main',
+                notesPath: 'docs/planning/updated.md',
+            }),
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Body id must match route id',
+            code: 'synced_note_source_id_mismatch',
+        });
+        expect(mockUpdateSyncedNoteSource).not.toHaveBeenCalled();
+    });
+
+    it('PUT /api/synced-notes/sources/:id returns deterministic locator drift errors from the store', async () => {
+        const driftError = new Error('Payload locator does not match route id') as Error & {
+            statusCode: number;
+            code: string;
+        };
+        driftError.statusCode = 400;
+        driftError.code = 'synced_note_source_locator_mismatch';
+        mockUpdateSyncedNoteSource.mockImplementationOnce(() => {
+            throw driftError;
+        });
+
+        const res = await makeRequest(port, {
+            method: 'PUT',
+            path: `/api/synced-notes/sources/${SYNCED_NOTE_SOURCE.id}`,
+            token: TEST_TOKEN,
+            body: JSON.stringify({
+                provider: 'git',
+                host: 'git.internal.test',
+                owner: 'team-notes',
+                repo: 'planning',
+                branch: 'feature/synced-note',
+                notesPath: 'notes/team.md',
+            }),
+        });
+
+        expect(res.statusCode).toBe(400);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Payload locator does not match route id',
+            code: 'synced_note_source_locator_mismatch',
+        });
+    });
+
+    it('DELETE /api/synced-notes/sources/:id deletes a synced-note source', async () => {
+        const res = await makeRequest(port, {
+            method: 'DELETE',
+            path: `/api/synced-notes/sources/${SYNCED_NOTE_SOURCE.id}`,
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body)).toEqual({ ok: true, id: SYNCED_NOTE_SOURCE.id });
+        expect(mockDeleteSyncedNoteSource).toHaveBeenCalledWith(SYNCED_NOTE_SOURCE.id);
+    });
+
+    it('DELETE /api/synced-notes/sources/:id returns deterministic not-found errors', async () => {
+        const res = await makeRequest(port, {
+            method: 'DELETE',
+            path: '/api/synced-notes/sources/snsrc_ffffffffffffffffffffffffffffffff',
+            token: TEST_TOKEN,
+        });
+
+        expect(res.statusCode).toBe(404);
+        expect(JSON.parse(res.body)).toEqual({
+            error: 'Synced-note source not found',
+            code: 'synced_note_source_not_found',
+        });
     });
 
     it('GET /api/workflows/events requires auth', async () => {

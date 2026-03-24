@@ -5,6 +5,8 @@ const {
   OBSIDIAN_SYNCED_NOTE_ID_PREFIX,
   PLANNING_API_CONTRACT_VERSION,
   SYNCED_NOTE_SOURCE_ID_PATTERN,
+  SYNCED_NOTE_SOURCE_PRIMARY_PROVIDER,
+  SYNCED_NOTE_SOURCE_FALLBACK_PROVIDERS,
   assertSyncedNoteSourceIdMatches,
   buildPlanningApiEnvelope,
   buildPlanningApiErrorEnvelope,
@@ -12,6 +14,8 @@ const {
   canonicalizeSyncedNoteSourceLocator,
   deriveObsidianSyncedNoteId,
   deriveSyncedNoteSourceId,
+  getSyncedNoteSourceProviderPolicy,
+  normalizeSyncedNoteSourceId,
 } = require('../dist');
 
 test('planning api envelope builder keeps shared contract metadata authoritative', () => {
@@ -106,6 +110,53 @@ test('synced-note source ids fail closed when the locator tuple changes', () => 
   assert.throws(
     () => assertSyncedNoteSourceIdMatches({ ...locator, branch: 'feature/seed' }, derivedId),
     /id mismatch/i,
+  );
+});
+
+test('synced-note source ids reject malformed values before comparing locator drift', () => {
+  const locator = {
+    provider: 'github',
+    host: 'github.com',
+    owner: 'InstructionEngine',
+    repo: 'workspace',
+    branch: 'main',
+    notesPath: 'docs/planning/synced-note.md',
+  };
+
+  assert.throws(
+    () => normalizeSyncedNoteSourceId('snsrc_invalid'),
+    /must match snsrc_<32 lowercase hex characters>/i,
+  );
+  assert.throws(
+    () => assertSyncedNoteSourceIdMatches(locator, 'snsrc_invalid'),
+    /must match snsrc_<32 lowercase hex characters>/i,
+  );
+});
+
+test('synced-note provider policy keeps github primary and fallbacks explicit', () => {
+  assert.deepEqual(getSyncedNoteSourceProviderPolicy(SYNCED_NOTE_SOURCE_PRIMARY_PROVIDER), {
+    provider: 'github',
+    tier: 'primary',
+    backend: 'github',
+    explicit: true,
+  });
+
+  assert.deepEqual(
+    SYNCED_NOTE_SOURCE_FALLBACK_PROVIDERS.map((provider) => getSyncedNoteSourceProviderPolicy(provider)),
+    [
+      {
+        provider: 'gitea',
+        tier: 'fallback',
+        backend: 'gitea',
+        explicit: true,
+      },
+      {
+        provider: 'git',
+        tier: 'fallback',
+        backend: 'git',
+        explicit: true,
+      },
+    ],
   );
 });
 

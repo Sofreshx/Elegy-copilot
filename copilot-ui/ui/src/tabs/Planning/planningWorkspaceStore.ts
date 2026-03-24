@@ -1,6 +1,8 @@
 import {
   createPlanningBacklogItem,
   createPlanningBullet,
+  createTrackerSyncedNoteSource,
+  deleteTrackerSyncedNoteSource,
   getPlanningBacklog,
   getPlanningBullets,
   getPlanningObsidianNote,
@@ -15,7 +17,11 @@ import {
   listPlanningObsidianRepresentations,
   getPlanningRoadmaps,
   refreshPlanningObsidianRepresentations,
+  setPlanningObsidianSourceSelection,
   triggerPlanningObsidianSync,
+  updatePlanningBacklogItem,
+  updatePlanningRoadmap,
+  updateTrackerSyncedNoteSource,
   updatePlanningBullet,
 } from '../../lib/api';
 import { createStore } from '../../lib/store';
@@ -37,6 +43,8 @@ import type {
   PlanningRepositoryBacklogRef,
   PlanningRoadmap,
   PlanningRoadmapDirectoryRef,
+  SyncedNoteSourceLocator,
+  SyncedNoteSourceRecord,
 } from '../../lib/types';
 
 export interface PlanningCatalogRepoContext {
@@ -78,6 +86,10 @@ export interface PlanningWorkspaceState {
   obsidianSyncing: boolean;
   obsidianRepresentationsLoading: boolean;
   obsidianRepresentationsRefreshing: boolean;
+  obsidianPromotionSaving: boolean;
+  obsidianSourceSelectionSaving: boolean;
+  obsidianSourceSaving: boolean;
+  obsidianSourceDeletingId: string | null;
   obsidianError: string | null;
   loading: boolean;
   error: string | null;
@@ -121,6 +133,10 @@ const INITIAL_STATE: PlanningWorkspaceState = {
   obsidianSyncing: false,
   obsidianRepresentationsLoading: false,
   obsidianRepresentationsRefreshing: false,
+  obsidianPromotionSaving: false,
+  obsidianSourceSelectionSaving: false,
+  obsidianSourceSaving: false,
+  obsidianSourceDeletingId: null,
   obsidianError: null,
   loading: false,
   error: null,
@@ -180,6 +196,45 @@ function normalizeCatalogRepoContext(
     repoPath,
     repoLabel,
     sources,
+  };
+}
+
+function getObsidianRepoContext(state: PlanningWorkspaceState) {
+  return {
+    repoId: state.catalogRepoContext?.repoId || '',
+    repoPath: state.catalogRepoContext?.repoPath || '',
+    repoLabel: state.catalogRepoContext?.repoLabel || '',
+  };
+}
+
+function getSelectedRoadmap(state: PlanningWorkspaceState) {
+  return state.roadmaps.find((roadmap) => roadmap.slug === state.selectedRoadmapSlug)
+    || state.roadmaps[0]
+    || null;
+}
+
+function buildObsidianPromotionSummary(note: ObsidianPlanningNoteSummary | ObsidianPlanningNoteDetail): string {
+  const noteSummary = note.summary.trim();
+  return [
+    `Promoted from external/non-canonical Obsidian note ${note.id} at ${note.notePath}.`,
+    noteSummary ? `External note summary: ${noteSummary}` : '',
+    'Canonical backlog, roadmaps, and the active session plan remain authoritative.',
+  ].filter(Boolean).join(' ');
+}
+
+function buildObsidianRoadmapItemSummary(note: ObsidianPlanningNoteSummary | ObsidianPlanningNoteDetail): string {
+  const noteSummary = note.summary.trim();
+  return [
+    `Promoted from external/non-canonical Obsidian note ${note.id}.`,
+    noteSummary ? `External note summary: ${noteSummary}` : '',
+  ].filter(Boolean).join(' ');
+}
+
+function resolveRoadmapPromotionDefaults(roadmap: PlanningRoadmap | null): { phase: string; status: string } {
+  const phase = roadmap?.items.find((item) => item.phase.trim())?.phase || 'unscheduled';
+  return {
+    phase,
+    status: 'planned',
   };
 }
 
@@ -262,6 +317,10 @@ export function createPlanningWorkspaceStore() {
       obsidianSyncing: preserveRepoData ? state.obsidianSyncing : false,
       obsidianRepresentationsLoading: preserveRepoData ? state.obsidianRepresentationsLoading : false,
       obsidianRepresentationsRefreshing: preserveRepoData ? state.obsidianRepresentationsRefreshing : false,
+      obsidianPromotionSaving: preserveRepoData ? state.obsidianPromotionSaving : false,
+      obsidianSourceSelectionSaving: preserveRepoData ? state.obsidianSourceSelectionSaving : false,
+      obsidianSourceSaving: preserveRepoData ? state.obsidianSourceSaving : false,
+      obsidianSourceDeletingId: preserveRepoData ? state.obsidianSourceDeletingId : null,
       bulletsError: null,
       intakeError: null,
       backlogError: null,
@@ -623,9 +682,7 @@ export function createPlanningWorkspaceStore() {
   async function loadObsidianNotes(): Promise<void> {
     const nextVersion = ++obsidianRequestVersion;
     const stateSnapshot = store.getState();
-    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
-    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
-    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+    const { repoId, repoPath, repoLabel } = getObsidianRepoContext(stateSnapshot);
 
     if (!repoPath) {
       store.setState((state) => ({
@@ -640,6 +697,7 @@ export function createPlanningWorkspaceStore() {
         obsidianDetailLoading: false,
         obsidianSyncing: false,
         obsidianRepresentationsLoading: false,
+        obsidianPromotionSaving: false,
         loading: computeWorkspaceLoading({
           ...state,
           obsidianLoading: false,
@@ -735,6 +793,7 @@ export function createPlanningWorkspaceStore() {
           obsidianDetailLoading: false,
           obsidianSyncing: false,
           obsidianRepresentationsLoading: false,
+          obsidianPromotionSaving: false,
           loading: computeWorkspaceLoading({
             ...state,
             obsidianLoading: false,
@@ -750,9 +809,7 @@ export function createPlanningWorkspaceStore() {
   async function loadObsidianRepresentations(): Promise<void> {
     const nextVersion = ++obsidianRepresentationsRequestVersion;
     const stateSnapshot = store.getState();
-    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
-    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
-    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+    const { repoId, repoPath, repoLabel } = getObsidianRepoContext(stateSnapshot);
 
     if (!repoPath) {
       store.setState((state) => ({
@@ -822,9 +879,7 @@ export function createPlanningWorkspaceStore() {
 
   async function syncObsidianNotes(): Promise<void> {
     const stateSnapshot = store.getState();
-    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
-    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
-    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+    const { repoId, repoPath, repoLabel } = getObsidianRepoContext(stateSnapshot);
 
     if (!repoPath) {
       store.setState((state) => ({
@@ -870,9 +925,7 @@ export function createPlanningWorkspaceStore() {
 
   async function refreshObsidianRepresentationsInVault(): Promise<void> {
     const stateSnapshot = store.getState();
-    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
-    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
-    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+    const { repoId, repoPath, repoLabel } = getObsidianRepoContext(stateSnapshot);
 
     if (!repoPath) {
       store.setState((state) => ({
@@ -917,6 +970,172 @@ export function createPlanningWorkspaceStore() {
     }
   }
 
+  async function setObsidianSourceSelection(sourceId: string | null | undefined): Promise<boolean> {
+    const stateSnapshot = store.getState();
+    const { repoId, repoPath, repoLabel } = getObsidianRepoContext(stateSnapshot);
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        obsidianError: 'Select a Catalog repo before changing the synced-note source selection.',
+      }));
+      return false;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      obsidianSourceSelectionSaving: true,
+      obsidianError: null,
+    }));
+
+    try {
+      const response = await setPlanningObsidianSourceSelection(sourceId, {
+        repoId: repoId || undefined,
+        repoPath,
+        repoLabel: repoLabel || undefined,
+      });
+
+      store.setState((state) => ({
+        ...state,
+        obsidianStatus: response.status,
+        obsidianError: null,
+      }));
+
+      await loadObsidianNotes();
+      return true;
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to update the synced-note source selection.');
+      store.setState((state) => ({
+        ...state,
+        obsidianError: message,
+      }));
+      return false;
+    } finally {
+      store.setState((state) => ({
+        ...state,
+        obsidianSourceSelectionSaving: false,
+      }));
+    }
+  }
+
+  async function createObsidianSource(source: SyncedNoteSourceLocator): Promise<SyncedNoteSourceRecord | null> {
+    const stateSnapshot = store.getState();
+    const { repoPath } = getObsidianRepoContext(stateSnapshot);
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        obsidianError: 'Select a Catalog repo before creating synced-note sources.',
+      }));
+      return null;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      obsidianSourceSaving: true,
+      obsidianError: null,
+    }));
+
+    try {
+      const created = await createTrackerSyncedNoteSource(source);
+      await loadObsidianNotes();
+      return created;
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to create the synced-note source.');
+      store.setState((state) => ({
+        ...state,
+        obsidianError: message,
+      }));
+      return null;
+    } finally {
+      store.setState((state) => ({
+        ...state,
+        obsidianSourceSaving: false,
+      }));
+    }
+  }
+
+  async function updateObsidianSource(
+    sourceId: string,
+    source: SyncedNoteSourceLocator,
+  ): Promise<SyncedNoteSourceRecord | null> {
+    const stateSnapshot = store.getState();
+    const { repoPath } = getObsidianRepoContext(stateSnapshot);
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        obsidianError: 'Select a Catalog repo before updating synced-note sources.',
+      }));
+      return null;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      obsidianSourceSaving: true,
+      obsidianError: null,
+    }));
+
+    try {
+      const updated = await updateTrackerSyncedNoteSource(sourceId, source);
+      await loadObsidianNotes();
+      return updated;
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to update the synced-note source.');
+      store.setState((state) => ({
+        ...state,
+        obsidianError: message,
+      }));
+      return null;
+    } finally {
+      store.setState((state) => ({
+        ...state,
+        obsidianSourceSaving: false,
+      }));
+    }
+  }
+
+  async function deleteObsidianSource(sourceId: string): Promise<boolean> {
+    const stateSnapshot = store.getState();
+    const { repoPath } = getObsidianRepoContext(stateSnapshot);
+
+    if (!repoPath) {
+      store.setState((state) => ({
+        ...state,
+        obsidianError: 'Select a Catalog repo before deleting synced-note sources.',
+      }));
+      return false;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      obsidianSourceDeletingId: sourceId,
+      obsidianError: null,
+    }));
+
+    try {
+      const response = await deleteTrackerSyncedNoteSource(sourceId);
+      if (!response.ok) {
+        throw new Error('Tracker did not confirm the synced-note source deletion.');
+      }
+
+      await loadObsidianNotes();
+      return true;
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to delete the synced-note source.');
+      store.setState((state) => ({
+        ...state,
+        obsidianError: message,
+      }));
+      return false;
+    } finally {
+      store.setState((state) => ({
+        ...state,
+        obsidianSourceDeletingId: null,
+      }));
+    }
+  }
+
   async function createBullet(input: {
     title: string;
     state?: PlanningBullet['state'];
@@ -952,6 +1171,173 @@ export function createPlanningWorkspaceStore() {
     }));
 
     return response.artifact ?? null;
+  }
+
+  async function promoteObsidianNoteToBacklog(
+    note: ObsidianPlanningNoteSummary | ObsidianPlanningNoteDetail,
+  ): Promise<string | null> {
+    const stateSnapshot = store.getState();
+    const { repoId, repoPath } = getObsidianRepoContext(stateSnapshot);
+
+    if (!repoId || !repoPath) {
+      store.setState((state) => ({
+        ...state,
+        obsidianError: 'Select a Catalog repo before promoting external Obsidian notes into the backlog.',
+      }));
+      return null;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      obsidianPromotionSaving: true,
+      obsidianError: null,
+    }));
+
+    try {
+      const backlogResponse = await createPlanningBacklogItem({
+        repoId,
+        repoPath,
+        item: {
+          title: note.title,
+          summary: buildObsidianPromotionSummary(note),
+          status: 'proposed',
+        },
+      });
+      const backlogId = String(backlogResponse.item?.id || '').trim();
+      if (!backlogId) {
+        throw new Error('Backlog promotion did not return a canonical backlog id.');
+      }
+
+      await loadBacklog();
+      store.setState((state) => ({
+        ...state,
+        backlogError: null,
+        obsidianError: null,
+      }));
+      return backlogId;
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to promote the external Obsidian note into the backlog.');
+      store.setState((state) => ({
+        ...state,
+        obsidianError: message,
+      }));
+      return null;
+    } finally {
+      store.setState((state) => ({
+        ...state,
+        obsidianPromotionSaving: false,
+      }));
+    }
+  }
+
+  async function promoteObsidianNoteToRoadmap(
+    note: ObsidianPlanningNoteSummary | ObsidianPlanningNoteDetail,
+  ): Promise<{ backlogId: string; roadmapItemId: string } | null> {
+    const stateSnapshot = store.getState();
+    const { repoId, repoPath, repoLabel } = getObsidianRepoContext(stateSnapshot);
+    const selectedRoadmap = getSelectedRoadmap(stateSnapshot);
+
+    if (!repoId || !repoPath) {
+      store.setState((state) => ({
+        ...state,
+        obsidianError: 'Select a Catalog repo before promoting external Obsidian notes into a roadmap.',
+      }));
+      return null;
+    }
+
+    if (!selectedRoadmap) {
+      store.setState((state) => ({
+        ...state,
+        obsidianError: 'Select a roadmap before promoting an external Obsidian note into roadmap work.',
+      }));
+      return null;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      obsidianPromotionSaving: true,
+      obsidianError: null,
+    }));
+
+    try {
+      const backlogResponse = await createPlanningBacklogItem({
+        repoId,
+        repoPath,
+        item: {
+          title: note.title,
+          summary: buildObsidianPromotionSummary(note),
+          status: 'proposed',
+        },
+      });
+      const backlogId = String(backlogResponse.item?.id || '').trim();
+      if (!backlogId) {
+        throw new Error('Roadmap promotion did not return a canonical backlog id.');
+      }
+
+      const roadmapDefaults = resolveRoadmapPromotionDefaults(selectedRoadmap);
+      const existingRoadmapItemIds = new Set(selectedRoadmap.items.map((item) => item.id));
+      const roadmapResponse = await updatePlanningRoadmap(selectedRoadmap.slug, {
+        repoId,
+        repoPath,
+        repoLabel: repoLabel || undefined,
+        items: [
+          {
+            title: note.title,
+            phase: roadmapDefaults.phase,
+            status: roadmapDefaults.status,
+            summary: buildObsidianRoadmapItemSummary(note),
+            backlogIds: [backlogId],
+            planRefs: [],
+          },
+        ],
+      });
+
+      const roadmapItem = roadmapResponse.roadmap?.items.find((item) => (
+        !existingRoadmapItemIds.has(item.id)
+        && item.title === note.title
+        && item.backlogIds.includes(backlogId)
+      )) || null;
+      const roadmapItemId = String(roadmapItem?.id || '').trim();
+      if (!roadmapItemId) {
+        throw new Error('Roadmap promotion did not return a canonical roadmap item id.');
+      }
+
+      const currentRoadmapIds = Array.isArray(backlogResponse.item?.roadmapIds)
+        ? backlogResponse.item?.roadmapIds
+        : [];
+      await updatePlanningBacklogItem(backlogId, {
+        repoId,
+        repoPath,
+        item: {
+          roadmapIds: [...new Set([...currentRoadmapIds, roadmapItemId])].sort(),
+        },
+      });
+
+      await Promise.all([loadBacklog(), loadRoadmaps()]);
+      store.setState((state) => ({
+        ...state,
+        backlogError: null,
+        error: null,
+        obsidianError: null,
+      }));
+
+      return {
+        backlogId,
+        roadmapItemId,
+      };
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to promote the external Obsidian note into the selected roadmap.');
+      store.setState((state) => ({
+        ...state,
+        obsidianError: message,
+      }));
+      return null;
+    } finally {
+      store.setState((state) => ({
+        ...state,
+        obsidianPromotionSaving: false,
+      }));
+    }
   }
 
   async function patchBullet(
@@ -1098,6 +1484,12 @@ export function createPlanningWorkspaceStore() {
     loadObsidianNote,
     syncObsidianNotes,
     refreshObsidianRepresentationsInVault,
+    promoteObsidianNoteToBacklog,
+    promoteObsidianNoteToRoadmap,
+    setObsidianSourceSelection,
+    createObsidianSource,
+    updateObsidianSource,
+    deleteObsidianSource,
     createBullet,
     patchBullet,
     promoteBulletToBacklog,

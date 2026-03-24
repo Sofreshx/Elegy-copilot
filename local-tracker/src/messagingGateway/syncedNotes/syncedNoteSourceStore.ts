@@ -2,11 +2,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  SYNCED_NOTE_SOURCE_ID_PATTERN,
   SYNCED_NOTE_SOURCE_PROVIDERS,
+  SyncedNoteSourceContractError,
   assertSyncedNoteSourceIdMatches,
   canonicalizeSyncedNoteSourceLocator,
   deriveSyncedNoteSourceId,
+  getSyncedNoteSourceProviderPolicy,
+  normalizeSyncedNoteSourceId,
   type SyncedNoteSourceRecord,
 } from '@elegy-copilot/contracts';
 import { z } from 'zod';
@@ -25,7 +27,7 @@ const syncedNoteSourceMutationSchema = z.object({
 }).strict();
 
 const persistedSyncedNoteSourceSchema = syncedNoteSourceMutationSchema.extend({
-  id: z.string().trim().regex(SYNCED_NOTE_SOURCE_ID_PATTERN),
+  id: z.string().trim(),
   createdAt: z.string().trim().min(1),
   updatedAt: z.string().trim().min(1),
 }).strict();
@@ -66,15 +68,49 @@ export function getDefaultSyncedNoteSourcesDir(): string {
   return path.join(os.homedir(), '.copilot', 'synced-notes', 'sources');
 }
 
+function toStoreErrorFromContractError(
+  error: SyncedNoteSourceContractError,
+  options: { locatorMismatchMessage?: string } = {},
+): SyncedNoteSourceStoreError {
+  if (error.code === 'invalid_synced_note_source_id') {
+    return new SyncedNoteSourceStoreError(400, error.message, 'invalid_synced_note_source_id');
+  }
+  if (error.code === 'synced_note_source_locator_mismatch') {
+    return new SyncedNoteSourceStoreError(
+      400,
+      options.locatorMismatchMessage ?? error.message,
+      'synced_note_source_locator_mismatch',
+    );
+  }
+  return new SyncedNoteSourceStoreError(400, error.message, 'invalid_synced_note_source');
+}
+
+function requireSyncedNoteSourceId(sourceId: string): string {
+  try {
+    return normalizeSyncedNoteSourceId(sourceId);
+  } catch (error) {
+    if (error instanceof SyncedNoteSourceContractError) {
+      throw toStoreErrorFromContractError(error);
+    }
+    throw error;
+  }
+}
+
 function normalizeMutation(
   payload: unknown,
   options: { expectedId?: string; createdAt?: string } = {},
 ): SyncedNoteSourceRecord {
-  const expectedId = typeof options.expectedId === 'string' ? options.expectedId.trim() : '';
+  const expectedId = typeof options.expectedId === 'string' && options.expectedId.trim().length > 0
+    ? requireSyncedNoteSourceId(options.expectedId)
+    : '';
 
   try {
     const parsed = syncedNoteSourceMutationSchema.parse(payload);
-    const locator = canonicalizeSyncedNoteSourceLocator(parsed);
+    const providerPolicy = getSyncedNoteSourceProviderPolicy(parsed.provider);
+    const locator = canonicalizeSyncedNoteSourceLocator({
+      ...parsed,
+      provider: providerPolicy.provider,
+    });
     const localCheckoutPath = typeof parsed.localCheckoutPath === 'string' && parsed.localCheckoutPath.trim().length > 0
       ? parsed.localCheckoutPath.trim()
       : undefined;
@@ -83,18 +119,39 @@ function normalizeMutation(
     if (expectedId) {
       try {
         assertSyncedNoteSourceIdMatches(locator, expectedId);
-      } catch {
-        throw new SyncedNoteSourceStoreError(
-          400,
-          'Payload locator does not match route id',
-          'synced_note_source_locator_mismatch',
-        );
+      } catch (error) {
+        if (error instanceof SyncedNoteSourceContractError) {
+          throw toStoreErrorFromContractError(error, {
+            locatorMismatchMessage: 'Payload locator does not match route id',
+          });
+        }
+        throw error;
       }
       derivedId = expectedId;
     }
 
     if (parsed.id) {
-      derivedId = assertSyncedNoteSourceIdMatches(locator, parsed.id);
+      let payloadId: string;
+      try {
+        payloadId = normalizeSyncedNoteSourceId(parsed.id);
+      } catch (error) {
+        if (error instanceof SyncedNoteSourceContractError) {
+          throw toStoreErrorFromContractError(error);
+        }
+        throw error;
+      }
+
+      try {
+        derivedId = assertSyncedNoteSourceIdMatches(locator, payloadId);
+      } catch (error) {
+        if (error instanceof SyncedNoteSourceContractError) {
+          throw toStoreErrorFromContractError(error, {
+            locatorMismatchMessage: 'Payload id does not match locator',
+          });
+        }
+        throw error;
+      }
+
       if (expectedId) {
         derivedId = expectedId;
       }
@@ -112,6 +169,9 @@ function normalizeMutation(
     if (error instanceof SyncedNoteSourceStoreError) {
       throw error;
     }
+    if (error instanceof SyncedNoteSourceContractError) {
+      throw toStoreErrorFromContractError(error);
+    }
     if (isZodLikeError(error)) {
       throw new SyncedNoteSourceStoreError(400, 'Invalid synced-note source payload', 'invalid_synced_note_source');
     }
@@ -124,11 +184,11 @@ function normalizeMutation(
 }
 
 function sanitizeSyncedNoteSourceId(sourceId: string): string | null {
-  const id = String(sourceId ?? '').trim();
-  if (!SYNCED_NOTE_SOURCE_ID_PATTERN.test(id)) {
+  try {
+    return normalizeSyncedNoteSourceId(sourceId);
+  } catch {
     return null;
   }
-  return id;
 }
 
 export class SyncedNoteSourceStore {
@@ -151,10 +211,7 @@ export class SyncedNoteSourceStore {
   }
 
   update(sourceId: string, payload: unknown): SyncedNoteSourceRecord {
-    const safeId = sanitizeSyncedNoteSourceId(sourceId);
-    if (!safeId) {
-      throw new SyncedNoteSourceStoreError(400, 'Invalid synced-note source id format', 'invalid_synced_note_source_id');
-    }
+    const safeId = requireSyncedNoteSourceId(sourceId);
 
     const existing = this.load(safeId);
     if (!existing) {
@@ -226,10 +283,11 @@ export class SyncedNoteSourceStore {
     for (const line of lines) {
       try {
         const parsed = persistedSyncedNoteSourceSchema.parse(JSON.parse(line) as unknown);
+        const parsedId = normalizeSyncedNoteSourceId(parsed.id);
         const locator = canonicalizeSyncedNoteSourceLocator(parsed);
-        assertSyncedNoteSourceIdMatches(locator, parsed.id);
+        assertSyncedNoteSourceIdMatches(locator, parsedId);
         latest = {
-          id: parsed.id,
+          id: parsedId,
           ...locator,
           ...(parsed.localCheckoutPath ? { localCheckoutPath: parsed.localCheckoutPath } : {}),
           createdAt: parsed.createdAt,
@@ -268,10 +326,7 @@ export class SyncedNoteSourceStore {
   }
 
   private getFilePath(sourceId: string): string {
-    const safeId = sanitizeSyncedNoteSourceId(sourceId);
-    if (!safeId) {
-      throw new SyncedNoteSourceStoreError(400, `Invalid synced-note source id: ${sourceId}`, 'invalid_synced_note_source_id');
-    }
+    const safeId = requireSyncedNoteSourceId(sourceId);
     return path.join(this.sourcesDir, `${safeId}.jsonl`);
   }
 

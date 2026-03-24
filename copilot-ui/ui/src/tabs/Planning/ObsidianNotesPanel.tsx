@@ -5,9 +5,15 @@ import type {
   ObsidianPlanningRepresentationSummary,
   ObsidianPlanningRepresentationsStatus,
   ObsidianPlanningStatus,
+  SyncedNoteSourceLocator,
+  SyncedNoteSourceRecord,
 } from '../../lib/types';
+import ObsidianSourceManagementSection from './ObsidianSourceManagementSection';
 
 interface ObsidianNotesPanelProps {
+  repoContextSelected: boolean;
+  repoContextLabel: string;
+  selectedRoadmapTitle: string;
   status: ObsidianPlanningStatus | null;
   notes: ObsidianPlanningNoteSummary[];
   representationsStatus: ObsidianPlanningRepresentationsStatus | null;
@@ -19,12 +25,28 @@ interface ObsidianNotesPanelProps {
   syncing: boolean;
   representationsLoading: boolean;
   representationsRefreshing: boolean;
+  promotionSaving: boolean;
+  sourceSelectionSaving: boolean;
+  sourceSaving: boolean;
+  sourceDeletingId: string | null;
   error: string | null;
   onRefresh: () => void;
   onRefreshRepresentations: () => void;
   onManualSync: () => void;
   onSelectNote: (noteId: string) => void;
   onSeedPlan: (note: ObsidianPlanningNoteSummary | ObsidianPlanningNoteDetail) => void;
+  onPromoteToBacklog: (note: ObsidianPlanningNoteSummary | ObsidianPlanningNoteDetail) => Promise<string | null> | string | null;
+  onPromoteToRoadmap: (
+    note: ObsidianPlanningNoteSummary | ObsidianPlanningNoteDetail,
+  ) => Promise<{ backlogId: string; roadmapItemId: string } | null> | { backlogId: string; roadmapItemId: string } | null;
+  onSetActiveSource: (sourceId: string) => Promise<boolean> | boolean;
+  onClearActiveSource: () => Promise<boolean> | boolean;
+  onCreateSource: (source: SyncedNoteSourceLocator) => Promise<SyncedNoteSourceRecord | null> | SyncedNoteSourceRecord | null;
+  onUpdateSource: (
+    sourceId: string,
+    source: SyncedNoteSourceLocator,
+  ) => Promise<SyncedNoteSourceRecord | null> | SyncedNoteSourceRecord | null;
+  onDeleteSource: (sourceId: string) => Promise<boolean> | boolean;
 }
 
 function resolveBadgeTone(status: ObsidianPlanningStatus | null): 'neutral' | 'accent' | 'success' | 'danger' {
@@ -150,6 +172,21 @@ export default function ObsidianNotesPanel(props: ObsidianNotesPanelProps) {
           </p>
         ) : null}
 
+        <ObsidianSourceManagementSection
+          deletingSourceId={props.sourceDeletingId}
+          loading={props.loading}
+          onClearActiveSource={props.onClearActiveSource}
+          onCreateSource={props.onCreateSource}
+          onDeleteSource={props.onDeleteSource}
+          onSetActiveSource={props.onSetActiveSource}
+          onUpdateSource={props.onUpdateSource}
+          repoContextLabel={props.repoContextLabel}
+          repoContextSelected={props.repoContextSelected}
+          selectionSaving={props.sourceSelectionSaving}
+          sourceResolution={props.status?.sourceResolution}
+          sourceSaving={props.sourceSaving}
+        />
+
         {props.error ? (
           <p className="planning-error" role="alert">
             {props.error}
@@ -255,6 +292,11 @@ export default function ObsidianNotesPanel(props: ObsidianNotesPanelProps) {
                 {currentNote.lastModifiedAt ? (
                   <p className="planning-copy">Updated: {currentNote.lastModifiedAt}</p>
                 ) : null}
+                <p className="planning-copy" data-testid="planning-obsidian-selected-roadmap-label">
+                  {props.selectedRoadmapTitle
+                    ? <>Selected roadmap for canonical promotion: <strong>{props.selectedRoadmapTitle}</strong>.</>
+                    : 'Select a roadmap in the Roadmaps section to link this external note into canonical roadmap work.'}
+                </p>
                 <div className="planning-actions">
                   <Button
                     disabled={props.detailLoading}
@@ -269,6 +311,25 @@ export default function ObsidianNotesPanel(props: ObsidianNotesPanelProps) {
                     testId="planning-obsidian-seed-plan"
                   >
                     Seed plan from note
+                  </Button>
+                  <Button
+                    disabled={props.promotionSaving}
+                    onClick={() => {
+                      void props.onPromoteToBacklog(selectedDetail || currentNote);
+                    }}
+                    testId="planning-obsidian-promote-backlog"
+                    variant="secondary"
+                  >
+                    {props.promotionSaving ? 'Promoting…' : 'Suggest backlog item'}
+                  </Button>
+                  <Button
+                    disabled={props.promotionSaving || !props.selectedRoadmapTitle}
+                    onClick={() => {
+                      void props.onPromoteToRoadmap(selectedDetail || currentNote);
+                    }}
+                    testId="planning-obsidian-promote-roadmap"
+                  >
+                    {props.promotionSaving ? 'Promoting…' : 'Add to selected roadmap'}
                   </Button>
                 </div>
                 <pre className="code-block" data-testid="planning-obsidian-note-viewer">

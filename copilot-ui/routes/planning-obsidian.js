@@ -4,6 +4,7 @@ const obsidianNotesLib = require('../lib/obsidianNotes');
 const obsidianCliLib = require('../lib/obsidianCli');
 const obsidianRemoteSyncLib = require('../lib/obsidianRemoteSync');
 const obsidianPlanningRepresentationsLib = require('../lib/obsidianPlanningRepresentations');
+const { createObsidianSourceResolver } = require('../lib/obsidianSourceResolution');
 const { createObsidianSyncService } = require('../lib/obsidianSyncService');
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 const {
@@ -46,6 +47,10 @@ function createService(deps) {
     obsidianRemoteSync: deps.obsidianRemoteSync,
     childProcess: deps.childProcess,
     process: deps.process,
+    trackerUrl: deps.trackerUrl,
+    trackerToken: deps.trackerToken,
+    obsidianSourceResolver: deps.obsidianSourceResolver,
+    listTrackerSyncedNoteSources: deps.listTrackerSyncedNoteSources,
     fetch: deps.fetch,
   });
 }
@@ -80,7 +85,13 @@ function buildMutationOptions(ctx, deps, body = {}) {
 
 function readRequestBody(req, deps) {
   if (!req || typeof req.on !== 'function') {
-    return Promise.resolve(req && typeof req.body === 'object' && req.body ? req.body : {});
+    if (req && typeof req.body === 'object' && req.body) {
+      return Promise.resolve(req.body);
+    }
+    if (typeof deps.readJsonBody === 'function' && deps.readJsonBody !== defaultReadJsonBody) {
+      return Promise.resolve(deps.readJsonBody(req)).then((body) => (body && typeof body === 'object' ? body : {}));
+    }
+    return Promise.resolve({});
   }
   return deps.readJsonBody(req).then((body) => (body && typeof body === 'object' ? body : {}));
 }
@@ -176,6 +187,25 @@ async function handleManualObsidianSync(ctx, deps) {
   }
 }
 
+async function handleSetObsidianSourceSelection(ctx, deps) {
+  try {
+    const body = await readRequestBody(ctx.req, deps);
+    const { repo, options } = buildMutationOptions(ctx, deps, body);
+    const status = await deps.obsidianSyncService.setActiveSourceSelection(options, normalizeString(body.sourceId));
+
+    deps.sendJson(ctx.res, 200, {
+      contractVersion: deps.contractVersion,
+      kind: 'planning.obsidian.source-selection',
+      deterministic: true,
+      repo: summarizeRepo(repo),
+      status,
+      sourceSelection: status.sourceResolution,
+    });
+  } catch (error) {
+    sendRouteError(ctx.res, deps, 'planning.obsidian.source-selection', mapObsidianError(error));
+  }
+}
+
 async function handleGetObsidianRepresentationStatus(ctx, deps) {
   try {
     const { repo, options } = buildOptions(ctx, deps);
@@ -245,9 +275,19 @@ function register(deps = {}) {
     obsidianNotes: deps.obsidianNotes || obsidianNotesLib,
     obsidianCli: deps.obsidianCli || obsidianCliLib,
     obsidianRemoteSync: deps.obsidianRemoteSync || obsidianRemoteSyncLib,
+    obsidianSourceResolver: deps.obsidianSourceResolver || createObsidianSourceResolver({
+      obsidianRemoteSync: deps.obsidianRemoteSync || obsidianRemoteSyncLib,
+      trackerUrl: deps.trackerUrl,
+      trackerToken: deps.trackerToken,
+      listTrackerSyncedNoteSources: deps.listTrackerSyncedNoteSources,
+      fetch: deps.fetch,
+    }),
     obsidianPlanningRepresentations: deps.obsidianPlanningRepresentations || obsidianPlanningRepresentationsLib,
     childProcess: deps.childProcess,
     process: deps.process || process,
+    trackerUrl: deps.trackerUrl,
+    trackerToken: deps.trackerToken,
+    listTrackerSyncedNoteSources: deps.listTrackerSyncedNoteSources,
     fetch: deps.fetch,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
   };
@@ -273,6 +313,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/planning/obsidian/sync',
       handler: (ctx) => handleManualObsidianSync(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/obsidian/source-selection',
+      handler: (ctx) => handleSetObsidianSourceSelection(ctx, resolvedDeps),
     },
     {
       method: 'GET',

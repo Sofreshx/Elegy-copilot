@@ -97,8 +97,41 @@ export interface PlanningIntakeArtifact {
 export const SYNCED_NOTE_SOURCE_PROVIDERS = ['github', 'gitea', 'git'] as const;
 export type SyncedNoteSourceProvider = typeof SYNCED_NOTE_SOURCE_PROVIDERS[number];
 
+export const SYNCED_NOTE_SOURCE_PRIMARY_PROVIDER = 'github' as const;
+export const SYNCED_NOTE_SOURCE_FALLBACK_PROVIDERS = ['gitea', 'git'] as const;
+
+export type SyncedNoteSourceProviderPolicyTier = 'primary' | 'fallback';
+
+export interface SyncedNoteSourceProviderPolicy {
+  provider: SyncedNoteSourceProvider;
+  tier: SyncedNoteSourceProviderPolicyTier;
+  backend: 'github' | 'gitea' | 'git';
+  explicit: true;
+}
+
 export const SYNCED_NOTE_SOURCE_ID_PREFIX = 'snsrc';
 export const SYNCED_NOTE_SOURCE_ID_PATTERN = /^snsrc_[a-f0-9]{32}$/;
+
+const SYNCED_NOTE_SOURCE_PROVIDER_POLICY: Record<SyncedNoteSourceProvider, SyncedNoteSourceProviderPolicy> = {
+  github: {
+    provider: 'github',
+    tier: 'primary',
+    backend: 'github',
+    explicit: true,
+  },
+  gitea: {
+    provider: 'gitea',
+    tier: 'fallback',
+    backend: 'gitea',
+    explicit: true,
+  },
+  git: {
+    provider: 'git',
+    tier: 'fallback',
+    backend: 'git',
+    explicit: true,
+  },
+};
 
 export interface SyncedNoteSourceLocator {
   provider: SyncedNoteSourceProvider;
@@ -116,10 +149,19 @@ export interface SyncedNoteSourceRecord extends SyncedNoteSourceLocator {
   updatedAt: string;
 }
 
+export type SyncedNoteSourceContractErrorCode =
+  | 'invalid_synced_note_source'
+  | 'invalid_synced_note_source_id'
+  | 'synced_note_source_locator_mismatch'
+  | 'unsupported_synced_note_source_provider';
+
 export class SyncedNoteSourceContractError extends Error {
-  constructor(message: string) {
+  readonly code: SyncedNoteSourceContractErrorCode;
+
+  constructor(message: string, code: SyncedNoteSourceContractErrorCode = 'invalid_synced_note_source') {
     super(message);
     this.name = 'SyncedNoteSourceContractError';
+    this.code = code;
   }
 }
 
@@ -193,14 +235,40 @@ function normalizeNotesPath(value: unknown): string {
   return segments.join('/');
 }
 
-export function canonicalizeSyncedNoteSourceLocator(locator: SyncedNoteSourceLocator): SyncedNoteSourceLocator {
-  const provider = requireNonEmptyString(locator?.provider, 'provider').toLowerCase() as SyncedNoteSourceProvider;
+export function normalizeSyncedNoteSourceProvider(value: unknown): SyncedNoteSourceProvider {
+  const provider = requireNonEmptyString(value, 'provider').toLowerCase() as SyncedNoteSourceProvider;
   if (!SYNCED_NOTE_SOURCE_PROVIDERS.includes(provider)) {
-    throw new SyncedNoteSourceContractError(`Unsupported synced-note source provider: ${String(locator?.provider ?? '')}`);
+    throw new SyncedNoteSourceContractError(
+      `Unsupported synced-note source provider: ${String(value ?? '')}`,
+      'unsupported_synced_note_source_provider',
+    );
   }
+  return provider;
+}
+
+export function getSyncedNoteSourceProviderPolicy(provider: unknown): SyncedNoteSourceProviderPolicy {
+  return SYNCED_NOTE_SOURCE_PROVIDER_POLICY[normalizeSyncedNoteSourceProvider(provider)];
+}
+
+export function normalizeSyncedNoteSourceId(value: unknown): string {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) {
+    throw new SyncedNoteSourceContractError('Synced-note source id is required', 'invalid_synced_note_source_id');
+  }
+  if (!SYNCED_NOTE_SOURCE_ID_PATTERN.test(normalized)) {
+    throw new SyncedNoteSourceContractError(
+      'Synced-note source id must match snsrc_<32 lowercase hex characters>',
+      'invalid_synced_note_source_id',
+    );
+  }
+  return normalized;
+}
+
+export function canonicalizeSyncedNoteSourceLocator(locator: SyncedNoteSourceLocator): SyncedNoteSourceLocator {
+  const providerPolicy = getSyncedNoteSourceProviderPolicy(locator?.provider);
 
   return {
-    provider,
+    provider: providerPolicy.provider,
     host: normalizeHost(locator?.host),
     owner: normalizeRepoSegment(locator?.owner, 'owner'),
     repo: normalizeRepoSegment(locator?.repo, 'repo'),
@@ -230,12 +298,13 @@ export function deriveSyncedNoteSourceId(locator: SyncedNoteSourceLocator): stri
 }
 
 export function assertSyncedNoteSourceIdMatches(locator: SyncedNoteSourceLocator, expectedId: string): string {
-  const normalizedExpectedId = requireNonEmptyString(expectedId, 'id');
+  const normalizedExpectedId = normalizeSyncedNoteSourceId(expectedId);
   const derivedId = deriveSyncedNoteSourceId(locator);
 
   if (normalizedExpectedId !== derivedId) {
     throw new SyncedNoteSourceContractError(
       `Synced-note source id mismatch: expected ${normalizedExpectedId}, derived ${derivedId}`,
+      'synced_note_source_locator_mismatch',
     );
   }
 

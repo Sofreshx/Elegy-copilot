@@ -49,6 +49,7 @@ import type {
   ObsidianPlanningNoteSummary,
   ObsidianPlanningSyncResponse,
   ObsidianPlanningSyncResult,
+  ObsidianPlanningSourceSelectionResponse,
   ObsidianPlanningStatus,
   ObsidianPlanningStatusResponse,
   PlanningBacklogMutationResponse,
@@ -95,6 +96,9 @@ import type {
   SessionPlanMutationResponse,
   SessionStructuredStateResponse,
   SessionTextArtifactResponse,
+  SyncedNoteSourceDeleteResponse,
+  SyncedNoteSourceLocator,
+  SyncedNoteSourceRecord,
   SkillsPreviewResponse,
   SessionsListResponse,
   TrackerPermissionsResponse,
@@ -254,6 +258,31 @@ export interface PlanningBacklogUpdatePayload extends PlanningRepoDocRefOptions 
   abandonedByPlanRef?: string | null;
   importance?: number | null;
   keyPoints?: PlanningBacklogKeyPointPayload[];
+}
+
+export interface PlanningRoadmapItemPayload {
+  id?: string;
+  itemId?: string;
+  title?: string;
+  phase?: string;
+  status?: string;
+  summary?: string;
+  backlogIds?: string[];
+  planRefs?: string[];
+  satisfiedByPlanRef?: string | null;
+  supersededByPlanRef?: string | null;
+  abandonedByPlanRef?: string | null;
+}
+
+export interface PlanningRoadmapUpdatePayload extends PlanningRepoDocRefOptions {
+  repoId?: string;
+  repoPath?: string;
+  repoLabel?: string;
+  title?: string;
+  overview?: string;
+  replaceItems?: boolean;
+  item?: PlanningRoadmapItemPayload;
+  items?: PlanningRoadmapItemPayload[];
 }
 
 export interface PlanningComparePayload {
@@ -623,6 +652,15 @@ export interface PlanningRoadmapsResponseApi {
   repo: PlanningRepoSummary | null;
 }
 
+export interface PlanningRoadmapMutationResponseApi {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  roadmap: PlanningRoadmapApi | null;
+  [key: string]: unknown;
+}
+
 export interface PlanningBacklogKeyPointApi {
   date: string;
   text: string;
@@ -849,6 +887,18 @@ function normalizePlanningRoadmapsResponse(payload: unknown): PlanningRoadmapsRe
     count: asNumber(record.count, roadmaps.length),
     roadmaps,
     repo: normalizePlanningRepoSummary(record.repo),
+  };
+}
+
+function normalizePlanningRoadmapMutationResponse(payload: unknown): PlanningRoadmapMutationResponseApi {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningRepoSummary(record.repo),
+    roadmap: normalizePlanningRoadmap(record.roadmap),
   };
 }
 
@@ -1104,6 +1154,43 @@ function normalizeObsidianPlanningStatus(value: unknown): ObsidianPlanningStatus
     syncCommand: asStringList(record.syncCommand),
     cli: normalizeObsidianCliStatus(record.cli),
     remoteSync: normalizeObsidianRemoteSyncStatus(record.remoteSync),
+    sourceResolution: normalizeObsidianSourceResolutionStatus(record.sourceResolution),
+  };
+}
+
+function normalizeObsidianSyncedNoteSourceRef(value: unknown) {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+  return {
+    id,
+    provider: asTrimmedString(record.provider),
+    host: asTrimmedString(record.host),
+    owner: asTrimmedString(record.owner),
+    repo: asTrimmedString(record.repo),
+    branch: asTrimmedString(record.branch),
+    notesPath: asTrimmedString(record.notesPath),
+  };
+}
+
+function normalizeObsidianSourceResolutionStatus(value: unknown): ObsidianPlanningStatus['sourceResolution'] {
+  const record = asRecord(value);
+  const availableSources = asArray(record.availableSources)
+    .map((entry) => normalizeObsidianSyncedNoteSourceRef(entry))
+    .filter((entry): entry is NonNullable<ReturnType<typeof normalizeObsidianSyncedNoteSourceRef>> => entry !== null);
+  const effectiveSource = normalizeObsidianSyncedNoteSourceRef(record.effectiveSource);
+  return {
+    availableSources,
+    activeSourceConfigured: asBoolean(record.activeSourceConfigured, false),
+    activeSourceId: asTrimmedString(record.activeSourceId) || undefined,
+    activeSourceMatched: asBoolean(record.activeSourceMatched, false),
+    effectiveSource,
+    requiresSource: asBoolean(record.requiresSource, false),
+    resolved: asBoolean(record.resolved, false),
+    reason: asTrimmedString(record.reason) || undefined,
+    message: asTrimmedString(record.message) || 'No synced-note source is resolved for the selected repo.',
   };
 }
 
@@ -1152,6 +1239,17 @@ function normalizeObsidianRemoteSyncStatus(value: unknown): ObsidianPlanningStat
     lastSuccessAt: asTrimmedString(record.lastSuccessAt) || undefined,
     lastManualSyncAt: asTrimmedString(record.lastManualSyncAt) || undefined,
     lastError: asTrimmedString(record.lastError) || undefined,
+    reason: asTrimmedString(record.reason) || undefined,
+    nextAttemptAt: asTrimmedString(record.nextAttemptAt) || undefined,
+    cooldownUntil: asTrimmedString(record.cooldownUntil) || undefined,
+    retryCount: asNumber(record.retryCount, 0),
+    retryLimit: asNumber(record.retryLimit, 0),
+    lastFailureAt: asTrimmedString(record.lastFailureAt) || undefined,
+    lastFailureReason: asTrimmedString(record.lastFailureReason) || undefined,
+    leaseAcquiredAt: asTrimmedString(record.leaseAcquiredAt) || undefined,
+    leaseExpiresAt: asTrimmedString(record.leaseExpiresAt) || undefined,
+    leaseTrigger: asTrimmedString(record.leaseTrigger) || undefined,
+    lastStaleLeaseRecoveredAt: asTrimmedString(record.lastStaleLeaseRecoveredAt) || undefined,
     conflictCount: asNumber(record.conflictCount, 0),
     appliedCount: asNumber(record.appliedCount, 0),
     deletedCount: asNumber(record.deletedCount, 0),
@@ -1328,6 +1426,17 @@ function normalizeObsidianPlanningSyncResult(value: unknown): ObsidianPlanningSy
     conflicts: asStringList(record.conflicts),
     cursor: asTrimmedString(record.cursor) || undefined,
     message: asTrimmedString(record.message) || undefined,
+    reason: asTrimmedString(record.reason) || undefined,
+    nextAttemptAt: asTrimmedString(record.nextAttemptAt) || undefined,
+    cooldownUntil: asTrimmedString(record.cooldownUntil) || undefined,
+    retryCount: asNumber(record.retryCount, 0),
+    retryLimit: asNumber(record.retryLimit, 0),
+    lastFailureAt: asTrimmedString(record.lastFailureAt) || undefined,
+    lastFailureReason: asTrimmedString(record.lastFailureReason) || undefined,
+    leaseAcquiredAt: asTrimmedString(record.leaseAcquiredAt) || undefined,
+    leaseExpiresAt: asTrimmedString(record.leaseExpiresAt) || undefined,
+    leaseTrigger: asTrimmedString(record.leaseTrigger) || undefined,
+    lastStaleLeaseRecoveredAt: asTrimmedString(record.lastStaleLeaseRecoveredAt) || undefined,
     cliManualCommand,
   };
 }
@@ -1339,6 +1448,16 @@ function normalizeObsidianPlanningSyncResponse(payload: unknown): ObsidianPlanni
     ...base,
     ...record,
     result: normalizeObsidianPlanningSyncResult(record.result),
+  };
+}
+
+function normalizeObsidianPlanningSourceSelectionResponse(payload: unknown): ObsidianPlanningSourceSelectionResponse {
+  const record = asRecord(payload);
+  const base = normalizeObsidianPlanningStatusResponse(payload);
+  return {
+    ...base,
+    ...record,
+    sourceSelection: normalizeObsidianSourceResolutionStatus(record.sourceSelection),
   };
 }
 
@@ -2853,6 +2972,55 @@ export function getTrackerSessions(baseUrl?: string): Promise<TrackerSessionsRes
   return apiRequest<TrackerSessionsResponse | unknown[]>('/api/tracker/sessions', { baseUrl });
 }
 
+export function listTrackerSyncedNoteSources(baseUrl?: string): Promise<SyncedNoteSourceRecord[]> {
+  return apiRequest<SyncedNoteSourceRecord[]>('/api/tracker/synced-notes/sources', { baseUrl });
+}
+
+export function createTrackerSyncedNoteSource(
+  payload: SyncedNoteSourceLocator,
+  baseUrl?: string,
+): Promise<SyncedNoteSourceRecord> {
+  return apiRequest<SyncedNoteSourceRecord>('/api/tracker/synced-notes/sources', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateTrackerSyncedNoteSource(
+  sourceId: string,
+  payload: SyncedNoteSourceLocator,
+  baseUrl?: string,
+): Promise<SyncedNoteSourceRecord> {
+  return apiRequest<SyncedNoteSourceRecord>(
+    `/api/tracker/synced-notes/sources/${encodeURIComponent(sourceId)}`,
+    {
+      baseUrl,
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function deleteTrackerSyncedNoteSource(
+  sourceId: string,
+  baseUrl?: string,
+): Promise<SyncedNoteSourceDeleteResponse> {
+  return apiRequest<SyncedNoteSourceDeleteResponse>(
+    `/api/tracker/synced-notes/sources/${encodeURIComponent(sourceId)}`,
+    {
+      baseUrl,
+      method: 'DELETE',
+    }
+  );
+}
+
 export function getSkillsPreview(baseUrl?: string): Promise<SkillsPreviewResponse> {
   return apiRequest<SkillsPreviewResponse>('/api/skills/preview', { baseUrl });
 }
@@ -3244,6 +3412,23 @@ export async function getPlanningRoadmaps(
   return normalizePlanningRoadmapsResponse(payload);
 }
 
+export async function updatePlanningRoadmap(
+  roadmapSlug: string,
+  payload: PlanningRoadmapUpdatePayload,
+  baseUrl?: string,
+): Promise<PlanningRoadmapMutationResponseApi> {
+  const response = await apiRequest<unknown>(`/api/planning/roadmaps/${encodeURIComponent(roadmapSlug)}`, {
+    baseUrl,
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizePlanningRoadmapMutationResponse(response);
+}
+
 export async function getPlanningIntakeArtifacts(
   query: PlanningRepoDocRefOptions = {},
   baseUrl?: string
@@ -3340,6 +3525,28 @@ export async function triggerPlanningObsidianSync(
   });
 
   return normalizeObsidianPlanningSyncResponse(payload);
+}
+
+export async function setPlanningObsidianSourceSelection(
+  sourceId: string | null | undefined,
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string,
+): Promise<ObsidianPlanningSourceSelectionResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/obsidian/source-selection', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sourceId: asTrimmedString(sourceId) || undefined,
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    }),
+  });
+
+  return normalizeObsidianPlanningSourceSelectionResponse(payload);
 }
 
 export async function getPlanningObsidianRepresentationsStatus(

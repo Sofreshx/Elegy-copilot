@@ -226,6 +226,17 @@ function buildRemoteSyncStatus(config, remoteSyncStatus) {
     deletedCount: 0,
     skippedCount: 0,
     cursor: undefined,
+    reason: undefined,
+    nextAttemptAt: undefined,
+    cooldownUntil: undefined,
+    retryCount: 0,
+    retryLimit: undefined,
+    lastFailureAt: undefined,
+    lastFailureReason: undefined,
+    leaseAcquiredAt: undefined,
+    leaseExpiresAt: undefined,
+    leaseTrigger: undefined,
+    lastStaleLeaseRecoveredAt: undefined,
     updatedAt: undefined,
     syncing: false,
   };
@@ -250,6 +261,17 @@ function buildRemoteSyncStatus(config, remoteSyncStatus) {
     lastManualSyncAt: normalizeString(remoteSyncStatus.lastManualSyncAt) || undefined,
     lastError: normalizeString(remoteSyncStatus.lastError) || undefined,
     cursor: normalizeString(remoteSyncStatus.cursor) || undefined,
+    reason: normalizeString(remoteSyncStatus.reason) || undefined,
+    nextAttemptAt: normalizeString(remoteSyncStatus.nextAttemptAt) || undefined,
+    cooldownUntil: normalizeString(remoteSyncStatus.cooldownUntil) || undefined,
+    retryCount: Number.isFinite(remoteSyncStatus.retryCount) ? remoteSyncStatus.retryCount : fallback.retryCount,
+    retryLimit: Number.isFinite(remoteSyncStatus.retryLimit) ? remoteSyncStatus.retryLimit : fallback.retryLimit,
+    lastFailureAt: normalizeString(remoteSyncStatus.lastFailureAt) || undefined,
+    lastFailureReason: normalizeString(remoteSyncStatus.lastFailureReason) || undefined,
+    leaseAcquiredAt: normalizeString(remoteSyncStatus.leaseAcquiredAt) || undefined,
+    leaseExpiresAt: normalizeString(remoteSyncStatus.leaseExpiresAt) || undefined,
+    leaseTrigger: normalizeString(remoteSyncStatus.leaseTrigger) || undefined,
+    lastStaleLeaseRecoveredAt: normalizeString(remoteSyncStatus.lastStaleLeaseRecoveredAt) || undefined,
     updatedAt: normalizeString(remoteSyncStatus.updatedAt) || undefined,
     conflictCount: Number.isFinite(remoteSyncStatus.conflictCount) ? remoteSyncStatus.conflictCount : fallback.conflictCount,
     appliedCount: Number.isFinite(remoteSyncStatus.appliedCount) ? remoteSyncStatus.appliedCount : fallback.appliedCount,
@@ -259,8 +281,47 @@ function buildRemoteSyncStatus(config, remoteSyncStatus) {
   };
 }
 
-function resolveSyncAvailability(config) {
+function buildSourceResolutionStatus(sourceResolution) {
+  const record = sourceResolution && typeof sourceResolution === 'object' ? sourceResolution : {};
+  const availableSources = Array.isArray(record.availableSources)
+    ? record.availableSources
+      .map((entry) => ({
+        id: normalizeString(entry && entry.id),
+        provider: normalizeString(entry && entry.provider),
+        host: normalizeString(entry && entry.host),
+        owner: normalizeString(entry && entry.owner),
+        repo: normalizeString(entry && entry.repo),
+        branch: normalizeString(entry && entry.branch),
+        notesPath: normalizeString(entry && entry.notesPath),
+      }))
+      .filter((entry) => entry.id && entry.provider && entry.host && entry.owner && entry.repo && entry.branch && entry.notesPath)
+    : [];
+  const effectiveSource = record.effectiveSource && typeof record.effectiveSource === 'object'
+    ? availableSources.find((entry) => entry.id === normalizeString(record.effectiveSource.id)) || null
+    : null;
+
+  return {
+    availableSources,
+    activeSourceConfigured: record.activeSourceConfigured === true,
+    activeSourceId: normalizeString(record.activeSourceId) || undefined,
+    activeSourceMatched: record.activeSourceMatched === true,
+    effectiveSource,
+    requiresSource: record.requiresSource === true,
+    resolved: record.resolved === true,
+    reason: normalizeString(record.reason) || undefined,
+    message: normalizeString(record.message)
+      || (effectiveSource
+        ? 'A synced-note source is resolved for the selected repo.'
+        : 'No synced-note source is resolved for the selected repo.'),
+  };
+}
+
+function resolveSyncAvailability(config, sourceResolution) {
   if (!config.vaultPath) {
+    return false;
+  }
+
+  if (sourceResolution && sourceResolution.requiresSource && !sourceResolution.effectiveSource) {
     return false;
   }
 
@@ -271,11 +332,13 @@ function resolveSyncAvailability(config) {
 }
 
 function withStatusExtensions(baseStatus, config, annotations = {}) {
+  const sourceResolution = buildSourceResolutionStatus(annotations.sourceResolution);
   return {
     ...baseStatus,
-    syncAvailable: resolveSyncAvailability(config),
+    syncAvailable: resolveSyncAvailability(config, sourceResolution),
     cli: buildCliStatus(config, annotations.cli),
     remoteSync: buildRemoteSyncStatus(config, annotations.remoteSync),
+    sourceResolution,
   };
 }
 
@@ -581,4 +644,5 @@ module.exports = {
   listLocalObsidianNotes,
   readObsidianNote: readLocalObsidianNote,
   readLocalObsidianNote,
+  buildSourceResolutionStatus,
 };

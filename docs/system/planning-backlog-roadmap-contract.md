@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-03-23
+updated: 2026-03-24
 category: system
 status: current
 doc_kind: node
@@ -51,6 +51,10 @@ repo-selection authority.
 External Obsidian notes may be surfaced inside Planning for the selected Catalog repo, but they MUST be
 labeled as external/non-canonical everywhere they are shown. Reading or seeding from that surface does
 not change canonical authority: repo docs and the active session `plan.md` still win.
+
+Explicit operator-driven promotion from an external Obsidian note into canonical backlog or roadmap docs
+is allowed, but once that promotion happens the canonical authority lives in the repo docs and does not
+flow back from the note.
 
 SAFE interpretation for canonical planning mirrors:
 

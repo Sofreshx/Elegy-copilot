@@ -1,7 +1,9 @@
 import http from 'http';
-import { SYNCED_NOTE_SOURCE_ID_PATTERN, type SyncedNoteSourceRecord } from '@elegy-copilot/contracts';
-
-const SYNCED_NOTE_SOURCE_ID_ROUTE_PATTERN = SYNCED_NOTE_SOURCE_ID_PATTERN;
+import {
+  SyncedNoteSourceContractError,
+  normalizeSyncedNoteSourceId,
+  type SyncedNoteSourceRecord,
+} from '@elegy-copilot/contracts';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -19,6 +21,13 @@ function writeJson(res: http.ServerResponse, statusCode: number, body: unknown):
   res.end(JSON.stringify(body));
 }
 
+function writeApiError(res: http.ServerResponse, statusCode: number, error: string, code?: string): void {
+  writeJson(res, statusCode, {
+    error,
+    ...(code ? { code } : {}),
+  });
+}
+
 function parseRoute(pathname: string): string[] {
   return pathname
     .split('/')
@@ -27,11 +36,14 @@ function parseRoute(pathname: string): string[] {
 }
 
 function validateSourceId(rawId: string): string | null {
-  const id = String(rawId ?? '').trim();
-  if (!SYNCED_NOTE_SOURCE_ID_ROUTE_PATTERN.test(id)) {
+  try {
+    return normalizeSyncedNoteSourceId(rawId);
+  } catch (error) {
+    if (error instanceof SyncedNoteSourceContractError) {
+      return null;
+    }
     return null;
   }
-  return id;
 }
 
 function getApiErrorStatus(error: unknown): number | null {
@@ -136,14 +148,14 @@ export async function handleSyncedNoteSourceHttpRoute(context: SyncedNoteSourceH
     if (parts.length === 4) {
       const sourceId = validateSourceId(parts[3]);
       if (!sourceId) {
-        writeJson(res, 400, { error: 'Invalid synced-note source id format' });
+        writeApiError(res, 400, 'Invalid synced-note source id format', 'invalid_synced_note_source_id');
         return true;
       }
 
       if (method === 'GET') {
         const source = handlers.getSource(sourceId);
         if (!source) {
-          writeJson(res, 404, { error: 'Synced-note source not found' });
+          writeApiError(res, 404, 'Synced-note source not found', 'synced_note_source_not_found');
           return true;
         }
 
@@ -162,7 +174,7 @@ export async function handleSyncedNoteSourceHttpRoute(context: SyncedNoteSourceH
       if (method === 'DELETE') {
         const deleted = handlers.deleteSource(sourceId);
         if (!deleted) {
-          writeJson(res, 404, { error: 'Synced-note source not found' });
+          writeApiError(res, 404, 'Synced-note source not found', 'synced_note_source_not_found');
           return true;
         }
 
@@ -172,7 +184,7 @@ export async function handleSyncedNoteSourceHttpRoute(context: SyncedNoteSourceH
     }
   } catch (error) {
     if (isZodLikeError(error)) {
-      writeJson(res, 400, { error: 'Invalid synced-note source payload' });
+      writeApiError(res, 400, 'Invalid synced-note source payload', 'invalid_synced_note_source');
       return true;
     }
 
