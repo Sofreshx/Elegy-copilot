@@ -248,6 +248,244 @@ test('parseExecutionState normalizes additive execution overlays', () => {
   assert.strictEqual(overlay.executionState.nextUnit.workUnitId, 'WU-003');
   assert.strictEqual(overlay.executionState.tree.length, 1);
   assert.strictEqual(overlay.executionState.tree[0].children.length, 2);
+  assert.strictEqual(overlay.diagnostics.recovery.status, 'ready');
+  assert.strictEqual(overlay.diagnostics.integrity.status, 'healthy');
+  assert.strictEqual(overlay.diagnostics.queue.depth, 1);
+});
+
+test('parseExecutionState derives active refs and bounded queued follow-up work from the tree', () => {
+  const overlay = parseExecutionState(JSON.stringify({
+    schemaVersion: 'execution-state-v1',
+    updatedAt: '2026-03-23T12:34:56Z',
+    lifecycle: 'executing',
+    status: 'active',
+    tree: [
+      {
+        groupId: 'G-01',
+        kind: 'group',
+        title: 'Runtime Overlay',
+        status: 'in-progress',
+        current: true,
+        children: [
+          { workUnitId: 'WU-001', kind: 'work-unit', title: 'Contract', status: 'done' },
+          { workUnitId: 'WU-002', kind: 'work-unit', title: 'Persist state', status: 'in-progress', current: true },
+          { workUnitId: 'WU-003', kind: 'work-unit', title: 'Render diagnostics', status: 'queued', next: true },
+          { workUnitId: 'WU-004', kind: 'work-unit', title: 'Polish display', status: 'queued', next: true },
+        ],
+      },
+    ],
+  }));
+
+  assert.deepStrictEqual(overlay.warnings, []);
+  assert.ok(overlay.executionState);
+  assert.strictEqual(overlay.executionState.activeGroup.id, 'G-01');
+  assert.strictEqual(overlay.executionState.activeWorkUnit.id, 'WU-002');
+  assert.strictEqual(overlay.executionState.nextUnit.workUnitId, 'WU-003');
+  assert.deepStrictEqual(overlay.executionState.nextUnit.workUnitIds, ['WU-003', 'WU-004']);
+  assert.strictEqual(overlay.executionState.nextUnit.parallelCandidate, true);
+  assert.strictEqual(overlay.diagnostics.recovery.status, 'ready');
+  assert.strictEqual(overlay.diagnostics.recovery.resumable, true);
+  assert.strictEqual(overlay.diagnostics.queue.depth, 2);
+  assert.strictEqual(overlay.diagnostics.overlap.parallelCandidateCount, 2);
+  assert.deepStrictEqual(overlay.diagnostics.overlap.boundedPreviewIds, ['WU-003', 'WU-004']);
+});
+
+test('parseExecutionState prefers normalized tree recovery over conflicting top-level refs', () => {
+  const overlay = parseExecutionState(JSON.stringify({
+    schemaVersion: 'execution-state-v1',
+    updatedAt: '2026-03-23T12:34:56Z',
+    lifecycle: 'executing',
+    status: 'active',
+    activeGroup: { groupId: 'G-99', title: 'Stale group', status: 'queued' },
+    activeWorkUnit: { workUnitId: 'WU-999', title: 'Stale work', status: 'queued' },
+    nextUnit: { workUnitId: 'WU-998', rationale: 'Stale queued follow-up.' },
+    tree: [
+      {
+        groupId: 'G-01',
+        kind: 'group',
+        title: 'Runtime Overlay',
+        status: 'in-progress',
+        current: true,
+        children: [
+          { workUnitId: 'WU-001', kind: 'work-unit', title: 'Contract', status: 'done' },
+          { workUnitId: 'WU-002', kind: 'work-unit', title: 'Persist state', status: 'in-progress', current: true },
+          { workUnitId: 'WU-003', kind: 'work-unit', title: 'Render diagnostics', status: 'queued', next: true },
+          { workUnitId: 'WU-004', kind: 'work-unit', title: 'Polish display', status: 'queued', next: true },
+          { workUnitId: 'WU-005', kind: 'work-unit', title: 'Document recovery', status: 'queued', next: true },
+          { workUnitId: 'WU-006', kind: 'work-unit', title: 'Overflow preview', status: 'queued', next: true },
+        ],
+      },
+    ],
+  }));
+
+  assert.ok(overlay.executionState);
+  assert.strictEqual(overlay.executionState.activeGroup.id, 'G-01');
+  assert.strictEqual(overlay.executionState.activeWorkUnit.id, 'WU-002');
+  assert.strictEqual(overlay.executionState.nextUnit.workUnitId, 'WU-003');
+  assert.deepStrictEqual(overlay.executionState.nextUnit.workUnitIds, ['WU-003', 'WU-004', 'WU-005']);
+  assert.ok(overlay.warnings.some((warning) => /activeGroup disagrees with normalized execution tree/i.test(warning)));
+  assert.ok(overlay.warnings.some((warning) => /activeWorkUnit disagrees with normalized execution tree/i.test(warning)));
+  assert.ok(overlay.warnings.some((warning) => /nextUnit disagrees with normalized execution tree/i.test(warning)));
+  assert.ok(overlay.warnings.some((warning) => /derived nextUnit batch exceeded 3/i.test(warning)));
+  assert.strictEqual(overlay.diagnostics.recovery.status, 'degraded');
+  assert.strictEqual(overlay.diagnostics.recovery.resumable, true);
+  assert.strictEqual(overlay.diagnostics.queue.depth, 3);
+  assert.deepStrictEqual(overlay.diagnostics.queue.nextUnitIds, ['WU-003', 'WU-004', 'WU-005']);
+});
+
+test('parseExecutionState ignores out-of-branch next markers when deriving queued follow-up diagnostics', () => {
+  const overlay = parseExecutionState(JSON.stringify({
+    schemaVersion: 'execution-state-v1',
+    updatedAt: '2026-03-23T12:34:56Z',
+    lifecycle: 'executing',
+    status: 'active',
+    tree: [
+      {
+        groupId: 'G-01',
+        kind: 'group',
+        title: 'Runtime Overlay',
+        status: 'in-progress',
+        current: true,
+        children: [
+          { workUnitId: 'WU-001', kind: 'work-unit', title: 'Contract', status: 'done' },
+          { workUnitId: 'WU-002', kind: 'work-unit', title: 'Persist state', status: 'in-progress', current: true },
+          { workUnitId: 'WU-003', kind: 'work-unit', title: 'Render diagnostics', status: 'queued', next: true },
+          { workUnitId: 'WU-004', kind: 'work-unit', title: 'Polish display', status: 'queued', next: true },
+        ],
+      },
+      {
+        groupId: 'G-02',
+        kind: 'group',
+        title: 'Deferred Branch',
+        status: 'queued',
+        children: [
+          { workUnitId: 'WU-101', kind: 'work-unit', title: 'Out-of-branch follow-up', status: 'queued', next: true },
+        ],
+      },
+    ],
+  }));
+
+  assert.deepStrictEqual(overlay.warnings, []);
+  assert.ok(overlay.executionState);
+  assert.strictEqual(overlay.executionState.nextUnit.workUnitId, 'WU-003');
+  assert.deepStrictEqual(overlay.executionState.nextUnit.workUnitIds, ['WU-003', 'WU-004']);
+  assert.strictEqual(overlay.diagnostics.queue.depth, 2);
+  assert.deepStrictEqual(overlay.diagnostics.queue.nextUnitIds, ['WU-003', 'WU-004']);
+  assert.strictEqual(overlay.diagnostics.overlap.parallelCandidateCount, 2);
+  assert.deepStrictEqual(overlay.diagnostics.overlap.boundedPreviewIds, ['WU-003', 'WU-004']);
+});
+
+test('parseExecutionState excludes NONE sentinels from queued overlay diagnostics', () => {
+  const overlay = parseExecutionState(JSON.stringify({
+    schemaVersion: 'execution-state-v1',
+    updatedAt: '2026-03-23T12:34:56Z',
+    lifecycle: 'executing',
+    status: 'active',
+    summary: 'Execution remains active with no queued follow-up work.',
+    activeGroup: { groupId: 'G-01', title: 'Runtime Overlay', status: 'in-progress' },
+    activeWorkUnit: { workUnitId: 'WU-002', title: 'Persist state', status: 'in-progress' },
+    nextUnit: { workUnitId: 'NONE', rationale: 'No follow-up work is queued.' },
+    tree: [
+      {
+        groupId: 'G-01',
+        kind: 'group',
+        title: 'Runtime Overlay',
+        status: 'in-progress',
+        current: true,
+        children: [
+          { workUnitId: 'WU-001', kind: 'work-unit', title: 'Contract', status: 'done' },
+          { workUnitId: 'WU-002', kind: 'work-unit', title: 'Persist state', status: 'in-progress', current: true },
+        ],
+      },
+    ],
+  }));
+
+  assert.ok(overlay.executionState);
+  assert.strictEqual(overlay.executionState.nextUnit.workUnitId, 'NONE');
+  assert.strictEqual(overlay.diagnostics.queue.depth, 0);
+  assert.strictEqual(overlay.diagnostics.queue.nextUnitCount, 0);
+  assert.deepStrictEqual(overlay.diagnostics.queue.nextUnitIds, []);
+  assert.strictEqual(overlay.diagnostics.overlap.parallelCandidateCount, 0);
+});
+
+test('parseExecutionState collapses stale terminal recovery markers before building diagnostics', () => {
+  const overlay = parseExecutionState(JSON.stringify({
+    schemaVersion: 'execution-state-v1',
+    updatedAt: '2026-03-23T12:34:56Z',
+    lifecycle: 'finished',
+    status: 'completed',
+    summary: 'Execution already terminated after the runtime snapshot was persisted.',
+    activeGroup: { groupId: 'G-01', title: 'Runtime Overlay', status: 'in-progress' },
+    activeWorkUnit: { workUnitId: 'WU-002', title: 'Persist state', status: 'in-progress' },
+    nextUnit: { workUnitId: 'WU-003', rationale: 'stale queued follow-up' },
+    tree: [
+      {
+        groupId: 'G-01',
+        kind: 'group',
+        title: 'Runtime Overlay',
+        status: 'in-progress',
+        current: true,
+        children: [
+          { workUnitId: 'WU-001', kind: 'work-unit', title: 'Contract', status: 'done' },
+          { workUnitId: 'WU-002', kind: 'work-unit', title: 'Persist state', status: 'in-progress', current: true },
+          { workUnitId: 'WU-003', kind: 'work-unit', title: 'Render diagnostics', status: 'queued', next: true },
+        ],
+      },
+    ],
+  }));
+
+  assert.ok(overlay.executionState);
+  assert.strictEqual(overlay.executionState.activeGroup, null);
+  assert.strictEqual(overlay.executionState.activeWorkUnit, null);
+  assert.strictEqual(overlay.executionState.nextUnit, null);
+  assert.strictEqual(overlay.executionState.tree[0].status, 'implemented');
+  assert.strictEqual(overlay.executionState.tree[0].current, false);
+  assert.strictEqual(overlay.executionState.tree[0].children[1].status, 'done');
+  assert.strictEqual(overlay.executionState.tree[0].children[1].current, false);
+  assert.strictEqual(overlay.executionState.tree[0].children[2].status, 'done');
+  assert.strictEqual(overlay.executionState.tree[0].children[2].next, false);
+  assert.strictEqual(overlay.diagnostics.recovery.status, 'terminal');
+  assert.strictEqual(overlay.diagnostics.recovery.resumable, false);
+  assert.strictEqual(overlay.diagnostics.queue.depth, 0);
+  assert.deepStrictEqual(overlay.diagnostics.queue.nextUnitIds, []);
+});
+
+test('parseExecutionState degrades malformed trees with duplicate ids and conflicting current markers', () => {
+  const overlay = parseExecutionState(JSON.stringify({
+    schemaVersion: 'execution-state-v1',
+    lifecycle: 'executing',
+    status: 'active',
+    tree: [
+      {
+        groupId: 'G-01',
+        kind: 'group',
+        title: 'Primary group',
+        current: true,
+        children: [
+          { workUnitId: 'WU-001', kind: 'work-unit', title: 'Primary unit', status: 'in-progress', current: true },
+        ],
+      },
+      {
+        groupId: 'G-02',
+        kind: 'group',
+        title: 'Conflicting group',
+        current: true,
+        children: [
+          { workUnitId: 'WU-001', kind: 'work-unit', title: 'Duplicate unit', status: 'queued' },
+          { workUnitId: 'WU-002', kind: 'work-unit', title: 'Blocked sibling', status: 'queued', current: true, blocked: true },
+        ],
+      },
+    ],
+  }));
+
+  assert.ok(overlay.executionState);
+  assert.ok(overlay.warnings.some((warning) => /duplicate execution tree node ids/i.test(warning)));
+  assert.ok(overlay.warnings.some((warning) => /multiple current execution nodes detected/i.test(warning)));
+  assert.strictEqual(overlay.executionState.activeGroup.id, 'G-01');
+  assert.strictEqual(overlay.executionState.activeWorkUnit.id, 'WU-001');
+  assert.strictEqual(overlay.executionState.tree[1].current, false);
+  assert.strictEqual(overlay.diagnostics.integrity.status, 'degraded');
+  assert.strictEqual(overlay.diagnostics.blockedNodeCount, 1);
 });
 
 test('parseStructuredState merges execution-state overlay without replacing plan framing', () => {
@@ -323,6 +561,8 @@ test('parseStructuredState merges execution-state overlay without replacing plan
   assert.strictEqual(structured.workUnits[1].planStatus, 'queued');
   assert.strictEqual(structured.workUnits[1].status, 'in-progress');
   assert.strictEqual(structured.workUnits[1].active, true);
+  assert.strictEqual(structured.meta.executionOverlay.diagnostics.recovery.status, 'ready');
+  assert.strictEqual(structured.meta.executionOverlay.diagnostics.queue.depth, 1);
   assert.strictEqual(structured.meta.closureSummary.reviewVerdict, 'APPROVED');
 });
 
@@ -592,6 +832,73 @@ test('parseStructuredState derives summaries from the merged execution-state nex
   assert.deepStrictEqual(structured.meta.intentFrame.nextSuggestedUnits, ['NONE']);
   assert.deepStrictEqual(structured.meta.closureSummary.followUps.activeContinuation, []);
   assert.strictEqual(structured.meta.closureSummary.outcome, 'completed');
+  assert.strictEqual(structured.meta.executionOverlay.diagnostics.queue.depth, 0);
+  assert.deepStrictEqual(structured.meta.executionOverlay.diagnostics.queue.nextUnitIds, []);
+  assert.ok(!structured.workUnits.some((workUnit) => workUnit.workUnitId === 'NONE'));
+});
+
+test('parseStructuredState preserves NONE sentinels without creating runtime-only queued work units', () => {
+  const text = `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Example | in-progress | 0 | 1 | — |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | in-progress | — | active work remains in progress |
+
+## Next Unit
+**WU-002** — stale tracker next unit
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: pending |
+`;
+
+  const structured = parseStructuredState(text, {
+    executionStateText: JSON.stringify({
+      schemaVersion: 'execution-state-v1',
+      lifecycle: 'executing',
+      status: 'active',
+      summary: 'Execution remains active with no queued follow-up work.',
+      activeGroup: { groupId: 'G-01', title: 'Example', status: 'in-progress' },
+      activeWorkUnit: { workUnitId: 'WU-001', title: 'Example unit', status: 'in-progress' },
+      nextUnit: {
+        workUnitId: 'NONE',
+        rationale: 'No follow-up work is queued.',
+      },
+      tree: [
+        {
+          groupId: 'G-01',
+          kind: 'group',
+          title: 'Example',
+          status: 'in-progress',
+          current: true,
+          children: [
+            { workUnitId: 'WU-001', kind: 'work-unit', title: 'Example unit', status: 'in-progress', current: true },
+          ],
+        },
+      ],
+    }),
+  });
+
+  assert.strictEqual(structured.nextUnit.workUnitId, 'NONE');
+  assert.strictEqual(structured.meta.executionOverlay.diagnostics.queue.depth, 0);
+  assert.deepStrictEqual(structured.meta.executionOverlay.diagnostics.queue.nextUnitIds, []);
+  assert.strictEqual(structured.workUnits.length, 1);
+  assert.ok(!structured.workUnits.some((workUnit) => workUnit.workUnitId === 'NONE'));
+  assert.ok(!structured.workUnits.some((workUnit) => workUnit.next));
 });
 
 test('parseStructuredState derives terminal closure metadata from execution-state status and lifecycle', () => {
@@ -705,6 +1012,87 @@ test('parseStructuredState does not surface failed terminal execution overlays a
   assert.strictEqual(structured.meta.closureSummary.finality, 'terminal');
   assert.strictEqual(structured.meta.closureSummary.executionStatus, 'failed');
   assert.strictEqual(structured.meta.closureSummary.executionLifecycle, 'terminated');
+});
+
+test('parseStructuredState collapses stale terminal overlay recovery state even when a tree is still present', () => {
+  const text = `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Example | in-progress | 1 | 3 | — |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | WU-002 | landed |
+| G-01 | WU-002 | in-progress | WU-003 | stale active residue |
+| G-01 | WU-003 | queued | — | stale queued residue |
+
+## Next Unit
+**WU-003** — stale tracker next unit
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: passed |
+`;
+
+  const structured = parseStructuredState(text, {
+    executionStateText: JSON.stringify({
+      schemaVersion: 'execution-state-v1',
+      lifecycle: 'finished',
+      status: 'completed',
+      summary: 'Execution is already terminal for this slice.',
+      activeGroup: { groupId: 'G-01', title: 'Example', status: 'in-progress' },
+      activeWorkUnit: { workUnitId: 'WU-002', title: 'Example unit', status: 'in-progress' },
+      nextUnit: { workUnitId: 'WU-003', rationale: 'stale queued follow-up' },
+      tree: [
+        {
+          groupId: 'G-01',
+          kind: 'group',
+          title: 'Example',
+          status: 'in-progress',
+          current: true,
+          children: [
+            { workUnitId: 'WU-001', kind: 'work-unit', title: 'WU-001', status: 'done' },
+            { workUnitId: 'WU-002', kind: 'work-unit', title: 'WU-002', status: 'in-progress', current: true },
+            { workUnitId: 'WU-003', kind: 'work-unit', title: 'WU-003', status: 'queued', next: true },
+          ],
+        },
+      ],
+    }),
+  });
+
+  assert.strictEqual(structured.nextUnit, null);
+  assert.strictEqual(structured.meta.executionState.activeGroup, null);
+  assert.strictEqual(structured.meta.executionState.activeWorkUnit, null);
+  assert.strictEqual(structured.meta.executionState.nextUnit, null);
+  assert.strictEqual(structured.meta.executionState.tree[0].current, false);
+  assert.strictEqual(structured.meta.executionState.tree[0].children[1].current, false);
+  assert.strictEqual(structured.meta.executionState.tree[0].children[2].next, false);
+  assert.strictEqual(structured.meta.executionOverlay.diagnostics.recovery.status, 'terminal');
+  assert.strictEqual(structured.meta.executionOverlay.diagnostics.queue.depth, 0);
+  assert.deepStrictEqual(structured.meta.executionOverlay.diagnostics.queue.nextUnitIds, []);
+  assert.strictEqual(structured.groups[0].planStatus, 'in-progress');
+  assert.strictEqual(structured.groups[0].status, 'implemented');
+  assert.strictEqual(structured.groups[0].runtimeStatus, 'implemented');
+  assert.strictEqual(structured.groups[0].active, false);
+  assert.strictEqual(structured.workUnits[1].planStatus, 'in-progress');
+  assert.strictEqual(structured.workUnits[1].status, 'done');
+  assert.strictEqual(structured.workUnits[1].runtimeStatus, 'done');
+  assert.strictEqual(structured.workUnits[1].active, false);
+  assert.strictEqual(structured.workUnits[2].planStatus, 'queued');
+  assert.strictEqual(structured.workUnits[2].status, 'done');
+  assert.strictEqual(structured.workUnits[2].runtimeStatus, 'done');
+  assert.strictEqual(structured.workUnits[2].next, false);
 });
 
 test('parseStructuredState emits review-ledger and handoff warnings for blocked resume state', () => {

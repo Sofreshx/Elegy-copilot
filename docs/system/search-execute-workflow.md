@@ -1,6 +1,6 @@
 ---
 created: 2026-03-07
-updated: 2026-03-17
+updated: 2026-03-25
 category: system
 status: current
 doc_kind: node
@@ -34,6 +34,54 @@ catalog/search control plane in `copilot-ui`, not by separate per-surface discov
    downstream.
 6. Delegate actual implementation, testing, review, or documentation work to the normal specialist
    agents.
+
+## Planning-Surface Routing Posture
+
+Before broad capability search, the orchestrator should classify planning-oriented requests with the
+normalized route-selection fields from [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md):
+
+- `planning_surface`
+- `session_horizon`
+- `execution_readiness`
+- `overlap_risk`
+
+Deterministic routing posture:
+
+- `planning_surface: roadmap` -> route directly to `@roadmap-planner` as a **leaf-only** roadmap/backlog lane for durable multi-session planning
+- `planning_surface: plan-pack` -> route to the plan-pack lane only when `execution_readiness` is `ready` or `stageable`; `@o-planner` remains the **leaf-only** execution-planning lane
+- `planning_surface: both` -> keep `@orchestrator` as the coordinator, route roadmap work first, then route the selected slice to `@o-planner` only when that slice is `ready` or `stageable`; do not allow coordinator handoff from `@roadmap-planner` to `@o-planner`
+- `planning_surface: none` -> do not create roadmap or plan-pack artifacts; route directly to the bounded delivery/reporting lane needed for the request, such as commit prep, review prep, or CI result checks
+
+This posture keeps planning-surface choice explicit, preserves the bounded coordinator topology, and avoids
+mixing durable roadmap authority with session execution state by default.
+
+Plan-pack generation runs only when `planning_surface` includes `plan-pack` and `execution_readiness`
+is `ready` or `stageable`. `roadmap`, `none`, and `not-ready` postures must not invoke
+`@o-plan-coordinator` or `@o-planner`.
+
+## V1 Nested Coordinator Posture
+
+The shipped V1 nested topology is intentionally narrow:
+
+- `@orchestrator` remains the root session owner and the root loop owner.
+- The effective repo depth cap is 3: `@orchestrator` -> approved coordinator -> leaf.
+- Host/runtime nesting support up to depth 5 is runtime headroom only; the shipped repo topology stays bounded and explicit rather than generally recursive.
+- Approved coordinator agents must be named and explicitly allowlisted in frontmatter; all other
+   agents remain leaf-only.
+- Planning-time `@search` / `@execute` may be invoked only by the approved read-only planning
+   coordinator path, `@o-plan-coordinator`, under orchestrator-owned routing policy. `@o-planner`
+   remains leaf-only.
+- `@o-validation-coordinator` is the bounded validation-overlap exception and may delegate only to
+   `@unit-test-runner` and `@integration-test-runner`; integration remains user-confirmed.
+- `@e2e-validator` -> `@e2e-browser` remains the narrow validation coordinator exception.
+- Write-capable implementation lanes and reviewer lanes remain leaf-only in V1.
+- Coordinator-to-coordinator chains are forbidden in V1.
+- If nested planning is unavailable or disabled, use the legacy-depth-1 fallback: direct
+   orchestrator -> `@o-planner` planning.
+
+Within this topology, planning-surface selection remains orchestrator-owned. `@roadmap-planner` and
+`@o-planner` stay leaf-only even when the request moves through `roadmap`, `plan-pack`, or `both`
+postures.
 
 ## Deterministic capability families
 
@@ -198,6 +246,10 @@ Instruction Engine owns:
 ## Operating Rules
 
 - Prefer deterministic routing before broad search.
+- Keep nested routing inside the V1 approved-coordinator posture; approved coordinators may not
+   re-root session ownership, routing policy ownership, or chain to other coordinators.
+- Keep validation overlap bounded to completed or frozen slices that satisfy overlap-risk,
+   dependency-safety, and repo-policy checks; never treat it as permission for unrestricted parallel writes.
 - In default orchestration, prefer `eligible-only` capability search unless the user explicitly asks to override.
 - Prefer canonical docs over research notes.
 - Load one primary capability first, then at most two supporting capabilities.

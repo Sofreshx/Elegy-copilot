@@ -106,6 +106,44 @@ export interface SessionStructuredExecutionOverlay {
   present?: boolean;
   applied?: boolean;
   warnings?: string[];
+  diagnostics?: SessionExecutionOverlayDiagnostics | null;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionOverlayRecoveryDiagnostics {
+  status?: string | null;
+  resumable?: boolean | null;
+  reason?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionOverlayIntegrityDiagnostics {
+  status?: string | null;
+  warningCount?: number | null;
+  duplicateNodeIdCount?: number | null;
+  conflictingCurrentCount?: number | null;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionOverlayQueueDiagnostics {
+  depth?: number | null;
+  nextUnitCount?: number | null;
+  nextUnitIds?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionOverlayOverlapDiagnostics {
+  boundedPreviewIds?: string[];
+  parallelCandidateCount?: number | null;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionOverlayDiagnostics {
+  recovery?: SessionExecutionOverlayRecoveryDiagnostics | null;
+  integrity?: SessionExecutionOverlayIntegrityDiagnostics | null;
+  queue?: SessionExecutionOverlayQueueDiagnostics | null;
+  blockedNodeCount?: number | null;
+  overlap?: SessionExecutionOverlayOverlapDiagnostics | null;
   [key: string]: unknown;
 }
 

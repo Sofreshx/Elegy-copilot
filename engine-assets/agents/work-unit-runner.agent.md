@@ -29,6 +29,7 @@ Execute one or more work units provided inline by the caller (typically `@orches
 - If scope/unknowns exceed the spec, request replanning.
 - Do not silently absorb discovered work that changes goals, dependencies, or success criteria. Surface it as `REPLAN_REQUESTED` or `NEW_WORK_UNIT_REQUEST`.
 - When blocked by a missing user decision, return the exact decision needed instead of guessing.
+- If later work, unfrozen dependencies, or unstable validation would make overlap unsafe, report that explicitly instead of implying follow-up validation can overlap safely.
 - Any validation command you do run must be one-shot and bounded with an explicit timeout. If it stalls or times out, stop and report the last known state instead of waiting.
 
 ## Execution Workflow
@@ -44,6 +45,11 @@ Execute one or more work units provided inline by the caller (typically `@orches
 | `WORK_UNIT_RESULT` | work_unit, status, changes, touched_files, validation, tests_requested, parallel_safety_change, notes |
 | `REPLAN_REQUESTED` | work_unit, reasons, requests_from_orchestrator, new_risks, questions |
 | `NEW_WORK_UNIT_REQUEST` | requested_from_work_unit, title, priority, depends_on, context_to_include, acceptance_criteria, plan_approach, validation |
+
+Overlap-sensitive signaling requirements:
+- Set `parallel_safety_change: reduced` when the completed work narrows safe overlap because later write work can invalidate the slice, dependencies are not yet frozen, or validation evidence is unstable/inconclusive.
+- Use `notes` to name the overlap blocker and the sequencing the orchestrator should preserve.
+- Use `tests_requested` to say when validation must remain serial or user-confirmed instead of implying safe overlap.
 
 ## Group Execution Mode
 - `workUnitIds` + `wuSpecs` provided instead of single `workUnitId`/`spec`.

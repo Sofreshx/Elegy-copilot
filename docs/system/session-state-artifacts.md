@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-23
+updated: 2026-03-25
 category: system
 status: current
 doc_kind: node
@@ -118,6 +118,26 @@ Contract goals:
    orchestrator response stream.
 4. **Copilot-scoped storage only** — write it under the existing session root; do not introduce a new datastore.
 
+The `tree` field in `execution-state-v1` is the additive reload/resume view for the **active execution slice**.
+It exists to help runtime readers rebuild the current group/work-unit tree after a pause or reload without
+replacing the approved planning intent in `plan.md`. Compatibility rules for this tree are:
+
+- preserve `execution-state-v1` compatibility; do not introduce a new schema version for tree-based resume
+  semantics alone
+- treat the tree as optional runtime context, not as a second plan artifact or a replacement for the plan-pack
+  progress tracker
+- prefer the latest valid tree when rebuilding active execution context, but fail soft back to plan-derived
+  framing/status when the overlay is missing or malformed
+- keep `plan.md` authoritative for planning intent, approved scope, and durable execution framing
+- use unique node IDs within a snapshot; duplicate IDs are malformed and readers should normalize them best-effort
+  with warnings instead of crashing
+- encode a single current execution path expectation; parent and child nodes on the same active branch may both be
+  marked `current`, but unrelated simultaneous current branches are malformed and should degrade to warnings plus
+  best-effort normalization
+- keep queued follow-up work bounded: use `nextUnit.workUnitIds` only for queued sibling batches that are safe to
+  preview as follow-up work, not as permission for parallel write execution across the plan
+- use tree `next` markers only as additive queue hints; they should agree with `nextUnit` when both are present
+
 Recommended v1 payload shape:
 
 ```json
@@ -197,6 +217,10 @@ Emission rules:
 - Emit a **complete snapshot**, not a patch/diff.
 - Later valid blocks supersede earlier ones for persistence purposes.
 - Keep the block additive to normal chat/markdown output.
+- Keep execution-tree node IDs unique within each snapshot.
+- Keep `current` markers on one active path only; do not emit multiple unrelated current branches.
+- Use `nextUnit.workUnitIds` only for bounded queued follow-up siblings when the snapshot is previewing near-term
+  follow-up work, not to imply unrestricted parallel execution.
 - If no persisted session workflow is in use, chat-first state may remain in chat/runtime state only.
 
 When a plan pack is linked to repo-backed Planning artifacts, `plan.md` may also include explicit

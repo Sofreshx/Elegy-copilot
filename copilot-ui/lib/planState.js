@@ -63,6 +63,7 @@ const PLANNING_RECORD_PRECEDENCE_RULES = Object.freeze([
 const PLANNING_SCOPES = Object.freeze(['user', 'repo', 'global']);
 
 const PLANNING_STATE_SET = new Set(PLANNING_STATES);
+const MAX_DERIVED_NEXT_UNIT_BATCH = 3;
 
 function deterministicStringCompare(a, b) {
   const left = String(a == null ? '' : a);
@@ -283,6 +284,7 @@ function parseStructuredState(text, options = {}) {
       present: true,
       applied: Boolean(overlay.executionState),
       warnings: overlay.warnings,
+      diagnostics: overlay.diagnostics,
     };
 
     if (overlay.executionState) {
@@ -548,7 +550,11 @@ function parseExecutionState(text) {
   const warnings = [];
 
   if (typeof text !== 'string' || !text.trim()) {
-    return { executionState: null, warnings };
+    return {
+      executionState: null,
+      warnings,
+      diagnostics: buildExecutionOverlayDiagnostics(null, warnings),
+    };
   }
 
   let parsed = null;
@@ -556,33 +562,94 @@ function parseExecutionState(text) {
     parsed = JSON.parse(text);
   } catch (error) {
     warnings.push('invalid execution-state.json JSON payload');
-    return { executionState: null, warnings };
+    return {
+      executionState: null,
+      warnings,
+      diagnostics: buildExecutionOverlayDiagnostics(null, warnings),
+    };
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     warnings.push('execution-state.json must contain a JSON object');
-    return { executionState: null, warnings };
+    return {
+      executionState: null,
+      warnings,
+      diagnostics: buildExecutionOverlayDiagnostics(null, warnings),
+    };
   }
 
   const schemaVersion = normalizeExecutionSchemaVersion(parsed);
   if (schemaVersion && schemaVersion !== 'execution-state-v1') {
     warnings.push(`unsupported execution-state.json schemaVersion: ${schemaVersion}`);
-    return { executionState: null, warnings };
+    return {
+      executionState: null,
+      warnings,
+      diagnostics: buildExecutionOverlayDiagnostics(null, warnings),
+    };
   }
 
   const executionState = normalizeExecutionState(parsed, warnings);
   if (!executionState) {
     warnings.push('execution-state.json did not include any usable execution-state fields');
-    return { executionState: null, warnings };
+    return {
+      executionState: null,
+      warnings,
+      diagnostics: buildExecutionOverlayDiagnostics(null, warnings),
+    };
   }
 
-  return { executionState, warnings };
+  const displayExecutionState = collapseTerminalExecutionStateForDisplay(executionState);
+
+  return {
+    executionState: displayExecutionState,
+    warnings,
+    diagnostics: buildExecutionOverlayDiagnostics(displayExecutionState, warnings),
+  };
 }
 
 function normalizeExecutionState(value, warnings) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
+
+  const treeNormalization = normalizeExecutionTree(value.tree, warnings);
+  const explicitActiveGroup = normalizeExecutionRef(value.activeGroup || value.currentGroup);
+  const explicitActiveWorkUnit = normalizeExecutionRef(value.activeWorkUnit || value.currentWorkUnit);
+  const explicitNextUnit = normalizeExecutionNextUnit(value.nextUnit || value.upcomingUnit);
+
+  const derivedRefs = deriveExecutionTreeRefs(treeNormalization.tree, {
+    activeGroup: explicitActiveGroup,
+    activeWorkUnit: explicitActiveWorkUnit,
+    warnings,
+  });
+
+  if (treeNormalization.tree.length > 0) {
+    warnExecutionTreeRefConflict(
+      warnings,
+      'activeGroup',
+      explicitActiveGroup,
+      derivedRefs.activeGroup,
+      'active group'
+    );
+    warnExecutionTreeRefConflict(
+      warnings,
+      'activeWorkUnit',
+      explicitActiveWorkUnit,
+      derivedRefs.activeWorkUnit,
+      'active work unit'
+    );
+    warnExecutionTreeNextUnitConflict(warnings, explicitNextUnit, derivedRefs.nextUnit);
+  }
+
+  const activeGroup = treeNormalization.tree.length > 0
+    ? (derivedRefs.activeGroup || explicitActiveGroup)
+    : (explicitActiveGroup || derivedRefs.activeGroup);
+  const activeWorkUnit = treeNormalization.tree.length > 0
+    ? (derivedRefs.activeWorkUnit || explicitActiveWorkUnit)
+    : (explicitActiveWorkUnit || derivedRefs.activeWorkUnit);
+  const nextUnit = treeNormalization.tree.length > 0
+    ? (derivedRefs.nextUnit || explicitNextUnit)
+    : (explicitNextUnit || derivedRefs.nextUnit);
 
   const executionState = {
     schemaVersion: normalizeExecutionSchemaVersion(value),
@@ -591,13 +658,13 @@ function normalizeExecutionState(value, warnings) {
     status: normalizeOptionalString(value.status),
     mode: normalizeOptionalString(value.mode),
     summary: normalizeOptionalString(value.summary),
-    activeGroup: normalizeExecutionRef(value.activeGroup || value.currentGroup),
-    activeWorkUnit: normalizeExecutionRef(value.activeWorkUnit || value.currentWorkUnit),
+    activeGroup,
+    activeWorkUnit,
     lastCompletedUnit: normalizeExecutionRef(value.lastCompletedUnit),
-    nextUnit: normalizeExecutionNextUnit(value.nextUnit || value.upcomingUnit),
+    nextUnit,
     blockers: normalizeExecutionBlockers(value.blockers),
     replanCount: normalizeExecutionCount(value.replanCount),
-    tree: normalizeExecutionTree(value.tree, warnings),
+    tree: treeNormalization.tree,
   };
 
   if (executionState.schemaVersion == null) {
@@ -789,19 +856,217 @@ function normalizeExecutionBlockers(value) {
     .filter(Boolean);
 }
 
-function normalizeExecutionTree(value, warnings) {
-  if (!Array.isArray(value)) {
-    return [];
+function uniqueExecutionIds(values) {
+  const result = [];
+  const seen = new Set();
+
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = normalizeOptionalString(value);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    result.push(normalized);
   }
 
-  const nodes = value
-    .map((entry) => normalizeExecutionTreeNode(entry, warnings))
-    .filter(Boolean);
-
-  return nodes;
+  return result;
 }
 
-function normalizeExecutionTreeNode(value, warnings) {
+function isExecutionNextUnitTerminalSentinel(value) {
+  const normalized = normalizeOptionalString(value);
+  return Boolean(normalized && normalized.toUpperCase() === 'NONE');
+}
+
+function createExecutionRefFromNode(node) {
+  if (!node || typeof node !== 'object') {
+    return null;
+  }
+
+  return {
+    id: node.id,
+    label: node.label || node.id,
+    status: node.status || null,
+    summary: node.summary || null,
+  };
+}
+
+function warnExecutionTreeRefConflict(warnings, fieldName, explicitRef, derivedRef, preferredLabel) {
+  const explicitId = normalizeOptionalString(explicitRef?.id);
+  const derivedId = normalizeOptionalString(derivedRef?.id);
+  if (!explicitId || !derivedId || explicitId === derivedId) {
+    return;
+  }
+
+  warnings.push(
+    `execution-state.json ${fieldName} disagrees with normalized execution tree (${explicitId} vs ${derivedId}); preferring tree-derived ${preferredLabel}`
+  );
+}
+
+function describeExecutionNextUnit(nextUnit) {
+  if (!nextUnit || typeof nextUnit !== 'object') {
+    return 'none';
+  }
+
+  if (isExecutionNextUnitTerminalSentinel(nextUnit.workUnitId)) {
+    return 'NONE';
+  }
+
+  const workUnitIds = resolveExecutionNextUnitIds(nextUnit);
+  if (workUnitIds.length > 0) {
+    return workUnitIds.join(', ');
+  }
+
+  return normalizeOptionalString(nextUnit.workUnitId) || 'none';
+}
+
+function warnExecutionTreeNextUnitConflict(warnings, explicitNextUnit, derivedNextUnit) {
+  if (!explicitNextUnit || !derivedNextUnit) {
+    return;
+  }
+
+  const explicitIds = resolveExecutionNextUnitIds(explicitNextUnit);
+  const derivedIds = resolveExecutionNextUnitIds(derivedNextUnit);
+  const explicitIsTerminal = isExecutionNextUnitTerminalSentinel(explicitNextUnit.workUnitId);
+  const derivedIsTerminal = isExecutionNextUnitTerminalSentinel(derivedNextUnit.workUnitId);
+  const sameLength = explicitIds.length === derivedIds.length;
+  const sameIds = sameLength && explicitIds.every((id, index) => id === derivedIds[index]);
+
+  if (explicitIsTerminal === derivedIsTerminal && sameIds) {
+    return;
+  }
+
+  warnings.push(
+    `execution-state.json nextUnit disagrees with normalized execution tree (${describeExecutionNextUnit(explicitNextUnit)} vs ${describeExecutionNextUnit(derivedNextUnit)}); preferring tree-derived queued follow-up`
+  );
+}
+
+function isExecutionPathPrefix(prefix, candidate) {
+  if (!Array.isArray(prefix) || !Array.isArray(candidate) || prefix.length > candidate.length) {
+    return false;
+  }
+
+  return prefix.every((entry, index) => entry === candidate[index]);
+}
+
+function collectExecutionCurrentPaths(nodes, pathIds = [], result = []) {
+  for (const node of Array.isArray(nodes) ? nodes : []) {
+    if (!node) {
+      continue;
+    }
+
+    const nextPathIds = [...pathIds, node.id];
+    if (node.current) {
+      result.push({
+        ids: nextPathIds,
+        nodeId: node.id,
+      });
+    }
+
+    if (Array.isArray(node.children) && node.children.length > 0) {
+      collectExecutionCurrentPaths(node.children, nextPathIds, result);
+    }
+  }
+
+  return result;
+}
+
+function selectExecutionCurrentPath(nodes) {
+  const currentPaths = collectExecutionCurrentPaths(nodes);
+  if (currentPaths.length === 0) {
+    return {
+      currentPathIds: [],
+      currentPathIdSet: null,
+      conflictingNodeIds: [],
+    };
+  }
+
+  let preferredPath = currentPaths[0].ids;
+  const conflictingNodeIds = [];
+
+  for (const candidate of currentPaths.slice(1)) {
+    if (isExecutionPathPrefix(preferredPath, candidate.ids)) {
+      preferredPath = candidate.ids;
+      continue;
+    }
+
+    if (!isExecutionPathPrefix(candidate.ids, preferredPath)) {
+      conflictingNodeIds.push(candidate.nodeId);
+    }
+  }
+
+  return {
+    currentPathIds: preferredPath,
+    currentPathIdSet: new Set(preferredPath),
+    conflictingNodeIds: uniqueExecutionIds(conflictingNodeIds),
+  };
+}
+
+function applyExecutionCurrentPath(nodes, currentPathIdSet) {
+  return (Array.isArray(nodes) ? nodes : []).map((node) => {
+    const children = Array.isArray(node.children) && node.children.length > 0
+      ? applyExecutionCurrentPath(node.children, currentPathIdSet)
+      : [];
+    const current = Boolean(node.current && currentPathIdSet && currentPathIdSet.has(node.id));
+
+    return {
+      ...node,
+      active: Boolean(node.active || current),
+      current,
+      children,
+    };
+  });
+}
+
+function countExecutionBlockedNodes(nodes) {
+  return collectExecutionTreeNodes(nodes, (node) => Boolean(node.blocked)).length;
+}
+
+function normalizeExecutionTree(value, warnings) {
+  if (!Array.isArray(value)) {
+    return {
+      tree: [],
+      diagnostics: {
+        duplicateNodeIds: [],
+        conflictingCurrentNodeIds: [],
+        blockedNodeCount: 0,
+      },
+    };
+  }
+
+  const context = {
+    seenIds: new Set(),
+    duplicateNodeIds: new Set(),
+  };
+
+  const nodes = value
+    .map((entry) => normalizeExecutionTreeNode(entry, warnings, context))
+    .filter(Boolean);
+
+  const duplicateNodeIds = uniqueExecutionIds(Array.from(context.duplicateNodeIds));
+  if (duplicateNodeIds.length > 0) {
+    warnings.push(`ignored duplicate execution tree node ids: ${duplicateNodeIds.join(', ')}`);
+  }
+
+  const currentSelection = selectExecutionCurrentPath(nodes);
+  if (currentSelection.conflictingNodeIds.length > 0) {
+    warnings.push(`multiple current execution nodes detected; keeping the first current path and ignoring: ${currentSelection.conflictingNodeIds.join(', ')}`);
+  }
+
+  const normalizedNodes = currentSelection.currentPathIdSet
+    ? applyExecutionCurrentPath(nodes, currentSelection.currentPathIdSet)
+    : nodes;
+
+  return {
+    tree: normalizedNodes,
+    diagnostics: {
+      duplicateNodeIds,
+      conflictingCurrentNodeIds: currentSelection.conflictingNodeIds,
+      blockedNodeCount: countExecutionBlockedNodes(normalizedNodes),
+    },
+  };
+}
+
+function normalizeExecutionTreeNode(value, warnings, context) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
@@ -820,21 +1085,30 @@ function normalizeExecutionTreeNode(value, warnings) {
     return null;
   }
 
+  const normalizedId = id || label;
+  if (context && context.seenIds.has(normalizedId)) {
+    context.duplicateNodeIds.add(normalizedId);
+    return null;
+  }
+  if (context) {
+    context.seenIds.add(normalizedId);
+  }
+
   const children = Array.isArray(value.children)
     ? value.children
-      .map((entry) => normalizeExecutionTreeNode(entry, warnings))
+      .map((entry) => normalizeExecutionTreeNode(entry, warnings, context))
       .filter(Boolean)
     : [];
 
   const kind = normalizeOptionalString(value.kind || value.type) || inferExecutionNodeKind(id);
 
   return {
-    id: id || label,
+    id: normalizedId,
     kind,
     label: label || id,
     status: normalizeOptionalString(value.status || value.state),
     summary: normalizeOptionalString(value.summary || value.notes || value.rationale),
-    active: Boolean(value.active || value.current),
+    active: Boolean(value.active),
     current: Boolean(value.current),
     next: Boolean(value.next),
     blocked: Boolean(value.blocked),
@@ -891,6 +1165,297 @@ function collectExecutionTreeWorkUnits(nodes, activeGroupId = null, result = [])
   return result;
 }
 
+function isExecutionNodeQueuedStatus(status) {
+  return typeof status === 'string' && /^(queued|pending|ready|not-started)$/i.test(status);
+}
+
+function collectActiveGroupExecutionFollowUpIds(workUnitEntries, activeGroupId, activeWorkUnitId, options = {}) {
+  const normalizedActiveGroupId = normalizeOptionalString(activeGroupId);
+  if (!normalizedActiveGroupId) {
+    return [];
+  }
+
+  return uniqueExecutionIds(
+    (Array.isArray(workUnitEntries) ? workUnitEntries : [])
+      .filter((entry) => {
+        if (!entry?.node || entry.node.blocked || entry.node.id === activeWorkUnitId) {
+          return false;
+        }
+
+        if (entry.groupId !== normalizedActiveGroupId) {
+          return false;
+        }
+
+        return options.requireNextMarker
+          ? Boolean(entry.node.next)
+          : isExecutionNodeQueuedStatus(entry.node.status);
+      })
+      .map((entry) => entry.node.id)
+  );
+}
+
+function createDerivedExecutionNextUnit(workUnitIds, warnings, reason) {
+  const normalizedIds = uniqueExecutionIds(workUnitIds);
+  if (normalizedIds.length === 0) {
+    return null;
+  }
+
+  let boundedIds = normalizedIds;
+  if (normalizedIds.length > MAX_DERIVED_NEXT_UNIT_BATCH) {
+    boundedIds = normalizedIds.slice(0, MAX_DERIVED_NEXT_UNIT_BATCH);
+    warnings.push(`derived nextUnit batch exceeded ${MAX_DERIVED_NEXT_UNIT_BATCH}; keeping the first ${MAX_DERIVED_NEXT_UNIT_BATCH} queued work units`);
+  }
+
+  return {
+    workUnitId: boundedIds[0],
+    workUnitIds: boundedIds.length > 1 ? boundedIds : [],
+    parallelCandidate: boundedIds.length > 1,
+    rationale: reason || 'Derived from execution tree.',
+  };
+}
+
+function deriveExecutionNextUnitFromTree(tree, options) {
+  const workUnitEntries = Array.isArray(options?.workUnitEntries)
+    ? options.workUnitEntries
+    : collectExecutionTreeWorkUnits(tree);
+  const activeGroupId = normalizeOptionalString(options?.activeGroupId);
+  if (!activeGroupId) {
+    return null;
+  }
+
+  const explicitNextIds = collectActiveGroupExecutionFollowUpIds(
+    workUnitEntries,
+    activeGroupId,
+    options?.activeWorkUnitId,
+    { requireNextMarker: true }
+  );
+
+  if (explicitNextIds.length > 0) {
+    return createDerivedExecutionNextUnit(explicitNextIds, options?.warnings || [], 'Derived from active-group execution tree next markers.');
+  }
+
+  const queuedIds = collectActiveGroupExecutionFollowUpIds(
+    workUnitEntries,
+    activeGroupId,
+    options?.activeWorkUnitId
+  );
+
+  if (queuedIds.length === 0) {
+    return null;
+  }
+
+  return createDerivedExecutionNextUnit(queuedIds, options?.warnings || [], 'Derived from queued sibling work in the active group.');
+}
+
+function deriveExecutionTreeRefs(tree, options) {
+  const groupNodes = collectExecutionTreeNodes(tree, (node) => node.kind === 'group');
+  const groupById = new Map(groupNodes.map((node) => [node.id, node]));
+  const workUnitEntries = collectExecutionTreeWorkUnits(tree);
+  const workUnitById = new Map(workUnitEntries.map((entry) => [entry.node.id, entry]));
+  const currentGroupNodes = groupNodes.filter((node) => node.current);
+  const currentWorkUnitEntry = workUnitEntries.find((entry) => entry?.node?.current) || null;
+  const hintedActiveGroupId = normalizeOptionalString(options?.activeGroup?.id);
+  const hintedActiveWorkUnitId = normalizeOptionalString(options?.activeWorkUnit?.id);
+  const derivedActiveWorkUnit = currentWorkUnitEntry ? createExecutionRefFromNode(currentWorkUnitEntry.node) : null;
+
+  let derivedActiveGroupNode = null;
+  if (currentWorkUnitEntry?.groupId && groupById.has(currentWorkUnitEntry.groupId)) {
+    derivedActiveGroupNode = groupById.get(currentWorkUnitEntry.groupId);
+  } else if (currentGroupNodes.length > 0) {
+    derivedActiveGroupNode = currentGroupNodes[currentGroupNodes.length - 1];
+  } else {
+    const hintedEntry = hintedActiveWorkUnitId ? workUnitById.get(hintedActiveWorkUnitId) : null;
+    if (hintedEntry?.groupId && groupById.has(hintedEntry.groupId)) {
+      derivedActiveGroupNode = groupById.get(hintedEntry.groupId);
+    } else if (hintedActiveGroupId && groupById.has(hintedActiveGroupId)) {
+      derivedActiveGroupNode = groupById.get(hintedActiveGroupId);
+    }
+  }
+
+  const derivedActiveGroup = derivedActiveGroupNode
+    ? createExecutionRefFromNode(derivedActiveGroupNode)
+    : null;
+  const resolvedActiveGroupId = normalizeOptionalString(derivedActiveGroup?.id)
+    || hintedActiveGroupId;
+  const resolvedActiveWorkUnitId = normalizeOptionalString(derivedActiveWorkUnit?.id)
+    || hintedActiveWorkUnitId;
+
+  const derivedNextUnit = deriveExecutionNextUnitFromTree(tree, {
+    activeGroupId: resolvedActiveGroupId,
+    activeWorkUnitId: resolvedActiveWorkUnitId,
+    workUnitEntries,
+    warnings: options?.warnings,
+  });
+
+  return {
+    activeGroup: derivedActiveGroup,
+    activeWorkUnit: derivedActiveWorkUnit,
+    nextUnit: derivedNextUnit,
+  };
+}
+
+function resolveExecutionNextUnitIds(nextUnit) {
+  if (!nextUnit || typeof nextUnit !== 'object') {
+    return [];
+  }
+
+  const workUnitIds = Array.isArray(nextUnit.workUnitIds) && nextUnit.workUnitIds.length > 0
+    ? nextUnit.workUnitIds
+    : (nextUnit.workUnitId ? [nextUnit.workUnitId] : []);
+
+  return uniqueExecutionIds(workUnitIds)
+    .filter((workUnitId) => !isExecutionNextUnitTerminalSentinel(workUnitId));
+}
+
+function buildExecutionOverlayDiagnostics(executionState, warnings) {
+  const normalizedWarnings = Array.isArray(warnings)
+    ? warnings.filter((warning) => typeof warning === 'string' && warning.trim())
+    : [];
+
+  if (!executionState) {
+    return {
+      recovery: {
+        status: 'not-ready',
+        resumable: false,
+        reason: 'Overlay could not be parsed into a usable execution snapshot.',
+      },
+      integrity: {
+        status: normalizedWarnings.length > 0 ? 'degraded' : 'healthy',
+        warningCount: normalizedWarnings.length,
+        duplicateNodeIdCount: 0,
+        conflictingCurrentCount: 0,
+      },
+      queue: {
+        depth: 0,
+        nextUnitCount: 0,
+        nextUnitIds: [],
+      },
+      blockedNodeCount: 0,
+      overlap: {
+        boundedPreviewIds: [],
+        parallelCandidateCount: 0,
+      },
+    };
+  }
+
+  const finality = deriveExecutionStateFinality(executionState);
+  const queuedIds = resolveExecutionNextUnitIds(executionState.nextUnit);
+  const duplicateNodeIdCount = normalizedWarnings.filter((warning) => /duplicate execution tree node ids/i.test(warning)).length;
+  const conflictingCurrentCount = normalizedWarnings.filter((warning) => /multiple current execution nodes/i.test(warning)).length;
+  const blockedNodeCount = countExecutionBlockedNodes(executionState.tree);
+  const parallelCandidateCount = queuedIds.length > 1 ? queuedIds.length : 0;
+  const resumable = Boolean(executionState.activeGroup?.id && (executionState.activeWorkUnit?.id || executionState.tree.length > 0));
+
+  let recoveryStatus = 'not-ready';
+  let recoveryReason = 'Overlay does not contain enough execution context to resume safely.';
+  if (finality.terminal) {
+    recoveryStatus = 'terminal';
+    recoveryReason = 'Execution is already terminal; resume is not expected.';
+  } else if (resumable) {
+    recoveryStatus = normalizedWarnings.length > 0 ? 'degraded' : 'ready';
+    recoveryReason = normalizedWarnings.length > 0
+      ? 'Active execution context was recovered with normalization warnings.'
+      : 'Active execution context is available for resume.';
+  } else if (executionState.tree.length > 0 || queuedIds.length > 0 || executionState.lastCompletedUnit || executionState.blockers.length > 0) {
+    recoveryStatus = 'degraded';
+    recoveryReason = 'Overlay retains partial execution context but no complete active path.';
+  }
+
+  return {
+    recovery: {
+      status: recoveryStatus,
+      resumable: !finality.terminal && resumable,
+      reason: recoveryReason,
+    },
+    integrity: {
+      status: normalizedWarnings.length > 0 ? 'degraded' : 'healthy',
+      warningCount: normalizedWarnings.length,
+      duplicateNodeIdCount,
+      conflictingCurrentCount,
+    },
+    queue: {
+      depth: queuedIds.length,
+      nextUnitCount: queuedIds.length,
+      nextUnitIds: queuedIds,
+    },
+    blockedNodeCount,
+    overlap: {
+      boundedPreviewIds: parallelCandidateCount > 0
+        ? queuedIds.slice(0, MAX_DERIVED_NEXT_UNIT_BATCH)
+        : [],
+      parallelCandidateCount,
+    },
+  };
+}
+
+function isExecutionLiveStatus(status) {
+  return typeof status === 'string' && /^(queued|in-progress|active|blocked)$/i.test(status);
+}
+
+function collapseTerminalExecutionNextUnit(nextUnit) {
+  if (!nextUnit || typeof nextUnit !== 'object') {
+    return null;
+  }
+
+  if (!isExecutionNextUnitTerminalSentinel(nextUnit.workUnitId)) {
+    return null;
+  }
+
+  return {
+    ...nextUnit,
+    workUnitIds: [],
+    parallelCandidate: false,
+  };
+}
+
+function collapseTerminalExecutionTree(nodes, finality) {
+  return (Array.isArray(nodes) ? nodes : []).map((node) => {
+    const children = Array.isArray(node?.children) && node.children.length > 0
+      ? collapseTerminalExecutionTree(node.children, finality)
+      : [];
+    const liveState = Boolean(node?.active || node?.current || node?.next || node?.blocked)
+      || isExecutionLiveStatus(normalizeOptionalString(node?.status));
+
+    let status = node?.status || null;
+    if (liveState) {
+      if (node?.kind === 'work-unit') {
+        status = finality.disposition === 'unsuccessful'
+          ? 'failed'
+          : 'done';
+      } else {
+        status = finality.disposition === 'unsuccessful'
+          ? 'failed'
+          : 'implemented';
+      }
+    }
+
+    return {
+      ...node,
+      status,
+      active: false,
+      current: false,
+      next: false,
+      blocked: false,
+      children,
+    };
+  });
+}
+
+function collapseTerminalExecutionStateForDisplay(executionState) {
+  const finality = deriveExecutionStateFinality(executionState);
+  if (!finality.terminal) {
+    return executionState;
+  }
+
+  return {
+    ...executionState,
+    activeGroup: null,
+    activeWorkUnit: null,
+    nextUnit: collapseTerminalExecutionNextUnit(executionState.nextUnit),
+    tree: collapseTerminalExecutionTree(executionState.tree, finality),
+  };
+}
+
 function isExecutionNodeDoneStatus(status) {
   return typeof status === 'string' && /^(done|completed|implemented|passed|resolved)$/i.test(status);
 }
@@ -923,9 +1488,7 @@ function createRuntimeOnlyGroup(groupNode, executionState) {
 
 function createRuntimeOnlyWorkUnit(workUnitNode, groupId, executionState) {
   const isActive = executionState.activeWorkUnit?.id === workUnitNode.id || Boolean(workUnitNode.active || workUnitNode.current);
-  const nextWorkUnitIds = Array.isArray(executionState.nextUnit?.workUnitIds) && executionState.nextUnit.workUnitIds.length > 0
-    ? executionState.nextUnit.workUnitIds
-    : (executionState.nextUnit?.workUnitId ? [executionState.nextUnit.workUnitId] : []);
+  const nextWorkUnitIds = resolveExecutionNextUnitIds(executionState.nextUnit);
   const isNext = nextWorkUnitIds.includes(workUnitNode.id) || Boolean(workUnitNode.next);
   const runtimeStatus = workUnitNode.status
     || (isActive ? executionState.activeWorkUnit?.status : null)
@@ -951,16 +1514,7 @@ function createRuntimeOnlyWorkUnit(workUnitNode, groupId, executionState) {
 }
 
 function shouldFinalizeTerminalExecutionRows(executionState) {
-  const finality = deriveExecutionStateFinality(executionState);
-  if (!finality.terminal) {
-    return false;
-  }
-
-  return (
-    !executionState?.activeGroup?.id
-    && !executionState?.activeWorkUnit?.id
-    && (!Array.isArray(executionState?.tree) || executionState.tree.length === 0)
-  );
+  return deriveExecutionStateFinality(executionState).terminal;
 }
 
 function finalizeTerminalGroupStatus(group, executionState) {
@@ -1095,9 +1649,7 @@ function mergeExecutionOverlayIntoWorkUnits(workUnits, executionState) {
   const workUnitNodes = collectExecutionTreeWorkUnits(executionState.tree);
   const workUnitById = new Map(workUnitNodes.map((entry) => [entry.node.id, entry]));
   const activeWorkUnitId = executionState.activeWorkUnit?.id || null;
-  const nextWorkUnitIds = Array.isArray(executionState.nextUnit?.workUnitIds) && executionState.nextUnit.workUnitIds.length > 0
-    ? executionState.nextUnit.workUnitIds
-    : (executionState.nextUnit?.workUnitId ? [executionState.nextUnit.workUnitId] : []);
+  const nextWorkUnitIds = resolveExecutionNextUnitIds(executionState.nextUnit);
   const knownWorkUnitIds = new Set(workUnits.map((workUnit) => workUnit.workUnitId));
 
   const mergedWorkUnits = workUnits.map((workUnit) => {

@@ -92,6 +92,15 @@ interface SessionArtifactsState {
 
 const SESSION_AGENT_USAGE_EVENT_LIMIT = 500;
 const ACTIVE_SESSION_POLL_INTERVAL_MS = 5_000;
+const LIVE_EXECUTION_STATE_TOKENS = new Set([
+  'active',
+  'blocked',
+  'executing',
+  'in-progress',
+  'resumed',
+  'resuming',
+  'running',
+]);
 const TERMINAL_EXECUTION_STATE_TOKENS = new Set([
   'aborted',
   'canceled',
@@ -195,6 +204,28 @@ function isNotFoundError(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404;
 }
 
+function isExecutionNextUnitTerminalSentinel(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.trim().toUpperCase() === 'NONE';
+}
+
+function getDisplayableExecutionNextUnitIds(ref: SessionExecutionStateRef | SessionStructuredNextUnit | null | undefined): string[] {
+  if (!ref || typeof ref !== 'object') {
+    return [];
+  }
+
+  const nextUnitRef = ref as SessionStructuredNextUnit;
+  const candidates = [
+    ...(Array.isArray(nextUnitRef.workUnitIds)
+      ? nextUnitRef.workUnitIds.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0).map((entry) => entry.trim())
+      : []),
+    typeof nextUnitRef.workUnitId === 'string'
+      ? nextUnitRef.workUnitId.trim()
+      : '',
+  ];
+
+  return Array.from(new Set(candidates.filter((entry) => entry.length > 0 && !isExecutionNextUnitTerminalSentinel(entry))));
+}
+
 function renderArtifactSection(section: SessionArtifactSection) {
   const items = Array.isArray(section.items)
     ? section.items.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
@@ -274,12 +305,13 @@ function formatExecutionRef(ref: SessionExecutionStateRef | SessionStructuredNex
     return 'None';
   }
 
-  const workUnitIds = Array.isArray((ref as SessionStructuredNextUnit).workUnitIds)
-    ? ((ref as SessionStructuredNextUnit).workUnitIds || []).filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
-    : [];
-  const primaryId = typeof (ref as SessionStructuredNextUnit).workUnitId === 'string'
+  const workUnitIds = getDisplayableExecutionNextUnitIds(ref);
+  const primaryIdCandidate = typeof (ref as SessionStructuredNextUnit).workUnitId === 'string'
     ? (ref as SessionStructuredNextUnit).workUnitId
     : (typeof ref.id === 'string' ? ref.id : '');
+  const primaryId = isExecutionNextUnitTerminalSentinel(primaryIdCandidate)
+    ? ''
+    : primaryIdCandidate;
   const label = typeof ref.label === 'string' && ref.label.trim().length > 0
     ? ref.label.trim()
     : '';
@@ -293,6 +325,10 @@ function formatExecutionRef(ref: SessionExecutionStateRef | SessionStructuredNex
   const summary = typeof ref.summary === 'string' && ref.summary.trim().length > 0
     ? ref.summary.trim()
     : rationale;
+
+  if (workUnitIds.length === 0 && !label && !primaryId) {
+    return 'None';
+  }
 
   const base = workUnitIds.length > 0
     ? workUnitIds.join(', ')
@@ -382,6 +418,25 @@ function isTerminalExecutionState(executionState: SessionExecutionState | null |
   return TERMINAL_EXECUTION_STATE_TOKENS.has(status) || TERMINAL_EXECUTION_STATE_TOKENS.has(lifecycle);
 }
 
+function isLiveExecutionState(executionState: SessionExecutionState | null | undefined): boolean {
+  if (!executionState || typeof executionState !== 'object') {
+    return false;
+  }
+
+  const status = normalizeExecutionStateToken(executionState.status);
+  const lifecycle = normalizeExecutionStateToken(executionState.lifecycle);
+
+  return LIVE_EXECUTION_STATE_TOKENS.has(status) || LIVE_EXECUTION_STATE_TOKENS.has(lifecycle);
+}
+
+function isResumableExecutionOverlay(overlay: SessionStructuredExecutionOverlay | null | undefined): boolean {
+  return Boolean(
+    overlay?.present
+    && overlay?.applied
+    && overlay?.diagnostics?.recovery?.resumable === true
+  );
+}
+
 function shouldPollStructuredArtifacts(
   sessionIsActive: boolean,
   executionOverlay: SessionStructuredExecutionOverlay | null | undefined,
@@ -391,16 +446,21 @@ function shouldPollStructuredArtifacts(
     return false;
   }
 
-  return (
-    sessionIsActive
-    || Boolean(executionState)
-    || Boolean(executionOverlay?.present && executionOverlay?.applied)
-  );
+  if (sessionIsActive) {
+    return true;
+  }
+
+  return isLiveExecutionState(executionState) || isResumableExecutionOverlay(executionOverlay);
 }
 
 function readCount(value: unknown): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function readOptionalNumber(value: unknown): number | null {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function resolveEvidence(
@@ -553,7 +613,8 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
   const intentFrameCarryover = normalizeStringList(visibleArtifacts.intentFrame?.carryoverSignals);
   const intentFrameKeyDecisions = normalizeStringList(visibleArtifacts.intentFrame?.keyDecisions);
   const intentFrameContextSignals = normalizeStringList(visibleArtifacts.intentFrame?.contextSignals);
-  const intentFrameNextUnits = normalizeStringList(visibleArtifacts.intentFrame?.nextSuggestedUnits);
+  const intentFrameNextUnits = normalizeStringList(visibleArtifacts.intentFrame?.nextSuggestedUnits)
+    .filter((entry) => !isExecutionNextUnitTerminalSentinel(entry));
   const intentFrameWarnings = normalizeStringList(visibleArtifacts.intentFrame?.warnings);
   const closureDelivered = normalizeStringList(visibleArtifacts.closureSummary?.delivered);
   const closureRequested = normalizeStringList(visibleArtifacts.closureSummary?.requested);
@@ -573,6 +634,20 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
   const executionTree = Array.isArray(visibleArtifacts.executionState?.tree)
     ? visibleArtifacts.executionState.tree.filter((entry): entry is SessionExecutionStateNode => Boolean(entry?.id))
     : [];
+  const executionOverlayDiagnostics = visibleArtifacts.executionOverlay?.diagnostics ?? null;
+  const executionQueueIds = normalizeStringList(executionOverlayDiagnostics?.queue?.nextUnitIds);
+  const executionOverlapPreviewIds = normalizeStringList(executionOverlayDiagnostics?.overlap?.boundedPreviewIds);
+  const persistedNextUnitIds = getDisplayableExecutionNextUnitIds(visibleArtifacts.nextUnit);
+  const nextSuggestedUnitLabel = intentFrameNextUnits.join(', ') || persistedNextUnitIds.join(', ');
+  const nextSuggestedUnitRationale = intentFrameNextUnits.length === 0 && persistedNextUnitIds.length > 0
+    ? visibleArtifacts.nextUnit?.rationale
+    : null;
+  const executionQueueDepth = readOptionalNumber(executionOverlayDiagnostics?.queue?.depth);
+  const executionBlockedNodeCount = readOptionalNumber(executionOverlayDiagnostics?.blockedNodeCount);
+  const executionParallelCandidateCount = readOptionalNumber(executionOverlayDiagnostics?.overlap?.parallelCandidateCount);
+  const executionWarningCount = readOptionalNumber(executionOverlayDiagnostics?.integrity?.warningCount);
+  const executionDuplicateNodeIdCount = readOptionalNumber(executionOverlayDiagnostics?.integrity?.duplicateNodeIdCount);
+  const executionConflictingCurrentCount = readOptionalNumber(executionOverlayDiagnostics?.integrity?.conflictingCurrentCount);
   const skillRollup = {
     searchedCount: readCount(visibleArtifacts.sessionObservability?.search?.searchedCount ?? visibleArtifacts.sessionObservability?.search?.queryCount),
     selectedCount: readCount(visibleArtifacts.sessionObservability?.search?.selectedCount),
@@ -972,14 +1047,11 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
                     <dd>{normalizeStringList(visibleArtifacts.intentFrame?.sourceArtifacts).map((entry) => humanizeToken(entry)).join(', ') || 'None'}</dd>
                   </div>
                 </dl>
-                {intentFrameNextUnits.length > 0 || visibleArtifacts.nextUnit ? (
+                {nextSuggestedUnitLabel ? (
                   <p className="session-detail-suggestion">
                     <span>Next suggested unit:</span>{' '}
-                    {intentFrameNextUnits.join(', ')
-                      || (Array.isArray(visibleArtifacts.nextUnit?.workUnitIds) && visibleArtifacts.nextUnit.workUnitIds.length > 0
-                        ? visibleArtifacts.nextUnit.workUnitIds.join(', ')
-                        : visibleArtifacts.nextUnit?.workUnitId || 'unknown')}
-                    {visibleArtifacts.nextUnit?.rationale ? ` - ${visibleArtifacts.nextUnit.rationale}` : ''}
+                    {nextSuggestedUnitLabel}
+                    {nextSuggestedUnitRationale ? ` - ${nextSuggestedUnitRationale}` : ''}
                   </p>
                 ) : null}
                 {renderDerivedList('In scope now', intentFrameInScope, 'No explicit in-scope items were derived.')}
@@ -1047,6 +1119,65 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
                     <dd>{getExecutionOverlayStatusLabel(visibleArtifacts.executionOverlay)}</dd>
                   </div>
                 </dl>
+                {executionOverlayDiagnostics ? (
+                  <div className="metadata-block">
+                    <h5>Overlay diagnostics</h5>
+                    <dl className="detail-grid">
+                      <div>
+                        <dt>Recovery</dt>
+                        <dd>
+                          {executionOverlayDiagnostics.recovery?.status ? humanizeToken(executionOverlayDiagnostics.recovery.status) : 'Unknown'}
+                          {typeof executionOverlayDiagnostics.recovery?.resumable === 'boolean'
+                            ? ` · ${executionOverlayDiagnostics.recovery.resumable ? 'Resumable' : 'Not resumable'}`
+                            : ''}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Integrity</dt>
+                        <dd>{executionOverlayDiagnostics.integrity?.status ? humanizeToken(executionOverlayDiagnostics.integrity.status) : 'Unknown'}</dd>
+                      </div>
+                      <div>
+                        <dt>Queue depth</dt>
+                        <dd>{executionQueueDepth == null ? 'Unknown' : executionQueueDepth}</dd>
+                      </div>
+                      <div>
+                        <dt>Blocked nodes</dt>
+                        <dd>{executionBlockedNodeCount == null ? 'Unknown' : executionBlockedNodeCount}</dd>
+                      </div>
+                      <div>
+                        <dt>Parallel candidates</dt>
+                        <dd>{executionParallelCandidateCount == null ? 'Unknown' : executionParallelCandidateCount}</dd>
+                      </div>
+                      <div>
+                        <dt>Normalization warnings</dt>
+                        <dd>{executionWarningCount == null ? 'Unknown' : executionWarningCount}</dd>
+                      </div>
+                    </dl>
+                    {executionOverlayDiagnostics.recovery?.reason ? (
+                      <p className="session-detail-suggestion">{executionOverlayDiagnostics.recovery.reason}</p>
+                    ) : null}
+                    {(executionDuplicateNodeIdCount || executionConflictingCurrentCount) ? (
+                      <p className="session-detail-suggestion">
+                        {executionDuplicateNodeIdCount ? `Duplicate ids normalized: ${executionDuplicateNodeIdCount}` : 'Duplicate ids normalized: 0'}
+                        {' · '}
+                        {executionConflictingCurrentCount ? `Conflicting current markers: ${executionConflictingCurrentCount}` : 'Conflicting current markers: 0'}
+                      </p>
+                    ) : null}
+                    {executionQueueIds.length > 0 ? (
+                      <p className="session-detail-suggestion">
+                        Queued follow-up: {executionQueueIds.join(', ')}
+                      </p>
+                    ) : null}
+                    {executionParallelCandidateCount && executionParallelCandidateCount > 0 ? (
+                      <p className="session-detail-suggestion">
+                        Bounded overlap preview: {executionOverlapPreviewIds.join(', ') || 'None'}
+                        {executionOverlapPreviewIds.length > 0 && executionParallelCandidateCount > executionOverlapPreviewIds.length
+                          ? ` +${executionParallelCandidateCount - executionOverlapPreviewIds.length} more`
+                          : ''}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 {renderDerivedList('Execution blockers', executionBlockers, 'No blockers were persisted in the execution overlay.')}
                 <div className="metadata-block">
                   <h5>Execution tree</h5>

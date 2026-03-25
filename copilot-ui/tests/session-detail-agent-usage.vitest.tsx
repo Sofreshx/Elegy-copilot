@@ -182,6 +182,29 @@ describe('SessionDetail agent usage', () => {
           present: true,
           applied: true,
           warnings: [],
+          diagnostics: {
+            recovery: {
+              status: 'ready',
+              resumable: true,
+              reason: 'Active execution context is available for resume.',
+            },
+            integrity: {
+              status: 'healthy',
+              warningCount: 0,
+              duplicateNodeIdCount: 0,
+              conflictingCurrentCount: 0,
+            },
+            queue: {
+              depth: 1,
+              nextUnitCount: 1,
+              nextUnitIds: ['WU-003'],
+            },
+            blockedNodeCount: 0,
+            overlap: {
+              boundedPreviewIds: [],
+              parallelCandidateCount: 0,
+            },
+          },
         },
         executionState: {
           schemaVersion: 'execution-state-v1',
@@ -288,6 +311,10 @@ describe('SessionDetail agent usage', () => {
     expect(screen.getByText(/derived Session Intent Frame first/i)).toBeInTheDocument();
     expect(screen.getByText('Execution State')).toBeInTheDocument();
     expect(screen.getByText(/actively working through the runtime overlay tree/i)).toBeInTheDocument();
+    expect(screen.getByText('Overlay diagnostics')).toBeInTheDocument();
+    expect(screen.getByText(/Ready · Resumable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Active execution context is available for resume\./i)).toBeInTheDocument();
+    expect(screen.getByText(/Queued follow-up: WU-003/i)).toBeInTheDocument();
     expect(screen.getByText('Execution tree')).toBeInTheDocument();
     expect(screen.getAllByText(/Merge execution overlay/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Keep test routing narrow/i)).toBeInTheDocument();
@@ -301,6 +328,88 @@ describe('SessionDetail agent usage', () => {
     expect(screen.getAllByText(/proxy-only fallback/i).length).toBeGreaterThan(0);
     expect(mockGetSessionAgentUsage).toHaveBeenCalledWith('session-usage-1', { source: 'cli', limit: 500 });
     expect(mockGetCatalogAssetAnalytics).toHaveBeenCalledWith({ sessionId: 'session-usage-1', limit: 500 });
+  });
+
+  it('does not render NONE sentinels as a next suggested unit', async () => {
+    mockGetSessionStructuredState.mockResolvedValue({
+      id: 'session-usage-1',
+      source: 'cli',
+      warnings: [],
+      nextUnit: {
+        workUnitId: 'NONE',
+        rationale: 'No follow-up work is queued.',
+      },
+      meta: {
+        intentFrame: {
+          summary: 'Execution has reached a terminal point for this slice.',
+          sourceArtifacts: ['plan'],
+          nextSuggestedUnits: ['NONE'],
+        },
+        executionOverlay: {
+          present: true,
+          applied: true,
+          warnings: [],
+          diagnostics: {
+            recovery: {
+              status: 'terminal',
+              resumable: false,
+              reason: 'Execution is already terminal; resume is not expected.',
+            },
+            integrity: {
+              status: 'healthy',
+              warningCount: 0,
+              duplicateNodeIdCount: 0,
+              conflictingCurrentCount: 0,
+            },
+            queue: {
+              depth: 0,
+              nextUnitCount: 0,
+              nextUnitIds: [],
+            },
+            blockedNodeCount: 0,
+            overlap: {
+              boundedPreviewIds: [],
+              parallelCandidateCount: 0,
+            },
+          },
+        },
+        executionState: {
+          schemaVersion: 'execution-state-v1',
+          updatedAt: '2026-03-23T00:01:00.000Z',
+          lifecycle: 'completed',
+          status: 'completed',
+          summary: 'Execution is already terminal for this session.',
+          nextUnit: {
+            workUnitId: 'NONE',
+            rationale: 'No follow-up work is queued.',
+          },
+          blockers: [],
+          replanCount: 0,
+          tree: [],
+        },
+      },
+    });
+
+    const { default: SessionDetail } = await import('../ui/src/tabs/Sessions/SessionDetail');
+
+    render(
+      <SessionDetail
+        session={{
+          id: 'session-usage-1',
+          source: 'cli',
+          status: 'idle',
+        }}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Execution has reached a terminal point for this slice\./i)).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/Next suggested unit:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText((_content, element) => (element?.textContent || '').includes('NONE'))).not.toBeInTheDocument();
+    expect(screen.getByText('Next unit')).toBeInTheDocument();
+    expect(screen.getAllByText(/^None$/).length).toBeGreaterThan(0);
   });
 
   it('suppresses catalog-derived observability for non-CLI sessions', async () => {
@@ -811,6 +920,134 @@ describe('SessionDetail agent usage', () => {
     await flushAsyncWork();
 
     expect(mockGetSessionStructuredState).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not keep polling for idle sessions with degraded non-resumable execution overlays', async () => {
+    vi.useFakeTimers();
+    mockGetSessionStructuredState.mockResolvedValue({
+      id: 'session-usage-1',
+      source: 'cli',
+      warnings: [],
+      nextUnit: null,
+      meta: {
+        executionOverlay: {
+          present: true,
+          applied: true,
+          warnings: ['Active execution context was recovered with normalization warnings.'],
+          diagnostics: {
+            recovery: {
+              status: 'degraded',
+              resumable: false,
+              reason: 'Overlay retains partial execution context but no complete active path.',
+            },
+          },
+        },
+        executionState: {
+          schemaVersion: 'execution-state-v1',
+          summary: 'Degraded overlay snapshot only.',
+          status: 'idle',
+        },
+      },
+    });
+
+    const { default: SessionDetail } = await import('../ui/src/tabs/Sessions/SessionDetail');
+
+    render(
+      <SessionDetail
+        session={{
+          id: 'session-usage-1',
+          source: 'cli',
+          status: 'idle',
+        }}
+      />
+    );
+
+    await flushAsyncWork();
+    expect(screen.getByText(/Degraded overlay snapshot only\./i)).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(15_000);
+    });
+
+    await flushAsyncWork();
+
+    expect(mockGetSessionStructuredState).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues polling for idle sessions when the overlay is resumable even without an active execution token', async () => {
+    vi.useFakeTimers();
+    mockGetSessionStructuredState
+      .mockResolvedValueOnce({
+        id: 'session-usage-1',
+        source: 'cli',
+        warnings: [],
+        nextUnit: null,
+        meta: {
+          executionOverlay: {
+            present: true,
+            applied: true,
+            warnings: [],
+            diagnostics: {
+              recovery: {
+                status: 'ready',
+                resumable: true,
+                reason: 'Active execution context is available for resume.',
+              },
+            },
+          },
+          executionState: {
+            schemaVersion: 'execution-state-v1',
+            summary: 'Resumable overlay snapshot.',
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        id: 'session-usage-1',
+        source: 'cli',
+        warnings: [],
+        nextUnit: null,
+        meta: {
+          executionOverlay: {
+            present: true,
+            applied: true,
+            warnings: [],
+            diagnostics: {
+              recovery: {
+                status: 'ready',
+                resumable: true,
+                reason: 'Active execution context is available for resume.',
+              },
+            },
+          },
+          executionState: {
+            schemaVersion: 'execution-state-v1',
+            summary: 'Resumable overlay advanced.',
+          },
+        },
+      });
+
+    const { default: SessionDetail } = await import('../ui/src/tabs/Sessions/SessionDetail');
+
+    render(
+      <SessionDetail
+        session={{
+          id: 'session-usage-1',
+          source: 'cli',
+          status: 'idle',
+        }}
+      />
+    );
+
+    await flushAsyncWork();
+    expect(screen.getByText(/Resumable overlay snapshot\./i)).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+
+    await flushAsyncWork();
+    expect(screen.getByText(/Resumable overlay advanced\./i)).toBeInTheDocument();
+    expect(mockGetSessionStructuredState).toHaveBeenCalledTimes(2);
   });
 
   it('continues polling through blocked execution states until a true terminal state is reached', async () => {

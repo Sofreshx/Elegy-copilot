@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-03-25
 category: system
 status: draft
 doc_kind: node
@@ -20,6 +20,12 @@ Draft — pending review
 > Historical design note: this document records the original orchestrator design pass.
 > For current operational behavior, use `engine-assets/agents/orchestrator.agent.md`
 > and `docs/system/orchestrator/user-guide.md`.
+>
+> Current shipped V1 topology keeps `@orchestrator` as the root session/loop owner, allows only
+> named approved coordinators with explicit allowlists, caps effective depth at 3
+> (`@orchestrator` -> approved coordinator -> leaf), keeps `@o-planner` leaf-only, keeps
+> `@e2e-validator` as a narrow coordinator exception, and falls back to the legacy-depth-1 direct
+> orchestrator -> `@o-planner` planning path when nested delegation is unavailable or disabled.
 
 ## Overview
 The Orchestrator is the next-generation unified agent that replaces Executive (v1), Executive2, Executive2.5, and Executive2-Fast with a single, clean entry point. It consolidates the best patterns from our executive lineage and external systems (GSD, Copilot Orchestra, Wrapzii Orchestration) while eliminating the complexity that plagued previous versions.
@@ -66,6 +72,7 @@ Plan packs (2 markdown files) for standard+ work. No SQLite, no task file hierar
 ```
 User
   └── @orchestrator (thin coordinator, never implements)
+   ├── @o-plan-coordinator (read-only planning coordinator, V1 approved exception)
         ├── @o-planner (planning subagent — produces plan packs)
         ├── @o-reframer (request analysis + clarification)
         ├── @work-unit-runner (implementation of single work units)
@@ -77,9 +84,14 @@ User
         ├── @integration-test-runner (with user approval)
         ├── @reviewer-opus-4-6 (cross-model review)
         ├── @reviewer-gpt-5-4 (cross-model review)
+      ├── @e2e-validator (narrow coordinator exception)
         ├── @e2e-browser (E2E testing with user approval)
         └── @doc-writer (documentation)
 ```
+
+   Current V1 correction: `@o-plan-coordinator` is the only planning-time coordinator path and may
+   delegate only to leaf capability-resolution lanes. It does not make `@o-planner` a coordinator and
+   does not permit coordinator-to-coordinator chains.
 
 ### New Subagents
 
@@ -99,9 +111,14 @@ User
 #### @o-planner (Orchestrator Planner)
 **Purpose**: Produce actionable plan packs. Replaces executive2p5-planner for the orchestrator workflow.
 **Tools**: read, search, edit (only the approved plan artifact surface), web/fetch, agent/runSubagent (code-explorer, code-architect, research-ideation)
-**Wait** — this violates "no subagent chaining". Instead, the orchestrator should call code-explorer/code-architect/research-ideation and pass results to o-planner.
 
-**Revised**: @o-planner is a LEAF agent (no subagent calls). The orchestrator gathers exploration context and passes it to o-planner.
+**Prototype note**: this draft explored letting `@o-planner` call code-explorer/code-architect/
+research-ideation directly. The shipped V1 model does not do that.
+
+**Revised**: `@o-planner` is a LEAF agent (no subagent calls). Optional planning-time nested
+delegation is limited to the read-only `@o-plan-coordinator`; when that path is unavailable or
+disabled, use the legacy-depth-1 fallback: direct orchestrator -> `@o-planner` planning. The
+orchestrator gathers exploration context and passes it to `@o-planner`.
 **Tools**: read, search, edit (only the approved plan artifact surface)
 **Input**: Enriched brief + exploration findings + project context
 **Output**: Plan pack (2 files) following existing plan-pack format

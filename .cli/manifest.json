@@ -93,23 +93,48 @@
     {
       "id": "orchestrator-workflow",
       "title": "Orchestrator Workflow Agents",
-      "description": "Repo-scoped orchestration agents and support skills for reframing, planning, implementation routing, research, verification, and final review.",
+      "description": "Repo-scoped orchestration agents and support skills for reframing, planning, planning-only coordination, bounded validation coordination, implementation routing, research, verification, and final review.",
       "assetIds": [
         "agent-orchestrator",
         "agent-o-reframer",
+        "agent-o-plan-coordinator",
         "agent-o-planner",
+        "agent-o-validation-coordinator",
         "skill-planning-feature",
         "skill-planpack-authoring",
+        "agent-roadmap-planner",
+        "skill-roadmap-authoring",
         "agent-work-unit-runner",
         "agent-final-reviewer",
         "agent-goal-reviewer",
         "agent-remaining-work",
         "agent-research-ideation",
+        "agent-code-architect",
         "agent-doc-writer",
+        "agent-follow-up-finder",
         "agent-verification-guide",
         "agent-impl-business",
         "agent-impl-infra",
         "agent-impl-reviewer",
+        "agent-integration-test-runner",
+        "agent-e2e-browser",
+        "agent-e2e-validator",
+          "skill-e2e-workflow",
+          "agent-convention-governor",
+          "skill-project-conventions-governance",
+          "agent-doc-structure-governor",
+          "skill-documentation-structure-governance",
+          "agent-logic-reviewer",
+          "agent-consistency-reviewer",
+          "agent-working-reviewer",
+          "skill-stack-detector",
+          "skill-stack-audit-patterns",
+          "agent-deploy-auditor",
+          "skill-audit-report-formats",
+          "skill-security",
+          "agent-instruction-auditor",
+          "skill-instruction-quality",
+          "agent-governor",
         "skill-friction-feedback"
       ],
       "installTarget": "repo-local",
@@ -191,10 +216,28 @@
       "destination": "agents/code-reviewer.agent.md"
     },
     {
+      "id": "agent-consistency-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/consistency-reviewer.agent.md",
+      "destination": "agents/consistency-reviewer.agent.md"
+    },
+    {
+      "id": "agent-convention-governor",
+      "type": "agent",
+      "source": "engine-assets/agents/convention-governor.agent.md",
+      "destination": "agents/convention-governor.agent.md"
+    },
+    {
       "id": "agent-deploy-auditor",
       "type": "agent",
       "source": "engine-assets/agents/deploy-auditor.agent.md",
       "destination": "agents/deploy-auditor.agent.md"
+    },
+    {
+      "id": "agent-doc-structure-governor",
+      "type": "agent",
+      "source": "engine-assets/agents/doc-structure-governor.agent.md",
+      "destination": "agents/doc-structure-governor.agent.md"
     },
     {
       "id": "agent-doc-writer",
@@ -225,6 +268,12 @@
       "type": "agent",
       "source": "engine-assets/agents/final-reviewer.agent.md",
       "destination": "agents/final-reviewer.agent.md"
+    },
+    {
+      "id": "agent-follow-up-finder",
+      "type": "agent",
+      "source": "engine-assets/agents/follow-up-finder.agent.md",
+      "destination": "agents/follow-up-finder.agent.md"
     },
     {
       "id": "agent-goal-reviewer",
@@ -269,6 +318,18 @@
       "destination": "agents/integration-test-runner.agent.md"
     },
     {
+      "id": "agent-logic-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/logic-reviewer.agent.md",
+      "destination": "agents/logic-reviewer.agent.md"
+    },
+    {
+      "id": "agent-o-plan-coordinator",
+      "type": "agent",
+      "source": "engine-assets/agents/o-plan-coordinator.agent.md",
+      "destination": "agents/o-plan-coordinator.agent.md"
+    },
+    {
       "id": "agent-o-planner",
       "type": "agent",
       "source": "engine-assets/agents/o-planner.agent.md",
@@ -279,6 +340,12 @@
       "type": "agent",
       "source": "engine-assets/agents/o-reframer.agent.md",
       "destination": "agents/o-reframer.agent.md"
+    },
+    {
+      "id": "agent-o-validation-coordinator",
+      "type": "agent",
+      "source": "engine-assets/agents/o-validation-coordinator.agent.md",
+      "destination": "agents/o-validation-coordinator.agent.md"
     },
     {
       "id": "agent-orchestrator",
@@ -357,6 +424,12 @@
       "type": "agent",
       "source": "engine-assets/agents/verification-guide.agent.md",
       "destination": "agents/verification-guide.agent.md"
+    },
+    {
+      "id": "agent-working-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/working-reviewer.agent.md",
+      "destination": "agents/working-reviewer.agent.md"
     },
     {
       "id": "agent-work-unit-runner",
@@ -452,6 +525,13 @@
       "loadMode": "always"
     },
     {
+      "id": "skill-documentation-structure-governance",
+      "type": "skill",
+      "source": "engine-assets/skills/documentation-structure-governance",
+      "destination": "skills/documentation-structure-governance",
+      "loadMode": "on-demand"
+    },
+    {
       "id": "skill-e2e-workflow",
       "type": "skill",
       "source": "engine-assets/skills/e2e-workflow",
@@ -526,6 +606,13 @@
       "type": "skill",
       "source": "engine-assets/skills/planpack-authoring",
       "destination": "skills/planpack-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-project-conventions-governance",
+      "type": "skill",
+      "source": "engine-assets/skills/project-conventions-governance",
+      "destination": "skills/project-conventions-governance",
       "loadMode": "on-demand"
     },
     {

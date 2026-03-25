@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-23
+updated: 2026-03-25
 category: system
 status: current
 doc_kind: node
@@ -93,6 +93,30 @@ The orchestrator classifies every request by complexity:
 
 You don't choose the complexity — the orchestrator's `@o-reframer` subagent analyzes your request and classifies it automatically. If uncertain, it defaults to "standard" and may ask you to confirm scope.
 
+### Planning Surface Routing
+
+The reframing step also assigns an explicit planning-surface contract so the orchestrator can choose between durable planning, session execution planning, both, or neither without guessing.
+
+| Field | Allowed values | Meaning |
+|---|---|---|
+| `planning_surface` | `plan-pack` \| `roadmap` \| `both` \| `none` | Which planning surface, if any, should be used |
+| `session_horizon` | `single-session` \| `multi-session` | Whether the request should close in one execution session or span durable follow-up |
+| `execution_readiness` | `ready` \| `stageable` \| `not-ready` | Whether execution can start now, needs staging first, or is blocked on more input |
+| `overlap_risk` | `low` \| `medium` \| `high` | Risk of confusing durable planning with active execution or creating bounded validation overlap |
+
+Selection rules:
+
+- `planning_surface: plan-pack` means the request should produce or use a session-scoped execution plan for work that is ready to run now.
+- `planning_surface: roadmap` means the request belongs on the durable multi-session planning surface and should not be turned into active execution work yet.
+- `planning_surface: both` means durable roadmap work happens first, then the orchestrator generates a linked plan pack that preserves the relevant durable IDs for execution.
+- `planning_surface: none` means no roadmap or plan-pack artifact is required for the request.
+
+`session_horizon: multi-session` normally aligns with `planning_surface: roadmap` or `planning_surface: both`, while `session_horizon: single-session` usually aligns with `plan-pack` or `none`.
+
+Plan-pack generation runs only when `planning_surface` includes `plan-pack` and `execution_readiness` is `ready` or `stageable`. `planning_surface: roadmap`, `planning_surface: none`, and `execution_readiness: not-ready` must not invoke the plan-pack lane.
+
+Delivery-oriented requests such as commit prep, review prep, and CI result checks are valid request classes in this routing model. They often use `planning_surface: none` when the user wants readiness assessment, packaging help, or evidence review only. That does not imply push automation, remote pull-request writes, or remote CI mutation.
+
 ## Default Routing Policy: `balanced-default`
 
 `@orchestrator` remains the default general entry point even as more capability packs, bundles, and workflows become available.
@@ -137,6 +161,26 @@ Use an explicit persisted session-state workflow when you need:
 - a repo-specific persisted workflow/profile selected by the user or repo
 - a handoff that depends on those persisted artifacts
 
+## V1 Nested Delegation Topology
+
+The shipped V1 topology keeps `@orchestrator` as both the root session owner and the root loop
+owner.
+
+- The effective repo depth cap is 3: `@orchestrator` -> approved coordinator -> leaf.
+- Host/runtime nesting support up to depth 5 is runtime headroom only; the shipped repo topology stays bounded and explicit rather than generally recursive.
+- `@o-plan-coordinator` is the planning-only approved coordinator path. It is read-only, may run
+  planning-time `@search` / `@execute` under orchestrator-owned routing policy, and hands its
+  findings back to the orchestrator so `@o-planner` can remain leaf-only.
+- `@o-validation-coordinator` is the bounded validation-overlap coordinator path. It may delegate
+  only to `@unit-test-runner` and `@integration-test-runner`, and integration validation remains
+  user-confirmed.
+- `@e2e-validator` is the narrow validation-only coordinator exception and may delegate only to
+  `@e2e-browser`.
+- Write-capable implementation lanes and reviewer lanes remain leaf-only in V1.
+- Coordinator-to-coordinator chains are disallowed in V1.
+- When nested planning is unavailable or disabled, use the legacy-depth-1 fallback: direct
+  orchestrator -> `@o-planner` planning.
+
 ## The Lifecycle
 
 ### Phase 0: Bootstrap
@@ -152,6 +196,10 @@ risks, ambiguities, intent summary, scope edges, completion signals, and limitat
 For complex requests, the orchestrator may ask you to resolve ambiguities and may run
 research/exploration first.
 
+That same reframing step records `planning_surface`, `session_horizon`, `execution_readiness`, and
+`overlap_risk`, then explicitly chooses `plan-pack`, `roadmap`, `both`, or `none` before planning or
+execution begins.
+
 The orchestrator folds this into the **Session Intent Frame**, including what is in vs out, what "done"
 means, and where confidence is still too low to proceed blindly.
 
@@ -161,10 +209,19 @@ concise session-state summary from the returned plan so it can keep long work on
 re-reading full history every step. It asks for plan approval only when unresolved scope, risky
 tradeoffs, or explicit user preference makes that approval materially necessary.
 
+This phase runs only when the selected surface includes a plan pack and `execution_readiness` is
+`ready` or `stageable`. Roadmap-only and `none` requests skip the plan-pack lane entirely.
+
+In V1, the orchestrator may optionally use `@o-plan-coordinator` for read-only planning prep before
+handing the final brief to `@o-planner`. When that nested path is unavailable or disabled, use the
+legacy-depth-1 fallback: direct orchestrator -> `@o-planner` planning.
+
 Planning refines the **Session Intent Frame** into an execution-ready shape: success criteria,
 validation expectations, missing work that still needs explicit handling, and whether any durable repo
 planning surfaces should matter after the run. Plan packs remain execution artifacts, not replacements
-for backlog or roadmap authority.
+for backlog or roadmap authority. When `planning_surface: roadmap`, no plan pack should be generated.
+When `planning_surface: both`, the roadmap slice is established first and the generated plan pack must
+carry the linked durable IDs forward into execution.
 
 ### Phase 3: Execute
 The default execution topology is one ready work group at a time through `@work-unit-runner`. The
@@ -174,6 +231,11 @@ test scope, but long-running test commands stay in the dedicated runners: unit v
 `@unit-test-runner`, and integration/E2E only through their dedicated user-confirmed lanes. Timeout,
 stalled-output, and inconclusive validation are treated as completed attempts that trigger retry,
 replan, or user input rather than indefinite waiting.
+
+When a completed or frozen slice can be validated without reopening active writes, the orchestrator may
+use `@o-validation-coordinator` for bounded validation overlap. That overlap is conditioned on
+`overlap_risk`, dependency safety, and current repo policy constraints; integration validation still
+requires explicit user confirmation.
 
 During execution, the orchestrator keeps the Session Intent Frame current enough to preserve
 resumability, especially when scope edges change, confidence drops, or refactor/coherence work is
@@ -212,6 +274,7 @@ memory or automatic future pickup.
 | Agent | Role |
 |---|---|
 | `@o-reframer` | Analyzes requests, classifies complexity |
+| `@o-validation-coordinator` | Bounded validation overlap coordinator for completed or frozen slices |
 | `@o-planner` | Produces plan packs from enriched briefs |
 | `@work-unit-runner` | Implements individual work units |
 | `@code-explorer` | Read-only codebase analysis |
