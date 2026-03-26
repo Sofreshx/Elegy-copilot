@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-25
+updated: 2026-03-26
 category: system
 status: current
 doc_kind: node
@@ -19,9 +19,20 @@ You invoke `@orchestrator` and describe what you need. It handles everything —
 
 The default path is still chat-first. For long work, the orchestrator keeps a concise active session state in chat and host/runtime state when available, and only switches to a persisted session-state lane when you explicitly ask for file-backed planning/execution or the active repo/profile requires it.
 
+For write-capable feature or modification work, the orchestrator is docs-first. It loads the
+smallest relevant canonical docs entrypoint before implementation and expands only as the current
+step needs more detail. When intended design, behavior, or workflow policy changes, the
+orchestrator is also docs-update-first: the first execution slice should update the relevant
+canonical docs before or alongside implementation.
+
 Instruction Engine also supports an explicit persisted session-state lane for teams that want
 file-backed artifacts and an intentional handoff from planning to execution. That lane writes the
 same plan-pack shape to `~/.copilot/session-state/<SESSION_ID>/` for downstream tooling.
+
+The default autonomous-decision log, when the host/runtime records one, belongs in user-local app
+data managed by the host/runtime. Host/runtime-managed autonomous or auto-mode decisions should go
+there when that seam exists. It is an operational audit surface, not canonical intent, and it does
+not replace repo-local docs or persisted session-state artifacts.
 
 ## Normalized Session Framing
 
@@ -186,6 +197,22 @@ owner.
 ### Phase 0: Bootstrap
 Every invocation loads project context (architecture, conventions, constraints), detects whether the work is fresh or resumed, and can continue from user-provided prior plan, host/runtime session state, or explicit session artifacts when relevant. It also performs carryover hygiene when unresolved-goal context matters.
 
+For feature or modification work, bootstrap starts from the smallest relevant canonical docs
+entrypoint, usually `docs/system/index.md`, a relevant MOC, or a deterministic node for the lane in
+question. The orchestrator expands to additional docs only when the current step needs them.
+
+If the intended change alters canonical design, behavior, or workflow policy, bootstrap should plan
+the first execution slice so the relevant canonical docs are updated before or alongside
+implementation.
+
+`docs/system/**` remains canonical intent. Other maintained docs in `docs/**` and approved repo
+operating docs remain important design and operating context, but they are not peer authority with
+the canonical system docs.
+
+If intended work materially contradicts current documentation, the orchestrator must surface the
+contradiction and ask the user for direction before it continues with implementation or other
+write-capable work.
+
 This is where the orchestrator establishes the first draft of the **Session Intent Frame**: what the
 session is for, what prior state is trustworthy enough to resume from, what direction/carryover signals
 matter, and what limitations already exist.
@@ -231,6 +258,15 @@ test scope, but long-running test commands stay in the dedicated runners: unit v
 `@unit-test-runner`, and integration/E2E only through their dedicated user-confirmed lanes. Timeout,
 stalled-output, and inconclusive validation are treated as completed attempts that trigger retry,
 replan, or user input rather than indefinite waiting.
+
+For any write-capable work unit that affects behavior, workflow policy, or a documentation-backed
+feature, the delegated leaf must independently load the smallest relevant canonical docs entrypoint
+before editing. The orchestrator brief and any exploration context are inputs, not a substitute for
+leaf-level canonical-doc bootstrap.
+
+If a write-capable leaf reports a material contradiction with current documentation, the orchestrator
+must pause execution and ask the user for direction before it retries, replans, or delegates further
+write-capable work.
 
 When a completed or frozen slice can be validated without reopening active writes, the orchestrator may
 use `@o-validation-coordinator` for bounded validation overlap. That overlap is conditioned on

@@ -21,6 +21,7 @@ const { pathToFileURL } = require('url');
 const sessions = require('./lib/sessions');
 const assets = require('./lib/assets');
 const planState = require('./lib/planState');
+const { createAutonomousDecisionLog } = require('./lib/autonomousDecisionLog');
 const { resolvePermissionLocations } = require('./lib/permissionLocationsResolver');
 const {
   SESSION_RECONCILIATION_CONTRACT_VERSION,
@@ -268,6 +269,92 @@ function runStartupManagedAssetSync(engineRoot, homes, options = {}) {
   }
 
   return summaries;
+}
+
+function formatManagedAssetSyncCount(label, count) {
+  return `${count} ${label}${count === 1 ? '' : 's'}`;
+}
+
+function summarizeStartupManagedAssetSync(managedAssetSyncSummary, options = {}) {
+  const summaries = Array.isArray(managedAssetSyncSummary) ? managedAssetSyncSummary : [];
+  const ran = options.ran === true;
+  const lastRunAt = typeof options.lastRunAt === 'string' && options.lastRunAt.trim()
+    ? options.lastRunAt.trim()
+    : new Date().toISOString();
+  const syncedCount = summaries.reduce((total, entry) => total + (Number.isFinite(entry && entry.syncedCount) ? Number(entry.syncedCount) : 0), 0);
+  const prunedCount = summaries.reduce((total, entry) => total + (Number.isFinite(entry && entry.prunedCount) ? Number(entry.prunedCount) : 0), 0);
+  const errorCount = summaries.reduce((total, entry) => total + (entry && entry.error ? 1 : 0), 0);
+  const homeCount = summaries.length;
+
+  let status = 'healthy';
+  let outcome = 'succeeded';
+  let message = 'Startup managed-asset sync completed with no changes.';
+
+  if (!ran) {
+    status = 'warning';
+    outcome = 'skipped';
+    message = 'Startup managed-asset sync was skipped for this launch.';
+  } else if (errorCount > 0 && errorCount === homeCount && syncedCount === 0 && prunedCount === 0) {
+    status = 'degraded';
+    outcome = 'failed';
+    message = `Startup managed-asset sync failed for ${formatManagedAssetSyncCount('home', homeCount)}.`;
+  } else if (errorCount > 0) {
+    status = 'warning';
+    outcome = 'partial';
+    message = [
+      `Startup managed-asset sync completed with warnings for ${formatManagedAssetSyncCount('home', homeCount)}.`,
+      formatManagedAssetSyncCount('asset synced', syncedCount),
+      formatManagedAssetSyncCount('path pruned', prunedCount),
+      formatManagedAssetSyncCount('error', errorCount),
+    ].join(' ');
+  } else if (syncedCount > 0 || prunedCount > 0) {
+    message = [
+      `Startup managed-asset sync completed for ${formatManagedAssetSyncCount('home', homeCount)}.`,
+      formatManagedAssetSyncCount('asset synced', syncedCount),
+      formatManagedAssetSyncCount('path pruned', prunedCount),
+    ].join(' ');
+  } else if (homeCount > 0) {
+    message = `Startup managed-asset sync completed with no changes for ${formatManagedAssetSyncCount('home', homeCount)}.`;
+  }
+
+  return {
+    status,
+    outcome,
+    ran,
+    lastRunAt,
+    homeCount,
+    syncedCount,
+    prunedCount,
+    errorCount,
+    message,
+    homes: summaries.map((entry) => ({
+      home: entry.home,
+      syncedCount: Number.isFinite(entry.syncedCount) ? Number(entry.syncedCount) : 0,
+      prunedCount: Number.isFinite(entry.prunedCount) ? Number(entry.prunedCount) : 0,
+      ...(entry.error ? { error: String(entry.error) } : {}),
+    })),
+    decisionLogged: false,
+    decisionEventId: null,
+    decisionLoggedAt: null,
+    decisionLogError: null,
+  };
+}
+
+function buildStartupManagedAssetSyncDecisionEvent(startupManagedAssetSync) {
+  return {
+    kind: 'startup.managed_asset_sync',
+    source: 'copilot-ui.server',
+    outcome: startupManagedAssetSync.outcome,
+    summary: startupManagedAssetSync.message,
+    details: {
+      ran: startupManagedAssetSync.ran,
+      homeCount: startupManagedAssetSync.homeCount,
+      syncedCount: startupManagedAssetSync.syncedCount,
+      prunedCount: startupManagedAssetSync.prunedCount,
+      errorCount: startupManagedAssetSync.errorCount,
+      homes: startupManagedAssetSync.homes,
+    },
+  };
 }
 
 function parseArgs(argv) {
@@ -4091,7 +4178,7 @@ function relayTrackerSSE(trackerUrl, trackerToken, req, res) {
   proxyReq.end();
 }
 
-function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, routeRegistry }) {
+function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry }) {
   // Auth scope: single-session only. Multi-session aggregate views are deferred.
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
@@ -4155,6 +4242,8 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     planningApiState,
     planningAuthContext,
     providerState,
+    startupManagedAssetSync,
+    autonomousDecisionLog,
   })) {
     return;
   }
@@ -4255,6 +4344,7 @@ async function startServer(options = {}) {
   const copilotHome = resolveCopilotHome(args);
   const vscodeHome = resolveVscodeHome(args);
   const sandboxesHome = resolveSandboxesHome(args);
+  const autonomousDecisionLog = createAutonomousDecisionLog(copilotHome);
   const trackerUrl = resolveTrackerUrl(args);
   const trackerTokenResolution = await resolveTrackerToken(args);
   const trackerToken = trackerTokenResolution.value;
@@ -4384,6 +4474,7 @@ async function startServer(options = {}) {
   const planningAuthContext = {
     userId: derivePlanningActorId(token),
   };
+  const startupManagedAssetSyncRunAt = new Date().toISOString();
   const managedAssetSyncSummary = managedAssetSyncOnStart
     ? runStartupManagedAssetSync(engineRoot, [copilotHome, vscodeHome], {
       force: true,
@@ -4391,6 +4482,20 @@ async function startServer(options = {}) {
       quiet,
     })
     : [];
+  let startupManagedAssetSync = summarizeStartupManagedAssetSync(managedAssetSyncSummary, {
+    ran: managedAssetSyncOnStart,
+    lastRunAt: startupManagedAssetSyncRunAt,
+  });
+  const startupManagedAssetSyncDecision = autonomousDecisionLog.record(
+    buildStartupManagedAssetSyncDecisionEvent(startupManagedAssetSync),
+  );
+  startupManagedAssetSync = {
+    ...startupManagedAssetSync,
+    decisionLogged: startupManagedAssetSyncDecision.ok,
+    decisionEventId: startupManagedAssetSyncDecision.ok ? startupManagedAssetSyncDecision.event.id : null,
+    decisionLoggedAt: startupManagedAssetSyncDecision.ok ? startupManagedAssetSyncDecision.event.occurredAt : null,
+    decisionLogError: startupManagedAssetSyncDecision.ok ? null : startupManagedAssetSyncDecision.error,
+  };
   const sdkBridgeEnabled = isSdkBridgeEnabled(env);
   let sdkBridge = null;
   let executorService = null;
@@ -4549,6 +4654,8 @@ async function startServer(options = {}) {
           planningAuthContext,
           providerState: planningPersistenceState.providerState,
           planningDurabilityDependencyGate,
+          startupManagedAssetSync,
+          autonomousDecisionLog,
           routeRegistry,
         });
         return;
@@ -4608,6 +4715,8 @@ async function startServer(options = {}) {
         sandboxesHome,
         trackerUrl,
         managedAssetSyncSummary,
+        startupManagedAssetSync,
+        autonomousDecisionLog: autonomousDecisionLog.getSummary(),
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
             .then(() => shutdownExecutorServiceSafely(executorService))

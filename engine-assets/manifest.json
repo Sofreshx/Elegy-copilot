@@ -134,6 +134,7 @@
           "skill-project-conventions-governance",
           "agent-doc-structure-governor",
           "skill-documentation-structure-governance",
+          "skill-truth-sync",
           "agent-logic-reviewer",
           "agent-consistency-reviewer",
           "agent-working-reviewer",
@@ -212,6 +213,7 @@
       "assetIds": [
         "skill-project-conventions-governance",
         "skill-documentation-structure-governance",
+        "skill-truth-sync",
         "agent-convention-governor",
         "agent-doc-structure-governor",
         "agent-logic-reviewer",

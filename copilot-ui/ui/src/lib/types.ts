@@ -14,6 +14,8 @@ export interface HealthResponse {
   policy: Record<string, unknown>;
   planningPersistence: Record<string, unknown>;
   planningDurabilityDependencyGate?: Record<string, unknown> | string | null;
+  startupManagedAssetSync?: Record<string, unknown> | null;
+  autonomousDecisionLog?: Record<string, unknown> | null;
 }
 
 export interface SessionSummary {

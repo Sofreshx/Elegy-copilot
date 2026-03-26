@@ -28,8 +28,8 @@ describe('getDesktopUpdaterPresentation', () => {
       availableVersion: '1.2.4',
       canDownload: true,
     })).toEqual({
-      tone: 'loading',
-      summary: 'Version 1.2.4 is ready to download.',
+      tone: 'warn',
+      summary: 'New version available: 1.2.4. Download to install.',
     });
   });
 

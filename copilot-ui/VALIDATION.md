@@ -24,6 +24,20 @@ This command:
 
 This smoke command is an artifact-level release preflight. It does not simulate a live GitHub-hosted update download or an installed-app replacement on restart.
 
+## Desktop Preview Startup Smoke
+
+Run `npm run package:preview:startup` from `copilot-ui` when you need a repo-local production-like startup validation using the unpacked desktop preview.
+
+This command:
+
+- rebuilds the unpacked desktop preview through the existing `package:preview` flow
+- launches `release/win-unpacked/Elegy Copilot.exe` with an isolated user-local home and a fixed local health port
+- waits for the packaged app to answer `GET /api/health`
+- verifies that startup managed-asset sync and the autonomous decision-log summary are present in runtime health
+- terminates the unpacked desktop app after the health contract is confirmed
+
+This smoke command validates real packaged startup behavior from the repo-local unpacked preview. It does not exercise installer replacement, restart-based update install, or GitHub-hosted release download behavior.
+
 ## Endpoint 1: GET /api/sessions/:id/structured-state
 
 ### Description

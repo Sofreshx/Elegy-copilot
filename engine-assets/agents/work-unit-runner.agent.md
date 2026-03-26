@@ -26,15 +26,18 @@ Execute one or more work units provided inline by the caller (typically `@orches
 - Do NOT create or modify repo-local `.instructions/*`.
 - Do NOT run unit, integration, or E2E tests directly. Return requested test scope so orchestrator can route to the dedicated runners.
 - Do NOT execute integration or E2E tests unless the spec explicitly requires it; request them instead.
+- For any work unit that affects behavior, workflow policy, or a documentation-backed feature, independently load the smallest relevant canonical docs entrypoint before editing. Do not rely only on `spec`, `wuSpecs`, or `explorationContext` for docs truth.
+- If the work changes intended design, behavior, or workflow policy reflected in canonical docs, make the relevant canonical docs update part of the first execution slice before or alongside implementation.
 - If scope/unknowns exceed the spec, request replanning.
 - Do not silently absorb discovered work that changes goals, dependencies, or success criteria. Surface it as `REPLAN_REQUESTED` or `NEW_WORK_UNIT_REQUEST`.
+- Do not silently override current canonical docs or nearby maintained docs. If you discover a material contradiction, stop and return `REPLAN_REQUESTED` or the exact clarification needed instead of guessing.
 - When blocked by a missing user decision, return the exact decision needed instead of guessing.
 - If later work, unfrozen dependencies, or unstable validation would make overlap unsafe, report that explicitly instead of implying follow-up validation can overlap safely.
 - Any validation command you do run must be one-shot and bounded with an explicit timeout. If it stalls or times out, stop and report the last known state instead of waiting.
 
 ## Execution Workflow
-1. **Load context**: Parse spec(s), identify AC/approach/validation, incorporate `explorationContext`.
-2. **Feasibility check**: If prerequisites are missing or WU is ambiguous, do not proceed.
+1. **Load context**: Parse spec(s), identify AC/approach/validation, incorporate `explorationContext`, and for any work unit affecting behavior, workflow policy, or a documentation-backed feature independently load the smallest relevant canonical docs entrypoint before editing.
+2. **Feasibility check**: If prerequisites are missing, the WU is ambiguous, or current docs materially contradict the intended work, do not proceed.
 3. **Implement**: Make changes directly (do not call subagents).
 4. **Validate**: Run targeted build, lint, or typecheck commands if specified; do NOT run test commands. If a validation command stalls or times out, stop and report it as blocked or inconclusive.
 

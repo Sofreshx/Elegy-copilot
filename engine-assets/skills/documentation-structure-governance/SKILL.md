@@ -21,6 +21,7 @@ Always ground this skill in:
 
 If these sources conflict, prefer the canonical governance doc, then the doc-graph contract, then the
 search/execute routing doc.
+Start from the smallest relevant canonical entrypoint for the governed surface and expand only as the current step requires.
 
 ## LLM Routing Guide
 
@@ -62,6 +63,12 @@ Do not route here when the request is mainly:
 - **Smallest useful change**: prefer one node and the minimum index/MOC link updates needed.
 - **Single source of truth**: human and LLM entrypoints must encode the same rules.
 
+## Contradiction Handling
+
+- Classify mismatches as minor wording drift or material contradiction.
+- If intended work materially conflicts with current canonical docs or nearby maintained docs on entrypoint ownership, discoverability requirements, precedence, or documentation-backed workflow behavior, surface the specific contradiction and ask the user for direction before write-capable work continues.
+- Do not create a separate truth hierarchy for docs routing; follow the owning canonical docs and escalate only the material contradiction.
+
 ## Dual-Entrypoint Model
 
 ### Human-Friendly Entrypoint Must
@@ -97,8 +104,9 @@ The human-friendly and LLM-friendly entrypoints may differ in format, but they m
 3. Identify the human reader's start point.
 4. Identify the LLM workflow's compact start point.
 5. Flag hidden, duplicated, conflicting, or overly broad entrypoint logic.
-6. Propose the smallest graph-compliant change that fixes the gap.
-7. Keep generic writing guidance out of scope unless it directly blocks governance clarity.
+6. Surface any material contradiction before approved update work proceeds.
+7. Propose the smallest graph-compliant change that fixes the gap.
+8. Keep generic writing guidance out of scope unless it directly blocks governance clarity.
 
 ## Required Inputs
 

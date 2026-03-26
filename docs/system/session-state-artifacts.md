@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-25
+updated: 2026-03-26
 category: system
 status: current
 doc_kind: node
@@ -315,13 +315,29 @@ The planning step writes a bootstrap artifact for the next execution or resume s
 Required sections:
 
 1. `## Handoff Manifest` — Session ID, plan status, reviewer verdict
-2. `## Key Decisions` — durable decision log with rationale
+2. `## Key Decisions` — persisted handoff summary of decisions relevant to this session, with rationale
 3. `## Exploration Summary` — key entry points, key files, relevant patterns
 4. `## User Constraints` — explicit scope or risk tolerances
 5. `## Immediate Next Actions` — the concrete next moves for this session
 6. `## Next Plan Ideas` — follow-on planning opportunities that are deliberately out of scope now
 7. `## Watch Outs` — execution cautions the implementation step must preserve
 8. `## Open Risks` — unresolved risks that may force replanning or user escalation
+
+These sections support persisted planning and resume flows only. They are not the default
+autonomous-decision log for the product.
+
+### Autonomous-Decision Audit Boundary
+
+The default autonomous-decision log, when recorded, belongs to user-local app data managed by the
+host/runtime. Host/runtime-managed autonomous or auto-mode decisions belong there when that seam
+exists.
+
+- treat it as an operational audit surface rather than canonical intent
+- do not treat repo-local docs as its storage location
+- do not treat persisted session-state artifacts as its required storage location
+
+Session artifacts may summarize decisions needed for handoff or resume, but they do not replace the
+user-local audit surface.
 
 ## Chat-First vs Persisted Mapping
 

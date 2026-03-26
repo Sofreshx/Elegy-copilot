@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-03-13
+updated: 2026-03-26
 category: system
 status: current
 doc_kind: node
@@ -21,6 +21,19 @@ human-friendly versus LLM-friendly access paths.
 
 Instruction Engine already uses the doc graph in `docs/system/**` as its canonical documentation
 system. This governance lane extends that model rather than replacing it.
+
+Feature and modification work is docs-first. When a new feature or modification changes intended
+design, behavior, or workflow policy, it is also docs-update-first: the first execution slice
+should update the relevant canonical docs to match the intended design before or alongside
+implementation, not wait until after code lands.
+
+Before implementation, humans and AI should load the smallest relevant canonical entrypoint,
+usually `docs/system/index.md`, a relevant MOC, or a more specific canonical node, then expand
+only as needed.
+
+`docs/system/**` remains canonical intent. Other maintained docs in `docs/**` still matter as
+important design and operating context, but they are not peer authority with the canonical system
+nodes.
 
 For this rollout:
 
@@ -50,6 +63,9 @@ A human-friendly entrypoint should:
 - be discoverable from `docs/system/index.md` or a relevant MOC
 - explain purpose, audience, and when to read it
 - orient a reader to the smallest useful next links
+- start from compact canonical entrypoints and expand only when the current task needs more detail
+- treat progressive disclosure as a standing requirement for docs and entrypoints rather than a
+  one-time preference
 - avoid assuming prompt-only or hidden agent knowledge
 - point to canonical nodes instead of duplicating policy text across many pages
 
@@ -66,6 +82,7 @@ brief. It should include:
 
 - route-to-me triggers
 - precedence rules
+- a docs-first load order that starts from the smallest relevant canonical entrypoint
 - required inputs
 - output contract
 - validation hook or canonical validator reference
@@ -78,6 +95,9 @@ For V1, the LLM-friendly entrypoint may be:
   added later
 
 The human-friendly and LLM-friendly entrypoints must agree on the same source-of-truth rules.
+Progressive disclosure is a standing requirement for canonical docs and entrypoints: start compact,
+expand only when the current step needs more detail, and avoid flattening the whole rule set into
+every entrypoint.
 
 ## Documentation and Project-Structure Responsibilities
 
@@ -87,6 +107,18 @@ This lane is responsible for:
 - ensuring repo structure guidance has a human-readable path and an LLM-usable path
 - detecting duplicated, conflicting, or hidden entrypoint logic
 - keeping new governance docs graph-compliant and discoverable
+
+## Contradiction Handling
+
+When intended work materially contradicts current documentation, the workflow must surface the
+contradiction before proceeding.
+
+- identify the conflicting docs and the specific point of disagreement
+- state which source is canonical when precedence is clear
+- ask the user for direction before implementation or other write-capable work continues
+
+Do not silently resolve a material documentation conflict by coding first, overriding prompt or
+asset behavior, and updating docs later.
 
 This lane is not responsible for:
 
@@ -133,10 +165,14 @@ DOC_STRUCTURE_GOVERNANCE
 ## Change Workflow
 
 1. identify the current entrypoint path
-2. verify graph compliance and discoverability
-3. propose the smallest structural update
-4. update the canonical node plus the minimal index or MOC links needed
-5. validate with the doc graph validator when available
+2. load the smallest relevant canonical entrypoint and expand only as needed
+3. verify graph compliance and discoverability
+4. when intended work changes canonical design, behavior, or workflow policy, update the relevant
+  canonical docs in the first execution slice before or alongside implementation
+5. surface any material contradiction with current documentation before write-capable work proceeds
+6. propose the smallest structural update
+7. update the canonical node plus the minimal index or MOC links needed
+8. validate with the doc graph validator when available
 
 ## References
 

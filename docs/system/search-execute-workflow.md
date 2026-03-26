@@ -1,6 +1,6 @@
 ---
 created: 2026-03-07
-updated: 2026-03-25
+updated: 2026-03-26
 category: system
 status: current
 doc_kind: node
@@ -18,22 +18,54 @@ Instruction Engine uses a staged search/execute workflow to keep context small w
 the full capability set available on demand. The delivered workflow is backed by the shared local
 catalog/search control plane in `copilot-ui`, not by separate per-surface discovery logic.
 
+For write-capable feature or modification work, this workflow is docs-first: load the smallest
+relevant canonical docs entrypoint before implementation, then expand only as the current step
+requires. When intended design, behavior, or workflow policy changes, it is also docs-update-first:
+the first execution slice should update the relevant canonical docs before or alongside
+implementation.
+
 ## Workflow
 
-1. Select or infer the relevant repo context when repo-local `.github/*` assets or stack targeting
+1. Load the smallest relevant canonical docs entrypoint for the task. Start from
+   `docs/system/index.md`, a relevant MOC, or a deterministic core-lane node, then expand only if
+   the current step needs more detail.
+   For write-capable leaf execution on work that affects behavior, workflow policy, or a
+   documentation-backed feature, this bootstrap must happen inside the leaf as well; the leaf must
+   independently load the smallest relevant canonical entrypoint instead of relying only on an
+   orchestrator brief, spec, or exploration summary.
+2. Select or infer the relevant repo context when repo-local `.github/*` assets or stack targeting
    matter.
-2. Read the active routing-policy snapshot when available. The intended snapshot is a compact view of:
+3. Read the active routing-policy snapshot when available. The intended snapshot is a compact view of:
     - current profile (for example `balanced-default`)
     - user-global active bundles
     - repo-specific overrides
     - eligible capabilities or eligible capability families
-3. If the next action is a deterministic core-lane step (for example reframe, plan, known review, or
+4. If the next action is a deterministic core-lane step (for example reframe, plan, known review, or
    direct work-unit execution), route directly without broad capability search.
-4. Otherwise use `@search` to resolve the smallest relevant **eligible** capability for the task.
-5. Use `@execute` to load that capability and extract only the constraints and steps needed
+5. Otherwise use `@search` to resolve the smallest relevant **eligible** capability for the task.
+6. Use `@execute` to load that capability and extract only the constraints and steps needed
    downstream.
-6. Delegate actual implementation, testing, review, or documentation work to the normal specialist
+7. Delegate actual implementation, testing, review, or documentation work to the normal specialist
    agents.
+
+## Docs-First Progressive Disclosure
+
+The same progressive-disclosure rule applies to both humans and AI:
+
+- start from compact canonical entrypoints and expand only as needed
+- treat progressive disclosure as a standing requirement for docs and entrypoints, not a one-time
+   bootstrap hint
+- prefer `docs/system/**` for canonical intent and deterministic routing
+- use other maintained docs in `docs/**` plus approved repo operating docs as important design and
+  operating context, without treating them as equal authority with `docs/system/**`
+
+When intended work materially contradicts current documentation, surface the contradiction and ask
+the user for direction before proceeding with implementation or other write-capable work.
+Implementation lanes must stop for clarification or replan instead of silently overriding the
+current docs truth.
+Write-capable leaves must perform this contradiction check against the canonical entrypoint they
+independently loaded for the active work unit rather than assuming an upstream summary stayed
+complete.
 
 ## Planning-Surface Routing Posture
 
@@ -245,6 +277,7 @@ Instruction Engine owns:
 
 ## Operating Rules
 
+- Load the smallest relevant canonical docs entrypoint before write-capable feature or modification work.
 - Prefer deterministic routing before broad search.
 - Keep nested routing inside the V1 approved-coordinator posture; approved coordinators may not
    re-root session ownership, routing policy ownership, or chain to other coordinators.
@@ -252,6 +285,7 @@ Instruction Engine owns:
    dependency-safety, and repo-policy checks; never treat it as permission for unrestricted parallel writes.
 - In default orchestration, prefer `eligible-only` capability search unless the user explicitly asks to override.
 - Prefer canonical docs over research notes.
+- Surface material contradictions between intended work and current documentation before proceeding.
 - Load one primary capability first, then at most two supporting capabilities.
 - Do not eagerly load whole skills when a narrow execution brief will do.
 

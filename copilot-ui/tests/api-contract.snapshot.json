@@ -16,6 +16,7 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
+      "autonomousDecisionLog",
       "changes",
       "copilotHome",
       "engineRoot",
@@ -25,6 +26,7 @@
       "planningPersistence",
       "policy",
       "runtime",
+      "startupManagedAssetSync",
       "vscodeHome"
     ]
   },

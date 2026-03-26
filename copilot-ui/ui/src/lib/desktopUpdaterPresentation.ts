@@ -62,8 +62,8 @@ export function getDesktopUpdaterPresentation(state: DesktopUpdaterState): Deskt
       };
     case 'available':
       return {
-        tone: 'loading',
-        summary: `${formatTargetLabel(state)} is ready to download.`,
+        tone: 'warn',
+        summary: `New version available: ${isKnownVersion(state.availableVersion) ? state.availableVersion : 'download ready'}. Download to install.`,
       };
     case 'downloading': {
       const progress = formatProgressPercent(state.progressPercent);

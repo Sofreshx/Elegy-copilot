@@ -38,6 +38,12 @@ function readString(record: Record<string, unknown>, key: string): string {
   return typeof record[key] === 'string' ? String(record[key]).trim() : '';
 }
 
+function readNumber(record: Record<string, unknown>, key: string): number | null {
+  return typeof record[key] === 'number' && Number.isFinite(record[key] as number)
+    ? (record[key] as number)
+    : null;
+}
+
 function buildStatusToken(record: Record<string, unknown>, fallback: string): string {
   const status = readString(record, 'status');
   if (status) {
@@ -127,6 +133,8 @@ function renderDiagnosticsSection(
     const githubCli = asRecord(githubAccess.cli);
     const githubWorkspace = asRecord(githubAccess.workspace);
     const githubGuidance = asRecord(githubAccess.guidance);
+    const startupManagedAssetSync = asRecord(health?.startupManagedAssetSync);
+    const autonomousDecisionLog = asRecord(health?.autonomousDecisionLog);
     const capabilityEntries = Object.entries(capabilities)
       .map(([key, value]) => `${humanizeToken(key)}: ${humanizeToken(value, 'Unknown')}`)
       .sort((left, right) => left.localeCompare(right));
@@ -245,6 +253,54 @@ function renderDiagnosticsSection(
                   readString(githubGuidance, 'docPath') ? `docs: ${readString(githubGuidance, 'docPath')}` : '',
                 ]) || 'GitHub MCP guidance is not currently available.'}
               </p>
+            </article>
+
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">Startup Sync</p>
+                <StatusBadge
+                  status={readString(startupManagedAssetSync, 'status') || 'unknown'}
+                  testId="home-runtime-diagnostics-startup-sync-status"
+                />
+              </div>
+              <p className="state-card-copy">Managed-asset sync outcome captured during backend startup and surfaced through /api/health.</p>
+              <p className="state-card-detail">
+                {joinDetails([
+                  readString(startupManagedAssetSync, 'message'),
+                  readNumber(startupManagedAssetSync, 'homeCount') != null ? `homes: ${readNumber(startupManagedAssetSync, 'homeCount')}` : '',
+                  readNumber(startupManagedAssetSync, 'syncedCount') != null ? `synced: ${readNumber(startupManagedAssetSync, 'syncedCount')}` : '',
+                  readNumber(startupManagedAssetSync, 'prunedCount') != null ? `pruned: ${readNumber(startupManagedAssetSync, 'prunedCount')}` : '',
+                  readNumber(startupManagedAssetSync, 'errorCount') != null ? `errors: ${readNumber(startupManagedAssetSync, 'errorCount')}` : '',
+                  readBoolean(startupManagedAssetSync, 'decisionLogged') === true ? 'decision logged' : '',
+                  readString(startupManagedAssetSync, 'lastRunAt') ? `updated: ${formatOptionalTimestampLabel(readString(startupManagedAssetSync, 'lastRunAt'))}` : '',
+                ]) || 'No startup sync state reported.'}
+              </p>
+            </article>
+
+            <article className="state-card">
+              <div className="state-card-header">
+                <p className="state-card-title">Autonomous Decision Log</p>
+                <StatusBadge
+                  status={readString(autonomousDecisionLog, 'status') || 'unknown'}
+                  testId="home-runtime-diagnostics-decision-log-status"
+                />
+              </div>
+              <p className="state-card-copy">Append-only user-local decision log summary for durable autonomous runtime actions.</p>
+              <p className="state-card-detail">
+                {joinDetails([
+                  readNumber(autonomousDecisionLog, 'eventCount') != null ? `events: ${readNumber(autonomousDecisionLog, 'eventCount')}` : '',
+                  readString(autonomousDecisionLog, 'lastEventKind') ? `last: ${humanizeToken(readString(autonomousDecisionLog, 'lastEventKind'))}` : '',
+                  readString(autonomousDecisionLog, 'lastEventOutcome') ? `outcome: ${humanizeToken(readString(autonomousDecisionLog, 'lastEventOutcome'))}` : '',
+                  readString(autonomousDecisionLog, 'lastEventAt') ? `updated: ${formatOptionalTimestampLabel(readString(autonomousDecisionLog, 'lastEventAt'))}` : '',
+                  readString(autonomousDecisionLog, 'lastError') ? `last error: ${readString(autonomousDecisionLog, 'lastError')}` : '',
+                ]) || 'No autonomous decision log state reported.'}
+              </p>
+              {readString(autonomousDecisionLog, 'lastEventSummary') ? (
+                <p className="state-card-detail">{readString(autonomousDecisionLog, 'lastEventSummary')}</p>
+              ) : null}
+              {readString(autonomousDecisionLog, 'path') ? (
+                <p className="state-card-detail">{readString(autonomousDecisionLog, 'path')}</p>
+              ) : null}
             </article>
           </div>
         </Panel>

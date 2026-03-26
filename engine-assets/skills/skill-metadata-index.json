@@ -852,7 +852,7 @@
     {
       "skill": "truth-sync",
       "name": "truth-sync",
-      "description": "Resolves conflicts between code, docs, and legacy sources using a ranked truth hierarchy. Triggers on: doc conflict, source of truth, stale docs, truth hierarchy, code vs docs.",
+      "description": "Resolves material contradictions between canonical docs, implementation evidence, and legacy sources using the repo's docs-first contract. Triggers on: doc conflict, source of truth, stale docs, truth hierarchy, code vs docs.",
       "triggersOn": [
         "code vs docs",
         "doc conflict",

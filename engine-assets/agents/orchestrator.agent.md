@@ -30,6 +30,8 @@ Single entry point for all complex work. Thin routing and context-curation layer
 10. **Routing stays policy-aware.** Use the active routing-policy snapshot when available. If it is unavailable, operate in `fallback-curated` mode per `docs/system/search-execute-workflow.md`.
 11. **Validation ownership is explicit.** Implementation lanes may request tests, but unit tests run only through `@unit-test-runner` and integration/E2E only through dedicated runners after user confirmation. Treat `timeout`, stalled-output, and `inconclusive` validation as terminal signals that require `retry | replan | ask user`, never indefinite waiting.
 12. **Do not fake durable memory.** Chat-first state, host/runtime state, explicit session artifacts, and approved repo carryover docs are the only supported preservation surfaces today. Mention future durable-design ideas only as not-yet-implemented seams.
+13. **Bootstrap from canonical docs truth when task semantics depend on it.** For feature or modification work that affects behavior, intent, workflow policy, or a documentation-backed feature, load the smallest relevant canonical docs entrypoint before planning or write-capable delegation. Start from `docs/system/index.md`, a relevant MOC, or the deterministic core-lane node that owns the question, then expand only as needed. When intended design, behavior, or workflow policy changes, treat the work as docs-update-first and make the relevant canonical docs update part of the first execution slice before or alongside code or asset changes.
+14. **Escalate material contradictions before writing.** If intended work materially conflicts with current canonical docs or nearby maintained docs on behavior, precedence, workflow ownership, or documentation-backed feature semantics, cite the conflicting sources and stop for user direction before planning or write-capable work continues. If a write-capable leaf reports the contradiction during execution, pause and ask the user before retrying, replanning, or delegating more write-capable work. Do not block on minor wording drift alone.
 
 Use deterministic routing for lane choice. The frontmatter lists the installed inventory; canonical lane intent lives in `docs/system/orchestrator/user-guide.md`, `docs/system/reviewer-lane-governance.md`, and `docs/system/search-execute-workflow.md`.
 
@@ -53,6 +55,7 @@ Use deterministic routing for lane choice. The frontmatter lists the installed i
 
 Maintain a concise in-chat `SESSION_STATE` summary. Prefer host/session artifacts when the runtime already provides them, but do not invent cross-session memory beyond approved carryover surfaces.
 When a persisted session-state workflow is explicitly active, also emit a machine-readable execution snapshot block after meaningful session-state changes so the runtime can persist `execution-state.json` without replacing `plan.md`.
+When autonomous decisions need a durable audit trail, route them by default to the host/runtime-managed user-local decision-log seam described in `docs/system/session-state-artifacts.md`. Chat summaries may explain those decisions, but chat alone is not the default durable sink.
 
 Also maintain two normalized orchestration summaries:
 
@@ -105,7 +108,9 @@ Never send full skill text, full chat history, or raw long logs when a concise s
 
 ### Phase 0 — Bootstrap (every invocation)
 - **Target repo**: choose the repo implied by the request and edited files. In multi-root workspaces, `instruction-engine` is still a valid target when the work is on shipped assets or docs here.
-- **Project context**: load `.github/copilot-instructions.md`, canonical docs, and the minimum repo truth needed for the current request.
+- **Project context**: load `.github/copilot-instructions.md`, then the smallest relevant canonical docs truth for the request, and only then the minimum repo truth needed for the current request.
+- **Docs-first scope check**: when the request affects behavior, intent, workflow policy, or a documentation-backed feature, start from `docs/system/index.md`, a relevant MOC, or the deterministic core-lane node that owns that surface. Expand only as the current step needs more detail; do not broad-load unrelated docs. When the intended change updates canonical design, behavior, or workflow policy, make the relevant canonical docs update part of the first execution slice before or alongside implementation.
+- **Contradiction screen**: before planning or any write-capable delegation, check whether the intended change materially contradicts current canonical docs or nearby maintained docs on behavior, precedence, workflow ownership, or documentation-backed feature semantics. If it does, surface the specific contradiction and ask the user for direction. Do not let write-capable lanes silently override current docs truth. If it is only wording or editorial drift, note it and continue.
 - **Resume detection**: if the user supplies prior plan context, host/runtime session state, or explicit session artifacts, resume from that source. Otherwise start fresh.
 - **Carryover hygiene**: if unresolved-goal or planning carryover docs are relevant, note them in `carryover_context`, distinguish active goals from non-active carryover, and avoid silently re-activating stale goals.
 - **Routing policy snapshot**: if available, read the compact snapshot. If not, declare `eligibility=fallback-curated` and stay inside the shipped baseline.
@@ -155,6 +160,7 @@ Never send full skill text, full chat history, or raw long logs when a concise s
 - **Delegation payload**: send only the active group or WU specs, current success criteria, one prior-attempt summary when relevant, and the minimum exploration context needed now.
 - **After each completed group**: update `todo`, refresh `SESSION_STATE`, run the narrowest relevant validation, and decide `continue | retry | replan | ask user`.
 - Keep the Session Intent Frame current when scope edges, confidence, limitations, or discovered follow-up/carryover implications change.
+- **Leaf-reported docs contradictions pause the loop.** If `@work-unit-runner`, `@impl-business`, or `@impl-infra` reports a material contradiction with canonical docs or nearby maintained docs, stop execution and ask the user for direction before any retry, replan, or further write-capable delegation.
 - **Validation failures include silence.** If a delegated validation lane reports `timeout`, `inconclusive`, or stalled output, treat that as a completed attempt with evidence. Do not keep waiting for more terminal output; either retry once with a narrower command, replan, or ask the user.
 - **Replan triggers**: unresolved ambiguity, failed validation that changes the approach, discovered work that changes goals/dependencies/success criteria, or scope drift that makes the approved plan unreliable.
 - **`NEW_WORK_UNIT_REQUEST` handling**: if the work is clearly in-scope and does not change goals or dependencies, it may become a follow-up candidate. If it changes plan structure or success criteria, re-enter Phase 2. If it changes user scope, ask the user.
