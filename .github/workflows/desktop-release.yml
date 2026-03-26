@@ -169,11 +169,44 @@ jobs:
       - name: OIDC signing contract (Windows Authenticode)
         shell: pwsh
         run: |
-          $installer = Get-ChildItem -Path 'copilot-ui/release' -Filter '*.exe' -Recurse | Select-Object -First 1
-          if (-not $installer) {
-            Write-Error "No unsigned Windows installer (.exe) was found in copilot-ui/release."
+          $releaseRoot = (Resolve-Path 'copilot-ui/release').Path
+          $latestManifestPath = Join-Path $releaseRoot 'latest.yml'
+          if (-not (Test-Path $latestManifestPath)) {
+            Write-Error "Windows release manifest latest.yml is missing at $latestManifestPath."
             exit 1
           }
+
+          $latestManifest = Get-Content -Path $latestManifestPath -Raw
+          $pathMatch = [regex]::Match($latestManifest, '(?m)^path:\s*(?<path>.+?)\s*$')
+          if (-not $pathMatch.Success) {
+            Write-Error "latest.yml does not declare a Windows installer path."
+            exit 1
+          }
+
+          $relativeInstallerPath = $pathMatch.Groups['path'].Value.Trim().Trim("'\"")
+          if ([string]::IsNullOrWhiteSpace($relativeInstallerPath)) {
+            Write-Error "latest.yml declared an empty Windows installer path."
+            exit 1
+          }
+
+          $candidateInstallerPath = Join-Path $releaseRoot $relativeInstallerPath
+          if (-not (Test-Path $candidateInstallerPath)) {
+            Write-Error "The Windows installer declared in latest.yml was not found: $candidateInstallerPath"
+            exit 1
+          }
+
+          $resolvedInstallerPath = [System.IO.Path]::GetFullPath((Resolve-Path $candidateInstallerPath).Path)
+          if (-not $resolvedInstallerPath.StartsWith($releaseRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Error "The Windows installer declared in latest.yml resolves outside the release directory: $resolvedInstallerPath"
+            exit 1
+          }
+
+          if ([System.IO.Path]::GetExtension($resolvedInstallerPath) -ne '.exe') {
+            Write-Error "latest.yml declared a non-executable Windows installer path: $resolvedInstallerPath"
+            exit 1
+          }
+
+          $installer = Get-Item -LiteralPath $resolvedInstallerPath
 
           $audience = if ([string]::IsNullOrWhiteSpace($env:SIGNING_SERVICE_AUDIENCE)) { 'elegy-copilot-desktop-release' } else { $env:SIGNING_SERVICE_AUDIENCE }
           $oidcUri = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)&audience=$([uri]::EscapeDataString($audience))"
@@ -238,6 +271,12 @@ jobs:
 
           New-Item -ItemType Directory -Path 'release-artifacts/windows' -Force | Out-Null
           Copy-Item -Path 'copilot-ui/release/*' -Destination 'release-artifacts/windows' -Recurse -Force
+          $relativeInstallerArtifactPath = Join-Path 'release-artifacts/windows' $relativeInstallerPath
+          $relativeInstallerArtifactDirectory = Split-Path -Parent $relativeInstallerArtifactPath
+          if (-not [string]::IsNullOrWhiteSpace($relativeInstallerArtifactDirectory)) {
+            New-Item -ItemType Directory -Path $relativeInstallerArtifactDirectory -Force | Out-Null
+          }
+          Copy-Item $signedInstaller $relativeInstallerArtifactPath -Force
           Copy-Item $signedInstaller (Join-Path 'release-artifacts/windows' $installer.Name) -Force
           Copy-Item $signedInstaller 'release-artifacts/windows/windows-signed-installer.exe' -Force
           Copy-Item $signatureManifest 'release-artifacts/windows/signature-manifest.json' -Force
