@@ -48,6 +48,8 @@ function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
     localWsPort: 9821,
     watchIntervalMs: 2000,
     statusPort: 0,
+    obsidianNotePaths: [],
+    obsidianPollIntervalMs: 2000,
     ...overrides,
   };
 }

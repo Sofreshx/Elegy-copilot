@@ -1,11 +1,11 @@
 ---
 created: 2026-02-23
-updated: 2026-03-16
+updated: 2026-03-26
 category: system
 status: current
 doc_kind: node
 id: session-state-artifacts
-summary: Canonical contract for session-state workflow artifacts (plan.md, handoff.md, proposition.md, verification-guide.md) and progress tracker structure.
+summary: Canonical contract for session-state workflow artifacts (plan.md, execution-state.json, handoff.md, proposition.md, verification-guide.md) and progress tracker structure.
 tags: [session-state, workflow-artifacts]
 ---
 
@@ -20,6 +20,10 @@ it may include reconciliation metadata, but it does not override the runtime-fir
 ## Canonical Session Root
 
 These artifacts are canonical **when a persisted session workflow or host-managed artifact flow is in use**. The default chat-first orchestrator path does not have to materialize this directory for every run; it may keep active state in chat plus host/runtime state and only rely on this directory when the workflow explicitly persists artifacts.
+
+The orchestrator's normalized **Session Intent Frame** and **Session Closure Summary** are conceptual
+summary surfaces that may live in chat-first state, host/runtime state, or persisted artifacts when a
+workflow chooses to write them. They do **not** introduce new required files in this directory.
 
 All session state lives under:
 
@@ -39,6 +43,7 @@ A typical session directory contains:
 ```
 ~/.copilot/session-state/<SESSION_ID>/
   plan.md              # Plan Pack + Progress Tracker (canonical)
+  execution-state.json # Additive runtime execution overlay (optional, v1)
   handoff.md           # Planning-to-execution bootstrap summary
   proposition.md       # Append-only session guidance artifact
   verification-guide.md  # Structured verification guide (optional)
@@ -91,15 +96,141 @@ This dual-document approach matches the persisted session planning workflow outp
 
 In the default chat-first orchestrator path, the same conceptual state may remain in chat and host/runtime state instead of being written immediately to `plan.md`. When a persisted lane is chosen later, the artifact should still follow this shape.
 
+`plan.md` can act as a bridge surface for the Session Intent Frame when persistence is needed: it
+anchors the approved execution slice, active goals, work-unit structure, and current progress without
+claiming to be the durable repo backlog or roadmap authority. In chat-first runs, the same normalized
+intent framing may remain only in chat or host/runtime state.
+
 High-level goal intent and completion semantics for planning/review workflows are governed by
 [[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md).
+
+### Execution Overlay Artifact (`execution-state.json`)
+
+`execution-state.json` is an **optional additive overlay** for persisted orchestrator runs. It does not replace
+`plan.md`; instead it captures the latest machine-readable runtime view of the execution slice while keeping the
+approved plan pack and progress tracker intact.
+
+Contract goals:
+
+1. **Additive, not authoritative over planning intent** — `plan.md` remains the canonical approved plan artifact.
+2. **Fail-soft** — readers should ignore malformed overlays and fall back to plan-derived framing/status.
+3. **Latest-snapshot semantics** — the file stores the most recent valid execution-state block seen in the
+   orchestrator response stream.
+4. **Copilot-scoped storage only** — write it under the existing session root; do not introduce a new datastore.
+
+The `tree` field in `execution-state-v1` is the additive reload/resume view for the **active execution slice**.
+It exists to help runtime readers rebuild the current group/work-unit tree after a pause or reload without
+replacing the approved planning intent in `plan.md`. Compatibility rules for this tree are:
+
+- preserve `execution-state-v1` compatibility; do not introduce a new schema version for tree-based resume
+  semantics alone
+- treat the tree as optional runtime context, not as a second plan artifact or a replacement for the plan-pack
+  progress tracker
+- prefer the latest valid tree when rebuilding active execution context, but fail soft back to plan-derived
+  framing/status when the overlay is missing or malformed
+- keep `plan.md` authoritative for planning intent, approved scope, and durable execution framing
+- use unique node IDs within a snapshot; duplicate IDs are malformed and readers should normalize them best-effort
+  with warnings instead of crashing
+- encode a single current execution path expectation; parent and child nodes on the same active branch may both be
+  marked `current`, but unrelated simultaneous current branches are malformed and should degrade to warnings plus
+  best-effort normalization
+- keep queued follow-up work bounded: use `nextUnit.workUnitIds` only for queued sibling batches that are safe to
+  preview as follow-up work, not as permission for parallel write execution across the plan
+- use tree `next` markers only as additive queue hints; they should agree with `nextUnit` when both are present
+
+Recommended v1 payload shape:
+
+```json
+{
+  "schemaVersion": "execution-state-v1",
+  "updatedAt": "2026-03-23T12:34:56Z",
+  "lifecycle": "executing",
+  "status": "active",
+  "mode": "resumed",
+  "summary": "Working through the active orchestrator execution slice.",
+  "activeGroup": {
+    "groupId": "G-01",
+    "title": "Foundation",
+    "status": "in-progress"
+  },
+  "activeWorkUnit": {
+    "workUnitId": "WU-002",
+    "title": "Persist execution overlay",
+    "status": "in-progress"
+  },
+  "lastCompletedUnit": {
+    "workUnitId": "WU-001",
+    "title": "Define v1 contract",
+    "status": "done"
+  },
+  "nextUnit": {
+    "workUnitId": "WU-003",
+    "rationale": "Merge the runtime overlay into structured-state."
+  },
+  "blockers": [
+    {
+      "label": "Awaiting user decision",
+      "details": "Need confirmation before broader validation."
+    }
+  ],
+  "replanCount": 1,
+  "tree": [
+    {
+      "groupId": "G-01",
+      "kind": "group",
+      "title": "Foundation",
+      "status": "in-progress",
+      "current": true,
+      "children": [
+        {
+          "workUnitId": "WU-001",
+          "kind": "work-unit",
+          "title": "Define v1 contract",
+          "status": "done"
+        },
+        {
+          "workUnitId": "WU-002",
+          "kind": "work-unit",
+          "title": "Persist execution overlay",
+          "status": "in-progress",
+          "current": true
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Orchestrator machine-readable marker contract
+
+When a persisted session-state workflow is active, the orchestrator should emit the latest complete execution-state
+snapshot inline in its response stream using this hidden marker block:
+
+```markdown
+<!-- IE_EXECUTION_STATE_V1 -->
+{ ...valid JSON object matching execution-state-v1... }
+<!-- /IE_EXECUTION_STATE_V1 -->
+```
+
+Emission rules:
+
+- Emit a **complete snapshot**, not a patch/diff.
+- Later valid blocks supersede earlier ones for persistence purposes.
+- Keep the block additive to normal chat/markdown output.
+- Keep execution-tree node IDs unique within each snapshot.
+- Keep `current` markers on one active path only; do not emit multiple unrelated current branches.
+- Use `nextUnit.workUnitIds` only for bounded queued follow-up siblings when the snapshot is previewing near-term
+  follow-up work, not to imply unrestricted parallel execution.
+- If no persisted session workflow is in use, chat-first state may remain in chat/runtime state only.
 
 When a plan pack is linked to repo-backed Planning artifacts, `plan.md` may also include explicit
 Roadmap Sync markers such as:
 
 - `IE_LINKED_BACKLOG_IDS`
 - `IE_LINKED_ROADMAP_IDS`
+- `IE_LINKED_BULLET_IDS`
 - `IE_PLAN_REF` or `IE_SESSION_REF`
+- `IE_PLAN_ORIGIN_KIND`
 - `IE_PLAN_OUTCOME`
 
 These markers are optional for generic plan packs, but they are required when the session is expected to
@@ -136,6 +267,10 @@ An append-only file that accumulates guidance at key milestones:
 Use durable structured sections so resumptions and downstream planning can extract the next move without re-reading the entire session.
 
 This remains an optional persisted artifact for the chat-first default path. The orchestrator may instead keep the equivalent guidance in concise chat/host state summaries until an explicit persisted workflow or host/runtime artifact flow writes it out.
+
+`proposition.md` is a bridge/summary surface, not a new required memory artifact. It may capture
+direction, next actions, watch-outs, and open risks that help rebuild either the Session Intent Frame
+or Session Closure Summary after a pause/resume boundary.
 
 - `direction` entries should include: `Summary`, `Watch Outs`, `Open Risks`, and `Details`.
 - `after-planning` and `after-execution` entries should include: `Summary`, `Immediate Next Actions`, `Next Plan Ideas`, `Watch Outs`, `Open Risks`, and `Details`.
@@ -180,13 +315,100 @@ The planning step writes a bootstrap artifact for the next execution or resume s
 Required sections:
 
 1. `## Handoff Manifest` — Session ID, plan status, reviewer verdict
-2. `## Key Decisions` — durable decision log with rationale
+2. `## Key Decisions` — persisted handoff summary of decisions relevant to this session, with rationale
 3. `## Exploration Summary` — key entry points, key files, relevant patterns
 4. `## User Constraints` — explicit scope or risk tolerances
 5. `## Immediate Next Actions` — the concrete next moves for this session
 6. `## Next Plan Ideas` — follow-on planning opportunities that are deliberately out of scope now
 7. `## Watch Outs` — execution cautions the implementation step must preserve
 8. `## Open Risks` — unresolved risks that may force replanning or user escalation
+
+These sections support persisted planning and resume flows only. They are not the default
+autonomous-decision log for the product.
+
+### Autonomous-Decision Audit Boundary
+
+The default autonomous-decision log, when recorded, belongs to user-local app data managed by the
+host/runtime. Host/runtime-managed autonomous or auto-mode decisions belong there when that seam
+exists.
+
+- treat it as an operational audit surface rather than canonical intent
+- do not treat repo-local docs as its storage location
+- do not treat persisted session-state artifacts as its required storage location
+
+Session artifacts may summarize decisions needed for handoff or resume, but they do not replace the
+user-local audit surface.
+
+## Chat-First vs Persisted Mapping
+
+The same normalized session framing concepts map differently depending on the workflow:
+
+| Concept | Chat-first default | Persisted workflow |
+| --- | --- | --- |
+| Session Intent Frame | Maintained in chat plus host/runtime session state when available | Reflected across `plan.md`, `handoff.md`, and optional `proposition.md` |
+| Session Closure Summary | Delivered in chat from review + validation outputs | May also be reflected in `proposition.md`, `verification-guide.md`, or other existing persisted summaries |
+| Active execution state | In-chat `SESSION_STATE` / host/runtime state | `plan.md` progress tracker and companion artifacts |
+| Durable carryover | Repo docs such as unresolved goals / planning ideas / out-of-scope findings | Same repo docs; session artifacts do not replace them |
+
+This document keeps `plan.md` and `proposition.md` as bridge surfaces only. They summarize or preserve
+session state when persistence is needed, but they are not new mandatory artifacts for the chat-first
+orchestrator path.
+
+## Primary Sessions Summary Surface in `copilot-ui`
+
+For persisted-session inspection in `copilot-ui`, the primary normalized summary surface is:
+
+- `GET /api/sessions/:id/structured-state`
+- `meta.intentFrame`
+- `meta.closureSummary`
+
+Those metadata objects are derived from the canonical persisted inputs already defined here:
+
+- `plan.md` review ledger, progress tracker, checkpoints, and next-unit state
+- `handoff.md`
+- `proposition.md`
+- `verification-guide.md`
+- derived resume-state metadata assembled from those artifacts
+
+Supporting-artifact expectations:
+
+- `handoff.md`, `proposition.md`, and `verification-guide.md` remain persisted supporting inputs/detail
+  surfaces.
+- They inform the derived Session Intent Frame / Session Closure Summary, but they are not themselves the
+  primary Sessions summary contract shown to `copilot-ui` consumers.
+- Trackerless or legacy plans can still derive `meta.intentFrame` / `meta.closureSummary` when the review
+  ledger and supporting artifacts provide enough signal; the parser should return warnings instead of
+  failing open.
+- Review approval and closure verdict semantics use the effective latest Review Ledger row fail-closed;
+  an older approved row does not override a newer `CHANGES_REQUESTED` or other non-resumable verdict.
+
+### Final Summary Compatibility Surface
+
+`GET /api/sessions/:id/final` is a `copilot-ui` compatibility/inspection surface, not a new canonical
+required artifact contract.
+
+- When a workflow or host materializes a final closeout artifact, the endpoint may return that content.
+- When no standalone final artifact exists, the endpoint may instead expose a deterministic derived
+  summary built from existing persisted closeout sources.
+- That returned summary should be treated as an optional materialized/derived view of the
+  **Session Closure Summary**, not as proof that a separate required `final` artifact exists.
+- `structured-state.meta.closureSummary` is the authoritative Sessions summary path for `copilot-ui`;
+  it must not depend on `final.md` or deprecated final-summary parsing to derive current metadata.
+- `404` remains valid when the workflow kept closure chat-only or did not persist enough closeout
+  evidence to derive a stable summary.
+- Defining a separate canonical final-summary artifact would require its own contract update; this
+  document does not create one.
+
+## Future Memory Seam (Not Implemented Today)
+
+Future workflows may export durable decisions, open risks, accepted follow-ups, or project-direction
+notes from session state into approved long-lived surfaces. That is only a design seam today.
+
+Current contract limits remain:
+
+- no hidden cross-session memory claims
+- no new required artifact files added by this document
+- no automatic durable export behavior implied unless a separate implemented workflow defines it
 
 ### Verification Guide Artifact (`verification-guide.md`)
 

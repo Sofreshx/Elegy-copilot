@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-03-18
+updated: 2026-03-26
 category: system
 status: current
 doc_kind: node
@@ -42,8 +42,12 @@ For humans:
 
 For AI or structured workflows:
 
-1. load this node first for convention policy, precedence, and output shape
-2. add `docs/system/documentation-structure-governance.md` only when discoverability, entrypoints, or
+1. for feature or modification work, load the smallest relevant canonical docs entrypoint before
+  implementation; when intended design, behavior, or workflow policy changes, make the relevant
+  canonical docs update part of the first execution slice before or alongside code or asset changes;
+  use this node first when the task is mainly convention policy, precedence, or output shape
+2. expand only as needed, adding `docs/system/documentation-structure-governance.md` only when
+  discoverability, entrypoints, or
    information architecture are part of the task
 3. add `docs/system/follow-up-discovery-governance.md` only when confirmed convention gaps need
    planning-ready follow-up or backlog routing
@@ -74,18 +78,26 @@ When convention sources conflict, resolve them in this order:
 
 1. explicit user instruction for the current task
 2. canonical system docs in `docs/system/**`
-3. approved repo-level operating docs such as `README.md`
+3. other maintained docs in `docs/**` and approved repo-level operating docs such as `README.md`,
+   treated as important design and operating context but not peer authority with `docs/system/**`
 4. stable implementation patterns with repeated evidence in the repo
 5. research notes or speculative drafts
 
 Agent prompts and historical behavior are inputs, not the source of truth, until promoted into
 canonical docs.
 
+If intended work materially contradicts the current documentation, surface the contradiction and ask
+the user for direction before proceeding with write-capable work.
+
+When approved feature or modification work changes intended design, behavior, or workflow policy
+captured by canonical docs, the first execution slice should update the relevant canonical docs
+before or alongside code or asset changes.
+
 ## Default Operating Contract
 
 The conventions governance lane should work in this sequence:
 
-1. collect the smallest relevant canonical sources
+1. load the smallest relevant canonical docs entrypoint first
 2. separate already-canonical conventions from inferred conventions
 3. report drift, ambiguity, and missing entrypoints
 4. propose the minimal doc or policy updates needed
@@ -101,6 +113,8 @@ Convention guidance should be easy to locate without requiring hidden prompt con
   atomic rules
 - AI-facing entrypoints should rely on the same canonical nodes instead of carrying separate rule
   copies in prompt text
+- progressive disclosure is a standing requirement for convention docs and entrypoints: start from
+  the smallest canonical node and expand only when the current step needs more detail
 - convention docs should prefer minimal routing updates over duplicate policy summaries spread across
   many files
 - local flexibility is allowed only when it does not conflict with explicit canonical rules or create

@@ -111,6 +111,20 @@ function ensureDefaultGatewayConfig(workspaceRoot: string): void {
   );
 }
 
+function resolveDesktopServerPort(): number {
+  const rawValue = String(process.env.INSTRUCTION_ENGINE_DESKTOP_SERVER_PORT || '').trim();
+  if (!rawValue) {
+    return 0;
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 65535) {
+    throw new Error(`Invalid INSTRUCTION_ENGINE_DESKTOP_SERVER_PORT: ${rawValue}`);
+  }
+
+  return parsed;
+}
+
 function buildGatewayInlineConfig(workspaceRoot: string): string {
   return JSON.stringify({
     mode: 'disconnected',
@@ -323,7 +337,7 @@ async function startDashboardServer() {
 
     serverHandle = await startServer({
       host: '127.0.0.1',
-      port: 0,
+      port: resolveDesktopServerPort(),
       copilotHome,
       vscodeHome: copilotHome,
       sandboxesHome: path.join(copilotHome, 'sandboxes'),

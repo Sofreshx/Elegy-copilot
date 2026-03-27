@@ -20,6 +20,39 @@ function createMockStore<T>(initialState: T) {
   };
 }
 
+function buildDefaultObsidianSourceResolution() {
+  return {
+    availableSources: [
+      {
+        id: 'snsrc_0123456789abcdef0123456789abcdef',
+        provider: 'github',
+        host: 'github.com',
+        owner: 'InstructionEngine',
+        repo: 'workspace',
+        branch: 'main',
+        notesPath: 'docs/planning/first.md',
+      },
+      {
+        id: 'snsrc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        provider: 'github',
+        host: 'github.com',
+        owner: 'InstructionEngine',
+        repo: 'workspace',
+        branch: 'main',
+        notesPath: 'docs/planning/second.md',
+      },
+    ],
+    activeSourceConfigured: false,
+    activeSourceId: undefined,
+    activeSourceMatched: false,
+    effectiveSource: null,
+    requiresSource: true,
+    resolved: false,
+    reason: 'explicit_source_selection_required',
+    message: 'Tracker synced-note sources are available, but this repo must explicitly select one before an effective source is resolved.',
+  };
+}
+
 const mocks = vi.hoisted(() => {
   const planningStore = createMockStore({
     userId: '',
@@ -280,6 +313,103 @@ const mocks = vi.hoisted(() => {
       },
     ],
     selectedRoadmapSlug: 'platform-foundation',
+    obsidianStatus: {
+      state: 'ready',
+      configured: true,
+      readAvailable: true,
+      syncAvailable: false,
+      external: true,
+      canonicalAuthority: false,
+      message: 'External Obsidian notes are available.',
+      notesDirectoryPath: 'C:\\Vault\\Planning\\repo-1',
+      sourceResolution: buildDefaultObsidianSourceResolution(),
+    },
+    obsidianNotes: [
+      {
+        kind: 'synced-note',
+        provider: 'obsidian',
+        id: 'obsnote_1234',
+        title: 'External planning note',
+        summary: 'Review external planning context.',
+        repoId: 'repo-1',
+        targetRepoIds: ['repo-1'],
+        vaultName: 'Planning',
+        notePath: 'Planning/repo-1/external-planning-note.md',
+        filePath: 'C:\\Vault\\Planning\\repo-1\\external-planning-note.md',
+        lastModifiedAt: '2026-03-23T00:00:00.000Z',
+        external: true,
+        canonicalAuthority: false,
+      },
+    ],
+    obsidianRepresentationsStatus: {
+      totalCount: 2,
+      writeAvailable: true,
+      currentCount: 1,
+      staleCount: 1,
+      missingCount: 0,
+      invalidCount: 0,
+      sourceMissingCount: 0,
+      message: 'Deterministic Obsidian planning mirrors are available for generation and freshness checks.',
+    },
+    obsidianRepresentations: [
+      {
+        kind: 'planning-representation',
+        provider: 'obsidian',
+        id: 'obsrep_bullets',
+        representationKind: 'bullets',
+        title: 'Planning Bullets Mirror',
+        summary: 'Deterministic Obsidian mirror of docs/planning/bullets.md.',
+        repoId: 'repo-1',
+        targetRepoIds: ['repo-1'],
+        sourceExists: true,
+        sourceRepoRelativePath: 'docs/planning/bullets.md',
+        notePath: 'Planning/repo-1/_instruction-engine/planning-mirrors/bullets.md',
+        noteExists: true,
+        freshness: 'current',
+        metadataValid: true,
+        external: true,
+        canonicalAuthority: false,
+        message: 'Mirror matches the current canonical repo artifact.',
+      },
+      {
+        kind: 'planning-representation',
+        provider: 'obsidian',
+        id: 'obsrep_roadmap',
+        representationKind: 'roadmap',
+        title: 'Roadmap Mirror — Platform Foundation',
+        summary: 'Deterministic Obsidian mirror of docs/roadmaps/platform-foundation.md.',
+        repoId: 'repo-1',
+        targetRepoIds: ['repo-1'],
+        roadmapSlug: 'platform-foundation',
+        sourceExists: true,
+        sourceRepoRelativePath: 'docs/roadmaps/platform-foundation.md',
+        notePath: 'Planning/repo-1/_instruction-engine/planning-mirrors/roadmaps/platform-foundation.md',
+        noteExists: true,
+        freshness: 'stale',
+        metadataValid: true,
+        external: true,
+        canonicalAuthority: false,
+        message: 'Canonical repo artifact changed since the mirror was generated.',
+      },
+    ],
+    selectedObsidianNoteId: 'obsnote_1234',
+    selectedObsidianNote: {
+      kind: 'synced-note',
+      provider: 'obsidian',
+      id: 'obsnote_1234',
+      title: 'External planning note',
+      summary: 'Review external planning context.',
+      repoId: 'repo-1',
+      targetRepoIds: ['repo-1'],
+      vaultName: 'Planning',
+      notePath: 'Planning/repo-1/external-planning-note.md',
+      filePath: 'C:\\Vault\\Planning\\repo-1\\external-planning-note.md',
+      lastModifiedAt: '2026-03-23T00:00:00.000Z',
+      external: true,
+      canonicalAuthority: false,
+      content: '# External planning note\n\nReview external planning context.',
+      headings: ['External planning note'],
+    },
     bulletsLoading: false,
     bulletsError: null,
     intakeLoading: false,
@@ -287,6 +417,16 @@ const mocks = vi.hoisted(() => {
     backlogLoading: false,
     backlogError: null,
     roadmapsLoading: false,
+    obsidianLoading: false,
+    obsidianDetailLoading: false,
+    obsidianSyncing: false,
+    obsidianRepresentationsLoading: false,
+    obsidianRepresentationsRefreshing: false,
+    obsidianPromotionSaving: false,
+    obsidianSourceSelectionSaving: false,
+    obsidianSourceSaving: false,
+    obsidianSourceDeletingId: null,
+    obsidianError: null,
     loading: false,
     error: null,
   });
@@ -398,9 +538,20 @@ const mocks = vi.hoisted(() => {
     loadWorkspaceBullets: vi.fn(),
     loadWorkspaceBacklog: vi.fn(),
     loadWorkspaceRoadmaps: vi.fn(),
+    loadObsidianNotes: vi.fn(),
+    loadObsidianRepresentations: vi.fn(),
+    loadObsidianNote: vi.fn(),
+    syncObsidianNotes: vi.fn(),
+    refreshObsidianRepresentationsInVault: vi.fn(),
+    setObsidianSourceSelection: vi.fn(),
+    createObsidianSource: vi.fn(),
+    updateObsidianSource: vi.fn(),
+    deleteObsidianSource: vi.fn(),
     syncCatalogRepoContext: vi.fn(),
     patchBullet: vi.fn(),
     promoteBulletToBacklog: vi.fn(),
+    promoteObsidianNoteToBacklog: vi.fn(),
+    promoteObsidianNoteToRoadmap: vi.fn(),
     setSelectedRoadmapSlug: vi.fn(),
     setIntakeCategoryFilter: vi.fn(),
     setIntakePlanningStateFilter: vi.fn(),
@@ -492,9 +643,20 @@ vi.mock('../ui/src/tabs/Planning/planningWorkspaceStore', () => ({
     loadIntakeArtifacts: mocks.loadWorkspaceIntake,
     loadBacklog: mocks.loadWorkspaceBacklog,
     loadRoadmaps: mocks.loadWorkspaceRoadmaps,
+    loadObsidianNotes: mocks.loadObsidianNotes,
+    loadObsidianRepresentations: mocks.loadObsidianRepresentations,
+    loadObsidianNote: mocks.loadObsidianNote,
+    syncObsidianNotes: mocks.syncObsidianNotes,
+    refreshObsidianRepresentationsInVault: mocks.refreshObsidianRepresentationsInVault,
+    setObsidianSourceSelection: mocks.setObsidianSourceSelection,
+    createObsidianSource: mocks.createObsidianSource,
+    updateObsidianSource: mocks.updateObsidianSource,
+    deleteObsidianSource: mocks.deleteObsidianSource,
     syncCatalogRepoContext: mocks.syncCatalogRepoContext,
     patchBullet: mocks.patchBullet,
     promoteBulletToBacklog: mocks.promoteBulletToBacklog,
+    promoteObsidianNoteToBacklog: mocks.promoteObsidianNoteToBacklog,
+    promoteObsidianNoteToRoadmap: mocks.promoteObsidianNoteToRoadmap,
     setSelectedRoadmapSlug: mocks.setSelectedRoadmapSlug,
     setIntakeCategoryFilter: mocks.setIntakeCategoryFilter,
     setIntakePlanningStateFilter: mocks.setIntakePlanningStateFilter,
@@ -560,6 +722,132 @@ vi.mock('../ui/src/tabs/Planning/ResearchNotesPanel', () => ({
   default: () => <div data-testid="research-notes-panel">Research notes</div>,
 }));
 
+vi.mock('../ui/src/tabs/Planning/ObsidianNotesPanel', () => ({
+  default: (props: {
+    repoContextSelected: boolean;
+    repoContextLabel: string;
+    selectedRoadmapTitle: string;
+    promotionSaving: boolean;
+    status: { sourceResolution?: { message?: string } } | null;
+    onPromoteToBacklog: (note: {
+      id: string;
+      title: string;
+      summary: string;
+      notePath: string;
+    }) => void;
+    onPromoteToRoadmap: (note: {
+      id: string;
+      title: string;
+      summary: string;
+      notePath: string;
+    }) => void;
+    onSetActiveSource: (sourceId: string) => void;
+    onClearActiveSource: () => void;
+    onCreateSource: (source: {
+      provider: string;
+      host: string;
+      owner: string;
+      repo: string;
+      branch: string;
+      notesPath: string;
+    }) => void;
+    onUpdateSource: (sourceId: string, source: {
+      provider: string;
+      host: string;
+      owner: string;
+      repo: string;
+      branch: string;
+      notesPath: string;
+    }) => void;
+    onDeleteSource: (sourceId: string) => void;
+  }) => (
+    <div data-testid="planning-obsidian-notes-panel">
+      <div>External Obsidian notes</div>
+      {props.repoContextSelected ? (
+        <div data-testid="planning-obsidian-source-management-panel">
+          <div>{props.repoContextLabel}</div>
+          <div data-testid="planning-obsidian-mock-selected-roadmap">{props.selectedRoadmapTitle || 'No roadmap selected'}</div>
+          <div>{props.status?.sourceResolution?.message}</div>
+          <button
+            data-testid="planning-obsidian-mock-promote-backlog"
+            onClick={() => props.onPromoteToBacklog({
+              id: 'obsnote_1234',
+              title: 'External planning note',
+              summary: 'Review external planning context.',
+              notePath: 'Planning/repo-1/external-planning-note.md',
+            })}
+            type="button"
+          >
+            {props.promotionSaving ? 'Promoting…' : 'Suggest backlog item'}
+          </button>
+          <button
+            data-testid="planning-obsidian-mock-promote-roadmap"
+            disabled={!props.selectedRoadmapTitle}
+            onClick={() => props.onPromoteToRoadmap({
+              id: 'obsnote_1234',
+              title: 'External planning note',
+              summary: 'Review external planning context.',
+              notePath: 'Planning/repo-1/external-planning-note.md',
+            })}
+            type="button"
+          >
+            Add to selected roadmap
+          </button>
+          <button
+            data-testid="planning-obsidian-mock-set-source"
+            onClick={() => props.onSetActiveSource('snsrc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')}
+            type="button"
+          >
+            Set source
+          </button>
+          <button
+            data-testid="planning-obsidian-mock-clear-source"
+            onClick={() => props.onClearActiveSource()}
+            type="button"
+          >
+            Clear source
+          </button>
+          <button
+            data-testid="planning-obsidian-mock-create-source"
+            onClick={() => props.onCreateSource({
+              provider: 'github',
+              host: 'github.com',
+              owner: 'InstructionEngine',
+              repo: 'workspace',
+              branch: 'main',
+              notesPath: 'docs/planning/third.md',
+            })}
+            type="button"
+          >
+            Create source
+          </button>
+          <button
+            data-testid="planning-obsidian-mock-update-source"
+            onClick={() => props.onUpdateSource('snsrc_0123456789abcdef0123456789abcdef', {
+              provider: 'github',
+              host: 'github.com',
+              owner: 'InstructionEngineTeam',
+              repo: 'workspace',
+              branch: 'main',
+              notesPath: 'docs/planning/first.md',
+            })}
+            type="button"
+          >
+            Update source
+          </button>
+          <button
+            data-testid="planning-obsidian-mock-delete-source"
+            onClick={() => props.onDeleteSource('snsrc_0123456789abcdef0123456789abcdef')}
+            type="button"
+          >
+            Delete source
+          </button>
+        </div>
+      ) : null}
+    </div>
+  ),
+}));
+
 vi.mock('../ui/src/tabs/Planning/MermaidViewer', () => ({
   default: () => <div data-testid="mermaid-viewer">Diagram preview</div>,
 }));
@@ -575,9 +863,20 @@ describe('PlanningView', () => {
       mocks.loadWorkspaceIntake,
       mocks.loadWorkspaceBacklog,
       mocks.loadWorkspaceRoadmaps,
+      mocks.loadObsidianNotes,
+      mocks.loadObsidianRepresentations,
+      mocks.loadObsidianNote,
+      mocks.syncObsidianNotes,
+      mocks.refreshObsidianRepresentationsInVault,
+      mocks.setObsidianSourceSelection,
+      mocks.createObsidianSource,
+      mocks.updateObsidianSource,
+      mocks.deleteObsidianSource,
       mocks.syncCatalogRepoContext,
       mocks.patchBullet,
       mocks.promoteBulletToBacklog,
+      mocks.promoteObsidianNoteToBacklog,
+      mocks.promoteObsidianNoteToRoadmap,
       mocks.setSelectedRoadmapSlug,
       mocks.setIntakeCategoryFilter,
       mocks.setIntakePlanningStateFilter,
@@ -905,6 +1204,103 @@ describe('PlanningView', () => {
         },
       ],
       selectedRoadmapSlug: 'platform-foundation',
+      obsidianStatus: {
+        state: 'ready',
+        configured: true,
+        readAvailable: true,
+        syncAvailable: false,
+        external: true,
+        canonicalAuthority: false,
+        message: 'External Obsidian notes are available.',
+        notesDirectoryPath: 'C:\\Vault\\Planning\\repo-1',
+        sourceResolution: buildDefaultObsidianSourceResolution(),
+      },
+      obsidianNotes: [
+        {
+          kind: 'synced-note',
+          provider: 'obsidian',
+          id: 'obsnote_1234',
+          title: 'External planning note',
+          summary: 'Review external planning context.',
+          repoId: 'repo-1',
+          targetRepoIds: ['repo-1'],
+          vaultName: 'Planning',
+          notePath: 'Planning/repo-1/external-planning-note.md',
+          filePath: 'C:\\Vault\\Planning\\repo-1\\external-planning-note.md',
+          lastModifiedAt: '2026-03-23T00:00:00.000Z',
+          external: true,
+          canonicalAuthority: false,
+        },
+      ],
+      obsidianRepresentationsStatus: {
+        totalCount: 2,
+        writeAvailable: true,
+        currentCount: 1,
+        staleCount: 1,
+        missingCount: 0,
+        invalidCount: 0,
+        sourceMissingCount: 0,
+        message: 'Deterministic Obsidian planning mirrors are available for generation and freshness checks.',
+      },
+      obsidianRepresentations: [
+        {
+          kind: 'planning-representation',
+          provider: 'obsidian',
+          id: 'obsrep_bullets',
+          representationKind: 'bullets',
+          title: 'Planning Bullets Mirror',
+          summary: 'Deterministic Obsidian mirror of docs/planning/bullets.md.',
+          repoId: 'repo-1',
+          targetRepoIds: ['repo-1'],
+          sourceExists: true,
+          sourceRepoRelativePath: 'docs/planning/bullets.md',
+          notePath: 'Planning/repo-1/_instruction-engine/planning-mirrors/bullets.md',
+          noteExists: true,
+          freshness: 'current',
+          metadataValid: true,
+          external: true,
+          canonicalAuthority: false,
+          message: 'Mirror matches the current canonical repo artifact.',
+        },
+        {
+          kind: 'planning-representation',
+          provider: 'obsidian',
+          id: 'obsrep_roadmap',
+          representationKind: 'roadmap',
+          title: 'Roadmap Mirror — Platform Foundation',
+          summary: 'Deterministic Obsidian mirror of docs/roadmaps/platform-foundation.md.',
+          repoId: 'repo-1',
+          targetRepoIds: ['repo-1'],
+          roadmapSlug: 'platform-foundation',
+          sourceExists: true,
+          sourceRepoRelativePath: 'docs/roadmaps/platform-foundation.md',
+          notePath: 'Planning/repo-1/_instruction-engine/planning-mirrors/roadmaps/platform-foundation.md',
+          noteExists: true,
+          freshness: 'stale',
+          metadataValid: true,
+          external: true,
+          canonicalAuthority: false,
+          message: 'Canonical repo artifact changed since the mirror was generated.',
+        },
+      ],
+      selectedObsidianNoteId: 'obsnote_1234',
+      selectedObsidianNote: {
+        kind: 'synced-note',
+        provider: 'obsidian',
+        id: 'obsnote_1234',
+        title: 'External planning note',
+        summary: 'Review external planning context.',
+        repoId: 'repo-1',
+        targetRepoIds: ['repo-1'],
+        vaultName: 'Planning',
+        notePath: 'Planning/repo-1/external-planning-note.md',
+        filePath: 'C:\\Vault\\Planning\\repo-1\\external-planning-note.md',
+        lastModifiedAt: '2026-03-23T00:00:00.000Z',
+        external: true,
+        canonicalAuthority: false,
+        content: '# External planning note\n\nReview external planning context.',
+        headings: ['External planning note'],
+      },
       bulletsLoading: false,
       bulletsError: null,
       intakeLoading: false,
@@ -912,6 +1308,16 @@ describe('PlanningView', () => {
       backlogLoading: false,
       backlogError: null,
       roadmapsLoading: false,
+      obsidianLoading: false,
+      obsidianDetailLoading: false,
+      obsidianSyncing: false,
+      obsidianRepresentationsLoading: false,
+      obsidianRepresentationsRefreshing: false,
+      obsidianPromotionSaving: false,
+      obsidianSourceSelectionSaving: false,
+      obsidianSourceSaving: false,
+      obsidianSourceDeletingId: null,
+      obsidianError: null,
       loading: false,
       error: null,
     });
@@ -1031,6 +1437,7 @@ describe('PlanningView', () => {
     expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Typed intake');
     expect(screen.getByTestId('planning-persistence-panel')).toHaveTextContent('Planning database ready');
     expect(screen.queryByTestId('research-notes-panel')).not.toBeInTheDocument();
+    expect(screen.getByTestId('planning-obsidian-notes-panel')).toBeInTheDocument();
     expect(screen.getByTestId('planning-sdk-lane-panel')).toHaveTextContent('Planning ↔ SDK Lane');
     expect(screen.getByTestId('planning-sdk-lane-panel')).toHaveTextContent('sdk-123');
     expect(screen.getByTestId('planning-sdk-lane-panel')).toHaveTextContent('Capture planning intake');
@@ -1040,6 +1447,8 @@ describe('PlanningView', () => {
     expect(mocks.loadWorkspaceIntake).toHaveBeenCalled();
     expect(mocks.loadWorkspaceBacklog).toHaveBeenCalled();
     expect(mocks.loadWorkspaceRoadmaps).toHaveBeenCalled();
+    expect(mocks.loadObsidianNotes).toHaveBeenCalled();
+    expect(mocks.loadObsidianRepresentations).toHaveBeenCalled();
     expect(mocks.sdkHealthStartPolling).toHaveBeenCalled();
     expect(mocks.stateOverviewStartPolling).toHaveBeenCalled();
     expect(mocks.sdkLoadSessions).toHaveBeenCalledWith({
@@ -1052,11 +1461,15 @@ describe('PlanningView', () => {
     const intakeLoadCount = mocks.loadWorkspaceIntake.mock.calls.length;
     const backlogLoadCount = mocks.loadWorkspaceBacklog.mock.calls.length;
     const roadmapLoadCount = mocks.loadWorkspaceRoadmaps.mock.calls.length;
+    const obsidianLoadCount = mocks.loadObsidianNotes.mock.calls.length;
+    const obsidianRepresentationLoadCount = mocks.loadObsidianRepresentations.mock.calls.length;
     fireEvent.click(screen.getByTestId('planning-refresh-context'));
     expect(mocks.loadWorkspaceBullets.mock.calls.length).toBeGreaterThan(bulletsLoadCount);
     expect(mocks.loadWorkspaceIntake.mock.calls.length).toBeGreaterThan(intakeLoadCount);
     expect(mocks.loadWorkspaceBacklog.mock.calls.length).toBeGreaterThan(backlogLoadCount);
     expect(mocks.loadWorkspaceRoadmaps.mock.calls.length).toBeGreaterThan(roadmapLoadCount);
+    expect(mocks.loadObsidianNotes.mock.calls.length).toBeGreaterThan(obsidianLoadCount);
+    expect(mocks.loadObsidianRepresentations.mock.calls.length).toBeGreaterThan(obsidianRepresentationLoadCount);
     expect(mocks.stateOverviewRefresh).toHaveBeenCalled();
     expect(mocks.sdkHealthRefresh).toHaveBeenCalled();
 
@@ -1126,6 +1539,76 @@ describe('PlanningView', () => {
     await waitFor(() => expect(mocks.localLoadSessions).toHaveBeenCalled());
     expect(mocks.localSelectSession).toHaveBeenCalledWith('plan-123');
     expect(mocks.goToRuntime).toHaveBeenCalledWith('sessions', { sessionsMode: 'local' });
+  });
+
+  it('wires obsidian source management callbacks through the existing planning obsidian surface', async () => {
+    const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
+
+    render(<PlanningView />);
+
+    expect(screen.getByTestId('planning-obsidian-source-management-panel')).toHaveTextContent('Instruction Engine');
+    expect(screen.getByTestId('planning-obsidian-source-management-panel')).toHaveTextContent(
+      'Tracker synced-note sources are available, but this repo must explicitly select one before an effective source is resolved.'
+    );
+
+    fireEvent.click(screen.getByTestId('planning-obsidian-mock-set-source'));
+    expect(mocks.setObsidianSourceSelection).toHaveBeenCalledWith('snsrc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+
+    fireEvent.click(screen.getByTestId('planning-obsidian-mock-clear-source'));
+    expect(mocks.setObsidianSourceSelection).toHaveBeenCalledWith(null);
+
+    fireEvent.click(screen.getByTestId('planning-obsidian-mock-create-source'));
+    expect(mocks.createObsidianSource).toHaveBeenCalledWith({
+      provider: 'github',
+      host: 'github.com',
+      owner: 'InstructionEngine',
+      repo: 'workspace',
+      branch: 'main',
+      notesPath: 'docs/planning/third.md',
+    });
+
+    fireEvent.click(screen.getByTestId('planning-obsidian-mock-update-source'));
+    expect(mocks.updateObsidianSource).toHaveBeenCalledWith('snsrc_0123456789abcdef0123456789abcdef', {
+      provider: 'github',
+      host: 'github.com',
+      owner: 'InstructionEngineTeam',
+      repo: 'workspace',
+      branch: 'main',
+      notesPath: 'docs/planning/first.md',
+    });
+
+    fireEvent.click(screen.getByTestId('planning-obsidian-mock-delete-source'));
+    expect(mocks.deleteObsidianSource).toHaveBeenCalledWith('snsrc_0123456789abcdef0123456789abcdef');
+  });
+
+  it('wires obsidian note promotion callbacks through the existing planning obsidian surface', async () => {
+    mocks.promoteObsidianNoteToBacklog.mockResolvedValue('RB-002');
+    mocks.promoteObsidianNoteToRoadmap.mockResolvedValue({
+      backlogId: 'RB-002',
+      roadmapItemId: 'RM-platform-foundation-002',
+    });
+
+    const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
+
+    render(<PlanningView />);
+
+    expect(screen.getByTestId('planning-obsidian-mock-selected-roadmap')).toHaveTextContent('Platform Foundation');
+
+    fireEvent.click(screen.getByTestId('planning-obsidian-mock-promote-backlog'));
+    expect(mocks.promoteObsidianNoteToBacklog).toHaveBeenCalledWith({
+      id: 'obsnote_1234',
+      title: 'External planning note',
+      summary: 'Review external planning context.',
+      notePath: 'Planning/repo-1/external-planning-note.md',
+    });
+
+    fireEvent.click(screen.getByTestId('planning-obsidian-mock-promote-roadmap'));
+    expect(mocks.promoteObsidianNoteToRoadmap).toHaveBeenCalledWith({
+      id: 'obsnote_1234',
+      title: 'External planning note',
+      summary: 'Review external planning context.',
+      notePath: 'Planning/repo-1/external-planning-note.md',
+    });
   });
 
   it('seeds plans from intake artifacts and exposes shared database diagnostics', async () => {
@@ -1268,6 +1751,12 @@ describe('PlanningView', () => {
       roadmapDirectory: null,
       roadmaps: [],
       selectedRoadmapSlug: '',
+      obsidianStatus: null,
+      obsidianNotes: [],
+      obsidianRepresentationsStatus: null,
+      obsidianRepresentations: [],
+      selectedObsidianNoteId: '',
+      selectedObsidianNote: null,
       bulletsLoading: false,
       bulletsError: null,
       intakeLoading: false,
@@ -1275,6 +1764,13 @@ describe('PlanningView', () => {
       backlogLoading: false,
       backlogError: null,
       roadmapsLoading: false,
+      obsidianLoading: false,
+      obsidianDetailLoading: false,
+      obsidianSyncing: false,
+      obsidianRepresentationsLoading: false,
+      obsidianRepresentationsRefreshing: false,
+      obsidianPromotionSaving: false,
+      obsidianError: null,
       loading: false,
       error: null,
     });

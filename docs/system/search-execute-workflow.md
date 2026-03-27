@@ -1,6 +1,6 @@
 ---
 created: 2026-03-07
-updated: 2026-03-17
+updated: 2026-03-26
 category: system
 status: current
 doc_kind: node
@@ -18,22 +18,102 @@ Instruction Engine uses a staged search/execute workflow to keep context small w
 the full capability set available on demand. The delivered workflow is backed by the shared local
 catalog/search control plane in `copilot-ui`, not by separate per-surface discovery logic.
 
+For write-capable feature or modification work, this workflow is docs-first: load the smallest
+relevant canonical docs entrypoint before implementation, then expand only as the current step
+requires. When intended design, behavior, or workflow policy changes, it is also docs-update-first:
+the first execution slice should update the relevant canonical docs before or alongside
+implementation.
+
 ## Workflow
 
-1. Select or infer the relevant repo context when repo-local `.github/*` assets or stack targeting
+1. Load the smallest relevant canonical docs entrypoint for the task. Start from
+   `docs/system/index.md`, a relevant MOC, or a deterministic core-lane node, then expand only if
+   the current step needs more detail.
+   For write-capable leaf execution on work that affects behavior, workflow policy, or a
+   documentation-backed feature, this bootstrap must happen inside the leaf as well; the leaf must
+   independently load the smallest relevant canonical entrypoint instead of relying only on an
+   orchestrator brief, spec, or exploration summary.
+2. Select or infer the relevant repo context when repo-local `.github/*` assets or stack targeting
    matter.
-2. Read the active routing-policy snapshot when available. The intended snapshot is a compact view of:
+3. Read the active routing-policy snapshot when available. The intended snapshot is a compact view of:
     - current profile (for example `balanced-default`)
     - user-global active bundles
     - repo-specific overrides
     - eligible capabilities or eligible capability families
-3. If the next action is a deterministic core-lane step (for example reframe, plan, known review, or
+4. If the next action is a deterministic core-lane step (for example reframe, plan, known review, or
    direct work-unit execution), route directly without broad capability search.
-4. Otherwise use `@search` to resolve the smallest relevant **eligible** capability for the task.
-5. Use `@execute` to load that capability and extract only the constraints and steps needed
+5. Otherwise use `@search` to resolve the smallest relevant **eligible** capability for the task.
+6. Use `@execute` to load that capability and extract only the constraints and steps needed
    downstream.
-6. Delegate actual implementation, testing, review, or documentation work to the normal specialist
+7. Delegate actual implementation, testing, review, or documentation work to the normal specialist
    agents.
+
+## Docs-First Progressive Disclosure
+
+The same progressive-disclosure rule applies to both humans and AI:
+
+- start from compact canonical entrypoints and expand only as needed
+- treat progressive disclosure as a standing requirement for docs and entrypoints, not a one-time
+   bootstrap hint
+- prefer `docs/system/**` for canonical intent and deterministic routing
+- use other maintained docs in `docs/**` plus approved repo operating docs as important design and
+  operating context, without treating them as equal authority with `docs/system/**`
+
+When intended work materially contradicts current documentation, surface the contradiction and ask
+the user for direction before proceeding with implementation or other write-capable work.
+Implementation lanes must stop for clarification or replan instead of silently overriding the
+current docs truth.
+Write-capable leaves must perform this contradiction check against the canonical entrypoint they
+independently loaded for the active work unit rather than assuming an upstream summary stayed
+complete.
+
+## Planning-Surface Routing Posture
+
+Before broad capability search, the orchestrator should classify planning-oriented requests with the
+normalized route-selection fields from [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md):
+
+- `planning_surface`
+- `session_horizon`
+- `execution_readiness`
+- `overlap_risk`
+
+Deterministic routing posture:
+
+- `planning_surface: roadmap` -> route directly to `@roadmap-planner` as a **leaf-only** roadmap/backlog lane for durable multi-session planning
+- `planning_surface: plan-pack` -> route to the plan-pack lane only when `execution_readiness` is `ready` or `stageable`; `@o-planner` remains the **leaf-only** execution-planning lane
+- `planning_surface: both` -> keep `@orchestrator` as the coordinator, route roadmap work first, then route the selected slice to `@o-planner` only when that slice is `ready` or `stageable`; do not allow coordinator handoff from `@roadmap-planner` to `@o-planner`
+- `planning_surface: none` -> do not create roadmap or plan-pack artifacts; route directly to the bounded delivery/reporting lane needed for the request, such as commit prep, review prep, or CI result checks
+
+This posture keeps planning-surface choice explicit, preserves the bounded coordinator topology, and avoids
+mixing durable roadmap authority with session execution state by default.
+
+Plan-pack generation runs only when `planning_surface` includes `plan-pack` and `execution_readiness`
+is `ready` or `stageable`. `roadmap`, `none`, and `not-ready` postures must not invoke
+`@o-plan-coordinator` or `@o-planner`.
+
+## V1 Nested Coordinator Posture
+
+The shipped V1 nested topology is intentionally narrow:
+
+- `@orchestrator` remains the root session owner and the root loop owner.
+- The effective repo depth cap is 3: `@orchestrator` -> approved coordinator -> leaf.
+- Host/runtime nesting support up to depth 5 is runtime headroom only; the shipped repo topology stays bounded and explicit rather than generally recursive.
+- Approved coordinator agents must be named and explicitly allowlisted in frontmatter; all other
+   agents remain leaf-only.
+- Planning-time `@search` / `@execute` may be invoked only by the approved read-only planning
+   coordinator path, `@o-plan-coordinator`, under orchestrator-owned routing policy. `@o-planner`
+   remains leaf-only.
+- `@o-validation-coordinator` is the bounded validation-overlap exception and may delegate only to
+   `@unit-test-runner` and `@integration-test-runner`; integration remains user-confirmed.
+- `@e2e-validator` -> `@e2e-browser` remains the narrow validation coordinator exception.
+- Write-capable implementation lanes and reviewer lanes remain leaf-only in V1.
+- Coordinator-to-coordinator chains are forbidden in V1.
+- If nested planning is unavailable or disabled, use the legacy-depth-1 fallback: direct
+   orchestrator -> `@o-planner` planning.
+
+Within this topology, planning-surface selection remains orchestrator-owned. `@roadmap-planner` and
+`@o-planner` stay leaf-only even when the request moves through `roadmap`, `plan-pack`, or `both`
+postures.
 
 ## Deterministic capability families
 
@@ -197,9 +277,15 @@ Instruction Engine owns:
 
 ## Operating Rules
 
+- Load the smallest relevant canonical docs entrypoint before write-capable feature or modification work.
 - Prefer deterministic routing before broad search.
+- Keep nested routing inside the V1 approved-coordinator posture; approved coordinators may not
+   re-root session ownership, routing policy ownership, or chain to other coordinators.
+- Keep validation overlap bounded to completed or frozen slices that satisfy overlap-risk,
+   dependency-safety, and repo-policy checks; never treat it as permission for unrestricted parallel writes.
 - In default orchestration, prefer `eligible-only` capability search unless the user explicitly asks to override.
 - Prefer canonical docs over research notes.
+- Surface material contradictions between intended work and current documentation before proceeding.
 - Load one primary capability first, then at most two supporting capabilities.
 - Do not eagerly load whole skills when a narrow execution brief will do.
 

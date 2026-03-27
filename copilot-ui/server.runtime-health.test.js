@@ -1408,6 +1408,90 @@ async function run() {
     });
   });
 
+  await test('runtime health surfaces startup sync outcomes and the autonomous decision log summary', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(copilotHome, 'sandboxes');
+
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+
+      const server = await startServer({
+        host: '127.0.0.1',
+        port: await getFreePort(),
+        engineRoot: root,
+        copilotHome,
+        vscodeHome,
+        sandboxesHome,
+        quiet: true,
+      });
+
+      try {
+        const address = server.server.address();
+        const port = address && typeof address === 'object' ? address.port : null;
+        const health = await fetchJson(`http://127.0.0.1:${port}/api/health`);
+        assert.strictEqual(health.statusCode, 200);
+        assert.ok(health.body.startupManagedAssetSync);
+        assert.strictEqual(health.body.startupManagedAssetSync.ran, true);
+        assert.strictEqual(health.body.startupManagedAssetSync.decisionLogged, true);
+        assert.ok(Array.isArray(health.body.startupManagedAssetSync.homes));
+        assert.ok(health.body.autonomousDecisionLog);
+        assert.strictEqual(health.body.autonomousDecisionLog.lastEventKind, 'startup.managed_asset_sync');
+        assert.strictEqual(health.body.autonomousDecisionLog.lastEventOutcome, health.body.startupManagedAssetSync.outcome);
+        assert.ok(typeof health.body.autonomousDecisionLog.path === 'string' && health.body.autonomousDecisionLog.path.length > 0);
+        assert.ok(fs.existsSync(health.body.autonomousDecisionLog.path));
+
+        const entries = fs.readFileSync(health.body.autonomousDecisionLog.path, 'utf8')
+          .split(/\r?\n/)
+          .filter(Boolean)
+          .map((line) => JSON.parse(line));
+        assert.ok(entries.length >= 1, 'expected at least one autonomous decision log entry');
+        const lastEntry = entries[entries.length - 1];
+        assert.strictEqual(lastEntry.kind, 'startup.managed_asset_sync');
+        assert.strictEqual(lastEntry.summary, health.body.startupManagedAssetSync.message);
+      } finally {
+        await server.close();
+      }
+    });
+  });
+
+  await test('runtime health records skipped startup sync as an autonomous decision when startup sync is disabled', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(copilotHome, 'sandboxes');
+
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+
+      const server = await startServer({
+        host: '127.0.0.1',
+        port: await getFreePort(),
+        engineRoot: root,
+        copilotHome,
+        vscodeHome,
+        sandboxesHome,
+        managedAssetSyncOnStart: false,
+        quiet: true,
+      });
+
+      try {
+        const address = server.server.address();
+        const port = address && typeof address === 'object' ? address.port : null;
+        const health = await fetchJson(`http://127.0.0.1:${port}/api/health`);
+        assert.strictEqual(health.statusCode, 200);
+        assert.strictEqual(health.body.startupManagedAssetSync.ran, false);
+        assert.strictEqual(health.body.startupManagedAssetSync.outcome, 'skipped');
+        assert.strictEqual(health.body.startupManagedAssetSync.decisionLogged, true);
+        assert.strictEqual(health.body.autonomousDecisionLog.lastEventKind, 'startup.managed_asset_sync');
+        assert.strictEqual(health.body.autonomousDecisionLog.lastEventOutcome, 'skipped');
+      } finally {
+        await server.close();
+      }
+    });
+  });
+
   await test('runtime health reports GitHub workspace MCP as configured when auth env is present', async () => {
     await withTempDir(async (root) => {
       const copilotHome = path.join(root, '.copilot');

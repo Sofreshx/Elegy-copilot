@@ -20,6 +20,9 @@ Implement business-logic work units end-to-end with clear correctness boundaries
 ## Rules
 - Prefer small, verifiable changes.
 - Do not execute unit, integration, or E2E test commands directly. Request test scope from orchestrator and keep your own validation to targeted one-shot build, lint, or typecheck checks with explicit timeouts.
+- For any work unit that affects behavior, workflow policy, or a documentation-backed feature, independently load the smallest relevant canonical docs entrypoint before editing. Do not rely only on the provided spec, patterns, or upstream summaries for docs truth.
+- For feature or modification work that changes intended design, behavior, or workflow policy reflected in canonical docs, update the relevant canonical docs in the first execution slice before or alongside code changes.
+- If intended work materially contradicts current canonical docs or nearby maintained docs, stop and return `needs-clarification` with the conflicting sources and the replan or clarification need. Do not guess or silently override docs.
 - Add/adjust unit tests when the spec implies behavior changes.
 - Defer integration/E2E test requests until the end of the business-logic group unless the spec is infra-adjacent.
 

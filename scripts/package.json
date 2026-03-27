@@ -6,6 +6,7 @@
     "test": "node test-with-ledger.js",
     "test:contract-compatibility-matrix": "node contract-compatibility-matrix.test.js",
     "sync:superpowers": "node sync-superpowers.js",
+    "validate:agent-delegation": "node validate-agent-delegation.js",
     "validate:skill-discovery-map": "node validate-skill-discovery-map.js",
     "validate:legacy-path-compatibility": "node validate-legacy-path-compatibility-audit.js",
     "generate:skill-metadata-index": "node generate-skill-metadata-index.mjs"

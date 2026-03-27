@@ -16,6 +16,7 @@ const DEFAULT_RETRY_POLICY = Object.freeze({
 const STATE_VERSION = 1;
 const MAX_EVENT_ENTRIES = 200;
 const MAX_RUN_ENTRIES = 200;
+const SANDBOX_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/;
 
 function isObject(value) {
   return value !== null && typeof value === 'object';
@@ -60,6 +61,32 @@ function asNonNegativeNumber(value, fallback) {
   return Number.isFinite(num) && num >= 0 ? num : fallback;
 }
 
+function normalizeContextType(value) {
+  return asTrimmedString(value).toLowerCase() || 'regular';
+}
+
+function assertValidSandboxJobConfig(contextType, sandboxId) {
+  const normalizedContextType = normalizeContextType(contextType);
+  const normalizedSandboxId = asTrimmedString(sandboxId);
+
+  if (normalizedSandboxId && !SANDBOX_ID_PATTERN.test(normalizedSandboxId)) {
+    throw Object.assign(new Error('sandboxId must use only alphanumeric and hyphen characters'), { statusCode: 400 });
+  }
+
+  if (normalizedSandboxId && normalizedContextType !== 'sandbox') {
+    throw Object.assign(new Error('sandboxId requires contextType=sandbox (or omit contextType)'), { statusCode: 400 });
+  }
+
+  if (normalizedContextType === 'sandbox' && !normalizedSandboxId) {
+    throw Object.assign(new Error('sandboxId is required when contextType=sandbox'), { statusCode: 400 });
+  }
+
+  return {
+    contextType: normalizedContextType,
+    sandboxId: normalizedSandboxId || null,
+  };
+}
+
 function normalizeRetryPolicy(value) {
   const input = isObject(value) ? value : {};
   return {
@@ -97,7 +124,7 @@ function normalizeJobRecord(value) {
     targetType,
     existingSessionId: targetType === 'existing-session' ? (asTrimmedString(value.existingSessionId) || null) : null,
     model: asTrimmedString(value.model) || null,
-    contextType: asTrimmedString(value.contextType) || 'regular',
+    contextType: normalizeContextType(value.contextType),
     sandboxId: asTrimmedString(value.sandboxId) || null,
     scheduleAt: asNullableIsoString(value.scheduleAt),
     retryPolicy: normalizeRetryPolicy(value.retryPolicy),
@@ -297,6 +324,12 @@ class ExecutorService {
     const existingSessionId = targetType === 'existing-session'
       ? sanitizeSessionId(input.existingSessionId)
       : '';
+    const sandboxConfig = targetType === 'existing-session'
+      ? {
+        contextType: normalizeContextType(input.contextType),
+        sandboxId: asTrimmedString(input.sandboxId) || null,
+      }
+      : assertValidSandboxJobConfig(input.contextType, input.sandboxId);
 
     if (targetType === 'existing-session' && !existingSessionId) {
       throw Object.assign(new Error('existingSessionId is required for existing-session jobs'), { statusCode: 400 });
@@ -313,8 +346,8 @@ class ExecutorService {
       targetType,
       existingSessionId: existingSessionId || null,
       model: asTrimmedString(input.model) || null,
-      contextType: asTrimmedString(input.contextType) || 'regular',
-      sandboxId: asTrimmedString(input.sandboxId) || null,
+      contextType: sandboxConfig.contextType,
+      sandboxId: sandboxConfig.sandboxId,
       scheduleAt,
       retryPolicy: normalizeRetryPolicy(input.retryPolicy),
       createdAt: timestamp,
@@ -662,12 +695,13 @@ class ExecutorService {
           throw Object.assign(new Error('Target SDK session is not available. Existing-session jobs require a live session.'), { statusCode: 409 });
         }
       } else {
+        const sandboxConfig = assertValidSandboxJobConfig(job.contextType, job.sandboxId);
         const existingRecord = sessionId ? this._sdkBridge.getSdkSession(sessionId) : null;
         if (!existingRecord) {
           const created = await this._sdkBridge.createSdkSession({
             model: job.model || undefined,
-            contextType: job.contextType || 'regular',
-            sandboxId: job.sandboxId || undefined,
+            contextType: sandboxConfig.contextType,
+            sandboxId: sandboxConfig.sandboxId || undefined,
           });
           sessionId = sanitizeSessionId(created && created.sessionId);
           createdSession = true;

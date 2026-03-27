@@ -45,9 +45,11 @@ Trigger signals:
 ...
 ```
 
-## Depth-1 Compliance
+## Leaf-Only Compliance
 
-This skill is loaded by the orchestrator when it detects the escalation flag. It does NOT load other skills or delegate to subagents. It reads the friction log, analyzes it, and returns a structured report to the orchestrator.
+This skill remains leaf-only in V1. It does NOT load other skills or delegate to subagents.
+Approved coordinator exceptions elsewhere do not apply here. It reads the friction log, analyzes
+it, and returns a structured report to the orchestrator.
 
 ## Structured Monitoring Integration
 

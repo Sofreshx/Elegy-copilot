@@ -131,7 +131,11 @@ Use subagents to keep work high-signal and consistent. Prefer only the ones that
 
 > **Removal notice**: legacy executive agents (`@executive2`, `@executive2p5`, etc.) have been removed. Use `@orchestrator`.
 
-Subagents must NOT call other subagents; only top-level orchestrators should delegate work.
+Nested delegation is allowed only for named approved coordinator agents with explicit frontmatter
+allowlists. All other agents remain leaf-only in V1, write-capable implementation lanes and
+reviewer lanes remain leaf-only, coordinator-to-coordinator chains are forbidden, and planning must
+fall back to the legacy-depth-1 direct orchestrator -> `@o-planner` path when nested delegation is
+unavailable or disabled.
 
 Use `vscode/askQuestions` for ambiguous or iterative requests, especially UI/UX work, to keep direction aligned.
 

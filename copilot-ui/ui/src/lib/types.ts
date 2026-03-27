@@ -14,11 +14,14 @@ export interface HealthResponse {
   policy: Record<string, unknown>;
   planningPersistence: Record<string, unknown>;
   planningDurabilityDependencyGate?: Record<string, unknown> | string | null;
+  startupManagedAssetSync?: Record<string, unknown> | null;
+  autonomousDecisionLog?: Record<string, unknown> | null;
 }
 
 export interface SessionSummary {
   id: string;
   source?: 'cli' | 'vscode' | 'sandbox' | string;
+  sandbox?: string | null;
   active?: boolean;
   startedAtMs?: number;
   updatedAtMs?: number;
@@ -52,6 +55,97 @@ export interface SessionStructuredNextUnit {
   workUnitIds?: string[];
   parallelCandidate?: boolean;
   rationale?: string;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionStateRef {
+  id?: string | null;
+  label?: string | null;
+  status?: string | null;
+  summary?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionStateBlocker {
+  label: string;
+  details?: string | null;
+  severity?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionStateNode {
+  id: string;
+  kind?: string | null;
+  label?: string | null;
+  status?: string | null;
+  summary?: string | null;
+  active?: boolean;
+  current?: boolean;
+  next?: boolean;
+  blocked?: boolean;
+  children?: SessionExecutionStateNode[];
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionState {
+  schemaVersion?: string | null;
+  updatedAt?: string | null;
+  lifecycle?: string | null;
+  status?: string | null;
+  mode?: string | null;
+  summary?: string | null;
+  activeGroup?: SessionExecutionStateRef | null;
+  activeWorkUnit?: SessionExecutionStateRef | null;
+  lastCompletedUnit?: SessionExecutionStateRef | null;
+  nextUnit?: SessionStructuredNextUnit | null;
+  blockers?: SessionExecutionStateBlocker[];
+  replanCount?: number | null;
+  tree?: SessionExecutionStateNode[];
+  [key: string]: unknown;
+}
+
+export interface SessionStructuredExecutionOverlay {
+  present?: boolean;
+  applied?: boolean;
+  warnings?: string[];
+  diagnostics?: SessionExecutionOverlayDiagnostics | null;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionOverlayRecoveryDiagnostics {
+  status?: string | null;
+  resumable?: boolean | null;
+  reason?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionOverlayIntegrityDiagnostics {
+  status?: string | null;
+  warningCount?: number | null;
+  duplicateNodeIdCount?: number | null;
+  conflictingCurrentCount?: number | null;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionOverlayQueueDiagnostics {
+  depth?: number | null;
+  nextUnitCount?: number | null;
+  nextUnitIds?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionOverlayOverlapDiagnostics {
+  boundedPreviewIds?: string[];
+  parallelCandidateCount?: number | null;
+  [key: string]: unknown;
+}
+
+export interface SessionExecutionOverlayDiagnostics {
+  recovery?: SessionExecutionOverlayRecoveryDiagnostics | null;
+  integrity?: SessionExecutionOverlayIntegrityDiagnostics | null;
+  queue?: SessionExecutionOverlayQueueDiagnostics | null;
+  blockedNodeCount?: number | null;
+  overlap?: SessionExecutionOverlayOverlapDiagnostics | null;
   [key: string]: unknown;
 }
 
@@ -109,10 +203,60 @@ export interface SessionStructuredResume {
   [key: string]: unknown;
 }
 
+export interface SessionIntentFrame {
+  summary?: string | null;
+  inScope?: string[];
+  outOfScope?: string[];
+  successSignals?: string[];
+  constraints?: string[];
+  risks?: string[];
+  watchOuts?: string[];
+  carryoverSignals?: string[];
+  keyDecisions?: string[];
+  contextSignals?: string[];
+  nextSuggestedUnits?: string[];
+  resumeReady?: boolean | null;
+  resumeBlockers?: string[];
+  reviewApproved?: boolean | null;
+  planStatus?: string | null;
+  sourceArtifacts?: string[];
+  warnings?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionClosureFollowUps {
+  activeContinuation?: string[];
+  durableCarryover?: string[];
+  [key: string]: unknown;
+}
+
+export interface SessionClosureSummary {
+  summary?: string | null;
+  outcome?: string | null;
+  delivered?: string[];
+  requested?: string[];
+  changedFiles?: string[];
+  whereToVerify?: string[];
+  validationEvidence?: string[];
+  followUps?: SessionClosureFollowUps;
+  blockers?: string[];
+  limitations?: string[];
+  confidence?: string | null;
+  reviewApproved?: boolean | null;
+  reviewVerdict?: string | null;
+  sourceArtifacts?: string[];
+  warnings?: string[];
+  [key: string]: unknown;
+}
+
 export interface SessionStructuredMeta {
   reviewLedger?: SessionStructuredReviewLedger;
   handoff?: SessionParsedHandoff | null;
   resume?: SessionStructuredResume;
+  intentFrame?: SessionIntentFrame | null;
+  closureSummary?: SessionClosureSummary | null;
+  executionState?: SessionExecutionState | null;
+  executionOverlay?: SessionStructuredExecutionOverlay | null;
   [key: string]: unknown;
 }
 
@@ -478,6 +622,27 @@ export interface TrackerSession {
 
 export interface TrackerSessionsResponse {
   sessions: TrackerSession[];
+}
+
+export interface SyncedNoteSourceLocator {
+  provider: string;
+  host: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  notesPath: string;
+}
+
+export interface SyncedNoteSourceRecord extends SyncedNoteSourceLocator {
+  id: string;
+  localCheckoutPath?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SyncedNoteSourceDeleteResponse {
+  ok: boolean;
+  id: string;
 }
 
 export interface SkillPreviewItem {
@@ -1434,6 +1599,252 @@ export interface PlanningLinkedPlanSession {
   seedArtifactId?: string;
   seedArtifactCategory?: PlanningIntakeCategory;
   seedArtifactTitle?: string;
+}
+
+export type ObsidianPlanningSyncState =
+  | 'ready'
+  | 'not-configured'
+  | 'vault-unavailable'
+  | 'notes-unavailable';
+
+export type ObsidianPlanningRepresentationKind = 'bullets' | 'roadmap';
+export type ObsidianPlanningRepresentationFreshness =
+  | 'current'
+  | 'stale'
+  | 'missing'
+  | 'invalid'
+  | 'source-missing';
+
+export type ObsidianCliState =
+  | 'not-configured'
+  | 'configured'
+  | 'ready'
+  | 'unavailable'
+  | 'error';
+
+export type ObsidianRemoteSyncState =
+  | 'disabled'
+  | 'idle'
+  | 'syncing'
+  | 'success'
+  | 'error'
+  | 'conflict';
+
+export interface ObsidianCliStatus {
+  state: ObsidianCliState;
+  message: string;
+  checkedAt?: string;
+  probeConfigured?: boolean;
+  syncStatusConfigured?: boolean;
+  refreshInventoryConfigured?: boolean;
+  manualSyncConfigured?: boolean;
+  lastError?: string;
+}
+
+export interface ObsidianRemoteSyncStatus {
+  state: ObsidianRemoteSyncState;
+  configured: boolean;
+  pollEnabled: boolean;
+  pollIntervalMs?: number;
+  syncing?: boolean;
+  message: string;
+  lastAttemptAt?: string;
+  lastSuccessAt?: string;
+  lastManualSyncAt?: string;
+  lastError?: string;
+  reason?: string;
+  nextAttemptAt?: string;
+  cooldownUntil?: string;
+  retryCount?: number;
+  retryLimit?: number;
+  lastFailureAt?: string;
+  lastFailureReason?: string;
+  leaseAcquiredAt?: string;
+  leaseExpiresAt?: string;
+  leaseTrigger?: string;
+  lastStaleLeaseRecoveredAt?: string;
+  conflictCount?: number;
+  appliedCount?: number;
+  deletedCount?: number;
+  skippedCount?: number;
+  cursor?: string;
+  updatedAt?: string;
+}
+
+export interface ObsidianSyncedNoteSourceRef {
+  id: string;
+  provider: string;
+  host: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  notesPath: string;
+}
+
+export interface ObsidianSourceResolutionStatus {
+  availableSources: ObsidianSyncedNoteSourceRef[];
+  activeSourceConfigured: boolean;
+  activeSourceId?: string;
+  activeSourceMatched?: boolean;
+  effectiveSource?: ObsidianSyncedNoteSourceRef | null;
+  requiresSource: boolean;
+  resolved: boolean;
+  reason?: string;
+  message: string;
+}
+
+export interface ObsidianPlanningStatus {
+  state: ObsidianPlanningSyncState;
+  configured: boolean;
+  readAvailable: boolean;
+  syncAvailable: boolean;
+  external: true;
+  canonicalAuthority: false;
+  message: string;
+  code?: string;
+  configPath?: string;
+  vaultName?: string;
+  vaultPath?: string;
+  notesPathTemplate?: string;
+  notesDirectoryPath?: string;
+  cliPath?: string;
+  syncCommand?: string[];
+  cli?: ObsidianCliStatus;
+  remoteSync?: ObsidianRemoteSyncStatus;
+  sourceResolution?: ObsidianSourceResolutionStatus;
+}
+
+export interface ObsidianPlanningNoteSummary {
+  kind: 'synced-note';
+  provider: 'obsidian';
+  id: string;
+  title: string;
+  summary: string;
+  repoId?: string;
+  targetRepoIds: string[];
+  vaultName: string;
+  notePath: string;
+  filePath?: string;
+  lastModifiedAt?: string;
+  external: true;
+  canonicalAuthority: false;
+}
+
+export interface ObsidianPlanningNoteDetail extends ObsidianPlanningNoteSummary {
+  content: string;
+  headings: string[];
+}
+
+export interface ObsidianPlanningRepresentationSummary {
+  kind: 'planning-representation';
+  provider: 'obsidian';
+  id: string;
+  representationKind: ObsidianPlanningRepresentationKind;
+  title: string;
+  summary: string;
+  repoId?: string;
+  targetRepoIds: string[];
+  roadmapSlug?: string;
+  sourceExists: boolean;
+  sourceFilePath?: string;
+  sourceRepoRelativePath: string;
+  sourceUpdatedAt?: string;
+  sourceContentHash?: string;
+  notePath: string;
+  filePath?: string;
+  noteExists: boolean;
+  noteUpdatedAt?: string;
+  generatedAt?: string;
+  freshness: ObsidianPlanningRepresentationFreshness;
+  metadataValid: boolean;
+  external: true;
+  canonicalAuthority: false;
+  message: string;
+  bulletCount?: number;
+  itemCount?: number;
+}
+
+export interface ObsidianPlanningRepresentationsStatus {
+  totalCount: number;
+  writeAvailable: boolean;
+  currentCount: number;
+  staleCount: number;
+  missingCount: number;
+  invalidCount: number;
+  sourceMissingCount: number;
+  message: string;
+}
+
+export interface ObsidianPlanningStatusResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  status: ObsidianPlanningStatus;
+  [key: string]: unknown;
+}
+
+export interface ObsidianPlanningRepresentationsStatusResponse extends ObsidianPlanningStatusResponse {
+  representationsStatus: ObsidianPlanningRepresentationsStatus;
+}
+
+export interface ObsidianPlanningRepresentationsResponse extends ObsidianPlanningRepresentationsStatusResponse {
+  count?: number;
+  representations: ObsidianPlanningRepresentationSummary[];
+}
+
+export interface ObsidianPlanningRepresentationsRefreshResult {
+  refreshedCount: number;
+  skippedCount: number;
+  skippedIds?: string[];
+}
+
+export interface ObsidianPlanningRepresentationsRefreshResponse extends ObsidianPlanningRepresentationsResponse {
+  result: ObsidianPlanningRepresentationsRefreshResult | null;
+}
+
+export interface ObsidianPlanningNotesResponse extends ObsidianPlanningStatusResponse {
+  count?: number;
+  notes: ObsidianPlanningNoteSummary[];
+}
+
+export interface ObsidianPlanningNoteResponse extends ObsidianPlanningStatusResponse {
+  note: ObsidianPlanningNoteDetail | null;
+}
+
+export interface ObsidianPlanningSyncResult {
+  trigger?: string;
+  state: ObsidianRemoteSyncState;
+  appliedCount: number;
+  deletedCount: number;
+  skippedCount: number;
+  conflictCount: number;
+  conflicts?: string[];
+  cursor?: string;
+  message?: string;
+  reason?: string;
+  nextAttemptAt?: string;
+  cooldownUntil?: string;
+  retryCount?: number;
+  retryLimit?: number;
+  lastFailureAt?: string;
+  lastFailureReason?: string;
+  leaseAcquiredAt?: string;
+  leaseExpiresAt?: string;
+  leaseTrigger?: string;
+  lastStaleLeaseRecoveredAt?: string;
+  cliManualCommand?: {
+    exitCode?: number | null;
+    durationMs?: number;
+  } | null;
+}
+
+export interface ObsidianPlanningSyncResponse extends ObsidianPlanningStatusResponse {
+  result: ObsidianPlanningSyncResult | null;
+}
+
+export interface ObsidianPlanningSourceSelectionResponse extends ObsidianPlanningStatusResponse {
+  sourceSelection?: ObsidianSourceResolutionStatus;
 }
 
 export interface PlanningRepoSummary {

@@ -3,9 +3,9 @@ name: Elegy Copilot Desktop Preview Release
 on:
   push:
     tags:
-      - '*'
-    tags-ignore:
-      - 'desktop-v*'
+      - '*.*.*'
+      - '!v*'
+      - '!desktop-v*'
   workflow_dispatch:
     inputs:
       ref:
@@ -52,6 +52,11 @@ jobs:
           prerelease="${{ inputs.prerelease }}"
 
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            if [[ ! "${GITHUB_REF_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "Automatic desktop preview publishing only supports non-prefixed semver tags like 1.2.3 or 1.2.3-rc.1." >&2
+              exit 1
+            fi
+
             ref="${GITHUB_REF_NAME}"
             tag_name="${GITHUB_REF_NAME}"
             release_name="Elegy Copilot Desktop Preview ${tag_name}"

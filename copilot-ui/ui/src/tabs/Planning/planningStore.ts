@@ -79,6 +79,11 @@ interface PlanningPlanSeedArtifact {
   acceptanceCriteria?: string[];
   backlogIds?: string[];
   planRefs?: string[];
+  provider?: string;
+  notePath?: string;
+  vaultName?: string;
+  external?: boolean;
+  canonicalAuthority?: boolean;
 }
 
 export interface PlanningConflictValue {
@@ -388,6 +393,7 @@ function normalizeLinkedPlanSession(value: unknown): PlanningLinkedPlanSession |
 
   const record = value as Record<string, unknown>;
   const sessionId = typeof record.sessionId === 'string' ? record.sessionId.trim() : '';
+  const planPath = typeof record.planPath === 'string' && record.planPath.trim() ? record.planPath.trim() : undefined;
   const source = typeof record.source === 'string' ? record.source.trim() : '';
   const createdAt = typeof record.createdAt === 'string' ? record.createdAt.trim() : '';
   const updatedAt = typeof record.updatedAt === 'string' && record.updatedAt.trim() ? record.updatedAt.trim() : undefined;
@@ -441,6 +447,7 @@ function normalizeLinkedPlanSession(value: unknown): PlanningLinkedPlanSession |
   return {
     sessionId,
     repoId,
+    planPath,
     source: source as PlanningLinkedPlanSession['source'],
     originKind: normalizedOriginKind,
     originArtifactId: normalizedOriginArtifactId,
@@ -525,6 +532,30 @@ function readLinkedPlanSession(input: {
         ? (planSessions[legacyScope] ?? null)
         : null
     );
+}
+
+function readLatestRepoLinkedPlanSession(repoId?: string | null): PlanningLinkedPlanSession | null {
+  const repoScope = resolveLinkedSdkSessionStorageScope(repoId);
+  const sessions = Object.values(readLinkedPlanSessionMap())
+    .filter((session) => resolveLinkedSdkSessionStorageScope(session.repoId) === repoScope);
+
+  if (sessions.length === 0) {
+    return null;
+  }
+
+  return sessions.reduce<PlanningLinkedPlanSession | null>((latest, session) => {
+    if (!latest) {
+      return session;
+    }
+
+    const latestTimestamp = Date.parse(latest.updatedAt || latest.createdAt || '');
+    const sessionTimestamp = Date.parse(session.updatedAt || session.createdAt || '');
+    if (Number.isFinite(sessionTimestamp) && (!Number.isFinite(latestTimestamp) || sessionTimestamp > latestTimestamp)) {
+      return session;
+    }
+
+    return latest;
+  }, null);
 }
 
 function persistLinkedPlanSession(linkedPlanSession: PlanningLinkedPlanSession): void {
@@ -620,6 +651,10 @@ function buildSeededPlanContent(input: {
     `- Origin kind: ${artifact.kind}`,
     `- Origin id: ${artifact.id}`,
     artifact.state ? `- Origin state: ${artifact.state}` : '',
+    artifact.provider ? `- External provider: ${artifact.provider}` : '',
+    artifact.vaultName ? `- Vault: ${artifact.vaultName}` : '',
+    artifact.notePath ? `- Note path: ${artifact.notePath}` : '',
+    artifact.external ? '- Authority: external / non-canonical context only' : '',
     Array.isArray(artifact.backlogIds) && artifact.backlogIds.length > 0
       ? `- Linked backlog IDs: ${artifact.backlogIds.join(', ')}`
       : '',
@@ -662,6 +697,9 @@ function buildSeededPlanContent(input: {
     '## Notes',
     '',
     `Seeded from ${artifact.id}${artifact.category ? ` (${artifact.category})` : ''}.`,
+    artifact.kind === 'synced-note'
+      ? 'Promote any durable decisions into repo docs or the active session plan before treating them as canonical.'
+      : '',
     '',
   ].join('\n');
 }
@@ -725,10 +763,19 @@ function normalizePlanSeedArtifact(
       : [],
     backlogIds: Array.isArray(record.backlogIds)
       ? record.backlogIds.map((entry) => String(entry || '').trim()).filter(Boolean)
-      : [],
+      : Array.isArray(record.promotedBacklogRefs)
+        ? record.promotedBacklogRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
+        : [],
     planRefs: Array.isArray(record.planRefs)
       ? record.planRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
-      : [],
+      : Array.isArray(record.promotedPlanRefs)
+        ? record.promotedPlanRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
+        : [],
+    provider: String(record.provider || '').trim() || undefined,
+    notePath: String(record.notePath || '').trim() || undefined,
+    vaultName: String(record.vaultName || '').trim() || undefined,
+    external: Boolean(record.external),
+    canonicalAuthority: typeof record.canonicalAuthority === 'boolean' ? record.canonicalAuthority : undefined,
   };
 }
 
@@ -1155,11 +1202,7 @@ export function createPlanningStore() {
       repoPath: catalogRepoContext?.repoPath || undefined,
       repoLabel: catalogRepoContext?.repoLabel || undefined,
     });
-      const persistedLinkedPlanSession = readLinkedPlanSession({
-        repoId: catalogRepoContext?.repoId || '',
-        originKind: 'direct',
-        originArtifactId: PLANNING_DIRECT_PLAN_ORIGIN_ID,
-      });
+    const persistedLinkedPlanSession = readLatestRepoLinkedPlanSession(catalogRepoContext?.repoId || '');
     const persistedLinkedSdkSession = readLinkedSdkSession(catalogRepoContext?.repoId || '');
 
     store.setState((state) => ({
@@ -2190,6 +2233,11 @@ export function createPlanningStore() {
             originKind: seedArtifact.kind,
             promotedPlanRefs: seedArtifact.planRefs,
             promotedBacklogRefs: seedArtifact.backlogIds,
+            provider: seedArtifact.provider,
+            notePath: seedArtifact.notePath,
+            vaultName: seedArtifact.vaultName,
+            external: seedArtifact.external,
+            canonicalAuthority: seedArtifact.canonicalAuthority,
           }
           : undefined,
       });

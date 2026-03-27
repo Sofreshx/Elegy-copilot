@@ -77,6 +77,34 @@ function handleTrackerPermissions(ctx, deps) {
   proxyToTracker(trackerUrl, trackerToken, '/api/permissions/pending', 'GET', req, res);
 }
 
+function handleTrackerSyncedNoteSources(ctx, deps, method) {
+  const { req, res } = ctx;
+  const { proxyToTracker, trackerUrl, trackerToken } = deps;
+  if (!ensureTrackerTokenConfigured(res, deps, true)) {
+    return;
+  }
+  proxyToTracker(trackerUrl, trackerToken, '/api/synced-notes/sources', method, req, res);
+}
+
+function handleTrackerSyncedNoteSource(ctx, deps, method) {
+  const { req, res, match } = ctx;
+  const { proxyToTracker, trackerUrl, trackerToken } = deps;
+  const sourceId = decodeURIComponent(match[1]);
+
+  if (!ensureTrackerTokenConfigured(res, deps, true)) {
+    return;
+  }
+
+  proxyToTracker(
+    trackerUrl,
+    trackerToken,
+    `/api/synced-notes/sources/${encodeURIComponent(sourceId)}`,
+    method,
+    req,
+    res,
+  );
+}
+
 function handleTrackerPermissionAction(ctx, deps) {
   const { req, res, match } = ctx;
   const { sendJson, proxyToTracker, trackerUrl, trackerToken } = deps;
@@ -228,8 +256,36 @@ function register(deps = {}) {
     },
     {
       method: 'GET',
+      path: '/api/tracker/synced-notes/sources',
+      handler: (ctx) => handleTrackerSyncedNoteSources(ctx, resolvedDeps, 'GET'),
+    },
+    {
+      method: 'POST',
+      path: '/api/tracker/synced-notes/sources',
+      handler: (ctx) => handleTrackerSyncedNoteSources(ctx, resolvedDeps, 'POST'),
+    },
+    {
+      method: 'GET',
       path: '/api/tracker/events',
       handler: (ctx) => handleTrackerEvents(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: /^\/api\/tracker\/synced-notes\/sources\/([^/]+)$/,
+      pathDescription: '/api/tracker/synced-notes/sources/:id',
+      handler: (ctx) => handleTrackerSyncedNoteSource(ctx, resolvedDeps, 'GET'),
+    },
+    {
+      method: 'PUT',
+      path: /^\/api\/tracker\/synced-notes\/sources\/([^/]+)$/,
+      pathDescription: '/api/tracker/synced-notes/sources/:id',
+      handler: (ctx) => handleTrackerSyncedNoteSource(ctx, resolvedDeps, 'PUT'),
+    },
+    {
+      method: 'DELETE',
+      path: /^\/api\/tracker\/synced-notes\/sources\/([^/]+)$/,
+      pathDescription: '/api/tracker/synced-notes/sources/:id',
+      handler: (ctx) => handleTrackerSyncedNoteSource(ctx, resolvedDeps, 'DELETE'),
     },
     {
       method: 'POST',

@@ -7,6 +7,8 @@ Lightweight Node.js service that runs locally alongside VS Code. By default it w
 The tracker monitors:
 - **Task files** — watches the canonical repo-state task store at `~/.copilot/repo-state/<repoId>/tasks/`
 - **Git status** — polls workspace repos for branch, ahead/behind, and working-tree changes
+- **Optional Obsidian monitor** — polls configured local note files plus the local Obsidian sync status
+  file and emits loopback-only tracker events when either changes
 - **Relay bridge** — forwards snapshots to the cloud relay over WebSocket
 
 Repo-local `.instructions/tasks/` is no longer a default watched surface. If you need temporary
@@ -14,7 +16,11 @@ legacy compatibility during migration, set `TRACKER_ENABLE_LEGACY_TASK_SURFACE=t
 watching that repo-local path as a bounded compatibility shim. The tracker now logs that opt-in
 explicitly so repo-local task watching is not mistaken for a peer authority.
 
-It also exposes a local WebSocket server (default port `9821`) for the VS Code extension to connect to.
+It also exposes a local WebSocket server (default `127.0.0.1:9821`) for the VS Code extension to connect to, plus a local-only status dashboard on `127.0.0.1:9822`.
+
+The tracker stays loopback-only for these local surfaces. Obsidian monitoring only reads local files and
+broadcasts the resulting events to connected local clients; it does not open any additional remote
+listener.
 
 ## Optional Messaging Gateway
 
@@ -94,9 +100,28 @@ All configuration is via environment variables:
 | `TRACKER_WORKSPACE_PATHS` | `.` | Comma-separated workspace paths to watch |
 | `TRACKER_RELAY_URL` | — | Cloud relay WebSocket URL |
 | `TRACKER_RELAY_TOKEN` | — | Auth token for the relay (see [Authentication](#authentication)) |
-| `TRACKER_WS_PORT` | `9821` | Local WebSocket server port |
+| `TRACKER_WS_PORT` | `9821` | Local WebSocket server port (bound to `127.0.0.1` only) |
+| `TRACKER_STATUS_PORT` | `9822` | Local status dashboard port (bound to `127.0.0.1` only) |
 | `TRACKER_WATCH_INTERVAL` | `2000` | Polling interval in ms |
+| `TRACKER_OBSIDIAN_NOTE_PATHS` | — | Comma-separated local note file paths to poll for optional Obsidian note updates |
+| `TRACKER_OBSIDIAN_SYNC_STATUS_PATH` | `~/.copilot/obsidian-sync/status.json` | Optional local Obsidian sync status file path; defaults to the user's home-directory `.copilot/obsidian-sync/status.json` |
+| `TRACKER_OBSIDIAN_POLL_INTERVAL` | `TRACKER_WATCH_INTERVAL` | Polling interval in ms for the optional Obsidian monitor |
 | `OTEL_WORKFLOW_TRACING_ENABLED` | `false` | Set to `true` to enable OpenTelemetry tracing |
+
+## Optional Obsidian monitor
+
+If you want local tracker events for external Obsidian note activity, configure one or both of:
+
+- `TRACKER_OBSIDIAN_NOTE_PATHS` for specific local note files to poll
+- `TRACKER_OBSIDIAN_SYNC_STATUS_PATH` for the local sync-status JSON file
+
+The monitor emits only local tracker events:
+
+- `obsidian_note_update` — a configured note file changed, was created, or disappeared
+- `obsidian_sync_update` — the local sync-status file changed, was created, or disappeared
+
+These events are published through the existing loopback WebSocket/status surfaces alongside other tracker
+events. They are intended for local UI/runtime awareness, not as a separate authority or remote service.
 
 ## Local Observability (OpenTelemetry)
 

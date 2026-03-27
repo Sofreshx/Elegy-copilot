@@ -1,13 +1,13 @@
 ---
 name: truth-sync
-description: "Resolves conflicts between code, docs, and legacy sources using a ranked truth hierarchy. Triggers on: doc conflict, source of truth, stale docs, truth hierarchy, code vs docs."
+description: "Resolves material contradictions between canonical docs, implementation evidence, and legacy sources using the repo's docs-first contract. Triggers on: doc conflict, source of truth, stale docs, truth hierarchy, code vs docs."
 ---
 
 # Truth Sync
 
 ## Purpose
 
-Resolves conflicts between code, docs, and legacy sources using a ranked hierarchy. When multiple sources disagree about system behavior or intent, this skill provides a deterministic resolution path.
+Resolves material contradictions between canonical docs, implementation evidence, and legacy sources without inventing a competing source-of-truth hierarchy. When multiple sources disagree about system behavior or intent, this skill uses the repo's docs-first contract to decide whether the mismatch is drift, evidence, or a user-escalation point.
 
 ## When to Use
 
@@ -24,39 +24,39 @@ Trigger signals:
 - **General refactoring** — use standard coding workflows.
 - **Code that has no documentation conflict** — no conflict means no need for truth resolution.
 
-## Truth Hierarchy
+## Resolution Contract
 
-6-tier ranked list with separate behavior and intent tracks:
+Start from the smallest relevant canonical docs entrypoint for the task, then expand only as the current step needs more detail.
 
-| Rank | Track | Source | Rationale |
-|------|-------|--------|-----------|
-| 1 | Behavior | **Running code** | Actual runtime behavior is the ultimate truth for what the system *does*. |
-| 1 | Intent | **`docs/system/**`** | Canonical docs are the ultimate truth for what the system *should* do. |
-| 2 | Both | **Tests** | Verified expectations, executable spec. |
-| 3 | Both | **Inline code comments** | Local context, may be stale. |
-| 4 | Both | **Legacy instructions (`.instructions/`)** | Historical context, may be outdated. |
-| 5 | Both | **Tribal knowledge** | Verbal conventions, chat history, session memory. |
-| 6 | Both | **AI-generated content** | Must be verified against higher ranks. |
+Use these authority rules:
+
+- the current user instruction controls task-local overrides
+- `docs/system/**` is canonical intent for behavior, workflow policy, precedence, and documentation-backed features
+- other maintained docs in `docs/**` and approved repo operating docs are important context, not peer authority with `docs/system/**`
+- implementation, tests, and repeated repo patterns are evidence of current behavior, not automatic permission to override canonical docs
+- legacy instructions, prompt text, and chat/session memory are context only until promoted into canonical docs
+
+`truth hierarchy` remains a compatibility trigger phrase for this skill, not a separate governing model.
 
 ## Decision Tree
 
-When code and docs conflict:
+When sources disagree:
 
-1. **Check if code behavior is intentional** — do tests pass? Is it covered by test cases?
-2. **If yes** → update docs to match code (code behavior is intentional, docs are stale).
-3. **If no** → flag as bug, fix code to match docs (docs represent intended behavior).
-4. **If unclear** → escalate via `vscode/askQuestions` to ask the user for clarification.
+1. **Load the smallest relevant canonical docs truth first** — start from `docs/system/index.md`, a relevant MOC, or the owning canonical node for the affected lane.
+2. **Classify the mismatch** — decide whether it is minor wording drift or a material contradiction.
+3. **Minor wording drift** → note it and continue when the mismatch does not change behavior, precedence, workflow ownership, or documentation-backed feature semantics.
+4. **Material contradiction** → cite the conflicting sources and ask the user for direction before any write-capable work continues.
+5. **After direction** → reconcile code, docs, prompts, or skill text to the resolved canonical source and record the decision in the completion summary.
 
 ## Escalation Protocol
 
-When the hierarchy cannot resolve the conflict:
+Escalate when the contradiction is material and affects behavior, intent, workflow policy, precedence, or documentation-backed feature semantics.
 
-- Use `vscode/askQuestions` to ask the user which source is authoritative.
-- Record the decision in the completion summary so future agents have context.
+- name the canonical doc or maintained source that conflicts with the intended work
+- summarize the specific disagreement, not just "docs vs code"
+- use `vscode/askQuestions` to ask the user for direction before implementation or other write-capable work continues
+- record the decision in the completion summary so future agents have context
 
 ## Governance Integration
 
-When a conflict affects canonical docs, prompts, or workflow policy, record which source won and
-why. Prefer explicit resolution language such as `Reject`, `Reconcile`, or `Override`, and pair it
-with an enforcement stance such as `Strict` or `Warn` so the decision is easy to audit in repo
-artifacts and completion summaries.
+When a conflict affects canonical docs, prompts, or workflow policy, anchor the resolution in the owning canonical docs lane rather than a separate truth hierarchy. Record which source won and why. Prefer explicit resolution language such as `Reject`, `Reconcile`, or `Override`, and pair it with an enforcement stance such as `Strict` or `Warn` so the decision is easy to audit in repo artifacts and completion summaries.

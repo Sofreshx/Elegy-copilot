@@ -10,6 +10,8 @@ function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
     localWsPort: 0,
     watchIntervalMs: 5000,
     statusPort: 0, // port 0 = OS picks a free port
+    obsidianNotePaths: [],
+    obsidianPollIntervalMs: 5000,
     ...overrides,
   };
 }
@@ -58,7 +60,7 @@ describe("StatusServer", () => {
     server = new StatusServer(makeConfig());
     await server.start();
     const port = server.getPort();
-    baseUrl = `http://localhost:${port}`;
+    baseUrl = `http://127.0.0.1:${port}`;
   });
 
   afterEach(async () => {

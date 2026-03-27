@@ -508,13 +508,14 @@ describe('planningStore catalog repo context', () => {
     });
 
     expect(sessionId).toBe('plan-session-seeded');
-    expect(apiMocks.upsertSessionPlan).toHaveBeenCalledWith({
+    expect(apiMocks.upsertSessionPlan).toHaveBeenCalledTimes(1);
+    const seededSaveRequest = apiMocks.upsertSessionPlan.mock.calls[0]?.[0];
+    expect(seededSaveRequest).toEqual(expect.objectContaining({
       sessionId: undefined,
       title: 'Seeded planning follow-up',
-      content: expect.stringContaining('Seeded from PI-001'),
       repoId: 'repo-1',
       repoPath: 'C:\\Repos\\instruction-engine',
-      seedArtifact: {
+      seedArtifact: expect.objectContaining({
         id: 'PI-001',
         kind: 'intake',
         category: 'audit-request',
@@ -522,12 +523,14 @@ describe('planningStore catalog repo context', () => {
         summary: 'Inspect plan visibility and runtime status.',
         targetRepoIds: ['repo-1'],
         state: 'requested',
-        repoId: undefined,
         originKind: 'intake',
-        promotedPlanRefs: [],
-        promotedBacklogRefs: [],
-      },
-    });
+      }),
+    }));
+    expect(seededSaveRequest?.content).toContain('Intake artifact: PI-001');
+    expect(seededSaveRequest?.content).toContain('Source title: Audit planning workflow');
+    expect(seededSaveRequest?.content).toContain('Inspect plan visibility and runtime status.');
+    expect(seededSaveRequest?.content).toContain('Seeded from PI-001 (audit-request).');
+    expect(localSessionMocks.selectSession).toHaveBeenCalledWith('plan-session-seeded');
     expect(store.getState().linkedPlanSession).toMatchObject({
       sessionId: 'plan-session-seeded',
       repoId: 'repo-1',
@@ -581,26 +584,28 @@ describe('planningStore catalog repo context', () => {
     });
 
     expect(sessionId).toBe('plan-synced-note');
-    expect(apiMocks.upsertSessionPlan).toHaveBeenCalledWith({
+    expect(apiMocks.upsertSessionPlan).toHaveBeenCalledTimes(1);
+    const syncedNoteSaveRequest = apiMocks.upsertSessionPlan.mock.calls[0]?.[0];
+    expect(syncedNoteSaveRequest).toEqual(expect.objectContaining({
       sessionId: 'plan-synced-note',
       title: 'Promote synced note seed',
-      content: expect.stringContaining('Synced note seed'),
       repoId: 'repo-1',
       repoPath: 'C:\\Repos\\instruction-engine',
-      seedArtifact: {
+      seedArtifact: expect.objectContaining({
         id: 'snsrc_1234567890abcdef1234567890abcd',
         kind: 'synced-note',
         category: 'synced-note',
         title: 'Weekly synced planning note',
         summary: 'Use the synced note as a planning seed, not as the source of truth.',
         targetRepoIds: ['repo-1'],
-        state: undefined,
-        repoId: undefined,
         originKind: 'synced-note',
-        promotedPlanRefs: [],
-        promotedBacklogRefs: [],
-      },
-    });
+      }),
+    }));
+    expect(syncedNoteSaveRequest?.content).toContain('Synced note seed: snsrc_1234567890abcdef1234567890abcd');
+    expect(syncedNoteSaveRequest?.content).toContain('Source title: Weekly synced planning note');
+    expect(syncedNoteSaveRequest?.content).toContain('Use the synced note as a planning seed, not as the source of truth.');
+    expect(syncedNoteSaveRequest?.content).toContain('Promote any durable decisions into repo docs or the active session plan before treating them as canonical.');
+    expect(localSessionMocks.selectSession).toHaveBeenCalledWith('plan-synced-note');
     expect(store.getState().linkedPlanSession).toMatchObject({
       sessionId: 'plan-synced-note',
       repoId: 'repo-1',

@@ -41,15 +41,18 @@ function createSessionEmitter() {
 
 function createMockSdkBridge() {
   const sessions = new Map();
+  const createSessionCalls = [];
   let sequence = 0;
   let sendBehavior = { mode: 'success' };
 
   return {
+    createSessionCalls,
     sessions,
     setSendBehavior(nextBehavior) {
       sendBehavior = nextBehavior;
     },
     async createSdkSession(options = {}) {
+      createSessionCalls.push({ ...options });
       sequence += 1;
       const sessionId = options.sessionId || `sdk-${sequence}`;
       const session = createSessionEmitter();
@@ -195,6 +198,73 @@ async function run() {
     const completedRun = service.getRun(result.run.id);
     assert.equal(completedRun.status, 'succeeded');
     assert.equal(completedRun.attemptCount, 2);
+
+    await service.shutdown();
+  });
+
+  await test('sandbox create-session jobs require a valid sandbox id', async () => {
+    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const sdkBridge = createMockSdkBridge();
+    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+
+    await assert.rejects(
+      service.createJob({ prompt: 'run in sandbox', contextType: 'sandbox' }),
+      (error) => error && error.statusCode === 400 && error.message === 'sandboxId is required when contextType=sandbox'
+    );
+
+    await assert.rejects(
+      service.createJob({ prompt: 'run in sandbox', contextType: 'sandbox', sandboxId: 'bad/id' }),
+      (error) => error && error.statusCode === 400 && error.message === 'sandboxId must use only alphanumeric and hyphen characters'
+    );
+
+    assert.equal(sdkBridge.createSessionCalls.length, 0);
+    await service.shutdown();
+  });
+
+  await test('sandbox session creation is revalidated before start when persisted executor state is malformed', async () => {
+    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const stateDir = path.join(copilotHome, 'executor');
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(path.join(stateDir, 'state.json'), JSON.stringify({
+      version: 1,
+      jobs: [
+        {
+          id: 'job-malformed-sandbox',
+          title: 'job-malformed-sandbox',
+          prompt: 'resume malformed sandbox run',
+          repoId: null,
+          targetType: 'create-session',
+          existingSessionId: null,
+          model: null,
+          contextType: 'sandbox',
+          sandboxId: null,
+          scheduleAt: null,
+          retryPolicy: {
+            enabled: true,
+            maxAttempts: 3,
+            baseDelayMs: 1000,
+            maxDelayMs: 1000,
+            backoffMultiplier: 1,
+            jitterRatio: 0,
+          },
+          createdAt: new Date(0).toISOString(),
+          updatedAt: new Date(0).toISOString(),
+          lastRunId: null,
+          activeRunId: null,
+          status: 'idle',
+        },
+      ],
+      runs: [],
+    }, null, 2));
+
+    const sdkBridge = createMockSdkBridge();
+    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+
+    const run = await service.triggerJob('job-malformed-sandbox', { source: 'manual' });
+
+    assert.equal(run.status, 'failed');
+    assert.equal(run.error, 'sandboxId is required when contextType=sandbox');
+    assert.equal(sdkBridge.createSessionCalls.length, 0);
 
     await service.shutdown();
   });

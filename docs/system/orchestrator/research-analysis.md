@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-03-25
 category: system
 status: draft
 doc_kind: node
@@ -124,7 +124,7 @@ Analyze orchestration patterns across our executive versions and external system
 1. **SQLite for state** — adds complexity (bootstrap, DB reliability) without proportional benefit for VS Code agent workflows
 2. **Heavy file systems** — many task files (E2) or elaborate hierarchies (GSD) create noise
 3. **Rigid lifecycle** — forcing every request through 6 phases even for a typo fix
-4. **No subagent chaining** — correct principle but needs clear enforcement
+4. **Blanket no-chaining as a universal rule** — too rigid; shipped V1 should allow only named approved coordinators with explicit allowlists while keeping all other lanes leaf-only
 5. **Context window management** — VS Code agents can't spawn fresh context windows like Claude Code, so we must be smarter about what we pass to subagents
 
 ### What We Should Build

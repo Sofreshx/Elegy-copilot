@@ -14,6 +14,8 @@ function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
     localWsPort: 0, // random free port
     watchIntervalMs: 2000,
     statusPort: 0,
+    obsidianNotePaths: [],
+    obsidianPollIntervalMs: 2000,
     ...overrides,
   };
 }
@@ -53,9 +55,16 @@ function nextMessage(ws: WebSocket): Promise<unknown> {
  * Connect a WS client and wait for the connection + welcome message.
  * The message listener is attached before `open` fires so the welcome is never lost.
  */
-function connectClient(port: number): Promise<{ ws: WebSocket; welcome: Promise<unknown> }> {
+function toClientHost(address: string): string {
+  return address === "::" || address === "0.0.0.0" ? "127.0.0.1" : address;
+}
+
+function connectClient(
+  address: string,
+  port: number
+): Promise<{ ws: WebSocket; welcome: Promise<unknown> }> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+    const ws = new WebSocket(`ws://${toClientHost(address)}:${port}`);
     // Attach message listener immediately to capture the welcome message
     const welcome = nextMessage(ws);
     ws.on("open", () => resolve({ ws, welcome }));
@@ -63,12 +72,51 @@ function connectClient(port: number): Promise<{ ws: WebSocket; welcome: Promise<
   });
 }
 
-/** Get the actual listening port from the bridge's internal server */
-function getPort(bridge: ExtensionBridge): number {
-  // Access the private wss to read the assigned port
+function getBoundAddress(bridge: ExtensionBridge): { address: string; port: number } | null {
   const wss = (bridge as any).wss;
-  const addr = wss?.address();
-  return typeof addr === "object" ? addr.port : 0;
+  const addr = wss?.address?.();
+  if (!addr || typeof addr !== "object") {
+    return null;
+  }
+  return {
+    address: addr.address || "127.0.0.1",
+    port: addr.port,
+  };
+}
+
+/** Wait for the bridge server to bind and return its actual loopback address */
+async function getListeningAddress(
+  bridge: ExtensionBridge
+): Promise<{ address: string; port: number }> {
+  const current = getBoundAddress(bridge);
+  if (current) {
+    return current;
+  }
+
+  const wss = (bridge as any).wss;
+  await new Promise<void>((resolve, reject) => {
+    const onListening = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+    const cleanup = () => {
+      wss?.off?.("listening", onListening);
+      wss?.off?.("error", onError);
+    };
+
+    wss?.on?.("listening", onListening);
+    wss?.on?.("error", onError);
+  });
+
+  const address = getBoundAddress(bridge);
+  if (!address) {
+    throw new Error("ExtensionBridge server did not expose a bound address");
+  }
+  return address;
 }
 
 /** Small delay helper */
@@ -104,10 +152,10 @@ describe("ExtensionBridge", () => {
       bridge = new ExtensionBridge(makeConfig());
       bridge.start();
 
-      const port = getPort(bridge);
+      const { address, port } = await getListeningAddress(bridge);
       expect(port).toBeGreaterThan(0);
 
-      const { ws } = await connectClient(port);
+      const { ws } = await connectClient(address, port);
       clients.push(ws);
 
       expect(ws.readyState).toBe(WebSocket.OPEN);
@@ -117,7 +165,8 @@ describe("ExtensionBridge", () => {
       bridge = new ExtensionBridge(makeConfig());
       bridge.start();
 
-      const { ws, welcome } = await connectClient(getPort(bridge));
+      const { address, port } = await getListeningAddress(bridge);
+      const { ws, welcome } = await connectClient(address, port);
       clients.push(ws);
 
       const msg = await welcome as any;
@@ -131,7 +180,8 @@ describe("ExtensionBridge", () => {
       bridge = new ExtensionBridge(makeConfig());
       bridge.start();
 
-      const { ws } = await connectClient(getPort(bridge));
+      const { address, port } = await getListeningAddress(bridge);
+      const { ws } = await connectClient(address, port);
       clients.push(ws);
 
       const closePromise = new Promise<void>((resolve) => {
@@ -162,16 +212,16 @@ describe("ExtensionBridge", () => {
     it("getClientCount returns correct count", async () => {
       bridge = new ExtensionBridge(makeConfig());
       bridge.start();
-      const port = getPort(bridge);
+      const { address, port } = await getListeningAddress(bridge);
 
       expect(bridge.getClientCount()).toBe(0);
 
-      const { ws: ws1, welcome: w1 } = await connectClient(port);
+      const { ws: ws1, welcome: w1 } = await connectClient(address, port);
       clients.push(ws1);
       await w1;
       expect(bridge.getClientCount()).toBe(1);
 
-      const { ws: ws2, welcome: w2 } = await connectClient(port);
+      const { ws: ws2, welcome: w2 } = await connectClient(address, port);
       clients.push(ws2);
       await w2;
       expect(bridge.getClientCount()).toBe(2);
@@ -180,9 +230,9 @@ describe("ExtensionBridge", () => {
     it("cleans up disconnected clients", async () => {
       bridge = new ExtensionBridge(makeConfig());
       bridge.start();
-      const port = getPort(bridge);
+      const { address, port } = await getListeningAddress(bridge);
 
-      const { ws, welcome } = await connectClient(port);
+      const { ws, welcome } = await connectClient(address, port);
       clients.push(ws);
       await welcome;
       expect(bridge.getClientCount()).toBe(1);
@@ -205,10 +255,10 @@ describe("ExtensionBridge", () => {
     it("sends event to all connected clients", async () => {
       bridge = new ExtensionBridge(makeConfig());
       bridge.start();
-      const port = getPort(bridge);
+      const { address, port } = await getListeningAddress(bridge);
 
-      const { ws: ws1, welcome: w1 } = await connectClient(port);
-      const { ws: ws2, welcome: w2 } = await connectClient(port);
+      const { ws: ws1, welcome: w1 } = await connectClient(address, port);
+      const { ws: ws2, welcome: w2 } = await connectClient(address, port);
       clients.push(ws1, ws2);
 
       // Consume welcome messages
@@ -238,10 +288,10 @@ describe("ExtensionBridge", () => {
     it("skips clients that are not in OPEN state", async () => {
       bridge = new ExtensionBridge(makeConfig());
       bridge.start();
-      const port = getPort(bridge);
+      const { address, port } = await getListeningAddress(bridge);
 
-      const { ws: ws1, welcome: w1 } = await connectClient(port);
-      const { ws: ws2, welcome: w2 } = await connectClient(port);
+      const { ws: ws1, welcome: w1 } = await connectClient(address, port);
+      const { ws: ws2, welcome: w2 } = await connectClient(address, port);
       clients.push(ws1, ws2);
 
       // Consume welcome messages
@@ -264,9 +314,9 @@ describe("ExtensionBridge", () => {
     it("broadcasts multiple event types correctly", async () => {
       bridge = new ExtensionBridge(makeConfig());
       bridge.start();
-      const port = getPort(bridge);
+      const { address, port } = await getListeningAddress(bridge);
 
-      const { ws, welcome } = await connectClient(port);
+      const { ws, welcome } = await connectClient(address, port);
       clients.push(ws);
       await welcome;
 

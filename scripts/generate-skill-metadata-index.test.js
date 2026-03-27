@@ -2,6 +2,7 @@
 const assert = require('assert');
 const childProcess = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
@@ -45,6 +46,24 @@ function runModuleSnippet(source) {
 		stdio: 'pipe',
 		encoding: 'utf8',
 	});
+}
+
+function writeFile(root, relativePath, content) {
+	const filePath = path.join(root, relativePath);
+	fs.mkdirSync(path.dirname(filePath), { recursive: true });
+	fs.writeFileSync(filePath, content, 'utf8');
+}
+
+function withTempRepoFixture(files, fn) {
+	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-skill-metadata-index-'));
+	try {
+		for (const [relativePath, content] of Object.entries(files)) {
+			writeFile(tempRoot, relativePath, content);
+		}
+		fn(tempRoot);
+	} finally {
+		fs.rmSync(tempRoot, { recursive: true, force: true });
+	}
 }
 
 function assertSortedUniqueList(entry, fieldName) {
@@ -139,6 +158,66 @@ test('manifest skill metadata rejects empty ids and load modes', () => {
 			`${result.stderr || ''}${result.stdout || ''}`,
 			new RegExp(`empty ${testCase.field}`),
 			`expected empty ${testCase.field} error output`,
+		);
+	}
+});
+
+test('generator rejects malformed metadata frontmatter with skill file context', () => {
+	const generatorUrl = pathToFileURL(generatorPath).href;
+	const cases = [
+		{
+			name: 'invalid JSON metadata',
+			skillKey: 'broken-json-skill',
+			metadataLines: ['metadata: {"aliasKeys": ["broken",]}'],
+			errorPattern: /invalid metadata JSON/i,
+		},
+		{
+			name: 'non-object metadata',
+			skillKey: 'non-object-skill',
+			metadataLines: ['metadata: ["broken"]'],
+			errorPattern: /same-line JSON object/i,
+		},
+		{
+			name: 'block metadata',
+			skillKey: 'block-metadata-skill',
+			metadataLines: ['metadata:', '  aliasKeys: ["x"]'],
+			errorPattern: /same-line JSON object/i,
+		},
+	];
+
+	for (const testCase of cases) {
+		withTempRepoFixture(
+			{
+				'engine-assets/manifest.json': JSON.stringify({ assets: [] }, null, 2),
+				[`engine-assets/skills/${testCase.skillKey}/SKILL.md`]: [
+					'---',
+					`name: ${testCase.skillKey}`,
+					...testCase.metadataLines,
+					'---',
+					'',
+					`# ${testCase.skillKey}`,
+				].join('\n'),
+			},
+			(tempRoot) => {
+				const result = runModuleSnippet(
+					[
+						`import { generateIndex } from ${JSON.stringify(generatorUrl)};`,
+						`generateIndex({ write: false, repoRoot: ${JSON.stringify(tempRoot)} });`,
+					].join('\n'),
+				);
+
+				assert.notStrictEqual(result.status, 0, `expected failure for ${testCase.name}`);
+				assert.match(
+					`${result.stderr || ''}${result.stdout || ''}`,
+					new RegExp(`engine-assets/skills/${testCase.skillKey}/SKILL\\.md`),
+					`expected skill path in output for ${testCase.name}`,
+				);
+				assert.match(
+					`${result.stderr || ''}${result.stdout || ''}`,
+					testCase.errorPattern,
+					`expected descriptive metadata error for ${testCase.name}`,
+				);
+			}
 		);
 	}
 });

@@ -41,6 +41,7 @@ Resolve convention authority in this order:
 
 Agent prompts, historical behavior, and chat memory are inputs only. They are not canonical until
 promoted into an approved source of truth.
+Start from the smallest relevant canonical docs entrypoint for the convention question and expand only as needed.
 
 ## Convention Classification Rules
 
@@ -77,6 +78,8 @@ Do not elevate a pattern when it is only:
 - Surface drift, ambiguity, and missing entrypoints before suggesting new policy.
 - When sources conflict, cite the higher-precedence source and treat lower-precedence material as
   drift until resolved.
+- If intended work materially contradicts current documentation on convention authority, workflow policy, or documentation-backed behavior, surface the contradiction and ask the user for direction before write-capable work continues.
+- Do not stop for minor wording drift alone.
 
 ## Workflow
 
@@ -84,9 +87,10 @@ Do not elevate a pattern when it is only:
 2. Gather the smallest relevant canonical sources for that scope.
 3. Extract candidate conventions and classify each as confirmed or inferred.
 4. Record drift, conflicts, and missing canonical entrypoints.
-5. Propose the minimal updates needed to clarify, promote, or de-duplicate conventions.
-6. Route downstream review or follow-up work to the correct lane instead of absorbing it here.
-7. Edit convention artifacts only when explicit approval is present.
+5. Surface any material contradiction before approved update work proceeds.
+6. Propose the minimal updates needed to clarify, promote, or de-duplicate conventions.
+7. Route downstream review or follow-up work to the correct lane instead of absorbing it here.
+8. Edit convention artifacts only when explicit approval is present.
 
 ## Minimal-Update Heuristics
 

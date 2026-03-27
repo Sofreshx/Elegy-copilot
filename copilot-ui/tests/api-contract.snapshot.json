@@ -16,6 +16,7 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
+      "autonomousDecisionLog",
       "changes",
       "copilotHome",
       "engineRoot",
@@ -25,6 +26,7 @@
       "planningPersistence",
       "policy",
       "runtime",
+      "startupManagedAssetSync",
       "vscodeHome"
     ]
   },
@@ -413,6 +415,110 @@
     "bodyKeys": [
       "error",
       "recordId"
+    ]
+  },
+  "GET /api/planning/obsidian/status": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/obsidian/notes": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/obsidian/notes/obsnote-0001": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "POST /api/planning/obsidian/sync": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "POST /api/planning/obsidian/source-selection": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/obsidian/representations/status": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/obsidian/representations": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "POST /api/planning/obsidian/representations/refresh": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "GET /api/planning/backlog": {
@@ -1120,7 +1226,72 @@
       "status"
     ]
   },
+  "GET /api/tracker/synced-notes/sources": {
+    "status": 502,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
+    ]
+  },
+  "POST /api/tracker/synced-notes/sources": {
+    "status": 502,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
+    ]
+  },
   "GET /api/tracker/events": {
+    "status": 502,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
+    ]
+  },
+  "GET /api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef": {
+    "status": 502,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
+    ]
+  },
+  "PUT /api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef": {
+    "status": 502,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "legacyCode",
+      "legacyReason",
+      "message",
+      "reason",
+      "status"
+    ]
+  },
+  "DELETE /api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef": {
     "status": 502,
     "contentType": "application/json",
     "bodyType": "json",

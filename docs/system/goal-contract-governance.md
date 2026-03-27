@@ -1,13 +1,13 @@
 ---
 created: 2026-03-15
-updated: 2026-03-15
+updated: 2026-03-23
 category: system
 status: current
 doc_kind: node
 id: goal-contract-governance
 summary: Canonical high-level goal contract for planning and review workflows, including completion states, carryover persistence, and authority boundaries.
 tags: [goals, planning, review, governance]
-related: [planpack-spec, session-state-artifacts, reviewer-lane-governance, follow-up-discovery-governance, planning-backlog-roadmap-contract, unresolved-goals, planning-ideas-log, out-of-scope-findings]
+related: [planpack-spec, session-state-artifacts, reviewer-lane-governance, follow-up-discovery-governance, planning-backlog-roadmap-contract]
 ---
 
 # Goal Contract Governance

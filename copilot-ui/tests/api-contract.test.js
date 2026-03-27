@@ -127,7 +127,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/lsp/config' },
   { method: 'POST', path: '/api/lsp/install' },
 
-  // Planning (34)
+  // Planning (41)
   { method: 'POST', path: '/api/planning/persistence/init' },
   { method: 'POST', path: '/api/planning/persistence/corruption/scan' },
   { method: 'POST', path: '/api/planning/persistence/retention' },
@@ -154,6 +154,14 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/planning/records/planning-000001/research' },
   { method: 'DELETE', path: '/api/planning/records/planning-000001/research/note-0001' },
   { method: 'GET', path: '/api/planning/records/planning-000001/diagrams' },
+  { method: 'GET', path: '/api/planning/obsidian/status' },
+  { method: 'GET', path: '/api/planning/obsidian/notes' },
+  { method: 'GET', path: '/api/planning/obsidian/notes/obsnote-0001' },
+  { method: 'POST', path: '/api/planning/obsidian/sync' },
+  { method: 'POST', path: '/api/planning/obsidian/source-selection' },
+  { method: 'GET', path: '/api/planning/obsidian/representations/status' },
+  { method: 'GET', path: '/api/planning/obsidian/representations' },
+  { method: 'POST', path: '/api/planning/obsidian/representations/refresh' },
   { method: 'GET', path: '/api/planning/backlog' },
   { method: 'POST', path: '/api/planning/backlog' },
   { method: 'PATCH', path: '/api/planning/backlog/RB-001' },
@@ -225,11 +233,16 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/gateway/config' },
   { method: 'GET', path: '/api/gateway/scan-repos' },
 
-  // Tracker proxy (6: 4 exact + 2 regex)
+  // Tracker proxy (11: 6 exact + 5 regex)
   { method: 'GET', path: '/api/tracker/status' },
   { method: 'GET', path: '/api/tracker/sessions' },
   { method: 'GET', path: '/api/tracker/permissions' },
+  { method: 'GET', path: '/api/tracker/synced-notes/sources' },
+  { method: 'POST', path: '/api/tracker/synced-notes/sources' },
   { method: 'GET', path: '/api/tracker/events' },
+  { method: 'GET', path: '/api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef' },
+  { method: 'PUT', path: '/api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef' },
+  { method: 'DELETE', path: '/api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef' },
   { method: 'POST', path: '/api/tracker/permissions/test-id/approve' },
   { method: 'POST', path: '/api/tracker/lifecycle/start' },
 
@@ -407,7 +420,7 @@ async function run() {
 
     // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 115, `Expected 115 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 128, `Expected 128 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

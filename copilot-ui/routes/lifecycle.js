@@ -28,6 +28,8 @@ function handleHealth(ctx, deps) {
     planningPersistenceState,
     planningDurabilityDependencyGate,
     activePlanningDurabilityDependencyGate,
+    startupManagedAssetSync,
+    autonomousDecisionLog,
   } = ctx;
   const {
     sendJson,
@@ -42,6 +44,9 @@ function handleHealth(ctx, deps) {
   const policy = getPolicyPreflight(engineRoot);
   const planningPersistenceRaw = getPlanningPersistenceHealth(planningPersistenceConfig, planningPersistenceState);
   const planningPersistence = buildPlanningPersistenceHealthEnvelope(planningPersistenceRaw);
+  const autonomousDecisionLogSummary = autonomousDecisionLog && typeof autonomousDecisionLog.getSummary === 'function'
+    ? autonomousDecisionLog.getSummary()
+    : null;
   sendJson(res, 200, {
     ok: true,
     now: Date.now(),
@@ -53,6 +58,8 @@ function handleHealth(ctx, deps) {
     policy,
     planningPersistence,
     planningDurabilityDependencyGate: activePlanningDurabilityDependencyGate || planningDurabilityDependencyGate,
+    startupManagedAssetSync,
+    autonomousDecisionLog: autonomousDecisionLogSummary,
   });
 }
 

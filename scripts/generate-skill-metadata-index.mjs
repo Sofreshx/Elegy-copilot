@@ -5,11 +5,10 @@ import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
-
-const skillsRoot = path.join(repoRoot, 'engine-assets', 'skills');
-const manifestPath = path.join(repoRoot, 'engine-assets', 'manifest.json');
-const outputPath = path.join(skillsRoot, 'skill-metadata-index.json');
+const defaultRepoRoot = path.resolve(__dirname, '..');
+const defaultSkillsRoot = path.join(defaultRepoRoot, 'engine-assets', 'skills');
+const defaultManifestPath = path.join(defaultRepoRoot, 'engine-assets', 'manifest.json');
+const defaultOutputPath = path.join(defaultSkillsRoot, 'skill-metadata-index.json');
 
 function readJson(filePath) {
 	return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -78,16 +77,28 @@ function normalizeListValues(values) {
 	return Array.from(normalized).sort((a, b) => a.localeCompare(b));
 }
 
-function parseFrontmatterMetadata(frontmatter) {
-	const rawValue = readFrontmatterValue(frontmatter, ['metadata']);
-	if (!rawValue) return {};
+function parseFrontmatterMetadata(frontmatter, skillPath) {
+	const metadataMatch = frontmatter.match(/^metadata:(.*)$/m);
+	if (!metadataMatch) return {};
 
-	try {
-		const parsed = JSON.parse(rawValue);
-		return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-	} catch {
-		return {};
+	const rawValue = metadataMatch[1].trim();
+	const supportedFormat = 'metadata must be a same-line JSON object, for example metadata: {"aliasKeys":["x"]}';
+	if (!rawValue) {
+		throw new Error(`${skillPath}: ${supportedFormat}`);
 	}
+
+	let parsed;
+	try {
+		parsed = JSON.parse(rawValue);
+	} catch (error) {
+		throw new Error(`${skillPath}: invalid metadata JSON: ${error.message}. ${supportedFormat}`);
+	}
+
+	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+		throw new Error(`${skillPath}: ${supportedFormat}`);
+	}
+
+	return parsed;
 }
 
 function splitInlineList(rawValue) {
@@ -204,7 +215,13 @@ export function collectManifestSkillMetadata(manifest) {
 }
 
 export function generateIndex(options = {}) {
-	const { write = true } = options;
+	const {
+		write = true,
+		repoRoot = defaultRepoRoot,
+		skillsRoot = path.join(repoRoot, 'engine-assets', 'skills'),
+		manifestPath = path.join(repoRoot, 'engine-assets', 'manifest.json'),
+		outputPath = path.join(skillsRoot, 'skill-metadata-index.json'),
+	} = options;
 	const manifest = readJson(manifestPath);
 	const manifestSkills = collectManifestSkillMetadata(manifest);
 
@@ -216,9 +233,10 @@ export function generateIndex(options = {}) {
 
 	const skills = skillDirs.map((skillKey) => {
 		const skillPath = path.join(skillsRoot, skillKey, 'SKILL.md');
+		const displaySkillPath = path.relative(repoRoot, skillPath).replace(/\\/g, '/');
 		const content = readText(skillPath);
 		const frontmatter = extractFrontmatter(content);
-		const metadata = parseFrontmatterMetadata(frontmatter);
+		const metadata = parseFrontmatterMetadata(frontmatter, displaySkillPath);
 		const name = parseFrontmatterValue(frontmatter, 'name') || skillKey;
 		const description = parseFrontmatterValue(frontmatter, 'description');
 		const triggersOn = extractTriggers(content, description);
@@ -260,5 +278,5 @@ const isMainModule = process.argv[1]
 
 if (isMainModule) {
 	const index = generateIndex();
-	console.log(`Generated skill metadata index: ${path.relative(repoRoot, outputPath)} (skills=${index.entries.length})`);
+	console.log(`Generated skill metadata index: ${path.relative(defaultRepoRoot, defaultOutputPath)} (skills=${index.entries.length})`);
 }

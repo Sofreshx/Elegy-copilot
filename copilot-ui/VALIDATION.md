@@ -24,10 +24,25 @@ This command:
 
 This smoke command is an artifact-level release preflight. It does not simulate a live GitHub-hosted update download or an installed-app replacement on restart.
 
+## Desktop Preview Startup Smoke
+
+Run `npm run package:preview:startup` from `copilot-ui` when you need a repo-local production-like startup validation using the unpacked desktop preview.
+
+This command:
+
+- rebuilds the unpacked desktop preview through the existing `package:preview` flow
+- launches `release/win-unpacked/Elegy Copilot.exe` with an isolated user-local home and a fixed local health port
+- waits for the packaged app to answer `GET /api/health`
+- verifies that startup managed-asset sync and the autonomous decision-log summary are present in runtime health
+- terminates the unpacked desktop app after the health contract is confirmed
+
+This smoke command validates real packaged startup behavior from the repo-local unpacked preview. It does not exercise installer replacement, restart-based update install, or GitHub-hosted release download behavior.
+
 ## Endpoint 1: GET /api/sessions/:id/structured-state
 
 ### Description
-Returns structured JSON parsed from the Plan-Pack Progress Tracker section of plan.md.
+Returns structured JSON parsed from the Plan-Pack Progress Tracker section of `plan.md`, plus the
+primary derived Sessions summary metadata in `meta.intentFrame` and `meta.closureSummary`.
 
 ### Basic Test (latest plan)
 ```bash
@@ -77,9 +92,30 @@ curl "http://127.0.0.1:3210/api/sessions/a04980e8-4804-411d-a774-0a4cbf88576e/st
     "workUnitId": "WU-001",
     "rationale": "Define the canonical artifact contract first; all parsing and agent migrations depend on it."
   },
-  "meta": {}
+  "meta": {
+    "intentFrame": {
+      "summary": "Concise derived session intent summary",
+      "sourceArtifacts": ["plan", "handoff", "proposition"]
+    },
+    "closureSummary": {
+      "summary": "Concise derived session closure summary",
+      "reviewVerdict": "APPROVED",
+      "sourceArtifacts": ["plan", "handoff", "proposition", "verification-guide"]
+    }
+  }
 }
 ```
+
+### Summary Derivation Notes
+
+- `meta.intentFrame` / `meta.closureSummary` are the primary Sessions summary surface for `copilot-ui`.
+- They are derived from existing persisted inputs (`plan.md`, `handoff.md`, `proposition.md`,
+  `verification-guide.md`, review ledger, checkpoints, next-unit state, and resume metadata).
+- Trackerless plans can still return derived summary metadata with warnings when enough persisted signal
+  exists.
+- Review approval uses the effective latest Review Ledger verdict fail-closed.
+- `GET /api/sessions/:id/final` remains compatibility-only; structured-state derivation should not depend
+  on `final.md`.
 
 ### Test with Specific Revision
 ```bash
@@ -218,6 +254,8 @@ All endpoints support:
 3. **Defensive Parsing**: The parser never throws; returns partial data if sections are missing.
 4. **Unicode Support**: Em dash (—), en dash (–), and regular dash (-) are all supported in Next Unit parsing.
 5. **Checkpoint Status**: Extracted from `Notes` column using pattern `status: passed|failed|pending|skipped`.
+6. **Supporting artifacts**: `proposition.md`, `handoff.md`, and `verification-guide.md` remain supporting
+   detail inputs; they do not replace `structured-state` as the primary Sessions summary surface.
 6. **Resume Readiness**: `structured-state` now emits `meta.reviewLedger`, optional `meta.handoff`, and `meta.resume` so clients can determine whether a session is safe to resume.
 
 ## Validation Checklist

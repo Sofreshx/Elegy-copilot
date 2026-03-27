@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { deriveSyncedNoteSourceId } from '@elegy-copilot/contracts';
-import { SyncedNoteSourceStore } from '../syncedNotes/syncedNoteSourceStore';
+import { SyncedNoteSourceStore, SyncedNoteSourceStoreError } from '../syncedNotes/syncedNoteSourceStore';
 
 describe('SyncedNoteSourceStore', () => {
     let tmpDir: string;
@@ -47,6 +47,37 @@ describe('SyncedNoteSourceStore', () => {
         }));
         expect(store.load(created.id)).toEqual(created);
         expect(store.list()).toEqual([created]);
+    });
+
+    it('keeps github primary while explicitly supporting gitea and git fallback providers', () => {
+        const store = new SyncedNoteSourceStore({ sourcesDir: tmpDir });
+
+        const githubSource = store.create({
+            provider: 'github',
+            host: 'github.com',
+            owner: 'InstructionEngine',
+            repo: 'workspace',
+            branch: 'main',
+            notesPath: 'docs/planning/github.md',
+        });
+        const giteaSource = store.create({
+            provider: 'gitea',
+            host: 'git.example.test',
+            owner: 'team-planning',
+            repo: 'tracker',
+            branch: 'main',
+            notesPath: 'notes/gitea.md',
+        });
+        const gitSource = store.create({
+            provider: 'git',
+            host: 'git.internal.test',
+            owner: 'team-notes',
+            repo: 'planning',
+            branch: 'main',
+            notesPath: 'notes/git.md',
+        });
+
+        expect(store.list()).toEqual(expect.arrayContaining([githubSource, giteaSource, gitSource]));
     });
 
     it('update preserves the deterministic id and original createdAt timestamp', () => {
@@ -97,6 +128,66 @@ describe('SyncedNoteSourceStore', () => {
             branch: 'feature/synced-note',
             notesPath: 'notes/team.md',
         })).toThrow('Payload locator does not match route id');
+    });
+
+    it('rejects malformed payload ids with a deterministic store error', () => {
+        const store = new SyncedNoteSourceStore({ sourcesDir: tmpDir });
+
+        let thrown: unknown;
+        try {
+            store.create({
+                id: 'snsrc_invalid',
+                provider: 'github',
+                host: 'github.com',
+                owner: 'InstructionEngine',
+                repo: 'workspace',
+                branch: 'main',
+                notesPath: 'docs/planning/seed.md',
+            });
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(SyncedNoteSourceStoreError);
+        expect(thrown).toMatchObject({
+            statusCode: 400,
+            code: 'invalid_synced_note_source_id',
+            message: 'Synced-note source id must match snsrc_<32 lowercase hex characters>',
+        });
+    });
+
+    it('rejects create payload ids that drift from the canonical locator', () => {
+        const store = new SyncedNoteSourceStore({ sourcesDir: tmpDir });
+        const mismatchedId = deriveSyncedNoteSourceId({
+            provider: 'github',
+            host: 'github.com',
+            owner: 'InstructionEngine',
+            repo: 'workspace',
+            branch: 'main',
+            notesPath: 'docs/planning/other.md',
+        });
+
+        let thrown: unknown;
+        try {
+            store.create({
+                id: mismatchedId,
+                provider: 'github',
+                host: 'github.com',
+                owner: 'InstructionEngine',
+                repo: 'workspace',
+                branch: 'main',
+                notesPath: 'docs/planning/seed.md',
+            });
+        } catch (error) {
+            thrown = error;
+        }
+
+        expect(thrown).toBeInstanceOf(SyncedNoteSourceStoreError);
+        expect(thrown).toMatchObject({
+            statusCode: 400,
+            code: 'synced_note_source_locator_mismatch',
+            message: 'Payload id does not match locator',
+        });
     });
 
     it('delete removes persisted synced-note sources', () => {

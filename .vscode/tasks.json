@@ -42,6 +42,16 @@
 			"group": "test"
 		},
 		{
+			"label": "validate: agent delegation",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"scripts/validate-agent-delegation.js"
+			],
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
 			"label": "validate: pointer manifest",
 			"type": "shell",
 			"command": "node",
@@ -91,6 +101,7 @@
 				"test: scripts",
 				"validate: skill discovery map",
 				"validate: agentic schemas",
+				"validate: agent delegation",
 				"validate: vue-free guard",
 				"test: copilot-ui",
 				"test: local-tracker"
