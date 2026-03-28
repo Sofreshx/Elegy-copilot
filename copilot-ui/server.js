@@ -94,6 +94,7 @@ const {
 const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersistenceClient');
 const { createRegistry } = require('./routes');
 const { createExecutorService } = require('./lib/executorService');
+const { createUiRuntimeOverlayService } = require('./lib/uiRuntimeOverlayService');
 const {
   isNonLoopback,
   checkAuth,
@@ -4528,6 +4529,11 @@ async function startServer(options = {}) {
     throw new Error(`Executor service startup failed: ${detail}`);
   }
 
+  const uiRuntimeOverlayService = createUiRuntimeOverlayService({
+    copilotHome,
+    engineRoot,
+  });
+
   let routeRegistry;
   try {
     routeRegistry = createRegistry({
@@ -4619,6 +4625,7 @@ async function startServer(options = {}) {
       readPlanningRecap,
       sdkBridge,
       executorService,
+      uiRuntimeOverlayService,
     });
   } catch (error) {
     await shutdownExecutorServiceSafely(executorService);

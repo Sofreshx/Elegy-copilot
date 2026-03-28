@@ -16,6 +16,7 @@ import SandboxesView from '../Sandboxes/SandboxesView';
 import { sessionsStore } from '../Sessions/sessionsStore';
 import { sdkSessionsStore } from '../Sessions/sdkSessionsStore';
 import { executorStore } from './executorStore';
+import { uiRuntimeOverlayStore } from './uiRuntimeOverlayStore';
 
 function promptPreview(prompt: string): string {
   const normalized = prompt.trim().replace(/\s+/g, ' ');
@@ -25,9 +26,28 @@ function promptPreview(prompt: string): string {
   return `${normalized.slice(0, 117)}...`;
 }
 
+function formatOptionalTimestamp(value: string | null | undefined): string {
+  const parsed = Date.parse(String(value || ''));
+  return Number.isFinite(parsed) ? formatTimestampLabel(parsed) : '(unknown time)';
+}
+
+function resolveOverlayRuntimeOrigin(runtimeUrl: string, runtimeOrigin?: string | null): string {
+  const normalizedOrigin = String(runtimeOrigin || '').trim();
+  if (normalizedOrigin) {
+    return normalizedOrigin;
+  }
+
+  try {
+    return new URL(runtimeUrl).origin;
+  } catch {
+    return runtimeUrl;
+  }
+}
+
 export default function ExecutorView() {
   const executorState = useStoreValue(executorStore);
   const sdkHealthState = useStoreValue(sdkHealthStore);
+  const uiRuntimeOverlayState = useStoreValue(uiRuntimeOverlayStore);
 
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
@@ -42,11 +62,14 @@ export default function ExecutorView() {
   const [baseDelayMs, setBaseDelayMs] = useState('30000');
   const [maxDelayMs, setMaxDelayMs] = useState('300000');
   const [backoffMultiplier, setBackoffMultiplier] = useState('2');
+  const [runtimeUrl, setRuntimeUrl] = useState('');
+  const [packageRoot, setPackageRoot] = useState('');
 
   useEffect(() => {
     void executorStore.load();
     executorStore.startPolling();
     void sdkHealthStore.refresh();
+    void uiRuntimeOverlayStore.load();
 
     return () => {
       executorStore.stopPolling();
@@ -78,6 +101,9 @@ export default function ExecutorView() {
   const sdkBridgeDetail = sdkSummary.status === 'Disabled'
     ? 'Managed SDK sessions and streaming are off. External CLI and VS Code session observation still works; set COPILOT_SDK_BRIDGE=1 to enable SDK-backed execution.'
     : sdkSummary.detail;
+  const selectedCatalogRepo = uiRuntimeOverlayState.selectedRepo;
+  const hasCatalogRepos = uiRuntimeOverlayState.catalogRepos.length > 0;
+  const selectedCatalogRepoLabel = selectedCatalogRepo?.repoLabel || selectedCatalogRepo?.repoId || selectedCatalogRepo?.repoPath || '';
 
   const handleSubmit = async () => {
     const payload: CreateExecutorJobPayload = {
@@ -128,6 +154,26 @@ export default function ExecutorView() {
     })();
   };
 
+  const handleCreateOverlaySession = async () => {
+    const session = await uiRuntimeOverlayStore.createSession({
+      runtimeUrl: runtimeUrl.trim(),
+      packageRoot: packageRoot.trim() || undefined,
+    });
+
+    if (session) {
+      setRuntimeUrl('');
+      setPackageRoot('');
+    }
+  };
+
+  const refreshExecutorSurface = () => {
+    void Promise.all([
+      executorStore.load(),
+      sdkHealthStore.refresh(),
+      uiRuntimeOverlayStore.load(),
+    ]);
+  };
+
   return (
     <section className="sessions-view executor-view" data-testid="executor-view">
       <Toolbar testId="executor-view-toolbar">
@@ -141,9 +187,7 @@ export default function ExecutorView() {
         <div className="showcase-toolbar-group">
           <Button
             disabled={executorState.loading}
-            onClick={() => {
-              void executorStore.load();
-            }}
+            onClick={refreshExecutorSurface}
             testId="executor-refresh"
             variant="secondary"
           >
@@ -193,6 +237,135 @@ export default function ExecutorView() {
       ) : null}
 
       <div className="sessions-grid">
+        <Panel
+          subtitle="Attach-first, runtime-linked foundation for the selected Catalog repo. This prototype registers sessions only; browser observation and overlay canvas behavior come later."
+          testId="executor-ui-runtime-overlay-panel"
+          title="Attach Mode Foundation"
+        >
+          <div className="sessions-controls executor-form-grid">
+            <div className="session-detail">
+              <p className="session-detail-suggestion">
+                <span>Selected Catalog repo:</span>{' '}
+                {selectedCatalogRepoLabel || 'No Catalog repo selected yet.'}
+              </p>
+              <p className="tracker-item-copy">
+                {selectedCatalogRepo
+                  ? `${selectedCatalogRepo.repoId || '(no repo id)'} | ${selectedCatalogRepo.repoPath || '(no repo path)'}`
+                  : hasCatalogRepos
+                    ? 'Choose the visible Catalog repo in the existing Catalog or Planning flow, then come back here to attach a runtime-linked session.'
+                    : 'No Catalog repos are available yet. Register or select one in the existing Catalog flow before attaching a runtime.'}
+              </p>
+              <p className="tracker-item-copy">
+                Attach Mode foundation keeps the repo context server-side and only records a runtime-linked session for the selected Catalog repo.
+              </p>
+            </div>
+
+            <FormInput
+              id="executor-ui-runtime-overlay-runtime-url"
+              label="Runtime URL"
+              onValueChange={setRuntimeUrl}
+              placeholder="http://127.0.0.1:4173"
+              testId="executor-ui-runtime-overlay-runtime-url-input"
+              value={runtimeUrl}
+            />
+
+            <FormInput
+              id="executor-ui-runtime-overlay-package-root"
+              label="Package Root (optional)"
+              onValueChange={setPackageRoot}
+              placeholder="packages/web"
+              testId="executor-ui-runtime-overlay-package-root-input"
+              value={packageRoot}
+            />
+
+            <div className="sessions-actions">
+              <Button
+                onClick={() => navigationStore.goToCatalog('assets')}
+                testId="executor-ui-runtime-overlay-open-catalog"
+                variant="secondary"
+              >
+                Open Catalog Assets
+              </Button>
+              <Button
+                disabled={uiRuntimeOverlayState.loading}
+                onClick={() => {
+                  void uiRuntimeOverlayStore.load();
+                }}
+                testId="executor-ui-runtime-overlay-refresh"
+                variant="ghost"
+              >
+                {uiRuntimeOverlayState.loading ? 'Refreshing...' : 'Refresh Attach Mode'}
+              </Button>
+              <Button
+                disabled={uiRuntimeOverlayState.creating || runtimeUrl.trim().length === 0 || !selectedCatalogRepo}
+                onClick={() => {
+                  void handleCreateOverlaySession();
+                }}
+                testId="executor-ui-runtime-overlay-create"
+              >
+                {uiRuntimeOverlayState.creating ? 'Attaching...' : 'Create Attached Session'}
+              </Button>
+            </div>
+          </div>
+
+          {uiRuntimeOverlayState.error ? (
+            <p className="sessions-error" role="alert">
+              {uiRuntimeOverlayState.error}
+            </p>
+          ) : null}
+
+          {uiRuntimeOverlayState.sessions.length === 0 ? (
+            <p className="state-message">No runtime-linked attach sessions have been recorded yet.</p>
+          ) : (
+            <ul className="tracker-session-list executor-job-list">
+              {uiRuntimeOverlayState.sessions.map((session) => {
+                const isAttachedSession = session.status === 'attached';
+                const runtimeOrigin = resolveOverlayRuntimeOrigin(session.runtimeUrl, session.runtimeOrigin);
+
+                return (
+                  <li key={session.id}>
+                    <div>
+                      <p className="tracker-item-title">{session.repoLabel || session.repoId}</p>
+                      <p className="tracker-item-copy">
+                        {session.status}
+                        {' | '}
+                        {runtimeOrigin}
+                        {' | updated '}
+                        {formatOptionalTimestamp(session.updatedAt)}
+                      </p>
+                      <p className="tracker-item-copy">Runtime URL: {session.runtimeUrl}</p>
+                      <p className="tracker-item-copy">
+                        Repo: {session.repoLabel || session.repoId} | Package root: {session.packageRoot}
+                      </p>
+                      <p className="tracker-item-copy">Session ID: {session.id}</p>
+                      {session.closedAt ? (
+                        <p className="tracker-item-copy">Closed: {formatOptionalTimestamp(session.closedAt)}</p>
+                      ) : null}
+                    </div>
+                    <div className="tracker-item-actions">
+                      {isAttachedSession ? (
+                        <Button
+                          disabled={uiRuntimeOverlayState.closing && uiRuntimeOverlayState.closingSessionId === session.id}
+                          onClick={() => {
+                            void uiRuntimeOverlayStore.closeSession(session.id);
+                          }}
+                          size="sm"
+                          testId={`executor-ui-runtime-overlay-close-${session.id}`}
+                          variant="ghost"
+                        >
+                          {uiRuntimeOverlayState.closing && uiRuntimeOverlayState.closingSessionId === session.id
+                            ? 'Closing...'
+                            : 'Close Session'}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Panel>
+
         <Panel
           subtitle="Create a run-now or schedule-later prompt with per-job retry settings."
           testId="executor-create-panel"

@@ -90,6 +90,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./backlog'), context);
   registry.registerModule(require('./roadmaps'), context);
   registry.registerModule(require('./sessions'), context);
+  registry.registerModule(require('./uiRuntimeOverlay'), context);
   registry.registerModule(require('./gateway'), context);
   registry.registerModule(require('./tracker'), context);
 

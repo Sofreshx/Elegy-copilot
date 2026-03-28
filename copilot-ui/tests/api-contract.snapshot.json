@@ -1457,5 +1457,29 @@
     "bodyKeys": [
       "error"
     ]
+  },
+  "GET /api/ui-runtime-overlay/sessions": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "sessions"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/close": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
   }
 }

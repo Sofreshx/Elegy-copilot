@@ -32,6 +32,36 @@ export interface SessionsListResponse {
   sessions: SessionSummary[];
 }
 
+export interface UiRuntimeOverlaySession {
+  id: string;
+  status: 'attached' | 'closed' | string;
+  runtimeUrl: string;
+  runtimeOrigin?: string | null;
+  repoId: string;
+  repoPath: string;
+  repoLabel: string;
+  packageRoot: string;
+  phase?: string | null;
+  evidence?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  closedAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface UiRuntimeOverlaySessionsResponse {
+  sessions: UiRuntimeOverlaySession[];
+}
+
+export interface CreateUiRuntimeOverlaySessionPayload {
+  runtimeUrl: string;
+  packageRoot?: string;
+}
+
+export interface UiRuntimeOverlaySessionMutationResponse {
+  session: UiRuntimeOverlaySession;
+}
+
 export interface SessionPlanArtifact {
   id: string;
   kind?: string;

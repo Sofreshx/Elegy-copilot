@@ -21,6 +21,7 @@ import type {
   CancelExecutorJobResponse,
   CreateExecutorJobPayload,
   CreateExecutorJobResponse,
+  CreateUiRuntimeOverlaySessionPayload,
   ExecutorHealthResponse,
   ExecutorJob,
   ExecutorJobsResponse,
@@ -104,6 +105,8 @@ import type {
   TrackerPermissionsResponse,
   TrackerSessionsResponse,
   TriggerExecutorJobResponse,
+  UiRuntimeOverlaySessionMutationResponse,
+  UiRuntimeOverlaySessionsResponse,
   VersionResponse,
 } from './types';
 
@@ -2583,6 +2586,39 @@ export function listSessions(baseUrl?: string, options: ListSessionsOptions = {}
       dedupe: options.dedupe,
     },
   });
+}
+
+export function listUiRuntimeOverlaySessions(baseUrl?: string): Promise<UiRuntimeOverlaySessionsResponse> {
+  return apiRequest<UiRuntimeOverlaySessionsResponse>('/api/ui-runtime-overlay/sessions', {
+    baseUrl,
+  });
+}
+
+export function createUiRuntimeOverlaySession(
+  payload: CreateUiRuntimeOverlaySessionPayload,
+  baseUrl?: string
+): Promise<UiRuntimeOverlaySessionMutationResponse> {
+  return apiRequest<UiRuntimeOverlaySessionMutationResponse>('/api/ui-runtime-overlay/sessions', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function closeUiRuntimeOverlaySession(
+  sessionId: string,
+  baseUrl?: string
+): Promise<UiRuntimeOverlaySessionMutationResponse> {
+  return apiRequest<UiRuntimeOverlaySessionMutationResponse>(
+    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/close`,
+    {
+      baseUrl,
+      method: 'POST',
+    }
+  );
 }
 
 export function listSessionPlans(

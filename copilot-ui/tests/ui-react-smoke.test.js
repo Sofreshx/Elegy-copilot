@@ -159,6 +159,14 @@ async function run() {
       executorViewSource.includes('executor-sandbox-mode-section'),
       'Expected ExecutorView to absorb sandbox lifecycle as an embedded execution mode section'
     );
+    assert.ok(
+      executorViewSource.includes('Attach Mode Foundation'),
+      'Expected ExecutorView to expose the attach-first runtime overlay foundation panel'
+    );
+    assert.ok(
+      executorViewSource.includes('executor-ui-runtime-overlay-panel'),
+      'Expected ExecutorView to expose a stable test id for the attach mode foundation panel'
+    );
   });
 
   await test('stats tab aggregates runtime, catalog, and sampled recent session telemetry', async () => {

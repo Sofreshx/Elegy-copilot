@@ -1,6 +1,6 @@
 ---
 created: 2026-03-23
-updated: 2026-03-23
+updated: 2026-03-28
 category: meta
 status: current
 doc_kind: node
@@ -11,7 +11,7 @@ summary: Repository-backed backlog of queued and planned work across repo planni
 
 <!-- REPOSITORY_BACKLOG_FORMAT_VERSION: 1 -->
 
-Repository-scoped intake and queued work across repo planning workstreams. The current items span the synced-note planner replacement work plus orchestrator follow-up adoption for **Session Intent Frame** / **Session Closure Summary**. Synced-note source contracts, tracker-side source persistence plus CRUD wiring, Planning seed provenance support, and the framing/closure contract hardening slice are already complete; the backlog below captures the remaining delivery, adoption, and validation work without changing canonical planning authorities or introducing out-of-scope memory/provider-routing work.
+Repository-scoped intake and queued work across repo planning workstreams. The current items span the remaining synced-note planner replacement work, orchestrator follow-up adoption for **Session Intent Frame** / **Session Closure Summary**, and the new **UI Runtime Overlay** lane for attach-first runtime observation in `copilot-ui`. Synced-note source contracts, tracker-side source persistence plus CRUD wiring, Planning seed provenance support, and the framing/closure contract hardening slice are already complete; the backlog below captures the remaining delivery, adoption, validation, and runtime-overlay planning work without changing canonical planning authorities or overpromising unsupported preview or automation behavior.
 
 ## RB-001 - Validate synced-note source lifecycle and backend contract
 - Status: planned
@@ -162,3 +162,108 @@ Define the **Workflow Change Policy** contract and integrate policy snapshot han
 ### Key Points
 - 2026-03-23: Research for rewrite or refactor aggressiveness is complete; the remaining work is the contract, policy semantics, and snapshot integration.
 - 2026-03-23: This policy should guide mutation behavior and review expectations without turning Roadmap or Repository Backlog items into Plan Pack-level execution specs.
+
+## RB-011 - Define the Attach Mode target contract for linked runtime and repo context
+- Status: planned
+- Roadmap IDs: RM-ui-runtime-overlay-001
+- Plan Refs: none
+- Satisfied By Plan Ref: none
+- Superseded By Plan Ref: none
+- Abandoned By Plan Ref: none
+- Importance: 10
+
+Define the Attach Mode target contract that binds a runtime URL, selected Catalog repo, optional folder or package-root override, and overlay session metadata so the system can inspect the live UI and route edits to the correct codebase.
+
+### Key Points
+- 2026-03-28: Reuse existing repo selection as the authority for what codebase the overlay may affect.
+- 2026-03-28: Fail closed when the runtime, repo, or package root cannot be verified.
+
+## RB-012 - Add operator-facing overlay controls to Home / Runtime
+- Status: planned
+- Roadmap IDs: RM-ui-runtime-overlay-004
+- Plan Refs: none
+- Satisfied By Plan Ref: none
+- Superseded By Plan Ref: none
+- Abandoned By Plan Ref: none
+- Importance: 9
+
+Add operator-facing overlay controls under Home / Runtime, centered on Sessions and Executor, so an operator can start, resume, inspect, and end overlay sessions without leaving copilot-ui's canonical control plane.
+
+### Key Points
+- 2026-03-28: The runtime hub should show attach state, selected repo, evidence status, and quick actions.
+- 2026-03-28: Sandboxing may appear as an execution option but not as the primary product frame.
+
+## RB-013 - Define the live observation contract for overlay sessions
+- Status: planned
+- Roadmap IDs: RM-ui-runtime-overlay-002
+- Plan Refs: none
+- Satisfied By Plan Ref: none
+- Superseded By Plan Ref: none
+- Abandoned By Plan Ref: none
+- Importance: 10
+
+Establish the observation contract for live UI sessions, including semantic snapshots, element locator metadata, interaction events, and bounded timing or state captures that make UI inspection useful without pretending to be a full visual builder or full test suite.
+
+### Key Points
+- 2026-03-28: Snapshots are primary evidence and screenshots are secondary.
+- 2026-03-28: Observation artifacts should support real issue triage and change requests, not just passive viewing.
+
+## RB-014 - Add element-level issue posting and change-request flow
+- Status: planned
+- Roadmap IDs: RM-ui-runtime-overlay-005
+- Plan Refs: none
+- Satisfied By Plan Ref: none
+- Superseded By Plan Ref: none
+- Abandoned By Plan Ref: none
+- Importance: 10
+
+Add element-level annotation, issue posting, and narrow change-request flow so operators can click a live UI element, describe the problem, and hand off a scoped fix request into executor-backed code changes against the linked repo.
+
+### Key Points
+- 2026-03-28: Issue or change-request drafts must carry element and evidence references.
+- 2026-03-28: Promotion into canonical planning surfaces should be explicit rather than automatic.
+
+## RB-015 - Define safety, authority, and capability boundaries for live UI editing
+- Status: planned
+- Roadmap IDs: RM-ui-runtime-overlay-003
+- Plan Refs: none
+- Satisfied By Plan Ref: none
+- Superseded By Plan Ref: none
+- Abandoned By Plan Ref: none
+- Importance: 10
+
+Define safety, authority, and capability boundaries for observing a live app and editing real code, including unsupported-runtime gating, operator confirmation, and explicit separation between runtime observation, canonical planning docs, and session execution artifacts.
+
+### Key Points
+- 2026-03-28: Catalog repo selection remains the repo authority and Obsidian remains additive and non-canonical.
+- 2026-03-28: Unsupported stacks or ambiguous targets must fail closed instead of inferring unsafe behavior.
+
+## RB-016 - Add bounded validation and UI-quality signal analysis
+- Status: proposed
+- Roadmap IDs: RM-ui-runtime-overlay-006
+- Plan Refs: none
+- Satisfied By Plan Ref: none
+- Superseded By Plan Ref: none
+- Abandoned By Plan Ref: none
+- Importance: 9
+
+Create a bounded validation and UI-quality signal model that can catch slow buttons, inert controls, empty or stuck states, and obvious regressions using snapshot deltas, interaction timing, reload confirmation, and targeted operator checks.
+
+### Key Points
+- 2026-03-28: Validation must work even when scripted automation is limited.
+- 2026-03-28: Playwright or E2E probes are optional amplifiers only when a repo already supports them.
+
+## RB-017 - Define Preview Mode recipe contract for isolated UI previews
+- Status: proposed
+- Roadmap IDs: RM-ui-runtime-overlay-007
+- Plan Refs: none
+- Satisfied By Plan Ref: none
+- Superseded By Plan Ref: none
+- Abandoned By Plan Ref: none
+- Importance: 7
+
+Define the later Preview Mode recipe contract so isolated previews can be added after Attach Mode stabilizes, using explicit repo-declared launch recipes instead of generic backend mocking or early builder ambitions.
+
+### Key Points
+- 2026-03-28: Preview profiles should be explicit, capability-gated, and repo-readable.
+- 2026-03-28: Generic mock-backend generation stays out of early phases.
