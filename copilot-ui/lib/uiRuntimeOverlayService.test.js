@@ -44,6 +44,15 @@ function createNowSequence(values) {
   };
 }
 
+function registerSelectedRepo(copilotHome, repoPath, repoLabel = 'Selected Repo') {
+  registerRepo({
+    copilotHome,
+    repoPath,
+    repoLabel,
+    select: true,
+  });
+}
+
 async function run() {
   console.log('\nUI Runtime Overlay Service Tests\n');
 
@@ -57,12 +66,7 @@ async function run() {
       fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
       fs.mkdirSync(packageRoot, { recursive: true });
       writeJson(path.join(repoPath, 'package.json'), { name: 'selected-repo' });
-      registerRepo({
-        copilotHome,
-        repoPath,
-        repoLabel: 'Selected Repo',
-        select: true,
-      });
+      registerSelectedRepo(copilotHome, repoPath);
 
       const service = createUiRuntimeOverlayService(
         { copilotHome },
@@ -115,12 +119,7 @@ async function run() {
       fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
       fs.mkdirSync(outsidePath, { recursive: true });
       writeText(path.join(repoPath, 'README.md'), '# selected\n');
-      registerRepo({
-        copilotHome,
-        repoPath,
-        repoLabel: 'Selected Repo',
-        select: true,
-      });
+      registerSelectedRepo(copilotHome, repoPath);
 
       const service = createUiRuntimeOverlayService({ copilotHome });
       await assert.rejects(
@@ -142,12 +141,7 @@ async function run() {
 
     try {
       fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
-      registerRepo({
-        copilotHome,
-        repoPath,
-        repoLabel: 'Selected Repo',
-        select: true,
-      });
+      registerSelectedRepo(copilotHome, repoPath);
 
       const service = createUiRuntimeOverlayService(
         { copilotHome },
@@ -163,6 +157,586 @@ async function run() {
       assert.equal(closed.updatedAt, '2026-03-28T10:05:00.000Z');
       assert.equal(closed.closedAt, '2026-03-28T10:05:00.000Z');
       assert.equal(service.listSessions()[0].status, 'closed');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('closed sessions reject non-cleanup overlay mutations with a 409 conflict', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        {
+          now: createNowSequence([
+            '2026-03-28T10:00:00.000Z',
+            '2026-03-28T10:01:00.000Z',
+            '2026-03-28T10:02:00.000Z',
+          ]),
+        }
+      );
+
+      const session = service.createSession({ runtimeUrl: 'http://127.0.0.1:4173' });
+      const changeRequest = service.addChangeRequest(session.id, {
+        request: 'Keep a draft change request available before the session closes.',
+      }).changeRequest;
+
+      service.closeSession(session.id);
+
+      for (const mutate of [
+        () => service.addObservation(session.id, { kind: 'note', summary: 'Closed session mutation.' }),
+        () => service.addAnnotation(session.id, { message: 'Closed session mutation.' }),
+        () => service.addChangeRequest(session.id, { request: 'Closed session mutation.' }),
+        () => service.queueChangeRequest(session.id, changeRequest.id, { executorJobId: 'job-closed' }),
+      ]) {
+        await assert.rejects(
+          Promise.resolve().then(() => mutate()),
+          (error) => error && error.statusCode === 409 && /session is closed/i.test(error.message),
+        );
+      }
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('release cleanup remains safe and idempotent for closed sessions', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(repoPath, { recursive: true });
+      writeJson(resolveUiRuntimeOverlayStatePath(copilotHome), {
+        version: 1,
+        sessions: [
+          {
+            id: 'overlay-closed',
+            status: 'closed',
+            runtimeUrl: 'http://127.0.0.1:4173/',
+            repoId: 'repo-1',
+            repoPath,
+            repoLabel: 'Selected Repo',
+            packageRoot: repoPath,
+            phase: 'closed',
+            evidence: { source: 'copilot-ui', kind: 'runtime-url-registration' },
+            observations: [],
+            annotations: [],
+            changeRequests: [
+              {
+                id: 'cr-closed',
+                observationId: null,
+                annotationId: null,
+                title: 'Release cleanup should clear stale reservation state.',
+                request: 'Release cleanup should clear stale reservation state.',
+                prompt: 'Release cleanup should clear stale reservation state.',
+                status: 'reserved',
+                reservationId: 'uiro-reservation-closed',
+                executorJobId: null,
+                executorRunId: null,
+                createdAt: '2026-03-28T10:01:00.000Z',
+                updatedAt: '2026-03-28T10:02:00.000Z',
+                queuedAt: null,
+              },
+            ],
+            qualitySignals: [],
+            lastAnalyzedAt: null,
+            createdAt: '2026-03-28T10:00:00.000Z',
+            updatedAt: '2026-03-28T10:02:00.000Z',
+            closedAt: '2026-03-28T10:02:00.000Z',
+          },
+        ],
+      });
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        { now: createNowSequence(['2026-03-28T10:03:00.000Z']) }
+      );
+
+      const released = service.releaseQueueChangeRequest('overlay-closed', 'cr-closed');
+      const releasedAgain = service.releaseQueueChangeRequest('overlay-closed', 'cr-closed');
+
+      assert.equal(released.session.status, 'closed');
+      assert.equal(released.changeRequest.status, 'draft');
+      assert.equal(released.changeRequest.reservationId, null);
+      assert.equal(releasedAgain.session.status, 'closed');
+      assert.equal(releasedAgain.changeRequest.status, 'draft');
+      assert.equal(releasedAgain.changeRequest.reservationId, null);
+
+      const stored = service.getChangeRequest('overlay-closed', 'cr-closed');
+      assert.equal(stored.status, 'draft');
+      assert.equal(stored.reservationId, null);
+      assert.equal(stored.updatedAt, '2026-03-28T10:03:00.000Z');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('observation creation derives deterministic quality signals and updates lastAnalyzedAt', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        {
+          now: createNowSequence([
+            '2026-03-28T10:00:00.000Z',
+            '2026-03-28T10:01:00.000Z',
+            '2026-03-28T10:02:00.000Z',
+          ]),
+        }
+      );
+
+      const session = service.createSession({ runtimeUrl: 'http://127.0.0.1:4173' });
+      const first = service.addObservation(session.id, {
+        kind: 'interaction',
+        summary: 'Save button click did nothing and stayed disabled.',
+        locator: { role: 'button', label: 'Save' },
+        interaction: {
+          action: 'click',
+          outcome: 'no-op, still loading spinner after timeout',
+          latencyMs: 2200,
+        },
+        state: {
+          kind: 'loading',
+          detail: 'blocked and disabled while spinner stayed visible',
+        },
+      });
+      const second = service.addObservation(session.id, {
+        kind: 'state',
+        summary: 'Orders screen shows an error banner with no results.',
+        snapshotSummary: 'Empty state visible after failed fetch.',
+        state: {
+          kind: 'error',
+          detail: 'Failed to load orders and empty state displayed with no items.',
+        },
+      });
+
+      const stored = service.getSession(session.id);
+      const signalKinds = stored.qualitySignals.map((entry) => entry.kind).sort();
+
+      assert.deepEqual(first.qualitySignals.map((entry) => entry.kind).sort(), [
+        'blocked-control',
+        'inert-control',
+        'slow-interaction',
+        'stuck-loading',
+      ]);
+      assert.ok(second.qualitySignals.some((entry) => entry.kind === 'error-state'));
+      assert.ok(signalKinds.includes('empty-state'));
+      assert.ok(signalKinds.includes('error-state'));
+      assert.ok(signalKinds.includes('slow-interaction'));
+      assert.equal(stored.lastAnalyzedAt, '2026-03-28T10:02:00.000Z');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('annotation creation persists and links to an observation', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        {
+          now: createNowSequence([
+            '2026-03-28T10:00:00.000Z',
+            '2026-03-28T10:01:00.000Z',
+            '2026-03-28T10:02:00.000Z',
+          ]),
+        }
+      );
+
+      const session = service.createSession({ runtimeUrl: 'http://127.0.0.1:4173' });
+      const observation = service.addObservation(session.id, {
+        kind: 'snapshot',
+        summary: 'Checkout form label overlaps the submit button.',
+      }).observation;
+      const result = service.addAnnotation(session.id, {
+        observationId: observation.id,
+        title: 'Overlapping label',
+        message: 'The shipping label overlaps the primary submit button.',
+      });
+
+      const stored = service.getSession(session.id);
+
+      assert.equal(result.annotation.observationId, observation.id);
+      assert.equal(result.annotation.title, 'Overlapping label');
+      assert.equal(stored.annotations.length, 1);
+      assert.equal(stored.annotations[0].message, 'The shipping label overlaps the primary submit button.');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('change request creation builds a default prompt from session, observation, and annotation context', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath, 'Storefront App');
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        {
+          now: createNowSequence([
+            '2026-03-28T10:00:00.000Z',
+            '2026-03-28T10:01:00.000Z',
+            '2026-03-28T10:02:00.000Z',
+            '2026-03-28T10:03:00.000Z',
+          ]),
+        }
+      );
+
+      const session = service.createSession({ runtimeUrl: 'http://127.0.0.1:4173/app' });
+      const observation = service.addObservation(session.id, {
+        kind: 'interaction',
+        summary: 'Primary CTA remains disabled after the form becomes valid.',
+        locator: { role: 'button', label: 'Save profile' },
+      }).observation;
+      const annotation = service.addAnnotation(session.id, {
+        observationId: observation.id,
+        title: 'CTA never enables',
+        message: 'The save profile button does not enable after valid input.',
+      }).annotation;
+      const result = service.addChangeRequest(session.id, {
+        annotationId: annotation.id,
+        request: 'Enable the CTA once all required profile fields are valid.',
+      });
+
+      assert.equal(result.changeRequest.annotationId, annotation.id);
+      assert.equal(result.changeRequest.observationId, observation.id);
+      assert.match(result.changeRequest.prompt, /Storefront App/);
+      assert.match(result.changeRequest.prompt, /Primary CTA remains disabled/);
+      assert.match(result.changeRequest.prompt, /CTA never enables/);
+      assert.match(result.changeRequest.prompt, /Enable the CTA once all required profile fields are valid/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('change request creation rejects non-draft status input', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        { now: createNowSequence(['2026-03-28T10:00:00.000Z']) }
+      );
+
+      const session = service.createSession({ runtimeUrl: 'http://127.0.0.1:4173' });
+
+      await assert.rejects(
+        Promise.resolve().then(() => service.addChangeRequest(session.id, {
+          request: 'Create an impossible queued-on-create change request.',
+          status: 'queued',
+        })),
+        (error) => error && error.statusCode === 400 && /must be draft/i.test(error.message),
+      );
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('queueing a change request stores executor job linkage on the persisted change request', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        {
+          now: createNowSequence([
+            '2026-03-28T10:00:00.000Z',
+            '2026-03-28T10:01:00.000Z',
+            '2026-03-28T10:02:00.000Z',
+            '2026-03-28T10:03:00.000Z',
+          ]),
+        }
+      );
+
+      const session = service.createSession({ runtimeUrl: 'http://127.0.0.1:4173' });
+      const changeRequest = service.addChangeRequest(session.id, {
+        request: 'Tighten the spacing between the card title and action row.',
+      }).changeRequest;
+      const reserved = service.reserveQueueChangeRequest(session.id, changeRequest.id);
+      const queued = service.queueChangeRequest(session.id, changeRequest.id, {
+        reservationId: reserved.changeRequest.reservationId,
+        executorJobId: 'job-123',
+        executorRunId: 'run-456',
+      });
+
+      assert.equal(reserved.changeRequest.status, 'reserved');
+      assert.match(reserved.changeRequest.reservationId, /^uiro-reservation-/);
+      assert.equal(queued.changeRequest.status, 'queued');
+      assert.equal(queued.changeRequest.reservationId, null);
+      assert.equal(queued.changeRequest.executorJobId, 'job-123');
+      assert.equal(queued.changeRequest.executorRunId, 'run-456');
+      assert.equal(queued.changeRequest.queuedAt, '2026-03-28T10:03:00.000Z');
+
+      const stored = service.getChangeRequest(session.id, changeRequest.id);
+      assert.equal(stored.reservationId, null);
+      assert.equal(stored.executorJobId, 'job-123');
+      assert.equal(stored.executorRunId, 'run-456');
+      assert.equal(stored.queuedAt, '2026-03-28T10:03:00.000Z');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('queue reservation blocks duplicate queue attempts before final linkage', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        {
+          now: createNowSequence([
+            '2026-03-28T10:00:00.000Z',
+            '2026-03-28T10:01:00.000Z',
+            '2026-03-28T10:02:00.000Z',
+          ]),
+        }
+      );
+
+      const session = service.createSession({ runtimeUrl: 'http://127.0.0.1:4173' });
+      const changeRequest = service.addChangeRequest(session.id, {
+        request: 'Reserve me once and reject the duplicate queue attempt.',
+      }).changeRequest;
+
+      service.reserveQueueChangeRequest(session.id, changeRequest.id);
+
+      await assert.rejects(
+        Promise.resolve().then(() => service.reserveQueueChangeRequest(session.id, changeRequest.id)),
+        (error) => error && error.statusCode === 409 && /already reserved/i.test(error.message),
+      );
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('closing a session is blocked while a queue reservation is in progress', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        {
+          now: createNowSequence([
+            '2026-03-28T10:00:00.000Z',
+            '2026-03-28T10:01:00.000Z',
+            '2026-03-28T10:02:00.000Z',
+          ]),
+        }
+      );
+
+      const session = service.createSession({ runtimeUrl: 'http://127.0.0.1:4173' });
+      const changeRequest = service.addChangeRequest(session.id, {
+        request: 'Block close while queue reservation is active.',
+      }).changeRequest;
+
+      service.reserveQueueChangeRequest(session.id, changeRequest.id);
+
+      await assert.rejects(
+        Promise.resolve().then(() => service.closeSession(session.id)),
+        (error) => error && error.statusCode === 409 && /reservation is in progress/i.test(error.message),
+      );
+
+      assert.equal(service.getChangeRequest(session.id, changeRequest.id).status, 'reserved');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('queueing rejects change requests that are already queued', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        {
+          now: createNowSequence([
+            '2026-03-28T10:00:00.000Z',
+            '2026-03-28T10:01:00.000Z',
+            '2026-03-28T10:02:00.000Z',
+          ]),
+        }
+      );
+
+      const session = service.createSession({ runtimeUrl: 'http://127.0.0.1:4173' });
+      const changeRequest = service.addChangeRequest(session.id, {
+        request: 'Queue me once and reject the duplicate queue attempt.',
+      }).changeRequest;
+      const reserved = service.reserveQueueChangeRequest(session.id, changeRequest.id);
+
+      service.queueChangeRequest(session.id, changeRequest.id, {
+        reservationId: reserved.changeRequest.reservationId,
+        executorJobId: 'job-123',
+      });
+
+      await assert.rejects(
+        Promise.resolve().then(() => service.queueChangeRequest(session.id, changeRequest.id, {
+          reservationId: reserved.changeRequest.reservationId,
+          executorJobId: 'job-456',
+        })),
+        (error) => error && error.statusCode === 409 && /already queued/i.test(error.message),
+      );
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('releasing a reservation invalidates the original queue handoff token', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        {
+          now: createNowSequence([
+            '2026-03-28T10:00:00.000Z',
+            '2026-03-28T10:01:00.000Z',
+            '2026-03-28T10:02:00.000Z',
+            '2026-03-28T10:03:00.000Z',
+          ]),
+        }
+      );
+
+      const session = service.createSession({ runtimeUrl: 'http://127.0.0.1:4173' });
+      const changeRequest = service.addChangeRequest(session.id, {
+        request: 'Invalidate the old reservation token after release.',
+      }).changeRequest;
+      const reserved = service.reserveQueueChangeRequest(session.id, changeRequest.id);
+
+      service.releaseQueueChangeRequest(session.id, changeRequest.id);
+
+      await assert.rejects(
+        Promise.resolve().then(() => service.queueChangeRequest(session.id, changeRequest.id, {
+          reservationId: reserved.changeRequest.reservationId,
+          executorJobId: 'job-stale',
+        })),
+        (error) => error && error.statusCode === 409 && /reservation is no longer active/i.test(error.message),
+      );
+
+      const stored = service.getChangeRequest(session.id, changeRequest.id);
+      assert.equal(stored.status, 'draft');
+      assert.equal(stored.reservationId, null);
+      assert.equal(stored.executorJobId, null);
+      assert.equal(stored.queuedAt, null);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('state mutations fail safely when the state lock cannot be acquired in time', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+    const stateLockPath = `${resolveUiRuntimeOverlayStatePath(copilotHome)}.lock`;
+
+    try {
+      fs.mkdirSync(path.join(repoPath, '.git'), { recursive: true });
+      fs.mkdirSync(stateLockPath, { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        {
+          stateLockTimeoutMs: 0,
+          stateLockRetryDelayMs: 0,
+          stateLockStaleMs: 60_000,
+        }
+      );
+
+      await assert.rejects(
+        Promise.resolve().then(() => service.createSession({ runtimeUrl: 'http://127.0.0.1:4173' })),
+        (error) => error && error.statusCode === 503 && /state is busy/i.test(error.message),
+      );
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('legacy session state normalizes missing overlay collections', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+
+    try {
+      fs.mkdirSync(repoPath, { recursive: true });
+      writeJson(resolveUiRuntimeOverlayStatePath(copilotHome), {
+        version: 1,
+        sessions: [
+          {
+            id: 'overlay-legacy',
+            status: 'attached',
+            runtimeUrl: 'http://127.0.0.1:4173/',
+            repoId: 'repo-legacy',
+            repoPath,
+            repoLabel: 'Legacy Repo',
+            packageRoot: repoPath,
+            phase: 'attached',
+            evidence: { source: 'copilot-ui', kind: 'runtime-url-registration' },
+            createdAt: '2026-03-28T10:00:00.000Z',
+            updatedAt: '2026-03-28T10:00:00.000Z',
+            closedAt: null,
+          },
+        ],
+      });
+
+      const service = createUiRuntimeOverlayService({ copilotHome });
+      const [session] = service.listSessions();
+
+      assert.deepEqual(session.observations, []);
+      assert.deepEqual(session.annotations, []);
+      assert.deepEqual(session.changeRequests, []);
+      assert.deepEqual(session.qualitySignals, []);
+      assert.equal(session.lastAnalyzedAt, null);
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }

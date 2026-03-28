@@ -21,6 +21,9 @@ import type {
   CancelExecutorJobResponse,
   CreateExecutorJobPayload,
   CreateExecutorJobResponse,
+  CreateUiRuntimeOverlayAnnotationPayload,
+  CreateUiRuntimeOverlayChangeRequestPayload,
+  CreateUiRuntimeOverlayObservationPayload,
   CreateUiRuntimeOverlaySessionPayload,
   ExecutorHealthResponse,
   ExecutorJob,
@@ -105,6 +108,10 @@ import type {
   TrackerPermissionsResponse,
   TrackerSessionsResponse,
   TriggerExecutorJobResponse,
+  UiRuntimeOverlayAnnotationMutationResponse,
+  UiRuntimeOverlayChangeRequestMutationResponse,
+  UiRuntimeOverlayObservationMutationResponse,
+  UiRuntimeOverlayQueueChangeRequestResponse,
   UiRuntimeOverlaySessionMutationResponse,
   UiRuntimeOverlaySessionsResponse,
   VersionResponse,
@@ -2614,6 +2621,88 @@ export function closeUiRuntimeOverlaySession(
 ): Promise<UiRuntimeOverlaySessionMutationResponse> {
   return apiRequest<UiRuntimeOverlaySessionMutationResponse>(
     `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/close`,
+    {
+      baseUrl,
+      method: 'POST',
+    }
+  );
+}
+
+export function addUiRuntimeOverlayObservation(
+  sessionId: string,
+  payload: CreateUiRuntimeOverlayObservationPayload,
+  baseUrl?: string
+): Promise<UiRuntimeOverlayObservationMutationResponse> {
+  return apiRequest<UiRuntimeOverlayObservationMutationResponse>(
+    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/observations`,
+    {
+      baseUrl,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function addUiRuntimeOverlayAnnotation(
+  sessionId: string,
+  payload: CreateUiRuntimeOverlayAnnotationPayload,
+  baseUrl?: string
+): Promise<UiRuntimeOverlayAnnotationMutationResponse> {
+  return apiRequest<UiRuntimeOverlayAnnotationMutationResponse>(
+    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/annotations`,
+    {
+      baseUrl,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function addUiRuntimeOverlayChangeRequest(
+  sessionId: string,
+  payload: CreateUiRuntimeOverlayChangeRequestPayload,
+  baseUrl?: string
+): Promise<UiRuntimeOverlayChangeRequestMutationResponse> {
+  return apiRequest<UiRuntimeOverlayChangeRequestMutationResponse>(
+    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/change-requests`,
+    {
+      baseUrl,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function releaseUiRuntimeOverlayChangeRequest(
+  sessionId: string,
+  changeRequestId: string,
+  baseUrl?: string
+): Promise<UiRuntimeOverlayChangeRequestMutationResponse> {
+  return apiRequest<UiRuntimeOverlayChangeRequestMutationResponse>(
+    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/change-requests/${encodeURIComponent(changeRequestId)}/release`,
+    {
+      baseUrl,
+      method: 'POST',
+    }
+  );
+}
+
+export function queueUiRuntimeOverlayChangeRequest(
+  sessionId: string,
+  changeRequestId: string,
+  baseUrl?: string
+): Promise<UiRuntimeOverlayQueueChangeRequestResponse> {
+  return apiRequest<UiRuntimeOverlayQueueChangeRequestResponse>(
+    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/change-requests/${encodeURIComponent(changeRequestId)}/executor-job`,
     {
       baseUrl,
       method: 'POST',

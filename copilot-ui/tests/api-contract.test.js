@@ -246,10 +246,15 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/tracker/permissions/test-id/approve' },
   { method: 'POST', path: '/api/tracker/lifecycle/start' },
 
-  // UI Runtime Overlay (3)
+  // UI Runtime Overlay (8)
   { method: 'GET', path: '/api/ui-runtime-overlay/sessions' },
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions' },
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/close' },
+  { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/observations' },
+  { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/annotations' },
+  { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests' },
+  { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/release' },
+  { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/executor-job' },
 
   // SDK bridge (6)
   { method: 'GET', path: '/api/sdk/health' },
@@ -425,7 +430,7 @@ async function run() {
 
     // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 131, `Expected 131 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 136, `Expected 136 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

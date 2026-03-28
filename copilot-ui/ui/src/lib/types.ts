@@ -32,6 +32,80 @@ export interface SessionsListResponse {
   sessions: SessionSummary[];
 }
 
+export type UiRuntimeOverlayObservationKind = 'snapshot' | 'interaction' | 'state' | 'locator' | 'note' | string;
+
+export type UiRuntimeOverlayAnnotationStatus = 'open' | 'resolved' | 'dismissed' | string;
+
+export type UiRuntimeOverlayChangeRequestStatus = 'draft' | 'reserved' | 'queued' | 'completed' | 'dismissed' | string;
+
+export type UiRuntimeOverlayQualitySignalSeverity = 'info' | 'warning' | 'error' | string;
+
+export interface UiRuntimeOverlayLocator {
+  selector: string | null;
+  role: string | null;
+  label: string | null;
+  text: string | null;
+  testId: string | null;
+  componentName: string | null;
+}
+
+export interface UiRuntimeOverlayInteraction {
+  action: string | null;
+  outcome: string | null;
+  latencyMs: number | null;
+}
+
+export interface UiRuntimeOverlayObservationState {
+  kind: string | null;
+  detail: string | null;
+}
+
+export interface UiRuntimeOverlayObservation {
+  id: string;
+  kind: UiRuntimeOverlayObservationKind;
+  summary: string;
+  locator: UiRuntimeOverlayLocator | null;
+  snapshotSummary: string | null;
+  interaction: UiRuntimeOverlayInteraction | null;
+  state: UiRuntimeOverlayObservationState | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UiRuntimeOverlayAnnotation {
+  id: string;
+  observationId: string | null;
+  title: string;
+  message: string;
+  status: UiRuntimeOverlayAnnotationStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UiRuntimeOverlayChangeRequest {
+  id: string;
+  observationId: string | null;
+  annotationId: string | null;
+  title: string;
+  request: string;
+  prompt: string | null;
+  status: UiRuntimeOverlayChangeRequestStatus;
+  executorJobId: string | null;
+  executorRunId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  queuedAt: string | null;
+}
+
+export interface UiRuntimeOverlayQualitySignal {
+  id: string;
+  observationId: string;
+  kind: string;
+  severity: UiRuntimeOverlayQualitySignalSeverity;
+  summary: string;
+  createdAt: string;
+}
+
 export interface UiRuntimeOverlaySession {
   id: string;
   status: 'attached' | 'closed' | string;
@@ -43,6 +117,11 @@ export interface UiRuntimeOverlaySession {
   packageRoot: string;
   phase?: string | null;
   evidence?: Record<string, unknown> | null;
+  observations: UiRuntimeOverlayObservation[];
+  annotations: UiRuntimeOverlayAnnotation[];
+  changeRequests: UiRuntimeOverlayChangeRequest[];
+  qualitySignals: UiRuntimeOverlayQualitySignal[];
+  lastAnalyzedAt: string | null;
   createdAt: string;
   updatedAt: string;
   closedAt?: string | null;
@@ -58,8 +137,56 @@ export interface CreateUiRuntimeOverlaySessionPayload {
   packageRoot?: string;
 }
 
+export interface CreateUiRuntimeOverlayObservationPayload {
+  kind: UiRuntimeOverlayObservationKind;
+  summary: string;
+  locator?: Partial<UiRuntimeOverlayLocator>;
+  snapshotSummary?: string;
+  interaction?: Partial<UiRuntimeOverlayInteraction>;
+  state?: Partial<UiRuntimeOverlayObservationState>;
+}
+
+export interface CreateUiRuntimeOverlayAnnotationPayload {
+  observationId?: string;
+  title?: string;
+  message: string;
+  status?: UiRuntimeOverlayAnnotationStatus;
+}
+
+export interface CreateUiRuntimeOverlayChangeRequestPayload {
+  observationId?: string;
+  annotationId?: string;
+  title?: string;
+  request: string;
+  prompt?: string;
+  status?: UiRuntimeOverlayChangeRequestStatus;
+}
+
 export interface UiRuntimeOverlaySessionMutationResponse {
   session: UiRuntimeOverlaySession;
+}
+
+export interface UiRuntimeOverlayObservationMutationResponse {
+  session: UiRuntimeOverlaySession;
+  observation: UiRuntimeOverlayObservation;
+  qualitySignals: UiRuntimeOverlayQualitySignal[];
+}
+
+export interface UiRuntimeOverlayAnnotationMutationResponse {
+  session: UiRuntimeOverlaySession;
+  annotation: UiRuntimeOverlayAnnotation;
+}
+
+export interface UiRuntimeOverlayChangeRequestMutationResponse {
+  session: UiRuntimeOverlaySession;
+  changeRequest: UiRuntimeOverlayChangeRequest;
+}
+
+export interface UiRuntimeOverlayQueueChangeRequestResponse {
+  session: UiRuntimeOverlaySession;
+  changeRequest: UiRuntimeOverlayChangeRequest;
+  job: ExecutorJob | null;
+  run: ExecutorRun | null;
 }
 
 export interface SessionPlanArtifact {

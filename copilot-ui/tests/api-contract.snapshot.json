@@ -1474,6 +1474,46 @@
       "error"
     ]
   },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/observations": {
+      "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/annotations": {
+      "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/change-requests": {
+      "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/release": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/executor-job": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
   "POST /api/ui-runtime-overlay/sessions/test-session-id/close": {
     "status": 404,
     "contentType": "application/json",

@@ -9,7 +9,17 @@ import {
   summarizeSdkHealth,
 } from '../../lib/stateDiagnostics';
 import { useStoreValue } from '../../lib/store';
-import type { CreateExecutorJobPayload } from '../../lib/types';
+import type {
+  CreateExecutorJobPayload,
+  UiRuntimeOverlayAnnotation,
+  UiRuntimeOverlayAnnotationStatus,
+  UiRuntimeOverlayChangeRequest,
+  UiRuntimeOverlayChangeRequestStatus,
+  UiRuntimeOverlayObservation,
+  UiRuntimeOverlayObservationKind,
+  UiRuntimeOverlayQualitySignal,
+  UiRuntimeOverlaySession,
+} from '../../lib/types';
 import { navigationStore } from '../../stores/navigation';
 import { sdkHealthStore } from '../../stores/sdkHealthStore';
 import SandboxesView from '../Sandboxes/SandboxesView';
@@ -17,6 +27,92 @@ import { sessionsStore } from '../Sessions/sessionsStore';
 import { sdkSessionsStore } from '../Sessions/sdkSessionsStore';
 import { executorStore } from './executorStore';
 import { uiRuntimeOverlayStore } from './uiRuntimeOverlayStore';
+
+interface OverlayObservationDraft {
+  kind: UiRuntimeOverlayObservationKind;
+  summary: string;
+  snapshotSummary: string;
+  locatorSelector: string;
+  locatorRole: string;
+  locatorLabel: string;
+  locatorText: string;
+  locatorTestId: string;
+  locatorComponentName: string;
+  interactionAction: string;
+  interactionOutcome: string;
+  interactionLatencyMs: string;
+  stateKind: string;
+  stateDetail: string;
+}
+
+interface OverlayAnnotationDraft {
+  observationId: string;
+  title: string;
+  message: string;
+  status: UiRuntimeOverlayAnnotationStatus;
+}
+
+interface OverlayChangeRequestDraft {
+  observationId: string;
+  annotationId: string;
+  title: string;
+  request: string;
+  prompt: string;
+  status: UiRuntimeOverlayChangeRequestStatus;
+}
+
+const OBSERVATION_KIND_OPTIONS: UiRuntimeOverlayObservationKind[] = [
+  'interaction',
+  'snapshot',
+  'state',
+  'locator',
+  'note',
+];
+
+const ANNOTATION_STATUS_OPTIONS: UiRuntimeOverlayAnnotationStatus[] = ['open', 'resolved', 'dismissed'];
+
+const CHANGE_REQUEST_STATUS_OPTIONS: UiRuntimeOverlayChangeRequestStatus[] = ['draft'];
+
+const OBSERVATION_STATE_KIND_OPTIONS = ['', 'ready', 'loading', 'blocked', 'disabled', 'error', 'empty'];
+
+function createInitialObservationDraft(): OverlayObservationDraft {
+  return {
+    kind: 'interaction',
+    summary: '',
+    snapshotSummary: '',
+    locatorSelector: '',
+    locatorRole: '',
+    locatorLabel: '',
+    locatorText: '',
+    locatorTestId: '',
+    locatorComponentName: '',
+    interactionAction: '',
+    interactionOutcome: '',
+    interactionLatencyMs: '',
+    stateKind: '',
+    stateDetail: '',
+  };
+}
+
+function createInitialAnnotationDraft(): OverlayAnnotationDraft {
+  return {
+    observationId: '',
+    title: '',
+    message: '',
+    status: 'open',
+  };
+}
+
+function createInitialChangeRequestDraft(): OverlayChangeRequestDraft {
+  return {
+    observationId: '',
+    annotationId: '',
+    title: '',
+    request: '',
+    prompt: '',
+    status: 'draft',
+  };
+}
 
 function promptPreview(prompt: string): string {
   const normalized = prompt.trim().replace(/\s+/g, ' ');
@@ -44,6 +140,27 @@ function resolveOverlayRuntimeOrigin(runtimeUrl: string, runtimeOrigin?: string 
   }
 }
 
+function normalizeOptionalText(value: string): string | undefined {
+  const normalized = value.trim();
+  return normalized || undefined;
+}
+
+function formatOptionalText(value: string | null | undefined, fallback = '(none)'): string {
+  const normalized = String(value || '').trim();
+  return normalized || fallback;
+}
+
+function joinSummaryParts(parts: Array<string | null | undefined>): string {
+  return parts
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+    .join(' | ');
+}
+
+function resolveOverlaySessionLabel(session: UiRuntimeOverlaySession): string {
+  return session.repoLabel || session.repoId || session.id;
+}
+
 export default function ExecutorView() {
   const executorState = useStoreValue(executorStore);
   const sdkHealthState = useStoreValue(sdkHealthStore);
@@ -64,6 +181,9 @@ export default function ExecutorView() {
   const [backoffMultiplier, setBackoffMultiplier] = useState('2');
   const [runtimeUrl, setRuntimeUrl] = useState('');
   const [packageRoot, setPackageRoot] = useState('');
+  const [observationDraft, setObservationDraft] = useState<OverlayObservationDraft>(createInitialObservationDraft);
+  const [annotationDraft, setAnnotationDraft] = useState<OverlayAnnotationDraft>(createInitialAnnotationDraft);
+  const [changeRequestDraft, setChangeRequestDraft] = useState<OverlayChangeRequestDraft>(createInitialChangeRequestDraft);
 
   useEffect(() => {
     void executorStore.load();
@@ -75,6 +195,24 @@ export default function ExecutorView() {
       executorStore.stopPolling();
     };
   }, []);
+
+  const selectedOverlaySession = useMemo(
+    () => uiRuntimeOverlayState.sessions.find((session) => session.id === uiRuntimeOverlayState.selectedSessionId) ?? null,
+    [uiRuntimeOverlayState.sessions, uiRuntimeOverlayState.selectedSessionId]
+  );
+
+  useEffect(() => {
+    setAnnotationDraft((current) => (
+      current.observationId
+        ? { ...current, observationId: '' }
+        : current
+    ));
+    setChangeRequestDraft((current) => (
+      current.observationId || current.annotationId
+        ? { ...current, observationId: '', annotationId: '' }
+        : current
+    ));
+  }, [selectedOverlaySession?.id]);
 
   const selectedJob = useMemo(
     () => executorState.jobs.find((job) => job.id === executorState.selectedJobId) ?? null,
@@ -104,6 +242,19 @@ export default function ExecutorView() {
   const selectedCatalogRepo = uiRuntimeOverlayState.selectedRepo;
   const hasCatalogRepos = uiRuntimeOverlayState.catalogRepos.length > 0;
   const selectedCatalogRepoLabel = selectedCatalogRepo?.repoLabel || selectedCatalogRepo?.repoId || selectedCatalogRepo?.repoPath || '';
+  const selectedOverlayObservations = selectedOverlaySession?.observations ?? [];
+  const selectedOverlayAnnotations = selectedOverlaySession?.annotations ?? [];
+  const selectedOverlayChangeRequests = selectedOverlaySession?.changeRequests ?? [];
+  const selectedOverlayQualitySignals = selectedOverlaySession?.qualitySignals ?? [];
+  const canMutateSelectedOverlaySession = selectedOverlaySession?.status === 'attached';
+  const queueableAnnotations = useMemo(
+    () => selectedOverlayAnnotations.filter((annotation) => (
+      !changeRequestDraft.observationId
+      || !annotation.observationId
+      || annotation.observationId === changeRequestDraft.observationId
+    )),
+    [changeRequestDraft.observationId, selectedOverlayAnnotations]
+  );
 
   const handleSubmit = async () => {
     const payload: CreateExecutorJobPayload = {
@@ -164,6 +315,136 @@ export default function ExecutorView() {
       setRuntimeUrl('');
       setPackageRoot('');
     }
+  };
+
+  const handleSelectOverlaySession = (sessionId: string) => {
+    uiRuntimeOverlayStore.selectSession(sessionId.trim() || null);
+  };
+
+  const handleChangeRequestObservationSelection = (observationId: string) => {
+    const normalizedObservationId = observationId.trim();
+    setChangeRequestDraft((current) => ({
+      ...current,
+      observationId: normalizedObservationId,
+      annotationId: current.annotationId && selectedOverlayAnnotations.some((annotation) => (
+        annotation.id === current.annotationId
+        && (!normalizedObservationId || !annotation.observationId || annotation.observationId === normalizedObservationId)
+      ))
+        ? current.annotationId
+        : '',
+    }));
+  };
+
+  const handleChangeRequestAnnotationSelection = (annotationId: string) => {
+    const normalizedAnnotationId = annotationId.trim();
+    const selectedAnnotation = selectedOverlayAnnotations.find((annotation) => annotation.id === normalizedAnnotationId) ?? null;
+
+    setChangeRequestDraft((current) => ({
+      ...current,
+      annotationId: normalizedAnnotationId,
+      observationId: selectedAnnotation?.observationId || current.observationId,
+    }));
+  };
+
+  const handleAddObservation = async () => {
+    if (!selectedOverlaySession) {
+      return;
+    }
+
+    const interactionLatencyMs = observationDraft.interactionLatencyMs.trim()
+      ? Number(observationDraft.interactionLatencyMs)
+      : Number.NaN;
+    const response = await uiRuntimeOverlayStore.addObservation(selectedOverlaySession.id, {
+      kind: observationDraft.kind,
+      summary: observationDraft.summary,
+      snapshotSummary: normalizeOptionalText(observationDraft.snapshotSummary),
+      locator: {
+        selector: normalizeOptionalText(observationDraft.locatorSelector),
+        role: normalizeOptionalText(observationDraft.locatorRole),
+        label: normalizeOptionalText(observationDraft.locatorLabel),
+        text: normalizeOptionalText(observationDraft.locatorText),
+        testId: normalizeOptionalText(observationDraft.locatorTestId),
+        componentName: normalizeOptionalText(observationDraft.locatorComponentName),
+      },
+      interaction: {
+        action: normalizeOptionalText(observationDraft.interactionAction),
+        outcome: normalizeOptionalText(observationDraft.interactionOutcome),
+        latencyMs: Number.isFinite(interactionLatencyMs)
+          ? Math.max(0, Math.round(interactionLatencyMs))
+          : undefined,
+      },
+      state: {
+        kind: normalizeOptionalText(observationDraft.stateKind),
+        detail: normalizeOptionalText(observationDraft.stateDetail),
+      },
+    });
+
+    if (response) {
+      setObservationDraft(createInitialObservationDraft());
+    }
+  };
+
+  const handleAddAnnotation = async () => {
+    if (!selectedOverlaySession) {
+      return;
+    }
+
+    const response = await uiRuntimeOverlayStore.addAnnotation(selectedOverlaySession.id, {
+      observationId: normalizeOptionalText(annotationDraft.observationId),
+      title: normalizeOptionalText(annotationDraft.title),
+      message: annotationDraft.message,
+      status: annotationDraft.status,
+    });
+
+    if (response) {
+      setAnnotationDraft(createInitialAnnotationDraft());
+    }
+  };
+
+  const handleAddChangeRequest = async () => {
+    if (!selectedOverlaySession) {
+      return;
+    }
+
+    const response = await uiRuntimeOverlayStore.addChangeRequest(selectedOverlaySession.id, {
+      observationId: normalizeOptionalText(changeRequestDraft.observationId),
+      annotationId: normalizeOptionalText(changeRequestDraft.annotationId),
+      title: normalizeOptionalText(changeRequestDraft.title),
+      request: changeRequestDraft.request,
+      prompt: normalizeOptionalText(changeRequestDraft.prompt),
+      status: changeRequestDraft.status,
+    });
+
+    if (response) {
+      setChangeRequestDraft(createInitialChangeRequestDraft());
+    }
+  };
+
+  const handleQueueChangeRequest = async (changeRequestId: string) => {
+    if (!selectedOverlaySession) {
+      return;
+    }
+
+    const response = await uiRuntimeOverlayStore.queueChangeRequest(selectedOverlaySession.id, changeRequestId);
+    if (!response) {
+      return;
+    }
+
+    await executorStore.load();
+    if (response.job?.id) {
+      executorStore.selectJob(response.job.id);
+    }
+    if (response.run?.id) {
+      executorStore.selectRun(response.run.id);
+    }
+  };
+
+  const handleReleaseChangeRequest = async (changeRequestId: string) => {
+    if (!selectedOverlaySession) {
+      return;
+    }
+
+    await uiRuntimeOverlayStore.releaseChangeRequest(selectedOverlaySession.id, changeRequestId);
   };
 
   const refreshExecutorSurface = () => {
@@ -317,52 +598,678 @@ export default function ExecutorView() {
           {uiRuntimeOverlayState.sessions.length === 0 ? (
             <p className="state-message">No runtime-linked attach sessions have been recorded yet.</p>
           ) : (
-            <ul className="tracker-session-list executor-job-list">
-              {uiRuntimeOverlayState.sessions.map((session) => {
-                const isAttachedSession = session.status === 'attached';
-                const runtimeOrigin = resolveOverlayRuntimeOrigin(session.runtimeUrl, session.runtimeOrigin);
+            <>
+              <ul className="tracker-session-list executor-job-list">
+                {uiRuntimeOverlayState.sessions.map((session) => {
+                  const isAttachedSession = session.status === 'attached';
+                  const isSelectedSession = selectedOverlaySession?.id === session.id;
+                  const runtimeOrigin = resolveOverlayRuntimeOrigin(session.runtimeUrl, session.runtimeOrigin);
 
-                return (
-                  <li key={session.id}>
-                    <div>
-                      <p className="tracker-item-title">{session.repoLabel || session.repoId}</p>
-                      <p className="tracker-item-copy">
-                        {session.status}
-                        {' | '}
-                        {runtimeOrigin}
-                        {' | updated '}
-                        {formatOptionalTimestamp(session.updatedAt)}
-                      </p>
-                      <p className="tracker-item-copy">Runtime URL: {session.runtimeUrl}</p>
-                      <p className="tracker-item-copy">
-                        Repo: {session.repoLabel || session.repoId} | Package root: {session.packageRoot}
-                      </p>
-                      <p className="tracker-item-copy">Session ID: {session.id}</p>
-                      {session.closedAt ? (
-                        <p className="tracker-item-copy">Closed: {formatOptionalTimestamp(session.closedAt)}</p>
-                      ) : null}
-                    </div>
-                    <div className="tracker-item-actions">
-                      {isAttachedSession ? (
+                  return (
+                    <li className={isSelectedSession ? 'is-selected' : ''} key={session.id}>
+                      <div>
+                        <p className="tracker-item-title">{resolveOverlaySessionLabel(session)}</p>
+                        <p className="tracker-item-copy">
+                          {joinSummaryParts([
+                            session.status,
+                            runtimeOrigin,
+                            `updated ${formatOptionalTimestamp(session.updatedAt)}`,
+                          ])}
+                        </p>
+                        <p className="tracker-item-copy">Runtime URL: {session.runtimeUrl}</p>
+                        <p className="tracker-item-copy">
+                          Repo: {session.repoLabel || session.repoId} | Package root: {session.packageRoot}
+                        </p>
+                        <p className="tracker-item-copy">
+                          {session.observations.length} observation(s) | {session.annotations.length} annotation(s) | {session.changeRequests.length} change request(s)
+                        </p>
+                        <p className="tracker-item-copy">Session ID: {session.id}</p>
+                        {session.lastAnalyzedAt ? (
+                          <p className="tracker-item-copy">Last analyzed: {formatOptionalTimestamp(session.lastAnalyzedAt)}</p>
+                        ) : null}
+                        {session.closedAt ? (
+                          <p className="tracker-item-copy">Closed: {formatOptionalTimestamp(session.closedAt)}</p>
+                        ) : null}
+                      </div>
+                      <div className="tracker-item-actions">
                         <Button
-                          disabled={uiRuntimeOverlayState.closing && uiRuntimeOverlayState.closingSessionId === session.id}
-                          onClick={() => {
-                            void uiRuntimeOverlayStore.closeSession(session.id);
-                          }}
+                          onClick={() => handleSelectOverlaySession(session.id)}
                           size="sm"
-                          testId={`executor-ui-runtime-overlay-close-${session.id}`}
-                          variant="ghost"
+                          testId={`executor-ui-runtime-overlay-select-${session.id}`}
+                          variant={isSelectedSession ? 'primary' : 'ghost'}
                         >
-                          {uiRuntimeOverlayState.closing && uiRuntimeOverlayState.closingSessionId === session.id
-                            ? 'Closing...'
-                            : 'Close Session'}
+                          {isSelectedSession ? 'Selected' : 'Select'}
                         </Button>
-                      ) : null}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+                        {isAttachedSession ? (
+                          <Button
+                            disabled={uiRuntimeOverlayState.closing && uiRuntimeOverlayState.closingSessionId === session.id}
+                            onClick={() => {
+                              void uiRuntimeOverlayStore.closeSession(session.id);
+                            }}
+                            size="sm"
+                            testId={`executor-ui-runtime-overlay-close-${session.id}`}
+                            variant="ghost"
+                          >
+                            {uiRuntimeOverlayState.closing && uiRuntimeOverlayState.closingSessionId === session.id
+                              ? 'Closing...'
+                              : 'Close Session'}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <section className="session-detail-artifacts" data-testid="executor-ui-runtime-overlay-workspace">
+                <h4>Selected Session Workspace</h4>
+                <div className="sessions-controls executor-form-grid">
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-session-select">
+                    <span className="form-label">Working Session</span>
+                    <select
+                      data-testid="executor-ui-runtime-overlay-session-select"
+                      id="executor-ui-runtime-overlay-session-select"
+                      onChange={(event) => handleSelectOverlaySession(event.target.value)}
+                      value={uiRuntimeOverlayState.selectedSessionId || ''}
+                    >
+                      {uiRuntimeOverlayState.sessions.map((session) => (
+                        <option key={session.id} value={session.id}>
+                          {resolveOverlaySessionLabel(session)} | {session.status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="session-detail">
+                    {selectedOverlaySession ? (
+                      <>
+                        <p className="session-detail-suggestion">
+                          <span>Working session:</span> {resolveOverlaySessionLabel(selectedOverlaySession)}
+                        </p>
+                        <dl className="detail-grid">
+                          <div>
+                            <dt>Status</dt>
+                            <dd>{selectedOverlaySession.status}</dd>
+                          </div>
+                          <div>
+                            <dt>Runtime</dt>
+                            <dd>{resolveOverlayRuntimeOrigin(selectedOverlaySession.runtimeUrl, selectedOverlaySession.runtimeOrigin)}</dd>
+                          </div>
+                          <div>
+                            <dt>Observed</dt>
+                            <dd>{selectedOverlayObservations.length}</dd>
+                          </div>
+                          <div>
+                            <dt>Annotations</dt>
+                            <dd>{selectedOverlayAnnotations.length}</dd>
+                          </div>
+                          <div>
+                            <dt>Change Requests</dt>
+                            <dd>{selectedOverlayChangeRequests.length}</dd>
+                          </div>
+                          <div>
+                            <dt>Quality Signals</dt>
+                            <dd>{selectedOverlayQualitySignals.length}</dd>
+                          </div>
+                        </dl>
+                        <p className="tracker-item-copy">Runtime URL: {selectedOverlaySession.runtimeUrl}</p>
+                        <p className="tracker-item-copy">
+                          Last analyzed: {formatOptionalTimestamp(selectedOverlaySession.lastAnalyzedAt)}
+                        </p>
+                        {!canMutateSelectedOverlaySession ? (
+                          <p className="tracker-item-copy">
+                            This session is closed. Select an attached session to add new observations, annotations, or change requests.
+                          </p>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className="state-message">Select a runtime overlay session to work on.</p>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section className="session-detail-artifacts">
+                <h4>New Observation</h4>
+                <div className="sessions-controls executor-form-grid">
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-observation-kind">
+                    <span className="form-label">Kind</span>
+                    <select
+                      data-testid="executor-ui-runtime-overlay-observation-kind"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                      id="executor-ui-runtime-overlay-observation-kind"
+                      onChange={(event) => setObservationDraft((current) => ({ ...current, kind: event.target.value }))}
+                      value={observationDraft.kind}
+                    >
+                      {OBSERVATION_KIND_OPTIONS.map((kind) => (
+                        <option key={kind} value={kind}>{kind}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-observation-summary">
+                    <span className="form-label">Summary</span>
+                    <textarea
+                      data-testid="executor-ui-runtime-overlay-observation-summary"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                      id="executor-ui-runtime-overlay-observation-summary"
+                      onChange={(event) => setObservationDraft((current) => ({ ...current, summary: event.target.value }))}
+                      placeholder="Describe the operator-observed behavior."
+                      rows={3}
+                      value={observationDraft.summary}
+                    />
+                  </label>
+
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-observation-snapshot-summary">
+                    <span className="form-label">Snapshot Summary (optional)</span>
+                    <textarea
+                      data-testid="executor-ui-runtime-overlay-observation-snapshot-summary"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                      id="executor-ui-runtime-overlay-observation-snapshot-summary"
+                      onChange={(event) => setObservationDraft((current) => ({ ...current, snapshotSummary: event.target.value }))}
+                      placeholder="Describe what the screen looked like when observed."
+                      rows={2}
+                      value={observationDraft.snapshotSummary}
+                    />
+                  </label>
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                    id="executor-ui-runtime-overlay-locator-selector"
+                    label="Locator Selector"
+                    onValueChange={(value) => setObservationDraft((current) => ({ ...current, locatorSelector: value }))}
+                    placeholder="#save-button"
+                    testId="executor-ui-runtime-overlay-locator-selector"
+                    value={observationDraft.locatorSelector}
+                  />
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                    id="executor-ui-runtime-overlay-locator-role"
+                    label="Locator Role"
+                    onValueChange={(value) => setObservationDraft((current) => ({ ...current, locatorRole: value }))}
+                    placeholder="button"
+                    testId="executor-ui-runtime-overlay-locator-role"
+                    value={observationDraft.locatorRole}
+                  />
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                    id="executor-ui-runtime-overlay-locator-label"
+                    label="Locator Label"
+                    onValueChange={(value) => setObservationDraft((current) => ({ ...current, locatorLabel: value }))}
+                    placeholder="Save"
+                    testId="executor-ui-runtime-overlay-locator-label"
+                    value={observationDraft.locatorLabel}
+                  />
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                    id="executor-ui-runtime-overlay-locator-text"
+                    label="Locator Text"
+                    onValueChange={(value) => setObservationDraft((current) => ({ ...current, locatorText: value }))}
+                    placeholder="Save changes"
+                    testId="executor-ui-runtime-overlay-locator-text"
+                    value={observationDraft.locatorText}
+                  />
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                    id="executor-ui-runtime-overlay-locator-testid"
+                    label="Locator Test ID"
+                    onValueChange={(value) => setObservationDraft((current) => ({ ...current, locatorTestId: value }))}
+                    placeholder="profile-save"
+                    testId="executor-ui-runtime-overlay-locator-testid"
+                    value={observationDraft.locatorTestId}
+                  />
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                    id="executor-ui-runtime-overlay-locator-component"
+                    label="Component Name"
+                    onValueChange={(value) => setObservationDraft((current) => ({ ...current, locatorComponentName: value }))}
+                    placeholder="ProfileSaveButton"
+                    testId="executor-ui-runtime-overlay-locator-component"
+                    value={observationDraft.locatorComponentName}
+                  />
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                    id="executor-ui-runtime-overlay-interaction-action"
+                    label="Interaction Action"
+                    onValueChange={(value) => setObservationDraft((current) => ({ ...current, interactionAction: value }))}
+                    placeholder="click"
+                    testId="executor-ui-runtime-overlay-interaction-action"
+                    value={observationDraft.interactionAction}
+                  />
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                    id="executor-ui-runtime-overlay-interaction-outcome"
+                    label="Interaction Outcome"
+                    onValueChange={(value) => setObservationDraft((current) => ({ ...current, interactionOutcome: value }))}
+                    placeholder="no visible change"
+                    testId="executor-ui-runtime-overlay-interaction-outcome"
+                    value={observationDraft.interactionOutcome}
+                  />
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                    id="executor-ui-runtime-overlay-interaction-latency"
+                    label="Interaction Latency (ms)"
+                    onValueChange={(value) => setObservationDraft((current) => ({ ...current, interactionLatencyMs: value }))}
+                    testId="executor-ui-runtime-overlay-interaction-latency"
+                    type="number"
+                    value={observationDraft.interactionLatencyMs}
+                  />
+
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-state-kind">
+                    <span className="form-label">State Kind (optional)</span>
+                    <select
+                      data-testid="executor-ui-runtime-overlay-state-kind"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                      id="executor-ui-runtime-overlay-state-kind"
+                      onChange={(event) => setObservationDraft((current) => ({ ...current, stateKind: event.target.value }))}
+                      value={observationDraft.stateKind}
+                    >
+                      {OBSERVATION_STATE_KIND_OPTIONS.map((kind) => (
+                        <option key={kind || 'blank'} value={kind}>{kind || '(none)'}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation}
+                    id="executor-ui-runtime-overlay-state-detail"
+                    label="State Detail"
+                    onValueChange={(value) => setObservationDraft((current) => ({ ...current, stateDetail: value }))}
+                    placeholder="Save button stayed disabled after valid input."
+                    testId="executor-ui-runtime-overlay-state-detail"
+                    value={observationDraft.stateDetail}
+                  />
+
+                  <div className="sessions-actions">
+                    <Button
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingObservation || observationDraft.summary.trim().length === 0}
+                      onClick={() => {
+                        void handleAddObservation();
+                      }}
+                      testId="executor-ui-runtime-overlay-add-observation"
+                    >
+                      {uiRuntimeOverlayState.addingObservation ? 'Saving Observation...' : 'Add Observation'}
+                    </Button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="session-detail-artifacts">
+                <h4>New Annotation</h4>
+                <div className="sessions-controls executor-form-grid">
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-annotation-observation">
+                    <span className="form-label">Observation (optional)</span>
+                    <select
+                      data-testid="executor-ui-runtime-overlay-annotation-observation"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingAnnotation}
+                      id="executor-ui-runtime-overlay-annotation-observation"
+                      onChange={(event) => setAnnotationDraft((current) => ({ ...current, observationId: event.target.value }))}
+                      value={annotationDraft.observationId}
+                    >
+                      <option value="">(none)</option>
+                      {selectedOverlayObservations.map((observation) => (
+                        <option key={observation.id} value={observation.id}>
+                          {observation.kind} | {promptPreview(observation.summary)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingAnnotation}
+                    id="executor-ui-runtime-overlay-annotation-title"
+                    label="Title (optional)"
+                    onValueChange={(value) => setAnnotationDraft((current) => ({ ...current, title: value }))}
+                    placeholder="Validation issue"
+                    testId="executor-ui-runtime-overlay-annotation-title"
+                    value={annotationDraft.title}
+                  />
+
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-annotation-status">
+                    <span className="form-label">Status</span>
+                    <select
+                      data-testid="executor-ui-runtime-overlay-annotation-status"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingAnnotation}
+                      id="executor-ui-runtime-overlay-annotation-status"
+                      onChange={(event) => setAnnotationDraft((current) => ({ ...current, status: event.target.value }))}
+                      value={annotationDraft.status}
+                    >
+                      {ANNOTATION_STATUS_OPTIONS.map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-annotation-message">
+                    <span className="form-label">Message</span>
+                    <textarea
+                      data-testid="executor-ui-runtime-overlay-annotation-message"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingAnnotation}
+                      id="executor-ui-runtime-overlay-annotation-message"
+                      onChange={(event) => setAnnotationDraft((current) => ({ ...current, message: event.target.value }))}
+                      placeholder="Explain the issue, impact, or operator note."
+                      rows={3}
+                      value={annotationDraft.message}
+                    />
+                  </label>
+
+                  <div className="sessions-actions">
+                    <Button
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingAnnotation || annotationDraft.message.trim().length === 0}
+                      onClick={() => {
+                        void handleAddAnnotation();
+                      }}
+                      testId="executor-ui-runtime-overlay-add-annotation"
+                    >
+                      {uiRuntimeOverlayState.addingAnnotation ? 'Saving Annotation...' : 'Add Annotation'}
+                    </Button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="session-detail-artifacts">
+                <h4>New Change Request</h4>
+                <div className="sessions-controls executor-form-grid">
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-change-request-observation">
+                    <span className="form-label">Observation (optional)</span>
+                    <select
+                      data-testid="executor-ui-runtime-overlay-change-request-observation"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingChangeRequest}
+                      id="executor-ui-runtime-overlay-change-request-observation"
+                      onChange={(event) => handleChangeRequestObservationSelection(event.target.value)}
+                      value={changeRequestDraft.observationId}
+                    >
+                      <option value="">(none)</option>
+                      {selectedOverlayObservations.map((observation) => (
+                        <option key={observation.id} value={observation.id}>
+                          {observation.kind} | {promptPreview(observation.summary)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-change-request-annotation">
+                    <span className="form-label">Annotation (optional)</span>
+                    <select
+                      data-testid="executor-ui-runtime-overlay-change-request-annotation"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingChangeRequest}
+                      id="executor-ui-runtime-overlay-change-request-annotation"
+                      onChange={(event) => handleChangeRequestAnnotationSelection(event.target.value)}
+                      value={changeRequestDraft.annotationId}
+                    >
+                      <option value="">(none)</option>
+                      {queueableAnnotations.map((annotation) => (
+                        <option key={annotation.id} value={annotation.id}>
+                          {annotation.status} | {promptPreview(annotation.title)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <FormInput
+                    disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingChangeRequest}
+                    id="executor-ui-runtime-overlay-change-request-title"
+                    label="Title (optional)"
+                    onValueChange={(value) => setChangeRequestDraft((current) => ({ ...current, title: value }))}
+                    placeholder="Enable save after valid edits"
+                    testId="executor-ui-runtime-overlay-change-request-title"
+                    value={changeRequestDraft.title}
+                  />
+
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-change-request-request">
+                    <span className="form-label">Requested Change</span>
+                    <textarea
+                      data-testid="executor-ui-runtime-overlay-change-request-request"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingChangeRequest}
+                      id="executor-ui-runtime-overlay-change-request-request"
+                      onChange={(event) => setChangeRequestDraft((current) => ({ ...current, request: event.target.value }))}
+                      placeholder="Describe the concrete implementation change needed."
+                      rows={3}
+                      value={changeRequestDraft.request}
+                    />
+                  </label>
+
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-change-request-prompt">
+                    <span className="form-label">Executor Prompt (optional)</span>
+                    <textarea
+                      data-testid="executor-ui-runtime-overlay-change-request-prompt"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingChangeRequest}
+                      id="executor-ui-runtime-overlay-change-request-prompt"
+                      onChange={(event) => setChangeRequestDraft((current) => ({ ...current, prompt: event.target.value }))}
+                      placeholder="Override the default executor prompt when needed."
+                      rows={4}
+                      value={changeRequestDraft.prompt}
+                    />
+                  </label>
+
+                  <label className="form-input" htmlFor="executor-ui-runtime-overlay-change-request-status">
+                    <span className="form-label">Status</span>
+                    <select
+                      data-testid="executor-ui-runtime-overlay-change-request-status"
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingChangeRequest}
+                      id="executor-ui-runtime-overlay-change-request-status"
+                      onChange={(event) => setChangeRequestDraft((current) => ({ ...current, status: event.target.value }))}
+                      value={changeRequestDraft.status}
+                    >
+                      {CHANGE_REQUEST_STATUS_OPTIONS.map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="sessions-actions">
+                    <Button
+                      disabled={!canMutateSelectedOverlaySession || uiRuntimeOverlayState.addingChangeRequest || changeRequestDraft.request.trim().length === 0}
+                      onClick={() => {
+                        void handleAddChangeRequest();
+                      }}
+                      testId="executor-ui-runtime-overlay-add-change-request"
+                    >
+                      {uiRuntimeOverlayState.addingChangeRequest ? 'Saving Change Request...' : 'Add Change Request'}
+                    </Button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="session-detail-artifacts">
+                <h4>Observations</h4>
+                {selectedOverlayObservations.length === 0 ? (
+                  <p className="state-message">No observations recorded on this session yet.</p>
+                ) : (
+                  <ul className="tracker-session-list executor-job-list">
+                    {selectedOverlayObservations.map((observation) => {
+                      const locatorSummary = joinSummaryParts([
+                        observation.locator?.selector ? `selector:${observation.locator.selector}` : null,
+                        observation.locator?.role ? `role:${observation.locator.role}` : null,
+                        observation.locator?.label ? `label:${observation.locator.label}` : null,
+                        observation.locator?.text ? `text:${observation.locator.text}` : null,
+                        observation.locator?.testId ? `testId:${observation.locator.testId}` : null,
+                        observation.locator?.componentName ? `component:${observation.locator.componentName}` : null,
+                      ]);
+                      const interactionSummary = joinSummaryParts([
+                        observation.interaction?.action ? `action:${observation.interaction.action}` : null,
+                        observation.interaction?.outcome ? `outcome:${observation.interaction.outcome}` : null,
+                        observation.interaction?.latencyMs !== null && observation.interaction?.latencyMs !== undefined
+                          ? `${observation.interaction.latencyMs}ms`
+                          : null,
+                      ]);
+                      const stateSummary = joinSummaryParts([
+                        observation.state?.kind ? `kind:${observation.state.kind}` : null,
+                        observation.state?.detail ? observation.state.detail : null,
+                      ]);
+
+                      return (
+                        <li key={observation.id}>
+                          <div>
+                            <p className="tracker-item-title">{observation.summary}</p>
+                            <p className="tracker-item-copy">
+                              {joinSummaryParts([observation.kind, `updated ${formatOptionalTimestamp(observation.updatedAt)}`])}
+                            </p>
+                            {observation.snapshotSummary ? (
+                              <p className="tracker-item-copy">Snapshot: {observation.snapshotSummary}</p>
+                            ) : null}
+                            {locatorSummary ? <p className="tracker-item-copy">Locator: {locatorSummary}</p> : null}
+                            {interactionSummary ? <p className="tracker-item-copy">Interaction: {interactionSummary}</p> : null}
+                            {stateSummary ? <p className="tracker-item-copy">State: {stateSummary}</p> : null}
+                            <p className="tracker-item-copy">Observation ID: {observation.id}</p>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+
+              <section className="session-detail-artifacts">
+                <h4>Annotations</h4>
+                {selectedOverlayAnnotations.length === 0 ? (
+                  <p className="state-message">No annotations recorded on this session yet.</p>
+                ) : (
+                  <ul className="tracker-session-list executor-job-list">
+                    {selectedOverlayAnnotations.map((annotation) => (
+                      <li key={annotation.id}>
+                        <div>
+                          <p className="tracker-item-title">{annotation.title}</p>
+                          <p className="tracker-item-copy">
+                            {joinSummaryParts([
+                              annotation.status,
+                              annotation.observationId ? `observation:${annotation.observationId}` : 'session-level',
+                              `updated ${formatOptionalTimestamp(annotation.updatedAt)}`,
+                            ])}
+                          </p>
+                          <p className="tracker-item-copy">{annotation.message}</p>
+                          <p className="tracker-item-copy">Annotation ID: {annotation.id}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <section className="session-detail-artifacts">
+                <h4>Change Requests</h4>
+                {selectedOverlayChangeRequests.length === 0 ? (
+                  <p className="state-message">No change requests recorded on this session yet.</p>
+                ) : (
+                  <ul className="tracker-session-list executor-job-list">
+                    {selectedOverlayChangeRequests.map((changeRequest) => {
+                      const hasQueuedExecutorJob = Boolean(changeRequest.executorJobId);
+                      const isReservedChangeRequest = changeRequest.status === 'reserved';
+                      const isQueueBlocked = hasQueuedExecutorJob || changeRequest.status !== 'draft';
+                      const isQueueingChangeRequest = uiRuntimeOverlayState.queueingChangeRequestId === changeRequest.id;
+                      const isReleasingChangeRequest = uiRuntimeOverlayState.releasingChangeRequestId === changeRequest.id;
+
+                      return (
+                        <li key={changeRequest.id}>
+                          <div>
+                            <p className="tracker-item-title">{changeRequest.title}</p>
+                            <p className="tracker-item-copy">
+                              {joinSummaryParts([
+                                changeRequest.status,
+                                changeRequest.observationId ? `observation:${changeRequest.observationId}` : null,
+                                changeRequest.annotationId ? `annotation:${changeRequest.annotationId}` : null,
+                                `updated ${formatOptionalTimestamp(changeRequest.updatedAt)}`,
+                              ])}
+                            </p>
+                            <p className="tracker-item-copy">Requested change: {changeRequest.request}</p>
+                            {changeRequest.prompt ? (
+                              <p className="tracker-item-copy">Executor prompt: {promptPreview(changeRequest.prompt)}</p>
+                            ) : null}
+                            <p className="tracker-item-copy">
+                              {joinSummaryParts([
+                                `Change request ID: ${changeRequest.id}`,
+                                changeRequest.executorJobId ? `job:${changeRequest.executorJobId}` : null,
+                                changeRequest.executorRunId ? `run:${changeRequest.executorRunId}` : null,
+                              ])}
+                            </p>
+                            {changeRequest.queuedAt ? (
+                              <p className="tracker-item-copy">Queued: {formatOptionalTimestamp(changeRequest.queuedAt)}</p>
+                            ) : null}
+                          </div>
+                          <div className="tracker-item-actions">
+                            <Button
+                              disabled={
+                                !canMutateSelectedOverlaySession
+                                || isQueueBlocked
+                                || isQueueingChangeRequest
+                                || isReleasingChangeRequest
+                              }
+                              onClick={() => {
+                                void handleQueueChangeRequest(changeRequest.id);
+                              }}
+                              size="sm"
+                              testId={`executor-ui-runtime-overlay-queue-${changeRequest.id}`}
+                              variant="secondary"
+                            >
+                              {isQueueingChangeRequest
+                                ? 'Queueing...'
+                                : hasQueuedExecutorJob
+                                  ? 'Queued'
+                                  : isReservedChangeRequest
+                                    ? 'Reserved'
+                                  : isQueueBlocked
+                                    ? 'Unavailable'
+                                  : 'Queue In Executor'}
+                            </Button>
+                            {isReservedChangeRequest ? (
+                              <Button
+                                disabled={
+                                  !canMutateSelectedOverlaySession
+                                  || isQueueingChangeRequest
+                                  || isReleasingChangeRequest
+                                }
+                                onClick={() => {
+                                  void handleReleaseChangeRequest(changeRequest.id);
+                                }}
+                                size="sm"
+                                testId={`executor-ui-runtime-overlay-release-${changeRequest.id}`}
+                                variant="secondary"
+                              >
+                                {isReleasingChangeRequest ? 'Releasing...' : 'Release Reservation'}
+                              </Button>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+
+              <section className="session-detail-artifacts">
+                <h4>Derived Quality Signals</h4>
+                {selectedOverlayQualitySignals.length === 0 ? (
+                  <p className="state-message">No derived quality signals on this session yet.</p>
+                ) : (
+                  <ul className="tracker-session-list executor-job-list">
+                    {selectedOverlayQualitySignals.map((signal) => (
+                      <li key={signal.id}>
+                        <div>
+                          <p className="tracker-item-title">{signal.summary}</p>
+                          <p className="tracker-item-copy">
+                            {joinSummaryParts([
+                              signal.severity,
+                              signal.kind,
+                              `observation:${signal.observationId}`,
+                              `created ${formatOptionalTimestamp(signal.createdAt)}`,
+                            ])}
+                          </p>
+                          <p className="tracker-item-copy">Signal ID: {signal.id}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </>
           )}
         </Panel>
 
