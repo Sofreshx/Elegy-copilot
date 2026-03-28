@@ -159,8 +159,9 @@ In that case, the orchestrator stays inside a curated shipped first-party baseli
 - `@code-explorer`, `@code-architect`, `@code-reviewer`
 - `@research-ideation`, `@unit-test-runner`, `@doc-writer`, `@goal-reviewer`, `@final-reviewer`
 
-It should **not** auto-select optional audit lanes, cross-model reviewers, provider/imported
-capabilities, or persisted session-state workflows from fallback alone.
+It should **not** auto-select optional audit lanes, provider/imported capabilities, or persisted
+session-state workflows from fallback alone. The built-in planning workflow may still call
+`@reviewer-opus-4-6` and `@reviewer-gpt-5-4` as the default plan-review pair.
 
 ### When a persisted session-state lane is chosen instead
 
@@ -312,9 +313,14 @@ memory or automatic future pickup.
 | `@o-reframer` | Analyzes requests, classifies complexity |
 | `@o-validation-coordinator` | Bounded validation overlap coordinator for completed or frozen slices |
 | `@o-planner` | Produces plan packs from enriched briefs |
+| `@reviewer-opus-4-6` | Primary planning reviewer for cross-model plan risk and completeness review |
+| `@reviewer-gpt-5-4` | Primary planning reviewer that validates the plan and prior review feedback |
 | `@work-unit-runner` | Implements individual work units |
 | `@code-explorer` | Read-only codebase analysis |
 | `@code-architect` | Design decisions and blueprints |
+| `@impl-reviewer` | Targeted overlay for plan-vs-request/spec fit and implementation-vs-spec review |
+| `@logic-reviewer` | Optional overlay for plan or change review on correctness, sequencing, and edge cases |
+| `@consistency-reviewer` | Optional overlay for plan or change review on conventions and alignment |
 | `@code-reviewer` | Quality gates (APPROVED/NEEDS_REVISION/FAILED) |
 | `@goal-reviewer` | High-level goal closure gate (`APPROVED|NEEDS_REVISION|BLOCKED`) plus per-goal completion states (`complete|partial|not-complete`) + read-only unresolved-goal sync instructions |
 | `@doc-writer` | Documentation lane, including deterministic reconciliation of `docs/issues/unresolved-goals.md` after `@goal-reviewer` |
@@ -344,6 +350,7 @@ For standard and complex work, the orchestrator uses the shared Plan Pack struct
 
 - In the default orchestrator path, plan review and progress tracking stay in chat.
 - In the default orchestrator path, plan review and active session state stay in chat or host/runtime state when available.
+- In the default orchestrator path, planning review normally uses `@reviewer-opus-4-6` and `@reviewer-gpt-5-4` as the main gate before execution; narrower reviewer lanes are overlays, not replacements.
 - The orchestrator does not create repo-local planning artifacts as part of its normal flow.
 - If you need persisted plan, proposition, handoff, and verification artifacts under
   `~/.copilot/session-state/<SESSION_ID>/`, use an explicit session-state workflow instead.
