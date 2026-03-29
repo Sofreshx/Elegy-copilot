@@ -98,6 +98,35 @@ describe('uiRuntimeOverlayStore queue failure resync', () => {
     expect(state.sessions).toHaveLength(1);
     expect(state.sessions[0]?.changeRequests[0]?.status).toBe('reserved');
   });
+
+  it('keeps rollback draft state when an overlapping stale load resolves after a failed queue refresh', async () => {
+    const pendingStaleLoad = createDeferredPromise<{ sessions: ReturnType<typeof createOverlaySession>[] }>();
+
+    apiMocks.listUiRuntimeOverlaySessions
+      .mockResolvedValueOnce({ sessions: [createOverlaySession('draft')] })
+      .mockReturnValueOnce(pendingStaleLoad.promise)
+      .mockResolvedValueOnce({ sessions: [createOverlaySession('draft')] });
+    apiMocks.queueUiRuntimeOverlayChangeRequest.mockRejectedValueOnce(new Error('Queue persistence failed.'));
+
+    const { uiRuntimeOverlayStore } = await import('../ui/src/tabs/Executor/uiRuntimeOverlayStore');
+
+    await uiRuntimeOverlayStore.load();
+    const overlappingLoadPromise = uiRuntimeOverlayStore.load();
+    const response = await uiRuntimeOverlayStore.queueChangeRequest('overlay-1', 'cr-1');
+
+    pendingStaleLoad.resolve({ sessions: [createOverlaySession('reserved')] });
+    await overlappingLoadPromise;
+
+    expect(response).toBeNull();
+    expect(apiMocks.listUiRuntimeOverlaySessions).toHaveBeenCalledTimes(3);
+
+    const state = uiRuntimeOverlayStore.getState();
+    expect(state.loading).toBe(false);
+    expect(state.queueingChangeRequestId).toBeNull();
+    expect(state.error).toBe('Queue persistence failed.');
+    expect(state.sessions).toHaveLength(1);
+    expect(state.sessions[0]?.changeRequests[0]?.status).toBe('draft');
+  });
 });
 
 describe('uiRuntimeOverlayStore stale load guard', () => {

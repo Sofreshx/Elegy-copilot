@@ -161,6 +161,13 @@ function createStateShape() {
   };
 }
 
+function createStateLoadError(message, cause) {
+  return Object.assign(new Error(message), {
+    statusCode: 500,
+    cause,
+  });
+}
+
 function createEntityId(prefix, cryptoImpl = crypto) {
   if (typeof cryptoImpl.randomUUID === 'function') {
     return `${prefix}-${cryptoImpl.randomUUID()}`;
@@ -1150,18 +1157,30 @@ class UiRuntimeOverlayService {
   }
 
   _loadState() {
-    let raw = null;
+    let rawText = null;
     try {
-      raw = JSON.parse(this._fs.readFileSync(this._statePath, 'utf8'));
-    } catch {
-      raw = null;
+      rawText = this._fs.readFileSync(this._statePath, 'utf8');
+    } catch (error) {
+      if (error && error.code === 'ENOENT') {
+        return createStateShape();
+      }
+      throw createStateLoadError('UI Runtime Overlay persisted state could not be read.', error);
     }
 
-    const sessions = Array.isArray(raw?.sessions)
-      ? raw.sessions
-        .map((entry) => normalizeSessionRecord(entry, this._path))
-        .filter(Boolean)
-      : [];
+    let raw = null;
+    try {
+      raw = JSON.parse(rawText);
+    } catch (error) {
+      throw createStateLoadError('UI Runtime Overlay persisted state contains malformed JSON.', error);
+    }
+
+    if (!isObject(raw) || !Array.isArray(raw.sessions)) {
+      throw createStateLoadError('UI Runtime Overlay persisted state has an invalid top-level shape.');
+    }
+
+    const sessions = raw.sessions
+      .map((entry) => normalizeSessionRecord(entry, this._path))
+      .filter(Boolean);
 
     return {
       version: STATE_VERSION,

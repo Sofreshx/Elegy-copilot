@@ -58,6 +58,13 @@ This workstream covers five linked runtime improvements:
 - Added a read-only `Observed External Sessions` surface in `copilot-ui/ui/src/tabs/Executor/ExecutorView.tsx` showing recent CLI and VS Code sessions discovered outside executor-managed runs.
 - Added smoke coverage in `copilot-ui/tests/ui-react-smoke.test.js` to anchor the new merged-session observation contract.
 
+### Runtime overlay Sessions/Executor handoff
+
+- Added a lightweight `Overlay Sessions` workspace to `Home / Runtime -> Sessions` using the existing `uiRuntimeOverlayStore` and overlay route family.
+- Kept `Home / Runtime -> Executor` as the full overlay CRUD and queue surface instead of duplicating creation or mutation forms in Sessions.
+- Added a `Resume overlay workflow` quick action to `Home / Runtime -> Overview` that reuses the selected/latest overlay session state and routes directly into `Executor` when possible.
+- Added narrow source and component coverage for the new Sessions overlay workspace and Executor handoff path.
+
 ### Sandbox navigation consolidation
 
 - Removed the standalone `Sandboxes` runtime section from the active Home / Runtime navigation.

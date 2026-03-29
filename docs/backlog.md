@@ -164,7 +164,7 @@ Define the **Workflow Change Policy** contract and integrate policy snapshot han
 - 2026-03-23: This policy should guide mutation behavior and review expectations without turning Roadmap or Repository Backlog items into Plan Pack-level execution specs.
 
 ## RB-011 - Define the Attach Mode target contract for linked runtime and repo context
-- Status: planned
+- Status: complete
 - Roadmap IDs: RM-ui-runtime-overlay-001
 - Plan Refs: none
 - Satisfied By Plan Ref: none
@@ -177,9 +177,10 @@ Define the Attach Mode target contract that binds a runtime URL, selected Catalo
 ### Key Points
 - 2026-03-28: Reuse existing repo selection as the authority for what codebase the overlay may affect.
 - 2026-03-28: Fail closed when the runtime, repo, or package root cannot be verified.
+- 2026-03-29: The shipped overlay service now covers verified runtime URL parsing, selected Catalog repo binding, persisted repo metadata, and package-root validation without adding new backend routes.
 
 ## RB-012 - Add operator-facing overlay controls to Home / Runtime
-- Status: planned
+- Status: in_progress
 - Roadmap IDs: RM-ui-runtime-overlay-004
 - Plan Refs: none
 - Satisfied By Plan Ref: none
@@ -192,9 +193,11 @@ Add operator-facing overlay controls under Home / Runtime, centered on Sessions 
 ### Key Points
 - 2026-03-28: The runtime hub should show attach state, selected repo, evidence status, and quick actions.
 - 2026-03-28: Sandboxing may appear as an execution option but not as the primary product frame.
+- 2026-03-29: Runtime -> Sessions now exposes a compact overlay sessions workspace with resume/select, refresh, and open-in-Executor actions, while Home / Runtime overview adds a selected/latest overlay resume quick action.
+- 2026-03-29: Session creation, overlay mutation, and queue handoff intentionally remain in Executor so Home / Runtime does not duplicate the full CRUD surface.
 
 ## RB-013 - Define the live observation contract for overlay sessions
-- Status: planned
+- Status: complete
 - Roadmap IDs: RM-ui-runtime-overlay-002
 - Plan Refs: none
 - Satisfied By Plan Ref: none
@@ -207,6 +210,7 @@ Establish the observation contract for live UI sessions, including semantic snap
 ### Key Points
 - 2026-03-28: Snapshots are primary evidence and screenshots are secondary.
 - 2026-03-28: Observation artifacts should support real issue triage and change requests, not just passive viewing.
+- 2026-03-29: The current overlay contract already persists observations, annotations, change requests, and derived quality signals through the existing overlay APIs and store.
 
 ## RB-014 - Add element-level issue posting and change-request flow
 - Status: planned
@@ -224,7 +228,7 @@ Add element-level annotation, issue posting, and narrow change-request flow so o
 - 2026-03-28: Promotion into canonical planning surfaces should be explicit rather than automatic.
 
 ## RB-015 - Define safety, authority, and capability boundaries for live UI editing
-- Status: planned
+- Status: complete
 - Roadmap IDs: RM-ui-runtime-overlay-003
 - Plan Refs: none
 - Satisfied By Plan Ref: none
@@ -237,6 +241,7 @@ Define safety, authority, and capability boundaries for observing a live app and
 ### Key Points
 - 2026-03-28: Catalog repo selection remains the repo authority and Obsidian remains additive and non-canonical.
 - 2026-03-28: Unsupported stacks or ambiguous targets must fail closed instead of inferring unsafe behavior.
+- 2026-03-29: Existing service and route coverage now proves fail-closed runtime URL validation, repo/package-root authority checks, closed-session mutation blocking, reservation safety, and rollback-safe Executor handoff.
 
 ## RB-016 - Add bounded validation and UI-quality signal analysis
 - Status: proposed

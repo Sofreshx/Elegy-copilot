@@ -13,8 +13,9 @@ UI Runtime Overlay extends copilot-ui as the local control plane for attach-firs
 ## Roadmap Items
 ### RM-ui-runtime-overlay-001 — Bind Attach Mode to verified runtime and repo context
 - Phase: Phase 0 - Attach Foundation
-- Status: planned
+- Status: complete
 - Summary: Establish Attach Mode session registration, runtime URL binding, selected-repo or folder linking, and capability gating so copilot-ui can safely attach to a real app and know which codebase it is allowed to affect.
+- Notes: The current overlay service already binds verified http/https runtime URLs to the selected Catalog repo, persists repo metadata on the overlay session, and fails closed when repo selection or package-root validation is missing.
 - Backlog IDs: RB-011
 - Plan Refs: none
 - Satisfied By Plan Ref: none
@@ -23,8 +24,9 @@ UI Runtime Overlay extends copilot-ui as the local control plane for attach-firs
 
 ### RM-ui-runtime-overlay-002 — Define the snapshot-first observation contract
 - Phase: Phase 0 - Observation Contract
-- Status: planned
+- Status: complete
 - Summary: Define the snapshot-first live observation model for overlay sessions, including semantic snapshots, locator metadata, timing/state captures, and bounded evidence artifacts that describe real UI behavior without claiming full automation.
+- Notes: The shipped overlay API family already persists observations, annotations, change requests, and derived quality signals on each overlay session, and the Executor workspace uses that contract as its full overlay CRUD surface.
 - Backlog IDs: RB-013
 - Plan Refs: none
 - Satisfied By Plan Ref: none
@@ -33,8 +35,9 @@ UI Runtime Overlay extends copilot-ui as the local control plane for attach-firs
 
 ### RM-ui-runtime-overlay-003 — Lock safety, authority, and fail-closed runtime rules
 - Phase: Phase 0 - Safety and Authority
-- Status: planned
+- Status: complete
 - Summary: Lock the safety, authority, and fail-closed rules for live UI observation, repo linkage, planning promotion, and execution handoff so the feature stays honest about what it can observe, change, and persist.
+- Notes: Existing service and route coverage already enforces selected Catalog repo authority, package-root boundary checks, fail-closed state loading, closed-session mutation blocking, reservation invalidation, and rollback-safe Executor handoff.
 - Backlog IDs: RB-015
 - Plan Refs: none
 - Satisfied By Plan Ref: none
@@ -43,8 +46,9 @@ UI Runtime Overlay extends copilot-ui as the local control plane for attach-firs
 
 ### RM-ui-runtime-overlay-004 — Add operator-native overlay workflow to Home / Runtime
 - Phase: Phase 1 - Runtime UX
-- Status: planned
+- Status: in_progress
 - Summary: Add the operator workflow to Home / Runtime, especially Sessions and Executor, so starting or resuming an overlay session feels native to copilot-ui and exposes repo context, evidence, and next actions in one place.
+- Notes: Runtime -> Sessions now surfaces a lightweight overlay sessions workspace with compact session summaries, resume/select controls, refresh, and one-click handoff into Executor. Executor remains the full create/mutate/queue workspace, so this UX slice is active but not complete yet.
 - Backlog IDs: RB-012
 - Plan Refs: none
 - Satisfied By Plan Ref: none

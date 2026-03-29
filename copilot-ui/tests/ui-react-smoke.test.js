@@ -129,6 +129,44 @@ async function run() {
     );
   });
 
+  await test('runtime sessions surface overlay workspace and overview exposes overlay resume handoff', async () => {
+    const homeRuntimeSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'HomeRuntime', 'HomeRuntimeView.tsx'), 'utf8');
+    const sessionsViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsView.tsx'), 'utf8');
+    const overlayWorkspaceSource = fs.readFileSync(
+      path.join(uiSrcRoot, 'tabs', 'Sessions', 'OverlaySessionsWorkspace.tsx'),
+      'utf8'
+    );
+
+    assert.ok(
+      sessionsViewSource.includes('runtime-overlay-sessions-panel'),
+      'Expected SessionsView to expose a stable overlay sessions panel test id'
+    );
+    assert.ok(
+      sessionsViewSource.includes('OverlaySessionsWorkspace'),
+      'Expected SessionsView to render the overlay sessions workspace'
+    );
+    assert.ok(
+      overlayWorkspaceSource.includes('Open Selected in Executor'),
+      'Expected overlay sessions workspace to expose selected-session executor handoff copy'
+    );
+    assert.ok(
+      overlayWorkspaceSource.includes('Resume'),
+      'Expected overlay sessions workspace to expose row-level resume handoff copy'
+    );
+    assert.ok(
+      overlayWorkspaceSource.includes('runtime-overlay-session-open-executor-'),
+      'Expected overlay sessions workspace to expose stable per-session executor handoff ids'
+    );
+    assert.ok(
+      homeRuntimeSource.includes('Resume overlay workflow'),
+      'Expected HomeRuntimeView to expose an overlay resume quick action'
+    );
+    assert.ok(
+      homeRuntimeSource.includes('runtime-overview-overlay-action'),
+      'Expected HomeRuntimeView to expose a stable overlay quick action test id'
+    );
+  });
+
   await test('executor observes merged external CLI and VS Code sessions', async () => {
     const executorStoreSource = fs.readFileSync(
       path.join(uiSrcRoot, 'tabs', 'Executor', 'executorStore.ts'),

@@ -61,7 +61,10 @@ The route registry in `copilot-ui/routes/index.js` mounts these current route mo
 - `planning`
 - `planning-artifacts`
 - `planning-obsidian`
+- `backlog`
+- `roadmaps`
 - `sessions`
+- `uiRuntimeOverlay`
 - `gateway`
 - `tracker`
 - `sdk`
@@ -74,6 +77,7 @@ Treat those groups as the primary backend surface. The most important user-visib
 - planning record, compare, merge, suggestion, and persistence-health endpoints
 - repo-contextual external Obsidian note status/list/detail/sync plus deterministic mirror status/list/refresh endpoints that stay explicitly non-canonical
 - session artifact endpoints for structured state, proposition, and verification guides
+- attach-first UI Runtime Overlay endpoints for overlay session inventory, observations, annotations, change requests, and executor queue handoff
 - gateway and tracker proxy/status endpoints
 - SDK-facing routes used by smoke and sandbox validation
 - executor routes for scheduled SDK-backed prompts, run history, and retry-aware runtime control
@@ -275,6 +279,27 @@ external/non-canonical.
 | `POST` | `/api/sessions/:id/archive` | Moves a session into `sessions-archive`. | `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/sessions/:id/delete` | Deletes a session after force confirmation. | `copilot-ui/tests/api-contract.test.js` |
 
+### UI Runtime Overlay surface
+
+The UI Runtime Overlay is the attach-first runtime observation family layered into `Home / Runtime`.
+It intentionally splits responsibilities across two existing runtime subsections:
+
+- `Home / Runtime -> Sessions` now shows a lightweight overlay sessions workspace for compact status, repo/runtime summary, refresh, and one-click handoff.
+- `Home / Runtime -> Executor` remains the full overlay CRUD and queue workspace for attach, close, observations, annotations, change requests, and executor-backed queueing.
+
+Current endpoints:
+
+| Method | Endpoint | Purpose | Primary test anchors |
+| --- | --- | --- | --- |
+| `GET` | `/api/ui-runtime-overlay/sessions` | Lists attach-first overlay sessions with repo/runtime linkage plus observation, annotation, change-request, and quality-signal summaries. | `copilot-ui/routes/uiRuntimeOverlay.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `POST` | `/api/ui-runtime-overlay/sessions` | Creates an attached overlay session for the selected Catalog repo after runtime URL and package-root validation. | `copilot-ui/routes/uiRuntimeOverlay.test.js`, `copilot-ui/lib/uiRuntimeOverlayService.test.js` |
+| `POST` | `/api/ui-runtime-overlay/sessions/:sessionId/close` | Closes an overlay session when no reservation is active. | `copilot-ui/routes/uiRuntimeOverlay.test.js`, `copilot-ui/lib/uiRuntimeOverlayService.test.js` |
+| `POST` | `/api/ui-runtime-overlay/sessions/:sessionId/observations` | Adds an observation plus any derived quality signals to an attached overlay session. | `copilot-ui/routes/uiRuntimeOverlay.test.js`, `copilot-ui/lib/uiRuntimeOverlayService.test.js` |
+| `POST` | `/api/ui-runtime-overlay/sessions/:sessionId/annotations` | Adds an operator annotation tied to the current overlay evidence. | `copilot-ui/routes/uiRuntimeOverlay.test.js`, `copilot-ui/lib/uiRuntimeOverlayService.test.js` |
+| `POST` | `/api/ui-runtime-overlay/sessions/:sessionId/change-requests` | Creates a scoped change request from overlay evidence. | `copilot-ui/routes/uiRuntimeOverlay.test.js`, `copilot-ui/lib/uiRuntimeOverlayService.test.js` |
+| `POST` | `/api/ui-runtime-overlay/sessions/:sessionId/change-requests/:changeRequestId/release` | Releases a reserved change request when queue handoff should be cleared. | `copilot-ui/routes/uiRuntimeOverlay.test.js`, `copilot-ui/lib/uiRuntimeOverlayService.test.js` |
+| `POST` | `/api/ui-runtime-overlay/sessions/:sessionId/change-requests/:changeRequestId/executor-job` | Creates the executor job handoff for a reserved change request with rollback-safe cleanup on failure. | `copilot-ui/routes/uiRuntimeOverlay.test.js`, `copilot-ui/lib/uiRuntimeOverlayService.test.js` |
+
 ### Gateway and tracker integration
 
 Gateway readiness authority is split intentionally:
@@ -381,6 +406,18 @@ The `Home / Runtime -> Sessions` detail pane now combines `/api/sessions/:id/age
 catalog audit analytics to show per-session skill search, selection, and invocation visibility.
 When explicit invocation evidence is absent, the UI labels the skill/session rollup as
 proxy-only visibility instead of implying authoritative execution telemetry.
+
+The same `Home / Runtime -> Sessions` surface now also includes a compact overlay sessions workspace
+powered by the existing `uiRuntimeOverlayStore` and `/api/ui-runtime-overlay/sessions` family. That
+workspace is intentionally summary-first: it shows overlay session status, runtime origin, repo label,
+and evidence counts, then routes deep editing and queue work to `Executor` with one click.
+
+`Home / Runtime -> Overview` now includes a small `Resume overlay workflow` quick action. It reuses
+the selected or latest overlay session state and routes directly into `Executor` when a session exists,
+or back into `Sessions` when the operator still needs to pick one.
+
+`Home / Runtime -> Executor` remains the full overlay workspace. It still owns attached-session
+creation, session close, observation/annotation/change-request mutation, and executor queue handoff.
 
 The top-level `Stats` surface now consolidates the same existing telemetry contracts into one
 read-only observability dashboard. It combines `/api/health`, `/api/runtime/catalog-health`,

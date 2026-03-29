@@ -8,6 +8,7 @@ import { gatewayStore } from '../Gateway/gatewayStore';
 import { sandboxesStore } from '../Sandboxes/sandboxesStore';
 import SessionDetail from './SessionDetail';
 import SessionList from './SessionList';
+import OverlaySessionsWorkspace from './OverlaySessionsWorkspace';
 import SdkMessageList from './SdkMessageList';
 import { sdkSessionsStore } from './sdkSessionsStore';
 import { sessionsStore } from './sessionsStore';
@@ -264,6 +265,14 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
           <p className="sessions-connection-copy">{sandboxConnectionDetail}</p>
         </article>
       </div>
+
+      <Panel
+        subtitle="Attach-first overlay sessions use the existing runtime overlay store and API family. Resume or inspect them here, then hand off deep editing and queue work to Executor."
+        testId="runtime-overlay-sessions-panel"
+        title="Overlay Sessions"
+      >
+        <OverlaySessionsWorkspace />
+      </Panel>
 
       {modeError ? (
         <p className="sessions-error" role="alert">

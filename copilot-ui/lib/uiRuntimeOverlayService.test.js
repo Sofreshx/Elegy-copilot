@@ -94,6 +94,45 @@ async function run() {
     }
   });
 
+  await test('malformed persisted overlay state fails closed', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+
+    try {
+      writeText(resolveUiRuntimeOverlayStatePath(copilotHome), '{"sessions":[');
+
+      const service = createUiRuntimeOverlayService({ copilotHome });
+
+      assert.throws(
+        () => service.listSessions(),
+        (error) => error && error.statusCode === 500 && /malformed json/i.test(error.message),
+      );
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('persisted overlay state with an invalid top-level shape fails closed', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+
+    try {
+      writeJson(resolveUiRuntimeOverlayStatePath(copilotHome), {
+        version: 1,
+        sessions: {},
+      });
+
+      const service = createUiRuntimeOverlayService({ copilotHome });
+
+      assert.throws(
+        () => service.listSessions(),
+        (error) => error && error.statusCode === 500 && /invalid top-level shape/i.test(error.message),
+      );
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
   await test('create session fails when no catalog repo is selected', async () => {
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
     const copilotHome = path.join(tmpRoot, '.copilot');

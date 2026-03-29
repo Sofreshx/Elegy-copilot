@@ -108,6 +108,18 @@ function createUiRuntimeOverlayStore() {
   let loadVersion = 0;
   let mutationVersion = 0;
 
+  function discardStaleLoad(requestVersion: number, requestMutationVersion: number): boolean {
+    if (requestVersion === loadVersion && requestMutationVersion === mutationVersion) {
+      return false;
+    }
+
+    if (requestVersion === loadVersion) {
+      store.setState((state) => (state.loading ? { ...state, loading: false } : state));
+    }
+
+    return true;
+  }
+
   function commitMutation(): void {
     mutationVersion += 1;
   }
@@ -133,7 +145,7 @@ function createUiRuntimeOverlayStore() {
         getCatalogRepos(),
       ]);
 
-      if (requestVersion !== loadVersion || requestMutationVersion !== mutationVersion) {
+      if (discardStaleLoad(requestVersion, requestMutationVersion)) {
         return;
       }
 
@@ -150,7 +162,7 @@ function createUiRuntimeOverlayStore() {
         error: null,
       }));
     } catch (error) {
-      if (requestVersion !== loadVersion || requestMutationVersion !== mutationVersion) {
+      if (discardStaleLoad(requestVersion, requestMutationVersion)) {
         return;
       }
 
@@ -373,11 +385,13 @@ function createUiRuntimeOverlayStore() {
       try {
         const sessionsResponse = await listUiRuntimeOverlaySessions();
         const sessions = [...sessionsResponse.sessions].sort(sortSessions);
+        commitMutation();
 
         store.setState((state) => ({
           ...state,
           sessions,
           selectedSessionId: reconcileSelectedSessionId(state.selectedSessionId, sessions, sessionId),
+          loading: false,
           queueingChangeRequestId: null,
           error: errorMessage,
         }));
@@ -426,11 +440,13 @@ function createUiRuntimeOverlayStore() {
       try {
         const sessionsResponse = await listUiRuntimeOverlaySessions();
         const sessions = [...sessionsResponse.sessions].sort(sortSessions);
+        commitMutation();
 
         store.setState((state) => ({
           ...state,
           sessions,
           selectedSessionId: reconcileSelectedSessionId(state.selectedSessionId, sessions, sessionId),
+          loading: false,
           releasingChangeRequestId: null,
           error: errorMessage,
         }));

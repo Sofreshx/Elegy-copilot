@@ -9,7 +9,7 @@ import {
   resolveSessionUpdatedAt,
   summarizeSdkHealth,
 } from '../../lib/stateDiagnostics';
-import type { SessionSummary } from '../../lib/types';
+import type { SessionSummary, UiRuntimeOverlaySession } from '../../lib/types';
 import { useStoreValue } from '../../lib/store';
 import {
   navigationStore,
@@ -19,6 +19,7 @@ import {
 import { sdkHealthStore } from '../../stores/sdkHealthStore';
 import GatewayView from '../Gateway/GatewayView';
 import ExecutorView from '../Executor/ExecutorView';
+import { uiRuntimeOverlayStore } from '../Executor/uiRuntimeOverlayStore';
 import LspView from '../LSP/LspView';
 import { readSandboxId, sandboxesStore } from '../Sandboxes/sandboxesStore';
 import SessionsView from '../Sessions/SessionsView';
@@ -111,6 +112,45 @@ function pickMostRecentSession(sessions: SessionSummary[]): SessionSummary | nul
     const latestTimestamp = resolveSessionUpdatedAt(latest) ?? 0;
     return sessionTimestamp > latestTimestamp ? session : latest;
   }, null);
+}
+
+function isOverlaySessionResumable(session: UiRuntimeOverlaySession): boolean {
+  return session.status.trim().toLowerCase() !== 'closed';
+}
+
+function resolveOverlayResumeTimestamp(session: UiRuntimeOverlaySession): number {
+  const parsed = Date.parse(session.updatedAt || session.createdAt || '');
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function pickOverlayResumeSession(
+  sessions: UiRuntimeOverlaySession[],
+  selectedSessionId: string | null,
+): UiRuntimeOverlaySession | null {
+  const selectedSession = sessions.find(
+    (session) => session.id === selectedSessionId && isOverlaySessionResumable(session),
+  );
+  if (selectedSession) {
+    return selectedSession;
+  }
+
+  return sessions.reduce<UiRuntimeOverlaySession | null>((latest, session) => {
+    if (!isOverlaySessionResumable(session)) {
+      return latest;
+    }
+
+    if (!latest) {
+      return session;
+    }
+
+    return resolveOverlayResumeTimestamp(session) > resolveOverlayResumeTimestamp(latest)
+      ? session
+      : latest;
+  }, null);
+}
+
+function resolveOverlaySessionLabel(session: UiRuntimeOverlaySession): string {
+  return session.repoLabel || session.repoId || session.id;
 }
 
 interface GithubWorkspaceControlState {
@@ -449,6 +489,7 @@ export default function HomeRuntimeView() {
   const sdkHealthState = useStoreValue(sdkHealthStore);
   const localSessionState = useStoreValue(sessionsStore);
   const sandboxState = useStoreValue(sandboxesStore);
+  const uiRuntimeOverlayState = useStoreValue(uiRuntimeOverlayStore);
   const [githubWorkspaceControl, setGithubWorkspaceControl] = useState<GithubWorkspaceControlState>({
     patching: false,
     message: null,
@@ -459,11 +500,17 @@ export default function HomeRuntimeView() {
     stateOverviewStore.startPolling();
     void sessionsStore.loadSessions();
     void sandboxesStore.loadSandboxes();
+    void uiRuntimeOverlayStore.load();
 
     return () => {
       stateOverviewStore.stopPolling();
     };
   }, []);
+
+  const overlayResumeSession = useMemo(
+    () => pickOverlayResumeSession(uiRuntimeOverlayState.sessions, uiRuntimeOverlayState.selectedSessionId),
+    [uiRuntimeOverlayState.selectedSessionId, uiRuntimeOverlayState.sessions],
+  );
 
   const runtimeCard = useMemo(() => {
     const runtime = asRecord(overviewState.health?.runtime);
@@ -678,7 +725,7 @@ export default function HomeRuntimeView() {
     },
     sessions: {
       title: 'Sessions',
-      body: 'Inspect local and SDK-backed sessions, stream messages, and continue runtime work.',
+      body: 'Inspect local, SDK-backed, and attach-first overlay sessions, then hand off deep overlay edits to Executor.',
     },
     executor: {
       title: 'Executor',
@@ -734,6 +781,16 @@ export default function HomeRuntimeView() {
         await stateOverviewStore.refresh();
       }
     })();
+  };
+
+  const handleResumeOverlayWorkflow = () => {
+    if (overlayResumeSession) {
+      uiRuntimeOverlayStore.selectSession(overlayResumeSession.id);
+      navigationStore.goToRuntime('executor');
+      return;
+    }
+
+    navigationStore.goToRuntime('sessions', { sessionsMode: 'local' });
   };
 
   return (
@@ -874,6 +931,27 @@ export default function HomeRuntimeView() {
                   variant="secondary"
                 >
                   Open Executor
+                </Button>
+              </article>
+
+              <article className="state-card">
+                <div className="state-card-header">
+                  <p className="state-card-title">Resume overlay workflow</p>
+                </div>
+                <p className="state-card-copy">
+                  {overlayResumeSession
+                    ? `Continue ${resolveOverlaySessionLabel(overlayResumeSession)} with the overlay session ready for Executor handoff.`
+                    : uiRuntimeOverlayState.error
+                      ? uiRuntimeOverlayState.error
+                      : 'Open Runtime / Sessions to inspect overlay sessions.'}
+                </p>
+                <Button
+                  disabled={uiRuntimeOverlayState.loading && !overlayResumeSession}
+                  onClick={handleResumeOverlayWorkflow}
+                  testId="runtime-overview-overlay-action"
+                  variant="secondary"
+                >
+                  {overlayResumeSession ? 'Resume Overlay in Executor' : 'Open Overlay Sessions'}
                 </Button>
               </article>
 
