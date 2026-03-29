@@ -156,6 +156,15 @@ scripts/cli-ui.ps1          # Windows
 ./scripts/cli-ui.sh         # macOS/Linux
 ```
 
+These are the canonical full-app startup paths. Use `scripts/cli-ui.ps1 --sdk` or
+`./scripts/cli-ui.sh --sdk` when you need the Copilot SDK bridge; `--sdk` sets
+`COPILOT_SDK_BRIDGE=1` before launching the same server entrypoint.
+
+The `copilot-ui` `ui:dev` script is frontend-only and requires the backend to already be running
+separately. During frontend work, the Vite dev server now proxies `/api` to
+`http://127.0.0.1:3210` by default, and you can override that target with
+`COPILOT_UI_DEV_API_URL`.
+
 Open: http://127.0.0.1:3210
 
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.

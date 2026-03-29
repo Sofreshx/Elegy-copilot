@@ -8,8 +8,10 @@ runtime surface, tabs, route groups, persistence model, and validation anchors.
 This document provides curl commands to manually validate the Plan-Pack Progress Tracker and related session artifact endpoints.
 
 ## Prerequisites
-1. Server must be running: `node copilot-ui/server.js`
-2. Use a valid session ID (example: `a04980e8-4804-411d-a774-0a4cbf88576e`)
+1. Start the full app with `node copilot-ui/server.js`, `scripts/cli-ui.ps1`, or `./scripts/cli-ui.sh`.
+2. When Copilot SDK access is required, use `scripts/cli-ui.ps1 --sdk` or `./scripts/cli-ui.sh --sdk`; `--sdk` sets `COPILOT_SDK_BRIDGE=1` before launch.
+3. `copilot-ui` `ui:dev` is frontend-only, so keep the backend running separately. Its Vite dev server proxies `/api` to `http://127.0.0.1:3210` by default and honors `COPILOT_UI_DEV_API_URL`.
+4. Use a valid session ID (example: `a04980e8-4804-411d-a774-0a4cbf88576e`)
 
 ## Desktop Packaged Updater Smoke
 

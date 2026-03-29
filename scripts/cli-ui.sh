@@ -15,4 +15,15 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-exec node "$SERVER_JS" "$@"
+forwarded_args=()
+
+for arg in "$@"; do
+  if [[ "$arg" == "--sdk" ]]; then
+    export COPILOT_SDK_BRIDGE='1'
+    continue
+  fi
+
+  forwarded_args+=("$arg")
+done
+
+exec node "$SERVER_JS" "${forwarded_args[@]}"

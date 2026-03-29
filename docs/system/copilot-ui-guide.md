@@ -26,12 +26,18 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
 `copilot-ui` currently runs in two supported modes:
 
 1. **Local server mode**
-   - Start with `node copilot-ui/server.js` or the helper scripts in `scripts/cli-ui.*`.
-   - Serves the HTTP API plus the built React UI on `127.0.0.1:3210`.
+  - Start with `node copilot-ui/server.js` or the helper scripts in `scripts/cli-ui.*`.
+  - This is the intended full-app startup path for local UI work.
+  - Add `--sdk` to the helper scripts when Copilot SDK bridge access is required; the helper sets `COPILOT_SDK_BRIDGE=1` before launching Node.
+  - Serves the HTTP API plus the built React UI on `127.0.0.1:3210`.
 2. **Desktop shell mode**
    - Packages the same UI and backend behavior inside the Electron runtime.
    - This is an optional maintainer/distribution lane rather than the default runtime expectation.
    - Desktop update and rollback behavior are governed by [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md).
+
+The `copilot-ui` `ui:dev` script is frontend-only and requires the backend to already be running
+separately. During frontend work, the Vite dev server proxies `/api` to
+`http://127.0.0.1:3210` by default, and `COPILOT_UI_DEV_API_URL` overrides that backend target.
 
 ## What it owns
 
