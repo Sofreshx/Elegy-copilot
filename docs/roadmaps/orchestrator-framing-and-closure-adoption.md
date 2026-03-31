@@ -1,8 +1,10 @@
 ---
-doc_kind: roadmap
-roadmap_slug: orchestrator-framing-and-closure-adoption
-title: Orchestrator Framing and Closure Adoption
-version: 1
+created: 2026-03-31
+updated: 2026-03-31
+category: meta
+status: current
+doc_kind: node
+summary: Repo roadmap for adopting orchestrator framing and closure summaries across runtime, projection, and UI surfaces.
 ---
 
 # Orchestrator Framing and Closure Adoption

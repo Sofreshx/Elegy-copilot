@@ -10,6 +10,8 @@ Elegy Copilot currently has two desktop distribution lanes:
 `.github/workflows/desktop-preview-release.yml` is the default public distribution lane.
 
 - Pushing a normal release tag such as `1.0.0` or `1.0.0-rc.1` automatically builds and attaches unsigned desktop artifacts to that GitHub release.
+- The preview release tag must exactly match `copilot-ui/package.json`'s version at the selected ref.
+- Auto-published preview releases are always marked as prereleases because the artifacts are intentionally unsigned.
 - Manual `workflow_dispatch` remains available when you need to backfill assets for an existing tag or build from a non-tag ref.
 
 Inputs:
@@ -36,7 +38,8 @@ Workflow:
 
 1. Bump `copilot-ui/package.json` version.
 2. Run the desktop tag helper workflow to create `desktop-v<version>`.
-3. Run `desktop-release.yml` with that `release_tag`.
+3. Pushing that `desktop-v<version>` tag now auto-runs `desktop-release.yml` and creates or updates the matching published GitHub release.
+4. Use manual `workflow_dispatch` only when you need to backfill an existing desktop tag or intentionally override `publish_mode` back to `draft`.
 
 Required repository configuration:
 
@@ -45,13 +48,17 @@ Required repository configuration:
 - optional `DESKTOP_SIGNING_SERVICE_API_KEY`
 
 The signed release lane is intentionally fail-closed when signing evidence is unavailable.
+Updater metadata for packaged builds is emitted against `Sofreshx/Elegy-copilot`, so published assets and
+in-app update discovery stay aligned with the actual GitHub repository.
 
 ## 3. Local packaged updater smoke
 
-Run `npm --prefix copilot-ui run package:win:smoke` before cutting or validating a Windows desktop release when you need a local integrity check for the packaged updater lane.
+Run `npm --prefix copilot-ui run package:win:smoke` before cutting or validating a Windows desktop release when you need a local integrity check for the packaged runtime and updater lane.
 
 What it validates:
 
+- the desktop packaging step rebuilt the React UI, Electron main bundle, `local-tracker`, and `local-tracker` gateway runtime that packaged Electron depends on
+- the packaged Windows app boots and serves `/api/health`
 - `copilot-ui/release/latest.yml` version and installer path match the packaged desktop version
 - the referenced installer and `.blockmap` exist in `copilot-ui/release`
 - the packaged `win-unpacked/resources/app-update.yml` still matches the current GitHub publish metadata

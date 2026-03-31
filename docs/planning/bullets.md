@@ -1,3 +1,12 @@
+---
+created: 2026-03-31
+updated: 2026-03-31
+category: meta
+status: current
+doc_kind: node
+summary: Repository-scoped freeform bullet seeds for future planning sessions before backlog promotion.
+---
+
 # Planning Bullets
 
 Repository-scoped bullet seeds for future planning sessions.

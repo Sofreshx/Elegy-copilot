@@ -15,8 +15,8 @@ related: [catalog-control-plane, session-state-artifacts, desktop-update-rollbac
 ## Purpose
 
 `copilot-ui` is the current local UI and control plane for Instruction Engine. It provides the
-React-based dashboard surface, the local HTTP API used by that UI, and an optional packaged
-Electron shell for standalone desktop distribution.
+React-based dashboard surface, the local HTTP API used by that UI, and the packaged Electron shell
+that now acts as the primary desktop distribution/runtime.
 
 It replaces the legacy vanilla dashboard. When the React bundle is unavailable, the fallback page
 from `copilot-ui/public/index.html` explains that the active UI is served from `copilot-ui/ui-dist`.
@@ -25,15 +25,17 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
 
 `copilot-ui` currently runs in two supported modes:
 
-1. **Local server mode**
+1. **Desktop shell mode**
+   - This is the default end-user runtime.
+   - It packages the same UI and backend behavior inside Electron and boots the backend locally on `127.0.0.1`.
+   - It uses `~/.copilot` for runtime state, starts the messaging gateway dependency automatically, and default-enables `COPILOT_SDK_BRIDGE=1` unless explicitly disabled.
+   - In packaged mode it starts an embedded planning database under `~/.copilot/planning-db`, sets planning persistence env vars for the local runtime, and keeps planning durability available by default without a separate database install.
+   - Desktop update and rollback behavior are governed by [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md).
+2. **Local server mode**
   - Start with `node copilot-ui/server.js` or the helper scripts in `scripts/cli-ui.*`.
-  - This is the intended full-app startup path for local UI work.
+  - This is the developer fallback for backend work, scripted local inspection, and frontend iteration against a manually started backend.
   - Add `--sdk` to the helper scripts when Copilot SDK bridge access is required; the helper sets `COPILOT_SDK_BRIDGE=1` before launching Node.
   - Serves the HTTP API plus the built React UI on `127.0.0.1:3210`.
-2. **Desktop shell mode**
-   - Packages the same UI and backend behavior inside the Electron runtime.
-   - This is an optional maintainer/distribution lane rather than the default runtime expectation.
-   - Desktop update and rollback behavior are governed by [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md).
 
 The `copilot-ui` `ui:dev` script is frontend-only and requires the backend to already be running
 separately. During frontend work, the Vite dev server proxies `/api` to
@@ -47,7 +49,7 @@ separately. During frontend work, the Vite dev server proxies `/api` to
 - session browsing and session-artifact inspection
 - repo-backed planning surfaces, external Obsidian note sync/seeding, deterministic Obsidian planning mirrors, and planning-record compatibility APIs
 - gateway readiness projection plus tracker operational/proxy surfaces
-- optional packaged desktop lifecycle, updater wiring, and local runtime health reporting
+- desktop lifecycle, updater wiring, and local runtime health reporting
 
 Catalog semantics and authoritative write paths are defined in [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md).
 

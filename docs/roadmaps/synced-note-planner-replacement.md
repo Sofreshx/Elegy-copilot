@@ -1,8 +1,10 @@
 ---
-doc_kind: roadmap
-roadmap_slug: synced-note-planner-replacement
-title: Synced-Note Planner Replacement
-version: 1
+created: 2026-03-31
+updated: 2026-03-31
+category: meta
+status: current
+doc_kind: node
+summary: Repo roadmap for completing the synced-note planner replacement rollout and operator hardening work.
 ---
 
 # Synced-Note Planner Replacement

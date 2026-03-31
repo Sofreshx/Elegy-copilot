@@ -14,9 +14,10 @@ related: [runtime-permissions-contracts, security-model]
 
 ## Scope
 
-This runbook applies only when maintainers are exercising the optional packaged Electron desktop
-distribution lane. The default/local runtime expectation for day-to-day use remains the Node.js
-server mode described in [[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md).
+This runbook applies to the packaged Electron desktop runtime, which is the primary supported
+distribution and updater surface for Elegy Copilot. The raw Node.js server mode described in
+[[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md) remains a
+developer fallback, not the end-user delivery path.
 
 ## Ownership
 

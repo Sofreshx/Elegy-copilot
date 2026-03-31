@@ -54,11 +54,12 @@ Reference runbook: [Desktop Update Rollback + Kill Switch Runbook](desktop-updat
 Desktop release CI is split between a public preview lane and the signed maintainer lane:
 
 - Public preview lane:
-  - `.github/workflows/desktop-preview-release.yml` is manually dispatched with a target `ref` plus a preview `tag_name`.
+  - `.github/workflows/desktop-preview-release.yml` can be auto-triggered from a matching semver tag or manually dispatched with a target `ref` plus a preview `tag_name`.
   - It publishes clearly labeled unsigned preview assets to GitHub Releases for open-source evaluation.
 - Signed maintainer lane:
   - `.github/workflows/desktop-version-tag.yml` is manually dispatched by maintainers to create `desktop-v*` tags from an explicit target ref when the desktop release helper is intentionally invoked.
-  - `.github/workflows/desktop-release.yml` is manually dispatched with `release_tag` and validates that the requested tag matches `copilot-ui/package.json`.
+  - `.github/workflows/desktop-release.yml` auto-runs on pushed `desktop-v*` tags and also supports manual dispatch with `release_tag`.
+  - It validates that the requested desktop tag matches `copilot-ui/package.json` and only publishes after signing checks pass.
 - Windows GA artifact flow:
   - Build unsigned installer on `windows-latest`.
   - Exchange GitHub OIDC token (`id-token: write`) for signing identity.
@@ -75,7 +76,7 @@ Desktop release CI is split between a public preview lane and the signed maintai
   - Publish preview artifact only with explicit unsigned label (`MAC_PREVIEW_UNSIGNED.txt`).
 - Publish gate:
   - Public preview releases can publish unsigned assets without the private signing service.
-  - Signed GitHub releases are created only after all verification checks pass.
+  - Signed GitHub releases for `desktop-v*` tags are created only after all verification checks pass.
   - Prerelease flag is inferred from desktop tag semver suffix (`desktop-vx.y.z-*` => prerelease).
 
 Required repository configuration (placeholders, not committed secrets):

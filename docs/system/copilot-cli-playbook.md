@@ -845,7 +845,8 @@ Source: https://docs.github.com/en/copilot/how-tos/copilot-cli/cli-best-practice
 ### Dashboard (local-only)
 This repo includes a small local dashboard for inspecting Copilot CLI state and installed assets.
 
-- Run: `node copilot-ui/server.js` (or `scripts/cli-ui.ps1` / `./scripts/cli-ui.sh`)
+- Preferred runtime: the packaged Elegy Copilot desktop app, which starts the local backend automatically
+- Raw server fallback: `node copilot-ui/server.js` (or `scripts/cli-ui.ps1` / `./scripts/cli-ui.sh`)
 - Observes: `~/.copilot/session-state/` + `~/.copilot/agents/` + `~/.copilot/skills/` + `~/.copilot` config files
 - Actions: refresh, sync/update assets, delete/remove assets (**guarded**)
 - Safety: local-only, **no auth** — don’t expose the port beyond localhost

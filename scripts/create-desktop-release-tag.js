@@ -86,12 +86,6 @@ function main() {
   const currentVersion = packageJson.version;
   const previousVersion = getVersionFromGitObject(`HEAD^:${DESKTOP_PACKAGE_PATH}`);
   const tagName = `desktop-v${currentVersion}`;
-
-  if (previousVersion === currentVersion) {
-    console.log(`No desktop version bump detected (${currentVersion}); skipping tag creation.`);
-    return;
-  }
-
   runOptional('git fetch --tags origin');
 
   const remoteTag = runOptional(`git ls-remote --tags --refs origin refs/tags/${tagName}`);
@@ -102,6 +96,10 @@ function main() {
 
   const localTag = runOptional(`git rev-parse --verify --quiet refs/tags/${tagName}`);
   if (!localTag.ok || !localTag.output) {
+    if (previousVersion === currentVersion) {
+      console.log(`No desktop version bump detected (${currentVersion}); creating missing tag '${tagName}' anyway.`);
+    }
+
     if (dryRun) {
       console.log(`[dry-run] Would create local tag '${tagName}'.`);
     } else {
@@ -109,6 +107,9 @@ function main() {
       console.log(`Created local tag '${tagName}'.`);
     }
   } else {
+    if (previousVersion === currentVersion) {
+      console.log(`No desktop version bump detected (${currentVersion}); reusing existing local tag '${tagName}'.`);
+    }
     console.log(`Tag '${tagName}' already exists locally.`);
   }
 

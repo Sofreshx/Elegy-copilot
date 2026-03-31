@@ -40,6 +40,12 @@ jobs:
       release_name: ${{ steps.meta.outputs.release_name }}
       prerelease: ${{ steps.meta.outputs.prerelease }}
     steps:
+      - name: Checkout repository metadata
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
       - name: Resolve preview release inputs
         id: meta
         shell: bash
@@ -60,10 +66,7 @@ jobs:
             ref="${GITHUB_REF_NAME}"
             tag_name="${GITHUB_REF_NAME}"
             release_name="Elegy Copilot Desktop Preview ${tag_name}"
-            prerelease="false"
-            if [[ "${tag_name}" == *-* ]]; then
-              prerelease="true"
-            fi
+            prerelease="true"
           fi
 
           if [[ -z "${ref}" ]]; then
@@ -78,6 +81,29 @@ jobs:
 
           if [[ -z "${release_name}" ]]; then
             release_name="Elegy Copilot Desktop Preview ${tag_name}"
+          fi
+
+          if ! git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null; then
+            git fetch --depth=1 origin "${ref}"
+          fi
+
+          package_version="$(python - "${ref}" <<'PY'
+          import json
+          import subprocess
+          import sys
+
+          ref = sys.argv[1]
+          payload = subprocess.check_output(
+              ["git", "show", f"{ref}:copilot-ui/package.json"],
+              text=True,
+          )
+          print(json.loads(payload)["version"])
+          PY
+          )"
+
+          if [[ "${package_version}" != "${tag_name}" ]]; then
+            echo "Preview release tag '${tag_name}' must match copilot-ui/package.json version '${package_version}' at ref '${ref}'." >&2
+            exit 1
           fi
 
           echo "ref=${ref}" >> "$GITHUB_OUTPUT"
@@ -114,19 +140,12 @@ jobs:
 
       - name: Build Windows preview package (unsigned)
         working-directory: copilot-ui
-        run: npm run package:win
+        run: npm run package:win:smoke
 
       - name: Stage Windows preview artifacts
         shell: pwsh
         run: |
-          $artifacts = Get-ChildItem -Path 'copilot-ui/release' -Recurse -Force
-          if (-not $artifacts) {
-            Write-Error 'No Windows preview artifacts were produced in copilot-ui/release.'
-            exit 1
-          }
-
-          New-Item -ItemType Directory -Path 'release-artifacts/windows' -Force | Out-Null
-          Copy-Item -Path 'copilot-ui/release\*' -Destination 'release-artifacts/windows' -Recurse -Force
+          npm --prefix copilot-ui run stage:win-release-artifacts
           Set-Content -Path 'release-artifacts/windows/WINDOWS_UNSIGNED_PREVIEW.txt' -Value @'
           Windows preview artifacts are intentionally unsigned in this workflow.
           Use them for preview/testing only, not GA desktop distribution.

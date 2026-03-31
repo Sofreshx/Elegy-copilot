@@ -1,6 +1,9 @@
 name: Elegy Copilot Desktop Release
 
 on:
+  push:
+    tags:
+      - 'desktop-v*'
   workflow_dispatch:
     inputs:
       release_tag:
@@ -10,7 +13,7 @@ on:
       publish_mode:
         description: 'Whether to keep the GitHub release as a draft or publish it immediately'
         required: false
-        default: 'draft'
+        default: 'published'
         type: choice
         options:
           - draft
@@ -92,7 +95,7 @@ jobs:
 
           publish_mode="${{ inputs.publish_mode }}"
           if [[ -z "${publish_mode}" ]]; then
-            publish_mode="draft"
+            publish_mode="published"
           fi
 
           echo "release_tag=${tag}" >> "$GITHUB_OUTPUT"
@@ -129,7 +132,7 @@ jobs:
 
       - name: Build Windows package (unsigned)
         working-directory: copilot-ui
-        run: npm run package:win
+        run: npm run package:win:smoke
 
       - name: Upload unsigned Windows package
         uses: actions/upload-artifact@v4
@@ -152,6 +155,29 @@ jobs:
       SIGNING_SERVICE_AUDIENCE: ${{ vars.DESKTOP_SIGNING_SERVICE_AUDIENCE || 'elegy-copilot-desktop-release' }}
       SIGNING_SERVICE_API_KEY: ${{ secrets.DESKTOP_SIGNING_SERVICE_API_KEY }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.release_tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
+
+      - name: CI lockfile preflight
+        run: node scripts/validate-ci-lockfiles.js
+
+      - name: Install workspace dependencies
+        run: npm ci
+
       - name: Download unsigned Windows package
         uses: actions/download-artifact@v4
         with:
@@ -269,19 +295,9 @@ jobs:
             }
           }
 
-          New-Item -ItemType Directory -Path 'release-artifacts/windows' -Force | Out-Null
-          Copy-Item -Path 'copilot-ui/release/*' -Destination 'release-artifacts/windows' -Recurse -Force
-          $relativeInstallerArtifactPath = Join-Path 'release-artifacts/windows' $relativeInstallerPath
-          $relativeInstallerArtifactDirectory = Split-Path -Parent $relativeInstallerArtifactPath
-          if (-not [string]::IsNullOrWhiteSpace($relativeInstallerArtifactDirectory)) {
-            New-Item -ItemType Directory -Path $relativeInstallerArtifactDirectory -Force | Out-Null
-          }
-          Copy-Item $signedInstaller $relativeInstallerArtifactPath -Force
-          Copy-Item $signedInstaller (Join-Path 'release-artifacts/windows' $installer.Name) -Force
-          Copy-Item $signedInstaller 'release-artifacts/windows/windows-signed-installer.exe' -Force
-          Copy-Item $signatureManifest 'release-artifacts/windows/signature-manifest.json' -Force
-          Copy-Item $provenanceAttestation 'release-artifacts/windows/provenance.attestation.json' -Force
-          Copy-Item 'copilot-ui/release/signing-response.json' 'release-artifacts/windows/signing-response.json' -Force
+          Copy-Item $signedInstaller $resolvedInstallerPath -Force
+          npm --prefix copilot-ui run refresh:win-release-metadata
+          npm --prefix copilot-ui run stage:win-release-artifacts -- "$resolvedInstallerPath::windows-signed-installer.exe" "$signatureManifest::signature-manifest.json" "$provenanceAttestation::provenance.attestation.json" "$env:GITHUB_WORKSPACE\\copilot-ui\\release\\signing-response.json::signing-response.json"
 
       - name: Upload signed Windows artifacts and evidence
         uses: actions/upload-artifact@v4

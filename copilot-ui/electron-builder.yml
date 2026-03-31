@@ -63,5 +63,5 @@ win:
 publish:
   provider: github
   owner: Sofreshx
-  repo: instruction-engine
-  releaseType: draft
+  repo: Elegy-copilot
+  releaseType: release

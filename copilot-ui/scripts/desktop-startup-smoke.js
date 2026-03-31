@@ -148,13 +148,18 @@ async function main() {
     assert(health.ok === true, 'Expected packaged desktop health.ok to be true');
     assert(health.startupManagedAssetSync && typeof health.startupManagedAssetSync === 'object', 'Expected startupManagedAssetSync in packaged health');
     assert(health.autonomousDecisionLog && typeof health.autonomousDecisionLog === 'object', 'Expected autonomousDecisionLog in packaged health');
+    assert(health.planningPersistence && typeof health.planningPersistence === 'object', 'Expected planningPersistence in packaged health');
     assert(health.startupManagedAssetSync.decisionLogged === true, 'Expected packaged startup sync decision to be logged');
     assert(health.autonomousDecisionLog.lastEventKind === 'startup.managed_asset_sync', 'Expected packaged startup decision log to report startup.managed_asset_sync');
     assert(typeof health.autonomousDecisionLog.path === 'string' && fs.existsSync(health.autonomousDecisionLog.path), 'Expected packaged autonomous decision log file to exist');
+    assert(health.planningPersistence.required === true, 'Expected packaged desktop planning persistence to be required');
+    assert(health.planningPersistence.usable === true, 'Expected packaged desktop planning persistence to be usable');
+    assert(health.planningPersistence.status === 'ready', `Expected packaged desktop planning persistence status ready, received ${health.planningPersistence.status || '(missing)'}`);
 
     console.log('[smoke] packaged desktop startup reached /api/health');
     console.log(`[smoke] health: ${baseUrl}/api/health`);
     console.log(`[smoke] startup sync outcome: ${health.startupManagedAssetSync.outcome}`);
+    console.log(`[smoke] planning persistence: ${health.planningPersistence.status}`);
     console.log(`[smoke] decision log: ${health.autonomousDecisionLog.path}`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

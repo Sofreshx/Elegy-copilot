@@ -1,8 +1,10 @@
 ---
-doc_kind: roadmap
-roadmap_slug: ui-runtime-overlay
-title: UI Runtime Overlay
-version: 1
+created: 2026-03-31
+updated: 2026-03-31
+category: meta
+status: current
+doc_kind: node
+summary: Repo roadmap for attach-first UI runtime overlay capabilities in copilot-ui.
 ---
 
 # UI Runtime Overlay

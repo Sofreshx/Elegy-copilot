@@ -141,24 +141,35 @@ persisted artifacts.
 ## Dashboard (local UI)
 
 A local UI and control plane for viewing sessions, managing assets, and operating your `~/.copilot`
-installation. The default/recommended runtime is the local Node.js server. `copilot-ui` can also run
-inside the packaged Electron shell when maintainers need a standalone desktop distribution.
+installation. The default/recommended runtime is the packaged desktop app: it starts the local runtime
+for you, points the window at that local backend, and keeps the SDK/gateway wiring in one place.
+`copilot-ui` can still run from the raw Node.js server when you are developing or debugging the backend.
 `copilot-ui` is also the **catalog control plane** for the delivered asset system: it owns the
 authoritative local catalog/search/audit APIs, repo inventory, projection refresh, and mutation
 flows for shared, user-global, and repo-local assets.
 
 ```bash
-# Direct
+# Desktop app development
+npm --prefix copilot-ui run electron:dev
+
+# Raw server fallback
 node copilot-ui/server.js
 
-# Via helper scripts
+# Raw server via helper scripts
 scripts/cli-ui.ps1          # Windows
 ./scripts/cli-ui.sh         # macOS/Linux
 ```
 
-These are the canonical full-app startup paths. Use `scripts/cli-ui.ps1 --sdk` or
-`./scripts/cli-ui.sh --sdk` when you need the Copilot SDK bridge; `--sdk` sets
-`COPILOT_SDK_BRIDGE=1` before launching the same server entrypoint.
+Packaged desktop behavior:
+
+- uses `~/.copilot` as the runtime home for session state, installed assets, repo-state, and gateway config
+- default-enables the Copilot SDK bridge unless `INSTRUCTION_ENGINE_DISABLE_SDK_BRIDGE=1`
+- starts the messaging gateway dependency automatically and rehomes legacy gateway config into `~/.copilot`
+- starts the same local backend on `127.0.0.1`
+- provisions an embedded planning database in packaged mode, stored under `~/.copilot/planning-db`, so planning persistence is available by default without a separate local database install
+
+Use `scripts/cli-ui.ps1 --sdk` or `./scripts/cli-ui.sh --sdk` only when you intentionally want the raw
+server path with the SDK bridge forced on.
 
 The `copilot-ui` `ui:dev` script is frontend-only and requires the backend to already be running
 separately. During frontend work, the Vite dev server now proxies `/api` to
@@ -232,10 +243,9 @@ Verification surfaces:
 If a persisted projection is missing, the backend falls back to a filesystem build
 (`readMode: "filesystem-fallback"`). Refreshing persists the snapshot again.
 
-### Optional desktop packaging lane (locked)
+### Desktop packaging and release lane (locked)
 
-- Desktop packaging is an **optional maintainer distribution lane**, not the default expectation for
-  normal repo changes or releases.
+- Desktop packaging is the primary end-user delivery surface for Elegy Copilot.
 - Packaging runtime: Electron (`electron-builder`) with in-app updates (`electron-updater`)
 - Release scope when packaging is used: Windows GA first; Linux/macOS preview until signing parity
 - Signing custody: managed external signing service via OIDC (no private keys in repo)
@@ -245,12 +255,12 @@ If a persisted projection is missing, the backend falls back to a filesystem bui
   - `copilot-ui/ui-dist/**`
   - `local-tracker` runtime (`dist` + runtime deps)
   - helper scripts required by dashboard/runtime operations
-- Packaged desktop runtime attempts embedded Postgres bootstrap in packaged mode (Windows-first). If runtime binaries are unavailable, app continues in non-persistent mode and surfaces a warning.
+- Packaged desktop runtime now boots with an embedded planning database by default. The local runtime, SDK bridge, tracker, and planning persistence all come up together under `~/.copilot`.
 
 Desktop release tag helper flow, when the optional packaging lane is exercised:
 - `.github/workflows/desktop-version-tag.yml` is a maintainer-only manual helper that can target a specific ref to create `desktop-v<version>` tags when an explicit desktop release flow should advance.
-- `.github/workflows/desktop-preview-release.yml` publishes unsigned preview artifacts to GitHub Releases for public/open-source evaluation.
-- `.github/workflows/desktop-release.yml` remains the signed maintainer release publisher and is manually dispatched with a `desktop-v*` tag.
+- `.github/workflows/desktop-preview-release.yml` publishes unsigned prerelease artifacts to GitHub Releases for public/open-source evaluation, but only when the pushed preview tag matches `copilot-ui/package.json`'s version.
+- `.github/workflows/desktop-release.yml` now auto-runs on pushed `desktop-v*` tags and creates or updates the matching published signed desktop release; manual dispatch remains for backfills and draft overrides.
 
 Release-safety rules (G-06-WU-03) for packaged desktop releases:
 - Migration checksum safety is explicit: `pass` only when persisted migration checksums match manifest checksums; checksum drift is release-blocking (`PLANNING_MIGRATION_CHECKSUM_DRIFT`).
