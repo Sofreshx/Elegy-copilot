@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 
 const workspaceRoot = path.resolve(__dirname, '..');
+const pgliteEntrypoint = require.resolve('@electric-sql/pglite');
+const pgliteDistRoot = path.dirname(pgliteEntrypoint);
 
 const requiredPaths = [
   {
@@ -22,19 +24,19 @@ const requiredPaths = [
   },
   {
     label: 'embedded desktop planning persistence entrypoint',
-    filePath: path.join(workspaceRoot, 'node_modules', '@electric-sql', 'pglite', 'dist', 'index.cjs'),
+    filePath: pgliteEntrypoint,
   },
   {
     label: 'embedded desktop planning persistence wasm payload',
-    filePath: path.join(workspaceRoot, 'node_modules', '@electric-sql', 'pglite', 'dist', 'pglite.wasm'),
+    filePath: path.join(pgliteDistRoot, 'pglite.wasm'),
   },
   {
     label: 'embedded desktop planning persistence data payload',
-    filePath: path.join(workspaceRoot, 'node_modules', '@electric-sql', 'pglite', 'dist', 'pglite.data'),
+    filePath: path.join(pgliteDistRoot, 'pglite.data'),
   },
   {
     label: 'embedded desktop planning initdb runtime',
-    filePath: path.join(workspaceRoot, 'node_modules', '@electric-sql', 'pglite', 'dist', 'initdb.wasm'),
+    filePath: path.join(pgliteDistRoot, 'initdb.wasm'),
   },
 ];
 
