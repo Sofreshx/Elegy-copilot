@@ -180,6 +180,7 @@ const mocks = vi.hoisted(() => {
         notes: ['Keep bullets browse-first'],
         promotedPlanRefs: ['plan-123'],
         promotedBacklogRefs: [],
+        promotedRoadmapRefs: [],
       },
     ],
     planningIntakeDirectory: {
@@ -562,6 +563,7 @@ const mocks = vi.hoisted(() => {
     syncCatalogRepoContext: vi.fn(),
     patchBullet: vi.fn(),
     promoteBulletToBacklog: vi.fn(),
+    promoteBulletToRoadmap: vi.fn(),
     promoteObsidianNoteToBacklog: vi.fn(),
     promoteObsidianNoteToRoadmap: vi.fn(),
     setSelectedRoadmapSlug: vi.fn(),
@@ -574,6 +576,7 @@ const mocks = vi.hoisted(() => {
     setSessionId: vi.fn(),
     setScope: vi.fn(),
     setSelectedRecordId: vi.fn(),
+    setSelectedDiagramId: vi.fn(),
     setCreateScope: vi.fn(),
     setCreateState: vi.fn(),
     setCreateTitle: vi.fn(),
@@ -623,6 +626,7 @@ vi.mock('../ui/src/tabs/Planning/planningStore', () => ({
     setSessionId: mocks.setSessionId,
     setScope: mocks.setScope,
     setSelectedRecordId: mocks.setSelectedRecordId,
+    setSelectedDiagramId: mocks.setSelectedDiagramId,
     setCreateScope: mocks.setCreateScope,
     setCreateState: mocks.setCreateState,
     setCreateTitle: mocks.setCreateTitle,
@@ -667,6 +671,7 @@ vi.mock('../ui/src/tabs/Planning/planningWorkspaceStore', () => ({
     syncCatalogRepoContext: mocks.syncCatalogRepoContext,
     patchBullet: mocks.patchBullet,
     promoteBulletToBacklog: mocks.promoteBulletToBacklog,
+    promoteBulletToRoadmap: mocks.promoteBulletToRoadmap,
     promoteObsidianNoteToBacklog: mocks.promoteObsidianNoteToBacklog,
     promoteObsidianNoteToRoadmap: mocks.promoteObsidianNoteToRoadmap,
     setSelectedRoadmapSlug: mocks.setSelectedRoadmapSlug,
@@ -889,6 +894,7 @@ describe('PlanningView', () => {
       mocks.promoteBulletToBacklog,
       mocks.promoteObsidianNoteToBacklog,
       mocks.promoteObsidianNoteToRoadmap,
+      mocks.setSelectedDiagramId,
       mocks.setSelectedRoadmapSlug,
       mocks.setIntakeCategoryFilter,
       mocks.setIntakePlanningStateFilter,
@@ -954,6 +960,13 @@ describe('PlanningView', () => {
           planningState: '__all__',
           targetRepoId: '__all__',
         },
+      });
+    });
+    mocks.setSelectedDiagramId.mockImplementation((selectedDiagramId: string) => {
+      const state = mocks.planningStore.getState();
+      mocks.planningStore.setState({
+        ...state,
+        selectedDiagramId,
       });
     });
 
@@ -1083,6 +1096,7 @@ describe('PlanningView', () => {
           notes: ['Keep bullets browse-first'],
           promotedPlanRefs: ['plan-123'],
           promotedBacklogRefs: [],
+          promotedRoadmapRefs: [],
         },
       ],
       planningIntakeDirectory: {
@@ -1443,7 +1457,7 @@ describe('PlanningView', () => {
     vi.resetModules();
   });
 
-  it('prioritizes intake, backlog, and roadmap surfaces from Catalog repo context and demotes legacy notes', async () => {
+  it('prioritizes plan, bullet, backlog, and roadmap surfaces from Catalog repo context', async () => {
     const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
 
     render(<PlanningView />);
@@ -1451,67 +1465,50 @@ describe('PlanningView', () => {
     expect(screen.getByText('Planning')).toBeInTheDocument();
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('Create / Edit Plan');
     expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('plan-123');
-    expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('Seeded from');
+    expect(screen.getByTestId('planning-plan-authoring-panel')).toHaveTextContent('Session plan.md');
+    expect(screen.getByTestId('planning-mode-workflow')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-mode-compatibility')).toBeInTheDocument();
     expect(screen.getByTestId('planning-linked-plan-file-path')).toHaveTextContent(
       'C:\\Users\\Dylan\\.copilot\\session-state\\plan-123\\plan.md'
     );
     expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Instruction Engine');
     expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('repo-1');
     expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Bullets');
-    expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Typed intake');
-    expect(screen.getByTestId('planning-persistence-panel')).toHaveTextContent('Planning database ready');
-    expect(screen.queryByTestId('research-notes-panel')).not.toBeInTheDocument();
-    expect(screen.getByTestId('planning-obsidian-notes-panel')).toBeInTheDocument();
-    expect(screen.getByTestId('planning-sdk-lane-panel')).toHaveTextContent('Planning ↔ SDK Lane');
-    expect(screen.getByTestId('planning-sdk-lane-panel')).toHaveTextContent('sdk-123');
-    expect(screen.getByTestId('planning-sdk-lane-panel')).toHaveTextContent('Capture planning intake');
+    expect(screen.queryByText('Typed intake')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('planning-persistence-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('planning-obsidian-notes-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('planning-sdk-lane-panel')).not.toBeInTheDocument();
     expect(mocks.applyCatalogRepoContext).toHaveBeenCalled();
     expect(mocks.syncCatalogRepoContext).toHaveBeenCalled();
     expect(mocks.loadWorkspaceBullets).toHaveBeenCalled();
-    expect(mocks.loadWorkspaceIntake).toHaveBeenCalled();
     expect(mocks.loadWorkspaceBacklog).toHaveBeenCalled();
     expect(mocks.loadWorkspaceRoadmaps).toHaveBeenCalled();
-    expect(mocks.loadObsidianNotes).toHaveBeenCalled();
-    expect(mocks.loadObsidianRepresentations).toHaveBeenCalled();
-    expect(mocks.sdkHealthStartPolling).toHaveBeenCalled();
-    expect(mocks.stateOverviewStartPolling).toHaveBeenCalled();
-    expect(mocks.sdkLoadSessions).toHaveBeenCalledWith({
-      attachStream: false,
-      preserveSelection: true,
-      selectSessionId: 'sdk-123',
-    });
+    expect(mocks.loadWorkspaceIntake).not.toHaveBeenCalled();
+    expect(mocks.loadObsidianNotes).not.toHaveBeenCalled();
+    expect(mocks.loadObsidianRepresentations).not.toHaveBeenCalled();
+    expect(mocks.sdkHealthStartPolling).not.toHaveBeenCalled();
+    expect(mocks.stateOverviewStartPolling).not.toHaveBeenCalled();
+    expect(mocks.sdkLoadSessions).not.toHaveBeenCalled();
 
     const bulletsLoadCount = mocks.loadWorkspaceBullets.mock.calls.length;
-    const intakeLoadCount = mocks.loadWorkspaceIntake.mock.calls.length;
     const backlogLoadCount = mocks.loadWorkspaceBacklog.mock.calls.length;
     const roadmapLoadCount = mocks.loadWorkspaceRoadmaps.mock.calls.length;
-    const obsidianLoadCount = mocks.loadObsidianNotes.mock.calls.length;
-    const obsidianRepresentationLoadCount = mocks.loadObsidianRepresentations.mock.calls.length;
     fireEvent.click(screen.getByTestId('planning-refresh-context'));
     expect(mocks.loadWorkspaceBullets.mock.calls.length).toBeGreaterThan(bulletsLoadCount);
-    expect(mocks.loadWorkspaceIntake.mock.calls.length).toBeGreaterThan(intakeLoadCount);
     expect(mocks.loadWorkspaceBacklog.mock.calls.length).toBeGreaterThan(backlogLoadCount);
     expect(mocks.loadWorkspaceRoadmaps.mock.calls.length).toBeGreaterThan(roadmapLoadCount);
-    expect(mocks.loadObsidianNotes.mock.calls.length).toBeGreaterThan(obsidianLoadCount);
-    expect(mocks.loadObsidianRepresentations.mock.calls.length).toBeGreaterThan(obsidianRepresentationLoadCount);
-    expect(mocks.stateOverviewRefresh).toHaveBeenCalled();
-    expect(mocks.sdkHealthRefresh).toHaveBeenCalled();
+    expect(mocks.loadWorkspaceIntake).not.toHaveBeenCalled();
+    expect(mocks.loadObsidianNotes).not.toHaveBeenCalled();
+    expect(mocks.loadObsidianRepresentations).not.toHaveBeenCalled();
+    expect(mocks.stateOverviewRefresh).not.toHaveBeenCalled();
+    expect(mocks.sdkHealthRefresh).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByTestId('planning-section-bullets'));
     expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
     expect(screen.getByTestId('planning-bullets-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md');
     expect(screen.getByTestId('planning-bullets-surface-file-open')).toBeInTheDocument();
     expect(screen.getByTestId('planning-bullets-list')).toHaveTextContent('PB-001');
-    expect(screen.getByTestId('planning-intake-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\planning\\intake');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Visible intake artifacts');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Idea (2)');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Research (1)');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Thought (1)');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Ready (1)');
-    expect(screen.getByTestId('planning-intake-summary-grid')).toHaveTextContent('Unscoped (1)');
-    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Capture planning intake');
-    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Validate tracker grouping');
-    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Triage unscoped follow-up');
+    expect(screen.queryByTestId('planning-intake-surface-panel')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('planning-section-backlog'));
     expect(screen.getByTestId('planning-backlog-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\backlogs');
@@ -1532,12 +1529,51 @@ describe('PlanningView', () => {
     });
     expect(mocks.setSelectedRoadmapSlug).toHaveBeenCalledWith('platform-foundation');
 
-    fireEvent.click(screen.getByTestId('planning-section-plans'));
-    fireEvent.click(screen.getByTestId('planning-show-legacy-artifacts'));
-    expect(screen.getByTestId('research-notes-panel')).toBeInTheDocument();
-
     fireEvent.click(screen.getByTestId('planning-open-catalog'));
     expect(mocks.goToCatalog).toHaveBeenCalledWith('assets');
+  });
+
+  it('loads compatibility/operator planning surfaces lazily when switching modes', async () => {
+    const planningState = mocks.planningStore.getState();
+    mocks.planningStore.setState({
+      ...planningState,
+      diagrams: [
+        {
+          id: 'diagram-1',
+          type: 'flowchart',
+          title: 'Compatibility flow',
+          content: 'graph TD\nA-->B',
+          format: 'mermaid',
+          createdAt: '2026-03-18T00:00:00.000Z',
+        },
+      ],
+      selectedDiagramId: 'diagram-1',
+    });
+
+    const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
+
+    render(<PlanningView />);
+
+    expect(mocks.loadInitial).not.toHaveBeenCalled();
+    expect(mocks.loadWorkspaceIntake).not.toHaveBeenCalled();
+    expect(mocks.loadObsidianNotes).not.toHaveBeenCalled();
+    expect(mocks.loadObsidianRepresentations).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId('planning-mode-compatibility'));
+
+    await waitFor(() => expect(mocks.loadInitial).toHaveBeenCalled());
+    expect(mocks.loadWorkspaceIntake).toHaveBeenCalled();
+    expect(mocks.loadObsidianNotes).toHaveBeenCalled();
+    expect(mocks.loadObsidianRepresentations).toHaveBeenCalled();
+    expect(screen.queryByTestId('planning-section-bullets')).not.toBeInTheDocument();
+    expect(await screen.findByTestId('planning-compatibility-header')).toHaveTextContent('Compatibility / Debug Tools');
+    expect(await screen.findByTestId('planning-compatibility-intake-panel')).toHaveTextContent('PI-001');
+    expect(await screen.findByTestId('planning-obsidian-notes-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-compatibility-record-select')).toHaveValue('planning-1');
+    expect(screen.getByTestId('planning-compatibility-records-panel')).toHaveTextContent('Backlog follow-up');
+    expect(await screen.findByTestId('research-notes-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('planning-compatibility-diagrams-panel')).toHaveTextContent('Compatibility flow');
+    expect(await screen.findByTestId('mermaid-viewer')).toBeInTheDocument();
   });
 
   it('saves direct plans and can reopen the linked local session from Planning', async () => {
@@ -1567,50 +1603,10 @@ describe('PlanningView', () => {
     expect(mocks.goToRuntime).toHaveBeenCalledWith('sessions', { sessionsMode: 'local' });
   });
 
-  it('wires obsidian source management callbacks through the existing planning obsidian surface', async () => {
-    const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
-
-    render(<PlanningView />);
-
-    expect(screen.getByTestId('planning-obsidian-source-management-panel')).toHaveTextContent('Instruction Engine');
-    expect(screen.getByTestId('planning-obsidian-source-management-panel')).toHaveTextContent(
-      'Tracker synced-note sources are available, but this repo must explicitly select one before an effective source is resolved.'
-    );
-
-    fireEvent.click(screen.getByTestId('planning-obsidian-mock-set-source'));
-    expect(mocks.setObsidianSourceSelection).toHaveBeenCalledWith('snsrc_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
-
-    fireEvent.click(screen.getByTestId('planning-obsidian-mock-clear-source'));
-    expect(mocks.setObsidianSourceSelection).toHaveBeenCalledWith(null);
-
-    fireEvent.click(screen.getByTestId('planning-obsidian-mock-create-source'));
-    expect(mocks.createObsidianSource).toHaveBeenCalledWith({
-      provider: 'github',
-      host: 'github.com',
-      owner: 'InstructionEngine',
-      repo: 'workspace',
-      branch: 'main',
-      notesPath: 'docs/planning/third.md',
-    });
-
-    fireEvent.click(screen.getByTestId('planning-obsidian-mock-update-source'));
-    expect(mocks.updateObsidianSource).toHaveBeenCalledWith('snsrc_0123456789abcdef0123456789abcdef', {
-      provider: 'github',
-      host: 'github.com',
-      owner: 'InstructionEngineTeam',
-      repo: 'workspace',
-      branch: 'main',
-      notesPath: 'docs/planning/first.md',
-    });
-
-    fireEvent.click(screen.getByTestId('planning-obsidian-mock-delete-source'));
-    expect(mocks.deleteObsidianSource).toHaveBeenCalledWith('snsrc_0123456789abcdef0123456789abcdef');
-  });
-
-  it('wires obsidian note promotion callbacks through the existing planning obsidian surface', async () => {
-    mocks.promoteObsidianNoteToBacklog.mockResolvedValue('RB-002');
-    mocks.promoteObsidianNoteToRoadmap.mockResolvedValue({
-      backlogId: 'RB-002',
+  it('promotes bullets into backlog and roadmap surfaces from the simplified Planning tab', async () => {
+    mocks.promoteBulletToBacklog.mockResolvedValue('RB-002');
+    mocks.promoteBulletToRoadmap.mockResolvedValue({
+      backlogId: 'RB-001',
       roadmapItemId: 'RM-platform-foundation-002',
     });
 
@@ -1618,72 +1614,14 @@ describe('PlanningView', () => {
 
     render(<PlanningView />);
 
-    expect(screen.getByTestId('planning-obsidian-mock-selected-roadmap')).toHaveTextContent('Platform Foundation');
+    fireEvent.click(screen.getByTestId('planning-section-bullets'));
 
-    fireEvent.click(screen.getByTestId('planning-obsidian-mock-promote-backlog'));
-    expect(mocks.promoteObsidianNoteToBacklog).toHaveBeenCalledWith({
-      id: 'obsnote_1234',
-      title: 'External planning note',
-      summary: 'Review external planning context.',
-      notePath: 'Planning/repo-1/external-planning-note.md',
-    });
+    fireEvent.click(screen.getByTestId('planning-bullet-promote-PB-001'));
+    await waitFor(() => expect(mocks.promoteBulletToBacklog).toHaveBeenCalledWith('PB-001'));
 
-    fireEvent.click(screen.getByTestId('planning-obsidian-mock-promote-roadmap'));
-    expect(mocks.promoteObsidianNoteToRoadmap).toHaveBeenCalledWith({
-      id: 'obsnote_1234',
-      title: 'External planning note',
-      summary: 'Review external planning context.',
-      notePath: 'Planning/repo-1/external-planning-note.md',
-    });
-  });
-
-  it('seeds plans from intake artifacts and exposes shared database diagnostics', async () => {
-    const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
-
-    render(<PlanningView />);
-
-    fireEvent.change(screen.getByTestId('planning-plan-seed'), {
-      target: { value: 'PI-001' },
-    });
-    fireEvent.click(screen.getByTestId('planning-seed-plan'));
-
-    expect(mocks.savePlanDraft).toHaveBeenCalledWith({
-      title: 'Instruction Engine follow-up plan',
-      seedArtifact: {
-        id: 'PI-001',
-        category: 'idea',
-        title: 'Capture planning intake',
-        kind: 'planning.intake.artifact',
-        schemaVersion: 1,
-        summary: 'Persist unscheduled tracked work.',
-        acceptanceCriteria: ['Write tests'],
-        targetRepoIds: ['repo-1'],
-        planningState: 'thought',
-        createdAt: '2026-03-18T00:00:00.000Z',
-        updatedAt: '2026-03-18T00:00:00.000Z',
-        filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\intake\\PI-001.json',
-        repoRelativePath: 'docs/planning/intake/PI-001.json',
-      },
-    });
-
-    fireEvent.click(screen.getByTestId('planning-open-database-diagnostics'));
-    expect(mocks.goToRuntime).toHaveBeenCalledWith('diagnostics', { diagnosticsSectionId: 'database' });
-  });
-
-  it('reopens the linked SDK session from Planning', async () => {
-    const onSdkSessionReady = vi.fn();
-    const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
-
-    render(<PlanningView onSdkSessionReady={onSdkSessionReady} />);
-
-    fireEvent.click(screen.getByTestId('planning-sdk-open-linked-session'));
-
-    await waitFor(() => expect(mocks.sdkLoadSessions).toHaveBeenCalledWith({ selectSessionId: 'sdk-123' }));
-    expect(mocks.sdkSelectSession).toHaveBeenCalledWith('sdk-123');
-    expect(onSdkSessionReady).toHaveBeenCalledWith('sdk-123');
-
-    fireEvent.click(screen.getByTestId('planning-sdk-refresh-link'));
-    expect(mocks.sdkHealthRefresh).toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('planning-section-bullets'));
+    fireEvent.click(screen.getByTestId('planning-bullet-roadmap-PB-001'));
+    await waitFor(() => expect(mocks.promoteBulletToRoadmap).toHaveBeenCalledWith('PB-001'));
   });
 
   it('bootstraps known repos when Planning opens before Catalog inventory has loaded', async () => {
@@ -1703,39 +1641,7 @@ describe('PlanningView', () => {
     await waitFor(() => expect(mocks.loadWorkspace).toHaveBeenCalled());
   });
 
-  it('filters intake artifacts by category, state, and target without leaving the planning tracker', async () => {
-    const { default: PlanningView } = await import('../ui/src/tabs/Planning/PlanningView');
-
-    render(<PlanningView />);
-
-    fireEvent.click(screen.getByTestId('planning-section-bullets'));
-
-    fireEvent.change(screen.getByTestId('planning-intake-category-filter'), {
-      target: { value: 'research' },
-    });
-    expect(mocks.setIntakeCategoryFilter).toHaveBeenCalledWith('research');
-    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Validate tracker grouping');
-    expect(screen.queryByText('Capture planning intake')).not.toBeInTheDocument();
-
-    fireEvent.change(screen.getByTestId('planning-intake-state-filter'), {
-      target: { value: 'ready' },
-    });
-    expect(mocks.setIntakePlanningStateFilter).toHaveBeenCalledWith('ready');
-    expect(screen.getByText('Showing 1 of 3 intake artifacts.')).toBeInTheDocument();
-
-    fireEvent.change(screen.getByTestId('planning-intake-target-filter'), {
-      target: { value: 'repo-2' },
-    });
-    expect(mocks.setIntakeTargetFilter).toHaveBeenCalledWith('repo-2');
-    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('targets: repo-2');
-
-    fireEvent.click(screen.getByTestId('planning-intake-clear-filters'));
-    expect(mocks.clearIntakeFilters).toHaveBeenCalled();
-    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Capture planning intake');
-    expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Triage unscoped follow-up');
-  });
-
-  it('keeps draft intake available even when no Catalog repo is currently selected', async () => {
+  it('keeps the supported planning surfaces available even when no Catalog repo is currently selected', async () => {
     const planningState = mocks.planningStore.getState();
     mocks.planningStore.setState({
       ...planningState,
@@ -1810,7 +1716,7 @@ describe('PlanningView', () => {
     expect(screen.getByTestId('mock-planning-ideas-panel')).toBeInTheDocument();
     expect(screen.getByTestId('planning-context-summary')).toHaveTextContent('Select a Catalog repo');
     expect(screen.getByTestId('planning-refresh-context')).toBeDisabled();
-    expect(screen.getAllByText('Select a repository in Catalog to resolve bullet, intake, backlog, and roadmap surfaces.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Select a repository in Catalog to resolve bullet, backlog, and roadmap surfaces.').length).toBeGreaterThan(0);
     expect(mocks.applyCatalogRepoContext).toHaveBeenCalledWith(null);
     expect(mocks.loadWorkspaceBullets).not.toHaveBeenCalled();
     expect(mocks.loadWorkspaceIntake).not.toHaveBeenCalled();

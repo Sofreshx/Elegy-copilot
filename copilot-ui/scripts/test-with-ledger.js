@@ -35,7 +35,7 @@ function findTests(dir, fileList = []) {
     for (const file of files) {
         const filePath = path.join(dir, file);
         if (fs.statSync(filePath).isDirectory()) {
-            if (file !== 'node_modules' && file !== 'dist-electron') {
+            if (file !== 'node_modules' && file !== 'dist-electron' && file !== 'release') {
                 findTests(filePath, fileList);
             }
         } else if (filePath.endsWith('.test.js')) {

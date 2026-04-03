@@ -160,6 +160,7 @@ export interface SessionPlanSeedArtifactPayload {
   originKind?: string;
   promotedPlanRefs?: string[];
   promotedBacklogRefs?: string[];
+  promotedRoadmapRefs?: string[];
   provider?: string;
   notePath?: string;
   vaultName?: string;
@@ -586,6 +587,7 @@ export interface PlanningBulletPayload {
   notes?: string[];
   promotedPlanRefs?: string[];
   promotedBacklogRefs?: string[];
+  promotedRoadmapRefs?: string[];
 }
 
 export interface PlanningBulletCreatePayload extends PlanningRepoDocRefOptions {
@@ -598,6 +600,7 @@ export interface PlanningBulletCreatePayload extends PlanningRepoDocRefOptions {
   notes?: string[];
   promotedPlanRefs?: string[];
   promotedBacklogRefs?: string[];
+  promotedRoadmapRefs?: string[];
 }
 
 export interface PlanningBulletUpdatePayload extends PlanningRepoDocRefOptions {
@@ -611,6 +614,7 @@ export interface PlanningBulletUpdatePayload extends PlanningRepoDocRefOptions {
   notes?: string[];
   promotedPlanRefs?: string[];
   promotedBacklogRefs?: string[];
+  promotedRoadmapRefs?: string[];
 }
 
 export interface PlanningRepoSummary {
@@ -754,6 +758,7 @@ export interface PlanningBulletApi extends PlanningBullet {
   notes: string[];
   promotedPlanRefs: string[];
   promotedBacklogRefs: string[];
+  promotedRoadmapRefs: string[];
   filePath: string;
   repoRelativePath: string;
 }
@@ -1061,6 +1066,7 @@ function normalizePlanningBullet(value: unknown): PlanningBulletApi | null {
     notes: asStringList(record.notes),
     promotedPlanRefs: asStringList(record.promotedPlanRefs),
     promotedBacklogRefs: asStringList(record.promotedBacklogRefs),
+    promotedRoadmapRefs: asStringList(record.promotedRoadmapRefs),
     filePath: asTrimmedString(record.filePath),
     repoRelativePath: asTrimmedString(record.repoRelativePath),
   };

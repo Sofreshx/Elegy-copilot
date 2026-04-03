@@ -46,6 +46,7 @@ This agent is **leaf-only**. `@orchestrator` remains responsible for choosing `r
   sufficient.
 - When a request includes or creates execution follow-through, preserve linked `RB-*` and `RM-*` IDs
   verbatim for future Plan Pack / Roadmap Sync handoff.
+- When roadmap work starts from `PB-*` bullet seeds, preserve those linked bullet IDs explicitly in the roadmap artifact or handoff output rather than collapsing them into prose.
 - Docs-only lane: edit markdown artifacts only. Do not modify runtime code or session-state plan-pack
   files here.
 - Delivery-oriented planning/reporting requests such as commit prep, review prep, and CI result checks are in scope only when this lane is clarifying durable roadmap/backlog context or returning an explicit planning-surface outcome. They must not imply code execution, push automation, or remote CI write automation.
@@ -59,6 +60,7 @@ This agent is **leaf-only**. `@orchestrator` remains responsible for choosing `r
 - creating a new roadmap file under `docs/roadmaps/`
 - maintaining roadmap phases, outcomes, and explicit backlog coverage
 - preparing Roadmap Sync-ready linking before execution starts
+- promoting bullet-seeded work into roadmap outcomes while preserving linked `PB-*`, `RB-*`, and `RM-*` identifiers
 - clarifying whether work belongs in backlog, roadmap, or plan pack
 - classifying delivery-oriented planning/reporting requests as `roadmap` or `none` when the user needs an explicit planning-surface decision above execution
 

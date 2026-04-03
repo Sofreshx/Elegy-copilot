@@ -115,6 +115,23 @@ vi.mock('../ui/src/lib/api', async () => {
       keyPoints: [],
     },
   ];
+  const INITIAL_BULLETS = [
+    {
+      kind: 'planning.bullet.artifact',
+      schemaVersion: 1,
+      id: 'PB-001',
+      title: 'Establish backlog/roadmap workflow',
+      state: 'pre-plan',
+      repoId: 'repo-1',
+      summary: 'Keep backlog authority explicit in Planning.',
+      notes: ['Reuse existing backlog items when promoting to the roadmap.'],
+      promotedPlanRefs: ['plan-123'],
+      promotedBacklogRefs: ['RB-001'],
+      promotedRoadmapRefs: [],
+      filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md',
+      repoRelativePath: 'docs/planning/bullets.md',
+    },
+  ];
   const INITIAL_ROADMAPS = [
     {
       slug: 'platform-foundation',
@@ -135,15 +152,25 @@ vi.mock('../ui/src/lib/api', async () => {
     },
   ];
   const planningMutationState = {
+    bullets: cloneJson(INITIAL_BULLETS),
     backlogItems: cloneJson(INITIAL_BACKLOG_ITEMS),
     roadmaps: cloneJson(INITIAL_ROADMAPS),
     nextBacklogNumber: 2,
   };
   const resetPlanningMutationState = () => {
+    planningMutationState.bullets = cloneJson(INITIAL_BULLETS);
     planningMutationState.backlogItems = cloneJson(INITIAL_BACKLOG_ITEMS);
     planningMutationState.roadmaps = cloneJson(INITIAL_ROADMAPS);
     planningMutationState.nextBacklogNumber = 2;
   };
+  const buildBulletsResponse = () => ({
+    exists: true,
+    filePath: 'C:\\Repos\\instruction-engine\\docs\\planning\\bullets.md',
+    repoRelativePath: 'docs/planning/bullets.md',
+    stableIdPattern: 'PB-###',
+    supportedStates: ['idea', 'research', 'pre-plan'],
+    bulletCount: planningMutationState.bullets.length,
+  });
   const buildBacklogSummary = () => ({
     backlogPath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
     repoRelativePath: 'docs/backlogs',
@@ -205,6 +232,16 @@ vi.mock('../ui/src/lib/api', async () => {
       repo: {
         repoId: 'repo-1',
         repoPath: 'C:\\Repos\\instruction-engine',
+        repoLabel: 'Instruction Engine',
+      },
+    })),
+    getPlanningBullets: vi.fn(async () => ({
+      count: planningMutationState.bullets.length,
+      bullets: buildBulletsResponse(),
+      artifacts: cloneJson(planningMutationState.bullets),
+      repo: {
+        repoId: 'repo-1',
+        repoPath: 'C:\Repos\instruction-engine',
         repoLabel: 'Instruction Engine',
       },
     })),
@@ -561,6 +598,39 @@ vi.mock('../ui/src/lib/api', async () => {
         },
         backlog: buildBacklogSummary(),
         item,
+      };
+    }),
+    updatePlanningBullet: vi.fn(async (bulletId: string, payload: import('../ui/src/lib/api').PlanningBulletUpdatePayload) => {
+      const patch = payload.patch && typeof payload.patch === 'object'
+        ? payload.patch
+        : (payload.bullet && typeof payload.bullet === 'object' ? payload.bullet : payload);
+      planningMutationState.bullets = planningMutationState.bullets.map((bullet) => (
+        bullet.id !== bulletId
+          ? bullet
+          : {
+            ...bullet,
+            ...patch,
+            title: typeof patch.title === 'string' && patch.title.trim() ? patch.title.trim() : bullet.title,
+            state: typeof patch.state === 'string' && patch.state.trim() ? patch.state.trim() : bullet.state,
+            repoId: typeof patch.repoId === 'string' && patch.repoId.trim() ? patch.repoId.trim() : bullet.repoId,
+            summary: typeof patch.summary === 'string' ? patch.summary.trim() : bullet.summary,
+            notes: Array.isArray(patch.notes) ? [...patch.notes] : bullet.notes,
+            promotedPlanRefs: Array.isArray(patch.promotedPlanRefs) ? [...patch.promotedPlanRefs] : bullet.promotedPlanRefs,
+            promotedBacklogRefs: Array.isArray(patch.promotedBacklogRefs) ? [...patch.promotedBacklogRefs] : bullet.promotedBacklogRefs,
+            promotedRoadmapRefs: Array.isArray(patch.promotedRoadmapRefs) ? [...patch.promotedRoadmapRefs] : bullet.promotedRoadmapRefs,
+          }
+      ));
+
+      return {
+        count: planningMutationState.bullets.length,
+        bullets: buildBulletsResponse(),
+        artifact: cloneJson(planningMutationState.bullets.find((bullet) => bullet.id === bulletId) || null),
+        artifacts: cloneJson(planningMutationState.bullets),
+        repo: {
+          repoId: 'repo-1',
+          repoPath: 'C:\Repos\instruction-engine',
+          repoLabel: 'Instruction Engine',
+        },
       };
     }),
     updatePlanningRoadmap: vi.fn(async (
@@ -955,6 +1025,48 @@ describe('planningWorkspaceStore', () => {
     ]);
     expect(store.getState().roadmaps[0]?.items.some((item) => item.id === 'RM-platform-foundation-002')).toBe(true);
     expect(store.getState().obsidianPromotionSaving).toBe(false);
+  });
+
+  it('promotes a bullet into the selected roadmap while reusing linked backlog ids', async () => {
+    const store = createPlanningWorkspaceStore();
+
+    store.syncCatalogRepoContext({
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      sources: ['workspace'],
+    });
+
+    await Promise.all([store.loadBullets(), store.loadBacklog(), store.loadRoadmaps()]);
+
+    const promotion = await store.promoteBulletToRoadmap('PB-001');
+
+    expect(promotion).toEqual({
+      backlogId: 'RB-001',
+      roadmapItemId: 'RM-platform-foundation-002',
+    });
+    expect(vi.mocked(planningApi.createPlanningBacklogItem)).not.toHaveBeenCalled();
+    expect(vi.mocked(planningApi.updatePlanningRoadmap)).toHaveBeenCalledWith('platform-foundation', {
+      repoId: 'repo-1',
+      repoPath: 'C:\\Repos\\instruction-engine',
+      repoLabel: 'Instruction Engine',
+      items: [
+        {
+          title: 'Establish backlog/roadmap workflow',
+          phase: 'foundation',
+          status: 'planned',
+          summary: 'Promoted from PB-001. Keep backlog authority explicit in Planning. Notes: Reuse existing backlog items when promoting to the roadmap.',
+          backlogIds: ['RB-001'],
+          planRefs: [],
+        },
+      ],
+    });
+    expect(store.getState().bullets[0]?.promotedBacklogRefs).toEqual(['RB-001']);
+    expect(store.getState().bullets[0]?.promotedRoadmapRefs).toEqual(['RM-platform-foundation-002']);
+    expect(store.getState().backlogSummary?.items.find((item) => item.id === 'RB-001')?.roadmapIds).toEqual([
+      'RM-platform-foundation-001',
+      'RM-platform-foundation-002',
+    ]);
   });
 
   it('persists synced-note source selection changes and refreshes obsidian status afterward', async () => {

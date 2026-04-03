@@ -18,10 +18,6 @@ function createMockStore<T>(initialState: T) {
   };
 }
 
-const planningStoreMocks = vi.hoisted(() => ({
-  createActionRequest: vi.fn(),
-}));
-
 const planningWorkspaceMocks = vi.hoisted(() => ({
   createBullet: vi.fn(),
   store: createMockStore({
@@ -33,12 +29,6 @@ const planningWorkspaceMocks = vi.hoisted(() => ({
   }),
 }));
 
-vi.mock('../ui/src/tabs/Planning/planningStore', () => ({
-  planningStore: {
-    ...planningStoreMocks,
-  },
-}));
-
 vi.mock('../ui/src/tabs/Planning/planningWorkspaceStore', () => ({
   planningWorkspaceStore: {
     ...planningWorkspaceMocks.store,
@@ -48,7 +38,6 @@ vi.mock('../ui/src/tabs/Planning/planningWorkspaceStore', () => ({
 
 describe('PlanningIdeasPanel', () => {
   beforeEach(() => {
-    planningStoreMocks.createActionRequest.mockReset();
     planningWorkspaceMocks.createBullet.mockReset();
     planningWorkspaceMocks.store.setState({
       planningBulletsFile: {
@@ -57,11 +46,10 @@ describe('PlanningIdeasPanel', () => {
       },
       bulletsError: null,
     });
-    planningStoreMocks.createActionRequest.mockResolvedValue(null);
     planningWorkspaceMocks.createBullet.mockResolvedValue(null);
   });
 
-  it('keeps bullet capture visible but blocks repo-file writes until a Catalog repo is selected', async () => {
+  it('shows the bullet composer for the primary Planning flow, disables writes without a selected repo, and still opens Catalog Assets', async () => {
     const onOpenCatalogAssets = vi.fn();
     const { default: PlanningIdeasPanel } = await import('../ui/src/tabs/Planning/PlanningIdeasPanel');
 
@@ -80,9 +68,8 @@ describe('PlanningIdeasPanel', () => {
     expect(screen.getByTestId('planning-bullet-intake')).toBeInTheDocument();
     expect(screen.getByText(/No Catalog repo is selected yet/i)).toBeInTheDocument();
     expect(screen.getByTestId('planning-create-bullet')).toBeDisabled();
-    expect(screen.getByTestId('planning-action-workflows-panel')).toHaveTextContent(
-      /docs\/planning\/intake\/\*\.json/i
-    );
+    expect(screen.queryByTestId('planning-action-workflows-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('planning-prep-title')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('planning-open-catalog-assets-bullets'));
     expect(onOpenCatalogAssets).toHaveBeenCalled();
@@ -131,6 +118,8 @@ describe('PlanningIdeasPanel', () => {
     fireEvent.change(screen.getByTestId('planning-bullet-notes'), {
       target: { value: '- Show repo context first\n- Keep bullets browse-first' },
     });
+
+    expect(screen.getByTestId('planning-create-bullet')).toBeEnabled();
     fireEvent.click(screen.getByTestId('planning-create-bullet'));
 
     await waitFor(() =>
@@ -142,59 +131,5 @@ describe('PlanningIdeasPanel', () => {
       })
     );
     expect(onBulletCreated).toHaveBeenCalled();
-  });
-
-  it('creates explicit audit and roadmap request artifacts from the typed intake lane', async () => {
-    planningStoreMocks.createActionRequest
-      .mockResolvedValueOnce('PI-101')
-      .mockResolvedValueOnce('PI-102');
-
-    const onIntakeArtifactCreated = vi.fn();
-    const { default: PlanningIdeasPanel } = await import('../ui/src/tabs/Planning/PlanningIdeasPanel');
-
-    render(
-      <PlanningIdeasPanel
-        onIntakeArtifactCreated={onIntakeArtifactCreated}
-        planningState={{
-          catalogRepoContext: {
-            repoId: 'repo-1',
-            repoLabel: 'Instruction Engine',
-            repoPath: 'C:\\Repos\\instruction-engine',
-            sources: ['workspace', 'selected'],
-          },
-          creating: false,
-          error: null,
-          statusMessage: null,
-        } as never}
-      />
-    );
-
-    fireEvent.change(screen.getByTestId('planning-prep-title'), {
-      target: { value: 'Prepare Planning tab changes' },
-    });
-    fireEvent.change(screen.getByTestId('planning-prep-notes'), {
-      target: { value: 'Focus on validation notes and commit summary wording.' },
-    });
-
-    fireEvent.click(screen.getByTestId('planning-create-audit-request'));
-    await waitFor(() => expect(planningStoreMocks.createActionRequest).toHaveBeenCalledWith('audit-request', {
-      title: 'Prepare Planning tab changes',
-      notes: 'Focus on validation notes and commit summary wording.',
-      targetRepoIds: ['repo-1'],
-      saveRepoId: 'repo-1',
-    }));
-
-    fireEvent.change(screen.getByTestId('planning-prep-title'), {
-      target: { value: 'Generate roadmap proposal for Planning tab summary' },
-    });
-    fireEvent.click(screen.getByTestId('planning-create-roadmap-request'));
-
-    await waitFor(() => expect(planningStoreMocks.createActionRequest).toHaveBeenCalledWith('roadmap-request', {
-      title: 'Generate roadmap proposal for Planning tab summary',
-      notes: '',
-      targetRepoIds: ['repo-1'],
-      saveRepoId: 'repo-1',
-    }));
-    expect(onIntakeArtifactCreated).toHaveBeenCalledTimes(2);
   });
 });

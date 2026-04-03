@@ -512,6 +512,9 @@ function renderBulletsBody(spec, repo) {
     }
     lines.push(`- Promoted to plan: ${Array.isArray(bullet.promotedPlanRefs) && bullet.promotedPlanRefs.length > 0 ? bullet.promotedPlanRefs.join(', ') : 'none'}`);
     lines.push(`- Promoted to backlog: ${Array.isArray(bullet.promotedBacklogRefs) && bullet.promotedBacklogRefs.length > 0 ? bullet.promotedBacklogRefs.join(', ') : 'none'}`);
+    if (Array.isArray(bullet.promotedRoadmapRefs) && bullet.promotedRoadmapRefs.length > 0) {
+      lines.push(`- Promoted to roadmap: ${bullet.promotedRoadmapRefs.join(', ')}`);
+    }
     if (index < bullets.length - 1) {
       lines.push('');
     }

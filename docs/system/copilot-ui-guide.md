@@ -49,7 +49,7 @@ separately. During frontend work, the Vite dev server proxies `/api` to
 
 - catalog projection refresh, search, repo selection, audit, and mutation flows
 - session browsing and session-artifact inspection
-- repo-backed planning surfaces, external Obsidian note sync/seeding, deterministic Obsidian planning mirrors, and planning-record compatibility APIs
+- repo-backed planning surfaces for plans, bullets, Repository Backlog, and Roadmaps, plus compatibility APIs for typed intake, external Obsidian note sync, deterministic mirrors, and planning-record artifacts
 - gateway readiness projection plus tracker operational/proxy surfaces
 - desktop lifecycle, updater wiring, and local runtime health reporting
 
@@ -57,9 +57,14 @@ Catalog semantics and authoritative write paths are defined in [[catalog-control
 
 The Planning workflow uses the repo-backed authority layer defined in
 [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md):
-Catalog repo selection remains the repo-context source, `docs/backlogs/*.md` becomes the primary
-Repository Backlog location, `docs/backlog.md` remains a legacy compatibility surface, `docs/roadmaps/*.md` becomes the canonical Roadmap location, and plan
-packs remain separate session-state execution artifacts.
+Catalog repo selection remains the repo-context source, `docs/planning/bullets.md` is the canonical
+seed surface, `docs/backlogs/*.md` is the primary Repository Backlog location, `docs/backlog.md`
+remains a legacy compatibility surface, `docs/roadmaps/*.md` is the canonical Roadmap location, and
+plan packs remain separate session-state execution artifacts. The primary Planning-tab workflow focuses
+on Plans, Bullets, Backlog, and Roadmaps; typed intake, external Obsidian notes, and legacy
+planning-record artifacts remain compatibility surfaces and should stay out of the main Planning-tab
+path unless a compatibility workflow explicitly needs them through the Planning compatibility/operator
+area.
 
 ## Backend route groups
 
@@ -251,8 +256,9 @@ Configuration is local-only and intentionally avoids secrets. By default, `copil
 }
 ```
 
-The Planning tab now treats **External Obsidian Notes** as its primary supplemental note surface for the
-selected repo. It surfaces:
+External Obsidian notes remain available through compatibility routes and through the explicit
+Planning compatibility/operator area, but they are no longer part of the primary Planning-tab surface.
+When shown there or elsewhere, they may surface:
 
 - base note availability for the repo-contextual notes folder
 - tracker-backed source management plus repo-scoped active-source selection

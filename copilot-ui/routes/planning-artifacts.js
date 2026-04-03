@@ -242,6 +242,9 @@ function summarizePlanningBullet(artifact) {
     promotedBacklogRefs: Array.isArray(record.promotedBacklogRefs)
       ? record.promotedBacklogRefs.map((entry) => normalizeTrimmedString(entry)).filter(Boolean)
       : [],
+    promotedRoadmapRefs: Array.isArray(record.promotedRoadmapRefs)
+      ? record.promotedRoadmapRefs.map((entry) => normalizeTrimmedString(entry)).filter(Boolean)
+      : [],
     filePath: normalizeTrimmedString(record.filePath),
     repoRelativePath: normalizeTrimmedString(record.repoRelativePath),
   };

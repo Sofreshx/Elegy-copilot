@@ -78,6 +78,7 @@ interface PlanningPlanSeedArtifact {
   notes?: string[];
   acceptanceCriteria?: string[];
   backlogIds?: string[];
+  roadmapIds?: string[];
   planRefs?: string[];
   provider?: string;
   notePath?: string;
@@ -658,6 +659,9 @@ function buildSeededPlanContent(input: {
     Array.isArray(artifact.backlogIds) && artifact.backlogIds.length > 0
       ? `- Linked backlog IDs: ${artifact.backlogIds.join(', ')}`
       : '',
+    Array.isArray(artifact.roadmapIds) && artifact.roadmapIds.length > 0
+      ? `- Linked roadmap IDs: ${artifact.roadmapIds.join(', ')}`
+      : '',
     Array.isArray(artifact.planRefs) && artifact.planRefs.length > 0
       ? `- Existing plan refs: ${artifact.planRefs.join(', ')}`
       : '',
@@ -765,6 +769,11 @@ function normalizePlanSeedArtifact(
       ? record.backlogIds.map((entry) => String(entry || '').trim()).filter(Boolean)
       : Array.isArray(record.promotedBacklogRefs)
         ? record.promotedBacklogRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
+        : [],
+    roadmapIds: Array.isArray(record.roadmapIds)
+      ? record.roadmapIds.map((entry) => String(entry || '').trim()).filter(Boolean)
+      : Array.isArray(record.promotedRoadmapRefs)
+        ? record.promotedRoadmapRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
         : [],
     planRefs: Array.isArray(record.planRefs)
       ? record.planRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
@@ -2233,6 +2242,7 @@ export function createPlanningStore() {
             originKind: seedArtifact.kind,
             promotedPlanRefs: seedArtifact.planRefs,
             promotedBacklogRefs: seedArtifact.backlogIds,
+            promotedRoadmapRefs: seedArtifact.roadmapIds,
             provider: seedArtifact.provider,
             notePath: seedArtifact.notePath,
             vaultName: seedArtifact.vaultName,

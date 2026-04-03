@@ -11,6 +11,7 @@ const PLANNING_BULLETS_DESCRIPTION =
 const PLANNING_BULLET_ID_PATTERN = /^PB-(\d{3,})$/;
 const PLANNING_BULLET_STATES = Object.freeze(['idea', 'research', 'pre-plan']);
 const BACKLOG_ID_PATTERN = /^RB-\d{3,}$/;
+const ROADMAP_ID_PATTERN = /^RM-([a-z0-9]+(?:-[a-z0-9]+)*)-(\d{3,})$/;
 const PLAN_REF_PATTERN = /^[A-Za-z0-9._:/-]{1,256}$/;
 
 function normalizeLineEndings(text) {
@@ -135,6 +136,16 @@ function normalizeBacklogRefList(value) {
   return normalized;
 }
 
+function normalizeRoadmapRefList(value) {
+  const normalized = normalizeDeterministicStringList(value);
+  for (const token of normalized) {
+    if (!ROADMAP_ID_PATTERN.test(token)) {
+      throw buildError(`invalid roadmap reference: ${token}`, 400, 'invalid_planning_bullet_roadmap_ref');
+    }
+  }
+  return normalized;
+}
+
 function normalizeNotesList(value) {
   if (Array.isArray(value)) {
     return value
@@ -186,6 +197,7 @@ function finalizePlanningBullet(input, options = {}) {
     notes: normalizeNotesList(source.notes),
     promotedPlanRefs: normalizePlanRefList(source.promotedPlanRefs),
     promotedBacklogRefs: normalizeBacklogRefList(source.promotedBacklogRefs),
+    promotedRoadmapRefs: normalizeRoadmapRefList(source.promotedRoadmapRefs),
   };
 }
 
@@ -245,6 +257,9 @@ function parseBulletSection(id, title, sectionLines) {
 
   const promotedPlanRefs = parseCommaOrNone(expectFieldLine(sectionLines, index++, 'Promoted to plan', id));
   const promotedBacklogRefs = parseCommaOrNone(expectFieldLine(sectionLines, index++, 'Promoted to backlog', id));
+  const promotedRoadmapRefs = index < sectionLines.length
+    ? parseCommaOrNone(expectFieldLine(sectionLines, index++, 'Promoted to roadmap', id))
+    : [];
 
   if (index !== sectionLines.length) {
     throw buildError(
@@ -263,6 +278,7 @@ function parseBulletSection(id, title, sectionLines) {
     notes,
     promotedPlanRefs,
     promotedBacklogRefs,
+    promotedRoadmapRefs,
   });
 }
 
@@ -365,6 +381,7 @@ function serializePlanningBulletsDocument(input) {
 
     lines.push(`- Promoted to plan: ${bullet.promotedPlanRefs.length > 0 ? bullet.promotedPlanRefs.join(', ') : 'none'}`);
     lines.push(`- Promoted to backlog: ${bullet.promotedBacklogRefs.length > 0 ? bullet.promotedBacklogRefs.join(', ') : 'none'}`);
+    lines.push(`- Promoted to roadmap: ${bullet.promotedRoadmapRefs.length > 0 ? bullet.promotedRoadmapRefs.join(', ') : 'none'}`);
 
     if (index < bullets.length - 1) {
       lines.push('');

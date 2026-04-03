@@ -433,6 +433,7 @@ async function run() {
       patch: {
         promotedPlanRefs: ['plan-123'],
         promotedBacklogRefs: ['RB-001'],
+        promotedRoadmapRefs: ['RM-platform-foundation-001'],
       },
     });
 
@@ -441,6 +442,7 @@ async function run() {
     assert.equal(updatedBody.kind, 'planning.bullets.update');
     assert.deepEqual(updatedBody.artifact.promotedPlanRefs, ['plan-123']);
     assert.deepEqual(updatedBody.artifact.promotedBacklogRefs, ['RB-001']);
+    assert.deepEqual(updatedBody.artifact.promotedRoadmapRefs, ['RM-platform-foundation-001']);
     assert.equal(updatedBody.count, 1);
   });
 

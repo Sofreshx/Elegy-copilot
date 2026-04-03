@@ -59,6 +59,7 @@ async function run() {
     assert.match(fileText, /^# Planning Bullets/m);
     assert.match(fileText, /^## PB-001 — Capture repo-scoped bullets$/m);
     assert.match(fileText, /^- Promoted to plan: none$/m);
+    assert.match(fileText, /^- Promoted to roadmap: none$/m);
   });
 
   await test('updates promoted refs without breaking deterministic parsing', async () => {
@@ -74,14 +75,17 @@ async function run() {
     const updated = planningBullets.updatePlanningBullet(repoRoot, 'PB-001', {
       promotedPlanRefs: ['plan-123'],
       promotedBacklogRefs: ['RB-001'],
+      promotedRoadmapRefs: ['RM-platform-foundation-001'],
     });
 
     assert.deepEqual(updated.promotedPlanRefs, ['plan-123']);
     assert.deepEqual(updated.promotedBacklogRefs, ['RB-001']);
+    assert.deepEqual(updated.promotedRoadmapRefs, ['RM-platform-foundation-001']);
 
     const reparsed = planningBullets.listPlanningBullets(repoRoot);
     assert.deepEqual(reparsed.bullets[0].promotedPlanRefs, ['plan-123']);
     assert.deepEqual(reparsed.bullets[0].promotedBacklogRefs, ['RB-001']);
+    assert.deepEqual(reparsed.bullets[0].promotedRoadmapRefs, ['RM-platform-foundation-001']);
   });
 
   await test('fails closed on malformed bullet document headings', async () => {

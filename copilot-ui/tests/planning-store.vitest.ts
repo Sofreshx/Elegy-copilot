@@ -152,7 +152,7 @@ describe('planningStore catalog repo context', () => {
     });
     expect(state.repositoryBacklog).toMatchObject({
       canonicalName: 'Repository Backlog',
-      filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+        filePath: 'C:\\Repos\\instruction-engine\\docs\\backlogs',
       stableIdPattern: 'RB-###',
     });
     expect(state.roadmapDirectory).toMatchObject({

@@ -2084,6 +2084,7 @@ export interface PlanningBullet {
   notes: string[];
   promotedPlanRefs: string[];
   promotedBacklogRefs: string[];
+  promotedRoadmapRefs: string[];
   filePath: string;
   repoRelativePath: string;
 }

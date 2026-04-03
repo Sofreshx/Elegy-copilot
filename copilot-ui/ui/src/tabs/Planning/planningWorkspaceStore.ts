@@ -230,6 +230,22 @@ function buildObsidianRoadmapItemSummary(note: ObsidianPlanningNoteSummary | Obs
   ].filter(Boolean).join(' ');
 }
 
+function buildBulletPromotionSummary(bullet: PlanningBullet): string {
+  return [
+    bullet.summary.trim(),
+    `Promoted from ${bullet.id}.`,
+    bullet.notes.length > 0 ? `Notes: ${bullet.notes.join('; ')}` : '',
+  ].filter(Boolean).join(' ');
+}
+
+function buildBulletRoadmapItemSummary(bullet: PlanningBullet): string {
+  return [
+    `Promoted from ${bullet.id}.`,
+    bullet.summary.trim(),
+    bullet.notes.length > 0 ? `Notes: ${bullet.notes.join('; ')}` : '',
+  ].filter(Boolean).join(' ');
+}
+
 function resolveRoadmapPromotionDefaults(roadmap: PlanningRoadmap | null): { phase: string; status: string } {
   const phase = roadmap?.items.find((item) => item.phase.trim())?.phase || 'unscheduled';
   return {
@@ -1350,6 +1366,7 @@ export function createPlanningWorkspaceStore() {
       notes?: string[];
       promotedPlanRefs?: string[];
       promotedBacklogRefs?: string[];
+      promotedRoadmapRefs?: string[];
     }
   ): Promise<PlanningBullet | null> {
     const stateSnapshot = store.getState();
@@ -1395,11 +1412,7 @@ export function createPlanningWorkspaceStore() {
       repoPath,
       item: {
         title: bullet.title,
-        summary: [
-          bullet.summary,
-          `Promoted from ${bullet.id}.`,
-          bullet.notes.length > 0 ? `Notes: ${bullet.notes.join('; ')}` : '',
-        ].filter(Boolean).join(' '),
+        summary: buildBulletPromotionSummary(bullet),
         status: 'proposed',
       },
     });
@@ -1420,6 +1433,134 @@ export function createPlanningWorkspaceStore() {
     }));
 
     return backlogId || null;
+  }
+
+  async function promoteBulletToRoadmap(
+    bulletId: string,
+  ): Promise<{ backlogId: string; roadmapItemId: string } | null> {
+    const stateSnapshot = store.getState();
+    const repoId = stateSnapshot.catalogRepoContext?.repoId || '';
+    const repoPath = stateSnapshot.catalogRepoContext?.repoPath || '';
+    const repoLabel = stateSnapshot.catalogRepoContext?.repoLabel || '';
+    const bullet = stateSnapshot.bullets.find((entry) => entry.id === bulletId) || null;
+    const selectedRoadmap = getSelectedRoadmap(stateSnapshot);
+
+    if (!repoId || !repoPath || !bullet) {
+      store.setState((state) => ({
+        ...state,
+        error: 'Select a Catalog repo and bullet before promoting roadmap work.',
+      }));
+      return null;
+    }
+
+    if (!selectedRoadmap) {
+      store.setState((state) => ({
+        ...state,
+        error: 'Select a roadmap before promoting a bullet into roadmap work.',
+      }));
+      return null;
+    }
+
+    store.setState((state) => ({
+      ...state,
+      backlogError: null,
+      error: null,
+    }));
+
+    try {
+      const existingBacklogItem = stateSnapshot.backlogSummary?.items.find((item) => (
+        bullet.promotedBacklogRefs.includes(item.id)
+      )) || null;
+
+      let backlogId = String(existingBacklogItem?.id || '').trim();
+      if (!backlogId) {
+        const backlogResponse = await createPlanningBacklogItem({
+          repoId,
+          repoPath,
+          item: {
+            title: bullet.title,
+            summary: buildBulletPromotionSummary(bullet),
+            status: 'proposed',
+          },
+        });
+        backlogId = String(backlogResponse.item?.id || '').trim();
+      }
+
+      if (!backlogId) {
+        throw new Error('Roadmap promotion did not return a canonical backlog id.');
+      }
+
+      const existingRoadmapItem = selectedRoadmap.items.find((item) => (
+        bullet.promotedRoadmapRefs.includes(item.id)
+      )) || null;
+      let roadmapItemId = String(existingRoadmapItem?.id || '').trim();
+
+      if (!roadmapItemId) {
+        const roadmapDefaults = resolveRoadmapPromotionDefaults(selectedRoadmap);
+        const existingRoadmapItemIds = new Set(selectedRoadmap.items.map((item) => item.id));
+        const roadmapResponse = await updatePlanningRoadmap(selectedRoadmap.slug, {
+          repoId,
+          repoPath,
+          repoLabel: repoLabel || undefined,
+          items: [
+            {
+              title: bullet.title,
+              phase: roadmapDefaults.phase,
+              status: roadmapDefaults.status,
+              summary: buildBulletRoadmapItemSummary(bullet),
+              backlogIds: [backlogId],
+              planRefs: [],
+            },
+          ],
+        });
+
+        const roadmapItem = roadmapResponse.roadmap?.items.find((item) => (
+          !existingRoadmapItemIds.has(item.id)
+          && item.title === bullet.title
+          && item.backlogIds.includes(backlogId)
+        )) || null;
+        roadmapItemId = String(roadmapItem?.id || '').trim();
+      }
+
+      if (!roadmapItemId) {
+        throw new Error('Roadmap promotion did not return a canonical roadmap item id.');
+      }
+
+      const nextRoadmapIds = existingBacklogItem
+        ? [...new Set([...existingBacklogItem.roadmapIds, roadmapItemId])].sort()
+        : [roadmapItemId];
+      await updatePlanningBacklogItem(backlogId, {
+        repoId,
+        repoPath,
+        item: {
+          roadmapIds: nextRoadmapIds,
+        },
+      });
+
+      await patchBullet(bullet.id, {
+        promotedBacklogRefs: [...new Set([...bullet.promotedBacklogRefs, backlogId])].sort(),
+        promotedRoadmapRefs: [...new Set([...bullet.promotedRoadmapRefs, roadmapItemId])].sort(),
+      });
+
+      await Promise.all([loadBacklog(), loadRoadmaps()]);
+      store.setState((state) => ({
+        ...state,
+        backlogError: null,
+        error: null,
+      }));
+
+      return {
+        backlogId,
+        roadmapItemId,
+      };
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to promote the selected bullet into the roadmap.');
+      store.setState((state) => ({
+        ...state,
+        error: message,
+      }));
+      return null;
+    }
   }
 
   function setSelectedRoadmapSlug(value: string): void {
@@ -1493,6 +1634,7 @@ export function createPlanningWorkspaceStore() {
     createBullet,
     patchBullet,
     promoteBulletToBacklog,
+    promoteBulletToRoadmap,
     setSelectedRoadmapSlug,
     setIntakeCategoryFilter,
     setIntakePlanningStateFilter,
