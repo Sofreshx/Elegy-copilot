@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const path = require('node:path');
 
 const { register } = require('./sessions');
 
@@ -231,6 +232,52 @@ async function run() {
     assert.equal(body.authorityModel.liveAuthority, 'acp');
     assert.equal(body.authorityModel.listingSurface, 'artifact_inventory_multi_source');
     assert.equal(body.sessions.length, 2);
+  });
+
+  await test('GET /api/sessions?source=all reuses one session scan when cli and vscode homes resolve to the same path', async () => {
+    const listSessionHomes = [];
+    const routes = register({
+      path: path.win32,
+      sessions: {
+        listSessions(home) {
+          listSessionHomes.push(home);
+          return [{ id: 'session-1', status: 'idle' }];
+        },
+        listSandboxSessions() {
+          return [];
+        },
+        applySessionReconciliation(session) {
+          return {
+            ...session,
+            authority: 'fs',
+            reconciliation: {
+              reason: 'artifact_only',
+              sourceOfTruth: 'artifact',
+            },
+          };
+        },
+        buildSessionIdentity(session) {
+          return {
+            canonicalKey: String(session.id || '').toLowerCase(),
+            dedupeEligible: true,
+          };
+        },
+        dedupeAllSources(rows) {
+          return rows;
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\Shared\\Copilot',
+      vscodeHome: 'c:\\shared\\copilot',
+      sandboxesHome: 'C:\\sandboxes-home',
+    }, 'GET', '/api/sessions?source=all');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(listSessionHomes.length, 1);
+    assert.equal(listSessionHomes[0], 'C:\\Shared\\Copilot');
+    assert.deepEqual(body.sessions.map((session) => session.source), ['cli', 'vscode']);
   });
 
   await test('GET /api/sessions/:id/proposition returns raw and parsed structured entries', async () => {

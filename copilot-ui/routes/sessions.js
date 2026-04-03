@@ -37,6 +37,22 @@ function resolveSessionsHome(source, copilotHome, vscodeHome, sandboxesHome) {
   return { source: 'cli', home: copilotHome };
 }
 
+function normalizeComparableHome(pathLib, home) {
+  const normalizedHome = normalizeString(home);
+  if (!normalizedHome) {
+    return '';
+  }
+
+  const resolvedHome = pathLib.resolve(normalizedHome);
+  return process.platform === 'win32' ? resolvedHome.toLowerCase() : resolvedHome;
+}
+
+function areSameSessionRoots(pathLib, firstHome, secondHome) {
+  const normalizedFirst = normalizeComparableHome(pathLib, firstHome);
+  const normalizedSecond = normalizeComparableHome(pathLib, secondHome);
+  return Boolean(normalizedFirst && normalizedSecond && normalizedFirst === normalizedSecond);
+}
+
 function resolveSessionRequestHome(ctx, deps, source) {
   const { u, copilotHome, vscodeHome, sandboxesHome } = ctx;
   const { resolveSessionsHome, path } = deps;
@@ -219,14 +235,19 @@ function buildSessionsListResponse(data, options = {}) {
 
 function handleSessionsList(ctx, deps) {
   const { req, res, u, copilotHome, vscodeHome, sandboxesHome } = ctx;
-  const { sendJson, parseNumberQuery, resolveSessionsHome, sessions } = deps;
+  const { path, sendJson, parseNumberQuery, resolveSessionsHome, sessions } = deps;
 
   const activeWindowMinutes = parseNumberQuery(u.searchParams, 'activeWindowMinutes', 30);
   const source = (u.searchParams.get('source') || 'cli').toLowerCase();
   if (source === 'all') {
     const dedupe = (u.searchParams.get('dedupe') || 'on').toLowerCase();
-    const cli = sessions.listSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: 'cli' }));
-    const vs = sessions.listSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 }).map((s) => ({ ...s, source: 'vscode' }));
+    const sharedCliAndVscodeRoot = areSameSessionRoots(path, copilotHome, vscodeHome);
+    const listedCliSessions = sessions.listSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 });
+    const listedVscodeSessions = sharedCliAndVscodeRoot
+      ? listedCliSessions
+      : sessions.listSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 });
+    const cli = listedCliSessions.map((s) => ({ ...s, source: 'cli' }));
+    const vs = listedVscodeSessions.map((s) => ({ ...s, source: 'vscode' }));
     const sandbox = sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 });
     const all = [...cli, ...vs, ...sandbox];
     const result = (dedupe === 'off')

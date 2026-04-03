@@ -7,6 +7,7 @@ const http = require('http');
 const net = require('net');
 const os = require('os');
 const path = require('path');
+const assets = require('./lib/assets');
 const {
   RUNTIME_CONTRACT_VERSION,
   RUNTIME_PROVIDER_CONTRACT_VERSION,
@@ -1452,6 +1453,58 @@ async function run() {
         assert.strictEqual(lastEntry.summary, health.body.startupManagedAssetSync.message);
       } finally {
         await server.close();
+      }
+    });
+  });
+
+  await test('startup managed-asset sync uses non-forcing sync options during normal startup', async () => {
+    await withTempDir(async (root) => {
+      const copilotHome = path.join(root, '.copilot');
+      const vscodeHome = path.join(root, '.copilot-vscode');
+      const sandboxesHome = path.join(copilotHome, 'sandboxes');
+
+      fs.mkdirSync(copilotHome, { recursive: true });
+      fs.mkdirSync(vscodeHome, { recursive: true });
+
+      const syncCalls = [];
+      const originalSyncManagedInstall = assets.syncManagedInstall;
+      assets.syncManagedInstall = (engineRoot, home, options = {}) => {
+        syncCalls.push({ engineRoot, home, options: { ...options } });
+        return {
+          synced: [],
+          prunedPaths: [],
+          installState: {},
+        };
+      };
+
+      try {
+        const server = await startServer({
+          host: '127.0.0.1',
+          port: await getFreePort(),
+          engineRoot: root,
+          copilotHome,
+          vscodeHome,
+          sandboxesHome,
+          quiet: true,
+        });
+
+        try {
+          const address = server.server.address();
+          const port = address && typeof address === 'object' ? address.port : null;
+          const health = await fetchJson(`http://127.0.0.1:${port}/api/health`);
+          assert.strictEqual(health.statusCode, 200);
+          assert.strictEqual(health.body.startupManagedAssetSync.ran, true);
+        } finally {
+          await server.close();
+        }
+
+        assert.ok(syncCalls.length >= 1, 'expected startup sync to invoke managed-asset sync');
+        for (const syncCall of syncCalls) {
+          assert.strictEqual(syncCall.options.force, false);
+          assert.strictEqual(syncCall.options.pointerMode, true);
+        }
+      } finally {
+        assets.syncManagedInstall = originalSyncManagedInstall;
       }
     });
   });

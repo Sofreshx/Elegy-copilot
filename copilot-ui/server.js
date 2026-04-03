@@ -236,12 +236,13 @@ function getUniqueManagedAssetHomes(homes) {
 
 function runStartupManagedAssetSync(engineRoot, homes, options = {}) {
   const quiet = options.quiet === true;
+  const force = options.force === true;
   const summaries = [];
 
   for (const home of getUniqueManagedAssetHomes(homes)) {
     try {
       const result = assets.syncManagedInstall(engineRoot, home, {
-        force: options.force !== false,
+        force,
         pointerMode: options.pointerMode !== false,
       });
       const summary = {
@@ -4571,7 +4572,6 @@ async function startServer(options = {}) {
   const startupManagedAssetSyncRunAt = new Date().toISOString();
   const managedAssetSyncSummary = managedAssetSyncOnStart
     ? runStartupManagedAssetSync(engineRoot, [copilotHome, vscodeHome], {
-      force: true,
       pointerMode: true,
       quiet,
     })

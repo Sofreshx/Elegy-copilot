@@ -39,6 +39,8 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
   - Serves the HTTP API on `127.0.0.1:3210` and keeps the normal dashboard UI behind a desktop-only startup token established by Electron.
   - Plain browser requests to the raw server root are denied; use Electron for the supported dashboard runtime, or `ui:dev` when iterating on the frontend against the backend API.
 
+  Backend startup keeps the managed-asset sync pass enabled by default, but it now runs in non-forcing mode so already up-to-date installs are not reinstalled on every launch. Set `INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC=1` to skip the startup pass entirely.
+
 The `copilot-ui` `ui:dev` script is frontend-only and requires the backend to already be running
 separately. During frontend work, the Vite dev server proxies `/api` to
 `http://127.0.0.1:3210` by default, and `COPILOT_UI_DEV_API_URL` overrides that backend target.
