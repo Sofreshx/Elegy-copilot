@@ -4,7 +4,10 @@ const fs = require('fs');
 const path = require('path');
 
 const REPOSITORY_BACKLOG_FORMAT_VERSION = '1';
-const REPOSITORY_BACKLOG_FILE_RELATIVE_PATH = path.join('docs', 'backlog.md');
+const REPOSITORY_BACKLOG_FILE_RELATIVE_PATH = 'docs/backlog.md';
+const REPOSITORY_BACKLOG_LEGACY_FILE_RELATIVE_PATH = REPOSITORY_BACKLOG_FILE_RELATIVE_PATH;
+const REPOSITORY_BACKLOG_PRIMARY_DIRECTORY_REPO_RELATIVE_PATH = 'docs/backlogs';
+const REPOSITORY_BACKLOG_PRIMARY_FAMILY_REPO_RELATIVE_PATH = 'docs/backlogs/*.md';
 const REPOSITORY_BACKLOG_TITLE = 'Repository Backlog';
 const REPOSITORY_BACKLOG_DESCRIPTION =
   'Repository-scoped intake and queued work for the selected repo.';
@@ -85,8 +88,160 @@ function assertRepoRoot(repoRoot) {
   return path.resolve(repoRoot);
 }
 
+function normalizeRepoRelativePath(value) {
+  return String(value == null ? '' : value)
+    .trim()
+    .replace(/\\+/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/\/+$/, '');
+}
+
+function buildRepositoryBacklogArtifactDescriptor(repoRoot, repoRelativePath, kind) {
+  const normalizedRepoRoot = assertRepoRoot(repoRoot);
+  const normalizedRepoRelativePath = normalizeRepoRelativePath(repoRelativePath);
+
+  return {
+    kind,
+    repoRelativePath: normalizedRepoRelativePath,
+    backlogPath: path.join(normalizedRepoRoot, ...normalizedRepoRelativePath.split('/')),
+  };
+}
+
+function resolveRepositoryBacklogArtifactPath(repoRoot, repoRelativePath) {
+  return buildRepositoryBacklogArtifactDescriptor(repoRoot, repoRelativePath, 'artifact').backlogPath;
+}
+
+function resolveRepositoryBacklogPrimaryDirectoryPath(repoRoot) {
+  return resolveRepositoryBacklogArtifactPath(
+    repoRoot,
+    REPOSITORY_BACKLOG_PRIMARY_DIRECTORY_REPO_RELATIVE_PATH,
+  );
+}
+
 function resolveRepositoryBacklogPath(repoRoot) {
-  return path.join(assertRepoRoot(repoRoot), REPOSITORY_BACKLOG_FILE_RELATIVE_PATH);
+  return resolveRepositoryBacklogArtifactPath(repoRoot, REPOSITORY_BACKLOG_FILE_RELATIVE_PATH);
+}
+
+function listRepositoryBacklogArtifactDescriptors(repoRoot, options = {}) {
+  const fsImpl = options.fsImpl || fs;
+  const descriptors = [];
+  const normalizedRepoRoot = assertRepoRoot(repoRoot);
+  const primaryDirectory = resolveRepositoryBacklogPrimaryDirectoryPath(normalizedRepoRoot);
+
+  if (fsImpl.existsSync(primaryDirectory)) {
+    const entries = fsImpl.readdirSync(primaryDirectory, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry || typeof entry.name !== 'string') {
+        continue;
+      }
+      if (entry.isDirectory && entry.isDirectory()) {
+        continue;
+      }
+      if (!entry.name.toLowerCase().endsWith('.md')) {
+        continue;
+      }
+
+      descriptors.push(
+        buildRepositoryBacklogArtifactDescriptor(
+          normalizedRepoRoot,
+          `${REPOSITORY_BACKLOG_PRIMARY_DIRECTORY_REPO_RELATIVE_PATH}/${entry.name}`,
+          'primary',
+        ),
+      );
+    }
+  }
+
+  const legacyDescriptor = buildRepositoryBacklogArtifactDescriptor(
+    normalizedRepoRoot,
+    REPOSITORY_BACKLOG_LEGACY_FILE_RELATIVE_PATH,
+    'legacy',
+  );
+  if (fsImpl.existsSync(legacyDescriptor.backlogPath)) {
+    descriptors.push(legacyDescriptor);
+  }
+
+  return descriptors.sort((left, right) => deterministicStringCompare(left.repoRelativePath, right.repoRelativePath));
+}
+
+function buildRepositoryBacklogFamilyMetadata(repoRoot, descriptors) {
+  return {
+    primaryDirectoryPath: resolveRepositoryBacklogPrimaryDirectoryPath(repoRoot),
+    primaryDirectoryRepoRelativePath: REPOSITORY_BACKLOG_PRIMARY_DIRECTORY_REPO_RELATIVE_PATH,
+    primaryFamilyRepoRelativePath: REPOSITORY_BACKLOG_PRIMARY_FAMILY_REPO_RELATIVE_PATH,
+    legacyBacklogPath: resolveRepositoryBacklogPath(repoRoot),
+    legacyRepoRelativePath: REPOSITORY_BACKLOG_LEGACY_FILE_RELATIVE_PATH,
+    resolvedBacklogPaths: descriptors.map((descriptor) => descriptor.backlogPath),
+    resolvedRepoRelativePaths: descriptors.map((descriptor) => descriptor.repoRelativePath),
+    writeTargetPath: resolveRepositoryBacklogPath(repoRoot),
+    writeTargetRepoRelativePath: REPOSITORY_BACKLOG_LEGACY_FILE_RELATIVE_PATH,
+  };
+}
+
+function choosePreferredRepositoryBacklogDescriptor(descriptors, family) {
+  const preferredPrimary = descriptors.find((descriptor) => descriptor.kind === 'primary');
+  if (preferredPrimary) {
+    return preferredPrimary;
+  }
+
+  const preferredLegacy = descriptors.find((descriptor) => descriptor.kind === 'legacy');
+  if (preferredLegacy) {
+    return preferredLegacy;
+  }
+
+  return {
+    kind: 'primary-directory',
+    backlogPath: family.primaryDirectoryPath,
+    repoRelativePath: family.primaryDirectoryRepoRelativePath,
+  };
+}
+
+function buildAggregateRepositoryBacklogState(repoRoot, artifacts) {
+  const descriptors = Array.isArray(artifacts) ? artifacts : [];
+  const family = buildRepositoryBacklogFamilyMetadata(repoRoot, descriptors);
+  const preferred = choosePreferredRepositoryBacklogDescriptor(descriptors, family);
+  const descriptionSource = descriptors.find((artifact) => artifact.kind === 'primary')
+    || descriptors.find((artifact) => artifact.kind === 'legacy')
+    || null;
+  const aggregateItems = [];
+  const itemSources = new Map();
+
+  for (const artifact of descriptors) {
+    const sourceItems = Array.isArray(artifact && artifact.backlog && artifact.backlog.items)
+      ? artifact.backlog.items
+      : [];
+    for (const item of sourceItems) {
+      aggregateItems.push(item);
+      itemSources.set(item.id, {
+        sourceBacklogPath: artifact.backlogPath,
+        sourceRepoRelativePath: artifact.repoRelativePath,
+        sourceKind: artifact.kind,
+      });
+    }
+  }
+
+  const aggregateBacklog = normalizeRepositoryBacklogDocument({
+    description:
+      descriptionSource && descriptionSource.backlog && descriptionSource.backlog.description
+        ? descriptionSource.backlog.description
+        : REPOSITORY_BACKLOG_DESCRIPTION,
+    items: aggregateItems,
+  });
+
+  return {
+    backlogPath: preferred.backlogPath,
+    repoRelativePath: preferred.repoRelativePath,
+    exists: descriptors.length > 0,
+    text: descriptors.length ? formatRepositoryBacklogDocument(aggregateBacklog) : '',
+    backlog: {
+      ...aggregateBacklog,
+      items: aggregateBacklog.items.map((item) => ({
+        ...item,
+        ...(itemSources.get(item.id) || {}),
+      })),
+    },
+    family,
+    artifacts: descriptors,
+  };
 }
 
 function isRepositoryBacklogItemId(value) {
@@ -659,25 +814,17 @@ function parseListField(value) {
 
 function readRepositoryBacklogFile(repoRoot, options = {}) {
   const fsImpl = options.fsImpl || fs;
-  const backlogPath = resolveRepositoryBacklogPath(repoRoot);
-  const exists = fsImpl.existsSync(backlogPath);
-
-  if (!exists) {
+  const descriptors = listRepositoryBacklogArtifactDescriptors(repoRoot, { fsImpl }).map((descriptor) => {
+    const text = fsImpl.readFileSync(descriptor.backlogPath, 'utf8');
     return {
-      backlogPath,
-      exists: false,
-      text: '',
-      backlog: normalizeRepositoryBacklogDocument({ items: [] }),
+      ...descriptor,
+      exists: true,
+      text,
+      backlog: parseRepositoryBacklogDocument(text),
     };
-  }
+  });
 
-  const text = fsImpl.readFileSync(backlogPath, 'utf8');
-  return {
-    backlogPath,
-    exists: true,
-    text,
-    backlog: parseRepositoryBacklogDocument(text),
-  };
+  return buildAggregateRepositoryBacklogState(repoRoot, descriptors);
 }
 
 function ensureRepositoryBacklogFile(repoRoot, options = {}) {
@@ -687,42 +834,99 @@ function ensureRepositoryBacklogFile(repoRoot, options = {}) {
     return { ...state, created: false };
   }
 
-  const backlogPath = state.backlogPath;
+  const backlogPath = state.family.writeTargetPath;
   fsImpl.mkdirSync(path.dirname(backlogPath), { recursive: true });
   const backlog = normalizeRepositoryBacklogDocument({ items: [] });
   const text = formatRepositoryBacklogDocument(backlog);
   fsImpl.writeFileSync(backlogPath, text, 'utf8');
 
   return {
-    backlogPath,
-    exists: true,
+    ...readRepositoryBacklogFile(repoRoot, { fsImpl }),
     created: true,
-    text,
-    backlog,
   };
 }
 
 function updateRepositoryBacklogFile(repoRoot, updater, options = {}) {
   const fsImpl = options.fsImpl || fs;
-  const current = ensureRepositoryBacklogFile(repoRoot, { fsImpl });
+  const current = readRepositoryBacklogFile(repoRoot, { fsImpl });
   const working = cloneValue(current.backlog);
 
   const nextValue =
     typeof updater === 'function' ? updater(working) : updater == null ? working : updater;
   const nextBacklog = normalizeRepositoryBacklogDocument(nextValue);
-  const nextText = formatRepositoryBacklogDocument(nextBacklog);
-  const changed = current.text !== nextText;
+  const sourceById = new Map(
+    current.backlog.items.map((item) => [
+      item.id,
+      {
+        backlogPath: item.sourceBacklogPath,
+        repoRelativePath: item.sourceRepoRelativePath,
+      },
+    ]),
+  );
+  const documentsByPath = new Map(
+    current.artifacts.map((artifact) => [
+      artifact.backlogPath,
+      {
+        descriptor: artifact,
+        backlog: normalizeRepositoryBacklogDocument({
+          description: nextBacklog.description || artifact.backlog.description,
+          items: [],
+        }),
+      },
+    ]),
+  );
+  const defaultTarget = buildRepositoryBacklogArtifactDescriptor(
+    repoRoot,
+    current.family.writeTargetRepoRelativePath,
+    'legacy',
+  );
 
-  if (changed) {
-    fsImpl.writeFileSync(current.backlogPath, nextText, 'utf8');
+  for (const item of nextBacklog.items) {
+    const existingSource = sourceById.get(item.id);
+    const targetDescriptor = existingSource && existingSource.backlogPath
+      ? buildRepositoryBacklogArtifactDescriptor(repoRoot, existingSource.repoRelativePath, 'existing')
+      : defaultTarget;
+    const existingDocument = documentsByPath.get(targetDescriptor.backlogPath);
+    if (existingDocument) {
+      existingDocument.backlog.items.push(item);
+      continue;
+    }
+
+    documentsByPath.set(targetDescriptor.backlogPath, {
+      descriptor: targetDescriptor,
+      backlog: normalizeRepositoryBacklogDocument({
+        description: nextBacklog.description,
+        items: [item],
+      }),
+    });
   }
 
+  let created = false;
+  let changed = false;
+
+  for (const { descriptor, backlog } of documentsByPath.values()) {
+    const normalizedBacklog = normalizeRepositoryBacklogDocument(backlog);
+    const nextText = formatRepositoryBacklogDocument(normalizedBacklog);
+    const existed = fsImpl.existsSync(descriptor.backlogPath);
+    const currentText = existed ? fsImpl.readFileSync(descriptor.backlogPath, 'utf8') : '';
+
+    if (!existed) {
+      created = true;
+    }
+    if (currentText === nextText) {
+      continue;
+    }
+
+    fsImpl.mkdirSync(path.dirname(descriptor.backlogPath), { recursive: true });
+    fsImpl.writeFileSync(descriptor.backlogPath, nextText, 'utf8');
+    changed = true;
+  }
+
+  const nextState = readRepositoryBacklogFile(repoRoot, { fsImpl });
   return {
-    backlogPath: current.backlogPath,
-    created: current.created,
+    ...nextState,
+    created,
     changed,
-    text: nextText,
-    backlog: nextBacklog,
   };
 }
 
@@ -767,10 +971,15 @@ function escapeRegExp(value) {
 module.exports = {
   REPOSITORY_BACKLOG_FORMAT_VERSION,
   REPOSITORY_BACKLOG_FILE_RELATIVE_PATH,
+  REPOSITORY_BACKLOG_LEGACY_FILE_RELATIVE_PATH,
+  REPOSITORY_BACKLOG_PRIMARY_DIRECTORY_REPO_RELATIVE_PATH,
+  REPOSITORY_BACKLOG_PRIMARY_FAMILY_REPO_RELATIVE_PATH,
   REPOSITORY_BACKLOG_TITLE,
   REPOSITORY_BACKLOG_DESCRIPTION,
   REPOSITORY_BACKLOG_EMPTY_STATE,
   resolveRepositoryBacklogPath,
+  resolveRepositoryBacklogArtifactPath,
+  resolveRepositoryBacklogPrimaryDirectoryPath,
   REPOSITORY_BACKLOG_ITEM_STATUSES,
   REPOSITORY_BACKLOG_RECONCILE_OUTCOMES,
   isRepositoryBacklogItemId,

@@ -20,6 +20,7 @@ related: [system-docs-index]
 
 ## Start here
 
+- Validation governance: `docs/system/validation-governance.md`
 - E2E setup: `docs/system/e2e-setup-guide.md`
 - Workflow planning contract: `docs/system/workflow-planning-contract.md`
 

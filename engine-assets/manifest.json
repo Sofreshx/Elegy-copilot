@@ -112,6 +112,7 @@
         "agent-o-validation-coordinator",
         "skill-planning-feature",
         "skill-planpack-authoring",
+          "agent-backlog-planner",
           "agent-roadmap-planner",
           "skill-roadmap-authoring",
         "agent-work-unit-runner",
@@ -175,9 +176,10 @@
     {
       "id": "roadmap-planning-lane",
       "title": "Repository Backlog & Roadmap Planning Lane",
-      "description": "Repo-local roadmap planning lane for Repository Backlog and Roadmap authoring, maintenance, and Roadmap Sync-ready linking above plan packs.",
+      "description": "Repo-local planning lane for per-session Repository Backlog artifacts, Roadmap authoring, direct plan-handoff preparation, and Roadmap Sync-ready cleanup above plan packs.",
       "assetIds": [
         "skill-roadmap-authoring",
+        "agent-backlog-planner",
         "agent-roadmap-planner"
       ],
       "installTarget": "repo-local",
@@ -454,6 +456,12 @@
       "type": "agent",
       "source": "engine-assets/agents/remaining-work.agent.md",
       "destination": "agents/remaining-work.agent.md"
+    },
+    {
+      "id": "agent-backlog-planner",
+      "type": "agent",
+      "source": "engine-assets/agents/backlog-planner.agent.md",
+      "destination": "agents/backlog-planner.agent.md"
     },
     {
       "id": "agent-roadmap-planner",

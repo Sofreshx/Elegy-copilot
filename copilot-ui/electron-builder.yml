@@ -3,33 +3,21 @@ productName: Elegy Copilot
 directories:
   output: release
   buildResources: resources
-asar: false
+asar: true
+asarUnpack:
+  - dist-electron/**
+  - node_modules/@electric-sql/pglite/dist/**
 files:
   - from: .
     filter:
+      - dist-electron/**
       - server.js
+      - lib/**
+      - routes/**
+      - ui-dist/**
+      - public/**
       - package.json
 extraResources:
-  - from: dist-electron
-    to: app/dist-electron
-    filter:
-      - '**/*'
-  - from: lib
-    to: app/lib
-    filter:
-      - '**/*'
-  - from: routes
-    to: app/routes
-    filter:
-      - '**/*'
-  - from: ui-dist
-    to: app/ui-dist
-    filter:
-      - '**/*'
-  - from: public
-    to: app/public
-    filter:
-      - '**/*'
   - from: ../engine-assets
     to: engine-assets
     filter:

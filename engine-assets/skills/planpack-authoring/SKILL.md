@@ -85,7 +85,7 @@ Planning-time plans must include the base progress tracker sections above, but t
 
 ## Checkpoint Defaults
 - `unit-test-runner` after each group completes
-- Final integration/E2E checkpoint (user-confirmed, never automatic)
+- Final policy-driven integration/E2E checkpoint when repo policy, risk, or coverage gaps require broader validation
 - Optional `doc-update` checkpoint (routes to doc-writer; status: passed|failed|skipped)
 
 ## Progressive Refinement

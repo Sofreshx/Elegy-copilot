@@ -3515,6 +3515,98 @@ function contentTypeFor(filePath) {
   return 'application/octet-stream';
 }
 
+const DESKTOP_UI_ACCESS_COOKIE = 'elegy_desktop_ui';
+const DESKTOP_UI_ACCESS_HEADER = 'x-elegy-desktop-ui-token';
+const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
+
+function parseCookieHeader(cookieHeader) {
+  const parsed = new Map();
+  const raw = String(cookieHeader || '').trim();
+  if (!raw) {
+    return parsed;
+  }
+
+  for (const entry of raw.split(';')) {
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1).trim();
+    if (!key) {
+      continue;
+    }
+
+    parsed.set(key, value);
+  }
+
+  return parsed;
+}
+
+function tokensMatch(expected, actual) {
+  const expectedToken = String(expected || '').trim();
+  const actualToken = String(actual || '').trim();
+  if (!expectedToken || !actualToken) {
+    return false;
+  }
+
+  const expectedBuffer = Buffer.from(expectedToken, 'utf8');
+  const actualBuffer = Buffer.from(actualToken, 'utf8');
+  if (expectedBuffer.length !== actualBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, actualBuffer);
+}
+
+function buildDesktopUiAccessCookie(token) {
+  return `${DESKTOP_UI_ACCESS_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Strict`;
+}
+
+function buildDesktopUiRedirectTarget(u) {
+  const redirectUrl = new URL(u.pathname + u.search, 'http://127.0.0.1');
+  redirectUrl.searchParams.delete(DESKTOP_UI_ACCESS_QUERY_PARAM);
+  const search = redirectUrl.searchParams.toString();
+  return `${redirectUrl.pathname}${search ? `?${search}` : ''}`;
+}
+
+function resolveDesktopUiAccess(req, u, desktopUiToken) {
+  const expectedToken = String(desktopUiToken || '').trim();
+  if (!expectedToken) {
+    return { allowed: false, establishSession: false };
+  }
+
+  const cookieToken = parseCookieHeader(req.headers.cookie).get(DESKTOP_UI_ACCESS_COOKIE);
+  if (tokensMatch(expectedToken, cookieToken)) {
+    return { allowed: true, establishSession: false };
+  }
+
+  const headerToken = req.headers[DESKTOP_UI_ACCESS_HEADER];
+  const requestToken = Array.isArray(headerToken)
+    ? headerToken[0]
+    : (u.searchParams.get(DESKTOP_UI_ACCESS_QUERY_PARAM) || headerToken || '');
+
+  if (tokensMatch(expectedToken, requestToken)) {
+    return { allowed: true, establishSession: true };
+  }
+
+  return { allowed: false, establishSession: false };
+}
+
+function denyDesktopUiAccess(res) {
+  sendText(
+    res,
+    403,
+    'Desktop UI access is restricted to the Electron runtime. Start the desktop app for the dashboard, or use /api routes when running the raw server.'
+  );
+}
+
 function serveStatic(staticDir, urlPath, res) {
   let rel = urlPath || '/';
   if (rel === '/') rel = '/index.html';
@@ -4328,6 +4420,7 @@ async function startServer(options = {}) {
     port: Number.isFinite(options.port) ? Number(options.port) : 3210,
     host: typeof options.host === 'string' && options.host.trim() ? options.host.trim() : '127.0.0.1',
     token: typeof options.token === 'string' && options.token.trim() ? options.token.trim() : null,
+    desktopUiToken: typeof options.desktopUiToken === 'string' && options.desktopUiToken.trim() ? options.desktopUiToken.trim() : null,
     copilotHome: typeof options.copilotHome === 'string' && options.copilotHome.trim() ? options.copilotHome.trim() : null,
     vscodeHome: typeof options.vscodeHome === 'string' && options.vscodeHome.trim() ? options.vscodeHome.trim() : null,
     sandboxesHome: typeof options.sandboxesHome === 'string' && options.sandboxesHome.trim() ? options.sandboxesHome.trim() : null,
@@ -4667,6 +4760,23 @@ async function startServer(options = {}) {
         });
         return;
       }
+
+      const desktopUiAccess = resolveDesktopUiAccess(req, u, args.desktopUiToken);
+      if (!desktopUiAccess.allowed) {
+        denyDesktopUiAccess(res);
+        return;
+      }
+
+      if (desktopUiAccess.establishSession) {
+        res.writeHead(302, {
+          'Location': buildDesktopUiRedirectTarget(u),
+          'Set-Cookie': buildDesktopUiAccessCookie(args.desktopUiToken),
+          'Cache-Control': 'no-store',
+        });
+        res.end();
+        return;
+      }
+
       serveStatic(resolveStaticDir(), u.pathname, res);
     } catch (e) {
       sendJson(res, 500, { error: String(e.message || e) });

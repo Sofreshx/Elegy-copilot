@@ -11,7 +11,8 @@ Author and maintain repo-backed planning artifacts that define **what matters ne
 decomposed into a Plan Pack.
 
 This skill governs:
-- the **Repository Backlog** at `docs/backlog.md`
+- the **Repository Backlog** under `docs/backlogs/*.md` as the primary artifact family
+- `docs/backlog.md` as a legacy compatibility Repository Backlog surface
 - **Roadmap** files at `docs/roadmaps/<slug>.md`
 - the explicit ID/linking discipline required for future **Roadmap Sync**
 
@@ -41,8 +42,13 @@ Rules:
 ## Canonical Locations
 
 For the selected repository root:
-- Repository Backlog: `docs/backlog.md`
+- Repository Backlog (primary): `docs/backlogs/<session-slug>.md`
+- Repository Backlog (legacy compatibility): `docs/backlog.md`
 - Roadmaps: `docs/roadmaps/<slug>.md`
+
+Backlog filenames should use lowercase kebab-case session slugs, for example:
+- `docs/backlogs/2026-04-03-session-close.md`
+- `docs/backlogs/platform-audit-follow-up.md`
 
 If `docs/roadmaps/` does not exist, create it only when roadmap work is actually requested.
 
@@ -61,7 +67,7 @@ Examples:
 
 Rules:
 - IDs must remain stable after creation.
-- Continue the highest existing sequence for the same artifact family.
+- Continue the highest existing sequence across the Repository Backlog artifact family (`docs/backlogs/*.md` plus legacy `docs/backlog.md` when present) or the targeted roadmap family.
 - Never reuse or renumber existing IDs just to make the file look cleaner.
 - The roadmap slug portion must match the roadmap filename slug.
 
@@ -149,7 +155,7 @@ contract.
 
 ## Maintenance Workflow
 
-1. Read the existing Repository Backlog and relevant roadmap file(s).
+1. Read the existing Repository Backlog artifact family (`docs/backlogs/*.md` first, `docs/backlog.md` when compatibility requires it) and relevant roadmap file(s).
 2. Decide whether the request belongs in backlog, roadmap, or future Plan Pack.
 3. Allocate new IDs only where needed.
 4. Add or repair explicit cross-links.

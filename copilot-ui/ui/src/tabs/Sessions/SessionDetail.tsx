@@ -607,6 +607,7 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
   const intentFrameInScope = normalizeStringList(visibleArtifacts.intentFrame?.inScope);
   const intentFrameOutOfScope = normalizeStringList(visibleArtifacts.intentFrame?.outOfScope);
   const intentFrameSuccessSignals = normalizeStringList(visibleArtifacts.intentFrame?.successSignals);
+  const intentFrameValidationRequirements = normalizeStringList(visibleArtifacts.intentFrame?.validationRequirements);
   const intentFrameConstraints = normalizeStringList(visibleArtifacts.intentFrame?.constraints);
   const intentFrameRisks = normalizeStringList(visibleArtifacts.intentFrame?.risks);
   const intentFrameWatchOuts = normalizeStringList(visibleArtifacts.intentFrame?.watchOuts);
@@ -620,10 +621,13 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
   const closureRequested = normalizeStringList(visibleArtifacts.closureSummary?.requested);
   const closureChangedFiles = normalizeStringList(visibleArtifacts.closureSummary?.changedFiles);
   const closureWhereToVerify = normalizeStringList(visibleArtifacts.closureSummary?.whereToVerify);
+  const closureValidationRequirements = normalizeStringList(visibleArtifacts.closureSummary?.validationRequirements);
+  const closureValidationCoverage = normalizeStringList(visibleArtifacts.closureSummary?.validationCoverage);
   const closureValidationEvidence = normalizeStringList(visibleArtifacts.closureSummary?.validationEvidence);
   const closureActiveContinuation = normalizeStringList(visibleArtifacts.closureSummary?.followUps?.activeContinuation);
   const closureDurableCarryover = normalizeStringList(visibleArtifacts.closureSummary?.followUps?.durableCarryover);
   const closureBlockers = normalizeStringList(visibleArtifacts.closureSummary?.blockers);
+  const closureCoverageGaps = normalizeStringList(visibleArtifacts.closureSummary?.coverageGaps);
   const closureLimitations = normalizeStringList(visibleArtifacts.closureSummary?.limitations);
   const closureWarnings = normalizeStringList(visibleArtifacts.closureSummary?.warnings);
   const executionBlockers = Array.isArray(visibleArtifacts.executionState?.blockers)
@@ -1057,6 +1061,7 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
                 {renderDerivedList('In scope now', intentFrameInScope, 'No explicit in-scope items were derived.')}
                 {renderDerivedList('Deferred or out of scope', intentFrameOutOfScope, 'No deferred or out-of-scope edges were derived.')}
                 {renderDerivedList('Success / completion signals', intentFrameSuccessSignals, 'No success signals were derived from persisted checkpoints or verification targets.')}
+                {renderDerivedList('Validation requirements', intentFrameValidationRequirements, 'No explicit validation requirements were derived.')}
                 {renderDerivedList('Constraints', intentFrameConstraints, 'No explicit user constraints were persisted.')}
                 {renderDerivedList('Key decisions', intentFrameKeyDecisions, 'No key decisions were captured in the handoff artifact.')}
                 {renderDerivedList('Context signals', intentFrameContextSignals, 'No exploration context signals were persisted.')}
@@ -1227,10 +1232,13 @@ export default function SessionDetail({ session = null }: SessionDetailProps) {
                 {renderDerivedList('Requested / intended work', closureRequested, 'No requested-work baseline was derived from persisted framing artifacts.')}
                 {renderDerivedList('Changed files', closureChangedFiles, 'No changed-file list was persisted in the verification guide.')}
                 {renderDerivedList('Where to verify', closureWhereToVerify, 'No verification targets were persisted.')}
+                {renderDerivedList('Validation requirements', closureValidationRequirements, 'No explicit validation requirements were persisted.')}
                 {renderDerivedList('Validation evidence', closureValidationEvidence, 'No explicit validation evidence was derived.')}
+                {renderDerivedList('Tested coverage', closureValidationCoverage, 'No explicit tested coverage was persisted.')}
                 {renderDerivedList('Active continuation follow-ups', closureActiveContinuation, 'No active continuation follow-ups were derived.')}
                 {renderDerivedList('Durable carryover follow-ups', closureDurableCarryover, 'No durable carryover follow-ups were derived.')}
                 {renderDerivedList('Blockers / gaps', closureBlockers, 'No blockers or open gaps were derived.')}
+                {renderDerivedList('Coverage gaps', closureCoverageGaps, 'No explicit coverage gaps were persisted.')}
                 {renderDerivedList('Session limitations', closureLimitations, 'No explicit limitations were persisted.')}
                 {renderDerivedWarnings(closureWarnings)}
               </section>

@@ -8,10 +8,11 @@ runtime surface, tabs, route groups, persistence model, and validation anchors.
 This document provides curl commands to manually validate the Plan-Pack Progress Tracker and related session artifact endpoints.
 
 ## Prerequisites
-1. Start the full app with `node copilot-ui/server.js`, `scripts/cli-ui.ps1`, or `./scripts/cli-ui.sh`.
+1. Start the desktop app with `npm --prefix copilot-ui run electron:dev`, or start the raw backend with `node copilot-ui/server.js`, `scripts/cli-ui.ps1`, or `./scripts/cli-ui.sh` when you only need `/api` validation.
 2. When Copilot SDK access is required, use `scripts/cli-ui.ps1 --sdk` or `./scripts/cli-ui.sh --sdk`; `--sdk` sets `COPILOT_SDK_BRIDGE=1` before launch.
-3. `copilot-ui` `ui:dev` is frontend-only, so keep the backend running separately. Its Vite dev server proxies `/api` to `http://127.0.0.1:3210` by default and honors `COPILOT_UI_DEV_API_URL`.
-4. Use a valid session ID (example: `a04980e8-4804-411d-a774-0a4cbf88576e`)
+3. The raw server no longer serves the normal dashboard UI to a plain browser request; use the Electron app for dashboard validation, or use curl/HTTP clients directly against `/api`.
+4. `copilot-ui` `ui:dev` is frontend-only, so keep the backend running separately. Its Vite dev server proxies `/api` to `http://127.0.0.1:3210` by default and honors `COPILOT_UI_DEV_API_URL`.
+5. Use a valid session ID (example: `a04980e8-4804-411d-a774-0a4cbf88576e`)
 
 ## Desktop Packaged Updater Smoke
 
@@ -22,7 +23,7 @@ This command:
 - rebuilds the desktop package
 - verifies `release/latest.yml`, the packaged installer, and the matching `.blockmap`
 - checks the packaged `win-unpacked/resources/app-update.yml` metadata against the current publish settings
-- executes the packaged updater regression tests shipped in `release/win-unpacked/resources/app/dist-electron`
+- executes the packaged updater regression tests shipped in the packaged `dist-electron` directory under `release/win-unpacked/resources/app.asar.unpacked` (falling back to the legacy `resources/app` layout when present)
 
 This smoke command is an artifact-level release preflight. It does not simulate a live GitHub-hosted update download or an installed-app replacement on restart.
 
@@ -332,8 +333,8 @@ Expected: 401 empty body (query-param auth not supported)
 ## WS2 — UI Source Handling Alignment (WU-201 through WU-206)
 
 ### Prerequisites
-1. Server running: `node copilot-ui/server.js`
-2. Open `http://127.0.0.1:3210` in a browser
+1. Desktop app running: `npm --prefix copilot-ui run electron:dev`
+2. Use the Electron window for the dashboard checks below. The raw server root at `http://127.0.0.1:3210/` is intentionally denied to plain browser requests.
 3. Have at least one CLI session and one VS Code session on disk
 
 ### 1. Filter Cycle Test

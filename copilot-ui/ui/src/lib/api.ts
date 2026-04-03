@@ -623,7 +623,12 @@ export interface PlanningRepositoryBacklogRefApi extends PlanningRepositoryBackl
   canonicalName: 'Repository Backlog';
   repo: PlanningRepoSummary;
   filePath: string;
-  repoRelativePath: 'docs/backlog.md';
+  repoRelativePath: string;
+  primaryDirectoryPath?: string;
+  primaryRepoRelativePath?: string;
+  primaryFamilyRepoRelativePath?: string;
+  legacyFilePath?: string;
+  legacyRepoRelativePath?: string;
   stableIdPattern: 'RB-###';
 }
 
@@ -693,6 +698,13 @@ export interface PlanningBacklogItemApi {
 export interface PlanningBacklogSummaryApi {
   backlogPath?: string | null;
   repoRelativePath?: string;
+  primaryDirectoryPath?: string | null;
+  primaryRepoRelativePath?: string;
+  primaryFamilyRepoRelativePath?: string;
+  legacyBacklogPath?: string | null;
+  legacyRepoRelativePath?: string;
+  resolvedBacklogPaths?: string[];
+  resolvedRepoRelativePaths?: string[];
   exists: boolean;
   formatVersion?: string;
   title?: string;
@@ -960,6 +972,13 @@ function normalizePlanningBacklogSummary(value: unknown): PlanningBacklogSummary
   return {
     backlogPath: asTrimmedString(record.backlogPath) || null,
     repoRelativePath: asTrimmedString(record.repoRelativePath) || undefined,
+    primaryDirectoryPath: asTrimmedString(record.primaryDirectoryPath) || null,
+    primaryRepoRelativePath: asTrimmedString(record.primaryRepoRelativePath) || undefined,
+    primaryFamilyRepoRelativePath: asTrimmedString(record.primaryFamilyRepoRelativePath) || undefined,
+    legacyBacklogPath: asTrimmedString(record.legacyBacklogPath) || null,
+    legacyRepoRelativePath: asTrimmedString(record.legacyRepoRelativePath) || undefined,
+    resolvedBacklogPaths: asStringList(record.resolvedBacklogPaths),
+    resolvedRepoRelativePaths: asStringList(record.resolvedRepoRelativePaths),
     exists: asBoolean(record.exists, false),
     formatVersion: asTrimmedString(record.formatVersion) || undefined,
     title: asTrimmedString(record.title) || undefined,
@@ -1535,8 +1554,13 @@ export function buildPlanningRepositoryBacklogRef(
       repoPath: normalizedRepoPath,
       repoLabel,
     },
-    filePath: buildRepoPath(normalizedRepoPath, 'docs', 'backlog.md'),
-    repoRelativePath: 'docs/backlog.md',
+    filePath: buildRepoPath(normalizedRepoPath, 'docs', 'backlogs'),
+    repoRelativePath: 'docs/backlogs',
+    primaryDirectoryPath: buildRepoPath(normalizedRepoPath, 'docs', 'backlogs'),
+    primaryRepoRelativePath: 'docs/backlogs',
+    primaryFamilyRepoRelativePath: 'docs/backlogs/*.md',
+    legacyFilePath: buildRepoPath(normalizedRepoPath, 'docs', 'backlog.md'),
+    legacyRepoRelativePath: 'docs/backlog.md',
     stableIdPattern: 'RB-###',
   };
 }

@@ -8,6 +8,8 @@ const os = require('os');
 const path = require('path');
 const { startServer } = require('../server');
 
+const DESKTOP_UI_ACCESS_HEADER = 'x-elegy-desktop-ui-token';
+
 let passed = 0;
 let failed = 0;
 
@@ -39,7 +41,7 @@ function getFreePort() {
   });
 }
 
-function httpRequest(baseUrl, method, routePath) {
+function httpRequest(baseUrl, method, routePath, options = {}) {
   return new Promise((resolve) => {
     const url = new URL(routePath, baseUrl);
     const req = http.request(
@@ -48,6 +50,7 @@ function httpRequest(baseUrl, method, routePath) {
         hostname: url.hostname,
         port: url.port,
         path: url.pathname + url.search,
+        headers: options.headers || {},
         timeout: 5000,
       },
       (res) => {
@@ -70,6 +73,7 @@ function httpRequest(baseUrl, method, routePath) {
             rawBody,
             body,
             json,
+            headers: res.headers,
             error: null,
           });
         });
@@ -83,6 +87,7 @@ function httpRequest(baseUrl, method, routePath) {
         rawBody: '',
         body: null,
         json: false,
+        headers: {},
         error,
       });
     });
@@ -117,6 +122,7 @@ async function run() {
     running = await startServer({
       host,
       port,
+      desktopUiToken: 'desktop-smoke-token',
       copilotHome,
       vscodeHome,
       sandboxesHome,
@@ -152,6 +158,39 @@ async function run() {
       assert.ok(response.contentType.toLowerCase().includes('application/json'));
       assert.strictEqual(response.json, true);
       assert.ok(response.body && typeof response.body === 'object');
+    });
+
+    await test('plain browser request to / is denied and does not receive the dashboard UI', async () => {
+      const response = await httpRequest(baseUrl, 'GET', '/');
+
+      assert.strictEqual(response.status, 403);
+      assert.ok(response.contentType.toLowerCase().includes('text/plain'));
+      assert.strictEqual(response.json, false);
+      assert.ok(String(response.body).includes('Desktop UI access is restricted'));
+    });
+
+    await test('desktop token handshake establishes a UI session and serves the dashboard', async () => {
+      const bootstrapResponse = await httpRequest(baseUrl, 'GET', '/', {
+        headers: {
+          [DESKTOP_UI_ACCESS_HEADER]: 'desktop-smoke-token',
+        },
+      });
+
+      assert.strictEqual(bootstrapResponse.status, 302);
+      assert.strictEqual(bootstrapResponse.headers.location, '/');
+
+      const setCookie = bootstrapResponse.headers['set-cookie'];
+      assert.ok(Array.isArray(setCookie) && setCookie.length > 0, 'Expected desktop UI session cookie');
+
+      const dashboardResponse = await httpRequest(baseUrl, 'GET', '/', {
+        headers: {
+          Cookie: setCookie[0].split(';')[0],
+        },
+      });
+
+      assert.strictEqual(dashboardResponse.status, 200);
+      assert.ok(dashboardResponse.contentType.toLowerCase().includes('text/html'));
+      assert.ok(dashboardResponse.rawBody.includes('<!doctype html') || dashboardResponse.rawBody.includes('<!DOCTYPE html'));
     });
 
     await test("Unknown API path returns 404 JSON { error: 'Not found' }", async () => {

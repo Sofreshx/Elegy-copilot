@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-23
+updated: 2026-04-03
 category: system
 status: draft
 doc_kind: node
@@ -164,7 +164,16 @@ Top-level risks and rollback strategy for the entire plan. Distinct from per-WU 
 
 Default validation strategy applied after each group completes:
 - Default: `unit-test-runner` after each group completes.
-- Optional: integration/E2E tests only with user confirmation.
+- Integration and E2E may be mandatory even without an explicit user request when repo policy or
+  current risk/coverage requires them.
+- The plan should state the validation requirement basis clearly enough that executors can tell what
+  is mandatory versus nice-to-have.
+- Agent-driven browser validation routes through `@e2e-validator` -> `@e2e-browser` using
+  `agent-browser` CLI.
+- Durable scripted browser suites use Playwright CLI/test runner.
+
+See [[validation-governance]] [docs/system/validation-governance.md](docs/system/validation-governance.md)
+for the canonical decision matrix.
 
 ---
 
@@ -187,7 +196,7 @@ Where `NNN` is a zero-padded three-digit number.
 | Context | `#### Context` | What the WU is about and why it exists. Provides enough background for an implementing agent to act without reading the full plan. |
 | Acceptance Criteria | `#### Acceptance Criteria` | 2+ specific, verifiable criteria as a bullet list. Each criterion must be independently testable. |
 | Plan / Approach | `#### Plan / Approach` | Concrete implementation steps. Must include repo-relative file paths where changes will be made. |
-| Validation | `#### Validation` | Specific commands or checks that verify the WU is complete (e.g., `dotnet test`, `node scripts/validate-doc-graph.js`). |
+| Validation | `#### Validation` | Specific commands or checks that verify the WU is complete (e.g., `dotnet test`, `node scripts/validate-doc-graph.js`). When integration or E2E is mandatory for the slice, say so explicitly and include the requirement basis. |
 
 ### Optional Subsections
 

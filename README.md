@@ -152,7 +152,7 @@ flows for shared, user-global, and repo-local assets.
 # Desktop app development
 npm --prefix copilot-ui run electron:dev
 
-# Raw server fallback
+# Raw server backend/API fallback
 node copilot-ui/server.js
 
 # Raw server via helper scripts
@@ -171,12 +171,18 @@ Packaged desktop behavior:
 Use `scripts/cli-ui.ps1 --sdk` or `./scripts/cli-ui.sh --sdk` only when you intentionally want the raw
 server path with the SDK bridge forced on.
 
+Desktop UI delivery is now desktop-only for normal use. The Electron app bootstraps a per-startup
+local UI session and is the supported dashboard runtime. A plain browser request to the raw
+`node copilot-ui/server.js` server no longer receives the dashboard UI; use that mode for `/api`
+routes, backend debugging, and frontend iteration with `ui:dev`.
+
+For a packaged Windows preview, run `npm --prefix copilot-ui run package:preview` and then launch
+`copilot-ui/release/win-unpacked/Elegy Copilot.exe`.
+
 The `copilot-ui` `ui:dev` script is frontend-only and requires the backend to already be running
 separately. During frontend work, the Vite dev server now proxies `/api` to
 `http://127.0.0.1:3210` by default, and you can override that target with
 `COPILOT_UI_DEV_API_URL`.
-
-Open: http://127.0.0.1:3210
 
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.
 For the current tabs, route groups, persistence model, and validation anchors, see

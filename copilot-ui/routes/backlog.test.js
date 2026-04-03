@@ -165,6 +165,9 @@ async function run() {
     assert.equal(body.repo.repoPath, repoPath);
     assert.equal(body.backlog.exists, false);
     assert.equal(body.backlog.itemCount, 0);
+    assert.equal(body.backlog.primaryRepoRelativePath, 'docs/backlogs');
+    assert.equal(body.backlog.primaryFamilyRepoRelativePath, 'docs/backlogs/*.md');
+    assert.equal(body.backlog.legacyRepoRelativePath, 'docs/backlog.md');
     assert.deepEqual(body.backlog.items, []);
   });
 
@@ -185,7 +188,7 @@ async function run() {
     }, 'POST', '/api/planning/backlog', {
       repoId: 'repo-workspace-repo',
       title: 'Bootstrap planning backlog persistence',
-      summary: 'Use docs/backlog.md as the canonical intake file.',
+      summary: 'Keep repository backlog writes compatible with older docs/backlog.md flows.',
       roadmapIds: ['RM-platform-foundation-001'],
       keyPoints: [{ date: '2026-03-16', text: 'Create stable RB ids.' }],
     });
@@ -193,6 +196,8 @@ async function run() {
     assert.equal(created.res.statusCode, 201);
     assert.equal(created.body.kind, 'planning.backlog.create');
     assert.equal(created.body.item.id, 'RB-001');
+    assert.equal(created.body.backlog.primaryFamilyRepoRelativePath, 'docs/backlogs/*.md');
+    assert.equal(created.body.backlog.legacyRepoRelativePath, 'docs/backlog.md');
     assert.deepEqual(created.body.item.roadmapIds, ['RM-platform-foundation-001']);
 
     const saved = repositoryBacklogFile.readRepositoryBacklogFile(repoPath);

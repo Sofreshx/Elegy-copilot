@@ -8,8 +8,22 @@ const releaseDir = path.join(workspaceRoot, 'release');
 const latestYmlPath = path.join(releaseDir, 'latest.yml');
 const builderConfigPath = path.join(workspaceRoot, 'electron-builder.yml');
 const packagedUpdateConfigPath = path.join(releaseDir, 'win-unpacked', 'resources', 'app-update.yml');
-const packagedDistElectronDir = path.join(releaseDir, 'win-unpacked', 'resources', 'app', 'dist-electron');
 const TEST_TIMEOUT_MS = 300_000;
+
+function resolvePackagedDistElectronDir() {
+  const candidateDirs = [
+    path.join(releaseDir, 'win-unpacked', 'resources', 'app.asar.unpacked', 'dist-electron'),
+    path.join(releaseDir, 'win-unpacked', 'resources', 'app', 'dist-electron'),
+  ];
+
+  for (const candidateDir of candidateDirs) {
+    if (fs.existsSync(candidateDir)) {
+      return candidateDir;
+    }
+  }
+
+  throw new Error(`Packaged Electron dist directory not found. Checked: ${candidateDirs.join(', ')}`);
+}
 
 function readRequiredFile(filePath, label) {
   if (!fs.existsSync(filePath)) {
@@ -67,6 +81,7 @@ function runPackagedUpdaterTests(distDir, testFiles) {
 }
 
 function main() {
+  const packagedDistElectronDir = resolvePackagedDistElectronDir();
   const packageJson = JSON.parse(readRequiredFile(packageJsonPath, 'package.json'));
   const latestYml = readRequiredFile(latestYmlPath, 'latest.yml');
   const builderConfig = readRequiredFile(builderConfigPath, 'electron-builder.yml');
@@ -104,6 +119,7 @@ function main() {
 
   console.log('[smoke] validated packaged updater metadata');
   console.log(`[smoke] installer: ${path.basename(installerPath)}`);
+  console.log(`[smoke] packaged dist-electron dir: ${packagedDistElectronDir}`);
   console.log(`[smoke] packaged updater tests: ${testFiles.join(', ')}`);
   runPackagedUpdaterTests(packagedDistElectronDir, testFiles);
   console.log('[smoke] packaged Windows updater smoke passed');

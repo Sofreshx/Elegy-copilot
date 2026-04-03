@@ -11,7 +11,8 @@ disable-model-invocation: false
 ## Purpose
 Turn current work state, reviewer outputs, and validation evidence into concrete next work aligned
 to `docs/system/follow-up-discovery-governance.md`. This lane finds actionable gaps; it does not
-implement changes or run validation.
+implement changes or run validation. When closure needs durable Repository Backlog carryover, it also
+structures that carryover for downstream backlog sync.
 
 ## Use This Lane For
 - identifying remaining work after planning, execution, or review
@@ -31,6 +32,7 @@ implement changes or run validation.
 - `validation_evidence`: checks run, checks skipped, artifacts, or explicit absence of evidence
 - `active_goal_context`: current active goals and known completion state when available
 - `carryover_snapshot`: unresolved-goal or planning carryover context when relevant
+- `session_backlog_path`: explicit repo-relative Repository Backlog target when durable backlog carryover should be normalized
 - `constraints`: scope limits, deadlines, explicit deferrals, or blocker context
 
 ## Workflow
@@ -39,6 +41,7 @@ implement changes or run validation.
    - `gaps` for missing docs/tests/validation/work that matter for confidence or completeness
    - `immediate_next_tasks` for concrete near-term tasks that should be planned next
    - `defer_or_backlog` for real but non-blocking future work
+  - `backlog_carryover` for durable Repository Backlog follow-up grouped as `work_not_done`, `issues`, or `suggestions`
    - `research_threads` for topics that need `research-ideation` before planning
    - `blockers` for items that prevent responsible completion now
 3. Prefer blockers, active-goal gaps, missing validation, and reviewer findings over speculative polish.
@@ -53,6 +56,9 @@ implement changes or run validation.
 - Do not duplicate the same issue across sections; choose the closest fit.
 - Treat `remaining-work` as an input signal, not the sole source of truth.
 - Keep research threads narrow and explain why follow-up discovery is insufficient.
+- Use `session_backlog_path` when provided or already determined by carryover context. Prefer `docs/backlogs/<session-slug>.md`; `docs/backlog.md` is legacy compatibility only.
+- Structure durable Repository Backlog carryover under exactly these categories: `work_not_done`, `issues`, `suggestions`.
+- This read-only lane may reference existing `RB-*` IDs when they are already known, but it must not allocate new IDs.
 - Use `NONE` when a section has no items.
 - If the work is fully complete, say so in `current_state` and return `NONE` elsewhere.
 
@@ -61,12 +67,18 @@ implement changes or run validation.
 FOLLOW_UP_DISCOVERY
 - current_state:
   - <done items>
+- session_backlog_path:
+  - docs/backlogs/<session-slug>.md | docs/backlog.md | NONE
 - gaps:
   - <missing docs/tests/validation/work or NONE>
 - immediate_next_tasks:
   - <actionable next step or NONE>
 - defer_or_backlog:
   - <non-blocking future work or NONE>
+- backlog_carryover:
+  - work_not_done | <planning-ready carryover or NONE>
+  - issues | <problem, defect, or risk follow-up or NONE>
+  - suggestions | <improvement idea or NONE>
 - research_threads:
   - <topic needing research or NONE>
 - blockers:

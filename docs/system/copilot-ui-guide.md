@@ -27,6 +27,7 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
 
 1. **Desktop shell mode**
    - This is the default end-user runtime.
+  - Start local desktop development with `npm --prefix copilot-ui run electron:dev`. For the packaged Windows preview, run `npm --prefix copilot-ui run package:preview` and launch `copilot-ui/release/win-unpacked/Elegy Copilot.exe`.
    - It packages the same UI and backend behavior inside Electron and boots the backend locally on `127.0.0.1`.
    - It uses `~/.copilot` for runtime state, starts the messaging gateway dependency automatically, and default-enables `COPILOT_SDK_BRIDGE=1` unless explicitly disabled.
    - In packaged mode it starts an embedded planning database under `~/.copilot/planning-db`, sets planning persistence env vars for the local runtime, and keeps planning durability available by default without a separate database install.
@@ -35,7 +36,8 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
   - Start with `node copilot-ui/server.js` or the helper scripts in `scripts/cli-ui.*`.
   - This is the developer fallback for backend work, scripted local inspection, and frontend iteration against a manually started backend.
   - Add `--sdk` to the helper scripts when Copilot SDK bridge access is required; the helper sets `COPILOT_SDK_BRIDGE=1` before launching Node.
-  - Serves the HTTP API plus the built React UI on `127.0.0.1:3210`.
+  - Serves the HTTP API on `127.0.0.1:3210` and keeps the normal dashboard UI behind a desktop-only startup token established by Electron.
+  - Plain browser requests to the raw server root are denied; use Electron for the supported dashboard runtime, or `ui:dev` when iterating on the frontend against the backend API.
 
 The `copilot-ui` `ui:dev` script is frontend-only and requires the backend to already be running
 separately. During frontend work, the Vite dev server proxies `/api` to
@@ -55,8 +57,8 @@ Catalog semantics and authoritative write paths are defined in [[catalog-control
 
 The Planning workflow uses the repo-backed authority layer defined in
 [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md):
-Catalog repo selection remains the repo-context source, `docs/backlog.md` becomes the canonical
-Repository Backlog location, `docs/roadmaps/*.md` becomes the canonical Roadmap location, and plan
+Catalog repo selection remains the repo-context source, `docs/backlogs/*.md` becomes the primary
+Repository Backlog location, `docs/backlog.md` remains a legacy compatibility surface, `docs/roadmaps/*.md` becomes the canonical Roadmap location, and plan
 packs remain separate session-state execution artifacts.
 
 ## Backend route groups

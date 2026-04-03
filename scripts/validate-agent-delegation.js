@@ -82,6 +82,7 @@ const requiredDefaultOrchestratorBaseAssetIds = [
 
 const requiredOrchestratorSupportAssetIdsByDelegate = new Map([
 	['roadmap-planner', ['skill-roadmap-authoring']],
+	['backlog-planner', ['skill-roadmap-authoring']],
 	['e2e-validator', ['skill-e2e-workflow']],
 	['convention-governor', ['skill-project-conventions-governance']],
 	['doc-structure-governor', ['skill-documentation-structure-governance']],

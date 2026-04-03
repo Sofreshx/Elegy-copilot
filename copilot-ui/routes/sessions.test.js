@@ -405,6 +405,16 @@ Verify the new framing surfaces in Sessions.
 ## Where to Verify
 - UI: Sessions > Session Details
 
+## Validation Requirements
+- unit: Required for the structured-state route.
+- browser: Not required for this route-only slice.
+
+## Tested Coverage
+- unit: Focused unit structured-state route parsing through the Sessions API.
+
+## Coverage Gaps
+- browser: No browser-driven validation ran for this route-only slice.
+
 ## Verification Steps
 - Run node copilot-ui/lib/planState.test.js
 
@@ -488,7 +498,17 @@ Verify the new framing surfaces in Sessions.
     ]);
     assert.equal(body.meta.closureSummary.outcome, 'completed');
     assert.equal(body.meta.closureSummary.confidence, 'high');
+    assert.deepEqual(body.meta.intentFrame.validationRequirements, [
+      'unit: Required for the structured-state route.',
+      'browser: Not required for this route-only slice.',
+    ]);
     assert.deepEqual(body.meta.closureSummary.changedFiles, ['copilot-ui/routes/sessions.js']);
+    assert.deepEqual(body.meta.closureSummary.validationCoverage, [
+      'unit: Focused unit structured-state route parsing through the Sessions API.',
+    ]);
+    assert.deepEqual(body.meta.closureSummary.coverageGaps, [
+      'browser: No browser-driven validation ran for this route-only slice.',
+    ]);
     assert.ok(body.meta.closureSummary.validationEvidence.some((entry) => entry.includes('Review ledger verdict: APPROVED')));
     assert.equal(body.meta.executionOverlay.present, true);
     assert.equal(body.meta.executionOverlay.applied, true);
@@ -501,6 +521,496 @@ Verify the new framing surfaces in Sessions.
     assert.ok(!body.meta.closureSummary.sourceArtifacts.includes('final'));
     assert.ok(!assetReads.some((targetPath) => targetPath.endsWith('final.md')));
     assert.ok(assetReads.some((targetPath) => targetPath.endsWith('execution-state.json')));
+  });
+
+  await test('GET /api/sessions/:id/structured-state leaves structured validation requirements empty when the verification guide section is absent', async () => {
+    const routes = register({
+      sendJson: createSendJson(),
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe(targetPath) {
+          if (String(targetPath).endsWith('handoff.md')) {
+            return `## Handoff Manifest
+- Session: session-123
+- Plan: plan.md (status: APPROVED)
+- Reviewer: Verdict: APPROVED
+
+## Immediate Next Actions
+- NONE
+`;
+          }
+          if (String(targetPath).endsWith('proposition.md')) {
+            return `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
+
+### Summary
+- Structured validation requirements should stay empty when the section is missing.
+`;
+          }
+          if (String(targetPath).endsWith('verification-guide.md')) {
+            return `## Summary
+Structured validation requirements should stay empty when the section is missing.
+
+## Changed Files
+- copilot-ui/lib/sessionArtifacts.js
+
+## Where to Verify
+- API: GET /api/sessions/:id/structured-state
+
+## Verification Steps
+- Run node copilot-ui/lib/planState.test.js
+
+## Expected Outcomes
+- Structured validation requirements stay empty when the section is absent.
+`;
+          }
+          return null;
+        },
+      },
+      readPlanArtifact() {
+        return `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Runtime Adoption | implemented | 1 | 1 | - |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | - | execution finished |
+
+## Next Unit
+**NONE** - terminal outcome reached
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: passed |
+`;
+      },
+      listPlanArtifacts() {
+        return [];
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/structured-state');
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(body.meta.intentFrame.successSignals, [
+      'unit-tests — after group completion',
+      'Structured validation requirements stay empty when the section is absent.',
+    ]);
+    assert.deepEqual(body.meta.intentFrame.validationRequirements, []);
+    assert.deepEqual(body.meta.closureSummary.validationRequirements, []);
+    assert.ok(body.meta.closureSummary.validationEvidence.includes('unit-tests passed (after group completion)'));
+  });
+
+  await test('GET /api/sessions/:id/structured-state keeps review approval in validation evidence without promoting confidence to high', async () => {
+    const routes = register({
+      sendJson: createSendJson(),
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe(targetPath) {
+          if (String(targetPath).endsWith('handoff.md')) {
+            return `## Handoff Manifest
+- Session: session-123
+- Plan: plan.md (status: APPROVED)
+- Reviewer: Verdict: APPROVED
+
+## Key Decisions
+- Review approval stays visible in closure metadata.
+
+## Exploration Summary
+- docs/system/validation-governance.md
+
+## User Constraints
+- none
+
+## Immediate Next Actions
+- NONE
+
+## Next Plan Ideas
+- NONE
+
+## Watch Outs
+- Review approval alone must not create high confidence.
+
+## Open Risks
+- Focused validation coverage is still absent.
+`;
+          }
+          if (String(targetPath).endsWith('proposition.md')) {
+            return `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
+
+### Summary
+- Structured-state now separates review approval from affirmative validation evidence.
+
+### Immediate Next Actions
+- NONE
+
+### Next Plan Ideas
+- NONE
+
+### Watch Outs
+- Do not let review approval alone imply tested confidence.
+
+### Open Risks
+- Persisted validation coverage is still absent.
+`;
+          }
+          if (String(targetPath).endsWith('verification-guide.md')) {
+            return `## Summary
+Review approval remains visible in structured-state, but no validation coverage ran.
+
+## Changed Files
+- copilot-ui/lib/sessionArtifacts.js
+
+## Where to Verify
+- API: GET /api/sessions/:id/structured-state
+
+## Verification Steps
+- Inspect the closure summary confidence field.
+
+## Expected Outcomes
+- Review approval remains visible without producing high confidence.
+`;
+          }
+          if (String(targetPath).endsWith('execution-state.json')) {
+            return JSON.stringify({
+              schemaVersion: 'execution-state-v1',
+              lifecycle: 'finished',
+              status: 'completed',
+              summary: 'Execution finished without persisted validation coverage.',
+            });
+          }
+          return null;
+        },
+      },
+      readPlanArtifact() {
+        return `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Structured State Confidence | implemented | 1 | 1 | - |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | - | execution finished |
+
+## Next Unit
+**NONE** - terminal outcome reached
+`;
+      },
+      listPlanArtifacts() {
+        return [];
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/structured-state');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.meta.closureSummary.outcome, 'completed');
+    assert.equal(body.meta.closureSummary.confidence, 'medium');
+    assert.deepEqual(body.meta.closureSummary.validationCoverage, []);
+    assert.ok(body.meta.closureSummary.validationEvidence.some((entry) => entry.includes('Review ledger verdict: APPROVED')));
+  });
+
+  await test('GET /api/sessions/:id/structured-state downgrades terminal closure when mandatory validation is still missing', async () => {
+    const routes = register({
+      sendJson: createSendJson(),
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe(targetPath) {
+          if (String(targetPath).endsWith('handoff.md')) {
+            return `## Handoff Manifest
+- Session: session-123
+- Plan: plan.md (status: APPROVED)
+- Reviewer: Verdict: APPROVED
+
+## Key Decisions
+- Keep closure reporting aligned with validation governance.
+
+## Exploration Summary
+- docs/system/validation-governance.md
+
+## User Constraints
+- none
+
+## Immediate Next Actions
+- NONE
+
+## Next Plan Ideas
+- NONE
+
+## Watch Outs
+- Missing mandatory validation must stay explicit.
+
+## Open Risks
+- Integration validation has not run yet.
+`;
+          }
+          if (String(targetPath).endsWith('proposition.md')) {
+            return `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
+
+### Summary
+- Structured-state now exposes validation-governance closure metadata.
+
+### Immediate Next Actions
+- NONE
+
+### Next Plan Ideas
+- NONE
+
+### Watch Outs
+- Do not mark the run as complete when required validation is missing.
+
+### Open Risks
+- Integration validation still has not run.
+`;
+          }
+          if (String(targetPath).endsWith('verification-guide.md')) {
+            return `## Summary
+Structured-state now exposes validation-governance closure metadata.
+
+## Changed Files
+- copilot-ui/lib/sessionArtifacts.js
+
+## Where to Verify
+- API: GET /api/sessions/:id/structured-state
+
+## Validation Requirements
+- integration: Required for this cross-boundary workflow slice.
+- browser: Not required for this non-UI change.
+
+## Tested Coverage
+- unit: Focused unit tests for the structured-state parser.
+
+## Coverage Gaps
+- integration: Validation did not run for this session.
+
+## Verification Steps
+- Run the focused structured-state tests.
+
+## Expected Outcomes
+- The closure summary stays paused when required validation is missing.
+`;
+          }
+          if (String(targetPath).endsWith('execution-state.json')) {
+            return JSON.stringify({
+              schemaVersion: 'execution-state-v1',
+              lifecycle: 'finished',
+              status: 'completed',
+              summary: 'Execution finished, but integration validation is still missing.',
+            });
+          }
+          return null;
+        },
+      },
+      readPlanArtifact() {
+        return `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Validation Governance | implemented | 1 | 1 | - |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | - | execution finished |
+
+## Next Unit
+**NONE** - terminal outcome reached
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: passed |
+`;
+      },
+      listPlanArtifacts() {
+        return [];
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/structured-state');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.meta.closureSummary.reviewVerdict, 'APPROVED');
+    assert.equal(body.meta.closureSummary.outcome, 'paused');
+    assert.notEqual(body.meta.closureSummary.outcome, 'completed');
+    assert.equal(body.meta.closureSummary.confidence, 'low');
+    assert.deepEqual(body.meta.closureSummary.validationRequirements, [
+      'integration: Required for this cross-boundary workflow slice.',
+      'browser: Not required for this non-UI change.',
+    ]);
+    assert.deepEqual(body.meta.closureSummary.validationCoverage, [
+      'unit: Focused unit tests for the structured-state parser.',
+    ]);
+    assert.deepEqual(body.meta.closureSummary.coverageGaps, [
+      'integration: Validation did not run for this session.',
+    ]);
+    assert.ok(body.meta.closureSummary.blockers.includes('Mandatory validation is required but persisted validation coverage is incomplete.'));
+  });
+
+  await test('GET /api/sessions/:id/structured-state ignores unlabeled tested coverage and gaps', async () => {
+    const routes = register({
+      sendJson: createSendJson(),
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe(targetPath) {
+          if (String(targetPath).endsWith('handoff.md')) {
+            return `## Handoff Manifest
+- Session: session-123
+- Plan: plan.md (status: APPROVED)
+- Reviewer: Verdict: APPROVED
+
+## Key Decisions
+- Keep closure reporting aligned with validation governance.
+
+## Exploration Summary
+- docs/system/validation-governance.md
+
+## User Constraints
+- none
+
+## Immediate Next Actions
+- NONE
+
+## Next Plan Ideas
+- NONE
+
+## Watch Outs
+- Missing mandatory validation must stay explicit.
+
+## Open Risks
+- Integration validation has not run yet.
+`;
+          }
+          if (String(targetPath).endsWith('proposition.md')) {
+            return `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
+
+### Summary
+- Structured-state now exposes validation-governance closure metadata.
+
+### Immediate Next Actions
+- NONE
+
+### Next Plan Ideas
+- NONE
+
+### Watch Outs
+- Do not mark the run as complete when required validation is missing.
+
+### Open Risks
+- Integration validation still has not run.
+`;
+          }
+          if (String(targetPath).endsWith('verification-guide.md')) {
+            return `## Summary
+Structured-state now exposes validation-governance closure metadata.
+
+## Changed Files
+- copilot-ui/lib/sessionArtifacts.js
+
+## Where to Verify
+- API: GET /api/sessions/:id/structured-state
+
+## Validation Requirements
+- integration: Required for this cross-boundary workflow slice.
+- browser: Not required for this non-UI change.
+
+## Tested Coverage
+- Focused unit tests for the structured-state parser.
+
+## Coverage Gaps
+- Integration validation did not run for this session.
+
+## Verification Steps
+- Run the focused structured-state tests.
+
+## Expected Outcomes
+- The closure summary stays paused when required validation is missing.
+`;
+          }
+          if (String(targetPath).endsWith('execution-state.json')) {
+            return JSON.stringify({
+              schemaVersion: 'execution-state-v1',
+              lifecycle: 'finished',
+              status: 'completed',
+              summary: 'Execution finished, but integration validation is still missing.',
+            });
+          }
+          return null;
+        },
+      },
+      readPlanArtifact() {
+        return `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Validation Governance | implemented | 1 | 1 | - |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | - | execution finished |
+
+## Next Unit
+**NONE** - terminal outcome reached
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: passed |
+`;
+      },
+      listPlanArtifacts() {
+        return [];
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/sessions/session-123/structured-state');
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(body.meta.closureSummary.validationRequirements, [
+      'integration: Required for this cross-boundary workflow slice.',
+      'browser: Not required for this non-UI change.',
+    ]);
+    assert.deepEqual(body.meta.closureSummary.validationCoverage, []);
+    assert.deepEqual(body.meta.closureSummary.coverageGaps, []);
+    assert.ok(body.meta.closureSummary.blockers.includes('Mandatory validation is required but persisted validation coverage is incomplete.'));
   });
 
   await test('GET /api/sessions/:id/structured-state skips unversioned session-root artifacts for historical plan revisions', async () => {

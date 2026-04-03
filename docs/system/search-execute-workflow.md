@@ -1,6 +1,6 @@
 ---
 created: 2026-03-07
-updated: 2026-03-26
+updated: 2026-04-03
 category: system
 status: current
 doc_kind: node
@@ -104,7 +104,8 @@ The shipped V1 nested topology is intentionally narrow:
    coordinator path, `@o-plan-coordinator`, under orchestrator-owned routing policy. `@o-planner`
    remains leaf-only.
 - `@o-validation-coordinator` is the bounded validation-overlap exception and may delegate only to
-   `@unit-test-runner` and `@integration-test-runner`; integration remains user-confirmed.
+   `@unit-test-runner` and `@integration-test-runner`; integration follows policy-driven
+   mandatory-validation rules for the frozen slice rather than a user-confirmed-only gate.
 - `@e2e-validator` -> `@e2e-browser` remains the narrow validation coordinator exception.
 - Write-capable implementation lanes and reviewer lanes remain leaf-only in V1.
 - Coordinator-to-coordinator chains are forbidden in V1.

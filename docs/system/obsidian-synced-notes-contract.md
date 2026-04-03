@@ -33,6 +33,7 @@ They must not:
 
 - override `docs/planning/bullets.md`
 - override `docs/planning/intake/*.json`
+- override `docs/backlogs/*.md`
 - override `docs/backlog.md`
 - override `docs/roadmaps/*.md`
 - become the canonical execution authority instead of the active session `plan.md`

@@ -102,6 +102,7 @@
         "agent-o-validation-coordinator",
         "skill-planning-feature",
         "skill-planpack-authoring",
+        "agent-backlog-planner",
         "agent-roadmap-planner",
         "skill-roadmap-authoring",
         "agent-work-unit-runner",
@@ -111,6 +112,7 @@
         "agent-research-ideation",
         "agent-code-architect",
         "agent-doc-writer",
+        "agent-follow-up-finder",
         "agent-verification-guide",
         "agent-impl-business",
         "agent-impl-infra",
@@ -124,6 +126,9 @@
         "agent-doc-structure-governor",
         "skill-documentation-structure-governance",
         "skill-truth-sync",
+        "agent-logic-reviewer",
+        "agent-consistency-reviewer",
+        "agent-working-reviewer",
         "skill-stack-detector",
         "skill-stack-audit-patterns",
         "agent-deploy-auditor",
@@ -161,9 +166,10 @@
     {
       "id": "roadmap-planning-lane",
       "title": "Repository Backlog & Roadmap Planning Lane",
-      "description": "Repo-local roadmap planning lane for Repository Backlog and Roadmap authoring, maintenance, and Roadmap Sync-ready linking above plan packs.",
+      "description": "Repo-local planning lane for per-session Repository Backlog artifacts, Roadmap authoring, direct plan-handoff preparation, and Roadmap Sync-ready cleanup above plan packs.",
       "assetIds": [
         "skill-roadmap-authoring",
+        "agent-backlog-planner",
         "agent-roadmap-planner"
       ],
       "installTarget": "repo-local",
@@ -201,7 +207,11 @@
         "skill-documentation-structure-governance",
         "skill-truth-sync",
         "agent-convention-governor",
-        "agent-doc-structure-governor"
+        "agent-doc-structure-governor",
+        "agent-logic-reviewer",
+        "agent-consistency-reviewer",
+        "agent-working-reviewer",
+        "agent-follow-up-finder"
       ],
       "installTarget": "repo-local",
       "activationScope": "repo",
@@ -232,6 +242,12 @@
   ],
   "assets": [
     {
+      "id": "agent-backlog-planner",
+      "type": "agent",
+      "source": "engine-assets/agents/backlog-planner.agent.md",
+      "destination": "agents/backlog-planner.agent.md"
+    },
+    {
       "id": "agent-code-architect",
       "type": "agent",
       "source": "engine-assets/agents/code-architect.agent.md",
@@ -248,6 +264,12 @@
       "type": "agent",
       "source": "engine-assets/agents/code-reviewer.agent.md",
       "destination": "agents/code-reviewer.agent.md"
+    },
+    {
+      "id": "agent-consistency-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/consistency-reviewer.agent.md",
+      "destination": "agents/consistency-reviewer.agent.md"
     },
     {
       "id": "agent-convention-governor",
@@ -298,6 +320,12 @@
       "destination": "agents/final-reviewer.agent.md"
     },
     {
+      "id": "agent-follow-up-finder",
+      "type": "agent",
+      "source": "engine-assets/agents/follow-up-finder.agent.md",
+      "destination": "agents/follow-up-finder.agent.md"
+    },
+    {
       "id": "agent-goal-reviewer",
       "type": "agent",
       "source": "engine-assets/agents/goal-reviewer.agent.md",
@@ -338,6 +366,12 @@
       "type": "agent",
       "source": "engine-assets/agents/integration-test-runner.agent.md",
       "destination": "agents/integration-test-runner.agent.md"
+    },
+    {
+      "id": "agent-logic-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/logic-reviewer.agent.md",
+      "destination": "agents/logic-reviewer.agent.md"
     },
     {
       "id": "agent-o-plan-coordinator",
@@ -440,6 +474,12 @@
       "type": "agent",
       "source": "engine-assets/agents/verification-guide.agent.md",
       "destination": "agents/verification-guide.agent.md"
+    },
+    {
+      "id": "agent-working-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/working-reviewer.agent.md",
+      "destination": "agents/working-reviewer.agent.md"
     },
     {
       "id": "agent-work-unit-runner",

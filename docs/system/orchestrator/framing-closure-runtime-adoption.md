@@ -59,8 +59,8 @@ The orchestrator composes two normalized session summaries:
 ### Authority boundary
 
 - `plan.md` remains the canonical session execution artifact when a persisted workflow is used.
-- `docs/backlog.md`, `docs/roadmaps/*.md`, and issue-doc carryover files remain the canonical durable
-  planning and carryover authorities.
+- `docs/backlogs/*.md`, legacy compatibility `docs/backlog.md`, `docs/roadmaps/*.md`, and issue-doc
+  carryover files remain the canonical durable planning and carryover authorities.
 - The framing/closure summaries must not silently replace backlog, roadmap, unresolved-goal, or repo
   documentation governance.
 

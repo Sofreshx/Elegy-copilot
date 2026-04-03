@@ -781,6 +781,23 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     planningWorkspaceState.backlogSummary?.items,
     planningWorkspaceState.roadmaps,
   ]);
+  const backlogPrimarySurfacePath = planningWorkspaceState.backlogSummary?.primaryDirectoryPath
+    || planningWorkspaceState.repositoryBacklog?.primaryDirectoryPath
+    || planningWorkspaceState.repositoryBacklog?.filePath
+    || planningWorkspaceState.backlogSummary?.backlogPath
+    || null;
+  const backlogPrimarySurfaceRepoRelativePath = planningWorkspaceState.backlogSummary?.primaryRepoRelativePath
+    || planningWorkspaceState.repositoryBacklog?.primaryRepoRelativePath
+    || planningWorkspaceState.repositoryBacklog?.repoRelativePath
+    || planningWorkspaceState.backlogSummary?.repoRelativePath
+    || 'docs/backlogs';
+  const backlogPrimaryFamilyRepoRelativePath = planningWorkspaceState.backlogSummary?.primaryFamilyRepoRelativePath
+    || planningWorkspaceState.repositoryBacklog?.primaryFamilyRepoRelativePath
+    || 'docs/backlogs/*.md';
+  const backlogLegacyRepoRelativePath = planningWorkspaceState.backlogSummary?.legacyRepoRelativePath
+    || planningWorkspaceState.repositoryBacklog?.legacyRepoRelativePath
+    || 'docs/backlog.md';
+  const backlogResolvedSources = planningWorkspaceState.backlogSummary?.resolvedRepoRelativePaths ?? [];
 
   const sectionCopy: Record<PlanningSection, { title: string; body: string }> = {
     plans: {
@@ -793,7 +810,7 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
     },
     backlog: {
       title: 'Backlog',
-      body: 'Browse docs/backlog.md as the canonical queued-work surface and start plans from accepted backlog slices.',
+      body: 'Browse docs/backlogs/*.md as the primary queued-work surface and start plans from accepted backlog slices, while docs/backlog.md stays available for legacy compatibility.',
     },
     roadmaps: {
       title: 'Roadmaps',
@@ -946,7 +963,7 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
         <div className="planning-metric-card">
           <p className="planning-metric-label">Backlog items</p>
           <p className="planning-metric-value">{planningCounts.backlog}</p>
-          <p className="planning-copy">Accepted or queued repo work in <code>docs/backlog.md</code>.</p>
+          <p className="planning-copy">Accepted or queued repo work in <code>docs/backlogs/*.md</code>, with <code>docs/backlog.md</code> kept for compatibility.</p>
         </div>
         <div className="planning-metric-card">
           <p className="planning-metric-label">Roadmaps</p>
@@ -1464,7 +1481,7 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
       {activeSection === 'backlog' ? (
         <div className="planning-grid">
           <Panel
-            subtitle="docs/backlog.md remains the canonical repo backlog authority."
+            subtitle="docs/backlogs/*.md is the primary repo backlog family. docs/backlog.md remains a legacy compatibility surface."
             testId="planning-backlog-surface-panel"
             title="Repository Backlog"
           >
@@ -1481,12 +1498,23 @@ export default function PlanningView({ onSdkSessionReady }: { onSdkSessionReady?
                   />
                 </label>
                 <PlanningPathActions
-                  emptyMessage="No backlog file resolved for the active repository yet."
-                  openLabel="Open backlog file"
-                  path={planningWorkspaceState.repositoryBacklog?.filePath}
-                  repoRelativePath={planningWorkspaceState.repositoryBacklog?.repoRelativePath}
+                  emptyMessage="No primary backlog surface resolved for the active repository yet."
+                  openLabel="Open primary backlog directory"
+                  path={backlogPrimarySurfacePath}
+                  repoRelativePath={backlogPrimarySurfaceRepoRelativePath}
                   testIdPrefix="planning-backlog-surface-file"
                 />
+                <p className="planning-copy">
+                  Primary family: <code>{backlogPrimaryFamilyRepoRelativePath}</code>
+                </p>
+                <p className="planning-copy">
+                  Legacy compatibility: <code>{backlogLegacyRepoRelativePath}</code>
+                </p>
+                {backlogResolvedSources.length ? (
+                  <p className="planning-copy">
+                    Resolved backlog docs: <code>{backlogResolvedSources.join(', ')}</code>
+                  </p>
+                ) : null}
                 <p className="planning-copy">
                   Stable IDs: <code>{planningWorkspaceState.repositoryBacklog?.stableIdPattern || 'RB-###'}</code>
                 </p>

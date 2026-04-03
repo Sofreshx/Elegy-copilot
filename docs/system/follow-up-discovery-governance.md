@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-03-15
+updated: 2026-04-03
 category: system
 status: current
 doc_kind: node
@@ -36,6 +36,7 @@ The follow-up discovery lane is responsible for:
 - finding missing docs, tests, validation, or rollout steps
 - converting reviewer findings into concrete next tasks
 - separating immediate follow-up work from deeper research threads
+- normalizing durable Repository Backlog carryover into explicit categories for session-close sync: work not done, issues, and suggestions
 - applying the unresolved-goal carryover rule from [[goal-contract-governance]]
   [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md) when goals are `partial` or `not-complete`
 - prioritizing blockers, active-goal gaps, and missing validation ahead of speculative polish
@@ -77,12 +78,18 @@ Use this structure for follow-up discovery:
 FOLLOW_UP_DISCOVERY
 - current_state:
   - <done items>
+- session_backlog_path:
+  - docs/backlogs/<session-slug>.md | docs/backlog.md | NONE
 - gaps:
   - <missing docs/tests/validation/work>
 - immediate_next_tasks:
   - <actionable next step>
 - defer_or_backlog:
   - <non-blocking future work>
+- backlog_carryover:
+  - work_not_done | <planning-ready carryover or NONE>
+  - issues | <problem, defect, or risk follow-up or NONE>
+  - suggestions | <improvement idea or NONE>
 - research_threads:
   - <topic needing research or NONE>
 - blockers:
@@ -114,14 +121,17 @@ RESEARCH_IDEATION
 2. Use research when a gap cannot be responsibly closed without additional investigation.
 3. Feed validated follow-up outputs into planning workflows instead of leaving them as narrative-only
    notes.
-4. Keep research additive; do not introduce a separate research-scout lane until the upgraded
+4. Route structured Repository Backlog carryover through a backlog-writing lane such as `@backlog-planner`.
+5. Keep research additive; do not introduce a separate research-scout lane until the upgraded
    `research-ideation` contract proves insufficient.
-5. When carryover context is present, distinguish active-session continuation from non-active carryover so stale goals are not reintroduced as zombie follow-ups.
+6. When carryover context is present, distinguish active-session continuation from non-active carryover so stale goals are not reintroduced as zombie follow-ups.
 
 ## Persistent Discovery Surfaces
 
 The goal/discovery governance surface uses these persistent docs for cross-session carryover:
 
+- `docs/backlogs/*.md` (primary per-session Repository Backlog carryover family)
+- `docs/backlog.md` (legacy Repository Backlog compatibility surface)
 - `docs/issues/planning-ideas-log.md`
 - `docs/issues/out-of-scope-findings.md`
 

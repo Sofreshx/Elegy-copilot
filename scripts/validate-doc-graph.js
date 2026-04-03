@@ -171,7 +171,7 @@ function ensure(condition, message, errors) {
 }
 
 function isRepoBackedPlanningArtifact(rel) {
-	return rel === 'docs/backlog.md' || rel.startsWith('docs/roadmaps/');
+	return rel === 'docs/backlog.md' || rel.startsWith('docs/backlogs/') || rel.startsWith('docs/roadmaps/');
 }
 
 function validateDocGraph({ repoRoot = defaultRepoRoot } = {}) {

@@ -63,10 +63,25 @@ function createFixtureRepo() {
 	return root;
 }
 
-test('validate-doc-graph allows repo-backed planning backlog and roadmap docs', () => {
+test('validate-doc-graph allows primary and legacy repo-backed backlog docs plus roadmap docs', () => {
 	const root = createFixtureRepo();
 
 	try {
+		writeFile(
+			root,
+			'docs/backlogs/2026-04-03-session-close.md',
+			`---
+created: 2026-03-15
+updated: 2026-03-15
+category: meta
+status: current
+doc_kind: node
+summary: Session backlog fixture.
+---
+
+# Session Backlog
+`
+		);
 		writeFile(
 			root,
 			'docs/backlog.md',

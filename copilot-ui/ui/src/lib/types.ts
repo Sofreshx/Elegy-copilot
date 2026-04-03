@@ -365,6 +365,7 @@ export interface SessionIntentFrame {
   inScope?: string[];
   outOfScope?: string[];
   successSignals?: string[];
+  validationRequirements?: string[];
   constraints?: string[];
   risks?: string[];
   watchOuts?: string[];
@@ -394,9 +395,12 @@ export interface SessionClosureSummary {
   requested?: string[];
   changedFiles?: string[];
   whereToVerify?: string[];
+  validationRequirements?: string[];
+  validationCoverage?: string[];
   validationEvidence?: string[];
   followUps?: SessionClosureFollowUps;
   blockers?: string[];
+  coverageGaps?: string[];
   limitations?: string[];
   confidence?: string | null;
   reviewApproved?: boolean | null;
@@ -1675,6 +1679,13 @@ export interface PlanningBacklogItem {
 export interface PlanningBacklogDocument {
   backlogPath?: string | null;
   repoRelativePath?: string;
+  primaryDirectoryPath?: string | null;
+  primaryRepoRelativePath?: string;
+  primaryFamilyRepoRelativePath?: string;
+  legacyBacklogPath?: string | null;
+  legacyRepoRelativePath?: string;
+  resolvedBacklogPaths?: string[];
+  resolvedRepoRelativePaths?: string[];
   exists: boolean;
   formatVersion?: string;
   title?: string;
@@ -2015,7 +2026,12 @@ export interface PlanningRepositoryBacklogRef {
   canonicalName: 'Repository Backlog';
   repo: PlanningRepoSummary;
   filePath: string;
-  repoRelativePath: 'docs/backlog.md';
+  repoRelativePath: string;
+  primaryDirectoryPath?: string;
+  primaryRepoRelativePath?: string;
+  primaryFamilyRepoRelativePath?: string;
+  legacyFilePath?: string;
+  legacyRepoRelativePath?: string;
   stableIdPattern: 'RB-###';
 }
 
@@ -2198,6 +2214,13 @@ export interface PlanningBacklogItem {
 export interface PlanningBacklogSummary {
   backlogPath?: string | null;
   repoRelativePath?: string;
+  primaryDirectoryPath?: string | null;
+  primaryRepoRelativePath?: string;
+  primaryFamilyRepoRelativePath?: string;
+  legacyBacklogPath?: string | null;
+  legacyRepoRelativePath?: string;
+  resolvedBacklogPaths?: string[];
+  resolvedRepoRelativePaths?: string[];
   exists: boolean;
   formatVersion?: string;
   title?: string;

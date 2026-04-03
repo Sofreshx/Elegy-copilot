@@ -16,9 +16,26 @@ const {
 
 function summarizeBacklog(state) {
   const backlog = state && state.backlog && typeof state.backlog === 'object' ? state.backlog : { items: [] };
+  const family = state && state.family && typeof state.family === 'object' ? state.family : {};
   return {
     backlogPath: state && state.backlogPath ? state.backlogPath : null,
-    repoRelativePath: repositoryBacklogFileLib.REPOSITORY_BACKLOG_FILE_RELATIVE_PATH,
+    repoRelativePath:
+      state && state.repoRelativePath
+        ? state.repoRelativePath
+        : repositoryBacklogFileLib.REPOSITORY_BACKLOG_PRIMARY_DIRECTORY_REPO_RELATIVE_PATH,
+    primaryDirectoryPath: family.primaryDirectoryPath || null,
+    primaryRepoRelativePath:
+      family.primaryDirectoryRepoRelativePath
+      || repositoryBacklogFileLib.REPOSITORY_BACKLOG_PRIMARY_DIRECTORY_REPO_RELATIVE_PATH,
+    primaryFamilyRepoRelativePath:
+      family.primaryFamilyRepoRelativePath
+      || repositoryBacklogFileLib.REPOSITORY_BACKLOG_PRIMARY_FAMILY_REPO_RELATIVE_PATH,
+    legacyBacklogPath: family.legacyBacklogPath || null,
+    legacyRepoRelativePath:
+      family.legacyRepoRelativePath
+      || repositoryBacklogFileLib.REPOSITORY_BACKLOG_LEGACY_FILE_RELATIVE_PATH,
+    resolvedBacklogPaths: Array.isArray(family.resolvedBacklogPaths) ? family.resolvedBacklogPaths : [],
+    resolvedRepoRelativePaths: Array.isArray(family.resolvedRepoRelativePaths) ? family.resolvedRepoRelativePaths : [],
     exists: Boolean(state && state.exists),
     formatVersion: backlog.formatVersion || repositoryBacklogFileLib.REPOSITORY_BACKLOG_FORMAT_VERSION,
     title: backlog.title || repositoryBacklogFileLib.REPOSITORY_BACKLOG_TITLE,

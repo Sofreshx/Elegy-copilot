@@ -193,6 +193,10 @@ vitest_1.vi.mock('../ui/src/lib/api', function () { return ({
                     inScope: ['Render the framing card before raw artifacts.'],
                     outOfScope: ['Broader planning-surface rollout remains later.'],
                     successSignals: ['Session Intent Frame appears at the top of the artifacts area.'],
+                    validationRequirements: [
+                        'unit: Required for the session-detail artifact view.',
+                        'browser: Not required for this focused UI metadata slice.',
+                    ],
                     constraints: ['Do not add new required artifact files.'],
                     watchOuts: ['Keep raw artifacts available as supporting detail.'],
                     sourceArtifacts: ['plan', 'handoff', 'proposition'],
@@ -203,7 +207,10 @@ vitest_1.vi.mock('../ui/src/lib/api', function () { return ({
                     confidence: 'high',
                     reviewVerdict: 'APPROVED',
                     delivered: ['Structured-state publishes intent and closure summaries.'],
+                    validationRequirements: ['unit: Required for the session-detail artifact view.'],
+                    validationCoverage: ['unit: SessionDetail renders derived validation metadata.'],
                     validationEvidence: ['Review ledger verdict: APPROVED (reviewer-opus-4-6)'],
+                    coverageGaps: ['browser: No browser E2E was run for this focused metadata rendering test.'],
                     followUps: {
                         activeContinuation: ['Verify the framing cards in Session Details.'],
                         durableCarryover: ['Extend the same summaries into planning surfaces later.'],
@@ -324,6 +331,9 @@ vitest_1.vi.mock('../ui/src/lib/api', function () { return ({
                     (0, vitest_1.expect)(react_1.screen.getByText(/Keep test routing narrow/i)).toBeInTheDocument();
                     (0, vitest_1.expect)(react_1.screen.getByText('Session Closure Summary')).toBeInTheDocument();
                     (0, vitest_1.expect)(react_1.screen.getByText(/runtime\/UI adoption slice is implemented/i)).toBeInTheDocument();
+                    (0, vitest_1.expect)(react_1.screen.getAllByText(/unit: Required for the session-detail artifact view\./i).length).toBeGreaterThan(0);
+                    (0, vitest_1.expect)(react_1.screen.getByText(/unit: SessionDetail renders derived validation metadata\./i)).toBeInTheDocument();
+                    (0, vitest_1.expect)(react_1.screen.getByText(/browser: No browser E2E was run for this focused metadata rendering test\./i)).toBeInTheDocument();
                     (0, vitest_1.expect)(react_1.screen.getByText('Supporting raw artifacts')).toBeInTheDocument();
                     (0, vitest_1.expect)(react_1.screen.getByText(/Observed skill usage/i)).toBeInTheDocument();
                     (0, vitest_1.expect)(react_1.screen.getByText(/^Session rollup:$/i).parentElement).toHaveTextContent('Session rollup: Searched 3 · Selected 1 · Invoked 3');

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-03-25
+updated: 2026-04-03
 category: system
 status: current
 doc_kind: node
@@ -20,7 +20,7 @@ keeping plan packs as the execution artifact.
 
 ## Canonical Names
 
-- **Repository Backlog** — the canonical repo-backed backlog file for planning intake and queued work.
+- **Repository Backlog** — the canonical repo-backed backlog artifact family for planning intake and queued work. Primary per-session artifacts live under `docs/backlogs/*.md`; `docs/backlog.md` remains a legacy compatibility surface.
 - **Roadmap** — the canonical phased planning document that sits above plan packs.
 - **Planning Bullets** — the canonical repo-backed markdown seed file for future-session freeform bullets.
 - **Typed Planning Intake** — the canonical typed request layer for audit, roadmap, review-prep, commit-prep,
@@ -38,7 +38,7 @@ Do not introduce alternate product names for these same concepts in canonical do
 | --- | --- | --- | --- | --- |
 | Planning Bullets | Repo docs file | `<repo>/docs/planning/bullets.md` | Freeform future-plan seeds below backlog acceptance | Typed requests, accepted backlog state, active execution |
 | Typed Planning Intake | Repo docs files | `<repo>/docs/planning/intake/*.json` | Structured planning requests and tracked action workflows | Freeform bullet capture, accepted backlog state |
-| Repository Backlog | Repo docs file | `<repo>/docs/backlog.md` | Repo-wide intake, triage, and queued work | Session execution state, work-unit decomposition |
+| Repository Backlog | Repo docs artifact family | `<repo>/docs/backlogs/<session-slug>.md` (primary), `<repo>/docs/backlog.md` (legacy compatibility) | Repo-wide intake, triage, queued work, and session-close carryover | Session execution state, work-unit decomposition |
 | Roadmap | Repo docs files | `<repo>/docs/roadmaps/<roadmap-slug>.md` | Phased outcomes, sequencing, and status across work | Detailed execution instructions |
 | Plan Pack | Session-state artifact | `~/.copilot/session-state/<SESSION_ID>/plan.md` | One execution session | Repo backlog ownership or roadmap prioritization |
 | External Obsidian notes + mirrors | External/non-canonical compatibility surface | Local Obsidian vault configured for `copilot-ui` | Repo-contextual supplemental notes plus deterministic mirror representations of canonical bullets/roadmaps for the selected repo | Canonical backlog, roadmap, bullets, typed intake, or active execution authority |
@@ -131,12 +131,27 @@ For a selected repository root `<repo>/`:
 
 - **Planning Bullets** live at `<repo>/docs/planning/bullets.md`.
 - **Typed Planning Intake** lives under `<repo>/docs/planning/intake/`.
-- **Repository Backlog** lives at `<repo>/docs/backlog.md`.
+- **Repository Backlog** primarily lives under `<repo>/docs/backlogs/`.
+- `docs/backlogs/<session-slug>.md` is the primary per-session Repository Backlog artifact for session-close carryover.
+- `docs/backlog.md` remains supported as a legacy compatibility artifact for agents, validators, and older docs flows.
 - **Roadmaps** live under `<repo>/docs/roadmaps/`.
 - Multiple roadmap files are supported.
+- Backlog filenames SHOULD use lowercase kebab-case session slugs:
+  - `<repo>/docs/backlogs/2026-04-03-session-close.md`
+  - `<repo>/docs/backlogs/platform-audit-follow-up.md`
 - Roadmap filenames SHOULD use lowercase kebab-case slugs:
   - `<repo>/docs/roadmaps/platform-foundation.md`
   - `<repo>/docs/roadmaps/q2-delivery.md`
+
+Session-close Repository Backlog artifacts should persist durable carryover under clear categories that
+cover:
+
+- Work Not Done
+- Issues
+- Suggestions
+
+Entries in those categories may introduce new `RB-*` items or explicitly reference existing `RB-*`
+items. Do not invent a new backlog ID family for per-session backlog files.
 
 Plan packs remain session-state artifacts, not repo docs:
 
@@ -156,7 +171,7 @@ Stable linked IDs are required for automatic reconciliation.
   - Stable after creation
 - **Backlog item IDs** are canonical machine identifiers with format `RB-###`.
   - Example: `RB-001`
-  - Unique within the repository backlog file
+  - Unique across the Repository Backlog artifact family (`docs/backlogs/*.md` plus legacy `docs/backlog.md` when present)
   - Stable after creation
 - **Roadmap item IDs** are canonical machine identifiers with format `RM-<roadmap-slug>-###`.
   - Example: `RM-platform-foundation-001`
@@ -234,7 +249,7 @@ extensions and must not be implied unless separately implemented and approved.
 | --- | --- | --- | --- |
 | Planning Bullets | `<repo>/docs/planning/bullets.md` | Repo docs | Freeform seed ideas before backlog acceptance |
 | Typed Planning Intake | `<repo>/docs/planning/intake/` | Repo docs | Typed structured planning requests |
-| Repository Backlog | `<repo>/docs/backlog.md` | Repo docs | Durable queued/triaged repo work |
+| Repository Backlog | `<repo>/docs/backlogs/*.md` (primary), `<repo>/docs/backlog.md` (legacy compatibility) | Repo docs | Durable queued/triaged repo work plus per-session carryover |
 | Roadmaps | `<repo>/docs/roadmaps/*.md` | Repo docs | Phased outcomes above execution |
 | Active Plan Pack | `~/.copilot/session-state/<SESSION_ID>/plan.md` | Session artifact | Active execution plan, not durable repo backlog |
 | External Obsidian Notes | Configured Obsidian vault path for selected repo context | External/non-canonical | Optional note-reading surface plus deterministic mirrors of canonical bullets/roadmaps |
@@ -309,7 +324,7 @@ Migration stance:
 
 - no dual-write requirement between repo docs and planning-record notes
 - new bullet/intake/backlog/roadmap workflows should write repo docs only
-- useful legacy notes may be promoted into `docs/backlog.md` or roadmap files
+- useful legacy notes may be promoted into `docs/backlogs/<session-slug>.md`, legacy `docs/backlog.md` when compatibility is required, or roadmap files
 - until promoted, legacy notes remain historical context and compatibility data only
 - legacy record-scoped research artifacts must not override repo-backed backlog or roadmap docs
 

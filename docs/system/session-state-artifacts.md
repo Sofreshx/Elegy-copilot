@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-26
+updated: 2026-04-03
 category: system
 status: current
 doc_kind: node
@@ -169,8 +169,8 @@ Recommended v1 payload shape:
   },
   "blockers": [
     {
-      "label": "Awaiting user decision",
-      "details": "Need confirmation before broader validation."
+      "label": "Broader validation pending",
+      "details": "Policy-driven broader validation still needs to run."
     }
   ],
   "replanCount": 1,
@@ -382,6 +382,19 @@ Supporting-artifact expectations:
 - Review approval and closure verdict semantics use the effective latest Review Ledger row fail-closed;
   an older approved row does not override a newer `CHANGES_REQUESTED` or other non-resumable verdict.
 
+When available, richer validation-governance details should be exposed additively through these fields:
+
+- `meta.intentFrame.validationRequirements`
+- `meta.closureSummary.validationRequirements`
+- `meta.closureSummary.validationCoverage`
+- `meta.closureSummary.coverageGaps`
+
+Existing validation summary fields remain part of the contract:
+
+- `meta.closureSummary.whereToVerify`
+- `meta.closureSummary.validationEvidence`
+- `meta.closureSummary.limitations`
+
 ### Final Summary Compatibility Surface
 
 `GET /api/sessions/:id/final` is a `copilot-ui` compatibility/inspection surface, not a new canonical
@@ -429,6 +442,21 @@ The file is Markdown with these top-level sections:
 3. **Where to Verify** — Pointers to the areas the reviewer should inspect (type-prefixed: UI, Terminal, Browser, File, API, Config)
 4. **Verification Steps** — Ordered checklist of manual or automated steps to confirm correctness
 5. **Expected Outcomes** — What the reviewer should observe when verification succeeds
+
+Optional additive sections:
+
+6. **Validation Requirements** — What validation was required and why
+7. **Tested Coverage** — What validation actually covered
+8. **Coverage Gaps** — What remains untested, blocked, or limited
+
+When new artifacts emit these optional sections, each bullet should start with an explicit
+validation layer or capacity label followed by `:` so the entries remain machine-derivable. Use
+recognized labels such as `unit`, `integration`, `e2e`, `browser`, `playwright`, and `manual`.
+Unlabeled mandatory requirements should be treated as unresolved mandatory validation rather than as
+covered validation.
+
+Heading normalization should stay simple and Markdown-H2-based so parsers can fail soft across older
+and newer artifacts.
 
 #### API Access
 
@@ -533,9 +561,9 @@ The persistence authority for planning records and planning notes is frozen as f
    - Implementations MUST NOT silently fall back to file-based persistence for planning records/notes when local DB persistence is unavailable.
    - Persistence failures must remain explicit and deterministic to callers.
 
-This freeze applies to planning-record persistence only. Repo-backed `docs/backlog.md` and
-`docs/roadmaps/*.md` artifacts are outside session-state authority and outside this local planning DB
-authority boundary.
+This freeze applies to planning-record persistence only. Repo-backed `docs/backlogs/*.md`, legacy
+compatibility `docs/backlog.md`, and `docs/roadmaps/*.md` artifacts are outside session-state
+authority and outside this local planning DB authority boundary.
 
 ### Planning Persistence Operations Contract (WS4 M2)
 

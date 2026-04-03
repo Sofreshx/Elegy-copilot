@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-26
+updated: 2026-04-03
 category: system
 status: current
 doc_kind: node
@@ -185,7 +185,7 @@ owner.
   findings back to the orchestrator so `@o-planner` can remain leaf-only.
 - `@o-validation-coordinator` is the bounded validation-overlap coordinator path. It may delegate
   only to `@unit-test-runner` and `@integration-test-runner`, and integration validation remains
-  user-confirmed.
+  policy-driven rather than confirmation-driven.
 - `@e2e-validator` is the narrow validation-only coordinator exception and may delegate only to
   `@e2e-browser`.
 - Write-capable implementation lanes and reviewer lanes remain leaf-only in V1.
@@ -229,7 +229,7 @@ That same reframing step records `planning_surface`, `session_horizon`, `executi
 execution begins.
 
 The orchestrator folds this into the **Session Intent Frame**, including what is in vs out, what "done"
-means, and where confidence is still too low to proceed blindly.
+means, which validation layers are required, and where confidence is still too low to proceed blindly.
 
 ### Phase 2: Plan (standard/complex only)
 `@o-planner` produces a plan pack using the shared plan-pack structure. The orchestrator updates a
@@ -256,9 +256,10 @@ The default execution topology is one ready work group at a time through `@work-
 orchestrator delegates only the active group, tracks progress after each group, and uses direct
 specialist implementers only when a single WU is clearly one-lane work. Implementer lanes may request
 test scope, but long-running test commands stay in the dedicated runners: unit validation through
-`@unit-test-runner`, and integration/E2E only through their dedicated user-confirmed lanes. Timeout,
-stalled-output, and inconclusive validation are treated as completed attempts that trigger retry,
-replan, or user input rather than indefinite waiting.
+`@unit-test-runner`, integration validation through `@o-validation-coordinator` / `@integration-test-runner`
+when policy or risk requires it, and agent-driven browser validation serially through
+`@e2e-validator` -> `@e2e-browser`. Timeout, stalled-output, and inconclusive validation are treated as
+completed attempts that trigger retry, replan, or user input rather than indefinite waiting.
 
 For any write-capable work unit that affects behavior, workflow policy, or a documentation-backed
 feature, the delegated leaf must independently load the smallest relevant canonical docs entrypoint
@@ -271,8 +272,8 @@ write-capable work.
 
 When a completed or frozen slice can be validated without reopening active writes, the orchestrator may
 use `@o-validation-coordinator` for bounded validation overlap. That overlap is conditioned on
-`overlap_risk`, dependency safety, and current repo policy constraints; integration validation still
-requires explicit user confirmation.
+`overlap_risk`, dependency safety, and current repo policy constraints. Integration validation is
+policy-driven, not confirmation-driven; E2E remains serial and should not overlap active write work.
 
 During execution, the orchestrator keeps the Session Intent Frame current enough to preserve
 resumability, especially when scope edges change, confidence drops, or refactor/coherence work is
@@ -287,9 +288,16 @@ Final verification uses a layered end gate: `@code-reviewer` for final code qual
 
 When reconciliation runs, `@doc-writer` keeps only unresolved goals that are no longer active, preserves existing entries by Goal Statement, and removes carryover entries that are now complete or active again. When `GOAL_REVIEW.unresolved_goals_path = NONE`, the orchestrator either performs a removal-only clean-up (if prior carryover entries should now be removed) or leaves the file untouched.
 
+When closure also needs durable Repository Backlog carryover, the orchestrator should preserve an explicit `session_backlog_path` from `@goal-reviewer`, prefer `docs/backlogs/<session-slug>.md` for new carryover, and treat `docs/backlog.md` as legacy compatibility only.
+
 Verification is also where the orchestrator assembles most of the **Session Closure Summary**:
-requested-vs-delivered facts, goal closure, code-quality/coherence findings, validation confidence, and
-limitations that prevent a stronger completion claim.
+requested-vs-delivered facts, goal closure, validation requirements, tested coverage, code-quality /
+coherence findings, validation confidence, and limitations or coverage gaps that prevent a stronger
+completion claim.
+
+If mandatory validation did not run, the orchestrator must say so explicitly. Missing required
+validation lowers closure confidence and may keep the run in a paused or incomplete state rather than a
+confident done state.
 
 ### Phase 5: Follow-Up
 The orchestrator proposes 2-4 concrete next actions grounded in blockers, missing validation,
@@ -303,6 +311,11 @@ This phase finalizes the **Session Closure Summary** by separating:
 - durable repo-planning follow-ups that belong in backlog/roadmap lanes
 - carryover issue-doc material such as unresolved goals or out-of-scope findings
 
+When durable repo-planning follow-ups exist, the orchestrator should use `@follow-up-finder` to
+structure Repository Backlog carryover under `work_not_done`, `issues`, and `suggestions`, then route
+persistence or cleanup through `@backlog-planner` so `docs/backlogs/<session-slug>.md` stays the
+primary end-of-session backlog surface.
+
 The orchestrator should say explicitly when a limitation remains unresolved rather than implying hidden
 memory or automatic future pickup.
 
@@ -313,6 +326,7 @@ memory or automatic future pickup.
 | `@o-reframer` | Analyzes requests, classifies complexity |
 | `@o-validation-coordinator` | Bounded validation overlap coordinator for completed or frozen slices |
 | `@o-planner` | Produces plan packs from enriched briefs |
+| `@backlog-planner` | Maintains `docs/backlogs/*.md`, converts backlog items into roadmap or direct plan-handoff briefs, and cleans consumed backlog/roadmap items |
 | `@reviewer-opus-4-6` | Primary planning reviewer for cross-model plan risk and completeness review |
 | `@reviewer-gpt-5-4` | Primary planning reviewer that validates the plan and prior review feedback |
 | `@work-unit-runner` | Implements individual work units |
@@ -327,7 +341,9 @@ memory or automatic future pickup.
 | `@final-reviewer` | Requested-vs-delivered closure summary and remaining-work signal that respects `GOAL_REVIEW` status |
 | `@research-ideation` | Web + codebase research |
 | `@unit-test-runner` | Unit test execution |
-| `@integration-test-runner` | Integration tests (user-confirmed) |
+| `@integration-test-runner` | Integration tests when policy or risk requires broader validation |
+| `@e2e-validator` | Policy-driven agent-browser validation coordinator for risky browser coverage |
+| `@e2e-browser` | Serial browser automation using `agent-browser` CLI |
 
 ## How `@search` and `@execute` fit in
 
@@ -373,6 +389,9 @@ Those views are derived from existing persisted inputs (`plan.md`, `handoff.md`,
 artifacts remain useful persisted detail surfaces, but they are not separate competing summary
 authorities. `GET /api/sessions/:id/final` remains compatibility-only and should not be treated as the
 authoritative Sessions summary path.
+
+When validation-governance data is available, the derived summaries should also surface what validation
+was required, what coverage actually ran, and what gaps or limitations remain.
 
 ### Resuming Sessions
 If a session is interrupted, re-invoke `@orchestrator` with the prior plan summary, host/runtime

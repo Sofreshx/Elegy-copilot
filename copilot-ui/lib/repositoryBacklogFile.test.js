@@ -8,6 +8,8 @@ const {
   REPOSITORY_BACKLOG_DESCRIPTION,
   REPOSITORY_BACKLOG_EMPTY_STATE,
   REPOSITORY_BACKLOG_FILE_RELATIVE_PATH,
+  REPOSITORY_BACKLOG_PRIMARY_DIRECTORY_REPO_RELATIVE_PATH,
+  REPOSITORY_BACKLOG_PRIMARY_FAMILY_REPO_RELATIVE_PATH,
   REPOSITORY_BACKLOG_ITEM_STATUSES,
   formatRepositoryBacklogItemId,
   parseRepositoryBacklogDocument,
@@ -198,6 +200,51 @@ test('readRepositoryBacklogFile reports empty canonical backlog when file is abs
 
     assert.strictEqual(result.exists, false);
     assert.deepStrictEqual(result.backlog.items, []);
+    assert.strictEqual(result.family.primaryFamilyRepoRelativePath, REPOSITORY_BACKLOG_PRIMARY_FAMILY_REPO_RELATIVE_PATH);
+    assert.deepStrictEqual(result.family.resolvedRepoRelativePaths, []);
+  });
+});
+
+test('readRepositoryBacklogFile aggregates primary backlog artifacts plus legacy compatibility file', () => {
+  withTempRepo((repoRoot) => {
+    const primaryPath = path.join(repoRoot, REPOSITORY_BACKLOG_PRIMARY_DIRECTORY_REPO_RELATIVE_PATH, 'session-close.md');
+    const legacyPath = path.join(repoRoot, REPOSITORY_BACKLOG_FILE_RELATIVE_PATH);
+
+    fs.mkdirSync(path.dirname(primaryPath), { recursive: true });
+    fs.mkdirSync(path.dirname(legacyPath), { recursive: true });
+    fs.writeFileSync(primaryPath, formatRepositoryBacklogDocument({
+      items: [
+        {
+          id: 'RB-002',
+          title: 'Session carryover',
+          status: 'planned',
+          summary: 'Carry work over into a session backlog artifact.',
+          keyPoints: [],
+        },
+      ],
+    }), 'utf8');
+    fs.writeFileSync(legacyPath, formatRepositoryBacklogDocument({
+      items: [
+        {
+          id: 'RB-001',
+          title: 'Legacy compatibility item',
+          status: 'proposed',
+          summary: 'Keep older flows working.',
+          keyPoints: [],
+        },
+      ],
+    }), 'utf8');
+
+    const result = readRepositoryBacklogFile(repoRoot);
+
+    assert.strictEqual(result.exists, true);
+    assert.deepStrictEqual(result.backlog.items.map((item) => item.id), ['RB-001', 'RB-002']);
+    assert.strictEqual(result.backlog.items[1].sourceRepoRelativePath, 'docs/backlogs/session-close.md');
+    assert.strictEqual(result.family.primaryFamilyRepoRelativePath, REPOSITORY_BACKLOG_PRIMARY_FAMILY_REPO_RELATIVE_PATH);
+    assert.deepStrictEqual(result.family.resolvedRepoRelativePaths, [
+      'docs/backlog.md',
+      'docs/backlogs/session-close.md',
+    ]);
   });
 });
 
@@ -223,6 +270,35 @@ test('updateRepositoryBacklogFile writes deterministic canonical content and rep
     assert.strictEqual(second.created, false);
     assert.strictEqual(second.changed, false);
     assert.strictEqual(second.text, first.text);
+  });
+});
+
+test('updateRepositoryBacklogFile updates an item in its owning primary backlog artifact without creating legacy fallback', () => {
+  withTempRepo((repoRoot) => {
+    const primaryPath = path.join(repoRoot, REPOSITORY_BACKLOG_PRIMARY_DIRECTORY_REPO_RELATIVE_PATH, 'session-close.md');
+    const legacyPath = path.join(repoRoot, REPOSITORY_BACKLOG_FILE_RELATIVE_PATH);
+
+    fs.mkdirSync(path.dirname(primaryPath), { recursive: true });
+    fs.writeFileSync(primaryPath, formatRepositoryBacklogDocument({
+      items: [
+        {
+          id: 'RB-001',
+          title: 'Carryover item',
+          status: 'planned',
+          summary: 'Needs deterministic owner updates.',
+          keyPoints: [],
+        },
+      ],
+    }), 'utf8');
+
+    const saved = updateRepositoryBacklogFile(repoRoot, (backlog) =>
+      updateRepositoryBacklogItem(backlog, 'RB-001', { status: 'blocked' }));
+
+    assert.strictEqual(saved.changed, true);
+    assert.strictEqual(fs.existsSync(legacyPath), false);
+
+    const primaryDocument = parseRepositoryBacklogDocument(fs.readFileSync(primaryPath, 'utf8'));
+    assert.strictEqual(primaryDocument.items[0].status, 'blocked');
   });
 });
 

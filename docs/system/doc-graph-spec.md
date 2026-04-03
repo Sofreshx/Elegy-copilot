@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-15
+updated: 2026-04-03
 category: system
 status: current
 doc_kind: node
@@ -23,7 +23,8 @@ This document defines the **canonical contract** for documentation in this repo.
 
 - `docs/system/**` — canonical, system-of-record documentation.
 - `docs/research/**` — non-canonical notes/spikes/audits.
-- `docs/backlog.md` — approved repo-backed Planning artifact location for the Repository Backlog.
+- `docs/backlogs/*.md` — approved primary repo-backed Planning artifact locations for per-session Repository Backlog docs.
+- `docs/backlog.md` — approved legacy compatibility Planning artifact location for the Repository Backlog.
 - `docs/roadmaps/*.md` — approved repo-backed Planning artifact locations for Roadmaps.
 - other top-level `docs/*.md` paths — reserved for **redirect stubs** only (after migration).
 
@@ -119,6 +120,7 @@ Redirect requirements:
 
 The approved repo-backed Planning artifact paths:
 
+- `docs/backlogs/*.md`
 - `docs/backlog.md`
 - `docs/roadmaps/*.md`
 

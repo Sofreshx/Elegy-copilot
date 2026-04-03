@@ -1,40 +1,59 @@
 ---
 created: 2026-02-22
-updated: 2026-02-23
+updated: 2026-04-03
 category: system
 status: current
 doc_kind: node
 id: e2e-setup-guide
-summary: Canonical E2E decision matrix and setup guidance (agent-browser vs Playwright suites).
+summary: Canonical E2E routing and setup guidance for agent-browser validation versus durable Playwright suites.
 tags: [e2e, browser, agent-browser, playwright]
 related: [copilot-cli-playbook, agent-hooks, mcp-workflow]
 ---
 
 # E2E Setup Guide (Browser Automation)
 
-This repo supports **two** distinct E2E flows. Keeping them separate is intentional.
+This repo supports **two** distinct browser-testing flows. Keeping them separate is intentional.
 
 ## Decision Matrix (Default Routing)
 
 ### 1) Agent-driven UI smoke / validation (default)
-Use when you want: “does it basically work?” after a change, plus evidence (snapshots/console/errors).
+Use when you want browser confirmation during an active coding session, especially when policy or
+risk requires real browser coverage for a changed surface.
 
 - Orchestrator route: `@e2e-validator` → `@e2e-browser`
 - Browser tool: `agent-browser` CLI (snapshot-ref workflow)
 - Evidence: snapshot-first (screenshots on failure, or when explicitly requested)
+- Execution rule: keep this lane serial; do not overlap it with active write work
 
 This is the default because it is CLI-driven and token-efficient for coding agents.
 
-### 2) Scripted regression E2E suite (Playwright tests)
-Use when you have (or want) a durable, repeatable E2E test suite in a project.
+### 2) Scripted regression browser suite (Playwright tests)
+Use when you have, or need, a durable repeatable browser test suite in the project.
 
-- Runner route: `@integration-test-runner`
+- Tool: Playwright CLI/test runner
 - Command baseline: `npx playwright test --headed=false`
+- Typical fit: committed regression coverage, CI gates, and durable scripted suites
 
 This is the right fit for CI and repeatable regression gates.
 
+## When E2E Becomes Mandatory
+
+E2E is not limited to explicit user requests. `@orchestrator` may require it when repo policy or
+current risk/coverage makes unit or integration coverage insufficient.
+
+Typical triggers include:
+
+- auth, login, logout, or protected-navigation changes
+- stateful user journeys and redirect-sensitive flows
+- risky UI/API behavior changes that only a browser can confirm end to end
+- new or still-untested user-facing surfaces
+
+See [[validation-governance]] [docs/system/validation-governance.md](docs/system/validation-governance.md)
+for the canonical mandatory-validation decision matrix.
+
 ### Not supported by default: Playwright MCP
-Browser automation via Playwright MCP is **not** part of the default engine setup. Prefer the CLI routes above.
+Browser automation via Playwright MCP is **not** part of the default engine setup. Prefer the CLI
+routes above.
 
 ## agent-browser Prerequisites
 
@@ -68,7 +87,7 @@ See: `docs/agent-hooks.md` and `.github/TROUBLESHOOTING-TEST-HANGS.md`.
 
 This repo includes a few Node scripts under `scripts/e2e-*.js` that use `@playwright/test`’s Chromium launcher.
 
-- They are **not** the default E2E mechanism for the engine.
+- They are **not** the default agent-driven browser-validation mechanism for the engine.
 - They require `@playwright/test` to be installed in the environment where you run them.
 - They enforce a hard deadline via `E2E_DEADLINE_MS` (default 60000).
 

@@ -145,8 +145,15 @@ vi.mock('../ui/src/lib/api', async () => {
     planningMutationState.nextBacklogNumber = 2;
   };
   const buildBacklogSummary = () => ({
-    filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
-    repoRelativePath: 'docs/backlog.md',
+    backlogPath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+    repoRelativePath: 'docs/backlogs',
+    primaryDirectoryPath: 'C:\\Repos\\instruction-engine\\docs\\backlogs',
+    primaryRepoRelativePath: 'docs/backlogs',
+    primaryFamilyRepoRelativePath: 'docs/backlogs/*.md',
+    legacyBacklogPath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+    legacyRepoRelativePath: 'docs/backlog.md',
+    resolvedBacklogPaths: ['C:\\Repos\\instruction-engine\\docs\\backlog.md'],
+    resolvedRepoRelativePaths: ['docs/backlog.md'],
     exists: true,
     stableIdPattern: 'RB-###',
     description: 'Repo-scoped intake and queued work for the selected repo.',
@@ -754,7 +761,13 @@ describe('planningWorkspaceStore', () => {
       },
       repositoryBacklog: {
         canonicalName: 'Repository Backlog',
-        filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+        filePath: 'C:\\Repos\\instruction-engine\\docs\\backlogs',
+        repoRelativePath: 'docs/backlogs',
+        primaryDirectoryPath: 'C:\\Repos\\instruction-engine\\docs\\backlogs',
+        primaryRepoRelativePath: 'docs/backlogs',
+        primaryFamilyRepoRelativePath: 'docs/backlogs/*.md',
+        legacyFilePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+        legacyRepoRelativePath: 'docs/backlog.md',
         stableIdPattern: 'RB-###',
       },
       roadmapDirectory: {

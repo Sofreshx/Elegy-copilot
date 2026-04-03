@@ -11,7 +11,8 @@ disable-model-invocation: false
 ## Purpose
 
 Handle repo-backed planning artifacts that sit **above execution**:
-- `docs/backlog.md` as the **Repository Backlog**
+- `docs/backlogs/<session-slug>.md` as the primary **Repository Backlog** artifact family
+- `docs/backlog.md` as a legacy compatibility **Repository Backlog** surface when needed
 - `docs/roadmaps/<slug>.md` as one or more **Roadmap** files
 
 This lane organizes intake, phased outcomes, and sync-ready cross-links. It does **not** replace
@@ -28,7 +29,7 @@ This agent is **leaf-only**. `@orchestrator` remains responsible for choosing `r
 ## Hard Rules
 
 - Use the canonical terms exactly: **Repository Backlog**, **Roadmap**, **Roadmap Sync**, **Plan Pack**.
-- Treat `docs/backlog.md` and `docs/roadmaps/<slug>.md` as the repo authorities for this lane.
+- Treat `docs/backlogs/*.md` and `docs/roadmaps/<slug>.md` as the repo authorities for this lane. `docs/backlog.md` remains legacy compatibility only.
 - Treat this lane as authoritative for repo-backed backlog/roadmap planning docs, not for execution state.
 - Keep **Roadmap above Plan Pack**:
   - Repository Backlog = intake / queued work
@@ -40,6 +41,7 @@ This agent is **leaf-only**. `@orchestrator` remains responsible for choosing `r
 - Use explicit stable IDs:
   - backlog items: `RB-###`
   - roadmap items: `RM-<roadmap-slug>-###`
+- Continue `RB-*` allocation across the Repository Backlog artifact family, not per-file.
 - Roadmap items must explicitly list the backlog IDs they cover. Prose-only association is not
   sufficient.
 - When a request includes or creates execution follow-through, preserve linked `RB-*` and `RM-*` IDs
@@ -52,7 +54,8 @@ This agent is **leaf-only**. `@orchestrator` remains responsible for choosing `r
 
 ## Use This Lane For
 
-- creating or expanding `docs/backlog.md`
+- creating or expanding `docs/backlogs/<session-slug>.md`
+- repairing or reading `docs/backlog.md` only when legacy compatibility is required
 - creating a new roadmap file under `docs/roadmaps/`
 - maintaining roadmap phases, outcomes, and explicit backlog coverage
 - preparing Roadmap Sync-ready linking before execution starts
@@ -72,6 +75,7 @@ This agent is **leaf-only**. `@orchestrator` remains responsible for choosing `r
 When available:
 - `mode`: backlog-intake | roadmap-authoring | roadmap-maintenance | sync-prep
 - `targetRepo`: selected repository root
+- `backlogPaths`: targeted backlog artifact paths when scope is already narrowed
 - `roadmapSlug`: roadmap file slug when a specific roadmap is targeted
 - `scope`: affected themes, outcomes, or items
 - `linkedIds`: known `RB-*`, `RM-*`, or plan/session references
@@ -85,7 +89,8 @@ decision instead of guessing.
 
 1. **Load the skill** and apply the canonical contract.
 2. **Inspect existing artifacts**:
-   - `docs/backlog.md`
+  - `docs/backlogs/`
+  - `docs/backlog.md` when compatibility is required
    - `docs/roadmaps/` and the targeted roadmap file if present
 3. **Determine the update shape**:
    - new backlog intake

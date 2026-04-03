@@ -18,7 +18,7 @@ Produce a structured verification guide that tells the user exactly how and wher
 
 ## Output (strict)
 
-The output MUST follow this exact structure:
+The output MUST preserve these required H2 sections:
 
 ````text
 VERIFICATION_GUIDE
@@ -41,6 +41,24 @@ VERIFICATION_GUIDE
 - <What the user should see/observe if the change is correct>
 ````
 
+The guide MAY also include these optional H2 sections when the session has richer validation reporting:
+
+````text
+## Validation Requirements
+- <layer-or-capacity>: <what validation was required and why>
+
+## Tested Coverage
+- <layer-or-capacity>: <what validation actually covered>
+
+## Coverage Gaps
+- <layer-or-capacity>: <what remains untested, blocked, or limited>
+````
+
+These optional headings remain backward-compatible, but when they are emitted each bullet MUST begin
+with an explicit validation layer or capacity label followed by `:` so the sections stay
+machine-derivable. Recognized labels include `unit`, `integration`, `e2e`, `browser`,
+`playwright`, and `manual`.
+
 Where `type` in "Where to Verify" is one of: `UI`, `Terminal`, `Browser`, `File`, `API`, `Config`.
 
 ## Reasoning Approach
@@ -53,3 +71,6 @@ Read `final_review` for scope and confidence. For each changed file, determine t
 - The output is written to disk by the orchestrator — you just return the markdown content.
 - Always include at least one entry in each section. If `Changed Files` is empty, state "No files changed."
 - Every "Where to Verify" entry must be categorized with a type prefix.
+- Keep the existing required sections intact so older parsers remain compatible.
+- If you emit the optional validation sections, use simple H2 headings exactly as shown above.
+- If you emit the optional validation sections, every bullet must start with an explicit validation layer or capacity label followed by `:`.

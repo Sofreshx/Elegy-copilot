@@ -16,6 +16,7 @@ const { startDesktopPlanningPersistence } = require('../lib/desktopPlanningPersi
 const { startServer } = require('../server.js');
 let mainWindow = null;
 let serverHandle = null;
+let desktopWindowUrl = null;
 let gatewayProcess = null;
 let desktopPlanningPersistenceHandle = null;
 let updaterController = null;
@@ -24,6 +25,8 @@ let desktopShutdownStarted = false;
 let desktopShutdownPromise = null;
 const isGatewayChildProcess = (0, gatewayChildMode_1.hasGatewayChildFlag)(process.argv);
 const DESKTOP_UPDATER_STATE_EVENT = 'desktop-updater:state';
+const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
+const DESKTOP_SMOKE_LOG_WINDOW_URL_ENV = 'INSTRUCTION_ENGINE_DESKTOP_SMOKE_LOG_WINDOW_URL';
 function resolveEngineRoot() {
     if (electron_1.app.isPackaged) {
         return path_1.default.resolve(process.resourcesPath);
@@ -225,6 +228,11 @@ function createWindow(baseUrl) {
     });
     return window;
 }
+function buildDesktopWindowUrl(host, port, desktopUiToken) {
+    const url = new URL(`http://${host}:${port}/`);
+    url.searchParams.set(DESKTOP_UI_ACCESS_QUERY_PARAM, desktopUiToken);
+    return url.toString();
+}
 function focusOrRestoreMainWindow() {
     const currentWindow = mainWindow && typeof mainWindow.isDestroyed === 'function' && !mainWindow.isDestroyed()
         ? mainWindow
@@ -238,7 +246,7 @@ function focusOrRestoreMainWindow() {
         return;
     }
     if (serverHandle) {
-        mainWindow = createWindow(`http://${serverHandle.host}:${serverHandle.port}/`);
+        mainWindow = createWindow(desktopWindowUrl || `http://${serverHandle.host}:${serverHandle.port}/`);
     }
 }
 async function startDashboardServer() {
@@ -248,6 +256,7 @@ async function startDashboardServer() {
     const workspaceRoot = resolveDefaultWorkspaceRoot(runtimeRoot);
     const engineRootOverride = electron_1.app.isPackaged ? runtimeRoot : undefined;
     const explicitPlanningDatabaseUrl = String(process.env.INSTRUCTION_ENGINE_PLANNING_DB_URL || '').trim();
+    const desktopUiToken = (0, crypto_1.randomBytes)(32).toString('hex');
     ensureSdkBridgeDefaultEnabled();
     ensureDefaultGatewayConfig(workspaceRoot);
     try {
@@ -268,13 +277,18 @@ async function startDashboardServer() {
             sandboxesHome: path_1.default.join(copilotHome, 'sandboxes'),
             trackerUrl: gateway.trackerUrl,
             trackerToken: gateway.trackerToken,
+            desktopUiToken,
             planningPersistenceClient: desktopPlanningPersistenceHandle
                 ? desktopPlanningPersistenceHandle.queryClient
                 : undefined,
             engineRoot: engineRootOverride,
             quiet: true,
         });
-        return `http://${serverHandle.host}:${serverHandle.port}/`;
+        desktopWindowUrl = buildDesktopWindowUrl(serverHandle.host, serverHandle.port, desktopUiToken);
+        if (process.env[DESKTOP_SMOKE_LOG_WINDOW_URL_ENV] === '1') {
+            console.log(`[desktop-smoke] window-url=${desktopWindowUrl}`);
+        }
+        return desktopWindowUrl;
     }
     catch (error) {
         await stopDashboardServer();
@@ -282,6 +296,7 @@ async function startDashboardServer() {
     }
 }
 async function stopDashboardServer() {
+    desktopWindowUrl = null;
     if (serverHandle) {
         const handle = serverHandle;
         serverHandle = null;
@@ -391,8 +406,11 @@ else {
                     return;
                 }
                 if (electron_1.BrowserWindow.getAllWindows().length === 0 && serverHandle) {
-                    const baseUrl = `http://${serverHandle.host}:${serverHandle.port}/`;
-                    mainWindow = createWindow(baseUrl);
+                    if (!desktopWindowUrl) {
+                        console.error('[desktop] missing desktop window URL while server is running');
+                        return;
+                    }
+                    mainWindow = createWindow(desktopWindowUrl);
                     return;
                 }
                 focusOrRestoreMainWindow();

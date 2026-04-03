@@ -260,13 +260,25 @@ const mocks = vi.hoisted(() => {
         repoPath: 'C:\\Repos\\instruction-engine',
         repoLabel: 'Instruction Engine',
       },
-      filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
-      repoRelativePath: 'docs/backlog.md',
+      filePath: 'C:\\Repos\\instruction-engine\\docs\\backlogs',
+      repoRelativePath: 'docs/backlogs',
+      primaryDirectoryPath: 'C:\\Repos\\instruction-engine\\docs\\backlogs',
+      primaryRepoRelativePath: 'docs/backlogs',
+      primaryFamilyRepoRelativePath: 'docs/backlogs/*.md',
+      legacyFilePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+      legacyRepoRelativePath: 'docs/backlog.md',
       stableIdPattern: 'RB-###',
     },
     backlogSummary: {
-      filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
-      repoRelativePath: 'docs/backlog.md',
+      backlogPath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+      repoRelativePath: 'docs/backlogs',
+      primaryDirectoryPath: 'C:\\Repos\\instruction-engine\\docs\\backlogs',
+      primaryRepoRelativePath: 'docs/backlogs',
+      primaryFamilyRepoRelativePath: 'docs/backlogs/*.md',
+      legacyBacklogPath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+      legacyRepoRelativePath: 'docs/backlog.md',
+      resolvedBacklogPaths: ['C:\\Repos\\instruction-engine\\docs\\backlog.md'],
+      resolvedRepoRelativePaths: ['docs/backlog.md'],
       stableIdPattern: 'RB-###',
       description: 'Repo-scoped intake and queued work for the selected repo.',
       items: [
@@ -1151,13 +1163,25 @@ describe('PlanningView', () => {
           repoPath: 'C:\\Repos\\instruction-engine',
           repoLabel: 'Instruction Engine',
         },
-        filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
-        repoRelativePath: 'docs/backlog.md',
+          filePath: 'C:\\Repos\\instruction-engine\\docs\\backlogs',
+          repoRelativePath: 'docs/backlogs',
+          primaryDirectoryPath: 'C:\\Repos\\instruction-engine\\docs\\backlogs',
+          primaryRepoRelativePath: 'docs/backlogs',
+          primaryFamilyRepoRelativePath: 'docs/backlogs/*.md',
+          legacyFilePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+          legacyRepoRelativePath: 'docs/backlog.md',
         stableIdPattern: 'RB-###',
       },
       backlogSummary: {
-        filePath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
-        repoRelativePath: 'docs/backlog.md',
+          backlogPath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+          repoRelativePath: 'docs/backlogs',
+          primaryDirectoryPath: 'C:\\Repos\\instruction-engine\\docs\\backlogs',
+          primaryRepoRelativePath: 'docs/backlogs',
+          primaryFamilyRepoRelativePath: 'docs/backlogs/*.md',
+          legacyBacklogPath: 'C:\\Repos\\instruction-engine\\docs\\backlog.md',
+          legacyRepoRelativePath: 'docs/backlog.md',
+          resolvedBacklogPaths: ['C:\\Repos\\instruction-engine\\docs\\backlog.md'],
+          resolvedRepoRelativePaths: ['docs/backlog.md'],
         stableIdPattern: 'RB-###',
         description: 'Repo-scoped intake and queued work for the selected repo.',
         items: [
@@ -1490,7 +1514,9 @@ describe('PlanningView', () => {
     expect(screen.getByTestId('planning-intake-grouped-list')).toHaveTextContent('Triage unscoped follow-up');
 
     fireEvent.click(screen.getByTestId('planning-section-backlog'));
-    expect(screen.getByTestId('planning-backlog-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\backlog.md');
+    expect(screen.getByTestId('planning-backlog-surface-panel')).toHaveTextContent('C:\\Repos\\instruction-engine\\docs\\backlogs');
+    expect(screen.getByTestId('planning-backlog-surface-panel')).toHaveTextContent('docs/backlogs/*.md');
+    expect(screen.getByTestId('planning-backlog-surface-panel')).toHaveTextContent('docs/backlog.md');
     expect(screen.getByTestId('planning-backlog-surface-file-open')).toBeInTheDocument();
     expect(screen.getByTestId('planning-repo-id-readonly')).toHaveValue('repo-1');
     expect(screen.getByTestId('planning-backlog-list')).toHaveTextContent('RB-001');

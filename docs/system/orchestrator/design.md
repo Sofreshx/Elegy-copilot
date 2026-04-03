@@ -24,8 +24,11 @@ Draft — pending review
 > Current shipped V1 topology keeps `@orchestrator` as the root session/loop owner, allows only
 > named approved coordinators with explicit allowlists, caps effective depth at 3
 > (`@orchestrator` -> approved coordinator -> leaf), keeps `@o-planner` leaf-only, keeps
-> `@e2e-validator` as a narrow coordinator exception, and falls back to the legacy-depth-1 direct
-> orchestrator -> `@o-planner` planning path when nested delegation is unavailable or disabled.
+> `@e2e-validator` as a narrow coordinator exception, treats integration / E2E validation as
+> policy-driven rather than confirmation-driven, routes agent-driven browser validation through
+> `@e2e-validator` -> `@e2e-browser` with `agent-browser` CLI, reserves Playwright CLI/test runner
+> for durable scripted suites, and falls back to the legacy-depth-1 direct orchestrator ->
+> `@o-planner` planning path when nested delegation is unavailable or disabled.
 
 ## Overview
 The Orchestrator is the next-generation unified agent that replaces Executive (v1), Executive2, Executive2.5, and Executive2-Fast with a single, clean entry point. It consolidates the best patterns from our executive lineage and external systems (GSD, Copilot Orchestra, Wrapzii Orchestration) while eliminating the complexity that plagued previous versions.
@@ -81,11 +84,11 @@ User
         ├── @code-reviewer (quality gates)
         ├── @research-ideation (web + codebase research)
         ├── @unit-test-runner (test execution)
-        ├── @integration-test-runner (with user approval)
+            ├── @integration-test-runner (policy-driven integration validation)
         ├── @reviewer-opus-4-6 (cross-model review)
         ├── @reviewer-gpt-5-4 (cross-model review)
       ├── @e2e-validator (narrow coordinator exception)
-        ├── @e2e-browser (E2E testing with user approval)
+            ├── @e2e-browser (serial agent-browser validation)
         └── @doc-writer (documentation)
 ```
 

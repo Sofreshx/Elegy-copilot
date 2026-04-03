@@ -15,6 +15,7 @@ Execute end-to-end tests with **agent-browser CLI** on any project. Project-agno
 - Do NOT call other subagents.
 - Use `agent-browser` CLI via `run_in_terminal` for ALL browser interactions.
 - Do NOT use Playwright MCP tools (`browser_navigate`, `browser_click`, etc.) — agent-browser CLI ONLY.
+- Do NOT use Playwright CLI/test runner in this lane. Durable scripted suites belong to the Playwright runner path, not `@e2e-browser`.
 - Do not prompt the user; decisions are provided by the caller.
 - Never delete/modify existing Playwright test scripts unless explicitly requested.
 - Every `run_in_terminal` call: non-zero `timeout`, never background.
@@ -24,7 +25,7 @@ Execute end-to-end tests with **agent-browser CLI** on any project. Project-agno
 - `evidenceMode`: `snapshot-only|screenshots` (default: snapshot-only)
 - `serverManaged`: `true|false` (skip start/stop when true)
 
-Load `e2e-workflow` skill for execution modes, evidence requirements, report format, and health endpoints.
+Load `e2e-workflow` skill for the tooling split, execution modes, evidence requirements, report format, and health endpoints.
 
 ## Core Workflow (Snapshot-Ref Pattern)
 1. Navigate: `agent-browser open <url> --ignore-https-errors`
@@ -39,4 +40,19 @@ Load `e2e-workflow` skill for execution modes, evidence requirements, report for
 1. Explicit input → 2. Repo-documented E2E policy/config (legacy `.instructions/e2e.config.md` is compatibility-only when a repo explicitly opts in) → 3. Default: `snapshot-only`
 
 ## Output
-Return a concise run summary in chat. Persist reports, screenshots, and logs only to a caller-provided or repo-documented destination.
+Return this exact structure:
+
+```text
+E2E_BROWSER_RESULT
+- requirement_basis: <required|not-required> | <why>
+- tool_used: agent-browser CLI
+- coverage_performed:
+	- <flow/page/journey exercised or NONE>
+- gaps_limitations:
+	- <missing coverage, blockers, or limitation or NONE>
+- evidence_summary:
+	- <snapshots/errors/screenshots/log evidence or NONE>
+- status: PASS | FAIL | INCONCLUSIVE
+```
+
+Persist reports, screenshots, and logs only to a caller-provided or repo-documented destination.

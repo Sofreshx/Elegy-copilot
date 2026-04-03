@@ -16,6 +16,11 @@ const SECTION_KEY_MAP = Object.freeze({
 	wheretoverify: 'whereToVerify',
 	verificationsteps: 'verificationSteps',
 	expectedoutcomes: 'expectedOutcomes',
+	validationrequirements: 'validationRequirements',
+	testedcoverage: 'validationCoverage',
+	validationcoverage: 'validationCoverage',
+	coveragegaps: 'coverageGaps',
+	coveragegapslimitations: 'coverageGaps',
 	details: 'details',
 });
 
@@ -291,6 +296,169 @@ function summarizeItems(items) {
 	return values.join(' ');
 }
 
+const VALIDATION_LAYER_DETECTORS = Object.freeze([
+	{ layer: 'unit', pattern: /\bunit(?:[-\s]?tests?|[-\s]?coverage| validation)?\b/i },
+	{ layer: 'integration', pattern: /\bintegration(?:[-\s]?tests?|[-\s]?coverage| validation)?\b/i },
+	{ layer: 'e2e', pattern: /\be2e\b|\bend[-\s]?to[-\s]?end\b/i },
+	{ layer: 'browser', pattern: /\bbrowser(?:[-\s]?(?:tests?|coverage|validation|verification|check|checks))?\b|\bagent-browser\b/i },
+	{ layer: 'playwright', pattern: /\bplaywright\b/i },
+	{ layer: 'manual', pattern: /\bmanual(?:[-\s]?(?:tests?|coverage|validation|verification|check|checks))?\b/i },
+]);
+
+const STRUCTURED_VALIDATION_LABELS = new Set([
+	'unit',
+	'integration',
+	'e2e',
+	'browser',
+	'playwright',
+	'manual',
+]);
+
+const NEGATED_VALIDATION_REQUIREMENT_RE = /\b(?:not required|not-required|optional|not needed|not necessary|unnecessary|not mandated|out of scope|not in scope)\b/i;
+const MANDATORY_VALIDATION_REQUIREMENT_RE = /\b(?:required|mandatory|must\b|needs?\b|policy-driven)\b/i;
+
+function normalizeStructuredValidationLabel(value) {
+	const normalized = trimContent(value).toLowerCase();
+	return STRUCTURED_VALIDATION_LABELS.has(normalized) ? normalized : '';
+}
+
+function parseStructuredValidationItem(value) {
+	const text = trimContent(value);
+	const match = text.match(/^([a-z0-9-]+)\s*:\s*(.+)$/i);
+	if (!match) {
+		return null;
+	}
+
+	const label = normalizeStructuredValidationLabel(match[1]);
+	const detail = trimContent(match[2]);
+	if (!label || !detail) {
+		return null;
+	}
+
+	return {
+		label,
+		text: `${label}: ${detail}`,
+	};
+}
+
+function getStructuredValidationSectionData(sections, ...keys) {
+	const section = pickSection(sections, ...keys);
+	if (!section) {
+		return {
+			present: false,
+			items: [],
+			unlabeledItems: [],
+		};
+	}
+
+	const rawItems = Array.isArray(section.items) && section.items.length > 0
+		? section.items
+		: (() => {
+			const content = trimContent(section.content);
+			return content ? [content] : [];
+		})();
+	const items = [];
+	const unlabeledItems = [];
+
+	for (const rawItem of rawItems) {
+		const normalized = trimContent(rawItem);
+		if (!normalized) {
+			continue;
+		}
+
+		const parsed = parseStructuredValidationItem(normalized);
+		if (parsed) {
+			items.push(parsed.text);
+			continue;
+		}
+
+		unlabeledItems.push(normalized);
+	}
+
+	return {
+		present: true,
+		items: uniqueStrings(items),
+		unlabeledItems: uniqueStrings(unlabeledItems),
+	};
+}
+
+function hasUnlabeledMandatoryValidationRequirement(sections) {
+	const validationRequirements = getStructuredValidationSectionData(sections, 'validationRequirements');
+	return validationRequirements.unlabeledItems.some((entry) => isMandatoryValidationRequirement(entry));
+}
+
+function detectValidationLayers(value) {
+	const text = trimContent(value);
+	const layers = new Set();
+
+	for (const detector of VALIDATION_LAYER_DETECTORS) {
+		if (detector.pattern.test(text)) {
+			layers.add(detector.layer);
+		}
+	}
+
+	return layers;
+}
+
+function isMandatoryValidationRequirement(value) {
+	const text = trimContent(value);
+	if (!text || NEGATED_VALIDATION_REQUIREMENT_RE.test(text)) {
+		return false;
+	}
+
+	return MANDATORY_VALIDATION_REQUIREMENT_RE.test(text);
+}
+
+function hasMissingMandatoryValidation(validationRequirements, validationCoverage, coverageGaps, options = {}) {
+	if (options.unlabeledMandatoryRequirement === true) {
+		return true;
+	}
+
+	const mandatoryRequirements = uniqueStrings(validationRequirements)
+		.map((entry) => ({
+			text: entry,
+			layers: detectValidationLayers(entry),
+		}))
+		.filter((entry) => isMandatoryValidationRequirement(entry.text));
+	const gapSignals = uniqueStrings(coverageGaps)
+		.map((entry) => ({
+			layers: detectValidationLayers(entry),
+		}));
+
+		if (mandatoryRequirements.length === 0) {
+		return false;
+	}
+
+	const coveredLayers = new Set();
+	for (const entry of uniqueStrings(validationCoverage)) {
+		for (const layer of detectValidationLayers(entry)) {
+			coveredLayers.add(layer);
+		}
+	}
+
+	const genericGapPresent = gapSignals.some((entry) => entry.layers.size === 0);
+
+	for (const requirement of mandatoryRequirements) {
+		if (requirement.layers.size === 0) {
+			return true;
+		}
+
+		for (const layer of requirement.layers) {
+			if (gapSignals.some((entry) => entry.layers.has(layer))) {
+				return true;
+			}
+				if (!coveredLayers.has(layer)) {
+				return true;
+			}
+				if (genericGapPresent) {
+					return true;
+				}
+		}
+	}
+
+	return false;
+}
+
 const TERMINAL_EXECUTION_STATE_TOKENS = new Set([
 	'aborted',
 	'canceled',
@@ -430,6 +598,9 @@ function formatVerificationEvidence(verificationGuide) {
 	const steps = getSectionItems(verificationGuide.sections, 'verificationSteps');
 	const outcomes = getSectionItems(verificationGuide.sections, 'expectedOutcomes');
 	const verifyTargets = getSectionItems(verificationGuide.sections, 'whereToVerify');
+	const validationRequirements = getStructuredValidationSectionData(verificationGuide.sections, 'validationRequirements').items;
+	const validationCoverage = getStructuredValidationSectionData(verificationGuide.sections, 'validationCoverage').items;
+	const coverageGaps = getStructuredValidationSectionData(verificationGuide.sections, 'coverageGaps').items;
 	const evidence = [];
 
 	if (steps.length > 0) {
@@ -441,8 +612,39 @@ function formatVerificationEvidence(verificationGuide) {
 	if (verifyTargets.length > 0) {
 		evidence.push(`Verification targets captured: ${verifyTargets.join(' ')}`);
 	}
+	if (validationRequirements.length > 0) {
+		evidence.push(`Validation requirements captured: ${validationRequirements.join(' ')}`);
+	}
+	if (validationCoverage.length > 0) {
+		evidence.push(`Tested coverage captured: ${validationCoverage.join(' ')}`);
+	}
+	if (coverageGaps.length > 0) {
+		evidence.push(`Coverage gaps captured: ${coverageGaps.join(' ')}`);
+	}
 
 	return uniqueStrings(evidence);
+}
+
+function deriveValidationRequirements(verificationGuide) {
+	const sections = verificationGuide && Array.isArray(verificationGuide.sections)
+		? verificationGuide.sections
+		: [];
+	const explicitRequirements = getStructuredValidationSectionData(sections, 'validationRequirements');
+	return explicitRequirements.present ? explicitRequirements.items : [];
+}
+
+function deriveValidationCoverage(verificationGuide) {
+	const sections = verificationGuide && Array.isArray(verificationGuide.sections)
+		? verificationGuide.sections
+		: [];
+	return getStructuredValidationSectionData(sections, 'validationCoverage').items;
+}
+
+function deriveCoverageGaps(verificationGuide) {
+	const sections = verificationGuide && Array.isArray(verificationGuide.sections)
+		? verificationGuide.sections
+		: [];
+	return getStructuredValidationSectionData(sections, 'coverageGaps').items;
 }
 
 function deriveSessionIntentFrame(input = {}) {
@@ -487,6 +689,7 @@ function deriveSessionIntentFrame(input = {}) {
 		...formatCheckpointSignals(input.checkpoints),
 		...getSectionItems(verificationGuide && verificationGuide.sections, 'expectedOutcomes'),
 	]);
+	const validationRequirements = deriveValidationRequirements(verificationGuide);
 	const constraints = getSectionItems(handoffSections, 'userConstraints');
 	const risks = uniqueStrings([
 		...getSectionItems(propositionSections, 'openRisks'),
@@ -521,6 +724,7 @@ function deriveSessionIntentFrame(input = {}) {
 		inScope,
 		outOfScope,
 		successSignals,
+		validationRequirements,
 		constraints,
 		risks,
 		watchOuts,
@@ -587,6 +791,15 @@ function deriveSessionClosureSummary(input = {}) {
 	]);
 	const changedFiles = getSectionItems(verificationSections, 'changedFiles');
 	const whereToVerify = getSectionItems(verificationSections, 'whereToVerify');
+	const validationRequirements = deriveValidationRequirements(verificationGuide);
+	const validationCoverage = deriveValidationCoverage(verificationGuide);
+	const coverageGaps = deriveCoverageGaps(verificationGuide);
+	const missingMandatoryValidation = hasMissingMandatoryValidation(
+		validationRequirements,
+		validationCoverage,
+		coverageGaps,
+		{ unlabeledMandatoryRequirement: hasUnlabeledMandatoryValidationRequirement(verificationSections) }
+	);
 	const derivedActiveContinuation = uniqueStrings([
 		...getSectionItems(propositionSections, 'immediateNextActions'),
 		...getSectionItems(handoffSections, 'immediateNextActions'),
@@ -599,24 +812,32 @@ function deriveSessionClosureSummary(input = {}) {
 	const blockers = uniqueStrings([
 		...(Array.isArray(resume && resume.blockers) ? resume.blockers : []),
 		...getSectionItems(propositionSections, 'openRisks'),
+			...(missingMandatoryValidation ? ['Mandatory validation is required but persisted validation coverage is incomplete.'] : []),
 	]);
 	const limitations = uniqueStrings([
 		...getSectionItems(handoffSections, 'userConstraints'),
 		...(verificationSections.length === 0 ? ['Verification guide missing or not persisted for this session.'] : []),
 		...(reviewLedger && reviewLedger.approved === false ? ['Review ledger does not show a resumable approval verdict.'] : []),
 	]);
+	const passedCheckpointEvidence = formatPassedCheckpoints(input.checkpoints);
+	const affirmativeValidationEvidence = uniqueStrings([
+		...passedCheckpointEvidence,
+		...validationCoverage,
+	]);
 	const validationEvidence = uniqueStrings([
 		...(latestReviewRow && latestReviewRow.verdict
 			? [`Review ledger verdict: ${latestReviewRow.verdict}${latestReviewRow.reviewer ? ` (${latestReviewRow.reviewer})` : ''}`]
 			: []),
-		...formatPassedCheckpoints(input.checkpoints),
+		...passedCheckpointEvidence,
 		...formatVerificationEvidence(verificationGuide),
 	]);
 
 	let confidence = 'unknown';
-	if (reviewLedger && reviewLedger.approved === true && validationEvidence.length > 0) {
+	if (missingMandatoryValidation) {
+		confidence = 'low';
+	} else if (reviewLedger && reviewLedger.approved === true && affirmativeValidationEvidence.length > 0) {
 		confidence = 'high';
-	} else if ((reviewLedger && reviewLedger.approved === true) || validationEvidence.length > 0) {
+	} else if ((reviewLedger && reviewLedger.approved === true) || affirmativeValidationEvidence.length > 0 || validationEvidence.length > 0) {
 		confidence = 'medium';
 	} else if (blockers.length > 0 || limitations.length > 0) {
 		confidence = 'low';
@@ -631,7 +852,8 @@ function deriveSessionClosureSummary(input = {}) {
 		? resume.blockers.filter((blocker) => !NON_BLOCKING_TERMINAL_RESUME_BLOCKERS.has(String(blocker || '').trim().toLowerCase()))
 		: [];
 	const closureBlocked = (
-		(reviewLedger && reviewLedger.approved !== true)
+		missingMandatoryValidation
+		|| (reviewLedger && reviewLedger.approved !== true)
 		|| blockingResumeBlockers.length > 0
 	);
 
@@ -659,12 +881,15 @@ function deriveSessionClosureSummary(input = {}) {
 		requested,
 		changedFiles,
 		whereToVerify,
+		validationRequirements,
+		validationCoverage,
 		validationEvidence,
 		followUps: {
 			activeContinuation,
 			durableCarryover,
 		},
 		blockers,
+		coverageGaps,
 		limitations,
 		confidence,
 		reviewApproved: typeof (reviewLedger && reviewLedger.approved) === 'boolean' ? reviewLedger.approved : null,

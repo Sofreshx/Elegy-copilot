@@ -30,6 +30,7 @@ const { startServer } = require('../server.js') as {
 
 let mainWindow: any = null;
 let serverHandle: { host: string; port: number; close: () => Promise<void> } | null = null;
+let desktopWindowUrl: string | null = null;
 let gatewayProcess: ChildProcess | null = null;
 let desktopPlanningPersistenceHandle: {
   connectionString: string;
@@ -45,6 +46,8 @@ let desktopShutdownPromise: Promise<void> | null = null;
 
 const isGatewayChildProcess = hasGatewayChildFlag(process.argv);
 const DESKTOP_UPDATER_STATE_EVENT = 'desktop-updater:state';
+const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
+const DESKTOP_SMOKE_LOG_WINDOW_URL_ENV = 'INSTRUCTION_ENGINE_DESKTOP_SMOKE_LOG_WINDOW_URL';
 
 function resolveEngineRoot(): string {
   if (app.isPackaged) {
@@ -290,6 +293,12 @@ function createWindow(baseUrl: string) {
   return window;
 }
 
+function buildDesktopWindowUrl(host: string, port: number, desktopUiToken: string): string {
+  const url = new URL(`http://${host}:${port}/`);
+  url.searchParams.set(DESKTOP_UI_ACCESS_QUERY_PARAM, desktopUiToken);
+  return url.toString();
+}
+
 function focusOrRestoreMainWindow(): void {
   const currentWindow = mainWindow && typeof mainWindow.isDestroyed === 'function' && !mainWindow.isDestroyed()
     ? mainWindow
@@ -305,7 +314,7 @@ function focusOrRestoreMainWindow(): void {
   }
 
   if (serverHandle) {
-    mainWindow = createWindow(`http://${serverHandle.host}:${serverHandle.port}/`);
+    mainWindow = createWindow(desktopWindowUrl || `http://${serverHandle.host}:${serverHandle.port}/`);
   }
 }
 
@@ -316,6 +325,7 @@ async function startDashboardServer() {
   const workspaceRoot = resolveDefaultWorkspaceRoot(runtimeRoot);
   const engineRootOverride = app.isPackaged ? runtimeRoot : undefined;
   const explicitPlanningDatabaseUrl = String(process.env.INSTRUCTION_ENGINE_PLANNING_DB_URL || '').trim();
+  const desktopUiToken = randomBytes(32).toString('hex');
 
   ensureSdkBridgeDefaultEnabled();
   ensureDefaultGatewayConfig(workspaceRoot);
@@ -338,6 +348,7 @@ async function startDashboardServer() {
       sandboxesHome: path.join(copilotHome, 'sandboxes'),
       trackerUrl: gateway.trackerUrl,
       trackerToken: gateway.trackerToken,
+      desktopUiToken,
       planningPersistenceClient: desktopPlanningPersistenceHandle
         ? desktopPlanningPersistenceHandle.queryClient
         : undefined,
@@ -345,7 +356,11 @@ async function startDashboardServer() {
       quiet: true,
     });
 
-    return `http://${serverHandle.host}:${serverHandle.port}/`;
+    desktopWindowUrl = buildDesktopWindowUrl(serverHandle.host, serverHandle.port, desktopUiToken);
+    if (process.env[DESKTOP_SMOKE_LOG_WINDOW_URL_ENV] === '1') {
+      console.log(`[desktop-smoke] window-url=${desktopWindowUrl}`);
+    }
+    return desktopWindowUrl;
   } catch (error) {
     await stopDashboardServer();
     throw error;
@@ -353,6 +368,8 @@ async function startDashboardServer() {
 }
 
 async function stopDashboardServer() {
+  desktopWindowUrl = null;
+
   if (serverHandle) {
     const handle = serverHandle;
     serverHandle = null;
@@ -473,8 +490,12 @@ if (isGatewayChildProcess) {
         }
 
         if (BrowserWindow.getAllWindows().length === 0 && serverHandle) {
-          const baseUrl = `http://${serverHandle.host}:${serverHandle.port}/`;
-          mainWindow = createWindow(baseUrl);
+          if (!desktopWindowUrl) {
+            console.error('[desktop] missing desktop window URL while server is running');
+            return;
+          }
+
+          mainWindow = createWindow(desktopWindowUrl);
           return;
         }
 

@@ -223,7 +223,7 @@ test('parseExecutionState normalizes additive execution overlays', () => {
     activeGroup: { groupId: 'G-01', title: 'Runtime Overlay', status: 'in-progress' },
     activeWorkUnit: { workUnitId: 'WU-002', title: 'Persist state', status: 'in-progress' },
     nextUnit: { workUnitId: 'WU-003', rationale: 'merge the UI overlay' },
-    blockers: [{ label: 'Awaiting user confirmation', details: 'Integration coverage stays out of scope.' }],
+    blockers: [{ label: 'Validation scope unresolved', details: 'Integration coverage stays out of scope.' }],
     replanCount: 1,
     tree: [
       {
@@ -1636,6 +1636,17 @@ Runtime framing surfaces now lead the session detail workflow.
 ## Where to Verify
 - UI: Sessions > Session Details
 
+## Validation Requirements
+- unit: Required for the parser and UI slice.
+- browser: Not required for this framing-only change.
+
+## Tested Coverage
+- unit: Focused unit planState parser tests.
+- integration: Sessions route structured-state checks.
+
+## Coverage Gaps
+- browser: No browser-driven UI verification ran in this session.
+
 ## Verification Steps
 - Run the focused planState and sessions route tests.
 
@@ -1667,15 +1678,584 @@ Runtime framing surfaces now lead the session detail workflow.
     'Session Intent Frame appears before raw artifacts.',
     'Session Closure Summary shows validation evidence and follow-ups.',
   ]);
+  assert.deepStrictEqual(structured.meta.intentFrame.validationRequirements, [
+    'unit: Required for the parser and UI slice.',
+    'browser: Not required for this framing-only change.',
+  ]);
   assert.strictEqual(structured.meta.closureSummary.outcome, 'completed');
   assert.strictEqual(structured.meta.closureSummary.confidence, 'high');
   assert.deepStrictEqual(structured.meta.closureSummary.changedFiles, [
     'copilot-ui/lib/sessionArtifacts.js',
     'copilot-ui/ui/src/tabs/Sessions/SessionDetail.tsx',
   ]);
+  assert.deepStrictEqual(structured.meta.closureSummary.validationRequirements, [
+    'unit: Required for the parser and UI slice.',
+    'browser: Not required for this framing-only change.',
+  ]);
+  assert.deepStrictEqual(structured.meta.closureSummary.validationCoverage, [
+    'unit: Focused unit planState parser tests.',
+    'integration: Sessions route structured-state checks.',
+  ]);
+  assert.deepStrictEqual(structured.meta.closureSummary.coverageGaps, [
+    'browser: No browser-driven UI verification ran in this session.',
+  ]);
   assert.ok(structured.meta.closureSummary.validationEvidence.some((entry) => entry.includes('Review ledger verdict: APPROVED')));
   assert.deepStrictEqual(structured.meta.closureSummary.followUps.activeContinuation, []);
   assert.ok(!structured.meta.closureSummary.sourceArtifacts.includes('final'));
+});
+
+test('parseStructuredState does not backfill structured validation requirements from checkpoints when the verification guide section is absent', () => {
+  const text = `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Runtime Adoption | implemented | 1 | 1 | - |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | - | execution finished |
+
+## Next Unit
+**NONE** - terminal outcome reached
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: passed |
+`;
+
+  const handoffText = `## Handoff Manifest
+- Session: checkpoint-only-validation-session
+- Plan: plan.md (status: APPROVED)
+- Reviewer: Verdict: APPROVED
+
+## Immediate Next Actions
+- NONE
+`;
+
+  const propositionText = `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
+
+### Summary
+- Structured-state should keep checkpoint signals out of structured validation requirements.
+`;
+
+  const verificationGuideText = `## Summary
+Structured-state should keep checkpoint signals out of structured validation requirements.
+
+## Changed Files
+- copilot-ui/lib/sessionArtifacts.js
+
+## Where to Verify
+- API: GET /api/sessions/:id/structured-state
+
+## Verification Steps
+- Run the focused structured-state tests.
+
+## Expected Outcomes
+- Structured validation requirements stay empty when the section is absent.
+`;
+
+  const structured = parseStructuredState(text, {
+    handoffText,
+    propositionText,
+    verificationGuideText,
+    sessionId: 'checkpoint-only-validation-session',
+  });
+
+  assert.deepStrictEqual(structured.meta.intentFrame.successSignals, [
+    'unit-tests — after group completion',
+    'Structured validation requirements stay empty when the section is absent.',
+  ]);
+  assert.deepStrictEqual(structured.meta.intentFrame.validationRequirements, []);
+  assert.deepStrictEqual(structured.meta.closureSummary.validationRequirements, []);
+  assert.ok(structured.meta.closureSummary.validationEvidence.includes('unit-tests passed (after group completion)'));
+});
+
+test('parseStructuredState keeps approved review verdict visible without letting it create high confidence on its own', () => {
+  const text = `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Structured State Confidence | implemented | 1 | 1 | - |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | - | execution finished |
+
+## Next Unit
+**NONE** - terminal outcome reached
+`;
+
+  const handoffText = `## Handoff Manifest
+- Session: review-only-confidence-session
+- Plan: plan.md (status: APPROVED)
+- Reviewer: Verdict: APPROVED
+
+## Key Decisions
+- Keep review approval separate from validation evidence in closure scoring.
+
+## Exploration Summary
+- docs/system/validation-governance.md
+
+## User Constraints
+- none
+
+## Immediate Next Actions
+- NONE
+
+## Next Plan Ideas
+- NONE
+
+## Watch Outs
+- Review approval alone must not overstate validation confidence.
+
+## Open Risks
+- Narrow validation still has not run.
+`;
+
+  const propositionText = `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
+
+### Summary
+- Structured-state now separates review approval from affirmative validation evidence.
+
+### Immediate Next Actions
+- NONE
+
+### Next Plan Ideas
+- NONE
+
+### Watch Outs
+- Do not let review approval alone imply tested confidence.
+
+### Open Risks
+- Focused validation evidence is still absent.
+`;
+
+  const verificationGuideText = `## Summary
+Review approval remains visible in structured-state, but no validation coverage ran.
+
+## Changed Files
+- copilot-ui/lib/sessionArtifacts.js
+
+## Where to Verify
+- API: GET /api/sessions/:id/structured-state
+
+## Verification Steps
+- Inspect the closure summary confidence field.
+
+## Expected Outcomes
+- Review approval remains visible without producing high confidence.
+`;
+
+  const structured = parseStructuredState(text, {
+    handoffText,
+    propositionText,
+    verificationGuideText,
+    sessionId: 'review-only-confidence-session',
+    executionStateText: JSON.stringify({
+      schemaVersion: 'execution-state-v1',
+      lifecycle: 'finished',
+      status: 'completed',
+      summary: 'Execution finished without persisted validation coverage.',
+    }),
+  });
+
+  assert.strictEqual(structured.meta.closureSummary.outcome, 'completed');
+  assert.strictEqual(structured.meta.closureSummary.confidence, 'medium');
+  assert.ok(structured.meta.closureSummary.validationEvidence.some((entry) => entry.includes('Review ledger verdict: APPROVED')));
+  assert.deepStrictEqual(structured.meta.closureSummary.validationCoverage, []);
+});
+
+test('parseStructuredState fails closed when mandatory validation remains uncovered', () => {
+  const text = `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Validation Governance | implemented | 1 | 1 | - |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | - | execution finished |
+
+## Next Unit
+**NONE** - terminal outcome reached
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: passed |
+`;
+
+  const handoffText = `## Handoff Manifest
+- Session: validation-session
+- Plan: plan.md (status: APPROVED)
+- Reviewer: Verdict: APPROVED
+
+## Key Decisions
+- Keep closure reporting aligned with validation governance.
+
+## Exploration Summary
+- docs/system/validation-governance.md
+
+## User Constraints
+- none
+
+## Immediate Next Actions
+- NONE
+
+## Next Plan Ideas
+- NONE
+
+## Watch Outs
+- Missing mandatory validation must remain explicit.
+
+## Open Risks
+- Integration validation has not run yet.
+`;
+
+  const propositionText = `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
+
+### Summary
+- Cross-boundary closure metadata landed.
+
+### Immediate Next Actions
+- NONE
+
+### Next Plan Ideas
+- NONE
+
+### Watch Outs
+- Do not overstate closure when required validation is missing.
+
+### Open Risks
+- Integration validation still has not run.
+`;
+
+  const verificationGuideText = `## Summary
+Validation governance metadata is now exposed through structured-state.
+
+## Changed Files
+- copilot-ui/lib/sessionArtifacts.js
+
+## Where to Verify
+- API: GET /api/sessions/:id/structured-state
+
+## Validation Requirements
+- integration: Required for this cross-boundary workflow slice.
+- browser: Not required for this non-UI change.
+
+## Tested Coverage
+- unit: Focused unit tests for the structured-state parser.
+
+## Coverage Gaps
+- integration: Validation did not run for this session.
+
+## Verification Steps
+- Run the focused structured-state tests.
+
+## Expected Outcomes
+- Closure metadata remains explicit about missing mandatory validation.
+`;
+
+  const structured = parseStructuredState(text, {
+    handoffText,
+    propositionText,
+    verificationGuideText,
+    sessionId: 'validation-session',
+    executionStateText: JSON.stringify({
+      schemaVersion: 'execution-state-v1',
+      lifecycle: 'finished',
+      status: 'completed',
+      summary: 'Execution terminated, but broader validation is still missing.',
+    }),
+  });
+
+  assert.strictEqual(structured.meta.closureSummary.reviewVerdict, 'APPROVED');
+  assert.strictEqual(structured.meta.closureSummary.outcome, 'paused');
+  assert.notStrictEqual(structured.meta.closureSummary.outcome, 'completed');
+  assert.strictEqual(structured.meta.closureSummary.confidence, 'low');
+  assert.strictEqual(structured.meta.closureSummary.finality, 'terminal');
+  assert.deepStrictEqual(structured.meta.closureSummary.validationRequirements, [
+    'integration: Required for this cross-boundary workflow slice.',
+    'browser: Not required for this non-UI change.',
+  ]);
+  assert.deepStrictEqual(structured.meta.closureSummary.validationCoverage, [
+    'unit: Focused unit tests for the structured-state parser.',
+  ]);
+  assert.deepStrictEqual(structured.meta.closureSummary.coverageGaps, [
+    'integration: Validation did not run for this session.',
+  ]);
+  assert.ok(structured.meta.closureSummary.blockers.includes('Mandatory validation is required but persisted validation coverage is incomplete.'));
+});
+
+test('parseStructuredState ignores unlabeled tested coverage and gaps when deriving structured validation metadata', () => {
+  const text = `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Validation Governance | implemented | 1 | 1 | - |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | - | execution finished |
+
+## Next Unit
+**NONE** - terminal outcome reached
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: passed |
+`;
+
+  const handoffText = `## Handoff Manifest
+- Session: validation-session-no-gaps
+- Plan: plan.md (status: APPROVED)
+- Reviewer: Verdict: APPROVED
+
+## Key Decisions
+- Keep closure reporting aligned with validation governance.
+
+## Exploration Summary
+- docs/system/validation-governance.md
+
+## User Constraints
+- none
+
+## Immediate Next Actions
+- NONE
+
+## Next Plan Ideas
+- NONE
+
+## Watch Outs
+- Missing mandatory validation must remain explicit.
+
+## Open Risks
+- Integration validation has not run yet.
+`;
+
+  const propositionText = `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
+
+### Summary
+- Cross-boundary closure metadata landed.
+
+### Immediate Next Actions
+- NONE
+
+### Next Plan Ideas
+- NONE
+
+### Watch Outs
+- Do not overstate closure when required validation is missing.
+
+### Open Risks
+- Integration validation still has not run.
+`;
+
+  const verificationGuideText = `## Summary
+Validation governance metadata is now exposed through structured-state.
+
+## Changed Files
+- copilot-ui/lib/sessionArtifacts.js
+
+## Where to Verify
+- API: GET /api/sessions/:id/structured-state
+
+## Validation Requirements
+- integration: Required for this cross-boundary workflow slice.
+- browser: Not required for this non-UI change.
+
+## Tested Coverage
+- Focused unit tests for the structured-state parser.
+
+## Coverage Gaps
+- Integration validation did not run for this session.
+
+## Verification Steps
+- Run the focused structured-state tests.
+
+## Expected Outcomes
+- Closure metadata remains explicit about missing mandatory validation.
+`;
+
+  const structured = parseStructuredState(text, {
+    handoffText,
+    propositionText,
+    verificationGuideText,
+    sessionId: 'validation-session-no-gaps',
+    executionStateText: JSON.stringify({
+      schemaVersion: 'execution-state-v1',
+      lifecycle: 'finished',
+      status: 'completed',
+      summary: 'Execution terminated, but broader validation is still missing.',
+    }),
+  });
+
+  assert.strictEqual(structured.meta.closureSummary.outcome, 'paused');
+  assert.strictEqual(structured.meta.closureSummary.confidence, 'low');
+  assert.deepStrictEqual(structured.meta.closureSummary.validationRequirements, [
+    'integration: Required for this cross-boundary workflow slice.',
+    'browser: Not required for this non-UI change.',
+  ]);
+  assert.deepStrictEqual(structured.meta.closureSummary.validationCoverage, []);
+  assert.deepStrictEqual(structured.meta.closureSummary.coverageGaps, []);
+  assert.ok(structured.meta.closureSummary.blockers.includes('Mandatory validation is required but persisted validation coverage is incomplete.'));
+});
+
+test('parseStructuredState fails closed when a mandatory validation requirement is unlabeled', () => {
+  const text = `# Plan Pack
+## Review Ledger
+| Round | Reviewer | Verdict | Required Revisions | Resolution |
+| --- | --- | --- | --- | --- |
+| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+
+# Plan-Pack Progress Tracker
+<!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
+
+## Work Unit Groups Overview
+| Group | Title | Status | WUs Done | WUs Total | Depends On |
+| --- | --- | --- | --- | --- | --- |
+| G-01 | Validation Governance | implemented | 1 | 1 | - |
+
+## Work Unit Status Table
+| Group | Work Unit ID | Status | Next Unit | Notes |
+| --- | --- | --- | --- | --- |
+| G-01 | WU-001 | done | - | execution finished |
+
+## Next Unit
+**NONE** - terminal outcome reached
+
+## Checkpoints
+| Group | Checkpoint | Trigger | Notes |
+| --- | --- | --- | --- |
+| G-01 | unit-tests | after group completion | status: passed |
+`;
+
+  const handoffText = `## Handoff Manifest
+- Session: validation-session-unlabeled
+- Plan: plan.md (status: APPROVED)
+- Reviewer: Verdict: APPROVED
+
+## Key Decisions
+- Keep closure reporting aligned with validation governance.
+
+## Exploration Summary
+- docs/system/validation-governance.md
+
+## User Constraints
+- none
+
+## Immediate Next Actions
+- NONE
+
+## Next Plan Ideas
+- NONE
+
+## Watch Outs
+- Missing mandatory validation must remain explicit.
+
+## Open Risks
+- Broader validation expectations are still unresolved.
+`;
+
+  const propositionText = `## 2026-04-03T12:00:00Z - after-execution - workflow-executor
+
+### Summary
+- Cross-boundary closure metadata landed.
+
+### Immediate Next Actions
+- NONE
+
+### Next Plan Ideas
+- NONE
+
+### Watch Outs
+- Do not overstate closure when required validation is ambiguous.
+
+### Open Risks
+- Mandatory validation is stated, but the layer is not named.
+`;
+
+  const verificationGuideText = `## Summary
+Validation governance metadata is now exposed through structured-state.
+
+## Changed Files
+- copilot-ui/lib/sessionArtifacts.js
+
+## Where to Verify
+- API: GET /api/sessions/:id/structured-state
+
+## Validation Requirements
+- Mandatory validation is required before closeout.
+
+## Tested Coverage
+- unit: Focused unit tests for the structured-state parser.
+
+## Verification Steps
+- Run the focused structured-state tests.
+
+## Expected Outcomes
+- Closure metadata remains explicit when mandatory validation is unlabeled.
+`;
+
+  const structured = parseStructuredState(text, {
+    handoffText,
+    propositionText,
+    verificationGuideText,
+    sessionId: 'validation-session-unlabeled',
+    executionStateText: JSON.stringify({
+      schemaVersion: 'execution-state-v1',
+      lifecycle: 'finished',
+      status: 'completed',
+      summary: 'Execution terminated, but the mandatory validation requirement is still ambiguous.',
+    }),
+  });
+
+  assert.strictEqual(structured.meta.closureSummary.outcome, 'paused');
+  assert.strictEqual(structured.meta.closureSummary.confidence, 'low');
+  assert.deepStrictEqual(structured.meta.closureSummary.validationRequirements, []);
+  assert.deepStrictEqual(structured.meta.closureSummary.validationCoverage, [
+    'unit: Focused unit tests for the structured-state parser.',
+  ]);
+  assert.deepStrictEqual(structured.meta.closureSummary.coverageGaps, []);
+  assert.ok(structured.meta.closureSummary.blockers.includes('Mandatory validation is required but persisted validation coverage is incomplete.'));
 });
 
 console.log(`\n${passed} tests passed`);

@@ -7,6 +7,7 @@ const path = require('path');
 
 const {
   createRepositoryBacklogItem,
+  formatRepositoryBacklogDocument,
   readRepositoryBacklogFile,
   updateRepositoryBacklogFile,
 } = require('./repositoryBacklogFile');
@@ -114,6 +115,62 @@ test('syncSessionPlanToRoadmap reconciles linked roadmap and backlog items from 
     assert.strictEqual(syncedRoadmapItem.status, 'done');
     assert.strictEqual(syncedRoadmapItem.satisfiedByPlanRef, 'session:20260316_020304_ABCD');
     assert.deepStrictEqual(syncedRoadmapItem.planRefs, ['session:20260316_020304_ABCD']);
+  });
+});
+
+test('syncSessionPlanToRoadmap reconciles a linked backlog item that lives in docs/backlogs/*.md', () => {
+  withTempRepo((repoRoot) => {
+    const primaryBacklogPath = path.join(repoRoot, 'docs', 'backlogs', 'session-close.md');
+    fs.mkdirSync(path.dirname(primaryBacklogPath), { recursive: true });
+    fs.writeFileSync(primaryBacklogPath, formatRepositoryBacklogDocument({
+      items: [
+        {
+          id: 'RB-001',
+          title: 'Carry over runtime adoption work',
+          status: 'planned',
+          summary: 'Persist session-close backlog work under docs/backlogs.',
+          keyPoints: [],
+        },
+      ],
+    }), 'utf8');
+
+    const roadmap = writeRoadmapDocument(repoRoot, {
+      slug: 'platform-foundation',
+      title: 'Platform Foundation',
+      overview: 'Sequence the planning workflow changes.',
+      items: [
+        {
+          title: 'Close runtime backlog adoption',
+          phase: 'foundation',
+          status: 'planned',
+          summary: 'Link plan completion to roadmap and backlog state.',
+          backlogIds: ['RB-001'],
+        },
+      ],
+    });
+
+    const roadmapId = roadmap.items[0].id;
+    const planText = [
+      `<!-- ${PLAN_SYNC_MARKER_NAMES.linkedBacklogIds}: RB-001 -->`,
+      `<!-- ${PLAN_SYNC_MARKER_NAMES.linkedRoadmapIds}: ${roadmapId} -->`,
+      `<!-- ${PLAN_SYNC_MARKER_NAMES.planRef}: session:20260403_020304_ABCD -->`,
+      `<!-- ${PLAN_SYNC_MARKER_NAMES.outcome}: completed -->`,
+      '',
+      '# Plan Pack — Backlog family sync',
+    ].join('\n');
+
+    syncSessionPlanToRoadmap(repoRoot, 'session-sync-2', planText);
+
+    const backlogItem = readRepositoryBacklogFile(repoRoot).backlog.items[0];
+    assert.strictEqual(backlogItem.status, 'satisfied');
+    assert.strictEqual(backlogItem.sourceRepoRelativePath, 'docs/backlogs/session-close.md');
+
+    const persistedPrimaryBacklog = readRepositoryBacklogFile(repoRoot)
+      .artifacts
+      .find((artifact) => artifact.repoRelativePath === 'docs/backlogs/session-close.md');
+    assert.ok(persistedPrimaryBacklog);
+    assert.strictEqual(persistedPrimaryBacklog.backlog.items[0].status, 'satisfied');
+    assert.strictEqual(fs.existsSync(path.join(repoRoot, 'docs', 'backlog.md')), false);
   });
 });
 
