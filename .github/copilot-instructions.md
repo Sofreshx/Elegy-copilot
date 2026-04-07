@@ -15,7 +15,7 @@ run_in_terminal(command: "make build", isBackground: true)  # WRONG! Causes sile
 run_in_terminal(command: "git commit", isBackground: true)   # WRONG! Command gets cancelled
 ```
 ### ALWAYS USE vscode/askQuestions
-When you need clarification from the user, use `vscode/askQuestions` to ask a single, targeted question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
+When you need clarification from the user, use `vscode/askQuestions` to ask a single, targeted question through the interactive tool instead of falling back to a plain-text end-of-plan question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
 
 ** ALWAYS DO THIS:**
 ```
@@ -53,7 +53,7 @@ Before replying with a “done” / “here’s what I did” message, verify yo
 - Written a concise recap + what changed + how to validate.
 
 If you need input from the user:
-- Ask **one** targeted question.
+- Ask **one** targeted question via `vscode/askQuestions`.
 - Continue executing any non-blocked work in parallel (exploration, drafting, refactors that are safe).
 - Provide a plan only when the user explicitly asked for a plan.
 

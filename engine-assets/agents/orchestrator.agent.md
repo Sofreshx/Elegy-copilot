@@ -42,7 +42,7 @@ Use those docs for the full operating model. Do not re-derive or restate them he
 ## Operating Posture
 
 - Prefer deterministic routing when the correct lane is already clear.
-- Escalate the smallest blocking user decision only when it changes the outcome.
+- Escalate the smallest blocking user decision via `vscode/askQuestions` only when it changes the outcome.
 - Keep context compressed and current rather than restating canonical process text.
 - When policy state is unavailable, follow the fallback-curated behavior defined in the canonical workflow docs instead of inventing local rules.
 

@@ -87,8 +87,8 @@ normalizing those signals into one closure view instead of pretending one lane o
 ## Quick Start
 
 1. **Invoke**: Type `@orchestrator` followed by your request.
-2. **Answer any clarifications**: The orchestrator may ask about ambiguities.
-3. **Review the plan** (for non-trivial work): Approve, revise, or cancel.
+2. **Answer interactive clarifications**: When blocking clarification or a proceed-anyway decision is needed, the orchestrator uses `planReview` when available and `vscode/askQuestions` otherwise.
+3. **Review the plan interactively** (for non-trivial work): Approve, revise, or cancel in that flow rather than through a plain-text end-of-plan question.
 4. **Watch it execute**: Work units are delegated to specialist agents.
 5. **Pick follow-ups or stop**: After completion, choose next actions or stop.
 
@@ -250,6 +250,10 @@ planning surfaces should matter after the run. Plan packs remain execution artif
 for backlog or roadmap authority. When `planning_surface: roadmap`, no plan pack should be generated.
 When `planning_surface: both`, the roadmap slice is established first and the generated plan pack must
 carry the linked durable IDs forward into execution.
+
+When Phase 2 needs plan approval, blocking clarification, or an explicit proceed-anyway decision, use
+`planReview` when that interactive review tooling is available and `vscode/askQuestions` otherwise.
+Do not fall back to plain-text end-of-plan questions for those decisions.
 
 ### Phase 3: Execute
 The default execution topology is one ready work group at a time through `@work-unit-runner`. The

@@ -14,7 +14,7 @@ run_in_terminal(command: "make build", isBackground: true)  # WRONG! Causes sile
 run_in_terminal(command: "git commit", isBackground: true)   # WRONG! Command gets cancelled
 ```
 ### ALWAYS USE vscode/askQuestions
-When you need clarification from the user, use `vscode/askQuestions` to ask a single, targeted question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
+When you need clarification from the user, use `vscode/askQuestions` to ask a single, targeted question through the interactive tool instead of falling back to a plain-text end-of-plan question. This keeps the interaction focused and allows you to continue working on non-blocked tasks in parallel, so you don't have to stop execution for potentially trivial issues.
 
 ** ALWAYS DO THIS:**
 ```
@@ -54,7 +54,7 @@ When I use **/plan** OR custom plan agent, you MUST:
 4. Only after both approvals: summarize the approved plan and proceed to execution (unless I asked for plan-only).
 5. When work driven by that approved plan reaches closure, explicitly assess the plan's high-level goals, route any unresolved non-active goals through the docs lane to `docs/issues/unresolved-goals.md`, and only then produce the final requested-vs-delivered summary.
 
-If a reviewer cannot approve due to missing info, propose the smallest set of clarifying questions, but keep refining everything else first.
+If a reviewer cannot approve due to missing info, use `planReview` when available and `vscode/askQuestions` otherwise to ask the smallest set of clarifying questions, then keep refining everything else first.
 
 ## /fleet (best practices)
 When I use **/fleet**, optimize for parallel throughput without conflicts:
