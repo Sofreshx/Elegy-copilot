@@ -10,10 +10,13 @@ export type EventHandler = (event: TrackerEvent) => void;
 const LEGACY_TASK_SURFACE_ENV = "TRACKER_ENABLE_LEGACY_TASK_SURFACE";
 
 type TaskAuthority = "canonical" | "legacy-compat";
+const CANONICAL_TASK_GLOBS = ["**/*.json", "**/*.md"] as const;
+const LEGACY_TASK_GLOBS = ["**/*.md"] as const;
 
 interface TaskWatchSurface {
   authority: TaskAuthority;
   taskStorePath: string;
+  taskGlobs: readonly string[];
 }
 
 function normalizeRepoPathForKey(workspacePath: string): string {
@@ -83,16 +86,20 @@ export class FileWatcher {
   /** Watch canonical repo-state tasks, plus opt-in legacy repo-local tasks for compatibility. */
   private watchTaskFiles(workspacePath: string): void {
     const surfaces: TaskWatchSurface[] = [
-      { authority: "canonical", taskStorePath: getCanonicalTasksPath(workspacePath) },
+      { authority: "canonical", taskStorePath: getCanonicalTasksPath(workspacePath), taskGlobs: CANONICAL_TASK_GLOBS },
     ];
 
     if (shouldWatchLegacyTaskSurface()) {
       warnLegacyTaskSurfaceEnabled(workspacePath);
-      surfaces.push({ authority: "legacy-compat", taskStorePath: getLegacyTasksPath(workspacePath) });
+      surfaces.push({
+        authority: "legacy-compat",
+        taskStorePath: getLegacyTasksPath(workspacePath),
+        taskGlobs: LEGACY_TASK_GLOBS,
+      });
     }
 
     for (const surface of surfaces) {
-      const watcher = chokidar.watch(path.join(surface.taskStorePath, "**/*.md"), {
+      const watcher = chokidar.watch(surface.taskGlobs.map((glob) => path.join(surface.taskStorePath, glob)), {
         ignoreInitial: true,
         awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
       });

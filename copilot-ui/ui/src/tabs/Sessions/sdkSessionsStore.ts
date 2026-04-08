@@ -22,6 +22,7 @@ export interface CreateSdkSessionOptions {
   model?: string;
   contextType?: 'regular' | 'sandbox' | string;
   sandboxId?: string;
+  orchestration?: Record<string, unknown>;
 }
 
 export interface LoadSdkSessionsOptions {
@@ -496,11 +497,15 @@ function createSdkSessionsStore() {
       const sandboxId = typeof options.sandboxId === 'string' && options.sandboxId.trim()
         ? options.sandboxId.trim()
         : undefined;
+      const orchestration = options.orchestration && typeof options.orchestration === 'object'
+        ? options.orchestration
+        : undefined;
 
       const response = await createSdkSession({
         model,
         contextType,
         sandboxId,
+        orchestration,
       });
 
       await loadSessions();

@@ -301,26 +301,72 @@ async function run() {
       res.end(JSON.stringify(payload, null, 2));
     },
   });
+  const changeState = {
+    version: 3,
+    lastChangedMs: 1234,
+  };
   const baseCtx = {
     engineRoot,
     copilotHomeAbs,
     changeTracker: {
       get() {
-        return { version: 3, lastChangedMs: 1234 };
+        return { ...changeState };
       },
     },
   };
 
   try {
-    await test('GET /api/catalog/assets returns effective projection data without requiring a persisted snapshot', async () => {
-      const response = await invoke(routes, baseCtx, 'GET', '/api/catalog/assets?kind=skill');
+    await test('GET /api/catalog/assets persists a fallback snapshot and reuses it on the next read', async () => {
+      const firstResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/assets?kind=skill');
 
-      assert.equal(response.res.statusCode, 200);
-      assert.equal(response.body.kind, 'catalog.assets.list');
-      assert.equal(response.body.snapshot.readMode, 'filesystem-fallback');
-      assert.ok(Array.isArray(response.body.assets));
-      assert.ok(response.body.assets.some((asset) => asset.assetId === 'skill-core-guardrails'));
-      assert.ok(response.body.assets.some((asset) => asset.assetId === 'skill-repo-helper'));
+      assert.equal(firstResponse.res.statusCode, 200);
+      assert.equal(firstResponse.body.kind, 'catalog.assets.list');
+      assert.equal(firstResponse.body.snapshot.readMode, 'filesystem-fallback');
+      assert.equal(firstResponse.body.snapshot.storage.snapshotExists, true);
+      assert.ok(Array.isArray(firstResponse.body.assets));
+      assert.ok(firstResponse.body.assets.some((asset) => asset.assetId === 'skill-core-guardrails'));
+      assert.ok(firstResponse.body.assets.some((asset) => asset.assetId === 'skill-repo-helper'));
+      assert.ok(fs.existsSync(firstResponse.body.snapshot.storage.snapshotPath), 'expected fallback rebuild to persist');
+
+      const secondResponse = await invoke(routes, baseCtx, 'GET', '/api/catalog/assets?kind=skill');
+
+      assert.equal(secondResponse.res.statusCode, 200);
+      assert.equal(secondResponse.body.snapshot.readMode, 'persisted-snapshot');
+      assert.equal(secondResponse.body.snapshot.storage.snapshotExists, true);
+    });
+
+    await test('GET /api/catalog/assets rebuilds a stale persisted snapshot after tracker-reported repo-local asset changes', async () => {
+      const liveSkillPath = path.join(repoPath, '.github', 'skills', 'live-repo-skill', 'SKILL.md');
+      const routePath = `/api/catalog/assets?kind=skill&repoPath=${encodeURIComponent(repoPath)}`;
+      const initialResponse = await invoke(routes, baseCtx, 'GET', routePath);
+      const initialGeneratedMs = Date.parse(initialResponse.body.snapshot.generatedAt || '');
+
+      assert.equal(initialResponse.res.statusCode, 200);
+      assert.ok(Number.isFinite(initialGeneratedMs), 'expected an initial generatedAt timestamp');
+
+      try {
+        writeText(
+          liveSkillPath,
+          '# Live Repo Skill\n\nRepo-local skill added after the persisted snapshot was written.\n',
+        );
+        changeState.version += 1;
+        changeState.lastChangedMs = initialGeneratedMs + 1;
+
+        const refreshedResponse = await invoke(routes, baseCtx, 'GET', routePath);
+
+        assert.equal(refreshedResponse.res.statusCode, 200);
+        assert.equal(refreshedResponse.body.snapshot.readMode, 'change-tracker-rebuild');
+        assert.equal(refreshedResponse.body.snapshot.storage.snapshotExists, true);
+        assert.ok(
+          refreshedResponse.body.assets.some((asset) => asset.assetKey === 'live-repo-skill'),
+          'expected rebuilt projection to include the newly added repo-local skill',
+        );
+      } finally {
+        fs.rmSync(path.dirname(liveSkillPath), { recursive: true, force: true });
+        changeState.version += 1;
+        changeState.lastChangedMs = Date.now();
+        await invoke(routes, baseCtx, 'GET', routePath);
+      }
     });
 
     await test('GET /api/catalog/bundles returns bundle metadata, computed member state, and additive summary stats', async () => {
@@ -1007,7 +1053,7 @@ async function run() {
       assert.equal(response.body.projection.storage.snapshotExists, true);
       assert.equal(response.body.projection.freshness.status, 'fresh');
       assert.ok(response.body.audit.exists);
-      assert.deepEqual(response.body.changes, { version: 3, lastChangedMs: 1234 });
+      assert.deepEqual(response.body.changes, changeState);
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

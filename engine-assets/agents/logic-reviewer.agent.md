@@ -17,6 +17,7 @@ Review only for behavioral correctness: broken logic, violated invariants, edge-
 - Do not decide whether runtime evidence is sufficient; that remains `working-reviewer`.
 - Do not produce requested-vs-delivered summaries; that remains `final-reviewer`.
 - Require concrete evidence from code, diffs, tests, or stated behavior. If evidence is incomplete, say so instead of guessing.
+- Treat weakened tests as logic findings only when they remove coverage for a meaningful invariant, failure path, or edge condition called out by the changed behavior or `docs/system/testing-quality-governance.md`; do not report generic test hygiene concerns.
 - Escalate to `FAILED` only for issues that likely break core behavior, corrupt data, violate a hard invariant, or create a serious regression.
 - Keep findings additive to `code-reviewer`: go narrower and deeper on correctness rather than broad code quality.
 
@@ -25,6 +26,7 @@ Review only for behavioral correctness: broken logic, violated invariants, edge-
 - missing edge-case handling
 - invariant violations and contract breaks across call boundaries
 - behavior changes that conflict with existing intent or validation evidence
+- loss of hard-case or failure-path coverage when that coverage was the thing proving a correctness boundary
 
 ## Output (strict)
 

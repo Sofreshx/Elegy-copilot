@@ -432,16 +432,26 @@ function buildProjectionContext(ctx, deps, selector = {}, options = {}) {
   const catalogOptions = buildCatalogOptions(ctx, selector);
   const storage = deps.catalogProjection.resolveProjectionStorage(catalogOptions);
   const persistedSnapshot = deps.catalogProjection.loadCatalogProjectionSnapshot(catalogOptions);
-  const hasPersistedSnapshot = Boolean(persistedSnapshot);
-  const shouldBuildFallback = options.allowFallback !== false && !persistedSnapshot;
-  let snapshot = persistedSnapshot;
-  let readMode = hasPersistedSnapshot ? 'persisted-snapshot' : 'missing';
+  const stalePersistedSnapshot = deps.catalogProjection.isCatalogProjectionSnapshotStale(
+    persistedSnapshot,
+    ctx.changeTracker ? ctx.changeTracker.get() : null,
+  );
+  const shouldBuildFallback = options.allowFallback !== false && (!persistedSnapshot || stalePersistedSnapshot);
+  let snapshot = stalePersistedSnapshot ? null : persistedSnapshot;
+  let readMode = persistedSnapshot
+    ? (stalePersistedSnapshot ? 'stale-persisted-snapshot' : 'persisted-snapshot')
+    : 'missing';
   let buildError = null;
 
   if (shouldBuildFallback) {
     try {
-      snapshot = deps.catalogProjection.buildCatalogProjection(catalogOptions);
-      readMode = 'filesystem-fallback';
+      snapshot = rebuildProjection(
+        ctx,
+        deps,
+        selector,
+        stalePersistedSnapshot ? 'catalog_change_tracker_rebuild' : 'catalog_read_fallback',
+      );
+      readMode = stalePersistedSnapshot ? 'change-tracker-rebuild' : 'filesystem-fallback';
     } catch (error) {
       buildError = error;
     }

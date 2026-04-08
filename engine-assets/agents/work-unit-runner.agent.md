@@ -26,6 +26,10 @@ Execute one or more work units provided inline by the caller (typically `@orches
 - Do NOT create or modify repo-local `.instructions/*`.
 - Do NOT run unit, integration, or E2E tests directly. Return requested test scope so orchestrator can route to the dedicated runners.
 - Do NOT execute integration or E2E tests unless the spec explicitly requires it; request them instead.
+- When authoring or updating tests, follow `docs/system/testing-quality-governance.md`: passing tests are evidence, not the goal.
+- Do not weaken, narrow, or remove tests merely to make validation green. If an assertion, fixture, or hard case is removed or relaxed, replacement coverage must preserve or improve confidence.
+- Before deciding requested test scope, enumerate the meaningful success, failure, edge, and adversarial cases for the changed behavior.
+- Distinguish legitimate test maintenance from weakening: intentional contract changes or previously incorrect expectations can justify updates, but the previous confidence target must still be preserved or explicitly replaced.
 - For any work unit that affects behavior, workflow policy, or a documentation-backed feature, independently load the smallest relevant canonical docs entrypoint before editing. Do not rely only on `spec`, `wuSpecs`, or `explorationContext` for docs truth.
 - If the work changes intended design, behavior, or workflow policy reflected in canonical docs, make the relevant canonical docs update part of the first execution slice before or alongside implementation.
 - If scope/unknowns exceed the spec, request replanning.

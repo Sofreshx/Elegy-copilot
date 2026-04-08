@@ -1,7 +1,7 @@
 {
   "id": "failed-session-recovery",
   "name": "Failed Session Recovery",
-  "description": "Recovers from a failed coding session by checking status, collecting logs, and restarting.",
+  "description": "Checks a failed session, collects logs, stops the bound session, and launches a separate recovery follow-up.",
   "version": "1.0.0",
   "steps": [
     {
@@ -21,13 +21,17 @@
       "id": "stop-session",
       "name": "Stop Failed Session",
       "action": "session.stop",
+      "params": { "sessionId": "{{collect-logs.sessionId}}" },
       "dependsOn": ["collect-logs"]
     },
     {
-      "id": "restart-session",
-      "name": "Restart Session",
+      "id": "start-recovery-follow-up",
+      "name": "Start Recovery Follow-up Session",
       "action": "session.start",
-      "params": { "recovery": true },
+      "params": {
+        "recovery": true,
+        "prompt": "Investigate and recover after failed session {{collect-logs.sessionId}}."
+      },
       "dependsOn": ["stop-session"]
     },
     {
@@ -35,7 +39,7 @@
       "name": "Notify Operator",
       "action": "notify.operator",
       "params": { "template": "session-recovered" },
-      "dependsOn": ["restart-session"]
+      "dependsOn": ["start-recovery-follow-up"]
     }
   ]
 }

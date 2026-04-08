@@ -1,13 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-03-01
+updated: 2026-04-08
 category: system
 status: current
 doc_kind: moc
 id: testing-and-e2e
 summary: Map of content for local testing, E2E guidance, and hang prevention.
 tags: [testing, e2e]
-related: [system-docs-index]
+related: [system-docs-index, testing-quality-governance, validation-governance]
 ---
 
 # MOC — Testing & E2E
@@ -20,6 +20,7 @@ related: [system-docs-index]
 
 ## Start here
 
+- Testing quality governance: `docs/system/testing-quality-governance.md`
 - Validation governance: `docs/system/validation-governance.md`
 - E2E setup: `docs/system/e2e-setup-guide.md`
 - Workflow planning contract: `docs/system/workflow-planning-contract.md`

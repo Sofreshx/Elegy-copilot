@@ -22,6 +22,10 @@ Use Alba to run integration tests **in-process** against your ASP.NET Core app. 
 - **`AlbaHost.For<Program>()`** bootstraps the app in-process.
 - **`Scenario`** defines a request, expected status, and response checks.
 - **Host customization** lets you override services, config, and auth for tests.
+- Follow `docs/system/testing-quality-governance.md`: passing tests are evidence, not the objective.
+- Before deciding integration-test scope, enumerate meaningful success, failure, edge, and adversarial request flows.
+- Do not weaken, narrow, or remove endpoint coverage merely to get green. If an assertion or hard-case scenario changes, add replacement coverage that preserves or improves confidence.
+- Distinguish legitimate maintenance from weakening: intentional API contract changes or previously incorrect expectations can justify updates, but the prior confidence target must remain covered or the new boundary must be explicit.
 
 ## Setup (Test Project)
 1. Add NuGet package:
@@ -113,11 +117,13 @@ var store = scope.ServiceProvider.GetRequiredService<MyStore>();
 - Use status helpers: `StatusCodeShouldBeOk`, `StatusCodeShouldBe(201)`
 - Parse JSON when needed and assert strongly typed content
 - Keep assertions focused on contract behavior, not internal details
+- Prefer preserving or strengthening hard-case assertions over replacing them with easier-to-pass happy-path-only checks
 
 ## Common Pitfalls
 - Missing `Program` visibility (ensure the test project can access it)
 - Relying on external services without fakes
 - Sharing host across tests with mutable state (reset between tests if needed)
+- Rewriting failing scenarios into narrower inputs or looser assertions without replacement coverage for the original risk
 
 ## Execution Policy
 - Do NOT execute tests directly.

@@ -1,17 +1,19 @@
 import {
   listSessions,
+  listExecutorWorktrees,
   runSandboxLifecycleAction,
   toCanonicalSandboxMissingTokenErrorFromUnknown,
   toSandboxTokenRemediationMessage,
 } from '../../lib/api';
 import { createStore } from '../../lib/store';
-import type { SandboxLifecycleAction, SessionSummary } from '../../lib/types';
+import type { ExecutorWorktreeRecord, SandboxLifecycleAction, SessionSummary } from '../../lib/types';
 import { gatewayStore } from '../Gateway/gatewayStore';
 
 const SANDBOX_ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;
 
 export interface SandboxesState {
   sandboxes: SessionSummary[];
+  worktrees: ExecutorWorktreeRecord[];
   sandboxId: string;
   baseBranch: string;
   headBranch: string;
@@ -22,10 +24,12 @@ export interface SandboxesState {
   statusMessage: string | null;
   tokenMissingBlocked: boolean;
   tokenMissingMessage: string | null;
+  worktreesError: string | null;
 }
 
 const INITIAL_STATE: SandboxesState = {
   sandboxes: [],
+  worktrees: [],
   sandboxId: '',
   baseBranch: 'main',
   headBranch: '',
@@ -36,6 +40,7 @@ const INITIAL_STATE: SandboxesState = {
   statusMessage: null,
   tokenMissingBlocked: false,
   tokenMissingMessage: null,
+  worktreesError: null,
 };
 
 function toErrorMessage(error: unknown): string {
@@ -173,10 +178,15 @@ function createSandboxesStore() {
     }));
 
     try {
-      const response = await listSessions(undefined, {
-        activeWindowMinutes: 30,
-        source: 'sandbox',
-      });
+      const [response, worktreeResult] = await Promise.all([
+        listSessions(undefined, {
+          activeWindowMinutes: 30,
+          source: 'sandbox',
+        }),
+        listExecutorWorktrees()
+          .then((value) => ({ worktrees: value.worktrees, error: null as string | null }))
+          .catch((error) => ({ worktrees: [] as ExecutorWorktreeRecord[], error: toErrorMessage(error) })),
+      ]);
       const sandboxes = normalizeSandboxSessions(response.sessions);
 
       store.setState((state) => {
@@ -190,9 +200,11 @@ function createSandboxesStore() {
         return {
           ...state,
           sandboxes,
+          worktrees: worktreeResult.worktrees,
           sandboxId: resolvedSandboxId,
           loading: false,
           error: null,
+          worktreesError: worktreeResult.error,
         };
       });
     } catch (error) {
@@ -385,6 +397,7 @@ function createSandboxesStore() {
     store.setState((state) => ({
       ...state,
       sandboxes,
+      worktrees: store.getState().worktrees,
       sandboxId: readSandboxId(match) || targetSandboxId,
       statusMessage: `Following sandbox ${targetSandboxId} in Sessions tab.`,
       error: null,

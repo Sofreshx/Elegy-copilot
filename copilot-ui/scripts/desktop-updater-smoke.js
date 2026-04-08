@@ -2,6 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
+const {
+  inferReleaseChannel,
+  validatePackagedDesktopArtifacts,
+} = require('./validate-desktop-package-inputs');
+
 const workspaceRoot = path.resolve(__dirname, '..');
 const packageJsonPath = path.join(workspaceRoot, 'package.json');
 const releaseDir = path.join(workspaceRoot, 'release');
@@ -82,10 +87,12 @@ function runPackagedUpdaterTests(distDir, testFiles) {
 
 function main() {
   const packagedDistElectronDir = resolvePackagedDistElectronDir();
+  const packagedArtifacts = validatePackagedDesktopArtifacts();
   const packageJson = JSON.parse(readRequiredFile(packageJsonPath, 'package.json'));
   const latestYml = readRequiredFile(latestYmlPath, 'latest.yml');
   const builderConfig = readRequiredFile(builderConfigPath, 'electron-builder.yml');
   const packagedUpdateConfig = readRequiredFile(packagedUpdateConfigPath, 'packaged app-update.yml');
+  const expectedChannel = inferReleaseChannel(packageJson.version);
 
   const expectedVersion = String(packageJson.version || '').trim();
   const latestVersion = readYamlScalar(latestYml, 'version');
@@ -113,6 +120,8 @@ function main() {
   assert(builderConfig.includes(`releaseType: ${releaseType}`), `electron-builder.yml releaseType does not match packaged app-update.yml releaseType ${releaseType || '(missing)'}`);
   assert(provider === 'github', `Expected packaged updater provider to be github, received ${provider || '(missing)'}`);
   assert(updaterCacheDirName === `${packageJson.name}-updater`, `Expected updaterCacheDirName ${packageJson.name}-updater, received ${updaterCacheDirName || '(missing)'}`);
+  assert(packagedArtifacts.appChannel === expectedChannel, `Expected packaged CLI contract channel ${expectedChannel}, received ${packagedArtifacts.appChannel}`);
+  assert(packagedArtifacts.sdkChannel === expectedChannel, `Expected packaged SDK contract channel ${expectedChannel}, received ${packagedArtifacts.sdkChannel}`);
 
   const testFiles = discoverPackagedUpdaterTests(packagedDistElectronDir);
   assert(testFiles.length > 0, `No packaged updater regression tests were found in ${packagedDistElectronDir}`);
@@ -120,6 +129,8 @@ function main() {
   console.log('[smoke] validated packaged updater metadata');
   console.log(`[smoke] installer: ${path.basename(installerPath)}`);
   console.log(`[smoke] packaged dist-electron dir: ${packagedDistElectronDir}`);
+  console.log(`[smoke] packaged CLI contract: ${packagedArtifacts.contractStatus} (${packagedArtifacts.appChannel})`);
+  console.log(`[smoke] packaged workflow sidecar: ${packagedArtifacts.workflowSidecarPosture}`);
   console.log(`[smoke] packaged updater tests: ${testFiles.join(', ')}`);
   runPackagedUpdaterTests(packagedDistElectronDir, testFiles);
   console.log('[smoke] packaged Windows updater smoke passed');

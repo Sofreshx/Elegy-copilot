@@ -1,10 +1,23 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Panel, Toolbar } from '../../components';
-import type { PlanningLinkedPlanSession } from '../../lib/types';
+import { getPlanningTaskBoard, listSessions } from '../../lib/api';
+import { resolveSessionStatus } from '../../lib/stateDiagnostics';
 import { useStoreValue } from '../../lib/store';
+import type {
+  ObsidianPlanningNoteDetail,
+  ObsidianPlanningNoteSummary,
+  PlanningBacklogItem,
+  PlanningBullet,
+  PlanningIntakeArtifact,
+  PlanningLinkedPlanSession,
+  PlanningRoadmapItem,
+  SessionOrchestrationProjection,
+  SessionSummary,
+} from '../../lib/types';
 import { navigationStore } from '../../stores/navigation';
-import { catalogWorkspaceStore } from '../Assets/catalogWorkspaceStore';
+import TaskBoardView, { type TaskBoardGroupBy } from '../Sessions/TaskBoardView';
 import { sessionsStore } from '../Sessions/sessionsStore';
+import { catalogWorkspaceStore } from '../Assets/catalogWorkspaceStore';
 import PlanningIdeasPanel from './PlanningIdeasPanel';
 import PlanningPathActions from './PlanningPathActions';
 import { planningStore } from './planningStore';
@@ -64,15 +77,73 @@ function resolveCatalogRepoContext(catalogState: ReturnType<typeof catalogWorksp
 
 type NormalizedCatalogRepoEntry = NonNullable<ReturnType<typeof normalizeCatalogRepoEntry>>;
 
-type SeedablePlanningArtifact = {
-  id: string;
-  title: string;
-  promotedPlanRefs?: string[];
-  [key: string]: unknown;
-};
+type SeedablePlanningArtifact =
+  | PlanningIntakeArtifact
+  | PlanningBullet
+  | PlanningBacklogItem
+  | PlanningRoadmapItem
+  | ObsidianPlanningNoteSummary
+  | ObsidianPlanningNoteDetail;
 
 type PlanningMode = 'workflow' | 'compatibility';
 type PlanningSection = 'plans' | 'bullets' | 'backlog' | 'roadmaps';
+
+interface PlanningViewProps {
+  onSdkSessionReady?: (sessionId: string) => void;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function getProjectionTasks(projection: SessionOrchestrationProjection | null): Array<Record<string, unknown>> {
+  const taskBoard = asRecord(projection?.taskBoard);
+  return Array.isArray(taskBoard.items)
+    ? taskBoard.items.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
+    : [];
+}
+
+function buildPlanningTaskBoardSessionSummary(
+  projection: SessionOrchestrationProjection | null,
+  sessions: SessionSummary[],
+) {
+  const linkedSessionIds = Array.from(new Set(
+    getProjectionTasks(projection)
+      .map((task) => asString(task.ownerSessionId))
+      .filter((sessionId): sessionId is string => Boolean(sessionId)),
+  ));
+  const linkedSessions = sessions.filter((session) => linkedSessionIds.includes(session.id));
+  const liveSessions = linkedSessions.filter((session) => resolveSessionStatus(session) === 'active');
+
+  if (liveSessions.length > 0) {
+    return {
+      title: 'Linked live sessions',
+      status: 'active',
+      detail: `${liveSessions.length} linked session(s) currently report live runtime evidence.`,
+      helper: liveSessions.map((session) => session.id).join(' | '),
+    };
+  }
+
+  if (linkedSessionIds.length > 0) {
+    return {
+      title: 'Linked live sessions',
+      status: 'unknown',
+      detail: `${linkedSessionIds.length} linked session reference(s) exist, but none currently show confirmed live runtime status.`,
+      helper: linkedSessionIds.join(' | '),
+    };
+  }
+
+  return {
+    title: 'Linked live sessions',
+    status: 'idle',
+    detail: 'No durable task in this repo is linked to a live session yet.',
+    helper: 'Launch or resume runtime work from Home / Runtime when a durable task is ready.',
+  };
+}
 
 function PlanningPlanAuthoringPanel(props: {
   linkedPlanSession: PlanningLinkedPlanSession | null;
@@ -174,12 +245,21 @@ function PlanningPlanAuthoringPanel(props: {
   );
 }
 
-export default function PlanningView() {
+export default function PlanningView({ onSdkSessionReady }: PlanningViewProps) {
   const planningState = useStoreValue(planningStore);
   const planningWorkspaceState = useStoreValue(planningWorkspaceStore);
   const catalogState = useStoreValue(catalogWorkspaceStore);
+  const hasObservedLinkedSdkSessionRef = useRef(false);
+  const lastHandledLinkedSdkSessionIdRef = useRef<string | null>(null);
   const [activeMode, setActiveMode] = useState<PlanningMode>('workflow');
   const [activeSection, setActiveSection] = useState<PlanningSection>('plans');
+  const [taskBoardProjection, setTaskBoardProjection] = useState<SessionOrchestrationProjection | null>(null);
+  const [taskBoardSessions, setTaskBoardSessions] = useState<SessionSummary[]>([]);
+  const [taskBoardLoading, setTaskBoardLoading] = useState(false);
+  const [taskBoardError, setTaskBoardError] = useState<string | null>(null);
+  const [taskBoardFilterStatus, setTaskBoardFilterStatus] = useState('all');
+  const [taskBoardGroupBy, setTaskBoardGroupBy] = useState<TaskBoardGroupBy>('status');
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const selectedCatalogRepo = useMemo(() => resolveCatalogRepoContext(catalogState), [catalogState]);
   const knownCatalogRepos = useMemo(() => {
@@ -225,6 +305,59 @@ export default function PlanningView() {
   }, [catalogState.repoInventory, catalogState.repoInventoryLoading, catalogState.loading]);
 
   useEffect(() => {
+    let cancelled = false;
+    const repoId = selectedCatalogRepo?.repoId?.trim();
+
+    if (!repoId) {
+      setTaskBoardProjection(null);
+      setTaskBoardSessions([]);
+      setTaskBoardError(null);
+      setTaskBoardLoading(false);
+      setSelectedTaskId(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setTaskBoardLoading(true);
+    setTaskBoardError(null);
+    setSelectedTaskId(null);
+
+    void Promise.all([
+      getPlanningTaskBoard({
+        repoId,
+        repoPath: selectedCatalogRepo?.repoPath || undefined,
+        repoLabel: selectedCatalogRepo?.repoLabel || undefined,
+      }),
+      listSessions(undefined, { source: 'all', dedupe: 'on' }).catch(() => ({ sessions: [] })),
+    ])
+      .then(([response, sessionsResponse]) => {
+        if (cancelled) {
+          return;
+        }
+
+        setTaskBoardProjection(response.projection ?? null);
+        setTaskBoardSessions(Array.isArray(sessionsResponse.sessions) ? sessionsResponse.sessions : []);
+        setTaskBoardLoading(false);
+        setTaskBoardError(null);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+
+        setTaskBoardProjection(null);
+        setTaskBoardSessions([]);
+        setTaskBoardLoading(false);
+        setTaskBoardError(error instanceof Error && error.message.trim() ? error.message : 'Unable to load the Planning task board.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCatalogRepo?.repoId, selectedCatalogRepo?.repoLabel, selectedCatalogRepo?.repoPath]);
+
+  useEffect(() => {
     planningStore.applyCatalogRepoContext(selectedCatalogRepo);
     planningWorkspaceStore.syncCatalogRepoContext(selectedCatalogRepo);
 
@@ -253,6 +386,23 @@ export default function PlanningView() {
 
     void planningStore.loadLinkedPlan();
   }, [planningState.linkedPlanSession?.sessionId]);
+
+  useEffect(() => {
+    const linkedSdkSessionId = planningState.linkedSdkSession?.sessionId?.trim() || '';
+
+    if (!hasObservedLinkedSdkSessionRef.current) {
+      hasObservedLinkedSdkSessionRef.current = true;
+      lastHandledLinkedSdkSessionIdRef.current = linkedSdkSessionId || null;
+      return;
+    }
+
+    if (!linkedSdkSessionId || linkedSdkSessionId === lastHandledLinkedSdkSessionIdRef.current) {
+      return;
+    }
+
+    lastHandledLinkedSdkSessionIdRef.current = linkedSdkSessionId;
+    onSdkSessionReady?.(linkedSdkSessionId);
+  }, [onSdkSessionReady, planningState.linkedSdkSession?.sessionId]);
 
   useEffect(() => {
     if (activeMode !== 'compatibility') {
@@ -316,6 +466,10 @@ export default function PlanningView() {
   const toolbarCopy = activeMode === 'workflow'
     ? sectionCopy[activeSection].body
     : 'Compatibility/operator tools for typed intake, external Obsidian notes, and legacy planning-record artifacts.';
+  const taskBoardSessionSummary = useMemo(
+    () => buildPlanningTaskBoardSessionSummary(taskBoardProjection, taskBoardSessions),
+    [taskBoardProjection, taskBoardSessions],
+  );
 
   const seedPlanFromArtifact = async (artifact: SeedablePlanningArtifact): Promise<void> => {
     const sessionId = await planningStore.savePlanDraft({
@@ -324,8 +478,9 @@ export default function PlanningView() {
     });
 
     if (sessionId && artifact.id.startsWith('PB-')) {
-      const promotedPlanRefs = Array.isArray(artifact.promotedPlanRefs)
-        ? artifact.promotedPlanRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
+      const artifactRecord = artifact as Record<string, unknown>;
+      const promotedPlanRefs = Array.isArray(artifactRecord.promotedPlanRefs)
+        ? artifactRecord.promotedPlanRefs.map((entry) => String(entry || '').trim()).filter(Boolean)
         : [];
       await planningWorkspaceStore.patchBullet(artifact.id, {
         promotedPlanRefs: [...new Set([...promotedPlanRefs, sessionId])].sort(),
@@ -370,8 +525,9 @@ export default function PlanningView() {
         </div>
 
         <div className="planning-toolbar-actions">
-          <div className="planning-actions" role="tablist" aria-label="Planning modes">
+          <div className="planning-actions" role="group" aria-label="Planning modes">
             <Button
+              aria-pressed={activeMode === 'workflow'}
               onClick={() => setActiveMode('workflow')}
               testId="planning-mode-workflow"
               variant={activeMode === 'workflow' ? 'primary' : 'ghost'}
@@ -379,6 +535,7 @@ export default function PlanningView() {
               Primary workflow
             </Button>
             <Button
+              aria-pressed={activeMode === 'compatibility'}
               onClick={() => setActiveMode('compatibility')}
               testId="planning-mode-compatibility"
               variant={activeMode === 'compatibility' ? 'primary' : 'ghost'}
@@ -430,17 +587,17 @@ export default function PlanningView() {
 
       {activeMode === 'workflow' ? (
         <>
-          <div className="workspace-nav" role="tablist" aria-label="Planning sections">
-            <Button onClick={() => setActiveSection('plans')} testId="planning-section-plans" variant={activeSection === 'plans' ? 'primary' : 'ghost'}>
+          <div className="workspace-nav" role="group" aria-label="Planning sections">
+            <Button aria-pressed={activeSection === 'plans'} onClick={() => setActiveSection('plans')} testId="planning-section-plans" variant={activeSection === 'plans' ? 'primary' : 'ghost'}>
               Plans
             </Button>
-            <Button onClick={() => setActiveSection('bullets')} testId="planning-section-bullets" variant={activeSection === 'bullets' ? 'primary' : 'ghost'}>
+            <Button aria-pressed={activeSection === 'bullets'} onClick={() => setActiveSection('bullets')} testId="planning-section-bullets" variant={activeSection === 'bullets' ? 'primary' : 'ghost'}>
               Bullets ({planningCounts.bullets})
             </Button>
-            <Button onClick={() => setActiveSection('backlog')} testId="planning-section-backlog" variant={activeSection === 'backlog' ? 'primary' : 'ghost'}>
+            <Button aria-pressed={activeSection === 'backlog'} onClick={() => setActiveSection('backlog')} testId="planning-section-backlog" variant={activeSection === 'backlog' ? 'primary' : 'ghost'}>
               Backlog ({planningCounts.backlog})
             </Button>
-            <Button onClick={() => setActiveSection('roadmaps')} testId="planning-section-roadmaps" variant={activeSection === 'roadmaps' ? 'primary' : 'ghost'}>
+            <Button aria-pressed={activeSection === 'roadmaps'} onClick={() => setActiveSection('roadmaps')} testId="planning-section-roadmaps" variant={activeSection === 'roadmaps' ? 'primary' : 'ghost'}>
               Roadmaps ({planningCounts.roadmaps})
             </Button>
           </div>
@@ -488,6 +645,52 @@ export default function PlanningView() {
           </p>
         </div>
       </div>
+
+      {activeMode === 'workflow' ? (
+        <Panel
+          subtitle="Planning is the primary visible task-board projection/control surface over durable repo-state tasks. Runtime stays session, overlay, and workflow-link oriented."
+          testId="planning-task-board-panel"
+          title="Visible Task Board"
+        >
+          <div className="planning-actions">
+            <Button
+              onClick={() => navigationStore.goToRuntime('sessions', { sessionsMode: 'local' })}
+              testId="planning-task-board-open-runtime-sessions"
+              variant="secondary"
+            >
+              Open Runtime Sessions
+            </Button>
+            <Button
+              onClick={() => navigationStore.goToRuntime('executor')}
+              testId="planning-task-board-open-executor"
+              variant="ghost"
+            >
+              Open Executor
+            </Button>
+          </div>
+          <TaskBoardView
+            emptyCopy={selectedCatalogRepo?.repoId
+              ? 'No durable repo-state tasks were found for this repo yet. Additive runtime or workflow metadata can stay empty until work is launched.'
+              : 'Select a Catalog repo to load its durable repo-state task board.'}
+            error={taskBoardError}
+            filterStatus={taskBoardFilterStatus}
+            groupBy={taskBoardGroupBy}
+            loading={taskBoardLoading}
+            onFilterStatusChange={(status) => {
+              setTaskBoardFilterStatus(status);
+              setSelectedTaskId(null);
+            }}
+            onGroupByChange={(value) => setTaskBoardGroupBy(value)}
+            onSelectTask={(taskId) => setSelectedTaskId(taskId)}
+            projection={taskBoardProjection}
+            selectedTaskId={selectedTaskId}
+            sessionSummary={taskBoardSessionSummary}
+            subtitle="Repo-state tasks remain canonical durable authority. Runtime actors, workflow runs, and worktrees remain additive overlays."
+            testId="planning-task-board-view"
+            title="Planning Repo Task Board"
+          />
+        </Panel>
+      ) : null}
 
       {activeMode === 'compatibility' ? (
         <>
@@ -601,7 +804,7 @@ export default function PlanningView() {
                   void planningWorkspaceStore.refreshObsidianRepresentationsInVault();
                 }}
                 onSeedPlan={(note) => {
-                  void seedPlanFromArtifact({ id: note.id, title: note.title });
+                  void seedPlanFromArtifact(note);
                 }}
                 onSelectNote={(noteId) => {
                   void planningWorkspaceStore.loadObsidianNote(noteId);

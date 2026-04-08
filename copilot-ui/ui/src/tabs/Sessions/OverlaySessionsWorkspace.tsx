@@ -113,10 +113,10 @@ export default function OverlaySessionsWorkspace() {
                       {session.status} | {runtimeOrigin} | repo {session.repoLabel || session.repoId}
                     </p>
                     <p className="tracker-item-copy">
-                      {session.observations.length} observation(s) | {session.annotations.length} annotation(s) | {session.changeRequests.length} change request(s) | {session.qualitySignals.length} quality signal(s)
+                      App session {session.linkedSessionId || '(not linked yet)'} | overlay runtime only | {session.observations.length} observation(s) | {session.annotations.length} annotation(s) | {session.changeRequests.length} change request(s)
                     </p>
                     <p className="tracker-item-copy">
-                      Updated {formatOptionalTimestamp(session.updatedAt)}
+                      Worktree isolation {session.worktree?.worktreeId || session.worktree?.path || session.worktree?.mode || '(shared / unspecified)'} | Updated {formatOptionalTimestamp(session.updatedAt)}
                       {session.lastAnalyzedAt ? ` | analyzed ${formatOptionalTimestamp(session.lastAnalyzedAt)}` : ''}
                     </p>
                   </div>
@@ -157,6 +157,10 @@ export default function OverlaySessionsWorkspace() {
                   <dd>{selectedSession.status}</dd>
                 </div>
                 <div>
+                  <dt>App Session</dt>
+                  <dd>{selectedSession.linkedSessionId || '(overlay only)'}</dd>
+                </div>
+                <div>
                   <dt>Runtime</dt>
                   <dd>{resolveOverlayRuntimeOrigin(selectedSession.runtimeUrl, selectedSession.runtimeOrigin)}</dd>
                 </div>
@@ -167,6 +171,10 @@ export default function OverlaySessionsWorkspace() {
                 <div>
                   <dt>Package Root</dt>
                   <dd>{selectedSession.packageRoot || '(repo root)'}</dd>
+                </div>
+                <div>
+                  <dt>Worktree Isolation</dt>
+                  <dd>{selectedSession.worktree?.worktreeId || selectedSession.worktree?.path || selectedSession.worktree?.mode || '(shared / unspecified)'}</dd>
                 </div>
                 <div>
                   <dt>Observations</dt>

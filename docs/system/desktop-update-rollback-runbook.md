@@ -1,6 +1,6 @@
 ---
 created: 2026-02-25
-updated: 2026-03-16
+updated: 2026-04-07
 category: system
 status: current
 doc_kind: node
@@ -18,6 +18,10 @@ This runbook applies to the packaged Electron desktop runtime, which is the prim
 distribution and updater surface for Elegy Copilot. The raw Node.js server mode described in
 [[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md) remains a
 developer fallback, not the end-user delivery path.
+
+For packaged delivery, app-managed Copilot CLI ensure/install/update behavior is part of the intended
+desktop contract. Update and rollback handling therefore applies to the app version and its paired
+managed SDK/CLI lane, not just the Electron wrapper alone.
 
 ## Ownership
 
@@ -51,13 +55,33 @@ developer fallback, not the end-user delivery path.
 ```
 
 3. `INSTRUCTION_ENGINE_UPDATE_CHANNEL`
-   - Existing channel selector (`stable` / `prerelease`) still applies before rollback policy candidate checks.
+     - Existing channel selector (`stable` / `prerelease`) still applies before rollback policy candidate checks.
+     - Any other explicit value is invalid and must fail closed with `update_channel_invalid`; the desktop
+       runtime must not silently infer a different lane from app version metadata when an explicit override
+       is malformed.
+     - The active channel also selects the paired managed SDK/CLI lane:
+       - `stable` app builds stay on stable SDK/CLI bits
+       - `prerelease` app builds stay on prerelease SDK/CLI bits
 
 ## Operational Notes
 
 - Policy load is **fail-closed**. Missing or malformed rollback policy data blocks update checks/candidates.
 - Kill switch (`INSTRUCTION_ENGINE_DISABLE_UPDATES=true`) always blocks updates, even if policy JSON exists.
+- `INSTRUCTION_ENGINE_DISABLE_UPDATES=false` only clears the kill-switch override; it does not rewrite the
+  rollback policy to re-enable updates.
 - Reason codes are machine-readable and emitted in updater logs.
+- Cross-lane auto-mixing is out of contract: stable packaged releases must not pull prerelease SDK/CLI
+  assets, and prerelease packaged releases must not silently downgrade into stable-only toolchain state.
+- If the packaged app cannot ensure the required Copilot CLI lane for a feature that depends on it, the
+  app should fail closed for that feature and surface remediation instead of falling back to remote
+  orchestration.
+- CLI manager bootstrap/import failures are treated the same way: block desktop SDK/CLI features, disable
+  the bridge, and keep the rest of the desktop/server/UI runtime available.
+- In the current bounded slice, approved desktop remediation is limited to a bundled CLI payload or a
+  seeded managed install under `~/.copilot/managed-cli/<channel>/`; desktop PATH and `cliUrl` fallbacks
+  are intentionally blocked.
+- Release/package smoke for the current channel-contract-only slice should therefore observe the
+  machine-readable blocked state (`managed_cli_missing`) until a matching bundled or seeded payload exists.
 
 ## Checksum Pass/Fail Semantics (Release-Safety Gate)
 
@@ -113,5 +137,9 @@ Deactivation rule:
    - Expected: candidate above ceiling blocked with `candidate_version_above_channel_ceiling`.
 
 5. **Minimum-safe drill**
-   - Set `minimumSafeVersion` above current app version.
-   - Expected: preflight blocked with `current_version_below_minimum_safe`.
+    - Set `minimumSafeVersion` above current app version.
+    - Expected: preflight blocked with `current_version_below_minimum_safe`.
+
+6. **Channel-pairing drill**
+   - Validate a stable packaged build with `INSTRUCTION_ENGINE_UPDATE_CHANNEL=stable`.
+   - Expected: offered update metadata and managed SDK/CLI remediation remain on the stable lane only.

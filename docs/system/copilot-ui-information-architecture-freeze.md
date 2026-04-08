@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-03-14
+updated: 2026-04-07
 category: system
 status: current
 doc_kind: node
@@ -235,13 +235,19 @@ Runtime or Catalog.
 **Responsibilities**
 
 - idea capture
+- repo-state task board projection/control surface for durable tasks under `~/.copilot/repo-state/<repoId>/tasks/`
 - planning records
 - search / compare / merge
 - research notes and diagrams
 - compile-to-session handoff into runtime work
+- auto-triggered local workflow controls/status for the selected repo, without creating a fifth hub
 
 Planning keeps its current first-class status because it represents a distinct workflow stage and
 already has stable affordances.
+
+The visible task board belongs inside this frozen shell rather than as a new runtime destination. It
+may keep bounded ephemeral UI-only state outside canonical task storage, but durable task identity,
+status, and queue/control data must reconcile back to repo-state tasks.
 
 ## Migration map
 
@@ -270,6 +276,7 @@ already has stable affordances.
   - Planning compile completion → Home / Runtime
   - Sandbox follow action → Home / Runtime > Sessions
   - Catalog agent engagement → Home / Runtime
+- No new top-level destination is approved for task boards, workflows, sessions, worktrees, or sandboxes.
 
 ## Recommended parallel implementation streams
 
@@ -285,7 +292,7 @@ These streams are designed to minimize file conflicts after the freeze.
 
 **Scope**
 
-- replace 4-tab shell with the frozen 3-hub shell
+- preserve the frozen 4-hub shell
 - rename navigation contracts
 - retarget default tab selection
 - preserve accessibility and keyboard behavior
@@ -432,8 +439,10 @@ This decision does **not** approve:
 
 This freeze is complete when later implementation work treats the following as fixed:
 
-- the 3 top-level hubs are `Home / Runtime`, `Catalog`, and `Planning`
+- the 4 top-level hubs are `Home / Runtime`, `Catalog`, `Planning`, and `Stats`
 - `Sessions` and `State` are no longer top-level tabs
 - Home / Runtime owns dashboard/state plus runtime engagement
 - Catalog owns assets, skills, agents, and provider discovery
+- Planning owns repo-contextual planning plus the visible repo-state task board/workflow controls
+- no fifth top-level runtime destination is introduced for task boards or workflow execution
 - `superpowers-copilot` is surfaced through Catalog plus explicit runtime engagement entry points

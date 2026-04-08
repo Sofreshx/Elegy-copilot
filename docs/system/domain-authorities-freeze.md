@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-03-17
+updated: 2026-04-07
 category: system
 status: current
 doc_kind: node
@@ -37,7 +37,7 @@ an incidental code change.
 | Enablement persistence | Repo registry overlay | `~/.copilot/repo-state/<repoId>/registry.json` | VS Code settings are import/compatibility input only |
 | Session authority | ACP/runtime session state | runtime-backed session reconciliation, with runtime winning when present | filesystem artifacts remain durable projections and archive/offline fallback |
 | Provider catalog source | Shipped provider catalog data | `engine-assets/providers.json` | `contracts/src/providerCatalog.ts` remains schema/helpers plus a synced mirror until generation lands |
-| Task authority | Repo-state task store | `~/.copilot/repo-state/<repoId>/tasks/` and `tasks.archive/` | repo-local `.instructions/tasks` remains migration-only input |
+| Task authority | Repo-state task store | `~/.copilot/repo-state/<repoId>/tasks/` and `tasks.archive/` | task-board UI/workflow surfaces are projections; repo-local `.instructions/tasks` remains migration-only input |
 
 ## Decision details
 
@@ -232,6 +232,10 @@ When only artifacts exist, the session may still be exposed as a historical/offl
 This freezes the current runtime-first precedence into an explicit contract and prevents later cleanup
 work from reintroducing artifact-first reconciliation logic.
 
+App-level parallel sessions, in-session sub-agents/sub-actors, and same-repo worktree isolation are
+distinct scopes, but none of them changes this authority rule: runtime owns live session state, while
+artifacts remain persistence, projection, and fallback surfaces.
+
 ### 6) Provider catalog source
 
 **Decision**
@@ -296,6 +300,11 @@ This means:
 - no replacement editor integration should reintroduce repo-local task authority
 - `local-tracker` legacy `.instructions/tasks` watching, if temporarily enabled, is a bounded
   compatibility shim rather than the contract to preserve
+
+The visible task board in `copilot-ui` is therefore a projection/control surface over repo-state task
+storage, not a peer task database. It may keep bounded ephemeral UI state elsewhere for view concerns
+such as selection, filters, or transient drag state, but durable task identity, status, and queue
+semantics must reconcile to repo-state task storage.
 
 ## Rules for downstream cleanup streams
 

@@ -248,6 +248,77 @@ TDD cycle:
 4. THEN claim complete
 ```
 
+## Anti-Pattern 6: Weakening Tests to Get Green
+
+**The violation:**
+```typescript
+// ❌ BAD: Original failure exposed a real boundary
+test('returns 422 when checksum is invalid', async () => {
+  const response = await request(app)
+    .post('/tokens')
+    .send({ token: 'abc-bad-checksum' });
+
+  expect(response.status).toBe(422);
+});
+
+// "Fix": make the test easier
+test('returns error for bad token input', async () => {
+  const response = await request(app)
+    .post('/tokens')
+    .send({ token: '' });
+
+  expect(response.status).toBeGreaterThanOrEqual(400);
+});
+```
+
+**Why this is wrong:**
+- The hard case disappeared
+- Green output now proves less behavior than before
+- You changed the evidence instead of fixing the bug
+
+**your human partner's correction:** "Did we fix the behavior, or just make the test easier?"
+
+**The fix:**
+```typescript
+// ✅ GOOD: Keep the hard boundary
+test('returns 422 when checksum is invalid', async () => {
+  const response = await request(app)
+    .post('/tokens')
+    .send({ token: 'abc-bad-checksum' });
+
+  expect(response.status).toBe(422);
+});
+
+// ✅ ALSO GOOD when the contract intentionally changed:
+test('returns 400 when malformed tokens are rejected before checksum validation', async () => {
+  const response = await request(app)
+    .post('/tokens')
+    .send({ token: 'abc-bad-checksum' });
+
+  expect(response.status).toBe(400);
+  expect(response.body.code).toBe('TOKEN_FORMAT_INVALID');
+});
+```
+
+If behavior changed on purpose, replace the old test with stronger coverage of the new contract. Do not replace a specific hard check with a vague easier one.
+
+### Gate Function
+
+```
+BEFORE changing any failing test or assertion:
+  Ask: "Am I preserving or increasing confidence?"
+
+  IF the new test is broader, vaguer, or easier:
+    STOP - Fix the code, not the proof
+
+  IF product behavior intentionally changed:
+    1. State the new contract explicitly
+    2. Add replacement coverage for the same risk/boundary
+    3. Prefer stronger behavioral assertions, not looser ones
+
+  Green output only counts if the suite still proves the behavior
+```
+
 ## When Mocks Become Too Complex
 
 **Warning signs:**
@@ -279,6 +350,7 @@ TDD cycle:
 | Mock without understanding | Understand dependencies first, mock minimally |
 | Incomplete mocks | Mirror real API completely |
 | Tests as afterthought | TDD - tests first |
+| Make a failing test easier | Preserve hard-case coverage or replace with stronger proof |
 | Over-complex mocks | Consider integration tests |
 
 ## Red Flags
@@ -289,6 +361,8 @@ TDD cycle:
 - Test fails when you remove mock
 - Can't explain why mock is needed
 - Mocking "just to be safe"
+- Deleted assertions or narrowed fixtures after a red test
+- "It passes now" only because the test got easier
 
 ## The Bottom Line
 
@@ -297,3 +371,5 @@ TDD cycle:
 If TDD reveals you're testing mock behavior, you've gone wrong.
 
 Fix: Test real behavior or question why you're mocking at all.
+
+Also: green output from a weaker test is false confidence. Preserve or strengthen proof. See [Testing Quality Governance](../../../docs/system/testing-quality-governance.md).

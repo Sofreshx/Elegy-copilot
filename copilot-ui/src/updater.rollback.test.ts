@@ -62,6 +62,47 @@ test('global disable-updates override blocks update checks', async () => {
   assert.ok(logs.some((entry) => entry.includes('updates_disabled_globally')));
 });
 
+test('disable-updates=false preserves rollback policy instead of force-enabling updates', async () => {
+  const fakeUpdater = new FakeUpdater();
+  const logs: string[] = [];
+
+  const updater = configureUpdater({
+    appVersion: '1.2.3',
+    explicitChannel: 'stable',
+    rollbackPolicyJson: '{"updatesEnabled":false}',
+    disableUpdates: 'false',
+    updaterClient: fakeUpdater,
+    logger: (message) => logs.push(message),
+  });
+
+  await updater.checkForUpdates();
+
+  assert.strictEqual(fakeUpdater.checkForUpdatesCalls, 0);
+  assert.equal(updater.getState().reason, 'updates_disabled_globally');
+  assert.ok(logs.some((entry) => entry.includes('updates_disabled_globally')));
+});
+
+test('invalid explicit update channel blocks updater checks with machine-readable reason', async () => {
+  const fakeUpdater = new FakeUpdater();
+  const logs: string[] = [];
+
+  const updater = configureUpdater({
+    appVersion: '1.2.3',
+    explicitChannel: 'beta',
+    rollbackPolicyJson: '{"updatesEnabled":true}',
+    updaterClient: fakeUpdater,
+    logger: (message) => logs.push(message),
+  });
+
+  await updater.checkForUpdates();
+
+  assert.strictEqual(fakeUpdater.checkForUpdatesCalls, 0);
+  assert.equal(updater.channel, 'unknown');
+  assert.equal(updater.getState().channel, 'unknown');
+  assert.equal(updater.getState().reason, 'update_channel_invalid');
+  assert.ok(logs.some((entry) => entry.includes('update_channel_invalid')));
+});
+
 test('updater enforces rollback candidate ceiling when checks are enabled', () => {
   const fakeUpdater = new FakeUpdater();
   const logs: string[] = [];

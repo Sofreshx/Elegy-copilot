@@ -5,11 +5,11 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
+Execute plan by dispatching a fresh implementer subagent per task, routing test execution through a dedicated validation runner lane, keeping two-stage review after each, and handing final closure only dedicated validation evidence plus explicit coverage gaps.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+**Core principle:** Fresh implementer per task + dedicated validation runner + two-stage review (spec then quality) + validation-governed closure = high quality, fast iteration
 
 ## When to Use
 
@@ -32,6 +32,7 @@ digraph when_to_use {
 ```
 
 **vs. Executing Plans (parallel session):**
+
 - Same session (no context switch)
 - Fresh subagent per task (no context pollution)
 - Two-stage review after each task: spec compliance first, then code quality
@@ -48,39 +49,58 @@ digraph process {
         "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
-        "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
+        "Implementer subagent implements, writes tests, self-reviews, requests validation scope, commits" [shape=box];
+        "Dispatch validation runner lane (pre-review)" [shape=box];
+        "Validation runner passes before review?" [shape=diamond];
+        "Implementer subagent fixes validation failures" [shape=box];
         "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [shape=box];
         "Spec reviewer subagent confirms code matches spec?" [shape=diamond];
         "Implementer subagent fixes spec gaps" [shape=box];
+        "Dispatch validation runner lane (after spec fixes)" [shape=box];
+        "Validation runner passes after spec fixes?" [shape=diamond];
         "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [shape=box];
         "Code quality reviewer subagent approves?" [shape=diamond];
         "Implementer subagent fixes quality issues" [shape=box];
+        "Dispatch validation runner lane (after quality fixes)" [shape=box];
+        "Validation runner passes after quality fixes?" [shape=diamond];
         "Mark task complete in TodoWrite" [shape=box];
     }
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" [shape=box];
     "More tasks remain?" [shape=diamond];
     "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use superpowers-finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+    "Assemble final validation requirements, evidence, and gaps" [shape=box];
+    "Use superpowers-finishing-a-development-branch with that evidence" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract all tasks with full text, note context, create TodoWrite" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
+    "Implementer subagent asks questions?" -> "Implementer subagent implements, writes tests, self-reviews, requests validation scope, commits" [label="no"];
+    "Implementer subagent implements, writes tests, self-reviews, requests validation scope, commits" -> "Dispatch validation runner lane (pre-review)";
+    "Dispatch validation runner lane (pre-review)" -> "Validation runner passes before review?";
+    "Validation runner passes before review?" -> "Implementer subagent fixes validation failures" [label="no"];
+    "Implementer subagent fixes validation failures" -> "Dispatch validation runner lane (pre-review)" [label="re-run"];
+    "Validation runner passes before review?" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="yes"];
     "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
     "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
-    "Implementer subagent fixes spec gaps" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="re-review"];
+    "Implementer subagent fixes spec gaps" -> "Dispatch validation runner lane (after spec fixes)" [label="re-validate"];
+    "Dispatch validation runner lane (after spec fixes)" -> "Validation runner passes after spec fixes?";
+    "Validation runner passes after spec fixes?" -> "Implementer subagent fixes spec gaps" [label="no"];
+    "Validation runner passes after spec fixes?" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="yes"];
     "Spec reviewer subagent confirms code matches spec?" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="yes"];
     "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
     "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
-    "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
+    "Implementer subagent fixes quality issues" -> "Dispatch validation runner lane (after quality fixes)" [label="re-validate"];
+    "Dispatch validation runner lane (after quality fixes)" -> "Validation runner passes after quality fixes?";
+    "Validation runner passes after quality fixes?" -> "Implementer subagent fixes quality issues" [label="no"];
+    "Validation runner passes after quality fixes?" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="yes"];
     "Code quality reviewer subagent approves?" -> "Mark task complete in TodoWrite" [label="yes"];
     "Mark task complete in TodoWrite" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers-finishing-a-development-branch";
+    "Dispatch final code reviewer subagent for entire implementation" -> "Assemble final validation requirements, evidence, and gaps";
+    "Assemble final validation requirements, evidence, and gaps" -> "Use superpowers-finishing-a-development-branch with that evidence";
 }
 ```
 
@@ -95,21 +115,42 @@ Use the least powerful model that can handle each role to conserve cost and incr
 **Architecture, design, and review tasks**: use the most capable available model.
 
 **Task complexity signals:**
+
 - Touches 1-2 files with a complete spec → cheap model
 - Touches multiple files with integration concerns → standard model
 - Requires design judgment or broad codebase understanding → most capable model
+
+## Validation Boundary
+
+Keep the execution boundary explicit:
+
+- **Implementer lane:** changes code, adds or updates tests, self-reviews, and proposes the narrowest validation scope needed to verify the task.
+- **Validation runner lane:** executes the requested test commands or checks and returns raw results. This lane does **not** modify code.
+- **Controller lane:** decides what validation to request, dispatches the runner, and only advances to review once validation results are back and acceptable.
+
+**Never treat implementer-reported "tests passed" as authoritative.** The implementer can say what should be run, but the actual pass/fail signal must come from the dedicated validation runner lane.
+
+Before final closure, assemble a small validation handoff for the finisher workflow:
+
+- required validation layers (`unit`, `integration`, `e2e`, `browser`, `manual`) and why they were or were not required
+- latest dedicated validation-runner evidence for each required layer
+- any explicit coverage gaps, limitations, or lowered-confidence notes
+- confirmation that any direct test commands were executed by the validation lane itself rather than by the implementer/controller lane claiming completion
+
+Do not hand the finisher workflow a bare "all tests pass" summary. Hand it the validation package.
 
 ## Handling Implementer Status
 
 Implementer subagents report one of four statuses. Handle each appropriately:
 
-**DONE:** Proceed to spec compliance review.
+**DONE:** The implementer finished coding and supplied a validation request. Dispatch the dedicated validation runner next. Only proceed to spec compliance review after validation passes.
 
-**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
+**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to validation, then review.
 
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
 **BLOCKED:** The implementer cannot complete the task. Assess the blocker:
+
 1. If it's a context problem, provide more context and re-dispatch with the same model
 2. If the task requires more reasoning, re-dispatch with a more capable model
 3. If the task is too large, break it into smaller pieces
@@ -144,15 +185,19 @@ You: "User level (~/.config/superpowers/hooks/)"
 Implementer: "Got it. Implementing now..."
 [Later] Implementer:
   - Implemented install-hook command
-  - Added tests, 5/5 passing
+  - Added focused install-hook tests
+  - Requested validation: run install-hook test file and hook install smoke check
   - Self-review: Found I missed --force flag, added it
   - Committed
+
+[Dispatch validation runner lane]
+Validation runner: ✅ Requested test file 5/5 passing; smoke check passing
 
 [Dispatch spec compliance reviewer]
 Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
 
 [Get git SHAs, dispatch code quality reviewer]
-Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
+Code reviewer: Evidence reviewed: requested test file 5/5 passing; smoke check passing. APPROVED.
 
 [Mark Task 1 complete]
 
@@ -164,9 +209,19 @@ Task 2: Recovery modes
 Implementer: [No questions, proceeds]
 Implementer:
   - Added verify/repair modes
-  - 8/8 tests passing
+  - Added coverage for verify/repair flows
+  - Requested validation: run recovery-mode tests only
   - Self-review: All good
   - Committed
+
+[Dispatch validation runner lane]
+Validation runner: ❌ Recovery-mode test run failed: missing progress reporting assertion
+
+[Implementer fixes validation issue]
+Implementer: Added progress reporting output and updated targeted tests
+
+[Dispatch validation runner lane again]
+Validation runner: ✅ Recovery-mode tests passing
 
 [Dispatch spec compliance reviewer]
 Spec reviewer: ❌ Issues:
@@ -174,19 +229,25 @@ Spec reviewer: ❌ Issues:
   - Extra: Added --json flag (not requested)
 
 [Implementer fixes issues]
-Implementer: Removed --json flag, added progress reporting
+Implementer: Removed --json flag, kept progress reporting, requested same recovery-mode validation
+
+[Dispatch validation runner lane again]
+Validation runner: ✅ Recovery-mode tests passing
 
 [Spec reviewer reviews again]
 Spec reviewer: ✅ Spec compliant now
 
 [Dispatch code quality reviewer]
-Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
+Code reviewer: Evidence reviewed: recovery-mode tests passing. Important: Magic number (100). NEEDS_REVISION
 
 [Implementer fixes]
 Implementer: Extracted PROGRESS_INTERVAL constant
 
+[Dispatch validation runner lane again]
+Validation runner: ✅ Recovery-mode tests passing
+
 [Code reviewer reviews again]
-Code reviewer: ✅ Approved
+Code reviewer: Evidence reviewed: recovery-mode tests passing. APPROVED
 
 [Mark Task 2 complete]
 
@@ -194,7 +255,12 @@ Code reviewer: ✅ Approved
 
 [After all tasks]
 [Dispatch final code-reviewer]
-Final reviewer: All requirements met, ready to merge
+Final reviewer: All requirements met. Evidence reviewed: unit runner passing; integration not required for this slice.
+
+[Assemble final validation package]
+- Validation requirements: unit required, integration not required, e2e not required
+- Tested coverage: unit runner 12/12 passing
+- Coverage gaps: none
 
 Done!
 ```
@@ -202,31 +268,38 @@ Done!
 ## Advantages
 
 **vs. Manual execution:**
-- Subagents follow TDD naturally
+
+- Subagents can still follow TDD while routing execution through a dedicated validation lane
 - Fresh context per task (no confusion)
 - Parallel-safe (subagents don't interfere)
 - Subagent can ask questions (before AND during work)
 
 **vs. Executing Plans:**
+
 - Same session (no handoff)
 - Continuous progress (no waiting)
 - Review checkpoints automatic
 
 **Efficiency gains:**
+
 - No file reading overhead (controller provides full text)
 - Controller curates exactly what context is needed
 - Subagent gets complete information upfront
 - Questions surfaced before work begins (not after)
 
 **Quality gates:**
+
 - Self-review catches issues before handoff
+- Validation results come from a dedicated runner lane, not the implementer
 - Two-stage review: spec compliance, then code quality
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
+- Final closure consumes validation requirements/evidence, not a raw green test claim
 
 **Cost:**
-- More subagent invocations (implementer + 2 reviewers per task)
+
+- More subagent invocations (implementer + validation runner + 2 reviewers per task)
 - Controller does more prep work (extracting all tasks upfront)
 - Review loops add iterations
 - But catches issues early (cheaper than debugging later)
@@ -234,6 +307,7 @@ Done!
 ## Red Flags
 
 **Never:**
+
 - Start implementation on main/master branch without explicit user consent
 - Skip reviews (spec compliance OR code quality)
 - Proceed with unfixed issues
@@ -244,34 +318,43 @@ Done!
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
+- Let implementer self-run or self-certify validation that should come from a runner lane
 - **Start code quality review before spec compliance is ✅** (wrong order)
 - Move to next task while either review has open issues
+- Hand off to finishing with only "tests pass" and no validation requirements/evidence package
 
 **If subagent asks questions:**
+
 - Answer clearly and completely
 - Provide additional context if needed
 - Don't rush them into implementation
 
 **If reviewer finds issues:**
+
 - Implementer (same subagent) fixes them
+- Re-run the narrowest relevant validation through the validation runner lane
 - Reviewer reviews again
 - Repeat until approved
 - Don't skip the re-review
 
 **If subagent fails task:**
+
 - Dispatch fix subagent with specific instructions
 - Don't try to fix manually (context pollution)
 
 ## Integration
 
 **Required workflow skills:**
+
 - **superpowers-using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
 - **superpowers-writing-plans** - Creates the plan this skill executes
 - **superpowers-requesting-code-review** - Code review template for reviewer subagents
 - **superpowers-finishing-a-development-branch** - Complete development after all tasks
 
 **Subagents should use:**
+
 - **superpowers-test-driven-development** - Subagents follow TDD for each task
 
 **Alternative workflow:**
+
 - **superpowers-executing-plans** - Use for parallel session instead of same-session execution

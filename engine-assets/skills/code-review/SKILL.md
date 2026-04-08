@@ -1,70 +1,74 @@
 ---
 name: code-review
-description: "Code review for quality, patterns, and bugs. Reviews PRs, identifies issues, and suggests improvements. Triggers on: review, PR review, code review, code quality, peer review."
+description: "Compatibility broad-review entrypoint. Prefer `code-reviewer` for default review, `impl-reviewer` for spec fit, and `working-reviewer` for validation sufficiency. If used, follow the canonical reviewer/testing/validation contracts."
 ---
 
-# Code Review Skill
+# Code Review Skill (Compatibility Entry Point)
 
-## When to Use (LLM Routing Guide)
+This skill exists to preserve older generic "review this" entrypoints. It is not a separate or looser review standard.
+
+## Canonical Routing
+- Broad diff or changeset review -> `code-reviewer`
+- Implementation vs request/plan/spec fit -> `impl-reviewer`
+- Validation sufficiency / "does this actually work?" -> `working-reviewer`
+
+Prefer those canonical lanes for new routing. If this skill is loaded anyway, apply the same contract as `engine-assets/agents/code-reviewer.agent.md`.
+
+## When to Use
 - User says "review this code", "check this PR", "any issues here?"
 - Requests for code quality assessment
 - Pre-merge reviews
-- "Is this implementation correct?" questions
+- Compatibility flows that still land on the generic review skill
 
 ## When NOT to Use
-- Implementing fixes ? use appropriate domain agent after review
-- Performance optimization ? `performance-auditer.agent.md`
-- Security-specific review ? `security.agent.md`
-- Debugging runtime errors ? `debug.agent.md`
+- Implementing fixes -> use the appropriate implementation lane after review
+- Performance-focused review -> use the performance review lane when available
+- Security-specific review -> use the security review lane when available
+- Debugging runtime errors -> use the debugging lane
+- Spec-fit review -> `impl-reviewer`
+- Validation-confidence review -> `working-reviewer`
+
+## Authority Order
+1. `docs/system/reviewer-lane-governance.md`
+2. `docs/system/testing-quality-governance.md` when tests or validation evidence changed
+3. `docs/system/validation-governance.md` when validation sufficiency or missing coverage matters
+4. Other maintained repo guidance
+5. Code-local examples as supporting evidence only
 
 ## Inputs
-- Code to review (file, diff, or PR).
-- Relevant repo docs and conventions from `README.md`, `docs/`, or area-specific documentation.
-- Existing issue notes, session context, or explicitly provided background for the reviewed area.
+- Code to review (file, diff, or PR)
+- Relevant repo docs and conventions
+- Existing issue notes, session context, or explicitly provided background
+
+## Review Contract
+- Keep the review high-signal: defects, regressions, security risks, and convention issues that are strongly supported by the code and repo guidance.
+- Treat test edits as findings only when they materially reduce confidence in the changed behavior, such as green-by-weakening, lost hard-case or failure-path coverage, relaxed assertions without replacement coverage, or shallower coverage that mainly makes failures disappear.
+- Treat passing tests as evidence, not the goal.
+- If mandatory validation is missing or the current evidence is insufficient under `docs/system/validation-governance.md`, call that out explicitly rather than implying confidence.
+- If the request is mainly about implementation-vs-spec fit or validation sufficiency, say so explicitly and recommend the sharper reviewer lane.
+- Rate each issue 0-100 confidence and only report issues with confidence >= 80.
 
 ## Steps
 1. Read repo docs, nearby code, and established conventions to understand expected behavior.
-2. Check existing issue notes or session context for known issues in the area being reviewed.
-3. Analyze code for:
-   - **Correctness**: Logic errors, edge cases, null handling
-   - **Patterns**: Alignment with project conventions
-   - **Readability**: Naming, structure, comments
-   - **Testability**: Is it testable? Are tests included?
-   - **Performance**: Obvious inefficiencies (defer deep analysis to performance.agent)
-   - **Security**: Obvious vulnerabilities (defer deep analysis to security.agent)
-4. Categorize findings by severity: **Critical** | **Warning** | **Suggestion** | **Nitpick**
-5. If issues found, suggest specific fixes or capture follow-up work in chat, host/session artifacts, or a user-requested tracking surface.
+2. Determine whether the request should stay in the broad `code-reviewer` lane or be narrowed to `impl-reviewer` / `working-reviewer`.
+3. Analyze the relevant changes for correctness, regressions, security, and authoritative convention fit.
+4. When tests or validation evidence changed, check whether confidence was preserved under the testing-quality and validation-governance contracts.
+5. Report only high-confidence findings that matter; skip low-signal style commentary and speculative concerns.
 
-## Review Output Format
-```markdown
-## Code Review: [file/PR name]
-
-### Critical
-- [issue]: [location] - [explanation] - [suggested fix]
-
-### Warnings
-- [issue]: [location] - [explanation]
-
-### Suggestions
-- [improvement]: [location] - [why]
-
-### Nitpicks
-- [minor]: [location]
-
-### What's Good
-- [positive observations]
-```
+## Output Contract
+- State clearly what was reviewed.
+- Group findings by **Critical** and **Important**.
+- For each finding, include: **Observed Defect** or **Inferred Risk**, confidence score, file:line reference, canonical reference when relevant, and a concrete fix suggestion.
+- If no high-confidence issues exist, provide a brief approval summary.
+- Conclude with exactly one status: `APPROVED`, `NEEDS_REVISION`, or `FAILED`.
 
 ## Output
-- Review summary with categorized findings.
-- Optional: follow-up notes in chat, host/session artifacts, or a user-requested tracking surface.
+- Review summary that follows the canonical `code-reviewer` contract.
+- Optional follow-up notes in chat, host/session artifacts, or a user-requested tracking surface.
 
 ## Session Summary Format
 - **Done**: [review completed]
 - **Changes**: [none-review only]
 - **New follow-ups**: [issues needing fixes]
-- **Risks/notes**: [if systemic issue found]
-- **Next**: [address critical issues or approve]
-
-
-
+- **Risks/notes**: [reviewer-lane, testing-quality, or validation-governance note if relevant]
+- **Next**: [reroute to canonical lane, fix issues, or approve]

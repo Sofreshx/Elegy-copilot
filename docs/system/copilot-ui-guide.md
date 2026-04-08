@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-03-24
+updated: 2026-04-07
 category: system
 status: current
 doc_kind: node
@@ -27,11 +27,14 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
 
 1. **Desktop shell mode**
    - This is the default end-user runtime.
-  - Start local desktop development with `npm --prefix copilot-ui run electron:dev`. For the packaged Windows preview, run `npm --prefix copilot-ui run package:preview` and launch `copilot-ui/release/win-unpacked/Elegy Copilot.exe`.
-   - It packages the same UI and backend behavior inside Electron and boots the backend locally on `127.0.0.1`.
-   - It uses `~/.copilot` for runtime state, starts the messaging gateway dependency automatically, and default-enables `COPILOT_SDK_BRIDGE=1` unless explicitly disabled.
-   - In packaged mode it starts an embedded planning database under `~/.copilot/planning-db`, sets planning persistence env vars for the local runtime, and keeps planning durability available by default without a separate database install.
-   - Desktop update and rollback behavior are governed by [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md).
+   - Start local desktop development with `npm --prefix copilot-ui run electron:dev`. For the packaged Windows preview, run `npm --prefix copilot-ui run package:preview` and launch `copilot-ui/release/win-unpacked/Elegy Copilot.exe`.
+- It packages the same UI and backend behavior inside Electron and boots the backend locally on `127.0.0.1`.
+- It uses `~/.copilot` for runtime state, starts the messaging gateway dependency automatically, keeps any desktop-only platformless bootstrap config env-scoped instead of persisting a non-canonical `~/.copilot/messaging-gateway.config.json`, and default-enables `COPILOT_SDK_BRIDGE=1` unless explicitly disabled.
+- The packaged app is also the intended manager for the paired Copilot SDK + Copilot CLI lane: stable app builds track stable SDK/CLI bits, prerelease app builds track prerelease SDK/CLI bits, and app-managed CLI ensure/install/update behavior is part of the desktop delivery contract.
+- The current bounded CLI-management slice only approves a bundled payload or a seeded managed install under `~/.copilot/managed-cli/<channel>/`. If neither exists, desktop SDK features stay blocked and the UI surfaces the reason.
+- If the managed CLI bootstrap path itself fails, or if `INSTRUCTION_ENGINE_UPDATE_CHANNEL` is set to an invalid explicit value, desktop SDK features remain blocked with a machine-readable reason while the rest of the desktop shell continues booting.
+- In packaged mode it starts an embedded planning database under `~/.copilot/planning-db`, sets planning persistence env vars for the local runtime, and keeps planning durability available by default without a separate database install.
+- Desktop update and rollback behavior are governed by [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md).
 2. **Local server mode**
   - Start with `node copilot-ui/server.js` or the helper scripts in `scripts/cli-ui.*`.
   - This is the developer fallback for backend work, scripted local inspection, and frontend iteration against a manually started backend.
@@ -51,8 +54,10 @@ separately. During frontend work, the Vite dev server proxies `/api` to
 
 - catalog projection refresh, search, repo selection, audit, and mutation flows
 - session browsing and session-artifact inspection
+- visible task-board projection/control over durable repo-state tasks under `~/.copilot/repo-state/<repoId>/tasks/`, plus the local workflow controls that act on those tasks
 - repo-backed planning surfaces for plans, bullets, Repository Backlog, and Roadmaps, plus compatibility APIs for typed intake, external Obsidian note sync, deterministic mirrors, and planning-record artifacts
 - gateway readiness projection plus tracker operational/proxy surfaces
+- app-managed Copilot CLI ensure/install/update behavior for the packaged local desktop runtime
 - desktop lifecycle, updater wiring, and local runtime health reporting
 
 Catalog semantics and authoritative write paths are defined in [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md).
@@ -67,6 +72,38 @@ on Plans, Bullets, Backlog, and Roadmaps; typed intake, external Obsidian notes,
 planning-record artifacts remain compatibility surfaces and should stay out of the main Planning-tab
 path unless a compatibility workflow explicitly needs them through the Planning compatibility/operator
 area.
+
+## Clarified MVP scope lock
+
+The current MVP explicitly includes:
+
+- a visible task board
+- an auto-triggered local workflow layer
+- app-level parallel sessions
+- in-session sub-agent/sub-actor decomposition
+- same-repo worktree isolation
+- local-only orchestration
+- stable/prerelease app-channel pairing with stable/prerelease SDK + CLI lanes
+- app-managed Copilot CLI ensure/install/update behavior for the packaged app
+
+Scope distinctions that must stay explicit:
+
+- **App-level parallel sessions** are separate runtime sessions the app can list, create, resume, and observe concurrently.
+- **In-session sub-agents/sub-actors** are decomposition semantics within one active session and do not create a separate top-level runtime destination.
+- **Same-repo worktree isolation** is an execution-isolation mechanism for parallel work against one repo; it does not create a new authority lane for sessions or tasks.
+
+The visible task board is a projection/control surface over the durable repo-state task store at
+`~/.copilot/repo-state/<repoId>/tasks/`. Only bounded ephemeral UI state such as current selection,
+filters, or transient drag state may live outside canonical task storage.
+
+Orchestration remains local-only for MVP. The current workflow-layer slice stays additive and
+authority-safe: executor/session trigger context may still be captured locally for diagnostics, but
+the desktop-managed loopback workflow sidecar now remains default-disabled until canonical lifecycle
+binding plus authoritative identifiers (`runId`, `workflowId`, and `sessionId` where applicable)
+are in place. Packaged desktop builds still ship the bounded workflow-layer runtime assets needed for
+parity validation, but the sidecar must fail closed by default instead of presenting an active
+readiness or control surface. The favored long-term runtime behind that contract is still packaged
+n8n inside the local desktop runtime.
 
 ## Backend route groups
 
@@ -98,6 +135,19 @@ Treat those groups as the primary backend surface. The most important user-visib
 - gateway and tracker proxy/status endpoints
 - SDK-facing routes used by smoke and sandbox validation
 - executor routes for scheduled SDK-backed prompts, run history, and retry-aware runtime control
+- executor workflow-layer routes for local status, recent trigger capture, and kill-switch control;
+  these remain diagnostic/default-disabled until canonical sidecar lifecycle binding lands
+
+### Structured session orchestration projection
+
+`GET /api/sessions/:id/structured-state` remains a session-artifact-driven structured summary surface, but it may include an additive orchestration projection for active or resumable work. That projection must stay authority-safe:
+
+- runtime/session services remain the live authority for active session and actor overlays
+- durable task identity and ownership continue to live only under `~/.copilot/repo-state/<repoId>/tasks/`
+- executor/workflow runs remain a separate local runtime surface and are referenced from sessions/tasks rather than replacing them
+- worktree metadata remains repo-state metadata, not a second session authority lane
+- artifact-derived fields remain projections/fallbacks when runtime overlays are absent
+- workflow-layer trigger summaries remain additive local automation context and must not become task/session authority
 
 `copilot-ui/tests/smoke.test.js` and `copilot-ui/tests/api-contract.test.js` are the best broad regression anchors for confirming that the public route surface still exists and responds with the expected contract shape. Route-specific additive behavior is covered by `copilot-ui/routes/catalog.test.js`, `copilot-ui/routes/planning-artifacts.test.js`, and related UI tests.
 
@@ -393,10 +443,10 @@ Source of truth:
 
 The current shell maps to these primary surfaces:
 
-- `Home / Runtime` — default operational landing hub for overview, sessions, executor-managed runtime work, and diagnostics.
+- `Home / Runtime` — default operational landing hub for overview, parallel session inventory/resume, executor-managed runtime work, and diagnostics.
 - `Catalog` — asset workspace, installs, skill/agent discovery, and aggregate search/selection/invocation observability.
-- `Planning` — repo-contextual planning surfaces, the primary External Obsidian Notes panel, plan seeding,
-  and legacy planning-record compatibility flows.
+- `Planning` — repo-contextual planning surfaces, the visible repo-state task board, the explicit External Obsidian Notes compatibility/operator area,
+  plan seeding, and legacy planning-record compatibility flows.
 - `Stats` — runtime health, deduped merged session coverage, catalog telemetry rollups, and recent sampled agent/skill usage.
 
 Primary implementation:
@@ -429,6 +479,10 @@ The same `Home / Runtime -> Sessions` surface now also includes a compact overla
 powered by the existing `uiRuntimeOverlayStore` and `/api/ui-runtime-overlay/sessions` family. That
 workspace is intentionally summary-first: it shows overlay session status, runtime origin, repo label,
 and evidence counts, then routes deep editing and queue work to `Executor` with one click.
+
+Planning's visible task board remains within the frozen 4-hub shell. It is not a fifth top-level
+runtime destination: it projects durable repo-state tasks and workflow controls while the active
+runtime remains the live authority for executing sessions.
 
 `Home / Runtime -> Overview` now includes a small `Resume overlay workflow` quick action. It reuses
 the selected or latest overlay session state and routes directly into `Executor` when a session exists,
@@ -497,6 +551,20 @@ planning database.
 
 Catalog projections, repo inventory, audit, and search telemetry remain file-backed under the
 Instruction Engine local state roots described in [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md).
+
+### Repo-state tasks and live runtime authority
+
+Durable repo task state lives under:
+
+```text
+~/.copilot/repo-state/<repoId>/tasks/
+~/.copilot/repo-state/<repoId>/tasks.archive/
+```
+
+The task board is a projection/control surface over that store, not a competing task database.
+Runtime remains the live authority for active session execution; session artifacts and task-board
+projections provide persistence, operator visibility, and offline fallback when runtime state is
+absent.
 
 ## Validation anchors
 

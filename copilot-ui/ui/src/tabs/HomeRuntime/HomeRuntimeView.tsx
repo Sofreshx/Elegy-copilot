@@ -511,6 +511,9 @@ export default function HomeRuntimeView() {
     () => pickOverlayResumeSession(uiRuntimeOverlayState.sessions, uiRuntimeOverlayState.selectedSessionId),
     [uiRuntimeOverlayState.selectedSessionId, uiRuntimeOverlayState.sessions],
   );
+  const selectedSessionOrchestration = localSessionState.selectedSessionId
+    ? (localSessionState.sessionOrchestrationById[localSessionState.selectedSessionId] ?? null)
+    : null;
 
   const runtimeCard = useMemo(() => {
     const runtime = asRecord(overviewState.health?.runtime);
@@ -706,6 +709,25 @@ export default function HomeRuntimeView() {
     };
   }, [localSessionState.sessions, sandboxState.sandboxes]);
 
+  const orchestratedFlowCard = useMemo(() => {
+    const repo = asRecord(selectedSessionOrchestration?.repo);
+    const isolation = asRecord(selectedSessionOrchestration?.isolation);
+    const actors = asRecord(selectedSessionOrchestration?.actors);
+    const actorItems = Array.isArray(actors.items) ? actors.items : [];
+
+    return {
+      title: 'Orchestrated Flow',
+      status: selectedSessionOrchestration ? 'active' : 'idle',
+      copy: 'Highlights repo, worktree, and actor context for the selected app-level session before you jump into Sessions or Executor.',
+      detail: joinDetails([
+        readString(repo, 'repoLabel') || readString(repo, 'repoId') ? `repo: ${readString(repo, 'repoLabel') || readString(repo, 'repoId')}` : '',
+        readString(isolation, 'mode') ? `isolation: ${readString(isolation, 'mode')}` : '',
+        readString(isolation, 'worktreeId') ? `worktree: ${readString(isolation, 'worktreeId')}` : '',
+        actorItems.length > 0 ? `${actorItems.length} actor(s)` : '',
+      ]) || 'Open Runtime / Sessions to launch or resume orchestrated work with repo-aware context.',
+    };
+  }, [selectedSessionOrchestration]);
+
   const cards = [
     runtimeCard,
     gatewayCard,
@@ -716,6 +738,7 @@ export default function HomeRuntimeView() {
     sessionsCard,
     sandboxesCard,
     recentActivityCard,
+    orchestratedFlowCard,
   ];
 
   const sectionCopy: Record<RuntimeSectionId, { title: string; body: string }> = {
@@ -896,7 +919,7 @@ export default function HomeRuntimeView() {
                 <div className="state-card-header">
                   <p className="state-card-title">Jump to active sessions</p>
                 </div>
-                <p className="state-card-copy">Open the session workspace with the local runtime focus restored.</p>
+                <p className="state-card-copy">Open the session workspace with local repo, worktree isolation, and in-session actor context restored.</p>
                 <Button
                   onClick={() => navigationStore.goToRuntime('sessions', { sessionsMode: 'local' })}
                   testId="runtime-overview-sessions-action"
@@ -910,7 +933,7 @@ export default function HomeRuntimeView() {
                 <div className="state-card-header">
                   <p className="state-card-title">Create or resume SDK session</p>
                 </div>
-                <p className="state-card-copy">Open the runtime workspace already pointed at SDK-backed sessions.</p>
+                <p className="state-card-copy">Open the runtime workspace already pointed at SDK-backed sessions with repo/task/worktree launch context.</p>
                 <Button
                   onClick={() => navigationStore.goToRuntime('sessions', { sessionsMode: 'sdk' })}
                   testId="runtime-overview-sdk-action"
@@ -924,7 +947,7 @@ export default function HomeRuntimeView() {
                 <div className="state-card-header">
                   <p className="state-card-title">Open Executor</p>
                 </div>
-                <p className="state-card-copy">Schedule prompts, monitor active runs, and reopen linked SDK sessions.</p>
+                <p className="state-card-copy">Schedule prompts, monitor workflow runs, inspect the visible task board, and reopen linked SDK sessions.</p>
                 <Button
                   onClick={() => navigationStore.goToRuntime('executor')}
                   testId="runtime-overview-executor-action"

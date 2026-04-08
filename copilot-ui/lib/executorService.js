@@ -1,8 +1,17 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const EventEmitter = require('node:events');
 const fs = require('node:fs');
 const path = require('node:path');
+const {
+  normalizeSessionOrchestrationMetadata,
+} = require('./runtimeContracts');
+const {
+  createWorktreeService,
+  normalizeWorktreeRecord,
+  WORKTREE_MODES,
+} = require('./worktreeService');
 
 const DEFAULT_RETRY_POLICY = Object.freeze({
   enabled: true,
@@ -103,6 +112,46 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function normalizeExecutorOrchestration(input, defaults = {}) {
+  return normalizeSessionOrchestrationMetadata(input, defaults);
+}
+
+function hasExplicitWorktreeConfig(value) {
+  if (!isObject(value)) {
+    return false;
+  }
+
+  return Boolean(
+    asTrimmedString(value.mode)
+    || asTrimmedString(value.worktreeId)
+    || asTrimmedString(value.id)
+    || asTrimmedString(value.path)
+    || asTrimmedString(value.worktreePath)
+  );
+}
+
+function normalizeExecutorWorktree(value, defaults = {}) {
+  if (!isObject(value) || (!hasExplicitWorktreeConfig(value) && !hasExplicitWorktreeConfig(defaults))) {
+    return null;
+  }
+
+  const normalized = normalizeWorktreeRecord(path, value, defaults);
+  if (!normalized.worktreeId && !normalized.mode && !normalized.path) {
+    return null;
+  }
+  return normalized;
+}
+
+function setWorkflowStatus(record, status) {
+  if (!record || !record.orchestration || typeof record.orchestration !== 'object') {
+    return;
+  }
+  if (!record.orchestration.workflow || typeof record.orchestration.workflow !== 'object') {
+    record.orchestration.workflow = {};
+  }
+  record.orchestration.workflow.status = asTrimmedString(status) || null;
+}
+
 function normalizeJobRecord(value) {
   if (!isObject(value)) return null;
 
@@ -121,6 +170,12 @@ function normalizeJobRecord(value) {
     title: asTrimmedString(value.title) || id,
     prompt,
     repoId: asTrimmedString(value.repoId) || null,
+    repoPath: asTrimmedString(value.repoPath) || null,
+    orchestration: normalizeExecutorOrchestration(value.orchestration, {
+      repoId: asTrimmedString(value.repoId) || null,
+      repoPath: asTrimmedString(value.repoPath) || null,
+    }),
+    worktree: normalizeExecutorWorktree(value.worktree),
     targetType,
     existingSessionId: targetType === 'existing-session' ? (asTrimmedString(value.existingSessionId) || null) : null,
     model: asTrimmedString(value.model) || null,
@@ -162,6 +217,14 @@ function normalizeRunRecord(value) {
     id,
     jobId,
     repoId: asTrimmedString(value.repoId) || null,
+    repoPath: asTrimmedString(value.repoPath) || null,
+    orchestration: normalizeExecutorOrchestration(value.orchestration, {
+      repoId: asTrimmedString(value.repoId) || null,
+      repoPath: asTrimmedString(value.repoPath) || null,
+      runId: id,
+      jobId,
+    }),
+    worktree: normalizeExecutorWorktree(value.worktree),
     status: asTrimmedString(value.status) || 'queued',
     attemptCount: asNonNegativeNumber(value.attemptCount, 0),
     maxAttempts: asPositiveInteger(value.maxAttempts, DEFAULT_RETRY_POLICY.maxAttempts),
@@ -224,8 +287,9 @@ function classifyError(error) {
   };
 }
 
-class ExecutorService {
+class ExecutorService extends EventEmitter {
   constructor(config = {}, deps = {}) {
+    super();
     this._config = isObject(config) ? config : {};
     this._fs = deps.fs || fs;
     this._path = deps.path || path;
@@ -233,6 +297,15 @@ class ExecutorService {
     this._now = typeof deps.now === 'function' ? deps.now : () => Date.now();
     this._setTimeout = typeof deps.setTimeout === 'function' ? deps.setTimeout : setTimeout;
     this._clearTimeout = typeof deps.clearTimeout === 'function' ? deps.clearTimeout : clearTimeout;
+    this._worktreeService = deps.worktreeService || createWorktreeService(
+      { copilotHome: this._config.copilotHome || '.' },
+      {
+        fs: this._fs,
+        path: this._path,
+        now: this._now,
+        repoInventory: deps.repoInventory || this._config.repoInventory,
+      }
+    );
     this._jobs = new Map();
     this._runs = new Map();
     this._timers = new Map();
@@ -277,6 +350,9 @@ class ExecutorService {
   getHealth() {
     const runs = Array.from(this._runs.values());
     const jobs = Array.from(this._jobs.values());
+    const worktrees = this._worktreeService ? this._worktreeService.listWorktrees({
+      copilotHome: this._config.copilotHome || '.',
+    }) : [];
     return {
       enabled: Boolean(this._sdkBridge),
       state: this._sdkBridge ? 'ready' : 'disabled',
@@ -285,9 +361,36 @@ class ExecutorService {
       activeRunCount: runs.filter((run) => ['starting', 'running', 'retrying'].includes(run.status)).length,
       scheduledJobCount: jobs.filter((job) => job.scheduleAt && ['scheduled', 'retrying'].includes(job.status)).length,
       openedSessionCount: runs.filter((run) => run.sessionId).length,
+      worktreeCount: worktrees.length,
+      activeWorktreeCount: worktrees.filter((entry) => entry.status === 'active').length,
+      pendingWorktreeCount: worktrees.filter((entry) => entry.launch && entry.launch.blocked).length,
+      workflowLayerSubscriberCount: typeof this.listenerCount === 'function'
+        ? this.listenerCount('workflow-layer:event')
+        : 0,
       lastError: this._lastError,
       statePath: this._statePath,
     };
+  }
+
+  listWorktrees(options = {}) {
+    if (!this._worktreeService) {
+      return [];
+    }
+    return this._worktreeService.listWorktrees({
+      copilotHome: this._config.copilotHome || '.',
+      repoId: options.repoId || null,
+    });
+  }
+
+  resolveWorktree(input = {}) {
+    if (!this._worktreeService) {
+      throw Object.assign(new Error('Worktree service is unavailable.'), { statusCode: 503 });
+    }
+    return this._worktreeService.resolveLaunchPlan({
+      copilotHome: this._config.copilotHome || '.',
+      ...input,
+      activeSessions: Array.isArray(input.activeSessions) ? input.activeSessions : this._collectActiveRepoSessions(input.repoId),
+    });
   }
 
   listJobs() {
@@ -338,11 +441,30 @@ class ExecutorService {
     const scheduleAt = asNullableIsoString(input.scheduleAt);
     const id = crypto.randomUUID();
     const timestamp = nowIso(this._now);
+    const orchestration = normalizeExecutorOrchestration(input.orchestration, {
+      repoId: asTrimmedString(input.repoId) || null,
+      repoPath: asTrimmedString(input.repoPath)
+        || asTrimmedString(input.orchestration && input.orchestration.repo && input.orchestration.repo.repoPath)
+        || null,
+      jobId: id,
+    });
+    const worktreePlan = targetType === 'create-session' && sandboxConfig.contextType !== 'sandbox'
+      ? this._resolveJobWorktreePlan({
+        id,
+        repoId: asTrimmedString(input.repoId) || orchestration.repo.repoId,
+        repoPath: asTrimmedString(input.repoPath) || orchestration.repo.repoPath,
+        orchestration,
+        worktree: input.worktree,
+      })
+      : null;
     const job = {
       id,
       title: asTrimmedString(input.title) || `executor-${id.slice(0, 8)}`,
       prompt,
       repoId: asTrimmedString(input.repoId) || null,
+      repoPath: asTrimmedString(input.repoPath) || null,
+      orchestration,
+      worktree: worktreePlan && worktreePlan.worktree ? clone(worktreePlan.worktree) : normalizeExecutorWorktree(input.worktree),
       targetType,
       existingSessionId: existingSessionId || null,
       model: asTrimmedString(input.model) || null,
@@ -356,9 +478,39 @@ class ExecutorService {
       activeRunId: null,
       status: scheduleAt ? 'scheduled' : 'idle',
     };
+    job.orchestration.workflow.workflowId = asTrimmedString(job.orchestration.workflow.workflowId) || job.id;
+    job.orchestration.workflow.jobId = asTrimmedString(job.orchestration.workflow.jobId) || job.id;
+    job.orchestration.workflow.sessionId = targetType === 'existing-session'
+      ? (existingSessionId || null)
+      : (asTrimmedString(job.orchestration.workflow.sessionId) || null);
+    if (worktreePlan && worktreePlan.repo) {
+      job.repoId = job.repoId || worktreePlan.repo.repoId || null;
+      job.repoPath = job.repoPath || worktreePlan.repo.repoPath || null;
+      job.orchestration.repo = {
+        ...job.orchestration.repo,
+        repoId: job.orchestration.repo.repoId || worktreePlan.repo.repoId || null,
+        repoPath: job.orchestration.repo.repoPath || worktreePlan.repo.repoPath || null,
+        repoLabel: job.orchestration.repo.repoLabel || worktreePlan.repo.repoLabel || null,
+      };
+    }
+    if (job.worktree) {
+      job.orchestration.isolation = {
+        ...job.orchestration.isolation,
+        mode: job.worktree.mode || job.orchestration.isolation.mode,
+        worktreeId: job.worktree.worktreeId || job.orchestration.isolation.worktreeId,
+        worktreePath: job.worktree.path || job.orchestration.isolation.worktreePath,
+        worktreeStatus: job.worktree.status || job.orchestration.isolation.worktreeStatus || null,
+        launchBlocked: job.worktree.launch ? job.worktree.launch.blocked === true : Boolean(job.orchestration.isolation.launchBlocked),
+        launchBlockedReason: (job.worktree.launch && job.worktree.launch.reason) || job.orchestration.isolation.launchBlockedReason || null,
+      };
+    }
+    setWorkflowStatus(job, scheduleAt ? 'scheduled' : 'idle');
 
     this._jobs.set(job.id, job);
     this._persistState();
+    this._emitWorkflowLayerEvent('executor.job.created', null, job, {
+      source: 'create',
+    });
 
     let run = null;
     if (scheduleAt) {
@@ -395,12 +547,23 @@ class ExecutorService {
     job.scheduleAt = null;
     job.updatedAt = nowIso(this._now);
     job.status = 'starting';
+    setWorkflowStatus(job, 'starting');
 
     const timestamp = nowIso(this._now);
+    const existingSessionId = job.targetType === 'existing-session'
+      ? (sanitizeSessionId(job.existingSessionId) || null)
+      : null;
     const run = {
       id: crypto.randomUUID(),
       jobId: job.id,
       repoId: job.repoId,
+      repoPath: job.repoPath,
+      orchestration: normalizeExecutorOrchestration(job.orchestration, {
+        repoId: job.repoId,
+        repoPath: job.repoPath,
+        jobId: job.id,
+      }),
+      worktree: normalizeExecutorWorktree(job.worktree),
       status: 'queued',
       attemptCount: 0,
       maxAttempts: job.retryPolicy.maxAttempts,
@@ -409,19 +572,31 @@ class ExecutorService {
       startedAt: null,
       finishedAt: null,
       nextRetryAt: null,
-      sessionId: null,
+      sessionId: existingSessionId,
       messageId: null,
       error: null,
       summary: null,
       createdSession: false,
       events: [],
     };
+    job.orchestration.workflow.workflowId = asTrimmedString(job.orchestration.workflow.workflowId) || job.id;
+    job.orchestration.workflow.sessionId = existingSessionId || null;
+    run.orchestration.workflow.workflowId = asTrimmedString(run.orchestration.workflow.workflowId)
+      || asTrimmedString(job.orchestration.workflow.workflowId)
+      || job.id;
+    run.orchestration.workflow.runId = run.id;
+    run.orchestration.workflow.jobId = job.id;
+    run.orchestration.workflow.sessionId = existingSessionId || null;
+    setWorkflowStatus(run, 'queued');
 
     job.lastRunId = run.id;
     job.activeRunId = run.id;
     this._runs.set(run.id, run);
     this._trimRuns();
     this._appendRunEvent(run, 'run.queued', 'Run queued for execution.', { source: asTrimmedString(options.source) || 'manual' }, 'info');
+    this._emitWorkflowLayerEvent('executor.run.queued', run, job, {
+      source: asTrimmedString(options.source) || 'manual',
+    });
     this._persistState();
 
     await this._startAttempt(run.id, { source: asTrimmedString(options.source) || 'manual' });
@@ -483,12 +658,21 @@ class ExecutorService {
   }
 
   _finalizeRunCancellation(run, message) {
+    const job = this._jobs.get(run.jobId);
+    this._markRunWorktreeInterrupted(run, message);
+    if (job) {
+      job.worktree = clone(run.worktree);
+    }
     run.status = 'cancelled';
+    setWorkflowStatus(run, 'cancelled');
     run.finishedAt = nowIso(this._now);
     run.updatedAt = run.finishedAt;
     run.nextRetryAt = null;
     run.error = message;
     this._appendRunEvent(run, 'run.cancelled', message, null, 'warn');
+    this._emitWorkflowLayerEvent('executor.run.cancelled', run, job, {
+      message,
+    });
     this._releaseJobFromRun(run, 'idle');
     this._persistState();
     return this._serializeRun(run);
@@ -496,18 +680,22 @@ class ExecutorService {
 
   _restoreTimers() {
     for (const job of this._jobs.values()) {
-      if (job.scheduleAt && Date.parse(job.scheduleAt) > Date.now()) {
+    if (job.scheduleAt && Date.parse(job.scheduleAt) > Date.now()) {
         job.status = 'scheduled';
+        setWorkflowStatus(job, 'scheduled');
         this._scheduleJob(job.id, Date.parse(job.scheduleAt));
       } else if (job.scheduleAt && Date.parse(job.scheduleAt) <= Date.now()) {
         job.status = 'scheduled';
+        setWorkflowStatus(job, 'scheduled');
         this._scheduleJob(job.id, Date.now());
       }
     }
 
     for (const run of this._runs.values()) {
       if (run.status === 'running' || run.status === 'starting') {
+        this._markRunWorktreeInterrupted(run, 'Run interrupted by server restart.');
         run.status = 'interrupted';
+        setWorkflowStatus(run, 'interrupted');
         run.finishedAt = run.finishedAt || nowIso(this._now);
         run.updatedAt = nowIso(this._now);
         run.error = run.error || 'Run interrupted by server restart.';
@@ -618,6 +806,7 @@ class ExecutorService {
       job.activeRunId = null;
     }
     job.status = nextJobStatus;
+    setWorkflowStatus(job, nextJobStatus);
     job.updatedAt = nowIso(this._now);
   }
 
@@ -666,12 +855,27 @@ class ExecutorService {
     }
 
     run.attemptCount += 1;
+    const preboundSessionId = run.sessionId || (job.targetType === 'existing-session'
+      ? sanitizeSessionId(job.existingSessionId)
+      : '');
+    run.orchestration.workflow.workflowId = asTrimmedString(run.orchestration.workflow.workflowId)
+      || asTrimmedString(job.orchestration && job.orchestration.workflow && job.orchestration.workflow.workflowId)
+      || job.id;
+    if (preboundSessionId) {
+      run.sessionId = preboundSessionId;
+      run.orchestration.workflow.sessionId = preboundSessionId;
+      if (job.orchestration && job.orchestration.workflow) {
+        job.orchestration.workflow.sessionId = preboundSessionId;
+      }
+    }
     run.startedAt = run.startedAt || nowIso(this._now);
     run.finishedAt = null;
     run.nextRetryAt = null;
     run.error = null;
     run.status = 'starting';
+    setWorkflowStatus(run, 'starting');
     job.status = 'starting';
+    setWorkflowStatus(job, 'starting');
     job.activeRunId = run.id;
     job.updatedAt = nowIso(this._now);
 
@@ -682,12 +886,53 @@ class ExecutorService {
       { source: asTrimmedString(options.source) || 'manual' },
       'info'
     );
+    this._emitWorkflowLayerEvent('executor.attempt.started', run, job, {
+      source: asTrimmedString(options.source) || 'manual',
+      attemptCount: run.attemptCount,
+    });
     this._persistState();
 
     let sessionId = run.sessionId;
     let createdSession = false;
 
     try {
+      const worktreePlan = job.targetType === 'create-session' && job.contextType !== 'sandbox'
+        ? this._resolveJobWorktreePlan(job, {
+          excludeRunId: run.id,
+          runId: run.id,
+          sessionId: run.sessionId || null,
+        })
+        : null;
+      if (worktreePlan && worktreePlan.worktree) {
+        run.worktree = clone(worktreePlan.worktree);
+        job.worktree = clone(worktreePlan.worktree);
+        run.repoId = run.repoId || worktreePlan.repo.repoId || null;
+        run.repoPath = run.repoPath || worktreePlan.repo.repoPath || null;
+        job.repoId = job.repoId || worktreePlan.repo.repoId || null;
+        job.repoPath = job.repoPath || worktreePlan.repo.repoPath || null;
+        run.orchestration.repo = {
+          ...run.orchestration.repo,
+          repoId: run.orchestration.repo.repoId || worktreePlan.repo.repoId || null,
+          repoPath: run.orchestration.repo.repoPath || worktreePlan.repo.repoPath || null,
+          repoLabel: run.orchestration.repo.repoLabel || worktreePlan.repo.repoLabel || null,
+        };
+        run.orchestration.isolation = {
+          ...run.orchestration.isolation,
+          mode: run.worktree.mode || run.orchestration.isolation.mode,
+          worktreeId: run.worktree.worktreeId || run.orchestration.isolation.worktreeId,
+          worktreePath: run.worktree.path || run.orchestration.isolation.worktreePath,
+          worktreeStatus: run.worktree.status || run.orchestration.isolation.worktreeStatus || null,
+          launchBlocked: run.worktree.launch ? run.worktree.launch.blocked === true : false,
+          launchBlockedReason: run.worktree.launch ? run.worktree.launch.reason : null,
+        };
+        job.orchestration = clone(run.orchestration);
+      }
+      if (worktreePlan && worktreePlan.worktree && worktreePlan.worktree.launch && worktreePlan.worktree.launch.blocked) {
+        throw Object.assign(new Error(worktreePlan.worktree.launch.reason || 'Dedicated worktree launch is blocked.'), {
+          statusCode: 409,
+        });
+      }
+
       if (job.targetType === 'existing-session') {
         sessionId = sanitizeSessionId(job.existingSessionId);
         const existingSession = sessionId ? this._sdkBridge.getSdkSession(sessionId) : null;
@@ -702,6 +947,16 @@ class ExecutorService {
             model: job.model || undefined,
             contextType: sandboxConfig.contextType,
             sandboxId: sandboxConfig.sandboxId || undefined,
+            cwd: worktreePlan && worktreePlan.cwd ? worktreePlan.cwd : undefined,
+            orchestration: {
+              ...clone(job.orchestration),
+              workflow: {
+                ...(job.orchestration && job.orchestration.workflow ? clone(job.orchestration.workflow) : {}),
+                runId: run.id,
+                jobId: job.id,
+                status: 'starting',
+              },
+            },
           });
           sessionId = sanitizeSessionId(created && created.sessionId);
           createdSession = true;
@@ -719,10 +974,34 @@ class ExecutorService {
 
       run.sessionId = sessionId;
       run.createdSession = run.createdSession || createdSession;
+      run.orchestration.workflow.workflowId = asTrimmedString(run.orchestration.workflow.workflowId)
+        || asTrimmedString(job.orchestration && job.orchestration.workflow && job.orchestration.workflow.workflowId)
+        || job.id;
+      run.orchestration.workflow.runId = run.id;
+      run.orchestration.workflow.jobId = job.id;
+      run.orchestration.workflow.sessionId = sessionId;
 
       const sdkSession = this._sdkBridge.getSdkSession(sessionId);
       if (!sdkSession || !sdkSession.session || typeof sdkSession.session.on !== 'function') {
         throw new Error('Unable to subscribe to SDK session events.');
+      }
+
+      if (run.worktree && run.worktree.mode === WORKTREE_MODES.DEDICATED && run.worktree.worktreeId) {
+        const activated = this._worktreeService.markWorktreeActive({
+          copilotHome: this._config.copilotHome || '.',
+          repoId: run.repoId || job.repoId,
+          worktreeId: run.worktree.worktreeId,
+          sessionId,
+          runId: run.id,
+        });
+        if (activated) {
+          run.worktree = clone(activated);
+          job.worktree = clone(activated);
+          run.orchestration.isolation.worktreeStatus = activated.status;
+          run.orchestration.isolation.launchBlocked = false;
+          run.orchestration.isolation.launchBlockedReason = null;
+          job.orchestration = clone(run.orchestration);
+        }
       }
 
       await this._detachRunSubscription(run.id);
@@ -741,11 +1020,17 @@ class ExecutorService {
 
       run.messageId = asTrimmedString(sendResult && sendResult.messageId) || null;
       run.status = 'running';
+      setWorkflowStatus(run, 'running');
       job.status = 'running';
+      setWorkflowStatus(job, 'running');
       this._appendRunEvent(run, 'attempt.enqueued', `Prompt sent to session ${sessionId}.`, {
         sessionId,
         messageId: run.messageId,
       }, 'info');
+      this._emitWorkflowLayerEvent('executor.attempt.enqueued', run, job, {
+        sessionId,
+        messageId: run.messageId,
+      });
       this._persistState();
     } catch (error) {
       await this._detachRunSubscription(run.id);
@@ -793,6 +1078,13 @@ class ExecutorService {
     }
 
     this._appendRunEvent(run, eventType || 'session.event', message, data, level);
+    this._emitWorkflowLayerEvent('executor.session.event', run, this._jobs.get(run.jobId), {
+      sessionId: run.sessionId || null,
+      eventType: eventType || 'session.event',
+      level,
+      message,
+      data,
+    });
 
     if (eventType === 'assistant.message' && asTrimmedString(data.text)) {
       run.summary = asTrimmedString(data.text);
@@ -815,18 +1107,27 @@ class ExecutorService {
     if (!run || !['running', 'starting'].includes(run.status)) {
       return;
     }
+    const job = this._jobs.get(run.jobId);
 
     await this._detachRunSubscription(run.id);
     if (run.sessionId) {
       this._activeRunsBySession.delete(run.sessionId);
     }
+    this._markRunWorktreeReusable(run);
+    if (job) {
+      job.worktree = clone(run.worktree);
+    }
 
     run.status = 'succeeded';
+    setWorkflowStatus(run, 'succeeded');
     run.finishedAt = nowIso(this._now);
     run.updatedAt = run.finishedAt;
     this._appendRunEvent(run, 'run.completed', 'Run completed successfully.', {
       sessionId: run.sessionId,
     }, 'success');
+    this._emitWorkflowLayerEvent('executor.run.completed', run, job, {
+      sessionId: run.sessionId,
+    });
     this._releaseJobFromRun(run, 'idle');
     this._persistState();
   }
@@ -846,19 +1147,26 @@ class ExecutorService {
     if (run.sessionId) {
       this._activeRunsBySession.delete(run.sessionId);
     }
-
     const classification = classifyError(error);
+    this._markRunWorktreeInterrupted(run, classification.message);
+    job.worktree = clone(run.worktree);
     run.error = classification.message;
     this._appendRunEvent(run, 'run.failed', classification.message, null, 'error');
+    this._emitWorkflowLayerEvent('executor.run.failed', run, job, {
+      error: classification.message,
+      retryable: classification.isRateLimited && job.retryPolicy.enabled && run.attemptCount < job.retryPolicy.maxAttempts,
+    });
 
     if (classification.isRateLimited && job.retryPolicy.enabled && run.attemptCount < job.retryPolicy.maxAttempts) {
       const delayMs = this._computeRetryDelay(run, job.retryPolicy, classification.retryAfterMs);
       const nextRetryAt = new Date(Date.now() + delayMs).toISOString();
 
       run.status = 'retrying';
+      setWorkflowStatus(run, 'retrying');
       run.nextRetryAt = nextRetryAt;
       run.updatedAt = nowIso(this._now);
       job.status = 'retrying';
+      setWorkflowStatus(job, 'retrying');
       job.activeRunId = run.id;
       job.updatedAt = nowIso(this._now);
 
@@ -881,6 +1189,7 @@ class ExecutorService {
     }
 
     run.status = 'failed';
+    setWorkflowStatus(run, 'failed');
     run.finishedAt = nowIso(this._now);
     run.updatedAt = run.finishedAt;
     this._releaseJobFromRun(run, 'idle');
@@ -898,6 +1207,117 @@ class ExecutorService {
     const jitterWindow = boundedDelay * retryPolicy.jitterRatio;
     const jitterOffset = jitterWindow > 0 ? (Math.random() * jitterWindow * 2) - jitterWindow : 0;
     return Math.max(1000, Math.round(boundedDelay + jitterOffset));
+  }
+
+  _collectActiveRepoSessions(repoId, excludeRunId = null) {
+    const normalizedRepoId = asTrimmedString(repoId);
+    if (!normalizedRepoId) {
+      return [];
+    }
+
+    return Array.from(this._runs.values())
+      .filter((run) => run && run.id !== excludeRunId && ['starting', 'running', 'retrying'].includes(run.status))
+      .filter((run) => asTrimmedString(run.repoId) === normalizedRepoId)
+      .map((run) => ({
+        sessionId: run.sessionId || null,
+        repoId: run.repoId || null,
+        active: true,
+        worktree: normalizeExecutorWorktree(run.worktree),
+      }));
+  }
+
+  _resolveJobWorktreePlan(job, options = {}) {
+    if (!this._worktreeService) {
+      return null;
+    }
+    const orchestrationRepo = job.orchestration && job.orchestration.repo ? job.orchestration.repo : {};
+    const isolation = job.orchestration && job.orchestration.isolation ? job.orchestration.isolation : {};
+    const repoId = asTrimmedString(job.repoId) || orchestrationRepo.repoId || null;
+    const repoPath = asTrimmedString(job.repoPath) || orchestrationRepo.repoPath || null;
+    const explicitIsolationWorktree = hasExplicitWorktreeConfig(isolation)
+      ? {
+        mode: isolation.mode,
+        worktreeId: isolation.worktreeId,
+        worktreePath: isolation.worktreePath,
+      }
+      : null;
+    const normalizedRequestedWorktree = normalizeExecutorWorktree(
+      hasExplicitWorktreeConfig(job.worktree)
+        ? job.worktree
+        : (hasExplicitWorktreeConfig(isolation.worktree) ? isolation.worktree : explicitIsolationWorktree)
+    );
+    const requestedWorktree = normalizedRequestedWorktree
+      || (isObject(job.worktree) && Object.keys(job.worktree).length > 0 ? clone(job.worktree) : null);
+    const hasExplicitWorktreeRequest = Boolean(
+      normalizedRequestedWorktree
+    );
+    if (!repoPath && !hasExplicitWorktreeRequest) {
+      return null;
+    }
+    return this._worktreeService.resolveLaunchPlan({
+      copilotHome: this._config.copilotHome || '.',
+      repoId,
+      repoPath,
+      repoLabel: orchestrationRepo.repoLabel || null,
+      mode: isolation.mode || null,
+      worktree: requestedWorktree,
+      sessionId: asTrimmedString(options.sessionId) || null,
+      runId: asTrimmedString(options.runId) || null,
+      activeSessions: this._collectActiveRepoSessions(
+        repoId,
+        options.excludeRunId || null
+      ),
+    });
+  }
+
+  _markRunWorktreeReusable(run) {
+    const worktree = normalizeExecutorWorktree(run && run.worktree);
+    if (!worktree || worktree.mode !== WORKTREE_MODES.DEDICATED || !worktree.worktreeId || !run.repoId) {
+      return;
+    }
+    const updated = this._worktreeService.markWorktreeReusable({
+      copilotHome: this._config.copilotHome || '.',
+      repoId: run.repoId,
+      worktreeId: worktree.worktreeId,
+    });
+    if (updated) {
+      run.worktree = clone(updated);
+    }
+  }
+
+  _markRunWorktreeInterrupted(run, reason) {
+    const worktree = normalizeExecutorWorktree(run && run.worktree);
+    if (!worktree || worktree.mode !== WORKTREE_MODES.DEDICATED || !worktree.worktreeId || !run.repoId) {
+      return;
+    }
+    const updated = this._worktreeService.markWorktreeInterrupted({
+      copilotHome: this._config.copilotHome || '.',
+      repoId: run.repoId,
+      worktreeId: worktree.worktreeId,
+      reason,
+    });
+    if (updated) {
+      run.worktree = clone(updated);
+    }
+  }
+
+  _emitWorkflowLayerEvent(type, run, job, data = null) {
+    if (typeof this.emit !== 'function') {
+      return;
+    }
+    this.emit('workflow-layer:event', {
+      type,
+      at: nowIso(this._now),
+      run: run ? this._serializeRun(run) : null,
+      job: job ? this._serializeJob(job) : null,
+      workflowId: asTrimmedString(
+        run && run.orchestration && run.orchestration.workflow && run.orchestration.workflow.workflowId
+      ) || asTrimmedString(
+        job && job.orchestration && job.orchestration.workflow && job.orchestration.workflow.workflowId
+      ) || null,
+      sessionId: run && run.sessionId ? run.sessionId : null,
+      data: isObject(data) ? clone(data) : null,
+    });
   }
 }
 

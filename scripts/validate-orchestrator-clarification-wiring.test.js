@@ -22,10 +22,11 @@ const expectations = [
     relativePath: 'engine-assets/copilot-instructions.md',
     requiredSnippets: [
       'use `vscode/askQuestions` to ask a single, targeted question through the interactive tool instead of falling back to a plain-text end-of-plan question.',
-      'If a reviewer cannot approve due to missing info, use `planReview` when available and `vscode/askQuestions` otherwise to ask the smallest set of clarifying questions, then keep refining everything else first.',
+      'If a reviewer cannot approve due to missing info, use `vscode/askQuestions` to ask the smallest set of clarifying questions through the interactive tool, then keep refining everything else first.',
     ],
     forbiddenSnippets: [
       'If a reviewer cannot approve due to missing info, propose the smallest set of clarifying questions, but keep refining everything else first.',
+      'planReview',
     ],
   },
   {
@@ -39,14 +40,16 @@ const expectations = [
     relativePath: 'docs/system/orchestrator/user-guide.md',
     requiredSnippets: [
       'Answer interactive clarifications',
-      'the orchestrator uses `planReview` when available and `vscode/askQuestions` otherwise.',
+      'the orchestrator uses `vscode/askQuestions` through the interactive flow.',
       'Review the plan interactively',
       'When Phase 2 needs plan approval, blocking clarification, or an explicit proceed-anyway decision, use',
+      '`vscode/askQuestions` through the interactive flow.',
       'Do not fall back to plain-text end-of-plan questions for those decisions.',
     ],
     forbiddenSnippets: [
       '2. **Answer any clarifications**: The orchestrator may ask about ambiguities.',
       '3. **Review the plan** (for non-trivial work): Approve, revise, or cancel.',
+      'planReview',
     ],
   },
 ];

@@ -142,6 +142,9 @@ The runtime-adoption slice is ready when all of the following are true:
 - Preserve existing review-lane ownership:
   - `@goal-reviewer` owns gate status plus per-goal completion assessment
   - `@final-reviewer` owns requested-vs-delivered closure analysis
+  - `@follow-up-finder` owns structuring concrete follow-up work and carryover categories
+  - `remaining-work` owns heuristic remaining-work signals from workspace/session-state inspection
+    only; it is not a closure stop/go authority
   - the orchestrator normalizes those outputs into the Session Closure Summary
 
 ## Risks

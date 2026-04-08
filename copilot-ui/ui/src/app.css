@@ -1147,6 +1147,11 @@
   font-size: 0.82rem;
 }
 
+.desktop-cli-indicator {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
 .sdk-health-ok {
   color: var(--color-success-500);
 }
@@ -1157,6 +1162,19 @@
 }
 
 .sdk-health-error {
+  color: var(--color-danger-500);
+}
+
+.desktop-cli-ok {
+  color: var(--color-success-500);
+}
+
+.desktop-cli-warn,
+.desktop-cli-loading {
+  color: var(--color-accent-600);
+}
+
+.desktop-cli-error {
   color: var(--color-danger-500);
 }
 

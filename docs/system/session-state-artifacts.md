@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-04-03
+updated: 2026-04-07
 category: system
 status: current
 doc_kind: node
@@ -16,6 +16,17 @@ It governs artifact file shape and location, not the broader live session reconc
 see `docs/system/domain-authorities-freeze.md` for the runtime-vs-artifact authority freeze.
 In `copilot-ui`, `GET /api/sessions` remains an artifact inventory surface for session folders and archive/offline views;
 it may include reconciliation metadata, but it does not override the runtime-first live authority model.
+When runtime is live, these files are persistence/projection surfaces plus offline fallback, not a peer
+live authority.
+`GET /api/sessions/:id/structured-state` may also compose additive orchestration metadata (repo identity,
+runtime actor summaries, repo-state task references, executor workflow-run summaries, and worktree
+placeholders/records) around these artifacts, but those additions remain projections over the frozen
+authorities rather than a new persisted session store.
+
+App-level parallel sessions receive distinct `SESSION_ID` roots. In-session sub-agents/sub-actors stay
+within the parent session's live authority unless a workflow explicitly promotes them into their own
+session. Same-repo worktree isolation is an execution isolation tool attached to repo/workflow state,
+not a separate session-artifact authority lane.
 
 ## Canonical Session Root
 

@@ -50,6 +50,22 @@ function parseCliArgs(value) {
     .filter(Boolean);
 }
 
+function parseJsonObject(value) {
+  if (isObject(value)) {
+    return value;
+  }
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return isObject(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export function resolveBridgeConfig(env, opts = {}) {
   const sourceEnv = isObject(env) ? env : {};
   const sourceOpts = isObject(opts) ? opts : {};
@@ -115,6 +131,16 @@ export function resolveBridgeConfig(env, opts = {}) {
     maxSseClientsPerSession,
     clientOptions,
   };
+
+  const cliManager = parseJsonObject(
+    sourceOpts.cliManager != null ? sourceOpts.cliManager : sourceEnv.INSTRUCTION_ENGINE_COPILOT_CLI_STATE_JSON
+  );
+  if (cliManager) {
+    config.cliManager = cliManager;
+    if (!config.cliVersion && typeof cliManager.cliVersion === "string" && cliManager.cliVersion.trim()) {
+      config.cliVersion = cliManager.cliVersion.trim();
+    }
+  }
 
   if (typeof sourceOpts.policyPreflightFn === "function") {
     config.policyPreflightFn = sourceOpts.policyPreflightFn;

@@ -54,7 +54,7 @@ When I use **/plan** OR custom plan agent, you MUST:
 4. Only after both approvals: summarize the approved plan and proceed to execution (unless I asked for plan-only).
 5. When work driven by that approved plan reaches closure, explicitly assess the plan's high-level goals, route any unresolved non-active goals through the docs lane to `docs/issues/unresolved-goals.md`, and only then produce the final requested-vs-delivered summary.
 
-If a reviewer cannot approve due to missing info, use `planReview` when available and `vscode/askQuestions` otherwise to ask the smallest set of clarifying questions, then keep refining everything else first.
+If a reviewer cannot approve due to missing info, use `vscode/askQuestions` to ask the smallest set of clarifying questions through the interactive tool, then keep refining everything else first.
 
 ## /fleet (best practices)
 When I use **/fleet**, optimize for parallel throughput without conflicts:
@@ -67,13 +67,13 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   - keep each chunk reviewable (tight diff, clear purpose),
   - land incremental commits frequently,
   - rebase/resolve conflicts early rather than batching.
-- Maintain a short “integration step” at the end of each chunk: build/test the narrowest relevant checks.
+- Maintain a short validation step at the end of each chunk: run the narrowest relevant checks, but escalate to integration or browser/E2E validation when policy, risk, or coverage gaps make lower-layer checks insufficient.
 
 ## Subagents (speed + context)
 - Delegate aggressively for speed:
   - capability discovery and staged context loading → `@search`, then `@execute`
   - exploration/synthesis → `@code-explorer` (or `explore` agent)
-  - running builds/tests → `@unit-test-runner` / `@integration-test-runner` (or `task` agent)
+  - running builds/tests → route tests to `@unit-test-runner` for narrow in-process checks, route builds through the appropriate execution lane/task agent instead of `@unit-test-runner`, and escalate to `@integration-test-runner` when cross-boundary behavior, repo policy, or coverage gaps require integration validation even without an explicit user ask (`task` agent as fallback)
   - high-signal review → `@code-reviewer`
   - request briefing + /fleet workstream split → `@brief` when the work is non-trivial
 - Keep context lean:

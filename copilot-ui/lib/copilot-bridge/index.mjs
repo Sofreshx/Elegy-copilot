@@ -9,6 +9,9 @@ const require = createRequire(import.meta.url);
 const {
   recordExplicitAssetInvocation,
 } = require("../assetInvocationAudit.js");
+const {
+  normalizeSessionOrchestrationMetadata,
+} = require("../runtimeContracts.js");
 
 const DEFAULT_MAX_SSE_CLIENTS = 10;
 
@@ -68,6 +71,10 @@ function normalizeMaxSseClients(value) {
   const rounded = Math.floor(num);
   if (rounded < 1) return DEFAULT_MAX_SSE_CLIENTS;
   return Math.min(rounded, 100);
+}
+
+function cloneJson(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
 }
 
 function safeIsoNow(nowFn) {
@@ -206,6 +213,10 @@ export class SdkBridgeService {
 
     if (this._config && this._config.cliVersion) {
       health.cliVersion = String(this._config.cliVersion);
+    }
+
+    if (this._config && isObject(this._config.cliManager)) {
+      health.cliManager = cloneJson(this._config.cliManager);
     }
 
     if (this._lastError) {
@@ -356,6 +367,11 @@ export class SdkBridgeService {
       contextType: context.contextType,
       sandboxId: context.sandboxId,
       cwd: context.effectiveCwd,
+      orchestration: normalizeSessionOrchestrationMetadata(sessionConfig.orchestration, {
+        contextType: context.contextType,
+        sandboxId: context.sandboxId,
+        repoPath: context.effectiveCwd,
+      }),
       availableTools: createRequest.availableTools || null,
       hooks: {
         onPreToolUse,
@@ -380,6 +396,7 @@ export class SdkBridgeService {
       contextType: record.contextType,
       sandboxId: record.sandboxId,
       cwd: record.cwd,
+      orchestration: cloneJson(record.orchestration),
     };
   }
 
@@ -457,6 +474,7 @@ export class SdkBridgeService {
       contextType: record.contextType,
       sandboxId: record.sandboxId,
       cwd: record.cwd,
+      orchestration: cloneJson(record.orchestration),
       session: record.session,
     };
   }
@@ -470,6 +488,7 @@ export class SdkBridgeService {
       contextType: record.contextType,
       sandboxId: record.sandboxId,
       cwd: record.cwd,
+      orchestration: cloneJson(record.orchestration),
     }));
   }
 

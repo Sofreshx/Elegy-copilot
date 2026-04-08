@@ -494,6 +494,7 @@ node copilot-ui/server.lifecycle-proxy.test.js
 npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/gatewayHttpServer.test.ts
 node copilot-ui/lib/planningPersistence.test.js
 node copilot-ui/server.runtime-health.test.js
+npm --prefix copilot-ui run build:electron
 node copilot-ui/dist-electron/rollbackPolicy.test.js
 node copilot-ui/dist-electron/updatePolicy.rollback.test.js
 node copilot-ui/dist-electron/updater.rollback.test.js
@@ -581,6 +582,7 @@ node copilot-ui/server.runtime-health.test.js
 3. Broad rollback + kill-switch checks
 
 ```bash
+npm --prefix copilot-ui run build:electron
 node copilot-ui/dist-electron/rollbackPolicy.test.js
 node copilot-ui/dist-electron/updatePolicy.rollback.test.js
 node copilot-ui/dist-electron/updater.rollback.test.js
@@ -602,6 +604,7 @@ npm run build:electron
 
 Expected:
 - `dist-electron/main.js` and `dist-electron/preload.js` are generated.
+- `dist-electron/**` and `ui-dist/**` remain local build outputs and should not be committed.
 
 ### Desktop preview package smoke
 

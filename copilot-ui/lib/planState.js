@@ -44,6 +44,7 @@ const {
   deriveExecutionStateFinality,
   deriveSessionClosureSummary,
   deriveSessionIntentFrame,
+  deriveSessionObjective,
   parseHandoffText,
   parsePropositionText,
   parseReviewLedgerFromPlan,
@@ -323,6 +324,13 @@ function parseStructuredState(text, options = {}) {
     checkpoints: result.checkpoints,
     resume: result.meta.resume,
     intentFrame: result.meta.intentFrame,
+    executionState: result.meta.executionState,
+  });
+  result.meta.objective = deriveSessionObjective({
+    intentFrame: result.meta.intentFrame,
+    closureSummary: result.meta.closureSummary,
+    handoff: result.meta.handoff,
+    proposition,
     executionState: result.meta.executionState,
   });
 

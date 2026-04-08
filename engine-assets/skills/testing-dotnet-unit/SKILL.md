@@ -19,6 +19,10 @@ description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + Au
 - Prefer **unit tests** over integration tests for most logic.
 - Keep tests fast, deterministic, and isolated.
 - Avoid real network, real DB, real filesystem unless the user explicitly wants integration.
+- Follow `docs/system/testing-quality-governance.md`: passing tests are evidence, not the objective.
+- Before finalizing scope, enumerate meaningful success, failure, edge, and adversarial cases for the unit under test.
+- Do not weaken, narrow, or remove tests merely to get green. If an assertion or hard-case input must be removed or relaxed, add replacement coverage that preserves or improves confidence.
+- Distinguish legitimate maintenance from weakening: intentional contract changes or incorrect prior expectations can justify updates, but the prior confidence target must remain covered or the new boundary must be stated explicitly.
 
 ## Tooling (Preferred Stack)
 - Test runner: **xUnit**
@@ -38,20 +42,25 @@ description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + Au
    - Pure logic (best) vs service/handler (mock external dependencies)
 2. Enumerate behaviors:
    - happy-path, validation failures, authorization/guard rails, error paths
+   - meaningful edge conditions and adversarial inputs
+   - any prior hard-case coverage that must be preserved if tests are rewritten
 3. Build fixtures:
    - Use AutoFixture to generate DTOs/entities
    - Freeze substitutes for dependencies (NSubstitute)
 4. Write tests:
    - Prefer behavior-based names: `Given_When_Then` or `Method_Scenario_Expected`
    - Use Shouldly for readable assertions
+   - Prefer stronger behavioral assertions over easier but weaker checks
+   - When product behavior changed intentionally, update the test contract without dropping the original confidence target unless the new boundary is explicit
 5. Run unit tests (default behavior):
-   - Delegate to `unit-test-runner` agent - never run tests directly
-   - If the user said "skip tests", do not run them
+   - Delegate to `unit-test-runner` agent; do not run tests directly from an implementation lane
+   - If the user said "skip tests", do not run them in the current lane
+   - If unit validation is still mandatory, route to the runner/validation lane or leave the validation gap explicit; do not imply it was satisfied
    - Provide to unit-test-runner:
-     - testType: unit
-     - projectPath: <test project>
-     - filter: "FullyQualifiedName~<TestClass>" (when targeting specific tests)
-     - reason: "Validate unit tests for [component]"
+      - testType: unit
+      - projectPath: <test project>
+      - filter: "FullyQualifiedName~<TestClass>" (when targeting specific tests)
+      - reason: "Validate unit tests for [component]"
 
 ## Output
 - New/updated test files (xUnit)

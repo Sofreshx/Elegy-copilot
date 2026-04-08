@@ -17,6 +17,27 @@ function readRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
 }
 
+function resolveRawSessionStatus(session: SessionSummary): string {
+  if (typeof session.resolvedStatus === 'string' && session.resolvedStatus.trim()) {
+    return session.resolvedStatus.trim().toLowerCase();
+  }
+
+  if (typeof session.status === 'string' && session.status.trim()) {
+    return session.status.trim().toLowerCase();
+  }
+
+  return '';
+}
+
+function hasLiveRuntimeEvidence(session: SessionSummary, rawStatus = resolveRawSessionStatus(session)): boolean {
+  if (typeof session.active === 'boolean') {
+    return session.active;
+  }
+
+  const reconciliation = readRecord(session.reconciliation);
+  return reconciliation.hasRuntimeState === true && rawStatus === 'active';
+}
+
 export function humanizeToken(value: unknown, fallback = 'Unknown'): string {
   const token = typeof value === 'string' ? value.trim() : '';
   if (!token) {
@@ -47,12 +68,12 @@ export function formatTimestampLabel(value: number | null): string {
 }
 
 export function resolveSessionStatus(session: SessionSummary): string {
-  if (typeof session.resolvedStatus === 'string' && session.resolvedStatus.trim()) {
-    return session.resolvedStatus.trim().toLowerCase();
-  }
-
-  if (typeof session.status === 'string' && session.status.trim()) {
-    return session.status.trim().toLowerCase();
+  const rawStatus = resolveRawSessionStatus(session);
+  if (rawStatus) {
+    if (rawStatus === 'active' && !hasLiveRuntimeEvidence(session, rawStatus)) {
+      return 'unknown';
+    }
+    return rawStatus;
   }
 
   if (typeof session.active === 'boolean') {
@@ -63,13 +84,16 @@ export function resolveSessionStatus(session: SessionSummary): string {
 }
 
 export function resolveSessionActiveLabel(session: SessionSummary): string {
-  if (typeof session.active === 'boolean') {
-    return session.active ? 'true' : 'false';
+  const rawStatus = resolveRawSessionStatus(session);
+  if (hasLiveRuntimeEvidence(session, rawStatus)) {
+    return 'true';
   }
 
-  const status = resolveSessionStatus(session);
-  if (status === 'active') return 'true';
-  if (status === 'idle' || status === 'inactive' || status === 'missing') return 'false';
+  if (typeof session.active === 'boolean') {
+    return 'false';
+  }
+
+  if (rawStatus === 'idle' || rawStatus === 'inactive' || rawStatus === 'missing') return 'false';
   return 'unknown';
 }
 

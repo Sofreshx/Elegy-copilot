@@ -133,6 +133,8 @@ async function run() {
         id: 'overlay-2',
         runtimeUrl: payload.runtimeUrl,
         runtimeOrigin: 'http://127.0.0.1:4173',
+        linkedSessionId: payload.linkedSessionId || null,
+        worktree: payload.worktree || null,
       };
     },
     async closeSession(sessionId) {
@@ -385,6 +387,7 @@ async function run() {
   await test('GET route returns overlay sessions', async () => {
     const response = await invoke(routes, 'GET', '/api/ui-runtime-overlay/sessions');
     assert.equal(response.res.statusCode, 200);
+    assert.equal(response.res.body.orchestrationContractVersion, '1');
     assert.equal(response.res.body.sessions.length, 1);
     assert.equal(response.res.body.sessions[0].id, 'overlay-1');
   });
@@ -392,13 +395,21 @@ async function run() {
   await test('POST create route returns 201 on success and 409 when no repo is selected', async () => {
     const created = await invoke(routes, 'POST', '/api/ui-runtime-overlay/sessions', {
       runtimeUrl: 'http://127.0.0.1:4173',
+      linkedSessionId: 'session-123',
+      worktree: {
+        worktreeId: 'wt-1',
+        mode: 'dedicated',
+      },
     });
     const failed = await invoke(routes, 'POST', '/api/ui-runtime-overlay/sessions', {
       runtimeUrl: 'http://missing-repo.test',
     });
 
     assert.equal(created.res.statusCode, 201);
+    assert.equal(created.res.body.orchestrationContractVersion, '1');
     assert.equal(created.res.body.session.id, 'overlay-2');
+    assert.equal(created.res.body.session.linkedSessionId, 'session-123');
+    assert.equal(created.res.body.session.worktree.worktreeId, 'wt-1');
     assert.equal(failed.res.statusCode, 409);
     assert.match(failed.res.body.error, /Catalog repo must be selected/i);
   });

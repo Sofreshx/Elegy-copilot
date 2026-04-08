@@ -29,6 +29,10 @@ const {
   buildRuntimeProviderMetadata,
   buildCompatibilityRuntimeContract,
   buildRuntimeContract,
+  SESSION_ORCHESTRATION_CONTRACT_VERSION,
+  normalizeActorRole,
+  normalizeSessionOrchestrationMetadata,
+  buildSessionOrchestrationProjection,
 } = runtimeContracts;
 
 let passed = 0;
@@ -221,6 +225,106 @@ test('resolveSessionReconciliationAuthority respects explicit false presence fla
   assert.strictEqual(resolved.authority, SESSION_STATE_AUTHORITIES.ARTIFACT);
   assert.strictEqual(resolved.sourceOfTruth, SESSION_RECONCILIATION_SOURCES.ARTIFACT);
   assert.deepStrictEqual(resolved.sourcePrecedence, [SESSION_RECONCILIATION_SOURCES.ARTIFACT]);
+});
+
+test('session orchestration helpers normalize actor roles and metadata deterministically', () => {
+  assert.strictEqual(SESSION_ORCHESTRATION_CONTRACT_VERSION, '1');
+  assert.strictEqual(normalizeActorRole('Planner'), 'planner');
+  assert.strictEqual(normalizeActorRole('code-builder'), 'implementer');
+  assert.strictEqual(normalizeActorRole('unknown-role'), 'specialist');
+
+  const metadata = normalizeSessionOrchestrationMetadata({
+    objective: 'Ship the backend slice',
+    repo: {
+      repoId: 'instruction-engine',
+      repoPath: 'C:/Repos/instruction-engine',
+    },
+    isolation: {
+      mode: 'dedicated',
+      worktreeId: 'wt-1',
+      worktreeStatus: 'ready',
+      launchBlocked: true,
+      launchBlockedReason: 'Prepare the worktree first.',
+    },
+    actors: [{ actorId: 'planner', label: 'Planner' }],
+    taskRefs: [{ taskId: 'TASK-1' }],
+    workflow: {
+      workflowKind: 'task-execution',
+      trigger: 'manual',
+    },
+  });
+
+  assert.deepStrictEqual(metadata, {
+    objective: 'Ship the backend slice',
+    repo: {
+      repoId: 'instruction-engine',
+      repoPath: 'C:/Repos/instruction-engine',
+      repoLabel: null,
+      branch: null,
+      source: null,
+    },
+    isolation: {
+      mode: 'dedicated',
+      contextType: null,
+      sandboxId: null,
+      worktreeId: 'wt-1',
+      worktreePath: null,
+      worktreeStatus: 'ready',
+      launchBlocked: true,
+      launchBlockedReason: 'Prepare the worktree first.',
+    },
+    actors: [{
+      actorId: 'planner',
+      label: 'Planner',
+      role: 'planner',
+      kind: 'runtime',
+      status: null,
+      source: 'runtime',
+      taskId: null,
+      taskIds: [],
+      invocationCount: null,
+    }],
+    taskRefs: [{
+      taskId: 'TASK-1',
+      title: null,
+      status: null,
+      ownerSessionId: null,
+      activeActorId: null,
+      activeActorLabel: null,
+    }],
+    workflow: {
+      workflowKind: 'task-execution',
+      workflowId: null,
+      trigger: 'manual',
+      mode: null,
+      runId: null,
+      jobId: null,
+      sessionId: null,
+      status: null,
+    },
+  });
+});
+
+test('buildSessionOrchestrationProjection preserves authority-safe task and workflow projections', () => {
+  const projection = buildSessionOrchestrationProjection({
+    sessionId: 'session-1',
+    metadata: {
+      objective: 'Objective',
+      repo: { repoId: 'instruction-engine' },
+    },
+    actors: [{ actorId: 'reviewer', label: 'Reviewer' }],
+    taskItems: [{ taskId: 'TASK-1', ownerSessionId: 'session-1' }],
+    workflowRuns: [{ runId: 'run-1', status: 'running' }],
+    overlaySessions: [{ id: 'overlay-1' }],
+    worktree: { worktreeId: 'wt-1' },
+  });
+
+  assert.strictEqual(projection.contractVersion, '1');
+  assert.strictEqual(projection.authority.durableTasks, 'repo-state');
+  assert.strictEqual(projection.repo.repoId, 'instruction-engine');
+  assert.strictEqual(projection.taskBoard.items[0].taskId, 'TASK-1');
+  assert.strictEqual(projection.workflow.runs[0].runId, 'run-1');
+  assert.strictEqual(projection.isolation.worktree.worktreeId, 'wt-1');
 });
 
 test('CJS import smoke', () => {

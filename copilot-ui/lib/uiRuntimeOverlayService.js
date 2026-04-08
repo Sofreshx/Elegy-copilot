@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const repoInventoryService = require('./repoInventoryService');
+const { validateDedicatedWorktreePath } = require('./worktreeService');
 
 const STATE_VERSION = 1;
 const OBSERVATION_KINDS = new Set(['snapshot', 'interaction', 'state', 'locator', 'note']);
@@ -207,6 +208,14 @@ function isPathInside(parentPath, candidatePath, pathImpl = path) {
   return relativePath === '' || (!relativePath.startsWith('..') && !pathImpl.isAbsolute(relativePath));
 }
 
+function normalizeComparablePath(pathImpl, value) {
+  const normalized = asTrimmedString(value);
+  if (!normalized) {
+    return '';
+  }
+  return pathImpl.resolve(normalized).replace(/\\/g, '/').toLowerCase();
+}
+
 function normalizeStatus(value) {
   return asTrimmedString(value) === 'closed' ? 'closed' : 'attached';
 }
@@ -286,6 +295,38 @@ function normalizeObservationState(value) {
   };
 
   return state.kind || state.detail ? state : null;
+}
+
+function normalizeWorktreeRecord(value) {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const worktreeId = asOptionalString(value.worktreeId || value.id);
+  const mode = asOptionalString(value.mode);
+  const worktreePath = asOptionalString(value.worktreePath || value.path);
+  const status = asOptionalString(value.status);
+  const branch = asOptionalString(value.branch);
+  const launchBlocked = value.launchBlocked === true
+    || (value.launch && value.launch.blocked === true);
+  const launchBlockedReason = asOptionalString(
+    value.launchBlockedReason
+    || (value.launch && value.launch.reason)
+  );
+
+  if (!worktreeId && !mode && !worktreePath && !status) {
+    return null;
+  }
+
+  return {
+    worktreeId,
+    mode,
+    worktreePath: worktreePath ? path.resolve(worktreePath) : null,
+    status,
+    branch,
+    launchBlocked,
+    launchBlockedReason,
+  };
 }
 
 function normalizeObservationRecord(value) {
@@ -738,6 +779,8 @@ function normalizeSessionRecord(value, pathImpl = path) {
     repoPath,
     repoLabel,
     packageRoot,
+    linkedSessionId: asOptionalString(value.linkedSessionId),
+    worktree: normalizeWorktreeRecord(value.worktree),
     phase: normalizePhase(value.phase, status),
     evidence: normalizeEvidence(value.evidence),
     observations,
@@ -783,7 +826,10 @@ class UiRuntimeOverlayService {
   createSession(input = {}) {
     const repo = this._resolveSelectedRepo();
     const runtime = parseRuntimeUrl(input.runtimeUrl);
-    const packageRoot = this._resolvePackageRoot(repo, input.packageRoot);
+    const worktree = this._resolveWorktree(repo, input.worktree);
+    const packageRoot = this._resolvePackageRoot(repo, input.packageRoot, {
+      worktreeRoot: worktree && worktree.worktreePath ? worktree.worktreePath : null,
+    });
     const timestamp = nowIso(this._now);
     const session = {
       id: createSessionId(this._crypto),
@@ -794,6 +840,8 @@ class UiRuntimeOverlayService {
       repoPath: repo.repoPath,
       repoLabel: repo.repoLabel,
       packageRoot,
+      linkedSessionId: asOptionalString(input.linkedSessionId),
+      worktree,
       phase: 'attached',
       evidence: {
         source: 'copilot-ui',
@@ -1224,22 +1272,61 @@ class UiRuntimeOverlayService {
     };
   }
 
-  _resolvePackageRoot(repo, packageRootInput) {
+  _resolveWorktree(repo, worktreeInput) {
+    const worktree = normalizeWorktreeRecord(worktreeInput);
+    if (!worktree || !worktree.worktreePath) {
+      return worktree;
+    }
+
+    if (normalizeComparablePath(this._path, worktree.worktreePath) === normalizeComparablePath(this._path, repo.repoPath)) {
+      return {
+        ...worktree,
+        worktreePath: this._path.resolve(String(worktree.worktreePath)),
+      };
+    }
+
+    const validation = validateDedicatedWorktreePath(
+      this._fs,
+      this._path,
+      repo.repoPath,
+      worktree.worktreePath,
+      repo.repoId,
+    );
+    if (!validation.ready) {
+      throw Object.assign(new Error(validation.reason || 'worktree.worktreePath must resolve to an attached worktree for the selected repo.'), {
+        statusCode: 400,
+      });
+    }
+
+    return {
+      ...worktree,
+      worktreePath: this._path.resolve(String(worktree.worktreePath)),
+    };
+  }
+
+  _resolvePackageRoot(repo, packageRootInput, options = {}) {
+    const worktreeRoot = asTrimmedString(options.worktreeRoot)
+      ? this._path.resolve(String(options.worktreeRoot))
+      : '';
+    const containmentRoot = worktreeRoot || repo.repoPath;
+    const containmentLabel = worktreeRoot
+      ? 'selected worktree'
+      : 'selected repo';
     const rawPackageRoot = asTrimmedString(packageRootInput);
     if (!rawPackageRoot) {
-      return repo.repoPath;
+      return containmentRoot;
     }
 
     const resolvedPackageRoot = this._path.isAbsolute(rawPackageRoot)
       ? this._path.resolve(rawPackageRoot)
-      : this._path.resolve(repo.repoPath, rawPackageRoot);
+      : this._path.resolve(containmentRoot, rawPackageRoot);
 
-    if (!isPathInside(repo.repoPath, resolvedPackageRoot, this._path)) {
-      throw Object.assign(new Error('packageRoot must resolve to a directory under the selected repo.'), { statusCode: 400 });
+    if (!isPathInside(containmentRoot, resolvedPackageRoot, this._path)) {
+      throw Object.assign(new Error(`packageRoot must resolve to a directory under the ${containmentLabel}.`), { statusCode: 400 });
     }
 
     if (!isDirectory(this._fs, resolvedPackageRoot)) {
-      throw Object.assign(new Error('packageRoot must resolve to an existing directory under the selected repo.'), { statusCode: 400 });
+      throw Object.assign(new Error(`packageRoot must resolve to an existing directory under the ${containmentLabel}.`), { statusCode: 400 });
     }
 
     return resolvedPackageRoot;

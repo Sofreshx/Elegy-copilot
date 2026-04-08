@@ -83,6 +83,37 @@ function normalizePutPayload(pathId: string, payload: unknown): Record<string, u
     };
 }
 
+function normalizeRunPayloadContext(workflowId: string, payload: unknown): Record<string, unknown> {
+    if (payload !== undefined && !isRecord(payload)) {
+        throw new WorkflowHttpError(400, 'Invalid workflow run payload', 'invalid_workflow_run');
+    }
+
+    const body = isRecord(payload) ? payload : {};
+    const rawContext = body.context;
+    if (rawContext !== undefined && !isRecord(rawContext)) {
+        throw new WorkflowHttpError(400, 'Workflow run context must be an object', 'invalid_workflow_run_context');
+    }
+
+    const normalizedContext: Record<string, unknown> = isRecord(rawContext)
+        ? { ...rawContext }
+        : {};
+    const rawSessionId = body.sessionId ?? normalizedContext.sessionId;
+
+    if (rawSessionId !== undefined) {
+        if (typeof rawSessionId !== 'string') {
+            throw new WorkflowHttpError(400, 'sessionId must be a string', 'invalid_workflow_run_session');
+        }
+        const sessionId = rawSessionId.trim();
+        if (!sessionId) {
+            throw new WorkflowHttpError(400, 'sessionId must not be empty', 'invalid_workflow_run_session');
+        }
+        normalizedContext.sessionId = sessionId;
+    }
+
+    normalizedContext.workflowId = workflowId;
+    return normalizedContext;
+}
+
 export class WorkflowHttpError extends Error {
     readonly statusCode: number;
     readonly code?: string;
@@ -107,7 +138,7 @@ export interface WorkflowHttpApiHandlers {
     createPersistedDefinition: (payload: unknown) => WorkflowDefinition;
     updatePersistedDefinition: (id: string, payload: unknown) => WorkflowDefinition;
     deletePersistedDefinition: (id: string) => boolean;
-    runPersistedDefinition: (definition: WorkflowDefinition) => Promise<WorkflowHttpRunResponse>;
+    runPersistedDefinition: (definition: WorkflowDefinition, context?: Record<string, unknown>) => Promise<WorkflowHttpRunResponse>;
 }
 
 export interface WorkflowHttpRouteContext {
@@ -233,7 +264,11 @@ export async function handleWorkflowHttpRoute(context: WorkflowHttpRouteContext)
                 return true;
             }
 
-            const runResponse = await handlers.runPersistedDefinition(definition);
+            const payload = await readJsonBody(req);
+            const runResponse = await handlers.runPersistedDefinition(
+                definition,
+                normalizeRunPayloadContext(workflowId, payload),
+            );
             writeJson(res, 200, runResponse);
             return true;
         }

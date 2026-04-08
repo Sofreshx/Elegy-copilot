@@ -49,6 +49,7 @@ async function run() {
   const copilotHome = path.join(tmpRoot, '.copilot');
   const repoPath = path.join(tmpRoot, 'workspace-repo');
   const manualRepoPath = path.join(tmpRoot, 'manual-repo');
+  const linkedWorktreeRepoPath = path.join(tmpRoot, 'linked-worktree-repo');
   const scanRoot = path.join(tmpRoot, 'discovery-root');
   const discoveredRepoPath = path.join(scanRoot, 'org', 'discovered-repo');
 
@@ -109,6 +110,12 @@ async function run() {
     fs.mkdirSync(path.join(manualRepoPath, '.git'), { recursive: true });
     writeText(path.join(manualRepoPath, 'pyproject.toml'), '[project]\nname = "manual-repo"\n');
 
+    fs.mkdirSync(linkedWorktreeRepoPath, { recursive: true });
+    writeText(path.join(linkedWorktreeRepoPath, '.git'), 'gitdir: ../.git/worktrees/linked-worktree-repo\n');
+    writeJson(path.join(linkedWorktreeRepoPath, 'package.json'), {
+      name: 'linked-worktree-repo',
+    });
+
     fs.mkdirSync(path.join(discoveredRepoPath, '.git'), { recursive: true });
     writeJson(path.join(discoveredRepoPath, 'package.json'), {
       name: 'discovered-repo',
@@ -159,12 +166,12 @@ async function run() {
         workspaceScanRoots: [scanRoot],
       });
 
-      const inventory = listKnownRepos({
-        copilotHome,
-        engineRoot,
-        explicitRepoPaths: [manualRepoPath],
-        workspaceScanRoots: [scanRoot],
-      });
+        const inventory = listKnownRepos({
+          copilotHome,
+          engineRoot,
+          explicitRepoPaths: [manualRepoPath, linkedWorktreeRepoPath],
+          workspaceScanRoots: [scanRoot],
+        });
 
       const workspaceRepo = resolveRepoEntry(inventory, { repoPath });
       assert.ok(workspaceRepo, 'expected workspace repo entry');
@@ -188,6 +195,12 @@ async function run() {
       assert.ok(manualRepo, 'expected manual repo entry');
       assert.equal(manualRepo.registered, true);
       assert.ok(manualRepo.sources.includes('manual'));
+
+      const linkedWorktreeRepo = resolveRepoEntry(inventory, { repoPath: linkedWorktreeRepoPath });
+      assert.ok(linkedWorktreeRepo, 'expected linked worktree repo entry');
+      assert.equal(linkedWorktreeRepo.gitRootPresent, true);
+      assert.equal(linkedWorktreeRepo.gitRootKind, 'file');
+      assert.equal(linkedWorktreeRepo.isWorktreeCheckout, true);
 
       const discoveredRepo = resolveRepoEntry(inventory, { repoPath: discoveredRepoPath });
       assert.ok(discoveredRepo, 'expected workspace scan entry');

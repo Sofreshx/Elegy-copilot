@@ -13,6 +13,8 @@ Write the test first. Watch it fail. Write minimal code to pass.
 
 **Violating the letter of the rules is violating the spirit of the rules.**
 
+**Lane-aware rule:** Red/green evidence is still mandatory, but proving test execution belongs to validation lanes. Validation lanes may run the narrowest relevant test command directly. Implementation and other non-validation lanes must delegate red/green execution to the appropriate runner lane and use its returned failure/pass evidence before writing or claiming production changes are green.
+
 ## When to Use
 
 **Always:**
@@ -115,10 +117,13 @@ Vague name, tests mock not code
 **MANDATORY. Never skip.**
 
 ```bash
+# Validation-lane example
 npm test path/to/test.test.ts
 ```
 
-Confirm:
+If you are not currently in a validation lane, delegate the narrowest relevant command to the appropriate runner lane and inspect its returned output before proceeding.
+
+Confirm from the fresh output/evidence:
 - Test fails (not errors)
 - Failure message is expected
 - Fails because feature missing (not typos)
@@ -170,17 +175,68 @@ Don't add features, refactor other code, or "improve" beyond the test.
 **MANDATORY.**
 
 ```bash
+# Validation-lane example
 npm test path/to/test.test.ts
 ```
 
-Confirm:
+If you are not currently in a validation lane, delegate the narrowest relevant command to the appropriate runner lane and inspect its returned output before proceeding.
+
+Confirm from the fresh output/evidence:
 - Test passes
 - Other tests still pass
 - Output pristine (no errors, warnings)
+- The test is still proving the hard behavior you needed
 
 **Test fails?** Fix code, not test.
 
 **Other tests fail?** Fix now.
+
+**Got green by deleting, narrowing, or relaxing the test?** That's fake green. You made the proof easier, not the code better.
+
+If behavior legitimately changed, replace the old hard case with equally strong or stronger coverage for the new contract. Green only counts when confidence stayed the same or improved.
+
+### Fake Green vs Real Green
+
+<Bad>
+```typescript
+// Original hard test
+test('retries 3 times before failing', async () => {
+  const fn = vi.fn().mockRejectedValue(new Error('nope'));
+
+  await expect(retryOperation(fn)).rejects.toThrow('nope');
+  expect(fn).toHaveBeenCalledTimes(3);
+});
+
+// "Fix" after failure
+test('calls retry operation', async () => {
+  const fn = vi.fn().mockRejectedValue(new Error('nope'));
+
+  await expect(retryOperation(fn)).rejects.toThrow('nope');
+  expect(fn).toHaveBeenCalled();
+});
+```
+Green output here proves less than before. Not success.
+</Bad>
+
+<Good>
+```typescript
+// Contract intentionally changed: default is now 2 retries, configurable
+test('retries 2 times by default before failing', async () => {
+  const fn = vi.fn().mockRejectedValue(new Error('nope'));
+
+  await expect(retryOperation(fn)).rejects.toThrow('nope');
+  expect(fn).toHaveBeenCalledTimes(2);
+});
+
+test('honors explicit retry override for harder failure cases', async () => {
+  const fn = vi.fn().mockRejectedValue(new Error('nope'));
+
+  await expect(retryOperation(fn, { maxRetries: 4 })).rejects.toThrow('nope');
+  expect(fn).toHaveBeenCalledTimes(4);
+});
+```
+Behavior changed, but the replacement tests still prove the boundary.
+</Good>
 
 ### REFACTOR - Clean Up
 
@@ -274,6 +330,8 @@ Tests-first force edge case discovery before implementing. Tests-after verify yo
 - Code before test
 - Test after implementation
 - Test passes immediately
+- Green only after making the test easier
+- Deleted assertion/edge case just to get green
 - Can't explain why test failed
 - Tests added "later"
 - Rationalizing "just this once"
@@ -301,9 +359,11 @@ test('rejects empty email', async () => {
 
 **Verify RED**
 ```bash
-$ npm test
+$ npm test           # validation-lane example
 FAIL: expected 'Email required', got undefined
 ```
+
+Outside a validation lane, the equivalent runner-lane output is the required evidence.
 
 **GREEN**
 ```typescript
@@ -317,9 +377,11 @@ function submitForm(data: FormData) {
 
 **Verify GREEN**
 ```bash
-$ npm test
+$ npm test           # validation-lane example
 PASS
 ```
+
+Outside a validation lane, the equivalent runner-lane output is the required evidence.
 
 **REFACTOR**
 Extract validation for multiple fields if needed.
@@ -329,11 +391,13 @@ Extract validation for multiple fields if needed.
 Before marking work complete:
 
 - [ ] Every new function/method has a test
-- [ ] Watched each test fail before implementing
+- [ ] Obtained fresh RED evidence for each test before implementing (from the validation lane directly when applicable, otherwise from the appropriate runner lane)
 - [ ] Each test failed for expected reason (feature missing, not typo)
 - [ ] Wrote minimal code to pass each test
-- [ ] All tests pass
-- [ ] Output pristine (no errors, warnings)
+- [ ] Obtained fresh GREEN evidence that the relevant tests pass (from the validation lane directly when applicable, otherwise from the appropriate runner lane)
+- [ ] Output/evidence is pristine (no errors, warnings)
+- [ ] No failing test was made easier just to get green
+- [ ] Any removed/relaxed assertion was replaced by equal or stronger coverage
 - [ ] Tests use real code (mocks only if unavoidable)
 - [ ] Edge cases and errors covered
 
@@ -360,11 +424,14 @@ When adding mocks or test utilities, read @testing-anti-patterns.md to avoid com
 - Testing mock behavior instead of real behavior
 - Adding test-only methods to production classes
 - Mocking without understanding dependencies
+- Weakening a hard test to manufacture green output
+
+For the broader contract, see [Testing Quality Governance](../../../docs/system/testing-quality-governance.md).
 
 ## Final Rule
 
 ```
-Production code → test exists and failed first
+Production code → failing-test evidence exists first
 Otherwise → not TDD
 ```
 

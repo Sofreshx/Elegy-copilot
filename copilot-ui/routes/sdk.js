@@ -84,23 +84,103 @@ function toBridgeErrorPayload(error, fallbackStatusCode = 500) {
   };
 }
 
+function sanitizeEnvString(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 512);
+}
+
+function sanitizeCliManagerState(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const source = value;
+  const sanitized = {};
+  const stringFields = [
+    'channel',
+    'sdkChannel',
+    'cliChannel',
+    'requestedChannel',
+    'acquisition',
+    'status',
+    'reason',
+    'message',
+    'source',
+    'cliPath',
+    'cliVersion',
+    'sdkVersion',
+  ];
+
+  for (const field of stringFields) {
+    const sanitizedValue = sanitizeEnvString(source[field]);
+    if (sanitizedValue) {
+      sanitized[field] = sanitizedValue;
+    }
+  }
+
+  if (typeof source.approved === 'boolean') {
+    sanitized.approved = source.approved;
+  }
+
+  const lastCheckedAtMs = Number(source.lastCheckedAtMs);
+  if (Number.isFinite(lastCheckedAtMs) && lastCheckedAtMs >= 0) {
+    sanitized.lastCheckedAtMs = lastCheckedAtMs;
+  }
+
+  return Object.keys(sanitized).length > 0 ? sanitized : null;
+}
+
+function resolveSdkBridgeDisabledState() {
+  let cliManager = null;
+  const rawCliManager = String(process.env.INSTRUCTION_ENGINE_COPILOT_CLI_STATE_JSON || '').trim();
+  if (rawCliManager) {
+    try {
+      const parsed = JSON.parse(rawCliManager);
+      cliManager = sanitizeCliManagerState(parsed);
+    } catch {
+      cliManager = null;
+    }
+  }
+
+  const reason =
+    sanitizeEnvString(process.env.INSTRUCTION_ENGINE_SDK_BRIDGE_DISABLED_REASON)
+    || cliManager?.reason
+    || 'sdk_bridge_disabled';
+  const error =
+    sanitizeEnvString(process.env.INSTRUCTION_ENGINE_SDK_BRIDGE_DISABLED_MESSAGE)
+    || cliManager?.message
+    || 'SDK bridge is disabled. Set COPILOT_SDK_BRIDGE=1 to enable SDK sessions.';
+
+  return {
+    reason,
+    error,
+    cliManager,
+  };
+}
+
 function buildSdkBridgeDisabledHealth() {
+  const disabledState = resolveSdkBridgeDisabledState();
+
   return {
     connected: false,
     enabled: false,
     state: 'disabled',
     mode: 'disabled',
     sessionCount: 0,
-    reason: 'sdk_bridge_disabled',
-    error: 'SDK bridge is disabled. Set COPILOT_SDK_BRIDGE=1 to enable SDK sessions.',
+    reason: disabledState.reason,
+    error: disabledState.error,
+    cliManager: disabledState.cliManager,
   };
 }
 
 function buildSdkBridgeDisabledError() {
+  const disabledState = resolveSdkBridgeDisabledState();
   return {
-    error: 'SDK bridge is disabled. Set COPILOT_SDK_BRIDGE=1 to enable SDK sessions.',
-    code: 'sdk_bridge_disabled',
-    reason: 'sdk_bridge_disabled',
+    error: disabledState.error,
+    code: disabledState.reason,
+    reason: disabledState.reason,
   };
 }
 
@@ -182,6 +262,9 @@ function handleCreateSession(ctx, deps) {
         contextType: sandboxId ? 'sandbox' : (contextType || 'regular'),
         sandboxId: sandboxId || undefined,
         cwd,
+        orchestration: payload.orchestration && typeof payload.orchestration === 'object' && !Array.isArray(payload.orchestration)
+          ? payload.orchestration
+          : undefined,
       });
     })
     .then((result) => sendJson(res, 201, result))

@@ -96,6 +96,38 @@ async function run() {
       calls.push('runs');
       return [{ id: 'run-1', jobId: 'job-1', status: 'succeeded', attemptCount: 1, maxAttempts: 3, createdAt: '2026-03-20T00:00:00.000Z', updatedAt: '2026-03-20T00:00:00.000Z', events: [] }];
     },
+    listWorktrees() {
+      calls.push('worktrees');
+      return [{
+        worktreeId: 'wt-1',
+        repoId: 'repo-1',
+        repoPath: '/repo-1',
+        mode: 'dedicated',
+        status: 'ready',
+        launch: { blocked: false, reason: null },
+      }];
+    },
+    resolveWorktree(payload) {
+      calls.push(`resolve-worktree:${payload.repoId || 'none'}`);
+      return {
+        repo: {
+          repoId: payload.repoId || 'repo-1',
+          repoPath: payload.repoPath || '/repo-1',
+        },
+        cwd: payload.repoPath || '/repo-1',
+        worktree: {
+          worktreeId: 'wt-1',
+          repoId: payload.repoId || 'repo-1',
+          repoPath: payload.repoPath || '/repo-1',
+          mode: payload.mode || 'shared',
+          status: payload.mode === 'dedicated' ? 'pending_preparation' : 'shared',
+          launch: {
+            blocked: payload.mode === 'dedicated',
+            reason: payload.mode === 'dedicated' ? 'Prepare the dedicated worktree first.' : null,
+          },
+        },
+      };
+    },
     getRun(runId) {
       calls.push(`run:${runId}`);
       return { id: runId, jobId: 'job-1', status: 'succeeded', attemptCount: 1, maxAttempts: 3, createdAt: '2026-03-20T00:00:00.000Z', updatedAt: '2026-03-20T00:00:00.000Z', events: [] };
@@ -123,25 +155,33 @@ async function run() {
     readJsonBody: async (req) => req.__body || {},
   });
 
-  await test('GET executor routes return health, jobs, runs, and run detail', async () => {
+  await test('GET executor routes return health, jobs, worktrees, runs, and run detail', async () => {
     const health = await invoke(routes, 'GET', '/api/executor/health');
     const jobs = await invoke(routes, 'GET', '/api/executor/jobs');
+    const worktrees = await invoke(routes, 'GET', '/api/executor/worktrees');
     const runs = await invoke(routes, 'GET', '/api/executor/runs');
     const run = await invoke(routes, 'GET', '/api/executor/runs/run-1');
 
     assert.equal(health.res.statusCode, 200);
+    assert.equal(health.res.body.orchestrationContractVersion, '1');
     assert.equal(jobs.res.statusCode, 200);
+    assert.equal(worktrees.res.statusCode, 200);
+    assert.equal(worktrees.res.body.worktrees[0].worktreeId, 'wt-1');
     assert.equal(runs.res.statusCode, 200);
     assert.equal(run.res.statusCode, 200);
     assert.equal(run.res.body.id, 'run-1');
   });
 
-  await test('POST executor routes create, trigger, and cancel jobs', async () => {
+  await test('POST executor routes create, resolve worktrees, trigger, and cancel jobs', async () => {
     const created = await invoke(routes, 'POST', '/api/executor/jobs', { prompt: 'ship it' });
+    const resolved = await invoke(routes, 'POST', '/api/executor/worktrees/resolve', { repoId: 'repo-1', mode: 'dedicated' });
     const triggered = await invoke(routes, 'POST', '/api/executor/jobs/job-1/trigger', {});
     const cancelled = await invoke(routes, 'POST', '/api/executor/jobs/job-1/cancel', {});
 
     assert.equal(created.res.statusCode, 201);
+    assert.equal(resolved.res.statusCode, 200);
+    assert.equal(resolved.res.body.worktree.worktreeId, 'wt-1');
+    assert.equal(resolved.res.body.worktree.launch.blocked, true);
     assert.equal(triggered.res.statusCode, 200);
     assert.equal(cancelled.res.statusCode, 200);
     assert.equal(created.res.body.job.prompt, 'ship it');

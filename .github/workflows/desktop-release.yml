@@ -37,6 +37,29 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Validate publish-repo topology (fail closed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected_repo="$(python - <<'PY'
+          import pathlib
+          import re
+
+          text = pathlib.Path('copilot-ui/electron-builder.yml').read_text(encoding='utf-8')
+          owner = re.search(r'(?m)^  owner:\s*(.+?)\s*$', text)
+          repo = re.search(r'(?m)^  repo:\s*(.+?)\s*$', text)
+          if not owner or not repo:
+              raise SystemExit('Could not resolve publish owner/repo from copilot-ui/electron-builder.yml')
+          def clean(value):
+              return value.strip().strip('"').strip("'")
+          print(f"{clean(owner.group(1))}/{clean(repo.group(1))}")
+          PY
+          )"
+          if [[ "${expected_repo}" != "${GITHUB_REPOSITORY}" ]]; then
+            echo "Desktop release must run from ${expected_repo}; current repository is ${GITHUB_REPOSITORY}." >&2
+            exit 1
+          fi
+
       - name: Resolve release tag and channel
         id: meta
         shell: bash

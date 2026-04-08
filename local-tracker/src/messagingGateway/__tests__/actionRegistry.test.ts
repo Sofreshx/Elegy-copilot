@@ -2,6 +2,8 @@ import { ActionRegistry, ActionNotFoundError, ActionExecutor } from '../workflow
 import type { WorkflowStep } from '../workflows/workflowSchema';
 import { registerDevExecutors } from '../workflows/executors/devExecutors';
 import { registerGitExecutors } from '../workflows/executors/gitExecutors';
+import { registerSessionExecutors } from '../workflows/executors/sessionExecutors';
+import type { BridgeClient } from '../bridgeClient';
 
 function step(id: string, action: string, params?: Record<string, unknown>): WorkflowStep {
     return { id, name: `Step ${id}`, action, type: 'action', streaming: false, dependsOn: [], params };
@@ -325,5 +327,43 @@ describe('registerGitExecutors', () => {
             }),
         );
         expect((result as { reason?: string }).reason).toContain('exceeds cap 10');
+    });
+});
+
+describe('registerSessionExecutors', () => {
+    function createBridgeClient(): BridgeClient {
+        return {
+            start: jest.fn(),
+            stop: jest.fn(async () => undefined),
+            getStatus: jest.fn(() => 'connected' as const),
+            get_sessions: jest.fn(async () => []),
+            invoke_agent: jest.fn(async () => ({ sessionId: 'ses-new' })),
+            cancel_session: jest.fn(async () => ({ cancelled: true })),
+            resolve_permission: jest.fn(async () => ({ resolved: true })),
+        };
+    }
+
+    it('fails closed when session.stop is missing a bound session id', async () => {
+        const bridgeClient = createBridgeClient();
+        const registry = new ActionRegistry();
+        registerSessionExecutors(registry, bridgeClient);
+
+        await expect(
+            registry.get('session.stop')(step('s-stop', 'session.stop'), {}),
+        ).rejects.toThrow('requires a bound sessionId');
+        expect(bridgeClient.cancel_session).not.toHaveBeenCalled();
+    });
+
+    it('uses bound session context for log collection and stop', async () => {
+        const bridgeClient = createBridgeClient();
+        const registry = new ActionRegistry();
+        registerSessionExecutors(registry, bridgeClient);
+
+        await expect(
+            registry.get('session.collectLogs')(step('s-log', 'session.collectLogs'), { sessionId: 'ses-42' }),
+        ).resolves.toEqual({ collected: true, sessionId: 'ses-42' });
+
+        await registry.get('session.stop')(step('s-stop', 'session.stop'), { sessionId: 'ses-42' });
+        expect(bridgeClient.cancel_session).toHaveBeenCalledWith({ sessionId: 'ses-42' });
     });
 });

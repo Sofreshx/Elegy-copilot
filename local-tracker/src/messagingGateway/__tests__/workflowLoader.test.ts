@@ -19,6 +19,9 @@ describe('loadWorkflowTemplate', () => {
         expect(def.version).toBe('1.0.0');
         expect(def.steps).toHaveLength(5);
         expect(def.steps[0].id).toBe('check-status');
+        expect(def.description).toContain('recovery follow-up');
+        expect(def.steps[2].params).toEqual({ sessionId: '{{collect-logs.sessionId}}' });
+        expect(def.steps[3].id).toBe('start-recovery-follow-up');
     });
 
     it('loads finalization-validation.json and validates schema', () => {

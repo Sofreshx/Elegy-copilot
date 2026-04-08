@@ -25,6 +25,8 @@ import type {
   PlanningBacklogItem,
   PlanningBullet,
   CatalogRepoInventoryEntry,
+  ObsidianPlanningNoteDetail,
+  ObsidianPlanningNoteSummary,
   PlanningDraftItem,
   PlanningDiagram,
   PlanningCompareReceipt,
@@ -721,7 +723,16 @@ function normalizePlanSeedSource(artifact: PlanningPlanSeedArtifact | null | und
 }
 
 function normalizePlanSeedArtifact(
-  artifact: PlanningPlanSeedArtifact | PlanningIntakeArtifact | PlanningBullet | PlanningBacklogItem | PlanningRoadmapItem | null | undefined
+  artifact:
+    | PlanningPlanSeedArtifact
+    | PlanningIntakeArtifact
+    | PlanningBullet
+    | PlanningBacklogItem
+    | PlanningRoadmapItem
+    | ObsidianPlanningNoteSummary
+    | ObsidianPlanningNoteDetail
+    | null
+    | undefined
 ): PlanningPlanSeedArtifact | null {
   if (!artifact || typeof artifact !== 'object') {
     return null;
@@ -2168,7 +2179,15 @@ export function createPlanningStore() {
   async function savePlanDraft(input: {
     title?: string;
     content?: string;
-    seedArtifact?: PlanningPlanSeedArtifact | PlanningIntakeArtifact | PlanningBullet | PlanningBacklogItem | PlanningRoadmapItem | null;
+    seedArtifact?:
+      | PlanningPlanSeedArtifact
+      | PlanningIntakeArtifact
+      | PlanningBullet
+      | PlanningBacklogItem
+      | PlanningRoadmapItem
+      | ObsidianPlanningNoteSummary
+      | ObsidianPlanningNoteDetail
+      | null;
     createNewSession?: boolean;
   } = {}): Promise<string | null> {
     const stateSnapshot = store.getState();

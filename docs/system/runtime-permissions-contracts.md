@@ -102,11 +102,11 @@ WS6 release readiness is contractually valid only when the following evidence ar
   - Requirement: checksum pass path remains `all_manifest_checksums_match`; checksum drift remains hard-fail (`PLANNING_MIGRATION_CHECKSUM_DRIFT`); runtime health reports deterministic `planningPersistence.migrations.driftDetected` state.
 
 4. `WS6-E4 RollbackTriggers`
-  - Source: `node copilot-ui/dist-electron/rollbackPolicy.test.js` and `node copilot-ui/dist-electron/updatePolicy.rollback.test.js`.
+  - Source: `npm --prefix copilot-ui run build:electron` followed by `node copilot-ui/dist-electron/rollbackPolicy.test.js` and `node copilot-ui/dist-electron/updatePolicy.rollback.test.js`.
   - Requirement: threshold trigger reasons remain machine-readable and deterministic (`rollback_policy_source_unavailable`, `rollback_policy_malformed`, `current_version_below_minimum_safe`, `candidate_version_above_channel_ceiling`).
 
 5. `WS6-E5 KillSwitch`
-  - Source: `node copilot-ui/dist-electron/updater.rollback.test.js` plus operational approval record.
+  - Source: `npm --prefix copilot-ui run build:electron` followed by `node copilot-ui/dist-electron/updater.rollback.test.js` plus operational approval record.
   - Requirement: kill-switch evidence includes `updates_disabled_globally` blocking update checks and ownership/approval record aligned with Security Model (Release Engineering execution, incident commander approval, Security co-approval for trust-chain incidents).
 
 Pass/fail contract:
@@ -162,6 +162,7 @@ WS6 validation follows this ordered ladder:
   - `node copilot-ui/server.runtime-health.test.js`
 
 3. Rollback + kill-switch guards
+  - `npm --prefix copilot-ui run build:electron`
   - `node copilot-ui/dist-electron/rollbackPolicy.test.js`
   - `node copilot-ui/dist-electron/updatePolicy.rollback.test.js`
   - `node copilot-ui/dist-electron/updater.rollback.test.js`

@@ -1,19 +1,22 @@
 ---
 created: 2026-04-03
-updated: 2026-04-03
+updated: 2026-04-08
 category: system
 status: current
 doc_kind: node
 id: validation-governance
 summary: Canonical validation-governance rules for mandatory unit, integration, and E2E coverage; browser-tooling split; and closure confidence handling.
 tags: [validation, testing, e2e, governance]
-related: [testing-and-e2e, e2e-setup-guide, planpack-spec, session-state-artifacts, orchestrator-user-guide]
+related: [testing-and-e2e, testing-quality-governance, e2e-setup-guide, planpack-spec, session-state-artifacts, orchestrator-user-guide]
 ---
 
 # Validation Governance
 
 This document defines when validation is mandatory, which tool path applies, and how validation
 coverage must be reported and persisted.
+
+Test-quality expectations for any validation artifact are governed by
+`docs/system/testing-quality-governance.md`.
 
 ## Core Rules
 
@@ -29,9 +32,15 @@ coverage must be reported and persisted.
 
 | Layer | Mandatory when | Default route/tool | If required coverage is missing |
 | --- | --- | --- | --- |
-| Unit | Most behavior-affecting code changes, especially when the changed logic can be verified narrowly in-process | `@unit-test-runner` or narrow deterministic script/test command | Closure confidence must not be `high`; report the gap explicitly |
-| Integration | Cross-boundary behavior, storage/network/API contract changes, new features with weak unit-only coverage, auth/session coupling, or repo policy requiring broader confirmation | `@o-validation-coordinator` -> `@integration-test-runner` or equivalent integration command | Keep the gap explicit; do not imply unit coverage alone closed the risk |
+| Unit | Most behavior-affecting code changes, especially when the changed logic can be verified narrowly in-process | `@o-validation-coordinator` -> `@unit-test-runner` by default. If a direct unit command is needed, it stays inside the validation lane as the runner's narrow deterministic execution path. | Closure confidence must not be `high`; report the gap explicitly |
+| Integration | Cross-boundary behavior, storage/network/API contract changes, new features with weak unit-only coverage, auth/session coupling, or repo policy requiring broader confirmation | `@o-validation-coordinator` -> `@integration-test-runner` by default. Any fallback integration command must remain inside the validation lane/coordinator path. | Keep the gap explicit; do not imply unit coverage alone closed the risk |
 | E2E | Browser-visible or stateful user journeys, auth/login/logout flows, risky UI/API behavior changes, new or untested UI surfaces, or cases where only a real browser confirms the behavior | Agent-driven validation: `@e2e-validator` -> `@e2e-browser` with `agent-browser` CLI. Durable scripted suites: Playwright CLI/test runner | Closure must call out the missing browser coverage and any resulting limitation or inconclusive outcome |
+
+## Routing Boundary
+
+- Unit and integration validation route through validation-specific lanes/coordinators by default; implementation lanes must not bypass that boundary by self-running generic test commands as their validation claim.
+- A direct test command is only acceptable when a validation-specific lane uses it as its own narrow execution mechanism.
+- Those direct-command exceptions inherit the same timeout controls, scope discipline, evidence capture, and closure-reporting requirements as runner-mediated validation.
 
 ## Typical E2E Triggers
 

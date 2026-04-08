@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-25
+updated: 2026-04-07
 category: system
 status: draft
 doc_kind: node
@@ -20,6 +20,10 @@ Draft — pending review
 > Historical design note: this document records the original orchestrator design pass.
 > For current operational behavior, use `engine-assets/agents/orchestrator.agent.md`
 > and `docs/system/orchestrator/user-guide.md`.
+>
+> Historical prototype note: legacy tool references below describe the original Seamless Agent-era
+> proposal, not current shipped guidance. The shipped baseline uses interactive
+> `vscode/askQuestions`; richer host tooling is optional and non-baseline.
 >
 > Current shipped V1 topology keeps `@orchestrator` as the root session/loop owner, allows only
 > named approved coordinators with explicit allowlists, caps effective depth at 3
@@ -147,7 +151,7 @@ orchestrator gathers exploration context and passes it to `@o-planner`.
 
 ##### Phase 1b: Discuss & Research (complex only)
 1. If ambiguities identified by reframer:
-   - Use `planReview` (Seamless Agent) or `askQuestions` to present ambiguities and get structured user input
+   - Historical prototype assumption: use `planReview` (Seamless Agent) or `askQuestions` to present ambiguities and get structured user input
 2. If research needed:
    - Delegate to @research-ideation with specific questions
 3. If codebase exploration needed:
@@ -170,8 +174,8 @@ orchestrator gathers exploration context and passes it to `@o-planner`.
    - Add `@consistency-reviewer` when convention or alignment fit is the main risk
    - Use `@code-reviewer` only when no sharper planning-review lane fits
 4. Present the reviewed plan to the user:
-   - For standard: use `planReview` (Seamless Agent) for inline feedback after the cross-model review pair converges
-   - For complex: use `planReview` after the cross-model review pair converges; add specialist overlays as needed
+   - Historical prototype assumption: for standard, use `planReview` (Seamless Agent) for inline feedback after the cross-model review pair converges
+   - Historical prototype assumption: for complex, use `planReview` after the cross-model review pair converges; add specialist overlays as needed
 5. If reviewers or user request changes: incorporate feedback, re-invoke o-planner, and re-run the relevant planning review
 6. If approved: persist plan pack, proceed to Phase 3
 
@@ -209,7 +213,7 @@ For each work unit (respecting dependency order):
 #### Phase 4: Verify & Complete
 1. Run final review (code-reviewer on all changes)
 2. Optional: cross-model review for non-trivial changes
-3. Present summary to user via askUser:
+3. Historical prototype assumption: present summary to user via askUser:
    - What changed
    - What was tested
    - How to validate
@@ -217,7 +221,7 @@ For each work unit (respecting dependency order):
 
 #### Phase 5: Follow-Up Loop
 1. Generate 2-4 concrete follow-up proposals
-2. Present via askQuestions with "Stop — all done" option
+2. Historical prototype assumption: present via askQuestions with "Stop — all done" option
 3. If user picks a follow-up: classify and execute (back to Phase 1)
 4. If stop: end session
 
@@ -233,7 +237,7 @@ tools:
   - agent/runSubagent
   - todo
   
-  # User interaction (prefer Seamless Agent when available)
+  # Historical prototype user interaction assumptions
   - vscode/askQuestions          # batch questions, fallback
   - jraylan.seamless-agent/askUser        # rich single-question confirmation
   - jraylan.seamless-agent/planReview     # plan approval with inline comments
@@ -275,9 +279,10 @@ This is the orchestrator's most important job — curating what each subagent re
 
 **Never dump the entire context into a subagent call.** The orchestrator is the context curator.
 
-### Seamless Agent Integration
+### Historical Prototype: Seamless Agent Integration
 
-The orchestrator should prefer Seamless Agent tools over vscode/askQuestions when the extension is available:
+This section records the original prototype assumption that preferred Seamless Agent tools over
+`vscode/askQuestions`. It is historical context, not current shipped guidance:
 
 | Scenario | Tool | Why |
 |----------|------|-----|
@@ -286,9 +291,10 @@ The orchestrator should prefer Seamless Agent tools over vscode/askQuestions whe
 | UAT walkthrough | `walkthroughReview` | Step-by-step guided review |
 | Multiple parallel questions | `vscode/askQuestions` | Batch capability |
 
-**Fallback**: If Seamless Agent tools are unavailable, use vscode/askQuestions for all scenarios.
+**Historical fallback assumption**: If Seamless Agent tools are unavailable, use
+vscode/askQuestions for all scenarios.
 
-Recommended instruction for plan review:
+Historical prototype instruction for plan review:
 ```
 When presenting a plan for approval, use #planReview and wait for the user's decision.
 If the user requests changes, incorporate their inline comments and re-submit via #planReview.

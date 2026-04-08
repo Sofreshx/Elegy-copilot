@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-04-03
+updated: 2026-04-07
 category: system
 status: current
 doc_kind: node
@@ -81,13 +81,17 @@ At session end or pause, the orchestrator should normalize:
   closure
 
 This summary is composed from execution outcomes plus `@code-reviewer`, `@goal-reviewer`,
-`@final-reviewer`, follow-up discovery, and validation lanes. The orchestrator is responsible for
-normalizing those signals into one closure view instead of pretending one lane owns every closure fact.
+`@final-reviewer`, `@follow-up-finder`, `@remaining-work`, and validation lanes. Ownership stays
+split: `@goal-reviewer` is the active-goal closure gate, `@final-reviewer` is the
+requested-vs-delivered closure narrative, `@follow-up-finder` structures open follow-up work, and
+`@remaining-work` is only a heuristic signal/input rather than a stop/go authority. The orchestrator
+is responsible for normalizing those signals into one closure view instead of pretending one lane
+owns every closure fact.
 
 ## Quick Start
 
 1. **Invoke**: Type `@orchestrator` followed by your request.
-2. **Answer interactive clarifications**: When blocking clarification or a proceed-anyway decision is needed, the orchestrator uses `planReview` when available and `vscode/askQuestions` otherwise.
+2. **Answer interactive clarifications**: When blocking clarification or a proceed-anyway decision is needed, the orchestrator uses `vscode/askQuestions` through the interactive flow.
 3. **Review the plan interactively** (for non-trivial work): Approve, revise, or cancel in that flow rather than through a plain-text end-of-plan question.
 4. **Watch it execute**: Work units are delegated to specialist agents.
 5. **Pick follow-ups or stop**: After completion, choose next actions or stop.
@@ -154,14 +158,17 @@ Current prompt/runtime hardening assumes a safe fallback when the backend has no
 
 In that case, the orchestrator stays inside a curated shipped first-party baseline for automatic routing:
 
-- `@o-reframer`, `@o-planner`, `@search`, `@execute`
+- `@o-reframer`, `@o-plan-coordinator`, `@o-planner`, `@roadmap-planner`, `@search`, `@execute`
 - `@work-unit-runner`, `@impl-infra`, `@impl-business`
 - `@code-explorer`, `@code-architect`, `@code-reviewer`
-- `@research-ideation`, `@unit-test-runner`, `@doc-writer`, `@goal-reviewer`, `@final-reviewer`
+- `@research-ideation`, `@doc-writer`, `@goal-reviewer`, `@final-reviewer`, `@follow-up-finder`, `@remaining-work`
+- `@o-validation-coordinator`, `@unit-test-runner`, `@integration-test-runner`, `@e2e-validator`
+- `@backlog-planner`
 
-It should **not** auto-select optional audit lanes, provider/imported capabilities, or persisted
-session-state workflows from fallback alone. The built-in planning workflow may still call
-`@reviewer-opus-4-6` and `@reviewer-gpt-5-4` as the default plan-review pair.
+It should **not** auto-select optional audit lanes, provider/imported capabilities, persisted
+session-state workflows, or cross-model reviewers from fallback alone. Planning-time cross-model
+reviewers remain workflow-specific and should run only when an explicit workflow or runtime policy
+snapshot selects them.
 
 ### When a persisted session-state lane is chosen instead
 
@@ -240,9 +247,10 @@ tradeoffs, or explicit user preference makes that approval materially necessary.
 This phase runs only when the selected surface includes a plan pack and `execution_readiness` is
 `ready` or `stageable`. Roadmap-only and `none` requests skip the plan-pack lane entirely.
 
-In V1, the orchestrator may optionally use `@o-plan-coordinator` for read-only planning prep before
-handing the final brief to `@o-planner`. When that nested path is unavailable or disabled, use the
-legacy-depth-1 fallback: direct orchestrator -> `@o-planner` planning.
+In V1, `@o-plan-coordinator` is the only approved planning-time coordinator. It may do read-only
+planning prep, then hand the enriched brief to leaf-only `@o-planner`. When that nested path is
+unavailable or disabled, use the legacy-depth-1 fallback: direct orchestrator -> `@o-planner`
+planning.
 
 Planning refines the **Session Intent Frame** into an execution-ready shape: success criteria,
 validation expectations, missing work that still needs explicit handling, and whether any durable repo
@@ -252,7 +260,7 @@ When `planning_surface: both`, the roadmap slice is established first and the ge
 carry the linked durable IDs forward into execution.
 
 When Phase 2 needs plan approval, blocking clarification, or an explicit proceed-anyway decision, use
-`planReview` when that interactive review tooling is available and `vscode/askQuestions` otherwise.
+`vscode/askQuestions` through the interactive flow.
 Do not fall back to plain-text end-of-plan questions for those decisions.
 
 ### Phase 3: Execute
@@ -294,6 +302,10 @@ When reconciliation runs, `@doc-writer` keeps only unresolved goals that are no 
 
 When closure also needs durable Repository Backlog carryover, the orchestrator should preserve an explicit `session_backlog_path` from `@goal-reviewer`, prefer `docs/backlogs/<session-slug>.md` for new carryover, and treat `docs/backlog.md` as legacy compatibility only.
 
+If a fast workspace/session-state scan is useful, `@remaining-work` may provide supporting evidence
+about likely open work, but it must not override `GOAL_REVIEW` or the closure narrative owned by
+`@final-reviewer`.
+
 Verification is also where the orchestrator assembles most of the **Session Closure Summary**:
 requested-vs-delivered facts, goal closure, validation requirements, tested coverage, code-quality /
 coherence findings, validation confidence, and limitations or coverage gaps that prevent a stronger
@@ -320,6 +332,10 @@ structure Repository Backlog carryover under `work_not_done`, `issues`, and `sug
 persistence or cleanup through `@backlog-planner` so `docs/backlogs/<session-slug>.md` stays the
 primary end-of-session backlog surface.
 
+Use `@follow-up-finder` to structure active continuation work, blockers, and carryover ownership.
+Use `@remaining-work` only when a heuristic git/session-state signal would help identify open work;
+it does not decide whether `Stop — all done` is allowed.
+
 The orchestrator should say explicitly when a limitation remains unresolved rather than implying hidden
 memory or automatic future pickup.
 
@@ -328,8 +344,10 @@ memory or automatic future pickup.
 | Agent | Role |
 |---|---|
 | `@o-reframer` | Analyzes requests, classifies complexity |
+| `@o-plan-coordinator` | Optional read-only planning coordinator that enriches the brief before handing it to leaf-only `@o-planner` |
 | `@o-validation-coordinator` | Bounded validation overlap coordinator for completed or frozen slices |
 | `@o-planner` | Produces plan packs from enriched briefs |
+| `@roadmap-planner` | Durable multi-session roadmap/backlog lane; leaf-only and not a coordinator handoff into `@o-planner` |
 | `@backlog-planner` | Maintains `docs/backlogs/*.md`, converts backlog items into roadmap or direct plan-handoff briefs, and cleans consumed backlog/roadmap items |
 | `@reviewer-opus-4-6` | Primary planning reviewer for cross-model plan risk and completeness review |
 | `@reviewer-gpt-5-4` | Primary planning reviewer that validates the plan and prior review feedback |
@@ -342,7 +360,9 @@ memory or automatic future pickup.
 | `@code-reviewer` | Quality gates (APPROVED/NEEDS_REVISION/FAILED) |
 | `@goal-reviewer` | High-level goal closure gate (`APPROVED|NEEDS_REVISION|BLOCKED`) plus per-goal completion states (`complete|partial|not-complete`) + read-only unresolved-goal sync instructions |
 | `@doc-writer` | Documentation lane, including deterministic reconciliation of `docs/issues/unresolved-goals.md` after `@goal-reviewer` |
-| `@final-reviewer` | Requested-vs-delivered closure summary and remaining-work signal that respects `GOAL_REVIEW` status |
+| `@final-reviewer` | Requested-vs-delivered closure summary, including the narrative "what remains" summary, while respecting `GOAL_REVIEW` status |
+| `@follow-up-finder` | Structures actionable follow-up work, blockers, and backlog carryover; not a closure gate |
+| `@remaining-work` | Heuristic git/session-state remaining-work signal; advisory only, not closure authority |
 | `@research-ideation` | Web + codebase research |
 | `@unit-test-runner` | Unit test execution |
 | `@integration-test-runner` | Integration tests when policy or risk requires broader validation |

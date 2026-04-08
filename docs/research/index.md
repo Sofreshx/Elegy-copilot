@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-28
+updated: 2026-04-07
 category: research
 status: current
 doc_kind: index
@@ -21,4 +21,6 @@ This folder contains **non-canonical** notes, spikes, and audits.
 - [Skill Discovery Search/Execute Audit](skill-discovery-search-execute-audit.md)
 - [Github Copilot Atlas Analysis](github-copilot-atlas-analysis.md)
 - [MarkdownLM/mcp Memory Analysis](markdownlm-mcp-memory-analysis.md)
+- [Task Board + Multi-Session/Sub-Agent Orchestration MVP Design Brief](task-board-orchestration-mvp-design-brief.md)
 - [UI Runtime Overlay Research](ui-runtime-overlay-research.md)
+- [copilot-ui MVP Scope Lock](copilot-ui-mvp-scope-lock.md)

@@ -36,6 +36,19 @@ const SESSION_STATE_AUTHORITIES = Object.freeze({
   ARTIFACT: 'fs',
 });
 
+const SESSION_ORCHESTRATION_CONTRACT_VERSION = '1';
+const SESSION_ORCHESTRATION_ACTOR_ROLES = Object.freeze([
+  'planner',
+  'implementer',
+  'reviewer',
+  'researcher',
+  'operator',
+  'orchestrator',
+  'parent-session',
+  'specialist',
+  'unknown',
+]);
+
 const SESSION_RECONCILIATION_SOURCE_PRECEDENCE = Object.freeze({
   [SESSION_RECONCILIATION_SOURCES.RUNTIME]: 2,
   [SESSION_RECONCILIATION_SOURCES.ARTIFACT]: 1,
@@ -49,6 +62,7 @@ const SESSION_RECONCILIATION_SOURCE_OF_TRUTH = Object.freeze({
 const DEFAULT_RUNTIME_MODE = RUNTIME_MODES.REPO;
 const DEFAULT_CAPABILITY_STATE = CAPABILITY_STATES.UNKNOWN;
 const DEFAULT_RUNTIME_PROVIDER = RUNTIME_PROVIDERS.NON_DOCKER;
+const SESSION_ORCHESTRATION_ROLE_SET = new Set(SESSION_ORCHESTRATION_ACTOR_ROLES);
 
 const RUNTIME_COMPATIBILITY_CAPABILITIES = Object.freeze([
   'docker',
@@ -219,6 +233,190 @@ function buildCompatibilityCapabilities(input) {
   return normalizeCapabilities(merged);
 }
 
+function normalizeOptionalString(input) {
+  if (typeof input !== 'string') return null;
+  const value = input.trim();
+  return value || null;
+}
+
+function cloneJsonSafe(value) {
+  return value == null ? value : JSON.parse(JSON.stringify(value));
+}
+
+function normalizeActorRole(input) {
+  const value = normalizeOptionalString(input);
+  if (!value) {
+    return 'unknown';
+  }
+
+  const normalized = value.toLowerCase().replace(/[_\s]+/g, '-');
+  if (SESSION_ORCHESTRATION_ROLE_SET.has(normalized)) {
+    return normalized;
+  }
+  if (normalized.includes('plan')) return 'planner';
+  if (normalized.includes('implement') || normalized.includes('coder') || normalized.includes('builder')) return 'implementer';
+  if (normalized.includes('review') || normalized.includes('qa') || normalized.includes('verify')) return 'reviewer';
+  if (normalized.includes('research') || normalized.includes('discover')) return 'researcher';
+  if (normalized.includes('orchestr')) return 'orchestrator';
+  if (normalized.includes('operator') || normalized.includes('user')) return 'operator';
+  return 'specialist';
+}
+
+function normalizeSessionOrchestrationActor(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) {
+    return null;
+  }
+
+  const actorId = normalizeOptionalString(
+    input.actorId
+    || input.id
+    || input.label
+    || input.name
+  );
+  const label = normalizeOptionalString(input.label || input.name || input.actorId || input.id);
+
+  if (!actorId && !label) {
+    return null;
+  }
+
+  return {
+    actorId: actorId || label,
+    label: label || actorId,
+    role: normalizeActorRole(input.role || input.kind || input.label || input.name),
+    kind: normalizeOptionalString(input.kind) || 'runtime',
+    status: normalizeOptionalString(input.status),
+    source: normalizeOptionalString(input.source) || 'runtime',
+    taskId: normalizeOptionalString(input.taskId),
+    taskIds: Array.isArray(input.taskIds)
+      ? input.taskIds.map((value) => normalizeOptionalString(value)).filter(Boolean)
+      : [],
+    invocationCount: Number.isFinite(Number(input.invocationCount)) ? Number(input.invocationCount) : null,
+  };
+}
+
+function normalizeSessionOrchestrationMetadata(input = {}, defaults = {}) {
+  const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  const fallback = defaults && typeof defaults === 'object' && !Array.isArray(defaults) ? defaults : {};
+
+  const repoSource = source.repo && typeof source.repo === 'object' ? source.repo : {};
+  const isolationSource = source.isolation && typeof source.isolation === 'object' ? source.isolation : {};
+  const workflowSource = source.workflow && typeof source.workflow === 'object' ? source.workflow : {};
+  const taskRefs = Array.isArray(source.taskRefs)
+    ? source.taskRefs
+    : Array.isArray(source.tasks)
+      ? source.tasks
+      : [];
+  const actors = Array.isArray(source.actors) ? source.actors : [];
+
+  return {
+    objective: normalizeOptionalString(source.objective || fallback.objective),
+    repo: {
+      repoId: normalizeOptionalString(repoSource.repoId || repoSource.id || fallback.repoId),
+      repoPath: normalizeOptionalString(repoSource.repoPath || repoSource.path || fallback.repoPath),
+      repoLabel: normalizeOptionalString(repoSource.repoLabel || repoSource.label || fallback.repoLabel),
+      branch: normalizeOptionalString(repoSource.branch || fallback.branch),
+      source: normalizeOptionalString(repoSource.source || fallback.repoSource) || null,
+    },
+     isolation: {
+       mode: normalizeOptionalString(isolationSource.mode || fallback.isolationMode) || null,
+       contextType: normalizeOptionalString(isolationSource.contextType || fallback.contextType) || null,
+       sandboxId: normalizeOptionalString(isolationSource.sandboxId || fallback.sandboxId),
+       worktreeId: normalizeOptionalString(isolationSource.worktreeId || fallback.worktreeId),
+       worktreePath: normalizeOptionalString(isolationSource.worktreePath || fallback.worktreePath),
+       worktreeStatus: normalizeOptionalString(
+         isolationSource.worktreeStatus
+         || (isolationSource.worktree && isolationSource.worktree.status)
+         || fallback.worktreeStatus
+       ),
+       launchBlocked: isolationSource.launchBlocked === true || fallback.launchBlocked === true,
+       launchBlockedReason: normalizeOptionalString(
+         isolationSource.launchBlockedReason
+         || (isolationSource.worktree && isolationSource.worktree.launch && isolationSource.worktree.launch.reason)
+         || fallback.launchBlockedReason
+       ),
+     },
+    actors: actors.map((actor) => normalizeSessionOrchestrationActor(actor)).filter(Boolean),
+    taskRefs: taskRefs
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+          const taskId = normalizeOptionalString(entry);
+          return taskId ? { taskId } : null;
+        }
+        const taskId = normalizeOptionalString(entry.taskId || entry.id);
+        if (!taskId) return null;
+        return {
+          taskId,
+          title: normalizeOptionalString(entry.title),
+          status: normalizeOptionalString(entry.status),
+          ownerSessionId: normalizeOptionalString(entry.ownerSessionId),
+          activeActorId: normalizeOptionalString(entry.activeActorId),
+          activeActorLabel: normalizeOptionalString(entry.activeActorLabel),
+        };
+      })
+      .filter(Boolean),
+    workflow: {
+      workflowKind: normalizeOptionalString(workflowSource.workflowKind || workflowSource.kind || fallback.workflowKind),
+      workflowId: normalizeOptionalString(workflowSource.workflowId || workflowSource.id || fallback.workflowId),
+      trigger: normalizeOptionalString(workflowSource.trigger || fallback.trigger),
+      mode: normalizeOptionalString(workflowSource.mode || fallback.workflowMode),
+      runId: normalizeOptionalString(workflowSource.runId || fallback.runId),
+      jobId: normalizeOptionalString(workflowSource.jobId || fallback.jobId),
+      sessionId: normalizeOptionalString(workflowSource.sessionId || fallback.sessionId),
+      status: normalizeOptionalString(workflowSource.status || fallback.workflowStatus),
+    },
+  };
+}
+
+function buildSessionOrchestrationProjection(input = {}) {
+  const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  const metadata = normalizeSessionOrchestrationMetadata(source.metadata || source, source.defaults || {});
+  const actors = Array.isArray(source.actors)
+    ? source.actors.map((actor) => normalizeSessionOrchestrationActor(actor)).filter(Boolean)
+    : metadata.actors;
+  const taskItems = Array.isArray(source.taskItems) ? source.taskItems.map((item) => cloneJsonSafe(item)).filter(Boolean) : [];
+  const workflowRuns = Array.isArray(source.workflowRuns) ? source.workflowRuns.map((item) => cloneJsonSafe(item)).filter(Boolean) : [];
+  const overlaySessions = Array.isArray(source.overlaySessions) ? source.overlaySessions.map((item) => cloneJsonSafe(item)).filter(Boolean) : [];
+  const worktree = source.worktree && typeof source.worktree === 'object'
+    ? cloneJsonSafe(source.worktree)
+    : null;
+
+  return {
+    contractVersion: SESSION_ORCHESTRATION_CONTRACT_VERSION,
+    sessionId: normalizeOptionalString(source.sessionId),
+    objective: metadata.objective,
+    authority: {
+      liveSession: SESSION_STATE_AUTHORITIES.RUNTIME,
+      artifactFallback: SESSION_STATE_AUTHORITIES.ARTIFACT,
+      durableTasks: 'repo-state',
+      workflowRuns: 'executor',
+      worktrees: 'repo-state',
+      overlays: 'runtime',
+    },
+    repo: metadata.repo,
+    isolation: {
+      ...metadata.isolation,
+      worktree,
+    },
+    actors: {
+      items: actors,
+      activeActorId: normalizeOptionalString(source.activeActorId)
+        || normalizeOptionalString((taskItems.find((item) => item && item.activeActorId) || {}).activeActorId),
+    },
+    taskBoard: {
+      durableStore: 'repo-state',
+      repoId: metadata.repo.repoId,
+      items: taskItems,
+    },
+    workflow: {
+      ...metadata.workflow,
+      runs: workflowRuns,
+    },
+    overlays: {
+      sessions: overlaySessions,
+    },
+  };
+}
+
 function buildRuntimeContract(input) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
 
@@ -263,6 +461,8 @@ module.exports = {
   SESSION_RECONCILIATION_SOURCE_PRECEDENCE,
   SESSION_RECONCILIATION_SOURCE_OF_TRUTH,
   SESSION_STATE_AUTHORITIES,
+  SESSION_ORCHESTRATION_CONTRACT_VERSION,
+  SESSION_ORCHESTRATION_ACTOR_ROLES,
   RUNTIME_COMPATIBILITY_CAPABILITIES,
   DEFAULT_RUNTIME_MODE,
   DEFAULT_CAPABILITY_STATE,
@@ -279,4 +479,8 @@ module.exports = {
   buildCompatibilityCapabilities,
   buildRuntimeContract,
   buildCompatibilityRuntimeContract,
+  normalizeActorRole,
+  normalizeSessionOrchestrationActor,
+  normalizeSessionOrchestrationMetadata,
+  buildSessionOrchestrationProjection,
 };

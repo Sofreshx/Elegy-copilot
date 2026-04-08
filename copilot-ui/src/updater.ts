@@ -1,7 +1,11 @@
 /// <reference path="./electron-externals.d.ts" />
 
 import { resolveRollbackPolicy, RollbackPolicyResolution } from './rollbackPolicy';
-import { evaluateUpdateCandidate, evaluateUpdateCheck, resolveUpdateChannel } from './updatePolicy';
+import {
+  evaluateUpdateCandidate,
+  evaluateUpdateCheck,
+  resolveDesktopReleaseChannelContract,
+} from './updatePolicy';
 
 export type UpdaterStatus =
   | 'idle'
@@ -139,26 +143,17 @@ function resolveEffectiveRollbackPolicy(options: UpdaterOptions): RollbackPolicy
     return parsedPolicy;
   }
 
-  if (disableOverride === false) {
-    return {
-      ok: true,
-      policy: {
-        ...parsedPolicy.policy,
-        updatesEnabled: true,
-      },
-    };
-  }
-
   return parsedPolicy;
 }
 
 export function configureUpdater(options: UpdaterOptions) {
   const logger = options.logger || (() => {});
   const updater = options.updaterClient || resolveDefaultUpdaterClient();
-  const channel = resolveUpdateChannel({
+  const releaseContract = resolveDesktopReleaseChannelContract({
     appVersion: options.appVersion,
     explicitChannel: options.explicitChannel,
   });
+  const channel = releaseContract.contract.channel;
   const rollbackPolicy = resolveEffectiveRollbackPolicy(options);
   const checkDecision = evaluateUpdateCheck({
     appVersion: options.appVersion,

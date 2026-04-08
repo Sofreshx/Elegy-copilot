@@ -70,7 +70,7 @@ describe("FileWatcher", () => {
   const canonicalTasksPath = __watcherTestExports.getCanonicalTasksPath(workspacePath);
   const canonicalTasksPathPosix = canonicalTasksPath.replace(/\\/g, "/");
   const legacyTasksPath = __watcherTestExports.getLegacyTasksPath(workspacePath);
-  const canonicalTaskFile = path.join(canonicalTasksPath, "t-001.md");
+  const canonicalTaskFile = path.join(canonicalTasksPath, "t-001.json");
 
   afterEach(() => {
     delete process.env.TRACKER_ENABLE_LEGACY_TASK_SURFACE;
@@ -110,11 +110,16 @@ describe("FileWatcher", () => {
       const watcher = new FileWatcher(makeConfig());
       watcher.start();
 
-      const firstCallPath = chokidar.watch.mock.calls[0][0];
-      expect(firstCallPath).toContain(".copilot");
-      expect(firstCallPath).toContain("repo-state");
-      expect(firstCallPath).toContain("tasks");
-      expect(firstCallPath).toContain("*.md");
+      const firstCallPaths = chokidar.watch.mock.calls[0][0];
+      expect(firstCallPaths).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining(".copilot"),
+          expect.stringContaining("repo-state"),
+          expect.stringContaining("tasks"),
+          expect.stringContaining("*.json"),
+          expect.stringContaining("*.md"),
+        ])
+      );
     });
 
     it("only watches the legacy repo-local task surface when explicitly enabled", () => {
@@ -127,8 +132,19 @@ describe("FileWatcher", () => {
         watcher.start();
 
         expect(chokidar.watch).toHaveBeenCalledTimes(2);
-        expect(chokidar.watch.mock.calls[0][0]).toContain(canonicalTasksPath);
-        expect(chokidar.watch.mock.calls[1][0]).toContain(legacyTasksPath);
+        expect(chokidar.watch.mock.calls[0][0]).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining(canonicalTasksPath),
+            expect.stringContaining("*.json"),
+            expect.stringContaining("*.md"),
+          ])
+        );
+        expect(chokidar.watch.mock.calls[1][0]).toEqual(
+          expect.arrayContaining([
+            expect.stringContaining(legacyTasksPath),
+            expect.stringContaining("*.md"),
+          ])
+        );
         expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("compatibility-only surface"));
       } finally {
         warnSpy.mockRestore();
@@ -156,7 +172,7 @@ describe("FileWatcher", () => {
         authority: "canonical",
         event: "change",
         path: canonicalTaskFile,
-        relativePath: "t-001.md",
+        relativePath: "t-001.json",
         taskStorePath: canonicalTasksPathPosix,
         workspacePath,
       });

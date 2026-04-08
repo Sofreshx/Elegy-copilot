@@ -1,6 +1,14 @@
 'use strict';
 const assert = require('assert');
-const { buildSessionIdentity, mergeSessionGroup, dedupeAllSources, applySessionReconciliation } = require('./sessions');
+const fs = require('fs');
+const path = require('path');
+const {
+  buildSessionIdentity,
+  mergeSessionGroup,
+  dedupeAllSources,
+  applySessionReconciliation,
+  listRepoStateTasks,
+} = require('./sessions');
 
 // --- Test helpers ---
 function makeSession(id, source, lastEventTime, extra = {}) {
@@ -177,6 +185,75 @@ test('applySessionReconciliation falls back to artifact authority deterministica
   assert.strictEqual(reconciled.reconciliation.hasArtifactState, false);
   assert.strictEqual(reconciled.reconciliation.resolvedStatus, 'missing');
   assert.deepStrictEqual(reconciled.resolvedSourceSet, ['cli', 'vscode']);
+});
+
+test('listRepoStateTasks scopes structured-state task reads to the owning session or explicit session-linked refs', () => {
+  const originalReaddirSync = fs.readdirSync;
+  const originalReadFileSync = fs.readFileSync;
+  const taskPayloads = {
+    'owned.json': {
+      taskId: 'TASK-OWNED',
+      ownerSessionId: 'session-123',
+      workflow: { latestRunId: 'run-unrelated' },
+      worktree: { worktreeId: 'wt-unrelated' },
+    },
+    'workflow-linked.json': {
+      taskId: 'TASK-WORKFLOW',
+      ownerSessionId: 'session-999',
+      workflow: { latestRunId: 'run-123' },
+      worktree: { worktreeId: 'wt-unrelated' },
+    },
+    'worktree-linked.json': {
+      taskId: 'TASK-WORKTREE',
+      ownerSessionId: null,
+      workflow: {},
+      worktree: { worktreeId: 'wt-123' },
+    },
+    'sibling-session.json': {
+      taskId: 'TASK-SIBLING',
+      ownerSessionId: 'session-999',
+      workflow: { latestRunId: 'run-999' },
+      worktree: { worktreeId: 'wt-999' },
+    },
+    'unlinked-run.json': {
+      taskId: 'TASK-UNLINKED',
+      ownerSessionId: null,
+      workflow: { latestRunId: 'run-888' },
+      worktree: {},
+    },
+  };
+
+  try {
+    fs.readdirSync = (targetPath, options) => {
+      assert.strictEqual(targetPath, path.join(path.resolve('C:\\cli-home'), 'repo-state', 'instruction-engine', 'tasks'));
+      assert.deepStrictEqual(options, { withFileTypes: true });
+      return Object.keys(taskPayloads).map((name) => ({
+        name,
+        isFile() {
+          return true;
+        },
+      }));
+    };
+    fs.readFileSync = (targetPath, encoding) => {
+      assert.strictEqual(encoding, 'utf8');
+      return JSON.stringify(taskPayloads[path.basename(targetPath)]);
+    };
+
+    const tasks = listRepoStateTasks('C:\\cli-home', 'instruction-engine', {
+      sessionId: 'session-123',
+      workflowRunIds: ['run-123'],
+      worktreeIds: ['wt-123'],
+    });
+
+    assert.deepStrictEqual(tasks.map((task) => task.taskId).sort(), [
+      'TASK-OWNED',
+      'TASK-WORKFLOW',
+      'TASK-WORKTREE',
+    ]);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+    fs.readFileSync = originalReadFileSync;
+  }
 });
 
 // --- Determinism ---

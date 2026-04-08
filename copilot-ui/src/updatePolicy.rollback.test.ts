@@ -2,7 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { resolveRollbackPolicy } from './rollbackPolicy';
-import { evaluateUpdateCandidate, evaluateUpdateCheck } from './updatePolicy';
+import {
+  evaluateUpdateCandidate,
+  evaluateUpdateCheck,
+  resolveDesktopReleaseChannelContract,
+} from './updatePolicy';
 
 test('channel policy remains backward compatible when rollback policy is omitted', () => {
   const decision = evaluateUpdateCandidate({
@@ -75,4 +79,52 @@ test('rollback policy fail-closed reason propagates through update decision logi
     allowed: false,
     reason: 'rollback_policy_source_unavailable',
   });
+});
+
+test('desktop release contract keeps app, sdk, and cli lanes aligned', () => {
+  assert.deepStrictEqual(
+    resolveDesktopReleaseChannelContract({
+      appVersion: '1.2.3-rc.1',
+    }),
+    {
+      ok: true,
+      contract: {
+        channel: 'prerelease',
+        sdkChannel: 'prerelease',
+        cliChannel: 'prerelease',
+      },
+    },
+  );
+});
+
+test('invalid explicit update channel fails closed instead of drifting to inferred lane', () => {
+  assert.deepStrictEqual(
+    resolveDesktopReleaseChannelContract({
+      appVersion: '1.2.3-rc.1',
+      explicitChannel: 'beta',
+    }),
+    {
+      ok: false,
+      contract: {
+        channel: 'unknown',
+        sdkChannel: 'unknown',
+        cliChannel: 'unknown',
+      },
+      reason: 'update_channel_invalid',
+      explicitChannel: 'beta',
+    },
+  );
+
+  assert.deepStrictEqual(
+    evaluateUpdateCheck({
+      appVersion: '1.2.3-rc.1',
+      explicitChannel: 'beta',
+      rollbackPolicy: resolveRollbackPolicy('{"updatesEnabled":true}'),
+    }),
+    {
+      channel: 'unknown',
+      allowed: false,
+      reason: 'update_channel_invalid',
+    },
+  );
 });

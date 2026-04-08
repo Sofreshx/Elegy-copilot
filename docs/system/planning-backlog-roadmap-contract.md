@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-04-03
+updated: 2026-04-07
 category: system
 status: current
 doc_kind: node
@@ -103,6 +103,16 @@ backlog:
 - active execution TODO state lives in the current plan pack, progress tracker, chat-first session
   state, or equivalent persisted session artifacts
 - durable repo backlog state lives in backlog/roadmap/issue-doc surfaces under the selected repo
+
+The visible task board used by `copilot-ui` is a separate execution-control projection over durable
+repo-state tasks, not a replacement for the Repository Backlog:
+
+- task-board authority lives under `~/.copilot/repo-state/<repoId>/tasks/` and `tasks.archive/`
+- the board may drive active/queued execution and auto-triggered local workflow behavior
+- bounded ephemeral UI state may exist outside canonical task storage, but the board must not become a
+  second durable backlog or roadmap authority
+- workflow automation launched from the board remains local-only for MVP; packaged n8n is the favored
+  direction, but the exact delivery shape remains validation-dependent
 
 The orchestrator may read repo planning surfaces to frame or close work, but it must not pretend that a
 session plan pack replaces repo backlog ownership or roadmap prioritization.

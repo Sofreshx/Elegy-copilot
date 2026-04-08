@@ -190,7 +190,10 @@ describe('GatewayHttpServer', () => {
         (_id: string, payload: unknown) => parseWorkflowDefinition(payload),
     );
     const mockDeletePersistedDefinition = jest.fn((id: string) => id === PERSISTED_DEFINITION.id);
-    const mockRunPersistedDefinition = jest.fn<Promise<WorkflowHttpRunResponse>, [WorkflowDefinition]>(async () => ({
+    const mockRunPersistedDefinition = jest.fn<
+        Promise<WorkflowHttpRunResponse>,
+        [WorkflowDefinition, Record<string, unknown>?]
+    >(async () => ({
         result: {
             workflowId: PERSISTED_DEFINITION.id,
             status: 'completed',
@@ -610,7 +613,7 @@ describe('GatewayHttpServer', () => {
             },
             runId: 'run-http-1',
         });
-        expect(mockRunPersistedDefinition).toHaveBeenCalledWith(PERSISTED_DEFINITION);
+        expect(mockRunPersistedDefinition).toHaveBeenCalledWith(PERSISTED_DEFINITION, { workflowId: 'saved-1' });
     });
 
     it('POST /api/workflows/definitions/:id/run returns 503 when runtime is unavailable', async () => {
@@ -632,6 +635,21 @@ describe('GatewayHttpServer', () => {
         expect(JSON.parse(res.body)).toEqual({
             error: 'Workflow runtime unavailable: no extension client connected',
             code: 'workflow_runtime_unavailable',
+        });
+    });
+
+    it('POST /api/workflows/definitions/:id/run forwards bound session context', async () => {
+        const res = await makeRequest(port, {
+            method: 'POST',
+            path: '/api/workflows/definitions/saved-1/run',
+            token: TEST_TOKEN,
+            body: JSON.stringify({ sessionId: 'sess-http-1' }),
+        });
+
+        expect(res.statusCode).toBe(200);
+        expect(mockRunPersistedDefinition).toHaveBeenCalledWith(PERSISTED_DEFINITION, {
+            workflowId: 'saved-1',
+            sessionId: 'sess-http-1',
         });
     });
 

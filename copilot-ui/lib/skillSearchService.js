@@ -7,7 +7,8 @@ const path = require('path');
 const { compareAssetCatalogEntries } = require('@elegy-copilot/contracts');
 
 const {
-  buildCatalogProjection,
+  rebuildCatalogProjection,
+  resolveCatalogProjectionSnapshot,
   resolveProjectionStorage,
 } = require('./catalogProjectionService');
 const {
@@ -439,7 +440,23 @@ function compareResults(left, right) {
 }
 
 function resolveSkillSearchSnapshot(options = {}) {
-  return options.snapshot || buildCatalogProjection(options);
+  if (options.snapshot) {
+    return options.snapshot;
+  }
+
+  const resolution = resolveCatalogProjectionSnapshot({
+    ...options,
+    allowFallback: true,
+  });
+  if (resolution.snapshot) {
+    return resolution.snapshot;
+  }
+
+  if (resolution.buildError) {
+    throw resolution.buildError;
+  }
+
+  return rebuildCatalogProjection(options);
 }
 
 function resolveRoutingPolicy(query, options, snapshot) {

@@ -108,10 +108,13 @@ function normalizeObservedExternalSessions(sessions: SessionSummary[]): SessionS
   return sessions.filter(isObservedExternalSession).sort(sortObservedExternalSessions).slice(0, 8);
 }
 
-function createExecutorStore() {
+export function createExecutorStore() {
   const store = createStore<ExecutorState>(INITIAL_STATE);
   let loadVersion = 0;
-  let pollHandle: ReturnType<typeof setInterval> | null = null;
+  let pollHandle: ReturnType<typeof setTimeout> | null = null;
+  let polling = false;
+  let pollIntervalMs = 3000;
+  let loadInFlight = false;
 
   function reconcileSelection(jobs: ExecutorJob[], runs: ExecutorRun[]) {
     const state = store.getState();
@@ -128,6 +131,7 @@ function createExecutorStore() {
   async function load(): Promise<void> {
     const requestVersion = loadVersion + 1;
     loadVersion = requestVersion;
+    loadInFlight = true;
     store.setState((state) => ({ ...state, loading: true, error: null }));
 
     try {
@@ -173,26 +177,56 @@ function createExecutorStore() {
         loading: false,
         error: toErrorMessage(error, 'Unable to load executor state.'),
       }));
+    } finally {
+      loadInFlight = false;
+    }
+  }
+
+  function scheduleNextPoll(): void {
+    if (!polling) {
+      return;
+    }
+
+    pollHandle = setTimeout(() => {
+      pollHandle = null;
+      void pollOnce();
+    }, pollIntervalMs);
+  }
+
+  async function pollOnce(): Promise<void> {
+    if (!polling) {
+      return;
+    }
+
+    if (loadInFlight) {
+      scheduleNextPoll();
+      return;
+    }
+
+    try {
+      await load();
+    } finally {
+      scheduleNextPoll();
     }
   }
 
   function startPolling(intervalMs = 3000): void {
-    if (pollHandle) {
+    if (polling) {
       return;
     }
 
-    pollHandle = setInterval(() => {
-      void load();
-    }, intervalMs);
+    polling = true;
+    pollIntervalMs = intervalMs;
+    scheduleNextPoll();
   }
 
   function stopPolling(): void {
-    if (!pollHandle) {
-      return;
-    }
+    polling = false;
 
-    clearInterval(pollHandle);
-    pollHandle = null;
+    if (pollHandle) {
+      clearTimeout(pollHandle);
+      pollHandle = null;
+    }
   }
 
   function selectJob(jobId: string | null): void {

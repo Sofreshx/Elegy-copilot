@@ -7,6 +7,7 @@ const path = require('path');
 
 const {
   buildCatalogProjection,
+  loadCatalogProjectionSnapshot,
   resolveProjectionStorage,
 } = require('../lib/catalogProjectionService');
 const {
@@ -366,6 +367,71 @@ async function run() {
       assert.strictEqual(pluginResponse.results[0].entry?.metadata?.logicalName, 'brainstorming');
       assert.strictEqual(pluginResponse.results[0].entry?.metadata?.namespace, 'superpowers');
       assert.notStrictEqual(pluginResponse.results[0].assetId, 'skill-brainstorming');
+    });
+
+    await test('searchSkills persists a rebuilt snapshot when the stored snapshot is missing', async () => {
+      fs.rmSync(repoStorage.snapshotPath, { force: true });
+
+      const response = searchSkills(
+        {
+          query: 'react query',
+          repoId: repoStorage.repoContext.repoId,
+          repoPath,
+          limit: 5,
+        },
+        {
+          engineRoot,
+          copilotHome,
+          repoPath,
+          persistTelemetry: false,
+        },
+      );
+
+      assert.ok(response.results.length >= 1, 'expected rebuilt snapshot to provide results');
+      assert.ok(fs.existsSync(repoStorage.snapshotPath), 'expected missing snapshot fallback to persist');
+
+      const persistedSnapshot = loadCatalogProjectionSnapshot({ copilotHome, repoPath });
+      assert.ok(persistedSnapshot, 'expected persisted snapshot to be readable after fallback rebuild');
+    });
+
+    await test('searchSkills rebuilds a stale persisted snapshot after tracker-reported repo-local asset changes', async () => {
+      writeJson(repoStorage.snapshotPath, snapshot);
+      writeText(
+        path.join(repoPath, '.github', 'skills', 'live-search-skill', 'SKILL.md'),
+        '# Live Search Skill\n\nTriggers on: live search skill\n',
+      );
+
+      const response = searchSkills(
+        {
+          query: 'live search skill',
+          repoId: repoStorage.repoContext.repoId,
+          repoPath,
+          limit: 5,
+          overrideRoutingPolicy: true,
+        },
+        {
+          engineRoot,
+          copilotHome,
+          repoPath,
+          persistTelemetry: false,
+          changeState: {
+            version: 2,
+            lastChangedMs: Date.parse(snapshot.generatedAt || '') + 1,
+          },
+        },
+      );
+
+      assert.ok(
+        response.results.some((result) => result.effectiveState?.assetKey === 'live-search-skill'),
+        'expected stale snapshot invalidation to expose the newly added repo-local skill',
+      );
+
+      const persistedSnapshot = loadCatalogProjectionSnapshot({ copilotHome, repoPath });
+      assert.ok(persistedSnapshot, 'expected rebuilt snapshot to be persisted');
+      assert.ok(
+        persistedSnapshot.effectiveAssets.some((asset) => asset.assetKey === 'live-search-skill'),
+        'expected persisted rebuilt snapshot to include the newly added repo-local skill',
+      );
     });
 
     await test('search telemetry persists bounded query, result, miss, and selection events', async () => {

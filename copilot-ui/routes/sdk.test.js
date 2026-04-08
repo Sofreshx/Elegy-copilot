@@ -165,6 +165,7 @@ function createMockSdkBridge() {
         sessionId,
         model: payload && payload.model ? payload.model : null,
         createdAt: '2026-03-01T00:00:00.000Z',
+        orchestration: payload && payload.orchestration ? payload.orchestration : null,
       };
       sessions.set(sessionId, created);
       return created;
@@ -231,37 +232,77 @@ async function run() {
     assert.ok(routes.length > 0);
   });
 
-  await test('disabled bridge returns deterministic health and guarded 503 for SDK mutations', async () => {
-    const routes = register({
-      sendJson(res, code, payload) {
-        const text = JSON.stringify(payload, null, 2);
-        res.writeHead(code, {
-          'Content-Type': 'application/json; charset=utf-8',
-        });
-        res.end(text);
-      },
-      readJsonBody: async (req) => req.__body || {},
+  await test('disabled bridge returns deterministic health and propagates blocked reason/message for SDK actions', async () => {
+    process.env.INSTRUCTION_ENGINE_COPILOT_CLI_STATE_JSON = JSON.stringify({
+      channel: 'stable',
+      cliChannel: 'stable',
+      sdkChannel: 'stable',
+      status: 'blocked',
+      approved: false,
+      reason: 'managed_cli_missing',
+      message: 'Managed Copilot CLI for the stable lane is required, but no bundled or seeded payload is available.',
+      source: 'none',
     });
+    process.env.INSTRUCTION_ENGINE_SDK_BRIDGE_DISABLED_REASON = 'managed_cli_missing';
+    process.env.INSTRUCTION_ENGINE_SDK_BRIDGE_DISABLED_MESSAGE =
+      'Managed Copilot CLI for the stable lane is required, but no bundled or seeded payload is available.';
 
-    const health = await invoke(routes, 'GET', '/api/sdk/health');
-    assert.equal(health.res.statusCode, 200);
-    assert.deepEqual(parseJsonBody(health.res), {
-      connected: false,
-      enabled: false,
-      state: 'disabled',
-      mode: 'disabled',
-      sessionCount: 0,
-      reason: 'sdk_bridge_disabled',
-      error: 'SDK bridge is disabled. Set COPILOT_SDK_BRIDGE=1 to enable SDK sessions.',
-    });
+    try {
+      const routes = register({
+        sendJson(res, code, payload) {
+          const text = JSON.stringify(payload, null, 2);
+          res.writeHead(code, {
+            'Content-Type': 'application/json; charset=utf-8',
+          });
+          res.end(text);
+        },
+        readJsonBody: async (req) => req.__body || {},
+      });
 
-    const list = await invoke(routes, 'GET', '/api/sdk/sessions');
-    assert.equal(list.res.statusCode, 503);
-    assert.deepEqual(parseJsonBody(list.res), {
-      error: 'SDK bridge is disabled. Set COPILOT_SDK_BRIDGE=1 to enable SDK sessions.',
-      code: 'sdk_bridge_disabled',
-      reason: 'sdk_bridge_disabled',
-    });
+      const health = await invoke(routes, 'GET', '/api/sdk/health');
+      assert.equal(health.res.statusCode, 200);
+      assert.deepEqual(parseJsonBody(health.res), {
+        connected: false,
+        enabled: false,
+        state: 'disabled',
+        mode: 'disabled',
+        sessionCount: 0,
+        reason: 'managed_cli_missing',
+        error: 'Managed Copilot CLI for the stable lane is required, but no bundled or seeded payload is available.',
+        cliManager: {
+          channel: 'stable',
+          cliChannel: 'stable',
+          sdkChannel: 'stable',
+          status: 'blocked',
+          approved: false,
+          reason: 'managed_cli_missing',
+          message: 'Managed Copilot CLI for the stable lane is required, but no bundled or seeded payload is available.',
+          source: 'none',
+        },
+      });
+
+      const expectedBlockedPayload = {
+        error: 'Managed Copilot CLI for the stable lane is required, but no bundled or seeded payload is available.',
+        code: 'managed_cli_missing',
+        reason: 'managed_cli_missing',
+      };
+
+      const blockedRequests = [
+        ['GET', '/api/sdk/sessions'],
+        ['POST', '/api/sdk/session', {}],
+        ['POST', '/api/sdk/send', { sessionId: 'sdk-session-1', prompt: 'hello' }],
+      ];
+
+      for (const [method, requestPath, body] of blockedRequests) {
+        const blocked = await invoke(routes, method, requestPath, body);
+        assert.equal(blocked.res.statusCode, 503);
+        assert.deepEqual(parseJsonBody(blocked.res), expectedBlockedPayload);
+      }
+    } finally {
+      delete process.env.INSTRUCTION_ENGINE_COPILOT_CLI_STATE_JSON;
+      delete process.env.INSTRUCTION_ENGINE_SDK_BRIDGE_DISABLED_REASON;
+      delete process.env.INSTRUCTION_ENGINE_SDK_BRIDGE_DISABLED_MESSAGE;
+    }
   });
 
   const sdkBridge = createMockSdkBridge();
@@ -296,6 +337,12 @@ async function run() {
     const created = await invoke(routes, 'POST', '/api/sdk/session', {
       sessionId: 'sdk-session-1',
       model: 'gpt-5.3-codex',
+      orchestration: {
+        objective: 'Ship backend contract',
+        repo: {
+          repoId: 'instruction-engine',
+        },
+      },
     });
 
     assert.equal(created.res.statusCode, 201);
@@ -303,6 +350,12 @@ async function run() {
       sessionId: 'sdk-session-1',
       model: 'gpt-5.3-codex',
       createdAt: '2026-03-01T00:00:00.000Z',
+      orchestration: {
+        objective: 'Ship backend contract',
+        repo: {
+          repoId: 'instruction-engine',
+        },
+      },
     });
   });
 
@@ -383,6 +436,7 @@ async function run() {
     assert.ok(Array.isArray(body.sessions));
     assert.equal(body.sessions.length, 1);
     assert.equal(body.sessions[0].sessionId, 'sdk-session-1');
+    assert.equal(body.sessions[0].orchestration.objective, 'Ship backend contract');
   });
 
   await test('DELETE /api/sdk/session/:id returns 200 and 404 paths', async () => {

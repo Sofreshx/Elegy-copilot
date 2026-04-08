@@ -53,6 +53,18 @@ function registerSelectedRepo(copilotHome, repoPath, repoLabel = 'Selected Repo'
   });
 }
 
+function createGitRepoRoot(repoPath) {
+  fs.mkdirSync(path.join(repoPath, '.git', 'worktrees'), { recursive: true });
+}
+
+function createGitWorktree(repoPath, worktreePath, worktreeName = path.basename(worktreePath)) {
+  const gitDir = path.join(repoPath, '.git', 'worktrees', worktreeName);
+  fs.mkdirSync(worktreePath, { recursive: true });
+  fs.mkdirSync(gitDir, { recursive: true });
+  fs.writeFileSync(path.join(gitDir, 'commondir'), path.join('..', '..'));
+  fs.writeFileSync(path.join(worktreePath, '.git'), `gitdir: ${gitDir}\n`);
+}
+
 async function run() {
   console.log('\nUI Runtime Overlay Service Tests\n');
 
@@ -89,6 +101,71 @@ async function run() {
       assert.equal(persisted.version, 1);
       assert.equal(persisted.sessions.length, 1);
       assert.equal(persisted.sessions[0].repoId, session.repoId);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('create session can bind package root to a selected worktree path outside the primary checkout', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+    const worktreePath = path.join(tmpRoot, 'selected-repo-worktrees', 'wt-1');
+
+    try {
+      createGitRepoRoot(repoPath);
+      createGitWorktree(repoPath, worktreePath, 'wt-1');
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService(
+        { copilotHome },
+        { now: createNowSequence(['2026-03-28T10:00:00.000Z']) }
+      );
+
+      const session = service.createSession({
+        runtimeUrl: 'https://localhost:4173/app',
+        linkedSessionId: 'session-123',
+        worktree: {
+          worktreeId: 'wt-1',
+          mode: 'dedicated',
+          worktreePath,
+          status: 'ready',
+        },
+      });
+
+      assert.equal(session.linkedSessionId, 'session-123');
+      assert.equal(session.packageRoot, path.resolve(worktreePath));
+      assert.equal(session.worktree.worktreePath, path.resolve(worktreePath));
+      assert.equal(session.worktree.status, 'ready');
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  await test('create session rejects non-attached worktree paths outside the selected repo checkout', async () => {
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-ui-runtime-overlay-'));
+    const copilotHome = path.join(tmpRoot, '.copilot');
+    const repoPath = path.join(tmpRoot, 'selected-repo');
+    const worktreePath = path.join(tmpRoot, 'selected-repo-worktrees', 'wt-bad');
+
+    try {
+      createGitRepoRoot(repoPath);
+      fs.mkdirSync(worktreePath, { recursive: true });
+      registerSelectedRepo(copilotHome, repoPath);
+
+      const service = createUiRuntimeOverlayService({ copilotHome });
+      await assert.rejects(
+        Promise.resolve().then(() => service.createSession({
+          runtimeUrl: 'https://localhost:4173/app',
+          worktree: {
+            worktreeId: 'wt-bad',
+            mode: 'dedicated',
+            worktreePath,
+            status: 'ready',
+          },
+        })),
+        (error) => error && error.statusCode === 400 && /attached git worktree|attached to repo/i.test(error.message),
+      );
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }

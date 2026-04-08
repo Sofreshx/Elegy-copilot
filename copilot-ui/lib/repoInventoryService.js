@@ -114,6 +114,20 @@ function isFile(absPath) {
   return Boolean(safeStat(absPath)?.isFile());
 }
 
+function detectGitRootKind(repoPath) {
+  if (!repoPath) {
+    return 'missing';
+  }
+  const gitPath = path.join(repoPath, '.git');
+  if (isDirectory(gitPath)) {
+    return 'directory';
+  }
+  if (isFile(gitPath)) {
+    return 'file';
+  }
+  return 'missing';
+}
+
 function resolveRepoInventoryPath(copilotHome) {
   return path.join(resolveCopilotHome(copilotHome), 'catalog', 'repo-inventory.json');
 }
@@ -584,6 +598,8 @@ function enrichRepo(repo, options = {}) {
     sources: Array.from(repo.sources || []).sort((left, right) => left.localeCompare(right)),
     exists: repoPath ? isDirectory(repoPath) : false,
     gitRootPresent: repoPath ? (isDirectory(path.join(repoPath, '.git')) || isFile(path.join(repoPath, '.git'))) : false,
+    gitRootKind: detectGitRootKind(repoPath),
+    isWorktreeCheckout: detectGitRootKind(repoPath) === 'file',
     scanStatus: resolveScanStatus(repoPath, snapshot, inputPaths),
     lastSeenAt: repo.lastSeenAt || null,
     lastRefreshAt: snapshot.generatedAt || snapshot.updatedAt || null,

@@ -74,6 +74,7 @@ async function run() {
     ]) {
       assert.ok(homeRuntimeSource.includes(actionTestId), `Expected ${actionTestId} quick action`);
     }
+    assert.ok(homeRuntimeSource.includes('Orchestrated Flow'), 'Expected HomeRuntimeView to summarize orchestrated flow context');
   });
 
   await test('Diagnostics section exposes runtime, database, gateway, tracker, and lsp surfaces', async () => {

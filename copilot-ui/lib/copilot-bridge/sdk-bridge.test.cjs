@@ -338,15 +338,27 @@ async function run() {
 
     await service.init();
 
-    const created = await service.createSdkSession({ sessionId: 'session-send', model: 'gpt-5.3-codex' });
+    const created = await service.createSdkSession({
+      sessionId: 'session-send',
+      model: 'gpt-5.3-codex',
+      orchestration: {
+        objective: 'Ship backend contract',
+        repo: {
+          repoId: 'instruction-engine',
+        },
+      },
+    });
     assert.equal(created.sessionId, 'session-send');
+    assert.equal(created.orchestration.objective, 'Ship backend contract');
 
     const listed = service.listSdkSessions();
     assert.equal(listed.length, 1);
     assert.equal(listed[0].model, 'gpt-5.3-codex');
+    assert.equal(listed[0].orchestration.repo.repoId, 'instruction-engine');
 
     const found = service.getSdkSession('session-send');
     assert.equal(found.sessionId, 'session-send');
+    assert.equal(found.orchestration.objective, 'Ship backend contract');
 
     const sent = await service.sendToSession('session-send', { prompt: 'hello world' });
     assert.equal(sent.messageId, 'msg-1');

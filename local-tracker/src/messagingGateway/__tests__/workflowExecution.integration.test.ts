@@ -21,6 +21,8 @@ const mockBridgeClient: BridgeClient = {
 describe('workflow execution integration', () => {
     let templates: Map<string, any>;
     const runtimeContext = {
+        workflowId: 'workflow-fixture',
+        sessionId: 'ses-fixture',
         allowMutatingExecutors: true,
         allowDestructiveExecutors: true,
         incidentAcknowledged: true,

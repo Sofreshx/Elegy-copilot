@@ -13,6 +13,8 @@ build/
 out/
 coverage/
 copilot-ui/release/
+copilot-ui/ui-dist/
+copilot-ui/dist-electron/
 
 # Environment & Logs
 .env

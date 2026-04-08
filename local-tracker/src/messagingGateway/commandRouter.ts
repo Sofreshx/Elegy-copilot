@@ -202,6 +202,7 @@ const WorkflowArgsSchema = z.object({
 	subcommand: z.enum(['run', 'list', 'history', 'inspect']),
 	name: z.string().min(1).max(64).optional(),
 	limit: z.number().int().min(1).max(100).optional(),
+	sessionId: SessionIdSchema.optional(),
 }).strict();
 
 const WorkspaceRootSchema = z.preprocess(
@@ -836,7 +837,12 @@ export class CommandRouter {
 		const registry = createDefaultRegistry(this.deps.extensionClient);
 		let result: WorkflowRunResult;
 		try {
-			result = await executeWorkflow(definition, registry.toStepExecutor(), {}, observer);
+			result = await executeWorkflow(
+				definition,
+				registry.toStepExecutor(),
+				args.sessionId ? { workflowId: definition.id, sessionId: args.sessionId } : { workflowId: definition.id },
+				observer,
+			);
 		} catch (error) {
 			if (this.deps.workflowStreaming && runId) {
 				this.deps.workflowStreaming.publishRunFailure({

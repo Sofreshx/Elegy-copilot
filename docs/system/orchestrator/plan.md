@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-04-07
 category: system
 status: draft
 doc_kind: node
@@ -14,6 +14,10 @@ tags: [orchestrator, planning]
 > Historical note: this document records the original rollout plan. Current shipped behavior is
 > defined by `engine-assets/agents/orchestrator.agent.md` and
 > `docs/system/orchestrator/user-guide.md`.
+>
+> Historical prototype note: legacy Seamless Agent and legacy tool-name references below describe
+> the original proposal, not current shipped guidance. The shipped baseline uses interactive
+> `vscode/askQuestions`; richer host tooling is optional and non-baseline.
 
 ## Date
 2026-02-17
@@ -34,9 +38,9 @@ Create the new Orchestrator agent system in the instruction-engine repo.
   - Subagent delegation patterns
   - Fast path for trivial requests
   - Follow-up loop
-  - Seamless Agent integration (with fallback)
+  - Historical prototype Seamless Agent integration (with fallback)
   - Resume detection for active sessions
-- Tools: read, edit, search, execute/runInTerminal, agent/runSubagent, todo, vscode/askQuestions, jraylan.seamless-agent/askUser, jraylan.seamless-agent/planReview, jraylan.seamless-agent/walkthroughReview, web/fetch, web/githubRepo
+- Tools (historical prototype assumption): read, edit, search, execute/runInTerminal, agent/runSubagent, todo, vscode/askQuestions, jraylan.seamless-agent/askUser, jraylan.seamless-agent/planReview, jraylan.seamless-agent/walkthroughReview, web/fetch, web/githubRepo
 - agents list: o-reframer, o-planner, search, execute, impl-infra, impl-business, impl-reviewer, final-reviewer, work-unit-runner, code-explorer, code-architect, code-reviewer, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, reviewer-gpt-5-4, reviewer-opus-4-6
 - user-invocable: true
 - disable-model-invocation: true (orchestrator should use the best available model)
@@ -64,7 +68,7 @@ Create the new Orchestrator agent system in the instruction-engine repo.
 #### 2.1 Update copilot-instructions.md
 - Add @orchestrator to the delegation section as the recommended entry point
 - Mark executive agents as deprecated (still available)
-- Document the orchestrator's Seamless Agent integration
+- Document the historical prototype's Seamless Agent integration assumptions
 
 #### 2.2 Update work-unit-runner for fast path
 - Add support for direct execution without a plan pack reference
@@ -82,7 +86,7 @@ Create the new Orchestrator agent system in the instruction-engine repo.
 - File: `docs/system/orchestrator/user-guide.md`
 - How to use @orchestrator
 - When to use fast path vs full planning
-- Seamless Agent setup (optional)
+- Historical prototype Seamless Agent setup notes (optional)
 - Migration from older executive variants
 
 #### 3.2 Clean Executive-era migration residue
@@ -109,13 +113,13 @@ Create the new Orchestrator agent system in the instruction-engine repo.
 - Verify replan handling
 
 ## Dependencies
-- Seamless Agent extension (optional — graceful fallback to vscode/askQuestions)
+- Historical prototype dependency: Seamless Agent extension (optional — graceful fallback to vscode/askQuestions)
 - Existing subagents (code-explorer, code-architect, code-reviewer, etc.) — no changes needed
 - Existing plan-pack format — reused as-is
 
 ## Risks
 1. Orchestrator agent definition may be too large → Mitigation: Keep instructions focused on routing, delegate details to subagent prompts
-2. Seamless Agent extension may have stability issues → Mitigation: Always include fallback to vscode/askQuestions
+2. Historical prototype risk: Seamless Agent extension may have stability issues → Mitigation: Always include fallback to vscode/askQuestions
 3. Reframer classification may be inaccurate → Mitigation: Include "uncertain" option, default to standard path
 
 ## Success Criteria
@@ -123,7 +127,7 @@ Create the new Orchestrator agent system in the instruction-engine repo.
 - [ ] Trivial requests complete without creating plan files
 - [ ] Standard requests produce plan packs and execute through review
 - [ ] Complex requests include research/discussion before planning
-- [ ] Seamless Agent tools used when available, graceful fallback otherwise
+- [ ] Historical prototype assumes Seamless Agent tools when available, with graceful fallback otherwise
 - [ ] All existing subagents work with the new orchestrator without modification
 - [ ] Executive-era references are removed or clearly marked as historical
 

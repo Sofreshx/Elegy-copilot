@@ -280,6 +280,203 @@ function readStartEvent(sessionDir) {
   }
 }
 
+function getSessionStartContext(sessionDir) {
+  return readStartEvent(sessionDir);
+}
+
+function listRepoStateTasks(copilotHome, repoId, options = {}) {
+  const normalizedRepoId = typeof repoId === 'string' ? repoId.trim() : '';
+  if (!normalizedRepoId) {
+    return [];
+  }
+
+  const tasksDir = path.join(path.resolve(String(copilotHome || '.')), 'repo-state', normalizedRepoId, 'tasks');
+  let dirEntries;
+  try {
+    dirEntries = fs.readdirSync(tasksDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const sessionId = typeof options.sessionId === 'string' ? options.sessionId.trim() : '';
+  const workflowRunIds = new Set(
+    (Array.isArray(options.workflowRunIds) ? options.workflowRunIds : [])
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .filter(Boolean)
+  );
+  const worktreeIds = new Set(
+    (Array.isArray(options.worktreeIds) ? options.worktreeIds : [])
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .filter(Boolean)
+  );
+  const hasScopedFilters = Boolean(sessionId) || workflowRunIds.size > 0 || worktreeIds.size > 0;
+  const maxEntries = Number.isFinite(Number(options.maxEntries)) ? Math.max(1, Number(options.maxEntries)) : 500;
+  const tasks = [];
+
+  for (const entry of dirEntries) {
+    if (!entry || !entry.isFile() || !/\.json$/i.test(entry.name)) {
+      continue;
+    }
+    const filePath = path.join(tasksDir, entry.name);
+    try {
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        continue;
+      }
+      const normalized = {
+        taskId: typeof parsed.taskId === 'string' ? parsed.taskId.trim() : '',
+        repoId: normalizedRepoId,
+        title: typeof parsed.title === 'string' ? parsed.title.trim() : null,
+        status: typeof parsed.status === 'string' ? parsed.status.trim() : null,
+        ownerSessionId: typeof parsed.ownerSessionId === 'string' ? parsed.ownerSessionId.trim() : null,
+        activeActorId: typeof parsed.activeActorId === 'string' ? parsed.activeActorId.trim() : null,
+        activeActorLabel: typeof parsed.activeActorLabel === 'string' ? parsed.activeActorLabel.trim() : null,
+        workflow: parsed.workflow && typeof parsed.workflow === 'object' && !Array.isArray(parsed.workflow)
+          ? JSON.parse(JSON.stringify(parsed.workflow))
+          : {},
+        worktree: parsed.worktree && typeof parsed.worktree === 'object' && !Array.isArray(parsed.worktree)
+          ? JSON.parse(JSON.stringify(parsed.worktree))
+          : {},
+        linkedPlanning: parsed.linkedPlanning && typeof parsed.linkedPlanning === 'object' && !Array.isArray(parsed.linkedPlanning)
+          ? JSON.parse(JSON.stringify(parsed.linkedPlanning))
+          : {},
+        createdAt: typeof parsed.createdAt === 'string' ? parsed.createdAt.trim() : null,
+        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt.trim() : null,
+        durablePath: filePath,
+      };
+      if (!normalized.taskId) {
+        continue;
+      }
+      if (hasScopedFilters) {
+        const latestRunId = normalized.workflow && typeof normalized.workflow.latestRunId === 'string'
+          ? normalized.workflow.latestRunId.trim()
+          : '';
+        const worktreeId = normalized.worktree && typeof normalized.worktree.worktreeId === 'string'
+          ? normalized.worktree.worktreeId.trim()
+          : '';
+        const matchesSession = Boolean(sessionId) && normalized.ownerSessionId === sessionId;
+        const matchesWorkflowRun = Boolean(latestRunId) && workflowRunIds.has(latestRunId);
+        const matchesWorktree = Boolean(worktreeId) && worktreeIds.has(worktreeId);
+        if (!matchesSession && !matchesWorkflowRun && !matchesWorktree) {
+          continue;
+        }
+      }
+      tasks.push(normalized);
+      if (tasks.length >= maxEntries) {
+        break;
+      }
+    } catch {
+      // Ignore malformed task records; structured-state remains best-effort.
+    }
+  }
+
+  return tasks;
+}
+
+function readRepoStateWorktree(copilotHome, repoId, worktreeId) {
+  const normalizedRepoId = typeof repoId === 'string' ? repoId.trim() : '';
+  const normalizedWorktreeId = typeof worktreeId === 'string' ? worktreeId.trim() : '';
+  if (!normalizedRepoId || !normalizedWorktreeId) {
+    return null;
+  }
+
+  const filePath = path.join(
+    path.resolve(String(copilotHome || '.')),
+    'repo-state',
+    normalizedRepoId,
+    'worktrees',
+    `${normalizedWorktreeId}.json`
+  );
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
+    return {
+      ...JSON.parse(JSON.stringify(parsed)),
+      durablePath: filePath,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildSessionActorSummaries(sessionDir, options = {}) {
+  const runtimeActors = Array.isArray(options.runtimeActors) ? options.runtimeActors : [];
+  const taskRecords = Array.isArray(options.taskRecords) ? options.taskRecords : [];
+  const usage = getAgentUsage(sessionDir, options.limit || 500);
+  const actors = new Map();
+
+  function upsert(actor) {
+    if (!actor || typeof actor !== 'object') {
+      return;
+    }
+    const actorId = typeof actor.actorId === 'string' && actor.actorId.trim()
+      ? actor.actorId.trim()
+      : (typeof actor.label === 'string' ? actor.label.trim() : '');
+    if (!actorId) {
+      return;
+    }
+    const key = actorId.toLowerCase();
+    const existing = actors.get(key) || {
+      actorId,
+      label: actor.label || actorId,
+      role: actor.role || null,
+      source: actor.source || null,
+      invocationCount: 0,
+      taskIds: [],
+    };
+    existing.label = existing.label || actor.label || actorId;
+    existing.role = existing.role || actor.role || null;
+    existing.source = existing.source || actor.source || null;
+    if (Number.isFinite(Number(actor.invocationCount))) {
+      existing.invocationCount = Math.max(existing.invocationCount, Number(actor.invocationCount));
+    }
+    const taskIds = Array.isArray(actor.taskIds)
+      ? actor.taskIds
+      : (actor.taskId ? [actor.taskId] : []);
+    for (const taskId of taskIds) {
+      if (typeof taskId === 'string' && taskId.trim() && !existing.taskIds.includes(taskId.trim())) {
+        existing.taskIds.push(taskId.trim());
+      }
+    }
+    actors.set(key, existing);
+  }
+
+  for (const [actorName, invocationCount] of Object.entries(usage)) {
+    upsert({
+      actorId: actorName,
+      label: actorName,
+      role: null,
+      source: 'artifact-events',
+      invocationCount,
+    });
+  }
+
+  for (const actor of runtimeActors) {
+    upsert(actor);
+  }
+
+  for (const task of taskRecords) {
+    const actorId = typeof task.activeActorId === 'string' && task.activeActorId.trim()
+      ? task.activeActorId.trim()
+      : (typeof task.activeActorLabel === 'string' ? task.activeActorLabel.trim() : '');
+    if (!actorId) {
+      continue;
+    }
+    upsert({
+      actorId,
+      label: typeof task.activeActorLabel === 'string' && task.activeActorLabel.trim() ? task.activeActorLabel.trim() : actorId,
+      role: null,
+      source: 'repo-state-task',
+      taskId: task.taskId,
+    });
+  }
+
+  return Array.from(actors.values()).sort((left, right) => left.actorId.localeCompare(right.actorId));
+}
+
 function computeStatus(lastEventTime, opts = {}) {
   const activeWindowMinutes =
     typeof opts.activeWindowMinutes === 'number' && Number.isFinite(opts.activeWindowMinutes)
@@ -695,6 +892,10 @@ module.exports = {
   readRecentEvents,
   getAgentUsage,
   extractAgentUsage,
+  getSessionStartContext,
+  listRepoStateTasks,
+  readRepoStateWorktree,
+  buildSessionActorSummaries,
   computeStatus,
   watchSessions,
   listSandboxSessions,

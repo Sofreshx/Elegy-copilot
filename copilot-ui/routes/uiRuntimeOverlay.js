@@ -1,6 +1,7 @@
 'use strict';
 
 const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const { SESSION_ORCHESTRATION_CONTRACT_VERSION } = require('../lib/runtimeContracts');
 
 function toErrorPayload(error, fallbackStatusCode = 500) {
   if (!error || typeof error !== 'object') {
@@ -143,7 +144,10 @@ function handleReleaseChangeRequest(ctx, deps) {
 function handleListSessions(ctx, deps) {
   const service = requireService(ctx.res, deps);
   if (!service) return;
-  deps.sendJson(ctx.res, 200, { sessions: service.listSessions() });
+  deps.sendJson(ctx.res, 200, {
+    sessions: service.listSessions(),
+    orchestrationContractVersion: SESSION_ORCHESTRATION_CONTRACT_VERSION,
+  });
 }
 
 function handleCreateSession(ctx, deps) {
@@ -152,7 +156,10 @@ function handleCreateSession(ctx, deps) {
 
   deps.readJsonBody(ctx.req)
     .then((body) => service.createSession(body && typeof body === 'object' ? body : {}))
-    .then((session) => deps.sendJson(ctx.res, 201, { session }))
+    .then((session) => deps.sendJson(ctx.res, 201, {
+      session,
+      orchestrationContractVersion: SESSION_ORCHESTRATION_CONTRACT_VERSION,
+    }))
     .catch((error) => {
       const failure = toErrorPayload(error);
       deps.sendJson(ctx.res, failure.statusCode, failure.body);

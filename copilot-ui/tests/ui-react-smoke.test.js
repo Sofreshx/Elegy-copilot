@@ -167,6 +167,29 @@ async function run() {
     );
   });
 
+  await test('planning owns the visible task board while runtime surfaces link back to it with orchestration-safe labels', async () => {
+    const planningViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningView.tsx'), 'utf8');
+    const sessionsViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsView.tsx'), 'utf8');
+    const executorViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Executor', 'ExecutorView.tsx'), 'utf8');
+    const taskBoardSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'TaskBoardView.tsx'), 'utf8');
+    const sessionsStoreSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'sessionsStore.ts'), 'utf8');
+    const executorStoreSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Executor', 'executorStore.ts'), 'utf8');
+
+    assert.ok(planningViewSource.includes('planning-task-board-panel'), 'Expected PlanningView to expose the visible task board panel');
+    assert.ok(planningViewSource.includes('planning-task-board-open-runtime-sessions'), 'Expected PlanningView to link task board work into runtime sessions');
+    assert.ok(planningViewSource.includes('planning-task-board-open-executor'), 'Expected PlanningView to link task board work into executor');
+    assert.ok(!sessionsViewSource.includes('sessions-task-board-panel'), 'Did not expect SessionsView to expose a task board panel');
+    assert.ok(!executorViewSource.includes('executor-task-board-panel'), 'Did not expect ExecutorView to expose a task board panel');
+    assert.ok(sessionsViewSource.includes('sessions-open-planning-task-board'), 'Expected SessionsView to link back to the Planning task board');
+    assert.ok(executorViewSource.includes('executor-open-planning-task-board'), 'Expected ExecutorView to link back to the Planning task board');
+    assert.ok(taskBoardSource.includes('Linked live session'), 'Expected task board labels to distinguish linked live session state');
+    assert.ok(taskBoardSource.includes('In-session actors'), 'Expected task board labels to distinguish in-session actors');
+    assert.ok(taskBoardSource.includes('Worktree isolation'), 'Expected task board labels to distinguish worktree isolation');
+    assert.ok(taskBoardSource.includes('Durable repo-state task board'), 'Expected task board copy to keep repo-state durable authority explicit');
+    assert.ok(sessionsStoreSource.includes('taskBoardFilterStatus'), 'Expected sessionsStore to keep board-only presentation state');
+    assert.ok(executorStoreSource.includes('taskBoardFilterStatus'), 'Expected executorStore to keep board-only presentation state');
+  });
+
   await test('executor observes merged external CLI and VS Code sessions', async () => {
     const executorStoreSource = fs.readFileSync(
       path.join(uiSrcRoot, 'tabs', 'Executor', 'executorStore.ts'),

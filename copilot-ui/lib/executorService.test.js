@@ -114,6 +114,18 @@ async function flushMicrotasks() {
   await Promise.resolve();
 }
 
+function createGitRepoRoot(repoPath) {
+  fs.mkdirSync(path.join(repoPath, '.git', 'worktrees'), { recursive: true });
+}
+
+function createGitWorktree(repoPath, worktreePath, worktreeName = path.basename(worktreePath)) {
+  const gitDir = path.join(repoPath, '.git', 'worktrees', worktreeName);
+  fs.mkdirSync(worktreePath, { recursive: true });
+  fs.mkdirSync(gitDir, { recursive: true });
+  fs.writeFileSync(path.join(gitDir, 'commondir'), path.join('..', '..'));
+  fs.writeFileSync(path.join(worktreePath, '.git'), `gitdir: ${gitDir}\n`);
+}
+
 async function run() {
   await test('scheduled jobs persist without creating an immediate run', async () => {
     const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
@@ -125,10 +137,22 @@ async function run() {
     ).init();
 
     const scheduledAt = new Date(Date.now() + 60_000).toISOString();
-    const result = await service.createJob({ prompt: 'schedule me', scheduleAt: scheduledAt });
+    const result = await service.createJob({
+      prompt: 'schedule me',
+      scheduleAt: scheduledAt,
+      repoId: 'instruction-engine',
+      orchestration: {
+        objective: 'Queue backend contract workflow',
+        repo: {
+          repoId: 'instruction-engine',
+        },
+      },
+    });
 
     assert.equal(result.run, null);
     assert.equal(service.listJobs()[0].status, 'scheduled');
+    assert.equal(service.listJobs()[0].orchestration.objective, 'Queue backend contract workflow');
+    assert.equal(service.listJobs()[0].worktree, null);
     assert.equal(timers.entries.size, 1);
     assert.equal(service.listRuns().length, 0);
 
@@ -140,9 +164,22 @@ async function run() {
     const sdkBridge = createMockSdkBridge();
     const service = await createExecutorService({ copilotHome, sdkBridge }).init();
 
-    const result = await service.createJob({ prompt: 'implement this now' });
+    const result = await service.createJob({
+      prompt: 'implement this now',
+      repoId: 'instruction-engine',
+      orchestration: {
+        objective: 'Execute TASK-1',
+        repo: {
+          repoId: 'instruction-engine',
+        },
+        taskRefs: [{ taskId: 'TASK-1' }],
+      },
+    });
     assert.ok(result.run);
     assert.equal(result.run.status, 'running');
+    assert.equal(result.job.worktree, null);
+    assert.equal(result.run.worktree, null);
+    assert.equal(sdkBridge.createSessionCalls[0].orchestration.taskRefs[0].taskId, 'TASK-1');
 
     const session = sdkBridge.getSdkSession(result.run.sessionId);
     session.session.emit({ type: 'assistant.message', data: { text: 'Done.' } });
@@ -182,6 +219,7 @@ async function run() {
     const retryingRun = service.getRun(result.run.id);
     assert.ok(retryingRun);
     assert.equal(retryingRun.status, 'retrying');
+    assert.equal(retryingRun.worktree, null);
     assert.equal(timers.entries.size, 1);
 
     sdkBridge.setSendBehavior({ mode: 'success' });
@@ -198,6 +236,24 @@ async function run() {
     const completedRun = service.getRun(result.run.id);
     assert.equal(completedRun.status, 'succeeded');
     assert.equal(completedRun.attemptCount, 2);
+
+    await service.shutdown();
+  });
+
+  await test('explicit worktree launches still fail closed without repo context', async () => {
+    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const sdkBridge = createMockSdkBridge();
+    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+
+    await assert.rejects(
+      service.createJob({
+        prompt: 'launch in dedicated worktree',
+        worktree: {
+          mode: 'dedicated',
+        },
+      }),
+      (error) => error && error.statusCode === 400 && error.message === 'repoId/repoPath are required to resolve worktree launch state.'
+    );
 
     await service.shutdown();
   });
@@ -265,6 +321,161 @@ async function run() {
     assert.equal(run.status, 'failed');
     assert.equal(run.error, 'sandboxId is required when contextType=sandbox');
     assert.equal(sdkBridge.createSessionCalls.length, 0);
+
+    await service.shutdown();
+  });
+
+  await test('same-repo create-session runs stay shared for the first writer and carry repo cwd metadata', async () => {
+    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const repoPath = path.join(copilotHome, 'repo');
+    createGitRepoRoot(repoPath);
+
+    const sdkBridge = createMockSdkBridge();
+    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+
+    const result = await service.createJob({
+      prompt: 'run in primary checkout',
+      repoId: 'instruction-engine',
+      orchestration: {
+        repo: {
+          repoId: 'instruction-engine',
+          repoPath,
+        },
+      },
+    });
+
+    assert.ok(result.run);
+    assert.equal(result.job.worktree.mode, 'shared');
+    assert.equal(result.run.worktree.mode, 'shared');
+    assert.equal(sdkBridge.createSessionCalls[0].cwd, path.resolve(repoPath));
+    assert.equal(sdkBridge.createSessionCalls[0].orchestration.isolation.mode, 'shared');
+
+    await service.shutdown();
+  });
+
+  await test('parallel same-repo create-session runs reserve a dedicated worktree and fail closed until it exists', async () => {
+    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const repoPath = path.join(copilotHome, 'repo');
+    createGitRepoRoot(repoPath);
+
+    const sdkBridge = createMockSdkBridge();
+    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+
+    const first = await service.createJob({
+      prompt: 'first writer',
+      repoId: 'instruction-engine',
+      orchestration: {
+        repo: {
+          repoId: 'instruction-engine',
+          repoPath,
+        },
+      },
+    });
+    assert.equal(first.run.status, 'running');
+
+    const second = await service.createJob({
+      prompt: 'second writer',
+      repoId: 'instruction-engine',
+      orchestration: {
+        repo: {
+          repoId: 'instruction-engine',
+          repoPath,
+        },
+      },
+    });
+
+    assert.equal(second.run.status, 'failed');
+    assert.match(second.run.error, /worktree path is not prepared yet/i);
+    assert.equal(second.job.worktree.mode, 'dedicated');
+    assert.equal(second.job.worktree.launch.blocked, true);
+    assert.equal(service.listWorktrees({ repoId: 'instruction-engine' }).length, 1);
+
+    await service.shutdown();
+  });
+
+  await test('prepared dedicated worktree metadata flows through executor launches and becomes active', async () => {
+    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const repoPath = path.join(copilotHome, 'repo');
+    const worktreePath = path.join(copilotHome, 'repo-worktrees', 'wt-1');
+    createGitRepoRoot(repoPath);
+    createGitWorktree(repoPath, worktreePath, 'wt-1');
+
+    const sdkBridge = createMockSdkBridge();
+    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+
+    const first = await service.createJob({
+      prompt: 'first writer',
+      repoId: 'instruction-engine',
+      orchestration: {
+        repo: {
+          repoId: 'instruction-engine',
+          repoPath,
+        },
+      },
+    });
+    assert.equal(first.run.status, 'running');
+
+    const second = await service.createJob({
+      prompt: 'second writer',
+      repoId: 'instruction-engine',
+      orchestration: {
+        repo: {
+          repoId: 'instruction-engine',
+          repoPath,
+        },
+      },
+      worktree: {
+        mode: 'dedicated',
+        worktreeId: 'wt-1',
+        worktreePath,
+      },
+    });
+
+    assert.equal(second.run.status, 'running');
+    assert.equal(sdkBridge.createSessionCalls[1].cwd, path.resolve(worktreePath));
+    assert.equal(sdkBridge.createSessionCalls[1].orchestration.isolation.worktreeId, 'wt-1');
+
+    const activeWorktree = service.listWorktrees({ repoId: 'instruction-engine' })
+      .find((entry) => entry.worktreeId === 'wt-1');
+    assert.ok(activeWorktree);
+    assert.equal(activeWorktree.status, 'active');
+
+    await service.shutdown();
+  });
+
+  await test('existing-session workflow-layer events carry workflowId and sessionId before dispatch', async () => {
+    const copilotHome = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-executor-service-'));
+    const sdkBridge = createMockSdkBridge();
+    const seenEvents = [];
+    await sdkBridge.createSdkSession({ sessionId: 'existing-session-1' });
+    const service = await createExecutorService({ copilotHome, sdkBridge }).init();
+    service.on('workflow-layer:event', (event) => {
+      seenEvents.push(event);
+    });
+
+    const result = await service.createJob({
+      prompt: 'continue the active session',
+      targetType: 'existing-session',
+      existingSessionId: 'existing-session-1',
+      orchestration: {
+        workflow: {
+          workflowKind: 'task-execution',
+        },
+      },
+    });
+
+    const queuedEvent = seenEvents.find((event) => event.type === 'executor.run.queued');
+    const startedEvent = seenEvents.find((event) => event.type === 'executor.attempt.started');
+
+    assert.ok(result.run);
+    assert.ok(queuedEvent);
+    assert.ok(startedEvent);
+    assert.equal(queuedEvent.sessionId, 'existing-session-1');
+    assert.equal(startedEvent.sessionId, 'existing-session-1');
+    assert.equal(queuedEvent.workflowId, result.job.id);
+    assert.equal(startedEvent.workflowId, result.job.id);
+    assert.equal(queuedEvent.run.orchestration.workflow.workflowId, result.job.id);
+    assert.equal(startedEvent.run.orchestration.workflow.sessionId, 'existing-session-1');
 
     await service.shutdown();
   });

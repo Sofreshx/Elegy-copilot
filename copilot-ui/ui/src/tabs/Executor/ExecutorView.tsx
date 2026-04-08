@@ -11,6 +11,9 @@ import {
 import { useStoreValue } from '../../lib/store';
 import type {
   CreateExecutorJobPayload,
+  ExecutorJob,
+  ExecutorRun,
+  SessionOrchestrationProjection,
   UiRuntimeOverlayAnnotation,
   UiRuntimeOverlayAnnotationStatus,
   UiRuntimeOverlayChangeRequest,
@@ -161,6 +164,104 @@ function resolveOverlaySessionLabel(session: UiRuntimeOverlaySession): string {
   return session.repoLabel || session.repoId || session.id;
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function buildExecutorTaskBoardProjection(
+  selectedRun: ExecutorRun | null,
+  selectedJob: ExecutorJob | null,
+  linkedSessionProjection: SessionOrchestrationProjection | null,
+): SessionOrchestrationProjection | null {
+  if (linkedSessionProjection) {
+    return linkedSessionProjection;
+  }
+
+  const source = selectedRun ?? selectedJob;
+  if (!source) {
+    return null;
+  }
+
+  const orchestration = asRecord(source.orchestration);
+  const repo = asRecord(orchestration.repo);
+  const isolation = asRecord(orchestration.isolation);
+  const workflow = asRecord(orchestration.workflow);
+  const taskRefs = Array.isArray(orchestration.taskRefs) ? orchestration.taskRefs : [];
+  const actors = Array.isArray(orchestration.actors) ? orchestration.actors : [];
+
+  return {
+    sessionId: selectedRun?.sessionId || selectedJob?.existingSessionId || null,
+    objective: typeof orchestration.objective === 'string' ? orchestration.objective : null,
+    repo: {
+      repoId: typeof source.repoId === 'string' ? source.repoId : (typeof repo.repoId === 'string' ? repo.repoId : null),
+      repoPath: typeof source.repoPath === 'string' ? source.repoPath : (typeof repo.repoPath === 'string' ? repo.repoPath : null),
+      repoLabel: typeof repo.repoLabel === 'string' ? repo.repoLabel : null,
+      branch: typeof repo.branch === 'string' ? repo.branch : null,
+      source: typeof repo.source === 'string' ? repo.source : 'executor',
+    },
+    isolation: {
+      mode: typeof isolation.mode === 'string' ? isolation.mode : (source.worktree?.mode || null),
+      contextType: 'contextType' in source && typeof source.contextType === 'string' ? source.contextType : (typeof isolation.contextType === 'string' ? isolation.contextType : null),
+      sandboxId: 'sandboxId' in source && typeof source.sandboxId === 'string' ? source.sandboxId : (typeof isolation.sandboxId === 'string' ? isolation.sandboxId : null),
+      worktreeId: source.worktree?.worktreeId || (typeof isolation.worktreeId === 'string' ? isolation.worktreeId : null),
+      worktreePath: source.worktree?.path || source.worktree?.worktreePath || (typeof isolation.worktreePath === 'string' ? isolation.worktreePath : null),
+      worktreeStatus: source.worktree?.status || (typeof isolation.worktreeStatus === 'string' ? isolation.worktreeStatus : null),
+      launchBlocked: source.worktree?.launch?.blocked === true || isolation.launchBlocked === true,
+      launchBlockedReason: source.worktree?.launch?.reason || (typeof isolation.launchBlockedReason === 'string' ? isolation.launchBlockedReason : null),
+      worktree: source.worktree || null,
+    },
+    actors: {
+      items: actors as NonNullable<SessionOrchestrationProjection['actors']>['items'],
+      activeActorId: typeof orchestration.activeActorId === 'string' ? orchestration.activeActorId : null,
+    },
+    taskBoard: {
+      durableStore: 'repo-state',
+      repoId: typeof source.repoId === 'string' ? source.repoId : (typeof repo.repoId === 'string' ? repo.repoId : null),
+      items: taskRefs.map((entry) => {
+        const task = asRecord(entry);
+        return {
+          taskId: typeof task.taskId === 'string' ? task.taskId : '',
+          title: typeof task.title === 'string' ? task.title : null,
+          status: typeof task.status === 'string'
+            ? task.status
+            : (typeof workflow.status === 'string' ? workflow.status : source.status),
+          ownerSessionId: typeof task.ownerSessionId === 'string' ? task.ownerSessionId : (selectedRun?.sessionId || selectedJob?.existingSessionId || null),
+          activeActorId: typeof task.activeActorId === 'string' ? task.activeActorId : null,
+          activeActorLabel: typeof task.activeActorLabel === 'string' ? task.activeActorLabel : null,
+          workflow: {
+            latestRunId: selectedRun?.id || selectedJob?.lastRunId || null,
+            status: typeof workflow.status === 'string' ? workflow.status : source.status,
+            mode: typeof workflow.mode === 'string' ? workflow.mode : null,
+          },
+          worktree: source.worktree || null,
+        };
+      }).filter((task) => task.taskId),
+    },
+    workflow: {
+      workflowKind: typeof workflow.workflowKind === 'string' ? workflow.workflowKind : 'task-execution',
+      trigger: typeof workflow.trigger === 'string' ? workflow.trigger : 'manual',
+      mode: typeof workflow.mode === 'string' ? workflow.mode : null,
+      runId: selectedRun?.id || (typeof workflow.runId === 'string' ? workflow.runId : null),
+      jobId: source.id,
+      status: typeof workflow.status === 'string' ? workflow.status : source.status,
+      runs: selectedRun ? [{
+        runId: selectedRun.id,
+        jobId: selectedRun.jobId,
+        repoId: selectedRun.repoId,
+        sessionId: selectedRun.sessionId,
+        status: selectedRun.status,
+        createdAt: selectedRun.createdAt,
+        updatedAt: selectedRun.updatedAt,
+        startedAt: selectedRun.startedAt,
+        finishedAt: selectedRun.finishedAt,
+        nextRetryAt: selectedRun.nextRetryAt,
+        summary: selectedRun.summary,
+        error: selectedRun.error,
+      }] : [],
+    },
+  };
+}
+
 export default function ExecutorView() {
   const executorState = useStoreValue(executorStore);
   const sdkHealthState = useStoreValue(sdkHealthStore);
@@ -223,6 +324,16 @@ export default function ExecutorView() {
     () => executorState.runs.find((run) => run.id === executorState.selectedRunId) ?? null,
     [executorState.runs, executorState.selectedRunId]
   );
+  const linkedSessionProjection = selectedRun?.sessionId
+    ? (executorState.sessionOrchestrationById[selectedRun.sessionId] ?? null)
+    : null;
+  const selectedTaskBoardProjection = useMemo(
+    () => buildExecutorTaskBoardProjection(selectedRun, selectedJob, linkedSessionProjection),
+    [linkedSessionProjection, selectedJob, selectedRun],
+  );
+  const selectedProjectionTasks = Array.isArray(selectedTaskBoardProjection?.taskBoard?.items)
+    ? selectedTaskBoardProjection.taskBoard.items
+    : [];
 
   const latestSelectedJobRun = selectedJob?.lastRunId
     ? executorState.runs.find((run) => run.id === selectedJob.lastRunId) ?? null
@@ -516,6 +627,61 @@ export default function ExecutorView() {
           {executorState.error}
         </p>
       ) : null}
+
+      <Panel
+        subtitle="Planning owns the primary durable task board. Executor stays focused on workflow runs, queued work, overlays, and links back into that Planning surface."
+        testId="executor-task-board-link-panel"
+        title="Planning Task Board Link"
+      >
+        <div className="session-detail">
+          <p className="session-detail-suggestion">
+            <span>Selected workflow context:</span> {selectedRun?.id || selectedJob?.id || 'No run or job selected.'}
+          </p>
+          <p className="tracker-item-copy">
+            {selectedProjectionTasks.length > 0
+              ? `${selectedProjectionTasks.length} durable repo-state task(s) are linked to the selected executor workflow context. Open Planning for the primary board view.`
+              : 'No durable task links were derived for the selected executor context yet.'}
+          </p>
+          <p className="tracker-item-copy">
+            Executor keeps workflow-run authority, retry state, queue control, and overlay diagnostics. It does not become the primary task-board destination.
+          </p>
+        </div>
+        {executorState.orchestrationError ? (
+          <p className="sessions-error" role="alert">{executorState.orchestrationError}</p>
+        ) : null}
+        {selectedProjectionTasks.length > 0 ? (
+          <ul className="tracker-session-list executor-job-list">
+            {selectedProjectionTasks.slice(0, 5).map((task) => {
+              const taskId = typeof task?.taskId === 'string' ? task.taskId : '(unknown task)';
+              return (
+                <li key={taskId}>
+                  <div>
+                    <p className="tracker-item-title">{typeof task?.title === 'string' && task.title.trim() ? task.title : taskId}</p>
+                    <p className="tracker-item-copy">
+                      {[
+                        taskId,
+                        humanizeToken(typeof task?.status === 'string' ? task.status : 'unknown'),
+                        typeof task?.ownerSessionId === 'string' && task.ownerSessionId.trim() ? `owner ${task.ownerSessionId}` : '',
+                      ].filter(Boolean).join(' | ')}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="state-message">Planning will keep showing repo-state tasks even when executor-specific additive metadata is currently empty.</p>
+        )}
+        <div className="sessions-actions">
+          <Button
+            onClick={() => navigationStore.goToPlanning()}
+            testId="executor-open-planning-task-board"
+            variant="secondary"
+          >
+            Open Planning Task Board
+          </Button>
+        </div>
+      </Panel>
 
       <div className="sessions-grid">
         <Panel

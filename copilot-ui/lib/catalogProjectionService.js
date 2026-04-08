@@ -1785,6 +1785,78 @@ function loadCatalogProjectionSnapshot(options = {}) {
   return readJsonIfExists(storage.snapshotPath);
 }
 
+function resolveSnapshotChangeTimestamp(changeState) {
+  const changedMs = Number(changeState?.lastChangedMs);
+  return Number.isFinite(changedMs) ? changedMs : null;
+}
+
+function isCatalogProjectionSnapshotStale(snapshot, changeState) {
+  if (!snapshot) {
+    return false;
+  }
+
+  const changedMs = resolveSnapshotChangeTimestamp(changeState);
+  if (!Number.isFinite(changedMs)) {
+    return false;
+  }
+
+  const generatedMs = Date.parse(snapshot.generatedAt || '');
+  if (!Number.isFinite(generatedMs)) {
+    return true;
+  }
+
+  return changedMs > generatedMs;
+}
+
+function resolveCatalogProjectionSnapshot(options = {}) {
+  const storage = resolveProjectionStorage(options);
+  const persistedSnapshot = loadCatalogProjectionSnapshot(options);
+  const stalePersistedSnapshot = isCatalogProjectionSnapshotStale(persistedSnapshot, options.changeState);
+  const allowFallback = options.allowFallback !== false;
+
+  if (persistedSnapshot && !stalePersistedSnapshot) {
+    return {
+      storage,
+      persistedSnapshot,
+      snapshot: persistedSnapshot,
+      readMode: 'persisted-snapshot',
+      buildError: null,
+      stalePersistedSnapshot: false,
+    };
+  }
+
+  if (!allowFallback) {
+    return {
+      storage,
+      persistedSnapshot,
+      snapshot: null,
+      readMode: stalePersistedSnapshot ? 'stale-persisted-snapshot' : 'missing',
+      buildError: null,
+      stalePersistedSnapshot,
+    };
+  }
+
+  try {
+    return {
+      storage,
+      persistedSnapshot,
+      snapshot: rebuildCatalogProjection(options),
+      readMode: stalePersistedSnapshot ? 'change-tracker-rebuild' : 'filesystem-fallback',
+      buildError: null,
+      stalePersistedSnapshot,
+    };
+  } catch (error) {
+    return {
+      storage,
+      persistedSnapshot,
+      snapshot: null,
+      readMode: stalePersistedSnapshot ? 'stale-persisted-snapshot' : 'missing',
+      buildError: error,
+      stalePersistedSnapshot,
+    };
+  }
+}
+
 function collectSearchTerms(asset) {
   const selectedEntry = asset.selectedEntry || asset;
   const terms = [
@@ -1971,6 +2043,8 @@ module.exports = {
   inferExternalAssetOrigin,
   rebuildCatalogProjection,
   loadCatalogProjectionSnapshot,
+  isCatalogProjectionSnapshotStale,
+  resolveCatalogProjectionSnapshot,
   parseMarkdownAsset,
   resolveProjectionStorage,
   resolveRepoContext,

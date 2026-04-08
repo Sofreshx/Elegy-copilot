@@ -16,6 +16,9 @@ const {
   SESSION_RECONCILIATION_CONTRACT_VERSION,
   SESSION_RECONCILIATION_SOURCES,
   SESSION_STATE_AUTHORITIES,
+  buildSessionOrchestrationProjection,
+  normalizeActorRole,
+  normalizeSessionOrchestrationActor,
 } = require('../lib/runtimeContracts');
 const sessionArtifactsLib = require('../lib/sessionArtifacts');
 const { sendJson: defaultSendJson, sendText: defaultSendText, readJsonBody: defaultReadJsonBody } = require('./_helpers');
@@ -243,11 +246,11 @@ function handleSessionsList(ctx, deps) {
     const dedupe = (u.searchParams.get('dedupe') || 'on').toLowerCase();
     const sharedCliAndVscodeRoot = areSameSessionRoots(path, copilotHome, vscodeHome);
     const listedCliSessions = sessions.listSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 });
-    const listedVscodeSessions = sharedCliAndVscodeRoot
-      ? listedCliSessions
-      : sessions.listSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 });
     const cli = listedCliSessions.map((s) => ({ ...s, source: 'cli' }));
-    const vs = listedVscodeSessions.map((s) => ({ ...s, source: 'vscode' }));
+    const vs = sharedCliAndVscodeRoot
+      ? []
+      : sessions.listSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 })
+        .map((s) => ({ ...s, source: 'vscode' }));
     const sandbox = sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 });
     const all = [...cli, ...vs, ...sandbox];
     const result = (dedupe === 'off')
@@ -605,6 +608,335 @@ function formatCompatibilityFinalCloseout(structured) {
   return `${lines.join('\n')}\n`;
 }
 
+function normalizeComparablePath(targetPath, pathLib = path) {
+  const normalized = normalizeString(targetPath);
+  if (!normalized) {
+    return '';
+  }
+  const resolved = pathLib.resolve(normalized);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function resolveStructuredSessionRepo(ctx, deps, runtimeSession, startContext) {
+  const runtimeRepo = runtimeSession && runtimeSession.orchestration && runtimeSession.orchestration.repo
+    ? runtimeSession.orchestration.repo
+    : null;
+  const selector = {
+    repoId: normalizeString(runtimeRepo && runtimeRepo.repoId),
+    repoPath: normalizeString(
+      (runtimeRepo && runtimeRepo.repoPath)
+      || (runtimeSession && runtimeSession.cwd)
+      || (startContext && (startContext.cwd || startContext.repo))
+    ),
+  };
+
+  if (!selector.repoId && !selector.repoPath) {
+    return null;
+  }
+
+  try {
+    const inventory = deps.repoInventory.listKnownRepos({
+      copilotHome: ctx.copilotHomeAbs || ctx.copilotHome,
+      engineRoot: ctx.engineRoot,
+      explicitRepoPaths: selector.repoPath ? [selector.repoPath] : [],
+    });
+    return deps.repoInventory.resolveRepoEntry(inventory, selector) || null;
+  } catch {
+    return null;
+  }
+}
+
+function buildRuntimeActorSummaries(runtimeSession, artifactActors = []) {
+  const runtimeActors = Array.isArray(runtimeSession && runtimeSession.orchestration && runtimeSession.orchestration.actors)
+    ? runtimeSession.orchestration.actors
+    : [];
+  const merged = new Map();
+
+  for (const actor of runtimeActors) {
+    const normalized = normalizeSessionOrchestrationActor(actor);
+    if (normalized) {
+      merged.set(normalized.actorId.toLowerCase(), normalized);
+    }
+  }
+
+  for (const actor of Array.isArray(artifactActors) ? artifactActors : []) {
+    const actorId = normalizeString(actor && actor.actorId);
+    if (!actorId) {
+      continue;
+    }
+    const key = actorId.toLowerCase();
+    if (!merged.has(key)) {
+      merged.set(key, {
+        actorId,
+        label: normalizeString(actor.label) || actorId,
+        role: normalizeActorRole(actor.role || actor.label || actorId),
+        kind: normalizeString(actor.kind) || 'runtime',
+        status: normalizeString(actor.status) || null,
+        source: normalizeString(actor.source) || 'artifact-events',
+        taskId: normalizeString(actor.taskId) || null,
+        taskIds: Array.isArray(actor.taskIds) ? actor.taskIds.filter((entry) => normalizeString(entry)) : [],
+        invocationCount: Number.isFinite(Number(actor.invocationCount)) ? Number(actor.invocationCount) : null,
+      });
+      continue;
+    }
+    const existing = merged.get(key);
+    if (!existing.role || existing.role === 'unknown') {
+      existing.role = normalizeActorRole(actor.role || actor.label || actorId);
+    }
+    if (!existing.source) {
+      existing.source = normalizeString(actor.source) || 'artifact-events';
+    }
+    if (!existing.invocationCount && Number.isFinite(Number(actor.invocationCount))) {
+      existing.invocationCount = Number(actor.invocationCount);
+    }
+    const taskIds = Array.isArray(actor.taskIds) ? actor.taskIds : (actor.taskId ? [actor.taskId] : []);
+    for (const taskId of taskIds) {
+      const normalizedTaskId = normalizeString(taskId);
+      if (normalizedTaskId && !existing.taskIds.includes(normalizedTaskId)) {
+        existing.taskIds.push(normalizedTaskId);
+      }
+    }
+  }
+
+  return Array.from(merged.values()).sort((left, right) => left.actorId.localeCompare(right.actorId));
+}
+
+function collectExecutorWorkflowRuns(deps, sessionId, repoId, taskRecords = []) {
+  if (!deps.executorService || typeof deps.executorService.listRuns !== 'function') {
+    return [];
+  }
+
+  const taskIds = new Set(taskRecords.map((task) => normalizeString(task && task.taskId)).filter(Boolean));
+  return deps.executorService.listRuns()
+    .filter((run) => {
+      if (!run || typeof run !== 'object') return false;
+      if (normalizeString(run.sessionId) === sessionId) return true;
+      const runTaskRefs = Array.isArray(run.orchestration && run.orchestration.taskRefs)
+        ? run.orchestration.taskRefs
+        : [];
+      const runRepoId = normalizeString(run.repoId);
+      if (repoId && runRepoId && runRepoId !== repoId) {
+        return false;
+      }
+      return runTaskRefs.some((entry) => taskIds.has(normalizeString(entry && entry.taskId)));
+    })
+    .map((run) => ({
+      runId: normalizeString(run.id) || null,
+      jobId: normalizeString(run.jobId) || null,
+      repoId: normalizeString(run.repoId) || null,
+      sessionId: normalizeString(run.sessionId) || null,
+      status: normalizeString(run.status) || null,
+      createdAt: run.createdAt || null,
+      updatedAt: run.updatedAt || null,
+      startedAt: run.startedAt || null,
+      finishedAt: run.finishedAt || null,
+      nextRetryAt: run.nextRetryAt || null,
+      summary: normalizeString(run.summary) || null,
+      error: normalizeString(run.error) || null,
+      createdSession: run.createdSession === true,
+      workflow: run.orchestration && run.orchestration.workflow ? run.orchestration.workflow : null,
+      taskRefs: Array.isArray(run.orchestration && run.orchestration.taskRefs) ? run.orchestration.taskRefs : [],
+    }))
+    .sort((left, right) => Date.parse(right.updatedAt || '') - Date.parse(left.updatedAt || ''));
+}
+
+function collectWorkflowLayerTriggers(deps, sessionId, repoId, taskRecords = []) {
+  if (!deps.workflowLayerService || typeof deps.workflowLayerService.listTriggers !== 'function') {
+    return [];
+  }
+
+  return deps.workflowLayerService.listTriggers({
+    sessionId,
+    repoId: repoId || null,
+    taskIds: taskRecords.map((task) => normalizeString(task && task.taskId)).filter(Boolean),
+    limit: 10,
+  });
+}
+
+function collectOverlaySessions(deps, sessionId, repoId) {
+  if (!deps.uiRuntimeOverlayService || typeof deps.uiRuntimeOverlayService.listSessions !== 'function') {
+    return [];
+  }
+
+  return deps.uiRuntimeOverlayService.listSessions()
+    .filter((overlaySession) => {
+      if (!overlaySession || typeof overlaySession !== 'object') return false;
+      const explicitSessionRefs = new Set([
+        normalizeString(overlaySession.linkedSessionId),
+        normalizeString(overlaySession.currentSessionId),
+        normalizeString(overlaySession.sessionId),
+        ...(
+          Array.isArray(overlaySession.sessionIds)
+            ? overlaySession.sessionIds.map((entry) => normalizeString(entry))
+            : []
+        ),
+        ...(
+          Array.isArray(overlaySession.sessionRefs)
+            ? overlaySession.sessionRefs.map((entry) => normalizeString(
+              entry && typeof entry === 'object'
+                ? (entry.sessionId || entry.currentSessionId || entry.id || entry.ref)
+                : entry
+            ))
+            : []
+        ),
+      ].filter(Boolean));
+      return explicitSessionRefs.has(sessionId);
+    })
+    .map((overlaySession) => ({
+      id: overlaySession.id || null,
+      status: overlaySession.status || null,
+      phase: overlaySession.phase || null,
+      runtimeUrl: overlaySession.runtimeUrl || null,
+      repoId: overlaySession.repoId || null,
+      packageRoot: overlaySession.packageRoot || null,
+      linkedSessionId: overlaySession.linkedSessionId || null,
+      worktree: overlaySession.worktree || null,
+      updatedAt: overlaySession.updatedAt || null,
+    }));
+}
+
+function buildTaskBoardProjection(sessionId, taskRecords, workflowRuns, worktreeId) {
+  const workflowRunIds = new Set(workflowRuns.map((run) => normalizeString(run && run.runId)).filter(Boolean));
+  return (Array.isArray(taskRecords) ? taskRecords : [])
+    .filter((task) => {
+      if (!task || typeof task !== 'object') return false;
+      if (normalizeString(task.ownerSessionId) === sessionId) return true;
+      if (worktreeId && normalizeString(task.worktree && task.worktree.worktreeId) === worktreeId) return true;
+      return workflowRunIds.has(normalizeString(task.workflow && task.workflow.latestRunId));
+    })
+    .map((task) => ({
+      taskId: task.taskId,
+      title: task.title || null,
+      status: task.status || null,
+      ownerSessionId: task.ownerSessionId || null,
+      activeActorId: task.activeActorId || null,
+      activeActorLabel: task.activeActorLabel || null,
+      workflow: task.workflow || {},
+      worktree: task.worktree || {},
+      linkedPlanning: task.linkedPlanning || {},
+      durablePath: task.durablePath || null,
+      projection: {
+        durableStore: 'repo-state',
+        ownedBySession: normalizeString(task.ownerSessionId) === sessionId,
+      },
+    }));
+}
+
+function buildSessionOrchestrationState(ctx, deps, id, sessionDir, structured) {
+  const runtimeSession = deps.sdkBridge && typeof deps.sdkBridge.getSdkSession === 'function'
+    ? deps.sdkBridge.getSdkSession(id)
+    : null;
+  const startContext = deps.sessions && typeof deps.sessions.getSessionStartContext === 'function'
+    ? deps.sessions.getSessionStartContext(sessionDir)
+    : null;
+  const resolvedRepo = resolveStructuredSessionRepo(ctx, deps, runtimeSession, startContext);
+  const runtimeRepo = runtimeSession && runtimeSession.orchestration && runtimeSession.orchestration.repo
+    ? runtimeSession.orchestration.repo
+    : null;
+  const repoId = normalizeString(resolvedRepo && resolvedRepo.repoId) || normalizeString(runtimeRepo && runtimeRepo.repoId);
+  const overlaySessions = collectOverlaySessions(deps, id, repoId);
+  const directWorkflowRuns = collectExecutorWorkflowRuns(deps, id, repoId, []);
+  const scopedWorktreeIds = new Set([
+    normalizeString(runtimeSession && runtimeSession.orchestration && runtimeSession.orchestration.isolation && runtimeSession.orchestration.isolation.worktreeId),
+    ...overlaySessions
+      .filter((overlaySession) => normalizeString(overlaySession && overlaySession.linkedSessionId) === id)
+      .map((overlaySession) => normalizeString(overlaySession && overlaySession.worktree && overlaySession.worktree.worktreeId)),
+  ].filter(Boolean));
+  const repoTasks = repoId && deps.sessions && typeof deps.sessions.listRepoStateTasks === 'function'
+    ? deps.sessions.listRepoStateTasks(ctx.copilotHomeAbs || ctx.copilotHome, repoId, {
+      sessionId: id,
+      workflowRunIds: directWorkflowRuns.map((run) => normalizeString(run && run.runId)).filter(Boolean),
+      worktreeIds: Array.from(scopedWorktreeIds),
+    })
+    : [];
+  const artifactActors = deps.sessions && typeof deps.sessions.buildSessionActorSummaries === 'function'
+    ? deps.sessions.buildSessionActorSummaries(sessionDir, { taskRecords: repoTasks })
+    : [];
+  const actors = buildRuntimeActorSummaries(runtimeSession, artifactActors);
+  const workflowRuns = collectExecutorWorkflowRuns(deps, id, repoId, repoTasks);
+  const currentWorktreeId = normalizeString(
+    (runtimeSession && runtimeSession.orchestration && runtimeSession.orchestration.isolation && runtimeSession.orchestration.isolation.worktreeId)
+    || (repoTasks.find((task) => task && task.worktree && normalizeString(task.worktree.worktreeId)) || {}).worktree?.worktreeId
+    || (overlaySessions.find((overlaySession) => normalizeString(overlaySession && overlaySession.linkedSessionId) === id) || {}).worktree?.worktreeId
+  );
+  const worktreeMetadata = currentWorktreeId && deps.sessions && typeof deps.sessions.readRepoStateWorktree === 'function'
+    ? deps.sessions.readRepoStateWorktree(ctx.copilotHomeAbs || ctx.copilotHome, repoId, currentWorktreeId)
+    : null;
+  const taskItems = buildTaskBoardProjection(id, repoTasks, workflowRuns, currentWorktreeId);
+  const workflowLayerTriggers = collectWorkflowLayerTriggers(deps, id, repoId, repoTasks);
+  const runtimeIsolation = runtimeSession && runtimeSession.orchestration && runtimeSession.orchestration.isolation
+    ? runtimeSession.orchestration.isolation
+    : {};
+  const runtimeCwd = normalizeString(runtimeSession && runtimeSession.cwd);
+  const repoPath = normalizeString((resolvedRepo && resolvedRepo.repoPath) || (runtimeRepo && runtimeRepo.repoPath));
+  const isolationMode = normalizeString(runtimeIsolation.mode)
+    || (normalizeString(runtimeSession && runtimeSession.contextType) === 'sandbox'
+      ? 'sandbox'
+      : (runtimeCwd && repoPath && normalizeComparablePath(runtimeCwd, deps.path) !== normalizeComparablePath(repoPath, deps.path)
+        ? 'dedicated'
+        : (repoPath ? 'shared' : 'unknown')));
+
+  return buildSessionOrchestrationProjection({
+    sessionId: id,
+    metadata: {
+      objective: deps.sessionArtifacts && typeof deps.sessionArtifacts.deriveSessionObjective === 'function'
+        ? deps.sessionArtifacts.deriveSessionObjective({
+          intentFrame: structured.meta && structured.meta.intentFrame,
+          closureSummary: structured.meta && structured.meta.closureSummary,
+          handoff: structured.meta && structured.meta.handoff,
+          executionState: structured.meta && structured.meta.executionState,
+        })
+        : null,
+      repo: {
+        repoId: repoId || normalizeString(runtimeRepo && runtimeRepo.repoId) || null,
+        repoPath: repoPath || runtimeCwd || normalizeString(startContext && startContext.cwd) || null,
+        repoLabel: normalizeString(resolvedRepo && resolvedRepo.repoLabel) || repoId || null,
+        branch: normalizeString((runtimeRepo && runtimeRepo.branch) || (startContext && startContext.branch)) || null,
+        source: runtimeSession ? 'runtime' : (resolvedRepo ? 'catalog' : 'artifact'),
+      },
+      isolation: {
+        mode: isolationMode,
+        contextType: normalizeString(runtimeSession && runtimeSession.contextType) || normalizeString(runtimeIsolation.contextType) || null,
+        sandboxId: normalizeString(runtimeSession && runtimeSession.sandboxId) || normalizeString(runtimeIsolation.sandboxId) || null,
+        worktreeId: currentWorktreeId || null,
+        worktreePath: normalizeString((runtimeIsolation && runtimeIsolation.worktreePath) || runtimeCwd || (worktreeMetadata && worktreeMetadata.path)) || null,
+        worktreeStatus: normalizeString((runtimeIsolation && runtimeIsolation.worktreeStatus) || (worktreeMetadata && worktreeMetadata.status)) || null,
+        launchBlocked: Boolean(
+          runtimeIsolation && runtimeIsolation.launchBlocked === true
+          || (worktreeMetadata && worktreeMetadata.launch && worktreeMetadata.launch.blocked === true)
+        ),
+        launchBlockedReason: normalizeString(
+          (runtimeIsolation && runtimeIsolation.launchBlockedReason)
+          || (worktreeMetadata && worktreeMetadata.launch && worktreeMetadata.launch.reason)
+        ) || null,
+      },
+      actors,
+      taskRefs: taskItems.map((task) => ({ taskId: task.taskId, ownerSessionId: task.ownerSessionId, activeActorId: task.activeActorId })),
+      workflow: {
+        workflowKind: normalizeString((((workflowRuns[0] || {}).workflow) || {}).workflowKind) || 'task-execution',
+        trigger: normalizeString((((workflowRuns[0] || {}).workflow) || {}).trigger) || 'manual',
+        mode: normalizeString((((workflowRuns[0] || {}).workflow) || {}).mode) || null,
+        runId: normalizeString((workflowRuns[0] || {}).runId) || null,
+        jobId: normalizeString((workflowRuns[0] || {}).jobId) || null,
+        status: normalizeString((workflowRuns[0] || {}).status) || null,
+        latestTriggerId: normalizeString((workflowLayerTriggers[0] || {}).triggerId) || null,
+        latestTriggerAt: normalizeString((workflowLayerTriggers[0] || {}).capturedAt) || null,
+        latestTriggerEventType: normalizeString((workflowLayerTriggers[0] || {}).eventType) || null,
+        latestTriggerDeliveryState: normalizeString(
+          workflowLayerTriggers[0] && workflowLayerTriggers[0].delivery && workflowLayerTriggers[0].delivery.state
+        ) || null,
+      },
+    },
+    actors,
+    activeActorId: normalizeString((taskItems.find((task) => task && task.activeActorId) || {}).activeActorId) || null,
+    taskItems,
+    workflowRuns,
+    workflowLayerTriggers,
+    overlaySessions,
+    worktree: worktreeMetadata || (currentWorktreeId ? { worktreeId: currentWorktreeId } : null),
+  });
+}
+
 function handleSessionStructuredState(ctx, deps) {
   const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
   const { sendJson, resolveSessionsHome, isValidSessionId, readPlanArtifact, planState, assets, fs, path } = deps;
@@ -652,11 +984,13 @@ function handleSessionStructuredState(ctx, deps) {
       requireHandoff: useLatestSessionArtifacts,
       sessionId: id,
     });
+    const orchestration = buildSessionOrchestrationState(ctx, deps, id, sessionDir, structured);
     sendJson(res, 200, {
       id,
       source: home.source,
       planId,
       ...structured,
+      orchestration,
     });
   } catch (e) {
     sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source });
@@ -890,6 +1224,10 @@ function register(deps = {}) {
     repositoryBacklogFile: deps.repositoryBacklogFile || repositoryBacklogFileLib,
     sessionPlanRoadmapSync: deps.sessionPlanRoadmapSync || sessionPlanRoadmapSyncLib,
     sessionArtifacts: deps.sessionArtifacts || sessionArtifactsLib,
+    sdkBridge: deps.sdkBridge || null,
+    executorService: deps.executorService || null,
+    workflowLayerService: deps.workflowLayerService || null,
+    uiRuntimeOverlayService: deps.uiRuntimeOverlayService || null,
     sendJson: deps.sendJson || defaultSendJson,
     sendText: deps.sendText || defaultSendText,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,

@@ -13,26 +13,31 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 
 **Violating the letter of this rule is violating the spirit of this rule.**
 
+**Lane-aware rule:** Fresh verification evidence is mandatory in every lane. Validation-specific lanes own proving test/lint/build execution and may run the narrowest relevant command directly. All other lanes must delegate proving execution to the appropriate runner lane and inspect its returned output before making any success claim.
+
 ## The Iron Law
 
 ```
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 ```
 
-If you haven't run the verification command in this message, you cannot claim it passes.
+If you do not have fresh verification output from this work cycle—either from the active validation lane or from the appropriate runner lane—you cannot claim it passes.
 
 ## The Gate Function
 
 ```
 BEFORE claiming any status or expressing satisfaction:
 
-1. IDENTIFY: What command proves this claim?
-2. RUN: Execute the FULL command (fresh, complete)
-3. READ: Full output, check exit code, count failures
-4. VERIFY: Does output confirm the claim?
-   - If NO: State actual status with evidence
-   - If YES: State claim WITH evidence
-5. ONLY THEN: Make the claim
+1. IDENTIFY: What command proves this claim, and is the current lane the validation lane allowed to own that proof?
+2. RUN/DELEGATE: If yes, run the narrowest relevant proving command in this validation lane; otherwise delegate to the appropriate runner lane
+3. READ: Full returned output, check exit code, count failures
+4. INSPECT: If tests changed, did the proof stay as strong as before?
+   - If a hard test was deleted, narrowed, or relaxed, green is not enough
+   - If behavior changed intentionally, confirm stronger replacement coverage exists
+5. VERIFY: Does output confirm the claim?
+    - If NO: State actual status with evidence
+    - If YES: State claim WITH evidence
+6. ONLY THEN: Make the claim
 
 Skip any step = lying, not verifying
 ```
@@ -41,12 +46,13 @@ Skip any step = lying, not verifying
 
 | Claim | Requires | Not Sufficient |
 |-------|----------|----------------|
-| Tests pass | Test command output: 0 failures | Previous run, "should pass" |
-| Linter clean | Linter output: 0 errors | Partial check, extrapolation |
-| Build succeeds | Build command: exit 0 | Linter passing, logs look good |
-| Bug fixed | Test original symptom: passes | Code changed, assumed fixed |
-| Regression test works | Red-green cycle verified | Test passes once |
-| Agent completed | VCS diff shows changes | Agent reports "success" |
+| Tests pass | Fresh test output from the validation lane or runner lane: 0 failures | Previous run, "should pass" |
+| Linter clean | Fresh lint output from the validation lane or runner lane: 0 errors | Partial check, extrapolation |
+| Build succeeds | Fresh build output from the validation lane or runner lane: exit 0 | Linter passing, logs look good |
+| Bug fixed | Fresh evidence that the original symptom test passes | Code changed, assumed fixed |
+| Regression test works | Red-green cycle verified with fresh failure/pass evidence | Test passes once |
+| Tests still prove the behavior | Hard case retained or stronger replacement added | Green output after weakening/deleting the test |
+| Agent completed | VCS diff plus fresh verification evidence | Agent reports "success" |
 | Requirements met | Line-by-line checklist | Tests passing |
 
 ## Red Flags - STOP
@@ -77,19 +83,25 @@ Skip any step = lying, not verifying
 
 **Tests:**
 ```
-✅ [Run test command] [See: 34/34 pass] "All tests pass"
+✅ [Use validation-lane output or request runner lane execution] [See: 34/34 pass] "All tests pass"
 ❌ "Should pass now" / "Looks correct"
+```
+
+**Tests changed while fixing a failure:**
+```
+✅ Keep the hard assertion OR replace it with stronger coverage for the new contract, then get fresh test evidence from the validation lane or appropriate runner lane
+❌ Delete the edge-case test, loosen the assertion, rerun, then say "all green"
 ```
 
 **Regression tests (TDD Red-Green):**
 ```
-✅ Write → Run (pass) → Revert fix → Run (MUST FAIL) → Restore → Run (pass)
+✅ Write → Get fresh RED evidence (fail) → Implement/restore fix → Get fresh GREEN evidence (pass)
 ❌ "I've written a regression test" (without red-green verification)
 ```
 
 **Build:**
 ```
-✅ [Run build] [See: exit 0] "Build passes"
+✅ [Use validation-lane output or request runner lane execution] [See: exit 0] "Build passes"
 ❌ "Linter passed" (linter doesn't check compilation)
 ```
 
@@ -99,10 +111,10 @@ Skip any step = lying, not verifying
 ❌ "Tests pass, phase complete"
 ```
 
-**Agent delegation:**
+**Runner-lane delegation:**
 ```
-✅ Agent reports success → Check VCS diff → Verify changes → Report actual state
-❌ Trust agent report
+✅ Implementation lane requests the appropriate runner lane → Inspect returned command/output/exit status → Report actual state
+❌ Skip verification because execution was delegated
 ```
 
 ## Why This Matters
@@ -122,7 +134,7 @@ From 24 failure memories:
 - ANY positive statement about work state
 - Committing, PR creation, task completion
 - Moving to next task
-- Delegating to agents
+- Accepting delegated execution as proof of success
 
 **Rule applies to:**
 - Exact phrases
@@ -134,6 +146,8 @@ From 24 failure memories:
 
 **No shortcuts for verification.**
 
-Run the command. Read the output. THEN claim the result.
+Run the command only when you are already in the validation lane that owns it; otherwise obtain the runner lane's fresh output. Read the output. Confirm the tests did not get easier. THEN claim the result.
 
 This is non-negotiable.
+
+For the full testing-specific contract, see [Testing Quality Governance](../../../docs/system/testing-quality-governance.md).

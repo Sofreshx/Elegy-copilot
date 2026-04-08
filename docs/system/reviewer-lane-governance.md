@@ -1,13 +1,13 @@
 ---
 created: 2026-03-13
-updated: 2026-04-03
+updated: 2026-04-08
 category: system
 status: current
 doc_kind: node
 id: reviewer-lane-governance
 summary: Canonical responsibility and routing contract for reviewer lanes, including coexistence with existing reviewers.
 tags: [review, governance, routing]
-related: [search-execute-workflow, project-conventions-governance, follow-up-discovery-governance, goal-contract-governance]
+related: [search-execute-workflow, project-conventions-governance, follow-up-discovery-governance, goal-contract-governance, testing-quality-governance, validation-governance]
 ---
 
 # Reviewer Lane Governance
@@ -90,6 +90,14 @@ The working reviewer should:
 
 It should not silently assume permission to run tests or mutate the repo.
 
+When test changes are part of the evidence, reviewer lanes should use
+`docs/system/testing-quality-governance.md` as the canonical basis for flagging:
+
+- weakened tests whose main effect is making failures disappear
+- lost hard-case, failure-path, or edge-case coverage
+- shallow green-only coverage that does not prove the real behavior
+- assertion relaxations without replacement coverage that preserves confidence
+
 ## Output Contracts
 
 Use these compact structures:
@@ -155,6 +163,7 @@ GOAL_REVIEW
 - `docs/system/project-conventions-governance.md`
 - `docs/system/follow-up-discovery-governance.md`
 - `docs/system/goal-contract-governance.md`
+- `docs/system/testing-quality-governance.md`
 - `engine-assets/agents/code-reviewer.agent.md`
 - `engine-assets/agents/impl-reviewer.agent.md`
 - `engine-assets/agents/final-reviewer.agent.md`

@@ -30,16 +30,34 @@ Task tool (general-purpose):
 
     Once you're clear on requirements:
     1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
-    3. Verify implementation works
-    4. Commit your work
-    5. Self-review (see below)
-    6. Report back
+    2. Write or update the tests needed for the task, using TDD unless the controller explicitly waives it
+    3. Self-review your code and identify the narrowest validation needed
+    4. Commit your work when the task is ready for external validation
+    5. Report back with the validation request
 
     Work from: [directory]
 
     **While you work:** If you encounter something unexpected or unclear, **ask questions**.
     It's always OK to pause and clarify. Don't guess or make assumptions.
+
+    ## Testing Default
+
+    Treat TDD as the default way to work:
+    - Start from the narrowest failing test or executable check that proves the task
+    - Implement only enough code to make that test pass
+    - Refactor while keeping the behavior covered
+
+    Only skip TDD when the controller or task text explicitly waives it. If TDD is waived, say so in your final report instead of silently switching approaches.
+
+    ## Validation Boundary
+
+    You are the **implementer lane**. That means:
+    - You may change code and tests.
+    - You should say what validation needs to run.
+    - You should **not** claim that tests passed unless the controller gives you results from a separate validation runner.
+    - You should **not** present self-run validation as authoritative.
+
+    The controller is responsible for routing execution through a dedicated validation runner lane.
 
     ## Code Organization
 
@@ -92,8 +110,9 @@ Task tool (general-purpose):
 
     **Testing:**
     - Do tests actually verify behavior (not just mock behavior)?
-    - Did I follow TDD if required?
-    - Are tests comprehensive?
+    - Did I follow TDD, unless it was explicitly waived?
+    - What is the narrowest validation that should run now?
+    - Am I avoiding claims about pass/fail that I do not have from a runner lane?
 
     If you find issues during self-review, fix them now before reporting.
 
@@ -102,10 +121,13 @@ Task tool (general-purpose):
     When done, report:
     - **Status:** DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
     - What you implemented (or what you attempted, if blocked)
-    - What you tested and test results
+    - TDD status: followed by default, or explicitly waived
+    - Validation request: exact commands, test files, or checks the controller should send to the validation runner
     - Files changed
     - Self-review findings (if any)
     - Any issues or concerns
+
+    Do not report test pass/fail results unless they came back from the dedicated validation runner lane.
 
     Use DONE_WITH_CONCERNS if you completed the work but have doubts about correctness.
     Use BLOCKED if you cannot complete the task. Use NEEDS_CONTEXT if you need

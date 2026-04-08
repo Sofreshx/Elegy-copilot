@@ -68,16 +68,12 @@ function detectWsl2Capability(options = {}) {
   );
 }
 
-function detectSandboxCapability(dockerCapability, sandboxesHome, options = {}) {
+function detectSandboxCapability(sandboxesHome, options = {}) {
   const env = options.env && typeof options.env === 'object' ? options.env : process.env;
   const fsModule = options.fsModule || fs;
   const pathModule = options.pathModule || path;
   const forced = resolveForcedCapabilityState('sandbox', env);
   if (forced) return forced;
-
-  if (dockerCapability !== CAPABILITY_STATES.AVAILABLE) {
-    return CAPABILITY_STATES.UNAVAILABLE;
-  }
 
   if (typeof sandboxesHome !== 'string' || !sandboxesHome.trim()) {
     return CAPABILITY_STATES.UNAVAILABLE;
@@ -251,7 +247,7 @@ function createRuntimeHealthResolver(options = {}) {
       childProcessModule: options.childProcessModule,
       timeoutMs: options.timeoutMs,
     });
-    const sandbox = detectSandboxCapability(docker, sandboxesHome, {
+    const sandbox = detectSandboxCapability(sandboxesHome, {
       env,
       fsModule: options.fsModule,
       pathModule: options.pathModule,

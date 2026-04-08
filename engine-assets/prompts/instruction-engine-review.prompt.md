@@ -1,17 +1,30 @@
 ---
 name: instruction-engine-review
-description: High-signal review checklist for changes before commit (/diff + /review).
+description: Compatibility broad-review entrypoint for /diff + /review. Route through the canonical code-reviewer contract and current testing/validation governance.
 ---
 
 Review the current changeset before commit.
 
 Before proceeding, apply `core-guardrails` safety constraints (especially terminal/background-process rules).
 
-Checklist:
-- Correctness: does it do what was asked?
-- Scope: no unrelated refactors or new features.
-- Safety: no secrets; no destructive behavior added.
-- Compatibility: works on Windows + non-Windows where applicable.
-- Validation: identify the narrowest relevant commands/tests to run.
+This prompt is a compatibility entrypoint, not a separate or looser review path. Treat broad review requests as the canonical `code-reviewer` lane and anchor on:
 
-Use `/diff` and `/review` style output: summarize issues found (only real issues, avoid noise), then give a short “ready to merge?” verdict.
+- `engine-assets/agents/code-reviewer.agent.md`
+- `docs/system/reviewer-lane-governance.md`
+- `docs/system/testing-quality-governance.md`
+- `docs/system/validation-governance.md`
+
+Canonical routing:
+- Broad review of a diff or changeset -> `code-reviewer`
+- "Did this match the request/plan/spec?" -> `impl-reviewer`
+- "Does the validation still prove this works?" -> `working-reviewer`
+
+Review contract:
+- Report only high-confidence, high-signal issues with file:line references and canonical citations when relevant.
+- Treat passing tests as evidence, not the goal.
+- Flag test changes only when they materially reduce confidence, including green-by-weakening, lost hard-case or failure-path coverage, relaxed assertions without replacement coverage, or shallow coverage that mainly makes failures disappear.
+- If mandatory validation is missing, bypassed, or no longer sufficient under current governance, call the gap out explicitly rather than implying confidence.
+- Avoid speculative concerns, generic style nits, or low-value noise.
+- Preserve the standard review checks for correctness, scope, safety, and compatibility.
+
+Use `/diff` and `/review` style output: summarize only real issues, give a concise ready-to-merge verdict, and conclude with exactly one status: `APPROVED`, `NEEDS_REVISION`, or `FAILED`.

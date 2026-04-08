@@ -18,6 +18,10 @@ files:
       - public/**
       - package.json
 extraResources:
+  - from: resources/copilot-cli
+    to: copilot-cli
+    filter:
+      - '**/*'
   - from: ../engine-assets
     to: engine-assets
     filter:

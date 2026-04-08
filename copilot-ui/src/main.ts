@@ -5,11 +5,20 @@ import { randomBytes } from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { pathToFileURL } from 'url';
 
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 
-import { buildPackagedGatewayChildArgs, hasGatewayChildFlag, stripGatewayChildFlag } from './gatewayChildMode';
+import {
+  buildPackagedGatewayChildArgs,
+  hasGatewayChildFlag,
+  hasWorkflowSidecarChildFlag,
+  stripGatewayChildFlag,
+  stripWorkflowSidecarChildFlag,
+} from './gatewayChildMode';
 import { configureUpdater, createUnavailableUpdaterState, type UpdaterState } from './updater';
+import { resolveDesktopReleaseChannelContract, type DesktopReleaseChannelContract } from './updatePolicy';
+import { startWorkflowSidecar, type WorkflowSidecarManager } from './workflowSidecar';
 const { startDesktopPlanningPersistence } = require('../lib/desktopPlanningPersistence.js') as {
   startDesktopPlanningPersistence: (options: Record<string, unknown>) => Promise<{
     connectionString: string;
@@ -32,6 +41,7 @@ let mainWindow: any = null;
 let serverHandle: { host: string; port: number; close: () => Promise<void> } | null = null;
 let desktopWindowUrl: string | null = null;
 let gatewayProcess: ChildProcess | null = null;
+let workflowSidecarManager: WorkflowSidecarManager | null = null;
 let desktopPlanningPersistenceHandle: {
   connectionString: string;
   queryClient: {
@@ -45,9 +55,100 @@ let desktopShutdownStarted = false;
 let desktopShutdownPromise: Promise<void> | null = null;
 
 const isGatewayChildProcess = hasGatewayChildFlag(process.argv);
+const isWorkflowSidecarChildProcess = hasWorkflowSidecarChildFlag(process.argv);
 const DESKTOP_UPDATER_STATE_EVENT = 'desktop-updater:state';
 const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
 const DESKTOP_SMOKE_LOG_WINDOW_URL_ENV = 'INSTRUCTION_ENGINE_DESKTOP_SMOKE_LOG_WINDOW_URL';
+
+interface DesktopCliManagerState {
+  channel: string;
+  sdkChannel: string;
+  cliChannel: string;
+  requestedChannel: string | null;
+  acquisition: string;
+  status: 'ready' | 'blocked';
+  approved: boolean;
+  reason: string | null;
+  message: string | null;
+  source: string;
+  cliPath: string | null;
+  cliVersion: string | null;
+  sdkVersion: string | null;
+  lastCheckedAtMs: number;
+}
+
+const dynamicImportModule = new Function(
+  'specifier',
+  'return import(specifier);',
+) as (specifier: string) => Promise<Record<string, unknown>>;
+
+function createDesktopCliManagerState(
+  contract: DesktopReleaseChannelContract,
+  sdkVersion: string | null,
+  overrides: Partial<DesktopCliManagerState>,
+): DesktopCliManagerState {
+  return {
+    channel: contract.channel,
+    sdkChannel: contract.sdkChannel,
+    cliChannel: contract.cliChannel,
+    requestedChannel: null,
+    acquisition: 'bundle_or_seeded_install_only',
+    status: 'blocked',
+    approved: false,
+    reason: null,
+    message: null,
+    source: 'none',
+    cliPath: null,
+    cliVersion: null,
+    sdkVersion,
+    lastCheckedAtMs: Date.now(),
+    ...overrides,
+  };
+}
+
+function applyDesktopCliManagerStateToEnvFallback(state: DesktopCliManagerState, env: NodeJS.ProcessEnv): void {
+  env.INSTRUCTION_ENGINE_COPILOT_CLI_STATE_JSON = JSON.stringify({
+    channel: state.channel,
+    sdkChannel: state.sdkChannel,
+    cliChannel: state.cliChannel,
+    requestedChannel: state.requestedChannel,
+    acquisition: state.acquisition,
+    status: state.status,
+    approved: state.approved,
+    reason: state.reason,
+    message: state.message,
+    source: state.source,
+    cliPath: state.cliPath,
+    cliVersion: state.cliVersion,
+    sdkVersion: state.sdkVersion,
+    lastCheckedAtMs: state.lastCheckedAtMs,
+  });
+  env.INSTRUCTION_ENGINE_COPILOT_CLI_CHANNEL = state.channel;
+
+  delete env.COPILOT_SDK_CLI_URL;
+  delete env.COPILOT_SDK_CLI_PATH;
+
+  if (state.approved && state.cliPath) {
+    env.COPILOT_SDK_CLI_PATH = state.cliPath;
+    delete env.INSTRUCTION_ENGINE_SDK_BRIDGE_DISABLED_REASON;
+    delete env.INSTRUCTION_ENGINE_SDK_BRIDGE_DISABLED_MESSAGE;
+    return;
+  }
+
+  env.INSTRUCTION_ENGINE_SDK_BRIDGE_DISABLED_REASON = String(state.reason || 'managed_cli_blocked');
+  env.INSTRUCTION_ENGINE_SDK_BRIDGE_DISABLED_MESSAGE = String(
+    state.message || 'Managed Copilot CLI is unavailable for the desktop runtime.',
+  );
+}
+
+function maybeDisableSdkBridgeForCliManagerState(state: DesktopCliManagerState, sdkBridgeRequested: boolean): void {
+  if (sdkBridgeRequested && !state.approved) {
+    process.env.COPILOT_SDK_BRIDGE = '0';
+    console.warn(`[desktop-cli] blocked SDK bridge on ${state.channel} lane: ${state.reason || 'managed_cli_blocked'}`);
+  } else if (sdkBridgeRequested && state.approved) {
+    console.log(`[desktop-cli] using ${state.source} Copilot CLI for ${state.channel} lane`);
+  }
+}
 
 function resolveEngineRoot(): string {
   if (app.isPackaged) {
@@ -72,6 +173,90 @@ function ensureSdkBridgeDefaultEnabled(): void {
       : '1';
 }
 
+async function evaluateDesktopCliManagerState(
+  runtimeRoot: string,
+  copilotHome: string,
+): Promise<DesktopCliManagerState> {
+  const sdkBridgeRequested = String(process.env.COPILOT_SDK_BRIDGE || '').trim() === '1';
+  const releaseContract = resolveDesktopReleaseChannelContract({
+    appVersion: app.getVersion(),
+    explicitChannel: process.env.INSTRUCTION_ENGINE_UPDATE_CHANNEL || null,
+  });
+  const fallbackContract = releaseContract.contract;
+
+  try {
+    const appPackageJsonCandidates = [
+      path.join(app.getAppPath(), 'package.json'),
+      path.join(__dirname, '..', 'package.json'),
+      path.join(runtimeRoot, 'copilot-ui', 'package.json'),
+      path.join(runtimeRoot, 'package.json'),
+    ];
+    const appPackageJsonPath = appPackageJsonCandidates.find((candidate) => fs.existsSync(candidate)) || '';
+    const packageJson = appPackageJsonPath
+      ? JSON.parse(fs.readFileSync(appPackageJsonPath, 'utf8')) as { dependencies?: Record<string, string> }
+      : { dependencies: {} };
+    const sdkVersion = String(packageJson.dependencies?.['@github/copilot-sdk'] || '').trim() || null;
+
+    if (!releaseContract.ok) {
+      const state = createDesktopCliManagerState(fallbackContract, sdkVersion, {
+        requestedChannel: releaseContract.explicitChannel,
+        reason: releaseContract.reason,
+        message:
+          `Invalid INSTRUCTION_ENGINE_UPDATE_CHANNEL value "${releaseContract.explicitChannel}". `
+          + 'Expected stable or prerelease.',
+      });
+      applyDesktopCliManagerStateToEnvFallback(state, process.env);
+      maybeDisableSdkBridgeForCliManagerState(state, sdkBridgeRequested);
+      return state;
+    }
+
+    const cliManagerModuleCandidates = [
+      path.join(app.getAppPath(), 'lib', 'copilot-bridge', 'cliManager.mjs'),
+      path.join(__dirname, '..', 'lib', 'copilot-bridge', 'cliManager.mjs'),
+      path.join(runtimeRoot, 'copilot-ui', 'lib', 'copilot-bridge', 'cliManager.mjs'),
+    ];
+    const cliManagerModuleSourcePath = cliManagerModuleCandidates.find((candidate) => fs.existsSync(candidate));
+    if (!cliManagerModuleSourcePath) {
+      throw new Error('Desktop CLI manager module path is unavailable');
+    }
+    const cliManagerModulePath = pathToFileURL(cliManagerModuleSourcePath).href;
+    const cliManagerModule = await dynamicImportModule(cliManagerModulePath) as {
+      evaluateDesktopCliManagerState?: (options: Record<string, unknown>) => DesktopCliManagerState;
+      applyDesktopCliManagerStateToEnv?: (state: DesktopCliManagerState, env: NodeJS.ProcessEnv) => NodeJS.ProcessEnv;
+    };
+
+    if (typeof cliManagerModule.evaluateDesktopCliManagerState !== 'function'
+      || typeof cliManagerModule.applyDesktopCliManagerStateToEnv !== 'function') {
+      throw new Error('Desktop CLI manager exports are unavailable');
+    }
+
+    const bundleRoot = app.isPackaged
+      ? path.join(runtimeRoot, 'copilot-cli')
+      : path.join(runtimeRoot, 'copilot-ui', 'resources', 'copilot-cli');
+    const state = cliManagerModule.evaluateDesktopCliManagerState({
+      channel: releaseContract.contract.cliChannel,
+      sdkVersion: sdkVersion || '',
+      copilotHome,
+      bundleRoot,
+      env: process.env,
+      platform: process.platform,
+    });
+
+    cliManagerModule.applyDesktopCliManagerStateToEnv(state, process.env);
+    maybeDisableSdkBridgeForCliManagerState(state, sdkBridgeRequested);
+    return state;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const state = createDesktopCliManagerState(fallbackContract, null, {
+      reason: 'managed_cli_bootstrap_failed',
+      message: `Desktop Copilot CLI bootstrap failed: ${message}`,
+    });
+    applyDesktopCliManagerStateToEnvFallback(state, process.env);
+    maybeDisableSdkBridgeForCliManagerState(state, sdkBridgeRequested);
+    return state;
+  }
+}
+
 function ensureDefaultGatewayConfig(workspaceRoot: string): void {
   const configPath = path.join(os.homedir(), '.copilot', 'messaging-gateway.config.json');
   const legacyConfigPath = path.join(os.homedir(), '.instruction-engine', 'messaging-gateway.config.json');
@@ -93,27 +278,6 @@ function ensureDefaultGatewayConfig(workspaceRoot: string): void {
     }
     return;
   }
-
-  fs.mkdirSync(path.dirname(configPath), { recursive: true });
-  fs.writeFileSync(
-    configPath,
-    JSON.stringify(
-      {
-        mode: 'auto',
-        acp: {
-          host: '127.0.0.1',
-          port: 3000,
-        },
-        workspaces: {
-          allowedRoots: [workspaceRoot],
-          activeRoot: workspaceRoot,
-        },
-      },
-      null,
-      2
-    ),
-    'utf8'
-  );
 }
 
 function resolveDesktopServerPort(): number {
@@ -244,6 +408,27 @@ async function runPackagedGatewayChildProcess(): Promise<void> {
   }
 }
 
+async function runPackagedWorkflowSidecarChildProcess(): Promise<void> {
+  const runtimeRoot = resolveEngineRoot();
+  const distEntry = path.join(runtimeRoot, 'local-tracker', 'dist', 'messagingGateway', 'workflowSidecar.js');
+  if (!fs.existsSync(distEntry)) {
+    throw new Error(`[workflow-sidecar-child] Missing bundled workflow sidecar entry: ${distEntry}`);
+  }
+
+  const workflowSidecarModule = require(distEntry) as { main?: (argv?: string[]) => Promise<void> };
+  if (typeof workflowSidecarModule.main !== 'function') {
+    throw new Error('[workflow-sidecar-child] Bundled workflow sidecar entry does not export main(argv?)');
+  }
+
+  const originalArgv = process.argv.slice();
+  process.argv = stripWorkflowSidecarChildFlag(process.argv);
+  try {
+    await workflowSidecarModule.main([]);
+  } finally {
+    process.argv = originalArgv;
+  }
+}
+
 async function stopGatewayDependency(): Promise<void> {
   if (!gatewayProcess) return;
   const child = gatewayProcess;
@@ -328,9 +513,16 @@ async function startDashboardServer() {
   const desktopUiToken = randomBytes(32).toString('hex');
 
   ensureSdkBridgeDefaultEnabled();
+  await evaluateDesktopCliManagerState(runtimeRoot, copilotHome);
   ensureDefaultGatewayConfig(workspaceRoot);
   try {
     const gateway = await startGatewayDependency(runtimeRoot, workspaceRoot);
+    workflowSidecarManager = await startWorkflowSidecar({
+      runtimeRoot,
+      processExecPath: process.execPath,
+      isPackaged: app.isPackaged,
+      copilotHome,
+    });
     if (app.isPackaged && !explicitPlanningDatabaseUrl) {
       desktopPlanningPersistenceHandle = await startDesktopPlanningPersistence({
         stateRoot: path.join(copilotHome, 'planning-db'),
@@ -349,6 +541,7 @@ async function startDashboardServer() {
       trackerUrl: gateway.trackerUrl,
       trackerToken: gateway.trackerToken,
       desktopUiToken,
+      workflowSidecarManager,
       planningPersistenceClient: desktopPlanningPersistenceHandle
         ? desktopPlanningPersistenceHandle.queryClient
         : undefined,
@@ -379,6 +572,12 @@ async function stopDashboardServer() {
   if (desktopPlanningPersistenceHandle) {
     const handle = desktopPlanningPersistenceHandle;
     desktopPlanningPersistenceHandle = null;
+    await handle.stop();
+  }
+
+  if (workflowSidecarManager) {
+    const handle = workflowSidecarManager;
+    workflowSidecarManager = null;
     await handle.stop();
   }
 
@@ -458,6 +657,13 @@ if (isGatewayChildProcess) {
     await runPackagedGatewayChildProcess();
   }).catch((error: unknown) => {
     console.error('[gateway-child] startup failed', error);
+    app.exit(1);
+  });
+} else if (isWorkflowSidecarChildProcess) {
+  app.whenReady().then(async () => {
+    await runPackagedWorkflowSidecarChildProcess();
+  }).catch((error: unknown) => {
+    console.error('[workflow-sidecar-child] startup failed', error);
     app.exit(1);
   });
 } else {

@@ -17,6 +17,16 @@ Verify the implementation matches the provided spec and project conventions.
 - `changedFiles`: list of changed files (paths) + brief summaries (if available)
 - `validation`: what was run (if anything)
 
+## Review Focus
+- whether the delivered behavior and touched files satisfy the request and approved spec
+- whether requested or spec-implied edge cases, failure paths, and acceptance checks are still covered
+- whether test edits weaken confidence in spec-required behavior without replacement coverage, per `docs/system/testing-quality-governance.md`
+- whether a passing result was achieved by making tests shallower instead of proving the promised outcome
+
+## Reporting Guardrail
+- Do not turn generic test cleanup or minor assertion reshaping into a finding on its own.
+- Do report gaps or risks when weakened tests leave requested behavior, hard cases, or failure paths no longer proven relative to the spec.
+
 ## Output (strict)
 
 ```text

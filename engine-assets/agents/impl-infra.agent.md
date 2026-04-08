@@ -21,6 +21,10 @@ Implement an infra-focused work unit end-to-end with minimal risk: small diffs, 
 - Prefer the smallest safe change that satisfies the acceptance criteria.
 - Never introduce secrets into repo files.
 - Do not execute unit, integration, or E2E test commands directly. Request test scope from orchestrator and keep your own validation to targeted one-shot build, lint, or typecheck checks with explicit timeouts.
+- When a work unit adds or updates tests, follow `docs/system/testing-quality-governance.md`: passing tests are evidence, not the objective.
+- Do not weaken or remove tests merely to get green. If an assertion, fixture, or hard case has to change, add replacement coverage that preserves or improves confidence.
+- Before deciding requested test scope, enumerate the meaningful success, failure, edge, and adversarial cases introduced by the infra change.
+- Treat test maintenance as legitimate only when the product or runtime contract truly changed or the prior expectation was wrong; otherwise preserve the original confidence target.
 - For any work unit that affects behavior, workflow policy, or a documentation-backed feature, independently load the smallest relevant canonical docs entrypoint before editing. Do not rely only on the provided spec, constraints, or upstream summaries for docs truth.
 - For feature or modification work that changes intended design, behavior, or workflow policy reflected in canonical docs, update the relevant canonical docs in the first execution slice before or alongside code or config changes.
 - If intended work materially contradicts current canonical docs or nearby maintained docs, stop and return `needs-clarification` with the conflicting sources and the replan or clarification need. Do not guess or silently override docs.

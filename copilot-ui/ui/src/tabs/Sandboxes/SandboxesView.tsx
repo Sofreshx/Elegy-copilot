@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components';
 import { SANDBOX_TOKEN_REMEDIATION_GUIDANCE } from '../../lib/api';
 import { useStoreValue } from '../../lib/store';
-import type { SessionSummary } from '../../lib/types';
+import type { ExecutorWorktreeRecord, SessionSummary } from '../../lib/types';
 import { gatewayStore } from '../Gateway/gatewayStore';
 import { readSandboxId, sandboxesStore } from './sandboxesStore';
 
@@ -20,6 +20,16 @@ function readSessionStatus(session: SessionSummary): string {
         : 'unknown';
 
   return resolvedStatus;
+}
+
+function readWorktreeStatus(worktree: ExecutorWorktreeRecord): string {
+  if (typeof worktree.status === 'string' && worktree.status.trim()) {
+    return worktree.status;
+  }
+  if (typeof worktree.mode === 'string' && worktree.mode.trim()) {
+    return worktree.mode;
+  }
+  return 'unknown';
 }
 
 export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) {
@@ -190,7 +200,7 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
         </Panel>
 
         <Panel
-          subtitle="Recent sandbox sessions from /api/sessions?source=sandbox."
+          subtitle="App-level sandbox sessions from /api/sessions?source=sandbox. These are not in-session sub-actors."
           testId="sandboxes-list-panel"
           title="Sandbox Sessions"
         >
@@ -212,9 +222,9 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
                   <li className={selected ? 'is-selected' : ''} key={session.id}>
                     <div>
                       <p className="sandbox-item-title">{sandboxId || '(unknown sandbox)'}</p>
-                      <p className="sandbox-item-copy">
-                        <code>{session.id}</code>
-                      </p>
+                        <p className="sandbox-item-copy">
+                          <code>{session.id}</code> | worktree context follows the parent sandbox session
+                        </p>
                     </div>
                     <div className="sandbox-item-actions">
                       <StatusBadge status={readSessionStatus(session)} testId="sandbox-session-status" />
@@ -236,6 +246,60 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
                       >
                         Follow
                       </Button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </Panel>
+
+        <Panel
+          subtitle="Dedicated same-repo worktree reservations and recovery state from /api/executor/worktrees. Worktrees isolate parallel writable app sessions, not sub-actors."
+          testId="sandboxes-worktrees-panel"
+          title="Worktree Isolation"
+        >
+          {sandboxState.worktreesError ? (
+            <p className="sandboxes-error" role="alert">
+              {sandboxState.worktreesError}
+            </p>
+          ) : null}
+
+          {!sandboxState.loading && sandboxState.worktrees.length === 0 ? (
+            <p className="state-message">No dedicated worktree reservations were returned.</p>
+          ) : null}
+
+          {sandboxState.worktrees.length > 0 ? (
+            <ul className="sandbox-session-list">
+              {sandboxState.worktrees.map((worktree) => {
+                const pathValue =
+                  typeof worktree.path === 'string' && worktree.path.trim()
+                    ? worktree.path
+                    : typeof worktree.worktreePath === 'string' && worktree.worktreePath.trim()
+                      ? worktree.worktreePath
+                      : '(path pending)';
+                const blocked =
+                  worktree.launchBlocked
+                  || (worktree.launch && worktree.launch.blocked)
+                  || false;
+                const blockedReason =
+                  worktree.launchBlockedReason
+                  || (worktree.launch && worktree.launch.reason)
+                  || null;
+
+                return (
+                  <li key={worktree.worktreeId || `${worktree.repoId}:${pathValue}`}>
+                    <div>
+                      <p className="sandbox-item-title">{worktree.worktreeId || '(unassigned worktree)'}</p>
+                      <p className="sandbox-item-copy">
+                        <code>{pathValue}</code>
+                      </p>
+                      {blocked && blockedReason ? (
+                        <p className="sandbox-item-copy">{blockedReason}</p>
+                      ) : null}
+                    </div>
+                    <div className="sandbox-item-actions">
+                      <StatusBadge status={readWorktreeStatus(worktree)} testId="sandbox-worktree-status" />
                     </div>
                   </li>
                 );

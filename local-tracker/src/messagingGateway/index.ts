@@ -853,7 +853,7 @@ export async function main(argv: string[] = process.argv.slice(2)) {
 				workflowStore.delete(id);
 				return true;
 			},
-			runPersistedDefinition: async (definition) => {
+			runPersistedDefinition: async (definition, context = {}) => {
 				if (!extensionClient || extensionClient.getStatus() !== 'connected') {
 					throw new WorkflowHttpError(
 						503,
@@ -869,7 +869,12 @@ export async function main(argv: string[] = process.argv.slice(2)) {
 				const registry = createDefaultRegistry(extensionClient);
 				let result;
 				try {
-					result = await executeWorkflow(definition, registry.toStepExecutor(), {}, observer);
+					result = await executeWorkflow(
+						definition,
+						registry.toStepExecutor(),
+						{ ...context, workflowId: definition.id },
+						observer,
+					);
 				} catch (error) {
 					if (runId) {
 						workflowStreaming.publishRunFailure({

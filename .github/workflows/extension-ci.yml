@@ -41,6 +41,33 @@ jobs:
       - name: Validate docs graph
         run: node scripts/validate-doc-graph.js
 
+      - name: Validate desktop package inputs
+        run: npm --prefix copilot-ui run validate:desktop-package-inputs
+
+  desktop-package-smoke:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            copilot-ui/package-lock.json
+            local-tracker/package-lock.json
+            scripts/package-lock.json
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Validate packaged desktop smoke contract
+        run: npm --prefix copilot-ui run package:win:smoke
+
   ws6-evidence:
     needs: build
     runs-on: ubuntu-latest
@@ -106,10 +133,12 @@ jobs:
               node copilot-ui/server.runtime-health.test.js
               ;;
             WS6-E4)
+              npm --prefix copilot-ui run build:electron
               node copilot-ui/dist-electron/rollbackPolicy.test.js
               node copilot-ui/dist-electron/updatePolicy.rollback.test.js
               ;;
             WS6-E5)
+              npm --prefix copilot-ui run build:electron
               node copilot-ui/dist-electron/updater.rollback.test.js
               echo
               echo "Operational ownership note"
@@ -231,6 +260,7 @@ jobs:
     if: always()
     needs:
       - build
+      - desktop-package-smoke
       - ws6-evidence
       - ws6-artifact-gate
     runs-on: ubuntu-latest
@@ -242,6 +272,11 @@ jobs:
 
           if [[ '${{ needs.build.result }}' != 'success' ]]; then
             echo "build did not succeed: ${{ needs.build.result }}" >&2
+            exit 1
+          fi
+
+          if [[ '${{ needs.desktop-package-smoke.result }}' != 'success' ]]; then
+            echo "desktop-package-smoke did not succeed: ${{ needs.desktop-package-smoke.result }}" >&2
             exit 1
           fi
 

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-25
+updated: 2026-04-07
 category: system
 status: draft
 doc_kind: node
@@ -10,6 +10,11 @@ tags: [orchestrator, research]
 ---
 
 # Orchestrator Research Analysis
+
+> Historical research note: this document records pre-shipping analysis.
+> Legacy Seamless Agent and legacy tool-name references below describe the research inputs at the
+> time, not current shipped guidance. The shipped baseline uses interactive
+> `vscode/askQuestions`; richer host tooling is optional and host-specific.
 
 ## Date
 2026-02-17
@@ -85,7 +90,7 @@ Analyze orchestration patterns across our executive versions and external system
 6. **Parallel FastCoder + Coder**: Run simple and complex tasks simultaneously
 **Weaknesses**: No session continuity, limited state management, repo-specific constraints baked in
 
-### Seamless Agent (VS Code Extension) — 890 installs
+### Historical Input: Seamless Agent (VS Code Extension) — 890 installs
 **Tools provided**:
 1. **`planReview`**: Dedicated review panel with inline comments on specific sections → returns structured { status, requiredRevisions }. SIGNIFICANTLY better than vscode/askQuestions for plan approval.
 2. **`askUser`**: Rich notification + input panel — supports images, file references, attachments
@@ -115,7 +120,9 @@ Analyze orchestration patterns across our executive versions and external system
 2. **Request classification** — route by complexity and type before doing anything
 3. **Context curation** — pass ONLY relevant context to each subagent
 4. **Progressive persistence** — persist early/often, refine later (E2.5 skeleton → refined)
-5. **Plan approval with structured feedback** — Seamless Agent's planReview is the gold standard
+5. **Plan approval with structured feedback** — historical research favored Seamless Agent's
+   planReview, but shipped guidance keeps `vscode/askQuestions` as the baseline and treats richer
+   host tooling as optional
 6. **Discuss/clarify before planning** — GSD's discuss phase reduces misunderstanding
 7. **Fast path for trivial work** — skip full planning overhead for small tasks
 8. **Follow-up loop** — never auto-stop, let user choose next action
@@ -133,7 +140,8 @@ A unified orchestrator that:
 - Routes requests by type and complexity
 - Delegates ALL leaf work to specialized subagents
 - Manages state via simple plan-pack files (not SQLite, not task files)
-- Uses Seamless Agent tools for rich user interaction
+- Uses the interactive `vscode/askQuestions` baseline and may layer richer host tooling only when
+  that host/runtime explicitly provides it
 - Preserves context by being a thin coordinator (not doing work itself)
 - Supports fast path for trivial requests
 - Has a follow-up loop for continuity

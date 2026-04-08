@@ -32,6 +32,8 @@ import type {
   ExecutorRun,
   ExecutorRunEvent,
   ExecutorRunsResponse,
+  ExecutorWorktreeRecord,
+  ExecutorWorktreesResponse,
   GatewayConfig,
   GatewayConfigResponse,
   GatewaySaveConfigResponse,
@@ -86,6 +88,7 @@ import type {
   PlanningRecordsResponse,
   PlanningSearchResponse,
   PlanningSearchResultItem,
+  PlanningTaskBoardResponse,
   PolicyPreflightResponse,
   RuntimeCatalogHealthResponse,
   SandboxLifecycleAction,
@@ -95,6 +98,8 @@ import type {
   SdkSendResponse,
   SdkSessionSummary,
   SdkSessionsResponse,
+  ResolveExecutorWorktreePayload,
+  ResolveExecutorWorktreeResponse,
   SessionPlansResponse,
   SessionAgentUsageResponse,
   SessionPlanMutationResponse,
@@ -115,6 +120,7 @@ import type {
   UiRuntimeOverlaySessionMutationResponse,
   UiRuntimeOverlaySessionsResponse,
   VersionResponse,
+  WorktreeBinding,
 } from './types';
 
 export class ApiError extends Error {
@@ -333,6 +339,7 @@ export interface SdkCreateSessionPayload {
   model?: string;
   contextType?: 'regular' | 'sandbox' | string;
   sandboxId?: string;
+  orchestration?: Record<string, unknown>;
 }
 
 export interface SdkSendPayload {
@@ -531,6 +538,36 @@ function asNumber(value: unknown, fallback = 0): number {
 function asNullableNumber(value: unknown): number | null {
   const numeric = asNumber(value, Number.NaN);
   return Number.isFinite(numeric) ? numeric : null;
+}
+
+function normalizeWorktreeBinding(value: unknown): WorktreeBinding | null {
+  const record = asRecord(value);
+  const worktreeId = asTrimmedString(record.worktreeId || record.id);
+  const mode = asTrimmedString(record.mode) || null;
+  const pathValue = asTrimmedString(record.path || record.worktreePath) || null;
+  const status = asTrimmedString(record.status) || null;
+  if (!worktreeId && !mode && !pathValue && !status) {
+    return null;
+  }
+
+  const launchRecord = asRecord(record.launch);
+  return {
+    ...record,
+    worktreeId: worktreeId || null,
+    mode,
+    path: pathValue,
+    worktreePath: pathValue,
+    status,
+    branch: asTrimmedString(record.branch) || null,
+    launch: record.launch || record.launchBlocked != null || record.launchBlockedReason != null
+      ? {
+        blocked: asBoolean(launchRecord.blocked, asBoolean(record.launchBlocked, false)),
+        reason: asTrimmedString(launchRecord.reason || record.launchBlockedReason) || null,
+      }
+      : null,
+    launchBlocked: asBoolean(record.launchBlocked, asBoolean(launchRecord.blocked, false)),
+    launchBlockedReason: asTrimmedString(record.launchBlockedReason || launchRecord.reason) || null,
+  };
 }
 
 function asStringList(value: unknown): string[] {
@@ -2128,9 +2165,13 @@ function normalizeExecutorRun(value: unknown): ExecutorRun | null {
   }
 
   return {
+    ...record,
     id,
     jobId,
     repoId: asTrimmedString(record.repoId) || null,
+    repoPath: asTrimmedString(record.repoPath) || null,
+    orchestration: asRecord(record.orchestration),
+    worktree: normalizeWorktreeBinding(record.worktree),
     status: asTrimmedString(record.status) || 'unknown',
     attemptCount: asNumber(record.attemptCount, 0),
     maxAttempts: asNumber(record.maxAttempts, 0),
@@ -2158,10 +2199,14 @@ function normalizeExecutorJob(value: unknown): ExecutorJob | null {
   }
 
   return {
+    ...record,
     id,
     title: asTrimmedString(record.title) || id,
     prompt: asString(record.prompt),
     repoId: asTrimmedString(record.repoId) || null,
+    repoPath: asTrimmedString(record.repoPath) || null,
+    orchestration: asRecord(record.orchestration),
+    worktree: normalizeWorktreeBinding(record.worktree),
     targetType: (asTrimmedString(record.targetType) || 'create-session') as ExecutorJob['targetType'],
     existingSessionId: asTrimmedString(record.existingSessionId) || null,
     model: asTrimmedString(record.model) || null,
@@ -2625,6 +2670,20 @@ export function listSessions(baseUrl?: string, options: ListSessionsOptions = {}
   });
 }
 
+export function getPlanningTaskBoard(
+  repo: { repoId: string; repoPath?: string; repoLabel?: string },
+  baseUrl?: string
+): Promise<PlanningTaskBoardResponse> {
+  return apiRequest<PlanningTaskBoardResponse>('/api/planning/task-board', {
+    baseUrl,
+    query: {
+      repoId: repo.repoId,
+      repoPath: repo.repoPath,
+      repoLabel: repo.repoLabel,
+    },
+  });
+}
+
 export function listUiRuntimeOverlaySessions(baseUrl?: string): Promise<UiRuntimeOverlaySessionsResponse> {
   return apiRequest<UiRuntimeOverlaySessionsResponse>('/api/ui-runtime-overlay/sessions', {
     baseUrl,
@@ -3009,6 +3068,56 @@ export async function cancelExecutorJob(jobId: string, baseUrl?: string): Promis
   return {
     job,
     run: normalizeExecutorRun(record.run),
+  };
+}
+
+function normalizeExecutorWorktreeRecord(value: unknown): ExecutorWorktreeRecord | null {
+  const worktree = normalizeWorktreeBinding(value);
+  if (!worktree) {
+    return null;
+  }
+  const record = asRecord(value);
+  return {
+    ...worktree,
+    repoId: asTrimmedString(record.repoId) || null,
+    repoPath: asTrimmedString(record.repoPath) || null,
+    repoLabel: asTrimmedString(record.repoLabel) || null,
+    updatedAt: asTrimmedString(record.updatedAt) || null,
+  };
+}
+
+export async function listExecutorWorktrees(baseUrl?: string, repoId?: string): Promise<ExecutorWorktreesResponse> {
+  const payload = await apiRequest<unknown>('/api/executor/worktrees', {
+    baseUrl,
+    query: {
+      repoId: repoId || undefined,
+    },
+  });
+  const record = asRecord(payload);
+  return {
+    worktrees: asArray(record.worktrees)
+      .map((entry) => normalizeExecutorWorktreeRecord(entry))
+      .filter((entry): entry is ExecutorWorktreeRecord => entry !== null),
+  };
+}
+
+export async function resolveExecutorWorktree(
+  payload: ResolveExecutorWorktreePayload,
+  baseUrl?: string
+): Promise<ResolveExecutorWorktreeResponse> {
+  const response = await apiRequest<unknown>('/api/executor/worktrees/resolve', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+  const record = asRecord(response);
+  return {
+    repo: Object.keys(asRecord(record.repo)).length > 0 ? asRecord(record.repo) : null,
+    cwd: asTrimmedString(record.cwd) || null,
+    worktree: normalizeExecutorWorktreeRecord(record.worktree),
   };
 }
 

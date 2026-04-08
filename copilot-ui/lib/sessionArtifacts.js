@@ -741,6 +741,31 @@ function deriveSessionIntentFrame(input = {}) {
 	};
 }
 
+function deriveSessionObjective(input = {}) {
+	const source = input && typeof input === 'object' ? input : {};
+	const intentFrame = source.intentFrame && typeof source.intentFrame === 'object' ? source.intentFrame : null;
+	const closureSummary = source.closureSummary && typeof source.closureSummary === 'object' ? source.closureSummary : null;
+	const handoff = source.handoff && typeof source.handoff === 'object' ? source.handoff : null;
+	const executionState = source.executionState && typeof source.executionState === 'object' ? source.executionState : null;
+	const proposition = source.proposition && typeof source.proposition === 'object' ? source.proposition : null;
+	const latestPropositionEntry = proposition && proposition.latestEntry && typeof proposition.latestEntry === 'object'
+		? proposition.latestEntry
+		: null;
+	const propositionSections = Array.isArray(latestPropositionEntry && latestPropositionEntry.sections)
+		? latestPropositionEntry.sections
+		: [];
+	const handoffSections = Array.isArray(handoff && handoff.sections) ? handoff.sections : [];
+
+	return firstNonEmptyString(
+		intentFrame && intentFrame.summary,
+		closureSummary && closureSummary.summary,
+		summarizeItems(getSectionItems(propositionSections, 'summary')),
+		getSectionContent(propositionSections, 'details'),
+		summarizeItems(getSectionItems(handoffSections, 'immediateNextActions')),
+		executionState && executionState.summary
+	) || null;
+}
+
 function deriveSessionClosureSummary(input = {}) {
 	const warnings = [];
 	const sourceArtifacts = ['plan'];
@@ -976,6 +1001,7 @@ module.exports = {
 	deriveExecutionStateFinality,
 	deriveSessionClosureSummary,
 	deriveSessionIntentFrame,
+	deriveSessionObjective,
 	parseArtifactSections,
 	parsePropositionText,
 	parseHandoffText,

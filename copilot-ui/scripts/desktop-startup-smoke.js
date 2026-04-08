@@ -5,6 +5,11 @@ const os = require('os');
 const path = require('path');
 const { execFileSync, spawn } = require('child_process');
 
+const {
+  inferReleaseChannel,
+  validatePackagedDesktopArtifacts,
+} = require('./validate-desktop-package-inputs');
+
 const workspaceRoot = path.resolve(__dirname, '..');
 const unpackedDir = path.join(workspaceRoot, 'release', 'win-unpacked');
 const executablePath = path.join(unpackedDir, 'Elegy Copilot.exe');
@@ -157,6 +162,8 @@ function killProcessTree(child) {
 
 async function main() {
   assert(fs.existsSync(executablePath), `Packaged desktop executable not found at ${executablePath}. Run npm run package:preview first.`);
+  const packagedArtifacts = validatePackagedDesktopArtifacts();
+  const expectedChannel = inferReleaseChannel(packagedArtifacts.appVersion);
 
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-desktop-startup-smoke-'));
   const homeRoot = path.join(tempRoot, 'home');
@@ -168,6 +175,7 @@ async function main() {
   fs.mkdirSync(tempDir, { recursive: true });
 
   const port = await getFreePort();
+  const workflowSidecarPort = await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const stdout = [];
   const stderr = [];
@@ -185,6 +193,7 @@ async function main() {
       INSTRUCTION_ENGINE_DESKTOP_SERVER_PORT: String(port),
       INSTRUCTION_ENGINE_DISABLE_UPDATES: '1',
       INSTRUCTION_ENGINE_DESKTOP_SMOKE_LOG_WINDOW_URL: '1',
+      INSTRUCTION_ENGINE_WORKFLOW_SIDECAR_PORT: String(workflowSidecarPort),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
@@ -228,19 +237,35 @@ async function main() {
     assert(health.planningPersistence.usable === true, 'Expected packaged desktop planning persistence to be usable');
     assert(health.planningPersistence.status === 'ready', `Expected packaged desktop planning persistence status ready, received ${health.planningPersistence.status || '(missing)'}`);
     assert(sdkHealth.statusCode === 200, `Expected packaged desktop /api/sdk/health to return 200, received ${sdkHealth.statusCode}`);
-    assert(sdkHealth.body && sdkHealth.body.state !== 'disabled', 'Expected packaged desktop SDK bridge health to be active');
+    assert(sdkHealth.body && sdkHealth.body.state === 'disabled', `Expected packaged desktop SDK bridge health to fail closed, received ${sdkHealth.body && sdkHealth.body.state}`);
+    assert(sdkHealth.body.reason === 'managed_cli_missing', `Expected packaged desktop SDK bridge reason managed_cli_missing, received ${sdkHealth.body.reason || '(missing)'}`);
+    assert(sdkHealth.body.cliManager && typeof sdkHealth.body.cliManager === 'object', 'Expected packaged desktop SDK bridge health to include cliManager state');
+    assert(sdkHealth.body.cliManager.channel === expectedChannel, `Expected packaged cliManager channel ${expectedChannel}, received ${sdkHealth.body.cliManager.channel || '(missing)'}`);
+    assert(sdkHealth.body.cliManager.sdkChannel === expectedChannel, `Expected packaged cliManager sdkChannel ${expectedChannel}, received ${sdkHealth.body.cliManager.sdkChannel || '(missing)'}`);
+    assert(sdkHealth.body.cliManager.cliChannel === expectedChannel, `Expected packaged cliManager cliChannel ${expectedChannel}, received ${sdkHealth.body.cliManager.cliChannel || '(missing)'}`);
+    assert(sdkHealth.body.cliManager.acquisition === 'bundle_or_seeded_install_only', `Expected packaged cliManager acquisition bundle_or_seeded_install_only, received ${sdkHealth.body.cliManager.acquisition || '(missing)'}`);
+    assert(sdkHealth.body.cliManager.approved === false, 'Expected packaged cliManager approval to stay false without bundled or seeded CLI payload');
     assert(browserGate.statusCode === 403, `Expected packaged desktop raw browser request to be denied, received ${browserGate.statusCode}`);
     assert(browserGate.body.includes('Desktop UI access is restricted'), 'Expected packaged desktop root denial message to mention desktop-only access');
     assert(dashboardResponse.statusCode === 200, `Expected packaged desktop cookie bootstrap request to return 200, received ${dashboardResponse.statusCode}`);
     assert(dashboardResponse.body.includes('<!doctype html') || dashboardResponse.body.includes('<!DOCTYPE html'), 'Expected packaged desktop cookie bootstrap request to serve HTML dashboard');
+    let workflowSidecarAnswered = false;
+    try {
+      await fetchText(`http://127.0.0.1:${workflowSidecarPort}/api/status`);
+      workflowSidecarAnswered = true;
+    } catch {
+      workflowSidecarAnswered = false;
+    }
+    assert(!workflowSidecarAnswered, `Workflow sidecar unexpectedly answered on port ${workflowSidecarPort} without being enabled.`);
 
     console.log('[smoke] packaged desktop startup reached /api/health');
     console.log(`[smoke] health: ${baseUrl}/api/health`);
-    console.log(`[smoke] sdk health: ${sdkHealth.body.state}`);
+    console.log(`[smoke] sdk health: ${sdkHealth.body.state} (${sdkHealth.body.reason})`);
     console.log(`[smoke] startup sync outcome: ${health.startupManagedAssetSync.outcome}`);
     console.log(`[smoke] planning persistence: ${health.planningPersistence.status}`);
     console.log('[smoke] raw browser access denied at /');
     console.log('[smoke] desktop token bootstrap established a dashboard session');
+    console.log(`[smoke] workflow sidecar posture: ${packagedArtifacts.workflowSidecarPosture} on inactive port ${workflowSidecarPort}`);
     console.log(`[smoke] decision log: ${health.autonomousDecisionLog.path}`);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

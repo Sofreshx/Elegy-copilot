@@ -25,11 +25,147 @@ export interface SessionSummary {
   active?: boolean;
   startedAtMs?: number;
   updatedAtMs?: number;
+  orchestration?: SessionOrchestrationProjection | Record<string, unknown> | null;
+  worktree?: WorktreeBinding | null;
   [key: string]: unknown;
+}
+
+export interface SessionOrchestrationRepoContext {
+  repoId?: string | null;
+  repoPath?: string | null;
+  repoLabel?: string | null;
+  branch?: string | null;
+  source?: string | null;
+  [key: string]: unknown;
+}
+
+export interface SessionOrchestrationIsolationContext {
+  mode?: string | null;
+  contextType?: string | null;
+  sandboxId?: string | null;
+  worktreeId?: string | null;
+  worktreePath?: string | null;
+  worktreeStatus?: string | null;
+  launchBlocked?: boolean;
+  launchBlockedReason?: string | null;
+  worktree?: WorktreeBinding | null;
+  [key: string]: unknown;
+}
+
+export interface SessionOrchestrationActor {
+  actorId: string;
+  label?: string | null;
+  role?: string | null;
+  kind?: string | null;
+  status?: string | null;
+  source?: string | null;
+  taskId?: string | null;
+  taskIds?: string[];
+  invocationCount?: number | null;
+  [key: string]: unknown;
+}
+
+export interface SessionOrchestrationTaskBoardItem {
+  taskId: string;
+  title?: string | null;
+  status?: string | null;
+  ownerSessionId?: string | null;
+  activeActorId?: string | null;
+  activeActorLabel?: string | null;
+  workflow?: Record<string, unknown> | null;
+  worktree?: WorktreeBinding | null;
+  linkedPlanning?: Record<string, unknown> | null;
+  durablePath?: string | null;
+  projection?: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
+export interface SessionOrchestrationWorkflowRun {
+  runId?: string | null;
+  jobId?: string | null;
+  repoId?: string | null;
+  sessionId?: string | null;
+  status?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+  nextRetryAt?: string | null;
+  summary?: string | null;
+  error?: string | null;
+  createdSession?: boolean;
+  workflow?: Record<string, unknown> | null;
+  taskRefs?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface SessionOrchestrationProjection {
+  contractVersion?: string | null;
+  sessionId?: string | null;
+  objective?: string | null;
+  authority?: Record<string, unknown> | null;
+  repo?: SessionOrchestrationRepoContext | null;
+  isolation?: SessionOrchestrationIsolationContext | null;
+  actors?: {
+    items?: SessionOrchestrationActor[];
+    activeActorId?: string | null;
+    [key: string]: unknown;
+  } | null;
+  taskBoard?: {
+    durableStore?: string | null;
+    repoId?: string | null;
+    items?: SessionOrchestrationTaskBoardItem[];
+    [key: string]: unknown;
+  } | null;
+  workflow?: {
+    workflowKind?: string | null;
+    trigger?: string | null;
+    mode?: string | null;
+    runId?: string | null;
+    jobId?: string | null;
+    status?: string | null;
+    runs?: SessionOrchestrationWorkflowRun[];
+    [key: string]: unknown;
+  } | null;
+  overlays?: {
+    sessions?: Array<Record<string, unknown>>;
+    [key: string]: unknown;
+  } | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningTaskBoardResponse {
+  contractVersion?: string | null;
+  kind?: string | null;
+  deterministic?: boolean;
+  projection: SessionOrchestrationProjection;
 }
 
 export interface SessionsListResponse {
   sessions: SessionSummary[];
+}
+
+export interface WorktreeLaunchState {
+  blocked: boolean;
+  reason: string | null;
+}
+
+export interface WorktreeBinding {
+  contractVersion?: string | null;
+  worktreeId?: string | null;
+  mode?: string | null;
+  path?: string | null;
+  worktreePath?: string | null;
+  status?: string | null;
+  branch?: string | null;
+  launch?: WorktreeLaunchState | null;
+  launchBlocked?: boolean;
+  launchBlockedReason?: string | null;
+  assignment?: Record<string, unknown> | null;
+  cleanup?: Record<string, unknown> | null;
+  recovery?: Record<string, unknown> | null;
+  lifecycle?: Record<string, unknown> | null;
+  [key: string]: unknown;
 }
 
 export type UiRuntimeOverlayObservationKind = 'snapshot' | 'interaction' | 'state' | 'locator' | 'note' | string;
@@ -115,6 +251,8 @@ export interface UiRuntimeOverlaySession {
   repoPath: string;
   repoLabel: string;
   packageRoot: string;
+  linkedSessionId?: string | null;
+  worktree?: WorktreeBinding | null;
   phase?: string | null;
   evidence?: Record<string, unknown> | null;
   observations: UiRuntimeOverlayObservation[];
@@ -135,6 +273,8 @@ export interface UiRuntimeOverlaySessionsResponse {
 export interface CreateUiRuntimeOverlaySessionPayload {
   runtimeUrl: string;
   packageRoot?: string;
+  linkedSessionId?: string;
+  worktree?: WorktreeBinding | null;
 }
 
 export interface CreateUiRuntimeOverlayObservationPayload {
@@ -428,6 +568,7 @@ export interface SessionStructuredStateResponse {
   nextUnit?: SessionStructuredNextUnit | null;
   warnings?: string[];
   meta?: SessionStructuredMeta;
+  orchestration?: SessionOrchestrationProjection | Record<string, unknown> | null;
   [key: string]: unknown;
 }
 
@@ -483,6 +624,22 @@ export interface SdkHealthResponse {
   sessionCount?: number;
   cliVersion?: string;
   error?: string;
+  cliManager?: {
+    channel?: string;
+    sdkChannel?: string;
+    cliChannel?: string;
+    acquisition?: string;
+    status?: string;
+    approved?: boolean;
+    reason?: string;
+    message?: string;
+    source?: string;
+    cliPath?: string | null;
+    cliVersion?: string | null;
+    sdkVersion?: string | null;
+    lastCheckedAtMs?: number;
+    [key: string]: unknown;
+  } | null;
   [key: string]: unknown;
 }
 
@@ -521,6 +678,8 @@ export interface SdkSessionSummary {
   contextType?: string;
   sandboxId?: string | null;
   cwd?: string | null;
+  orchestration?: SessionOrchestrationProjection | Record<string, unknown> | null;
+  worktree?: WorktreeBinding | null;
   [key: string]: unknown;
 }
 
@@ -549,6 +708,9 @@ export interface ExecutorHealthResponse {
   activeRunCount: number;
   scheduledJobCount: number;
   openedSessionCount: number;
+  worktreeCount?: number;
+  activeWorktreeCount?: number;
+  pendingWorktreeCount?: number;
   lastError?: string | null;
   statePath?: string;
   [key: string]: unknown;
@@ -566,6 +728,9 @@ export interface ExecutorRun {
   id: string;
   jobId: string;
   repoId?: string | null;
+  repoPath?: string | null;
+  orchestration?: Record<string, unknown> | null;
+  worktree?: WorktreeBinding | null;
   status: string;
   attemptCount: number;
   maxAttempts: number;
@@ -587,6 +752,9 @@ export interface ExecutorJob {
   title: string;
   prompt: string;
   repoId?: string | null;
+  repoPath?: string | null;
+  orchestration?: Record<string, unknown> | null;
+  worktree?: WorktreeBinding | null;
   targetType: 'create-session' | 'existing-session' | string;
   existingSessionId?: string | null;
   model?: string | null;
@@ -620,6 +788,9 @@ export interface CreateExecutorJobPayload {
   scheduleAt?: string;
   retryPolicy?: Partial<ExecutorRetryPolicy>;
   repoId?: string;
+  repoPath?: string;
+  orchestration?: Record<string, unknown>;
+  worktree?: WorktreeBinding | null;
 }
 
 export interface CreateExecutorJobResponse {
@@ -634,6 +805,31 @@ export interface TriggerExecutorJobResponse {
 export interface CancelExecutorJobResponse {
   job: ExecutorJob;
   run?: ExecutorRun | null;
+}
+
+export interface ExecutorWorktreeRecord extends WorktreeBinding {
+  repoId?: string | null;
+  repoPath?: string | null;
+  repoLabel?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface ExecutorWorktreesResponse {
+  worktrees: ExecutorWorktreeRecord[];
+}
+
+export interface ResolveExecutorWorktreePayload {
+  repoId?: string;
+  repoPath?: string;
+  repoLabel?: string;
+  mode?: string;
+  worktree?: WorktreeBinding | null;
+}
+
+export interface ResolveExecutorWorktreeResponse {
+  repo?: Record<string, unknown> | null;
+  cwd?: string | null;
+  worktree?: ExecutorWorktreeRecord | null;
 }
 
 export interface SdkRelayEvent {

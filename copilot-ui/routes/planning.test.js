@@ -170,6 +170,66 @@ async function run() {
     assert.equal(body.detail, 'read failed');
   });
 
+  await test('planning task board lists durable repo-state tasks without treating missing overlays as an error', async () => {
+    const recorded = [];
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      sessions: {
+        listRepoStateTasks(copilotHome, repoId) {
+          recorded.push({ copilotHome, repoId });
+          return [{
+            taskId: 'TASK-1',
+            title: 'Primary planning task',
+            status: 'ready',
+            ownerSessionId: null,
+            activeActorId: 'implementer',
+            activeActorLabel: 'Implementer',
+            workflow: {
+              latestRunId: null,
+            },
+            worktree: {
+              mode: 'shared',
+              worktreeId: null,
+            },
+            linkedPlanning: {
+              backlogIds: ['RB-1'],
+              roadmapIds: [],
+            },
+            durablePath: 'C:\\copilot\\repo-state\\instruction-engine\\tasks\\TASK-1.json',
+          }];
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/planning/task-board?repoId=instruction-engine&repoLabel=Instruction%20Engine', {
+      copilotHome: 'C:\\copilot',
+      copilotHomeAbs: 'C:\\copilot',
+    });
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
+    assert.equal(body.kind, 'planning.task-board');
+    assert.equal(body.deterministic, true);
+    assert.deepEqual(recorded, [{
+      copilotHome: 'C:\\copilot',
+      repoId: 'instruction-engine',
+    }]);
+    assert.equal(body.projection.repo.repoId, 'instruction-engine');
+    assert.equal(body.projection.repo.repoLabel, 'Instruction Engine');
+    assert.equal(body.projection.taskBoard.items.length, 1);
+    assert.equal(body.projection.taskBoard.items[0].taskId, 'TASK-1');
+    assert.equal(body.projection.taskBoard.items[0].projection.durableStore, 'repo-state');
+    assert.equal(body.projection.taskBoard.items[0].ownerSessionId, null);
+    assert.equal(body.projection.taskBoard.items[0].activeActorId, 'implementer');
+    assert.equal(body.projection.taskBoard.items[0].activeActorLabel, 'Implementer');
+    assert.deepEqual(body.projection.actors.items, []);
+    assert.equal(body.projection.actors.activeActorId, null);
+  });
+
   if (!process.exitCode) {
     console.log(`Planning route tests passed: ${passed}`);
   }

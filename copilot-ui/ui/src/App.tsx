@@ -38,10 +38,23 @@ export default function App() {
   const sdkHealthSummary = sdkHealthState.error
     ? sdkHealthState.error
     : sdkHealthState.health
-      ? `${sdkHealthState.health.state}${Number.isFinite(sdkHealthState.health.sessionCount)
-        ? `, sessions=${sdkHealthState.health.sessionCount}`
-        : ''}`
+      ? sdkHealthState.health.connected
+        ? `${sdkHealthState.health.state}${Number.isFinite(sdkHealthState.health.sessionCount)
+          ? `, sessions=${sdkHealthState.health.sessionCount}`
+          : ''}`
+        : sdkHealthState.health.error?.trim()
+          || sdkHealthState.health.cliManager?.message?.trim()
+          || sdkHealthState.health.reason
+          || sdkHealthState.health.state
       : 'awaiting first poll';
+  const managedCliState = sdkHealthState.health?.cliManager || null;
+  const managedCliTone = managedCliState?.approved
+    ? 'ok'
+    : managedCliState?.status === 'blocked'
+      ? 'warn'
+      : 'loading';
+  const managedCliSummary = managedCliState?.message?.trim()
+    || 'Waiting for desktop Copilot CLI status.';
 
   const desktopUpdaterPresentation = getDesktopUpdaterPresentation(desktopUpdaterState);
 
@@ -52,6 +65,9 @@ export default function App() {
         <div className="hero-status-stack">
           <p className={`sdk-health-indicator sdk-health-${sdkHealthClassName}`}>
             SDK Health: {sdkHealthSummary}
+          </p>
+          <p className={`desktop-cli-indicator desktop-cli-${managedCliTone}`} data-testid="desktop-cli-status">
+            Copilot CLI: {managedCliSummary}
           </p>
           <p className={`desktop-updater-indicator desktop-updater-${desktopUpdaterPresentation.tone}`} data-testid="desktop-updater-status">
             Update status: {desktopUpdaterPresentation.summary}

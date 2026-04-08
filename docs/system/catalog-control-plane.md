@@ -65,7 +65,10 @@ The backend persists projection snapshots under:
 Each snapshot is rebuildable from filesystem truth plus bounded local audit/search/session data.
 
 If a persisted snapshot is missing, catalog reads can fall back to an in-memory filesystem rebuild
-(`readMode: "filesystem-fallback"`). A refresh persists the snapshot again.
+(`readMode: "filesystem-fallback"`). When the runtime change tracker reports newer managed-asset
+or repo-local asset filesystem activity than the persisted snapshot, catalog reads and search also
+invalidate that stale snapshot, rebuild from filesystem truth, and persist the fresh projection.
+A manual refresh persists the snapshot again as well.
 
 ## Vault-first skill model
 

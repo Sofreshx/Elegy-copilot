@@ -1,19 +1,36 @@
 import type { ActionRegistry } from '../actionRegistry';
 import type { BridgeClient } from '../../bridgeClient';
 
+function normalizeSessionId(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function resolveBoundSessionId(
+    step: { params?: Record<string, unknown> },
+    context: Record<string, unknown>,
+): string | undefined {
+    return normalizeSessionId(context.sessionId)
+        ?? normalizeSessionId(step.params?.sessionId);
+}
+
 export function registerSessionExecutors(registry: ActionRegistry, bridgeClient: BridgeClient): void {
     registry.register('session.getStatus', async (_step, _context) => {
         return bridgeClient.get_sessions();
     });
 
-    registry.register('session.collectLogs', async (_step, context) => {
-        return { collected: true, sessionId: context.sessionId as string | undefined };
+    registry.register('session.collectLogs', async (step, context) => {
+        return { collected: true, sessionId: resolveBoundSessionId(step, context) };
     });
 
     registry.register('session.stop', async (step, context) => {
-        const sessionId = (context.sessionId as string | undefined)
-            ?? (step.params?.sessionId as string | undefined)
-            ?? '';
+        const sessionId = resolveBoundSessionId(step, context);
+        if (!sessionId) {
+            throw new Error('Action "session.stop" requires a bound sessionId.');
+        }
         return bridgeClient.cancel_session({ sessionId });
     });
 

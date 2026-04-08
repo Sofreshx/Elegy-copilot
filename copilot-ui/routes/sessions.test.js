@@ -234,7 +234,7 @@ async function run() {
     assert.equal(body.sessions.length, 2);
   });
 
-  await test('GET /api/sessions?source=all reuses one session scan when cli and vscode homes resolve to the same path', async () => {
+  await test('GET /api/sessions?source=all does not duplicate projected sessions when cli and vscode homes resolve to the same path', async () => {
     const listSessionHomes = [];
     const routes = register({
       path: path.win32,
@@ -277,7 +277,53 @@ async function run() {
     assert.equal(res.statusCode, 200);
     assert.equal(listSessionHomes.length, 1);
     assert.equal(listSessionHomes[0], 'C:\\Shared\\Copilot');
-    assert.deepEqual(body.sessions.map((session) => session.source), ['cli', 'vscode']);
+    assert.deepEqual(body.sessions.map((session) => session.source), ['cli']);
+  });
+
+  await test('GET /api/sessions?source=all&dedupe=off still avoids duplicate shared-root projections', async () => {
+    const listSessionHomes = [];
+    const routes = register({
+      path: path.win32,
+      sessions: {
+        listSessions(home) {
+          listSessionHomes.push(home);
+          return [{ id: 'session-1', status: 'idle' }];
+        },
+        listSandboxSessions() {
+          return [];
+        },
+        applySessionReconciliation(session) {
+          return {
+            ...session,
+            authority: 'fs',
+            reconciliation: {
+              reason: 'artifact_only',
+              sourceOfTruth: 'artifact',
+            },
+          };
+        },
+        buildSessionIdentity(session) {
+          return {
+            canonicalKey: String(session.id || '').toLowerCase(),
+            dedupeEligible: true,
+          };
+        },
+        dedupeAllSources() {
+          throw new Error('dedupeAllSources should not be called when dedupe=off');
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\Shared\\Copilot',
+      vscodeHome: 'c:\\shared\\copilot',
+      sandboxesHome: 'C:\\sandboxes-home',
+    }, 'GET', '/api/sessions?source=all&dedupe=off');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(listSessionHomes.length, 1);
+    assert.equal(body.sessions.length, 1);
+    assert.deepEqual(body.sessions.map((session) => session.source), ['cli']);
   });
 
   await test('GET /api/sessions/:id/proposition returns raw and parsed structured entries', async () => {
@@ -568,6 +614,451 @@ Verify the new framing surfaces in Sessions.
     assert.ok(!body.meta.closureSummary.sourceArtifacts.includes('final'));
     assert.ok(!assetReads.some((targetPath) => targetPath.endsWith('final.md')));
     assert.ok(assetReads.some((targetPath) => targetPath.endsWith('execution-state.json')));
+  });
+
+  await test('GET /api/sessions/:id/structured-state adds authority-safe orchestration projections for repo, tasks, actors, workflows, and worktrees', async () => {
+    const routes = register({
+      sendJson: createSendJson(),
+      fs: createSessionFs(),
+      readPlanArtifact() {
+        return '# Plan Pack\n\n# Plan-Pack Progress Tracker\n';
+      },
+      assets: {
+        readTextFileSafe() {
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            warnings: [],
+            groups: [],
+            workUnits: [],
+            checkpoints: [],
+            nextUnit: null,
+            meta: {
+              intentFrame: {
+                summary: 'Ship the orchestration contract.',
+              },
+              closureSummary: {
+                summary: 'Orchestration contract is in progress.',
+              },
+            },
+          };
+        },
+      },
+      sessionArtifacts: {
+        deriveSessionObjective(input) {
+          return input.intentFrame.summary;
+        },
+      },
+      sessions: {
+        getSessionStartContext() {
+          return {
+            cwd: 'C:\\Repos\\instruction-engine',
+            branch: 'main',
+          };
+        },
+        listRepoStateTasks(copilotHome, repoId, options) {
+          assert.equal(copilotHome, 'C:\\cli-home');
+          assert.equal(repoId, 'instruction-engine');
+          assert.equal(options.sessionId, 'session-123');
+          assert.deepEqual(options.workflowRunIds, ['run-1']);
+          assert.deepEqual(options.worktreeIds, ['wt-1']);
+          return [
+            {
+              taskId: 'TASK-1',
+              repoId: 'instruction-engine',
+              title: 'Backend contract',
+              status: 'in_progress',
+              ownerSessionId: 'session-123',
+              activeActorId: 'implementer',
+              workflow: {
+                mode: 'auto',
+                workflowKind: 'task-execution',
+                latestRunId: 'run-1',
+              },
+              worktree: {
+                mode: 'dedicated',
+                worktreeId: 'wt-1',
+              },
+              linkedPlanning: {
+                backlogIds: ['RB-001'],
+                roadmapIds: ['RM-platform-001'],
+              },
+              durablePath: 'C:\\cli-home\\repo-state\\instruction-engine\\tasks\\TASK-1.json',
+            },
+          ];
+        },
+        buildSessionActorSummaries() {
+          return [
+            {
+              actorId: 'implementer',
+              label: 'Implementer',
+              source: 'artifact-events',
+              invocationCount: 2,
+              taskIds: ['TASK-1'],
+            },
+          ];
+        },
+        readRepoStateWorktree(copilotHome, repoId, worktreeId) {
+          assert.equal(copilotHome, 'C:\\cli-home');
+          assert.equal(repoId, 'instruction-engine');
+          assert.equal(worktreeId, 'wt-1');
+          return {
+            worktreeId,
+            path: 'C:\\Repos\\instruction-engine-worktrees\\wt-1',
+            branch: 'task/task-1',
+            status: 'ready',
+            launch: {
+              blocked: false,
+              reason: null,
+            },
+          };
+        },
+      },
+      repoInventory: {
+        listKnownRepos() {
+          return [
+            {
+              repoId: 'instruction-engine',
+              repoPath: 'C:\\Repos\\instruction-engine',
+              repoLabel: 'Instruction Engine',
+            },
+          ];
+        },
+        resolveRepoEntry() {
+          return {
+            repoId: 'instruction-engine',
+            repoPath: 'C:\\Repos\\instruction-engine',
+            repoLabel: 'Instruction Engine',
+          };
+        },
+      },
+      sdkBridge: {
+        getSdkSession(sessionId) {
+          assert.equal(sessionId, 'session-123');
+          return {
+            sessionId,
+            contextType: 'regular',
+            sandboxId: null,
+            cwd: 'C:\\Repos\\instruction-engine-worktrees\\wt-1',
+            orchestration: {
+              repo: {
+                repoId: 'instruction-engine',
+                repoPath: 'C:\\Repos\\instruction-engine',
+              },
+              isolation: {
+                worktreeId: 'wt-1',
+              },
+              actors: [
+                {
+                  actorId: 'planner',
+                  label: 'Planner',
+                  role: 'planner',
+                },
+              ],
+            },
+          };
+        },
+      },
+      executorService: {
+        listRuns() {
+          return [
+            {
+              id: 'run-1',
+              jobId: 'job-1',
+              repoId: 'instruction-engine',
+              sessionId: 'session-123',
+              status: 'running',
+              createdAt: '2026-04-07T10:00:00.000Z',
+              updatedAt: '2026-04-07T10:01:00.000Z',
+              orchestration: {
+                workflow: {
+                  workflowKind: 'task-execution',
+                  trigger: 'auto',
+                  mode: 'auto',
+                },
+                taskRefs: [{ taskId: 'TASK-1' }],
+              },
+            },
+          ];
+        },
+      },
+      uiRuntimeOverlayService: {
+        listSessions() {
+          return [
+            {
+              id: 'overlay-1',
+              repoId: 'instruction-engine',
+              linkedSessionId: 'session-123',
+              runtimeUrl: 'http://127.0.0.1:4173',
+              packageRoot: 'C:\\Repos\\instruction-engine-worktrees\\wt-1',
+              status: 'attached',
+              phase: 'attached',
+              updatedAt: '2026-04-07T10:02:00.000Z',
+              worktree: {
+                worktreeId: 'wt-1',
+                mode: 'dedicated',
+              },
+            },
+          ];
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\cli-home',
+      vscodeHome: 'C:\\vscode-home',
+      sandboxesHome: 'C:\\sandboxes-home',
+    }, 'GET', '/api/sessions/session-123/structured-state');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.orchestration.contractVersion, '1');
+    assert.equal(body.orchestration.authority.liveSession, 'acp');
+    assert.equal(body.orchestration.repo.repoId, 'instruction-engine');
+    assert.equal(body.orchestration.objective, 'Ship the orchestration contract.');
+    assert.equal(body.orchestration.isolation.mode, 'dedicated');
+    assert.equal(body.orchestration.isolation.worktreeStatus, 'ready');
+    assert.equal(body.orchestration.isolation.launchBlocked, false);
+    assert.equal(body.orchestration.isolation.worktree.worktreeId, 'wt-1');
+    assert.deepEqual(body.orchestration.actors.items.map((actor) => actor.actorId), ['implementer', 'planner']);
+    assert.equal(body.orchestration.taskBoard.items[0].taskId, 'TASK-1');
+    assert.equal(body.orchestration.taskBoard.items[0].projection.durableStore, 'repo-state');
+    assert.equal(body.orchestration.workflow.runs[0].runId, 'run-1');
+    assert.equal(body.orchestration.overlays.sessions[0].linkedSessionId, 'session-123');
+  });
+
+  await test('GET /api/sessions/:id/structured-state excludes same-repo overlay sessions without an explicit current-session ref', async () => {
+    const routes = register({
+      sendJson: createSendJson(),
+      fs: createSessionFs(),
+      readPlanArtifact() {
+        return '# Plan Pack\n\n## Work Units\n- none';
+      },
+      assets: {
+        readTextFileSafe() {
+          return null;
+        },
+      },
+      sessions: {
+        getSessionStartContext() {
+          return {
+            cwd: 'C:\\Repos\\instruction-engine',
+            branch: 'main',
+          };
+        },
+        listRepoStateTasks() {
+          return [];
+        },
+        buildSessionActorSummaries() {
+          return [];
+        },
+        readRepoStateWorktree() {
+          return null;
+        },
+      },
+      repoInventory: {
+        resolveRepoEntry() {
+          return {
+            repoId: 'instruction-engine',
+            repoPath: 'C:\\Repos\\instruction-engine',
+            repoLabel: 'Instruction Engine',
+          };
+        },
+      },
+      sdkBridge: {
+        getSdkSession(sessionId) {
+          assert.equal(sessionId, 'session-123');
+          return {
+            sessionId,
+            cwd: 'C:\\Repos\\instruction-engine',
+            orchestration: {
+              repo: {
+                repoId: 'instruction-engine',
+                repoPath: 'C:\\Repos\\instruction-engine',
+              },
+            },
+          };
+        },
+      },
+      executorService: {
+        listRuns() {
+          return [];
+        },
+      },
+      uiRuntimeOverlayService: {
+        listSessions() {
+          return [
+            {
+              id: 'overlay-keep',
+              repoId: 'instruction-engine',
+              linkedSessionId: 'session-123',
+              runtimeUrl: 'http://127.0.0.1:4173',
+              packageRoot: 'C:\\Repos\\instruction-engine-worktrees\\wt-1',
+              status: 'attached',
+              phase: 'attached',
+              updatedAt: '2026-04-07T10:02:00.000Z',
+              worktree: {
+                worktreeId: 'wt-1',
+                mode: 'dedicated',
+              },
+            },
+            {
+              id: 'overlay-leak',
+              repoId: 'instruction-engine',
+              linkedSessionId: 'session-999',
+              runtimeUrl: 'http://127.0.0.1:4273',
+              packageRoot: 'C:\\Repos\\instruction-engine-worktrees\\wt-2',
+              status: 'attached',
+              phase: 'attached',
+              updatedAt: '2026-04-07T10:03:00.000Z',
+              worktree: {
+                worktreeId: 'wt-2',
+                mode: 'dedicated',
+              },
+            },
+          ];
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\cli-home',
+    }, 'GET', '/api/sessions/session-123/structured-state');
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(body.orchestration.overlays.sessions.map((session) => session.id), ['overlay-keep']);
+  });
+
+  await test('GET /api/sessions/:id/structured-state excludes same-repo workflow runs from sibling sessions', async () => {
+    const routes = register({
+      sendJson: createSendJson(),
+      fs: createSessionFs(),
+      readPlanArtifact() {
+        return '# Plan Pack\n\n# Plan-Pack Progress Tracker\n';
+      },
+      assets: {
+        readTextFileSafe() {
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            warnings: [],
+            groups: [],
+            workUnits: [],
+            checkpoints: [],
+            nextUnit: null,
+            meta: {},
+          };
+        },
+      },
+      sessions: {
+        getSessionStartContext() {
+          return {
+            cwd: 'C:\\Repos\\instruction-engine',
+            branch: 'main',
+          };
+        },
+        listRepoStateTasks() {
+          return [
+            {
+              taskId: 'TASK-1',
+              repoId: 'instruction-engine',
+              title: 'Scoped task',
+              status: 'in_progress',
+              ownerSessionId: 'session-123',
+              workflow: {
+                latestRunId: 'run-1',
+              },
+              worktree: {},
+              linkedPlanning: {},
+              durablePath: 'C:\\cli-home\\repo-state\\instruction-engine\\tasks\\TASK-1.json',
+            },
+          ];
+        },
+        buildSessionActorSummaries() {
+          return [];
+        },
+        readRepoStateWorktree() {
+          return null;
+        },
+      },
+      repoInventory: {
+        resolveRepoEntry() {
+          return {
+            repoId: 'instruction-engine',
+            repoPath: 'C:\\Repos\\instruction-engine',
+            repoLabel: 'Instruction Engine',
+          };
+        },
+      },
+      sdkBridge: {
+        getSdkSession(sessionId) {
+          assert.equal(sessionId, 'session-123');
+          return {
+            sessionId,
+            cwd: 'C:\\Repos\\instruction-engine',
+            orchestration: {
+              repo: {
+                repoId: 'instruction-engine',
+                repoPath: 'C:\\Repos\\instruction-engine',
+              },
+            },
+          };
+        },
+      },
+      executorService: {
+        listRuns() {
+          return [
+            {
+              id: 'run-1',
+              repoId: 'instruction-engine',
+              sessionId: 'session-123',
+              status: 'running',
+              updatedAt: '2026-04-07T10:02:00.000Z',
+              orchestration: {
+                taskRefs: [{ taskId: 'TASK-1' }],
+              },
+            },
+            {
+              id: 'run-2',
+              repoId: 'instruction-engine',
+              sessionId: 'session-999',
+              status: 'running',
+              updatedAt: '2026-04-07T10:03:00.000Z',
+              orchestration: {
+                taskRefs: [{ taskId: 'TASK-2' }],
+              },
+            },
+            {
+              id: 'run-3',
+              repoId: 'instruction-engine',
+              sessionId: null,
+              status: 'queued',
+              updatedAt: '2026-04-07T10:04:00.000Z',
+              orchestration: {
+                taskRefs: [{ taskId: 'TASK-1' }],
+              },
+            },
+          ];
+        },
+      },
+      uiRuntimeOverlayService: {
+        listSessions() {
+          return [];
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\cli-home',
+    }, 'GET', '/api/sessions/session-123/structured-state');
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(body.orchestration.workflow.runs.map((run) => run.runId), ['run-3', 'run-1']);
   });
 
   await test('GET /api/sessions/:id/structured-state leaves structured validation requirements empty when the verification guide section is absent', async () => {

@@ -117,6 +117,9 @@ Primary runtime state lives under `~/.copilot`:
       plans/            plan revisions
   sessions-archive/     archived sessions
   repo-state/           per-repo task/artefact state
+    <repoId>/
+      tasks/            durable repo-state task store
+      tasks.archive/    archived repo-state tasks
 ```
 
 Override the default location with `skillInstaller.state.root` in VS Code settings, or pass
@@ -164,9 +167,13 @@ Packaged desktop behavior:
 
 - uses `~/.copilot` as the runtime home for session state, installed assets, repo-state, and gateway config
 - default-enables the Copilot SDK bridge unless `INSTRUCTION_ENGINE_DISABLE_SDK_BRIDGE=1`
-- starts the messaging gateway dependency automatically and rehomes legacy gateway config into `~/.copilot`
+- starts the messaging gateway dependency automatically, rehomes legacy gateway config into `~/.copilot`, and keeps the desktop-only disconnected bootstrap config env-scoped instead of writing a non-canonical platformless file
 - starts the same local backend on `127.0.0.1`
 - provisions an embedded planning database in packaged mode, stored under `~/.copilot/planning-db`, so planning persistence is available by default without a separate local database install
+- keeps orchestration local-only and is the intended surface for the visible task board backed by `~/.copilot/repo-state/<repoId>/tasks/`
+- manages Copilot CLI ensure/install/update for the active channel; stable desktop builds pair with stable SDK/CLI lanes, prerelease builds pair with prerelease SDK/CLI lanes
+- current bounded MVP slice is fail-closed: the desktop app only approves a bundled CLI payload or a seeded managed install under `~/.copilot/managed-cli/<channel>/`; it no longer silently falls back to PATH or desktop `cliUrl` overrides
+- bundles workflow-layer runtime assets for packaged parity checks, but keeps the workflow sidecar default-disabled unless explicitly enabled; packaged smoke now treats any default-on sidecar activation as drift
 
 Use `scripts/cli-ui.ps1 --sdk` or `./scripts/cli-ui.sh --sdk` only when you intentionally want the raw
 server path with the SDK bridge forced on.
@@ -258,9 +265,13 @@ If a persisted projection is missing, the backend falls back to a filesystem bui
 - Rollback authority: Release Engineering owns channel rollback + kill switch decisions
 - Desktop package bundle includes runtime assets required for standalone mode:
   - `engine-assets/**`
-  - `copilot-ui/ui-dist/**`
+  - generated `copilot-ui/ui-dist/**` assets from `npm --prefix copilot-ui run ui:build`
   - `local-tracker` runtime (`dist` + runtime deps)
+  - managed Copilot CLI channel contract metadata (`copilot-ui/resources/copilot-cli/**`)
+  - bounded workflow-layer runtime assets, with the sidecar kept default-disabled unless explicitly enabled
   - helper scripts required by dashboard/runtime operations
+- Generated build outputs such as `copilot-ui/ui-dist/**` and `copilot-ui/dist-electron/**` are package inputs, but they are not source-controlled artifacts and should be rebuilt locally/CI rather than committed.
+- `.github/workflows/desktop-preview-release.yml`, `.github/workflows/desktop-release.yml`, and `.github/workflows/desktop-version-tag.yml` must fail closed when the current repository does not match `copilot-ui/electron-builder.yml`'s GitHub publish target.
 - Packaged desktop runtime now boots with an embedded planning database by default. The local runtime, SDK bridge, tracker, and planning persistence all come up together under `~/.copilot`.
 
 Desktop release tag helper flow, when the optional packaging lane is exercised:
@@ -284,7 +295,7 @@ Release-safety rules (G-06-WU-03) for packaged desktop releases:
 ### WS6 CI topology + required checks (locked)
 
 - Authoritative workflow file: `.github/workflows/extension-ci.yml` (repo-wide CI; legacy filename retained for WS6 validation history after legacy extension retirement).
-- Required topology is fixed and fail-closed: `build` → `ws6-evidence` (matrix `WS6-E1`..`WS6-E5`) → `ws6-artifact-gate` → `required-checks`.
+- Required topology is fixed and fail-closed: `build` → `desktop-package-smoke` + `ws6-evidence` (matrix `WS6-E1`..`WS6-E5`) → `ws6-artifact-gate` → `required-checks`.
 - `required-checks` must fail when any required upstream job is non-`success`, skipped, or missing required artifact completeness output.
 - Legacy VS Code extension packaging/release jobs have been retired; desktop packaging remains in `.github/workflows/desktop-release.yml`.
 

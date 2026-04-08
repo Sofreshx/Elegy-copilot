@@ -94,6 +94,7 @@ const {
 const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersistenceClient');
 const { createRegistry } = require('./routes');
 const { createExecutorService } = require('./lib/executorService');
+const { createWorkflowLayerService } = require('./lib/workflowLayerService');
 const { createUiRuntimeOverlayService } = require('./lib/uiRuntimeOverlayService');
 const {
   isNonLoopback,
@@ -4403,6 +4404,18 @@ async function shutdownExecutorServiceSafely(executorService) {
   }
 }
 
+async function shutdownWorkflowLayerServiceSafely(workflowLayerService) {
+  if (!workflowLayerService || typeof workflowLayerService.shutdown !== 'function') {
+    return;
+  }
+
+  try {
+    await workflowLayerService.shutdown();
+  } catch {
+    // Best-effort shutdown on server close/error.
+  }
+}
+
 async function closePlanningPersistenceClientSafely(client) {
   if (!client || typeof client.close !== 'function') {
     return;
@@ -4427,6 +4440,9 @@ async function startServer(options = {}) {
     sandboxesHome: typeof options.sandboxesHome === 'string' && options.sandboxesHome.trim() ? options.sandboxesHome.trim() : null,
     trackerUrl: typeof options.trackerUrl === 'string' && options.trackerUrl.trim() ? options.trackerUrl.trim() : null,
     trackerToken: typeof options.trackerToken === 'string' && options.trackerToken.trim() ? options.trackerToken.trim() : null,
+    workflowSidecarManager: options.workflowSidecarManager && typeof options.workflowSidecarManager === 'object'
+      ? options.workflowSidecarManager
+      : null,
   };
 
   const quiet = options.quiet === true;
@@ -4593,6 +4609,7 @@ async function startServer(options = {}) {
   const sdkBridgeEnabled = isSdkBridgeEnabled(env);
   let sdkBridge = null;
   let executorService = null;
+  let workflowLayerService = null;
 
   if (sdkBridgeEnabled) {
     try {
@@ -4620,6 +4637,21 @@ async function startServer(options = {}) {
     await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
     const detail = String(error && error.message ? error.message : error);
     throw new Error(`Executor service startup failed: ${detail}`);
+  }
+
+  try {
+    workflowLayerService = await createWorkflowLayerService({
+      copilotHome,
+      executorService,
+      workflowSidecarManager: args.workflowSidecarManager,
+    }).init();
+  } catch (error) {
+    await shutdownExecutorServiceSafely(executorService);
+    await shutdownSdkBridgeSafely(sdkBridge);
+    changeTracker.close();
+    await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
+    const detail = String(error && error.message ? error.message : error);
+    throw new Error(`Workflow layer startup failed: ${detail}`);
   }
 
   const uiRuntimeOverlayService = createUiRuntimeOverlayService({
@@ -4718,9 +4750,11 @@ async function startServer(options = {}) {
       readPlanningRecap,
       sdkBridge,
       executorService,
+      workflowLayerService,
       uiRuntimeOverlayService,
     });
   } catch (error) {
+    await shutdownWorkflowLayerServiceSafely(workflowLayerService);
     await shutdownExecutorServiceSafely(executorService);
     await shutdownSdkBridgeSafely(sdkBridge);
     changeTracker.close();
@@ -4789,6 +4823,7 @@ async function startServer(options = {}) {
       if (settled) return;
       settled = true;
       Promise.resolve()
+        .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
         .then(() => shutdownExecutorServiceSafely(executorService))
         .then(() => shutdownSdkBridgeSafely(sdkBridge))
         .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))
@@ -4836,6 +4871,7 @@ async function startServer(options = {}) {
         autonomousDecisionLog: autonomousDecisionLog.getSummary(),
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
+            .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
             .then(() => shutdownExecutorServiceSafely(executorService))
             .then(() => shutdownSdkBridgeSafely(sdkBridge))
             .then(() => closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient))

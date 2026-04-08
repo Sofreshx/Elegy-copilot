@@ -3,6 +3,80 @@
 const {
   PLANNING_API_CONTRACT_VERSION: SHARED_PLANNING_API_CONTRACT_VERSION,
 } = require('@elegy-copilot/contracts');
+const { buildSessionOrchestrationProjection } = require('../lib/runtimeContracts');
+
+function normalizeOptionalString(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function buildPlanningTaskBoardItems(taskRecords) {
+  return (Array.isArray(taskRecords) ? taskRecords : []).map((task) => ({
+    taskId: task.taskId,
+    title: task.title || null,
+    status: task.status || null,
+    ownerSessionId: task.ownerSessionId || null,
+    activeActorId: task.activeActorId || null,
+    activeActorLabel: task.activeActorLabel || null,
+    workflow: task.workflow || {},
+    worktree: task.worktree || {},
+    linkedPlanning: task.linkedPlanning || {},
+    durablePath: task.durablePath || null,
+    projection: {
+      durableStore: 'repo-state',
+    },
+  }));
+}
+
+function handlePlanningTaskBoard(ctx, deps) {
+  const { res, u, copilotHome, copilotHomeAbs } = ctx;
+  const { sendJson, sessions, PLANNING_API_CONTRACT_VERSION } = deps;
+  const repoId = normalizeOptionalString(u.searchParams.get('repoId'));
+  const repoPath = normalizeOptionalString(u.searchParams.get('repoPath'));
+  const repoLabel = normalizeOptionalString(u.searchParams.get('repoLabel')) || repoId || repoPath;
+
+  if (!repoId) {
+    sendJson(res, 400, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.task-board',
+      deterministic: true,
+      error: {
+        code: 'planning_repo_id_required',
+        reason: 'planning_repo_id_required',
+        message: 'repoId is required to load the Planning task board.',
+      },
+    });
+    return;
+  }
+
+  const taskRecords = sessions && typeof sessions.listRepoStateTasks === 'function'
+    ? sessions.listRepoStateTasks(copilotHomeAbs || copilotHome, repoId, { maxEntries: 500 })
+    : [];
+  const taskItems = buildPlanningTaskBoardItems(taskRecords);
+  const projection = buildSessionOrchestrationProjection({
+    metadata: {
+      repo: {
+        repoId,
+        repoPath,
+        repoLabel,
+        source: 'planning',
+      },
+    },
+    actors: [],
+    taskItems,
+  });
+
+  projection.actors = {
+    items: [],
+    activeActorId: null,
+  };
+
+  sendJson(res, 200, {
+    contractVersion: PLANNING_API_CONTRACT_VERSION,
+    kind: 'planning.task-board',
+    deterministic: true,
+    projection,
+  });
+}
 
 function handlePlanningPersistenceInit(ctx, deps) {
   const { req, res, planningPersistenceConfig, planningPersistenceState } = ctx;
@@ -1432,6 +1506,11 @@ function register(deps = {}) {
   };
 
   return [
+    {
+      method: 'GET',
+      path: '/api/planning/task-board',
+      handler: (ctx) => handlePlanningTaskBoard(ctx, resolvedDeps),
+    },
     {
       method: 'POST',
       path: '/api/planning/persistence/init',
