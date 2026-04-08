@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-25
+updated: 2026-04-08
 category: system
 status: current
 doc_kind: node
@@ -11,18 +11,21 @@ tags: [security]
 
 # Security Model — Instruction Engine Relay (v1)
 
-> **Last updated**: 2026-02-11
+> **Last updated**: 2026-04-08
 >
-> This document describes the **actual, implemented** security architecture of the Instruction Engine relay ecosystem (cloud relay, mobile companion PWA, VS Code extension). Claims are verified against source code. Planned-but-unimplemented features are clearly marked as **v2 Planned**.
+> This document describes the **actual, implemented** security architecture of the Instruction Engine runtime ecosystem. Claims are verified against source code. Planned-but-unimplemented features are clearly marked as **v2 Planned**.
 
-## Desktop Distribution Trust Chain — Decision Lock (G-02-WU-01)
+## Desktop Distribution Trust Chain — Current State + Approved Migration Target (G-02-WU-01)
 
-These decisions are locked for the desktop-distributed `instruction-engine` runtime:
+These decisions are locked for the desktop-distributed `instruction-engine` runtime. The current
+desktop path is a Windows-first Tauri shell with a bundled Node sidecar, as defined in
+[[desktop-runtime-tauri-migration-contract]]
+[docs/system/desktop-runtime-tauri-migration-contract.md](docs/system/desktop-runtime-tauri-migration-contract.md).
 
 | Topic | Decision | Owner |
 |---|---|---|
-| Runtime packaging | Electron app shell with `electron-builder`; update client via `electron-updater` | Release Engineering |
-| Channel scope | Windows = GA; Linux/macOS = preview until signing parity is complete | Product + Release Engineering |
+| Runtime packaging | Current primary state: Windows-first Tauri shell with bundled Node sidecar; the active Windows release path is manual-installer metadata rather than live in-app updater parity. | Release Engineering |
+| Channel scope | Current packaged release scope is the Windows Tauri desktop path. | Product + Release Engineering |
 | Signing custody | Signing material remains external (OIDC -> managed signing service/HSM/KMS); no private keys in repo or runner filesystem | Security Engineering |
 | Key/cert rotation authority | Rotation cadence and emergency rotation owned by Security Engineering, executed with Release Engineering | Security Engineering |
 | Rollback / kill-switch authority | Release Engineering can pause channels, roll back feed pointers, and force minimum-safe-version blocks | Release Engineering |
@@ -131,8 +134,8 @@ Policy and scanner work must treat these files as the only canonical source for 
 
 ```
 ┌──────────────────┐          ┌──────────────────┐          ┌──────────────┐
-│  Mobile PWA      │◄──WSS──►│  Cloud Relay     │◄──WSS──►│  VS Code     │
-│  (browser)       │          │  (Node.js)       │          │  Extension   │
+│  Mobile PWA      │◄──WSS──►│  Cloud Relay     │◄──WSS──►│  Desktop      │
+│  (browser)       │          │  (Node.js)       │          │  Shell        │
 └──────────────────┘          └───────┬┬─────────┘          └──────────────┘
                                       ││
                               ┌───────┘└─────────┐
@@ -197,13 +200,13 @@ Mobile                        Relay                         GitHub
 5. Relay verifies the CSRF state, exchanges the code for a GitHub access token, then calls GitHub's `/user` API to verify identity
 6. Relay mints **relay-issued JWTs** (access + refresh) and returns them to the client
 
-### VS Code Extension Flow (Token Exchange)
+### Desktop Shell / Trusted Client Flow (Token Exchange)
 
 ```
-Extension                     Relay                         GitHub
+Trusted Client                Relay                         GitHub
   │                             │                              │
-  │  vscode.authentication      │                              │
-  │  .getSession('github')      │                              │
+  │  Host auth surface obtains  │                              │
+  │  a GitHub token             │                              │
   │─────────────────────────────────────────────────────────►│
   │                             │                              │
   │  GitHub token               │                              │
@@ -221,8 +224,8 @@ Extension                     Relay                         GitHub
   │◄───────────────────────────│                              │
 ```
 
-1. Extension uses VS Code's built-in GitHub authentication (`vscode.authentication.getSession`)
-2. Extension sends the GitHub token to `POST /auth/exchange`
+1. A trusted non-browser client obtains a GitHub token via its host authentication surface
+2. The client sends the GitHub token to `POST /auth/exchange`
 3. Relay verifies the token by calling GitHub's `/user` API
 4. Relay mints relay JWTs and returns them
 
@@ -257,7 +260,7 @@ All relay-issued tokens are **HS256 JWTs** signed with a shared secret (`JWT_SEC
 | `sub` | User identifier | `github\|12345` |
 | `jti` | Unique token ID (UUIDv4) | `a1b2c3d4-...` |
 | `client_id` | Relay-assigned client ID (UUIDv4) | `e5f6a7b8-...` |
-| `client_type` | Client kind | `mobile` or `extension` |
+| `client_type` | Client kind | `mobile` or another trusted desktop/non-browser client |
 | `scopes` | Authorization scopes (array) | `["read:status", ...]` |
 | `github_login` | GitHub username | `octocat` |
 | `iss` | Issuer | `instruction-engine-relay` |
@@ -286,7 +289,7 @@ All relay-issued tokens are **HS256 JWTs** signed with a shared secret (`JWT_SEC
 
 | Platform | Storage Method | Encryption | Notes |
 |----------|---------------|------------|-------|
-| **VS Code Extension** | `SecretStorage` API | OS keychain (encrypted) | Recommended approach; credentials never touch disk in plaintext |
+| **Desktop shell / trusted non-browser client** | Host-managed secure storage | OS/platform dependent | Preferred over browser-only token storage when a secure host lane exists |
 | **Mobile PWA** | `localStorage` | **None (plaintext)** | ⚠️ Known v1 limitation — see below |
 | **Cloud Relay** | SQLite — user info only (no tokens) | **None (no encryption at rest)** | Stores user profiles (`github_login`, `avatar_url`) and offline messages; does NOT store tokens or secrets |
 
@@ -352,20 +355,20 @@ Scopes are **assigned by client type**, not by user role. There is no role-based
 
 | Scope | Description | Assigned To |
 |-------|-------------|-------------|
-| `read:status` | Query relay/extension status | Mobile, Extension |
-| `read:sessions` | List active agent sessions | Mobile, Extension |
-| `write:sessions` | Start/cancel sessions, invoke agents, execute commands | Mobile, Extension |
-| `read:events` | Subscribe to session events | Mobile, Extension |
-| `write:permissions` | Resolve permission requests | Mobile, Extension |
-| `read:clients` | List connected clients, manage groups | Mobile, Extension |
-| `admin:clients` | Disconnect other clients | Extension only |
+| `read:status` | Query relay/desktop status | Mobile, Desktop |
+| `read:sessions` | List active agent sessions | Mobile, Desktop |
+| `write:sessions` | Start/cancel sessions, invoke agents, execute commands | Mobile, Desktop |
+| `read:events` | Subscribe to session events | Mobile, Desktop |
+| `write:permissions` | Resolve permission requests | Mobile, Desktop |
+| `read:clients` | List connected clients, manage groups | Mobile, Desktop |
+| `admin:clients` | Disconnect other clients | Desktop only |
 
 ### Default Scope Assignments
 
 | Client Type | Scopes |
 |-------------|--------|
 | **Mobile** | `read:status`, `read:sessions`, `write:sessions`, `read:events`, `write:permissions`, `read:clients` |
-| **Extension** | All mobile scopes + `admin:clients` |
+| **Desktop** | All mobile scopes + `admin:clients` |
 
 ### Scope Enforcement
 
@@ -441,7 +444,7 @@ On `/auth/callback`:
 The relay validates the `Origin` header on WebSocket upgrade requests:
 
 - Connections **with** an `Origin` header must match the `CORS_ORIGINS` allowlist
-- Connections **without** an `Origin` header are allowed (server-side clients like the VS Code extension do not send Origin headers)
+- Connections **without** an `Origin` header are allowed (trusted non-browser or server-side clients may not send Origin headers)
 - Disallowed origins receive HTTP `403 Origin not allowed`
 
 Default allowed origin: `https://companion.sfrsh.xyz`
@@ -503,7 +506,7 @@ The relay uses the `helmet` middleware, which sets the following headers by defa
 | Threat | Mitigation | Residual Risk |
 |--------|-----------|---------------|
 | **Token theft (mobile)** | 1h access TTL, refresh rotation | localStorage is vulnerable to XSS on the same origin |
-| **Token theft (extension)** | OS keychain via SecretStorage | Low — requires OS-level compromise |
+| **Token theft (desktop host client)** | Host-managed secure storage when available | Low — requires host/OS-level compromise |
 | **Man-in-the-middle** | TLS/WSS required in production (Traefik + Let's Encrypt) | None when TLS is properly configured |
 | **CSRF on OAuth** | HMAC-signed state parameter with timing-safe comparison | Low |
 | **WebSocket hijacking** | Origin validation on upgrade, JWT auth required within 30s | Server-side clients (no Origin) are allowed by design |
@@ -518,8 +521,8 @@ The relay uses the `helmet` middleware, which sets the following headers by defa
 ┌────────────────────────────────────────────────────────────────┐
 │                    User's Machine (Trusted)                     │
 │  ┌──────────────┐    ┌──────────────────────────────────────┐  │
-│  │  VS Code     │    │  OS Keychain (SecretStorage)         │  │
-│  │  Extension   │◄──►│  Stores relay JWTs encrypted         │  │
+│  │  Desktop     │    │  Host secure storage                 │  │
+│  │  Shell       │◄──►│  Stores relay JWTs when available    │  │
 │  └──────────────┘    └──────────────────────────────────────┘  │
 └────────────────────────────────────────────────────────────────┘
                               │
@@ -617,7 +620,7 @@ These are intentional trade-offs for v1. Each has been evaluated and accepted wi
 1. User should revoke their GitHub OAuth grant (GitHub Settings → Applications)
 2. Rotate `JWT_SECRET` if the scope of compromise is unclear
 3. Mobile: clear `localStorage` on the compromised device
-4. Extension: VS Code SecretStorage is cleared on sign-out
+4. Desktop shell / other secure host clients: clear host-managed secure storage on sign-out
 
 ---
 
@@ -626,7 +629,7 @@ These are intentional trade-offs for v1. Each has been evaluated and accepted wi
 ### For Users
 
 1. Enable **GitHub 2FA** — the relay's security is only as strong as the GitHub account
-2. Use the **VS Code extension** as the primary client (SecretStorage > localStorage)
+2. Prefer the **packaged desktop shell** or another secure host client over browser-only token storage when possible
 3. Do not use the mobile PWA on shared/public devices
 4. Review GitHub OAuth grants periodically (Settings → Applications → Authorized OAuth Apps)
 

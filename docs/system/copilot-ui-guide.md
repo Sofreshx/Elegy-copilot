@@ -1,13 +1,13 @@
 ---
 created: 2026-03-11
-updated: 2026-04-07
+updated: 2026-04-08
 category: system
 status: current
 doc_kind: node
 id: copilot-ui-guide
-summary: Canonical guide to the current copilot-ui runtime surface, tabs, route groups, persistence model, and validation anchors.
+summary: Canonical guide to the current copilot-ui runtime surface, tabs, route groups, persistence model, desktop migration state, and validation anchors.
 tags: [copilot-ui, dashboard, desktop, api, planning]
-related: [catalog-control-plane, session-state-artifacts, desktop-update-rollback-runbook, system-docs-index]
+related: [catalog-control-plane, session-state-artifacts, desktop-update-rollback-runbook, desktop-runtime-tauri-migration-contract, system-docs-index]
 ---
 
 # copilot-ui Guide
@@ -15,8 +15,10 @@ related: [catalog-control-plane, session-state-artifacts, desktop-update-rollbac
 ## Purpose
 
 `copilot-ui` is the current local UI and control plane for Instruction Engine. It provides the
-React-based dashboard surface, the local HTTP API used by that UI, and the packaged Electron shell
-that now acts as the primary desktop distribution/runtime.
+React-based dashboard surface, the local HTTP API used by that UI, and the packaged desktop shell.
+The active desktop implementation is the Windows-first Tauri shell described in
+[[desktop-runtime-tauri-migration-contract]]
+[docs/system/desktop-runtime-tauri-migration-contract.md](docs/system/desktop-runtime-tauri-migration-contract.md).
 
 It replaces the legacy vanilla dashboard. When the React bundle is unavailable, the fallback page
 from `copilot-ui/public/index.html` explains that the active UI is served from `copilot-ui/ui-dist`.
@@ -27,26 +29,24 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
 
 1. **Desktop shell mode**
    - This is the default end-user runtime.
-   - Start local desktop development with `npm --prefix copilot-ui run electron:dev`. For the packaged Windows preview, run `npm --prefix copilot-ui run package:preview` and launch `copilot-ui/release/win-unpacked/Elegy Copilot.exe`.
-- It packages the same UI and backend behavior inside Electron and boots the backend locally on `127.0.0.1`.
-- It uses `~/.copilot` for runtime state, starts the messaging gateway dependency automatically, keeps any desktop-only platformless bootstrap config env-scoped instead of persisting a non-canonical `~/.copilot/messaging-gateway.config.json`, and default-enables `COPILOT_SDK_BRIDGE=1` unless explicitly disabled.
-- The packaged app is also the intended manager for the paired Copilot SDK + Copilot CLI lane: stable app builds track stable SDK/CLI bits, prerelease app builds track prerelease SDK/CLI bits, and app-managed CLI ensure/install/update behavior is part of the desktop delivery contract.
-- The current bounded CLI-management slice only approves a bundled payload or a seeded managed install under `~/.copilot/managed-cli/<channel>/`. If neither exists, desktop SDK features stay blocked and the UI surfaces the reason.
-- If the managed CLI bootstrap path itself fails, or if `INSTRUCTION_ENGINE_UPDATE_CHANNEL` is set to an invalid explicit value, desktop SDK features remain blocked with a machine-readable reason while the rest of the desktop shell continues booting.
-- In packaged mode it starts an embedded planning database under `~/.copilot/planning-db`, sets planning persistence env vars for the local runtime, and keeps planning durability available by default without a separate database install.
-- Desktop update and rollback behavior are governed by [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md).
+   - Start active Windows desktop development with `npm --prefix copilot-ui run desktop:dev`.
+   - For the packaged Windows preview/manual-installer lane, run `npm --prefix copilot-ui run desktop:preview:stage`.
+   - The current primary implementation packages the same UI and backend behavior inside Tauri and boots the bundled Node sidecar locally on `127.0.0.1`.
+   - The current Tauri Windows preview lane emits explicit release metadata plus a Windows installation guide. It is a manual-installer lane; no in-app updater/feed parity is claimed in the current slice.
+   - It uses `~/.copilot` for runtime state, starts the messaging gateway dependency automatically, keeps any desktop-only platformless bootstrap config env-scoped instead of persisting a non-canonical `~/.copilot/messaging-gateway.config.json`, and default-enables `COPILOT_SDK_BRIDGE=1` unless explicitly disabled.
+   - The packaged app is also the intended manager for the paired Copilot SDK + Copilot CLI lane: stable app builds track stable SDK/CLI bits, prerelease app builds track prerelease SDK/CLI bits, and app-managed CLI ensure/install/update behavior is part of the desktop delivery contract.
+   - The current bounded CLI-management slice only approves a bundled payload or a seeded managed install under `~/.copilot/managed-cli/<channel>/`. If neither exists, desktop SDK features stay blocked and the UI surfaces the reason.
+   - If the managed CLI bootstrap path itself fails, or if `INSTRUCTION_ENGINE_UPDATE_CHANNEL` is set to an invalid explicit value, desktop SDK features remain blocked with a machine-readable reason while the rest of the desktop shell continues booting.
+   - In packaged mode it starts an embedded planning database under `~/.copilot/planning-db`, sets planning persistence env vars for the local runtime, and keeps planning durability available by default without a separate database install.
+   - Desktop update and rollback behavior are governed by [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md).
 2. **Local server mode**
   - Start with `node copilot-ui/server.js` or the helper scripts in `scripts/cli-ui.*`.
-  - This is the developer fallback for backend work, scripted local inspection, and frontend iteration against a manually started backend.
+   - This is the developer fallback for backend work and scripted local inspection against a manually started backend.
   - Add `--sdk` to the helper scripts when Copilot SDK bridge access is required; the helper sets `COPILOT_SDK_BRIDGE=1` before launching Node.
-  - Serves the HTTP API on `127.0.0.1:3210` and keeps the normal dashboard UI behind a desktop-only startup token established by Electron.
-  - Plain browser requests to the raw server root are denied; use Electron for the supported dashboard runtime, or `ui:dev` when iterating on the frontend against the backend API.
+  - Serves the HTTP API on `127.0.0.1:3210` and keeps the normal dashboard UI behind a desktop-only startup token established by the packaged desktop shell.
+   - Plain browser requests to the raw server root are denied; use the packaged desktop app for the supported dashboard runtime, and use direct HTTP clients against `/api` for backend inspection.
 
   Backend startup keeps the managed-asset sync pass enabled by default, but it now runs in non-forcing mode so already up-to-date installs are not reinstalled on every launch. Set `INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC=1` to skip the startup pass entirely.
-
-The `copilot-ui` `ui:dev` script is frontend-only and requires the backend to already be running
-separately. During frontend work, the Vite dev server proxies `/api` to
-`http://127.0.0.1:3210` by default, and `COPILOT_UI_DEV_API_URL` overrides that backend target.
 
 ## What it owns
 
@@ -58,7 +58,7 @@ separately. During frontend work, the Vite dev server proxies `/api` to
 - repo-backed planning surfaces for plans, bullets, Repository Backlog, and Roadmaps, plus compatibility APIs for typed intake, external Obsidian note sync, deterministic mirrors, and planning-record artifacts
 - gateway readiness projection plus tracker operational/proxy surfaces
 - app-managed Copilot CLI ensure/install/update behavior for the packaged local desktop runtime
-- desktop lifecycle, updater wiring, and local runtime health reporting
+- desktop lifecycle, release metadata, and local runtime health reporting
 
 Catalog semantics and authoritative write paths are defined in [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md).
 
@@ -586,4 +586,5 @@ Use this guide as the canonical overview for current `copilot-ui` functionality.
 - Keep route semantics, tab inventory, runtime modes, and persistence boundaries here.
 - Keep catalog write-path and truth-hierarchy details in [[catalog-control-plane]] [docs/system/catalog-control-plane.md](docs/system/catalog-control-plane.md).
 - Keep updater rollback and kill-switch operations in [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md).
+- Keep the shell-neutral desktop runtime, packaged Windows resource layout, startup-token handoff, Tauri-first cutover status, and compatibility remainder in [[desktop-runtime-tauri-migration-contract]] [docs/system/desktop-runtime-tauri-migration-contract.md](docs/system/desktop-runtime-tauri-migration-contract.md).
 - Keep detailed session-artifact and progress-tracker contracts in [[session-state-artifacts]] [docs/system/session-state-artifacts.md](docs/system/session-state-artifacts.md).

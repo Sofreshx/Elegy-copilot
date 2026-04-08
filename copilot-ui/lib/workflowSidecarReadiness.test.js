@@ -83,6 +83,20 @@ async function waitFor(condition, timeoutMs) {
   throw new Error('Timed out waiting for condition.');
 }
 
+async function removeDirWithRetries(targetPath, attempts = 20) {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (!error || (error.code !== 'EBUSY' && error.code !== 'ENOTEMPTY') || attempt === attempts) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+}
+
 async function getFreePort() {
   return await new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -192,7 +206,7 @@ async function run() {
         });
       });
     } finally {
-      fs.rmSync(runtimeRoot, { recursive: true, force: true });
+      await removeDirWithRetries(runtimeRoot);
     }
   });
 
@@ -280,7 +294,7 @@ async function run() {
         });
       });
     } finally {
-      fs.rmSync(runtimeRoot, { recursive: true, force: true });
+      await removeDirWithRetries(runtimeRoot);
     }
   });
 

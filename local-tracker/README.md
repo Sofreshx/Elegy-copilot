@@ -1,6 +1,6 @@
 # Local Agent Tracker
 
-Lightweight Node.js service that runs locally alongside VS Code. By default it watches task file and git changes, forwards local state to connected surfaces, and exposes the local extension bridge. The Messaging Gateway is an optional companion runtime for people who want Discord/Telegram-based remote control.
+Lightweight Node.js service that runs locally alongside the desktop control plane. By default it watches task file and git changes, forwards local state to connected surfaces, and exposes local loopback runtime endpoints. The Messaging Gateway is an optional companion runtime for people who want Discord/Telegram-based remote control.
 
 ## Overview
 
@@ -16,7 +16,7 @@ legacy compatibility during migration, set `TRACKER_ENABLE_LEGACY_TASK_SURFACE=t
 watching that repo-local path as a bounded compatibility shim. The tracker now logs that opt-in
 explicitly so repo-local task watching is not mistaken for a peer authority.
 
-It also exposes a local WebSocket server (default `127.0.0.1:9821`) for the VS Code extension to connect to, plus a local-only status dashboard on `127.0.0.1:9822`.
+It also exposes a local WebSocket server (default `127.0.0.1:9821`) for local runtime clients plus a local-only status dashboard on `127.0.0.1:9822`.
 
 The tracker stays loopback-only for these local surfaces. Obsidian monitoring only reads local files and
 broadcasts the resulting events to connected local clients; it does not open any additional remote
@@ -24,7 +24,7 @@ listener.
 
 ## Optional Messaging Gateway
 
-If you want a separate remote-control surface, the Messaging Gateway can be started independently of the default tracker process. Core tracking, repo-state watching, and the VS Code extension bridge do **not** require it.
+If you want a separate remote-control surface, the Messaging Gateway can be started independently of the default tracker process. Core tracking, repo-state watching, and the local runtime endpoints do **not** require it.
 
 For the optional Messaging Gateway docs, see:
 - [docs/messaging-gateway.md](docs/messaging-gateway.md)

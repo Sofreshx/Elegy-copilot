@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "platform": "windows",
+  "shell": "tauri",
+  "status": "windows_release_preview_lane_ready",
+  "resourceRoot": ".",
+  "workflowSidecarPosture": "bundled_default_disabled",
+  "releaseLane": {
+    "packaging": "windows_nsis_preview_installer",
+    "updateMode": "manual_installer",
+    "autoUpdateEnabled": false,
+    "failClosedChannelPolicy": true
+  },
+  "nodeRuntime": {
+    "relativePath": "node/node.exe",
+    "provisioning": "bundle_at_tauri_package_time",
+    "hostInstalledNodeAllowed": false
+  },
+  "entrypoints": {
+    "server": "copilot-ui/server.js",
+    "gateway": "local-tracker/dist/messagingGateway/index.js",
+    "workflowSidecar": "local-tracker/dist/messagingGateway/workflowSidecar.js"
+  },
+  "resourceCopies": [
+    {
+      "id": "copilot-ui-server",
+      "kind": "file",
+      "source": "server.js",
+      "target": "copilot-ui/server.js"
+    },
+    {
+      "id": "copilot-ui-lib",
+      "kind": "directory",
+      "source": "lib",
+      "target": "copilot-ui/lib"
+    },
+    {
+      "id": "copilot-ui-routes",
+      "kind": "directory",
+      "source": "routes",
+      "target": "copilot-ui/routes"
+    },
+    {
+      "id": "copilot-ui-public",
+      "kind": "directory",
+      "source": "public",
+      "target": "copilot-ui/public"
+    },
+    {
+      "id": "copilot-ui-ui-dist",
+      "kind": "directory",
+      "source": "ui-dist",
+      "target": "copilot-ui/ui-dist"
+    },
+    {
+      "id": "copilot-ui-package-json",
+      "kind": "file",
+      "source": "package.json",
+      "target": "copilot-ui/package.json"
+    },
+    {
+      "id": "copilot-cli",
+      "kind": "directory",
+      "source": "resources/copilot-cli",
+      "target": "copilot-cli"
+    },
+    {
+      "id": "engine-assets",
+      "kind": "directory",
+      "source": "../engine-assets",
+      "target": "engine-assets"
+    },
+    {
+      "id": "cli-policy",
+      "kind": "directory",
+      "source": "../.cli/policy",
+      "target": ".cli/policy",
+      "filter": [
+        "pipeline-policy.lock.json"
+      ]
+    },
+    {
+      "id": "local-tracker-dist",
+      "kind": "directory",
+      "source": "../local-tracker/dist",
+      "target": "local-tracker/dist"
+    },
+    {
+      "id": "local-tracker-node-modules",
+      "kind": "directory",
+      "source": "../local-tracker/node_modules",
+      "target": "local-tracker/node_modules"
+    },
+    {
+      "id": "local-tracker-package-json",
+      "kind": "file",
+      "source": "../local-tracker/package.json",
+      "target": "local-tracker/package.json"
+    },
+    {
+      "id": "scripts",
+      "kind": "directory",
+      "source": "../scripts",
+      "target": "scripts",
+      "filter": [
+        "cli-*.ps1",
+        "cli-*.sh",
+        "mcp-env.ps1",
+        "mcp-env.sh",
+        "validate-policy-lockfiles.js",
+        "vscode-settings-patch.mjs"
+      ]
+    },
+    {
+      "id": "runtime-manifests",
+      "kind": "directory",
+      "source": "resources/runtime-manifests",
+      "target": "runtime-manifests",
+      "filter": [
+        "windows-tauri-node-sidecar.json"
+      ]
+    }
+  ],
+  "nodeModulePayload": {
+    "manifest": "package.json",
+    "sourceRoot": "node_modules",
+    "targetRoot": "copilot-ui/node_modules",
+    "installStrategy": "production_package_install",
+    "requiredRuntimePackages": [
+      "@electric-sql/pglite",
+      "@elegy-copilot/contracts",
+      "@github/copilot-sdk",
+      "pg"
+    ]
+  },
+  "pglite": {
+    "sourceDist": "node_modules/@electric-sql/pglite/dist",
+    "targetDist": "copilot-ui/node_modules/@electric-sql/pglite/dist",
+    "requiredFiles": [
+      "index.cjs",
+      "pglite.wasm",
+      "pglite.data",
+      "initdb.wasm"
+    ],
+    "mustRemainFilesystemReadable": true,
+    "electronCompatibility": {
+      "asarUnpackGlob": "node_modules/@electric-sql/pglite/dist/**"
+    }
+  },
+  "packagingNotes": [
+    "The first Windows-first Tauri shell bootstrap resolves localhost runtime assets through the Tauri resource/app-path seam.",
+    "The Tauri shell must resolve bundled paths through app resource APIs instead of inferring them from the executable path.",
+    "Packaged resources are read-only app assets; mutable runtime state stays rooted under ~/.copilot.",
+    "The workflow sidecar payload remains bundled for parity validation while staying default-disabled until lifecycle binding is complete."
+  ]
+}

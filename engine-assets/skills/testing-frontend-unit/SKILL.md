@@ -63,6 +63,6 @@ description: "Frontend unit/component testing (React/Vue/Angular). Use this when
 ## Session Summary Format
 - **Done**: [tests written]
 - **Changes**: [files modified]
-- **Next**: [optional: add integration tests only if user requests]
+- **Next**: [optional: add higher-layer validation if policy, risk, or coverage gaps require it]
 
 

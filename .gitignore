@@ -12,9 +12,13 @@ dist/
 build/
 out/
 coverage/
-copilot-ui/release/
-copilot-ui/ui-dist/
+release-artifacts/
 copilot-ui/dist-electron/
+copilot-ui/lib/desktop-shell/
+copilot-ui/release/
+copilot-ui/src-tauri/gen/resources/
+copilot-ui/src-tauri/target/
+copilot-ui/ui-dist/
 
 # Environment & Logs
 .env

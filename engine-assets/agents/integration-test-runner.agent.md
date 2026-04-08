@@ -39,6 +39,9 @@ Integration tests validate system boundaries and critical flows, not exhaustive 
 - If a run hangs, stop and report the last known step or artifact state. Retry at most once, and only with a narrower or materially adjusted command.
 - If artifact verification is missing after exit code 0, return `inconclusive` instead of rerunning by default.
 
+## Skill References (Use When Applicable)
+- For Node.js integration test runs using the test ledger wrapper, follow `test-caching-verification` **(mandatory)** — extract and verify evidence files after every run.
+
 ## Output Format
 ```yaml
 status: passed | failed | timeout | error | inconclusive
@@ -53,7 +56,8 @@ notes: "<short notes or blockers>"
 ```
 
 ## Artifact Verification
-- Always use `--logger trx` for .NET tests.
-- After execution, verify the TRX file exists in `TestResults/`.
-- Parse TRX output for `total`, `passed`, `failed` counts.
-- Exit code 0 alone is NOT sufficient — parsed artifact data is required. If no TRX produced, set `status: inconclusive`.
+- For .NET tests, always use `--logger trx`.
+- For .NET tests, after execution, verify the TRX file exists in `TestResults/`.
+- For .NET tests, parse TRX output for `total`, `passed`, `failed` counts.
+- For .NET tests, exit code 0 alone is NOT sufficient — parsed artifact data is required. If no TRX produced, set `status: inconclusive`.
+- For Node.js integration test runs using the test ledger wrapper, verify the emitted evidence marker and evidence file per `test-caching-verification`; if the evidence is missing or invalid, set `status: inconclusive`.

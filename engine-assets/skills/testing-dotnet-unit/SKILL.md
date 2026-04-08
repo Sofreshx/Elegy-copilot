@@ -11,14 +11,14 @@ description: "Backend unit testing for .NET (xUnit + NSubstitute + Shouldly + Au
 - Refactoring backend code where behavior must remain stable
 
 ## When NOT to Use
-- User explicitly asks for integration tests → use `alba-integration-tests` (write only; run only on explicit request)
+- Higher-layer validation is needed → use `alba-integration-tests` via the proper validation lane when policy, risk, or coverage gaps require it
 - Frontend unit tests → use `testing-frontend-unit`
 - Debugging failing tests due to runtime/environment → use `debug`
 
 ## Principles (Org Defaults)
 - Prefer **unit tests** over integration tests for most logic.
 - Keep tests fast, deterministic, and isolated.
-- Avoid real network, real DB, real filesystem unless the user explicitly wants integration.
+- Avoid real network, real DB, real filesystem unless higher-layer validation is warranted by policy, risk, or coverage gaps; route that work through the proper validation lane.
 - Follow `docs/system/testing-quality-governance.md`: passing tests are evidence, not the objective.
 - Before finalizing scope, enumerate meaningful success, failure, edge, and adversarial cases for the unit under test.
 - Do not weaken, narrow, or remove tests merely to get green. If an assertion or hard-case input must be removed or relaxed, add replacement coverage that preserves or improves confidence.

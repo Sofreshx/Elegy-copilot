@@ -22,7 +22,7 @@ Guide completion of development work by presenting clear options and handling ch
 - Identify which validation layers were required for this work using:
   - `docs/system/validation-governance.md`
   - `docs/system/testing-quality-governance.md`
-- Confirm the latest pass/fail signal came from a validation-specific lane or coordinator.
+- Confirm the latest pass/fail signal came from the validation runner lane; if a coordinator was involved, treat its output as routing metadata only.
 - Confirm any direct test command was executed by that validation lane as its narrow execution mechanism, not by an implementation/controller lane claiming closure on its own.
 - If tests changed, confirm the evidence still preserves meaningful confidence rather than only showing green output from weakened coverage.
 - Record any explicit coverage gaps or limitations that must be carried into closure.
@@ -38,7 +38,7 @@ Cannot finish yet. Validation evidence is not sufficient for closure:
 - Current evidence: <what actually exists>
 - Gap: <missing runner evidence, failing results, or quality concern>
 
-Route the required scope through the validation runner/coordinator before proceeding.
+Route the required scope through the validation coordinator/runner flow before proceeding, and wait for actual runner evidence.
 ```
 
 Stop. Don't proceed to Step 2.
@@ -85,10 +85,10 @@ git pull
 # Merge feature branch
 git merge <feature-branch>
 
-# Request post-merge validation through the dedicated validation lane/coordinator
-# using the narrowest required scope for the merged result
+# Request post-merge validation through the dedicated validation coordinator/runner flow
+# using the narrowest required scope for the merged result, then review runner evidence
 
-# If required post-merge validation passes
+# If required post-merge runner evidence is acceptable
 git branch -d <feature-branch>
 ```
 

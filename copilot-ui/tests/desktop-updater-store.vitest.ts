@@ -57,7 +57,7 @@ describe('desktopUpdaterStore', () => {
       configurable: true,
       value: {
         platform: 'win32',
-        electronVersion: '33.2.0',
+        shell: 'tauri',
         updater,
       },
     });

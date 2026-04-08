@@ -1722,7 +1722,80 @@ Structured-state should keep review and framing metadata even without tracker se
     assert.equal(body.meta.closureSummary.reviewVerdict, 'APPROVED');
   });
 
-  await test('GET /api/sessions/:id/final remains a compatibility read-only surface', async () => {
+  await test('GET /api/sessions/:id/final prefers derived compatibility closeout over raw final.md when structured closeout is available', async () => {
+    const routes = register({
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe(targetPath) {
+          if (String(targetPath).endsWith('final.md')) {
+            return '## Summary\n- Compatibility-only final artifact.\n';
+          }
+          if (String(targetPath).endsWith('execution-state.json')) {
+            return JSON.stringify({
+              schemaVersion: 'execution-state-v1',
+              lifecycle: 'closed',
+              status: 'completed',
+              summary: 'Structured closeout should override the legacy final artifact.',
+            });
+          }
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            meta: {
+              closureSummary: {
+                summary: 'Structured closeout should override the legacy final artifact.',
+                outcome: 'completed',
+                validationRequirements: [
+                  'integration: Preserve the canonical validation requirements section.',
+                ],
+                validationCoverage: [
+                  'unit: Preserve the canonical tested coverage section.',
+                ],
+                coverageGaps: [
+                  'integration: Cross-boundary validation still needs follow-up.',
+                ],
+              },
+              executionState: {
+                lifecycle: 'closed',
+                status: 'completed',
+                summary: 'Structured closeout should override the legacy final artifact.',
+              },
+            },
+          };
+        },
+      },
+      readPlanArtifact() {
+        return '# Plan Pack\n';
+      },
+    });
+
+    const res = createResponse();
+    const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
+    const { route, match } = findRoute(routes, 'GET', u.pathname);
+    route.handler({
+      copilotHome: 'C:/copilot',
+      vscodeHome: 'C:/vscode',
+      sandboxesHome: 'C:/sandboxes',
+      req: { __body: {} },
+      res,
+      u,
+      match,
+      pathname: u.pathname,
+    });
+    await sleep(0);
+
+    assert.equal(res.statusCode, 200);
+    assert.match(res.bodyText, /## Summary\r?\n- Structured closeout should override the legacy final artifact\./);
+    assert.match(res.bodyText, /## Validation Requirements\r?\n- integration: Preserve the canonical validation requirements section\./);
+    assert.match(res.bodyText, /## Tested Coverage\r?\n- unit: Preserve the canonical tested coverage section\./);
+    assert.match(res.bodyText, /## Coverage Gaps\r?\n- integration: Cross-boundary validation still needs follow-up\./);
+    assert.ok(!res.bodyText.includes('Compatibility-only final artifact.'));
+  });
+
+  await test('GET /api/sessions/:id/final falls back to raw final.md when no derived compatibility closeout is available', async () => {
     const routes = register({
       fs: createSessionFs(),
       assets: {
@@ -1732,6 +1805,24 @@ Structured-state should keep review and framing metadata even without tracker se
           }
           return null;
         },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            meta: {
+              closureSummary: {
+                outcome: 'completed',
+              },
+              executionState: {
+                lifecycle: 'closed',
+                status: 'completed',
+              },
+            },
+          };
+        },
+      },
+      readPlanArtifact() {
+        return '# Plan Pack\n';
       },
     });
 
@@ -1752,6 +1843,56 @@ Structured-state should keep review and framing metadata even without tracker se
 
     assert.equal(res.statusCode, 200);
     assert.equal(res.bodyText, '## Summary\n- Compatibility-only final artifact.\n');
+  });
+
+  await test('GET /api/sessions/:id/final falls back to raw final.md when compatibility derivation throws after the legacy artifact is loaded', async () => {
+    const assetReads = [];
+    const routes = register({
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe(targetPath) {
+          assetReads.push(String(targetPath));
+          if (String(targetPath).endsWith('final.md')) {
+            return '## Summary\n- Compatibility-only final artifact.\n';
+          }
+          if (String(targetPath).endsWith('execution-state.json')) {
+            return JSON.stringify({
+              schemaVersion: 'execution-state-v1',
+              lifecycle: 'closed',
+              status: 'completed',
+            });
+          }
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          throw new Error('structured closeout derivation failed');
+        },
+      },
+      readPlanArtifact() {
+        return '# Plan Pack\n';
+      },
+    });
+
+    const res = createResponse();
+    const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
+    const { route, match } = findRoute(routes, 'GET', u.pathname);
+    route.handler({
+      copilotHome: 'C:/copilot',
+      vscodeHome: 'C:/vscode',
+      sandboxesHome: 'C:/sandboxes',
+      req: { __body: {} },
+      res,
+      u,
+      match,
+      pathname: u.pathname,
+    });
+    await sleep(0);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.bodyText, '## Summary\n- Compatibility-only final artifact.\n');
+    assert.ok(assetReads.some((targetPath) => targetPath.endsWith('final.md')));
   });
 
   await test('GET /api/sessions/:id/final derives a compatibility closeout from structured state when final.md is absent', async () => {
@@ -1832,6 +1973,417 @@ NONE — terminal execution already completed
     assert.ok(!res.bodyText.includes('Resume stale handoff follow-up'));
     assert.ok(assetReads.some((targetPath) => targetPath.endsWith('final.md')));
     assert.ok(assetReads.some((targetPath) => targetPath.endsWith('execution-state.json')));
+  });
+
+  await test('GET /api/sessions/:id/final preserves canonical validation sections when structured closure data provides them', async () => {
+    const routes = register({
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe() {
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            meta: {
+              closureSummary: {
+                summary: 'Compatibility closeout preserves validation governance buckets.',
+                outcome: 'completed',
+                validationRequirements: [
+                  'integration: Required for this cross-boundary workflow slice.',
+                ],
+                validationCoverage: [
+                  'unit: Focused unit coverage recorded for the compatibility formatter.',
+                ],
+                coverageGaps: [
+                  'integration: Cross-boundary validation did not run in this session.',
+                ],
+                validationEvidence: [
+                  'Review ledger verdict: APPROVED.',
+                ],
+              },
+              executionState: {
+                lifecycle: 'closed',
+                status: 'completed',
+                summary: 'Compatibility closeout preserves validation governance buckets.',
+              },
+            },
+          };
+        },
+      },
+      readPlanArtifact() {
+        return '# Plan Pack\n';
+      },
+    });
+
+    const res = createResponse();
+    const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
+    const { route, match } = findRoute(routes, 'GET', u.pathname);
+    route.handler({
+      copilotHome: 'C:/copilot',
+      vscodeHome: 'C:/vscode',
+      sandboxesHome: 'C:/sandboxes',
+      req: { __body: {} },
+      res,
+      u,
+      match,
+      pathname: u.pathname,
+    });
+    await sleep(0);
+
+    assert.equal(res.statusCode, 200);
+    assert.match(res.bodyText, /## Validation Requirements\r?\n- integration: Required for this cross-boundary workflow slice\./);
+    assert.match(res.bodyText, /## Tested Coverage\r?\n- unit: Focused unit coverage recorded for the compatibility formatter\./);
+    assert.match(res.bodyText, /## Coverage Gaps\r?\n- integration: Cross-boundary validation did not run in this session\./);
+    assert.match(res.bodyText, /## Validation Evidence\r?\n- Review ledger verdict: APPROVED\./);
+  });
+
+  await test('GET /api/sessions/:id/final keeps not-required validation entries informational without synthesizing gaps', async () => {
+    const routes = register({
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe() {
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            meta: {
+              closureSummary: {
+                summary: 'Compatibility closeout should preserve waived validation without inventing gaps.',
+                outcome: 'completed',
+                validationRequirements: [
+                  'browser: Not required for this non-UI workflow slice.',
+                ],
+                validationCoverage: [],
+                coverageGaps: [],
+              },
+              executionState: {
+                lifecycle: 'closed',
+                status: 'completed',
+                summary: 'Compatibility closeout should preserve waived validation without inventing gaps.',
+              },
+            },
+          };
+        },
+      },
+      readPlanArtifact() {
+        return '# Plan Pack\n';
+      },
+    });
+
+    const res = createResponse();
+    const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
+    const { route, match } = findRoute(routes, 'GET', u.pathname);
+    route.handler({
+      copilotHome: 'C:/copilot',
+      vscodeHome: 'C:/vscode',
+      sandboxesHome: 'C:/sandboxes',
+      req: { __body: {} },
+      res,
+      u,
+      match,
+      pathname: u.pathname,
+    });
+    await sleep(0);
+
+    assert.equal(res.statusCode, 200);
+    assert.match(res.bodyText, /## Validation Requirements\r?\n- browser: Not required for this non-UI workflow slice\./);
+    assert.ok(!res.bodyText.includes('## Tested Coverage'));
+    assert.ok(!res.bodyText.includes('## Coverage Gaps'));
+    assert.ok(!res.bodyText.includes('Required validation coverage is still missing.'));
+  });
+
+  await test('GET /api/sessions/:id/final explicitly calls out missing required validation coverage', async () => {
+    const routes = register({
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe() {
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            meta: {
+              closureSummary: {
+                summary: 'Compatibility closeout must stay explicit when required validation is missing.',
+                outcome: 'paused',
+                validationRequirements: [
+                  'integration: Required before this workflow can be treated as complete.',
+                ],
+                validationCoverage: [],
+                coverageGaps: [],
+                blockers: [
+                  'Mandatory validation is required but persisted validation coverage is incomplete.',
+                ],
+              },
+              executionState: {
+                lifecycle: 'finished',
+                status: 'completed',
+                summary: 'Compatibility closeout must stay explicit when required validation is missing.',
+              },
+            },
+          };
+        },
+      },
+      readPlanArtifact() {
+        return '# Plan Pack\n';
+      },
+    });
+
+    const res = createResponse();
+    const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
+    const { route, match } = findRoute(routes, 'GET', u.pathname);
+    route.handler({
+      copilotHome: 'C:/copilot',
+      vscodeHome: 'C:/vscode',
+      sandboxesHome: 'C:/sandboxes',
+      req: { __body: {} },
+      res,
+      u,
+      match,
+      pathname: u.pathname,
+    });
+    await sleep(0);
+
+    assert.equal(res.statusCode, 200);
+    assert.match(res.bodyText, /## Validation Requirements\r?\n- integration: Required before this workflow can be treated as complete\./);
+    assert.match(res.bodyText, /## Tested Coverage\r?\n- None recorded\./);
+    assert.match(
+      res.bodyText,
+      /## Coverage Gaps\r?\n- Mandatory validation is required but persisted validation coverage is incomplete\.\r?\n- integration: Required validation coverage is still missing\./,
+    );
+  });
+
+  await test('GET /api/sessions/:id/final keeps labeled mandatory requirements explicit when unrelated coverage exists', async () => {
+    const routes = register({
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe() {
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            meta: {
+              closureSummary: {
+                summary: 'Compatibility closeout must keep labeled required validation visible.',
+                outcome: 'paused',
+                validationRequirements: [
+                  'integration: Required before this workflow can be treated as complete.',
+                ],
+                validationCoverage: [
+                  'unit: Focused unit coverage recorded for the compatibility formatter.',
+                ],
+                coverageGaps: [],
+              },
+              executionState: {
+                lifecycle: 'finished',
+                status: 'completed',
+                summary: 'Compatibility closeout must keep labeled required validation visible.',
+              },
+            },
+          };
+        },
+      },
+      readPlanArtifact() {
+        return '# Plan Pack\n';
+      },
+    });
+
+    const res = createResponse();
+    const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
+    const { route, match } = findRoute(routes, 'GET', u.pathname);
+    route.handler({
+      copilotHome: 'C:/copilot',
+      vscodeHome: 'C:/vscode',
+      sandboxesHome: 'C:/sandboxes',
+      req: { __body: {} },
+      res,
+      u,
+      match,
+      pathname: u.pathname,
+    });
+    await sleep(0);
+
+    assert.equal(res.statusCode, 200);
+    assert.match(res.bodyText, /## Validation Requirements\r?\n- integration: Required before this workflow can be treated as complete\./);
+    assert.match(res.bodyText, /## Tested Coverage\r?\n- unit: Focused unit coverage recorded for the compatibility formatter\./);
+    assert.match(res.bodyText, /## Coverage Gaps\r?\n- integration: Required validation coverage is still missing\./);
+  });
+
+  await test('GET /api/sessions/:id/final keeps unlabeled mandatory requirements explicit when other coverage exists', async () => {
+    const routes = register({
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe() {
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            meta: {
+              closureSummary: {
+                summary: 'Compatibility closeout must keep unlabeled required validation visible.',
+                outcome: 'paused',
+                validationRequirements: [
+                  'Required before this workflow can be treated as complete.',
+                ],
+                validationCoverage: [
+                  'unit: Focused unit coverage recorded for the compatibility formatter.',
+                ],
+                coverageGaps: [],
+              },
+              executionState: {
+                lifecycle: 'finished',
+                status: 'completed',
+                summary: 'Compatibility closeout must keep unlabeled required validation visible.',
+              },
+            },
+          };
+        },
+      },
+      readPlanArtifact() {
+        return '# Plan Pack\n';
+      },
+    });
+
+    const res = createResponse();
+    const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
+    const { route, match } = findRoute(routes, 'GET', u.pathname);
+    route.handler({
+      copilotHome: 'C:/copilot',
+      vscodeHome: 'C:/vscode',
+      sandboxesHome: 'C:/sandboxes',
+      req: { __body: {} },
+      res,
+      u,
+      match,
+      pathname: u.pathname,
+    });
+    await sleep(0);
+
+    assert.equal(res.statusCode, 200);
+    assert.match(res.bodyText, /## Validation Requirements\r?\n- Required before this workflow can be treated as complete\./);
+    assert.match(res.bodyText, /## Tested Coverage\r?\n- unit: Focused unit coverage recorded for the compatibility formatter\./);
+    assert.match(res.bodyText, /## Coverage Gaps\r?\n- Unlabeled mandatory validation requirement remains unresolved: Required before this workflow can be treated as complete\./);
+  });
+
+  await test('GET /api/sessions/:id/final promotes blocker-only validation gaps when requirements are absent', async () => {
+    const routes = register({
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe() {
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            meta: {
+              closureSummary: {
+                summary: 'Compatibility closeout must surface blocker-only validation gaps.',
+                outcome: 'paused',
+                validationRequirements: [],
+                validationCoverage: [],
+                coverageGaps: [],
+                blockers: [
+                  'browser: Browser-driven validation did not run in this session.',
+                ],
+              },
+              executionState: {
+                lifecycle: 'finished',
+                status: 'completed',
+                summary: 'Compatibility closeout must surface blocker-only validation gaps.',
+              },
+            },
+          };
+        },
+      },
+      readPlanArtifact() {
+        return '# Plan Pack\n';
+      },
+    });
+
+    const res = createResponse();
+    const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
+    const { route, match } = findRoute(routes, 'GET', u.pathname);
+    route.handler({
+      copilotHome: 'C:/copilot',
+      vscodeHome: 'C:/vscode',
+      sandboxesHome: 'C:/sandboxes',
+      req: { __body: {} },
+      res,
+      u,
+      match,
+      pathname: u.pathname,
+    });
+    await sleep(0);
+
+    assert.equal(res.statusCode, 200);
+    assert.ok(!res.bodyText.includes('## Validation Requirements'));
+    assert.match(res.bodyText, /## Tested Coverage\r?\n- None recorded\./);
+    assert.match(res.bodyText, /## Coverage Gaps\r?\n- browser: Browser-driven validation did not run in this session\./);
+  });
+
+  await test('GET /api/sessions/:id/final keeps legacy validation evidence output when canonical buckets are absent', async () => {
+    const routes = register({
+      fs: createSessionFs(),
+      assets: {
+        readTextFileSafe() {
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState() {
+          return {
+            meta: {
+              closureSummary: {
+                summary: 'Compatibility closeout still supports legacy evidence-only sessions.',
+                outcome: 'completed',
+                validationEvidence: [
+                  'Legacy validation evidence remains visible.',
+                ],
+              },
+              executionState: {
+                lifecycle: 'closed',
+                status: 'completed',
+                summary: 'Compatibility closeout still supports legacy evidence-only sessions.',
+              },
+            },
+          };
+        },
+      },
+      readPlanArtifact() {
+        return '# Plan Pack\n';
+      },
+    });
+
+    const res = createResponse();
+    const u = new URL('http://127.0.0.1/api/sessions/session-123/final');
+    const { route, match } = findRoute(routes, 'GET', u.pathname);
+    route.handler({
+      copilotHome: 'C:/copilot',
+      vscodeHome: 'C:/vscode',
+      sandboxesHome: 'C:/sandboxes',
+      req: { __body: {} },
+      res,
+      u,
+      match,
+      pathname: u.pathname,
+    });
+    await sleep(0);
+
+    assert.equal(res.statusCode, 200);
+    assert.match(res.bodyText, /## Validation Evidence\r?\n- Legacy validation evidence remains visible\./);
+    assert.ok(!res.bodyText.includes('## Validation Requirements'));
+    assert.ok(!res.bodyText.includes('## Tested Coverage'));
+    assert.ok(!res.bodyText.includes('## Coverage Gaps'));
   });
 
   await test('GET /api/sessions/:id/final does not derive compatibility closeout from non-terminal closure summaries alone', async () => {

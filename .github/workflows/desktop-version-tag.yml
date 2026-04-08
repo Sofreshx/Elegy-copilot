@@ -28,17 +28,14 @@ jobs:
         run: |
           set -euo pipefail
           expected_repo="$(python - <<'PY'
+          import json
           import pathlib
-          import re
 
-          text = pathlib.Path('copilot-ui/electron-builder.yml').read_text(encoding='utf-8')
-          owner = re.search(r'(?m)^  owner:\s*(.+?)\s*$', text)
-          repo = re.search(r'(?m)^  repo:\s*(.+?)\s*$', text)
-          if not owner or not repo:
-              raise SystemExit('Could not resolve publish owner/repo from copilot-ui/electron-builder.yml')
-          def clean(value):
-              return value.strip().strip('"').strip("'")
-          print(f"{clean(owner.group(1))}/{clean(repo.group(1))}")
+          package_json = json.loads(pathlib.Path('copilot-ui/package.json').read_text(encoding='utf-8'))
+          publish_repository = ((package_json.get('desktopRelease') or {}).get('publishRepository') or '').strip()
+          if not publish_repository:
+              raise SystemExit('Could not resolve desktopRelease.publishRepository from copilot-ui/package.json')
+          print(publish_repository)
           PY
           )"
           if [[ "${expected_repo}" != "${GITHUB_REPOSITORY}" ]]; then

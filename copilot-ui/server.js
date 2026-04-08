@@ -3605,7 +3605,7 @@ function denyDesktopUiAccess(res) {
   sendText(
     res,
     403,
-    'Desktop UI access is restricted to the Electron runtime. Start the desktop app for the dashboard, or use /api routes when running the raw server.'
+    'Desktop UI access is restricted to the packaged desktop runtime. Start the desktop app for the dashboard, or use /api routes when running the raw server.'
   );
 }
 

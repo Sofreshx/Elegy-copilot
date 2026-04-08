@@ -1,6 +1,6 @@
 ---
 created: 2026-03-09
-updated: 2026-03-16
+updated: 2026-04-08
 category: system
 status: current
 doc_kind: node
@@ -31,8 +31,7 @@ deterministic view of the world.
 - deterministic skill search plus bounded search telemetry
 - asset audit events, analytics rollups, and runtime health reporting
 
-The retired `RannIA` extension was an in-editor consumer of the same catalog semantics; active
-management now lives in `copilot-ui`.
+Active catalog management lives in `copilot-ui`.
 
 ## Truth hierarchy and storage
 
@@ -261,8 +260,10 @@ node scripts/skill-search.test.js
 
 Desktop-packaging note:
 
-- Treat packaged Electron distribution as an optional maintainer release lane layered on top of this
-  local control plane, not as the default release expectation for routine repo changes.
+- Treat packaged desktop distribution as an optional maintainer release lane layered on top of this
+  local control plane, not as the default release expectation for routine repo changes. The approved
+  desktop migration target is tracked in [[desktop-runtime-tauri-migration-contract]]
+  [docs/system/desktop-runtime-tauri-migration-contract.md](docs/system/desktop-runtime-tauri-migration-contract.md).
 
 ## Current limitations / honest drift
 

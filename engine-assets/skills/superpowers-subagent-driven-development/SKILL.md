@@ -5,11 +5,11 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching a fresh implementer subagent per task, routing test execution through a dedicated validation runner lane, keeping two-stage review after each, and handing final closure only dedicated validation evidence plus explicit coverage gaps.
+Execute plan by dispatching a fresh implementer subagent per task, proving RED/GREEN through a dedicated validation runner lane when TDD is in force, keeping two-stage review after each, and handing final closure only dedicated validation evidence plus explicit coverage gaps.
 
 **Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
 
-**Core principle:** Fresh implementer per task + dedicated validation runner + two-stage review (spec then quality) + validation-governed closure = high quality, fast iteration
+**Core principle:** Fresh implementer per task + delegated RED/GREEN runner evidence + two-stage review (spec then quality) + validation-governed closure = high quality, fast iteration
 
 ## When to Use
 
@@ -49,8 +49,13 @@ digraph process {
         "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
-        "Implementer subagent implements, writes tests, self-reviews, requests validation scope, commits" [shape=box];
-        "Dispatch validation runner lane (pre-review)" [shape=box];
+        "TDD explicitly waived for this task?" [shape=diamond];
+        "Implementer prepares RED test/check + expected failure signal" [shape=box];
+        "Dispatch validation runner lane (RED)" [shape=box];
+        "Expected RED failure observed?" [shape=diamond];
+        "Implementer adjusts RED coverage or records waiver" [shape=box];
+        "Implementer finishes task, self-reviews, requests GREEN validation, commits" [shape=box];
+        "Dispatch validation runner lane (GREEN pre-review)" [shape=box];
         "Validation runner passes before review?" [shape=diamond];
         "Implementer subagent fixes validation failures" [shape=box];
         "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [shape=box];
@@ -76,11 +81,18 @@ digraph process {
     "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, writes tests, self-reviews, requests validation scope, commits" [label="no"];
-    "Implementer subagent implements, writes tests, self-reviews, requests validation scope, commits" -> "Dispatch validation runner lane (pre-review)";
-    "Dispatch validation runner lane (pre-review)" -> "Validation runner passes before review?";
+    "Implementer subagent asks questions?" -> "TDD explicitly waived for this task?" [label="no"];
+    "TDD explicitly waived for this task?" -> "Implementer prepares RED test/check + expected failure signal" [label="no"];
+    "TDD explicitly waived for this task?" -> "Implementer finishes task, self-reviews, requests GREEN validation, commits" [label="yes"];
+    "Implementer prepares RED test/check + expected failure signal" -> "Dispatch validation runner lane (RED)";
+    "Dispatch validation runner lane (RED)" -> "Expected RED failure observed?";
+    "Expected RED failure observed?" -> "Implementer adjusts RED coverage or records waiver" [label="no"];
+    "Implementer adjusts RED coverage or records waiver" -> "TDD explicitly waived for this task?" [label="retry or waive"];
+    "Expected RED failure observed?" -> "Implementer finishes task, self-reviews, requests GREEN validation, commits" [label="yes"];
+    "Implementer finishes task, self-reviews, requests GREEN validation, commits" -> "Dispatch validation runner lane (GREEN pre-review)";
+    "Dispatch validation runner lane (GREEN pre-review)" -> "Validation runner passes before review?";
     "Validation runner passes before review?" -> "Implementer subagent fixes validation failures" [label="no"];
-    "Implementer subagent fixes validation failures" -> "Dispatch validation runner lane (pre-review)" [label="re-run"];
+    "Implementer subagent fixes validation failures" -> "Dispatch validation runner lane (GREEN pre-review)" [label="re-run"];
     "Validation runner passes before review?" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="yes"];
     "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
     "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
@@ -120,15 +132,25 @@ Use the least powerful model that can handle each role to conserve cost and incr
 - Touches multiple files with integration concerns → standard model
 - Requires design judgment or broad codebase understanding → most capable model
 
+## Delegated RED/GREEN Loop
+
+Treat TDD as the default only when the workflow can produce delegated evidence for it.
+
+1. **Default mode: evidence-backed TDD.** For executable behavior changes, the controller first asks the implementer for the narrowest RED package: the failing test/check to add or update, the exact validation-runner command, and the expected failure signal.
+2. **RED must come from the runner lane.** The controller dispatches the dedicated validation runner and captures the failing output. If the runner does not fail for the expected reason, the controller does not claim TDD happened yet.
+3. **Only after RED evidence does GREEN work start.** Re-dispatch the implementer with the RED evidence so it can make the minimum change, self-review, and request GREEN validation.
+4. **GREEN must also come from the runner lane.** Only dedicated validation-runner pass evidence unlocks review.
+5. **Waivers must be explicit.** If the task is docs-only, pure scaffolding, a refactor with already-sufficient failing coverage, or otherwise not practical for a fresh RED step, the controller may waive TDD — but it must record that waiver and stop describing the slice as evidence-backed TDD.
+
 ## Validation Boundary
 
 Keep the execution boundary explicit:
 
-- **Implementer lane:** changes code, adds or updates tests, self-reviews, and proposes the narrowest validation scope needed to verify the task.
+- **Implementer lane:** changes code, adds or updates tests, prepares RED or GREEN validation requests, self-reviews, and proposes the narrowest validation scope needed to verify the task.
 - **Validation runner lane:** executes the requested test commands or checks and returns raw results. This lane does **not** modify code.
-- **Controller lane:** decides what validation to request, dispatches the runner, and only advances to review once validation results are back and acceptable.
+- **Controller lane:** decides whether TDD is active or explicitly waived, dispatches RED/GREEN runner requests, and only advances to review once GREEN validation results are back and acceptable.
 
-**Never treat implementer-reported "tests passed" as authoritative.** The implementer can say what should be run, but the actual pass/fail signal must come from the dedicated validation runner lane.
+**Never treat implementer-reported "tests passed" as authoritative.** The implementer can say what should be run, but both the RED fail signal and the GREEN pass signal must come from the dedicated validation runner lane whenever TDD is in force.
 
 Before final closure, assemble a small validation handoff for the finisher workflow:
 
@@ -143,9 +165,12 @@ Do not hand the finisher workflow a bare "all tests pass" summary. Hand it the v
 
 Implementer subagents report one of four statuses. Handle each appropriately:
 
-**DONE:** The implementer finished coding and supplied a validation request. Dispatch the dedicated validation runner next. Only proceed to spec compliance review after validation passes.
+**DONE:** Read the reported phase.
 
-**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to validation, then review.
+- If the phase is `RED_READY`, dispatch the dedicated validation runner for the expected failing check. Only move on once you have real RED evidence or you explicitly waive TDD for this slice.
+- If the phase is `GREEN_READY`, dispatch the dedicated validation runner next. Only proceed to spec compliance review after GREEN validation passes.
+
+**DONE_WITH_CONCERNS:** Same phase handling as `DONE`, but read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed through the RED/GREEN loop, then review.
 
 **NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
@@ -184,8 +209,19 @@ You: "User level (~/.config/superpowers/hooks/)"
 
 Implementer: "Got it. Implementing now..."
 [Later] Implementer:
-  - Implemented install-hook command
   - Added focused install-hook tests
+  - Phase: RED_READY
+  - Expected RED signal: install-hook test fails because --force behavior is not implemented yet
+  - Requested validation: run install-hook test file only
+
+[Dispatch validation runner lane]
+Validation runner: ✅ RED confirmed - install-hook test fails because --force behavior is missing
+
+[Re-dispatch implementer with RED evidence]
+Implementer:
+  - Implemented install-hook command
+  - Kept focused install-hook tests
+  - Phase: GREEN_READY
   - Requested validation: run install-hook test file and hook install smoke check
   - Self-review: Found I missed --force flag, added it
   - Committed
@@ -209,7 +245,8 @@ Task 2: Recovery modes
 Implementer: [No questions, proceeds]
 Implementer:
   - Added verify/repair modes
-  - Added coverage for verify/repair flows
+  - Added coverage for verify/repair flows after RED was confirmed for this slice
+  - Phase: GREEN_READY
   - Requested validation: run recovery-mode tests only
   - Self-review: All good
   - Committed
@@ -269,7 +306,7 @@ Done!
 
 **vs. Manual execution:**
 
-- Subagents can still follow TDD while routing execution through a dedicated validation lane
+- Subagents can still follow an evidence-backed RED/GREEN loop while routing execution through a dedicated validation lane
 - Fresh context per task (no confusion)
 - Parallel-safe (subagents don't interfere)
 - Subagent can ask questions (before AND during work)
@@ -319,6 +356,7 @@ Done!
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
 - Let implementer self-run or self-certify validation that should come from a runner lane
+- Skip the RED runner step while still calling the task "TDD" unless you explicitly recorded a waiver
 - **Start code quality review before spec compliance is ✅** (wrong order)
 - Move to next task while either review has open issues
 - Hand off to finishing with only "tests pass" and no validation requirements/evidence package

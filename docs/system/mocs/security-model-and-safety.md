@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-01
+updated: 2026-04-08
 category: system
 status: current
 doc_kind: moc
@@ -25,6 +25,7 @@ related: [system-docs-index]
 
 ## See also
 
+- Desktop runtime migration contract: `docs/system/desktop-runtime-tauri-migration-contract.md`
 - Copilot CLI playbook: `docs/system/copilot-cli-playbook.md`
 - MCP workflow map: `docs/system/mocs/mcp-workflow.md`
 - Testing and E2E map: `docs/system/mocs/testing-and-e2e.md`

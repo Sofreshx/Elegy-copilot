@@ -25,7 +25,7 @@ const { acquirePlanningMutationRouteLock, startServer } = require('./server');
 
 const serverPath = path.join(__dirname, 'server.js');
 
-const TEST_SUITE_TIMEOUT_MS = 90_000; // 90 seconds for entire suite
+const TEST_SUITE_TIMEOUT_MS = 180_000; // 180 seconds for entire suite on Windows
 
 // Track all spawned server processes for cleanup on unexpected exit
 const trackedProcesses = new Set();
@@ -61,6 +61,33 @@ async function test(name, fn) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function stopTrackedProcess(proc, timeoutMs = 5_000) {
+  if (!proc || proc.exitCode != null || proc.killed) {
+    return;
+  }
+
+  await new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      proc.removeListener('exit', finish);
+      proc.removeListener('close', finish);
+      resolve();
+    };
+
+    proc.once('exit', finish);
+    proc.once('close', finish);
+    try {
+      proc.kill();
+    } catch {
+      finish();
+      return;
+    }
+    setTimeout(finish, timeoutMs);
+  });
 }
 
 function getFreePort() {
@@ -325,6 +352,7 @@ async function run() {
           INSTRUCTION_ENGINE_FORCE_SANDBOX_STATE: 'unavailable',
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER: 'docker',
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER_DEFAULT: 'non-docker',
+          INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC: '1',
           INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
           INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
         },
@@ -391,8 +419,7 @@ async function run() {
         assert.strictEqual(response.body.planningPersistence.migrations.checksumValidation.reason, 'all_manifest_checksums_match');
         assert.strictEqual(response.body.planningPersistence.migrations.checksumValidation.baselineMismatch, false);
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
       }
 
       if (stderr.trim()) {
@@ -431,6 +458,7 @@ async function run() {
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER_SELECTED: 'not-a-provider',
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER: '',
           INSTRUCTION_ENGINE_RUNTIME_PROVIDER_DEFAULT: 'also-invalid',
+          INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC: '1',
           INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
           INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
         },
@@ -457,8 +485,7 @@ async function run() {
         assert.strictEqual(response.body.runtime.finishCompatibilityHook.contractVersion, FINISH_COMPATIBILITY_HOOK_CONTRACT_VERSION);
         assert.strictEqual(response.body.runtime.finishCompatibilityHook.providerAgnostic, true);
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
       }
 
       if (stderr.trim()) {
@@ -545,8 +572,7 @@ async function run() {
         assert.ok(Array.isArray(initDb.body.errors));
         assert.strictEqual(initDb.body.errors.length, 0);
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
       }
 
       if (stderr.trim()) {
@@ -631,8 +657,7 @@ async function run() {
         assert.ok(Array.isArray(state.body.errors));
         assert.strictEqual(state.body.errors.length, 0);
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
         await tracker.close();
       }
 
@@ -713,8 +738,7 @@ async function run() {
         const persistedCanonicalConfig = JSON.parse(fs.readFileSync(resolvedConfigPath, 'utf8'));
         assert.deepStrictEqual(persistedCanonicalConfig, legacyConfig);
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
       }
 
       if (stderr.trim()) {
@@ -813,8 +837,7 @@ async function run() {
         assert.strictEqual(fs.existsSync(canonicalConfigPath), true);
         assert.deepStrictEqual(JSON.parse(fs.readFileSync(canonicalConfigPath, 'utf8')), canonicalConfig);
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
       }
 
       if (stderr.trim()) {
@@ -895,8 +918,7 @@ async function run() {
         assert.strictEqual(Object.prototype.hasOwnProperty.call(response.body, 'prPrompt'), false);
         assert.strictEqual(Object.prototype.hasOwnProperty.call(response.body, 'closeAllowed'), false);
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
       }
 
       if (stderr.trim()) {
@@ -931,6 +953,7 @@ async function run() {
       ], {
         env: {
           ...process.env,
+          INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC: '1',
           INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED: '0',
           INSTRUCTION_ENGINE_PLANNING_DB_URL: '',
         },
@@ -963,8 +986,7 @@ async function run() {
         assert.strictEqual(merged.reconciliation.hasArtifactState, true);
         assert.deepStrictEqual(merged.reconciliation.sourceSet, ['cli', 'vscode']);
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
       }
 
       if (stderr.trim()) {
@@ -1053,8 +1075,7 @@ async function run() {
         assert.strictEqual(retentionBlocked.body.kind, 'planning.persistence.retention');
         assert.strictEqual(retentionBlocked.body.deterministic, true);
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
       }
 
       if (stderr.trim()) {
@@ -1155,8 +1176,7 @@ async function run() {
         assert.strictEqual(corruptionScan.body.reason, 'planning_persistence_migration_error');
         assert.strictEqual(corruptionScan.body.kind, 'planning.persistence.corruption.scan');
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
       }
 
       if (stderr.trim()) {
@@ -1362,8 +1382,7 @@ async function run() {
         const sessionsResponse = await fetchJson(`${baseUrl}/api/sessions?source=cli`);
         assert.strictEqual(sessionsResponse.statusCode, 200);
       } finally {
-        server.kill();
-        await sleep(150);
+        await stopTrackedProcess(server);
       }
 
       if (stderr.trim()) {

@@ -12,9 +12,8 @@ const IGNORED_DIRECTORIES = new Set([
 '.tmp',
 'dist',
 'build',
-'coverage',
-'ui-dist',
-'dist-electron',
+ 'coverage',
+ 'ui-dist',
 ]);
 const CODE_FILE_EXTENSIONS = new Set(['.js', '.cjs', '.mjs', '.ts', '.tsx', '.jsx', '.json']);
 

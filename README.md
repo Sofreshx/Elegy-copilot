@@ -152,8 +152,8 @@ authoritative local catalog/search/audit APIs, repo inventory, projection refres
 flows for shared, user-global, and repo-local assets.
 
 ```bash
-# Desktop app development
-npm --prefix copilot-ui run electron:dev
+# Desktop app development (Tauri-first Windows path)
+npm --prefix copilot-ui run desktop:dev
 
 # Raw server backend/API fallback
 node copilot-ui/server.js
@@ -178,18 +178,15 @@ Packaged desktop behavior:
 Use `scripts/cli-ui.ps1 --sdk` or `./scripts/cli-ui.sh --sdk` only when you intentionally want the raw
 server path with the SDK bridge forced on.
 
-Desktop UI delivery is now desktop-only for normal use. The Electron app bootstraps a per-startup
-local UI session and is the supported dashboard runtime. A plain browser request to the raw
-`node copilot-ui/server.js` server no longer receives the dashboard UI; use that mode for `/api`
-routes, backend debugging, and frontend iteration with `ui:dev`.
+Desktop UI delivery is now desktop-only for normal use. The Tauri shell bootstraps a per-startup
+local UI session and is the supported dashboard runtime on the active Windows desktop path. A plain
+browser request to the raw `node copilot-ui/server.js` server no longer receives the dashboard UI;
+use that mode for `/api` routes and backend debugging only.
 
-For a packaged Windows preview, run `npm --prefix copilot-ui run package:preview` and then launch
-`copilot-ui/release/win-unpacked/Elegy Copilot.exe`.
-
-The `copilot-ui` `ui:dev` script is frontend-only and requires the backend to already be running
-separately. During frontend work, the Vite dev server now proxies `/api` to
-`http://127.0.0.1:3210` by default, and you can override that target with
-`COPILOT_UI_DEV_API_URL`.
+For the packaged Windows preview/manual-installer lane, run
+`npm --prefix copilot-ui run desktop:preview:stage`. This stages the Tauri installer plus
+`release-manifest.json` and Windows installation guidance under
+`release-artifacts/windows-tauri/`.
 
 The server binds to `127.0.0.1` only — do not expose to untrusted networks.
 For the current tabs, route groups, persistence model, and validation anchors, see
@@ -259,19 +256,19 @@ If a persisted projection is missing, the backend falls back to a filesystem bui
 ### Desktop packaging and release lane (locked)
 
 - Desktop packaging is the primary end-user delivery surface for Elegy Copilot.
-- Packaging runtime: Electron (`electron-builder`) with in-app updates (`electron-updater`)
-- Release scope when packaging is used: Windows GA first; Linux/macOS preview until signing parity
+- Primary packaging runtime: Windows-first Tauri shell (`@tauri-apps/cli`) with a bundled Node sidecar; the current Tauri release lane is manual-installer metadata, not in-app updater parity
+- Release scope when packaging is used: Windows primary under Tauri
 - Signing custody: managed external signing service via OIDC (no private keys in repo)
 - Rollback authority: Release Engineering owns channel rollback + kill switch decisions
 - Desktop package bundle includes runtime assets required for standalone mode:
   - `engine-assets/**`
   - generated `copilot-ui/ui-dist/**` assets from `npm --prefix copilot-ui run ui:build`
+  - generated `copilot-ui/src-tauri/gen/resources/**` assets from `npm --prefix copilot-ui run desktop:preview`
   - `local-tracker` runtime (`dist` + runtime deps)
   - managed Copilot CLI channel contract metadata (`copilot-ui/resources/copilot-cli/**`)
   - bounded workflow-layer runtime assets, with the sidecar kept default-disabled unless explicitly enabled
   - helper scripts required by dashboard/runtime operations
-- Generated build outputs such as `copilot-ui/ui-dist/**` and `copilot-ui/dist-electron/**` are package inputs, but they are not source-controlled artifacts and should be rebuilt locally/CI rather than committed.
-- `.github/workflows/desktop-preview-release.yml`, `.github/workflows/desktop-release.yml`, and `.github/workflows/desktop-version-tag.yml` must fail closed when the current repository does not match `copilot-ui/electron-builder.yml`'s GitHub publish target.
+- Generated build outputs such as `copilot-ui/ui-dist/**` and `copilot-ui/src-tauri/gen/resources/**` are primary desktop package inputs. None of them should be source-controlled artifacts.
 - Packaged desktop runtime now boots with an embedded planning database by default. The local runtime, SDK bridge, tracker, and planning persistence all come up together under `~/.copilot`.
 
 Desktop release tag helper flow, when the optional packaging lane is exercised:
@@ -294,10 +291,10 @@ Release-safety rules (G-06-WU-03) for packaged desktop releases:
 
 ### WS6 CI topology + required checks (locked)
 
-- Authoritative workflow file: `.github/workflows/extension-ci.yml` (repo-wide CI; legacy filename retained for WS6 validation history after legacy extension retirement).
-- Required topology is fixed and fail-closed: `build` → `desktop-package-smoke` + `ws6-evidence` (matrix `WS6-E1`..`WS6-E5`) → `ws6-artifact-gate` → `required-checks`.
+- Authoritative workflow file: `.github/workflows/repo-ci.yml`.
+- Required topology is fixed and fail-closed: `build` → `desktop-tauri-preview` → `required-checks`.
 - `required-checks` must fail when any required upstream job is non-`success`, skipped, or missing required artifact completeness output.
-- Legacy VS Code extension packaging/release jobs have been retired; desktop packaging remains in `.github/workflows/desktop-release.yml`.
+- Desktop packaging and release stay isolated in `.github/workflows/desktop-preview-release.yml`, `.github/workflows/desktop-release.yml`, and `.github/workflows/desktop-version-tag.yml`.
 
 ### WS6 validation ladder + rollback contract (narrow → broad)
 

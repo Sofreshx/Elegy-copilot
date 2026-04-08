@@ -126,6 +126,18 @@ const TERMINAL_EXECUTION_STATE_TOKENS = new Set([
   'stopped',
   'terminated',
 ]);
+const CANONICAL_VALIDATION_CLOSEOUT_LABELS = new Set([
+  'unit',
+  'integration',
+  'e2e',
+  'browser',
+  'playwright',
+  'manual',
+]);
+const VALIDATION_LAYER_MENTION_PATTERN = /\b(unit|integration|e2e|browser|playwright|manual)\b/i;
+const VALIDATION_GAP_SIGNAL_PATTERN = /\b(required|missing|blocked|blocker|not run|did not run|unresolved|pending|absent|incomplete)\b/i;
+const VALIDATION_MANDATORY_SIGNAL_PATTERN = /\b(required|mandatory|must run|must be run)\b/i;
+const VALIDATION_NOT_REQUIRED_SIGNAL_PATTERN = /\b(not required|optional|waived|waiver|not needed|not necessary|not applicable|n\/a)\b/i;
 
 function isTerminalExecutionState(executionState) {
   if (!executionState || typeof executionState !== 'object') {
@@ -139,6 +151,63 @@ function isTerminalExecutionState(executionState) {
 
 function hasCompatibilityFinalCloseoutEvidence(executionState) {
   return isTerminalExecutionState(executionState);
+}
+
+function getCanonicalValidationCloseoutLabel(item) {
+  const normalized = normalizeString(item);
+  const separatorIndex = normalized.indexOf(':');
+  if (separatorIndex <= 0) {
+    return '';
+  }
+
+  const label = normalized.slice(0, separatorIndex).trim().toLowerCase();
+  return CANONICAL_VALIDATION_CLOSEOUT_LABELS.has(label) ? label : '';
+}
+
+function isValidationRelatedCloseoutItem(item) {
+  const normalized = normalizeString(item);
+  if (!normalized) {
+    return false;
+  }
+
+  if (getCanonicalValidationCloseoutLabel(normalized)) {
+    return true;
+  }
+
+  return /(validation|coverage|test|verify|verification)/i.test(normalized)
+    || (VALIDATION_LAYER_MENTION_PATTERN.test(normalized) && VALIDATION_GAP_SIGNAL_PATTERN.test(normalized));
+}
+
+function buildUnresolvedUnlabeledValidationGap(item) {
+  return `Unlabeled mandatory validation requirement remains unresolved: ${normalizeString(item)}`;
+}
+
+function buildMissingLabeledValidationGap(label) {
+  return `${normalizeString(label).toLowerCase()}: Required validation coverage is still missing.`;
+}
+
+function isMandatoryValidationRequirement(item) {
+  const normalized = normalizeString(item);
+  if (!normalized) {
+    return false;
+  }
+
+  if (VALIDATION_NOT_REQUIRED_SIGNAL_PATTERN.test(normalized)) {
+    return false;
+  }
+
+  return VALIDATION_MANDATORY_SIGNAL_PATTERN.test(normalized);
+}
+
+function collectCanonicalValidationCloseoutLabels(items) {
+  const labels = new Set();
+  for (const item of Array.isArray(items) ? items : []) {
+    const label = getCanonicalValidationCloseoutLabel(item);
+    if (label) {
+      labels.add(label);
+    }
+  }
+  return labels;
 }
 
 function normalizePlanContent(value) {
@@ -501,45 +570,45 @@ function handleSessionFinal(ctx, deps) {
   try {
     const { sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
     const finalPath = path.join(sessionDir, 'final.md');
-    const text = assets.readTextFileSafe(finalPath, 2 * 1024 * 1024);
-    if (text != null) {
-      sendText(res, 200, text, 'text/plain; charset=utf-8');
+    const legacyFinalText = assets.readTextFileSafe(finalPath, 2 * 1024 * 1024);
+    let compatibilityFinal = null;
+
+    try {
+      if (fs.existsSync(sessionDir) && fs.statSync(sessionDir).isDirectory()
+        && typeof readPlanArtifact === 'function'
+        && planState
+        && typeof planState.parseStructuredState === 'function') {
+        const planText = readPlanArtifact(sessionDir, 'latest');
+        if (planText) {
+          const handoffText = assets.readTextFileSafe(path.join(sessionDir, 'handoff.md'), 256 * 1024);
+          const propositionText = assets.readTextFileSafe(path.join(sessionDir, 'proposition.md'), 512 * 1024);
+          const verificationGuideText = assets.readTextFileSafe(path.join(sessionDir, 'verification-guide.md'), 512 * 1024);
+          const executionStateText = assets.readTextFileSafe(path.join(sessionDir, 'execution-state.json'), 512 * 1024);
+          const structured = planState.parseStructuredState(planText, {
+            handoffText,
+            propositionText,
+            verificationGuideText,
+            executionStateText,
+            sessionId: id,
+          });
+          compatibilityFinal = formatCompatibilityFinalCloseout(structured);
+        }
+      }
+    } catch {
+      compatibilityFinal = null;
+    }
+
+    if (compatibilityFinal) {
+      sendText(res, 200, compatibilityFinal, 'text/plain; charset=utf-8');
       return;
     }
 
-    if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
-      sendText(res, 404, 'Not found');
+    if (legacyFinalText != null) {
+      sendText(res, 200, legacyFinalText, 'text/plain; charset=utf-8');
       return;
     }
 
-    if (typeof readPlanArtifact !== 'function' || !planState || typeof planState.parseStructuredState !== 'function') {
-      sendText(res, 404, 'Not found');
-      return;
-    }
-
-    const planText = readPlanArtifact(sessionDir, 'latest');
-    if (!planText) {
-      sendText(res, 404, 'Not found');
-      return;
-    }
-
-    const handoffText = assets.readTextFileSafe(path.join(sessionDir, 'handoff.md'), 256 * 1024);
-    const propositionText = assets.readTextFileSafe(path.join(sessionDir, 'proposition.md'), 512 * 1024);
-    const verificationGuideText = assets.readTextFileSafe(path.join(sessionDir, 'verification-guide.md'), 512 * 1024);
-    const executionStateText = assets.readTextFileSafe(path.join(sessionDir, 'execution-state.json'), 512 * 1024);
-    const structured = planState.parseStructuredState(planText, {
-      handoffText,
-      propositionText,
-      verificationGuideText,
-      executionStateText,
-      sessionId: id,
-    });
-    const compatibilityFinal = formatCompatibilityFinalCloseout(structured);
-    if (!compatibilityFinal) {
-      sendText(res, 404, 'Not found');
-      return;
-    }
-    sendText(res, 200, compatibilityFinal, 'text/plain; charset=utf-8');
+    sendText(res, 404, 'Not found');
   } catch {
     sendText(res, 404, 'Not found');
   }
@@ -589,9 +658,78 @@ function formatCompatibilityFinalCloseout(structured) {
     lines.push('', '## Delivered', ...delivered.map((item) => `- ${item}`));
   }
 
+  const validationRequirements = closureSummary && Array.isArray(closureSummary.validationRequirements)
+    ? closureSummary.validationRequirements.filter((item) => normalizeString(item))
+    : [];
+  const validationCoverage = closureSummary && Array.isArray(closureSummary.validationCoverage)
+    ? closureSummary.validationCoverage.filter((item) => normalizeString(item))
+    : [];
+  const coverageGaps = closureSummary && Array.isArray(closureSummary.coverageGaps)
+    ? closureSummary.coverageGaps.filter((item) => normalizeString(item))
+    : [];
+  const blockers = closureSummary && Array.isArray(closureSummary.blockers)
+    ? closureSummary.blockers.filter((item) => normalizeString(item))
+    : [];
   const validationEvidence = closureSummary && Array.isArray(closureSummary.validationEvidence)
     ? closureSummary.validationEvidence.filter((item) => normalizeString(item))
     : [];
+  const mandatoryValidationRequirements = validationRequirements.filter((item) => isMandatoryValidationRequirement(item));
+
+  const validationGapItems = [...coverageGaps];
+  const requiredValidationLabels = collectCanonicalValidationCloseoutLabels(mandatoryValidationRequirements);
+  const coveredValidationLabels = collectCanonicalValidationCloseoutLabels(validationCoverage);
+  const validationGapLabels = collectCanonicalValidationCloseoutLabels(coverageGaps);
+  const unlabeledMandatoryValidationGaps = mandatoryValidationRequirements
+    .filter((item) => !getCanonicalValidationCloseoutLabel(item))
+    .map(buildUnresolvedUnlabeledValidationGap);
+  for (const item of unlabeledMandatoryValidationGaps) {
+    if (!validationGapItems.includes(item)) {
+      validationGapItems.push(item);
+    }
+  }
+  const validationBlockers = blockers.filter((item) => isValidationRelatedCloseoutItem(item));
+  const validationBlockerLabels = collectCanonicalValidationCloseoutLabels(validationBlockers);
+  for (const item of validationBlockers) {
+    if (!validationGapItems.includes(item)) {
+      validationGapItems.push(item);
+    }
+  }
+  for (const label of requiredValidationLabels) {
+    if (
+      coveredValidationLabels.has(label)
+      || validationGapLabels.has(label)
+      || validationBlockerLabels.has(label)
+    ) {
+      continue;
+    }
+
+    const item = buildMissingLabeledValidationGap(label);
+    if (!validationGapItems.includes(item)) {
+      validationGapItems.push(item);
+      validationGapLabels.add(label);
+    }
+  }
+  if (
+    mandatoryValidationRequirements.length > 0
+    && validationGapItems.length === 0
+    && validationCoverage.length === 0
+  ) {
+    validationGapItems.push('Required validation is still missing from the recorded coverage.');
+  }
+
+  if (validationRequirements.length > 0) {
+    lines.push('', '## Validation Requirements', ...validationRequirements.map((item) => `- ${item}`));
+  }
+
+  if (validationCoverage.length > 0 || mandatoryValidationRequirements.length > 0 || validationGapItems.length > 0) {
+    const coverageItems = validationCoverage.length > 0 ? validationCoverage : ['None recorded.'];
+    lines.push('', '## Tested Coverage', ...coverageItems.map((item) => `- ${item}`));
+  }
+
+  if (validationGapItems.length > 0) {
+    lines.push('', '## Coverage Gaps', ...validationGapItems.map((item) => `- ${item}`));
+  }
+
   if (validationEvidence.length > 0) {
     lines.push('', '## Validation Evidence', ...validationEvidence.map((item) => `- ${item}`));
   }

@@ -12,9 +12,16 @@ const EXCLUDED_DIRS = new Set([
   '.git',
   'node_modules',
   'ui-dist',
-  'dist-electron',
   'coverage',
   '.tmp',
+  'dist-electron',
+  'release',
+  'resources',
+  'target',
+]);
+
+const EXCLUDED_RELATIVE_DIRS = new Set([
+  'copilot-ui/src-tauri/gen',
 ]);
 
 const INCLUDED_EXTENSIONS = new Set(['.js', '.cjs', '.mjs', '.ts', '.tsx']);
@@ -66,7 +73,7 @@ function collectFiles(rootDir, out = []) {
   for (const entry of entries) {
     const fullPath = path.join(rootDir, entry.name);
     if (entry.isDirectory()) {
-      if (!EXCLUDED_DIRS.has(entry.name)) {
+      if (!EXCLUDED_DIRS.has(entry.name) && !EXCLUDED_RELATIVE_DIRS.has(toWorkspaceRelative(fullPath))) {
         collectFiles(fullPath, out);
       }
       continue;

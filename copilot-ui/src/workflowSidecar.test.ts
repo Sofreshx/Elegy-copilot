@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -36,6 +37,46 @@ async function waitFor(condition: () => boolean, timeoutMs: number): Promise<voi
   throw new Error('Timed out waiting for condition.');
 }
 
+async function getFreePort(): Promise<number> {
+  return await new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close(() => reject(new Error('Unable to resolve a free port for workflow sidecar test.')));
+        return;
+      }
+      const { port } = address;
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(port);
+      });
+    });
+  });
+}
+
+async function removeDirWithRetries(targetPath: string, attempts = 20): Promise<void> {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+      return;
+    } catch (error) {
+      if (
+        !(error instanceof Error && 'code' in error)
+        || (((error as NodeJS.ErrnoException).code !== 'EBUSY') && ((error as NodeJS.ErrnoException).code !== 'ENOTEMPTY'))
+        || attempt === attempts
+      ) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+}
+
 test('workflow sidecar stays unavailable until the authenticated status probe succeeds', async () => {
   const runtimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-workflow-sidecar-'));
   const sidecarDir = path.join(runtimeRoot, 'local-tracker', 'dist', 'messagingGateway');
@@ -60,10 +101,16 @@ test('workflow sidecar stays unavailable until the authenticated status probe su
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({
             state: 'ready',
+            runtime: 'n8n',
             auth: 'bearer',
             loopbackOnly: true,
             triggerPath: '/api/triggers',
             healthPath: '/api/status',
+            runtimeBinding: {
+              present: true,
+              verified: true,
+              reason: null,
+            },
           }));
           return;
         }
@@ -88,7 +135,7 @@ test('workflow sidecar stays unavailable until the authenticated status probe su
   );
 
   const token = 'workflow-sidecar-test-token';
-  const port = 4181;
+  const port = await getFreePort();
 
   try {
     await withEnv('INSTRUCTION_ENGINE_ENABLE_WORKFLOW_SIDECAR', '1', async () => {
@@ -118,6 +165,6 @@ test('workflow sidecar stays unavailable until the authenticated status probe su
       });
     });
   } finally {
-    fs.rmSync(runtimeRoot, { recursive: true, force: true });
+    await removeDirWithRetries(runtimeRoot);
   }
 });

@@ -58,11 +58,19 @@ export interface WorkflowSidecarManager {
   stop: () => Promise<void>;
 }
 
+export interface WorkflowSidecarShellAdapter {
+  launchPackagedWorkflowSidecarChild?: (options: {
+    localTrackerRoot: string;
+    env: NodeJS.ProcessEnv;
+  }) => ChildProcess | null;
+}
+
 interface StartWorkflowSidecarOptions {
   runtimeRoot: string;
   processExecPath: string;
   isPackaged: boolean;
   copilotHome: string;
+  shellAdapter?: WorkflowSidecarShellAdapter;
 }
 
 function isLoopbackHost(host: string): boolean {
@@ -259,26 +267,57 @@ async function waitForWorkflowSidecarReady(
 }
 
 async function stopChildProcess(child: ChildProcess | null): Promise<void> {
-  if (!child || child.exitCode != null || child.killed) {
+  if (!child || child.exitCode != null || child.signalCode != null) {
     return;
   }
 
   await new Promise<void>((resolve) => {
     let settled = false;
+    let forceKillTimer: NodeJS.Timeout | null = null;
+    let finishTimer: NodeJS.Timeout | null = null;
     const finish = () => {
       if (settled) return;
       settled = true;
+      if (forceKillTimer) {
+        clearTimeout(forceKillTimer);
+      }
+      if (finishTimer) {
+        clearTimeout(finishTimer);
+      }
+      child.removeListener('exit', finish);
+      child.removeListener('close', finish);
       resolve();
     };
 
     child.once('exit', finish);
-    try {
-      child.kill();
-    } catch {
-      finish();
-      return;
+    child.once('close', finish);
+
+    const requestKill = (signal?: NodeJS.Signals) => {
+      if (child.exitCode != null || child.signalCode != null) {
+        finish();
+        return;
+      }
+
+      try {
+        child.kill(signal);
+      } catch {
+        finish();
+      }
+    };
+
+    if (!child.killed) {
+      requestKill();
     }
-    setTimeout(finish, 2000);
+
+    forceKillTimer = setTimeout(() => {
+      if (child.exitCode != null || child.signalCode != null) {
+        finish();
+        return;
+      }
+
+      requestKill('SIGKILL');
+      finishTimer = setTimeout(finish, 2_000);
+    }, 2_000);
   });
 }
 
@@ -384,6 +423,7 @@ export async function startWorkflowSidecar(options: StartWorkflowSidecarOptions)
   };
 
   let child: ChildProcess | null = null;
+  const localTrackerRoot = path.join(options.runtimeRoot, 'local-tracker');
   let state: WorkflowSidecarState = 'unavailable';
   let runtime: WorkflowSidecarRuntime = baseState.runtime;
   let runtimeBinding: WorkflowSidecarRuntimeBindingState = {
@@ -394,14 +434,17 @@ export async function startWorkflowSidecar(options: StartWorkflowSidecarOptions)
 
   try {
     child = options.isPackaged
-      ? spawn(options.processExecPath, buildPackagedWorkflowSidecarChildArgs(), {
-        cwd: path.join(options.runtimeRoot, 'local-tracker'),
+      ? options.shellAdapter?.launchPackagedWorkflowSidecarChild?.({
+        localTrackerRoot,
+        env,
+      }) ?? spawn(options.processExecPath, buildPackagedWorkflowSidecarChildArgs(), {
+        cwd: localTrackerRoot,
         env,
         stdio: 'ignore',
         windowsHide: true,
       })
       : spawn(process.execPath, [bundledEntry], {
-        cwd: path.join(options.runtimeRoot, 'local-tracker'),
+        cwd: localTrackerRoot,
         env,
         stdio: 'ignore',
         windowsHide: true,

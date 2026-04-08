@@ -264,7 +264,7 @@ Plan files in `session-state/` should stay under 500 lines. When a plan file gro
 When spawning child processes (servers, builds, tests), always configure a timeout or deadline. Never rely on a process exiting on its own — always have a kill path if it exceeds the timeout budget. This applies to both direct terminal commands and programmatic process spawning.
 
 ### TOOL-SAFE-005: Desktop host and server launches
-When launching desktop hosts, Electron apps, or dev servers that assign ports and wait for health checks:
+When launching desktop hosts, packaged desktop apps, or dev servers that assign ports and wait for health checks:
 - Ensure health check loops have bounded retry counts (not infinite).
 - Always configure a total timeout for the startup sequence.
 - If a health check fails after the retry budget, kill the spawned process and report the failure — do not leave ghost processes.

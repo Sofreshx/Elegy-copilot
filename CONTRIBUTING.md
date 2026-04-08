@@ -51,7 +51,7 @@ When changing assets:
 
 When changing workflows or release docs:
 
-1. Keep `.github/workflows/extension-ci.yml` fail-closed.
+1. Keep `.github/workflows/repo-ci.yml` fail-closed.
 2. Update `RELEASING.md` and any canonical docs that describe the affected workflow.
 3. Prefer additive release lanes over weakening existing safety gates.
 

@@ -9,8 +9,8 @@ import {
 } from './gatewayChildMode';
 
 test('gateway child mode is detected from process args', () => {
-  assert.equal(hasGatewayChildFlag(['electron', '.', GATEWAY_CHILD_FLAG]), true);
-  assert.equal(hasGatewayChildFlag(['electron', '.']), false);
+  assert.equal(hasGatewayChildFlag(['desktop-shell.exe', '.', GATEWAY_CHILD_FLAG]), true);
+  assert.equal(hasGatewayChildFlag(['desktop-shell.exe', '.']), false);
 });
 
 test('gateway child spawn args contain only the dedicated child flag', () => {
@@ -19,7 +19,7 @@ test('gateway child spawn args contain only the dedicated child flag', () => {
 
 test('gateway child flag is stripped before handing argv to the gateway cli', () => {
   assert.deepEqual(
-    stripGatewayChildFlag(['electron', '.', GATEWAY_CHILD_FLAG, '--mode=disconnected']),
-    ['electron', '.', '--mode=disconnected'],
+    stripGatewayChildFlag(['desktop-shell.exe', '.', GATEWAY_CHILD_FLAG, '--mode=disconnected']),
+    ['desktop-shell.exe', '.', '--mode=disconnected'],
   );
 });

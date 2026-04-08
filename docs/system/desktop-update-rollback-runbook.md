@@ -1,27 +1,43 @@
 ---
 created: 2026-02-25
-updated: 2026-04-07
+updated: 2026-04-08
 category: system
 status: current
 doc_kind: node
 id: desktop-update-rollback-runbook
-summary: Operational runbook for desktop updater rollback controls and global update kill switch.
+summary: Operational runbook for desktop updater rollback controls, migration checkpoint expectations, and global update kill switch.
 tags: [desktop, updater, rollback, incident-response]
-related: [runtime-permissions-contracts, security-model]
+related: [runtime-permissions-contracts, security-model, desktop-runtime-tauri-migration-contract]
 ---
 
 # Desktop Update Rollback + Kill Switch Runbook
 
 ## Scope
 
-This runbook applies to the packaged Electron desktop runtime, which is the primary supported
-distribution and updater surface for Elegy Copilot. The raw Node.js server mode described in
-[[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md) remains a
-developer fallback, not the end-user delivery path.
+This runbook applies to the packaged desktop update surface for Elegy Copilot across the primary
+Windows-first Tauri lane and the bounded Electron compatibility residue described in
+[[desktop-runtime-tauri-migration-contract]]
+[docs/system/desktop-runtime-tauri-migration-contract.md](docs/system/desktop-runtime-tauri-migration-contract.md).
+The raw Node.js server mode described in [[copilot-ui-guide]]
+[docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md) remains a developer fallback, not
+the end-user delivery path.
 
 For packaged delivery, app-managed Copilot CLI ensure/install/update behavior is part of the intended
 desktop contract. Update and rollback handling therefore applies to the app version and its paired
-managed SDK/CLI lane, not just the Electron wrapper alone.
+managed SDK/CLI lane, not just the current shell implementation alone.
+
+Migration posture:
+
+- The primary Windows desktop lane is now Tauri-first.
+- The current Tauri preview/release lane is limited to a manual-installer release manifest + packaged
+  Windows installer; in-app Tauri updater/feed behavior remains intentionally disabled in this slice.
+- The active Tauri lane must not assume in-place updater replacement of an existing Electron install.
+- Electron updater behavior remains available only as bounded compatibility residue for incumbent installs
+  until full retirement is safe.
+- The Tauri lane must continue to publish explicit Electron-to-Tauri handoff guidance with the installer
+  metadata so operators tell users to migrate manually instead of implying an updater bridge.
+- Tauri primary path and any Electron compatibility remainder must preserve the same fail-closed rollback
+  and kill-switch semantics documented here.
 
 ## Ownership
 
@@ -70,6 +86,8 @@ managed SDK/CLI lane, not just the Electron wrapper alone.
 - `INSTRUCTION_ENGINE_DISABLE_UPDATES=false` only clears the kill-switch override; it does not rewrite the
   rollback policy to re-enable updates.
 - Reason codes are machine-readable and emitted in updater logs.
+- During the preview/manual-installer Tauri lane, Electron update surfaces may point users at the matching
+  Tauri installer download, but they must not claim that Electron can auto-replace itself with Tauri in place.
 - Cross-lane auto-mixing is out of contract: stable packaged releases must not pull prerelease SDK/CLI
   assets, and prerelease packaged releases must not silently downgrade into stable-only toolchain state.
 - If the packaged app cannot ensure the required Copilot CLI lane for a feature that depends on it, the

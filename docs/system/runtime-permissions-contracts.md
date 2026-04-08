@@ -102,11 +102,11 @@ WS6 release readiness is contractually valid only when the following evidence ar
   - Requirement: checksum pass path remains `all_manifest_checksums_match`; checksum drift remains hard-fail (`PLANNING_MIGRATION_CHECKSUM_DRIFT`); runtime health reports deterministic `planningPersistence.migrations.driftDetected` state.
 
 4. `WS6-E4 RollbackTriggers`
-  - Source: `npm --prefix copilot-ui run build:electron` followed by `node copilot-ui/dist-electron/rollbackPolicy.test.js` and `node copilot-ui/dist-electron/updatePolicy.rollback.test.js`.
+  - Source: `npm --prefix copilot-ui run test:vitest -- src/rollbackPolicy.test.ts src/updatePolicy.rollback.test.ts`.
   - Requirement: threshold trigger reasons remain machine-readable and deterministic (`rollback_policy_source_unavailable`, `rollback_policy_malformed`, `current_version_below_minimum_safe`, `candidate_version_above_channel_ceiling`).
 
 5. `WS6-E5 KillSwitch`
-  - Source: `npm --prefix copilot-ui run build:electron` followed by `node copilot-ui/dist-electron/updater.rollback.test.js` plus operational approval record.
+  - Source: `npm --prefix copilot-ui run test:vitest -- src/rollbackPolicy.test.ts` plus operational approval record.
   - Requirement: kill-switch evidence includes `updates_disabled_globally` blocking update checks and ownership/approval record aligned with Security Model (Release Engineering execution, incident commander approval, Security co-approval for trust-chain incidents).
 
 Pass/fail contract:
@@ -116,36 +116,23 @@ Pass/fail contract:
 
 ## WS6 CI Topology + Required-Check Contract (WU-WS6-01 / WU-WS6-03 / WU-WS6-04 / WU-WS6-05)
 
-`.github/workflows/extension-ci.yml` remains the fail-closed WS6 topology with explicit evidence and
-aggregation semantics after retirement of the legacy VS Code extension lane. Although the filename is
-legacy, the workflow now serves as repo-wide CI for pull requests.
+`.github/workflows/repo-ci.yml` is the fail-closed repo-wide CI topology for pull requests.
 
 1. Fixed topology (authoritative)
-  - `.github/workflows/extension-ci.yml` must keep this required dependency chain:
+  - `.github/workflows/repo-ci.yml` must keep this required dependency chain:
     - `build`
-    - `ws6-evidence` (matrix entries: `WS6-E1`, `WS6-E2`, `WS6-E3`, `WS6-E4`, `WS6-E5`)
-    - `ws6-artifact-gate`
+    - `desktop-tauri-preview`
     - `required-checks`
 
-2. Matrix evidence execution
-  - Every WS6 matrix leg executes deterministically and emits one artifact named `ws6-evidence-<WS6-Ex>`.
-  - Each artifact must include `command.log`, `metadata.json`, and matching SHA256 files.
-
-3. Artifact completeness/integrity gate (fail closed)
-  - `ws6-artifact-gate` must fail when expected artifact count is not exact, any required file is missing, or any checksum verification fails.
-  - Metadata evidence ID must match the artifact ID exactly.
-
-4. Required-check aggregator (strict semantics)
+2. Required-check aggregator (strict semantics)
   - `required-checks` runs with `if: always()` and fails unless:
     - `needs.build.result == success`
-    - `needs.ws6-evidence.result == success`
-    - `needs.ws6-artifact-gate.result == success`
-    - `needs.ws6-artifact-gate.outputs.complete == true`
+    - `needs.desktop-tauri-preview.result == success`
   - Missing/skipped/non-success statuses are treated as hard failures.
 
-5. Release gate linkage
-  - Legacy VS Code extension release packaging was retired with `RannIA`.
-  - Desktop packaging remains a separate workflow and is not published from `extension-ci.yml`.
+3. Release gate linkage
+  - Desktop packaging remains a separate workflow and is not published from `repo-ci.yml`.
+  - Public preview and signed release flows stay in `desktop-preview-release.yml`, `desktop-release.yml`, and `desktop-version-tag.yml`.
 
 ## WS6 Narrow-to-Broad Validation + Rollback Contract (WU-WS6-07)
 
@@ -162,10 +149,7 @@ WS6 validation follows this ordered ladder:
   - `node copilot-ui/server.runtime-health.test.js`
 
 3. Rollback + kill-switch guards
-  - `npm --prefix copilot-ui run build:electron`
-  - `node copilot-ui/dist-electron/rollbackPolicy.test.js`
-  - `node copilot-ui/dist-electron/updatePolicy.rollback.test.js`
-  - `node copilot-ui/dist-electron/updater.rollback.test.js`
+  - `npm --prefix copilot-ui run test:vitest -- src/rollbackPolicy.test.ts src/updatePolicy.rollback.test.ts`
 
 Contract result:
 - **Pass**: all ladder stages pass and required WS6 artifacts are complete/integrity-verified.

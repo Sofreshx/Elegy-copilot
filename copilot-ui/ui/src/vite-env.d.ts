@@ -6,7 +6,7 @@ declare global {
 	interface Window {
 		instructionEngineDesktop?: {
 			platform: string;
-			electronVersion: string;
+			shell: string;
 			updater?: {
 				getState: () => Promise<DesktopUpdaterState>;
 				checkForUpdates: () => Promise<DesktopUpdaterState>;

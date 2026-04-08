@@ -8,38 +8,32 @@ runtime surface, tabs, route groups, persistence model, and validation anchors.
 This document provides curl commands to manually validate the Plan-Pack Progress Tracker and related session artifact endpoints.
 
 ## Prerequisites
-1. Start the desktop app with `npm --prefix copilot-ui run electron:dev`, or start the raw backend with `node copilot-ui/server.js`, `scripts/cli-ui.ps1`, or `./scripts/cli-ui.sh` when you only need `/api` validation.
+1. Start the desktop app with `npm --prefix copilot-ui run desktop:dev`, or start the raw backend with `node copilot-ui/server.js`, `scripts/cli-ui.ps1`, or `./scripts/cli-ui.sh` when you only need `/api` validation.
 2. When Copilot SDK access is required, use `scripts/cli-ui.ps1 --sdk` or `./scripts/cli-ui.sh --sdk`; `--sdk` sets `COPILOT_SDK_BRIDGE=1` before launch.
-3. The raw server no longer serves the normal dashboard UI to a plain browser request; use the Electron app for dashboard validation, or use curl/HTTP clients directly against `/api`.
-4. `copilot-ui` `ui:dev` is frontend-only, so keep the backend running separately. Its Vite dev server proxies `/api` to `http://127.0.0.1:3210` by default and honors `COPILOT_UI_DEV_API_URL`.
+3. The raw server no longer serves the normal dashboard UI to a plain browser request; use the Tauri desktop app for dashboard validation, or use curl/HTTP clients directly against `/api`.
 5. Use a valid session ID (example: `a04980e8-4804-411d-a774-0a4cbf88576e`)
 
-## Desktop Packaged Updater Smoke
+## Primary desktop packaging path
 
-Run `npm run package:win:smoke` from `copilot-ui` when you need to validate the packaged Windows updater lane locally.
+Run `npm run desktop:check` from `copilot-ui` for the narrow shell/build validation path, and
+`npm run desktop:preview:stage` when you need the packaged Windows manual-installer lane.
 
-This command:
+## Tauri Windows Preview Packaging
 
-- rebuilds the desktop package
-- verifies `release/latest.yml`, the packaged installer, and the matching `.blockmap`
-- checks the packaged `win-unpacked/resources/app-update.yml` metadata against the current publish settings
-- executes the packaged updater regression tests shipped in the packaged `dist-electron` directory under `release/win-unpacked/resources/app.asar.unpacked` (falling back to the legacy `resources/app` layout when present)
-
-This smoke command is an artifact-level release preflight. It does not simulate a live GitHub-hosted update download or an installed-app replacement on restart.
-
-## Desktop Preview Startup Smoke
-
-Run `npm run package:preview:startup` from `copilot-ui` when you need a repo-local production-like startup validation using the unpacked desktop preview.
+Run `npm run desktop:preview:stage` from `copilot-ui` when you need to validate the first
+Windows-first Tauri packaging lane locally.
 
 This command:
 
-- rebuilds the unpacked desktop preview through the existing `package:preview` flow
-- launches `release/win-unpacked/Elegy Copilot.exe` with an isolated user-local home and a fixed local health port
-- waits for the packaged app to answer `GET /api/health`
-- verifies that startup managed-asset sync and the autonomous decision-log summary are present in runtime health
-- terminates the unpacked desktop app after the health contract is confirmed
+- rebuilds the Tauri-facing runtime payload and stages the bundled Node sidecar layout under `src-tauri/gen/resources`
+- builds the Windows NSIS installer through the Tauri CLI
+- emits `release/tauri/windows/release-manifest.json` as the explicit manual-installer update/release seam
+- emits `release/tauri/windows/windows-installation-guide.md` so staged release artifacts carry the current installation guidance
+- validates that stable/prerelease channel pairing, fail-closed channel policy, and packaged runtime layout remain intact
+- stages the installer, release manifest, and installation guidance into `release-artifacts/windows-tauri`
 
-This smoke command validates real packaged startup behavior from the repo-local unpacked preview. It does not exercise installer replacement, restart-based update install, or GitHub-hosted release download behavior.
+This validation is intentionally limited to the current manual-installer preview lane. It does not claim
+Tauri in-app updater/feed parity.
 
 ## Endpoint 1: GET /api/sessions/:id/structured-state
 
@@ -333,8 +327,8 @@ Expected: 401 empty body (query-param auth not supported)
 ## WS2 — UI Source Handling Alignment (WU-201 through WU-206)
 
 ### Prerequisites
-1. Desktop app running: `npm --prefix copilot-ui run electron:dev`
-2. Use the Electron window for the dashboard checks below. The raw server root at `http://127.0.0.1:3210/` is intentionally denied to plain browser requests.
+1. Desktop app running: `npm --prefix copilot-ui run desktop:dev`
+2. Use the desktop window for the dashboard checks below. The raw server root at `http://127.0.0.1:3210/` is intentionally denied to plain browser requests.
 3. Have at least one CLI session and one VS Code session on disk
 
 ### 1. Filter Cycle Test
@@ -482,151 +476,15 @@ Expected gate result:
 - command exits with code `0`
 - no WS6 guidance reassigns non-Docker primary default ownership away from WS2
 
-## WS6 — Release Readiness Evidence Gate (G-06-WU-04)
+## Desktop CI + release workflows
 
-### Required command pack
-
-Run this command pack from repository root (`instruction-engine`) and retain outputs as release evidence:
-
-```bash
-node scripts/validate-doc-graph.js
-node copilot-ui/server.lifecycle-proxy.test.js
-npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/gatewayHttpServer.test.ts
-node copilot-ui/lib/planningPersistence.test.js
-node copilot-ui/server.runtime-health.test.js
-npm --prefix copilot-ui run build:electron
-node copilot-ui/dist-electron/rollbackPolicy.test.js
-node copilot-ui/dist-electron/updatePolicy.rollback.test.js
-node copilot-ui/dist-electron/updater.rollback.test.js
-```
-
-### Gate checklist (all required)
-
-| Gate item | Required evidence artifact | Pass expectation | Fail expectation |
-|---|---|---|---|
-| Scope + ownership lock | `WS6-E1 ScopeOwnership`: links or excerpts proving WS6 sequencing and WS2 ownership boundary in `docs/system/runtime-permissions-contracts.md` and `README.md` | Both docs explicitly keep WS6 as post-WS1 compatibility/release-safety scope only; WS2 remains owner of primary non-Docker default behavior | Missing/contradictory scope language, or any text that reassigns WS2 ownership |
-| Mixed-version matrix | `WS6-E2 MixedVersionMatrix`: command outputs from `server.lifecycle-proxy.test.js` and `gatewayHttpServer.test.ts` | Outputs include deterministic unsupported marker path (`code=lifecycle_compatibility_unsupported`) and deterministic supported path (`reason=compatibility_supported`) for old/new client-tracker directions | Missing unsupported or supported path evidence, nondeterministic reasons/markers, or any failing test |
-| Checksum safety | `WS6-E3 ChecksumSafety`: output from `planningPersistence.test.js` and `server.runtime-health.test.js` | Migration checksum path proves `pass`/`all_manifest_checksums_match`; drift path hard-fails with `PLANNING_MIGRATION_CHECKSUM_DRIFT`; health payload keeps deterministic `planningPersistence.migrations.driftDetected` state | Checksum drift does not fail closed, pass path missing, or migration drift state not deterministic |
-| Rollback trigger thresholds | `WS6-E4 RollbackTriggers`: output from `rollbackPolicy.test.js` and `updatePolicy.rollback.test.js` | Outputs include machine-readable reasons for threshold triggers (`rollback_policy_source_unavailable`, `rollback_policy_malformed`, `current_version_below_minimum_safe`, `candidate_version_above_channel_ceiling`) and allowed path marker (`allowed_by_rollback_policy`) | Any trigger reason missing/changed, or trigger behavior not fail-closed |
-| Kill-switch activation evidence | `WS6-E5 KillSwitch`: output from `updater.rollback.test.js` plus ops approval note referencing release authority | Output includes `updates_disabled_globally` blocking update checks; release record confirms Release Engineering execution with incident commander approval and Security co-approval for trust-chain incidents | Kill-switch does not block checks, missing `updates_disabled_globally` evidence, or missing required ownership/approval record |
-
-### Gate decision
-
-- WS6 release readiness is **pass** only when all five artifacts (`WS6-E1`..`WS6-E5`) are present and all command results exit `0`.
-- WS6 release readiness is **fail** when any artifact is missing, any required marker/reason is absent, or any command fails.
-- A failed WS6 gate blocks release progression until corrected evidence is regenerated.
-
-## WS6 — CI Topology + Trigger Coverage + Required Checks (WU-WS6-01 / WU-WS6-03 / WU-WS6-04 / WU-WS6-05)
-
-Authoritative workflow file: `.github/workflows/extension-ci.yml` (retained for WS6 evidence and
-required-check aggregation after legacy extension retirement, but now used as repo-wide PR CI).
-
-### Fixed topology (must remain fail-closed)
-
-- `build`
-- `ws6-evidence` matrix (`WS6-E1`..`WS6-E5`)
-- `ws6-artifact-gate`
-- `required-checks`
-- legacy extension release packaging removed; desktop packaging stays in `desktop-release.yml`
-
-### Trigger coverage checks
-
-For pull requests, `extension-ci.yml` now runs repo-wide rather than relying on a narrow path filter.
-Do not reintroduce restrictive PR path filters that would allow WS6-owned changes to bypass required CI.
-
-### Matrix evidence + artifact gate checks
-
-1. `ws6-evidence` runs all five matrix IDs (`WS6-E1`..`WS6-E5`) and uploads one artifact per ID.
-2. Each artifact contains:
-  - `command.log`
-  - `metadata.json`
-  - `command.log.sha256`
-  - `metadata.json.sha256`
-3. `ws6-artifact-gate` fails closed on:
-  - missing or extra WS6 artifacts,
-  - missing required files,
-  - checksum mismatch,
-  - evidence-ID mismatch in `metadata.json`.
-
-### Required-check aggregator semantics
-
-`required-checks` must fail unless all are true:
-
-- `needs.build.result == success`
-- `needs.ws6-evidence.result == success`
-- `needs.ws6-artifact-gate.result == success`
-- `needs.ws6-artifact-gate.outputs.complete == true`
-
-Missing/skipped/non-success statuses are treated as release-blocking failures.
-
-## WS6 — Narrow-to-Broad Validation + Rollback Contract (WU-WS6-07)
-
-Run validation in this order:
-
-1. Narrow static checks
-
-```bash
-node scripts/validate-manifest.js
-node scripts/validate-doc-graph.js
-```
-
-2. Compatibility + checksum checks
-
-```bash
-node copilot-ui/server.lifecycle-proxy.test.js
-npm --prefix local-tracker run test:jest -- src/messagingGateway/__tests__/gatewayHttpServer.test.ts
-node copilot-ui/lib/planningPersistence.test.js
-node copilot-ui/server.runtime-health.test.js
-```
-
-3. Broad rollback + kill-switch checks
-
-```bash
-npm --prefix copilot-ui run build:electron
-node copilot-ui/dist-electron/rollbackPolicy.test.js
-node copilot-ui/dist-electron/updatePolicy.rollback.test.js
-node copilot-ui/dist-electron/updater.rollback.test.js
-```
-
-Contract result:
-- **Pass**: all stages pass and WS6 artifacts are complete/integrity-verified.
-- **Fail**: any stage fails, required artifact/check is missing, or `required-checks` is non-success.
-
-## WS4 — Electron Packaging Baseline (G-02-WU-02)
-
-### Build baseline
-
-```bash
-cd copilot-ui
-npm install
-npm run build:electron
-```
-
-Expected:
-- `dist-electron/main.js` and `dist-electron/preload.js` are generated.
-- `dist-electron/**` and `ui-dist/**` remain local build outputs and should not be committed.
-
-### Desktop preview package smoke
-
-```bash
-cd copilot-ui
-npm run package:preview
-```
-
-Expected:
-- unpacked app artifact is generated under `copilot-ui/release/`.
-- launched app opens dashboard UI backed by the same local API behavior.
-
-### Windows package smoke
-
-```bash
-cd copilot-ui
-npm run package:win
-```
-
-Expected:
-- Windows installer artifact appears under `copilot-ui/release/`.
-- app launches and renders the same dashboard tabs/content as `node copilot-ui/server.js`.
+- Repo CI: `.github/workflows/repo-ci.yml`
+  - `build`
+  - `desktop-tauri-preview`
+  - `required-checks`
+- Preview release: `.github/workflows/desktop-preview-release.yml`
+- Signed release: `.github/workflows/desktop-release.yml`
+- Tag helper: `.github/workflows/desktop-version-tag.yml`
 
 ## WS5 — Update Channel Isolation (G-02-WU-03)
 

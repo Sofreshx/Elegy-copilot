@@ -29,7 +29,7 @@ For each task:
 1. Mark as in_progress
 2. Follow each step exactly (plan has bite-sized steps)
 3. Determine the narrowest required validation layer using `docs/system/validation-governance.md`
-4. Route that validation through the dedicated validation runner/coordinator and inspect its returned evidence
+4. Route that validation through the dedicated validation coordinator/runner flow and inspect the runner lane's returned evidence
 5. If tests changed, apply `docs/system/testing-quality-governance.md` before treating the result as sufficient evidence
 6. Mark as completed only when the required validation evidence is acceptable, or when any explicit gap/limitation is carried forward as unresolved
 
@@ -52,7 +52,7 @@ After all tasks complete and required validation coverage is explicit:
 - Plan has critical gaps preventing starting
 - You don't understand an instruction
 - Verification fails repeatedly
-- Required validation cannot be routed through the appropriate runner/coordinator lane
+- Required validation cannot be routed through the appropriate coordinator/runner flow to obtain runner evidence
 
 **Ask for clarification rather than guessing.**
 

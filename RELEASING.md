@@ -1,55 +1,57 @@
 # Releasing Elegy Copilot
 
-Elegy Copilot currently has two desktop distribution lanes:
+Elegy Copilot now ships as a Tauri-only Windows desktop app with a bundled Node sidecar.
 
-- `desktop-preview-release.yml` for public, unsigned preview artifacts on GitHub Releases
-- `desktop-release.yml` for the signed maintainer release flow
+## Release lanes
 
-Release-channel pairing is part of the packaged desktop contract:
+- `npm --prefix copilot-ui run desktop:preview:stage` builds and stages the local Windows preview lane.
+- `.github/workflows/desktop-preview-release.yml` publishes unsigned Windows preview artifacts for a matching semver tag.
+- `.github/workflows/desktop-version-tag.yml` creates `desktop-v<version>` tags for maintainer release flows.
+- `.github/workflows/desktop-release.yml` signs and publishes the Windows release for `desktop-v*` tags.
 
-- stable app releases must ship and update against stable SDK/CLI lanes
-- prerelease app releases must ship and update against prerelease SDK/CLI lanes
-- the packaged app owns Copilot CLI ensure/install/update for its matched lane rather than treating it
-  as a separate manual prerequisite
-- this slice currently ships channel-contract metadata only; if no bundled CLI payload is present, desktop SDK features fail closed until a matching managed CLI is seeded or a later release adds the bundle/fetch path
-- packaged workflow assets are still bundled for parity checks, but the workflow sidecar must remain default-disabled unless explicitly enabled
+## Channel contract
 
-## 1. Preview release lane
+- stable app releases must stay on stable SDK/CLI lanes
+- prerelease app releases must stay on prerelease SDK/CLI lanes
+- the packaged app owns Copilot CLI ensure/install/update for its matched lane
+- packaged workflow assets remain bundled for parity checks, but the workflow sidecar stays default-disabled unless explicitly enabled
 
-`.github/workflows/desktop-preview-release.yml` is the default public distribution lane.
+## Local preview/staging
 
-- Pushing a normal release tag such as `1.0.0` or `1.0.0-rc.1` automatically builds and attaches unsigned desktop artifacts to that GitHub release.
-- The preview release tag must exactly match `copilot-ui/package.json`'s version at the selected ref.
-- Auto-published preview releases are always marked as prereleases because the artifacts are intentionally unsigned.
-- Manual `workflow_dispatch` remains available when you need to backfill assets for an existing tag or build from a non-tag ref.
-- The workflow now fails closed if it is run from a repository that does not match `copilot-ui/electron-builder.yml`'s GitHub publish target.
+Run:
 
-Inputs:
+```bash
+npm --prefix copilot-ui run desktop:preview:stage
+```
 
-- `ref` — branch, tag, or commit to build
-- `tag_name` — GitHub release tag to create/update
-- `release_name` — optional human-friendly release title
-- `prerelease` — whether to mark the release as a prerelease
+This produces:
 
-What it publishes:
+- a Windows NSIS installer under `copilot-ui/release/tauri/windows`
+- `release-manifest.json` with fail-closed channel metadata
+- `windows-installation-guide.md`
+- staged release files under `release-artifacts/windows-tauri`
 
-- unsigned Windows desktop artifacts from `copilot-ui/release`
-- Linux preview tarball + checksum
-- macOS preview tarball
-- explicit unsigned marker files for each preview lane
+This lane is manual-installer only. It does not claim in-app updater/feed parity.
 
-This lane is the safest default for open-source/public preview distribution.
+## Public preview release
 
-## 2. Signed maintainer release lane
+`.github/workflows/desktop-preview-release.yml` is the public preview lane.
 
-Use `.github/workflows/desktop-version-tag.yml` and `.github/workflows/desktop-release.yml` for the signed maintainer flow.
+- Pushing a normal semver tag such as `1.0.0` or `1.0.0-rc.1` builds and publishes unsigned Windows preview artifacts.
+- The preview tag must exactly match `copilot-ui/package.json` at the selected ref.
+- Manual `workflow_dispatch` is available for backfills or non-tag refs.
+- The workflow fails closed unless it runs from the repository declared in `copilot-ui/package.json` under `desktopRelease.publishRepository`.
+
+## Signed maintainer release
+
+Use `.github/workflows/desktop-version-tag.yml` and `.github/workflows/desktop-release.yml`.
 
 Workflow:
 
 1. Bump `copilot-ui/package.json` version.
 2. Run the desktop tag helper workflow to create `desktop-v<version>`.
-3. Pushing that `desktop-v<version>` tag now auto-runs `desktop-release.yml` and creates or updates the matching published GitHub release.
-4. Use manual `workflow_dispatch` only when you need to backfill an existing desktop tag or intentionally override `publish_mode` back to `draft`.
+3. Push that tag to trigger the signed release workflow.
+4. Use manual `workflow_dispatch` only for backfills or `publish_mode=draft`.
 
 Required repository configuration:
 
@@ -57,36 +59,10 @@ Required repository configuration:
 - optional `DESKTOP_SIGNING_SERVICE_AUDIENCE`
 - optional `DESKTOP_SIGNING_SERVICE_API_KEY`
 
-The signed release lane is intentionally fail-closed when signing evidence is unavailable.
-Updater metadata for packaged builds is emitted against `Sofreshx/Elegy-copilot`, so published assets and
-in-app update discovery stay aligned with the actual GitHub repository.
-The maintainer tag helper and signed release workflows now refuse to run from any other repository.
+The signed release lane is fail-closed when signing evidence is unavailable.
 
-## 3. Local packaged updater smoke
+## CI expectations
 
-Run `npm --prefix copilot-ui run package:win:smoke` before cutting or validating a Windows desktop release when you need a local integrity check for the packaged runtime and updater lane.
-
-What it validates:
-
-- the desktop packaging step rebuilt the React UI, Electron main bundle, `local-tracker`, and `local-tracker` gateway runtime that packaged Electron depends on
-- the packaged Copilot CLI channel contract still matches the source metadata and the app's stable/prerelease SDK lane
-- the packaged Windows app boots and serves `/api/health`
-- the packaged SDK bridge fails closed with `managed_cli_missing` when the current channel-contract-only slice has no bundled or seeded CLI payload
-- `copilot-ui/release/latest.yml` version and installer path match the packaged desktop version
-- the referenced installer and `.blockmap` exist in `copilot-ui/release`
-- the packaged `win-unpacked/resources/app-update.yml` still matches the current GitHub publish metadata
-- packaged `engine-assets` and workflow-layer assets remain present, and the bundled workflow sidecar stays default-disabled by default
-- the packaged updater regression tests shipped under `win-unpacked/resources/app/dist-electron` still execute successfully
-
-What it does not validate:
-
-- GitHub Release publishing
-- live update discovery against GitHub
-- installer replacement and restart behavior on a second installed build
-
-## 4. CI expectations
-
-- `.github/workflows/extension-ci.yml` is the repo-wide required CI workflow and must stay fail-closed.
-- `.github/workflows/extension-ci.yml` now includes a required Windows `desktop-package-smoke` job that runs `npm --prefix copilot-ui run package:win:smoke`.
+- `.github/workflows/repo-ci.yml` is the repo-wide required CI workflow.
+- The Windows packaging check in that workflow runs `npm --prefix copilot-ui run desktop:preview:stage`.
 - Release docs and workflow behavior must stay aligned.
-- When changing desktop packaging, prefer updating both `README.md` and the canonical docs in `docs/system/`.

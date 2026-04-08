@@ -15,7 +15,7 @@ related: [catalog-control-plane, session-state-artifacts, system-upgrade-directi
 ## Purpose
 
 This document freezes the canonical authority for the cleanup domains that were still split across
-`copilot-ui`, the retired `RannIA` extension, `local-tracker`, docs, and shared contracts.
+`copilot-ui`, `local-tracker`, docs, and shared contracts.
 
 These decisions are intentionally conservative:
 
@@ -33,8 +33,8 @@ an incidental code change.
 |---|---|---|---|
 | State roots and storage paths | Unified `~/.copilot` runtime state model | `~/.copilot/*` with the shared layout defined below | `~/.instruction-engine/*` only as migration-era exceptions, not a competing root |
 | Runtime and readiness state | Split by authority domain: control-plane runtime via `copilot-ui`, gateway readiness via status file | `copilot-ui` `GET /api/health` for backend runtime/control-plane state; `~/.copilot/messaging-gateway.status.json` for messaging-gateway readiness | `GET /api/gateway/state`, UI panels, and extension trees are projections/consumers; tracker live APIs are operational APIs, not readiness authority |
-| Asset mutation authority | `copilot-ui` local backend control plane | catalog mutation and install/enable/disable APIs | direct `RannIA` mutations were retired with the legacy extension |
-| Enablement persistence | Repo registry overlay | `~/.copilot/repo-state/<repoId>/registry.json` | VS Code settings are import/compatibility input only |
+| Asset mutation authority | `copilot-ui` local backend control plane | catalog mutation and install/enable/disable APIs | legacy direct editor mutations are retired |
+| Enablement persistence | Repo registry overlay | `~/.copilot/repo-state/<repoId>/registry.json` | legacy imported settings are compatibility input only |
 | Session authority | ACP/runtime session state | runtime-backed session reconciliation, with runtime winning when present | filesystem artifacts remain durable projections and archive/offline fallback |
 | Provider catalog source | Shipped provider catalog data | `engine-assets/providers.json` | `contracts/src/providerCatalog.ts` remains schema/helpers plus a synced mirror until generation lands |
 | Task authority | Repo-state task store | `~/.copilot/repo-state/<repoId>/tasks/` and `tasks.archive/` | task-board UI/workflow surfaces are projections; repo-local `.instructions/tasks` remains migration-only input |

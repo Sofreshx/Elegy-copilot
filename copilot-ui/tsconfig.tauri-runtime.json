@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "ignoreDeprecations": "6.0",
+    "rootDir": "src",
+    "outDir": "lib/desktop-shell",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/desktopRuntime/**/*.ts",
+    "src/gatewayChildMode.ts",
+    "src/tauri/**/*.ts",
+    "src/updatePolicy.ts",
+    "src/workflowSidecar.ts"
+  ]
+}

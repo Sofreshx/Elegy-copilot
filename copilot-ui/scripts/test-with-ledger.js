@@ -31,11 +31,18 @@ const skipCache = forceRun || !commandAllowed;
 
 // 1. Discover tests
 function findTests(dir, fileList = []) {
+    const ignoredDirectories = new Set([
+        'node_modules',
+        'release',
+        'ui-dist',
+        'target',
+        'resources',
+    ]);
     const files = fs.readdirSync(dir);
     for (const file of files) {
         const filePath = path.join(dir, file);
         if (fs.statSync(filePath).isDirectory()) {
-            if (file !== 'node_modules' && file !== 'dist-electron' && file !== 'release') {
+            if (!ignoredDirectories.has(file)) {
                 findTests(filePath, fileList);
             }
         } else if (filePath.endsWith('.test.js')) {

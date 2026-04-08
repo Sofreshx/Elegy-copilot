@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-18
+updated: 2026-04-08
 category: system
 status: current
 doc_kind: index
@@ -37,6 +37,7 @@ related: [doc-graph-spec]
 ## Applications
 
 - [[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md)
+- [[desktop-runtime-tauri-migration-contract]] [docs/system/desktop-runtime-tauri-migration-contract.md](docs/system/desktop-runtime-tauri-migration-contract.md)
 
 ## Planning
 
