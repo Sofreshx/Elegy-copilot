@@ -1,13 +1,13 @@
 ---
 created: 2026-03-18
-updated: 2026-03-18
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: moc
 id: moc-conventions-and-governance
 summary: Map of content for canonical conventions, governance routing, and follow-up handoff entrypoints.
 tags: [governance, conventions, routing]
-related: [system-docs-index, project-conventions-governance, documentation-structure-governance, follow-up-discovery-governance]
+related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, follow-up-discovery-governance]
 ---
 
 # MOC — Conventions & Governance
@@ -21,6 +21,10 @@ related: [system-docs-index, project-conventions-governance, documentation-struc
 
 ## Start here
 
+- End-to-end first-slice overview for repo-rule bootstrap, compliance, project audit, follow-up
+  routing, and smart-comment posture:
+  [[rules-compliance-audit-handoff-workflow]]
+  [docs/system/rules-compliance-audit-handoff-workflow.md](docs/system/rules-compliance-audit-handoff-workflow.md)
 - Convention policy, rule precedence, and governance output shape:
   [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
 - Documentation entrypoints, information architecture, and discoverability:
@@ -34,18 +38,22 @@ related: [system-docs-index, project-conventions-governance, documentation-struc
 
 ## Recommended workflow
 
-1. Start with `docs/system/project-conventions-governance.md` when the user is asking what the repo
-   rules are or how they should be clarified.
-2. Add `docs/system/documentation-structure-governance.md` when the main gap is that conventions are
+1. Start with `docs/system/rules-compliance-audit-handoff-workflow.md` when the user needs the
+   integrated first-slice route across repo-rule bootstrap, compliance gates, project audit, and
+   follow-up handoff.
+2. Open `docs/system/project-conventions-governance.md` when the question is specifically what the
+   repo rules are or how they should be clarified.
+3. Add `docs/system/documentation-structure-governance.md` when the main gap is that conventions are
    hard to find, hard to route, or split across too many entrypoints.
-3. Route confirmed next steps to `docs/system/follow-up-discovery-governance.md` when convention
-   findings should become planning-ready tasks later.
-4. Use `docs/system/reviewer-lane-governance.md` instead when the task is review of a concrete
+4. Route confirmed next steps to `docs/system/follow-up-discovery-governance.md` when convention or
+   audit findings should become planning-ready tasks later.
+5. Use `docs/system/reviewer-lane-governance.md` instead when the task is review of a concrete
    change rather than governance authoring.
 
 ## Quick routing
 
 - "Define or revise repo conventions" -> `docs/system/project-conventions-governance.md`
+- "Show me the whole rules -> compliance -> audit -> follow-up workflow" -> `docs/system/rules-compliance-audit-handoff-workflow.md`
 - "Make the rules easier to discover" -> `docs/system/documentation-structure-governance.md`
 - "Turn convention gaps into follow-up tasks" -> `docs/system/follow-up-discovery-governance.md`
 - "Review this implementation for correctness" -> `docs/system/reviewer-lane-governance.md`

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-07
-updated: 2026-04-03
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: node
@@ -67,6 +67,94 @@ Write-capable leaves must perform this contradiction check against the canonical
 independently loaded for the active work unit rather than assuming an upstream summary stayed
 complete.
 
+## Repo-Rule Bootstrap for Write-Capable Work
+
+For instruction-engine itself, repo-rule authority stays in `docs/system/**`.
+
+- start from `docs/system/index.md`, a relevant MOC, or a deterministic core-lane governance node
+- load the smallest relevant canonical node before write-capable feature or modification work
+- require the write-capable leaf to repeat that bootstrap even when an orchestrator brief, plan pack,
+  `@execute` brief, or repo-local instruction file already summarized the task
+- treat repo-local `.github/*` assets, installed prompts, and agent assets as routing or
+  discoverability aids unless a canonical doc explicitly promotes them into higher authority
+- treat repeated implementation patterns as secondary evidence for convention discovery, not as a
+  substitute for canonical bootstrap
+- if a repo-local asset or prompt appears to conflict with `docs/system/**`, follow `docs/system/**`
+  and surface the contradiction before editing
+
+## Canonical Guidance Compliance Loop
+
+Instruction Engine uses one docs-first compliance loop across planning, exploration, execution, and
+review. It does not create a second rule hierarchy beyond the canonical-doc precedence already
+defined above.
+
+### Required rule loading
+
+- planning or exploration that will constrain write-capable work must load the smallest relevant
+  canonical docs entrypoint before emitting a plan, recommendation, or execution brief
+- when docs-backed work is delegated, the upstream brief should name the expected canonical sources
+  so the next lane can verify it is loading the right rule family
+- each write-capable leaf must still independently repeat canonical bootstrap before editing instead
+  of treating the upstream brief, prompt text, or repo patterns as sufficient authority
+- if a step is purely read-only and does not constrain write-capable work, it may explicitly report
+  `bootstrap=not-required` instead of inventing citations
+
+### Observable reliance
+
+- when canonical bootstrap was required, the resulting plan, execution summary, or review must make
+  the relied-on canonical paths observable through `canonical_sources`, `canonical_references`, or an
+  equivalent clearly labeled field
+- successful write-capable outputs should state whether canonical bootstrap was required and list the
+  canonical docs actually checked
+- prompt text, exploration summaries, and repeated implementation patterns may appear as supporting
+  context, but they do not satisfy the observable-bootstrap requirement on their own
+
+### Missing bootstrap detection
+
+Treat canonical bootstrap as missing when either of these is true:
+
+- docs-backed work proceeds without any cited canonical sources
+- the output cites only prompts, summaries, or repeated patterns even though canonical docs were
+  required for the work
+
+When bootstrap is missing:
+
+- fail closed for the active write-capable step instead of accepting the work as complete
+- return a stop signal such as `needs-clarification`, `REPLAN_REQUESTED`, or an equivalent blocked
+  status rather than a success result
+- route missing-authority-path problems to conventions or documentation governance instead of
+  silently promoting prompt text into repo rules
+
+### Material contradiction handling
+
+- if canonical docs conflict with each other or with nearby maintained docs, surface the conflicting
+  paths and the exact point of disagreement
+- stop write-capable work and ask the user for direction before implementation continues
+- do not silently resolve the conflict by coding first and updating docs later
+
+### Skipped-guidance detection surfaces
+
+Use existing lanes to catch skipped canonical guidance:
+
+- `impl-reviewer` is the primary spec-fit gate for required canonical bootstrap on docs-backed
+  write-capable work
+- `consistency-reviewer` checks cited canonical references, docs/code alignment, and convention
+  guidance that was skipped or only partially applied
+- `code-reviewer` catches high-confidence defects, security issues, or quality regressions caused by
+  ignored canonical guidance
+- `convention-governor` and `doc-structure-governor` own missing-authority-path and missing-entrypoint
+  audits when the real problem is the governance surface itself
+- doc and contract validators remain the narrow validation layer for touched governance assets
+
+### Mixed enforcement posture
+
+- hard-stop conditions: missing canonical bootstrap when it was required, or material contradictions
+  with canonical docs
+- review findings, not contradiction-style blockers: missing rationale or smart-comment coverage where
+  the canonical rule itself is already clear
+- optional polish and local cleanup remain non-blocking unless another canonical rule makes them
+  mandatory
+
 ## Planning-Surface Routing Posture
 
 Before broad capability search, the orchestrator should classify planning-oriented requests with the
@@ -124,6 +212,8 @@ for these capability families:
 - project conventions governance -> `docs/system/project-conventions-governance.md`
 - documentation and project-structure governance -> `docs/system/documentation-structure-governance.md`
 - specialist reviewer lanes -> `docs/system/reviewer-lane-governance.md`
+- project audit or multi-lane static analysis -> `docs/system/reviewer-lane-governance.md`, then
+  `docs/system/follow-up-discovery-governance.md` when the findings need planning-ready carryover
 - follow-up and research discovery -> `docs/system/follow-up-discovery-governance.md`
 
 Use `@search` only when the user intent does not clearly identify the right family or when multiple

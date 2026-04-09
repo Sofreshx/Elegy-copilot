@@ -1,13 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-04-08
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: index
 id: system-docs-index
 summary: Entrypoint map for canonical documentation (start here, then follow MOCs to atomic nodes).
 tags: [documentation, index]
-related: [doc-graph-spec]
+related: [doc-graph-spec, rules-compliance-audit-handoff-workflow]
 ---
 
 # Docs (System) — Index
@@ -48,6 +48,7 @@ related: [doc-graph-spec]
 ## Governance
 
 - Start with [[moc-conventions-and-governance]] [docs/system/mocs/conventions-and-governance.md](docs/system/mocs/conventions-and-governance.md) when the task is about repo rules, convention discoverability, governance routing, or planning-ready follow-up from governance findings.
+- [[rules-compliance-audit-handoff-workflow]] [docs/system/rules-compliance-audit-handoff-workflow.md](docs/system/rules-compliance-audit-handoff-workflow.md)
 - [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
 - [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
 - [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)

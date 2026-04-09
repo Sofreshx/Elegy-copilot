@@ -26,6 +26,7 @@ Implement an infra-focused work unit end-to-end with minimal risk: small diffs, 
 - Before deciding requested test scope, enumerate the meaningful success, failure, edge, and adversarial cases introduced by the infra change.
 - Treat test maintenance as legitimate only when the product or runtime contract truly changed or the prior expectation was wrong; otherwise preserve the original confidence target.
 - For any work unit that affects behavior, workflow policy, or a documentation-backed feature, independently load the smallest relevant canonical docs entrypoint before editing. Do not rely only on the provided spec, constraints, or upstream summaries for docs truth.
+- When canonical bootstrap was required, cite the canonical doc paths you actually checked in the output. If no relevant canonical source can be identified, return `needs-clarification` instead of `done`.
 - For feature or modification work that changes intended design, behavior, or workflow policy reflected in canonical docs, update the relevant canonical docs in the first execution slice before or alongside code or config changes.
 - If intended work materially contradicts current canonical docs or nearby maintained docs, stop and return `needs-clarification` with the conflicting sources and the replan or clarification need. Do not guess or silently override docs.
 - If change affects runtime topology, auth, networking, deployments, or data stores: request **integration tests** (Alba) after implementation.
@@ -39,6 +40,11 @@ IMPL_RESULT
 - work_unit: <WU-ID echoed from input>
 - kind: infra
 - status: done|blocked|needs-clarification
+- canonical_bootstrap: required-and-satisfied|not-required|missing-authority|contradiction
+- canonical_references:
+  - <doc path or NONE>
+- doc_conflicts:
+  - <conflict or NONE>
 - changes:
   - <bullets>
 - validation:

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-04-03
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: node
@@ -55,6 +55,52 @@ The research lane is responsible for:
   governance findings.
 - `research-ideation` remains the canonical research surface for V1 and should be upgraded in
   behavior/contract before a new research-specific agent is introduced.
+
+## Normalized Finding Intake
+
+The project-audit/static-analysis family defined in
+`docs/system/reviewer-lane-governance.md` feeds this lane through an additive normalization
+overlay. Native reviewer and scanner outputs stay unchanged, but each accepted finding should be
+reduced to exactly one category before follow-up routing.
+
+| Category | Meaning | Default follow-up home |
+| --- | --- | --- |
+| `defect` | confirmed or strongly supported correctness, security, runtime, or high-signal quality problem | `immediate_next_tasks` when it blocks active work; otherwise `defer_or_backlog` and durable `backlog_carryover.issues` when carryover is needed |
+| `rule_drift` | implementation/docs/naming/structure drift against a canonical rule or stable repo convention | `immediate_next_tasks` when required for the current slice; otherwise `backlog_carryover.issues` |
+| `authority_gap` | missing, contradictory, or hard-to-discover canonical rule or entrypoint | `gaps` when it blocks the current step; otherwise `backlog_carryover.issues` routed to conventions or documentation governance |
+| `research_thread` | topic needing comparative analysis, outside evidence, or adoption framing before planning | `research_threads` |
+| `improvement` | non-blocking maintainability or quality suggestion that is not yet a defect, rule drift, or authority gap | `defer_or_backlog` or `backlog_carryover.suggestions` |
+
+`work_not_done` remains reserved for already-committed active-goal scope that was not completed in
+the current session, regardless of which normalized category originally exposed the gap.
+
+`deferred issue` is not a separate intake category in V1. Deferral is a routing decision made after
+normalization.
+
+## V1 Durable Handoff Decision
+
+Instruction Engine does **not** add a dedicated issue ledger in V1. The existing Repository Backlog
+family plus the approved `docs/issues/*` surfaces are sufficient for durable issue-to-plan handoff
+once routing is explicit. The minimal additive extension for this first pass is therefore a tighter
+mapping contract, not a new persistence surface.
+
+| Normalized output or condition | Canonical durable surface | Notes |
+| --- | --- | --- |
+| unfinished active-goal scope | `docs/backlogs/<session-slug>.md` under `backlog_carryover.work_not_done` | `docs/backlog.md` remains legacy compatibility only |
+| accepted `defect`, `rule_drift`, or `authority_gap` carryover | `docs/backlogs/<session-slug>.md` under `backlog_carryover.issues` | use queued backlog carryover unless the item is explicitly outside approved scope |
+| accepted `improvement` carryover | `docs/backlogs/<session-slug>.md` under `backlog_carryover.suggestions` | use when the idea is real queued repo work rather than a loose note |
+| planning-worthy idea or research outcome not yet accepted as queued work | `docs/issues/planning-ideas-log.md` | use after `research_threads` / `RESEARCH_IDEATION` when the outcome should persist as future planning input |
+| explicitly deferred item outside the approved current scope | `docs/issues/out-of-scope-findings.md` | use for deliberate scope deferral, not for every backlog decision |
+| unresolved high-level goal that is no longer active | `docs/issues/unresolved-goals.md` | reserved for `partial` / `not-complete` goal state under [[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md) |
+| recurring implementation friction discovered during delivery | `docs/issues/implementation-friction-log.md` | use only for repeated delivery pain points, not as a generic issue ledger |
+
+Notes:
+
+- `research_thread` first routes to `research_threads`; persist it in `docs/issues/planning-ideas-log.md`
+  only when the result should survive as planning input and has not yet been accepted into backlog.
+- `unresolved-goals` is a goal-state carryover surface, not a general issue bucket.
+- `implementation-friction-log` is a specialized recurring-friction surface, not a replacement for
+  Repository Backlog carryover.
 
 ## Routing
 
@@ -121,10 +167,14 @@ RESEARCH_IDEATION
 2. Use research when a gap cannot be responsibly closed without additional investigation.
 3. Feed validated follow-up outputs into planning workflows instead of leaving them as narrative-only
    notes.
-4. Route structured Repository Backlog carryover through a backlog-writing lane such as `@backlog-planner`.
-5. Keep research additive; do not introduce a separate research-scout lane until the upgraded
+4. Normalize project-audit/static-analysis findings through the category set in
+   `docs/system/reviewer-lane-governance.md` before assigning carryover homes.
+5. Route structured Repository Backlog carryover through a backlog-writing lane such as `@backlog-planner`.
+6. Keep research additive; do not introduce a separate research-scout lane until the upgraded
    `research-ideation` contract proves insufficient.
-6. When carryover context is present, distinguish active-session continuation from non-active carryover so stale goals are not reintroduced as zombie follow-ups.
+7. When carryover context is present, distinguish active-session continuation from non-active carryover so stale goals are not reintroduced as zombie follow-ups.
+8. Do not add or imply a separate V1 issue-ledger artifact; use the Repository Backlog plus approved
+   `docs/issues/*` surfaces above.
 
 ## Persistent Discovery Surfaces
 
@@ -132,8 +182,10 @@ The goal/discovery governance surface uses these persistent docs for cross-sessi
 
 - `docs/backlogs/*.md` (primary per-session Repository Backlog carryover family)
 - `docs/backlog.md` (legacy Repository Backlog compatibility surface)
+- `docs/issues/unresolved-goals.md`
 - `docs/issues/planning-ideas-log.md`
 - `docs/issues/out-of-scope-findings.md`
+- `docs/issues/implementation-friction-log.md`
 
 These paths are approved targets, but this document does not require immediate creation.
 
@@ -143,5 +195,6 @@ These paths are approved targets, but this document does not require immediate c
 - `docs/system/reviewer-lane-governance.md`
 - `docs/system/project-conventions-governance.md`
 - `docs/system/goal-contract-governance.md`
+- `engine-assets/agents/follow-up-finder.agent.md`
 - `engine-assets/agents/remaining-work.agent.md`
 - `engine-assets/agents/research-ideation.agent.md`

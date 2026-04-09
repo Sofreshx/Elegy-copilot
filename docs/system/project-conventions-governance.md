@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-03-26
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: node
@@ -92,6 +92,80 @@ the user for direction before proceeding with write-capable work.
 When approved feature or modification work changes intended design, behavior, or workflow policy
 captured by canonical docs, the first execution slice should update the relevant canonical docs
 before or alongside code or asset changes.
+
+## Repo Rules Authority and Bootstrap Model
+
+For the instruction-engine first pass, repository rules are authoritative only when they are captured
+in canonical docs under `docs/system/**`.
+
+- `docs/system/index.md` and `docs/system/mocs/conventions-and-governance.md` are the canonical
+  discovery entrypoints for repo-rule loading
+- the relevant atomic node under `docs/system/**` is the authority for the active rule family once
+  identified
+- write-capable planning and implementation work must load the smallest relevant canonical entrypoint
+  before editing, and write-capable leaves must perform that bootstrap independently instead of
+  relying only on orchestrator briefs, plan packs, prompts, or summaries
+- repo-local overlays such as `.github/copilot-instructions.md`, `.github/agents/**`, and
+  `.github/skills/**` may improve discovery or routing, but they are not peer authority with
+  `docs/system/**` unless a canonical doc explicitly promotes them
+- agent prompts, chat history, and repeated implementation patterns are secondary evidence only; they
+  may justify an inferred convention audit, but they do not become canonical repo rules until
+  promoted into `docs/system/**`
+- if no relevant canonical entrypoint can be identified for intended write-capable work, stop and
+  surface the missing authority path or route the gap through conventions or documentation governance
+  instead of silently treating prompt text or local habits as authoritative
+
+## Observable Rule Reliance
+
+The repo-rules authority model is only effective when other lanes can see which canonical rules were
+actually used.
+
+- when canonical bootstrap was required, planning, execution, and review outputs should name the
+  canonical doc paths they relied on
+- citing only prompts, summaries, or repeated repo patterns does not satisfy repo-rule bootstrap when
+  a canonical `docs/system/**` source was required
+- if required write-capable work cannot identify a relevant canonical node, fail closed for that step
+  and route the gap through conventions or documentation governance instead of treating local habit as
+  authority
+- missing rationale or smart-comment coverage may still be reported during review, but those gaps are
+  findings rather than authority blockers when the canonical rule itself is already present
+
+## Why Documentation and Smart-Comment Policy
+
+Rationale should live at the highest-authority surface that needs to stay durable and discoverable.
+
+- enduring workflow policy, architectural intent, design constraints, and repo-wide or subsystem-wide
+  "why" belong in canonical docs under `docs/system/**`
+- planning-worthy decisions, deferred tradeoffs, unresolved questions, and findings that may drive
+  later work belong in the appropriate `docs/issues/*` log or other canonical follow-up surface
+- code comments are for local rationale that must stay next to the code to prevent accidental
+  simplification, cleanup, or boundary erosion
+
+Use a smart comment when at least one of these is true:
+
+- the code intentionally looks unusual because it protects a non-obvious invariant
+- the behavior is security-sensitive and a future cleanup pass might weaken it
+- an architectural boundary, protocol detail, or external contract would otherwise look arbitrary
+- duplicated-looking or intentionally separate logic must stay separate for a real reason
+
+Do not use comments as a second source of truth:
+
+- comments are subordinate to canonical docs; if a comment and `docs/system/**` disagree, the
+  canonical doc wins
+- do not restate large policy text, planning notes, or issue-log content inline when a canonical doc
+  or issue entry is the better home
+- do not comment obvious code, mirror names and types, or narrate straightforward control flow
+- if the explanation now spans multiple files, workflows, or future follow-up ownership, promote the
+  rationale into canonical docs or the appropriate issue surface and keep any code comment brief
+
+The enforcement posture stays mixed:
+
+- missing rationale or smart comments should be raised as review findings when future drift risk is
+  high
+- missing rationale alone is not a contradiction-style hard stop and does not replace canonical
+  bootstrap requirements
+- review lanes should route these gaps through consistency or implementation review rather than
+  treating ordinary comment absence as a hard gate
 
 ## Default Operating Contract
 

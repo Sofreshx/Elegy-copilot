@@ -40,3 +40,9 @@ LOGIC_REVIEW
 - next_actions:
   - <fix, re-check, or targeted follow-up>
 ```
+
+## Project-Audit Role
+
+When participating in the instruction-engine first-pass project-audit/static-analysis family in
+`docs/system/reviewer-lane-governance.md`, normalize reported findings as `defect`. If evidence is
+too weak to support a correctness finding, say so instead of inventing a softer category.

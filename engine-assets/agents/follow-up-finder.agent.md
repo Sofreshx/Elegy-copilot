@@ -62,6 +62,44 @@ structures that carryover for downstream backlog sync.
 - Use `NONE` when a section has no items.
 - If the work is fully complete, say so in `current_state` and return `NONE` elsewhere.
 
+## Normalized Project-Audit Intake
+
+When `review_outputs` include findings from the project-audit/static-analysis family in
+`docs/system/reviewer-lane-governance.md`, first reduce each accepted finding to exactly one of:
+`defect`, `rule_drift`, `authority_gap`, `research_thread`, or `improvement`.
+
+Default routing:
+- `defect` -> `immediate_next_tasks` when it blocks current scope; otherwise `defer_or_backlog`
+  and/or durable `backlog_carryover.issues`
+- `rule_drift` -> `immediate_next_tasks` when required for the current slice; otherwise
+  `backlog_carryover.issues`
+- `authority_gap` -> `gaps` when it blocks the current step; otherwise `backlog_carryover.issues`
+  with routing to conventions or docs governance
+- `research_thread` -> `research_threads`
+- `improvement` -> `defer_or_backlog` or `backlog_carryover.suggestions`
+
+`work_not_done` is reserved for unfinished active-goal scope, not as a replacement for the
+normalized category above.
+
+## Durable Handoff Mapping
+
+V1 uses the existing Repository Backlog family plus approved `docs/issues/*` surfaces. Do not imply
+or request a separate issue-ledger artifact.
+
+- unfinished active-goal scope -> `backlog_carryover.work_not_done` for downstream sync into
+  `docs/backlogs/<session-slug>.md` (or legacy `docs/backlog.md` only when compatibility requires it)
+- accepted `defect`, `rule_drift`, or `authority_gap` carryover -> `backlog_carryover.issues`
+- accepted `improvement` carryover -> `backlog_carryover.suggestions`
+- explicit out-of-scope deferrals -> call out in `defer_or_backlog` so downstream docs sync can route
+  to `docs/issues/out-of-scope-findings.md`
+- planning-worthy ideas or research outcomes not yet accepted into backlog -> keep in
+  `defer_or_backlog` or `research_threads` so downstream sync can route to
+  `docs/issues/planning-ideas-log.md`
+- unresolved non-active high-level goals -> keep separate from ordinary issues so downstream goal sync
+  can route to `docs/issues/unresolved-goals.md`
+- recurring delivery pain points -> call out explicitly so downstream docs sync can append
+  `docs/issues/implementation-friction-log.md`
+
 ## Output (strict)
 ```text
 FOLLOW_UP_DISCOVERY

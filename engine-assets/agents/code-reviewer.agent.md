@@ -50,3 +50,14 @@ Conclude every review with exactly one status:
 - `<critical issue description>` (escalate to user)
 
 The orchestrator uses this status: APPROVED → continue, NEEDS_REVISION → create fix WUs and re-run, FAILED → escalate.
+
+## Project-Audit Role
+
+When participating in the instruction-engine first-pass project-audit/static-analysis family in
+`docs/system/reviewer-lane-governance.md`, normalize each reported issue as:
+
+- `defect` for bugs, security issues, regressions, or high-confidence quality risks
+- `rule_drift` for high-confidence convention violations backed by authoritative repo guidance
+
+Do not emit `authority_gap` here when the real problem is a missing governance surface; route that
+to `convention-governor` or documentation governance instead.

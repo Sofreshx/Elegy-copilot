@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-04-07
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: node
@@ -69,14 +69,15 @@ SAFE interpretation for canonical planning mirrors:
 
 ## Orchestrator Planning Model
 
-The orchestrator planning model is intentionally layered around four primary planning surfaces:
+The orchestrator planning model is intentionally layered around five primary planning surfaces:
 
 1. **Planning Bullets** capture candidate ideas and pre-backlog seeds.
 2. **Repository Backlog** is the durable repo-wide queue and triage surface.
 3. **Roadmap** organizes selected backlog work into phased outcomes and sequencing.
 4. **Plan Pack** turns one approved slice into active execution work for a single session.
-5. **Follow-up / carryover issue docs** capture post-run unresolved goals, planning ideas, and
-   out-of-scope findings that should persist outside the active session.
+5. **Follow-up / carryover issue docs** capture post-run unresolved goals, planning ideas,
+   out-of-scope findings, and recurring implementation friction that should persist outside the
+   active session.
 
 Primary supported Planning-tab workflow:
 
@@ -94,7 +95,7 @@ user explicitly asks for scoped deletion.
 
 Typed intake, external Obsidian notes, and legacy planning-record notes may still exist as
 compatibility inputs, but they are non-primary surfaces for the Planning tab and must not displace the
-four-surface workflow above. When UI keeps them available, it should do so behind an explicit
+five-surface workflow above. When UI keeps them available, it should do so behind an explicit
 compatibility/operator area rather than mixing them into the main workflow tabs.
 
 This means the orchestrator's active execution TODO state is not the same authority as the durable repo
@@ -290,6 +291,10 @@ extensions and must not be implied unless separately implemented and approved.
 | Unresolved Goals | `<repo>/docs/issues/unresolved-goals.md` | Repo docs | Non-active unresolved goal carryover |
 | Planning Ideas Log | `<repo>/docs/issues/planning-ideas-log.md` | Repo docs | Cross-session planning ideas not accepted as active work |
 | Out-of-Scope Findings | `<repo>/docs/issues/out-of-scope-findings.md` | Repo docs | Discoveries intentionally outside current approved scope |
+| Implementation Friction Log | `<repo>/docs/issues/implementation-friction-log.md` | Repo docs | Recurring delivery pain points that may later promote into planning ideas or backlog work |
+
+`docs/issues/implementation-friction-log.md` is a durable issue surface, but it does not replace
+Repository Backlog intake, queued carryover, or unresolved-goal persistence.
 
 Fail-closed rules:
 

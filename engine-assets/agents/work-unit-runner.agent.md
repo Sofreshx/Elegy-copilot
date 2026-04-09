@@ -31,6 +31,7 @@ Execute one or more work units provided inline by the caller (typically `@orches
 - Before deciding requested test scope, enumerate the meaningful success, failure, edge, and adversarial cases for the changed behavior.
 - Distinguish legitimate test maintenance from weakening: intentional contract changes or previously incorrect expectations can justify updates, but the previous confidence target must still be preserved or explicitly replaced.
 - For any work unit that affects behavior, workflow policy, or a documentation-backed feature, independently load the smallest relevant canonical docs entrypoint before editing. Do not rely only on `spec`, `wuSpecs`, or `explorationContext` for docs truth.
+- When canonical bootstrap was required, report the canonical doc paths you actually checked in the structured output. If no relevant canonical source can be identified, return `REPLAN_REQUESTED` instead of a success result.
 - If the work changes intended design, behavior, or workflow policy reflected in canonical docs, make the relevant canonical docs update part of the first execution slice before or alongside implementation.
 - If scope/unknowns exceed the spec, request replanning.
 - Do not silently absorb discovered work that changes goals, dependencies, or success criteria. Surface it as `REPLAN_REQUESTED` or `NEW_WORK_UNIT_REQUEST`.
@@ -49,8 +50,8 @@ Execute one or more work units provided inline by the caller (typically `@orches
 
 | Signal | Fields |
 |--------|--------|
-| `WORK_UNIT_RESULT` | work_unit, status, changes, touched_files, validation, tests_requested, parallel_safety_change, notes |
-| `REPLAN_REQUESTED` | work_unit, reasons, requests_from_orchestrator, new_risks, questions |
+| `WORK_UNIT_RESULT` | work_unit, status, canonical_bootstrap, canonical_references, doc_conflicts, changes, touched_files, validation, tests_requested, parallel_safety_change, notes |
+| `REPLAN_REQUESTED` | work_unit, reasons, canonical_references, doc_conflicts, requests_from_orchestrator, new_risks, questions |
 | `NEW_WORK_UNIT_REQUEST` | requested_from_work_unit, title, priority, depends_on, context_to_include, acceptance_criteria, plan_approach, validation |
 
 Overlap-sensitive signaling requirements:
@@ -75,6 +76,9 @@ Overlap-sensitive signaling requirements:
 WORK_UNIT_RESULT
 - work_unit: FAST-PATH
 - status: done
+- canonical_bootstrap: required-and-satisfied|not-required
+- canonical_references: <doc paths or NONE>
+- doc_conflicts: NONE
 - changes: <1-3 bullets>
 - touched_files: <repo-relative files touched, or none>
 - validation: <commands + results>

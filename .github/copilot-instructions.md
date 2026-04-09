@@ -74,6 +74,18 @@ When task decisions depend on repository docs, follow this route first:
 3. Follow that MOC to the minimal set of canonical nodes in `docs/system/**`.
 4. Expand only when needed.
 
+For instruction-engine repo rules and conventions, use this file as a routing aid, not as the final
+authority surface:
+- `docs/system/**` is authoritative for repo rules
+- `.github/*`, prompts, and repeated repo patterns are secondary unless canonical docs explicitly
+  promote them
+- before write-capable work, load the smallest relevant canonical `docs/system/**` node yourself
+  instead of relying only on this file or an upstream summary
+- when canonical bootstrap was required, make the canonical `docs/system/**` sources you actually
+  loaded observable in your execution or review output
+- if you cannot identify a relevant canonical node or you find a material docs contradiction, stop
+  and surface it instead of treating prompt text or local patterns as enough authority
+
 Precedence:
 - Canonical decisions live in `docs/system/**`.
 - Research and exploratory inputs live in `docs/research/**`.

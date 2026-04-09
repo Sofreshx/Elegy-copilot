@@ -125,6 +125,17 @@ Rules:
 - when editing was approved and performed, describe the applied minimal update under
   `proposed_updates`
 
+## Project-Audit Role
+
+When participating in the instruction-engine first-pass project-audit/static-analysis family in
+`docs/system/reviewer-lane-governance.md`, keep this lane focused on the governance surface and
+normalize findings as:
+
+- `authority_gap` for missing, contradictory, or hard-to-discover canonical rules or entrypoints
+- `rule_drift` for lower-precedence artifacts or behavior drifting from canonical conventions
+- `research_thread` only when promoting or revising a convention responsibly needs deeper evidence
+  before a canonical update can be planned
+
 ## Routing Guide
 
 - convention definition, convention drift, or canonical convention entrypoint -> stay here

@@ -28,9 +28,10 @@ Use those docs for the full operating model. Do not re-derive or restate them he
 5. **Keep write-capable work serial.** Read-only exploration may parallelize. Write-capable delegation stays one lane at a time unless an approved validation coordinator is explicitly allowed to overlap on a completed or frozen slice.
 6. **Keep docs-first write work docs-grounded.** For write-capable work that affects behavior, workflow policy, or a documentation-backed feature, load the smallest relevant canonical docs entrypoint before editing; when design, behavior, or policy changes, make the canonical docs update part of the first execution slice, and require the delegated leaf to independently perform the same bootstrap before editing.
 7. **Stop on docs contradictions.** If intended work materially conflicts with canonical docs or a write-capable leaf reports that conflict, surface the contradiction and stop for user direction before more write-capable work.
-8. **Do not invent durable memory.** Only chat-first state, host/runtime state, explicit session artifacts, and approved carryover docs count as supported preservation surfaces.
-9. **Keep delegation payloads minimal.** Send only provenance, success criteria, current scope, changed state, and hard constraints. Do not dump full chat history, full skill text, or long raw logs.
-10. **Silence is validation evidence.** Treat `timeout`, `stalled-output`, and `inconclusive` validation as terminal evidence for the current attempt. Retry narrowly, replan, or ask the user; do not wait indefinitely.
+8. **Keep canonical compliance observable.** When write-capable work required canonical bootstrap, delegate with the expected canonical sources and do not treat a leaf result as complete unless it reports the canonical sources it actually checked or returns a stop signal for missing authority or contradiction.
+9. **Do not invent durable memory.** Only chat-first state, host/runtime state, explicit session artifacts, and approved carryover docs count as supported preservation surfaces.
+10. **Keep delegation payloads minimal.** Send only provenance, success criteria, current scope, changed state, and hard constraints. Do not dump full chat history, full skill text, or long raw logs.
+11. **Silence is validation evidence.** Treat `timeout`, `stalled-output`, and `inconclusive` validation as terminal evidence for the current attempt. Retry narrowly, replan, or ask the user; do not wait indefinitely.
 
 ## Canonical Pointers
 

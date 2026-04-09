@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-03-26
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: node
@@ -98,6 +98,22 @@ The human-friendly and LLM-friendly entrypoints must agree on the same source-of
 Progressive disclosure is a standing requirement for canonical docs and entrypoints: start compact,
 expand only when the current step needs more detail, and avoid flattening the whole rule set into
 every entrypoint.
+
+## Rationale Placement and Authority Boundaries
+
+Documentation structure should keep "why" discoverable without creating competing authority layers.
+
+- durable workflow, policy, and architectural rationale that others must rely on belongs in
+  canonical `docs/system/**` nodes
+- `docs/issues/*` is the durable home for planning-worthy ideas, deferred findings, open questions,
+  and recurring friction, but it does not become peer authority with `docs/system/**`
+- code comments may carry selective local rationale, but they should stay brief and should not try to
+  replace the canonical doc or issue entry that owns the broader decision
+- if the same rationale would otherwise need to be copied into many comments or scattered docs, create
+  or update the smallest relevant canonical node and let local surfaces point back to it
+- when issue logs or comments expose a repeated rationale pattern that should guide future work, route
+  promotion through conventions or documentation governance instead of treating the lower-authority
+  surface as final policy
 
 ## Documentation and Project-Structure Responsibilities
 

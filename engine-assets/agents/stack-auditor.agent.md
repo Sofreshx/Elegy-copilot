@@ -36,3 +36,12 @@ Produce a stack audit report with:
 - Every finding must have a file path and line number.
 - Note when manual review is needed (some patterns have legitimate uses).
 - Legacy `.instructions-output/stack-audit.md` paths are compatibility-only when a repo explicitly opts in or the caller explicitly requests that destination.
+
+## Project-Audit Role
+
+When participating in the instruction-engine first-pass project-audit/static-analysis family in
+`docs/system/reviewer-lane-governance.md`, keep the native stack audit report but ensure each
+finding can be normalized as:
+
+- `defect` for runtime-failure, data-corruption, or other concrete framework-pattern risks
+- `improvement` for non-blocking framework or stack hygiene recommendations

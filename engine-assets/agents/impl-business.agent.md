@@ -25,6 +25,7 @@ Implement business-logic work units end-to-end with clear correctness boundaries
 - Before deciding unit-test scope, enumerate the meaningful success, failure, edge, and adversarial cases for the changed behavior.
 - Distinguish legitimate test maintenance from weakening: product-contract changes or wrong prior expectations can justify updates, but the prior confidence target must stay covered or the new boundary must be stated explicitly.
 - For any work unit that affects behavior, workflow policy, or a documentation-backed feature, independently load the smallest relevant canonical docs entrypoint before editing. Do not rely only on the provided spec, patterns, or upstream summaries for docs truth.
+- When canonical bootstrap was required, cite the canonical doc paths you actually checked in the output. If no relevant canonical source can be identified, return `needs-clarification` instead of `done`.
 - For feature or modification work that changes intended design, behavior, or workflow policy reflected in canonical docs, update the relevant canonical docs in the first execution slice before or alongside code changes.
 - If intended work materially contradicts current canonical docs or nearby maintained docs, stop and return `needs-clarification` with the conflicting sources and the replan or clarification need. Do not guess or silently override docs.
 - Add/adjust unit tests when the spec implies behavior changes.
@@ -38,6 +39,11 @@ IMPL_RESULT
 - work_unit: <WU-ID echoed from input>
 - kind: business
 - status: done|blocked|needs-clarification
+- canonical_bootstrap: required-and-satisfied|not-required|missing-authority|contradiction
+- canonical_references:
+  - <doc path or NONE>
+- doc_conflicts:
+  - <conflict or NONE>
 - changes:
   - <bullets>
 - validation:

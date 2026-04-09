@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-04-08
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: node
@@ -44,6 +44,49 @@ The **working reviewer** uses a **hybrid** posture:
 | Impl reviewer | match against request/spec and approved plan | deep runtime validation, broad post-mortem | remains the spec-fit gate |
 | Final reviewer | what was requested, delivered, validated, and what remains | file-level code correctness review | remains the closing summary |
 
+## Project-Audit / Static-Analysis Family
+
+The instruction-engine first pass treats project audit / static analysis as a **composed family**
+that reuses existing specialist lanes instead of adding a replacement reviewer.
+
+| Lane | Project-audit role | Primary normalized categories |
+| --- | --- | --- |
+| `stack-auditor` | framework/runtime pattern audit | `defect`, `improvement` |
+| `security-scanner` | attack-surface and security-risk audit | `defect`, `research_thread` |
+| `logic-reviewer` | correctness and invariant overlay for suspicious or high-risk areas | `defect` |
+| `consistency-reviewer` | convention drift, docs/code alignment, and missing required canonical references | `rule_drift`, `authority_gap` |
+| `code-reviewer` | broad high-signal fallback for defects or cross-cutting quality risks | `defect`, `rule_drift` |
+| `convention-governor` | explicit-rule, authority-path, and convention-drift audit when the problem is the governance surface itself | `authority_gap`, `rule_drift`, `research_thread` |
+
+This family is adjacent to, but does not replace:
+
+- `impl-reviewer` for request/spec fit and required canonical-bootstrap checks on docs-backed
+  write-capable work
+- `working-reviewer` for validation sufficiency and confidence-in-practice
+- `goal-reviewer` and `final-reviewer` for closure and requested-vs-delivered reporting
+
+## Normalized Finding Categories
+
+When a lane participates in the project-audit/static-analysis family, each finding should reduce to
+exactly one normalized category:
+
+- `defect`: a confirmed or strongly supported correctness, security, runtime, or other
+  implementation-quality problem that should become concrete implementation or validation follow-up
+- `rule_drift`: code, docs, naming, structure, or required-citation drift against an existing
+  canonical rule or stable repo convention
+- `authority_gap`: a missing, contradictory, or hard-to-discover canonical rule, entrypoint, or
+  governance surface that prevents reliable enforcement
+- `research_thread`: a real concern or opportunity that needs comparative analysis, outside
+  evidence, or adoption framing before implementation work can be planned responsibly
+- `improvement`: a non-blocking maintainability or quality suggestion that is not yet a `defect`,
+  `rule_drift`, or `authority_gap`
+
+If one observation spans multiple categories, split it into multiple findings rather than
+multi-labeling a single item.
+
+`deferred issue` is not a scanner/reviewer category in this first pass. Deferral is a later routing
+decision owned by follow-up discovery once the finding has been normalized.
+
 ## Routing
 
 Use deterministic routing when the user intent is clear:
@@ -67,6 +110,10 @@ If the user does not specify a narrow lane, use the broad default review path fi
 5. Cross-model reviewers are workflow-specific planning reviewers. They are not generic replacements for the core reviewer lanes outside workflows that explicitly require them.
 6. `@goal-reviewer` does not replace `@final-reviewer`; the lanes are intentionally complementary.
 7. `@goal-reviewer` remains read-only. Persisting or removing entries in `docs/issues/unresolved-goals.md` should be routed through `@doc-writer` or another explicit docs lane, and Repository Backlog carryover under `docs/backlogs/*.md` should be routed through a backlog-writing lane such as `@backlog-planner`.
+8. The project-audit/static-analysis family is an orchestration and normalization overlay, not a new
+   replacement reviewer. Native lane responsibilities stay intact.
+9. Native lane output blocks stay intact in V1. The normalized finding categories above are an
+   additive downstream-routing contract for shared audit/follow-up flows.
 
 ## Planning-Phase Use
 
@@ -98,7 +145,27 @@ When test changes are part of the evidence, reviewer lanes should use
 - shallow green-only coverage that does not prove the real behavior
 - assertion relaxations without replacement coverage that preserves confidence
 
+## Canonical Guidance Compliance Detection
+
+Reviewer lanes should reuse the docs-first bootstrap and contradiction rules from
+`docs/system/search-execute-workflow.md` instead of inventing a separate enforcement hierarchy.
+
+- `impl-reviewer` is the primary execution gate for checking whether docs-backed write-capable work
+  reported the required canonical bootstrap and named the canonical sources it relied on
+- `consistency-reviewer` is the primary review surface for skipped convention guidance, stale or
+  missing canonical references, and docs/code alignment drift
+- `code-reviewer` remains the broad fallback when ignored canonical guidance produced a
+  high-confidence bug, security issue, or quality regression
+- `convention-governor` and `doc-structure-governor` handle missing authority-path or entrypoint
+  problems when the issue is the governance surface itself rather than a single change
+- missing rationale or smart comments should be reported as review findings when they matter for
+  future maintainability, but they are not contradiction-style hard stops on their own
+
 ## Output Contracts
+
+Native lane outputs stay unchanged. When a lane is participating in project audit / static
+analysis, its findings should also be reducible to exactly one normalized category from the taxonomy
+above before follow-up routing.
 
 Use these compact structures:
 
@@ -122,6 +189,23 @@ CONSISTENCY_REVIEW
   - <doc path>
 - next_actions:
   - <fix or governance follow-up>
+```
+
+```text
+IMPL_REVIEW
+- status: APPROVED|NEEDS_REVISION|FAILED
+- canonical_bootstrap:
+  - required-and-satisfied|not-required|missing|contradiction
+- canonical_references:
+  - <doc path or NONE>
+- matches_request:
+  - <bullet>
+- gaps:
+  - <bullet>
+- risks:
+  - <bullet>
+- next_actions:
+  - <concrete, ordered actions>
 ```
 
 ```text
@@ -165,6 +249,11 @@ GOAL_REVIEW
 - `docs/system/goal-contract-governance.md`
 - `docs/system/testing-quality-governance.md`
 - `engine-assets/agents/code-reviewer.agent.md`
+- `engine-assets/agents/consistency-reviewer.agent.md`
 - `engine-assets/agents/impl-reviewer.agent.md`
+- `engine-assets/agents/logic-reviewer.agent.md`
+- `engine-assets/agents/security-scanner.agent.md`
+- `engine-assets/agents/stack-auditor.agent.md`
+- `engine-assets/agents/convention-governor.agent.md`
 - `engine-assets/agents/final-reviewer.agent.md`
 - `engine-assets/agents/verification-guide.agent.md`
