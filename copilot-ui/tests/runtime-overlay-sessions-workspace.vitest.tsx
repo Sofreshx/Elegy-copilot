@@ -105,10 +105,11 @@ describe('OverlaySessionsWorkspace', () => {
 
     expect(overlayStoreMocks.load).toHaveBeenCalledTimes(1);
     expect(within(screen.getByTestId('runtime-overlay-sessions-list')).getByText('Storefront App')).toBeInTheDocument();
-    expect(screen.getByText(/1 observation\(s\) \| 1 annotation\(s\) \| 1 change request\(s\) \| 1 quality signal\(s\)/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 observation\(s\) \| 1 annotation\(s\) \| 1 change request\(s\)/i)).toBeInTheDocument();
     const selectedSessionSummary = screen.getByTestId('runtime-overlay-selected-session-summary');
     expect(selectedSessionSummary).toBeInTheDocument();
     expect(selectedSessionSummary).toHaveTextContent('Storefront App');
+    expect(selectedSessionSummary).toHaveTextContent(/Quality Signals\s*1/i);
     expect(screen.getByTestId('runtime-overlay-session-open-executor-overlay-1')).toHaveTextContent('Resume');
     expect(screen.getByTestId('runtime-overlay-session-select-overlay-1')).toHaveTextContent('Reviewing');
 

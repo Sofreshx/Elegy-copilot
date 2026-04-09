@@ -10,6 +10,7 @@ const {
   validateTauriNodeSidecarLayoutModel,
 } = require('./tauri-node-sidecar-layout');
 const { resolveDesktopReleaseChannelContract } = require('./desktop-release-policy');
+const { removeTarget } = require('./clean-tauri-release');
 
 const workspaceRoot = path.resolve(__dirname, '..');
 const stagedResourcesRoot = path.join(workspaceRoot, 'src-tauri', 'gen', 'resources');
@@ -21,7 +22,7 @@ function assert(condition, message) {
 }
 
 function ensureCleanDir(targetPath) {
-  fs.rmSync(targetPath, { recursive: true, force: true });
+  removeTarget(targetPath);
   fs.mkdirSync(targetPath, { recursive: true });
 }
 
@@ -130,11 +131,20 @@ function stageRuntimeNodeModules(options) {
   const pendingPackages = requiredRuntimePackages.map((packageName) => ({
     packageName,
     requesterPath: sourceRoot,
+    optional: false,
   }));
 
   while (pendingPackages.length > 0) {
-    const { packageName, requesterPath } = pendingPackages.shift();
+    const { packageName, requesterPath, optional } = pendingPackages.shift();
     const sourcePackagePath = resolveInstalledPackageMountPath(requesterPath, packageName);
+    const sourcePackageManifestPath = path.join(sourcePackagePath, 'package.json');
+    if (!fs.existsSync(sourcePackageManifestPath)) {
+      if (optional) {
+        logger(`[tauri-win-bundle] skipping optional runtime package ${packageName} (missing package.json)`);
+        continue;
+      }
+      throw new Error(`Missing runtime package manifest for ${packageName}: ${sourcePackageManifestPath}`);
+    }
     const relativePackagePath = path.relative(sourceRoot, sourcePackagePath);
     assert(
       relativePackagePath && !relativePackagePath.startsWith('..') && !path.isAbsolute(relativePackagePath),
@@ -155,12 +165,13 @@ function stageRuntimeNodeModules(options) {
     visitedMountPaths.add(normalizedRelativePath);
     stagedPackagePaths.push(normalizedRelativePath);
 
-    const packageJson = readJson(path.join(sourcePackagePath, 'package.json'), `runtime package manifest for ${packageName}`);
+    const packageJson = readJson(sourcePackageManifestPath, `runtime package manifest for ${packageName}`);
     const runtimeDependencies = listRuntimeDependencies(packageJson);
     for (const dependencyName of runtimeDependencies.required) {
       pendingPackages.push({
         packageName: dependencyName,
         requesterPath: sourcePackagePath,
+        optional: false,
       });
     }
 
@@ -170,6 +181,7 @@ function stageRuntimeNodeModules(options) {
         pendingPackages.push({
           packageName: dependencyName,
           requesterPath: sourcePackagePath,
+          optional: true,
         });
       } catch (error) {
         logger(`[tauri-win-bundle] skipping optional runtime package ${dependencyName} (not installed)`);

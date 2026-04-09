@@ -124,4 +124,5 @@ if (require.main === module) {
 
 module.exports = {
   cleanTauriRelease,
+  removeTarget,
 };

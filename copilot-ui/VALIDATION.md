@@ -13,10 +13,46 @@ This document provides curl commands to manually validate the Plan-Pack Progress
 3. The raw server no longer serves the normal dashboard UI to a plain browser request; use the Tauri desktop app for dashboard validation, or use curl/HTTP clients directly against `/api`.
 5. Use a valid session ID (example: `a04980e8-4804-411d-a774-0a4cbf88576e`)
 
+## SDK replay smoke lane
+
+Run `node copilot-ui/tests/e2e/sdk-smoke.test.js` from the repo root for the narrow SDK replay-smoke check.
+
+- Default behavior is `INSTRUCTION_ENGINE_SDK_SMOKE_MODE=auto`: the script validates the checked-in
+  snapshot, then looks for the replay harness at `COPILOT_SDK_ROOT` or the sibling checkout
+  `..\copilot-sdk\test\harness\server.ts`. If the harness is absent, it exits cleanly with an
+  actionable skip message that prints the exact path it checked.
+- Set `INSTRUCTION_ENGINE_SDK_SMOKE_MODE=require` to make missing replay harness setup fail closed.
+- Set `INSTRUCTION_ENGINE_SDK_SMOKE_MODE=skip` to codify an intentional local skip while still
+  validating the checked-in snapshot contract.
+
+PowerShell examples:
+
+```powershell
+node copilot-ui\tests\e2e\sdk-smoke.test.js
+$env:INSTRUCTION_ENGINE_SDK_SMOKE_MODE = 'require'; node copilot-ui\tests\e2e\sdk-smoke.test.js
+$env:INSTRUCTION_ENGINE_SDK_SMOKE_MODE = 'skip'; node copilot-ui\tests\e2e\sdk-smoke.test.js
+$env:COPILOT_SDK_ROOT = 'C:\src\copilot-sdk'; node copilot-ui\tests\e2e\sdk-smoke.test.js
+```
+
 ## Primary desktop packaging path
 
 Run `npm run desktop:check` from `copilot-ui` for the narrow shell/build validation path, and
 `npm run desktop:preview:stage` when you need the packaged Windows manual-installer lane.
+Run `npm run desktop:smoke:native` for the bounded first-pass native Tauri install/launch/uninstall smoke lane.
+
+## Desktop runtime source-test runner
+
+Use `npm run test:tauri-runtime-host` from `copilot-ui` as the canonical runner for the desktop
+runtime source tests:
+
+- `src/desktopRuntime/runtimeService.test.ts`
+- `src/gatewayChildMode.test.ts`
+- `src/workflowSidecar.test.ts`
+
+This path is intentionally build-first: it compiles the runtime host with
+`tsconfig.tauri-runtime.json`, then runs the emitted CommonJS tests from `lib/desktop-shell`.
+Direct source execution with `node --experimental-strip-types --test ...` is not the canonical
+path because the current extensionless runtime imports do not resolve reliably in that mode.
 
 ## Tauri Windows Preview Packaging
 
@@ -34,6 +70,27 @@ This command:
 
 This validation is intentionally limited to the current manual-installer preview lane. It does not claim
 Tauri in-app updater/feed parity.
+
+## Native desktop smoke lane
+
+Run `npm run desktop:smoke:native` from `copilot-ui` when you need the strongest bounded native
+automation slice that exists today.
+
+This command:
+
+- runs the existing packaged Windows preview/manual-installer lane (`desktop:preview:stage`)
+- silently installs the staged NSIS installer into `copilot-ui/.tmp/tauri-native-desktop-smoke/install`
+- validates the installed Tauri resource layout against `resources/runtime-manifests/windows-tauri-node-sidecar.json`
+- launches the installed desktop app with an isolated repo-local home/state root and a fixed loopback server port
+- verifies `/api/health`, the native `Elegy Copilot` window, and first-pass Tauri single-instance reuse
+- silently runs the generated uninstaller and confirms the installed app payload is removed
+
+Still manual after this slice:
+
+- interactive installer UI/UAC/prompt copy review
+- signed-installer trust and external release-publish validation
+- upgrade/migration behavior over an already-installed Electron or Tauri build
+- Windows shell integrations such as shortcuts, Start menu entries, and registry-visible uninstall metadata
 
 ## Endpoint 1: GET /api/sessions/:id/structured-state
 
