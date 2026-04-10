@@ -40,6 +40,7 @@ This lane is manual-installer only. It does not claim in-app updater/feed parity
 - Pushing a normal semver tag such as `1.0.0` or `1.0.0-rc.1` builds and publishes unsigned Windows preview artifacts.
 - The preview tag must exactly match `copilot-ui/package.json` at the selected ref.
 - Manual `workflow_dispatch` is available for backfills or non-tag refs.
+- Preview releases are evaluation lane only: semver tags always publish as `prerelease=true`, including manual backfills.
 - The workflow fails closed unless it runs from the repository declared in `copilot-ui/package.json` under `desktopRelease.publishRepository`.
 
 ## Signed maintainer release
@@ -49,9 +50,17 @@ Use `.github/workflows/desktop-version-tag.yml` and `.github/workflows/desktop-r
 Workflow:
 
 1. Bump `copilot-ui/package.json` version.
-2. Run the desktop tag helper workflow to create `desktop-v<version>`.
-3. Push that tag to trigger the signed release workflow.
-4. Use manual `workflow_dispatch` only for backfills or `publish_mode=draft`.
+2. Publish the matching semver preview release (`<version>`) first.
+3. Run the desktop tag helper workflow to create `desktop-v<version>`.
+4. Push that tag to trigger the signed release workflow.
+5. Use manual `workflow_dispatch` only for backfills or `publish_mode=draft`.
+
+Stable promotion guardrails:
+
+- Stable `desktop-vx.y.z` promotion fails closed unless semver tag `x.y.z` exists, resolves to the same commit, and already has a published GitHub prerelease in `desktopRelease.publishRepository`.
+- That preview release must remain `prerelease=true` and include `release-manifest.json`, at least one `.exe` installer, and `windows-installation-guide.md`.
+- Hyphenated `desktop-vx.y.z-*` tags still publish as prerelease based on the tag itself.
+- Do not treat `/releases/latest` as the stable shortcut until historic semver releases are remediated so none remain non-prerelease.
 
 Required repository configuration:
 

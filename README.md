@@ -2,6 +2,15 @@
 
 Shared GitHub Copilot agents, skills, and workflow conventions for multi-repo development. Elegy Copilot provides structured orchestration so planning, implementation, testing, and reviews stay consistent across all your projects.
 
+## Windows Desktop Download
+
+Windows desktop installers are published on the GitHub Releases page: [Sofreshx/Elegy-copilot releases](https://github.com/Sofreshx/Elegy-copilot/releases).
+
+- Stable users should choose the latest non-prerelease `desktop-v*` release.
+- Semver tags such as `1.2.3` and `1.2.3-rc.1` are preview/evaluation releases and stay marked as prerelease on GitHub.
+- The current Windows Tauri lane is a manual-installer path. The app may perform automatic matching-channel checks, but installer download and apply remain explicit user actions.
+- Do not treat `/releases/latest` as the stable shortcut yet; historic semver releases must be remediated so none remain non-prerelease first.
+
 ## How it works
 
 Assets are installed from `engine-assets/` into `~/.copilot`. The default source install copies the shipped first-party agents, prompts, instructions, and skills there. Optional workflow packs and repo-local `.github/*` assets are separate post-install layers. Both **VS Code Copilot Chat** and the **Copilot CLI** discover user-global assets from that location — no per-repo setup needed for the default baseline.

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-04-08
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: node
@@ -33,10 +33,13 @@ from `copilot-ui/public/index.html` explains that the active UI is served from `
    - For the packaged Windows preview/manual-installer lane, run `npm --prefix copilot-ui run desktop:preview:stage`.
    - The current primary implementation packages the same UI and backend behavior inside Tauri and boots the bundled Node sidecar locally on `127.0.0.1`.
    - The current Tauri Windows preview lane emits explicit release metadata plus a Windows installation guide. It is a manual-installer lane; no in-app updater/feed parity is claimed in the current slice.
+  - Public GitHub semver tags such as `1.2.3` and `1.2.3-rc.1` are preview/evaluation releases and remain `prerelease=true`; stable desktop selection is limited to promoted non-prerelease `desktop-v*` releases.
    - It uses `~/.copilot` for runtime state, starts the messaging gateway dependency automatically, keeps any desktop-only platformless bootstrap config env-scoped instead of persisting a non-canonical `~/.copilot/messaging-gateway.config.json`, and default-enables `COPILOT_SDK_BRIDGE=1` unless explicitly disabled.
    - The packaged app is also the intended manager for the paired Copilot SDK + Copilot CLI lane: stable app builds track stable SDK/CLI bits, prerelease app builds track prerelease SDK/CLI bits, and app-managed CLI ensure/install/update behavior is part of the desktop delivery contract.
-   - The current bounded CLI-management slice only approves a bundled payload or a seeded managed install under `~/.copilot/managed-cli/<channel>/`. If neither exists, desktop SDK features stay blocked and the UI surfaces the reason.
+  - The current bounded CLI-management slice only approves a bundled payload or a seeded managed install under `~/.copilot/managed-cli/<channel>/`. On Windows, the desktop runtime may seed that managed install from the packaged `@github/copilot-win32-x64/copilot.exe` dependency when no bundled or pre-seeded payload exists, and it may refresh an existing seeded install from that packaged dependency when the managed copy is outdated or stale relative to the app lane. If none of those approved sources exist, desktop SDK features stay blocked and the UI surfaces the reason.
    - If the managed CLI bootstrap path itself fails, or if `INSTRUCTION_ENGINE_UPDATE_CHANNEL` is set to an invalid explicit value, desktop SDK features remain blocked with a machine-readable reason while the rest of the desktop shell continues booting.
+  - The Tauri desktop shell now exposes a GitHub-release-backed updater bridge to the UI. The app performs automatic matching-channel update checks, but installer download and apply remain explicit user actions and no seamless in-place updater/feed parity is claimed.
+    - Until historic semver releases are remediated so none remain non-prerelease, `/releases/latest` must not be treated as the stable desktop shortcut.
    - In packaged mode it starts an embedded planning database under `~/.copilot/planning-db`, sets planning persistence env vars for the local runtime, and keeps planning durability available by default without a separate database install.
    - Desktop update and rollback behavior are governed by [[desktop-update-rollback-runbook]] [docs/system/desktop-update-rollback-runbook.md](docs/system/desktop-update-rollback-runbook.md).
 2. **Local server mode**
@@ -121,6 +124,7 @@ The route registry in `copilot-ui/routes/index.js` mounts these current route mo
 - `uiRuntimeOverlay`
 - `gateway`
 - `tracker`
+- `desktopUpdater`
 - `sdk`
 - `executor`
 
@@ -133,6 +137,7 @@ Treat those groups as the primary backend surface. The most important user-visib
 - session artifact endpoints for structured state, proposition, and verification guides
 - attach-first UI Runtime Overlay endpoints for overlay session inventory, observations, annotations, change requests, and executor queue handoff
 - gateway and tracker proxy/status endpoints
+- desktop updater state/check/download/restart endpoints for the Windows manual-installer lane
 - SDK-facing routes used by smoke and sandbox validation
 - executor routes for scheduled SDK-backed prompts, run history, and retry-aware runtime control
 - executor workflow-layer routes for local status, recent trigger capture, and kill-switch control;

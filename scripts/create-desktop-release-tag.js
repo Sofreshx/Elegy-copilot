@@ -4,6 +4,8 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+const { verifyStableDesktopPromotionPreflight } = require('./desktop-stable-promotion-preflight');
+
 const DESKTOP_PACKAGE_NAME = 'elegy-copilot-desktop';
 const DESKTOP_PACKAGE_PATH = 'copilot-ui/package.json';
 const EXPLICIT_DESKTOP_RELEASE_FLAG = '--desktop-release';
@@ -52,8 +54,7 @@ function printUsage() {
   );
 }
 
-function main() {
-  const args = process.argv.slice(2);
+async function main(args = process.argv.slice(2)) {
   const dryRun = args.includes('--dry-run');
   const showHelp = args.includes('--help') || args.includes('-h');
   const explicitDesktopRelease = args.includes(EXPLICIT_DESKTOP_RELEASE_FLAG);
@@ -86,6 +87,17 @@ function main() {
   const currentVersion = packageJson.version;
   const previousVersion = getVersionFromGitObject(`HEAD^:${DESKTOP_PACKAGE_PATH}`);
   const tagName = `desktop-v${currentVersion}`;
+
+  const preflight = await verifyStableDesktopPromotionPreflight({
+    repoRoot,
+    desktopTag: tagName,
+    selectedRef: 'HEAD',
+    releaseApiBaseUrl: process.env.DESKTOP_RELEASE_GITHUB_API_BASE_URL,
+    assetVisibilityAttempts: process.env.DESKTOP_RELEASE_ASSET_RETRY_ATTEMPTS,
+    assetVisibilityDelayMs: process.env.DESKTOP_RELEASE_ASSET_RETRY_DELAY_MS,
+  });
+  console.log(preflight.message);
+
   runOptional('git fetch --tags origin');
 
   const remoteTag = runOptional(`git ls-remote --tags --refs origin refs/tags/${tagName}`);
@@ -122,9 +134,13 @@ function main() {
   console.log(`Pushed '${tagName}' to origin.`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error.message || error);
-  process.exit(1);
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message || error);
+    process.exit(1);
+  });
 }
+
+module.exports = {
+  main,
+};

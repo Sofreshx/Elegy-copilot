@@ -22,11 +22,6 @@ on:
         required: false
         default: ''
         type: string
-      prerelease:
-        description: 'Publish as a prerelease'
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -75,7 +70,7 @@ jobs:
           ref="${{ inputs.ref }}"
           tag_name="${{ inputs.tag_name }}"
           release_name="${{ inputs.release_name }}"
-          prerelease="${{ inputs.prerelease }}"
+          prerelease="true"
 
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
             if [[ ! "${GITHUB_REF_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
@@ -96,6 +91,11 @@ jobs:
 
           if [[ -z "${tag_name}" ]]; then
             echo "A preview tag name is required." >&2
+            exit 1
+          fi
+
+          if [[ ! "${tag_name}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Desktop preview publishing only supports semver tags like 1.2.3 or 1.2.3-rc.1." >&2
             exit 1
           fi
 
@@ -191,7 +191,6 @@ jobs:
           RELEASE_TAG: ${{ needs.resolve-preview.outputs.tag_name }}
           RELEASE_TARGET: ${{ needs.resolve-preview.outputs.ref }}
           RELEASE_NAME: ${{ needs.resolve-preview.outputs.release_name }}
-          RELEASE_PRERELEASE: ${{ needs.resolve-preview.outputs.prerelease }}
         run: |
           set -euo pipefail
 
@@ -201,10 +200,7 @@ jobs:
             exit 1
           fi
 
-          prerelease_flag=(--prerelease=false)
-          if [[ "${RELEASE_PRERELEASE}" == "true" ]]; then
-            prerelease_flag=(--prerelease)
-          fi
+          prerelease_flag=(--prerelease)
 
           if gh release view "${RELEASE_TAG}" --repo "${GH_REPO}" >/dev/null 2>&1; then
             gh release edit "${RELEASE_TAG}" --repo "${GH_REPO}" --draft=false --target "${RELEASE_TARGET}" --title "${RELEASE_NAME}" "${prerelease_flag[@]}"

@@ -84,6 +84,11 @@ jobs:
             exit 1
           fi
 
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid desktop release version '${version}'. Expected semver after the desktop-v prefix." >&2
+            exit 1
+          fi
+
           if ! git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
             echo "Tag '${tag}' does not exist in this repository." >&2
             exit 1
@@ -122,6 +127,16 @@ jobs:
           echo "release_version=${version}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
           echo "publish_mode=${publish_mode}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Stable desktop promotion preflight
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/desktop-stable-promotion-preflight.js --desktop-tag "${{ steps.meta.outputs.release_tag }}"
 
   build-windows:
     needs: resolve-release

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-04-08
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: node
@@ -11,7 +11,7 @@ tags: [security]
 
 # Security Model — Instruction Engine Relay (v1)
 
-> **Last updated**: 2026-04-08
+> **Last updated**: 2026-04-09
 >
 > This document describes the **actual, implemented** security architecture of the Instruction Engine runtime ecosystem. Claims are verified against source code. Planned-but-unimplemented features are clearly marked as **v2 Planned**.
 
@@ -24,7 +24,7 @@ desktop path is a Windows-first Tauri shell with a bundled Node sidecar, as defi
 
 | Topic | Decision | Owner |
 |---|---|---|
-| Runtime packaging | Current primary state: Windows-first Tauri shell with bundled Node sidecar; the active Windows release path is manual-installer metadata rather than live in-app updater parity. | Release Engineering |
+| Runtime packaging | Current primary state: Windows-first Tauri shell with bundled Node sidecar; the active Windows release path is a GitHub-release-backed manual-installer flow with automatic checks and explicit user download/apply rather than live in-app updater parity. | Release Engineering |
 | Channel scope | Current packaged release scope is the Windows Tauri desktop path. | Product + Release Engineering |
 | Signing custody | Signing material remains external (OIDC -> managed signing service/HSM/KMS); no private keys in repo or runner filesystem | Security Engineering |
 | Key/cert rotation authority | Rotation cadence and emergency rotation owned by Security Engineering, executed with Release Engineering | Security Engineering |
@@ -32,6 +32,7 @@ desktop path is a Windows-first Tauri shell with a bundled Node sidecar, as defi
 
 Operational constraints:
 - Stable channel never consumes prerelease artifacts.
+- Managed CLI refresh must stay on the same stable/prerelease lane as the packaged app and bundled SDK dependency.
 - Promotion requires matching provenance/attestation evidence.
 - Missing or invalid signing evidence is release-blocking (fail closed).
 
@@ -58,11 +59,12 @@ Desktop release CI is split between a public preview lane and the signed maintai
 
 - Public preview lane:
   - `.github/workflows/desktop-preview-release.yml` can be auto-triggered from a matching semver tag or manually dispatched with a target `ref` plus a preview `tag_name`.
-  - It publishes clearly labeled unsigned preview assets to GitHub Releases for open-source evaluation.
+  - It publishes clearly labeled unsigned preview assets to GitHub Releases for open-source evaluation, and semver preview tags always stay `prerelease=true`.
 - Signed maintainer lane:
   - `.github/workflows/desktop-version-tag.yml` is manually dispatched by maintainers to create `desktop-v*` tags from an explicit target ref when the desktop release helper is intentionally invoked.
   - `.github/workflows/desktop-release.yml` auto-runs on pushed `desktop-v*` tags and also supports manual dispatch with `release_tag`.
   - It validates that the requested desktop tag matches `copilot-ui/package.json` and only publishes after signing checks pass.
+  - Stable `desktop-vx.y.z` promotion is blocked unless matching preview tag `x.y.z` resolves to the same commit and already has a published prerelease with `release-manifest.json`, a `.exe` installer, and `windows-installation-guide.md` in `desktopRelease.publishRepository`.
 - Windows GA artifact flow:
   - Build unsigned installer on `windows-latest`.
   - Exchange GitHub OIDC token (`id-token: write`) for signing identity.
@@ -81,6 +83,7 @@ Desktop release CI is split between a public preview lane and the signed maintai
   - Public preview releases can publish unsigned assets without the private signing service.
   - Signed GitHub releases for `desktop-v*` tags are created only after all verification checks pass.
   - Prerelease flag is inferred from desktop tag semver suffix (`desktop-vx.y.z-*` => prerelease).
+  - `/releases/latest` is not yet a safe stable shortcut while historic semver preview releases may still exist as non-prerelease GitHub releases.
 
 Required repository configuration (placeholders, not committed secrets):
 

@@ -29,11 +29,12 @@ This command:
 - builds the Windows NSIS installer through the Tauri CLI
 - emits `release/tauri/windows/release-manifest.json` as the explicit manual-installer update/release seam
 - emits `release/tauri/windows/windows-installation-guide.md` so staged release artifacts carry the current installation guidance
+- emits bridge-backed release metadata that records automatic matching-channel checks with explicit user download/apply for the current manual-installer slice
 - validates that stable/prerelease channel pairing, fail-closed channel policy, and packaged runtime layout remain intact
 - stages the installer, release manifest, and installation guidance into `release-artifacts/windows-tauri`
 
 This validation is intentionally limited to the current manual-installer preview lane. It does not claim
-Tauri in-app updater/feed parity.
+Tauri in-app updater/feed parity. The desktop bridge now performs real GitHub-release-backed checks and manual-installer handoff, but it still does not claim seamless in-place transport.
 
 ## Endpoint 1: GET /api/sessions/:id/structured-state
 
@@ -541,6 +542,7 @@ Expected gate result:
 - Preview workflow: `.github/workflows/desktop-preview-release.yml`
 - Trigger the signed lane with a desktop tag (`desktop-vx.y.z` or `desktop-vx.y.z-rc.1`) and `release_tag`.
 - Trigger the preview lane with a target `ref` plus preview `tag_name`.
+- Preview semver tags are evaluation lane only and should publish with `prerelease: true` even on workflow-dispatch backfills.
 
 ### Required repo configuration
 
@@ -559,9 +561,13 @@ Expected gate result:
 4. Confirm macOS preview label is present.
   - Expected: `MAC_PREVIEW_UNSIGNED.txt` exists and release still stays draft.
 5. Confirm prerelease inference.
+  - `1.2.3` and `1.2.3-rc.1` preview releases stay `prerelease: true`
   - `desktop-v1.2.3` => draft stable release (`prerelease: false`)
   - `desktop-v1.2.3-rc.1` => draft prerelease (`prerelease: true`)
-6. Confirm attestation mismatch blocks release.
+6. Confirm stable promotion preflight.
+  - For `desktop-v1.2.3`, the matching semver tag `1.2.3` must resolve to the same commit and its preview release must already be published as `prerelease: true` with `release-manifest.json`, a `.exe` installer, and `windows-installation-guide.md`.
+  - Expected: missing preview tag, mismatched commit, draft preview release, non-prerelease preview release, or missing assets all fail closed before build/signing.
+7. Confirm attestation mismatch blocks release.
   - In a non-production test run, tamper either `artifacts/windows/windows-signed-installer.exe` or `artifacts/windows/provenance.attestation.json` before publish.
   - Expected: publish gate fails with a provenance mismatch/malformed attestation error and `Publish desktop draft release` does not execute.
 

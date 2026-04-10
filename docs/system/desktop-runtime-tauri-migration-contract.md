@@ -1,6 +1,6 @@
 ---
 created: 2026-04-08
-updated: 2026-04-08
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: node
@@ -20,7 +20,7 @@ This document freezes the approved/current contract for the first Tauri executio
 - **Approved migration target:** Windows-first Tauri desktop shell
 - **Current primary desktop runtime:** Windows-first Tauri desktop shell
 - **Current compatibility remainder:** Electron remains only for incumbent updater behavior, legacy release workflows, and explicit Electron-user handoff support while full retirement is still unsafe
-- **Current update posture:** the active Tauri Windows lane is a NSIS preview/manual-installer path, not an in-place updater cutover
+- **Current update posture:** the active Tauri Windows lane is a NSIS preview/manual-installer path with GitHub-release-backed automatic checks and explicit user download/apply, not an in-place updater cutover
 
 The migration does **not** change these existing product contracts:
 
@@ -123,6 +123,7 @@ Packaging contract:
 
 - A host-installed Node.js is **not** required for the packaged Windows Tauri app.
 - Managed CLI acquisition remains limited to a bundled payload or a seeded install under `~/.copilot/managed-cli/<channel>/`.
+- On Windows, when neither approved payload exists yet, the desktop runtime may seed that managed install from the packaged `copilot-ui/node_modules/@github/copilot-win32-x64/copilot.exe` dependency and must still fail closed if that packaged dependency is unavailable.
 - Stable app builds continue to pair only with stable SDK/CLI bits; prerelease builds continue to pair only with prerelease SDK/CLI bits.
 
 ## Startup-token ownership and handoff
@@ -155,7 +156,10 @@ Checkpoint rules:
 - No private signing keys may be committed to the repo or stored on CI runners.
 - Signing custody remains external through the managed signing service / HSM / KMS posture already frozen in [[security-model]] [docs/system/security-model.md](docs/system/security-model.md).
 - Electron release capability may stay available as compatibility residue while the remaining workflow/signing cutover is still being retired safely.
-- The current implemented checkpoint seam is a Windows-first NSIS packaging lane that emits manual-installer release metadata with fail-closed channel pairing; it does **not** claim live in-app updater/feed parity yet.
+- The current implemented checkpoint seam is a Windows-first NSIS packaging lane that emits manual-installer release metadata with fail-closed channel pairing; it performs automatic matching-channel release checks but does **not** claim live in-app updater/feed parity yet.
+- The active Tauri shell may expose GitHub-release-backed updater status and manual-installer download state through a shell bridge, but that bridge must require explicit user action for installer download/apply and must not imply seamless transport/feed support until a later cut enables it.
+- Public GitHub semver tags such as `1.2.3` and `1.2.3-rc.1` remain preview/evaluation releases and should stay marked as prerelease, while stable desktop downloads come from promoted non-prerelease `desktop-v*` releases.
+- Until historic semver releases are remediated so none remain non-prerelease, `/releases/latest` must not be treated as the stable desktop shortcut.
 
 ## Electron-user migration handoff
 
