@@ -97,14 +97,8 @@
     {
       "skill": "code-review",
       "name": "code-review",
-      "description": "Code review for quality, patterns, and bugs. Reviews PRs, identifies issues, and suggests improvements. Triggers on: review, PR review, code review, code quality, peer review.",
-      "triggersOn": [
-        "code quality",
-        "code review",
-        "peer review",
-        "pr review",
-        "review"
-      ],
+      "description": "Compatibility broad-review entrypoint. Prefer `code-reviewer` for default review, `impl-reviewer` for spec fit, and `working-reviewer` for validation sufficiency. If used, follow the canonical reviewer/testing/validation contracts.",
+      "triggersOn": [],
       "manifest": {
         "id": "skill-code-review",
         "loadMode": "on-demand"
@@ -513,12 +507,35 @@
       }
     },
     {
+      "skill": "repo-setup-governance",
+      "name": "repo-setup-governance",
+      "description": "Audit/propose-only governance for making a repo easy to work with for Elegy Copilot using explicit open workspace roots and a shipped baseline projection. Triggers on: repo setup governance, repo setup audit, copilot repo setup, workspace root setup, propose missing repo setup assets.",
+      "triggersOn": [
+        "copilot repo setup",
+        "propose missing repo setup assets",
+        "repo setup audit",
+        "repo setup governance",
+        "workspace root setup"
+      ],
+      "tags": [
+        "audit",
+        "governance",
+        "repo-setup",
+        "workspace"
+      ],
+      "manifest": {
+        "id": "skill-repo-setup-governance",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "roadmap-authoring",
       "name": "roadmap-authoring",
-      "description": "Canonical authoring and maintenance rules for Repository Backlog and Roadmap artifacts, including Roadmap Sync-ready linked IDs and plan-pack handoff boundaries. Triggers on: repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio.",
+      "description": "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmap artifacts, including Roadmap Sync-ready linked IDs and plan-pack handoff boundaries. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio.",
       "triggersOn": [
         "backlog item",
         "phased planning",
+        "planning bullets",
         "planning portfolio",
         "repository backlog",
         "roadmap",
@@ -698,7 +715,7 @@
     {
       "skill": "superpowers-finishing-a-development-branch",
       "name": "superpowers-finishing-a-development-branch",
-      "description": "Use when implementation is complete, all tests pass, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup",
+      "description": "Use when implementation is complete and dedicated validation evidence is ready, and you need to decide how to integrate the work - guides completion of development work by presenting structured options for merge, PR, or cleanup",
       "triggersOn": [],
       "manifest": {
         "id": "skill-superpowers-finishing-a-development-branch",

@@ -5,6 +5,8 @@ import path from "path";
 const CHANNEL_CONTRACT_FILE_NAME = "channel-contract.json";
 const MANAGED_CLI_MANIFEST_FILE_NAME = "manifest.json";
 const MANAGED_CLI_INSTALL_DIR_NAME = "managed-cli";
+const PACKAGED_WINDOWS_CLI_PACKAGE_PATH = path.join("@github", "copilot-win32-x64");
+const PACKAGED_WINDOWS_CLI_BINARY_NAME = "copilot.exe";
 
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -26,6 +28,31 @@ function readJsonFile(filePath) {
   } catch {
     return null;
   }
+}
+
+function writeJsonFile(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function uniquePaths(values) {
+  const seen = new Set();
+  const result = [];
+  for (const value of values) {
+    const normalized = firstNonEmptyString([value]);
+    if (!normalized) {
+      continue;
+    }
+
+    const resolved = path.resolve(normalized);
+    if (seen.has(resolved)) {
+      continue;
+    }
+
+    seen.add(resolved);
+    result.push(resolved);
+  }
+  return result;
 }
 
 function resolveDefaultExecutableRelativePath(platform) {
@@ -50,6 +77,90 @@ function sanitizePublicCliState(state) {
     cliVersion: state.cliVersion,
     sdkVersion: state.sdkVersion,
     lastCheckedAtMs: state.lastCheckedAtMs,
+  };
+}
+
+function resolvePackagedWindowsCliRoots(options = {}) {
+  const bundleRoot = firstNonEmptyString([options.bundleRoot]);
+  if (Array.isArray(options.packagedDependencyRoots)) {
+    return uniquePaths(options.packagedDependencyRoots);
+  }
+
+  return uniquePaths([
+    bundleRoot
+      ? path.resolve(bundleRoot, "..", "copilot-ui", "node_modules", PACKAGED_WINDOWS_CLI_PACKAGE_PATH)
+      : "",
+    bundleRoot
+      ? path.resolve(bundleRoot, "..", "..", "node_modules", PACKAGED_WINDOWS_CLI_PACKAGE_PATH)
+      : "",
+    bundleRoot
+      ? path.resolve(bundleRoot, "..", "node_modules", PACKAGED_WINDOWS_CLI_PACKAGE_PATH)
+      : "",
+    path.resolve(process.cwd(), "copilot-ui", "node_modules", PACKAGED_WINDOWS_CLI_PACKAGE_PATH),
+    path.resolve(process.cwd(), "node_modules", PACKAGED_WINDOWS_CLI_PACKAGE_PATH),
+  ]);
+}
+
+function syncManagedCliInstallFromPackagedWindowsBinary(installRoot, expected, options = {}) {
+  if (options.platform !== "win32") {
+    return {
+      changed: false,
+      sourcePath: null,
+    };
+  }
+
+  const packageRoots = resolvePackagedWindowsCliRoots(options);
+  for (const packageRoot of packageRoots) {
+    const packagedBinaryPath = path.join(packageRoot, PACKAGED_WINDOWS_CLI_BINARY_NAME);
+    if (!fs.existsSync(packagedBinaryPath)) {
+      continue;
+    }
+
+    const packageJson = readJsonFile(path.join(packageRoot, "package.json"));
+    const packagedVersion = firstNonEmptyString([packageJson?.version]) || null;
+    const currentState = isObject(options.currentState) ? options.currentState : null;
+    const refreshRequired = options.force === true
+      || !currentState
+      || currentState.status !== "ready"
+      || currentState.approved !== true
+      || !firstNonEmptyString([currentState.cliVersion])
+      || (packagedVersion && firstNonEmptyString([currentState.cliVersion]) !== packagedVersion)
+      || firstNonEmptyString([currentState.sdkVersion]) !== expected.sdkVersion;
+
+    if (!refreshRequired) {
+      return {
+        changed: false,
+        sourcePath: packagedBinaryPath,
+        packagedVersion,
+        state: currentState,
+      };
+    }
+
+    const seededCliPath = path.join(installRoot, "bin", PACKAGED_WINDOWS_CLI_BINARY_NAME);
+    fs.mkdirSync(path.dirname(seededCliPath), { recursive: true });
+    fs.copyFileSync(packagedBinaryPath, seededCliPath);
+    writeJsonFile(path.join(installRoot, MANAGED_CLI_MANIFEST_FILE_NAME), {
+      schemaVersion: 1,
+      channel: expected.cliChannel,
+      version: packagedVersion,
+      sdkVersion: expected.sdkVersion || null,
+      executableRelativePath: "bin/copilot.exe",
+    });
+
+    return {
+      changed: true,
+      sourcePath: packagedBinaryPath,
+      packagedVersion,
+      state: inspectManagedCliRoot(installRoot, expected, {
+        source: "seeded-install",
+        platform: options.platform,
+      }).state,
+    };
+  }
+
+  return {
+    changed: false,
+    sourcePath: null,
   };
 }
 
@@ -292,6 +403,38 @@ export function evaluateDesktopCliManagerState(options = {}) {
     source: "seeded-install",
     platform,
   });
+  try {
+    const synchronized = syncManagedCliInstallFromPackagedWindowsBinary(installRoot, expected, {
+      bundleRoot,
+      packagedDependencyRoots: options.packagedDependencyRoots,
+      platform,
+      currentState: installed.found ? installed.state : null,
+    });
+    if (synchronized.changed) {
+      return {
+        ...synchronized.state,
+        message: installed.found
+          ? `Managed Copilot CLI was refreshed from the packaged Windows dependency at ${synchronized.sourcePath}.`
+          : synchronized.state?.message
+            || `Managed Copilot CLI was seeded from the packaged Windows dependency at ${synchronized.sourcePath}.`,
+      };
+    }
+  } catch (error) {
+    return createBlockedState(
+      {
+        ...baseState,
+        sdkChannel: expected.sdkChannel,
+        cliChannel: expected.cliChannel,
+        acquisition: expected.acquisition,
+      },
+      "managed_cli_seed_failed",
+      `Managed Copilot CLI seeding failed: ${String(error?.message || error)}`,
+      {
+        source: "packaged-windows-dependency",
+      },
+    );
+  }
+
   if (installed.found) {
     return installed.state;
   }

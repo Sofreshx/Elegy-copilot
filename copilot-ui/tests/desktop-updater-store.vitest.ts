@@ -104,4 +104,23 @@ describe('desktopUpdaterStore', () => {
     expect(updater?.restartToUpdate).toHaveBeenCalledTimes(1);
     expect(restarted).toBe(true);
   });
+
+  it('hydrates a blocked manual-installer state when the Tauri bridge is present', async () => {
+    const updater = window.instructionEngineDesktop?.updater;
+    updater?.getState.mockResolvedValueOnce({
+      ...BASE_STATE,
+      supported: false,
+      status: 'blocked',
+      message: 'Tauri Windows stays manual-installer only in this slice.',
+      reason: 'manual_installer_only',
+      canCheckForUpdates: false,
+    });
+
+    desktopUpdaterStore.startListening();
+    await Promise.resolve();
+
+    expect(desktopUpdaterStore.getState().status).toBe('blocked');
+    expect(desktopUpdaterStore.getState().reason).toBe('manual_installer_only');
+    expect(desktopUpdaterStore.getState().canCheckForUpdates).toBe(false);
+  });
 });

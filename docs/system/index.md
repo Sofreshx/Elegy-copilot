@@ -51,6 +51,7 @@ related: [doc-graph-spec, rules-compliance-audit-handoff-workflow]
 - [[rules-compliance-audit-handoff-workflow]] [docs/system/rules-compliance-audit-handoff-workflow.md](docs/system/rules-compliance-audit-handoff-workflow.md)
 - [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
 - [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
+- [[repo-setup-governance]] [docs/system/repo-setup-governance.md](docs/system/repo-setup-governance.md)
 - [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
 - [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
 

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-11
-updated: 2026-04-09
+updated: 2026-04-10
 category: system
 status: current
 doc_kind: node
@@ -173,7 +173,7 @@ Treat those groups as the primary backend surface. The most important user-visib
 
 ### Assets and catalog-backed previews
 
-The React `Assets` surface consumes both `/api/catalog/assets` and `/api/catalog/bundles`. Bundle metadata is rendered as `Workflow packs`, allowing explicit one-click installation of optional multi-asset bundles such as the shipped `superpowers-workflow` pack. Profile or routing activation can mark a bundle active for discovery, but the pack's assets are still copied only through the install flow. Repo-specific governance lanes are discovered from selected repos and do not get copied into the user-global install surface as part of bundle activation.
+The React `Assets` surface consumes both `/api/catalog/assets` and `/api/catalog/bundles`. Bundle metadata is rendered as `Workflow packs`, allowing explicit one-click installation of optional multi-asset bundles such as the shipped `superpowers-workflow` pack. Profile or routing activation can mark a bundle active for discovery, but the pack's assets are still copied only through the install flow. Repo-specific governance lanes are discovered from selected repos and do not get copied into the user-global install surface as part of bundle activation, except for the narrow shared shipped `repo-setup-governance-global` lane, which may now carry Slice A baseline plus Slice B profile authority/bootstrap artifacts while remaining audit/propose-only against explicit open workspace roots. Any future repo-local agent/skill update execution from that lane must still go through catalog mutation APIs, and support-resource writes remain separately gated.
 
 | Method | Endpoint | Purpose | Primary test anchors |
 | --- | --- | --- | --- |
@@ -337,6 +337,7 @@ external/non-canonical.
 
 | Method | Endpoint | Purpose | Primary test anchors |
 | --- | --- | --- | --- |
+| `GET` | `/api/sessions/workspace` | Returns the Home / Runtime sessions workspace summary with runtime-first `active` entries plus non-live durable `history` entries and the first-slice primary-plus-linked repo shape. | `copilot-ui/routes/sessions.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions` | Lists CLI, VS Code, or sandbox sessions. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/events` | Returns recent event-log entries for a session. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/sessions/:id/agent-usage` | Returns bounded agent-usage summaries plus additive `skillUsage` explicit invocation summaries for a session. | `copilot-ui/tests/api-contract.test.js` |
@@ -484,6 +485,12 @@ The same `Home / Runtime -> Sessions` surface now also includes a compact overla
 powered by the existing `uiRuntimeOverlayStore` and `/api/ui-runtime-overlay/sessions` family. That
 workspace is intentionally summary-first: it shows overlay session status, runtime origin, repo label,
 and evidence counts, then routes deep editing and queue work to `Executor` with one click.
+
+Inside the existing frozen `Home / Runtime -> Sessions` shell, the workspace now splits into `Active`
+and `History`. `Active` is backed by the additive `/api/sessions/workspace` summary and prefers live
+runtime evidence from SDK and overlay sources before showing still-active durable session artifacts.
+`History` is non-live and durable-only: inactive artifact sessions plus `sessions-archive` entries
+where durable evidence exists.
 
 Planning's visible task board remains within the frozen 4-hub shell. It is not a fifth top-level
 runtime destination: it projects durable repo-state tasks and workflow controls while the active

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-25
-updated: 2026-04-08
+updated: 2026-04-09
 category: system
 status: current
 doc_kind: node
@@ -30,7 +30,8 @@ Migration posture:
 
 - The primary Windows desktop lane is now Tauri-first.
 - The current Tauri preview/release lane is limited to a manual-installer release manifest + packaged
-  Windows installer; in-app Tauri updater/feed behavior remains intentionally disabled in this slice.
+  Windows installer; the app may automatically check matching-channel GitHub releases, but installer download/apply still require explicit user action and in-app Tauri updater/feed behavior remains intentionally disabled in this slice.
+- The Tauri shell may expose a desktop updater bridge for GitHub-release-backed state, checks, and manual-installer download handoff, but that bridge must not imply seamless in-place updater transport.
 - The active Tauri lane must not assume in-place updater replacement of an existing Electron install.
 - Electron updater behavior remains available only as bounded compatibility residue for incumbent installs
   until full retirement is safe.
@@ -96,8 +97,9 @@ Migration posture:
 - CLI manager bootstrap/import failures are treated the same way: block desktop SDK/CLI features, disable
   the bridge, and keep the rest of the desktop/server/UI runtime available.
 - In the current bounded slice, approved desktop remediation is limited to a bundled CLI payload or a
-  seeded managed install under `~/.copilot/managed-cli/<channel>/`; desktop PATH and `cliUrl` fallbacks
-  are intentionally blocked.
+  seeded managed install under `~/.copilot/managed-cli/<channel>/`; on Windows that managed install may be
+  seeded or refreshed from the packaged `@github/copilot-win32-x64` dependency when present, and desktop PATH and `cliUrl`
+  fallbacks are intentionally blocked.
 - Release/package smoke for the current channel-contract-only slice should therefore observe the
   machine-readable blocked state (`managed_cli_missing`) until a matching bundled or seeded payload exists.
 

@@ -86,10 +86,17 @@ const requiredOrchestratorSupportAssetIdsByDelegate = new Map([
 	['e2e-validator', ['skill-e2e-workflow']],
 	['convention-governor', ['skill-project-conventions-governance']],
 	['doc-structure-governor', ['skill-documentation-structure-governance']],
+	['repo-setup-governor', ['skill-repo-setup-governance']],
 	['instruction-auditor', ['skill-instruction-quality']],
 	['security-auditor', ['skill-audit-report-formats', 'skill-security']],
 	['stack-auditor', ['skill-stack-detector', 'skill-stack-audit-patterns']],
 	['deploy-auditor', ['skill-audit-report-formats']],
+]);
+
+const sharedUserGlobalOrchestratorBundleId = 'repo-setup-governance-global';
+const sharedUserGlobalOrchestratorAssetIds = new Set([
+	'agent-repo-setup-governor',
+	'skill-repo-setup-governance',
 ]);
 
 function toPosix(relativePath) {
@@ -328,6 +335,14 @@ function validateDefaultOrchestratorBundleReachability(currentRepoRoot, agentDef
 			manifestRelPath,
 			errors
 		);
+		const sharedReachableAssetIds = Array.from(requiredDefaultOrchestratorAssetIds).some((assetId) => sharedUserGlobalOrchestratorAssetIds.has(assetId))
+			? collectReachableBundleAssetIds(
+				sharedUserGlobalOrchestratorBundleId,
+				bundlesById,
+				manifestRelPath,
+				errors
+			)
+			: new Set();
 
 		for (const assetId of requiredDefaultOrchestratorAssetIds) {
 			if (!assetIds.has(assetId)) {
@@ -335,9 +350,16 @@ function validateDefaultOrchestratorBundleReachability(currentRepoRoot, agentDef
 				continue;
 			}
 
-			if (!reachableAssetIds.has(assetId)) {
+			const isNarrowSharedException = sharedUserGlobalOrchestratorAssetIds.has(assetId);
+			const isReachable = isNarrowSharedException
+				? reachableAssetIds.has(assetId) || sharedReachableAssetIds.has(assetId)
+				: reachableAssetIds.has(assetId);
+
+			if (!isReachable) {
 				errors.push(
-					`${manifestRelPath}: bundle 'orchestrator-workflow' must reach required default orchestrator asset '${assetId}'.`
+					isNarrowSharedException
+						? `${manifestRelPath}: required shared exception asset '${assetId}' must be reachable from 'orchestrator-workflow' or '${sharedUserGlobalOrchestratorBundleId}'.`
+						: `${manifestRelPath}: bundle 'orchestrator-workflow' must reach required default orchestrator asset '${assetId}'.`
 				);
 			}
 		}

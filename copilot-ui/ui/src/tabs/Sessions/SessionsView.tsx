@@ -9,11 +9,13 @@ import { gatewayStore } from '../Gateway/gatewayStore';
 import { uiRuntimeOverlayStore } from '../Executor/uiRuntimeOverlayStore';
 import { sandboxesStore } from '../Sandboxes/sandboxesStore';
 import SessionDetail from './SessionDetail';
-import SessionList from './SessionList';
+import SessionWorkspaceDetail from './SessionWorkspaceDetail';
+import SessionsWorkspaceBrowser from './SessionsWorkspaceBrowser';
 import OverlaySessionsWorkspace from './OverlaySessionsWorkspace';
 import SdkMessageList from './SdkMessageList';
 import { sdkSessionsStore } from './sdkSessionsStore';
 import { sessionsStore } from './sessionsStore';
+import { sessionsWorkspaceStore } from './sessionsWorkspaceStore';
 
 function parseTaskIds(value: string): string[] {
   return Array.from(new Set(
@@ -111,9 +113,11 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
   const sdkHealthState = useStoreValue(sdkHealthStore);
   const gatewayState = useStoreValue(gatewayStore);
   const overlayState = useStoreValue(uiRuntimeOverlayStore);
+  const workspaceState = useStoreValue(sessionsWorkspaceStore);
 
   useEffect(() => {
     void sessionsStore.loadSessions();
+    void sessionsWorkspaceStore.load();
     void gatewayStore.refreshState(false);
     void uiRuntimeOverlayStore.load();
 
@@ -142,9 +146,19 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
   const selectedSessionOrchestration = selectedSession
     ? (localSessionState.sessionOrchestrationById[selectedSession.id] ?? null)
     : null;
+  const workspaceEntries = workspaceState.selectedView === 'history' ? workspaceState.history : workspaceState.active;
+  const selectedWorkspaceEntry =
+    workspaceEntries.find((entry) => entry.entryId === workspaceState.selectedEntryId) ?? workspaceEntries[0] ?? null;
+  const selectedWorkspaceArtifactSession =
+    selectedWorkspaceEntry?.detail?.canOpenArtifacts && selectedWorkspaceEntry.sessionId
+      ? (localSessionState.sessions.find((session) => session.id === selectedWorkspaceEntry.sessionId) ?? null)
+      : null;
+  const selectedWorkspaceArtifactOrchestration = selectedWorkspaceArtifactSession
+    ? (localSessionState.sessionOrchestrationById[selectedWorkspaceArtifactSession.id] ?? null)
+    : null;
   const liveCount = localSessionState.sessions.filter((session) => resolveSessionStatus(session) === 'active').length;
-  const selectedSessionTasks = Array.isArray(selectedSessionOrchestration?.taskBoard?.items)
-    ? selectedSessionOrchestration.taskBoard.items
+  const selectedSessionTasks = Array.isArray(selectedWorkspaceArtifactOrchestration?.taskBoard?.items)
+    ? selectedWorkspaceArtifactOrchestration.taskBoard.items
     : [];
   const selectedRepo = overlayState.selectedRepo;
 
@@ -161,7 +175,7 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
     [sdkSessionState.sessions, selectedSdkSessionId]
   );
 
-  const modeError = mode === 'local' ? localSessionState.error : sdkSessionState.error;
+  const modeError = mode === 'local' ? (workspaceState.error || localSessionState.error) : sdkSessionState.error;
   const sdkHealthSummary = summarizeSdkHealth(sdkHealthState.health, sdkHealthState.error);
 
   const trackerSegment =
@@ -198,11 +212,22 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
 
   const handleRefresh = async () => {
     if (mode === 'local') {
-      await sessionsStore.refresh();
+      await Promise.all([
+        sessionsStore.refresh(),
+        sessionsWorkspaceStore.refresh(),
+      ]);
       return;
     }
 
     await sdkSessionsStore.loadSessions();
+  };
+
+  const handleSelectWorkspaceEntry = (entryId: string) => {
+    sessionsWorkspaceStore.selectEntry(entryId);
+    const entry = workspaceEntries.find((candidate) => candidate.entryId === entryId);
+    if (entry?.detail?.canOpenArtifacts && entry.sessionId) {
+      sessionsStore.selectSession(entry.sessionId);
+    }
   };
 
   const handleCreateSdkSession = async () => {
@@ -470,25 +495,36 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
         <>
           <div className="sessions-grid">
             <Panel
-              subtitle="Select a session to inspect details."
+              subtitle="Runtime-first Active and durable History stay inside the frozen Sessions workspace."
               testId="sessions-list-panel"
-              title="Session List"
+              title="Session Workspace"
             >
-              <SessionList
-                error={localSessionState.error}
-                loading={localSessionState.loading}
-                onSelect={(id) => sessionsStore.selectSession(id)}
-                selectedSessionId={localSessionState.selectedSessionId}
-                sessions={localSessionState.sessions}
+              <SessionsWorkspaceBrowser
+                active={workspaceState.active}
+                error={workspaceState.error}
+                history={workspaceState.history}
+                loading={workspaceState.loading}
+                onSelectEntry={handleSelectWorkspaceEntry}
+                onSelectView={(view) => sessionsWorkspaceStore.selectView(view)}
+                selectedEntryId={workspaceState.selectedEntryId}
+                selectedView={workspaceState.selectedView}
               />
             </Panel>
 
             <Panel
-              subtitle="Core fields with metadata fallback."
+              subtitle={
+                selectedWorkspaceEntry?.detail?.canOpenArtifacts
+                  ? 'Reuses the current artifact detail surface when durable session folders are available.'
+                  : 'Summary-first detail for runtime-only or archived entries in this first slice.'
+              }
               testId="session-detail-panel"
               title="Session Details"
             >
-              <SessionDetail session={selectedSession} />
+              {selectedWorkspaceEntry?.detail?.canOpenArtifacts && selectedWorkspaceArtifactSession ? (
+                <SessionDetail session={selectedWorkspaceArtifactSession} />
+              ) : (
+                <SessionWorkspaceDetail entry={selectedWorkspaceEntry} />
+              )}
             </Panel>
           </div>
 
@@ -499,12 +535,17 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
           >
             <div className="session-detail">
               <p className="session-detail-suggestion">
-                <span>Selected session linkage:</span> {selectedSession?.id || 'No local runtime session selected.'}
+                <span>Selected session linkage:</span> {selectedWorkspaceEntry?.title || 'No session workspace entry selected.'}
+              </p>
+              <p className="tracker-item-copy">
+                {selectedWorkspaceEntry?.workspace?.primaryRepo
+                  ? `${selectedWorkspaceEntry.workspace.primaryRepo.repoLabel || selectedWorkspaceEntry.workspace.primaryRepo.repoId || 'Repo context'} remains the primary planning handoff for this entry.`
+                  : 'No repo context was reported for this workspace entry yet.'}
               </p>
               <p className="tracker-item-copy">
                 {selectedSessionTasks.length > 0
                   ? `${selectedSessionTasks.length} durable repo-state task(s) are linked to the selected session. Open Planning for the primary board view.`
-                  : 'No durable task links were reported for the selected session yet.'}
+                  : 'No durable task links were reported for the selected workspace entry yet.'}
               </p>
               <p className="tracker-item-copy">
                 Runtime remains session-specific here: launch/resume flows, live actor overlays, worktree context, and session inspection stay in Home / Runtime.
@@ -533,6 +574,24 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
               <p className="state-message">Planning will show durable repo-state tasks for the selected repo even when additive runtime metadata is absent.</p>
             )}
             <div className="sessions-actions">
+              {selectedWorkspaceEntry?.detail?.handoffTarget === 'sdk' ? (
+                <Button
+                  onClick={() => setMode('sdk')}
+                  testId="sessions-open-sdk-workspace"
+                  variant="secondary"
+                >
+                  Open SDK Sessions
+                </Button>
+              ) : null}
+              {selectedWorkspaceEntry?.detail?.handoffTarget === 'overlay' ? (
+                <Button
+                  onClick={() => navigationStore.goToRuntime('executor')}
+                  testId="sessions-open-overlay-executor"
+                  variant="secondary"
+                >
+                  Open Executor
+                </Button>
+              ) : null}
               <Button
                 onClick={() => navigationStore.goToPlanning()}
                 testId="sessions-open-planning-task-board"

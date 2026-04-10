@@ -101,6 +101,35 @@
       "dependsOn": []
     },
     {
+      "id": "repo-setup-governance-global",
+      "title": "Repo Setup Governance Global",
+      "description": "Narrow shared audit/propose-only lane for evaluating explicit open workspace roots and proposing missing repo setup resources for Elegy Copilot.",
+      "assetIds": [
+        "agent-repo-setup-governor",
+        "skill-repo-setup-governance"
+      ],
+      "installTarget": "user-global",
+      "activationScope": "global",
+      "materialization": "on-demand",
+      "classification": "workflow",
+      "targeting": {
+        "tags": [
+          "repo-setup",
+          "governance",
+          "audit",
+          "workspace"
+        ]
+      },
+      "tags": [
+        "repo-setup",
+        "governance",
+        "audit",
+        "workspace"
+      ],
+      "defaultRecommended": false,
+      "dependsOn": []
+    },
+    {
       "id": "orchestrator-workflow",
       "title": "Orchestrator Workflow Agents",
       "description": "Repo-scoped orchestration agents and support skills for reframing, planning, planning-only coordination, bounded validation coordination, implementation routing, research, verification, and final review.",
@@ -470,6 +499,12 @@
       "destination": "agents/roadmap-planner.agent.md"
     },
     {
+      "id": "agent-repo-setup-governor",
+      "type": "agent",
+      "source": "engine-assets/agents/repo-setup-governor.agent.md",
+      "destination": "agents/repo-setup-governor.agent.md"
+    },
+    {
       "id": "agent-research-ideation",
       "type": "agent",
       "source": "engine-assets/agents/research-ideation.agent.md",
@@ -795,6 +830,13 @@
       "type": "skill",
       "source": "engine-assets/skills/react-query",
       "destination": "skills/react-query",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-repo-setup-governance",
+      "type": "skill",
+      "source": "engine-assets/skills/repo-setup-governance",
+      "destination": "skills/repo-setup-governance",
       "loadMode": "on-demand"
     },
     {

@@ -35,6 +35,8 @@ function renderWindowsInstallationGuide({ version, channel, installerName }) {
     '- Tauri is the only supported desktop shell.',
     '- Stable builds install from the stable channel; prerelease builds install from the prerelease channel.',
     '- This release lane uses a manual Windows installer, not an in-app auto-update feed.',
+    '- The desktop app automatically checks matching-channel GitHub releases, but installer download and apply still require explicit user action.',
+    '- Managed CLI remediation may seed or refresh the approved Windows CLI into `~/.copilot/managed-cli/<channel>/` from the packaged `@github/copilot-win32-x64` dependency when the managed copy is missing or outdated.',
     '',
     '## User steps',
     '',
@@ -61,13 +63,14 @@ function renderWindowsInstallationGuide({ version, channel, installerName }) {
 
 function resolveNsisInstallerPath(bundleRoot) {
   const nsisRoot = path.join(bundleRoot, 'nsis');
-  assert(fs.existsSync(nsisRoot), `Missing Tauri Windows bundle directory: ${nsisRoot}`);
-  const installers = fs.readdirSync(nsisRoot)
+  const searchRoot = fs.existsSync(nsisRoot) ? nsisRoot : bundleRoot;
+  assert(fs.existsSync(searchRoot), `Missing Tauri Windows bundle directory: ${searchRoot}`);
+  const installers = fs.readdirSync(searchRoot)
     .filter((fileName) => fileName.toLowerCase().endsWith('.exe'))
     .filter((fileName) => !fileName.toLowerCase().includes('nsis'));
-  assert(installers.length > 0, `No Tauri Windows installer .exe files were found in ${nsisRoot}`);
-  assert(installers.length === 1, `Expected exactly one Tauri Windows installer in ${nsisRoot}, found ${installers.join(', ')}`);
-  return path.join(nsisRoot, installers[0]);
+  assert(installers.length > 0, `No Tauri Windows installer .exe files were found in ${searchRoot}`);
+  assert(installers.length === 1, `Expected exactly one Tauri Windows installer in ${searchRoot}, found ${installers.join(', ')}`);
+  return path.join(searchRoot, installers[0]);
 }
 
 function refreshTauriWindowsReleaseMetadata(options = {}) {
@@ -108,11 +111,47 @@ function refreshTauriWindowsReleaseMetadata(options = {}) {
     },
     updateLane: {
       mode: manifest.releaseLane.updateMode,
+      autoCheckEnabled: true,
       autoUpdateEnabled: manifest.releaseLane.autoUpdateEnabled,
+      downloadRequiresUserAction: true,
+      applyRequiresUserAction: true,
+      releaseSource: 'github_release_manifest',
       failClosedChannelPolicy: manifest.releaseLane.failClosedChannelPolicy,
+      electronReleaseLaneRemainsAvailable: true,
+      migrationHandoff: 'manual_electron_to_tauri_download',
+      migrationGuidanceRelativePath: 'electron-to-tauri-handoff.md',
       installationGuidanceRelativePath: installationGuidanceFileName,
       inPlaceUpgradeSupported: false,
-      updaterBridgeStatus: 'not_enabled_in_this_slice',
+      updaterBridgeStatus: 'bridge_available_github_release_manual_installer',
+    },
+    migrationHandoff: {
+      sourceShell: 'electron',
+      targetShell: 'tauri',
+      handoffMode: 'manual_matching_channel_installer',
+      inPlaceUpgradeSupported: false,
+      electronReleaseLaneRemainsAvailableUntilCutover: true,
+      releaseNotesRequired: true,
+      canonicalDocs: [
+        'docs/system/desktop-runtime-tauri-migration-contract.md',
+        'docs/system/desktop-update-rollback-runbook.md',
+        'docs/system/copilot-ui-guide.md',
+      ],
+      operatorChecklist: [
+        'Publish the matching-channel Tauri Windows installer plus release-manifest.json.',
+        'Keep the incumbent Electron release lane available until the final cutover.',
+        'Point Electron users to the manual Tauri installer download in release notes and operator messaging.',
+        'Do not describe this slice as an in-place Electron-to-Tauri auto-update.',
+      ],
+      userChecklist: [
+        'Stay on the current Electron build until you are ready to migrate.',
+        'Download the matching-channel Tauri installer manually.',
+        'Install and launch Tauri, then verify it starts against the existing local runtime state.',
+        'Remove Electron only after Tauri is confirmed working.',
+      ],
+      artifact: {
+        relativePath: 'electron-to-tauri-handoff.md',
+        format: 'markdown',
+      },
     },
     runtime: {
       manifestRelativePath: 'runtime-manifests/windows-tauri-node-sidecar.json',
@@ -139,6 +178,7 @@ function refreshTauriWindowsReleaseMetadata(options = {}) {
     installerPath: installerOutputPath,
     installerName,
     installationGuidancePath,
+    migrationGuidancePath: path.join(releaseRoot, 'electron-to-tauri-handoff.md'),
     channel: channelResolution.contract.channel,
   };
 }

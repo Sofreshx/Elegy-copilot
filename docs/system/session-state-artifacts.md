@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-04-07
+updated: 2026-04-10
 category: system
 status: current
 doc_kind: node
@@ -15,7 +15,9 @@ This document defines the canonical contract for persisted session workflow arti
 It governs artifact file shape and location, not the broader live session reconciliation authority;
 see `docs/system/domain-authorities-freeze.md` for the runtime-vs-artifact authority freeze.
 In `copilot-ui`, `GET /api/sessions` remains an artifact inventory surface for session folders and archive/offline views;
-it may include reconciliation metadata, but it does not override the runtime-first live authority model.
+the additive `GET /api/sessions/workspace` summary may project runtime-first `active` entries beside
+durable `history`, but it still treats filesystem artifacts and `sessions-archive` as the non-live
+fallback rather than a competing live authority.
 When runtime is live, these files are persistence/projection surfaces plus offline fallback, not a peer
 live authority.
 `GET /api/sessions/:id/structured-state` may also compose additive orchestration metadata (repo identity,

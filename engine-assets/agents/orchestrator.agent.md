@@ -4,7 +4,7 @@ description: "Unified orchestrator — default chat-first entry point for comple
 tools: [read, search, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-plan-coordinator, o-planner, o-validation-coordinator, roadmap-planner, backlog-planner, search, execute, impl-infra, impl-business, impl-reviewer, goal-reviewer, final-reviewer, remaining-work, verification-guide, work-unit-runner, code-explorer, code-architect, code-reviewer, convention-governor, doc-structure-governor, logic-reviewer, consistency-reviewer, working-reviewer, follow-up-finder, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, agent-governor, reviewer-gpt-5-4, reviewer-opus-4-6]
+agents: [o-reframer, o-plan-coordinator, o-planner, o-validation-coordinator, roadmap-planner, backlog-planner, search, execute, impl-infra, impl-business, impl-reviewer, goal-reviewer, final-reviewer, remaining-work, verification-guide, work-unit-runner, code-explorer, code-architect, code-reviewer, convention-governor, doc-structure-governor, repo-setup-governor, logic-reviewer, consistency-reviewer, working-reviewer, follow-up-finder, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, agent-governor, reviewer-gpt-5-4, reviewer-opus-4-6]
 
 ---
 

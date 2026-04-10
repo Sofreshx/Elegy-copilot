@@ -234,6 +234,114 @@ async function run() {
     assert.equal(body.sessions.length, 2);
   });
 
+  await test('GET /api/sessions/workspace returns runtime-first active entries plus durable history', async () => {
+    const routes = register({
+      sessions: {
+        listSessions(home) {
+          if (home === 'C:\\cli-home') {
+            return [
+              {
+                id: 'session-1',
+                cwd: 'C:\\repo-one',
+                status: 'active',
+                resolvedStatus: 'active',
+              },
+              {
+                id: 'session-2',
+                cwd: 'C:\\repo-two',
+                status: 'idle',
+                resolvedStatus: 'idle',
+              },
+            ];
+          }
+          return [];
+        },
+        listSandboxSessions() {
+          return [];
+        },
+        listArchivedSessions(home) {
+          if (home === 'C:\\cli-home') {
+            return [
+              {
+                id: 'session-3',
+                archiveId: 'session-3',
+                cwd: 'C:\\repo-three',
+                status: 'archived',
+              },
+            ];
+          }
+          return [];
+        },
+        listSandboxArchivedSessions() {
+          return [];
+        },
+        applySessionReconciliation(session) {
+          return {
+            ...session,
+            authority: 'fs',
+            reconciliation: {
+              reason: session.resolvedStatus === 'active' ? 'runtime_and_artifact' : 'artifact_only',
+              sourceOfTruth: session.resolvedStatus === 'active' ? 'runtime' : 'artifact',
+            },
+          };
+        },
+        dedupeAllSources(rows) {
+          return rows;
+        },
+      },
+      sdkBridge: {
+        listSdkSessions() {
+          return [
+            {
+              sessionId: 'session-1',
+              createdAt: '2026-04-07T12:00:00.000Z',
+              cwd: 'C:\\repo-one',
+              orchestration: {
+                repo: {
+                  repoId: 'repo-one',
+                  repoPath: 'C:\\repo-one',
+                  repoLabel: 'Repo One',
+                },
+              },
+            },
+          ];
+        },
+      },
+      uiRuntimeOverlayService: {
+        listSessions() {
+          return [
+            {
+              id: 'overlay-1',
+              linkedSessionId: 'session-overlay-linked',
+              status: 'attached',
+              repoId: 'repo-overlay',
+              repoPath: 'C:\\repo-overlay',
+              repoLabel: 'Repo Overlay',
+              createdAt: '2026-04-07T12:05:00.000Z',
+              updatedAt: '2026-04-07T12:06:00.000Z',
+            },
+          ];
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\cli-home',
+      vscodeHome: 'C:\\vscode-home',
+      sandboxesHome: 'C:\\sandboxes-home',
+    }, 'GET', '/api/sessions/workspace');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.authorityModel.activeAuthority, 'acp');
+    assert.equal(body.authorityModel.historyAuthority, 'fs');
+    assert.equal(body.authorityModel.multiRepoModel, 'primary_plus_linked');
+    assert.deepEqual(body.active.map((entry) => entry.kind), ['overlay', 'sdk']);
+    assert.deepEqual(body.active.map((entry) => entry.title), ['overlay-1', 'session-1']);
+    assert.deepEqual(body.history.map((entry) => entry.kind), ['artifact', 'archive']);
+    assert.equal(body.history[0].workspace.primaryRepo.repoPath, 'C:\\repo-two');
+    assert.deepEqual(body.history[0].workspace.linkedRepos, []);
+  });
+
   await test('GET /api/sessions?source=all does not duplicate projected sessions when cli and vscode homes resolve to the same path', async () => {
     const listSessionHomes = [];
     const routes = register({

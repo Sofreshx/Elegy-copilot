@@ -804,16 +804,37 @@ async function run() {
         ],
       });
 
+      const managedCliPath = path.join(copilotHomeAbs, 'managed-cli', 'stable', 'bin', 'copilot.exe');
+      const executedCommands = [];
+
       const providerRoutes = register({
+        process: {
+          ...process,
+          platform: 'win32',
+          env: {
+            ...process.env,
+            INSTRUCTION_ENGINE_COPILOT_CLI_STATE_JSON: JSON.stringify({
+              approved: true,
+              status: 'ready',
+              channel: 'stable',
+              cliChannel: 'stable',
+              sdkChannel: 'stable',
+              cliPath: managedCliPath,
+            }),
+          },
+        },
         readJsonBody: async (req) => req.__body || {},
         sendJson(res, code, payload) {
           res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify(payload, null, 2));
         },
-        executeProviderCommand: async ({ command, args }) => ({
+        executeProviderCommand: async ({ command, args }) => {
+          executedCommands.push({ command, args });
+          return {
           stdout: `${command} ${args.join(' ')} ok`,
           stderr: '',
-        }),
+          };
+        },
       });
 
       const installResponse = await invoke(providerRoutes, baseCtx, 'POST', '/api/catalog/providers/install', {
@@ -827,11 +848,59 @@ async function run() {
       assert.equal(installResponse.body.action, 'install');
       assert.ok(Array.isArray(installResponse.body.commands));
       assert.equal(installResponse.body.commands.length, 2);
+      assert.deepEqual(executedCommands.map((entry) => entry.command), [managedCliPath, managedCliPath]);
 
       const providerStatePath = path.join(copilotHomeAbs, 'catalog', 'providers-state.json');
       const providerState = JSON.parse(fs.readFileSync(providerStatePath, 'utf8'));
       assert.equal(providerState.providers['superpowers-copilot'].installed, true);
       assert.equal(providerState.providers['superpowers-copilot'].pluginRef, 'superpowers@superpowers-copilot');
+    });
+
+    await test('catalog provider install route fails deterministically when the managed CLI runtime state is unavailable', async () => {
+      writeJson(path.join(engineRoot, 'engine-assets', 'providers.json'), {
+        schemaVersion: 1,
+        providers: [
+          {
+            id: 'superpowers-copilot',
+            title: 'Superpowers for GitHub Copilot',
+            sourceType: 'github-repo',
+            source: {
+              owner: 'DwainTR',
+              repo: 'superpowers-copilot',
+            },
+            installStrategy: 'managed-import',
+            bridgeStrategy: 'plugin-layout',
+            assetLayout: {
+              namespace: 'superpowers',
+            },
+          },
+        ],
+      });
+
+      const providerRoutes = register({
+        process: {
+          ...process,
+          platform: 'win32',
+          env: {
+            ...process.env,
+            INSTRUCTION_ENGINE_COPILOT_CLI_STATE_JSON: '',
+          },
+        },
+        readJsonBody: async (req) => req.__body || {},
+        sendJson(res, code, payload) {
+          res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify(payload, null, 2));
+        },
+      });
+
+      const installResponse = await invoke(providerRoutes, baseCtx, 'POST', '/api/catalog/providers/install', {
+        providerId: 'superpowers-copilot',
+        action: 'install',
+      });
+
+      assert.equal(installResponse.res.statusCode, 503);
+      assert.equal(installResponse.body.kind, 'catalog.provider.install');
+      assert.match(installResponse.body.error, /Managed Copilot CLI is unavailable/);
     });
 
     await test('catalog mutation routes disable and enable repo overlays via repo-state only', async () => {

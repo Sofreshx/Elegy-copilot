@@ -145,6 +145,49 @@ export interface SessionsListResponse {
   sessions: SessionSummary[];
 }
 
+export interface SessionsWorkspaceRepoSummary {
+  repoId?: string | null;
+  repoPath?: string | null;
+  repoLabel?: string | null;
+}
+
+export interface SessionsWorkspaceRepoModel {
+  primaryRepo: SessionsWorkspaceRepoSummary | null;
+  linkedRepos: SessionsWorkspaceRepoSummary[];
+}
+
+export interface SessionsWorkspaceEntryDetail {
+  source?: string | null;
+  sandbox?: string | null;
+  canOpenArtifacts?: boolean;
+  handoffTarget?: string | null;
+}
+
+export interface SessionsWorkspaceEntry {
+  entryId: string;
+  sessionId?: string | null;
+  linkedSessionId?: string | null;
+  kind: 'artifact' | 'archive' | 'sdk' | 'overlay' | string;
+  title: string;
+  status: string;
+  source: string;
+  sourceLabel?: string | null;
+  startedAt?: number | string | null;
+  updatedAt?: number | string | null;
+  workspace: SessionsWorkspaceRepoModel;
+  detail: SessionsWorkspaceEntryDetail;
+  runtimeAuthority?: boolean;
+  durable?: boolean;
+  archive?: boolean;
+  archiveId?: string | null;
+}
+
+export interface SessionsWorkspaceResponse {
+  active: SessionsWorkspaceEntry[];
+  history: SessionsWorkspaceEntry[];
+  authorityModel?: Record<string, unknown>;
+}
+
 export interface WorktreeLaunchState {
   blocked: boolean;
   reason: string | null;

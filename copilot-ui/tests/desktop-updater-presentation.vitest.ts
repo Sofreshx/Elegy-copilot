@@ -29,7 +29,7 @@ describe('getDesktopUpdaterPresentation', () => {
       canDownload: true,
     })).toEqual({
       tone: 'warn',
-      summary: 'New version available: 1.2.4. Download to install.',
+      summary: 'New version available: 1.2.4. Download the installer to apply it.',
     });
   });
 
@@ -41,7 +41,7 @@ describe('getDesktopUpdaterPresentation', () => {
       progressPercent: 42.4,
     })).toEqual({
       tone: 'loading',
-      summary: 'Downloading version 1.2.4 (42.4%).',
+      summary: 'Downloading installer for version 1.2.4 (42.4%).',
     });
   });
 
@@ -53,7 +53,7 @@ describe('getDesktopUpdaterPresentation', () => {
       canRestartToUpdate: true,
     })).toEqual({
       tone: 'ok',
-      summary: 'Version 1.2.4 is ready. Restart to finish installing it.',
+      summary: 'Version 1.2.4 is ready. Launch the installer to apply it.',
     });
   });
 
@@ -68,6 +68,20 @@ describe('getDesktopUpdaterPresentation', () => {
     })).toEqual({
       tone: 'warn',
       summary: 'Updates are temporarily paused until release policy data is available.',
+    });
+  });
+
+  it('maps the manual-installer bridge state to truthful blocked copy', () => {
+    expect(getDesktopUpdaterPresentation({
+      ...BASE_STATE,
+      supported: false,
+      status: 'blocked',
+      reason: 'manual_installer_only',
+      message: 'Manual installer only.',
+      canCheckForUpdates: false,
+    })).toEqual({
+      tone: 'warn',
+      summary: 'The Tauri Windows app still uses a manual installer flow for applying updates.',
     });
   });
 

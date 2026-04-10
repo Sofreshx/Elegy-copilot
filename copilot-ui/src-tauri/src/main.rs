@@ -6,10 +6,10 @@ use std::{
     process::{Child, Command, Stdio},
     sync::{mpsc, Mutex},
     thread,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 use url::Url;
 
@@ -26,6 +26,33 @@ struct RuntimeChildState(Mutex<Option<Child>>);
 struct RuntimeReadyPayload {
     #[serde(rename = "windowUrl")]
     window_url: String,
+}
+
+#[derive(Serialize)]
+struct DesktopUpdaterState {
+    supported: bool,
+    status: String,
+    channel: String,
+    #[serde(rename = "currentVersion")]
+    current_version: String,
+    #[serde(rename = "availableVersion")]
+    available_version: Option<String>,
+    #[serde(rename = "progressPercent")]
+    progress_percent: Option<f64>,
+    #[serde(rename = "transferredBytes")]
+    transferred_bytes: Option<u64>,
+    #[serde(rename = "totalBytes")]
+    total_bytes: Option<u64>,
+    message: Option<String>,
+    reason: Option<String>,
+    #[serde(rename = "lastUpdatedAtMs")]
+    last_updated_at_ms: u64,
+    #[serde(rename = "canCheckForUpdates")]
+    can_check_for_updates: bool,
+    #[serde(rename = "canDownload")]
+    can_download: bool,
+    #[serde(rename = "canRestartToUpdate")]
+    can_restart_to_update: bool,
 }
 
 fn repo_root() -> PathBuf {
@@ -82,8 +109,76 @@ fn runtime_host_path(root: &Path) -> Result<PathBuf, String> {
     ))
 }
 
-fn build_init_script() -> String {
-    r#"
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+fn resolve_desktop_update_channel(app: &AppHandle) -> (String, Option<String>, Option<String>) {
+    let app_version = app.package_info().version.to_string();
+    let default_channel = if app_version.contains('-') {
+        "prerelease"
+    } else {
+        "stable"
+    };
+
+    match std::env::var("INSTRUCTION_ENGINE_UPDATE_CHANNEL") {
+        Ok(value) => {
+            let normalized = value.trim().to_lowercase();
+            if normalized.is_empty() {
+                (default_channel.to_string(), None, None)
+            } else if normalized == "stable" || normalized == "prerelease" {
+                (normalized, None, None)
+            } else {
+                (
+                    default_channel.to_string(),
+                    Some("update_channel_invalid".to_string()),
+                    Some(format!(
+                        "Updates are blocked because INSTRUCTION_ENGINE_UPDATE_CHANNEL is invalid for the manual-installer Tauri lane: {}.",
+                        value.trim()
+                    )),
+                )
+            }
+        }
+        Err(_) => (default_channel.to_string(), None, None),
+    }
+}
+
+fn build_desktop_updater_state(app: &AppHandle) -> DesktopUpdaterState {
+    let current_version = app.package_info().version.to_string();
+    let (channel, reason_override, message_override) = resolve_desktop_update_channel(app);
+    let supported = reason_override.is_none();
+    let status = if supported { "checking" } else { "blocked" };
+    let message = message_override.unwrap_or_else(|| {
+        "Connecting to the desktop updater...".to_string()
+    });
+
+    DesktopUpdaterState {
+        supported,
+        status: status.to_string(),
+        channel,
+        current_version,
+        available_version: None,
+        progress_percent: None,
+        transferred_bytes: None,
+        total_bytes: None,
+        message: Some(message),
+        reason: reason_override,
+        last_updated_at_ms: now_ms(),
+        can_check_for_updates: false,
+        can_download: false,
+        can_restart_to_update: false,
+    }
+}
+
+fn build_init_script(app: &AppHandle) -> Result<String, String> {
+    let updater_state_json = serde_json::to_string(&build_desktop_updater_state(app))
+        .map_err(|error| format!("Unable to serialize Tauri updater bridge state: {error}"))?;
+
+        Ok(
+                r#"
       (() => {
         const isLoopbackHttpUrl = (value) => {
           try {
@@ -94,9 +189,156 @@ fn build_init_script() -> String {
           }
         };
 
+                let currentUpdaterState = Object.freeze(__ELEGY_TAURI_UPDATER_STATE__);
+                const updaterListeners = new Set();
+                let updaterPollTimer = null;
+                let updaterPollInFlight = false;
+                const updaterPollIntervalMs = 15000;
+                const snapshotUpdaterState = () => ({ ...currentUpdaterState });
+                const setUpdaterState = (nextState) => {
+                    if (!nextState || typeof nextState !== 'object') {
+                        return snapshotUpdaterState();
+                    }
+
+                    currentUpdaterState = Object.freeze({ ...nextState });
+                    updaterListeners.forEach((listener) => notifyUpdaterListener(listener));
+                    return snapshotUpdaterState();
+                };
+                const notifyUpdaterListener = (listener) => {
+                    try {
+                        listener(snapshotUpdaterState());
+                    } catch {
+                        // ignore listener failures in the bridge layer
+                    }
+                };
+                const buildUpdaterError = (fallbackMessage) => ({
+                    ...snapshotUpdaterState(),
+                    supported: false,
+                    status: 'error',
+                    message: fallbackMessage,
+                    reason: 'desktop_updater_bridge_error',
+                    canCheckForUpdates: false,
+                    canDownload: false,
+                    canRestartToUpdate: false,
+                    lastUpdatedAtMs: Date.now(),
+                });
+                const readUpdaterPayload = async (response) => {
+                    let payload = null;
+                    try {
+                        payload = await response.json();
+                    } catch {
+                        payload = null;
+                    }
+
+                    if (!response.ok) {
+                        const message = payload && typeof payload.error === 'string' && payload.error.trim()
+                            ? payload.error.trim()
+                            : `Desktop updater request failed with HTTP ${response.status}.`;
+                        throw new Error(message);
+                    }
+
+                    return payload;
+                };
+                const callUpdaterApi = async (pathname, init = {}) => {
+                    const controller = new AbortController();
+                    const timeoutMs = Number.isFinite(init.timeoutMs) ? init.timeoutMs : 8000;
+                    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+                    try {
+                        const response = await fetch(pathname, {
+                            ...init,
+                            cache: 'no-store',
+                            headers: {
+                                Accept: 'application/json',
+                                ...(init.method && init.method !== 'GET' ? { 'Content-Type': 'application/json' } : {}),
+                                ...(init.headers || {}),
+                            },
+                            signal: controller.signal,
+                        });
+                        return await readUpdaterPayload(response);
+                    } finally {
+                        clearTimeout(timeout);
+                    }
+                };
+                const syncUpdaterState = async (pathname, init = {}) => {
+                    try {
+                        const nextState = await callUpdaterApi(pathname, init);
+                        return setUpdaterState(nextState);
+                    } catch (error) {
+                        const message = error instanceof Error && error.message.trim()
+                            ? error.message.trim()
+                            : 'Unable to talk to the desktop updater backend.';
+                        return setUpdaterState(buildUpdaterError(message));
+                    }
+                };
+                const pollUpdaterState = async () => {
+                    if (updaterPollInFlight) {
+                        return snapshotUpdaterState();
+                    }
+
+                    updaterPollInFlight = true;
+                    try {
+                        return await syncUpdaterState('/api/desktop-updater');
+                    } finally {
+                        updaterPollInFlight = false;
+                    }
+                };
+                const startUpdaterPolling = () => {
+                    if (updaterPollTimer || updaterListeners.size === 0) {
+                        return;
+                    }
+
+                    void pollUpdaterState();
+                    updaterPollTimer = window.setInterval(() => {
+                        void pollUpdaterState();
+                    }, updaterPollIntervalMs);
+                };
+                const stopUpdaterPolling = () => {
+                    if (!updaterPollTimer) {
+                        return;
+                    }
+
+                    window.clearInterval(updaterPollTimer);
+                    updaterPollTimer = null;
+                };
+
         window.instructionEngineDesktop = Object.freeze({
           platform: 'win32',
           shell: 'tauri',
+                    updater: Object.freeze({
+                        getState: () => pollUpdaterState(),
+                        checkForUpdates: () => syncUpdaterState('/api/desktop-updater/check', { method: 'POST' }),
+                        downloadUpdate: () => syncUpdaterState('/api/desktop-updater/download', { method: 'POST', timeoutMs: 15000 }),
+                        restartToUpdate: async () => {
+                            try {
+                                const payload = await callUpdaterApi('/api/desktop-updater/restart', {
+                                    method: 'POST',
+                                    timeoutMs: 10000,
+                                });
+                                return Boolean(payload && payload.ok === true);
+                            } catch (error) {
+                                const message = error instanceof Error && error.message.trim()
+                                    ? error.message.trim()
+                                    : 'Unable to launch the downloaded installer.';
+                                setUpdaterState(buildUpdaterError(message));
+                                return false;
+                            }
+                        },
+                        subscribe: (listener) => {
+                            if (typeof listener !== 'function') {
+                                return () => {};
+                            }
+
+                            updaterListeners.add(listener);
+                            startUpdaterPolling();
+                            queueMicrotask(() => notifyUpdaterListener(listener));
+                            return () => {
+                                updaterListeners.delete(listener);
+                                if (updaterListeners.size === 0) {
+                                    stopUpdaterPolling();
+                                }
+                            };
+                        },
+                    }),
         });
 
         const originalOpen = window.open.bind(window);
@@ -124,8 +366,9 @@ fn build_init_script() -> String {
           window.location.assign(new URL(href, window.location.href).toString());
         }, true);
       })();
-    "#
-    .to_string()
+        "#
+                .replace("__ELEGY_TAURI_UPDATER_STATE__", &updater_state_json),
+        )
 }
 
 fn focus_main_window(app: &AppHandle) {
@@ -148,12 +391,13 @@ fn open_external_url(url: &Url) {
 fn create_main_window(app: &AppHandle, window_url: &str) -> Result<(), String> {
     let parsed = Url::parse(window_url)
         .map_err(|error| format!("Invalid runtime window URL {window_url}: {error}"))?;
+    let init_script = build_init_script(app)?;
 
     WebviewWindowBuilder::new(app, MAIN_WINDOW_LABEL, WebviewUrl::External(parsed.clone()))
         .title("Elegy Copilot")
         .inner_size(1360.0, 900.0)
         .min_inner_size(1100.0, 720.0)
-        .initialization_script(&build_init_script())
+        .initialization_script(&init_script)
         .on_navigation(move |url| {
             if is_loopback_runtime_url(url) {
                 return true;

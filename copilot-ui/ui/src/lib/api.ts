@@ -105,6 +105,7 @@ import type {
   SessionPlanMutationResponse,
   SessionStructuredStateResponse,
   SessionTextArtifactResponse,
+  SessionsWorkspaceResponse,
   SyncedNoteSourceDeleteResponse,
   SyncedNoteSourceLocator,
   SyncedNoteSourceRecord,
@@ -2667,6 +2668,12 @@ export function listSessions(baseUrl?: string, options: ListSessionsOptions = {}
       source: options.source,
       dedupe: options.dedupe,
     },
+  });
+}
+
+export function listSessionsWorkspace(baseUrl?: string): Promise<SessionsWorkspaceResponse> {
+  return apiRequest<SessionsWorkspaceResponse>('/api/sessions/workspace', {
+    baseUrl,
   });
 }
 

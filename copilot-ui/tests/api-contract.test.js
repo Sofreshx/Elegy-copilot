@@ -171,7 +171,8 @@ const ROUTE_INVENTORY = [
   { method: 'PATCH', path: '/api/planning/roadmaps/platform-foundation' },
   { method: 'POST', path: '/api/planning/roadmaps/platform-foundation/reconcile' },
 
-  // Sessions (15: 2 exact + 13 regex)
+  // Sessions (16: 3 exact + 13 regex)
+  { method: 'GET', path: '/api/sessions/workspace' },
   { method: 'GET', path: '/api/sessions' },
   { method: 'GET', path: '/api/sessions/test-session-id/events' },
   { method: 'GET', path: '/api/sessions/test-session-id/agent-usage' },
@@ -430,7 +431,7 @@ async function run() {
 
     // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 136, `Expected 136 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 137, `Expected 137 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

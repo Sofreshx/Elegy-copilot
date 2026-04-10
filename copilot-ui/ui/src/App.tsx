@@ -112,7 +112,7 @@ export default function App() {
               }}
               type="button"
             >
-              Restart to update
+              Launch installer
             </button>
           ) : null}
         </div>

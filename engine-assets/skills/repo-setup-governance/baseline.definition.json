@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "baselineKey": "repo-setup-governance",
+  "baselineVersion": "1.0.0",
+  "slice": "A",
+  "mode": "audit-propose-only",
+  "authority": {
+    "canonicalDocPath": "docs/system/repo-setup-governance.md",
+    "definitionPath": "engine-assets/skills/repo-setup-governance/baseline.definition.json",
+    "projectionPath": "engine-assets/skills/repo-setup-governance/baseline.json"
+  },
+  "compatibility": {
+    "minIndexSchemaVersion": 1,
+    "requiredInstalledSkill": "repo-setup-governance",
+    "requiredManifestAssetId": "skill-repo-setup-governance",
+    "requiredLoadMode": "on-demand",
+    "updateExecution": "unsupported"
+  },
+  "targetRepoContract": {
+    "workspaceRoots": "open-workspace-only",
+    "explicitRootSelectionRequiredWhenMultiple": true,
+    "cwdInference": false
+  },
+  "auditOutcomePolicy": {
+    "defaultMode": "audit-propose-first",
+    "missing": "propose-create",
+    "stale": "propose-refresh",
+    "unknown": "fail-closed",
+    "conflict": "report-conflict-no-mutation"
+  },
+  "minimumAssetSet": {
+    "required": [
+      {
+        "key": "repo-readme",
+        "kind": "file",
+        "paths": [
+          "README.md"
+        ],
+        "reason": "Provides a human-readable repo entrypoint before deeper Copilot routing begins."
+      },
+      {
+        "key": "repo-copilot-instructions",
+        "kind": "file",
+        "paths": [
+          ".github/copilot-instructions.md"
+        ],
+        "reason": "Provides repo-specific Copilot operating rules for shared and repo-local lanes."
+      },
+      {
+        "key": "repo-agents-directory",
+        "kind": "directory",
+        "paths": [
+          ".github/agents"
+        ],
+        "reason": "Provides the canonical repo-local surface for repo-specific agents when needed."
+      },
+      {
+        "key": "repo-skills-directory",
+        "kind": "directory",
+        "paths": [
+          ".github/skills"
+        ],
+        "reason": "Provides the canonical repo-local surface for repo-specific skills when needed."
+      },
+      {
+        "key": "canonical-doc-entrypoint",
+        "kind": "one-of",
+        "paths": [
+          "docs/system/index.md",
+          "docs/index.md",
+          "documentation/index.md"
+        ],
+        "reason": "Provides a canonical documentation entrypoint so search/execute and repo governance can bootstrap deterministically."
+      }
+    ],
+    "recommended": [
+      {
+        "key": "workspace-settings",
+        "kind": "file",
+        "paths": [
+          ".vscode/settings.json"
+        ],
+        "reason": "Captures repo-local editor recommendations when the repo documents them explicitly."
+      },
+      {
+        "key": "workspace-mcp-config",
+        "kind": "file",
+        "paths": [
+          ".vscode/mcp.json"
+        ],
+        "reason": "Captures repo-local MCP bridge setup when the repo documents it as part of supported workflow setup."
+      }
+    ]
+  }
+}

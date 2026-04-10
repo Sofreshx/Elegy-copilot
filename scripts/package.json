@@ -5,8 +5,12 @@
   "scripts": {
     "test": "node test-with-ledger.js",
     "test:contract-compatibility-matrix": "node contract-compatibility-matrix.test.js",
+    "generate:repo-setup-baseline": "node generate-repo-setup-baseline.mjs",
+    "generate:repo-setup-profiles": "node generate-repo-setup-profiles.mjs",
     "sync:superpowers": "node sync-superpowers.js",
     "validate:agent-delegation": "node validate-agent-delegation.js",
+    "validate:repo-setup-baseline": "node validate-repo-setup-baseline.js",
+    "validate:repo-setup-profiles": "node validate-repo-setup-profiles.js",
     "validate:skill-discovery-map": "node validate-skill-discovery-map.js",
     "validate:legacy-path-compatibility": "node validate-legacy-path-compatibility-audit.js",
     "generate:skill-metadata-index": "node generate-skill-metadata-index.mjs"

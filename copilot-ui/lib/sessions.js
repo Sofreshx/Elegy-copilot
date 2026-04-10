@@ -489,11 +489,57 @@ function computeStatus(lastEventTime, opts = {}) {
   return ageMs <= activeWindowMinutes * 60 * 1000 ? 'active' : 'idle';
 }
 
-function listSessions(copilotHome, options = {}) {
-  const sessionStateDir = path.join(copilotHome, 'session-state');
+function readSessionSummary(sessionDir, id, options = {}) {
+  const sessionStat = safeStat(sessionDir);
+  if (!sessionStat || !sessionStat.isDirectory()) {
+    return null;
+  }
+
+  const fallbackStart = parseTime(sessionStat.birthtimeMs);
+  const start = readStartEvent(sessionDir);
+  const recent = readRecentEvents(sessionDir, options.recentLimit);
+
+  let mode = null;
+  let lastEventTime = null;
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const ev = recent[i];
+    lastEventTime = lastEventTime ?? eventTime(ev);
+    if (mode == null && eventType(ev) === 'session.mode_changed') {
+      const p = payloadOf(ev);
+      mode = p.mode || p.newMode || p.to || p.value || null;
+    }
+    if (mode != null && lastEventTime != null) break;
+  }
+
+  if (!lastEventTime && sessionStat) lastEventTime = parseTime(sessionStat.mtimeMs);
+
+  const startTime = start && start.startTime ? start.startTime : fallbackStart;
+  const status = computeStatus(lastEventTime, {
+    activeWindowMinutes: options.activeWindowMinutes,
+    now: options.now,
+  });
+  const startSessionId =
+    start && typeof start.sessionId === 'string' && start.sessionId.trim()
+      ? start.sessionId.trim()
+      : null;
+
+  return {
+    id: startSessionId || id,
+    storageId: id,
+    repo: (start && start.repo) || null,
+    branch: (start && start.branch) || null,
+    cwd: (start && start.cwd) || null,
+    mode: mode || null,
+    startTime: startTime || null,
+    lastEventTime: lastEventTime || null,
+    status,
+  };
+}
+
+function listSessionsInDirectory(sessionRootDir, options = {}) {
   let dirents;
   try {
-    dirents = fs.readdirSync(sessionStateDir, { withFileTypes: true });
+    dirents = fs.readdirSync(sessionRootDir, { withFileTypes: true });
   } catch {
     return [];
   }
@@ -507,47 +553,32 @@ function listSessions(copilotHome, options = {}) {
   for (const d of dirents) {
     if (!d.isDirectory()) continue;
     const id = d.name;
-    const sessionDir = path.join(sessionStateDir, id);
-    const sessionStat = safeStat(sessionDir);
-    const fallbackStart = sessionStat ? parseTime(sessionStat.birthtimeMs) : null;
-
-    const start = readStartEvent(sessionDir);
-    const recent = readRecentEvents(sessionDir, recentLimit);
-
-    let mode = null;
-    let lastEventTime = null;
-    for (let i = recent.length - 1; i >= 0; i--) {
-      const ev = recent[i];
-      lastEventTime = lastEventTime ?? eventTime(ev);
-      if (mode == null && eventType(ev) === 'session.mode_changed') {
-        const p = payloadOf(ev);
-        mode = p.mode || p.newMode || p.to || p.value || null;
-      }
-      if (mode != null && lastEventTime != null) break;
+    const sessionDir = path.join(sessionRootDir, id);
+    const session = readSessionSummary(sessionDir, id, {
+      ...options,
+      recentLimit,
+    });
+    if (session) {
+      sessions.push(session);
     }
-
-    if (!lastEventTime && sessionStat) lastEventTime = parseTime(sessionStat.mtimeMs);
-
-    const startTime = start && start.startTime ? start.startTime : fallbackStart;
-    const status = computeStatus(lastEventTime, {
-      activeWindowMinutes: options.activeWindowMinutes,
-      now: options.now,
-    });
-
-    sessions.push({
-      id,
-      repo: (start && start.repo) || null,
-      branch: (start && start.branch) || null,
-      cwd: (start && start.cwd) || null,
-      mode: mode || null,
-      startTime: startTime || null,
-      lastEventTime: lastEventTime || null,
-      status,
-    });
   }
 
   sessions.sort((a, b) => (b.lastEventTime || b.startTime || 0) - (a.lastEventTime || a.startTime || 0));
   return sessions;
+}
+
+function listSessions(copilotHome, options = {}) {
+  return listSessionsInDirectory(path.join(copilotHome, 'session-state'), options);
+}
+
+function listArchivedSessions(copilotHome, options = {}) {
+  return listSessionsInDirectory(path.join(copilotHome, 'sessions-archive'), options)
+    .map((session) => ({
+      ...session,
+      archiveId: session.storageId || session.id,
+      status: 'archived',
+      archived: true,
+    }));
 }
 
 function watchSessions(copilotHome, onChange) {
@@ -645,6 +676,35 @@ function listSandboxSessions(sandboxesHome, options = {}) {
     if (!stat || !stat.isDirectory()) continue;
 
     const sessions = listSessions(sandboxSessionHome, options);
+    for (const s of sessions) {
+      allSessions.push({ ...s, source: 'sandbox', sandbox: sandboxId });
+    }
+  }
+
+  allSessions.sort((a, b) => (b.lastEventTime || b.startTime || 0) - (a.lastEventTime || a.startTime || 0));
+  return allSessions;
+}
+
+function listSandboxArchivedSessions(sandboxesHome, options = {}) {
+  const home = path.resolve(sandboxesHome);
+  let dirents;
+  try {
+    dirents = fs.readdirSync(home, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const allSessions = [];
+  for (const d of dirents) {
+    if (!d.isDirectory()) continue;
+    const sandboxId = d.name;
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/.test(sandboxId)) continue;
+    const sandboxSessionHome = path.join(home, sandboxId);
+    const archiveDir = path.join(sandboxSessionHome, 'sessions-archive');
+    const stat = safeStat(archiveDir);
+    if (!stat || !stat.isDirectory()) continue;
+
+    const sessions = listArchivedSessions(sandboxSessionHome, options);
     for (const s of sessions) {
       allSessions.push({ ...s, source: 'sandbox', sandbox: sandboxId });
     }
@@ -899,6 +959,8 @@ module.exports = {
   computeStatus,
   watchSessions,
   listSandboxSessions,
+  listArchivedSessions,
+  listSandboxArchivedSessions,
   watchSandboxSessions,
   buildSessionIdentity,
   mergeSessionGroup,

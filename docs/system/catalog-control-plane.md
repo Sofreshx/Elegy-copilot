@@ -1,6 +1,6 @@
 ---
 created: 2026-03-09
-updated: 2026-04-08
+updated: 2026-04-10
 category: system
 status: current
 doc_kind: node
@@ -174,6 +174,10 @@ Bundle and repo-scope note:
 - workflow packs are an **explicit optional install layer** that group multiple shared assets into one action
 - profile or routing-policy state may mark a bundle active/eligible, but that state does **not** by itself copy bundle members into `~/.copilot`
 - repo-specific governance lanes are not installed into the user-global surface; they are discovered from the selected repo's `.github/agents` and `.github/skills` plus repo overlay state
+- narrow exception: the shared shipped `repo-setup-governance-global` bundle may install the `repo-setup-governor` agent and `repo-setup-governance` skill into the user-global surface for audit/propose-only repo setup governance across explicit open workspace roots
+- the shared lane may also ship profile-definition and runtime-projection artifacts inside `engine-assets/skills/repo-setup-governance/` for classification and update planning bootstrap
+- that exception does not create a general repo-local-to-user-global governance rule, does not authorize repo setup mutation execution, and does not authorize support-resource writes outside repo-local agent/skill assets
+- if repo-local agent/skill update execution is later enabled for this lane, it must use the `copilot-ui` catalog mutation APIs instead of direct editor writes
 
 ## Search, audit, and runtime health surfaces
 

@@ -625,6 +625,16 @@
       "reason"
     ]
   },
+  "GET /api/sessions/workspace": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "active",
+      "authorityModel",
+      "history"
+    ]
+  },
   "GET /api/sessions": {
     "status": 200,
     "contentType": "application/json",

@@ -92,6 +92,7 @@ const {
   evictPlanningIdempotencyEntry,
 } = require('./lib/planningApiContracts');
 const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersistenceClient');
+const { createDesktopUpdaterController } = require('./lib/desktop-shell/updater');
 const { createRegistry } = require('./routes');
 const { createExecutorService } = require('./lib/executorService');
 const { createWorkflowLayerService } = require('./lib/workflowLayerService');
@@ -125,6 +126,8 @@ const {
   buildTrackerProxyPassThroughHeaders,
   buildTrackerProxyResponsePlan,
 } = require('./lib/server/trackerIntegration');
+
+const copilotUiPackageJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
 
 const WS3_AUTHORITY_DEPENDENCY_GATE_CONTRACT_VERSION = '1';
 const WS3_AUTHORITY_DEPENDENCY_NAME = 'ws3_authority_reconciliation_contract';
@@ -4606,6 +4609,31 @@ async function startServer(options = {}) {
     decisionLoggedAt: startupManagedAssetSyncDecision.ok ? startupManagedAssetSyncDecision.event.occurredAt : null,
     decisionLogError: startupManagedAssetSyncDecision.ok ? null : startupManagedAssetSyncDecision.error,
   };
+  const desktopUpdaterController = options.desktopUpdaterController || createDesktopUpdaterController({
+    appVersion: String(env.ELEGY_TAURI_APP_VERSION || copilotUiPackageJson.version || 'unknown').trim() || 'unknown',
+    explicitChannel: env.INSTRUCTION_ENGINE_UPDATE_CHANNEL || null,
+    rollbackPolicyJson: env.INSTRUCTION_ENGINE_ROLLBACK_POLICY_JSON,
+    disableUpdates: env.INSTRUCTION_ENGINE_DISABLE_UPDATES,
+    publishRepository: copilotUiPackageJson.desktopRelease && copilotUiPackageJson.desktopRelease.publishRepository,
+    downloadRoot: path.join(copilotHome, 'desktop-updater'),
+    fetch: options.fetch,
+    logger: quiet ? () => {} : (message) => console.log(message),
+    platform: process.platform,
+  });
+  const desktopUpdaterAutoCheckIntervalMs = Number.isFinite(options.desktopUpdaterAutoCheckIntervalMs)
+    && Number(options.desktopUpdaterAutoCheckIntervalMs) > 0
+    ? Number(options.desktopUpdaterAutoCheckIntervalMs)
+    : 6 * 60 * 60 * 1000;
+  let desktopUpdaterAutoCheckTimer = null;
+  function stopDesktopUpdaterBackgroundWork() {
+    if (desktopUpdaterAutoCheckTimer) {
+      clearInterval(desktopUpdaterAutoCheckTimer);
+      desktopUpdaterAutoCheckTimer = null;
+    }
+    if (desktopUpdaterController && typeof desktopUpdaterController.close === 'function') {
+      desktopUpdaterController.close();
+    }
+  }
   const sdkBridgeEnabled = isSdkBridgeEnabled(env);
   let sdkBridge = null;
   let executorService = null;
@@ -4620,6 +4648,7 @@ async function startServer(options = {}) {
           policyPreflightFn: () => getPolicyPreflight(engineRoot),
         });
     } catch (error) {
+      stopDesktopUpdaterBackgroundWork();
       changeTracker.close();
       const detail = String(error && error.message ? error.message : error);
       throw new Error(`SDK bridge startup failed with COPILOT_SDK_BRIDGE=1: ${detail}`);
@@ -4632,6 +4661,7 @@ async function startServer(options = {}) {
       sdkBridge,
     }).init();
   } catch (error) {
+    stopDesktopUpdaterBackgroundWork();
     await shutdownSdkBridgeSafely(sdkBridge);
     changeTracker.close();
     await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
@@ -4646,6 +4676,7 @@ async function startServer(options = {}) {
       workflowSidecarManager: args.workflowSidecarManager,
     }).init();
   } catch (error) {
+    stopDesktopUpdaterBackgroundWork();
     await shutdownExecutorServiceSafely(executorService);
     await shutdownSdkBridgeSafely(sdkBridge);
     changeTracker.close();
@@ -4748,12 +4779,14 @@ async function startServer(options = {}) {
       readPlanningSuggestion,
       persistPlanningRecap,
       readPlanningRecap,
+      desktopUpdaterController,
       sdkBridge,
       executorService,
       workflowLayerService,
       uiRuntimeOverlayService,
     });
   } catch (error) {
+    stopDesktopUpdaterBackgroundWork();
     await shutdownWorkflowLayerServiceSafely(workflowLayerService);
     await shutdownExecutorServiceSafely(executorService);
     await shutdownSdkBridgeSafely(sdkBridge);
@@ -4823,6 +4856,7 @@ async function startServer(options = {}) {
       if (settled) return;
       settled = true;
       Promise.resolve()
+        .then(() => stopDesktopUpdaterBackgroundWork())
         .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
         .then(() => shutdownExecutorServiceSafely(executorService))
         .then(() => shutdownSdkBridgeSafely(sdkBridge))
@@ -4856,6 +4890,19 @@ async function startServer(options = {}) {
         }
       }
 
+      void desktopUpdaterController.checkForUpdates().catch((error) => {
+        if (!quiet) {
+          console.warn(`[desktop-updater] startup check failed: ${String(error && error.message ? error.message : error)}`);
+        }
+      });
+      desktopUpdaterAutoCheckTimer = setInterval(() => {
+        void desktopUpdaterController.checkForUpdates().catch((error) => {
+          if (!quiet) {
+            console.warn(`[desktop-updater] background check failed: ${String(error && error.message ? error.message : error)}`);
+          }
+        });
+      }, desktopUpdaterAutoCheckIntervalMs);
+
       resolve({
         server,
         routeRegistry,
@@ -4871,6 +4918,7 @@ async function startServer(options = {}) {
         autonomousDecisionLog: autonomousDecisionLog.getSummary(),
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
+            .then(() => stopDesktopUpdaterBackgroundWork())
             .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
             .then(() => shutdownExecutorServiceSafely(executorService))
             .then(() => shutdownSdkBridgeSafely(sdkBridge))

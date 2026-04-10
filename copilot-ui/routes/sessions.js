@@ -305,6 +305,344 @@ function buildSessionsListResponse(data, options = {}) {
   };
 }
 
+function toWorkspaceTimestamp(value) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function sourceLabelForWorkspace(source) {
+  const normalized = normalizeString(source).toLowerCase();
+  if (normalized === 'cli') return 'CLI';
+  if (normalized === 'vscode') return 'VS Code';
+  if (normalized === 'sandbox') return 'Sandbox';
+  if (normalized === 'sdk') return 'SDK';
+  if (normalized === 'overlay') return 'Overlay';
+  if (normalized === 'archive') return 'Archive';
+  return normalized ? normalized.toUpperCase() : 'Unknown';
+}
+
+function inferRepoLabel(repoId, repoPath, repoLabel, pathLib = path) {
+  const explicit = normalizeString(repoLabel);
+  if (explicit) return explicit;
+  const resolvedPath = normalizeString(repoPath);
+  if (resolvedPath) {
+    const base = normalizeString(pathLib.basename(resolvedPath));
+    if (base) return base;
+  }
+  return normalizeString(repoId) || null;
+}
+
+function buildWorkspaceRepoSummary(input, pathLib = path) {
+  const source = input && typeof input === 'object' ? input : {};
+  const repoId = normalizeString(source.repoId);
+  const repoPath = normalizeString(source.repoPath);
+  const repoLabel = inferRepoLabel(repoId, repoPath, source.repoLabel, pathLib);
+  if (!repoId && !repoPath && !repoLabel) {
+    return null;
+  }
+  return {
+    repoId: repoId || null,
+    repoPath: repoPath || null,
+    repoLabel: repoLabel || null,
+  };
+}
+
+function buildWorkspaceRepoModel(primaryRepo, linkedRepos = [], pathLib = path) {
+  const normalizedPrimary = buildWorkspaceRepoSummary(primaryRepo, pathLib);
+  const deduped = [];
+  const seen = new Set();
+  for (const candidate of Array.isArray(linkedRepos) ? linkedRepos : []) {
+    const normalized = buildWorkspaceRepoSummary(candidate, pathLib);
+    if (!normalized) continue;
+    const key = `${normalized.repoId || ''}|${normalized.repoPath || ''}|${normalized.repoLabel || ''}`.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(normalized);
+  }
+  return {
+    primaryRepo: normalizedPrimary,
+    linkedRepos: deduped,
+  };
+}
+
+function normalizeArtifactWorkspaceStatus(session) {
+  return normalizeString(session && (session.resolvedStatus || session.status)).toLowerCase() || 'missing';
+}
+
+function normalizeRuntimeWorkspaceStatus(status, fallback = 'active') {
+  const normalized = normalizeString(status).toLowerCase();
+  if (!normalized) return fallback;
+  if (normalized === 'attached' || normalized === 'open' || normalized === 'running') return 'active';
+  if (normalized === 'closed') return 'closed';
+  return normalized;
+}
+
+function buildArtifactWorkspaceEntry(session, pathLib = path) {
+  const normalizedSource = normalizeString(session && session.source).toLowerCase() || 'cli';
+  const workspace = buildWorkspaceRepoModel({
+    repoId: session && session.repo,
+    repoPath: session && session.cwd,
+    repoLabel: null,
+  }, [], pathLib);
+  return {
+    entryId: `artifact:${normalizedSource}:${normalizeString(session && session.id)}`,
+    sessionId: normalizeString(session && session.id) || null,
+    linkedSessionId: null,
+    kind: 'artifact',
+    title: normalizeString(session && session.id) || 'Unnamed session',
+    status: normalizeArtifactWorkspaceStatus(session),
+    source: normalizedSource,
+    sourceLabel: sourceLabelForWorkspace(normalizedSource),
+    startedAt: session && session.startTime != null ? session.startTime : null,
+    updatedAt: session && session.lastEventTime != null ? session.lastEventTime : null,
+    workspace,
+    detail: {
+      source: normalizedSource,
+      sandbox: normalizeString(session && session.sandbox) || null,
+      canOpenArtifacts: normalizedSource === 'cli',
+      handoffTarget: 'session-detail',
+    },
+    runtimeAuthority: false,
+    durable: true,
+    archive: false,
+  };
+}
+
+function buildArchiveWorkspaceEntry(session, pathLib = path) {
+  const normalizedSource = normalizeString(session && session.source).toLowerCase() || 'cli';
+  const workspace = buildWorkspaceRepoModel({
+    repoId: session && session.repo,
+    repoPath: session && session.cwd,
+    repoLabel: null,
+  }, [], pathLib);
+  return {
+    entryId: `archive:${normalizedSource}:${normalizeString(session && (session.archiveId || session.id))}`,
+    sessionId: normalizeString(session && session.id) || null,
+    linkedSessionId: null,
+    kind: 'archive',
+    title: normalizeString(session && session.id) || 'Archived session',
+    status: 'archived',
+    source: normalizedSource,
+    sourceLabel: sourceLabelForWorkspace('archive'),
+    startedAt: session && session.startTime != null ? session.startTime : null,
+    updatedAt: session && session.lastEventTime != null ? session.lastEventTime : null,
+    workspace,
+    detail: {
+      source: normalizedSource,
+      sandbox: normalizeString(session && session.sandbox) || null,
+      canOpenArtifacts: false,
+      handoffTarget: 'history',
+    },
+    runtimeAuthority: false,
+    durable: true,
+    archive: true,
+    archiveId: normalizeString(session && session.archiveId) || normalizeString(session && session.id) || null,
+  };
+}
+
+function buildSdkWorkspaceEntry(session, pathLib = path) {
+  const orchestrationRepo = session && session.orchestration && typeof session.orchestration === 'object'
+    ? session.orchestration.repo
+    : null;
+  const workspace = buildWorkspaceRepoModel({
+    repoId: orchestrationRepo && orchestrationRepo.repoId,
+    repoPath: (orchestrationRepo && orchestrationRepo.repoPath) || (session && session.cwd),
+    repoLabel: orchestrationRepo && orchestrationRepo.repoLabel,
+  }, [], pathLib);
+  const sessionId = normalizeString(session && session.sessionId);
+  return {
+    entryId: `sdk:${sessionId}`,
+    sessionId: sessionId || null,
+    linkedSessionId: null,
+    kind: 'sdk',
+    title: sessionId || 'SDK session',
+    status: normalizeRuntimeWorkspaceStatus(session && session.status, 'active'),
+    source: 'sdk',
+    sourceLabel: sourceLabelForWorkspace('sdk'),
+    startedAt: session && session.createdAt != null ? session.createdAt : null,
+    updatedAt: session && session.updatedAt != null ? session.updatedAt : (session && session.createdAt != null ? session.createdAt : null),
+    workspace,
+    detail: {
+      source: 'sdk',
+      sandbox: normalizeString(session && session.sandboxId) || null,
+      canOpenArtifacts: false,
+      handoffTarget: 'sdk',
+    },
+    runtimeAuthority: true,
+    durable: false,
+    archive: false,
+  };
+}
+
+function buildOverlayWorkspaceEntry(session, pathLib = path) {
+  const overlayId = normalizeString(session && session.id);
+  const linkedSessionId = normalizeString(session && session.linkedSessionId);
+  const workspace = buildWorkspaceRepoModel({
+    repoId: session && session.repoId,
+    repoPath: session && session.repoPath,
+    repoLabel: session && session.repoLabel,
+  }, [], pathLib);
+  return {
+    entryId: `overlay:${overlayId}`,
+    sessionId: overlayId || null,
+    linkedSessionId: linkedSessionId || null,
+    kind: 'overlay',
+    title: overlayId || 'Overlay session',
+    status: normalizeRuntimeWorkspaceStatus(session && session.status, 'active'),
+    source: 'overlay',
+    sourceLabel: sourceLabelForWorkspace('overlay'),
+    startedAt: session && session.createdAt != null ? session.createdAt : null,
+    updatedAt: session && session.updatedAt != null ? session.updatedAt : (session && session.createdAt != null ? session.createdAt : null),
+    workspace,
+    detail: {
+      source: 'overlay',
+      sandbox: null,
+      canOpenArtifacts: false,
+      handoffTarget: 'overlay',
+    },
+    runtimeAuthority: true,
+    durable: true,
+    archive: false,
+  };
+}
+
+function sortWorkspaceEntries(entries) {
+  return entries
+    .slice()
+    .sort((left, right) => {
+      if (left.runtimeAuthority !== right.runtimeAuthority) {
+        return left.runtimeAuthority ? -1 : 1;
+      }
+      const timestampDelta = toWorkspaceTimestamp(right.updatedAt || right.startedAt) - toWorkspaceTimestamp(left.updatedAt || left.startedAt);
+      if (timestampDelta !== 0) {
+        return timestampDelta;
+      }
+      return String(left.title || left.entryId).localeCompare(String(right.title || right.entryId));
+    });
+}
+
+function listWorkspaceArtifactSessions(ctx, deps, activeWindowMinutes) {
+  const { copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const cli = deps.sessions.listSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 })
+    .map((session) => ({ ...session, source: 'cli' }));
+  const vs = areSameSessionRoots(deps.path, copilotHome, vscodeHome)
+    ? []
+    : deps.sessions.listSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 })
+      .map((session) => ({ ...session, source: 'vscode' }));
+  const sandbox = deps.sessions.listSandboxSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 });
+  const all = [...cli, ...vs, ...sandbox];
+  return typeof deps.sessions.dedupeAllSources === 'function'
+    ? deps.sessions.dedupeAllSources(all)
+    : all.map((session) => (typeof deps.sessions.applySessionReconciliation === 'function'
+      ? deps.sessions.applySessionReconciliation(session)
+      : session));
+}
+
+function listWorkspaceArchivedSessions(ctx, deps, activeWindowMinutes) {
+  const { copilotHome, vscodeHome, sandboxesHome } = ctx;
+  const listArchivedSessions = typeof deps.sessions.listArchivedSessions === 'function'
+    ? deps.sessions.listArchivedSessions.bind(deps.sessions)
+    : null;
+  const listSandboxArchivedSessions = typeof deps.sessions.listSandboxArchivedSessions === 'function'
+    ? deps.sessions.listSandboxArchivedSessions.bind(deps.sessions)
+    : null;
+  if (!listArchivedSessions) {
+    return [];
+  }
+
+  const cli = listArchivedSessions(copilotHome, { activeWindowMinutes, recentLimit: 250 })
+    .map((session) => ({ ...session, source: 'cli' }));
+  const vs = areSameSessionRoots(deps.path, copilotHome, vscodeHome)
+    ? []
+    : listArchivedSessions(vscodeHome, { activeWindowMinutes, recentLimit: 250 })
+      .map((session) => ({ ...session, source: 'vscode' }));
+  const sandbox = listSandboxArchivedSessions
+    ? listSandboxArchivedSessions(sandboxesHome, { activeWindowMinutes, recentLimit: 250 })
+    : [];
+  return [...cli, ...vs, ...sandbox];
+}
+
+function buildSessionsWorkspaceResponse(active, history) {
+  return {
+    active: sortWorkspaceEntries(active),
+    history: sortWorkspaceEntries(history),
+    authorityModel: {
+      contractVersion: SESSION_RECONCILIATION_CONTRACT_VERSION,
+      activeAuthority: SESSION_STATE_AUTHORITIES.RUNTIME,
+      historyAuthority: SESSION_STATE_AUTHORITIES.ARTIFACT,
+      runtimeSourceOfTruth: SESSION_RECONCILIATION_SOURCES.RUNTIME,
+      artifactSourceOfTruth: SESSION_RECONCILIATION_SOURCES.ARTIFACT,
+      activeSurface: 'runtime_first_workspace',
+      historySurface: 'artifact_archive_history',
+      multiRepoModel: 'primary_plus_linked',
+    },
+  };
+}
+
+function handleSessionsWorkspace(ctx, deps) {
+  const { res, u } = ctx;
+  const { sendJson } = deps;
+  const activeWindowMinutes = parseNumberQuery(u.searchParams, 'activeWindowMinutes', 30);
+
+  const artifactSessions = listWorkspaceArtifactSessions(ctx, deps, activeWindowMinutes);
+  const archivedSessions = listWorkspaceArchivedSessions(ctx, deps, activeWindowMinutes);
+
+  Promise.all([
+    Promise.resolve()
+      .then(() => (deps.sdkBridge && typeof deps.sdkBridge.listSdkSessions === 'function' ? deps.sdkBridge.listSdkSessions() : []))
+      .catch(() => []),
+    Promise.resolve()
+      .then(() => (deps.uiRuntimeOverlayService && typeof deps.uiRuntimeOverlayService.listSessions === 'function'
+        ? deps.uiRuntimeOverlayService.listSessions()
+        : []))
+      .catch(() => []),
+  ])
+    .then(([sdkSessions, overlaySessions]) => {
+      const runtimeEntries = [
+        ...sdkSessions.map((session) => buildSdkWorkspaceEntry(session, deps.path)),
+        ...overlaySessions
+          .filter((session) => normalizeRuntimeWorkspaceStatus(session && session.status, 'active') === 'active')
+          .map((session) => buildOverlayWorkspaceEntry(session, deps.path)),
+      ];
+
+      const runtimeSessionIds = new Set(
+        runtimeEntries
+          .flatMap((entry) => [entry.sessionId, entry.linkedSessionId])
+          .map((value) => normalizeString(value).toLowerCase())
+          .filter(Boolean)
+      );
+
+      const activeArtifactEntries = artifactSessions
+        .filter((session) => normalizeArtifactWorkspaceStatus(session) === 'active')
+        .filter((session) => {
+          const sessionId = normalizeString(session && session.id).toLowerCase();
+          return !sessionId || !runtimeSessionIds.has(sessionId);
+        })
+        .map((session) => buildArtifactWorkspaceEntry(session, deps.path));
+
+      const historyArtifactEntries = artifactSessions
+        .filter((session) => normalizeArtifactWorkspaceStatus(session) !== 'active')
+        .map((session) => buildArtifactWorkspaceEntry(session, deps.path));
+      const historyArchiveEntries = archivedSessions.map((session) => buildArchiveWorkspaceEntry(session, deps.path));
+
+      sendJson(res, 200, buildSessionsWorkspaceResponse(
+        [...runtimeEntries, ...activeArtifactEntries],
+        [...historyArtifactEntries, ...historyArchiveEntries]
+      ));
+    })
+    .catch((error) => {
+      sendJson(res, error && error.statusCode ? error.statusCode : 500, {
+        error: String((error && error.message) || error || 'Unable to build sessions workspace'),
+      });
+    });
+}
+
 function handleSessionsList(ctx, deps) {
   const { req, res, u, copilotHome, vscodeHome, sandboxesHome } = ctx;
   const { path, sendJson, parseNumberQuery, resolveSessionsHome, sessions } = deps;
@@ -1379,6 +1717,11 @@ function register(deps = {}) {
   };
 
   return [
+    {
+      method: 'GET',
+      path: '/api/sessions/workspace',
+      handler: (ctx) => handleSessionsWorkspace(ctx, resolvedDeps),
+    },
     {
       method: 'GET',
       path: '/api/sessions',

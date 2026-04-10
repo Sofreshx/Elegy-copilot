@@ -237,10 +237,23 @@ function runProviderCommand(deps, command, args, timeoutMs) {
     return deps.executeProviderCommand({ command, args, timeoutMs });
   }
 
+  const normalizedCommand = normalizeString(command);
+  const platform = normalizeString(deps.process?.platform) || process.platform;
+  const commandInvocation =
+    platform === 'win32' && /\.(cmd|bat)$/i.test(normalizedCommand)
+      ? {
+          command: normalizeString(deps.process?.env?.ComSpec) || 'cmd.exe',
+          args: ['/d', '/s', '/c', `"${normalizedCommand}"`, ...args],
+        }
+      : {
+          command: normalizedCommand,
+          args,
+        };
+
   return new Promise((resolve, reject) => {
     deps.childProcess.execFile(
-      command,
-      args,
+      commandInvocation.command,
+      commandInvocation.args,
       {
         timeout: timeoutMs,
         windowsHide: true,
@@ -257,10 +270,38 @@ function runProviderCommand(deps, command, args, timeoutMs) {
   });
 }
 
-async function executeManagedProviderInstall(deps, providerInstall, action) {
-  const commandCandidates = deps.process.platform === 'win32'
-    ? ['copilot.cmd', 'copilot']
-    : ['copilot'];
+function readDesktopCliManagerStateFromEnv(sourceEnv) {
+  const raw = normalizeString(sourceEnv?.INSTRUCTION_ENGINE_COPILOT_CLI_STATE_JSON);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveManagedCliCommandFromRuntimeState(deps) {
+  const state = readDesktopCliManagerStateFromEnv(deps.process?.env);
+  const cliPath = normalizeString(state?.cliPath);
+  if (state?.approved === true && cliPath) {
+    return {
+      cliPath,
+      state,
+    };
+  }
+
+  const blockedReason = normalizeString(state?.reason) || 'managed_cli_missing';
+  throw Object.assign(
+    new Error(`Managed Copilot CLI is unavailable for provider installs (${blockedReason}).`),
+    { statusCode: 503 },
+  );
+}
+
+async function executeManagedProviderInstall(deps, providerInstall, action, cliCommand) {
   const steps = [
     {
       id: 'marketplace-add',
@@ -274,56 +315,28 @@ async function executeManagedProviderInstall(deps, providerInstall, action) {
   const results = [];
 
   for (const step of steps) {
-    let completed = false;
-    let lastError = null;
-
-    for (const command of commandCandidates) {
-      try {
-        const output = await runProviderCommand(deps, command, step.args, 120000);
-        results.push({
-          step: step.id,
-          command,
-          args: step.args,
-          ok: true,
-          stdout: String(output.stdout || ''),
-          stderr: String(output.stderr || ''),
-        });
-        completed = true;
-        break;
-      } catch (error) {
-        lastError = error;
-        if (error && (error.code === 'ENOENT' || error.code === 'UNKNOWN')) {
-          continue;
-        }
-
-        results.push({
-          step: step.id,
-          command,
-          args: step.args,
-          ok: false,
-          stdout: String(error?.stdout || ''),
-          stderr: String(error?.stderr || ''),
-          error: String(error?.message || error),
-        });
-        throw Object.assign(new Error(`Provider command failed: ${step.id}`), {
-          statusCode: 502,
-          commandResults: results,
-        });
-      }
-    }
-
-    if (!completed) {
+    try {
+      const output = await runProviderCommand(deps, cliCommand, step.args, 120000);
       results.push({
         step: step.id,
-        command: commandCandidates[0],
+        command: cliCommand,
+        args: step.args,
+        ok: true,
+        stdout: String(output.stdout || ''),
+        stderr: String(output.stderr || ''),
+      });
+    } catch (error) {
+      results.push({
+        step: step.id,
+        command: cliCommand,
         args: step.args,
         ok: false,
-        stdout: String(lastError?.stdout || ''),
-        stderr: String(lastError?.stderr || ''),
-        error: String(lastError?.message || 'copilot command not found'),
+        stdout: String(error?.stdout || ''),
+        stderr: String(error?.stderr || ''),
+        error: String(error?.message || error),
       });
-      throw Object.assign(new Error('Copilot CLI command was not found on PATH'), {
-        statusCode: 503,
+      throw Object.assign(new Error(`Provider command failed: ${step.id}`), {
+        statusCode: error?.code === 'ENOENT' ? 503 : 502,
         commandResults: results,
       });
     }
@@ -1083,10 +1096,11 @@ function handleCatalogProviderInstall(ctx, deps) {
       const action = normalizeProviderAction(body?.action);
       const { providerCatalog } = deps.providerCatalog.loadProviderCatalog(ctx.engineRoot);
       const providerInstall = resolveManagedImportProvider(providerCatalog, providerId);
+      const managedCli = resolveManagedCliCommandFromRuntimeState(deps);
       const attemptedAt = new Date().toISOString();
 
       try {
-        const commandResults = await executeManagedProviderInstall(deps, providerInstall, action);
+        const commandResults = await executeManagedProviderInstall(deps, providerInstall, action, managedCli.cliPath);
         const stateEntry = persistProviderInstallState(deps, ctx.copilotHomeAbs, providerId, {
           providerId,
           title: providerInstall.provider.title || providerId,
@@ -1118,6 +1132,7 @@ function handleCatalogProviderInstall(ctx, deps) {
             title: providerInstall.provider.title || providerId,
             installStrategy: providerInstall.provider.installStrategy || null,
             bridgeStrategy: providerInstall.provider.bridgeStrategy || null,
+            cliPath: managedCli.cliPath,
             pluginRef: providerInstall.pluginRef,
             marketplaceRef: providerInstall.marketplaceRef,
           },
