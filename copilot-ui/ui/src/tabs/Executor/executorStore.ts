@@ -14,6 +14,7 @@ import type {
   ExecutorHealthResponse,
   ExecutorJob,
   ExecutorRun,
+  SessionOrchestrationProjection,
   SessionSummary,
 } from '../../lib/types';
 
@@ -22,6 +23,12 @@ export interface ExecutorState {
   jobs: ExecutorJob[];
   runs: ExecutorRun[];
   observedExternalSessions: SessionSummary[];
+  sessionOrchestrationById: Record<string, SessionOrchestrationProjection>;
+  orchestrationLoading: boolean;
+  orchestrationError: string | null;
+  taskBoardFilterStatus: string;
+  taskBoardGroupBy: 'status' | 'actor' | 'workflow' | 'none';
+  selectedTaskId: string | null;
   selectedJobId: string | null;
   selectedRunId: string | null;
   loading: boolean;
@@ -48,6 +55,12 @@ const INITIAL_STATE: ExecutorState = {
   jobs: [],
   runs: [],
   observedExternalSessions: [],
+  sessionOrchestrationById: {},
+  orchestrationLoading: false,
+  orchestrationError: null,
+  taskBoardFilterStatus: 'all',
+  taskBoardGroupBy: 'status',
+  selectedTaskId: null,
   selectedJobId: null,
   selectedRunId: null,
   loading: false,
