@@ -97,7 +97,7 @@ dotnet test | tee output.log  # May behave differently across shells
 **Symptom**: A generic implementation subagent starts running tests inline and then stalls or waits forever for more output.
 
 **Common triggers**:
-- `work-unit-runner`, `impl-business`, or `impl-infra` runs a test command directly
+- `work-unit-runner` or `impl` runs a test command directly
 - validation scope mixes builds and tests in one unbounded command
 - caller treats stalled output as a reason to keep waiting instead of classifying the attempt
 
@@ -133,9 +133,9 @@ Test execution is centralized in two agents:
 - **`integration-test-runner.agent.md`** - The ONLY agent authorized to execute integration tests via run_in_terminal
 
 Execution flow:
-- `orchestrator.agent.md` delegates unit-test checkpoints to `unit-test-runner`.
-- `orchestrator.agent.md` asks the user before running `integration-test-runner` or `e2e-browser`.
-- `work-unit-runner.agent.md`, `impl-business.agent.md`, and `impl-infra.agent.md` can carry test requests but do not own long-running test execution policy.
+- `orchestrator.agent.md` and `orchestrator-cli.agent.md` delegate unit-test checkpoints to `unit-test-runner`.
+- They escalate to `integration-test-runner` when policy, risk, or coverage requires broader validation, and should ask before long-running browser/E2E work.
+- `work-unit-runner.agent.md` and `impl.agent.md` can carry test requests but do not own long-running test execution policy.
 
 ## Emergency Recovery
 

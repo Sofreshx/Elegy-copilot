@@ -69,13 +69,13 @@ async function run() {
     );
   });
 
-  await test('App.tsx references the current 4-hub shell views', async () => {
+  await test('App.tsx references the current sidebar-driven shell views', async () => {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
 
-    assert.ok(appSource.includes("./tabs/HomeRuntime/HomeRuntimeView"), 'Expected HomeRuntimeView import in App.tsx');
+    assert.ok(appSource.includes("./views/Maintenance/MaintenanceView"), 'Expected MaintenanceView import in App.tsx');
     assert.ok(appSource.includes("./tabs/Planning/PlanningView"), 'Expected PlanningView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/Catalog/CatalogView"), 'Expected CatalogView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/Stats/StatsView"), 'Expected StatsView import in App.tsx');
+    assert.ok(appSource.includes("./views/Catalog/CatalogShellView"), 'Expected CatalogShellView import in App.tsx');
+    assert.ok(appSource.includes("./views/DashboardView"), 'Expected DashboardView import in App.tsx');
     assert.ok(!appSource.includes("./tabs/Sessions/SessionsWorkspaceView"), 'Did not expect legacy SessionsWorkspaceView import in App.tsx');
     assert.ok(!appSource.includes("./tabs/State/StateView"), 'Did not expect retired StateView import in App.tsx');
   });
@@ -231,7 +231,9 @@ async function run() {
   });
 
   await test('stats tab aggregates runtime, catalog, and sampled recent session telemetry', async () => {
-    const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
+    const diagnosticsPanelSource = fs.readFileSync(
+      path.join(uiSrcRoot, 'views', 'Maintenance', 'DiagnosticsPanel.tsx'), 'utf8'
+    );
     const navigationSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'navigation.ts'), 'utf8');
     const statsStoreSource = fs.readFileSync(
       path.join(uiSrcRoot, 'tabs', 'Stats', 'statsStore.ts'),
@@ -248,8 +250,8 @@ async function run() {
       'Expected navigation.ts to register the Stats tab label'
     );
     assert.ok(
-      appSource.includes("StatsView"),
-      'Expected App.tsx to render StatsView'
+      diagnosticsPanelSource.includes("StatsView"),
+      'Expected DiagnosticsPanel to render StatsView'
     );
     assert.ok(statsStoreSource.includes('getHealth()'), 'Expected statsStore to load runtime health');
     assert.ok(statsStoreSource.includes('getRuntimeCatalogHealth()'), 'Expected statsStore to load catalog health');

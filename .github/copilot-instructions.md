@@ -155,7 +155,7 @@ Use `vscode/askQuestions` for ambiguous or iterative requests, especially UI/UX 
 Use `vscode/askQuestions` when:
 - Requirements are ambiguous and no safe default exists.
 - A decision meaningfully affects the outcome (architecture choice, scope boundary, tech selection).
-- Before running integration/E2E tests or destructive operations.
+- Before running long E2E checks or unusually heavy/destructive validation where timing expectations matter.
 - Iterative UI/UX work where visual feedback is needed.
 
 Do NOT use askQuestions for:
@@ -208,7 +208,7 @@ If a task maps to a known domain, treat skills as the default path:
 - When adding features or fixing bugs, add relevant unit/integration tests.
 - **Unit test execution**: Use `@unit-test-runner` (timeouts, non-interactive mode, safe flags).
 - Generic implementation lanes may request test scope, but they should not execute test commands directly.
-- **Integration test execution**: Use `@integration-test-runner` only when explicitly requested.
+- **Integration test execution**: Use `@integration-test-runner` when policy, risk, or coverage gaps require broader validation; ask before unusually heavy runs.
 - **Integration test authoring**: Prefer Alba (`alba-integration-tests`).
 - **Long E2E/integration runs**: Ask the user before running them and capture any decline in chat or host/session artifacts when a durable note is needed.
 - **Segment large test suites** into smaller batches (e.g., by test class filter).

@@ -119,12 +119,13 @@ If the user does not specify a narrow lane, use the broad default review path fi
 
 During orchestrator Phase 2 planning review:
 
-- `@reviewer-opus-4-6` and `@reviewer-gpt-5-4` are the default plan-approval pair.
+- `@reviewer-opus-4-6` and `@reviewer-gpt-5-4` are the default plan-approval pair for `@orchestrator` in VS Code / non-CLI environments.
 - `impl-reviewer` is a targeted overlay when the main planning risk is whether the plan matches the request, scope, and approved constraints.
 - `logic-reviewer` may be added when the main planning risk is sequencing, invariants, rollback, or edge-case coverage.
 - `consistency-reviewer` may be added when convention fit, naming, structural alignment, or docs/code alignment is the main planning risk.
 - `code-reviewer` stays the broad fallback when no sharper planning-review lane fits.
-- These cross-model reviewers are primary for orchestrator planning review, but they do not replace the canonical responsibilities of the specialist and end-of-execution reviewers elsewhere.
+- `@orchestrator-cli` uses Rubber Duck for the cross-model planning challenge instead of explicitly invoking the reviewer pair.
+- These cross-model reviewers remain primary for non-CLI orchestrator planning review, but they do not replace the canonical responsibilities of the specialist and end-of-execution reviewers elsewhere.
 
 ## Adversarial Review Posture
 

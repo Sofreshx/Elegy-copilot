@@ -122,7 +122,7 @@
     {
       "id": "orchestrator-workflow",
       "title": "Orchestrator Workflow Agents",
-      "description": "Repo-scoped orchestration agents and support skills for reframing, planning, planning-only coordination, bounded validation coordination, implementation routing, research, verification, and final review.",
+      "description": "Repo-scoped orchestration agents and support skills for reframing, planning, bounded validation coordination, implementation routing, research, verification, and final review.",
       "assetIds": [
         "agent-orchestrator",
         "agent-orchestrator-cli",
@@ -132,6 +132,7 @@
         "skill-planning-feature",
         "skill-planpack-authoring",
         "agent-backlog-planner",
+        "agent-brief",
         "agent-roadmap-planner",
         "skill-roadmap-authoring",
         "agent-work-unit-runner",
@@ -276,6 +277,12 @@
       "destination": "agents/backlog-planner.agent.md"
     },
     {
+      "id": "agent-brief",
+      "type": "agent",
+      "source": "engine-assets/agents/brief.agent.md",
+      "destination": "agents/brief.agent.md"
+    },
+    {
       "id": "agent-code-architect",
       "type": "agent",
       "source": "engine-assets/agents/code-architect.agent.md",
@@ -395,7 +402,6 @@
       "source": "engine-assets/agents/logic-reviewer.agent.md",
       "destination": "agents/logic-reviewer.agent.md"
     },
-
     {
       "id": "agent-o-planner",
       "type": "agent",
@@ -433,6 +439,12 @@
       "destination": "agents/remaining-work.agent.md"
     },
     {
+      "id": "agent-repo-setup-governor",
+      "type": "agent",
+      "source": "engine-assets/agents/repo-setup-governor.agent.md",
+      "destination": "agents/repo-setup-governor.agent.md"
+    },
+    {
       "id": "agent-research-ideation",
       "type": "agent",
       "source": "engine-assets/agents/research-ideation.agent.md",
@@ -457,12 +469,6 @@
       "destination": "agents/roadmap-planner.agent.md"
     },
     {
-      "id": "agent-repo-setup-governor",
-      "type": "agent",
-      "source": "engine-assets/agents/repo-setup-governor.agent.md",
-      "destination": "agents/repo-setup-governor.agent.md"
-    },
-    {
       "id": "agent-search",
       "type": "agent",
       "source": "engine-assets/agents/search.agent.md",
@@ -474,7 +480,6 @@
       "source": "engine-assets/agents/security-auditor.agent.md",
       "destination": "agents/security-auditor.agent.md"
     },
-
     {
       "id": "agent-stack-auditor",
       "type": "agent",
@@ -494,16 +499,16 @@
       "destination": "agents/verification-guide.agent.md"
     },
     {
-      "id": "agent-working-reviewer",
-      "type": "agent",
-      "source": "engine-assets/agents/working-reviewer.agent.md",
-      "destination": "agents/working-reviewer.agent.md"
-    },
-    {
       "id": "agent-work-unit-runner",
       "type": "agent",
       "source": "engine-assets/agents/work-unit-runner.agent.md",
       "destination": "agents/work-unit-runner.agent.md"
+    },
+    {
+      "id": "agent-working-reviewer",
+      "type": "agent",
+      "source": "engine-assets/agents/working-reviewer.agent.md",
+      "destination": "agents/working-reviewer.agent.md"
     },
     {
       "id": "copilot-instructions",

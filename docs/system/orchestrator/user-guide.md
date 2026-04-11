@@ -367,8 +367,8 @@ memory or automatic future pickup.
 | `@o-planner` | Produces plan packs from enriched briefs |
 | `@roadmap-planner` | Durable multi-session roadmap/backlog lane; leaf-only and not a coordinator handoff into `@o-planner` |
 | `@backlog-planner` | Maintains `docs/backlogs/*.md`, converts backlog items into roadmap or direct plan-handoff briefs, and cleans consumed backlog/roadmap items |
-| `@reviewer-opus-4-6` | Primary planning reviewer for cross-model plan risk and completeness review |
-| `@reviewer-gpt-5-4` | Primary planning reviewer that validates the plan and prior review feedback |
+| `@reviewer-opus-4-6` | VS Code / non-CLI planning reviewer for cross-model plan risk and completeness review |
+| `@reviewer-gpt-5-4` | VS Code / non-CLI planning reviewer that validates the plan and prior review feedback |
 | `@work-unit-runner` | Implements individual work units |
 | `@code-explorer` | Read-only codebase analysis |
 | `@code-architect` | Design decisions and blueprints |
@@ -389,7 +389,7 @@ memory or automatic future pickup.
 
 ## How `@search` and `@execute` fit in
 
-Most users should still start with `@orchestrator`, not invoke discovery/apply agents directly.
+Most users should still start with `@orchestrator` (VS Code / other chat surfaces) or `@orchestrator-cli` (Copilot CLI), not invoke discovery/apply agents directly.
 
 Inside the default workflow:
 
@@ -408,7 +408,8 @@ For standard and complex work, the orchestrator uses the shared Plan Pack struct
 
 - In the default orchestrator path, plan review and progress tracking stay in chat.
 - In the default orchestrator path, plan review and active session state stay in chat or host/runtime state when available.
-- In the default orchestrator path, planning review normally uses `@reviewer-opus-4-6` and `@reviewer-gpt-5-4` as the main gate before execution; narrower reviewer lanes are overlays, not replacements.
+- `@orchestrator` (VS Code / non-CLI) normally uses `@reviewer-opus-4-6` and `@reviewer-gpt-5-4` as the manual planning gate before execution; narrower reviewer lanes are overlays, not replacements.
+- `@orchestrator-cli` (Copilot CLI) uses Rubber Duck for cross-model critique instead of explicitly delegating to the reviewer pair.
 - The orchestrator does not create repo-local planning artifacts as part of its normal flow.
 - If you need persisted plan, proposition, handoff, and verification artifacts under
   `~/.copilot/session-state/<SESSION_ID>/`, use an explicit session-state workflow instead.

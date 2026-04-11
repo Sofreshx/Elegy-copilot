@@ -3664,3 +3664,533 @@ textarea:focus-visible,
   background: rgba(248, 81, 73, 0.08);
   border-radius: var(--radius-sm, 4px);
 }
+
+/* ========================================================================
+   Phase 4: Maintenance & Catalog Shell
+   ======================================================================== */
+
+/* --- Maintenance View --- */
+.maintenance-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  height: 100%;
+}
+
+.maintenance-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  margin-left: auto;
+}
+
+.maintenance-tab {
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  transition: all 0.15s ease;
+}
+
+.maintenance-tab:hover {
+  background: var(--bg-subtle);
+  color: var(--fg-default);
+}
+
+.maintenance-tab-active {
+  background: var(--bg-accent-emphasis);
+  color: var(--fg-on-emphasis);
+  border-color: var(--bg-accent-emphasis);
+}
+
+.maintenance-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-sm) 0;
+}
+
+/* --- Updates Section --- */
+.updates-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.updates-session-warning {
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(210, 153, 34, 0.12);
+  border: 1px solid var(--border-warning);
+  border-radius: var(--radius-md);
+  color: var(--fg-warning);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.updates-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.updates-card-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.updates-card-details dt {
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+.updates-card-details dd {
+  margin: 0;
+  color: var(--fg-default);
+}
+
+.updates-card-message {
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  margin: 0;
+  padding: var(--space-xs) 0;
+}
+
+.updates-card-error {
+  color: var(--fg-danger);
+}
+
+/* --- Sandboxes Panel --- */
+.maintenance-sandboxes-panel {
+  padding: var(--space-xs) 0;
+}
+
+/* --- Diagnostics Panel --- */
+.maintenance-diagnostics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.diagnostics-section-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: none;
+  color: var(--fg-default);
+  font-size: var(--text-md);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.diagnostics-section-header:hover {
+  background: var(--bg-subtle);
+}
+
+.diagnostics-section-body {
+  padding: var(--space-sm) var(--space-md);
+}
+
+/* --- Catalog Shell View --- */
+.catalog-shell-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  height: 100%;
+}
+
+.catalog-shell-title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.catalog-shell-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.catalog-shell-search {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-default);
+  color: var(--fg-default);
+  font-size: var(--text-sm);
+  min-width: 200px;
+  margin-left: auto;
+}
+
+.catalog-shell-search::placeholder {
+  color: var(--fg-muted);
+}
+
+.catalog-shell-summary {
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+
+.catalog-shell-summary-text {
+  font-style: italic;
+}
+
+/* ========================================================================
+   Phase 5: Workflows & Session Chaining
+   ======================================================================== */
+
+/* --- Workflows Hub --- */
+.workflows-hub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  height: 100%;
+}
+
+.workflows-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  margin-left: auto;
+}
+
+.workflows-tab {
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  transition: all 0.15s ease;
+}
+
+.workflows-tab:hover {
+  background: var(--bg-subtle);
+  color: var(--fg-default);
+}
+
+.workflows-tab-active {
+  background: var(--bg-accent-emphasis);
+  color: var(--fg-on-emphasis);
+  border-color: var(--bg-accent-emphasis);
+}
+
+.workflows-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.workflows-template-list,
+.workflows-run-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.workflow-template-card,
+.workflow-run-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-default);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.workflow-template-card:hover,
+.workflow-run-card:hover {
+  border-color: var(--border-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.workflow-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.workflow-card-name {
+  font-weight: 600;
+  font-size: var(--text-md);
+  color: var(--fg-default);
+  margin: 0 0 var(--space-2xs);
+}
+
+.workflow-card-description {
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workflow-card-meta {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-2xs);
+}
+
+.workflow-card-actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
+/* --- Workflow Run Progress --- */
+.workflow-run-progress {
+  width: 120px;
+  flex-shrink: 0;
+}
+
+.workflow-run-progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--bg-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.workflow-run-progress-fill {
+  height: 100%;
+  background: var(--bg-accent-emphasis);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.workflow-run-progress-text {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  text-align: center;
+  margin-top: var(--space-2xs);
+}
+
+/* --- Workflow Template Editor --- */
+.workflow-template-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  height: 100%;
+}
+
+.workflow-editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-sm) 0;
+}
+
+.workflow-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.workflow-editor-field label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--fg-default);
+}
+
+.workflow-editor-field input,
+.workflow-editor-field textarea,
+.workflow-editor-field select {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-default);
+  color: var(--fg-default);
+  font-size: var(--text-sm);
+}
+
+.workflow-editor-field textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.workflow-editor-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.workflow-editor-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.workflow-editor-step-fields {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.workflow-editor-step-row {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.workflow-editor-step-row input,
+.workflow-editor-step-row select {
+  flex: 1;
+  padding: var(--space-2xs) var(--space-xs);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-default);
+  color: var(--fg-default);
+  font-size: var(--text-sm);
+}
+
+.workflow-editor-step-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.workflow-editor-footer {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--border-default);
+}
+
+/* --- Workflow Execution View --- */
+.workflow-execution-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  height: 100%;
+}
+
+.workflow-execution-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.workflow-execution-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.workflow-execution-title h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.workflow-execution-actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+/* Step progress */
+.workflow-steps-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-sm);
+}
+
+.workflow-step-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  transition: background 0.15s ease;
+}
+
+.workflow-step-item-current {
+  background: rgba(31, 111, 235, 0.08);
+  font-weight: 600;
+}
+
+.workflow-step-icon {
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: var(--text-md);
+}
+
+.workflow-step-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.workflow-step-timing {
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  flex-shrink: 0;
+}
+
+.workflow-step-connector {
+  width: 2px;
+  height: 12px;
+  background: var(--border-default);
+  margin-left: 9px;
+}
+
+/* Current step detail */
+.workflow-current-step-detail {
+  padding: var(--space-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.workflow-approval-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+/* Run metadata */
+.workflow-run-metadata {
+  display: flex;
+  gap: var(--space-lg);
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--border-default);
+}
+
+.workflow-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-2xl);
+  color: var(--fg-muted);
+  text-align: center;
+  gap: var(--space-sm);
+}
+
+.workflow-empty-state-icon {
+  font-size: 2rem;
+  opacity: 0.5;
+}

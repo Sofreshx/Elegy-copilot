@@ -64,6 +64,7 @@ const manifestValidationTargets = [
 	'.cli/manifest.json',
 	'engine-assets/manifest.json',
 ];
+const rootCoordinatorNamesForManifestValidation = ['orchestrator', 'orchestrator-cli'];
 
 const requiredDefaultOrchestratorBaseAssetIds = [
 	'agent-orchestrator',
@@ -243,23 +244,33 @@ function toAgentAssetId(agentName) {
 
 function collectRequiredDefaultOrchestratorAssetIds(agentDefinitions, errors) {
 	const requiredAssetIds = new Set(requiredDefaultOrchestratorBaseAssetIds);
-	const orchestratorDefinition = agentDefinitions.get('orchestrator');
 
-	if (!orchestratorDefinition) {
-		errors.push("engine-assets/agents: missing required orchestrator.agent.md definition.");
-		return requiredAssetIds;
-	}
+	for (const coordinatorName of rootCoordinatorNamesForManifestValidation) {
+		const coordinatorDefinition = agentDefinitions.get(coordinatorName);
+		const coordinatorConfig = approvedCoordinatorConfigs.get(coordinatorName);
 
-	if (!Array.isArray(orchestratorDefinition.agents) || orchestratorDefinition.agents.length === 0) {
-		errors.push(`${orchestratorDefinition.relPath}: orchestrator must declare a non-empty agents allowlist for manifest validation.`);
-		return requiredAssetIds;
-	}
+		if (!coordinatorDefinition) {
+			if (!coordinatorConfig?.optional) {
+				errors.push(`engine-assets/agents: missing required ${coordinatorName}.agent.md definition.`);
+			}
+			continue;
+		}
 
-	for (const delegateName of orchestratorDefinition.agents) {
-		requiredAssetIds.add(toAgentAssetId(delegateName));
+		requiredAssetIds.add(toAgentAssetId(coordinatorName));
 
-		for (const supportAssetId of requiredOrchestratorSupportAssetIdsByDelegate.get(delegateName) || []) {
-			requiredAssetIds.add(supportAssetId);
+		if (!Array.isArray(coordinatorDefinition.agents) || coordinatorDefinition.agents.length === 0) {
+			errors.push(
+				`${coordinatorDefinition.relPath}: root coordinator '${coordinatorName}' must declare a non-empty agents allowlist for manifest validation.`
+			);
+			continue;
+		}
+
+		for (const delegateName of coordinatorDefinition.agents) {
+			requiredAssetIds.add(toAgentAssetId(delegateName));
+
+			for (const supportAssetId of requiredOrchestratorSupportAssetIdsByDelegate.get(delegateName) || []) {
+				requiredAssetIds.add(supportAssetId);
+			}
 		}
 	}
 

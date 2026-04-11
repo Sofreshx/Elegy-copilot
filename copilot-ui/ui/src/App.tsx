@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import AppLayout from './components/AppLayout';
 import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
@@ -11,17 +11,19 @@ import {
 } from './stores/navigation';
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { sdkHealthStore } from './stores/sdkHealthStore';
-import CatalogView from './tabs/Catalog/CatalogView';
-import HomeRuntimeView from './tabs/HomeRuntime/HomeRuntimeView';
 import PlanningView from './tabs/Planning/PlanningView';
-import StatsView from './tabs/Stats/StatsView';
+import CatalogShellView from './views/Catalog/CatalogShellView';
 import DashboardView from './views/DashboardView';
+import MaintenanceView from './views/Maintenance/MaintenanceView';
 import AddProjectWizard from './views/Project/AddProjectWizard';
 import ProjectOverview from './views/Project/ProjectOverview';
 import ProjectsListView from './views/Project/ProjectsListView';
 import SessionDetailView from './views/Sessions/SessionDetailView';
 import SessionsListView from './views/Sessions/SessionsListView';
 import SessionWizard from './views/Sessions/SessionWizard';
+import WorkflowExecutionView from './views/Workflows/WorkflowExecutionView';
+import WorkflowsHub from './views/Workflows/WorkflowsHub';
+import WorkflowTemplateEditor from './views/Workflows/WorkflowTemplateEditor';
 
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
@@ -36,6 +38,51 @@ export default function App() {
       desktopUpdaterStore.stopListening();
     };
   }, []);
+
+  const handleKeyboard = useCallback((e: KeyboardEvent) => {
+    // Ignore when typing in inputs
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    // Escape — close wizards/detail views
+    if (e.key === 'Escape') {
+      if (navigationStore.getState().wizardOpen) {
+        navigationStore.closeWizard();
+        e.preventDefault();
+      } else if (navigationStore.getState().selectedSessionId) {
+        navigationStore.selectSession(null);
+        e.preventDefault();
+      } else if (navigationStore.getState().selectedWorkflowRunId) {
+        navigationStore.selectWorkflowRun(null);
+        e.preventDefault();
+      } else if (navigationStore.getState().selectedWorkflowTemplateId) {
+        navigationStore.selectWorkflowTemplate(null);
+        e.preventDefault();
+      }
+      return;
+    }
+
+    if (!e.ctrlKey && !e.metaKey) return;
+
+    // Ctrl+N — new session wizard
+    if (e.key === 'n') {
+      e.preventDefault();
+      navigationStore.openWizard('session');
+      return;
+    }
+
+    // Ctrl+1-7 — sidebar navigation
+    const digit = parseInt(e.key, 10);
+    if (digit >= 1 && digit <= SIDEBAR_NAV_ITEMS.length) {
+      e.preventDefault();
+      navigationStore.navigate(SIDEBAR_NAV_ITEMS[digit - 1].id);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyboard);
+    return () => window.removeEventListener('keydown', handleKeyboard);
+  }, [handleKeyboard]);
 
   const sdkHealthClassName = sdkHealthState.error
     ? 'error'
@@ -90,7 +137,7 @@ export default function App() {
           ? <ProjectOverview />
           : <ProjectsListView />;
       case 'catalog':
-        return <CatalogView />;
+        return <CatalogShellView />;
       case 'planning':
         return (
           <PlanningView onSdkSessionReady={() => {
@@ -98,13 +145,15 @@ export default function App() {
           }} />
         );
       case 'maintenance':
-        // Phase 1a bridge: show diagnostics + stats
-        return (
-          <>
-            <HomeRuntimeView />
-            <StatsView />
-          </>
-        );
+        return <MaintenanceView />;
+      case 'workflows':
+        if (navigationState.selectedWorkflowRunId) {
+          return <WorkflowExecutionView runId={navigationState.selectedWorkflowRunId} />;
+        }
+        if (navigationState.selectedWorkflowTemplateId) {
+          return <WorkflowTemplateEditor templateId={navigationState.selectedWorkflowTemplateId} />;
+        }
+        return <WorkflowsHub />;
       case 'settings':
         return (
           <div className="settings-placeholder" data-testid="settings-placeholder">

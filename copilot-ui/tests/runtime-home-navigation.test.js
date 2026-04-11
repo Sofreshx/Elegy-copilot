@@ -42,8 +42,8 @@ async function run() {
 
   await test('App handoff wiring routes planning back into Home / Runtime sessions', async () => {
     assert.ok(appSource.includes("navigationStore.goToRuntime('sessions', { sessionsMode: 'sdk' });"), 'Expected planning handoff to runtime sessions');
-    assert.ok(appSource.includes("HomeRuntimeView"), 'Expected HomeRuntimeView rendered in App');
-    assert.ok(appSource.includes("StatsView"), 'Expected StatsView rendered in App');
+    assert.ok(appSource.includes("MaintenanceView"), 'Expected MaintenanceView rendered in App');
+    assert.ok(appSource.includes("CatalogShellView"), 'Expected CatalogShellView rendered in App');
     assert.ok(appSource.includes("DashboardView"), 'Expected DashboardView rendered in App');
     assert.ok(appSource.includes("SIDEBAR_NAV_ITEMS"), 'Expected sidebar navigation in App');
   });

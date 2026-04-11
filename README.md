@@ -91,15 +91,15 @@ More contributor and community guidance:
 | Agent | Purpose |
 |-------|---------|
 | `@orchestrator` | Recommended general entry point — routes tasks by complexity and delegates to specialised agents |
+| `@orchestrator-cli` | Copilot CLI root coordinator — same orchestration model, but uses Rubber Duck for plan review |
 | `@code-explorer` | Read-only codebase analysis and Q&A |
 | `@code-architect` | Designs feature architectures from existing patterns |
-| `@impl-business` | Implements app/domain work units (endpoints, services, UI) |
-| `@impl-infra` | Implements infra work units (CI, Docker, config, deployments) |
+| `@impl` | Unified implementation lane for app/domain or infra work units (`kind: business | infra`) |
 | `@code-reviewer` | Bug, logic, and security review |
 | `@goal-reviewer` | End-gate goal completion assessor (`complete|partial|not-complete`) that emits read-only unresolved-goal sync instructions for the workflow/docs lane |
 | `@final-reviewer` | Requested-vs-delivered and remaining-work post-mortem summary |
 | `@unit-test-runner` | Runs unit tests safely with timeouts |
-| `@security-scanner` | Scans for OWASP/endpoint vulnerabilities |
+| `@security-auditor` | Security audit and remediation guidance |
 | `@agent-governor` | Read-only structural audit pointer for existing agent files |
 
 `@orchestrator` is the recommended default for new work. Persisted session-state artifacts remain

@@ -1,6 +1,6 @@
 ---
 name: instruction-engine-plan
-description: Create an implementation plan (with risks + validation) and require cross-model review approvals before coding.
+description: Create an implementation plan (with risks + validation) and use the environment-appropriate review path before coding.
 ---
 
 Create a concrete implementation plan for the task I’m asking about.
@@ -14,11 +14,13 @@ Requirements:
 - Keep the plan actionable (file-level where possible).
 - Do not write code yet.
 
-Then request plan review from BOTH:
-- @reviewer-opus-4-6
-- @reviewer-gpt-5-4
+Then choose the review path that matches the runtime:
+- **Copilot CLI**: rely on Rubber Duck for the secondary-model challenge. Do not manually invoke reviewer agents.
+- **VS Code / other environments**: request plan review from BOTH:
+  - @reviewer-opus-4-6
+  - @reviewer-gpt-5-4
 
-Review loop rules:
+Manual review loop rules (non-CLI path):
 - Reviewers MUST return a strict line: `Verdict: APPROVED | NEEDS_REVISION | BLOCKED`.
 - Revise the plan until both reviewers return `Verdict: APPROVED`.
 - If a reviewer returns `Verdict: BLOCKED`, use `vscode/askQuestions` to ask the smallest set of clarifying questions needed to unblock, then revise.

@@ -52,6 +52,7 @@ export const SIDEBAR_IDS = [
   'projects',
   'catalog',
   'planning',
+  'workflows',
   'maintenance',
   'settings',
 ] as const;
@@ -76,6 +77,7 @@ export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
   { id: 'projects', label: 'Projects', icon: '◆', description: 'Registered repositories and project views' },
   { id: 'catalog', label: 'Catalog', icon: '▤', description: 'Asset workspace, installs, and skill discovery' },
   { id: 'planning', label: 'Planning', icon: '▣', description: 'Notes, research, Mermaid diagrams, ideas' },
+  { id: 'workflows', label: 'Workflows', icon: '⟳', description: 'Workflow templates, chained sessions, and automation' },
   { id: 'maintenance', label: 'Maintenance', icon: '⚙', description: 'Updates, sandboxes, diagnostics' },
   { id: 'settings', label: 'Settings', icon: '☰', description: 'App configuration and preferences' },
 ];
@@ -96,6 +98,8 @@ export type NavigationState = {
   sessionDetailTab: SessionDetailTab;
   maintenanceSection: MaintenanceSection;
   planningSection: PlanningSection;
+  selectedWorkflowTemplateId: string | null;
+  selectedWorkflowRunId: string | null;
   adminMode: boolean;
   wizardOpen: WizardType;
 };
@@ -124,6 +128,8 @@ const INITIAL_STATE: NavigationState = {
   sessionDetailTab: 'activity',
   maintenanceSection: 'updates',
   planningSection: 'notes',
+  selectedWorkflowTemplateId: null,
+  selectedWorkflowRunId: null,
   adminMode: false,
   wizardOpen: null,
 };
@@ -239,6 +245,24 @@ function createNavigationStore() {
     }));
   }
 
+  function selectWorkflowTemplate(templateId: string | null): void {
+    store.setState((state) => ({
+      ...state,
+      activeSidebarItem: 'workflows',
+      selectedWorkflowTemplateId: templateId,
+      selectedWorkflowRunId: null,
+    }));
+  }
+
+  function selectWorkflowRun(runId: string | null): void {
+    store.setState((state) => ({
+      ...state,
+      activeSidebarItem: 'workflows',
+      selectedWorkflowRunId: runId,
+      selectedWorkflowTemplateId: null,
+    }));
+  }
+
   function openWizard(wizard: WizardType): void {
     store.setState((state) => ({
       ...state,
@@ -281,6 +305,8 @@ function createNavigationStore() {
     selectSession,
     setMaintenanceSection,
     setPlanningSection,
+    selectWorkflowTemplate,
+    selectWorkflowRun,
     openWizard,
     closeWizard,
     toggleAdmin,
