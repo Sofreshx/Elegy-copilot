@@ -122,7 +122,7 @@ import type {
   UiRuntimeOverlaySessionsResponse,
   VersionResponse,
   WorktreeBinding,
-} from './types';
+} from '../types';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -136,7 +136,7 @@ export class ApiError extends Error {
   }
 }
 
-type PrimitiveQueryValue = string | number | boolean;
+export type PrimitiveQueryValue = string | number | boolean;
 
 export interface ApiRequestOptions extends RequestInit {
   baseUrl?: string;
@@ -499,14 +499,14 @@ export interface CatalogActivationMutationPayload {
   repoPath?: string;
 }
 
-function buildCatalogSelectorQuery(query: CatalogSelectorQuery = {}): ApiRequestOptions['query'] {
+export function buildCatalogSelectorQuery(query: CatalogSelectorQuery = {}): ApiRequestOptions['query'] {
   return {
     repoId: query.repoId,
     repoPath: query.repoPath,
   };
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
+export function asRecord(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object') {
     return value as Record<string, unknown>;
   }
@@ -514,34 +514,34 @@ function asRecord(value: unknown): Record<string, unknown> {
   return {};
 }
 
-function asArray(value: unknown): unknown[] {
+export function asArray(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
 }
 
-function asString(value: unknown, fallback = ''): string {
+export function asString(value: unknown, fallback = ''): string {
   return typeof value === 'string' ? value : fallback;
 }
 
-function asTrimmedString(value: unknown, fallback = ''): string {
+export function asTrimmedString(value: unknown, fallback = ''): string {
   const raw = asString(value, fallback);
   return raw.trim() || fallback;
 }
 
-function asBoolean(value: unknown, fallback = false): boolean {
+export function asBoolean(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
 
-function asNumber(value: unknown, fallback = 0): number {
+export function asNumber(value: unknown, fallback = 0): number {
   const numeric = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-function asNullableNumber(value: unknown): number | null {
+export function asNullableNumber(value: unknown): number | null {
   const numeric = asNumber(value, Number.NaN);
   return Number.isFinite(numeric) ? numeric : null;
 }
 
-function normalizeWorktreeBinding(value: unknown): WorktreeBinding | null {
+export function normalizeWorktreeBinding(value: unknown): WorktreeBinding | null {
   const record = asRecord(value);
   const worktreeId = asTrimmedString(record.worktreeId || record.id);
   const mode = asTrimmedString(record.mode) || null;
@@ -571,7 +571,7 @@ function normalizeWorktreeBinding(value: unknown): WorktreeBinding | null {
   };
 }
 
-function asStringList(value: unknown): string[] {
+export function asStringList(value: unknown): string[] {
   return asArray(value)
     .map((entry) => asTrimmedString(entry))
     .filter((entry) => entry.length > 0);
@@ -857,15 +857,15 @@ export interface PlanningIntakeArtifactsResponseApi extends PlanningIntakeArtifa
   artifact?: PlanningIntakeArtifactApi | null;
 }
 
-function trimTrailingPathSeparator(value: string): string {
+export function trimTrailingPathSeparator(value: string): string {
   return value.replace(/[\\/]+$/g, '');
 }
 
-function detectPathSeparator(value: string): '\\' | '/' {
+export function detectPathSeparator(value: string): '\\' | '/' {
   return value.includes('\\') ? '\\' : '/';
 }
 
-function buildRepoPath(value: string, ...segments: string[]): string {
+export function buildRepoPath(value: string, ...segments: string[]): string {
   const normalizedBase = trimTrailingPathSeparator(value.trim());
   const separator = detectPathSeparator(normalizedBase);
   const normalizedSegments = segments
@@ -875,7 +875,7 @@ function buildRepoPath(value: string, ...segments: string[]): string {
   return [normalizedBase, ...normalizedSegments].join(separator);
 }
 
-function normalizePlanningRepoSummary(input: unknown): PlanningRepoSummary | null {
+export function normalizePlanningRepoSummary(input: unknown): PlanningRepoSummary | null {
   const record = asRecord(input);
   const repoId = asTrimmedString(record.repoId);
   const repoPath = asTrimmedString(record.repoPath);
@@ -892,7 +892,7 @@ function normalizePlanningRepoSummary(input: unknown): PlanningRepoSummary | nul
   };
 }
 
-function normalizePlanningRoadmapItem(value: unknown): PlanningRoadmapItemApi | null {
+export function normalizePlanningRoadmapItem(value: unknown): PlanningRoadmapItemApi | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id);
   if (!id) {
@@ -910,7 +910,7 @@ function normalizePlanningRoadmapItem(value: unknown): PlanningRoadmapItemApi | 
   };
 }
 
-function normalizePlanningRoadmap(value: unknown): PlanningRoadmapApi | null {
+export function normalizePlanningRoadmap(value: unknown): PlanningRoadmapApi | null {
   const record = asRecord(value);
   const slug = asTrimmedString(record.slug);
   if (!slug) {
@@ -942,7 +942,7 @@ function normalizePlanningRoadmap(value: unknown): PlanningRoadmapApi | null {
   };
 }
 
-function normalizePlanningRoadmapsResponse(payload: unknown): PlanningRoadmapsResponseApi {
+export function normalizePlanningRoadmapsResponse(payload: unknown): PlanningRoadmapsResponseApi {
   const record = asRecord(payload);
   const roadmaps = asArray(record.roadmaps)
     .map((entry) => normalizePlanningRoadmap(entry))
@@ -955,7 +955,7 @@ function normalizePlanningRoadmapsResponse(payload: unknown): PlanningRoadmapsRe
   };
 }
 
-function normalizePlanningRoadmapMutationResponse(payload: unknown): PlanningRoadmapMutationResponseApi {
+export function normalizePlanningRoadmapMutationResponse(payload: unknown): PlanningRoadmapMutationResponseApi {
   const record = asRecord(payload);
   return {
     ...record,
@@ -967,7 +967,7 @@ function normalizePlanningRoadmapMutationResponse(payload: unknown): PlanningRoa
   };
 }
 
-function normalizePlanningBacklogKeyPoint(value: unknown): PlanningBacklogKeyPointApi | null {
+export function normalizePlanningBacklogKeyPoint(value: unknown): PlanningBacklogKeyPointApi | null {
   const record = asRecord(value);
   const date = asTrimmedString(record.date);
   const text = asTrimmedString(record.text);
@@ -981,7 +981,7 @@ function normalizePlanningBacklogKeyPoint(value: unknown): PlanningBacklogKeyPoi
   };
 }
 
-function normalizePlanningBacklogItem(value: unknown): PlanningBacklogItemApi | null {
+export function normalizePlanningBacklogItem(value: unknown): PlanningBacklogItemApi | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id);
   const title = asTrimmedString(record.title);
@@ -1006,7 +1006,7 @@ function normalizePlanningBacklogItem(value: unknown): PlanningBacklogItemApi | 
   };
 }
 
-function normalizePlanningBacklogSummary(value: unknown): PlanningBacklogSummaryApi {
+export function normalizePlanningBacklogSummary(value: unknown): PlanningBacklogSummaryApi {
   const record = asRecord(value);
   const items = asArray(record.items)
     .map((entry) => normalizePlanningBacklogItem(entry))
@@ -1031,7 +1031,7 @@ function normalizePlanningBacklogSummary(value: unknown): PlanningBacklogSummary
   };
 }
 
-function normalizePlanningBacklogResponse(payload: unknown): PlanningBacklogResponseApi {
+export function normalizePlanningBacklogResponse(payload: unknown): PlanningBacklogResponseApi {
   const record = asRecord(payload);
   return {
     ...record,
@@ -1043,7 +1043,7 @@ function normalizePlanningBacklogResponse(payload: unknown): PlanningBacklogResp
   };
 }
 
-function normalizePlanningBacklogMutationResponse(payload: unknown): PlanningBacklogMutationResponseApi {
+export function normalizePlanningBacklogMutationResponse(payload: unknown): PlanningBacklogMutationResponseApi {
   const record = asRecord(payload);
   const response = normalizePlanningBacklogResponse(payload);
   return {
@@ -1053,7 +1053,7 @@ function normalizePlanningBacklogMutationResponse(payload: unknown): PlanningBac
   };
 }
 
-const PLANNING_INTAKE_CATEGORIES = [
+export const PLANNING_INTAKE_CATEGORIES = [
   'idea',
   'research',
   'refactor-candidate',
@@ -1064,13 +1064,13 @@ const PLANNING_INTAKE_CATEGORIES = [
   'commit-prep',
 ] as const;
 
-const PLANNING_BULLET_STATES = [
+export const PLANNING_BULLET_STATES = [
   'idea',
   'research',
   'pre-plan',
 ] as const;
 
-function normalizePlanningIntakeCategory(value: unknown): PlanningIntakeCategory {
+export function normalizePlanningIntakeCategory(value: unknown): PlanningIntakeCategory {
   const normalized = asTrimmedString(value).toLowerCase();
   if (PLANNING_INTAKE_CATEGORIES.includes(normalized as PlanningIntakeCategory)) {
     return normalized as PlanningIntakeCategory;
@@ -1078,7 +1078,7 @@ function normalizePlanningIntakeCategory(value: unknown): PlanningIntakeCategory
   return 'idea';
 }
 
-function normalizePlanningBulletState(value: unknown): PlanningBulletState {
+export function normalizePlanningBulletState(value: unknown): PlanningBulletState {
   const normalized = asTrimmedString(value).toLowerCase();
   if (PLANNING_BULLET_STATES.includes(normalized as PlanningBulletState)) {
     return normalized as PlanningBulletState;
@@ -1086,7 +1086,7 @@ function normalizePlanningBulletState(value: unknown): PlanningBulletState {
   return 'idea';
 }
 
-function normalizePlanningBullet(value: unknown): PlanningBulletApi | null {
+export function normalizePlanningBullet(value: unknown): PlanningBulletApi | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id);
   if (!id) {
@@ -1110,7 +1110,7 @@ function normalizePlanningBullet(value: unknown): PlanningBulletApi | null {
   };
 }
 
-function normalizePlanningBulletsSummary(value: unknown): PlanningBulletsSummaryApi {
+export function normalizePlanningBulletsSummary(value: unknown): PlanningBulletsSummaryApi {
   const record = asRecord(value);
   return {
     filePath: asTrimmedString(record.filePath) || null,
@@ -1124,7 +1124,7 @@ function normalizePlanningBulletsSummary(value: unknown): PlanningBulletsSummary
   };
 }
 
-function normalizePlanningBulletsResponse(payload: unknown): PlanningBulletsResponseApi {
+export function normalizePlanningBulletsResponse(payload: unknown): PlanningBulletsResponseApi {
   const record = asRecord(payload);
   const artifacts = asArray(record.artifacts)
     .map((entry) => normalizePlanningBullet(entry))
@@ -1143,7 +1143,7 @@ function normalizePlanningBulletsResponse(payload: unknown): PlanningBulletsResp
   };
 }
 
-function normalizePlanningIntakeArtifact(value: unknown): PlanningIntakeArtifactApi | null {
+export function normalizePlanningIntakeArtifact(value: unknown): PlanningIntakeArtifactApi | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id);
   if (!id) {
@@ -1167,7 +1167,7 @@ function normalizePlanningIntakeArtifact(value: unknown): PlanningIntakeArtifact
   };
 }
 
-function normalizePlanningIntakeSummary(value: unknown): PlanningIntakeSummaryApi {
+export function normalizePlanningIntakeSummary(value: unknown): PlanningIntakeSummaryApi {
   const record = asRecord(value);
   return {
     directoryPath: asTrimmedString(record.directoryPath) || null,
@@ -1181,7 +1181,7 @@ function normalizePlanningIntakeSummary(value: unknown): PlanningIntakeSummaryAp
   };
 }
 
-function normalizePlanningIntakeArtifactsResponse(payload: unknown): PlanningIntakeArtifactsResponseApi {
+export function normalizePlanningIntakeArtifactsResponse(payload: unknown): PlanningIntakeArtifactsResponseApi {
   const record = asRecord(payload);
   const artifacts = asArray(record.artifacts)
     .map((entry) => normalizePlanningIntakeArtifact(entry))
@@ -1200,7 +1200,7 @@ function normalizePlanningIntakeArtifactsResponse(payload: unknown): PlanningInt
   };
 }
 
-function normalizeObsidianPlanningStatus(value: unknown): ObsidianPlanningStatus {
+export function normalizeObsidianPlanningStatus(value: unknown): ObsidianPlanningStatus {
   const record = asRecord(value);
   const state = asTrimmedString(record.state).toLowerCase();
   return {
@@ -1231,7 +1231,7 @@ function normalizeObsidianPlanningStatus(value: unknown): ObsidianPlanningStatus
   };
 }
 
-function normalizeObsidianSyncedNoteSourceRef(value: unknown) {
+export function normalizeObsidianSyncedNoteSourceRef(value: unknown) {
   const record = asRecord(value);
   const id = asTrimmedString(record.id);
   if (!id) {
@@ -1248,7 +1248,7 @@ function normalizeObsidianSyncedNoteSourceRef(value: unknown) {
   };
 }
 
-function normalizeObsidianSourceResolutionStatus(value: unknown): ObsidianPlanningStatus['sourceResolution'] {
+export function normalizeObsidianSourceResolutionStatus(value: unknown): ObsidianPlanningStatus['sourceResolution'] {
   const record = asRecord(value);
   const availableSources = asArray(record.availableSources)
     .map((entry) => normalizeObsidianSyncedNoteSourceRef(entry))
@@ -1267,7 +1267,7 @@ function normalizeObsidianSourceResolutionStatus(value: unknown): ObsidianPlanni
   };
 }
 
-function normalizeObsidianCliStatus(value: unknown): ObsidianPlanningStatus['cli'] {
+export function normalizeObsidianCliStatus(value: unknown): ObsidianPlanningStatus['cli'] {
   const record = asRecord(value);
   const state = asTrimmedString(record.state).toLowerCase();
   return {
@@ -1289,7 +1289,7 @@ function normalizeObsidianCliStatus(value: unknown): ObsidianPlanningStatus['cli
   };
 }
 
-function normalizeObsidianRemoteSyncStatus(value: unknown): ObsidianPlanningStatus['remoteSync'] {
+export function normalizeObsidianRemoteSyncStatus(value: unknown): ObsidianPlanningStatus['remoteSync'] {
   const record = asRecord(value);
   const state = asTrimmedString(record.state).toLowerCase();
   const pollIntervalRaw = typeof record.pollIntervalMs === 'number' ? record.pollIntervalMs : Number(record.pollIntervalMs);
@@ -1332,7 +1332,7 @@ function normalizeObsidianRemoteSyncStatus(value: unknown): ObsidianPlanningStat
   };
 }
 
-function normalizeObsidianPlanningNoteSummary(value: unknown): ObsidianPlanningNoteSummary | null {
+export function normalizeObsidianPlanningNoteSummary(value: unknown): ObsidianPlanningNoteSummary | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id);
   const title = asTrimmedString(record.title);
@@ -1357,7 +1357,7 @@ function normalizeObsidianPlanningNoteSummary(value: unknown): ObsidianPlanningN
   };
 }
 
-function normalizeObsidianPlanningNoteDetail(value: unknown): ObsidianPlanningNoteDetail | null {
+export function normalizeObsidianPlanningNoteDetail(value: unknown): ObsidianPlanningNoteDetail | null {
   const summary = normalizeObsidianPlanningNoteSummary(value);
   if (!summary) {
     return null;
@@ -1370,7 +1370,7 @@ function normalizeObsidianPlanningNoteDetail(value: unknown): ObsidianPlanningNo
   };
 }
 
-function normalizeObsidianPlanningRepresentationSummary(value: unknown): ObsidianPlanningRepresentationSummary | null {
+export function normalizeObsidianPlanningRepresentationSummary(value: unknown): ObsidianPlanningRepresentationSummary | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id);
   const title = asTrimmedString(record.title);
@@ -1417,7 +1417,7 @@ function normalizeObsidianPlanningRepresentationSummary(value: unknown): Obsidia
   };
 }
 
-function normalizeObsidianPlanningRepresentationsStatus(value: unknown): ObsidianPlanningRepresentationsStatusResponse['representationsStatus'] {
+export function normalizeObsidianPlanningRepresentationsStatus(value: unknown): ObsidianPlanningRepresentationsStatusResponse['representationsStatus'] {
   const record = asRecord(value);
   return {
     totalCount: asNumber(record.totalCount, 0),
@@ -1431,7 +1431,7 @@ function normalizeObsidianPlanningRepresentationsStatus(value: unknown): Obsidia
   };
 }
 
-function normalizeObsidianPlanningStatusResponse(payload: unknown): ObsidianPlanningStatusResponse {
+export function normalizeObsidianPlanningStatusResponse(payload: unknown): ObsidianPlanningStatusResponse {
   const record = asRecord(payload);
   return {
     ...record,
@@ -1443,7 +1443,7 @@ function normalizeObsidianPlanningStatusResponse(payload: unknown): ObsidianPlan
   };
 }
 
-function normalizeObsidianPlanningNotesResponse(payload: unknown): ObsidianPlanningNotesResponse {
+export function normalizeObsidianPlanningNotesResponse(payload: unknown): ObsidianPlanningNotesResponse {
   const record = asRecord(payload);
   const base = normalizeObsidianPlanningStatusResponse(payload);
   const notes = asArray(record.notes)
@@ -1457,7 +1457,7 @@ function normalizeObsidianPlanningNotesResponse(payload: unknown): ObsidianPlann
   };
 }
 
-function normalizeObsidianPlanningNoteResponse(payload: unknown): ObsidianPlanningNoteResponse {
+export function normalizeObsidianPlanningNoteResponse(payload: unknown): ObsidianPlanningNoteResponse {
   const record = asRecord(payload);
   const base = normalizeObsidianPlanningStatusResponse(payload);
   return {
@@ -1467,7 +1467,7 @@ function normalizeObsidianPlanningNoteResponse(payload: unknown): ObsidianPlanni
   };
 }
 
-function normalizeObsidianPlanningSyncResult(value: unknown): ObsidianPlanningSyncResult | null {
+export function normalizeObsidianPlanningSyncResult(value: unknown): ObsidianPlanningSyncResult | null {
   const record = asRecord(value);
   const state = asTrimmedString(record.state).toLowerCase();
   if (!state) {
@@ -1514,7 +1514,7 @@ function normalizeObsidianPlanningSyncResult(value: unknown): ObsidianPlanningSy
   };
 }
 
-function normalizeObsidianPlanningSyncResponse(payload: unknown): ObsidianPlanningSyncResponse {
+export function normalizeObsidianPlanningSyncResponse(payload: unknown): ObsidianPlanningSyncResponse {
   const record = asRecord(payload);
   const base = normalizeObsidianPlanningStatusResponse(payload);
   return {
@@ -1524,7 +1524,7 @@ function normalizeObsidianPlanningSyncResponse(payload: unknown): ObsidianPlanni
   };
 }
 
-function normalizeObsidianPlanningSourceSelectionResponse(payload: unknown): ObsidianPlanningSourceSelectionResponse {
+export function normalizeObsidianPlanningSourceSelectionResponse(payload: unknown): ObsidianPlanningSourceSelectionResponse {
   const record = asRecord(payload);
   const base = normalizeObsidianPlanningStatusResponse(payload);
   return {
@@ -1534,7 +1534,7 @@ function normalizeObsidianPlanningSourceSelectionResponse(payload: unknown): Obs
   };
 }
 
-function normalizeObsidianPlanningRepresentationsStatusResponse(payload: unknown): ObsidianPlanningRepresentationsStatusResponse {
+export function normalizeObsidianPlanningRepresentationsStatusResponse(payload: unknown): ObsidianPlanningRepresentationsStatusResponse {
   const record = asRecord(payload);
   const base = normalizeObsidianPlanningStatusResponse(payload);
   return {
@@ -1544,7 +1544,7 @@ function normalizeObsidianPlanningRepresentationsStatusResponse(payload: unknown
   };
 }
 
-function normalizeObsidianPlanningRepresentationsResponse(payload: unknown): ObsidianPlanningRepresentationsResponse {
+export function normalizeObsidianPlanningRepresentationsResponse(payload: unknown): ObsidianPlanningRepresentationsResponse {
   const record = asRecord(payload);
   const base = normalizeObsidianPlanningRepresentationsStatusResponse(payload);
   const representations = asArray(record.representations)
@@ -1558,7 +1558,7 @@ function normalizeObsidianPlanningRepresentationsResponse(payload: unknown): Obs
   };
 }
 
-function normalizeObsidianPlanningRepresentationsRefreshResponse(payload: unknown): ObsidianPlanningRepresentationsRefreshResponse {
+export function normalizeObsidianPlanningRepresentationsRefreshResponse(payload: unknown): ObsidianPlanningRepresentationsRefreshResponse {
   const record = asRecord(payload);
   const base = normalizeObsidianPlanningRepresentationsResponse(payload);
   const resultRecord = asRecord(record.result);
@@ -1700,11 +1700,11 @@ export const SANDBOX_TOKEN_CANONICAL_CODE = 'MISSING_SANDBOX_TOKEN';
 export const SANDBOX_TOKEN_REMEDIATION_GUIDANCE =
   'Provide tracker auth via --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.';
 
-const LEGACY_SANDBOX_TOKEN_STATE = `${'missing'}_token`;
-const LEGACY_SANDBOX_TOKEN_CODE = ['tracker', 'token', 'missing'].join('_');
-const LEGACY_SANDBOX_TOKEN_MESSAGE_PREFIX = ['tracker', 'token', 'not', 'configured'].join(' ');
+export const LEGACY_SANDBOX_TOKEN_STATE = `${'missing'}_token`;
+export const LEGACY_SANDBOX_TOKEN_CODE = ['tracker', 'token', 'missing'].join('_');
+export const LEGACY_SANDBOX_TOKEN_MESSAGE_PREFIX = ['tracker', 'token', 'not', 'configured'].join(' ');
 
-const SANDBOX_TOKEN_KNOWN_INDICATORS = new Set([
+export const SANDBOX_TOKEN_KNOWN_INDICATORS = new Set([
   SANDBOX_TOKEN_CANONICAL_STATE,
   SANDBOX_TOKEN_CANONICAL_CODE.toLowerCase(),
   LEGACY_SANDBOX_TOKEN_STATE,
@@ -1721,11 +1721,11 @@ export interface CanonicalSandboxMissingTokenError {
   legacyReason: string;
 }
 
-function normalizeIndicatorToken(value: unknown): string {
+export function normalizeIndicatorToken(value: unknown): string {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
-function collectSandboxTokenIndicators(payload: unknown, out: string[] = [], depth = 0): string[] {
+export function collectSandboxTokenIndicators(payload: unknown, out: string[] = [], depth = 0): string[] {
   if (payload == null || depth > 3) {
     return out;
   }
@@ -1778,7 +1778,7 @@ export function isSandboxMissingTokenIndicator(payload: unknown): boolean {
   });
 }
 
-function extractSandboxTokenMessage(payload: unknown): string {
+export function extractSandboxTokenMessage(payload: unknown): string {
   if (!payload || typeof payload !== 'object') {
     return '';
   }
@@ -1864,7 +1864,7 @@ export function toSandboxTokenRemediationMessage(errorOrPayload?: unknown): stri
   return `${normalizedBase} ${SANDBOX_TOKEN_REMEDIATION_GUIDANCE}`;
 }
 
-function normalizePlanningRecord(value: unknown): PlanningRecordItem | null {
+export function normalizePlanningRecord(value: unknown): PlanningRecordItem | null {
   const record = asRecord(value);
   const recordId = asTrimmedString(record.recordId) || asTrimmedString(record.id);
   if (!recordId) {
@@ -1894,7 +1894,7 @@ function normalizePlanningRecord(value: unknown): PlanningRecordItem | null {
   };
 }
 
-function normalizePlanningSearchResult(value: unknown): PlanningSearchResultItem | null {
+export function normalizePlanningSearchResult(value: unknown): PlanningSearchResultItem | null {
   const record = asRecord(value);
   const recordId = asTrimmedString(record.recordId) || asTrimmedString(record.id);
   if (!recordId) {
@@ -1915,7 +1915,7 @@ function normalizePlanningSearchResult(value: unknown): PlanningSearchResultItem
   };
 }
 
-function normalizePlanningCompareReceipt(value: unknown): PlanningCompareReceipt | null {
+export function normalizePlanningCompareReceipt(value: unknown): PlanningCompareReceipt | null {
   const record = asRecord(value);
   const receiptId = asTrimmedString(record.receiptId);
   if (!receiptId) {
@@ -1936,7 +1936,7 @@ function normalizePlanningCompareReceipt(value: unknown): PlanningCompareReceipt
   };
 }
 
-function normalizePlanningMergeIntentToken(value: unknown): PlanningMergeIntentToken | null {
+export function normalizePlanningMergeIntentToken(value: unknown): PlanningMergeIntentToken | null {
   const record = asRecord(value);
   const tokenId = asTrimmedString(record.tokenId);
   if (!tokenId) {
@@ -1964,7 +1964,7 @@ function normalizePlanningMergeIntentToken(value: unknown): PlanningMergeIntentT
   };
 }
 
-function normalizePolicyPreflight(payload: unknown): PolicyPreflightResponse {
+export function normalizePolicyPreflight(payload: unknown): PolicyPreflightResponse {
   const record = asRecord(payload);
   const reason = asTrimmedString(record.reason);
   const message = asTrimmedString(record.message) || reason;
@@ -1981,7 +1981,7 @@ function normalizePolicyPreflight(payload: unknown): PolicyPreflightResponse {
   };
 }
 
-function normalizePlanningRecordsResponse(payload: unknown): PlanningRecordsResponse {
+export function normalizePlanningRecordsResponse(payload: unknown): PlanningRecordsResponse {
   const record = asRecord(payload);
 
   return {
@@ -1995,7 +1995,7 @@ function normalizePlanningRecordsResponse(payload: unknown): PlanningRecordsResp
   };
 }
 
-function normalizePlanningSearchResponse(payload: unknown): PlanningSearchResponse {
+export function normalizePlanningSearchResponse(payload: unknown): PlanningSearchResponse {
   const record = asRecord(payload);
 
   return {
@@ -2010,7 +2010,7 @@ function normalizePlanningSearchResponse(payload: unknown): PlanningSearchRespon
   };
 }
 
-function normalizePlanningCreateResponse(payload: unknown): PlanningCreateResponse {
+export function normalizePlanningCreateResponse(payload: unknown): PlanningCreateResponse {
   const record = asRecord(payload);
   return {
     ...record,
@@ -2020,7 +2020,7 @@ function normalizePlanningCreateResponse(payload: unknown): PlanningCreateRespon
   };
 }
 
-function normalizePlanningCompareResponse(payload: unknown): PlanningCompareResponse {
+export function normalizePlanningCompareResponse(payload: unknown): PlanningCompareResponse {
   const record = asRecord(payload);
   const compareReceipt = normalizePlanningCompareReceipt(record.compareReceipt);
 
@@ -2047,7 +2047,7 @@ function normalizePlanningCompareResponse(payload: unknown): PlanningCompareResp
   };
 }
 
-function normalizePlanningMergeIntentResponse(payload: unknown): PlanningMergeIntentResponse {
+export function normalizePlanningMergeIntentResponse(payload: unknown): PlanningMergeIntentResponse {
   const record = asRecord(payload);
   return {
     ...record,
@@ -2063,7 +2063,7 @@ function normalizePlanningMergeIntentResponse(payload: unknown): PlanningMergeIn
   };
 }
 
-function normalizePlanningMergeResponse(payload: unknown): PlanningMergeResponse {
+export function normalizePlanningMergeResponse(payload: unknown): PlanningMergeResponse {
   const record = asRecord(payload);
 
   return {
@@ -2082,7 +2082,7 @@ function normalizePlanningMergeResponse(payload: unknown): PlanningMergeResponse
   };
 }
 
-function normalizeSdkSessionSummary(value: unknown): SdkSessionSummary | null {
+export function normalizeSdkSessionSummary(value: unknown): SdkSessionSummary | null {
   const record = asRecord(value);
   const sessionId = asTrimmedString(record.sessionId) || asTrimmedString(record.id);
   if (!sessionId) {
@@ -2100,7 +2100,7 @@ function normalizeSdkSessionSummary(value: unknown): SdkSessionSummary | null {
   };
 }
 
-function normalizeSdkSessionsResponse(payload: unknown): SdkSessionsResponse {
+export function normalizeSdkSessionsResponse(payload: unknown): SdkSessionsResponse {
   const record = asRecord(payload);
 
   return {
@@ -2110,7 +2110,7 @@ function normalizeSdkSessionsResponse(payload: unknown): SdkSessionsResponse {
   };
 }
 
-function normalizeSdkHealthResponse(payload: unknown): SdkHealthResponse {
+export function normalizeSdkHealthResponse(payload: unknown): SdkHealthResponse {
   const record = asRecord(payload);
 
   return {
@@ -2126,7 +2126,7 @@ function normalizeSdkHealthResponse(payload: unknown): SdkHealthResponse {
   };
 }
 
-function normalizeExecutorRetryPolicy(value: unknown): ExecutorRetryPolicy {
+export function normalizeExecutorRetryPolicy(value: unknown): ExecutorRetryPolicy {
   const record = asRecord(value);
   return {
     enabled: asBoolean(record.enabled, true),
@@ -2138,7 +2138,7 @@ function normalizeExecutorRetryPolicy(value: unknown): ExecutorRetryPolicy {
   };
 }
 
-function normalizeExecutorRunEvent(value: unknown): ExecutorRunEvent | null {
+export function normalizeExecutorRunEvent(value: unknown): ExecutorRunEvent | null {
   const record = asRecord(value);
   const at = asTrimmedString(record.at);
   const type = asTrimmedString(record.type);
@@ -2157,7 +2157,7 @@ function normalizeExecutorRunEvent(value: unknown): ExecutorRunEvent | null {
   };
 }
 
-function normalizeExecutorRun(value: unknown): ExecutorRun | null {
+export function normalizeExecutorRun(value: unknown): ExecutorRun | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id);
   const jobId = asTrimmedString(record.jobId);
@@ -2192,7 +2192,7 @@ function normalizeExecutorRun(value: unknown): ExecutorRun | null {
   };
 }
 
-function normalizeExecutorJob(value: unknown): ExecutorJob | null {
+export function normalizeExecutorJob(value: unknown): ExecutorJob | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id);
   if (!id) {
@@ -2223,7 +2223,7 @@ function normalizeExecutorJob(value: unknown): ExecutorJob | null {
   };
 }
 
-function normalizeExecutorHealthResponse(payload: unknown): ExecutorHealthResponse {
+export function normalizeExecutorHealthResponse(payload: unknown): ExecutorHealthResponse {
   const record = asRecord(payload);
   return {
     ...record,
@@ -2239,7 +2239,7 @@ function normalizeExecutorHealthResponse(payload: unknown): ExecutorHealthRespon
   };
 }
 
-function normalizeExecutorJobsResponse(payload: unknown): ExecutorJobsResponse {
+export function normalizeExecutorJobsResponse(payload: unknown): ExecutorJobsResponse {
   const record = asRecord(payload);
   return {
     jobs: asArray(record.jobs)
@@ -2248,7 +2248,7 @@ function normalizeExecutorJobsResponse(payload: unknown): ExecutorJobsResponse {
   };
 }
 
-function normalizeExecutorRunsResponse(payload: unknown): ExecutorRunsResponse {
+export function normalizeExecutorRunsResponse(payload: unknown): ExecutorRunsResponse {
   const record = asRecord(payload);
   return {
     runs: asArray(record.runs)
@@ -2257,7 +2257,7 @@ function normalizeExecutorRunsResponse(payload: unknown): ExecutorRunsResponse {
   };
 }
 
-function normalizePlanningResearchNote(value: unknown): PlanningResearchNote | null {
+export function normalizePlanningResearchNote(value: unknown): PlanningResearchNote | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id) || asTrimmedString(record.noteId);
   if (!id) {
@@ -2282,7 +2282,7 @@ function normalizePlanningResearchNote(value: unknown): PlanningResearchNote | n
   };
 }
 
-function normalizePlanningResearchNotesResponse(payload: unknown): PlanningResearchNotesResponse {
+export function normalizePlanningResearchNotesResponse(payload: unknown): PlanningResearchNotesResponse {
   const record = asRecord(payload);
 
   return {
@@ -2294,7 +2294,7 @@ function normalizePlanningResearchNotesResponse(payload: unknown): PlanningResea
   };
 }
 
-function normalizePlanningDiagram(value: unknown): PlanningDiagram | null {
+export function normalizePlanningDiagram(value: unknown): PlanningDiagram | null {
   const record = asRecord(value);
   const id = asTrimmedString(record.id) || asTrimmedString(record.diagramId);
   if (!id) {
@@ -2314,7 +2314,7 @@ function normalizePlanningDiagram(value: unknown): PlanningDiagram | null {
   };
 }
 
-function normalizePlanningDiagramsResponse(payload: unknown): PlanningDiagramsResponse {
+export function normalizePlanningDiagramsResponse(payload: unknown): PlanningDiagramsResponse {
   const record = asRecord(payload);
 
   return {
@@ -2326,7 +2326,7 @@ function normalizePlanningDiagramsResponse(payload: unknown): PlanningDiagramsRe
   };
 }
 
-function normalizeGatewayConfig(value: unknown): GatewayConfig {
+export function normalizeGatewayConfig(value: unknown): GatewayConfig {
   const config = asRecord(value);
   const acp = asRecord(config.acp);
   const discord = asRecord(config.discord);
@@ -2364,7 +2364,7 @@ function normalizeGatewayConfig(value: unknown): GatewayConfig {
   };
 }
 
-function normalizeGatewayConfigResponse(payload: unknown): GatewayConfigResponse {
+export function normalizeGatewayConfigResponse(payload: unknown): GatewayConfigResponse {
   const record = asRecord(payload);
 
   return {
@@ -2375,7 +2375,7 @@ function normalizeGatewayConfigResponse(payload: unknown): GatewayConfigResponse
   };
 }
 
-function normalizeGatewaySaveConfigResponse(payload: unknown): GatewaySaveConfigResponse {
+export function normalizeGatewaySaveConfigResponse(payload: unknown): GatewaySaveConfigResponse {
   const record = asRecord(payload);
 
   return {
@@ -2386,7 +2386,7 @@ function normalizeGatewaySaveConfigResponse(payload: unknown): GatewaySaveConfig
   };
 }
 
-function normalizeGatewayStateError(value: unknown): GatewayStateError {
+export function normalizeGatewayStateError(value: unknown): GatewayStateError {
   const error = asRecord(value);
 
   return {
@@ -2398,7 +2398,7 @@ function normalizeGatewayStateError(value: unknown): GatewayStateError {
   };
 }
 
-function normalizeGatewayStateResponse(payload: unknown): GatewayStateResponse {
+export function normalizeGatewayStateResponse(payload: unknown): GatewayStateResponse {
   const record = asRecord(payload);
   const gateway = asRecord(record.gateway);
   const tracker = asRecord(record.tracker);
@@ -2443,7 +2443,7 @@ function normalizeGatewayStateResponse(payload: unknown): GatewayStateResponse {
   };
 }
 
-function normalizeGatewayScanReposResponse(payload: unknown): GatewayScanReposResponse {
+export function normalizeGatewayScanReposResponse(payload: unknown): GatewayScanReposResponse {
   const record = asRecord(payload);
   const roots = asArray(record.roots).map((entry) => {
     const rootRecord = asRecord(entry);
@@ -2477,7 +2477,7 @@ function normalizeGatewayScanReposResponse(payload: unknown): GatewayScanReposRe
   };
 }
 
-function normalizeCatalogRepoInventoryStorage(payload: unknown): Record<string, unknown> {
+export function normalizeCatalogRepoInventoryStorage(payload: unknown): Record<string, unknown> {
   const record = asRecord(payload);
   return {
     ...record,
@@ -2486,7 +2486,7 @@ function normalizeCatalogRepoInventoryStorage(payload: unknown): Record<string, 
   };
 }
 
-function normalizeCatalogRepoInventoryEntry(payload: unknown): Record<string, unknown> | null {
+export function normalizeCatalogRepoInventoryEntry(payload: unknown): Record<string, unknown> | null {
   const record = asRecord(payload);
   const repoId = asTrimmedString(record.repoId);
   const repoPath = asTrimmedString(record.repoPath);
@@ -2503,7 +2503,7 @@ function normalizeCatalogRepoInventoryEntry(payload: unknown): Record<string, un
   };
 }
 
-function normalizeCatalogWorkspaceScan(payload: unknown): Record<string, unknown> | null {
+export function normalizeCatalogWorkspaceScan(payload: unknown): Record<string, unknown> | null {
   const record = asRecord(payload);
   const defaultRoots = asStringList(record.defaultRoots);
   const customScanRoots = asStringList(record.customScanRoots);
@@ -2521,7 +2521,7 @@ function normalizeCatalogWorkspaceScan(payload: unknown): Record<string, unknown
   };
 }
 
-function normalizeCatalogReposListResponse(payload: unknown): CatalogReposListResponse {
+export function normalizeCatalogReposListResponse(payload: unknown): CatalogReposListResponse {
   const record = asRecord(payload);
   const repos = asArray(record.repos)
     .map((entry) => normalizeCatalogRepoInventoryEntry(entry))
@@ -2538,7 +2538,7 @@ function normalizeCatalogReposListResponse(payload: unknown): CatalogReposListRe
   };
 }
 
-function normalizeCatalogRepoScanRootsMutationResponse(payload: unknown): CatalogRepoScanRootsMutationResponse {
+export function normalizeCatalogRepoScanRootsMutationResponse(payload: unknown): CatalogRepoScanRootsMutationResponse {
   const normalized = normalizeCatalogReposListResponse(payload);
   const record = asRecord(payload);
   return {
@@ -2547,7 +2547,7 @@ function normalizeCatalogRepoScanRootsMutationResponse(payload: unknown): Catalo
   };
 }
 
-function normalizePlanningPersistenceInitResponse(payload: unknown): PlanningPersistenceInitResponse {
+export function normalizePlanningPersistenceInitResponse(payload: unknown): PlanningPersistenceInitResponse {
   const record = asRecord(payload);
 
   return {
@@ -2560,7 +2560,7 @@ function normalizePlanningPersistenceInitResponse(payload: unknown): PlanningPer
   };
 }
 
-function appendPlanningQuery(endpoint: string, query: PlanningContextQuery, extra: Record<string, string> = {}): string {
+export function appendPlanningQuery(endpoint: string, query: PlanningContextQuery, extra: Record<string, string> = {}): string {
   const params = new URLSearchParams();
 
   if (query.userId && query.userId.trim()) {
@@ -2586,7 +2586,7 @@ function appendPlanningQuery(endpoint: string, query: PlanningContextQuery, extr
   return suffix ? `${endpoint}?${suffix}` : endpoint;
 }
 
-function createUrl(endpoint: string, baseUrl?: string, query?: ApiRequestOptions['query']): URL {
+export function createUrl(endpoint: string, baseUrl?: string, query?: ApiRequestOptions['query']): URL {
   const isAbsolute = /^https?:\/\//i.test(endpoint);
 
   let url: URL;
@@ -2610,7 +2610,7 @@ function createUrl(endpoint: string, baseUrl?: string, query?: ApiRequestOptions
   return url;
 }
 
-async function parseResponsePayload(response: Response): Promise<unknown> {
+export async function parseResponsePayload(response: Response): Promise<unknown> {
   const contentType = response.headers.get('content-type') || '';
   if (contentType.toLowerCase().includes('application/json')) {
     return response.json();
@@ -2652,433 +2652,7 @@ export async function apiRequest<T>(endpoint: string, options: ApiRequestOptions
   return payload as T;
 }
 
-export function getHealth(baseUrl?: string): Promise<HealthResponse> {
-  return apiRequest<HealthResponse>('/api/health', { baseUrl });
-}
-
-export function getVersion(baseUrl?: string): Promise<VersionResponse> {
-  return apiRequest<VersionResponse>('/api/version', { baseUrl });
-}
-
-export function listSessions(baseUrl?: string, options: ListSessionsOptions = {}): Promise<SessionsListResponse> {
-  return apiRequest<SessionsListResponse>('/api/sessions', {
-    baseUrl,
-    query: {
-      activeWindowMinutes: options.activeWindowMinutes,
-      source: options.source,
-      dedupe: options.dedupe,
-    },
-  });
-}
-
-export function listSessionsWorkspace(baseUrl?: string): Promise<SessionsWorkspaceResponse> {
-  return apiRequest<SessionsWorkspaceResponse>('/api/sessions/workspace', {
-    baseUrl,
-  });
-}
-
-export function getPlanningTaskBoard(
-  repo: { repoId: string; repoPath?: string; repoLabel?: string },
-  baseUrl?: string
-): Promise<PlanningTaskBoardResponse> {
-  return apiRequest<PlanningTaskBoardResponse>('/api/planning/task-board', {
-    baseUrl,
-    query: {
-      repoId: repo.repoId,
-      repoPath: repo.repoPath,
-      repoLabel: repo.repoLabel,
-    },
-  });
-}
-
-export function listUiRuntimeOverlaySessions(baseUrl?: string): Promise<UiRuntimeOverlaySessionsResponse> {
-  return apiRequest<UiRuntimeOverlaySessionsResponse>('/api/ui-runtime-overlay/sessions', {
-    baseUrl,
-  });
-}
-
-export function createUiRuntimeOverlaySession(
-  payload: CreateUiRuntimeOverlaySessionPayload,
-  baseUrl?: string
-): Promise<UiRuntimeOverlaySessionMutationResponse> {
-  return apiRequest<UiRuntimeOverlaySessionMutationResponse>('/api/ui-runtime-overlay/sessions', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function closeUiRuntimeOverlaySession(
-  sessionId: string,
-  baseUrl?: string
-): Promise<UiRuntimeOverlaySessionMutationResponse> {
-  return apiRequest<UiRuntimeOverlaySessionMutationResponse>(
-    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/close`,
-    {
-      baseUrl,
-      method: 'POST',
-    }
-  );
-}
-
-export function addUiRuntimeOverlayObservation(
-  sessionId: string,
-  payload: CreateUiRuntimeOverlayObservationPayload,
-  baseUrl?: string
-): Promise<UiRuntimeOverlayObservationMutationResponse> {
-  return apiRequest<UiRuntimeOverlayObservationMutationResponse>(
-    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/observations`,
-    {
-      baseUrl,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-}
-
-export function addUiRuntimeOverlayAnnotation(
-  sessionId: string,
-  payload: CreateUiRuntimeOverlayAnnotationPayload,
-  baseUrl?: string
-): Promise<UiRuntimeOverlayAnnotationMutationResponse> {
-  return apiRequest<UiRuntimeOverlayAnnotationMutationResponse>(
-    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/annotations`,
-    {
-      baseUrl,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-}
-
-export function addUiRuntimeOverlayChangeRequest(
-  sessionId: string,
-  payload: CreateUiRuntimeOverlayChangeRequestPayload,
-  baseUrl?: string
-): Promise<UiRuntimeOverlayChangeRequestMutationResponse> {
-  return apiRequest<UiRuntimeOverlayChangeRequestMutationResponse>(
-    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/change-requests`,
-    {
-      baseUrl,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-}
-
-export function releaseUiRuntimeOverlayChangeRequest(
-  sessionId: string,
-  changeRequestId: string,
-  baseUrl?: string
-): Promise<UiRuntimeOverlayChangeRequestMutationResponse> {
-  return apiRequest<UiRuntimeOverlayChangeRequestMutationResponse>(
-    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/change-requests/${encodeURIComponent(changeRequestId)}/release`,
-    {
-      baseUrl,
-      method: 'POST',
-    }
-  );
-}
-
-export function queueUiRuntimeOverlayChangeRequest(
-  sessionId: string,
-  changeRequestId: string,
-  baseUrl?: string
-): Promise<UiRuntimeOverlayQueueChangeRequestResponse> {
-  return apiRequest<UiRuntimeOverlayQueueChangeRequestResponse>(
-    `/api/ui-runtime-overlay/sessions/${encodeURIComponent(sessionId)}/change-requests/${encodeURIComponent(changeRequestId)}/executor-job`,
-    {
-      baseUrl,
-      method: 'POST',
-    }
-  );
-}
-
-export function listSessionPlans(
-  sessionId: string,
-  options: SessionArtifactQueryOptions = {},
-  baseUrl?: string
-): Promise<SessionPlansResponse> {
-  return apiRequest<SessionPlansResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/plans`, {
-      baseUrl,
-      query: {
-        source: options.source,
-        sandbox: options.sandbox,
-      },
-    });
-}
-
-export function getSessionPlanText(
-  sessionId: string,
-  options: SessionArtifactQueryOptions = {},
-  baseUrl?: string
-): Promise<string> {
-  return apiRequest<string>(`/api/sessions/${encodeURIComponent(sessionId)}/plan`, {
-      baseUrl,
-      query: {
-        source: options.source,
-        sandbox: options.sandbox,
-      },
-    });
-}
-
-export function upsertSessionPlan(
-  payload: SessionPlanMutationPayload,
-  baseUrl?: string
-): Promise<SessionPlanMutationResponse> {
-  return apiRequest<SessionPlanMutationResponse>('/api/sessions/plan', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function getSessionAgentUsage(
-  sessionId: string,
-  options: SessionAgentUsageQueryOptions = {},
-  baseUrl?: string
-): Promise<SessionAgentUsageResponse> {
-  return apiRequest<SessionAgentUsageResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/agent-usage`, {
-      baseUrl,
-      query: {
-        source: options.source,
-        sandbox: options.sandbox,
-        limit: options.limit,
-      },
-    });
-}
-
-export function getSessionStructuredState(
-  sessionId: string,
-  options: SessionArtifactQueryOptions = {},
-  baseUrl?: string
-): Promise<SessionStructuredStateResponse> {
-  return apiRequest<SessionStructuredStateResponse>(
-    `/api/sessions/${encodeURIComponent(sessionId)}/structured-state`,
-    {
-        baseUrl,
-        query: {
-          source: options.source,
-          sandbox: options.sandbox,
-          planId: options.planId,
-        },
-      }
-  );
-}
-
-export function getSessionProposition(
-  sessionId: string,
-  options: SessionArtifactQueryOptions = {},
-  baseUrl?: string
-): Promise<SessionPropositionResponse> {
-  return apiRequest<SessionPropositionResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/proposition`, {
-    baseUrl,
-    query: {
-      source: options.source,
-      sandbox: options.sandbox,
-    },
-  });
-}
-
-export function getSessionHandoff(
-  sessionId: string,
-  options: SessionArtifactQueryOptions = {},
-  baseUrl?: string
-): Promise<SessionHandoffResponse> {
-  return apiRequest<SessionHandoffResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/handoff`, {
-    baseUrl,
-    query: {
-      source: options.source,
-      sandbox: options.sandbox,
-    },
-  });
-}
-
-export function getSessionVerificationGuide(
-  sessionId: string,
-  options: SessionArtifactQueryOptions = {},
-  baseUrl?: string
-): Promise<SessionTextArtifactResponse> {
-  return apiRequest<SessionTextArtifactResponse>(
-    `/api/sessions/${encodeURIComponent(sessionId)}/verification-guide`,
-    {
-      baseUrl,
-      query: {
-        source: options.source,
-        sandbox: options.sandbox,
-      },
-    }
-  );
-}
-
-export async function getSdkHealth(baseUrl?: string): Promise<SdkHealthResponse> {
-  const payload = await apiRequest<unknown>('/api/sdk/health', { baseUrl });
-  return normalizeSdkHealthResponse(payload);
-}
-
-export async function createSdkSession(
-  payload: SdkCreateSessionPayload = {},
-  baseUrl?: string
-): Promise<SdkSessionSummary> {
-  const response = await apiRequest<unknown>('/api/sdk/session', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const normalized = normalizeSdkSessionSummary(response);
-  if (!normalized) {
-    throw new Error('invalid_sdk_session_response');
-  }
-
-  return normalized;
-}
-
-export async function listSdkSessions(baseUrl?: string): Promise<SdkSessionsResponse> {
-  const payload = await apiRequest<unknown>('/api/sdk/sessions', { baseUrl });
-  return normalizeSdkSessionsResponse(payload);
-}
-
-export function deleteSdkSession(
-  sessionId: string,
-  baseUrl?: string
-): Promise<{ ok?: boolean; sessionId?: string; error?: string; [key: string]: unknown }> {
-  return apiRequest<{ ok?: boolean; sessionId?: string; error?: string; [key: string]: unknown }>(
-    `/api/sdk/session/${encodeURIComponent(sessionId)}`,
-    {
-      baseUrl,
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({}),
-    }
-  );
-}
-
-export async function sendSdkMessage(payload: SdkSendPayload, baseUrl?: string): Promise<SdkSendResponse> {
-  const response = await apiRequest<unknown>('/api/sdk/send', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const record = asRecord(response);
-  return {
-    messageId: asTrimmedString(record.messageId),
-  };
-}
-
-export function createSdkStreamUrl(sessionId: string, baseUrl?: string): string {
-  const endpoint = `/api/sdk/stream/${encodeURIComponent(sessionId)}`;
-  if (baseUrl) {
-    return createUrl(endpoint, baseUrl).toString();
-  }
-
-  if (typeof window !== 'undefined') {
-    return endpoint;
-  }
-
-  return createUrl(endpoint, 'http://127.0.0.1').toString();
-}
-
-export async function getExecutorHealth(baseUrl?: string): Promise<ExecutorHealthResponse> {
-  const payload = await apiRequest<unknown>('/api/executor/health', { baseUrl });
-  return normalizeExecutorHealthResponse(payload);
-}
-
-export async function listExecutorJobs(baseUrl?: string): Promise<ExecutorJobsResponse> {
-  const payload = await apiRequest<unknown>('/api/executor/jobs', { baseUrl });
-  return normalizeExecutorJobsResponse(payload);
-}
-
-export async function listExecutorRuns(baseUrl?: string): Promise<ExecutorRunsResponse> {
-  const payload = await apiRequest<unknown>('/api/executor/runs', { baseUrl });
-  return normalizeExecutorRunsResponse(payload);
-}
-
-export async function createExecutorJob(
-  payload: CreateExecutorJobPayload,
-  baseUrl?: string
-): Promise<CreateExecutorJobResponse> {
-  const response = await apiRequest<unknown>('/api/executor/jobs', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  const record = asRecord(response);
-  const job = normalizeExecutorJob(record.job);
-  if (!job) {
-    throw new Error('invalid_executor_job_response');
-  }
-  return {
-    job,
-    run: normalizeExecutorRun(record.run),
-  };
-}
-
-export async function triggerExecutorJob(jobId: string, baseUrl?: string): Promise<TriggerExecutorJobResponse> {
-  const response = await apiRequest<unknown>(`/api/executor/jobs/${encodeURIComponent(jobId)}/trigger`, {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({}),
-  });
-  const record = asRecord(response);
-  const run = normalizeExecutorRun(record.run);
-  if (!run) {
-    throw new Error('invalid_executor_run_response');
-  }
-  return { run };
-}
-
-export async function cancelExecutorJob(jobId: string, baseUrl?: string): Promise<CancelExecutorJobResponse> {
-  const response = await apiRequest<unknown>(`/api/executor/jobs/${encodeURIComponent(jobId)}/cancel`, {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({}),
-  });
-  const record = asRecord(response);
-  const job = normalizeExecutorJob(record.job);
-  if (!job) {
-    throw new Error('invalid_executor_job_response');
-  }
-  return {
-    job,
-    run: normalizeExecutorRun(record.run),
-  };
-}
-
-function normalizeExecutorWorktreeRecord(value: unknown): ExecutorWorktreeRecord | null {
+export function normalizeExecutorWorktreeRecord(value: unknown): ExecutorWorktreeRecord | null {
   const worktree = normalizeWorktreeBinding(value);
   if (!worktree) {
     return null;
@@ -3091,1097 +2665,4 @@ function normalizeExecutorWorktreeRecord(value: unknown): ExecutorWorktreeRecord
     repoLabel: asTrimmedString(record.repoLabel) || null,
     updatedAt: asTrimmedString(record.updatedAt) || null,
   };
-}
-
-export async function listExecutorWorktrees(baseUrl?: string, repoId?: string): Promise<ExecutorWorktreesResponse> {
-  const payload = await apiRequest<unknown>('/api/executor/worktrees', {
-    baseUrl,
-    query: {
-      repoId: repoId || undefined,
-    },
-  });
-  const record = asRecord(payload);
-  return {
-    worktrees: asArray(record.worktrees)
-      .map((entry) => normalizeExecutorWorktreeRecord(entry))
-      .filter((entry): entry is ExecutorWorktreeRecord => entry !== null),
-  };
-}
-
-export async function resolveExecutorWorktree(
-  payload: ResolveExecutorWorktreePayload,
-  baseUrl?: string
-): Promise<ResolveExecutorWorktreeResponse> {
-  const response = await apiRequest<unknown>('/api/executor/worktrees/resolve', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-  const record = asRecord(response);
-  return {
-    repo: Object.keys(asRecord(record.repo)).length > 0 ? asRecord(record.repo) : null,
-    cwd: asTrimmedString(record.cwd) || null,
-    worktree: normalizeExecutorWorktreeRecord(record.worktree),
-  };
-}
-
-export function getManagedAssets(baseUrl?: string): Promise<ManagedAssetsResponse> {
-  return apiRequest<ManagedAssetsResponse>('/api/assets/managed', { baseUrl });
-}
-
-export function getInstalledAssets(baseUrl?: string): Promise<InstalledAssetsResponse> {
-  return apiRequest<InstalledAssetsResponse>('/api/assets/installed', { baseUrl });
-}
-
-export function syncAllAssets(force = false, baseUrl?: string, pointerMode = true): Promise<{ result: unknown[] }> {
-  return apiRequest<{ result: unknown[] }>('/api/assets/sync-all', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ force, pointerMode }),
-  });
-}
-
-export function patchVscodeSettings(baseUrl?: string): Promise<{ result: unknown }> {
-  return apiRequest<{ result: unknown }>('/api/vscode/patch-settings', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ dryRun: false }),
-  });
-}
-
-export function patchVscodeGithubMcp(baseUrl?: string): Promise<{ result: unknown }> {
-  return apiRequest<{ result: unknown }>('/api/vscode/patch-github-mcp', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ dryRun: false }),
-  });
-}
-
-export function authorizeCopilotFolders(baseUrl?: string): Promise<{ result: unknown }> {
-  return apiRequest<{ result: unknown }>('/api/copilot/authorize', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ dryRun: false }),
-  });
-}
-
-export function runSandboxLifecycleAction(
-  action: SandboxLifecycleAction,
-  payload: SandboxLifecyclePayload,
-  baseUrl?: string
-): Promise<SandboxLifecycleResponse> {
-  return apiRequest<SandboxLifecycleResponse>(
-    `/api/tracker/lifecycle/${encodeURIComponent(action)}`,
-    {
-      baseUrl,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload ?? {}),
-    }
-  );
-}
-
-export function getLspConfig(baseUrl?: string): Promise<LspConfigResponse> {
-  return apiRequest<LspConfigResponse>('/api/lsp/config', { baseUrl });
-}
-
-export function installLsp(baseUrl?: string): Promise<LspInstallResponse> {
-  return apiRequest<LspInstallResponse>('/api/lsp/install', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({}),
-  });
-}
-
-export function getTrackerPermissions(baseUrl?: string): Promise<TrackerPermissionsResponse> {
-  return apiRequest<TrackerPermissionsResponse>('/api/tracker/permissions', { baseUrl });
-}
-
-export function approveTrackerPermission(permissionId: string, baseUrl?: string): Promise<unknown> {
-  return apiRequest<unknown>(`/api/tracker/permissions/${encodeURIComponent(permissionId)}/approve`, {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({}),
-  });
-}
-
-export function denyTrackerPermission(permissionId: string, baseUrl?: string): Promise<unknown> {
-  return apiRequest<unknown>(`/api/tracker/permissions/${encodeURIComponent(permissionId)}/deny`, {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({}),
-  });
-}
-
-export function getTrackerSessions(baseUrl?: string): Promise<TrackerSessionsResponse | unknown[]> {
-  return apiRequest<TrackerSessionsResponse | unknown[]>('/api/tracker/sessions', { baseUrl });
-}
-
-export function listTrackerSyncedNoteSources(baseUrl?: string): Promise<SyncedNoteSourceRecord[]> {
-  return apiRequest<SyncedNoteSourceRecord[]>('/api/tracker/synced-notes/sources', { baseUrl });
-}
-
-export function createTrackerSyncedNoteSource(
-  payload: SyncedNoteSourceLocator,
-  baseUrl?: string,
-): Promise<SyncedNoteSourceRecord> {
-  return apiRequest<SyncedNoteSourceRecord>('/api/tracker/synced-notes/sources', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function updateTrackerSyncedNoteSource(
-  sourceId: string,
-  payload: SyncedNoteSourceLocator,
-  baseUrl?: string,
-): Promise<SyncedNoteSourceRecord> {
-  return apiRequest<SyncedNoteSourceRecord>(
-    `/api/tracker/synced-notes/sources/${encodeURIComponent(sourceId)}`,
-    {
-      baseUrl,
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    }
-  );
-}
-
-export function deleteTrackerSyncedNoteSource(
-  sourceId: string,
-  baseUrl?: string,
-): Promise<SyncedNoteSourceDeleteResponse> {
-  return apiRequest<SyncedNoteSourceDeleteResponse>(
-    `/api/tracker/synced-notes/sources/${encodeURIComponent(sourceId)}`,
-    {
-      baseUrl,
-      method: 'DELETE',
-    }
-  );
-}
-
-export function getSkillsPreview(baseUrl?: string): Promise<SkillsPreviewResponse> {
-  return apiRequest<SkillsPreviewResponse>('/api/skills/preview', { baseUrl });
-}
-
-export function getAssetView(path: string, baseUrl?: string): Promise<string> {
-  return apiRequest<string>('/api/assets/view', {
-    baseUrl,
-    query: {
-      path,
-    },
-  });
-}
-
-export function getCatalogSummary(query: CatalogSelectorQuery = {}, baseUrl?: string): Promise<CatalogSummaryResponse> {
-  return apiRequest<CatalogSummaryResponse>('/api/catalog/summary', {
-    baseUrl,
-    query: buildCatalogSelectorQuery(query),
-  });
-}
-
-export function getCatalogRepos(
-  query: CatalogRepoInventoryQuery = {},
-  baseUrl?: string
-): Promise<CatalogReposListResponse> {
-  return apiRequest<unknown>('/api/catalog/repos', {
-    baseUrl,
-    query: {
-      repoPath: query.repoPath,
-    },
-  }).then((payload) => normalizeCatalogReposListResponse(payload));
-}
-
-export function registerCatalogRepo(
-  payload: CatalogRepoMutationPayload,
-  baseUrl?: string
-): Promise<CatalogRepoMutationResponse> {
-  return apiRequest<CatalogRepoMutationResponse>('/api/catalog/repos/register', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function unregisterCatalogRepo(
-  payload: CatalogRepoMutationPayload,
-  baseUrl?: string
-): Promise<CatalogRepoMutationResponse> {
-  return apiRequest<CatalogRepoMutationResponse>('/api/catalog/repos/unregister', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function selectCatalogRepo(
-  payload: CatalogRepoMutationPayload,
-  baseUrl?: string
-): Promise<CatalogRepoMutationResponse> {
-  return apiRequest<CatalogRepoMutationResponse>('/api/catalog/repos/select', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function refreshCatalogRepo(
-  payload: CatalogRepoMutationPayload,
-  baseUrl?: string
-): Promise<CatalogRepoMutationResponse> {
-  return apiRequest<CatalogRepoMutationResponse>('/api/catalog/repos/refresh', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function saveCatalogRepoScanRoots(
-  payload: CatalogRepoScanRootsPayload,
-  baseUrl?: string
-): Promise<CatalogRepoScanRootsMutationResponse> {
-  return apiRequest<unknown>('/api/catalog/repos/scan-roots', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  }).then((response) => normalizeCatalogRepoScanRootsMutationResponse(response));
-}
-
-export function getCatalogAssets(query: CatalogAssetsQuery = {}, baseUrl?: string): Promise<CatalogAssetsResponse> {
-  return apiRequest<CatalogAssetsResponse>('/api/catalog/assets', {
-    baseUrl,
-    query: {
-      ...buildCatalogSelectorQuery(query),
-      assetId: query.assetId,
-      assetKey: query.assetKey,
-      kind: query.kind,
-      scopeKind: query.scopeKind,
-      layer: query.layer,
-      q: query.q,
-      installed: query.installed,
-      enabled: query.enabled,
-      recommended: query.recommended,
-      available: query.available,
-    },
-  });
-}
-
-export function getCatalogBundles(
-  query: CatalogBundlesQuery = {},
-  baseUrl?: string
-): Promise<CatalogBundlesResponse> {
-  return apiRequest<CatalogBundlesResponse>('/api/catalog/bundles', {
-    baseUrl,
-    query: {
-      ...buildCatalogSelectorQuery(query),
-      bundleId: query.bundleId,
-      classification: query.classification,
-      scopeKind: query.scopeKind,
-      language: query.language,
-      framework: query.framework,
-      stack: query.stack,
-      tag: query.tag,
-      q: query.q,
-    },
-  });
-}
-
-export function getCatalogAssetDetail(
-  assetId: string,
-  query: CatalogSelectorQuery = {},
-  baseUrl?: string
-): Promise<CatalogAssetDetailResponse> {
-  return apiRequest<CatalogAssetDetailResponse>(`/api/catalog/assets/${encodeURIComponent(assetId)}`, {
-    baseUrl,
-    query: buildCatalogSelectorQuery(query),
-  });
-}
-
-export function refreshCatalogProjection(
-  query: CatalogSelectorQuery = {},
-  baseUrl?: string
-): Promise<CatalogRefreshResponse> {
-  return apiRequest<CatalogRefreshResponse>('/api/catalog/refresh', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(query),
-  });
-}
-
-export function createCatalogAsset(
-  payload: CatalogAssetCreatePayload,
-  baseUrl?: string
-): Promise<CatalogAssetMutationResponse> {
-  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/create', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function updateCatalogAsset(
-  payload: CatalogAssetUpdatePayload,
-  baseUrl?: string
-): Promise<CatalogAssetMutationResponse> {
-  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/update', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function deleteCatalogAsset(
-  payload: CatalogAssetDeletePayload,
-  baseUrl?: string
-): Promise<CatalogAssetMutationResponse> {
-  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/delete', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function installCatalogAsset(
-  payload: CatalogAssetInstallPayload,
-  baseUrl?: string
-): Promise<CatalogAssetMutationResponse> {
-  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/install', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function uninstallCatalogBundle(
-  payload: CatalogBundleUninstallPayload,
-  baseUrl?: string
-): Promise<CatalogBundleUninstallResponse> {
-  return apiRequest<CatalogBundleUninstallResponse>('/api/catalog/bundles/uninstall', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function installCatalogProvider(
-  payload: CatalogProviderInstallPayload,
-  baseUrl?: string
-): Promise<CatalogProviderInstallResponse> {
-  return apiRequest<CatalogProviderInstallResponse>('/api/catalog/providers/install', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function enableCatalogAsset(
-  payload: CatalogAssetEnablementPayload,
-  baseUrl?: string
-): Promise<CatalogAssetMutationResponse> {
-  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/enable', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function disableCatalogAsset(
-  payload: CatalogAssetEnablementPayload,
-  baseUrl?: string
-): Promise<CatalogAssetMutationResponse> {
-  return apiRequest<CatalogAssetMutationResponse>('/api/catalog/assets/disable', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function updateCatalogActivation(
-  payload: CatalogActivationMutationPayload,
-  baseUrl?: string
-): Promise<CatalogActivationMutationResponse> {
-  return apiRequest<CatalogActivationMutationResponse>('/api/catalog/activation', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function searchCatalogAssets(
-  payload: CatalogSearchRequest,
-  baseUrl?: string
-): Promise<CatalogSearchResponse> {
-  return apiRequest<CatalogSearchResponse>('/api/search/query', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function recordCatalogSearchSelection(
-  payload: CatalogSearchSelectionPayload,
-  baseUrl?: string
-): Promise<CatalogSearchSelectionResponse> {
-  return apiRequest<CatalogSearchSelectionResponse>('/api/search/selection', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-}
-
-export function getCatalogAuditEvents(
-  query: CatalogAuditEventsQuery = {},
-  baseUrl?: string
-): Promise<CatalogAuditEventsResponse> {
-  return apiRequest<CatalogAuditEventsResponse>('/api/audit/events', {
-    baseUrl,
-    query: {
-      ...buildCatalogSelectorQuery(query),
-      eventType: query.eventType,
-      assetId: query.assetId,
-      sessionId: query.sessionId,
-      correlationId: query.correlationId,
-      limit: query.limit,
-    },
-  });
-}
-
-export function getCatalogAssetAnalytics(
-  query: CatalogAuditAssetsQuery = {},
-  baseUrl?: string
-): Promise<CatalogAssetAuditAnalyticsResponse> {
-  return apiRequest<CatalogAssetAuditAnalyticsResponse>('/api/audit/assets', {
-    baseUrl,
-    query: {
-      ...buildCatalogSelectorQuery(query),
-      eventType: query.eventType,
-      assetId: query.assetId,
-      sessionId: query.sessionId,
-      correlationId: query.correlationId,
-      limit: query.limit,
-    },
-  });
-}
-
-export function getRuntimeCatalogHealth(
-  query: CatalogSelectorQuery = {},
-  baseUrl?: string
-): Promise<RuntimeCatalogHealthResponse> {
-  return apiRequest<RuntimeCatalogHealthResponse>('/api/runtime/catalog-health', {
-    baseUrl,
-    query: buildCatalogSelectorQuery(query),
-  });
-}
-
-export async function getPolicyPreflight(baseUrl?: string, forceRefresh = false): Promise<PolicyPreflightResponse> {
-  const payload = await apiRequest<unknown>('/api/policy/preflight', {
-    baseUrl,
-    query: {
-      refresh: forceRefresh ? 1 : undefined,
-    },
-  });
-
-  return normalizePolicyPreflight(payload);
-}
-
-export async function getPlanningRoadmaps(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<PlanningRoadmapsResponseApi> {
-  const payload = await apiRequest<unknown>('/api/planning/roadmaps', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizePlanningRoadmapsResponse(payload);
-}
-
-export async function updatePlanningRoadmap(
-  roadmapSlug: string,
-  payload: PlanningRoadmapUpdatePayload,
-  baseUrl?: string,
-): Promise<PlanningRoadmapMutationResponseApi> {
-  const response = await apiRequest<unknown>(`/api/planning/roadmaps/${encodeURIComponent(roadmapSlug)}`, {
-    baseUrl,
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningRoadmapMutationResponse(response);
-}
-
-export async function getPlanningIntakeArtifacts(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<PlanningIntakeArtifactsResponseApi> {
-  const payload = await apiRequest<unknown>('/api/planning/artifacts/intake', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizePlanningIntakeArtifactsResponse(payload);
-}
-
-export async function getPlanningBullets(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<PlanningBulletsResponseApi> {
-  const payload = await apiRequest<unknown>('/api/planning/artifacts/bullets', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizePlanningBulletsResponse(payload);
-}
-
-export async function getPlanningObsidianStatus(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<ObsidianPlanningStatusResponse> {
-  const payload = await apiRequest<unknown>('/api/planning/obsidian/status', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizeObsidianPlanningStatusResponse(payload);
-}
-
-export async function listPlanningObsidianNotes(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<ObsidianPlanningNotesResponse> {
-  const payload = await apiRequest<unknown>('/api/planning/obsidian/notes', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizeObsidianPlanningNotesResponse(payload);
-}
-
-export async function getPlanningObsidianNote(
-  noteId: string,
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<ObsidianPlanningNoteResponse> {
-  const payload = await apiRequest<unknown>(`/api/planning/obsidian/notes/${encodeURIComponent(noteId)}`, {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizeObsidianPlanningNoteResponse(payload);
-}
-
-export async function triggerPlanningObsidianSync(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<ObsidianPlanningSyncResponse> {
-  const payload = await apiRequest<unknown>('/api/planning/obsidian/sync', {
-    baseUrl,
-    method: 'POST',
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizeObsidianPlanningSyncResponse(payload);
-}
-
-export async function setPlanningObsidianSourceSelection(
-  sourceId: string | null | undefined,
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string,
-): Promise<ObsidianPlanningSourceSelectionResponse> {
-  const payload = await apiRequest<unknown>('/api/planning/obsidian/source-selection', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      sourceId: asTrimmedString(sourceId) || undefined,
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    }),
-  });
-
-  return normalizeObsidianPlanningSourceSelectionResponse(payload);
-}
-
-export async function getPlanningObsidianRepresentationsStatus(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<ObsidianPlanningRepresentationsStatusResponse> {
-  const payload = await apiRequest<unknown>('/api/planning/obsidian/representations/status', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizeObsidianPlanningRepresentationsStatusResponse(payload);
-}
-
-export async function listPlanningObsidianRepresentations(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<ObsidianPlanningRepresentationsResponse> {
-  const payload = await apiRequest<unknown>('/api/planning/obsidian/representations', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizeObsidianPlanningRepresentationsResponse(payload);
-}
-
-export async function refreshPlanningObsidianRepresentations(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<ObsidianPlanningRepresentationsRefreshResponse> {
-  const payload = await apiRequest<unknown>('/api/planning/obsidian/representations/refresh', {
-    baseUrl,
-    method: 'POST',
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizeObsidianPlanningRepresentationsRefreshResponse(payload);
-}
-
-export async function getPlanningBacklog(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<PlanningBacklogResponseApi> {
-  const payload = await apiRequest<unknown>('/api/planning/backlog', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-    },
-  });
-
-  return normalizePlanningBacklogResponse(payload);
-}
-
-export async function createPlanningBacklogItem(
-  payload: PlanningBacklogCreatePayload,
-  baseUrl?: string
-): Promise<PlanningBacklogMutationResponseApi> {
-  const response = await apiRequest<unknown>('/api/planning/backlog', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningBacklogMutationResponse(response);
-}
-
-export async function createPlanningBullet(
-  payload: PlanningBulletCreatePayload,
-  baseUrl?: string
-): Promise<PlanningBulletsResponseApi> {
-  const response = await apiRequest<unknown>('/api/planning/artifacts/bullets', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningBulletsResponse(response);
-}
-
-export async function createPlanningIntakeArtifact(
-  payload: PlanningIntakeCreatePayload,
-  baseUrl?: string
-): Promise<PlanningIntakeArtifactsResponseApi> {
-  const response = await apiRequest<unknown>('/api/planning/artifacts/intake', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningIntakeArtifactsResponse(response);
-}
-
-export async function updatePlanningBullet(
-  bulletId: string,
-  payload: PlanningBulletUpdatePayload,
-  baseUrl?: string
-): Promise<PlanningBulletsResponseApi> {
-  const response = await apiRequest<unknown>(`/api/planning/artifacts/bullets/${encodeURIComponent(bulletId)}`, {
-    baseUrl,
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningBulletsResponse(response);
-}
-
-export async function updatePlanningIntakeArtifact(
-  artifactId: string,
-  payload: PlanningIntakeUpdatePayload,
-  baseUrl?: string
-): Promise<PlanningIntakeArtifactsResponseApi> {
-  const response = await apiRequest<unknown>(`/api/planning/artifacts/intake/${encodeURIComponent(artifactId)}`, {
-    baseUrl,
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningIntakeArtifactsResponse(response);
-}
-
-export async function updatePlanningBacklogItem(
-  itemId: string,
-  payload: PlanningBacklogUpdatePayload,
-  baseUrl?: string
-): Promise<PlanningBacklogMutationResponseApi> {
-  const response = await apiRequest<unknown>(`/api/planning/backlog/${encodeURIComponent(itemId)}`, {
-    baseUrl,
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningBacklogMutationResponse(response);
-}
-
-export async function getPlanningRecords(query: PlanningContextQuery = {}, baseUrl?: string): Promise<PlanningRecordsResponse> {
-  const endpoint = appendPlanningQuery('/api/planning/records', query);
-  const payload = await apiRequest<unknown>(endpoint, { baseUrl });
-  return normalizePlanningRecordsResponse(payload);
-}
-
-export async function searchPlanningRecords(query: PlanningSearchQuery, baseUrl?: string): Promise<PlanningSearchResponse> {
-  const endpoint = appendPlanningQuery('/api/planning/search', query, {
-    q: query.query ?? '',
-    limit: Number.isFinite(query.limit) ? String(Math.floor(query.limit as number)) : '',
-  });
-  const payload = await apiRequest<unknown>(endpoint, { baseUrl });
-  return normalizePlanningSearchResponse(payload);
-}
-
-export async function createPlanningRecord(payload: PlanningCreatePayload, baseUrl?: string): Promise<PlanningCreateResponse> {
-  const response = await apiRequest<unknown>('/api/planning/records', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningCreateResponse(response);
-}
-
-export async function updatePlanningRecord(
-  recordId: string,
-  payload: PlanningUpdatePayload,
-  baseUrl?: string
-): Promise<PlanningCreateResponse> {
-  const response = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}`, {
-    baseUrl,
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningCreateResponse(response);
-}
-
-export async function comparePlanningRecords(payload: PlanningComparePayload, baseUrl?: string): Promise<PlanningCompareResponse> {
-  const response = await apiRequest<unknown>('/api/planning/compare', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningCompareResponse(response);
-}
-
-export async function preparePlanningMergeIntent(
-  payload: PlanningMergeIntentPayload,
-  baseUrl?: string
-): Promise<PlanningMergeIntentResponse> {
-  const response = await apiRequest<unknown>('/api/planning/merge-intent', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningMergeIntentResponse(response);
-}
-
-export async function mergePlanningRecords(payload: PlanningMergePayload, baseUrl?: string): Promise<PlanningMergeResponse> {
-  const response = await apiRequest<unknown>('/api/planning/merge', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningMergeResponse(response);
-}
-
-export async function getPlanningResearchNotes(
-  recordId: string,
-  baseUrl?: string
-): Promise<PlanningResearchNotesResponse> {
-  const payload = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}/research`, {
-    baseUrl,
-  });
-  return normalizePlanningResearchNotesResponse(payload);
-}
-
-export async function savePlanningResearchNote(
-  recordId: string,
-  note: PlanningResearchNoteInput,
-  baseUrl?: string
-): Promise<{ note?: PlanningResearchNote; [key: string]: unknown }> {
-  const payload = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}/research`, {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(note),
-  });
-
-  const response = asRecord(payload);
-  return {
-    ...response,
-    note: normalizePlanningResearchNote(response.note) ?? undefined,
-  };
-}
-
-export async function deletePlanningResearchNote(
-  recordId: string,
-  noteId: string,
-  baseUrl?: string
-): Promise<{ ok?: boolean; [key: string]: unknown }> {
-  return apiRequest<{ ok?: boolean; [key: string]: unknown }>(
-    `/api/planning/records/${encodeURIComponent(recordId)}/research/${encodeURIComponent(noteId)}`,
-    {
-      baseUrl,
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({}),
-    }
-  );
-}
-
-export async function getPlanningDiagrams(recordId: string, baseUrl?: string): Promise<PlanningDiagramsResponse> {
-  const payload = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}/diagrams`, {
-    baseUrl,
-  });
-  return normalizePlanningDiagramsResponse(payload);
-}
-
-export async function getGatewayConfig(baseUrl?: string): Promise<GatewayConfigResponse> {
-  const payload = await apiRequest<unknown>('/api/gateway/config', { baseUrl });
-  return normalizeGatewayConfigResponse(payload);
-}
-
-export async function saveGatewayConfig(payload: GatewaySaveConfigPayload, baseUrl?: string): Promise<GatewaySaveConfigResponse> {
-  const response = await apiRequest<unknown>('/api/gateway/config', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizeGatewaySaveConfigResponse(response);
-}
-
-export async function getGatewayState(baseUrl?: string): Promise<GatewayStateResponse> {
-  const payload = await apiRequest<unknown>('/api/gateway/state', { baseUrl });
-  return normalizeGatewayStateResponse(payload);
-}
-
-export async function connectGateway(baseUrl?: string): Promise<GatewayStateResponse> {
-  const payload = await apiRequest<unknown>('/api/gateway/connect', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({}),
-  });
-
-  return normalizeGatewayStateResponse(payload);
-}
-
-export async function scanGatewayRepos(extraPath?: string, baseUrl?: string): Promise<GatewayScanReposResponse> {
-  const payload = await apiRequest<unknown>('/api/gateway/scan-repos', {
-    baseUrl,
-    query: {
-      extra: extraPath && extraPath.trim() ? extraPath.trim() : undefined,
-    },
-  });
-
-  return normalizeGatewayScanReposResponse(payload);
-}
-
-export async function initPlanningPersistence(baseUrl?: string): Promise<PlanningPersistenceInitResponse> {
-  const payload = await apiRequest<unknown>('/api/planning/persistence/init', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({}),
-  });
-
-  return normalizePlanningPersistenceInitResponse(payload);
 }

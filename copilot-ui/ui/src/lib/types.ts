@@ -730,6 +730,10 @@ export interface SdkSessionsResponse {
   sessions: SdkSessionSummary[];
 }
 
+export interface SdkModelsResponse {
+  models: string[];
+}
+
 export interface SdkSendResponse {
   messageId: string;
 }
