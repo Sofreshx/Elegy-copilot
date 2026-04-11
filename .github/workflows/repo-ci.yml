@@ -41,8 +41,20 @@ jobs:
       - name: Validate docs graph
         run: node scripts/validate-doc-graph.js
 
+      - name: Build UI (produces ui-dist for sidecar validation)
+        run: npm --prefix copilot-ui run ui:build
+
       - name: Validate Tauri sidecar layout
         run: npm --prefix copilot-ui run validate:tauri-node-sidecar-layout
+
+      - name: Run UI smoke tests
+        run: node copilot-ui/tests/ui-react-smoke.test.js
+
+      - name: Run navigation tests
+        run: node copilot-ui/tests/runtime-home-navigation.test.js
+
+      - name: Run backend tests
+        run: node copilot-ui/lib/repoInventoryService.test.js
 
   desktop-tauri-preview:
     needs: build
