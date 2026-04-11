@@ -98,9 +98,35 @@ function removeTarget(targetPath) {
   }
 }
 
+const trackedGuidanceDocs = [
+  'windows/electron-to-tauri-handoff.md',
+  'windows/windows-installation-guide.md',
+];
+
+function backupTrackedDocs() {
+  const backed = [];
+  for (const rel of trackedGuidanceDocs) {
+    const src = path.join(tauriReleaseRoot, rel);
+    if (fs.existsSync(src)) {
+      backed.push({ rel, content: fs.readFileSync(src) });
+    }
+  }
+  return backed;
+}
+
+function restoreTrackedDocs(backed) {
+  for (const { rel, content } of backed) {
+    const dest = path.join(tauriReleaseRoot, rel);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, content);
+  }
+}
+
 function cleanTauriRelease() {
+  const backed = backupTrackedDocs();
   removeTarget(tauriReleaseRoot);
   removeTarget(stagedResourcesRoot);
+  restoreTrackedDocs(backed);
 
   return {
     tauriReleaseRoot,
