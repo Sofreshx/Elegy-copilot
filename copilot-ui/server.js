@@ -95,6 +95,7 @@ const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersi
 const { createDesktopUpdaterController } = require('./lib/desktop-shell/updater');
 const { createRegistry } = require('./routes');
 const { createExecutorService } = require('./lib/executorService');
+const { createWorkflowExecutionService } = require('./lib/workflowExecutionService');
 const { createWorkflowLayerService } = require('./lib/workflowLayerService');
 const { createUiRuntimeOverlayService } = require('./lib/uiRuntimeOverlayService');
 const {
@@ -4638,6 +4639,7 @@ async function startServer(options = {}) {
   let sdkBridge = null;
   let executorService = null;
   let workflowLayerService = null;
+  let workflowExecutionService = null;
 
   if (sdkBridgeEnabled) {
     try {
@@ -4683,6 +4685,23 @@ async function startServer(options = {}) {
     await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
     const detail = String(error && error.message ? error.message : error);
     throw new Error(`Workflow layer startup failed: ${detail}`);
+  }
+
+  try {
+    workflowExecutionService = await createWorkflowExecutionService({
+      workflowTemplateService: require('./lib/workflowTemplateService'),
+      executorService,
+      copilotHome,
+    }).init();
+  } catch (error) {
+    stopDesktopUpdaterBackgroundWork();
+    await shutdownWorkflowLayerServiceSafely(workflowLayerService);
+    await shutdownExecutorServiceSafely(executorService);
+    await shutdownSdkBridgeSafely(sdkBridge);
+    changeTracker.close();
+    await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
+    const detail = String(error && error.message ? error.message : error);
+    throw new Error(`Workflow execution service startup failed: ${detail}`);
   }
 
   const uiRuntimeOverlayService = createUiRuntimeOverlayService({
@@ -4783,10 +4802,14 @@ async function startServer(options = {}) {
       sdkBridge,
       executorService,
       workflowLayerService,
+      workflowExecutionService,
       uiRuntimeOverlayService,
     });
   } catch (error) {
     stopDesktopUpdaterBackgroundWork();
+    if (workflowExecutionService && typeof workflowExecutionService.shutdown === 'function') {
+      await workflowExecutionService.shutdown().catch(() => {});
+    }
     await shutdownWorkflowLayerServiceSafely(workflowLayerService);
     await shutdownExecutorServiceSafely(executorService);
     await shutdownSdkBridgeSafely(sdkBridge);
@@ -4857,6 +4880,7 @@ async function startServer(options = {}) {
       settled = true;
       Promise.resolve()
         .then(() => stopDesktopUpdaterBackgroundWork())
+        .then(() => workflowExecutionService && typeof workflowExecutionService.shutdown === 'function' ? workflowExecutionService.shutdown() : null)
         .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
         .then(() => shutdownExecutorServiceSafely(executorService))
         .then(() => shutdownSdkBridgeSafely(sdkBridge))
@@ -4919,6 +4943,7 @@ async function startServer(options = {}) {
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
             .then(() => stopDesktopUpdaterBackgroundWork())
+            .then(() => workflowExecutionService && typeof workflowExecutionService.shutdown === 'function' ? workflowExecutionService.shutdown() : null)
             .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
             .then(() => shutdownExecutorServiceSafely(executorService))
             .then(() => shutdownSdkBridgeSafely(sdkBridge))

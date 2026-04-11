@@ -92,12 +92,15 @@ function normalizeStep(input) {
     stepId: generateId('wfs'),
     label: String(input.label || '').trim(),
     objective: String(input.objective || '').trim(),
+    type: ['session', 'approval', 'hook'].includes(input.type) ? input.type : 'session',
     actorRole: String(input.actorRole || 'implementer').trim(),
     isolationMode: String(input.isolationMode || 'shared').trim(),
     approvalRequired: Boolean(input.approvalRequired),
     triggerCondition: ['on-complete', 'on-approve', 'manual'].includes(input.triggerCondition)
       ? input.triggerCondition
       : 'on-complete',
+    agentId: typeof input.agentId === 'string' ? input.agentId.trim() || null : null,
+    model: typeof input.model === 'string' ? input.model.trim() || null : null,
   };
 }
 
@@ -233,15 +236,22 @@ function createRun(copilotHome, input) {
     workflowRunId: generateId('wfr'),
     templateId: template.templateId,
     projectId: typeof input.projectId === 'string' ? input.projectId.trim() || null : null,
+    repoPath: typeof input.repoPath === 'string' ? input.repoPath.trim() || null : null,
     status: 'running',
     currentStepIndex: 0,
     steps: template.steps.map((s) => ({
       stepId: s.stepId,
+      label: s.label,
+      type: s.type || 'session',
       sessionId: null,
+      executorJobId: null,
+      executorRunId: null,
       status: 'pending',
       startedAt: null,
       completedAt: null,
       outcome: null,
+      error: null,
+      contextOutput: null,
     })),
     launchedAt: now,
     updatedAt: now,
@@ -271,6 +281,10 @@ function updateRunStep(copilotHome, workflowRunId, stepIndex, fields) {
     if (typeof fields.outcome === 'string') step.outcome = fields.outcome;
     if (typeof fields.startedAt === 'string') step.startedAt = fields.startedAt;
     if (typeof fields.completedAt === 'string') step.completedAt = fields.completedAt;
+    if (typeof fields.executorJobId === 'string') step.executorJobId = fields.executorJobId;
+    if (typeof fields.executorRunId === 'string') step.executorRunId = fields.executorRunId;
+    if (typeof fields.error === 'string') step.error = fields.error;
+    if (typeof fields.contextOutput === 'string') step.contextOutput = fields.contextOutput;
   }
 
   // Auto-advance if step completed and next step exists
