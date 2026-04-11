@@ -52,7 +52,7 @@ that reuses existing specialist lanes instead of adding a replacement reviewer.
 | Lane | Project-audit role | Primary normalized categories |
 | --- | --- | --- |
 | `stack-auditor` | framework/runtime pattern audit | `defect`, `improvement` |
-| `security-scanner` | attack-surface and security-risk audit | `defect`, `research_thread` |
+| `security-auditor` | attack-surface, security-risk audit, and remediation | `defect`, `research_thread` |
 | `logic-reviewer` | correctness and invariant overlay for suspicious or high-risk areas | `defect` |
 | `consistency-reviewer` | convention drift, docs/code alignment, and missing required canonical references | `rule_drift`, `authority_gap` |
 | `code-reviewer` | broad high-signal fallback for defects or cross-cutting quality risks | `defect`, `rule_drift` |
@@ -125,6 +125,23 @@ During orchestrator Phase 2 planning review:
 - `consistency-reviewer` may be added when convention fit, naming, structural alignment, or docs/code alignment is the main planning risk.
 - `code-reviewer` stays the broad fallback when no sharper planning-review lane fits.
 - These cross-model reviewers are primary for orchestrator planning review, but they do not replace the canonical responsibilities of the specialist and end-of-execution reviewers elsewhere.
+
+## Adversarial Review Posture
+
+When reviewer lanes are orchestrator-managed, they should apply an adversarial-but-evidence-bound
+posture:
+
+- try to falsify the current success claim before accepting it
+- challenge the strongest assumptions, hidden failure modes, and missing evidence first
+- stay inside the lane's native responsibility instead of expanding into unrelated critique
+- distinguish `missing evidence` from `confirmed defect`
+- surface improvement opportunities only when they materially improve correctness, confidence, safety,
+  or future reviewability
+- avoid speculative bug-hunting, low-signal polish, and duplicate findings across lanes
+
+This posture applies both to Phase 2 planning review and to review of already-implemented changes in
+Phase 4 verification. It sharpens the existing reviewer split; it does not create a new reviewer lane
+or authorize reviewer lanes to mutate the repo.
 
 ## Working Reviewer Operating Contract
 
@@ -252,7 +269,7 @@ GOAL_REVIEW
 - `engine-assets/agents/consistency-reviewer.agent.md`
 - `engine-assets/agents/impl-reviewer.agent.md`
 - `engine-assets/agents/logic-reviewer.agent.md`
-- `engine-assets/agents/security-scanner.agent.md`
+- `engine-assets/agents/security-auditor.agent.md`
 - `engine-assets/agents/stack-auditor.agent.md`
 - `engine-assets/agents/convention-governor.agent.md`
 - `engine-assets/agents/final-reviewer.agent.md`

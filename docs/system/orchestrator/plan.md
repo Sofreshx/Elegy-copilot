@@ -41,7 +41,7 @@ Create the new Orchestrator agent system in the instruction-engine repo.
   - Historical prototype Seamless Agent integration (with fallback)
   - Resume detection for active sessions
 - Tools (historical prototype assumption): read, edit, search, execute/runInTerminal, agent/runSubagent, todo, vscode/askQuestions, jraylan.seamless-agent/askUser, jraylan.seamless-agent/planReview, jraylan.seamless-agent/walkthroughReview, web/fetch, web/githubRepo
-- agents list: o-reframer, o-planner, search, execute, impl-infra, impl-business, impl-reviewer, final-reviewer, work-unit-runner, code-explorer, code-architect, code-reviewer, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, reviewer-gpt-5-4, reviewer-opus-4-6
+- agents list: o-reframer, o-planner, search, execute, impl, impl-reviewer, final-reviewer, work-unit-runner, code-explorer, code-architect, code-reviewer, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, reviewer-gpt-5-4, reviewer-opus-4-6
 - user-invocable: true
 - disable-model-invocation: true (orchestrator should use the best available model)
 

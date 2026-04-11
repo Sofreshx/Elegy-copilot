@@ -1775,6 +1775,36 @@ function handleCatalogRepoRefresh(ctx, deps) {
     ));
 }
 
+function handleProjectsList(ctx, deps) {
+  const state = deps.repoInventory.loadRepoInventoryState(ctx.copilotHomeAbs);
+  const projects = (state.manualRepos || []).map((entry) => deps.repoInventory.getProjectView(entry));
+  deps.sendJson(ctx.res, 200, projects);
+}
+
+function handleProjectUpdate(ctx, deps) {
+  const repoId = decodeURIComponent(ctx.match[1] || '');
+  if (!repoId) {
+    sendJsonError(ctx.res, deps.sendJson, 400, 'projects.update', 'Project ID is required');
+    return;
+  }
+  deps.readJsonBody(ctx.req)
+    .then((body) => {
+      const updated = deps.repoInventory.updateProjectFields(ctx.copilotHomeAbs, repoId, body);
+      if (!updated) {
+        sendJsonError(ctx.res, deps.sendJson, 404, 'projects.update', `Project not found: ${repoId}`);
+        return;
+      }
+      deps.sendJson(ctx.res, 200, deps.repoInventory.getProjectView(updated));
+    })
+    .catch((error) => sendJsonError(
+      ctx.res,
+      deps.sendJson,
+      error.statusCode || 500,
+      'projects.update',
+      String(error.message || error),
+    ));
+}
+
 function sendJsonError(res, sendJson, statusCode, kind, error) {
   sendJson(res, statusCode, {
     kind,
@@ -1931,6 +1961,16 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/runtime/catalog-health',
       handler: (ctx) => handleRuntimeCatalogHealth(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/projects',
+      handler: (ctx) => handleProjectsList(ctx, resolvedDeps),
+    },
+    {
+      method: 'PATCH',
+      path: /^\/api\/projects\/([^/]+)$/,
+      handler: (ctx) => handleProjectUpdate(ctx, resolvedDeps),
     },
   ];
 }

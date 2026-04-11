@@ -13,6 +13,10 @@ const {
   resolveRepoEntry,
   selectRepo,
   unregisterRepo,
+  extractCanonicalRemote,
+  getProjectView,
+  updateProjectFields,
+  loadRepoInventoryState,
 } = require('./repoInventoryService');
 
 let passed = 0;
@@ -245,6 +249,205 @@ async function run() {
       assert.ok(manualRepo, 'expected repo to remain discoverable via explicit path');
       assert.equal(manualRepo.registered, false);
       assert.equal(inventory.selectedRepo, null);
+    });
+
+    // --- extractCanonicalRemote tests ---
+
+    await test('extractCanonicalRemote parses HTTPS URL from .git/config', async () => {
+      const testRepo = path.join(tmpRoot, 'remote-https-repo');
+      fs.mkdirSync(path.join(testRepo, '.git'), { recursive: true });
+      writeText(path.join(testRepo, '.git', 'config'), [
+        '[core]',
+        '\trepositoryformatversion = 0',
+        '[remote "origin"]',
+        '\turl = https://github.com/octocat/hello-world.git',
+        '\tfetch = +refs/heads/*:refs/remotes/origin/*',
+        '',
+      ].join('\n'));
+      const result = extractCanonicalRemote(testRepo);
+      assert.equal(result, 'octocat/hello-world');
+    });
+
+    await test('extractCanonicalRemote parses SSH URL from .git/config', async () => {
+      const testRepo = path.join(tmpRoot, 'remote-ssh-repo');
+      fs.mkdirSync(path.join(testRepo, '.git'), { recursive: true });
+      writeText(path.join(testRepo, '.git', 'config'), [
+        '[remote "origin"]',
+        '\turl = git@github.com:myorg/my-project.git',
+        '\tfetch = +refs/heads/*:refs/remotes/origin/*',
+        '',
+      ].join('\n'));
+      const result = extractCanonicalRemote(testRepo);
+      assert.equal(result, 'myorg/my-project');
+    });
+
+    await test('extractCanonicalRemote returns null when no remote origin', async () => {
+      const testRepo = path.join(tmpRoot, 'no-remote-repo');
+      fs.mkdirSync(path.join(testRepo, '.git'), { recursive: true });
+      writeText(path.join(testRepo, '.git', 'config'), [
+        '[core]',
+        '\trepositoryformatversion = 0',
+        '',
+      ].join('\n'));
+      const result = extractCanonicalRemote(testRepo);
+      assert.equal(result, null);
+    });
+
+    await test('extractCanonicalRemote returns null for malformed URL', async () => {
+      const testRepo = path.join(tmpRoot, 'malformed-remote-repo');
+      fs.mkdirSync(path.join(testRepo, '.git'), { recursive: true });
+      writeText(path.join(testRepo, '.git', 'config'), [
+        '[remote "origin"]',
+        '\turl = not-a-valid-url',
+        '',
+      ].join('\n'));
+      const result = extractCanonicalRemote(testRepo);
+      assert.equal(result, null);
+    });
+
+    await test('extractCanonicalRemote returns null when .git/config does not exist', async () => {
+      const testRepo = path.join(tmpRoot, 'no-git-config-repo');
+      fs.mkdirSync(testRepo, { recursive: true });
+      const result = extractCanonicalRemote(testRepo);
+      assert.equal(result, null);
+    });
+
+    await test('extractCanonicalRemote strips .git suffix and trailing slashes from HTTPS', async () => {
+      const testRepo = path.join(tmpRoot, 'remote-trailing-repo');
+      fs.mkdirSync(path.join(testRepo, '.git'), { recursive: true });
+      writeText(path.join(testRepo, '.git', 'config'), [
+        '[remote "origin"]',
+        '\turl = https://gitlab.com/group/subgroup/myrepo.git/',
+        '',
+      ].join('\n'));
+      const result = extractCanonicalRemote(testRepo);
+      assert.equal(result, 'group/subgroup');
+    });
+
+    // --- getProjectView tests ---
+
+    await test('getProjectView returns correct shape with defaults', async () => {
+      const entry = {
+        repoId: 'test-repo-id',
+        repoPath: '/some/path',
+        repoLabel: 'Test Repo',
+        addedAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-01-02T00:00:00.000Z',
+        pinned: false,
+        lastActivityMs: null,
+        canonicalRemote: null,
+      };
+      const view = getProjectView(entry);
+      assert.equal(view.projectId, 'test-repo-id');
+      assert.equal(view.repoId, 'test-repo-id');
+      assert.equal(view.repoPath, '/some/path');
+      assert.equal(view.repoLabel, 'Test Repo');
+      assert.equal(view.canonicalRemote, null);
+      assert.equal(view.pinned, false);
+      assert.equal(view.lastActivityMs, null);
+      assert.equal(view.sessionCount, 0);
+      assert.equal(view.activeSessionCount, 0);
+      assert.deepEqual(view.installedAssetSummary, { agents: 0, skills: 0 });
+      assert.equal(view.createdAt, '2025-01-01T00:00:00.000Z');
+      assert.equal(view.updatedAt, '2025-01-02T00:00:00.000Z');
+    });
+
+    await test('getProjectView passes through non-default values', async () => {
+      const entry = {
+        repoId: 'proj-2',
+        repoPath: '/another/path',
+        repoLabel: 'Another',
+        addedAt: '2025-03-01T00:00:00.000Z',
+        updatedAt: '2025-03-02T00:00:00.000Z',
+        pinned: true,
+        lastActivityMs: 1700000000000,
+        canonicalRemote: 'org/repo',
+      };
+      const view = getProjectView(entry);
+      assert.equal(view.pinned, true);
+      assert.equal(view.lastActivityMs, 1700000000000);
+      assert.equal(view.canonicalRemote, 'org/repo');
+    });
+
+    // --- updateProjectFields tests ---
+
+    await test('updateProjectFields pins a registered repo', async () => {
+      // Re-register so we have a manual repo to update
+      registerRepo({
+        copilotHome,
+        engineRoot,
+        repoPath: manualRepoPath,
+        repoLabel: 'Manual Repo',
+        workspaceScanRoots: [scanRoot],
+      });
+
+      const stateBefore = loadRepoInventoryState(copilotHome);
+      const entry = stateBefore.manualRepos.find((e) => e.repoPath === path.resolve(manualRepoPath));
+      assert.ok(entry, 'expected manual repo entry');
+      assert.equal(entry.pinned, false);
+
+      const updated = updateProjectFields(copilotHome, entry.repoId, { pinned: true });
+      assert.ok(updated, 'expected updated entry');
+      assert.equal(updated.pinned, true);
+
+      // Verify persistence
+      const stateAfter = loadRepoInventoryState(copilotHome);
+      const persisted = stateAfter.manualRepos.find((e) => e.repoId === entry.repoId);
+      assert.ok(persisted, 'expected persisted entry');
+      assert.equal(persisted.pinned, true);
+    });
+
+    await test('updateProjectFields unpins a repo', async () => {
+      const stateBefore = loadRepoInventoryState(copilotHome);
+      const entry = stateBefore.manualRepos.find((e) => e.repoPath === path.resolve(manualRepoPath));
+      assert.ok(entry, 'expected manual repo entry');
+
+      const updated = updateProjectFields(copilotHome, entry.repoId, { pinned: false });
+      assert.ok(updated, 'expected updated entry');
+      assert.equal(updated.pinned, false);
+    });
+
+    await test('updateProjectFields updates canonicalRemote', async () => {
+      const stateBefore = loadRepoInventoryState(copilotHome);
+      const entry = stateBefore.manualRepos.find((e) => e.repoPath === path.resolve(manualRepoPath));
+      assert.ok(entry, 'expected manual repo entry');
+
+      const updated = updateProjectFields(copilotHome, entry.repoId, { canonicalRemote: 'org/my-repo' });
+      assert.ok(updated, 'expected updated entry');
+      assert.equal(updated.canonicalRemote, 'org/my-repo');
+    });
+
+    await test('updateProjectFields returns null for non-existent repoId', async () => {
+      const result = updateProjectFields(copilotHome, 'nonexistent-id-12345', { pinned: true });
+      assert.equal(result, null);
+    });
+
+    await test('updateProjectFields ignores disallowed fields', async () => {
+      const stateBefore = loadRepoInventoryState(copilotHome);
+      const entry = stateBefore.manualRepos.find((e) => e.repoPath === path.resolve(manualRepoPath));
+      assert.ok(entry, 'expected manual repo entry');
+
+      const updated = updateProjectFields(copilotHome, entry.repoId, {
+        repoLabel: 'SHOULD NOT CHANGE',
+        repoPath: '/should/not/change',
+        pinned: true,
+      });
+      assert.ok(updated, 'expected updated entry');
+      assert.equal(updated.pinned, true);
+      // repoLabel should still be what it was normalized to, not the injected value
+      assert.notEqual(updated.repoLabel, 'SHOULD NOT CHANGE');
+    });
+
+    // --- backward compatibility test ---
+
+    await test('normalizeManualRepoEntry applies defaults for old entries without new fields', async () => {
+      const stateBefore = loadRepoInventoryState(copilotHome);
+      // All entries should have the new fields with defaults
+      for (const entry of stateBefore.manualRepos) {
+        assert.equal(typeof entry.pinned, 'boolean', `expected pinned to be boolean for ${entry.repoId}`);
+        assert.ok(entry.lastActivityMs === null || typeof entry.lastActivityMs === 'number', `expected lastActivityMs to be null or number for ${entry.repoId}`);
+        assert.ok(entry.canonicalRemote === null || typeof entry.canonicalRemote === 'string', `expected canonicalRemote to be null or string for ${entry.repoId}`);
+      }
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

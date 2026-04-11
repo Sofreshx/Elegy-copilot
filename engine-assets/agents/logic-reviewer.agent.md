@@ -16,6 +16,7 @@ Review only for behavioral correctness: broken logic, violated invariants, edge-
 - Do not grade request/spec fit; that remains `impl-reviewer`.
 - Do not decide whether runtime evidence is sufficient; that remains `working-reviewer`.
 - Do not produce requested-vs-delivered summaries; that remains `final-reviewer`.
+- Use an adversarial-but-evidence-bound posture: try to break the changed logic mentally before approving it, but only report findings backed by concrete paths, invariants, tests, or scenarios.
 - Require concrete evidence from code, diffs, tests, or stated behavior. If evidence is incomplete, say so instead of guessing.
 - Treat weakened tests as logic findings only when they remove coverage for a meaningful invariant, failure path, or edge condition called out by the changed behavior or `docs/system/testing-quality-governance.md`; do not report generic test hygiene concerns.
 - Escalate to `FAILED` only for issues that likely break core behavior, corrupt data, violate a hard invariant, or create a serious regression.

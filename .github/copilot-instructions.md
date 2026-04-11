@@ -129,11 +129,11 @@ Legacy note:
 
 ## Delegation (Use Subagents)
 Use subagents to keep work high-signal and consistent. Prefer only the ones that clearly apply:
-- **Orchestrator (recommended)**: `@orchestrator` — single entry point for all complex work. Routes by complexity (trivial/standard/complex), delegates to specialized subagents. Replaces all executive variants.
+- **Orchestrator**: `@orchestrator` (VS Code) or `@orchestrator-cli` (Copilot CLI — uses native Rubber Duck for plan review). Single entry point for complex work.
 - **Search/Execute (preferred capability routing)**: use `@search` to resolve the smallest relevant capability, then `@execute` to turn it into a compact downstream brief before loading heavy context.
-- Core: `@debugger`, `@code-explorer`, `@code-reviewer`, `@unit-test-runner`, `@integration-test-runner`.
-- Testing: use `@unit-test-runner` for unit tests; use `@integration-test-runner` only when explicitly requested.
-- Audit: use `@security-auditor`, `@stack-auditor`, and `@deploy-auditor` depending on the change.
+- Core: `@code-explorer`, `@code-reviewer`, `@unit-test-runner`, `@integration-test-runner`.
+- Implementation: `@impl` (unified — accepts `kind: business | infra`).
+- Audit: `@security-auditor`, `@stack-auditor`, and `@deploy-auditor` depending on the change.
 - Tasking: use `@orchestrator` to plan and execute; avoid creating repo-local task files.
 - Planning: `@orchestrator` (preferred) for all planning workflows.
 - Context: keep durable notes in repo docs or host artifacts (context-curator removed).

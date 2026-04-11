@@ -14,7 +14,15 @@ const approvedCoordinatorConfigs = new Map([
 		{
 			optional: false,
 			allowedDelegates: null,
-			allowedApprovedDelegates: new Set(['e2e-validator', 'o-plan-coordinator', 'o-validation-coordinator']),
+			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
+		},
+	],
+	[
+		'orchestrator-cli',
+		{
+			optional: true,
+			allowedDelegates: null,
+			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
 		},
 	],
 	[
@@ -22,21 +30,6 @@ const approvedCoordinatorConfigs = new Map([
 		{
 			optional: false,
 			allowedDelegates: new Set(['e2e-browser']),
-			allowedApprovedDelegates: new Set(),
-		},
-	],
-	[
-		'o-plan-coordinator',
-		{
-			optional: true,
-			allowedDelegates: new Set([
-				'search',
-				'execute',
-				'code-explorer',
-				'code-architect',
-				'research-ideation',
-				'o-planner',
-			]),
 			allowedApprovedDelegates: new Set(),
 		},
 	],
@@ -51,8 +44,7 @@ const approvedCoordinatorConfigs = new Map([
 ]);
 
 const writeCapableImplementationLanes = new Set([
-	'impl-business',
-	'impl-infra',
+	'impl',
 	'work-unit-runner',
 ]);
 
@@ -65,7 +57,6 @@ const reviewerLanes = new Set([
 	'logic-reviewer',
 	'reviewer-gpt-5-4',
 	'reviewer-opus-4-6',
-	'superpowers-code-reviewer',
 	'working-reviewer',
 ]);
 
@@ -412,10 +403,10 @@ function validateAllowedDelegates(agentDefinition, config, knownCoordinatorNames
 			continue;
 		}
 
-		if (name === 'orchestrator') {
+		if (name === 'orchestrator' || name === 'orchestrator-cli') {
 			if (knownCoordinatorNames.has(delegate) && !config.allowedApprovedDelegates.has(delegate)) {
 				errors.push(
-					`${relPath}: root coordinator 'orchestrator' may only delegate to approved coordinators ${formatAgentList([...config.allowedApprovedDelegates])}; found '${delegate}'.`
+					`${relPath}: root coordinator '${name}' may only delegate to approved coordinators ${formatAgentList([...config.allowedApprovedDelegates])}; found '${delegate}'.`
 				);
 			}
 			continue;

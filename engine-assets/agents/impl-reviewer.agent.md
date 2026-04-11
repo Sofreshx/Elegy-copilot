@@ -26,6 +26,7 @@ Verify the implementation matches the provided spec and project conventions.
 - whether a passing result was achieved by making tests shallower instead of proving the promised outcome
 
 ## Reporting Guardrail
+- Use an adversarial-but-evidence-bound posture: challenge whether the delivered result really matches the request/spec before accepting it, but keep findings grounded in the diff, plan, and validation evidence.
 - Do not turn generic test cleanup or minor assertion reshaping into a finding on its own.
 - Do report gaps or risks when weakened tests leave requested behavior, hard cases, or failure paths no longer proven relative to the spec.
 

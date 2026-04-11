@@ -1,16 +1,21 @@
 ---
 created: 2026-03-21
-updated: 2026-03-21
+updated: 2026-04-10
 category: research
-status: draft
+status: stale
 doc_kind: node
 id: runtime-modernization-progress
-summary: Tracks implementation progress for runtime navigation stability, startup managed-asset reconciliation, execution redesign, sandbox integration, and planned stats observability.
+summary: Historical progress note for earlier runtime modernization slices; current runtime authority lives in the canonical copilot-ui docs.
 tags: [copilot-ui, runtime, execution, sandbox, stats]
 related: [copilot-ui-guide, skill-discovery-telemetry, skill-invocation-observability-contract]
 ---
 
 # Runtime Modernization Progress
+
+This note is a historical progress log, not the current runtime authority. For the current
+`copilot-ui` runtime, MVP, overlay, and planning-surface behavior, use
+[docs/system/copilot-ui-guide.md](../system/copilot-ui-guide.md) and
+[docs/system/planning-backlog-roadmap-contract.md](../system/planning-backlog-roadmap-contract.md).
 
 ## Scope
 

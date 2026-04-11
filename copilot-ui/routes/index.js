@@ -94,9 +94,11 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./gateway'), context);
   registry.registerModule(require('./tracker'), context);
   registry.registerModule(require('./desktopUpdater'), context);
+  registry.registerModule(require('./dashboard'), context);
 
   registry.registerModule(require('./sdk'), context);
   registry.registerModule(require('./executor'), context);
+  registry.registerModule(require('./workflows'), context);
 
   return registry;
 }

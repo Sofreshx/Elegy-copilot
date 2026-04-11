@@ -1,17 +1,27 @@
 import { useEffect } from 'react';
-import TabShell from './components/TabShell';
+import AppLayout from './components/AppLayout';
+import Sidebar from './components/Sidebar';
+import StatusBar from './components/StatusBar';
 import { getDesktopUpdaterPresentation } from './lib/desktopUpdaterPresentation';
 import { useStoreValue } from './lib/store';
-import { navigationStore, NAVIGATION_TABS } from './stores/navigation';
+import {
+  navigationStore,
+  SIDEBAR_NAV_ITEMS,
+  type SidebarItemId,
+} from './stores/navigation';
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { sdkHealthStore } from './stores/sdkHealthStore';
 import CatalogView from './tabs/Catalog/CatalogView';
 import HomeRuntimeView from './tabs/HomeRuntime/HomeRuntimeView';
 import PlanningView from './tabs/Planning/PlanningView';
 import StatsView from './tabs/Stats/StatsView';
-
-const environmentLabel = 'Desktop app';
-const productName = 'Elegy Copilot';
+import DashboardView from './views/DashboardView';
+import AddProjectWizard from './views/Project/AddProjectWizard';
+import ProjectOverview from './views/Project/ProjectOverview';
+import ProjectsListView from './views/Project/ProjectsListView';
+import SessionDetailView from './views/Sessions/SessionDetailView';
+import SessionsListView from './views/Sessions/SessionsListView';
+import SessionWizard from './views/Sessions/SessionWizard';
 
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
@@ -58,81 +68,84 @@ export default function App() {
 
   const desktopUpdaterPresentation = getDesktopUpdaterPresentation(desktopUpdaterState);
 
-  return (
-    <main aria-labelledby="elegy-copilot-title" className="app-shell">
-      <header className="hero-card">
-        <p className="kicker">{environmentLabel}</p>
-        <div className="hero-status-stack">
-          <p className={`sdk-health-indicator sdk-health-${sdkHealthClassName}`}>
-            SDK Health: {sdkHealthSummary}
-          </p>
-          <p className={`desktop-cli-indicator desktop-cli-${managedCliTone}`} data-testid="desktop-cli-status">
-            Copilot CLI: {managedCliSummary}
-          </p>
-          <p className={`desktop-updater-indicator desktop-updater-${desktopUpdaterPresentation.tone}`} data-testid="desktop-updater-status">
-            Update status: {desktopUpdaterPresentation.summary}
-          </p>
-        </div>
-        <h1 id="elegy-copilot-title">{productName}</h1>
-        <p>
-          Planning-first workspace for turning ideas into repo-targeted plans, managing assets,
-          operating sessions, and checking system readiness without scattering the workflow across
-          overlapping tabs.
-        </p>
-        <div className="hero-actions" data-testid="desktop-updater-actions">
-          <button
-            className="button button-secondary button-sm"
-            data-testid="desktop-updater-check"
-            disabled={!desktopUpdaterState.canCheckForUpdates}
-            onClick={() => {
-              void desktopUpdaterStore.checkForUpdates();
-            }}
-            type="button"
-          >
-            Check for updates
-          </button>
-          {desktopUpdaterState.canDownload ? (
-            <button
-              className="button button-primary button-sm"
-              data-testid="desktop-updater-download"
-              onClick={() => {
-                void desktopUpdaterStore.downloadUpdate();
-              }}
-              type="button"
-            >
-              Download update
-            </button>
-          ) : null}
-          {desktopUpdaterState.canRestartToUpdate ? (
-            <button
-              className="button button-primary button-sm"
-              data-testid="desktop-updater-restart"
-              onClick={() => {
-                void desktopUpdaterStore.restartToUpdate();
-              }}
-              type="button"
-            >
-              Launch installer
-            </button>
-          ) : null}
-        </div>
-      </header>
+  function renderContent() {
+    // Wizards take priority when open
+    if (navigationState.wizardOpen === 'session') {
+      return <SessionWizard />;
+    }
+    if (navigationState.wizardOpen === 'project') {
+      return <AddProjectWizard />;
+    }
 
-      <TabShell
-        activeTabId={navigationState.activeTabId}
-        tabs={NAVIGATION_TABS}
-        tablistLabel="Elegy Copilot sections"
-        onTabChange={(tabId) => navigationStore.setActiveTabId(tabId)}
-      >
-        {navigationState.activeTabId === 'home-runtime' ? <HomeRuntimeView /> : null}
-        {navigationState.activeTabId === 'catalog' ? <CatalogView /> : null}
-        {navigationState.activeTabId === 'planning' ? (
+    // Session detail takes priority when a session is selected
+    if (navigationState.selectedSessionId) {
+      return <SessionDetailView />;
+    }
+
+    switch (navigationState.activeSidebarItem) {
+      case 'dashboard':
+        return <DashboardView />;
+      case 'projects':
+        return navigationState.selectedProjectId
+          ? <ProjectOverview />
+          : <ProjectsListView />;
+      case 'catalog':
+        return <CatalogView />;
+      case 'planning':
+        return (
           <PlanningView onSdkSessionReady={() => {
             navigationStore.goToRuntime('sessions', { sessionsMode: 'sdk' });
           }} />
-        ) : null}
-        {navigationState.activeTabId === 'stats' ? <StatsView /> : null}
-      </TabShell>
-    </main>
+        );
+      case 'maintenance':
+        // Phase 1a bridge: show diagnostics + stats
+        return (
+          <>
+            <HomeRuntimeView />
+            <StatsView />
+          </>
+        );
+      case 'settings':
+        return (
+          <div className="settings-placeholder" data-testid="settings-placeholder">
+            Settings — coming soon
+          </div>
+        );
+      default:
+        return <DashboardView />;
+    }
+  }
+
+  return (
+    <AppLayout
+      statusBar={
+        <StatusBar
+          sdkHealthClassName={sdkHealthClassName}
+          sdkHealthSummary={sdkHealthSummary}
+          managedCliTone={managedCliTone}
+          managedCliSummary={managedCliSummary}
+          desktopUpdaterTone={desktopUpdaterPresentation.tone}
+          desktopUpdaterSummary={desktopUpdaterPresentation.summary}
+          canCheckForUpdates={desktopUpdaterState.canCheckForUpdates}
+          canDownload={desktopUpdaterState.canDownload}
+          canRestartToUpdate={desktopUpdaterState.canRestartToUpdate}
+          onCheckForUpdates={() => void desktopUpdaterStore.checkForUpdates()}
+          onDownloadUpdate={() => void desktopUpdaterStore.downloadUpdate()}
+          onRestartToUpdate={() => void desktopUpdaterStore.restartToUpdate()}
+        />
+      }
+      sidebar={
+        <Sidebar
+          items={SIDEBAR_NAV_ITEMS}
+          activeItem={navigationState.activeSidebarItem}
+          onNavigate={(id: SidebarItemId) => navigationStore.navigate(id)}
+          adminMode={navigationState.adminMode}
+          onToggleAdmin={() => navigationStore.toggleAdmin()}
+          onNewSession={() => navigationStore.openWizard('session')}
+        />
+      }
+    >
+      {renderContent()}
+    </AppLayout>
   );
 }

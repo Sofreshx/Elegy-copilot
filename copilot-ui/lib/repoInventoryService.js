@@ -154,6 +154,9 @@ function normalizeManualRepoEntry(entry, now = new Date().toISOString()) {
     repoLabel: normalizeString(entry?.repoLabel || entry?.label) || repoKey.repoLabel,
     addedAt: normalizeString(entry?.addedAt) || now,
     updatedAt: normalizeString(entry?.updatedAt) || normalizeString(entry?.addedAt) || now,
+    pinned: typeof entry?.pinned === 'boolean' ? entry.pinned : false,
+    lastActivityMs: typeof entry?.lastActivityMs === 'number' && Number.isFinite(entry.lastActivityMs) ? entry.lastActivityMs : null,
+    canonicalRemote: normalizeString(entry?.canonicalRemote) || null,
   };
 }
 
@@ -923,6 +926,159 @@ function selectRepo(options = {}) {
   };
 }
 
+/**
+ * Extract the canonical remote (owner/repo) from the git config at the given repo path.
+ * Parses .git/config directly — does NOT shell out to git.
+ * Returns null if no remote origin or URL is not parseable as GitHub/GitLab style.
+ * @param {string} repoPath
+ * @returns {string|null}
+ */
+function extractCanonicalRemote(repoPath) {
+  const resolved = normalizeRepoPath(repoPath);
+  if (!resolved) {
+    return null;
+  }
+  const gitConfigPath = path.join(resolved, '.git', 'config');
+  let content;
+  try {
+    content = fs.readFileSync(gitConfigPath, 'utf8');
+  } catch {
+    return null;
+  }
+
+  // Find [remote "origin"] section and extract url line
+  const lines = content.split(/\r?\n/);
+  let inOriginSection = false;
+  let originUrl = null;
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^\[remote\s+"origin"\]$/i.test(trimmed)) {
+      inOriginSection = true;
+      continue;
+    }
+    if (inOriginSection && /^\[/.test(trimmed)) {
+      // entered a new section, stop
+      break;
+    }
+    if (inOriginSection) {
+      const urlMatch = trimmed.match(/^url\s*=\s*(.+)$/i);
+      if (urlMatch) {
+        originUrl = urlMatch[1].trim();
+        break;
+      }
+    }
+  }
+
+  if (!originUrl) {
+    return null;
+  }
+
+  // Normalize SSH: git@github.com:owner/repo.git => owner/repo
+  const sshMatch = originUrl.match(/^git@[^:]+:(.+)$/);
+  if (sshMatch) {
+    return normalizeSuffix(sshMatch[1]);
+  }
+
+  // Normalize HTTPS: https://github.com/owner/repo.git => owner/repo
+  try {
+    const parsed = new URL(originUrl);
+    const pathname = parsed.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
+    if (pathname) {
+      return normalizeSuffix(pathname);
+    }
+  } catch {
+    // not a valid URL
+  }
+
+  return null;
+}
+
+function normalizeSuffix(raw) {
+  const cleaned = raw.replace(/\.git$/, '').replace(/\/+$/, '').replace(/^\/+/, '');
+  // Must look like owner/repo (at least two segments)
+  const segments = cleaned.split('/').filter(Boolean);
+  if (segments.length >= 2) {
+    return segments.slice(0, 2).join('/');
+  }
+  return null;
+}
+
+/**
+ * Build a Project-shaped view object from a manual repo entry.
+ * Placeholder fields (sessionCount, activeSessionCount, installedAssetSummary)
+ * are set to zero/empty and expected to be populated by the caller.
+ * @param {object} entry — normalized manual repo entry
+ * @returns {object}
+ */
+function getProjectView(entry) {
+  return {
+    projectId: entry.repoId,
+    repoId: entry.repoId,
+    repoPath: entry.repoPath,
+    repoLabel: entry.repoLabel,
+    canonicalRemote: entry.canonicalRemote || null,
+    pinned: entry.pinned || false,
+    lastActivityMs: entry.lastActivityMs || null,
+    sessionCount: 0,
+    activeSessionCount: 0,
+    installedAssetSummary: { agents: 0, skills: 0 },
+    createdAt: entry.addedAt,
+    updatedAt: entry.updatedAt,
+  };
+}
+
+/**
+ * Update allowed project-level fields on a manual repo entry.
+ * Allowed fields: pinned, lastActivityMs, canonicalRemote.
+ * @param {string} copilotHome
+ * @param {string} repoId
+ * @param {object} fields
+ * @returns {object|null} — updated entry, or null if repoId not found
+ */
+function updateProjectFields(copilotHome, repoId, fields) {
+  const resolved = resolveCopilotHome(copilotHome);
+  const state = loadRepoInventoryState(resolved);
+  const targetId = normalizeString(repoId);
+  if (!targetId) {
+    return null;
+  }
+
+  const index = state.manualRepos.findIndex((entry) => entry.repoId === targetId);
+  if (index === -1) {
+    return null;
+  }
+
+  const entry = state.manualRepos[index];
+  const allowedFields = {};
+  if (fields && typeof fields === 'object') {
+    if (typeof fields.pinned === 'boolean') {
+      allowedFields.pinned = fields.pinned;
+    }
+    if (typeof fields.lastActivityMs === 'number' && Number.isFinite(fields.lastActivityMs)) {
+      allowedFields.lastActivityMs = fields.lastActivityMs;
+    } else if (fields.lastActivityMs === null) {
+      allowedFields.lastActivityMs = null;
+    }
+    if (typeof fields.canonicalRemote === 'string') {
+      allowedFields.canonicalRemote = fields.canonicalRemote.trim() || null;
+    } else if (fields.canonicalRemote === null) {
+      allowedFields.canonicalRemote = null;
+    }
+  }
+
+  const updated = {
+    ...entry,
+    ...allowedFields,
+    updatedAt: new Date().toISOString(),
+  };
+  state.manualRepos[index] = updated;
+  saveRepoInventoryState(resolved, state);
+
+  // Re-load to get the fully normalized entry
+  const refreshed = loadRepoInventoryState(resolved);
+  return refreshed.manualRepos.find((e) => e.repoId === targetId) || updated;
+}
+
 module.exports = {
   REPO_INVENTORY_SCHEMA_VERSION,
   resolveRepoInventoryPath,
@@ -933,4 +1089,7 @@ module.exports = {
   registerRepo,
   unregisterRepo,
   selectRepo,
+  extractCanonicalRemote,
+  getProjectView,
+  updateProjectFields,
 };

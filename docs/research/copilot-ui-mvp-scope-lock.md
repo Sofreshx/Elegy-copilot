@@ -1,16 +1,19 @@
 ---
 created: 2026-04-07
-updated: 2026-04-07
+updated: 2026-04-10
 category: research
-status: current
+status: stale
 doc_kind: node
 id: copilot-ui-mvp-scope-lock
-summary: Clarified MVP boundary and sequencing note for the local desktop control plane, task board, workflow layer, and channel-paired toolchain delivery.
+summary: Historical MVP boundary note retained for context; current copilot-ui runtime authority lives in the canonical guide.
 tags: [copilot-ui, mvp, task-board, workflows, desktop]
 related: [copilot-ui-guide, copilot-ui-information-architecture-freeze, copilot-sdk-integration-adr, domain-authorities-freeze]
 ---
 
 # copilot-ui MVP Scope Lock
+
+This is a historical scope note. For the current MVP, runtime surface, and overlay behavior, use
+[docs/system/copilot-ui-guide.md](../system/copilot-ui-guide.md).
 
 ## Purpose
 

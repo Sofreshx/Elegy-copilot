@@ -342,6 +342,90 @@ async function run() {
     assert.deepEqual(body.history[0].workspace.linkedRepos, []);
   });
 
+  await test('GET /api/sessions/workspace excludes history artifact and archive rows when a linked overlay session is live in runtime', async () => {
+    const routes = register({
+      sessions: {
+        listSessions(home) {
+          if (home === 'C:\\cli-home') {
+            return [
+              {
+                id: 'session-overlay-linked',
+                cwd: 'C:\\repo-overlay',
+                status: 'idle',
+                resolvedStatus: 'idle',
+              },
+            ];
+          }
+          return [];
+        },
+        listSandboxSessions() {
+          return [];
+        },
+        listArchivedSessions(home) {
+          if (home === 'C:\\cli-home') {
+            return [
+              {
+                id: 'session-overlay-linked',
+                archiveId: 'session-overlay-linked',
+                cwd: 'C:\\repo-overlay',
+                status: 'archived',
+              },
+            ];
+          }
+          return [];
+        },
+        listSandboxArchivedSessions() {
+          return [];
+        },
+        applySessionReconciliation(session) {
+          return {
+            ...session,
+            authority: 'fs',
+            reconciliation: {
+              reason: 'artifact_only',
+              sourceOfTruth: 'artifact',
+            },
+          };
+        },
+        dedupeAllSources(rows) {
+          return rows;
+        },
+      },
+      sdkBridge: {
+        listSdkSessions() {
+          return [];
+        },
+      },
+      uiRuntimeOverlayService: {
+        listSessions() {
+          return [
+            {
+              id: 'overlay-1',
+              linkedSessionId: 'session-overlay-linked',
+              status: 'attached',
+              repoId: 'repo-overlay',
+              repoPath: 'C:\\repo-overlay',
+              repoLabel: 'Repo Overlay',
+              createdAt: '2026-04-07T12:05:00.000Z',
+              updatedAt: '2026-04-07T12:06:00.000Z',
+            },
+          ];
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\cli-home',
+      vscodeHome: 'C:\\vscode-home',
+      sandboxesHome: 'C:\\sandboxes-home',
+    }, 'GET', '/api/sessions/workspace');
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(body.active.map((entry) => entry.kind), ['overlay']);
+    assert.deepEqual(body.active.map((entry) => entry.title), ['overlay-1']);
+    assert.deepEqual(body.history, []);
+  });
+
   await test('GET /api/sessions?source=all does not duplicate projected sessions when cli and vscode homes resolve to the same path', async () => {
     const listSessionHomes = [];
     const routes = register({

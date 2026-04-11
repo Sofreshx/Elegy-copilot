@@ -21,6 +21,7 @@ const {
   normalizeSessionOrchestrationActor,
 } = require('../lib/runtimeContracts');
 const sessionArtifactsLib = require('../lib/sessionArtifacts');
+const sessionAggregationLib = require('../lib/sessionAggregation');
 const { sendJson: defaultSendJson, sendText: defaultSendText, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
 const SANDBOX_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,63}$/;
@@ -628,8 +629,17 @@ function handleSessionsWorkspace(ctx, deps) {
 
       const historyArtifactEntries = artifactSessions
         .filter((session) => normalizeArtifactWorkspaceStatus(session) !== 'active')
+        .filter((session) => {
+          const sessionId = normalizeString(session && session.id).toLowerCase();
+          return !sessionId || !runtimeSessionIds.has(sessionId);
+        })
         .map((session) => buildArtifactWorkspaceEntry(session, deps.path));
-      const historyArchiveEntries = archivedSessions.map((session) => buildArchiveWorkspaceEntry(session, deps.path));
+      const historyArchiveEntries = archivedSessions
+        .filter((session) => {
+          const sessionId = normalizeString(session && session.id).toLowerCase();
+          return !sessionId || !runtimeSessionIds.has(sessionId);
+        })
+        .map((session) => buildArchiveWorkspaceEntry(session, deps.path));
 
       sendJson(res, 200, buildSessionsWorkspaceResponse(
         [...runtimeEntries, ...activeArtifactEntries],
@@ -1686,6 +1696,33 @@ function handleSessionDelete(ctx, deps) {
     .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source }));
 }
 
+function handleUnifiedSessions(ctx, deps) {
+  const { res, u, copilotHome, sandboxesHome } = ctx;
+  const { sendJson, parseNumberQuery, sessionAggregation } = deps;
+
+  try {
+    const all = sessionAggregation.buildUnifiedSessions(copilotHome, { sandboxesHome });
+
+    const projectIdFilter = u.searchParams.get('projectId') || '';
+    const statusFilter = u.searchParams.get('status') || '';
+    const limit = Math.max(1, Math.min(10000, Math.floor(parseNumberQuery(u.searchParams, 'limit', 100))));
+
+    let result = all;
+    if (projectIdFilter) {
+      result = result.filter((s) => s.projectId === projectIdFilter);
+    }
+    if (statusFilter) {
+      const normalized = statusFilter.trim().toLowerCase();
+      result = result.filter((s) => s.status === normalized);
+    }
+    result = result.slice(0, limit);
+
+    sendJson(res, 200, result);
+  } catch (e) {
+    sendJson(res, e.statusCode || 500, { error: String(e.message || e) });
+  }
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     crypto: deps.crypto || crypto,
@@ -1700,6 +1737,7 @@ function register(deps = {}) {
     repositoryBacklogFile: deps.repositoryBacklogFile || repositoryBacklogFileLib,
     sessionPlanRoadmapSync: deps.sessionPlanRoadmapSync || sessionPlanRoadmapSyncLib,
     sessionArtifacts: deps.sessionArtifacts || sessionArtifactsLib,
+    sessionAggregation: deps.sessionAggregation || sessionAggregationLib,
     sdkBridge: deps.sdkBridge || null,
     executorService: deps.executorService || null,
     workflowLayerService: deps.workflowLayerService || null,
@@ -1721,6 +1759,11 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/sessions/workspace',
       handler: (ctx) => handleSessionsWorkspace(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/sessions/unified',
+      handler: (ctx) => handleUnifiedSessions(ctx, resolvedDeps),
     },
     {
       method: 'GET',

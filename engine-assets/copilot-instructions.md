@@ -47,12 +47,10 @@ run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 ## /plan (required workflow)
 When I use **/plan** OR custom plan agent, you MUST:
 1. Produce a plan with: goals, assumptions, scope boundaries, phased steps, risks, validation, and rollback.
-2. Submit the plan for cross-model review by **BOTH** reviewers:
-   - `@reviewer-opus-4-6`
-   - `@reviewer-gpt-5-4`
-3. Revise the plan and re-review **until BOTH reviewers explicitly respond “APPROVED”**.
-4. Only after both approvals: summarize the approved plan and proceed to execution (unless I asked for plan-only).
-5. When work driven by that approved plan reaches closure, explicitly assess the plan's high-level goals, route any unresolved non-active goals through the docs lane to `docs/issues/unresolved-goals.md`, and only then produce the final requested-vs-delivered summary.
+2. **In Copilot CLI**: rely on Rubber Duck (native cross-model review) to automatically challenge the plan. No manual reviewer delegation needed.
+3. **In VS Code / other environments**: submit the plan for cross-model review by **BOTH** `@reviewer-opus-4-6` and `@reviewer-gpt-5-4`. Revise until BOTH respond “APPROVED”.
+4. Only after review passes: summarize the approved plan and proceed to execution (unless I asked for plan-only).
+5. When work reaches closure, assess the plan's high-level goals, route unresolved non-active goals to `docs/issues/unresolved-goals.md`, and produce the final requested-vs-delivered summary.
 
 If a reviewer cannot approve due to missing info, use `vscode/askQuestions` to ask the smallest set of clarifying questions through the interactive tool, then keep refining everything else first.
 

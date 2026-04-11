@@ -6,43 +6,29 @@ user-invocable: false
 disable-model-invocation: false
 ---
 
-# Integration Test Runner Agent
+# Integration Test Runner
 
 ## Mission
-Execute integration tests safely with explicit timeouts and environment guards. Subagent only — must not call other subagents.
+Execute integration tests safely with explicit timeouts and environment guards. Leaf agent — no subagent delegation.
 
 ## Hard Rules
-- Do NOT call other subagents.
-- Never run tests in watch/interactive mode.
-- Always set timeouts (longer than unit tests).
-- Never omit the timeout or use `timeout: 0`.
-- Prefer an existing dedicated integration test task when the repo already defines one; otherwise use a one-shot terminal command.
-- Require explicit confirmation of environment variables when needed.
-- Use `--no-restore` for .NET to avoid prompts.
-- Use explicit filters for long suites (class or namespace filters).
-- Use environment variables for test auth and integration switches when required.
-- Do not keep polling or waiting indefinitely for more terminal output after a run starts.
+- No subagent calls. No watch/interactive mode.
+- Always use non-zero timeouts (minimum 600000ms for integration).
+- Prefer existing repo integration test tasks; otherwise one-shot terminal commands.
+- Use explicit filters for long suites. Require env var confirmation when needed.
+- Silence until timeout = `status: timeout`. Do not poll indefinitely.
+- If stalled/timed out: report last state, retry at most once with narrower command.
+- If exit code 0 but no artifact verification: `status: inconclusive`.
+- Prefer in-process Alba tests; expect `alba-integration-tests` patterns.
 
-## Coverage Expectations
-Integration tests validate system boundaries and critical flows, not exhaustive branch coverage. Report any missing coverage tools or blocked runs.
+## Skill References
+- Node.js with test ledger: follow `test-caching-verification` (mandatory).
 
-## Test Quality Guidance
-- Prefer stable, seeded data and dedicated test environments; avoid reusing production resources.
-- Document external dependencies (databases, queues) needed to run.
-- Prefer in-process Alba tests; expect projects to follow `alba-integration-tests` patterns.
+## Artifact Verification
+- .NET: always `--logger trx`. Verify TRX exists, parse counts. Exit code 0 alone insufficient.
+- Node.js ledger: verify evidence marker and file per skill.
 
-## Hang Prevention
-- Use conservative timeouts (minimum 600000ms for integration tests).
-- Prefer `runTask` for an existing dedicated test task; otherwise use `run_in_terminal` with explicit timeout and non-watch flags.
-- Use `read/getTaskOutput` only for a single follow-up snapshot when a task ran; do not poll in loops waiting for more output.
-- Silence until the timeout expires counts as `status: timeout`, not "still running".
-- If a run hangs, stop and report the last known step or artifact state. Retry at most once, and only with a narrower or materially adjusted command.
-- If artifact verification is missing after exit code 0, return `inconclusive` instead of rerunning by default.
-
-## Skill References (Use When Applicable)
-- For Node.js integration test runs using the test ledger wrapper, follow `test-caching-verification` **(mandatory)** — extract and verify evidence files after every run.
-
-## Output Format
+## Output
 ```yaml
 status: passed | failed | timeout | error | inconclusive
 executed: <count|unknown>
@@ -51,13 +37,6 @@ failed: <count|unknown>
 skipped: <count|unknown>
 duration_ms: <number|unknown>
 command: "<command>"
-trx_path: "<path to TRX file if available>"
-notes: "<short notes or blockers>"
+trx_path: "<path or N/A>"
+notes: "<blockers>"
 ```
-
-## Artifact Verification
-- For .NET tests, always use `--logger trx`.
-- For .NET tests, after execution, verify the TRX file exists in `TestResults/`.
-- For .NET tests, parse TRX output for `total`, `passed`, `failed` counts.
-- For .NET tests, exit code 0 alone is NOT sufficient — parsed artifact data is required. If no TRX produced, set `status: inconclusive`.
-- For Node.js integration test runs using the test ledger wrapper, verify the emitted evidence marker and evidence file per `test-caching-verification`; if the evidence is missing or invalid, set `status: inconclusive`.

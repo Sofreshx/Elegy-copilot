@@ -1,50 +1,21 @@
 ---
 created: 2026-03-31
-updated: 2026-03-31
+updated: 2026-04-10
 category: meta
 status: current
 doc_kind: node
-summary: Repo roadmap for attach-first UI runtime overlay capabilities in copilot-ui.
+summary: Repo roadmap for remaining attach-first UI runtime overlay work in copilot-ui, with compact completed-foundation lineage.
 ---
 
 # UI Runtime Overlay
 
 ## Overview
-UI Runtime Overlay extends copilot-ui as the local control plane for attach-first runtime observation. The roadmap starts by binding a running app to a selected repo and a snapshot-first observation contract, then adds Home / Runtime operator UX, element-level issue and change-request flow, and bounded validation for UI quality signals; Preview Mode remains a later explicit-recipe lane rather than an early promise.
+UI Runtime Overlay extends copilot-ui as the local control plane for attach-first runtime observation.
+Current runtime behavior authority remains
+[docs/system/copilot-ui-guide.md](../system/copilot-ui-guide.md); this roadmap focuses on the
+remaining delivery work first and keeps completed foundation items short for lineage.
 
-## Roadmap Items
-### RM-ui-runtime-overlay-001 — Bind Attach Mode to verified runtime and repo context
-- Phase: Phase 0 - Attach Foundation
-- Status: complete
-- Summary: Establish Attach Mode session registration, runtime URL binding, selected-repo or folder linking, and capability gating so copilot-ui can safely attach to a real app and know which codebase it is allowed to affect.
-- Notes: The current overlay service already binds verified http/https runtime URLs to the selected Catalog repo, persists repo metadata on the overlay session, and fails closed when repo selection or package-root validation is missing.
-- Backlog IDs: RB-011
-- Plan Refs: none
-- Satisfied By Plan Ref: none
-- Superseded By Plan Ref: none
-- Abandoned By Plan Ref: none
-
-### RM-ui-runtime-overlay-002 — Define the snapshot-first observation contract
-- Phase: Phase 0 - Observation Contract
-- Status: complete
-- Summary: Define the snapshot-first live observation model for overlay sessions, including semantic snapshots, locator metadata, timing/state captures, and bounded evidence artifacts that describe real UI behavior without claiming full automation.
-- Notes: The shipped overlay API family already persists observations, annotations, change requests, and derived quality signals on each overlay session, and the Executor workspace uses that contract as its full overlay CRUD surface.
-- Backlog IDs: RB-013
-- Plan Refs: none
-- Satisfied By Plan Ref: none
-- Superseded By Plan Ref: none
-- Abandoned By Plan Ref: none
-
-### RM-ui-runtime-overlay-003 — Lock safety, authority, and fail-closed runtime rules
-- Phase: Phase 0 - Safety and Authority
-- Status: complete
-- Summary: Lock the safety, authority, and fail-closed rules for live UI observation, repo linkage, planning promotion, and execution handoff so the feature stays honest about what it can observe, change, and persist.
-- Notes: Existing service and route coverage already enforces selected Catalog repo authority, package-root boundary checks, fail-closed state loading, closed-session mutation blocking, reservation invalidation, and rollback-safe Executor handoff.
-- Backlog IDs: RB-015
-- Plan Refs: none
-- Satisfied By Plan Ref: none
-- Superseded By Plan Ref: none
-- Abandoned By Plan Ref: none
+## Active roadmap items
 
 ### RM-ui-runtime-overlay-004 — Add operator-native overlay workflow to Home / Runtime
 - Phase: Phase 1 - Runtime UX
@@ -82,6 +53,41 @@ UI Runtime Overlay extends copilot-ui as the local control plane for attach-firs
 - Status: proposed
 - Summary: Define Preview Mode as a later, explicit-recipe extension that can launch isolated preview environments only where the repo declares how they work, keeping generic backend mocking and builder-style scope out of the early roadmap.
 - Backlog IDs: RB-017
+- Plan Refs: none
+- Satisfied By Plan Ref: none
+- Superseded By Plan Ref: none
+- Abandoned By Plan Ref: none
+
+## Completed foundation
+
+### RM-ui-runtime-overlay-001 — Bind Attach Mode to verified runtime and repo context
+- Phase: Phase 0 - Attach Foundation
+- Status: complete
+- Summary: Establish Attach Mode session registration, runtime URL binding, selected-repo or folder linking, and capability gating so copilot-ui can safely attach to a real app and know which codebase it is allowed to affect.
+- Notes: Delivered through verified runtime URL binding, selected Catalog repo linkage, persisted repo metadata, and fail-closed package-root validation.
+- Backlog IDs: RB-011
+- Plan Refs: none
+- Satisfied By Plan Ref: none
+- Superseded By Plan Ref: none
+- Abandoned By Plan Ref: none
+
+### RM-ui-runtime-overlay-002 — Define the snapshot-first observation contract
+- Phase: Phase 0 - Observation Contract
+- Status: complete
+- Summary: Define the snapshot-first live observation model for overlay sessions, including semantic snapshots, locator metadata, timing/state captures, and bounded evidence artifacts that describe real UI behavior without claiming full automation.
+- Notes: Delivered through the current overlay observation, annotation, change-request, and quality-signal contract used by Executor.
+- Backlog IDs: RB-013
+- Plan Refs: none
+- Satisfied By Plan Ref: none
+- Superseded By Plan Ref: none
+- Abandoned By Plan Ref: none
+
+### RM-ui-runtime-overlay-003 — Lock safety, authority, and fail-closed runtime rules
+- Phase: Phase 0 - Safety and Authority
+- Status: complete
+- Summary: Lock the safety, authority, and fail-closed rules for live UI observation, repo linkage, planning promotion, and execution handoff so the feature stays honest about what it can observe, change, and persist.
+- Notes: Delivered through selected-repo authority checks, package-root validation, closed-session mutation blocking, reservation safety, and rollback-safe Executor handoff.
+- Backlog IDs: RB-015
 - Plan Refs: none
 - Satisfied By Plan Ref: none
 - Superseded By Plan Ref: none

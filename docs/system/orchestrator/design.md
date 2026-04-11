@@ -78,8 +78,7 @@ Plan packs (2 markdown files) for standard+ work. No SQLite, no task file hierar
 
 ```
 User
-  └── @orchestrator (thin coordinator, never implements)
-   ├── @o-plan-coordinator (read-only planning coordinator, V1 approved exception)
+  └── @orchestrator / @orchestrator-cli (thin coordinator, never implements)
         ├── @o-planner (planning subagent — produces plan packs)
         ├── @o-reframer (request analysis + clarification)
         ├── @work-unit-runner (implementation of single work units)
@@ -89,16 +88,15 @@ User
         ├── @research-ideation (web + codebase research)
         ├── @unit-test-runner (test execution)
             ├── @integration-test-runner (policy-driven integration validation)
-        ├── @reviewer-opus-4-6 (cross-model review)
-        ├── @reviewer-gpt-5-4 (cross-model review)
+        ├── @reviewer-opus-4-6 (cross-model review, VS Code only)
+        ├── @reviewer-gpt-5-4 (cross-model review, VS Code only)
       ├── @e2e-validator (narrow coordinator exception)
             ├── @e2e-browser (serial agent-browser validation)
         └── @doc-writer (documentation)
 ```
 
-   Current V1 correction: `@o-plan-coordinator` is the only planning-time coordinator path and may
-   delegate only to leaf capability-resolution lanes. It does not make `@o-planner` a coordinator and
-   does not permit coordinator-to-coordinator chains.
+   Note: `@orchestrator-cli` omits reviewer agents and relies on Rubber Duck (native cross-model review).
+   Direct orchestrator → `@o-planner` planning (no coordinator nesting).
 
 ### New Subagents
 
@@ -122,10 +120,8 @@ User
 **Prototype note**: this draft explored letting `@o-planner` call code-explorer/code-architect/
 research-ideation directly. The shipped V1 model does not do that.
 
-**Revised**: `@o-planner` is a LEAF agent (no subagent calls). Optional planning-time nested
-delegation is limited to the read-only `@o-plan-coordinator`; when that path is unavailable or
-disabled, use the legacy-depth-1 fallback: direct orchestrator -> `@o-planner` planning. The
-orchestrator gathers exploration context and passes it to `@o-planner`.
+**Revised**: `@o-planner` is a LEAF agent (no subagent calls). Planning uses direct
+orchestrator → `@o-planner` delegation. The orchestrator gathers exploration context and passes it to `@o-planner`.
 **Tools**: read, search, edit (only the approved plan artifact surface)
 **Input**: Enriched brief + exploration findings + project context
 **Output**: Plan pack (2 files) following existing plan-pack format

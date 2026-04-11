@@ -1,16 +1,20 @@
 ---
 created: 2026-03-28
-updated: 2026-03-28
+updated: 2026-04-10
 category: research
-status: current
+status: stale
 doc_kind: node
 id: ui-runtime-overlay-research
-summary: Research framing for an attach-first UI Runtime Overlay inside copilot-ui, with phased overlay, preview, and planning boundaries.
+summary: Historical research framing for an attach-first UI Runtime Overlay; current runtime behavior authority lives in the canonical copilot-ui docs.
 tags: [research, copilot-ui, runtime, overlay, planning]
 related: [copilot-ui-guide, copilot-ui-information-architecture-freeze, e2e-setup-guide, planning-backlog-roadmap-contract, workflow-planning-contract]
 ---
 
 # UI Runtime Overlay Research
+
+This is a historical research note, not the current-state authority. For current runtime and overlay
+behavior, use [docs/system/copilot-ui-guide.md](../system/copilot-ui-guide.md). For active delivery
+sequencing, use [docs/roadmaps/ui-runtime-overlay.md](../roadmaps/ui-runtime-overlay.md).
 
 This note is **research, not canonical design**. It turns the original broader idea into a more realistic v1 shape based on the repo's current runtime, planning, and evidence contracts.
 
@@ -35,7 +39,7 @@ Several existing repo decisions strongly shape what is realistic here:
 - [docs/system/workflow-planning-contract.md](../system/workflow-planning-contract.md) and [docs/system/session-state-artifacts.md](../system/session-state-artifacts.md) keep execution state and plan-pack state distinct from durable planning authority.
 - [docs/system/planning-backlog-roadmap-contract.md](../system/planning-backlog-roadmap-contract.md) makes external Obsidian notes explicitly additive and non-canonical.
 - [docs/system/e2e-setup-guide.md](../system/e2e-setup-guide.md) and [docs/system/agent-architecture-simplicity.md](../system/agent-architecture-simplicity.md) establish snapshot-first evidence, with screenshots as fallback or explicit-request artifacts.
-- Existing sandbox direction in [docs/planning/runtime-modernization-progress.md](../planning/runtime-modernization-progress.md) and runtime docs treats sandboxing as an execution context, not a separate primary product frame.
+- Current runtime docs treat sandboxing as an execution context, not a separate primary product frame.
 
 These constraints push the design toward reuse, bounded runtime assumptions, and explicit authority boundaries.
 

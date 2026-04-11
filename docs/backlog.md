@@ -1,20 +1,30 @@
 ---
 created: 2026-03-23
-updated: 2026-03-28
+updated: 2026-04-10
 category: meta
 status: current
 doc_kind: node
-summary: Repository-backed backlog of queued and planned work across repo planning workstreams.
+summary: Legacy compatibility Repository Backlog surface for queued and planned work across repo planning workstreams.
 ---
 
 # Repository Backlog
 
 <!-- REPOSITORY_BACKLOG_FORMAT_VERSION: 1 -->
 
-Repository-scoped intake and queued work across repo planning workstreams. The current items span the remaining synced-note planner replacement work, orchestrator follow-up adoption for **Session Intent Frame** / **Session Closure Summary**, and the new **UI Runtime Overlay** lane for attach-first runtime observation in `copilot-ui`. Synced-note source contracts, tracker-side source persistence plus CRUD wiring, Planning seed provenance support, and the framing/closure contract hardening slice are already complete; the backlog below captures the remaining delivery, adoption, validation, and runtime-overlay planning work without changing canonical planning authorities or overpromising unsupported preview or automation behavior.
+Under the planning contract, primary Repository Backlog artifacts live under `docs/backlogs/*.md`;
+this repo currently retains `docs/backlog.md` as its compatibility backlog surface and stable
+cross-link target.
+
+Repository-scoped intake and queued work across repo planning workstreams. The current items span
+the remaining synced-note rollout/hardening work, orchestrator follow-up adoption for
+**Session Intent Frame** / **Session Closure Summary**, and the **UI Runtime Overlay** lane for
+attach-first runtime observation in `copilot-ui`. Synced-note source contracts, tracker-side source
+persistence plus CRUD wiring, deterministic refresh handling, Planning seed provenance support, and
+operator-facing synced-note management are already complete; the backlog below keeps that lineage
+visible while reserving active synced-note work for end-to-end rollout and hardening.
 
 ## RB-001 - Validate synced-note source lifecycle and backend contract
-- Status: planned
+- Status: complete
 - Roadmap IDs: RM-synced-note-planner-replacement-001
 - Plan Refs: none
 - Satisfied By Plan Ref: none
@@ -29,8 +39,8 @@ Close the remaining confidence gap around synced-note source registration before
 - 2026-03-23: The remaining source-management gap is validation depth rather than missing foundation code, especially for GET-by-id, PUT, DELETE, and backend policy acceptance.
 
 ## RB-002 - Deliver deterministic synced-note refresh orchestration
-- Status: proposed
-- Roadmap IDs: RM-synced-note-planner-replacement-002, RM-synced-note-planner-replacement-004
+- Status: complete
+- Roadmap IDs: RM-synced-note-planner-replacement-002
 - Plan Refs: none
 - Satisfied By Plan Ref: none
 - Superseded By Plan Ref: none
@@ -44,7 +54,7 @@ Add the actual sync worker and watcher flow that refreshes the selected note sou
 - 2026-03-23: The feature must fail closed when a sync is stale, a lock already exists, or a repo already has active execution.
 
 ## RB-003 - Promote synced notes into canonical planning authorities
-- Status: proposed
+- Status: complete
 - Roadmap IDs: RM-synced-note-planner-replacement-003
 - Plan Refs: none
 - Satisfied By Plan Ref: none
@@ -59,8 +69,8 @@ Ingest synced note content into the canonical planning flow so notes can seed Re
 - 2026-03-23: Promotion rules must keep repo-backed backlog and roadmap docs authoritative and preserve explicit linked IDs for future Roadmap Sync.
 
 ## RB-004 - Add operator-facing synced-note management UI
-- Status: proposed
-- Roadmap IDs: RM-synced-note-planner-replacement-003, RM-synced-note-planner-replacement-004
+- Status: complete
+- Roadmap IDs: RM-synced-note-planner-replacement-003
 - Plan Refs: none
 - Satisfied By Plan Ref: none
 - Superseded By Plan Ref: none
@@ -73,20 +83,25 @@ Expose synced-note sources in the app so operators can register sources, inspect
 - 2026-03-23: The gateway can already persist synced-note sources, but there is no first-class app surface for managing them.
 - 2026-03-23: The UI must surface sync state and manual controls without implying that synced notes bypass repo-backed Repository Backlog, Roadmap, or Plan Pack workflows.
 
-## RB-005 - Harden and validate end-to-end delivery
-- Status: proposed
-- Roadmap IDs: RM-synced-note-planner-replacement-004
+## RB-005 - Complete remote sync service rollout and end-to-end hardening
+- Status: planned
+- Roadmap IDs: RM-synced-note-planner-replacement-004, RM-synced-note-planner-replacement-005
 - Plan Refs: none
 - Satisfied By Plan Ref: none
 - Superseded By Plan Ref: none
 - Abandoned By Plan Ref: none
 - Importance: 9
 
-Prove the feature works as an end-to-end system through deterministic tests, operational safeguards, and rollout guidance for both GitHub-hosted and self-hosted note sources.
+Finish the out-of-repo remote sync service lane and prove the shipped bridge works as an end-to-end
+system through deterministic validation, operational safeguards, and rollout guidance for both
+GitHub-hosted and self-hosted note sources.
 
 ### Key Points
-- 2026-03-23: Validation so far covers the foundation slice only; there is not yet end-to-end coverage from note sync through planning promotion and session handoff.
-- 2026-03-23: Operational hardening must include observability, bounded retries, lock cleanup, and release guidance for self-hosted environments such as Vultr + Gitea.
+- 2026-03-23: The remaining synced-note delivery gap is the production remote sync service lane that
+  the shipped repo-owned client expects, including auth, hosting, ownership, and real source-backed
+  feed behavior.
+- 2026-03-23: End-to-end hardening must include observability, bounded retries, lock cleanup,
+  rollout guidance, and failure drills for self-hosted environments such as Vultr + Gitea.
 
 ## RB-006 - Operationalize Session Intent Frame and Session Closure Summary runtime composition
 - Status: proposed

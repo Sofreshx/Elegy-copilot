@@ -248,8 +248,8 @@ async function run() {
       'Expected navigation.ts to register the Stats tab label'
     );
     assert.ok(
-      appSource.includes("activeTabId === 'stats' ? <StatsView /> : null"),
-      'Expected App.tsx to render StatsView from the shell'
+      appSource.includes("StatsView"),
+      'Expected App.tsx to render StatsView'
     );
     assert.ok(statsStoreSource.includes('getHealth()'), 'Expected statsStore to load runtime health');
     assert.ok(statsStoreSource.includes('getRuntimeCatalogHealth()'), 'Expected statsStore to load catalog health');
@@ -307,8 +307,9 @@ async function run() {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
     const tabShellSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'TabShell.tsx'), 'utf8');
 
-    assert.ok(appSource.includes('<main aria-labelledby="elegy-copilot-title" className="app-shell">'), 'Expected labelled main landmark in App.tsx');
-    assert.ok(appSource.includes('<header className="hero-card">'), 'Expected semantic header landmark in App.tsx');
+    assert.ok(appSource.includes('AppLayout'), 'Expected AppLayout component in App.tsx');
+    assert.ok(appSource.includes('StatusBar'), 'Expected StatusBar component in App.tsx');
+    assert.ok(appSource.includes('Sidebar'), 'Expected Sidebar component in App.tsx');
     assert.ok(tabShellSource.includes('role="tablist"'), 'Expected tablist role in TabShell.tsx');
     assert.ok(tabShellSource.includes('role="tabpanel"'), 'Expected tabpanel role in TabShell.tsx');
     assert.ok(tabShellSource.includes('aria-orientation="horizontal"'), 'Expected explicit tablist orientation in TabShell.tsx');

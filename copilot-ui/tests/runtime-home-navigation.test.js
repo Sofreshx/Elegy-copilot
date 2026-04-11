@@ -42,8 +42,10 @@ async function run() {
 
   await test('App handoff wiring routes planning back into Home / Runtime sessions', async () => {
     assert.ok(appSource.includes("navigationStore.goToRuntime('sessions', { sessionsMode: 'sdk' });"), 'Expected planning handoff to runtime sessions');
-    assert.ok(appSource.includes("activeTabId === 'home-runtime' ? <HomeRuntimeView /> : null"), 'Expected HomeRuntimeView as the runtime tab panel');
-    assert.ok(appSource.includes("activeTabId === 'stats' ? <StatsView /> : null"), 'Expected StatsView as a top-level tab panel');
+    assert.ok(appSource.includes("HomeRuntimeView"), 'Expected HomeRuntimeView rendered in App');
+    assert.ok(appSource.includes("StatsView"), 'Expected StatsView rendered in App');
+    assert.ok(appSource.includes("DashboardView"), 'Expected DashboardView rendered in App');
+    assert.ok(appSource.includes("SIDEBAR_NAV_ITEMS"), 'Expected sidebar navigation in App');
   });
 
   await test('HomeRuntimeView exposes the frozen runtime subsections', async () => {

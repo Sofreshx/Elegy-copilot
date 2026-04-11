@@ -25,6 +25,13 @@ step needs more detail. When intended design, behavior, or workflow policy chang
 orchestrator is also docs-update-first: the first execution slice should update the relevant
 canonical docs before or alongside implementation.
 
+Across planning, review, and verification, the orchestrator uses an adversarial-but-evidence-bound
+posture: before it accepts a plan, a claimed implementation result, a review approval, or a
+validation result, it should actively ask what would prove that success story wrong. That means
+challenging assumptions, probing likely failure modes and regressions, and calling out missing
+evidence. It does **not** mean inventing speculative defects, overriding reviewer-lane boundaries,
+or turning healthy skepticism into nitpicks.
+
 Instruction Engine also supports an explicit persisted session-state lane for teams that want
 file-backed artifacts and an intentional handoff from planning to execution. That lane writes the
 same plan-pack shape to `~/.copilot/session-state/<SESSION_ID>/` for downstream tooling.
@@ -158,8 +165,8 @@ Current prompt/runtime hardening assumes a safe fallback when the backend has no
 
 In that case, the orchestrator stays inside a curated shipped first-party baseline for automatic routing:
 
-- `@o-reframer`, `@o-plan-coordinator`, `@o-planner`, `@roadmap-planner`, `@search`, `@execute`
-- `@work-unit-runner`, `@impl-infra`, `@impl-business`
+- `@o-reframer`, `@o-planner`, `@roadmap-planner`, `@search`, `@execute`
+- `@work-unit-runner`, `@impl`
 - `@code-explorer`, `@code-architect`, `@code-reviewer`
 - `@research-ideation`, `@doc-writer`, `@goal-reviewer`, `@final-reviewer`, `@follow-up-finder`, `@remaining-work`
 - `@o-validation-coordinator`, `@unit-test-runner`, `@integration-test-runner`, `@e2e-validator`
@@ -187,9 +194,7 @@ owner.
 
 - The effective repo depth cap is 3: `@orchestrator` -> approved coordinator -> leaf.
 - Host/runtime nesting support up to depth 5 is runtime headroom only; the shipped repo topology stays bounded and explicit rather than generally recursive.
-- `@o-plan-coordinator` is the planning-only approved coordinator path. It is read-only, may run
-  planning-time `@search` / `@execute` under orchestrator-owned routing policy, and hands its
-  findings back to the orchestrator so `@o-planner` can remain leaf-only.
+- Planning uses direct orchestrator → `@o-planner` delegation (no planning coordinator).
 - `@o-validation-coordinator` is the bounded validation-overlap coordinator path. It may delegate
   only to `@unit-test-runner` and `@integration-test-runner`, and integration validation remains
   policy-driven rather than confirmation-driven.
@@ -238,6 +243,11 @@ execution begins.
 The orchestrator folds this into the **Session Intent Frame**, including what is in vs out, what "done"
 means, which validation layers are required, and where confidence is still too low to proceed blindly.
 
+When the request is about reviewing or improving already-implemented work rather than planning fresh
+implementation, the same framing still applies: the orchestrator should explicitly decide whether the
+goal is assessment only, assessment plus targeted fixes, or a broader replanning loop, then route the
+smallest review and validation lanes that can challenge the current state responsibly.
+
 ### Phase 2: Plan (standard/complex only)
 `@o-planner` produces a plan pack using the shared plan-pack structure. The orchestrator updates a
 concise session-state summary from the returned plan so it can keep long work on track without
@@ -247,10 +257,8 @@ tradeoffs, or explicit user preference makes that approval materially necessary.
 This phase runs only when the selected surface includes a plan pack and `execution_readiness` is
 `ready` or `stageable`. Roadmap-only and `none` requests skip the plan-pack lane entirely.
 
-In V1, `@o-plan-coordinator` is the only approved planning-time coordinator. It may do read-only
-planning prep, then hand the enriched brief to leaf-only `@o-planner`. When that nested path is
-unavailable or disabled, use the legacy-depth-1 fallback: direct orchestrator -> `@o-planner`
-planning.
+Planning uses direct orchestrator → `@o-planner` delegation. The orchestrator gathers exploration
+context via `@search` / `@execute` and passes findings to leaf-only `@o-planner`.
 
 Planning refines the **Session Intent Frame** into an execution-ready shape: success criteria,
 validation expectations, missing work that still needs explicit handling, and whether any durable repo
@@ -258,6 +266,12 @@ planning surfaces should matter after the run. Plan packs remain execution artif
 for backlog or roadmap authority. When `planning_surface: roadmap`, no plan pack should be generated.
 When `planning_surface: both`, the roadmap slice is established first and the generated plan pack must
 carry the linked durable IDs forward into execution.
+
+Phase 2 planning review should use the orchestrator's adversarial posture explicitly: stress-test the
+plan by asking which assumptions are most likely to fail, which rollback or validation steps are
+missing, what edge cases or regressions remain unproven, and what evidence would falsify the current
+claim that the plan is safe to execute. The goal is to challenge the plan hard enough to expose real
+gaps before execution, without inventing speculative blockers.
 
 When Phase 2 needs plan approval, blocking clarification, or an explicit proceed-anyway decision, use
 `vscode/askQuestions` through the interactive flow.
@@ -311,6 +325,11 @@ requested-vs-delivered facts, goal closure, validation requirements, tested cove
 coherence findings, validation confidence, and limitations or coverage gaps that prevent a stronger
 completion claim.
 
+This phase also applies the same adversarial posture to already-implemented changes and validation
+evidence: the orchestrator should challenge whether green results still prove the intended behavior,
+whether reviewers surfaced only evidence-backed concerns, and whether materially useful improvement
+opportunities remain before it treats the work as done.
+
 If mandatory validation did not run, the orchestrator must say so explicitly. Missing required
 validation lowers closure confidence and may keep the run in a paused or incomplete state rather than a
 confident done state.
@@ -344,7 +363,6 @@ memory or automatic future pickup.
 | Agent | Role |
 |---|---|
 | `@o-reframer` | Analyzes requests, classifies complexity |
-| `@o-plan-coordinator` | Optional read-only planning coordinator that enriches the brief before handing it to leaf-only `@o-planner` |
 | `@o-validation-coordinator` | Bounded validation overlap coordinator for completed or frozen slices |
 | `@o-planner` | Produces plan packs from enriched briefs |
 | `@roadmap-planner` | Durable multi-session roadmap/backlog lane; leaf-only and not a coordinator handoff into `@o-planner` |

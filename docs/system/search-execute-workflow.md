@@ -177,20 +177,19 @@ mixing durable roadmap authority with session execution state by default.
 
 Plan-pack generation runs only when `planning_surface` includes `plan-pack` and `execution_readiness`
 is `ready` or `stageable`. `roadmap`, `none`, and `not-ready` postures must not invoke
-`@o-plan-coordinator` or `@o-planner`.
+`@o-planner`.
 
 ## V1 Nested Coordinator Posture
 
 The shipped V1 nested topology is intentionally narrow:
 
-- `@orchestrator` remains the root session owner and the root loop owner.
+- `@orchestrator` (or `@orchestrator-cli`) remains the root session owner and the root loop owner.
 - The effective repo depth cap is 3: `@orchestrator` -> approved coordinator -> leaf.
 - Host/runtime nesting support up to depth 5 is runtime headroom only; the shipped repo topology stays bounded and explicit rather than generally recursive.
 - Approved coordinator agents must be named and explicitly allowlisted in frontmatter; all other
    agents remain leaf-only.
-- Planning-time `@search` / `@execute` may be invoked only by the approved read-only planning
-   coordinator path, `@o-plan-coordinator`, under orchestrator-owned routing policy. `@o-planner`
-   remains leaf-only.
+- Planning uses direct orchestrator → `@o-planner` delegation. The orchestrator gathers
+   exploration context via `@search` / `@execute` and passes it to leaf-only `@o-planner`.
 - `@o-validation-coordinator` is the bounded validation-overlap exception and may delegate only to
    `@unit-test-runner` and `@integration-test-runner`; integration follows policy-driven
    mandatory-validation rules for the frozen slice rather than a user-confirmed-only gate.

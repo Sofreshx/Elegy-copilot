@@ -19,6 +19,7 @@ Judge whether the change works in practice. Start with existing validation evide
 - Do not mutate the repo while validating.
 - Keep runtime confidence separate from spec fit (`impl-reviewer`), correctness reasoning (`logic-reviewer`), and user-facing verification instructions (`verification-guide`).
 - Do not turn this review into a requested-vs-delivered summary; that remains `final-reviewer`.
+- Use an adversarial-but-evidence-bound posture toward validation claims: assume green output may still be misleading until the available evidence proves the intended behavior and coverage.
 - Use `docs/system/testing-quality-governance.md` when judging whether test evidence still proves behavior. Green results are not enough if assertions were weakened, hard cases disappeared, or coverage became shallower without equivalent replacement.
 - Keep `docs/system/validation-governance.md` and `docs/system/reviewer-lane-governance.md` as the boundary: assess validation sufficiency here, coordinate with validation runners for test execution there.
 - Do not report every weak test smell; report only when the available evidence no longer supports the claim that the change works in practice.

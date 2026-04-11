@@ -125,8 +125,8 @@
       "description": "Repo-scoped orchestration agents and support skills for reframing, planning, planning-only coordination, bounded validation coordination, implementation routing, research, verification, and final review.",
       "assetIds": [
         "agent-orchestrator",
+        "agent-orchestrator-cli",
         "agent-o-reframer",
-        "agent-o-plan-coordinator",
         "agent-o-planner",
         "agent-o-validation-coordinator",
         "skill-planning-feature",
@@ -143,8 +143,7 @@
         "agent-doc-writer",
         "agent-follow-up-finder",
         "agent-verification-guide",
-        "agent-impl-business",
-        "agent-impl-infra",
+        "agent-impl",
         "agent-impl-reviewer",
         "agent-integration-test-runner",
         "agent-e2e-browser",
@@ -367,16 +366,10 @@
       "destination": "agents/agent-governor.agent.md"
     },
     {
-      "id": "agent-impl-business",
+      "id": "agent-impl",
       "type": "agent",
-      "source": "engine-assets/agents/impl-business.agent.md",
-      "destination": "agents/impl-business.agent.md"
-    },
-    {
-      "id": "agent-impl-infra",
-      "type": "agent",
-      "source": "engine-assets/agents/impl-infra.agent.md",
-      "destination": "agents/impl-infra.agent.md"
+      "source": "engine-assets/agents/impl.agent.md",
+      "destination": "agents/impl.agent.md"
     },
     {
       "id": "agent-impl-reviewer",
@@ -402,12 +395,7 @@
       "source": "engine-assets/agents/logic-reviewer.agent.md",
       "destination": "agents/logic-reviewer.agent.md"
     },
-    {
-      "id": "agent-o-plan-coordinator",
-      "type": "agent",
-      "source": "engine-assets/agents/o-plan-coordinator.agent.md",
-      "destination": "agents/o-plan-coordinator.agent.md"
-    },
+
     {
       "id": "agent-o-planner",
       "type": "agent",
@@ -431,6 +419,12 @@
       "type": "agent",
       "source": "engine-assets/agents/orchestrator.agent.md",
       "destination": "agents/orchestrator.agent.md"
+    },
+    {
+      "id": "agent-orchestrator-cli",
+      "type": "agent",
+      "source": "engine-assets/agents/orchestrator-cli.agent.md",
+      "destination": "agents/orchestrator-cli.agent.md"
     },
     {
       "id": "agent-remaining-work",
@@ -480,18 +474,7 @@
       "source": "engine-assets/agents/security-auditor.agent.md",
       "destination": "agents/security-auditor.agent.md"
     },
-    {
-      "id": "agent-security-fixer",
-      "type": "agent",
-      "source": "engine-assets/agents/security-fixer.agent.md",
-      "destination": "agents/security-fixer.agent.md"
-    },
-    {
-      "id": "agent-security-scanner",
-      "type": "agent",
-      "source": "engine-assets/agents/security-scanner.agent.md",
-      "destination": "agents/security-scanner.agent.md"
-    },
+
     {
       "id": "agent-stack-auditor",
       "type": "agent",
