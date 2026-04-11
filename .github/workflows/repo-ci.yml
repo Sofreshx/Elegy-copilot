@@ -44,6 +44,9 @@ jobs:
       - name: Build UI (produces ui-dist for sidecar validation)
         run: npm --prefix copilot-ui run ui:build
 
+      - name: Build local-tracker (produces dist for sidecar validation)
+        run: npm --prefix local-tracker run build
+
       - name: Validate Tauri sidecar layout
         run: npm --prefix copilot-ui run validate:tauri-node-sidecar-layout
 
