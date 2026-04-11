@@ -104,7 +104,7 @@ export type NavigationState = {
   wizardOpen: WizardType;
 };
 
-// Legacy tabs (still used by TabShell compat bridge)
+// Legacy tab definitions (kept for reference by runtime overlay and stats tab routes)
 export const NAVIGATION_TABS: readonly NavigationTab[] = [
   { id: 'home-runtime', label: 'Home / Runtime', description: 'Overview, sessions, executor, and diagnostics' },
   { id: 'catalog', label: 'Catalog', description: 'Asset workspace, installs, and skill discovery' },

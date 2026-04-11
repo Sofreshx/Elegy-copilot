@@ -13,7 +13,6 @@ build/
 out/
 coverage/
 release-artifacts/
-copilot-ui/dist-electron/
 copilot-ui/lib/desktop-shell/
 copilot-ui/release/
 copilot-ui/src-tauri/gen/resources/

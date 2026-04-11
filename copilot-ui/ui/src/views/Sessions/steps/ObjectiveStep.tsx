@@ -1,19 +1,12 @@
 import { useState } from 'react';
 import { FormInput } from '../../../components';
+import { SESSION_TEMPLATES } from '../../../constants/sessionTemplates';
 import type { SessionWizardState } from '../sessionWizardStore';
 import { sessionWizardStore } from '../sessionWizardStore';
 
 interface ObjectiveStepProps {
   state: SessionWizardState;
 }
-
-const TEMPLATES: { id: string; label: string }[] = [
-  { id: 'code-review', label: 'Code Review' },
-  { id: 'feature-impl', label: 'Feature Implementation' },
-  { id: 'bug-fix', label: 'Bug Fix' },
-  { id: 'refactor', label: 'Refactor' },
-  { id: 'exploration', label: 'Exploration' },
-];
 
 export default function ObjectiveStep({ state }: ObjectiveStepProps) {
   const [showTasks, setShowTasks] = useState(Boolean(state.taskIds));
@@ -36,7 +29,7 @@ export default function ObjectiveStep({ state }: ObjectiveStepProps) {
       <div className="session-wizard-templates" data-testid="session-wizard-templates">
         <span className="session-wizard-templates-label">Quick templates</span>
         <div className="session-wizard-templates-grid">
-          {TEMPLATES.map((t) => (
+          {SESSION_TEMPLATES.map((t) => (
             <button
               key={t.id}
               type="button"

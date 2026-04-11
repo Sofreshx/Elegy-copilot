@@ -11,4 +11,5 @@ export { default as Sidebar } from './Sidebar';
 export { default as StatusBadge } from './StatusBadge';
 export { default as StatusBar } from './StatusBar';
 export { default as SteppedWizard } from './SteppedWizard';
+export { default as ToastContainer } from './ToastContainer';
 export { default as Toolbar } from './Toolbar';

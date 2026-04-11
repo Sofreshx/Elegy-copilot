@@ -305,6 +305,58 @@ async function run() {
     }
   });
 
+  await test('GET /api/sdk/models parses the installed Copilot CLI model list', async () => {
+    const executedCommands = [];
+    const managedCliPath = 'C:/managed/copilot.exe';
+    const env = {
+      INSTRUCTION_ENGINE_COPILOT_CLI_STATE_JSON: JSON.stringify({
+        approved: true,
+        cliPath: managedCliPath,
+        cliVersion: '0.0.420-0',
+      }),
+    };
+
+    const routes = register({
+      process: { env },
+      childProcess: {
+        execFile(command, args, options, callback) {
+          executedCommands.push({ command, args, options });
+          callback(
+            null,
+            `Configuration Settings:\n\n  \`model\`: AI model to use for Copilot CLI; can be changed with /model command or --model flag option.\n    - "claude-sonnet-4.6"\n    - "gpt-5.4"\n    - "gpt-5.3-codex"\n\n  \`mouse\`: whether to enable mouse support in alt screen mode; defaults to \`true\`.\n`,
+            ''
+          );
+        },
+      },
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, {
+          'Content-Type': 'application/json; charset=utf-8',
+        });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const { res } = await invoke(routes, 'GET', '/api/sdk/models');
+
+    assert.equal(res.statusCode, 200);
+    assert.deepEqual(parseJsonBody(res), {
+      models: ['claude-sonnet-4.6', 'gpt-5.4', 'gpt-5.3-codex'],
+    });
+    assert.deepEqual(executedCommands, [
+      {
+        command: managedCliPath,
+        args: ['help', 'config'],
+        options: {
+          timeout: 15000,
+          windowsHide: true,
+          env,
+        },
+      },
+    ]);
+  });
+
   const sdkBridge = createMockSdkBridge();
   const routes = register({
     sdkBridge,
@@ -325,6 +377,32 @@ async function run() {
     assert.deepEqual(parseJsonBody(res), {
       connected: true,
       state: 'connected',
+    });
+  });
+
+  await test('GET /api/sdk/models returns 503 when the Copilot CLI command is unavailable', async () => {
+    const routes = register({
+      childProcess: {
+        execFile(command, args, options, callback) {
+          const error = new Error('spawn copilot ENOENT');
+          error.code = 'ENOENT';
+          callback(error, '', '');
+        },
+      },
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, {
+          'Content-Type': 'application/json; charset=utf-8',
+        });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const { res } = await invoke(routes, 'GET', '/api/sdk/models');
+    assert.equal(res.statusCode, 503);
+    assert.deepEqual(parseJsonBody(res), {
+      error: 'spawn copilot ENOENT',
     });
   });
 

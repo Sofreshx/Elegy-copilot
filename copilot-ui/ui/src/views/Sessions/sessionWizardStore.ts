@@ -1,6 +1,7 @@
 import { createStore } from '../../lib/store';
 import { getCatalogRepos, createSdkSession, SdkCreateSessionPayload } from '../../lib/api';
 import type { CatalogRepoInventoryEntry, SdkSessionSummary } from '../../lib/types';
+import { notificationStore } from '../../stores/notificationStore';
 
 export interface SessionWizardState {
   step: number;
@@ -217,6 +218,8 @@ function createSessionWizardStore() {
         launchError: null,
       }));
 
+      notificationStore.success('Session launched', { message: `Session ${session.sessionId ?? 'started'} is now active.` });
+
       return session;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create session';
@@ -226,6 +229,7 @@ function createSessionWizardStore() {
         launchError: message,
         launchStatus: null,
       }));
+      notificationStore.error('Session launch failed', { message });
       throw err;
     }
   }

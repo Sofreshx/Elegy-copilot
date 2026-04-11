@@ -103,7 +103,7 @@ export default function ProjectTaskBoard() {
 
   return (
     <div className="project-task-board" data-testid="project-task-board">
-      <Panel title="Task Board" subtitle="Sessions mapped to task columns (real tasks coming in Phase 4)">
+      <Panel title="Task Board" subtitle="Sessions mapped to task columns">
         <div className="task-board-columns">
           <Column title="Backlog" sessions={backlog} testId="task-column-backlog" />
           <Column title="In Progress" sessions={inProgress} testId="task-column-in-progress" />

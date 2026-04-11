@@ -305,28 +305,19 @@ async function run() {
     }
   });
 
-  await test('semantic landmark and tab structure is preserved in App.tsx and TabShell.tsx', async () => {
+  await test('semantic landmark structure is preserved in App.tsx', async () => {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
-    const tabShellSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'TabShell.tsx'), 'utf8');
 
     assert.ok(appSource.includes('AppLayout'), 'Expected AppLayout component in App.tsx');
     assert.ok(appSource.includes('StatusBar'), 'Expected StatusBar component in App.tsx');
     assert.ok(appSource.includes('Sidebar'), 'Expected Sidebar component in App.tsx');
-    assert.ok(tabShellSource.includes('role="tablist"'), 'Expected tablist role in TabShell.tsx');
-    assert.ok(tabShellSource.includes('role="tabpanel"'), 'Expected tabpanel role in TabShell.tsx');
-    assert.ok(tabShellSource.includes('aria-orientation="horizontal"'), 'Expected explicit tablist orientation in TabShell.tsx');
   });
 
-  await test('WS05-I5 TabShell/Panel selector contract is present in app.css and component refs', async () => {
+  await test('WS05-I5 Panel selector contract is present in app.css and component refs', async () => {
     const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
-    const tabShellSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'TabShell.tsx'), 'utf8');
     const panelSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Panel.tsx'), 'utf8');
 
-    assert.ok(appCss.includes('.tab-shell {'), 'Expected .tab-shell selector in app.css');
-    assert.ok(appCss.includes('.tab-panel {'), 'Expected .tab-panel selector in app.css');
     assert.ok(appCss.includes('.panel {'), 'Expected .panel selector in app.css');
-    assert.ok(tabShellSource.includes('className="tab-shell"'), 'Expected TabShell to reference tab-shell class');
-    assert.ok(tabShellSource.includes('className="tab-panel"'), 'Expected TabShell to reference tab-panel class');
     assert.ok(panelSource.includes('className="panel"'), 'Expected Panel to reference panel class');
   });
 
@@ -346,6 +337,56 @@ async function run() {
     assert.ok(devDependencies['@vitejs/plugin-react'], 'Expected @vitejs/plugin-react devDependency');
     assert.strictEqual(dependencies.svelte, undefined, 'Did not expect svelte dependency');
     assert.strictEqual(devDependencies['@sveltejs/vite-plugin-svelte'], undefined, 'Did not expect Svelte Vite plugin devDependency');
+  });
+
+  await test('toast notification system components and store exist', async () => {
+    assert.ok(
+      fs.existsSync(path.join(uiSrcRoot, 'stores', 'notificationStore.ts')),
+      'Missing notificationStore.ts'
+    );
+    assert.ok(
+      fs.existsSync(path.join(uiSrcRoot, 'components', 'ToastContainer.tsx')),
+      'Missing ToastContainer.tsx'
+    );
+    const storeSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'notificationStore.ts'), 'utf8');
+    assert.ok(storeSource.includes('addToast'), 'Expected addToast method in notificationStore');
+    assert.ok(storeSource.includes('removeToast'), 'Expected removeToast method in notificationStore');
+    assert.ok(storeSource.includes("'success'"), 'Expected success toast type');
+    assert.ok(storeSource.includes("'error'"), 'Expected error toast type');
+
+    const containerSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'ToastContainer.tsx'), 'utf8');
+    assert.ok(containerSource.includes('toast-container'), 'Expected toast-container class in ToastContainer');
+    assert.ok(containerSource.includes('role="alert"'), 'Expected alert role for accessibility');
+
+    const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
+    assert.ok(appSource.includes('ToastContainer'), 'Expected ToastContainer mounted in App.tsx');
+
+    const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
+    assert.ok(appCss.includes('.toast-container {'), 'Expected toast-container CSS');
+    assert.ok(appCss.includes('@keyframes toast-slide-in'), 'Expected toast slide-in animation');
+  });
+
+  await test('session templates are centralized in constants', async () => {
+    assert.ok(
+      fs.existsSync(path.join(uiSrcRoot, 'constants', 'sessionTemplates.ts')),
+      'Missing constants/sessionTemplates.ts'
+    );
+    const templatesSource = fs.readFileSync(path.join(uiSrcRoot, 'constants', 'sessionTemplates.ts'), 'utf8');
+    assert.ok(templatesSource.includes('SESSION_TEMPLATES'), 'Expected SESSION_TEMPLATES export');
+    assert.ok(templatesSource.includes('code-review'), 'Expected code-review template');
+    assert.ok(templatesSource.includes('feature-impl'), 'Expected feature-impl template');
+
+    const objectiveStepSource = fs.readFileSync(
+      path.join(uiSrcRoot, 'views', 'Sessions', 'steps', 'ObjectiveStep.tsx'), 'utf8'
+    );
+    assert.ok(
+      objectiveStepSource.includes('SESSION_TEMPLATES'),
+      'Expected ObjectiveStep to import SESSION_TEMPLATES'
+    );
+    assert.ok(
+      !objectiveStepSource.includes("const TEMPLATES"),
+      'Expected ObjectiveStep to not define local TEMPLATES array'
+    );
   });
 
   console.log(`\n  ${passed} passed, ${failed} failed (${passed + failed} total)\n`);

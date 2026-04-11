@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import AppLayout from './components/AppLayout';
 import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
+import ToastContainer from './components/ToastContainer';
 import { getDesktopUpdaterPresentation } from './lib/desktopUpdaterPresentation';
 import { useStoreValue } from './lib/store';
 import {
@@ -24,6 +25,7 @@ import SessionWizard from './views/Sessions/SessionWizard';
 import WorkflowExecutionView from './views/Workflows/WorkflowExecutionView';
 import WorkflowsHub from './views/Workflows/WorkflowsHub';
 import WorkflowTemplateEditor from './views/Workflows/WorkflowTemplateEditor';
+import SettingsView from './views/Settings/SettingsView';
 
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
@@ -155,18 +157,16 @@ export default function App() {
         }
         return <WorkflowsHub />;
       case 'settings':
-        return (
-          <div className="settings-placeholder" data-testid="settings-placeholder">
-            Settings — coming soon
-          </div>
-        );
+        return <SettingsView />;
       default:
         return <DashboardView />;
     }
   }
 
   return (
-    <AppLayout
+    <>
+      <ToastContainer />
+      <AppLayout
       statusBar={
         <StatusBar
           sdkHealthClassName={sdkHealthClassName}
@@ -195,6 +195,7 @@ export default function App() {
       }
     >
       {renderContent()}
-    </AppLayout>
+      </AppLayout>
+    </>
   );
 }

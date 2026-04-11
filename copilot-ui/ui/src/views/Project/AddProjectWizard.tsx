@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import SteppedWizard from '../../components/SteppedWizard';
 import { navigationStore } from '../../stores/navigation';
+import { notificationStore } from '../../stores/notificationStore';
 import { projectsListStore } from './projectsListStore';
 
 // ── Wizard steps definition ──
@@ -52,6 +53,7 @@ export default function AddProjectWizard() {
         throw new Error(body || `Registration failed (${res.status})`);
       }
       const result: { key?: string } = await res.json();
+      notificationStore.success('Project registered', { message: repoPath.trim() });
       navigationStore.closeWizard();
       projectsListStore.refresh();
       if (result.key) {
@@ -60,6 +62,7 @@ export default function AddProjectWizard() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
+      notificationStore.error('Project registration failed', { message });
     } finally {
       setLoading(false);
     }

@@ -88,9 +88,9 @@ export default function ProjectConfigSummary() {
         </dl>
       </Panel>
 
-      <Panel title="Installed Assets" subtitle="Assets targeting this project (Phase 4)">
-        <p className="config-placeholder">
-          Asset inventory integration coming in a future phase.
+      <Panel title="Installed Assets" subtitle="Assets targeting this project">
+        <p className="config-empty-state" data-testid="config-assets-empty">
+          No assets configured for this project yet. Install assets from the Catalog.
         </p>
       </Panel>
     </div>

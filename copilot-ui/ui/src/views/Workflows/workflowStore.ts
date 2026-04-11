@@ -1,4 +1,5 @@
 import { createStore } from '../../lib/store';
+import { notificationStore } from '../../stores/notificationStore';
 
 // ── Data types ──
 
@@ -132,9 +133,11 @@ function createWorkflowStore() {
         ...state,
         templates: [...state.templates, created],
       }));
+      notificationStore.success('Template created', { message: created.name });
       return created;
     } catch (error) {
       store.setState((state) => ({ ...state, error: toErrorMessage(error) }));
+      notificationStore.error('Failed to create template', { message: toErrorMessage(error) });
       return null;
     }
   }
@@ -155,9 +158,11 @@ function createWorkflowStore() {
         ...state,
         templates: state.templates.map((t) => (t.id === id ? updated : t)),
       }));
+      notificationStore.success('Template updated');
       return updated;
     } catch (error) {
       store.setState((state) => ({ ...state, error: toErrorMessage(error) }));
+      notificationStore.error('Failed to update template', { message: toErrorMessage(error) });
       return null;
     }
   }
@@ -170,9 +175,11 @@ function createWorkflowStore() {
         ...state,
         templates: state.templates.filter((t) => t.id !== id),
       }));
+      notificationStore.success('Template deleted');
       return true;
     } catch (error) {
       store.setState((state) => ({ ...state, error: toErrorMessage(error) }));
+      notificationStore.error('Failed to delete template', { message: toErrorMessage(error) });
       return false;
     }
   }
@@ -190,9 +197,11 @@ function createWorkflowStore() {
         ...state,
         runs: [run, ...state.runs],
       }));
+      notificationStore.success('Workflow launched', { message: run.templateName });
       return run;
     } catch (error) {
       store.setState((state) => ({ ...state, error: toErrorMessage(error) }));
+      notificationStore.error('Failed to launch workflow', { message: toErrorMessage(error) });
       return null;
     }
   }

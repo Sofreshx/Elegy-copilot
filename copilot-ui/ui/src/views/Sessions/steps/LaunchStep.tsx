@@ -1,19 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FormInput } from '../../../components';
+import { listSdkModels } from '../../../lib/api';
 import type { SessionWizardState } from '../sessionWizardStore';
 import { sessionWizardStore } from '../sessionWizardStore';
 
 interface LaunchStepProps {
   state: SessionWizardState;
 }
-
-const SUGGESTED_MODELS = [
-  'claude-sonnet-4',
-  'claude-opus-4',
-  'gpt-4.1',
-  'gpt-4o',
-  'o3',
-];
 
 function projectLabel(state: SessionWizardState): string {
   if (state.useCustomRepo && state.customRepoPath) return state.customRepoPath;
@@ -41,6 +34,39 @@ export default function LaunchStep({ state }: LaunchStepProps) {
   const [showAdvanced, setShowAdvanced] = useState(
     Boolean(state.actorLabel || state.actorRole),
   );
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(true);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setModelsLoading(true);
+    listSdkModels()
+      .then((response) => {
+        if (cancelled) return;
+        setAvailableModels(response.models);
+        setModelsError(null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setAvailableModels([]);
+        setModelsError(error instanceof Error ? error.message : 'Unable to load Copilot CLI models.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setModelsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const modelPlaceholder = availableModels[0]
+    ? `e.g. ${availableModels[0]}`
+    : 'Load from Copilot CLI';
 
   return (
     <div className="session-wizard-launch-step" data-testid="session-wizard-launch-step">
@@ -62,24 +88,28 @@ export default function LaunchStep({ state }: LaunchStepProps) {
       <div className="session-wizard-model-section">
         <FormInput
           label="Model"
-          placeholder="e.g. claude-sonnet-4"
+          placeholder={modelPlaceholder}
           value={state.model}
           onValueChange={(v) => sessionWizardStore.setModel(v)}
           testId="session-wizard-model"
         />
-        <div className="session-wizard-model-suggestions" data-testid="session-wizard-model-suggestions">
-          {SUGGESTED_MODELS.map((m) => (
-            <button
-              key={m}
-              type="button"
-              className={`session-wizard-model-chip ${state.model === m ? 'session-wizard-model-chip-active' : ''}`}
-              data-testid={`session-wizard-model-chip-${m}`}
-              onClick={() => sessionWizardStore.setModel(m)}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+        {modelsLoading ? <p className="session-wizard-loading">Loading models from Copilot CLI…</p> : null}
+        {modelsError ? <p className="session-wizard-empty">{modelsError}</p> : null}
+        {availableModels.length > 0 ? (
+          <div className="session-wizard-model-chips" data-testid="session-wizard-model-suggestions">
+            {availableModels.map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={`session-wizard-model-chip ${state.model === m ? 'session-wizard-model-chip-active' : ''}`}
+                data-testid={`session-wizard-model-chip-${m}`}
+                onClick={() => sessionWizardStore.setModel(m)}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="session-wizard-advanced-section">
