@@ -15,6 +15,10 @@ coverage/
 release-artifacts/
 copilot-ui/lib/desktop-shell/
 copilot-ui/release/
+!copilot-ui/release/tauri/
+!copilot-ui/release/tauri/windows/
+!copilot-ui/release/tauri/windows/electron-to-tauri-handoff.md
+!copilot-ui/release/tauri/windows/windows-installation-guide.md
 copilot-ui/src-tauri/gen/resources/
 copilot-ui/src-tauri/target/
 copilot-ui/ui-dist/
