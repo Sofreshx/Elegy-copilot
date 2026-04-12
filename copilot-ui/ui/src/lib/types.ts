@@ -2739,3 +2739,34 @@ export interface PlanningPersistenceInitResponse {
   errors?: unknown[];
   [key: string]: unknown;
 }
+
+export interface ToolCallBlock {
+  toolCallId: string;
+  toolName: string;
+  arguments?: Record<string, unknown>;
+  output?: string;
+  status: 'executing' | 'completed' | 'error';
+  startedAtMs: number;
+  completedAtMs?: number;
+}
+
+export interface PendingQuestion {
+  questionId: string;
+  toolCallId: string;
+  question: string;
+  options?: Array<{ label: string; value: string; recommended?: boolean }>;
+  askedAtMs: number;
+  answered: boolean;
+  answeredValue?: string;
+}
+
+export interface ActivityStreamEntry {
+  id: string;
+  kind: 'message' | 'tool-call' | 'pending' | 'question';
+  timestamp: number;
+  message?: SdkMessageEntry;
+  toolCall?: ToolCallBlock;
+  pendingContent?: string;
+  pendingReasoning?: string;
+  question?: PendingQuestion;
+}

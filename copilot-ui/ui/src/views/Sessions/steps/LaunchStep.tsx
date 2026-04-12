@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import { FormInput } from '../../../components';
 import { listSdkModels } from '../../../lib/api';
+import { SESSION_AGENTS } from '../../../constants/sessionAgents';
 import type { SessionWizardState } from '../sessionWizardStore';
 import { sessionWizardStore } from '../sessionWizardStore';
 
 interface LaunchStepProps {
   state: SessionWizardState;
 }
+
+const PRIMARY_MODELS = ['claude-opus-4.6', 'gpt-5.4'];
 
 function projectLabel(state: SessionWizardState): string {
   if (state.useCustomRepo && state.customRepoPath) return state.customRepoPath;
@@ -20,7 +23,6 @@ function objectivePreview(state: SessionWizardState): string {
       ? state.objective.slice(0, 120) + '…'
       : state.objective;
   }
-  if (state.templateId) return state.templateId;
   return 'No objective set';
 }
 
@@ -30,13 +32,28 @@ function isolationLabel(state: SessionWizardState): string {
   return 'Shared';
 }
 
+function agentLabel(state: SessionWizardState): string {
+  const agent = SESSION_AGENTS.find(a => a.id === state.agentId);
+  return agent ? `${agent.icon} ${agent.label}` : state.agentId;
+}
+
 export default function LaunchStep({ state }: LaunchStepProps) {
   const [showAdvanced, setShowAdvanced] = useState(
     Boolean(state.actorLabel || state.actorRole),
   );
+  const [showMoreModels, setShowMoreModels] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [modelsError, setModelsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!state.model) {
+      const agent = SESSION_AGENTS.find(a => a.id === state.agentId);
+      if (agent?.defaultModel) {
+        sessionWizardStore.setModel(agent.defaultModel);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +81,9 @@ export default function LaunchStep({ state }: LaunchStepProps) {
     };
   }, []);
 
+  const primaryModels = availableModels.filter((m) => PRIMARY_MODELS.includes(m));
+  const otherModels = availableModels.filter((m) => !PRIMARY_MODELS.includes(m));
+
   const modelPlaceholder = availableModels[0]
     ? `e.g. ${availableModels[0]}`
     : 'Load from Copilot CLI';
@@ -74,6 +94,10 @@ export default function LaunchStep({ state }: LaunchStepProps) {
         <div className="session-wizard-launch-row">
           <span className="session-wizard-launch-key">Project</span>
           <span className="session-wizard-launch-value">{projectLabel(state)}</span>
+        </div>
+        <div className="session-wizard-launch-row">
+          <span className="session-wizard-launch-key">Agent</span>
+          <span className="session-wizard-launch-value" data-testid="session-wizard-launch-agent">{agentLabel(state)}</span>
         </div>
         <div className="session-wizard-launch-row">
           <span className="session-wizard-launch-key">Objective</span>
@@ -95,13 +119,13 @@ export default function LaunchStep({ state }: LaunchStepProps) {
         />
         {modelsLoading ? <p className="session-wizard-loading">Loading models from Copilot CLI…</p> : null}
         {modelsError ? <p className="session-wizard-empty">{modelsError}</p> : null}
-        {availableModels.length > 0 ? (
+        {primaryModels.length > 0 ? (
           <div className="session-wizard-model-chips" data-testid="session-wizard-model-suggestions">
-            {availableModels.map((m) => (
+            {primaryModels.map((m) => (
               <button
                 key={m}
                 type="button"
-                className={`session-wizard-model-chip ${state.model === m ? 'session-wizard-model-chip-active' : ''}`}
+                className={`session-wizard-model-chip session-wizard-model-chip-primary ${state.model === m ? 'session-wizard-model-chip-active' : ''}`}
                 data-testid={`session-wizard-model-chip-${m}`}
                 onClick={() => sessionWizardStore.setModel(m)}
               >
@@ -109,6 +133,34 @@ export default function LaunchStep({ state }: LaunchStepProps) {
               </button>
             ))}
           </div>
+        ) : null}
+        {otherModels.length > 0 ? (
+          <>
+            <button
+              type="button"
+              className="session-wizard-more-models-toggle"
+              data-testid="session-wizard-more-models-toggle"
+              onClick={() => setShowMoreModels((prev) => !prev)}
+              aria-expanded={showMoreModels}
+            >
+              {showMoreModels ? '▾ Fewer models' : '▸ More models'}
+            </button>
+            {showMoreModels ? (
+              <div className="session-wizard-model-chips" data-testid="session-wizard-model-others">
+                {otherModels.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className={`session-wizard-model-chip ${state.model === m ? 'session-wizard-model-chip-active' : ''}`}
+                    data-testid={`session-wizard-model-chip-${m}`}
+                    onClick={() => sessionWizardStore.setModel(m)}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </>
         ) : null}
       </div>
 

@@ -19,6 +19,8 @@ class WorkflowExecutionService extends EventEmitter {
     // runId → { stepJobs: Map<executorJobId, stepIndex> }
     this._activeRuns = new Map();
     this._boundHandler = null;
+    this._scheduleTimers = new Map(); // templateId → timer
+    this._scheduleLock = new Set(); // templateId set for "currently launching" dedup
   }
 
   async init() {
@@ -26,7 +28,18 @@ class WorkflowExecutionService extends EventEmitter {
       this._boundHandler = (event) => this._handleExecutorEvent(event);
       this._executor.on('workflow-layer:event', this._boundHandler);
     }
+    await this.initScheduler();
     return this;
+  }
+
+  async initScheduler() {
+    if (!this._wts) return;
+    const templates = this._wts.listTemplates(this._copilotHome);
+    for (const t of templates) {
+      if (t.schedule && t.schedule.enabled) {
+        this._scheduleTemplate(t);
+      }
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -107,12 +120,45 @@ class WorkflowExecutionService extends EventEmitter {
     return this._wts.getRun(copilotHome, workflowRunId);
   }
 
+  async updateSchedule(copilotHome, templateId, scheduleConfig) {
+    if (!this._wts) {
+      throw Object.assign(new Error('Workflow template service unavailable'), { statusCode: 503 });
+    }
+
+    const template = this._wts.updateTemplate(copilotHome, templateId, {
+      schedule: scheduleConfig,
+    });
+
+    if (!template) {
+      throw Object.assign(new Error('Template not found'), { statusCode: 404 });
+    }
+
+    if (template.schedule && template.schedule.enabled) {
+      // Set nextRunAt based on interval
+      const intervalMs = (template.schedule.intervalMinutes || 60) * 60 * 1000;
+      const nextRunAt = new Date(Date.now() + intervalMs).toISOString();
+      this._wts.updateTemplateScheduleMeta(copilotHome, templateId, { nextRunAt });
+      // Re-read and schedule
+      const updated = this._wts.getTemplate(copilotHome, templateId);
+      this._scheduleTemplate(updated);
+    } else {
+      this._clearSchedule(templateId);
+    }
+
+    return this._wts.getTemplate(copilotHome, templateId);
+  }
+
   async shutdown() {
     if (this._executor && this._boundHandler) {
       this._executor.off('workflow-layer:event', this._boundHandler);
       this._boundHandler = null;
     }
     this._activeRuns.clear();
+    for (const [, timer] of this._scheduleTimers) {
+      clearTimeout(timer);
+    }
+    this._scheduleTimers.clear();
+    this._scheduleLock.clear();
   }
 
   // -------------------------------------------------------------------------
@@ -181,6 +227,10 @@ class WorkflowExecutionService extends EventEmitter {
           workflowId: workflowRunId,
           workflowKind: 'workflow-step',
           trigger: 'workflow-engine',
+          workflowRunId: workflowRunId,
+          stepIndex: stepIndex,
+          stepLabel: (templateStep && templateStep.label) || '',
+          templateId: run.templateId,
         },
         repo: repoPath ? { repoPath } : {},
       },
@@ -317,6 +367,102 @@ class WorkflowExecutionService extends EventEmitter {
       error: errorMsg,
     });
     this._activeRuns.delete(workflowRunId);
+  }
+
+  // -------------------------------------------------------------------------
+  // Scheduler
+  // -------------------------------------------------------------------------
+
+  _scheduleTemplate(template) {
+    this._clearSchedule(template.templateId);
+    if (!template.schedule || !template.schedule.enabled) return;
+
+    const intervalMs = (template.schedule.intervalMinutes || 60) * 60 * 1000;
+
+    // Calculate delay to next run
+    let delayMs = intervalMs;
+    if (template.schedule.nextRunAt) {
+      const nextMs = Date.parse(template.schedule.nextRunAt);
+      if (!isNaN(nextMs)) {
+        delayMs = Math.max(0, nextMs - Date.now());
+      }
+    }
+
+    const timer = setTimeout(() => {
+      this._tickSchedule(template.templateId);
+    }, delayMs);
+
+    this._scheduleTimers.set(template.templateId, timer);
+  }
+
+  async _tickSchedule(templateId) {
+    if (this._scheduleLock.has(templateId)) return;
+    this._scheduleLock.add(templateId);
+
+    try {
+      const template = this._wts.getTemplate(this._copilotHome, templateId);
+      if (!template || !template.schedule || !template.schedule.enabled) {
+        this._scheduleLock.delete(templateId);
+        return;
+      }
+
+      // Check if previous run still active
+      const runs = this._wts.listRuns(this._copilotHome, {});
+      const activeRun = runs.find(r =>
+        r.templateId === templateId && r.status === 'running'
+      );
+
+      if (activeRun) {
+        console.log(`[workflow-scheduler] Skipping ${templateId} — previous run still active`);
+      } else {
+        const now = new Date().toISOString();
+        await this.launchRun(this._copilotHome, templateId, {
+          repoPath: template.schedule.repoPath || null,
+        });
+
+        this._wts.updateTemplateScheduleMeta(this._copilotHome, templateId, {
+          lastRunAt: now,
+        });
+
+        this.emit('workflow:event', {
+          type: 'workflow.schedule.triggered',
+          templateId,
+          triggeredAt: now,
+        });
+      }
+
+      // Schedule next tick
+      const intervalMs = (template.schedule.intervalMinutes || 60) * 60 * 1000;
+      const nextRunAt = new Date(Date.now() + intervalMs).toISOString();
+      this._wts.updateTemplateScheduleMeta(this._copilotHome, templateId, {
+        nextRunAt,
+      });
+
+      const nextTimer = setTimeout(() => {
+        this._tickSchedule(templateId);
+      }, intervalMs);
+      this._scheduleTimers.set(templateId, nextTimer);
+
+    } catch (err) {
+      console.error(`[workflow-scheduler] Error for ${templateId}: ${err.message}`);
+      // Retry after interval even on error
+      const template = this._wts.getTemplate(this._copilotHome, templateId);
+      const intervalMs = (template && template.schedule ? template.schedule.intervalMinutes : 60) * 60 * 1000;
+      const nextTimer = setTimeout(() => {
+        this._tickSchedule(templateId);
+      }, intervalMs);
+      this._scheduleTimers.set(templateId, nextTimer);
+    } finally {
+      this._scheduleLock.delete(templateId);
+    }
+  }
+
+  _clearSchedule(templateId) {
+    const timer = this._scheduleTimers.get(templateId);
+    if (timer) {
+      clearTimeout(timer);
+      this._scheduleTimers.delete(templateId);
+    }
   }
 }
 

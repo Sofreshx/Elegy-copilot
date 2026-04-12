@@ -369,6 +369,14 @@ function handleCreateSession(ctx, deps) {
         cwd = resolveSandboxSessionCwd(sandboxesHome, sandboxId);
       }
 
+      // For regular (non-sandbox) sessions, extract cwd from orchestration repo path
+      if (!cwd && payload.orchestration && typeof payload.orchestration === 'object') {
+        const repo = payload.orchestration.repo;
+        if (repo && typeof repo === 'object' && typeof repo.repoPath === 'string' && repo.repoPath.trim()) {
+          cwd = repo.repoPath.trim();
+        }
+      }
+
       return sdkBridge.createSdkSession({
         sessionId: sessionId || undefined,
         model: model || undefined,
@@ -468,6 +476,35 @@ function handleSend(ctx, deps) {
     });
 }
 
+function handleAnswerQuestion(ctx, deps) {
+  const { req, res } = ctx;
+  const { sendJson, readJsonBody } = deps;
+  const sdkBridge = requireSdkBridge(res, deps);
+  if (!sdkBridge) return;
+
+  readJsonBody(req)
+    .then((body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const sessionId = isNonEmptyString(payload.sessionId) ? payload.sessionId.trim() : '';
+      const toolCallId = isNonEmptyString(payload.toolCallId) ? payload.toolCallId.trim() : '';
+      const answer = typeof payload.answer === 'string' ? payload.answer : '';
+
+      if (!sessionId) {
+        throw Object.assign(new Error('sessionId is required'), { statusCode: 400 });
+      }
+      if (!toolCallId) {
+        throw Object.assign(new Error('toolCallId is required'), { statusCode: 400 });
+      }
+
+      return sdkBridge.answerQuestion(sessionId, toolCallId, answer);
+    })
+    .then((result) => sendJson(res, 200, result))
+    .catch((error) => {
+      const failure = toBridgeErrorPayload(error, 500);
+      sendJson(res, failure.statusCode, failure.body);
+    });
+}
+
 function handleStream(ctx, deps) {
   const { req, res, match } = ctx;
   const { sendJson } = deps;
@@ -535,6 +572,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/sdk/send',
       handler: (ctx) => handleSend(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/sdk/answer',
+      handler: (ctx) => handleAnswerQuestion(ctx, resolvedDeps),
     },
     {
       method: 'GET',

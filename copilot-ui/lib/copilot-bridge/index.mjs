@@ -617,6 +617,42 @@ export class SdkBridgeService {
 
     if (event.type === "tool.user_requested") {
       this._runToolHooks(record, event);
+
+      // Detect askQuestion-type tools and relay to SSE clients
+      const toolName = event && isObject(event.data) ? event.data.toolName : "";
+      if (toolName === "askQuestion" || toolName === "vscode/askQuestions" || toolName === "ask_user") {
+        const questionData = {
+          sessionId: record.sessionId,
+          type: "question.asked",
+          toolCallId: event.data.toolCallId || `q-${Date.now()}`,
+          toolName,
+          question: "",
+          options: [],
+        };
+
+        // Extract question text and options from arguments
+        const args = event.data.arguments;
+        if (isObject(args)) {
+          questionData.question = typeof args.question === "string" ? args.question : (typeof args.message === "string" ? args.message : "");
+          if (Array.isArray(args.options)) {
+            questionData.options = args.options.map(opt => {
+              if (typeof opt === "string") return { label: opt, value: opt };
+              if (isObject(opt)) return { label: String(opt.label || opt.value || opt), value: String(opt.value || opt.label || opt), recommended: Boolean(opt.recommended) };
+              return { label: String(opt), value: String(opt) };
+            });
+          }
+          // Support askQuestions batch format
+          if (Array.isArray(args.questions)) {
+            questionData.question = args.questions.map(q => {
+              if (typeof q === "string") return q;
+              if (isObject(q)) return String(q.question || q.text || q);
+              return String(q);
+            }).join("\n\n");
+          }
+        }
+
+        this._broadcastSse(record, "question.asked", questionData);
+      }
     }
 
     const mappedType = EVENT_RELAY_MAP[event.type];
@@ -678,6 +714,38 @@ export class SdkBridgeService {
         // Hook failures should not break event processing.
       }
     }
+  }
+
+  async answerQuestion(sessionId, toolCallId, answer) {
+    const normalizedSessionId = normalizeSessionId(sessionId);
+    const record = this._sessions.get(normalizedSessionId);
+
+    if (!record) {
+      const notFoundError = new Error(`SDK session not found: ${normalizedSessionId}`);
+      notFoundError.code = "SDK_SESSION_NOT_FOUND";
+      throw notFoundError;
+    }
+
+    // The SDK session object should support responding to tool calls
+    // Try session.respondToToolCall or session.submitToolOutput
+    if (record.session && typeof record.session.respondToToolCall === "function") {
+      await record.session.respondToToolCall(toolCallId, answer);
+    } else if (record.session && typeof record.session.submitToolOutput === "function") {
+      await record.session.submitToolOutput(toolCallId, answer);
+    } else {
+      // Fallback: send the answer as a regular message
+      await record.session.send({ prompt: answer, mode: "immediate" });
+    }
+
+    // Broadcast that the question was answered
+    this._broadcastSse(record, "question.answered", {
+      sessionId: normalizedSessionId,
+      type: "question.answered",
+      toolCallId,
+      answer,
+    });
+
+    return { answered: true, toolCallId };
   }
 
   _broadcastSse(record, eventName, payload) {

@@ -4,17 +4,37 @@ import { useStoreValue } from '../../lib/store';
 import { resolveSessionStatus, humanizeToken } from '../../lib/stateDiagnostics';
 import { navigationStore } from '../../stores/navigation';
 import type { SessionDetailTab } from '../../stores/navigation';
+import { workflowStore } from '../Workflows/workflowStore';
 import { sessionDetailStore } from './sessionDetailStore';
 import SessionActivityStream from './SessionActivityStream';
 import SessionTaskBoard from './SessionTaskBoard';
 import SessionArtifactsPanel from './SessionArtifactsPanel';
 import SessionConfigPanel from './SessionConfigPanel';
+import SessionGitPanel from './SessionGitPanel';
+
+function findWorkflowForSession(sessionId: string): { templateName: string; stepLabel: string; runId: string } | null {
+  const state = workflowStore.getState();
+  for (const run of state.runs) {
+    for (const step of run.steps) {
+      if (step.sessionId === sessionId) {
+        const template = state.templates.find((t) => t.templateId === run.templateId);
+        return {
+          templateName: template?.name ?? 'Workflow',
+          stepLabel: step.label,
+          runId: run.workflowRunId,
+        };
+      }
+    }
+  }
+  return null;
+}
 
 const TABS: { id: SessionDetailTab; label: string }[] = [
   { id: 'activity', label: 'Activity' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'artifacts', label: 'Artifacts' },
   { id: 'config', label: 'Config' },
+  { id: 'git', label: 'Git' },
 ];
 
 export default function SessionDetailView() {
@@ -61,6 +81,12 @@ export default function SessionDetailView() {
     navigationStore.selectSession(null);
   }
 
+  function handleStop() {
+    if (window.confirm('Stop this session? This will cancel the running task and cannot be undone.')) {
+      sessionDetailStore.stopSession();
+    }
+  }
+
   return (
     <div className="session-detail-view" data-testid="session-detail-view">
       <header className="session-detail-header">
@@ -81,6 +107,42 @@ export default function SessionDetailView() {
               status={humanizeToken(status)}
               testId="session-detail-status-badge"
             />
+            {(() => {
+              const wf = findWorkflowForSession(sessionId);
+              if (!wf) return null;
+              return (
+                <button
+                  className="session-workflow-link"
+                  onClick={() => navigationStore.selectWorkflowRun(wf.runId)}
+                  data-testid="session-workflow-link"
+                  title={`Part of: ${wf.templateName}`}
+                >
+                  ⚙ {wf.templateName} → {wf.stepLabel}
+                </button>
+              );
+            })()}
+          </div>
+          <div className="session-detail-actions">
+            <Button
+              variant="ghost"
+              size="sm"
+              testId="session-refresh-button"
+              onClick={() => sessionDetailStore.refreshSession()}
+              disabled={state.refreshing}
+            >
+              {state.refreshing ? '↻ Refreshing…' : '↻ Refresh'}
+            </Button>
+            {(state.sdkStreamStatus === 'connected' || state.sdkStreamStatus === 'connecting' || state.sdkStreamStatus === 'reconnecting' || status === 'active' || status === 'running') && (
+              <Button
+                variant="danger"
+                size="sm"
+                testId="session-stop-button"
+                onClick={handleStop}
+                disabled={state.stopping}
+              >
+                {state.stopping ? '⏹ Stopping…' : '⏹ Stop'}
+              </Button>
+            )}
           </div>
         </Toolbar>
       </header>
@@ -134,6 +196,12 @@ export default function SessionDetailView() {
           <SessionConfigPanel
             session={sessionSummary}
             orchestration={state.orchestration}
+          />
+        )}
+
+        {!state.loading && activeTab === 'git' && (
+          <SessionGitPanel
+            repoPath={state.orchestration?.repo?.repoPath ?? null}
           />
         )}
       </div>

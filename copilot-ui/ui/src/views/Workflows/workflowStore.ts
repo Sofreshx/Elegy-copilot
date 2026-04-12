@@ -4,43 +4,59 @@ import { notificationStore } from '../../stores/notificationStore';
 // ── Data types ──
 
 export interface WorkflowStep {
-  id: string;
+  stepId: string;
   label: string;
-  type: 'session' | 'approval' | 'script';
+  type: 'session' | 'approval' | 'hook';
   objective?: string;
   actorRole?: string;
   isolationMode?: string;
+  approvalRequired?: boolean;
   approvalMessage?: string;
+  agentId?: string | null;
+  model?: string | null;
+}
+
+export interface WorkflowSchedule {
+  enabled: boolean;
+  intervalMinutes: number;
+  lastRunAt: string | null;
+  nextRunAt: string | null;
 }
 
 export interface WorkflowTemplate {
-  id: string;
+  templateId: string;
   name: string;
   description: string;
   steps: WorkflowStep[];
+  schedule: WorkflowSchedule | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface WorkflowRunStep {
-  id: string;
+  stepId: string;
   label: string;
   type: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'awaiting-approval' | 'skipped';
+  sessionId: string | null;
+  executorJobId: string | null;
+  executorRunId: string | null;
   startedAt?: string;
   completedAt?: string;
   outcome?: string;
+  error?: string | null;
+  contextOutput?: string | null;
 }
 
 export interface WorkflowRun {
-  id: string;
+  workflowRunId: string;
   templateId: string;
-  templateName: string;
   projectId?: string;
+  repoPath?: string;
   status: 'running' | 'completed' | 'failed' | 'paused' | 'cancelled';
   currentStepIndex: number;
   steps: WorkflowRunStep[];
-  createdAt: string;
+  launchedAt: string;
   updatedAt: string;
 }
 
@@ -156,7 +172,7 @@ function createWorkflowStore() {
       const updated: WorkflowTemplate = await res.json();
       store.setState((state) => ({
         ...state,
-        templates: state.templates.map((t) => (t.id === id ? updated : t)),
+        templates: state.templates.map((t) => (t.templateId === id ? updated : t)),
       }));
       notificationStore.success('Template updated');
       return updated;
@@ -173,7 +189,7 @@ function createWorkflowStore() {
       if (!res.ok) throw new Error(`Failed to delete template (${res.status})`);
       store.setState((state) => ({
         ...state,
-        templates: state.templates.filter((t) => t.id !== id),
+        templates: state.templates.filter((t) => t.templateId !== id),
       }));
       notificationStore.success('Template deleted');
       return true;
@@ -184,12 +200,12 @@ function createWorkflowStore() {
     }
   }
 
-  async function launchRun(templateId: string, projectId?: string): Promise<WorkflowRun | null> {
+  async function launchRun(templateId: string, projectId?: string, repoPath?: string): Promise<WorkflowRun | null> {
     try {
       const res = await fetch('/api/workflows/launch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId, projectId }),
+        body: JSON.stringify({ templateId, projectId, repoPath }),
       });
       if (!res.ok) throw new Error(`Failed to launch run (${res.status})`);
       const run: WorkflowRun = await res.json();
@@ -197,12 +213,77 @@ function createWorkflowStore() {
         ...state,
         runs: [run, ...state.runs],
       }));
-      notificationStore.success('Workflow launched', { message: run.templateName });
+      const templateName = store.getState().templates.find(
+        (t) => t.templateId === run.templateId,
+      )?.name ?? 'Workflow';
+      notificationStore.success('Workflow launched', { message: templateName });
       return run;
     } catch (error) {
       store.setState((state) => ({ ...state, error: toErrorMessage(error) }));
       notificationStore.error('Failed to launch workflow', { message: toErrorMessage(error) });
       return null;
+    }
+  }
+
+  async function retryStep(runId: string, stepIndex: number): Promise<WorkflowRun | null> {
+    try {
+      const res = await fetch(`/api/workflows/runs/${runId}/retry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stepIndex }),
+      });
+      if (!res.ok) throw new Error(`Failed to retry step (${res.status})`);
+      return await res.json();
+    } catch (error) {
+      notificationStore.error('Failed to retry step', { message: toErrorMessage(error) });
+      return null;
+    }
+  }
+
+  function subscribeToRunEvents(runId: string, onEvent: (event: any) => void): () => void {
+    const source = new EventSource(`/api/workflows/runs/${runId}/events`);
+    source.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data);
+        onEvent(event);
+      } catch { /* ignore parse errors */ }
+    };
+    source.onerror = () => {
+      // Reconnect is handled by browser EventSource default behavior
+    };
+    return () => source.close();
+  }
+
+  async function updateSchedule(templateId: string, schedule: Partial<WorkflowSchedule>): Promise<WorkflowTemplate | null> {
+    try {
+      const res = await fetch(`/api/workflows/templates/${templateId}/schedule`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(schedule),
+      });
+      if (!res.ok) throw new Error(`Failed to update schedule (${res.status})`);
+      const updated: WorkflowTemplate = await res.json();
+      store.setState((state) => ({
+        ...state,
+        templates: state.templates.map((t) => (t.templateId === templateId ? updated : t)),
+      }));
+      notificationStore.success('Schedule updated');
+      return updated;
+    } catch (error) {
+      notificationStore.error('Failed to update schedule', { message: toErrorMessage(error) });
+      return null;
+    }
+  }
+
+  async function seedTemplates(): Promise<void> {
+    try {
+      const res = await fetch('/api/workflows/seed', { method: 'POST' });
+      if (!res.ok) throw new Error(`Failed to seed templates (${res.status})`);
+      const data = await res.json();
+      notificationStore.success(`Seeded ${data.seeded?.length ?? 0} templates`);
+      await loadTemplates();
+    } catch (error) {
+      notificationStore.error('Failed to seed templates', { message: toErrorMessage(error) });
     }
   }
 
@@ -219,6 +300,10 @@ function createWorkflowStore() {
     updateTemplate,
     deleteTemplate,
     launchRun,
+    retryStep,
+    subscribeToRunEvents,
+    updateSchedule,
+    seedTemplates,
     refresh,
   };
 }

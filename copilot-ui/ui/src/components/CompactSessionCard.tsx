@@ -5,6 +5,7 @@ interface CompactSessionCardProps {
   status: 'active' | 'idle' | 'completed' | 'failed' | 'unknown';
   elapsed?: string;
   repoLabel?: string;
+  pendingInput?: boolean;
   onSelect?: (id: string) => void;
   onAction?: (id: string, action: 'resume' | 'stop') => void;
   testId?: string;
@@ -18,6 +19,22 @@ const STATUS_DOT_CLASS: Record<CompactSessionCardProps['status'], string> = {
   unknown: 'compact-session-dot-completed',
 };
 
+const pulsingDotStyle: React.CSSProperties = {
+  display: 'inline-block',
+  width: 8,
+  height: 8,
+  borderRadius: '50%',
+  backgroundColor: '#22c55e',
+  marginRight: 6,
+  animation: 'compact-session-pulse 1.5s ease-in-out infinite',
+};
+
+const pulsingKeyframes = `
+@keyframes compact-session-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}`;
+
 export default function CompactSessionCard({
   id,
   title,
@@ -25,6 +42,7 @@ export default function CompactSessionCard({
   status,
   elapsed,
   repoLabel,
+  pendingInput,
   onSelect,
   onAction,
   testId = 'compact-session-card',
@@ -56,11 +74,22 @@ export default function CompactSessionCard({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
     >
-      <span
-        className={`compact-session-dot ${STATUS_DOT_CLASS[status]}`}
-        data-testid={`${testId}-dot`}
-        aria-label={`Status: ${status}`}
-      />
+      {status === 'active' ? (
+        <>
+          <style>{pulsingKeyframes}</style>
+          <span
+            style={pulsingDotStyle}
+            data-testid={`${testId}-running-indicator`}
+            aria-label="Running"
+          />
+        </>
+      ) : (
+        <span
+          className={`compact-session-dot ${STATUS_DOT_CLASS[status]}`}
+          data-testid={`${testId}-dot`}
+          aria-label={`Status: ${status}`}
+        />
+      )}
 
       <div className="compact-session-info">
         <span className="compact-session-title" data-testid={`${testId}-title`}>
@@ -77,6 +106,16 @@ export default function CompactSessionCard({
           </span>
         ) : null}
       </div>
+
+      {pendingInput ? (
+        <span
+          className="compact-session-pending-input"
+          data-testid={`${testId}-pending-input`}
+          style={{ fontSize: '0.75rem', color: '#f59e0b', fontWeight: 600, marginRight: 6 }}
+        >
+          ⏳ Awaiting input
+        </span>
+      ) : null}
 
       {elapsed ? (
         <span className="compact-session-elapsed" data-testid={`${testId}-elapsed`}>

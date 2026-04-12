@@ -1,30 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button, Panel, Toolbar, Badge, StatusBadge } from '../../components';
 import { navigationStore } from '../../stores/navigation';
-
-// ── Data types ──
-
-interface WorkflowRunStep {
-  id: string;
-  label: string;
-  type: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'awaiting-approval' | 'skipped';
-  startedAt?: string;
-  completedAt?: string;
-  outcome?: string;
-}
-
-interface WorkflowRun {
-  id: string;
-  templateId: string;
-  templateName: string;
-  projectId?: string;
-  status: 'running' | 'completed' | 'failed' | 'paused' | 'cancelled';
-  currentStepIndex: number;
-  steps: WorkflowRunStep[];
-  createdAt: string;
-  updatedAt: string;
-}
+import { workflowStore } from './workflowStore';
+import type { WorkflowRunStep, WorkflowRun } from './workflowStore';
 
 // ── Props ──
 
@@ -33,8 +11,6 @@ interface WorkflowExecutionViewProps {
 }
 
 // ── Helpers ──
-
-const POLL_INTERVAL_MS = 5000;
 
 const STEP_STATUS_ICONS: Record<WorkflowRunStep['status'], string> = {
   pending: '○',
@@ -95,22 +71,21 @@ export default function WorkflowExecutionView({ runId }: WorkflowExecutionViewPr
     }
   }, [runId]);
 
-  // Initial load + polling
+  // Initial load + SSE for live updates
   useEffect(() => {
     fetchRun();
 
-    const id = setInterval(() => {
-      // Poll only while the run is active
-      setRun((current) => {
-        if (current && (current.status === 'running' || current.status === 'paused')) {
-          fetchRun();
-        }
-        return current;
-      });
-    }, POLL_INTERVAL_MS);
+    const unsubscribe = workflowStore.subscribeToRunEvents(runId, (event) => {
+      if (event.type === 'workflow.run.state' && event.run) {
+        setRun(event.run);
+      } else {
+        // Re-fetch on any other event to get latest state
+        fetchRun();
+      }
+    });
 
-    return () => clearInterval(id);
-  }, [fetchRun]);
+    return () => unsubscribe();
+  }, [runId, fetchRun]);
 
   // ── Actions ──
 
@@ -157,8 +132,29 @@ export default function WorkflowExecutionView({ runId }: WorkflowExecutionViewPr
     }
   }
 
+  async function handleRetryStep(stepIndex: number) {
+    setActionInFlight(true);
+    const result = await workflowStore.retryStep(runId, stepIndex);
+    if (result) setRun(result);
+    setActionInFlight(false);
+  }
+
+  function handleStepClick(step: WorkflowRunStep) {
+    if (step.sessionId) {
+      navigationStore.selectSession(step.sessionId);
+    }
+  }
+
   function handleBack() {
     navigationStore.selectWorkflowRun(null);
+  }
+
+  // ── Resolve template name from store ──
+
+  function resolveTemplateName(): string {
+    if (!run) return '';
+    const templates = workflowStore.getState().templates;
+    return templates.find((t) => t.templateId === run.templateId)?.name ?? 'Workflow Run';
   }
 
   // ── Render helpers ──
@@ -203,9 +199,9 @@ export default function WorkflowExecutionView({ runId }: WorkflowExecutionViewPr
             ← Back
           </Button>
           <h2 className="workflow-execution-title" data-testid="workflow-execution-title">
-            {run.templateName}
+            {resolveTemplateName()}
           </h2>
-          <Badge tone="neutral" testId="workflow-execution-run-id">{run.id}</Badge>
+          <Badge tone="neutral" testId="workflow-execution-run-id">{run.workflowRunId}</Badge>
           <StatusBadge status={run.status} testId="workflow-execution-status" />
         </div>
 
@@ -248,20 +244,34 @@ export default function WorkflowExecutionView({ runId }: WorkflowExecutionViewPr
             const isCurrent = idx === run.currentStepIndex;
             return (
               <li
-                key={step.id}
+                key={step.stepId}
                 className={`workflow-step-item ${stepStatusClass(step.status)}${isCurrent ? ' step-current' : ''}`}
-                data-testid={`workflow-step-${step.id}`}
+                data-testid={`workflow-step-${step.stepId}`}
+                onClick={() => handleStepClick(step)}
+                style={step.sessionId ? { cursor: 'pointer' } : undefined}
               >
                 {idx > 0 && <span className="workflow-step-connector" aria-hidden="true" />}
-                <span className="workflow-step-icon" data-testid={`workflow-step-icon-${step.id}`}>
+                <span className="workflow-step-icon" data-testid={`workflow-step-icon-${step.stepId}`}>
                   {STEP_STATUS_ICONS[step.status]}
                 </span>
                 <span className={`workflow-step-label${step.status === 'skipped' ? ' step-label-skipped' : ''}`}>
                   {step.label}
                 </span>
-                <Badge tone="neutral" testId={`workflow-step-type-${step.id}`}>{step.type}</Badge>
-                <StatusBadge status={step.status} testId={`workflow-step-status-${step.id}`} />
-                <span className="workflow-step-timing" data-testid={`workflow-step-timing-${step.id}`}>
+                <Badge tone="neutral" testId={`workflow-step-type-${step.stepId}`}>{step.type}</Badge>
+                <StatusBadge status={step.status} testId={`workflow-step-status-${step.stepId}`} />
+                {step.sessionId && (
+                  <button
+                    className="workflow-step-session-link"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigationStore.selectSession(step.sessionId!);
+                    }}
+                    title={`Open session ${step.sessionId}`}
+                  >
+                    → Session
+                  </button>
+                )}
+                <span className="workflow-step-timing" data-testid={`workflow-step-timing-${step.stepId}`}>
                   {step.startedAt ? `Started: ${formatTimestamp(step.startedAt)}` : ''}
                   {step.completedAt ? ` · Completed: ${formatTimestamp(step.completedAt)}` : ''}
                 </span>
@@ -303,6 +313,15 @@ export default function WorkflowExecutionView({ runId }: WorkflowExecutionViewPr
           {currentStep.status === 'running' && (
             <div className="workflow-step-running" data-testid="workflow-step-running">
               <span className="workflow-spinner" aria-hidden="true">⟳</span> In progress…
+              {currentStep.sessionId && (
+                <button
+                  className="workflow-step-session-link"
+                  onClick={() => navigationStore.selectSession(currentStep.sessionId!)}
+                  title={`Open session ${currentStep.sessionId}`}
+                >
+                  → View Session
+                </button>
+              )}
             </div>
           )}
 
@@ -313,20 +332,30 @@ export default function WorkflowExecutionView({ runId }: WorkflowExecutionViewPr
               ) : (
                 <p>Step completed successfully.</p>
               )}
+              {currentStep.sessionId && (
+                <button
+                  className="workflow-step-session-link"
+                  onClick={() => navigationStore.selectSession(currentStep.sessionId!)}
+                  title={`Open session ${currentStep.sessionId}`}
+                >
+                  → View Session
+                </button>
+              )}
             </div>
           )}
 
           {currentStep.status === 'failed' && (
             <div className="workflow-step-failed-detail" data-testid="workflow-step-failed-detail">
-              {currentStep.outcome && <p className="workflow-step-error-message">{currentStep.outcome}</p>}
+              {currentStep.error && <p className="workflow-step-error-message">{currentStep.error}</p>}
+              {!currentStep.error && currentStep.outcome && <p className="workflow-step-error-message">{currentStep.outcome}</p>}
               <Button
                 variant="primary"
                 size="sm"
-                testId="workflow-step-resume"
+                testId="workflow-step-retry"
                 disabled={actionInFlight}
-                onClick={handleResume}
+                onClick={() => handleRetryStep(run.currentStepIndex)}
               >
-                Resume
+                Retry Step
               </Button>
             </div>
           )}
@@ -337,8 +366,8 @@ export default function WorkflowExecutionView({ runId }: WorkflowExecutionViewPr
       <Panel title="Run Details" testId="workflow-run-metadata-panel">
         <dl className="workflow-run-metadata" data-testid="workflow-run-metadata">
           <div className="workflow-metadata-item">
-            <dt>Created</dt>
-            <dd data-testid="workflow-meta-created">{formatTimestamp(run.createdAt)}</dd>
+            <dt>Launched</dt>
+            <dd data-testid="workflow-meta-launched">{formatTimestamp(run.launchedAt)}</dd>
           </div>
           <div className="workflow-metadata-item">
             <dt>Updated</dt>
@@ -348,6 +377,12 @@ export default function WorkflowExecutionView({ runId }: WorkflowExecutionViewPr
             <div className="workflow-metadata-item">
               <dt>Project</dt>
               <dd data-testid="workflow-meta-project">{run.projectId}</dd>
+            </div>
+          )}
+          {run.repoPath && (
+            <div className="workflow-metadata-item">
+              <dt>Repo Path</dt>
+              <dd data-testid="workflow-meta-repo-path">{run.repoPath}</dd>
             </div>
           )}
         </dl>

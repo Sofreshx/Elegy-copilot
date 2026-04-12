@@ -59,6 +59,19 @@ function nowISO() {
 // Validation
 // ---------------------------------------------------------------------------
 
+function normalizeSchedule(input) {
+  if (!input || typeof input !== 'object') return null;
+  const enabled = Boolean(input.enabled);
+  if (!enabled) return null;
+  const intervalMinutes = Math.max(1, Math.min(43200, Number(input.intervalMinutes) || 60));
+  return {
+    enabled: true,
+    intervalMinutes,
+    lastRunAt: typeof input.lastRunAt === 'string' ? input.lastRunAt : null,
+    nextRunAt: typeof input.nextRunAt === 'string' ? input.nextRunAt : null,
+  };
+}
+
 function validateTemplateInput(input) {
   if (!input || typeof input !== 'object') {
     throw Object.assign(new Error('Template input must be an object'), { statusCode: 400 });
@@ -146,6 +159,7 @@ function createTemplate(copilotHome, input) {
     updatedAt: now,
   };
   const filePath = path.join(resolveTemplatesDir(copilotHome), `${template.templateId}.json`);
+  template.schedule = normalizeSchedule(input.schedule);
   writeJsonAtomic(filePath, template);
   return template;
 }
@@ -168,6 +182,9 @@ function updateTemplate(copilotHome, templateId, fields) {
       validateTemplateInput({ name: existing.name, steps: fields.steps });
       existing.steps = fields.steps.map(normalizeStep);
     }
+    if (fields.schedule !== undefined) {
+      existing.schedule = normalizeSchedule(fields.schedule);
+    }
   }
 
   existing.updatedAt = nowISO();
@@ -184,6 +201,17 @@ function deleteTemplate(copilotHome, templateId) {
   } catch {
     return false;
   }
+}
+
+function updateTemplateScheduleMeta(copilotHome, templateId, meta) {
+  if (!templateId) return null;
+  const filePath = path.join(resolveTemplatesDir(copilotHome), `${templateId}.json`);
+  const existing = readJsonIfExists(filePath);
+  if (!existing || !existing.schedule) return null;
+  if (meta.lastRunAt) existing.schedule.lastRunAt = meta.lastRunAt;
+  if (meta.nextRunAt) existing.schedule.nextRunAt = meta.nextRunAt;
+  writeJsonAtomic(filePath, existing);
+  return existing;
 }
 
 // ---------------------------------------------------------------------------
@@ -331,6 +359,7 @@ module.exports = {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  updateTemplateScheduleMeta,
   listRuns,
   getRun,
   createRun,

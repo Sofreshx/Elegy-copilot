@@ -10,9 +10,11 @@ interface WorkflowTemplateEditorProps {
 
 function createEmptyStep(): WorkflowStep {
   return {
-    id: crypto.randomUUID(),
+    stepId: crypto.randomUUID(),
     label: '',
     type: 'session',
+    agentId: null,
+    model: null,
   };
 }
 
@@ -24,6 +26,8 @@ export default function WorkflowTemplateEditor({ templateId }: WorkflowTemplateE
   const [steps, setSteps] = useState<WorkflowStep[]>([createEmptyStep()]);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [intervalMinutes, setIntervalMinutes] = useState(60);
 
   useEffect(() => {
     if (isNew) return;
@@ -39,6 +43,10 @@ export default function WorkflowTemplateEditor({ templateId }: WorkflowTemplateE
         setName(template.name ?? '');
         setDescription(template.description ?? '');
         setSteps(template.steps?.length ? template.steps : [createEmptyStep()]);
+        if (template.schedule) {
+          setScheduleEnabled(template.schedule.enabled);
+          setIntervalMinutes(template.schedule.intervalMinutes || 60);
+        }
       } catch (error) {
         if (!cancelled) {
           setLoadError(error instanceof Error ? error.message : 'Failed to load template.');
@@ -62,6 +70,7 @@ export default function WorkflowTemplateEditor({ templateId }: WorkflowTemplateE
       name: name.trim(),
       description: description.trim(),
       steps,
+      schedule: scheduleEnabled ? { enabled: true, intervalMinutes } : { enabled: false, intervalMinutes: 60 },
     };
 
     if (isNew) {
@@ -152,7 +161,7 @@ export default function WorkflowTemplateEditor({ templateId }: WorkflowTemplateE
         <div className="editor-steps" data-testid="editor-steps">
           <h3>Steps</h3>
           {steps.map((step, index) => (
-            <div className="step-row" key={step.id} data-testid={`step-row-${index}`}>
+            <div className="step-row" key={step.stepId} data-testid={`step-row-${index}`}>
               <span className="step-index">{index + 1}.</span>
 
               <input
@@ -172,18 +181,48 @@ export default function WorkflowTemplateEditor({ templateId }: WorkflowTemplateE
               >
                 <option value="session">Session</option>
                 <option value="approval">Approval</option>
-                <option value="script">Script</option>
+                <option value="hook">Hook</option>
               </select>
 
-              {step.type === 'session' ? (
+              {step.type === 'session' && (
+                <>
+                  <input
+                    data-testid={`step-objective-${index}`}
+                    type="text"
+                    value={step.objective ?? ''}
+                    onChange={(e) => updateStep(index, { objective: e.target.value })}
+                    placeholder="Objective / prompt"
+                  />
+                  <input
+                    data-testid={`step-agent-${index}`}
+                    type="text"
+                    value={step.agentId ?? ''}
+                    onChange={(e) => updateStep(index, { agentId: e.target.value || null })}
+                    placeholder="Agent (optional)"
+                  />
+                  <select
+                    data-testid={`step-model-${index}`}
+                    value={step.model ?? ''}
+                    onChange={(e) => updateStep(index, { model: e.target.value || null })}
+                  >
+                    <option value="">Default model</option>
+                    <option value="claude-opus-4.6">Claude Opus 4.6</option>
+                    <option value="gpt-5.4">GPT 5.4</option>
+                    <option value="claude-sonnet-4.5">Claude Sonnet 4.5</option>
+                    <option value="gpt-4.1">GPT 4.1</option>
+                  </select>
+                </>
+              )}
+
+              {step.type === 'approval' && (
                 <input
-                  data-testid={`step-objective-${index}`}
+                  data-testid={`step-approval-msg-${index}`}
                   type="text"
-                  value={step.objective ?? ''}
-                  onChange={(e) => updateStep(index, { objective: e.target.value })}
-                  placeholder="Objective"
+                  value={step.approvalMessage ?? ''}
+                  onChange={(e) => updateStep(index, { approvalMessage: e.target.value })}
+                  placeholder="Approval message"
                 />
-              ) : null}
+              )}
 
               <div className="step-actions">
                 <Button
@@ -220,6 +259,60 @@ export default function WorkflowTemplateEditor({ templateId }: WorkflowTemplateE
             Add Step
           </Button>
         </div>
+      </Panel>
+
+      <Panel title="Schedule" testId="editor-schedule-panel">
+        <div className="editor-field schedule-toggle-field">
+          <label htmlFor="schedule-enabled" className="schedule-toggle-label">
+            <input
+              id="schedule-enabled"
+              data-testid="schedule-enabled-toggle"
+              type="checkbox"
+              checked={scheduleEnabled}
+              onChange={(e) => setScheduleEnabled(e.target.checked)}
+            />
+            Enable recurring schedule
+          </label>
+        </div>
+
+        {scheduleEnabled && (
+          <div className="schedule-config">
+            <div className="editor-field">
+              <label htmlFor="schedule-interval">Run every</label>
+              <div className="schedule-interval-input">
+                <input
+                  id="schedule-interval"
+                  data-testid="schedule-interval-input"
+                  type="number"
+                  min={1}
+                  max={43200}
+                  value={intervalMinutes}
+                  onChange={(e) => setIntervalMinutes(Math.max(1, parseInt(e.target.value) || 60))}
+                />
+                <span className="schedule-interval-unit">minutes</span>
+              </div>
+            </div>
+            <div className="schedule-presets">
+              {[
+                { label: '15m', value: 15 },
+                { label: '1h', value: 60 },
+                { label: '6h', value: 360 },
+                { label: '12h', value: 720 },
+                { label: '24h', value: 1440 },
+              ].map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  className={`schedule-preset-btn${intervalMinutes === p.value ? ' schedule-preset-active' : ''}`}
+                  data-testid={`schedule-preset-${p.value}`}
+                  onClick={() => setIntervalMinutes(p.value)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </Panel>
 
       <div className="editor-footer" data-testid="editor-footer">

@@ -1,15 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Panel } from '../components';
 import CompactSessionCard from '../components/CompactSessionCard';
 import HealthDot from '../components/HealthDot';
 import { navigationStore } from '../stores/navigation';
 
 interface DashboardSession {
-  id: string;
-  title: string;
+  sessionId: string;
+  objective?: string | null;
   projectId?: string | null;
   projectName?: string | null;
   repoLabel?: string | null;
+  source?: string | null;
   status: string;
   elapsedMs?: number | null;
   updatedAtMs?: number | null;
@@ -35,18 +36,6 @@ function formatElapsed(ms: number | null | undefined): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-function formatTimeAgo(isoOrMs: string | number): string {
-  const ms = typeof isoOrMs === 'number' ? isoOrMs : new Date(isoOrMs).getTime();
-  const diff = Date.now() - ms;
-  if (diff < 60000) return 'just now';
-  const min = Math.floor(diff / 60000);
-  if (min < 60) return `${min}m ago`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
-
 function normalizeStatus(s: string): 'active' | 'idle' | 'completed' | 'failed' | 'unknown' {
   const lower = (s || '').toLowerCase();
   if (lower === 'active' || lower === 'running') return 'active';
@@ -61,118 +50,132 @@ export default function DashboardView() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const [sessionsRes, summaryRes] = await Promise.allSettled([
+        fetch('/api/sessions/unified?limit=20', { signal }).then((r) => r.ok ? r.json() : []),
+        fetch('/api/dashboard/summary', { signal }).then((r) => r.ok ? r.json() : null),
+      ]);
 
-    async function load() {
-      try {
-        const [sessionsRes, summaryRes] = await Promise.allSettled([
-          fetch('/api/sessions/unified?limit=20').then((r) => r.ok ? r.json() : []),
-          fetch('/api/dashboard/summary').then((r) => r.ok ? r.json() : null),
-        ]);
+      if (signal?.aborted) return;
 
-        if (cancelled) return;
-
-        setSessions(sessionsRes.status === 'fulfilled' ? sessionsRes.value : []);
-        setSummary(summaryRes.status === 'fulfilled' ? summaryRes.value : null);
-      } catch {
-        // API not available yet — show empty state
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      setSessions(sessionsRes.status === 'fulfilled' ? sessionsRes.value : []);
+      setSummary(summaryRes.status === 'fulfilled' ? summaryRes.value : null);
+    } catch {
+      // API not available yet — show empty state
+    } finally {
+      if (!signal?.aborted) setLoading(false);
     }
-
-    void load();
-    const interval = setInterval(() => void load(), 15000);
-    return () => { cancelled = true; clearInterval(interval); };
   }, []);
+
+  // Initial load + auto-refresh every 10s for active sessions
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void load(controller.signal);
+    const interval = setInterval(() => void load(controller.signal), 10000);
+
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
+  }, [load]);
 
   const activeSessions = sessions.filter((s) => {
     const status = normalizeStatus(s.status);
     return status === 'active' || status === 'idle';
   });
 
-  const healthTone = summary?.healthIndicator === 'error' ? 'error'
-    : summary?.healthIndicator === 'degraded' ? 'warn'
-    : 'ok';
+  const recentSessions = sessions.filter((s) => {
+    const status = normalizeStatus(s.status);
+    return status !== 'active' && status !== 'idle';
+  });
 
-  const healthLabel = summary?.healthIndicator === 'error' ? 'Issues detected'
-    : summary?.healthIndicator === 'degraded' ? 'Degraded'
-    : 'All systems operational';
+  const totalCount = summary?.totalSessionCount ?? sessions.length;
 
   return (
-    <div className="dashboard-view" data-testid="dashboard-view">
-      {/* Health Summary */}
-      <div className={`health-summary health-summary-${summary?.healthIndicator || 'ok'}`} data-testid="dashboard-health">
-        <HealthDot tone={healthTone} />
-        <span>{healthLabel}</span>
-        {summary ? (
-          <span style={{ marginLeft: 'auto', fontSize: '0.78rem', opacity: 0.7 }}>
-            {summary.activeSessionCount} active / {summary.totalSessionCount} total sessions
+    <div className="dashboard-view" data-testid="execution-hub">
+      {/* Execution Header */}
+      <div className="execution-hub-header" data-testid="execution-hub-header">
+        <div className="execution-hub-header-left">
+          <h1 className="execution-hub-title" data-testid="execution-hub-title">Execution</h1>
+          <span className="execution-hub-count" data-testid="execution-hub-count">
+            {totalCount} session{totalCount !== 1 ? 's' : ''}
           </span>
-        ) : null}
-      </div>
-
-      {/* Quick Launch */}
-      <div className="dashboard-quick-launch">
+          {summary ? (
+            <span className="execution-hub-health" data-testid="execution-hub-health">
+              <HealthDot tone={summary.healthIndicator === 'error' ? 'error' : summary.healthIndicator === 'degraded' ? 'warn' : 'ok'} />
+            </span>
+          ) : null}
+        </div>
         <button
           className="button button-primary"
-          data-testid="dashboard-new-session"
+          data-testid="execution-hub-new-session"
           onClick={() => navigationStore.openWizard('session')}
           type="button"
         >
           + New Session
         </button>
-        <button
-          className="button button-secondary"
-          data-testid="dashboard-add-project"
-          onClick={() => navigationStore.openWizard('project')}
-          type="button"
-        >
-          Add Project
-        </button>
       </div>
 
       {/* Active Sessions */}
-      <Panel title="Active Sessions" testId="dashboard-active-sessions">
+      <Panel title={`Active Sessions (${activeSessions.length})`} testId="execution-hub-active-sessions">
         {loading ? (
-          <p className="active-sessions-empty">Loading sessions…</p>
+          <p className="active-sessions-empty" data-testid="execution-hub-loading">Loading sessions…</p>
+        ) : activeSessions.length === 0 && recentSessions.length === 0 ? (
+          <div className="execution-hub-empty-state" data-testid="execution-hub-empty-state">
+            <p style={{ fontSize: '1.1rem', marginBottom: 8 }}>No sessions yet</p>
+            <p style={{ opacity: 0.7, marginBottom: 16 }}>Create your first session to get started.</p>
+            <button
+              className="button button-primary"
+              data-testid="execution-hub-empty-cta"
+              onClick={() => navigationStore.openWizard('session')}
+              type="button"
+            >
+              + Create First Session
+            </button>
+          </div>
         ) : activeSessions.length === 0 ? (
-          <p className="active-sessions-empty">No active sessions. Start one above!</p>
+          <p className="active-sessions-empty" data-testid="execution-hub-no-active">No active sessions right now.</p>
         ) : (
-          <div className="active-sessions-strip">
+          <div className="active-sessions-strip" data-testid="execution-hub-active-list">
             {activeSessions.map((session) => (
               <CompactSessionCard
-                key={session.id}
-                id={session.id}
-                title={session.title}
+                key={session.sessionId}
+                id={session.sessionId}
+                title={session.objective ?? 'Untitled'}
                 projectName={session.projectName || undefined}
                 repoLabel={session.repoLabel || undefined}
                 status={normalizeStatus(session.status)}
                 elapsed={formatElapsed(session.elapsedMs)}
                 onSelect={(id) => navigationStore.selectSession(id)}
-                testId={`dashboard-session-${session.id}`}
+                testId={`execution-hub-session-${session.sessionId}`}
               />
             ))}
           </div>
         )}
       </Panel>
 
-      {/* Recent Activity */}
-      <Panel title="Recent Activity" testId="dashboard-recent-activity">
-        {summary?.recentActivity && summary.recentActivity.length > 0 ? (
-          <div className="recent-activity-feed">
-            {summary.recentActivity.slice(0, 10).map((item, i) => (
-              <div className="activity-item" key={`${item.timestamp}-${i}`}>
-                <span className="activity-item-time">{formatTimeAgo(item.timestamp)}</span>
-                <span className="activity-item-summary">{item.summary}</span>
-              </div>
+      {/* Recent Sessions */}
+      {!loading && recentSessions.length > 0 ? (
+        <Panel title={`Recent Sessions (${recentSessions.length})`} testId="execution-hub-recent-sessions">
+          <div className="recent-sessions-list" data-testid="execution-hub-recent-list">
+            {recentSessions.map((session) => (
+              <CompactSessionCard
+                key={session.sessionId}
+                id={session.sessionId}
+                title={session.objective ?? 'Untitled'}
+                projectName={session.projectName || undefined}
+                repoLabel={session.repoLabel || undefined}
+                status={normalizeStatus(session.status)}
+                elapsed={formatElapsed(session.elapsedMs)}
+                onSelect={(id) => navigationStore.selectSession(id)}
+                testId={`execution-hub-session-${session.sessionId}`}
+              />
             ))}
           </div>
-        ) : (
-          <p className="active-sessions-empty">No recent activity</p>
-        )}
-      </Panel>
+        </Panel>
+      ) : null}
     </div>
   );
 }

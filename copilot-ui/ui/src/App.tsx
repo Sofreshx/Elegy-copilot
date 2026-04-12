@@ -11,8 +11,10 @@ import {
   type SidebarItemId,
 } from './stores/navigation';
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
+import { questionBadgeStore } from './stores/questionBadgeStore';
 import { sdkHealthStore } from './stores/sdkHealthStore';
 import PlanningView from './tabs/Planning/PlanningView';
+import TodoView from './tabs/Planning/TodoView';
 import CatalogShellView from './views/Catalog/CatalogShellView';
 import DashboardView from './views/DashboardView';
 import MaintenanceView from './views/Maintenance/MaintenanceView';
@@ -35,9 +37,11 @@ export default function App() {
   useEffect(() => {
     sdkHealthStore.startPolling();
     desktopUpdaterStore.startListening();
+    questionBadgeStore.startPolling();
     return () => {
       sdkHealthStore.stopPolling();
       desktopUpdaterStore.stopListening();
+      questionBadgeStore.stopPolling();
     };
   }, []);
 
@@ -141,11 +145,7 @@ export default function App() {
       case 'catalog':
         return <CatalogShellView />;
       case 'planning':
-        return (
-          <PlanningView onSdkSessionReady={() => {
-            navigationStore.goToRuntime('sessions', { sessionsMode: 'sdk' });
-          }} />
-        );
+        return <TodoView />;
       case 'maintenance':
         return <MaintenanceView />;
       case 'workflows':

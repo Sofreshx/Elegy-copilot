@@ -60,7 +60,7 @@ export const SIDEBAR_IDS = [
 export type SidebarItemId = (typeof SIDEBAR_IDS)[number];
 
 export type ProjectSubView = 'overview' | 'sessions' | 'tasks' | 'config';
-export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config';
+export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | 'git';
 export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
 export type PlanningSection = 'notes' | 'research' | 'mermaid' | 'ideas';
 export type WizardType = 'session' | 'project' | 'workflow' | null;
@@ -73,10 +73,10 @@ export type SidebarNavItem = {
 };
 
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: '◎', description: 'Active sessions, health, and quick launch' },
+  { id: 'dashboard', label: 'Execution', icon: '▶', description: 'Active sessions, session output, and quick launch' },
   { id: 'projects', label: 'Projects', icon: '◆', description: 'Registered repositories and project views' },
   { id: 'catalog', label: 'Catalog', icon: '▤', description: 'Asset workspace, installs, and skill discovery' },
-  { id: 'planning', label: 'Planning', icon: '▣', description: 'Notes, research, Mermaid diagrams, ideas' },
+  { id: 'planning', label: 'Todo', icon: '☑', description: 'Work queue and backlog per repository' },
   { id: 'workflows', label: 'Workflows', icon: '⟳', description: 'Workflow templates, chained sessions, and automation' },
   { id: 'maintenance', label: 'Maintenance', icon: '⚙', description: 'Updates, sandboxes, diagnostics' },
   { id: 'settings', label: 'Settings', icon: '☰', description: 'App configuration and preferences' },

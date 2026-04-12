@@ -231,6 +231,173 @@ function handleCancelRun(ctx, deps) {
 // Handlers — Run Events (SSE) & Retry
 // ---------------------------------------------------------------------------
 
+function handleSessionWorkflowLookup(ctx, deps) {
+  const sessionId = decodeURIComponent(ctx.match[1] || '').trim();
+  if (!sessionId) {
+    deps.sendJson(ctx.res, 400, { error: 'sessionId is required' });
+    return;
+  }
+  const copilotHome = ctx.copilotHomeAbs || ctx.copilotHome;
+  const runs = deps.workflowTemplateService.listRuns(copilotHome, {});
+  for (const run of runs) {
+    for (let i = 0; i < run.steps.length; i++) {
+      if (run.steps[i].sessionId === sessionId) {
+        const template = deps.workflowTemplateService.getTemplate(copilotHome, run.templateId);
+        deps.sendJson(ctx.res, 200, {
+          found: true,
+          workflowRunId: run.workflowRunId,
+          templateId: run.templateId,
+          templateName: template ? template.name : null,
+          stepIndex: i,
+          stepLabel: run.steps[i].label,
+          stepStatus: run.steps[i].status,
+        });
+        return;
+      }
+    }
+  }
+  deps.sendJson(ctx.res, 200, { found: false });
+}
+
+function handleUpdateSchedule(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const templateId = decodeURIComponent(ctx.match[1] || '').trim();
+      const copilotHome = ctx.copilotHomeAbs || ctx.copilotHome;
+
+      if (!deps.workflowExecutionService) {
+        deps.sendJson(ctx.res, 503, { error: 'Workflow execution service unavailable' });
+        return;
+      }
+
+      const template = await deps.workflowExecutionService.updateSchedule(
+        copilotHome, templateId, body
+      );
+      deps.sendJson(ctx.res, 200, template);
+    })
+    .catch((error) => {
+      const code = typeof error.statusCode === 'number' ? error.statusCode : 500;
+      deps.sendJson(ctx.res, code, { error: error.message });
+    });
+}
+
+function handleSeedTemplates(ctx, deps) {
+  const copilotHome = ctx.copilotHomeAbs || ctx.copilotHome;
+
+  try {
+    const existing = deps.workflowTemplateService.listTemplates(copilotHome);
+    const seeded = [];
+
+    const seeds = [
+      {
+        name: 'CI Monitor',
+        description: 'Monitor GitHub Actions for failures and suggest fixes',
+        steps: [
+          {
+            label: 'Check CI Status',
+            objective: 'Check the GitHub Actions workflows for this repository. List any failed or failing workflow runs from the last 24 hours. Include the workflow name, branch, failure reason, and a link to the run.',
+            type: 'session',
+            agentId: 'orchestrator-cli',
+            model: 'claude-opus-4.6',
+          },
+          {
+            label: 'Review & Approve Fixes',
+            objective: 'Review the CI failures found. Approve to proceed with fix analysis.',
+            type: 'approval',
+            approvalRequired: true,
+          },
+          {
+            label: 'Analyze & Fix Failures',
+            objective: 'Based on the CI failures identified in the previous step, analyze the error logs and suggest concrete fixes. If the fixes are straightforward, implement them directly.',
+            type: 'session',
+            agentId: 'orchestrator-cli',
+            model: 'claude-opus-4.6',
+          },
+        ],
+      },
+      {
+        name: 'Issue Triage',
+        description: 'Read and categorize open GitHub issues',
+        steps: [
+          {
+            label: 'Read Open Issues',
+            objective: 'List all open GitHub issues for this repository. For each issue, include the title, number, labels, creation date, and a brief summary of the request or bug report. Group them by category (bug, feature request, question, documentation).',
+            type: 'session',
+            agentId: 'orchestrator-cli',
+            model: 'gpt-5.4',
+          },
+          {
+            label: 'Prioritize & Recommend',
+            objective: 'Based on the issues found in the previous step, create a prioritized action plan. Identify which issues are most critical, which can be quick wins, and which need more investigation. Suggest assignment to appropriate team roles (frontend, backend, devops).',
+            type: 'session',
+            agentId: 'orchestrator-cli',
+            model: 'gpt-5.4',
+          },
+        ],
+      },
+      {
+        name: 'Autonomous Testing',
+        description: 'Run the application, test features, and report bugs',
+        steps: [
+          {
+            label: 'Explore & Test',
+            objective: 'You are an autonomous tester. Start the application using the documented development commands (check package.json, README, or Makefile). Navigate through all major features and user flows. Log every interaction: what you tested, what worked, what did not. Pay special attention to error handling, edge cases, and UI inconsistencies. Take note of any unimplemented features, broken links, or confusing UX.',
+            type: 'session',
+            agentId: 'orchestrator-cli',
+            model: 'claude-opus-4.6',
+          },
+          {
+            label: 'Review Test Results',
+            objective: 'Review the testing report before generating the final bug/issue list.',
+            type: 'approval',
+            approvalRequired: true,
+          },
+          {
+            label: 'Generate Bug Report',
+            objective: 'Based on the testing results from the exploration step, generate a structured report with: (1) Confirmed Bugs — clear reproduction steps, expected vs actual behavior, severity, (2) Missing Features — features that appear intended but are not implemented, (3) UX Issues — confusing flows, poor error messages, accessibility problems, (4) Recommendations — suggested improvements and priorities. Format as a markdown document suitable for creating GitHub issues.',
+            type: 'session',
+            agentId: 'orchestrator-cli',
+            model: 'claude-opus-4.6',
+          },
+        ],
+      },
+      {
+        name: 'DevOps Health Check',
+        description: 'Check infrastructure, CI/CD, and release artifacts',
+        steps: [
+          {
+            label: 'Infrastructure Audit',
+            objective: 'Audit the DevOps setup for this repository: (1) Check GitHub Actions workflows — are they up to date, using latest action versions, have proper caching? (2) Check if release artifacts are available and downloadable on GitHub Releases. (3) Check branch protection rules and required checks. (4) Check for security vulnerabilities in dependencies (npm audit or equivalent). (5) Check Dockerfile or deployment configs if present. Report findings with severity levels.',
+            type: 'session',
+            agentId: 'orchestrator-cli',
+            model: 'gpt-5.4',
+          },
+          {
+            label: 'Fix & Improve',
+            objective: 'Based on the infrastructure audit, implement the fixes that are safe to apply directly: update deprecated action versions, fix security vulnerabilities, improve CI caching, update documentation. For changes that require manual review, create detailed TODO items.',
+            type: 'session',
+            agentId: 'orchestrator-cli',
+            model: 'claude-opus-4.6',
+          },
+        ],
+      },
+    ];
+
+    for (const seed of seeds) {
+      const alreadyExists = existing.some(t => t.name === seed.name);
+      if (!alreadyExists) {
+        const created = deps.workflowTemplateService.createTemplate(copilotHome, seed);
+        seeded.push(created);
+      }
+    }
+
+    deps.sendJson(ctx.res, 200, { seeded, skipped: seeds.length - seeded.length });
+  } catch (error) {
+    const code = typeof error.statusCode === 'number' ? error.statusCode : 500;
+    deps.sendJson(ctx.res, code, { error: error.message });
+  }
+}
+
 function handleRunEvents(ctx, deps) {
   const runId = decodeURIComponent(ctx.match[1] || '').trim();
   if (!runId) {
@@ -337,7 +504,17 @@ function register(deps = {}) {
       path: /^\/api\/workflows\/templates\/([^/]+)$/,
       handler: (ctx) => handleDeleteTemplate(ctx, resolvedDeps),
     },
+    {
+      method: 'PUT',
+      path: /^\/api\/workflows\/templates\/([^/]+)\/schedule$/,
+      handler: (ctx) => handleUpdateSchedule(ctx, resolvedDeps),
+    },
     // Runs
+    {
+      method: 'GET',
+      path: /^\/api\/workflows\/sessions\/([^/]+)$/,
+      handler: (ctx) => handleSessionWorkflowLookup(ctx, resolvedDeps),
+    },
     {
       method: 'GET',
       path: '/api/workflows/runs',
@@ -357,6 +534,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/workflows/launch',
       handler: (ctx) => handleLaunchRun(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/workflows/seed',
+      handler: (ctx) => handleSeedTemplates(ctx, resolvedDeps),
     },
     {
       method: 'POST',

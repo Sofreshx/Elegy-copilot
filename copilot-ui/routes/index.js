@@ -99,6 +99,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./sdk'), context);
   registry.registerModule(require('./executor'), context);
   registry.registerModule(require('./workflows'), context);
+  registry.registerModule(require('./git'), context);
 
   return registry;
 }

@@ -16,11 +16,11 @@ interface TemplateCardProps {
 
 function TemplateCard({ template, onEdit, onLaunch, onDelete }: TemplateCardProps) {
   return (
-    <div className="template-card" data-testid={`template-card-${template.id}`}>
+    <div className="template-card" data-testid={`template-card-${template.templateId}`}>
       <div className="template-card-header">
         <h4
           className="template-card-name"
-          onClick={() => navigationStore.selectWorkflowTemplate(template.id)}
+          onClick={() => navigationStore.selectWorkflowTemplate(template.templateId)}
         >
           {template.name}
         </h4>
@@ -29,14 +29,30 @@ function TemplateCard({ template, onEdit, onLaunch, onDelete }: TemplateCardProp
       {template.description ? (
         <p className="template-card-description">{template.description}</p>
       ) : null}
+      {template.schedule?.enabled && (
+        <div className="template-schedule-indicator" data-testid={`schedule-indicator-${template.templateId}`}>
+          <span className="schedule-icon">⏱</span>
+          <span className="schedule-text">
+            Every {template.schedule.intervalMinutes < 60
+              ? `${template.schedule.intervalMinutes}m`
+              : template.schedule.intervalMinutes < 1440
+                ? `${Math.round(template.schedule.intervalMinutes / 60)}h`
+                : `${Math.round(template.schedule.intervalMinutes / 1440)}d`
+            }
+            {template.schedule.nextRunAt && (
+              <> · Next: {new Date(template.schedule.nextRunAt).toLocaleTimeString()}</>
+            )}
+          </span>
+        </div>
+      )}
       <div className="template-card-actions">
-        <Button variant="ghost" size="sm" testId={`edit-template-${template.id}`} onClick={() => onEdit(template.id)}>
+        <Button variant="ghost" size="sm" testId={`edit-template-${template.templateId}`} onClick={() => onEdit(template.templateId)}>
           Edit
         </Button>
-        <Button variant="primary" size="sm" testId={`launch-template-${template.id}`} onClick={() => onLaunch(template.id)}>
+        <Button variant="primary" size="sm" testId={`launch-template-${template.templateId}`} onClick={() => onLaunch(template.templateId)}>
           Launch
         </Button>
-        <Button variant="danger" size="sm" testId={`delete-template-${template.id}`} onClick={() => onDelete(template.id)}>
+        <Button variant="danger" size="sm" testId={`delete-template-${template.templateId}`} onClick={() => onDelete(template.templateId)}>
           Delete
         </Button>
       </div>
@@ -49,6 +65,9 @@ interface RunCardProps {
 }
 
 function RunCard({ run }: RunCardProps) {
+  const state = useStoreValue(workflowStore);
+  const templateName = state.templates.find((t) => t.templateId === run.templateId)?.name ?? 'Unknown';
+
   const totalSteps = run.steps.length;
   const completedSteps = run.steps.filter(
     (s) => s.status === 'completed' || s.status === 'skipped',
@@ -58,18 +77,18 @@ function RunCard({ run }: RunCardProps) {
   return (
     <div
       className="run-card"
-      data-testid={`run-card-${run.id}`}
-      onClick={() => navigationStore.selectWorkflowRun(run.id)}
+      data-testid={`run-card-${run.workflowRunId}`}
+      onClick={() => navigationStore.selectWorkflowRun(run.workflowRunId)}
     >
       <div className="run-card-header">
-        <h4 className="run-card-name">{run.templateName}</h4>
-        <StatusBadge status={run.status} testId={`run-status-${run.id}`} />
+        <h4 className="run-card-name">{templateName}</h4>
+        <StatusBadge status={run.status} testId={`run-status-${run.workflowRunId}`} />
       </div>
       <div className="run-card-progress">
         <span className="run-card-step-label">
           Step {Math.min(run.currentStepIndex + 1, totalSteps)} / {totalSteps}
         </span>
-        <div className="progress-bar" data-testid={`run-progress-${run.id}`}>
+        <div className="progress-bar" data-testid={`run-progress-${run.workflowRunId}`}>
           <div className="progress-bar-fill" style={{ width: `${progressPercent}%` }} />
         </div>
       </div>
@@ -123,9 +142,14 @@ export default function WorkflowsHub() {
           </Button>
         </div>
         {activeTab === 'templates' ? (
-          <Button variant="primary" size="sm" testId="new-template-btn" onClick={handleNewTemplate}>
-            New Template
-          </Button>
+          <div className="toolbar-actions">
+            <Button variant="secondary" size="sm" testId="seed-templates-btn" onClick={() => workflowStore.seedTemplates()}>
+              Seed Examples
+            </Button>
+            <Button variant="primary" size="sm" testId="new-template-btn" onClick={handleNewTemplate}>
+              New Template
+            </Button>
+          </div>
         ) : null}
       </Toolbar>
 
@@ -149,7 +173,7 @@ export default function WorkflowsHub() {
             <div className="template-list" data-testid="template-list">
               {state.templates.map((t) => (
                 <TemplateCard
-                  key={t.id}
+                  key={t.templateId}
                   template={t}
                   onEdit={handleEdit}
                   onLaunch={handleLaunch}
@@ -166,7 +190,7 @@ export default function WorkflowsHub() {
           ) : (
             <div className="run-list" data-testid="run-list">
               {state.runs.map((r) => (
-                <RunCard key={r.id} run={r} />
+                <RunCard key={r.workflowRunId} run={r} />
               ))}
             </div>
           )}

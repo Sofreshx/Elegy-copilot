@@ -1,4 +1,6 @@
+import { useStoreValue } from '../lib/store';
 import type { SidebarItemId, SidebarNavItem } from '../stores/navigation';
+import { questionBadgeStore } from '../stores/questionBadgeStore';
 
 interface SidebarProps {
   items: readonly SidebarNavItem[];
@@ -19,6 +21,8 @@ export default function Sidebar({
   onNewSession,
   testId = 'sidebar',
 }: SidebarProps) {
+  const questionBadge = useStoreValue(questionBadgeStore);
+
   return (
     <nav className="sidebar" data-testid={testId} aria-label="Main navigation">
       <div className="sidebar-header">
@@ -37,6 +41,11 @@ export default function Sidebar({
           >
             <span className="sidebar-item-icon" aria-hidden="true">{item.icon}</span>
             <span className="sidebar-item-label">{item.label}</span>
+            {item.id === 'dashboard' && questionBadge.totalPendingQuestions > 0 && (
+              <span className="sidebar-badge sidebar-badge-warning" data-testid="sidebar-question-badge">
+                {questionBadge.totalPendingQuestions}
+              </span>
+            )}
           </button>
         ))}
       </div>

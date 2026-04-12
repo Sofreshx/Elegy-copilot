@@ -99,3 +99,15 @@ export function createSdkStreamUrl(sessionId: string, baseUrl?: string): string 
 export async function listSdkModels(baseUrl?: string): Promise<SdkModelsResponse> {
   return apiRequest<SdkModelsResponse>('/api/sdk/models', { baseUrl });
 }
+
+export async function answerSdkQuestion(
+  payload: { sessionId: string; toolCallId: string; answer: string },
+  baseUrl?: string
+): Promise<{ answered?: boolean; toolCallId?: string }> {
+  return apiRequest<{ answered?: boolean; toolCallId?: string }>('/api/sdk/answer', {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+}
