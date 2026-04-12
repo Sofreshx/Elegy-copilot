@@ -390,6 +390,26 @@ export interface SessionPlansResponse {
   plans: SessionPlanArtifact[];
 }
 
+export interface SessionEvent {
+  type?: string;
+  event?: string;
+  name?: string;
+  id?: string;
+  parentId?: string;
+  timestamp?: string;
+  time?: string;
+  ts?: string;
+  data?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface SessionEventsResponse {
+  id: string;
+  source: string;
+  events: SessionEvent[];
+}
+
 export interface SessionStructuredNextUnit {
   workUnitId?: string;
   workUnitIds?: string[];

@@ -6,6 +6,8 @@ import {
   getSessionVerificationGuide,
   getSessionAgentUsage,
   listSessionPlans,
+  getSessionEvents,
+  getSessionPlanById,
   sendSdkMessage,
   createSdkStreamUrl,
   answerSdkQuestion,
@@ -17,6 +19,7 @@ import { questionBadgeStore } from '../../stores/questionBadgeStore';
 import type {
   SessionStructuredStateResponse,
   SessionOrchestrationProjection,
+  SessionEvent,
   SdkMessageEntry,
   SdkStreamStatus,
   SessionPlanArtifact,
@@ -39,6 +42,7 @@ export interface SessionDetailState {
   sdkStreamStatus: SdkStreamStatus;
   composerPrompt: string;
   plans: SessionPlanArtifact[];
+  planContents: Record<string, string>;
   handoff: string | null;
   proposition: string | null;
   verificationGuide: string | null;
@@ -50,6 +54,7 @@ export interface SessionDetailState {
   lastFailedMessageId: string | null;
   stopping: boolean;
   refreshing: boolean;
+  historyLoaded: boolean;
 }
 
 const INITIAL_STATE: SessionDetailState = {
@@ -66,6 +71,7 @@ const INITIAL_STATE: SessionDetailState = {
   sdkStreamStatus: 'disconnected',
   composerPrompt: '',
   plans: [],
+  planContents: {},
   handoff: null,
   proposition: null,
   verificationGuide: null,
@@ -77,12 +83,150 @@ const INITIAL_STATE: SessionDetailState = {
   lastFailedMessageId: null,
   stopping: false,
   refreshing: false,
+  historyLoaded: false,
 };
 
 function isOrchestrationProjection(
   value: unknown
 ): value is SessionOrchestrationProjection {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// ── Event normalization helpers ────────────────────────────────────
+// events.jsonl uses several schema variants; these helpers handle them all.
+
+function eventTypeOf(ev: SessionEvent): string | null {
+  return (ev.type || ev.event || ev.name || null) as string | null;
+}
+
+function eventTimeMs(ev: SessionEvent): number {
+  for (const field of ['timestamp', 'time', 'ts', 'createdAt', 'at', 'date'] as const) {
+    const val = (ev as Record<string, unknown>)[field];
+    if (typeof val === 'number') return val > 1e12 ? val : val * 1000;
+    if (typeof val === 'string') {
+      const ms = Date.parse(val);
+      if (!isNaN(ms)) return ms;
+    }
+  }
+  return 0;
+}
+
+function eventPayload(ev: SessionEvent): Record<string, unknown> {
+  return (ev.payload || ev.data || ev) as Record<string, unknown>;
+}
+
+function convertEventsToTimeline(events: SessionEvent[]): {
+  messages: SdkMessageEntry[];
+  toolCalls: ToolCallBlock[];
+  questions: PendingQuestion[];
+} {
+  const messages: SdkMessageEntry[] = [];
+  const toolCalls: ToolCallBlock[] = [];
+  const questions: PendingQuestion[] = [];
+  const seenMessageIds = new Set<string>();
+  const toolCallMap = new Map<string, ToolCallBlock>();
+  const questionMap = new Map<string, PendingQuestion>();
+
+  for (const ev of events) {
+    const type = eventTypeOf(ev);
+    const payload = eventPayload(ev);
+    const ts = eventTimeMs(ev);
+
+    if (type === 'user.message') {
+      const content = String(payload.content || payload.transformedContent || '');
+      const id = String(ev.id || payload.messageId || `hist-user-${ts}`);
+      if (!seenMessageIds.has(id) && content) {
+        seenMessageIds.add(id);
+        messages.push({
+          id,
+          role: 'user',
+          content,
+          createdAtMs: ts || Date.now(),
+          status: 'complete',
+          eventType: type,
+        });
+      }
+    }
+
+    if (type === 'assistant.message') {
+      const content = String(payload.content || '');
+      const reasoning = payload.reasoningText || payload.reasoning;
+      const id = String(payload.messageId || ev.id || `hist-asst-${ts}`);
+      if (!seenMessageIds.has(id)) {
+        seenMessageIds.add(id);
+        messages.push({
+          id,
+          role: 'assistant',
+          content,
+          reasoning: reasoning ? String(reasoning) : undefined,
+          createdAtMs: ts || Date.now(),
+          status: 'complete',
+          eventType: type,
+        });
+      }
+    }
+
+    if (type === 'tool.execution_start' || type === 'tool.executing') {
+      const toolCallId = String(payload.toolCallId || ev.id || `hist-tc-${ts}`);
+      if (!toolCallMap.has(toolCallId)) {
+        toolCallMap.set(toolCallId, {
+          toolCallId,
+          toolName: String(payload.toolName || payload.name || 'unknown'),
+          arguments: (payload.arguments ?? payload.input) as Record<string, unknown> | undefined,
+          status: 'executing',
+          startedAtMs: ts || Date.now(),
+        });
+      }
+    }
+
+    if (type === 'tool.execution_complete' || type === 'tool.completed') {
+      const toolCallId = String(payload.toolCallId || ev.id || `hist-tc-${ts}`);
+      const existing = toolCallMap.get(toolCallId);
+      if (existing) {
+        existing.status = 'completed';
+        existing.output = payload.output !== undefined ? String(payload.output) : undefined;
+        existing.completedAtMs = ts || Date.now();
+      } else {
+        toolCallMap.set(toolCallId, {
+          toolCallId,
+          toolName: String(payload.toolName || payload.name || 'unknown'),
+          arguments: (payload.arguments ?? payload.input) as Record<string, unknown> | undefined,
+          output: payload.output !== undefined ? String(payload.output) : undefined,
+          status: 'completed',
+          startedAtMs: ts || Date.now(),
+          completedAtMs: ts || Date.now(),
+        });
+      }
+    }
+
+    if (type === 'question.asked') {
+      const qId = String(payload.toolCallId || ev.id || `hist-q-${ts}`);
+      if (!questionMap.has(qId)) {
+        questionMap.set(qId, {
+          questionId: qId,
+          toolCallId: String(payload.toolCallId || ''),
+          question: String(payload.question || ''),
+          options: Array.isArray(payload.options) ? payload.options : undefined,
+          askedAtMs: ts || Date.now(),
+          answered: false,
+        });
+      }
+    }
+
+    if (type === 'question.answered') {
+      const qId = String(payload.toolCallId || ev.id || '');
+      const existing = questionMap.get(qId);
+      if (existing) {
+        existing.answered = true;
+        existing.answeredValue = String(payload.answer || payload.value || '');
+      }
+    }
+  }
+
+  toolCalls.push(...toolCallMap.values());
+  questions.push(...questionMap.values());
+
+  return { messages, toolCalls, questions };
 }
 
 function createSessionDetailStore() {
@@ -102,12 +246,14 @@ function createSessionDetailStore() {
       sessionSandbox: sandbox ?? null,
       loading: true,
       error: null,
+      historyLoaded: false,
       // Clear live data from previous session
       sdkMessages: [],
       sdkPendingContent: '',
       sdkPendingReasoning: '',
       toolCalls: [],
       pendingQuestions: [],
+      planContents: {},
       sendError: null,
       lastFailedPrompt: null,
       lastFailedMessageId: null,
@@ -122,6 +268,7 @@ function createSessionDetailStore() {
       getSessionHandoff(sessionId, opts),
       getSessionProposition(sessionId, opts),
       getSessionVerificationGuide(sessionId, opts),
+      getSessionEvents(sessionId, { ...opts, limit: 500 }),
     ]);
 
     const structuredState =
@@ -136,9 +283,16 @@ function createSessionDetailStore() {
       results[4].status === 'fulfilled' ? results[4].value : null;
     const verificationResp =
       results[5].status === 'fulfilled' ? results[5].value : null;
+    const eventsResp =
+      results[6].status === 'fulfilled' ? results[6].value : null;
 
     const rawOrch = structuredState?.orchestration ?? null;
     const orchestration = isOrchestrationProjection(rawOrch) ? rawOrch : null;
+
+    // Convert historical events into timeline items
+    const history = eventsResp?.events
+      ? convertEventsToTimeline(eventsResp.events)
+      : { messages: [], toolCalls: [], questions: [] };
 
     const firstError = results.find((r) => r.status === 'rejected') as
       | PromiseRejectedResult
@@ -147,6 +301,7 @@ function createSessionDetailStore() {
     store.setState((s) => ({
       ...s,
       loading: false,
+      historyLoaded: true,
       error:
         !structuredState && firstError
           ? String(firstError.reason ?? 'Failed to load session')
@@ -158,6 +313,9 @@ function createSessionDetailStore() {
       handoff: handoffResp?.content ?? null,
       proposition: propositionResp?.content ?? null,
       verificationGuide: verificationResp?.content ?? null,
+      sdkMessages: history.messages,
+      toolCalls: history.toolCalls,
+      pendingQuestions: history.questions,
     }));
   }
 
@@ -585,6 +743,34 @@ function createSessionDetailStore() {
     }
   }
 
+  async function loadPlanContent(planId: string): Promise<void> {
+    const { sessionId, sessionSource, sessionSandbox, planContents } = store.getState();
+    if (!sessionId || planContents[planId] !== undefined) return;
+
+    // Mark as loading with a sentinel
+    store.setState((s) => ({
+      ...s,
+      planContents: { ...s.planContents, [planId]: '' },
+    }));
+
+    try {
+      const text = await getSessionPlanById(
+        sessionId,
+        planId,
+        { source: sessionSource ?? undefined, sandbox: sessionSandbox ?? undefined }
+      );
+      store.setState((s) => ({
+        ...s,
+        planContents: { ...s.planContents, [planId]: text || '(empty plan)' },
+      }));
+    } catch {
+      store.setState((s) => ({
+        ...s,
+        planContents: { ...s.planContents, [planId]: '(failed to load plan content)' },
+      }));
+    }
+  }
+
   return {
     getState: store.getState,
     subscribe: store.subscribe,
@@ -599,6 +785,7 @@ function createSessionDetailStore() {
     dismissSendError,
     stopSession,
     refreshSession,
+    loadPlanContent,
     reset,
   };
 }

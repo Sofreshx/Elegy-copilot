@@ -5,6 +5,7 @@ import type {
   CreateUiRuntimeOverlaySessionPayload,
   PlanningTaskBoardResponse,
   SessionAgentUsageResponse,
+  SessionEventsResponse,
   SessionPlansResponse,
   SessionPlanMutationResponse,
   SessionStructuredStateResponse,
@@ -198,6 +199,39 @@ export function getSessionPlanText(
         sandbox: options.sandbox,
       },
     });
+}
+
+export function getSessionEvents(
+  sessionId: string,
+  options: SessionArtifactQueryOptions & { limit?: number } = {},
+  baseUrl?: string
+): Promise<SessionEventsResponse> {
+  return apiRequest<SessionEventsResponse>(`/api/sessions/${encodeURIComponent(sessionId)}/events`, {
+    baseUrl,
+    query: {
+      source: options.source,
+      sandbox: options.sandbox,
+      limit: options.limit != null ? String(options.limit) : undefined,
+    },
+  });
+}
+
+export function getSessionPlanById(
+  sessionId: string,
+  planId: string,
+  options: SessionArtifactQueryOptions = {},
+  baseUrl?: string
+): Promise<string> {
+  return apiRequest<string>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/plans/${encodeURIComponent(planId)}`,
+    {
+      baseUrl,
+      query: {
+        source: options.source,
+        sandbox: options.sandbox,
+      },
+    }
+  );
 }
 
 export function upsertSessionPlan(

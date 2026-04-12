@@ -47,10 +47,17 @@ export default function SessionDetailView() {
   useEffect(() => {
     if (!sessionId) return;
 
-    sessionDetailStore.loadSession(sessionId);
-    sessionDetailStore.attachStream(sessionId);
+    let cancelled = false;
+
+    // Load historical data first, then attach live SSE
+    sessionDetailStore.loadSession(sessionId).then(() => {
+      if (!cancelled) {
+        sessionDetailStore.attachStream(sessionId);
+      }
+    });
 
     return () => {
+      cancelled = true;
       sessionDetailStore.detachStream();
     };
   }, [sessionId]);

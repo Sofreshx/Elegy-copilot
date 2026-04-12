@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Panel } from '../../components';
+import { Panel, MarkdownMessage } from '../../components';
 import { humanizeToken } from '../../lib/stateDiagnostics';
+import { sessionDetailStore } from './sessionDetailStore';
 import type { SessionDetailState } from './sessionDetailStore';
 
 interface Props {
@@ -39,7 +40,8 @@ function CollapsibleSection({
 }
 
 export default function SessionArtifactsPanel({ state }: Props) {
-  const { plans, handoff, proposition, verificationGuide, agentUsage } = state;
+  const { plans, planContents, handoff, proposition, verificationGuide, agentUsage } = state;
+  const [expandedPlans, setExpandedPlans] = useState<Record<string, boolean>>({});
 
   const topAgents = agentUsage?.usage
     ? Object.entries(agentUsage.usage)
@@ -54,6 +56,14 @@ export default function SessionArtifactsPanel({ state }: Props) {
     verificationGuide !== null ||
     topAgents.length > 0;
 
+  function togglePlan(planId: string) {
+    const isExpanding = !expandedPlans[planId];
+    setExpandedPlans((prev) => ({ ...prev, [planId]: isExpanding }));
+    if (isExpanding && planContents[planId] === undefined) {
+      sessionDetailStore.loadPlanContent(planId);
+    }
+  }
+
   return (
     <div className="session-artifacts-panel" data-testid="session-artifacts-panel">
       {!hasAnyContent && (
@@ -64,26 +74,50 @@ export default function SessionArtifactsPanel({ state }: Props) {
 
       {plans.length > 0 && (
         <Panel title="Plans" testId="artifacts-plans-panel">
-          <ul className="artifact-list" data-testid="plan-artifact-list">
-            {plans.map((plan) => (
-              <li
-                key={plan.id}
-                className="artifact-list-item"
-                data-testid="plan-artifact-item"
-              >
-                <span className="artifact-item-id">{plan.id}</span>
-                {plan.kind && (
-                  <span className="artifact-item-kind">{humanizeToken(plan.kind)}</span>
-                )}
-                {plan.status && (
-                  <span className="artifact-item-status">{humanizeToken(plan.status)}</span>
-                )}
-                {plan.source && (
-                  <span className="artifact-item-source">{plan.source}</span>
-                )}
-              </li>
-            ))}
-          </ul>
+          <div className="artifact-list" data-testid="plan-artifact-list">
+            {plans.map((plan) => {
+              const isOpen = expandedPlans[plan.id] ?? false;
+              const content = planContents[plan.id];
+              const isLoading = content === '';
+
+              return (
+                <div
+                  key={plan.id}
+                  className="collapsible-section"
+                  data-testid="plan-artifact-item"
+                >
+                  <button
+                    className="collapsible-section-toggle"
+                    data-testid={`plan-toggle-${plan.id}`}
+                    type="button"
+                    onClick={() => togglePlan(plan.id)}
+                  >
+                    <span className="collapsible-section-arrow">{isOpen ? '▾' : '▸'}</span>
+                    <span className="collapsible-section-title">
+                      {plan.id}
+                      {plan.kind && (
+                        <span className="artifact-item-kind"> ({humanizeToken(plan.kind)})</span>
+                      )}
+                      {plan.status && (
+                        <span className="artifact-item-status"> — {humanizeToken(plan.status)}</span>
+                      )}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="collapsible-section-body" data-testid={`plan-content-${plan.id}`}>
+                      {isLoading ? (
+                        <div className="session-empty-state">Loading plan content…</div>
+                      ) : content ? (
+                        <MarkdownMessage content={content} />
+                      ) : (
+                        <div className="session-empty-state">No content available</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </Panel>
       )}
 
