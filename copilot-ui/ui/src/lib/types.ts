@@ -915,6 +915,7 @@ export type SdkStreamStatus =
   | 'connecting'
   | 'connected'
   | 'reconnecting'
+  | 'paused'
   | 'error'
   | 'unsupported';
 

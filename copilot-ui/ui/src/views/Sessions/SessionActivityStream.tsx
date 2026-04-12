@@ -1,5 +1,5 @@
-import { useEffect, useRef, useMemo, useState } from 'react';
-import { Button, CopyButton, MarkdownMessage, StatusBadge } from '../../components';
+import { useEffect, useRef, useMemo, useState, useCallback } from 'react';
+import { CopyButton, MarkdownMessage, StatusBadge } from '../../components';
 import { formatTimestampLabel } from '../../lib/stateDiagnostics';
 import { sessionDetailStore } from './sessionDetailStore';
 import type { SessionDetailState } from './sessionDetailStore';
@@ -12,6 +12,17 @@ interface Props {
   onSend: (prompt: string) => void;
   onComposerChange: (value: string) => void;
 }
+
+// ── Slash command definitions ────────────────────────────────────
+const SLASH_COMMANDS: { name: string; description: string }[] = [
+  { name: '/plan', description: 'Create or update a plan for the current task' },
+  { name: '/fleet', description: 'Run parallel workstreams for faster execution' },
+  { name: '/help', description: 'Show available commands and usage info' },
+  { name: '/compact', description: 'Compact conversation context to free up tokens' },
+  { name: '/model', description: 'Change the AI model for this session' },
+  { name: '/feedback', description: 'Send feedback about the session' },
+  { name: '/clear', description: 'Clear conversation history (CLI-side only)' },
+];
 
 function StreamStatusIndicator({ status }: { status: string }) {
   return (
@@ -213,9 +224,12 @@ function TimelineEntry({ entry, onAnswer }: { entry: ActivityStreamEntry; onAnsw
 
 export default function SessionActivityStream({ state, onSend, onComposerChange }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const userScrolledUp = useRef(false);
   const lastSeenCount = useRef(0);
   const [showNewMessagesPill, setShowNewMessagesPill] = useState(false);
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
 
   function handleAnswer(toolCallId: string, answer: string) {
     sessionDetailStore.answerQuestion(toolCallId, answer);
@@ -228,6 +242,37 @@ export default function SessionActivityStream({ state, onSend, onComposerChange 
     state.sdkPendingReasoning,
     state.pendingQuestions,
   ]);
+
+  // ── Slash command filtering ──────────────────────────────────────
+  const slashFilter = useMemo(() => {
+    const val = state.composerPrompt;
+    if (!val.startsWith('/')) return null;
+    const spaceIdx = val.indexOf(' ');
+    if (spaceIdx >= 0) return null; // already typing after the command
+    return val.toLowerCase();
+  }, [state.composerPrompt]);
+
+  const filteredCommands = useMemo(() => {
+    if (!slashFilter) return [];
+    return SLASH_COMMANDS.filter((cmd) => cmd.name.startsWith(slashFilter));
+  }, [slashFilter]);
+
+  useEffect(() => {
+    setSlashMenuOpen(filteredCommands.length > 0);
+    setSlashActiveIndex(0);
+  }, [filteredCommands.length > 0, slashFilter]);
+
+  // ── Auto-grow textarea ───────────────────────────────────────────
+  const autoGrow = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, []);
+
+  useEffect(() => {
+    autoGrow();
+  }, [state.composerPrompt, autoGrow]);
 
   function handleScroll() {
     if (!scrollRef.current) return;
@@ -259,7 +304,37 @@ export default function SessionActivityStream({ state, onSend, onComposerChange 
     }
   }
 
+  function selectSlashCommand(cmd: string) {
+    onComposerChange(cmd + ' ');
+    setSlashMenuOpen(false);
+    textareaRef.current?.focus();
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // Slash menu navigation
+    if (slashMenuOpen && filteredCommands.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashActiveIndex((i) => Math.min(i + 1, filteredCommands.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashActiveIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        selectSlashCommand(filteredCommands[slashActiveIndex].name);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setSlashMenuOpen(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (state.composerPrompt.trim()) {
@@ -274,6 +349,21 @@ export default function SessionActivityStream({ state, onSend, onComposerChange 
     }
   }
 
+  function handlePauseToggle() {
+    if (state.streamPaused) {
+      sessionDetailStore.resumeStream();
+    } else {
+      sessionDetailStore.pauseStream();
+    }
+  }
+
+  const streamLabel =
+    state.sdkStreamStatus === 'paused'
+      ? 'Paused'
+      : state.sdkStreamStatus === 'connected'
+        ? 'Live'
+        : state.sdkStreamStatus;
+
   return (
     <div className="session-activity-stream" data-testid="session-activity-stream">
       <div className="session-activity-header">
@@ -281,6 +371,17 @@ export default function SessionActivityStream({ state, onSend, onComposerChange 
         <span className="session-message-count">
           {state.sdkMessages.length} message{state.sdkMessages.length !== 1 ? 's' : ''}
         </span>
+        {(state.sdkStreamStatus === 'connected' || state.sdkStreamStatus === 'paused') && (
+          <button
+            className={`session-stream-toggle${state.streamPaused ? ' session-stream-toggle-paused' : ''}`}
+            data-testid="stream-pause-toggle"
+            onClick={handlePauseToggle}
+            type="button"
+            title={state.streamPaused ? 'Resume live updates' : 'Pause live updates'}
+          >
+            {state.streamPaused ? '▶ Resume' : '⏸ Pause'}
+          </button>
+        )}
       </div>
 
       <div className="session-messages-feed" ref={scrollRef} onScroll={handleScroll} data-testid="session-messages-feed">
@@ -329,24 +430,50 @@ export default function SessionActivityStream({ state, onSend, onComposerChange 
       )}
 
       <div className="session-composer" data-testid="session-composer">
-        <textarea
-          className="session-composer-input"
-          data-testid="composer-input"
-          placeholder="Send a message…"
-          rows={2}
-          value={state.composerPrompt}
-          onChange={(e) => onComposerChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-        />
-        <Button
-          variant="primary"
-          size="sm"
-          testId="composer-send-button"
-          disabled={!state.composerPrompt.trim()}
-          onClick={handleSendClick}
-        >
-          Send
-        </Button>
+        {slashMenuOpen && filteredCommands.length > 0 && (
+          <div className="slash-command-menu" data-testid="slash-command-menu">
+            {filteredCommands.map((cmd, i) => (
+              <div
+                key={cmd.name}
+                className={`slash-command-item${i === slashActiveIndex ? ' slash-command-item-active' : ''}`}
+                data-testid={`slash-command-${cmd.name.slice(1)}`}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  selectSlashCommand(cmd.name);
+                }}
+                onMouseEnter={() => setSlashActiveIndex(i)}
+              >
+                <span className="slash-command-name">{cmd.name}</span>
+                <span className="slash-command-desc">{cmd.description}</span>
+              </div>
+            ))}
+            <div className="slash-command-hint">
+              ↑↓ to navigate · Enter to select · Esc to dismiss
+            </div>
+          </div>
+        )}
+        <div className="session-composer-wrapper">
+          <textarea
+            ref={textareaRef}
+            className="session-composer-input"
+            data-testid="composer-input"
+            placeholder="Send a message… (type / for commands)"
+            rows={1}
+            value={state.composerPrompt}
+            onChange={(e) => onComposerChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+          <button
+            className="session-composer-send"
+            data-testid="composer-send-button"
+            disabled={!state.composerPrompt.trim()}
+            onClick={handleSendClick}
+            type="button"
+            title="Send message"
+          >
+            ↑
+          </button>
+        </div>
       </div>
     </div>
   );

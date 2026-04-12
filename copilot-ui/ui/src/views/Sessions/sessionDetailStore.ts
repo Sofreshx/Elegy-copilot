@@ -55,6 +55,7 @@ export interface SessionDetailState {
   stopping: boolean;
   refreshing: boolean;
   historyLoaded: boolean;
+  streamPaused: boolean;
 }
 
 const INITIAL_STATE: SessionDetailState = {
@@ -84,6 +85,7 @@ const INITIAL_STATE: SessionDetailState = {
   stopping: false,
   refreshing: false,
   historyLoaded: false,
+  streamPaused: false,
 };
 
 function isOrchestrationProjection(
@@ -233,6 +235,7 @@ function createSessionDetailStore() {
   const store = createStore<SessionDetailState>(INITIAL_STATE);
   let activeEventSource: EventSource | null = null;
   let activeReconnectTimer: (() => void) | null = null;
+  let pauseBuffer: Record<string, unknown>[] = [];
 
   async function loadSession(
     sessionId: string,
@@ -331,6 +334,12 @@ function createSessionDetailStore() {
     // ── Shared SSE handler ──────────────────────────────────────────
     // Defined at the attachStream level since it doesn't depend on `es`.
     function handleSseData(data: Record<string, unknown>): void {
+      // When paused, buffer events instead of applying them
+      if (store.getState().streamPaused) {
+        pauseBuffer.push(data);
+        return;
+      }
+
       const eventType = (data.type ?? (data.event as Record<string, unknown> | undefined)?.type) as string | undefined;
       const eventData = ((data.event as Record<string, unknown> | undefined)?.data ??
         (data.event as Record<string, unknown> | undefined) ??
@@ -596,6 +605,46 @@ function createSessionDetailStore() {
       sdkPendingContent: '',
       sdkPendingReasoning: '',
     }));
+    pauseBuffer = [];
+  }
+
+  function pauseStream(): void {
+    store.setState((s) => ({ ...s, streamPaused: true, sdkStreamStatus: 'paused' }));
+  }
+
+  function resumeStream(): void {
+    const hadBuffered = pauseBuffer.length > 0;
+    pauseBuffer = [];
+    store.setState((s) => ({ ...s, streamPaused: false }));
+
+    // If events were buffered while paused, do a quick re-sync to catch up
+    if (hadBuffered) {
+      const { sessionId, sessionSource, sessionSandbox } = store.getState();
+      if (sessionId) {
+        getSessionEvents(sessionId, {
+          source: sessionSource ?? undefined,
+          sandbox: sessionSandbox ?? undefined,
+          limit: 500,
+        }).then((resp) => {
+          if (resp?.events && !store.getState().streamPaused) {
+            const history = convertEventsToTimeline(resp.events);
+            store.setState((s) => ({
+              ...s,
+              sdkMessages: history.messages,
+              toolCalls: history.toolCalls,
+              pendingQuestions: history.questions,
+            }));
+          }
+        }).catch(() => {
+          // Non-critical — live stream will continue delivering new events
+        });
+      }
+    }
+
+    // Restore connected status if stream is still attached
+    if (activeEventSource && activeEventSource.readyState !== EventSource.CLOSED) {
+      store.setState((s) => ({ ...s, sdkStreamStatus: 'connected' }));
+    }
   }
 
   async function sendMessage(prompt: string): Promise<void> {
@@ -786,6 +835,8 @@ function createSessionDetailStore() {
     stopSession,
     refreshSession,
     loadPlanContent,
+    pauseStream,
+    resumeStream,
     reset,
   };
 }
