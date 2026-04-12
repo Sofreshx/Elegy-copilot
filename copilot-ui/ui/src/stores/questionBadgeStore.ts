@@ -42,18 +42,6 @@ function createQuestionBadgeStore() {
           const status = (session.status || '').toLowerCase();
           if (status === 'active' || status === 'running' || status === 'idle') {
             polledIds.add(session.sessionId);
-            try {
-              const stateRes = await fetch(
-                `/api/sdk/session/${encodeURIComponent(session.sessionId)}/state`,
-              );
-              if (stateRes.ok) {
-                const stateData = await stateRes.json();
-                const pendingCount = stateData?.pendingQuestionCount || 0;
-                sessionCounts.set(session.sessionId, pendingCount);
-              }
-            } catch {
-              // Session might not support state query — skip
-            }
           }
         }
       }

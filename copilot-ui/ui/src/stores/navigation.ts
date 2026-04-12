@@ -208,6 +208,7 @@ function createNavigationStore() {
     store.setState((state) => ({
       ...state,
       activeSidebarItem: sidebarItem,
+      selectedSessionId: null,
       wizardOpen: null,
     }));
   }
