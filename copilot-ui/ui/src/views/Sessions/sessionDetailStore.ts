@@ -56,6 +56,9 @@ export interface SessionDetailState {
   refreshing: boolean;
   historyLoaded: boolean;
   streamPaused: boolean;
+  isRemote: boolean;
+  remoteUrl: string | null;
+  remoteSessionId: string | null;
 }
 
 const INITIAL_STATE: SessionDetailState = {
@@ -86,6 +89,9 @@ const INITIAL_STATE: SessionDetailState = {
   refreshing: false,
   historyLoaded: false,
   streamPaused: false,
+  isRemote: false,
+  remoteUrl: null,
+  remoteSessionId: null,
 };
 
 function isOrchestrationProjection(
@@ -505,6 +511,42 @@ function createSessionDetailStore() {
           questionBadgeStore.reportQuestion(sid2, unansweredCount);
         }
       }
+
+      // Handle remote session events
+      if (eventType === 'session.remote_status' || eventType === 'session.info') {
+        const url = eventData.remoteUrl ?? eventData.url;
+        if (url) {
+          store.setState((s) => ({
+            ...s,
+            isRemote: true,
+            remoteUrl: String(url),
+          }));
+        }
+        if (eventData.isRemote !== undefined) {
+          store.setState((s) => ({
+            ...s,
+            isRemote: Boolean(eventData.isRemote),
+          }));
+        }
+      }
+
+      if (eventType === 'session.handoff') {
+        const remoteSessionId = eventData.remoteSessionId ?? eventData.taskId;
+        if (remoteSessionId) {
+          store.setState((s) => ({
+            ...s,
+            remoteSessionId: String(remoteSessionId),
+          }));
+        }
+      }
+
+      if (eventType === 'session.warning') {
+        const message = String(eventData.message || eventData.reason || 'Remote session warning');
+        notificationStore.warning('Remote Session Warning', {
+          message,
+          duration: 8000,
+        });
+      }
     }
 
     function parseSsePayload(raw: string): Record<string, unknown> | null {
@@ -536,6 +578,10 @@ function createSessionDetailStore() {
         'assistant.reasoning',
         'session.idle',
         'session.error',
+        'session.info',
+        'session.handoff',
+        'session.warning',
+        'session.remote_status',
         'tool.executing',
         'tool.completed',
         'question.asked',

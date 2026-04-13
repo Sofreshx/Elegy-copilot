@@ -146,6 +146,14 @@ export function resolveBridgeConfig(env, opts = {}) {
     config.policyPreflightFn = sourceOpts.policyPreflightFn;
   }
 
+  const remoteDefault = readBoolean(
+    sourceOpts.remoteDefault != null ? sourceOpts.remoteDefault : sourceEnv.COPILOT_SDK_REMOTE,
+    undefined
+  );
+  if (remoteDefault !== undefined) {
+    config.remoteDefault = remoteDefault;
+  }
+
   const copilotHome = firstNonEmptyString([sourceOpts.copilotHome, sourceEnv.COPILOT_HOME]);
   if (copilotHome) {
     config.copilotHome = copilotHome;

@@ -49,7 +49,10 @@ export default function SessionItem({ session, selected = false, onSelect }: Ses
         tabIndex={0}
       >
         <div className="session-item-header">
-          <p className="session-id">{session.id}</p>
+          <p className="session-id">
+            {session.isRemote && <span className="session-remote-indicator" title="Remote session">🌐 </span>}
+            {session.id}
+          </p>
           <StatusBadge status={humanizeToken(status)} testId="session-item-status" />
         </div>
 

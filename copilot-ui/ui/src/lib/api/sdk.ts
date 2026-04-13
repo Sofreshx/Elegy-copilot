@@ -111,3 +111,31 @@ export async function answerSdkQuestion(
     body: JSON.stringify(payload),
   });
 }
+
+export async function enableRemoteSession(
+  sessionId: string,
+  baseUrl?: string
+): Promise<{ sessionId?: string; messageId?: string; alreadyRemote?: boolean; remoteUrl?: string; experimental?: boolean }> {
+  return apiRequest(`/api/sdk/session/${encodeURIComponent(sessionId)}/enable-remote`, {
+    baseUrl,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+}
+
+export async function getRemotePreference(baseUrl?: string): Promise<{ enabled: boolean }> {
+  return apiRequest<{ enabled: boolean }>('/api/config/remote-sessions', { baseUrl });
+}
+
+export async function setRemotePreference(
+  enabled: boolean,
+  baseUrl?: string
+): Promise<{ enabled: boolean; warning?: string }> {
+  return apiRequest<{ enabled: boolean; warning?: string }>('/api/config/remote-sessions', {
+    baseUrl,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  });
+}

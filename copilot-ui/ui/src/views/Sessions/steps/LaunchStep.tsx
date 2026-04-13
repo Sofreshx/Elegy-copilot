@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FormInput } from '../../../components';
 import { listSdkModels } from '../../../lib/api';
+import { getRemotePreference } from '../../../lib/api/sdk';
 import { SESSION_AGENTS } from '../../../constants/sessionAgents';
 import type { SessionWizardState } from '../sessionWizardStore';
 import { sessionWizardStore } from '../sessionWizardStore';
@@ -45,6 +46,7 @@ export default function LaunchStep({ state }: LaunchStepProps) {
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [globalRemoteDefault, setGlobalRemoteDefault] = useState(false);
 
   useEffect(() => {
     if (!state.model) {
@@ -75,6 +77,12 @@ export default function LaunchStep({ state }: LaunchStepProps) {
           setModelsLoading(false);
         }
       });
+
+    getRemotePreference()
+      .then((result) => {
+        if (!cancelled) setGlobalRemoteDefault(result.enabled);
+      })
+      .catch(() => {});
 
     return () => {
       cancelled = true;
@@ -107,6 +115,37 @@ export default function LaunchStep({ state }: LaunchStepProps) {
           <span className="session-wizard-launch-key">Isolation</span>
           <span className="session-wizard-launch-value">{isolationLabel(state)}</span>
         </div>
+      </div>
+
+      <div className="session-wizard-remote-section" data-testid="session-wizard-remote-section">
+        <div className="session-wizard-launch-row">
+          <span className="session-wizard-launch-key">🌐 Remote Access</span>
+          <span className="session-wizard-launch-value">
+            <span className="session-wizard-remote-chips" data-testid="session-wizard-remote-chips">
+              {(['default', 'on', 'off'] as const).map((option) => {
+                const value = option === 'default' ? null : option === 'on';
+                const isActive = state.remoteEnabled === value;
+                const label = option === 'default'
+                  ? `Default (${globalRemoteDefault ? 'On' : 'Off'})`
+                  : option === 'on' ? 'Enable' : 'Disable';
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    className={`session-wizard-model-chip ${isActive ? 'session-wizard-model-chip-active' : ''}`}
+                    data-testid={`session-wizard-remote-${option}`}
+                    onClick={() => sessionWizardStore.setRemoteEnabled(value)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </span>
+          </span>
+        </div>
+        <p className="session-wizard-remote-hint">
+          Stream session to GitHub.com for web/mobile steering. Requires GitHub-hosted repo.
+        </p>
       </div>
 
       <div className="session-wizard-model-section">

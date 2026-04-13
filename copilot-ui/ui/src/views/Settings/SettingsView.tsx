@@ -4,6 +4,7 @@ import { useStoreValue } from '../../lib/store';
 import { navigationStore } from '../../stores/navigation';
 import { hookRulesStore, type HookRulesState } from '../../stores/hookRulesStore';
 import type { HookRule } from '../../lib/api/hooks';
+import RemoteSessionsPanel from './RemoteSessionsPanel';
 
 interface AppInfo {
   version?: string;
@@ -197,7 +198,9 @@ export default function SettingsView() {
 
         <HookRulesPanel />
 
-        <Panel title="Keyboard Shortcuts" subtitle="Navigation and actions" testId="settings-shortcuts">
+        <RemoteSessionsPanel />
+
+        <Panel title="Keyboard Shortcuts"subtitle="Navigation and actions" testId="settings-shortcuts">
           <dl className="settings-shortcuts-list">
             <dt><kbd>Ctrl+N</kbd></dt>
             <dd>New session wizard</dd>

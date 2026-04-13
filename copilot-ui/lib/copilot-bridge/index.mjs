@@ -22,6 +22,9 @@ const EVENT_RELAY_MAP = Object.freeze({
   "assistant.reasoning": "assistant.reasoning",
   "session.idle": "session.idle",
   "session.error": "session.error",
+  "session.info": "session.info",
+  "session.handoff": "session.handoff",
+  "session.warning": "session.warning",
   "tool.executing": "tool.executing",
   "tool.completed": "tool.completed",
   "tool.execution_start": "tool.executing",
@@ -123,6 +126,7 @@ export class SdkBridgeService {
     };
 
     this._client = null;
+    this._clientPool = new Map();
     this._sessions = new Map();
     this._initialized = false;
     this._lastError = null;
@@ -186,6 +190,18 @@ export class SdkBridgeService {
       }
     }
 
+    // Stop all pooled clients
+    for (const [key, poolEntry] of this._clientPool) {
+      if (poolEntry.client && typeof poolEntry.client.stop === "function") {
+        try {
+          await poolEntry.client.stop();
+        } catch (error) {
+          stopErrors.push(toErrorMessage(error));
+        }
+      }
+    }
+    this._clientPool.clear();
+
     this._sessions.clear();
     this._client = null;
     this._initialized = false;
@@ -238,18 +254,37 @@ export class SdkBridgeService {
     const baseClientOptions = this._resolveBaseClientOptions();
     const baseCwd = normalizeOptionalString(baseClientOptions.cwd) || null;
 
-    const useDedicatedClient = Boolean(
+    const cwdDiffers = Boolean(
       requestedCwd
       && (!baseCwd || !areSamePath(baseCwd, requestedCwd))
     );
+
+    // Determine remote mode: explicit option > global config default > undefined (follow base)
+    const baseRemoteMode = this._config.remoteDefault === true;
+    let remoteMode;
+    if (typeof sessionConfig.remote === "boolean") {
+      remoteMode = sessionConfig.remote;
+    } else {
+      remoteMode = baseRemoteMode;
+    }
+
+    const remoteDiffers = remoteMode !== baseRemoteMode;
+    const useDedicatedClient = cwdDiffers || remoteDiffers;
+
+    // Pool key for client reuse: clients with same {cwd, remoteMode} share a process
+    const effectiveCwd = requestedCwd || baseCwd;
+    const poolKey = useDedicatedClient ? `${effectiveCwd || ""}:${remoteMode}` : null;
 
     return {
       contextType,
       sandboxId,
       requestedCwd: requestedCwd || null,
       baseCwd,
-      effectiveCwd: requestedCwd || baseCwd,
+      effectiveCwd,
       useDedicatedClient,
+      remoteMode,
+      remoteDiffers,
+      poolKey,
     };
   }
 
@@ -308,16 +343,39 @@ export class SdkBridgeService {
     let ownsClient = false;
 
     if (context.useDedicatedClient) {
-      const dedicatedOptions = {
-        ...this._resolveBaseClientOptions(),
-        cwd: context.requestedCwd,
-      };
-      client = this._deps.createClient(dedicatedOptions);
-      if (!client || typeof client.start !== "function") {
-        throw new Error("SdkBridgeService requires a CopilotClient-compatible start() function");
+      // Check client pool for a reusable client with same {cwd, remoteMode}
+      if (context.poolKey && this._clientPool.has(context.poolKey)) {
+        const poolEntry = this._clientPool.get(context.poolKey);
+        client = poolEntry.client;
+        poolEntry.refCount++;
+      } else {
+        const dedicatedOptions = {
+          ...this._resolveBaseClientOptions(),
+        };
+        if (context.requestedCwd) {
+          dedicatedOptions.cwd = context.requestedCwd;
+        }
+        // Inject --remote or --no-remote based on requested mode
+        const baseArgs = Array.isArray(dedicatedOptions.cliArgs) ? [...dedicatedOptions.cliArgs] : [];
+        const filteredArgs = baseArgs.filter(a => a !== "--remote" && a !== "--no-remote");
+        if (context.remoteMode) {
+          filteredArgs.push("--remote");
+        } else {
+          filteredArgs.push("--no-remote");
+        }
+        dedicatedOptions.cliArgs = filteredArgs;
+
+        client = this._deps.createClient(dedicatedOptions);
+        if (!client || typeof client.start !== "function") {
+          throw new Error("SdkBridgeService requires a CopilotClient-compatible start() function");
+        }
+        await client.start();
+        ownsClient = true;
+
+        if (context.poolKey) {
+          this._clientPool.set(context.poolKey, { client, refCount: 1 });
+        }
       }
-      await client.start();
-      ownsClient = true;
     }
 
     let session;
@@ -364,9 +422,12 @@ export class SdkBridgeService {
       session,
       client,
       ownsClient,
+      poolKey: context.poolKey,
       contextType: context.contextType,
       sandboxId: context.sandboxId,
       cwd: context.effectiveCwd,
+      isRemote: context.remoteMode,
+      remoteUrl: null,
       orchestration: normalizeSessionOrchestrationMetadata(sessionConfig.orchestration, {
         contextType: context.contextType,
         sandboxId: context.sandboxId,
@@ -396,6 +457,8 @@ export class SdkBridgeService {
       contextType: record.contextType,
       sandboxId: record.sandboxId,
       cwd: record.cwd,
+      isRemote: record.isRemote,
+      remoteUrl: record.remoteUrl,
       orchestration: cloneJson(record.orchestration),
     };
   }
@@ -435,10 +498,38 @@ export class SdkBridgeService {
 
     let stopError = null;
     if (record.ownsClient && record.client && typeof record.client.stop === "function") {
-      try {
-        await record.client.stop();
-      } catch (error) {
-        stopError = error;
+      // If client is pooled, decrement ref count; only stop when no sessions remain
+      if (record.poolKey && this._clientPool.has(record.poolKey)) {
+        const poolEntry = this._clientPool.get(record.poolKey);
+        poolEntry.refCount--;
+        if (poolEntry.refCount <= 0) {
+          this._clientPool.delete(record.poolKey);
+          try {
+            await record.client.stop();
+          } catch (error) {
+            stopError = error;
+          }
+        }
+      } else {
+        try {
+          await record.client.stop();
+        } catch (error) {
+          stopError = error;
+        }
+      }
+    } else if (record.poolKey && this._clientPool.has(record.poolKey)) {
+      // Non-owning session referencing a pooled client
+      const poolEntry = this._clientPool.get(record.poolKey);
+      poolEntry.refCount--;
+      if (poolEntry.refCount <= 0) {
+        this._clientPool.delete(record.poolKey);
+        if (poolEntry.client && typeof poolEntry.client.stop === "function") {
+          try {
+            await poolEntry.client.stop();
+          } catch (error) {
+            stopError = error;
+          }
+        }
       }
     }
 
@@ -474,6 +565,8 @@ export class SdkBridgeService {
       contextType: record.contextType,
       sandboxId: record.sandboxId,
       cwd: record.cwd,
+      isRemote: record.isRemote,
+      remoteUrl: record.remoteUrl,
       orchestration: cloneJson(record.orchestration),
       session: record.session,
     };
@@ -488,6 +581,8 @@ export class SdkBridgeService {
       contextType: record.contextType,
       sandboxId: record.sandboxId,
       cwd: record.cwd,
+      isRemote: record.isRemote,
+      remoteUrl: record.remoteUrl,
       orchestration: cloneJson(record.orchestration),
     }));
   }
@@ -613,6 +708,44 @@ export class SdkBridgeService {
       if (typeof message === "string" && message.trim()) {
         this._lastError = message.trim();
       }
+    }
+
+    // Extract remote URL from session.info events
+    if (event.type === "session.info" && isObject(event.data)) {
+      const url = event.data.url;
+      if (typeof url === "string" && url.startsWith("http")) {
+        record.remoteUrl = url;
+        record.isRemote = true;
+        this._broadcastSse(record, "session.remote_status", {
+          sessionId: record.sessionId,
+          isRemote: true,
+          remoteUrl: url,
+        });
+      } else if (!record.remoteUrl && typeof event.data.message === "string") {
+        // Fallback: try to extract URL from message text
+        const match = event.data.message.match(/https:\/\/github\.com\/[^\s]+\/tasks\/[^\s]+/);
+        if (match) {
+          record.remoteUrl = match[0];
+          record.isRemote = true;
+          this._broadcastSse(record, "session.remote_status", {
+            sessionId: record.sessionId,
+            isRemote: true,
+            remoteUrl: match[0],
+          });
+        }
+      }
+    }
+
+    // Handle session.handoff — track remote session handoff state
+    if (event.type === "session.handoff" && isObject(event.data)) {
+      if (event.data.sourceType === "remote") {
+        record.isRemote = true;
+      }
+      this._broadcastSse(record, "session.handoff", {
+        sessionId: record.sessionId,
+        sourceType: event.data.sourceType,
+        remoteSessionId: event.data.remoteSessionId || null,
+      });
     }
 
     if (event.type === "tool.user_requested") {
@@ -746,6 +879,76 @@ export class SdkBridgeService {
     });
 
     return { answered: true, toolCallId };
+  }
+
+  /**
+   * Restart the base CopilotClient so it picks up new config (e.g. remote mode toggle).
+   * All sessions on the base client keep their session objects but the underlying
+   * CLI process is recycled.
+   */
+  async restartBaseClient() {
+    if (!this._initialized || !this._client) {
+      return;
+    }
+
+    // Stop the current base client
+    if (typeof this._client.stop === "function") {
+      try {
+        await this._client.stop();
+      } catch {
+        // Ignore stop failures during restart.
+      }
+    }
+
+    // Re-resolve config and create a fresh client
+    const clientOptions = isObject(this._config.clientOptions) ? { ...this._config.clientOptions } : {};
+
+    // Apply current remote default to base client args
+    const baseArgs = Array.isArray(clientOptions.cliArgs) ? [...clientOptions.cliArgs] : [];
+    const filteredArgs = baseArgs.filter(a => a !== "--remote" && a !== "--no-remote");
+    if (this._config.remoteDefault === true) {
+      filteredArgs.push("--remote");
+    }
+    if (filteredArgs.length > 0) {
+      clientOptions.cliArgs = filteredArgs;
+    } else {
+      delete clientOptions.cliArgs;
+    }
+
+    const newClient = this._deps.createClient(clientOptions);
+    if (!newClient || typeof newClient.start !== "function") {
+      throw new Error("Failed to create replacement base client");
+    }
+
+    await newClient.start();
+    this._client = newClient;
+  }
+
+  /**
+   * Enable remote access for an existing session (experimental).
+   * Sends `/remote` as a prompt. JSON-RPC mode may not interpret slash commands,
+   * in which case the caller should recreate the session on a --remote client.
+   */
+  async enableRemote(sessionId) {
+    const normalizedSessionId = normalizeSessionId(sessionId);
+    const record = this._sessions.get(normalizedSessionId);
+
+    if (!record) {
+      const notFoundError = new Error(`SDK session not found: ${normalizedSessionId}`);
+      notFoundError.code = "SDK_SESSION_NOT_FOUND";
+      throw notFoundError;
+    }
+
+    if (record.isRemote && record.remoteUrl) {
+      return { sessionId: normalizedSessionId, alreadyRemote: true, remoteUrl: record.remoteUrl };
+    }
+
+    const messageId = await record.session.send({
+      prompt: "/remote",
+      mode: "immediate",
+    });
+
+    return { sessionId: normalizedSessionId, messageId, experimental: true };
   }
 
   _broadcastSse(record, eventName, payload) {

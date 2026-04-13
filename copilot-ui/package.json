@@ -42,7 +42,7 @@
     "@electric-sql/pglite": "^0.4.2",
     "@elegy-copilot/contracts": "file:../contracts",
     "@elegy-copilot/root": "file:..",
-    "@github/copilot-sdk": "0.1.9",
+    "@github/copilot-sdk": "0.2.2",
     "dompurify": "^3.3.1",
     "mermaid": "^11.12.3",
     "pg": "^8.20.0",

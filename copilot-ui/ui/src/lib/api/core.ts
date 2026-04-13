@@ -340,6 +340,7 @@ export interface SdkCreateSessionPayload {
   model?: string;
   contextType?: 'regular' | 'sandbox' | string;
   sandboxId?: string;
+  remote?: boolean;
   orchestration?: Record<string, unknown>;
 }
 

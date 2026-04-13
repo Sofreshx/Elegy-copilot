@@ -27,6 +27,8 @@ export interface SessionSummary {
   updatedAtMs?: number;
   orchestration?: SessionOrchestrationProjection | Record<string, unknown> | null;
   worktree?: WorktreeBinding | null;
+  isRemote?: boolean;
+  remoteUrl?: string | null;
   [key: string]: unknown;
 }
 
@@ -741,6 +743,8 @@ export interface SdkSessionSummary {
   contextType?: string;
   sandboxId?: string | null;
   cwd?: string | null;
+  isRemote?: boolean;
+  remoteUrl?: string | null;
   orchestration?: SessionOrchestrationProjection | Record<string, unknown> | null;
   worktree?: WorktreeBinding | null;
   [key: string]: unknown;

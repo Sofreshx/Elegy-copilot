@@ -588,6 +588,75 @@ async function run() {
     });
   });
 
+  await test('POST /api/sdk/session accepts remote flag in payload', async () => {
+    let capturedPayload = null;
+    const remoteBridge = {
+      ...createMockSdkBridge(),
+      async createSdkSession(payload) {
+        capturedPayload = payload;
+        return {
+          sessionId: 'remote-session-1',
+          model: null,
+          createdAt: '2026-03-01T00:00:00.000Z',
+          isRemote: true,
+          remoteUrl: null,
+        };
+      },
+    };
+
+    const remoteRoutes = register({
+      sdkBridge: remoteBridge,
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, {
+          'Content-Type': 'application/json; charset=utf-8',
+        });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const created = await invoke(remoteRoutes, 'POST', '/api/sdk/session', {
+      model: 'gpt-5.4',
+      remote: true,
+    });
+
+    assert.equal(created.res.statusCode, 201);
+    assert.equal(capturedPayload.remote, true);
+    const body = parseJsonBody(created.res);
+    assert.equal(body.isRemote, true);
+  });
+
+  await test('POST /api/sdk/session/:id/enable-remote calls enableRemote on bridge', async () => {
+    let enabledSessionId = null;
+    const enableBridge = {
+      ...createMockSdkBridge(),
+      async enableRemote(sessionId) {
+        enabledSessionId = sessionId;
+        return { ok: true };
+      },
+    };
+
+    // Pre-create a session in the bridge
+    await enableBridge.createSdkSession({ sessionId: 'enable-remote-target' });
+
+    const enableRoutes = register({
+      sdkBridge: enableBridge,
+      sendJson(res, code, payload) {
+        const text = JSON.stringify(payload, null, 2);
+        res.writeHead(code, {
+          'Content-Type': 'application/json; charset=utf-8',
+        });
+        res.end(text);
+      },
+      readJsonBody: async (req) => req.__body || {},
+    });
+
+    const result = await invoke(enableRoutes, 'POST', '/api/sdk/session/enable-remote-target/enable-remote');
+    assert.equal(result.res.statusCode, 200);
+    assert.equal(enabledSessionId, 'enable-remote-target');
+  });
+
   if (!process.exitCode) {
     console.log(`sdk route tests passed (${passed})`);
   }

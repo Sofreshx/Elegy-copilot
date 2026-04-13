@@ -12,6 +12,7 @@ import SessionArtifactsPanel from './SessionArtifactsPanel';
 import SessionConfigPanel from './SessionConfigPanel';
 import SessionGitPanel from './SessionGitPanel';
 import SessionSkillUsagePanel from './SessionSkillUsagePanel';
+import RemoteSessionBanner from './RemoteSessionBanner';
 
 function findWorkflowForSession(sessionId: string): { templateName: string; stepLabel: string; runId: string } | null {
   const state = workflowStore.getState();
@@ -156,7 +157,9 @@ export default function SessionDetailView() {
         </Toolbar>
       </header>
 
-      <nav className="session-detail-tabs" data-testid="session-detail-tabs" role="tablist">
+      <RemoteSessionBanner />
+
+      <nav className="session-detail-tabs"data-testid="session-detail-tabs" role="tablist">
         {TABS.map((tab) => (
           <button
             key={tab.id}

@@ -377,12 +377,16 @@ function handleCreateSession(ctx, deps) {
         }
       }
 
+      // Remote mode override (boolean or null/undefined to follow global default)
+      const remote = typeof payload.remote === 'boolean' ? payload.remote : undefined;
+
       return sdkBridge.createSdkSession({
         sessionId: sessionId || undefined,
         model: model || undefined,
         contextType: sandboxId ? 'sandbox' : (contextType || 'regular'),
         sandboxId: sandboxId || undefined,
         cwd,
+        remote,
         orchestration: payload.orchestration && typeof payload.orchestration === 'object' && !Array.isArray(payload.orchestration)
           ? payload.orchestration
           : undefined,
@@ -435,6 +439,34 @@ function handleDeleteSession(ctx, deps) {
       }
       sendJson(res, 200, { ok: true, sessionId });
     })
+    .catch((error) => {
+      const failure = toBridgeErrorPayload(error, 500);
+      sendJson(res, failure.statusCode, failure.body);
+    });
+}
+
+function handleEnableRemote(ctx, deps) {
+  const { res, match } = ctx;
+  const { sendJson } = deps;
+  const sdkBridge = requireSdkBridge(res, deps);
+  if (!sdkBridge) {
+    return;
+  }
+
+  const sessionId = decodeURIComponent(match[1] || '').trim();
+  if (!isValidSessionId(sessionId)) {
+    sendJson(res, 400, { error: 'Invalid session id' });
+    return;
+  }
+
+  if (typeof sdkBridge.enableRemote !== 'function') {
+    sendJson(res, 501, { error: 'enableRemote not supported by this bridge version' });
+    return;
+  }
+
+  Promise.resolve()
+    .then(() => sdkBridge.enableRemote(sessionId))
+    .then((result) => sendJson(res, 200, result))
     .catch((error) => {
       const failure = toBridgeErrorPayload(error, 500);
       sendJson(res, failure.statusCode, failure.body);
@@ -567,6 +599,11 @@ function register(deps = {}) {
       method: 'DELETE',
       path: /^\/api\/sdk\/session\/([^/]+)$/,
       handler: (ctx) => handleDeleteSession(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: /^\/api\/sdk\/session\/([^/]+)\/enable-remote$/,
+      handler: (ctx) => handleEnableRemote(ctx, resolvedDeps),
     },
     {
       method: 'POST',

@@ -26,6 +26,7 @@ export interface SessionWizardState {
   model: string;
   actorLabel: string;
   actorRole: string;
+  remoteEnabled: boolean | null; // null = follow global default
   // Backlog
   backlogBullets: Array<{ id: string; title: string; state: string; summary: string; tags: string[] }>;
   backlogLoading: boolean;
@@ -54,6 +55,7 @@ const INITIAL_STATE: SessionWizardState = {
   model: '',
   actorLabel: '',
   actorRole: '',
+  remoteEnabled: null,
   backlogBullets: [],
   backlogLoading: false,
   selectedBulletIds: [],
@@ -152,6 +154,10 @@ function createSessionWizardStore() {
 
   function setActorRole(actorRole: string): void {
     store.setState((s) => ({ ...s, actorRole }));
+  }
+
+  function setRemoteEnabled(remoteEnabled: boolean | null): void {
+    store.setState((s) => ({ ...s, remoteEnabled }));
   }
 
   async function loadBacklog(): Promise<void> {
@@ -280,6 +286,7 @@ function createSessionWizardStore() {
         model: effectiveModel,
         contextType: state.isolationMode === 'sandbox' ? 'sandbox' : undefined,
         sandboxId: state.isolationMode === 'sandbox' && state.sandboxId ? state.sandboxId : undefined,
+        remote: state.remoteEnabled === null ? undefined : state.remoteEnabled,
         orchestration,
       };
 
@@ -331,6 +338,7 @@ function createSessionWizardStore() {
     setModel,
     setActorLabel,
     setActorRole,
+    setRemoteEnabled,
     loadBacklog,
     toggleBullet,
     clearBullets,
