@@ -1,6 +1,6 @@
 ---
 created: 2026-03-23
-updated: 2026-03-24
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -31,11 +31,10 @@ They may:
 
 They must not:
 
-- override `docs/planning/bullets.md`
-- override `docs/planning/intake/*.json`
-- override `docs/backlogs/*.md`
-- override `docs/backlog.md`
-- override `docs/roadmaps/*.md`
+- override `~/.copilot/backlogs/{repo-name}/planning/bullets.md`
+- override `~/.copilot/backlogs/{repo-name}/planning/intake/*.json`
+- override `~/.copilot/backlogs/{repo-name}/backlogs/*.md`
+- override `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`
 - become the canonical execution authority instead of the active session `plan.md`
 - use note bodies or mirror edits as canonical write authority for repo planning docs
 
@@ -166,8 +165,8 @@ Planning mirrors are a SAFE representation of canonical repo docs, not a second 
 
 Rules:
 
-1. Bullets mirrors are generated from `<repo>/docs/planning/bullets.md`.
-2. Roadmap mirrors are generated one-per-slug from `<repo>/docs/roadmaps/*.md`.
+1. Bullets mirrors are generated from `~/.copilot/backlogs/{repo-name}/planning/bullets.md`.
+2. Roadmap mirrors are generated one-per-slug from `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`.
 3. Mirror frontmatter MUST include explicit non-canonical provenance and enough metadata for freshness
    checks.
 4. Freshness may compare canonical source metadata or deterministic hashes, but mirror content must not

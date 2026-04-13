@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-04-09
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -105,8 +105,9 @@ Documentation structure should keep "why" discoverable without creating competin
 
 - durable workflow, policy, and architectural rationale that others must rely on belongs in
   canonical `docs/system/**` nodes
-- `docs/issues/*` is the durable home for planning-worthy ideas, deferred findings, open questions,
-  and recurring friction, but it does not become peer authority with `docs/system/**`
+- `~/.copilot/backlogs/{repo-name}/issues/*` is the durable home for planning-worthy ideas, deferred
+  findings, open questions, and recurring friction, but it does not become peer authority with
+  `docs/system/**`
 - code comments may carry selective local rationale, but they should stay brief and should not try to
   replace the canonical doc or issue entry that owns the broader decision
 - if the same rationale would otherwise need to be copied into many comments or scattered docs, create

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-04-03
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -23,16 +23,13 @@ This document defines the **canonical contract** for documentation in this repo.
 
 - `docs/system/**` — canonical, system-of-record documentation.
 - `docs/research/**` — non-canonical notes/spikes/audits.
-- `docs/backlogs/*.md` — approved primary repo-backed Planning artifact locations for per-session Repository Backlog docs.
-- `docs/backlog.md` — approved legacy compatibility Planning artifact location for the Repository Backlog.
-- `docs/roadmaps/*.md` — approved repo-backed Planning artifact locations for Roadmaps.
 - other top-level `docs/*.md` paths — reserved for **redirect stubs** only (after migration).
 
 Redirect docs may also exist in other legacy paths (e.g., `docs/orchestrator/*`) when preserving older inbound links.
 
-The Planning artifact exception above is intentionally narrow: it exists only to support the approved
-repo-backed backlog and roadmap contract without reopening top-level `docs/*.md` as a general-purpose
-content area.
+Operational planning artifacts (backlogs, roadmaps, issues, planning bullets) now live outside the
+repo at `~/.copilot/backlogs/{repo-name}/` and are no longer part of the doc graph. See
+[[planning-backlog-roadmap-contract]] for the current path contract.
 
 ## Document Kinds (`doc_kind`)
 
@@ -116,17 +113,13 @@ Redirect requirements:
 - `redirect_to` must point to an existing **non-redirect** doc.
 - Redirect docs MUST NOT contain wikilinks.
 
-## Repo-Backed Planning Artifact Exception
+## Operational Artifacts (Relocated)
 
-The approved repo-backed Planning artifact paths:
-
-- `docs/backlogs/*.md`
-- `docs/backlog.md`
-- `docs/roadmaps/*.md`
-
-are valid non-redirect docs under this spec. They still require standard `docs/**.md` frontmatter and
-all normal value validation, but they are exempt from the top-level redirect-only rule that applies to
-other `docs/*.md` files.
+Planning artifacts (backlogs, roadmaps, issues, planning bullets) previously lived under
+`docs/backlogs/`, `docs/backlog.md`, `docs/roadmaps/`, `docs/issues/`, and `docs/planning/`. These
+operational artifacts now live at `~/.copilot/backlogs/{repo-name}/` and are no longer repo files.
+They are outside the doc graph and outside the validator's scope. Any remaining in-repo stubs at
+those paths should be treated as redirect or cleanup candidates.
 
 ## Validator Severity
 

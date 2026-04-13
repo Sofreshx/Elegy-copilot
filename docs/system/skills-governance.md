@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-27
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -38,17 +38,32 @@ In `engine-assets/manifest.json`, governance annotations for these classes are d
 
 ## Current default-handled set
 These are hidden in extension skill discovery by default:
-- `debug`
-- `docs`
 - `refactor`
-- `design`
+- legacy/reference optional Superpowers compatibility-pack members whose shipped manifest posture is `default-handled`:
+  - `superpowers-dispatching-parallel-agents`
+  - `superpowers-receiving-code-review`
+  - `superpowers-systematic-debugging`
+  - `superpowers-test-driven-development`
+  - `superpowers-using-git-worktrees`
+  - `superpowers-verification-before-completion`
 
 `refactor` remains in the catalog as a compatibility surface, but generic cleanup and restructuring requests should be handled directly unless the caller explicitly asks for the skill.
+The Superpowers entries above are shipped as legacy/reference optional workflow-pack surfaces, not as preferred routing surfaces for current default workflows.
 
 ## Current deprecated compatibility surfaces
 These remain installed only to preserve older routing and prompt references:
 - `auth`: compatibility alias surface; prefer `firebase-auth` for implementation work and `security` for review.
+- `code-review`: compatibility review surface retained for older routing references; prefer current reviewer/agent pathways.
 - `system-cleanup`: compatibility surface for legacy task/backlog cleanup flows.
+- legacy/reference optional Superpowers compatibility-pack members whose shipped manifest posture is `deprecated-compatibility`:
+  - `superpowers-brainstorming`
+  - `superpowers-executing-plans`
+  - `superpowers-finishing-a-development-branch`
+  - `superpowers-requesting-code-review`
+  - `superpowers-subagent-driven-development`
+  - `superpowers-using-superpowers`
+  - `superpowers-writing-plans`
+  - `superpowers-writing-skills`
 
 Setting to show them:
 - `skillInstaller.skills.showDefaultHandled = true`
@@ -93,4 +108,4 @@ Operational rules:
 - Keep capture low-overhead: one concise log entry, then continue implementation.
 - Prefer recurrence-based logging over one-off annoyance logging.
 - Suggestions can be blank when root-cause analysis would derail current work.
-- Log target: `docs/issues/implementation-friction-log.md`.
+- Log target: `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md`.

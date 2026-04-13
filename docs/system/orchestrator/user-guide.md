@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-04-07
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -102,6 +102,26 @@ owns every closure fact.
 3. **Review the plan interactively** (for non-trivial work): Approve, revise, or cancel in that flow rather than through a plain-text end-of-plan question.
 4. **Watch it execute**: Work units are delegated to specialist agents.
 5. **Pick follow-ups or stop**: After completion, choose next actions or stop.
+
+## Which Orchestrator?
+
+Model-specific orchestrator variants exploit each model family's strengths and mitigate their
+weaknesses through targeted delegation strategies. The base (model-agnostic) variants remain the
+safe default. See `docs/system/model-capability-profile.md` for the underlying model profiles.
+
+| Your environment | Your host model | Use this |
+|---|---|---|
+| VS Code | Claude (any) | `@orchestrator-claude` |
+| VS Code | GPT (any) | `@orchestrator-gpt` |
+| VS Code | Unknown/other | `@orchestrator` (base, model-agnostic) |
+| Copilot CLI | Claude (any) | `@orchestrator-claude-cli` |
+| Copilot CLI | GPT (any) | `@orchestrator-gpt-cli` |
+| Copilot CLI | Unknown/other | `@orchestrator-cli` (base, model-agnostic) |
+
+**Key differences:**
+- **Claude variants** add `@deep-researcher` (GPT 5.4) for cross-model deep analysis. Claude crafts precise prompts before GPT delegation.
+- **GPT variants** add `@prompt-refiner` (Claude 4.6) to resolve ambiguous input before planning. Skipped for clear, structured requests.
+- **CLI variants** use Copilot CLI's native Rubber Duck for plan review instead of reviewer agents.
 
 ## How Requests Are Routed
 
@@ -306,15 +326,15 @@ resumability, especially when scope edges change, confidence drops, or refactor/
 discovered.
 
 ### Phase 4: Verify
-Final verification uses a layered end gate: `@code-reviewer` for final code quality, `@goal-reviewer` for high-level goal completion plus read-only unresolved-goal sync instructions, then `@doc-writer` for any required `docs/issues/unresolved-goals.md` reconciliation, and finally `@final-reviewer` for the requested-vs-delivered closure summary. The orchestrator now treats `GOAL_REVIEW` as an active gate:
+Final verification uses a layered end gate: `@code-reviewer` for final code quality, `@goal-reviewer` for high-level goal completion plus read-only unresolved-goal sync instructions, then `@doc-writer` for any required `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` reconciliation, and finally `@final-reviewer` for the requested-vs-delivered closure summary. The orchestrator now treats `GOAL_REVIEW` as an active gate:
 
-- `APPROVED` → continue closure, and route any `docs/issues/unresolved-goals.md` sync through `@doc-writer`
+- `APPROVED` → continue closure, and route any `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` sync through `@doc-writer`
 - `NEEDS_REVISION` → go back to execution/replan for active-goal gaps instead of treating the run as done
 - `BLOCKED` → pause closure until the missing goal/evidence context is supplied
 
 When reconciliation runs, `@doc-writer` keeps only unresolved goals that are no longer active, preserves existing entries by Goal Statement, and removes carryover entries that are now complete or active again. When `GOAL_REVIEW.unresolved_goals_path = NONE`, the orchestrator either performs a removal-only clean-up (if prior carryover entries should now be removed) or leaves the file untouched.
 
-When closure also needs durable Repository Backlog carryover, the orchestrator should preserve an explicit `session_backlog_path` from `@goal-reviewer`, prefer `docs/backlogs/<session-slug>.md` for new carryover, and treat `docs/backlog.md` as legacy compatibility only.
+When closure also needs durable Repository Backlog carryover, the orchestrator should preserve an explicit `session_backlog_path` from `@goal-reviewer` and prefer `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` for new carryover.
 
 If a fast workspace/session-state scan is useful, `@remaining-work` may provide supporting evidence
 about likely open work, but it must not override `GOAL_REVIEW` or the closure narrative owned by
@@ -348,7 +368,7 @@ This phase finalizes the **Session Closure Summary** by separating:
 
 When durable repo-planning follow-ups exist, the orchestrator should use `@follow-up-finder` to
 structure Repository Backlog carryover under `work_not_done`, `issues`, and `suggestions`, then route
-persistence or cleanup through `@backlog-planner` so `docs/backlogs/<session-slug>.md` stays the
+persistence or cleanup through `@backlog-planner` so `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` stays the
 primary end-of-session backlog surface.
 
 Use `@follow-up-finder` to structure active continuation work, blockers, and carryover ownership.
@@ -366,7 +386,7 @@ memory or automatic future pickup.
 | `@o-validation-coordinator` | Bounded validation overlap coordinator for completed or frozen slices |
 | `@o-planner` | Produces plan packs from enriched briefs |
 | `@roadmap-planner` | Durable multi-session roadmap/backlog lane; leaf-only and not a coordinator handoff into `@o-planner` |
-| `@backlog-planner` | Maintains `docs/backlogs/*.md`, converts backlog items into roadmap or direct plan-handoff briefs, and cleans consumed backlog/roadmap items |
+| `@backlog-planner` | Maintains `~/.copilot/backlogs/{repo-name}/backlogs/*.md`, converts backlog items into roadmap or direct plan-handoff briefs, and cleans consumed backlog/roadmap items |
 | `@reviewer-opus-4-6` | VS Code / non-CLI planning reviewer for cross-model plan risk and completeness review |
 | `@reviewer-gpt-5-4` | VS Code / non-CLI planning reviewer that validates the plan and prior review feedback |
 | `@work-unit-runner` | Implements individual work units |
@@ -377,7 +397,7 @@ memory or automatic future pickup.
 | `@consistency-reviewer` | Optional overlay for plan or change review on conventions and alignment |
 | `@code-reviewer` | Quality gates (APPROVED/NEEDS_REVISION/FAILED) |
 | `@goal-reviewer` | High-level goal closure gate (`APPROVED|NEEDS_REVISION|BLOCKED`) plus per-goal completion states (`complete|partial|not-complete`) + read-only unresolved-goal sync instructions |
-| `@doc-writer` | Documentation lane, including deterministic reconciliation of `docs/issues/unresolved-goals.md` after `@goal-reviewer` |
+| `@doc-writer` | Documentation lane, including deterministic reconciliation of `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` after `@goal-reviewer` |
 | `@final-reviewer` | Requested-vs-delivered closure summary, including the narrative "what remains" summary, while respecting `GOAL_REVIEW` status |
 | `@follow-up-finder` | Structures actionable follow-up work, blockers, and backlog carryover; not a closure gate |
 | `@remaining-work` | Heuristic git/session-state remaining-work signal; advisory only, not closure authority |

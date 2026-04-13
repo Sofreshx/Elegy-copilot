@@ -1,6 +1,6 @@
 ---
 created: 2026-04-09
-updated: 2026-04-09
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -66,15 +66,15 @@ layer. If this page and an atomic node disagree, the atomic canonical node wins.
 4. **Hand off accepted findings through existing canonical follow-up surfaces.**
     - Route normalized findings through [[follow-up-discovery-governance]]
       [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
-      so backlog carryover and the approved specialized `docs/issues/*` routes stay explicit.
-    - V1 stays on the approved backlog plus the approved specialized `docs/issues/*` surfaces; it does
+      so backlog carryover and the approved specialized `~/.copilot/backlogs/{repo-name}/issues/*` routes stay explicit.
+    - V1 stays on the approved backlog plus the approved specialized `~/.copilot/backlogs/{repo-name}/issues/*` surfaces; it does
       **not** add a dedicated issue ledger.
 5. **Capture "why" at the right authority surface.**
    - Put enduring workflow, architectural, and policy rationale in [[project-conventions-governance]]
      [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
      or the smallest relevant canonical node.
    - Put planning-worthy ideas, deferred findings, and recurring friction in the approved
-     `docs/issues/*` or backlog surfaces.
+     `~/.copilot/backlogs/{repo-name}/issues/*` or backlog surfaces.
    - Use smart comments only for local, non-obvious rationale that must stay next to code to prevent
      accidental simplification or boundary erosion.
 
@@ -84,7 +84,7 @@ layer. If this page and an atomic node disagree, the atomic canonical node wins.
 | --- | --- | --- |
 | discoverability | this overview is linked from the system index and the conventions/governance MOC, and all dual-link / frontmatter rules still pass | run `node scripts/validate-doc-graph.js` |
 | bootstrap and compliance | docs-backed write-capable work still names canonical references, missing bootstrap still fails closed, and missing smart comments remain review findings rather than authority blockers | verify alignment with `docs/system/search-execute-workflow.md`, `docs/system/project-conventions-governance.md`, and `docs/system/reviewer-lane-governance.md` |
-| additive handoff | project-audit findings still route into the approved backlog plus `docs/issues/*` surfaces, with no dedicated V1 issue ledger or new peer authority | verify alignment with `docs/system/follow-up-discovery-governance.md` |
+| additive handoff | project-audit findings still route into the approved backlog plus `~/.copilot/backlogs/{repo-name}/issues/*` surfaces, with no dedicated V1 issue ledger or new peer authority | verify alignment with `docs/system/follow-up-discovery-governance.md` |
 
 For this doc-first slice, the required repo validator is the doc-graph check above. The remaining
 gates make the rollout posture explicit so later extensions do not quietly introduce competing
