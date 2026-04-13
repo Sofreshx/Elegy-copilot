@@ -8,9 +8,31 @@ export interface StockSession {
   defaultModel?: string;
   /** Whether this preset needs the "Plan from Backlog" inline flow instead of direct wizard open */
   usesBacklogFlow?: boolean;
+  /** Whether to skip to the Objective step (step 1) after opening the wizard */
+  opensToObjective?: boolean;
 }
 
 export const STOCK_SESSIONS: StockSession[] = [
+  {
+    id: 'plan-only',
+    label: 'Plan',
+    description: 'Describe what you need — get a structured plan without auto-execution',
+    icon: '🗺',
+    agentId: 'orchestrator-cli',
+    objectiveTemplate: '[[PLAN]] ',
+    defaultModel: 'claude-opus-4.6',
+    opensToObjective: true,
+  },
+  {
+    id: 'plan-and-execute',
+    label: 'Plan & Execute',
+    description: 'Describe your goal — Copilot plans and implements autonomously',
+    icon: '🚀',
+    agentId: 'orchestrator-cli',
+    objectiveTemplate: '',
+    defaultModel: 'claude-opus-4.6',
+    opensToObjective: true,
+  },
   {
     id: 'plan-from-backlog',
     label: 'Plan from Backlog',

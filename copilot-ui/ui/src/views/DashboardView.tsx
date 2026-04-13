@@ -65,6 +65,7 @@ export default function DashboardView() {
     sessionWizardStore.setAgentId(preset.agentId);
     if (preset.defaultModel) sessionWizardStore.setModel(preset.defaultModel);
     if (preset.objectiveTemplate) sessionWizardStore.setObjective(preset.objectiveTemplate);
+    if (preset.opensToObjective) sessionWizardStore.setStep(1);
     navigationStore.openWizard('session');
   }
 
