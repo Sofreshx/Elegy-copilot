@@ -73,7 +73,7 @@ description: "Security review and vulnerability detection. Checks secure coding 
 ## Output
 - Security review with categorized findings.
 - Critical/high follow-ups captured in chat, host/session artifacts, or a user-requested security tracking surface.
-- Systemic security concerns captured only in repo-documented docs/issues surfaces or other explicitly requested destinations.
+- Systemic security concerns captured only in `~/.copilot/backlogs/{repo-name}/issues/` or other explicitly requested destinations.
 
 ## Session Summary Format
 - **Done**: [security review completed]

@@ -11,11 +11,13 @@ Author and maintain repo-backed planning artifacts that define **what matters ne
 decomposed into a Plan Pack.
 
 This skill governs:
-- **Planning Bullets** at `docs/planning/bullets.md` as the canonical pre-backlog seed surface
-- the **Repository Backlog** under `docs/backlogs/*.md` as the primary artifact family
-- `docs/backlog.md` as a legacy compatibility Repository Backlog surface
-- **Roadmap** files at `docs/roadmaps/<slug>.md`
+- **Planning Bullets** at `~/.copilot/backlogs/{repo-name}/planning/bullets.md` as the canonical pre-backlog seed surface
+- the **Repository Backlog** under `~/.copilot/backlogs/{repo-name}/backlogs/*.md` as the primary artifact family
+- `~/.copilot/backlogs/{repo-name}/backlog.md` as a legacy compatibility Repository Backlog surface
+- **Roadmap** files at `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>.md`
 - the explicit ID/linking discipline required for future **Roadmap Sync** and direct plan handoff
+
+`{repo-name}` is the basename of the repository directory.
 
 ## Canonical Terms
 
@@ -47,20 +49,20 @@ Rules:
 ## Canonical Locations
 
 For the selected repository root:
-- Planning Bullets: `docs/planning/bullets.md`
-- Repository Backlog (primary): `docs/backlogs/<session-slug>.md`
-- Repository Backlog (legacy compatibility): `docs/backlog.md`
-- Roadmaps: `docs/roadmaps/<slug>.md`
+- Planning Bullets: `~/.copilot/backlogs/{repo-name}/planning/bullets.md`
+- Repository Backlog (primary): `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`
+- Repository Backlog (legacy compatibility): `~/.copilot/backlogs/{repo-name}/backlog.md`
+- Roadmaps: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>.md`
 
 Backlog filenames should use lowercase kebab-case session slugs, for example:
-- `docs/backlogs/2026-04-03-session-close.md`
-- `docs/backlogs/platform-audit-follow-up.md`
+- `~/.copilot/backlogs/{repo-name}/backlogs/2026-04-03-session-close.md`
+- `~/.copilot/backlogs/{repo-name}/backlogs/platform-audit-follow-up.md`
 
-If `docs/roadmaps/` does not exist, create it only when roadmap work is actually requested.
+If `~/.copilot/backlogs/{repo-name}/roadmaps/` does not exist, create it only when roadmap work is actually requested.
 
 Roadmap filenames should use lowercase kebab-case slugs, for example:
-- `docs/roadmaps/platform-foundation.md`
-- `docs/roadmaps/q2-delivery.md`
+- `~/.copilot/backlogs/{repo-name}/roadmaps/platform-foundation.md`
+- `~/.copilot/backlogs/{repo-name}/roadmaps/q2-delivery.md`
 
 ## Stable ID Rules
 
@@ -75,7 +77,7 @@ Examples:
 
 Rules:
 - IDs must remain stable after creation.
-- Continue the highest existing sequence across the Repository Backlog artifact family (`docs/backlogs/*.md` plus legacy `docs/backlog.md` when present) or the targeted roadmap family.
+- Continue the highest existing sequence across the Repository Backlog artifact family (`~/.copilot/backlogs/{repo-name}/backlogs/*.md` plus legacy `~/.copilot/backlogs/{repo-name}/backlog.md` when present) or the targeted roadmap family.
 - Never reuse or renumber existing IDs just to make the file look cleaner.
 - The roadmap slug portion must match the roadmap filename slug.
 
@@ -172,8 +174,8 @@ contract.
 
 ## Maintenance Workflow
 
-1. Read the existing Repository Backlog artifact family (`docs/backlogs/*.md` first, `docs/backlog.md` when compatibility requires it) and relevant roadmap file(s).
-2. Read `docs/planning/bullets.md` when the request starts from seed ideas or needs `PB-*` linkage.
+1. Read the existing Repository Backlog artifact family (`~/.copilot/backlogs/{repo-name}/backlogs/*.md` first, `~/.copilot/backlogs/{repo-name}/backlog.md` when compatibility requires it) and relevant roadmap file(s).
+2. Read `~/.copilot/backlogs/{repo-name}/planning/bullets.md` when the request starts from seed ideas or needs `PB-*` linkage.
 3. Decide whether the request belongs in bullets, backlog, roadmap, or future Plan Pack.
 4. Allocate new IDs only where needed.
 5. Add or repair explicit cross-links.

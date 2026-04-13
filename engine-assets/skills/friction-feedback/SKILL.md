@@ -7,7 +7,7 @@ description: "Reviews accumulated friction entries, clusters patterns, and produ
 
 ## Purpose
 
-Reviews accumulated implementation friction entries from `docs/issues/implementation-friction-log.md`, identifies clusters and patterns, ranks by severity, and produces actionable remediation recommendations.
+Reviews accumulated implementation friction entries from `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md`, identifies clusters and patterns, ranks by severity, and produces actionable remediation recommendations. `{repo-name}` is the basename of the repository directory.
 
 ## When to Use
 
@@ -24,7 +24,7 @@ Trigger signals:
 
 ## Review Protocol
 
-1. **Read the log** — open `docs/issues/implementation-friction-log.md` and parse all entries.
+1. **Read the log** — open `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md` and parse all entries.
 2. **Cluster by ID** — group entries sharing the same Cluster ID. Entries without Cluster ID are treated as standalone.
 3. **Rank clusters** — score = recurrence count × importance weight (critical=4, high=3, medium=2, low=1).
 4. **Produce top-3 recommendations** — for the 3 highest-scoring clusters, produce a remediation recommendation.

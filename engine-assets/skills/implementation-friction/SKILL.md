@@ -26,7 +26,8 @@ Capture recurring codebase friction that slows delivery, without derailing the a
 - Keep each entry concise and actionable.
 
 ## Log Destination
-- Append to: `docs/issues/implementation-friction-log.md`
+- Append to: `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md`
+- `{repo-name}` is the basename of the repository directory.
 
 ## Entry Template
 ```markdown
