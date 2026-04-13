@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-04-10
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -255,17 +255,17 @@ defined in [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-r
 Session artifacts are authoritative for active in-flight work. Unresolved goal carryover persistence
 is a separate docs surface:
 
-- canonical carryover path: `docs/issues/unresolved-goals.md`
+- canonical carryover path: `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`
 
 Boundary rules:
 
 1. Active in-flight goals remain in session artifacts (for example `plan.md`, `handoff.md`,
    `proposition.md`) until no longer active.
-2. Only unresolved and non-active goals are eligible to persist in `docs/issues/unresolved-goals.md`.
-3. Resolved goals should be removed from `docs/issues/unresolved-goals.md` without an archive
+2. Only unresolved and non-active goals are eligible to persist in `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`.
+3. Resolved goals should be removed from `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` without an archive
    requirement.
 4. `@goal-reviewer` remains read-only; workflows should route any persistence/removal for
-   `docs/issues/unresolved-goals.md` through `@doc-writer` or another explicit docs-writing lane.
+   `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` through `@doc-writer` or another explicit docs-writing lane.
 5. `GOAL_REVIEW.status = NEEDS_REVISION` keeps active goals in session artifacts and sends execution
    back to revision work. `BLOCKED` pauses carryover sync until the missing evidence/context is
    supplied.
@@ -574,8 +574,8 @@ The persistence authority for planning records and planning notes is frozen as f
    - Implementations MUST NOT silently fall back to file-based persistence for planning records/notes when local DB persistence is unavailable.
    - Persistence failures must remain explicit and deterministic to callers.
 
-This freeze applies to planning-record persistence only. Repo-backed `docs/backlogs/*.md`, legacy
-compatibility `docs/backlog.md`, and `docs/roadmaps/*.md` artifacts are outside session-state
+This freeze applies to planning-record persistence only. Repo-backed `~/.copilot/backlogs/{repo-name}/backlogs/*.md` and
+`~/.copilot/backlogs/{repo-name}/roadmaps/*.md` artifacts are outside session-state
 authority and outside this local planning DB authority boundary.
 
 ### Planning Persistence Operations Contract (WS4 M2)

@@ -18,7 +18,7 @@ Scan, assess, and remediate security vulnerabilities. Load `audit-report-formats
 4. **Remediation** — apply targeted fixes (least privilege, defense in depth, secure defaults). Verify fix and update report.
 
 ## Output
-Return findings in chat by default. Durable artifact: `docs/issues/security-audit.md` per `audit-report-formats` skill schema when explicitly requested.
+Return findings in chat by default. Durable artifact: `~/.copilot/backlogs/{repo-name}/issues/security-audit.md` per `audit-report-formats` skill schema when explicitly requested.
 
 When participating in project-audit/static-analysis, normalize findings as `defect` or `research_thread`.
 

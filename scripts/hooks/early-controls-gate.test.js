@@ -49,6 +49,23 @@ function getStatePath(cwd) {
   return path.join(cwd, '.instructions-output', 'hooks', 'early-controls.json');
 }
 
+function writeAllRulesEnabled(dir) {
+  const configPath = path.join(dir, 'hook-rules.json');
+  const allRules = [
+    'safety-early-control-gate', 'safety-secrets-env', 'safety-git-push',
+    'safety-git-reset-hard', 'safety-git-clean', 'safety-git-force-checkout',
+    'safety-git-rebase-interactive', 'safety-gh-repo-delete', 'safety-rm-rf',
+    'safety-os-shutdown', 'safety-disk-ops', 'safety-remove-item',
+    'safety-production-access', 'anti-hang-timeout', 'anti-hang-background',
+    'anti-hang-watch-interactive', 'anti-hang-vitest-run', 'anti-hang-playwright',
+    'anti-hang-dotnet-restore',
+  ];
+  const overrides = {};
+  for (const id of allRules) overrides[id] = true;
+  fs.writeFileSync(configPath, JSON.stringify({ schemaVersion: 1, overrides }));
+  return configPath;
+}
+
 function writePassingEarlyControlState(cwd) {
   const statePath = getStatePath(cwd);
   fs.mkdirSync(path.dirname(statePath), { recursive: true });
@@ -172,10 +189,12 @@ const canRunBashPath = hasCommand('bash') && hasCommand('python');
 
 test('PowerShell privileged action is denied when early-control state is missing', () => {
   withTempDir((cwd) => {
+    const rulesPath = writeAllRulesEnabled(cwd);
     const output = runPowerShellPreToolUse(
       buildRunInTerminalPayload(cwd, 'echo safe-command'),
       {
         HOOK_EARLY_CONTROLS_STATE_FILE: '.instructions-output/hooks/early-controls.json',
+        HOOK_RULES_FILE: rulesPath,
       }
     );
 
@@ -215,6 +234,7 @@ test('PowerShell session-start writes deterministic early-control state', () => 
 test('PowerShell privileged action is denied when safety token parity is mismatched', () => {
   withTempDir((cwd) => {
     writePassingEarlyControlState(cwd);
+    const rulesPath = writeAllRulesEnabled(cwd);
 
     const statePath = getStatePath(cwd);
     const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
@@ -225,6 +245,7 @@ test('PowerShell privileged action is denied when safety token parity is mismatc
       buildRunInTerminalPayload(cwd, 'echo safe-command'),
       {
         HOOK_EARLY_CONTROLS_STATE_FILE: '.instructions-output/hooks/early-controls.json',
+        HOOK_RULES_FILE: rulesPath,
       }
     );
 
@@ -236,6 +257,7 @@ test('PowerShell privileged action is denied when safety token parity is mismatc
 
 test('PowerShell non-privileged action remains allowed when early-control state is missing', () => {
   withTempDir((cwd) => {
+    const rulesPath = writeAllRulesEnabled(cwd);
     const payload = {
       timestamp: '2026-02-25T00:00:00Z',
       cwd,
@@ -245,6 +267,7 @@ test('PowerShell non-privileged action remains allowed when early-control state 
 
     const output = runPowerShellPreToolUse(payload, {
       HOOK_EARLY_CONTROLS_STATE_FILE: '.instructions-output/hooks/early-controls.json',
+      HOOK_RULES_FILE: rulesPath,
     });
 
     assert.strictEqual(output.trim(), '');
@@ -254,11 +277,13 @@ test('PowerShell non-privileged action remains allowed when early-control state 
 test('PowerShell privileged action is allowed when all early controls pass', () => {
   withTempDir((cwd) => {
     writePassingEarlyControlState(cwd);
+    const rulesPath = writeAllRulesEnabled(cwd);
 
     const output = runPowerShellPreToolUse(
       buildRunInTerminalPayload(cwd, 'echo safe-command'),
       {
         HOOK_EARLY_CONTROLS_STATE_FILE: '.instructions-output/hooks/early-controls.json',
+        HOOK_RULES_FILE: rulesPath,
       }
     );
 
@@ -268,10 +293,12 @@ test('PowerShell privileged action is allowed when all early controls pass', () 
 
 testIf(canRunBashPath, 'Bash privileged action is denied when early-control state is missing', () => {
   withTempDir((cwd) => {
+    const rulesPath = writeAllRulesEnabled(cwd);
     const output = runBashPreToolUse(
       buildRunInTerminalPayload(cwd, 'echo safe-command'),
       {
         HOOK_EARLY_CONTROLS_STATE_FILE: '.instructions-output/hooks/early-controls.json',
+        HOOK_RULES_FILE: rulesPath,
       }
     );
 
@@ -283,6 +310,7 @@ testIf(canRunBashPath, 'Bash privileged action is denied when early-control stat
 
 testIf(canRunBashPath, 'Bash privileged action is denied when early-control state shape is invalid', () => {
   withTempDir((cwd) => {
+    const rulesPath = writeAllRulesEnabled(cwd);
     const statePath = getStatePath(cwd);
     fs.mkdirSync(path.dirname(statePath), { recursive: true });
     fs.writeFileSync(statePath, '["invalid-state-shape"]\n', 'utf8');
@@ -291,6 +319,7 @@ testIf(canRunBashPath, 'Bash privileged action is denied when early-control stat
       buildRunInTerminalPayload(cwd, 'echo safe-command'),
       {
         HOOK_EARLY_CONTROLS_STATE_FILE: '.instructions-output/hooks/early-controls.json',
+        HOOK_RULES_FILE: rulesPath,
       }
     );
 
@@ -328,11 +357,27 @@ testIf(canRunBashPath, 'Bash session-start writes deterministic early-control st
 testIf(canRunBashPath, 'Bash privileged action is allowed when all early controls pass', () => {
   withTempDir((cwd) => {
     writePassingEarlyControlState(cwd);
+    const rulesPath = writeAllRulesEnabled(cwd);
 
     const output = runBashPreToolUse(
       buildRunInTerminalPayload(cwd, 'echo safe-command'),
       {
         HOOK_EARLY_CONTROLS_STATE_FILE: '.instructions-output/hooks/early-controls.json',
+        HOOK_RULES_FILE: rulesPath,
+      }
+    );
+
+    assert.strictEqual(output.trim(), '');
+  });
+});
+
+test('PowerShell rules default to off when no hook rules config exists', () => {
+  withTempDir((cwd) => {
+    const output = runPowerShellPreToolUse(
+      buildRunInTerminalPayload(cwd, 'echo safe-command'),
+      {
+        HOOK_EARLY_CONTROLS_STATE_FILE: '.instructions-output/hooks/early-controls.json',
+        HOOK_RULES_FILE: path.join(cwd, 'nonexistent-hook-rules.json'),
       }
     );
 

@@ -1,6 +1,6 @@
 import { StatusBadge } from '../../components';
 import { humanizeToken } from '../../lib/stateDiagnostics';
-import type { SessionOrchestrationProjection, SessionOrchestrationTaskBoardItem } from '../../lib/types';
+import type { SessionOrchestrationProjection, SessionOrchestrationTaskBoardItem, SessionOrchestrationActor } from '../../lib/types';
 
 interface Props {
   orchestration: SessionOrchestrationProjection | null;
@@ -44,6 +44,53 @@ function TaskCard({ task }: { task: SessionOrchestrationTaskBoardItem }) {
   );
 }
 
+function ActorCard({ actor }: { actor: SessionOrchestrationActor }) {
+  const statusLabel = actor.status ?? 'unknown';
+  const isActive = statusLabel === 'active' || statusLabel === 'running';
+  return (
+    <div className={`task-card task-card-actor${isActive ? ' task-card-actor-active' : ''}`} data-testid="actor-card">
+      <div className="task-card-title">
+        {isActive && <span className="actor-pulse" data-testid="actor-pulse">●</span>}
+        {' '}{actor.label ?? actor.actorId}
+      </div>
+      <div className="task-card-meta">
+        <StatusBadge status={humanizeToken(statusLabel)} testId="actor-status-badge" />
+        {actor.role && (
+          <span className="task-card-role" data-testid="actor-role">{actor.role}</span>
+        )}
+        {actor.invocationCount != null && actor.invocationCount > 0 && (
+          <span className="task-card-invocations" data-testid="actor-invocations">
+            {actor.invocationCount} call{actor.invocationCount !== 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BackgroundActorsSection({ actors }: { actors: SessionOrchestrationActor[] }) {
+  if (actors.length === 0) return null;
+  const active = actors.filter((a) => a.status === 'active' || a.status === 'running');
+  const completed = actors.filter((a) => a.status !== 'active' && a.status !== 'running');
+
+  return (
+    <div className="background-actors-section" data-testid="background-actors-section">
+      <h4 className="background-actors-title">
+        Background Agents
+        {active.length > 0 && (
+          <span className="background-actors-count" data-testid="active-agents-count">
+            {' '}({active.length} active)
+          </span>
+        )}
+      </h4>
+      <div className="background-actors-list">
+        {active.map((a) => <ActorCard key={a.actorId} actor={a} />)}
+        {completed.map((a) => <ActorCard key={a.actorId} actor={a} />)}
+      </div>
+    </div>
+  );
+}
+
 function KanbanColumnView({
   column,
   tasks,
@@ -68,8 +115,9 @@ function KanbanColumnView({
 
 export default function SessionTaskBoard({ orchestration }: Props) {
   const items = orchestration?.taskBoard?.items ?? [];
+  const actors = orchestration?.actors?.items ?? [];
 
-  if (items.length === 0) {
+  if (items.length === 0 && actors.length === 0) {
     return (
       <div className="session-task-board" data-testid="session-task-board">
         <div className="session-empty-state" data-testid="task-board-empty">
@@ -92,11 +140,14 @@ export default function SessionTaskBoard({ orchestration }: Props) {
 
   return (
     <div className="session-task-board" data-testid="session-task-board">
-      <div className="kanban-board">
-        <KanbanColumnView column="todo" tasks={columns.todo} />
-        <KanbanColumnView column="in_progress" tasks={columns.in_progress} />
-        <KanbanColumnView column="done" tasks={columns.done} />
-      </div>
+      <BackgroundActorsSection actors={actors} />
+      {items.length > 0 && (
+        <div className="kanban-board">
+          <KanbanColumnView column="todo" tasks={columns.todo} />
+          <KanbanColumnView column="in_progress" tasks={columns.in_progress} />
+          <KanbanColumnView column="done" tasks={columns.done} />
+        </div>
+      )}
     </div>
   );
 }

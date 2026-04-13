@@ -77,7 +77,7 @@ function normalizeSkills(input: unknown): SkillPreviewItem[] {
     .filter((entry): entry is SkillPreviewItem => entry !== null);
 
   normalized.sort((a, b) => {
-    const nameCompare = a.name.localeCompare(b.name);
+    const nameCompare = (a.name || '').localeCompare(b.name || '');
     if (nameCompare !== 0) {
       return nameCompare;
     }
@@ -86,8 +86,16 @@ function normalizeSkills(input: unknown): SkillPreviewItem[] {
   return normalized;
 }
 
+function isRepoRelativePath(viewPath: string): boolean {
+  const normalized = viewPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  return normalized.startsWith('.github/');
+}
+
 function buildSkillDetailPath(skill: SkillPreviewItem): string | null {
   if (typeof skill.viewPath === 'string' && skill.viewPath.trim()) {
+    if (isRepoRelativePath(skill.viewPath)) {
+      return null;
+    }
     return skill.viewPath;
   }
 
@@ -97,6 +105,9 @@ function buildSkillDetailPath(skill: SkillPreviewItem): string | null {
 function buildPreviewUnavailableMessage(skill: SkillPreviewItem | null, label: string): string {
   if (skill && String(skill.availability || '').trim() === 'not-installed') {
     return `${label} is managed but not installed yet. Install or sync it before previewing content.`;
+  }
+  if (skill && typeof skill.viewPath === 'string' && isRepoRelativePath(skill.viewPath)) {
+    return `${label} is scoped to a repository and cannot be previewed from the global catalog. Use the asset viewer with the repo context to inspect it.`;
   }
   return `${label} cannot be previewed from the current source location.`;
 }

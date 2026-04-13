@@ -30,6 +30,16 @@ Review for convention fit and alignment: naming, structure, repeated patterns, a
 - missing rationale or smart-comment follow-through as a review finding when future drift risk is high,
   not as a contradiction-style hard stop
 
+## Comment & Documentation Quality Checks
+
+When reviewing code and docs, also check:
+- Comments explain **why** (non-obvious invariants, security, boundaries), not **what** (code narration)
+- No comments that restate obvious names, types, or control flow
+- Long rationale (>3 sentences) promoted to `docs/system/**` rather than inline
+- Documentation uses tables, lists, or diagrams instead of long prose paragraphs
+- Sections start with a 1-sentence summary before expanding
+- Examples shown before or alongside explanations, not explanation-only sections
+
 ## Output (strict)
 
 ```text

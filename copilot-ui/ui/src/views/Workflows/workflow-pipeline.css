@@ -1,0 +1,238 @@
+/* ── Workflow Pipeline ── */
+
+.workflow-pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-xl);
+  align-items: center;
+  padding: var(--space-sm) 0;
+}
+
+/* ── Node ── */
+
+.pipeline-node {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--color-ink-200);
+  background: var(--color-surface-1);
+  cursor: default;
+  transition: transform var(--duration-fast) var(--ease-standard),
+              box-shadow var(--duration-fast) var(--ease-standard),
+              border-color var(--duration-fast) var(--ease-standard);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.pipeline-node[data-clickable="true"] {
+  cursor: pointer;
+}
+
+.pipeline-node[data-clickable="true"]:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Connector arrow (between nodes) ── */
+
+.pipeline-node::after {
+  content: "→";
+  position: absolute;
+  right: calc(-1 * var(--space-lg) - 2px);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-ink-300);
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.pipeline-node:last-child::after {
+  display: none;
+}
+
+/* ── Type icon ── */
+
+.pipeline-node-type-icon {
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+/* ── Label ── */
+
+.pipeline-node-label {
+  font-weight: 500;
+  color: var(--color-ink-700);
+}
+
+/* ── Status overlay icon ── */
+
+.pipeline-node-status-icon {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  line-height: 1;
+  margin-left: var(--space-2xs);
+}
+
+/* ── Status: pending ── */
+
+.pipeline-node-pending {
+  background: var(--color-surface-2);
+  border-color: var(--color-ink-200);
+}
+
+.pipeline-node-pending .pipeline-node-label {
+  color: var(--color-ink-500);
+}
+
+/* ── Status: running ── */
+
+.pipeline-node-running {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  animation: pipeline-pulse 2s ease-in-out infinite;
+}
+
+.pipeline-node-running .pipeline-node-label {
+  color: #1d4ed8;
+}
+
+.pipeline-node-running .pipeline-node-status-icon {
+  color: #3b82f6;
+}
+
+@keyframes pipeline-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+}
+
+/* ── Status: completed ── */
+
+.pipeline-node-completed {
+  background: #f0fdf4;
+  border-color: var(--color-success-500);
+}
+
+.pipeline-node-completed .pipeline-node-label {
+  color: #166534;
+}
+
+.pipeline-node-completed .pipeline-node-status-icon {
+  color: var(--color-success-500);
+}
+
+/* ── Status: failed ── */
+
+.pipeline-node-failed {
+  background: #fef2f2;
+  border-color: var(--color-danger-500);
+}
+
+.pipeline-node-failed .pipeline-node-label {
+  color: #991b1b;
+}
+
+.pipeline-node-failed .pipeline-node-status-icon {
+  color: var(--color-danger-500);
+}
+
+/* ── Status: awaiting-approval ── */
+
+.pipeline-node-awaiting-approval {
+  background: #fffbeb;
+  border-color: #f59e0b;
+}
+
+.pipeline-node-awaiting-approval .pipeline-node-label {
+  color: #92400e;
+}
+
+.pipeline-node-awaiting-approval .pipeline-node-status-icon {
+  color: #f59e0b;
+}
+
+/* ── Status: skipped ── */
+
+.pipeline-node-skipped {
+  background: var(--color-surface-0);
+  border-color: var(--color-ink-100);
+  opacity: 0.7;
+}
+
+.pipeline-node-skipped .pipeline-node-label {
+  color: var(--color-ink-300);
+  text-decoration: line-through;
+}
+
+/* ── Current step highlight ── */
+
+.pipeline-node-current {
+  transform: scale(1.06);
+  z-index: var(--z-content);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25), var(--shadow-md);
+}
+
+.pipeline-node-current[data-clickable="true"]:hover {
+  transform: scale(1.06) translateY(-1px);
+}
+
+/* ── Compact mode ── */
+
+.pipeline-compact {
+  gap: var(--space-xs) var(--space-md);
+}
+
+.pipeline-compact .pipeline-node {
+  padding: var(--space-2xs) var(--space-xs);
+  font-size: 0.72rem;
+  border-radius: calc(var(--radius-sm) * 0.75);
+  border-width: 1.5px;
+}
+
+.pipeline-compact .pipeline-node::after {
+  right: calc(-1 * var(--space-sm) - 2px);
+  font-size: 0.75rem;
+}
+
+.pipeline-compact .pipeline-node-label {
+  display: none;
+}
+
+.pipeline-compact .pipeline-node-status-icon {
+  display: none;
+}
+
+.pipeline-compact .pipeline-node-type-icon {
+  font-size: 0.78rem;
+}
+
+.pipeline-compact .pipeline-node-current {
+  transform: scale(1.1);
+}
+
+/* ── Pipeline preview section (for template editor / hub) ── */
+
+.pipeline-preview-section {
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-ink-100);
+  margin-bottom: var(--space-sm);
+}
+
+.pipeline-preview-label {
+  margin: 0 0 var(--space-xs);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-500);
+}

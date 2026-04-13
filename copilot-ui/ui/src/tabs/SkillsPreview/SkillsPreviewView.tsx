@@ -3,6 +3,8 @@ import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components
 import { useStoreValue } from '../../lib/store';
 import type { SkillPreviewItem } from '../../lib/types';
 import { skillsPreviewStore } from './skillsPreviewStore';
+import { navigationStore } from '../../stores/navigation';
+import { assetCreationStore } from '../../views/Catalog/assetCreationStore';
 
 function matchesQuery(skill: SkillPreviewItem, query: string): boolean {
   const normalizedQuery = query.trim().toLowerCase();
@@ -21,7 +23,7 @@ function matchesQuery(skill: SkillPreviewItem, query: string): boolean {
     skill.sourcePackage ?? '',
     skill.namespace ?? '',
   ];
-  return fields.some((field) => field.toLowerCase().includes(normalizedQuery));
+  return fields.some((field) => (field || '').toLowerCase().includes(normalizedQuery));
 }
 
 function buildSkillSourceLabel(skill: SkillPreviewItem): string {
@@ -61,9 +63,6 @@ export default function SkillsPreviewView() {
   const providerBackedCount = useMemo(() => {
     return skillsState.skills.filter((skill) => skill.provider && skill.provider !== 'user-home').length;
   }, [skillsState.skills]);
-  const featuredProviderSkills = useMemo(() => {
-    return skillsState.skills.filter((skill) => skill.provider === 'superpowers-copilot' || skill.namespace === 'superpowers');
-  }, [skillsState.skills]);
 
   const handleRefresh = async () => {
     await skillsPreviewStore.refresh();
@@ -100,6 +99,17 @@ export default function SkillsPreviewView() {
           >
             {skillsState.loading ? 'Refreshing...' : 'Refresh'}
           </Button>
+          <Button
+            onClick={() => {
+              assetCreationStore.reset();
+              assetCreationStore.setKind('skill');
+              navigationStore.openWizard('asset');
+            }}
+            testId="catalog-create-skill"
+            variant="secondary"
+          >
+            + Create Skill
+          </Button>
         </div>
       </Toolbar>
 
@@ -107,23 +117,6 @@ export default function SkillsPreviewView() {
         <p className="skills-preview-error" role="alert">
           {skillsState.error}
         </p>
-      ) : null}
-
-      {featuredProviderSkills.length > 0 ? (
-        <div className="catalog-featured-provider-banner" data-testid="skills-preview-featured-provider">
-          <div>
-            <p className="catalog-spotlight-kicker">Provider spotlight</p>
-            <p><strong>superpowers-copilot</strong> is surfaced directly in skills discovery with provider-qualified identity intact.</p>
-            <p>{featuredProviderSkills.length} skill(s) from the provider are visible in this preview.</p>
-          </div>
-          <Button
-            onClick={() => skillsPreviewStore.setSearchQuery('superpowers-copilot')}
-            testId="skills-preview-filter-superpowers"
-            variant="secondary"
-          >
-            Show superpowers
-          </Button>
-        </div>
       ) : null}
 
       <div className="skills-preview-grid">

@@ -66,12 +66,24 @@ These hooks add a **small, conservative deny list** for commands that are freque
 This is intentionally **not** a general “block all deletes” policy — common dev/test commands should continue to work.
 
 ### Denied git / GitHub CLI commands (high-risk)
-- `git push ...` (includes `--force`, `--force-with-lease`, etc.)
+- `git push ...` (includes `--force`, `--force-with-lease`, etc.) — **see CI Push Exception below**
 - `git reset --hard ...`
 - `git clean -fdx ...` (or equivalent flag combinations that include `-f`, `-d`, and `-x`)
 - `git checkout -f ...` / `git switch -f ...` (or `--force`)
 - `git rebase --onto ...` and interactive rebases (`git rebase -i` / `--interactive`)
 - `gh repo delete ...`
+
+### CI Push Exception (`ALLOW_CI_PUSH`)
+When the environment variable `ALLOW_CI_PUSH=1` is set for a session, `git push` is allowed for
+branches matching these safe prefixes:
+- `ci-fix/*` — automated CI repair branches
+- `revert/*` — automated release revert branches
+- `autofix/*` — other automated fix branches
+
+**Constraints:**
+- Force-push (`--force`, `--force-with-lease`, `--force-if-includes`, `-f`) remains **unconditionally denied** even with `ALLOW_CI_PUSH=1`.
+- The push target must include a remote and a branch matching the safe prefix (e.g., `git push origin ci-fix/repo-ci-lockfile`).
+- Set `ALLOW_CI_PUSH=1` only for CI watcher sessions, not globally across all sessions.
 
 ### Denied destructive OS commands (obvious “break the machine” cases)
 - `rm -rf /`, `rm -rf /*`, `rm -rf ~`, `rm -rf ~/*`
@@ -91,4 +103,7 @@ This is intentionally **not** a general “block all deletes” policy — commo
 The pre-tool-use hook only outputs JSON when it **denies** a command; allowed commands produce no output.
 Examples:
 - ✅ Allowed: `git status` (no output)
-- ❌ Denied: `git push origin main` (outputs `{"permissionDecision":"deny",...}` with a “High-risk git command” reason)
+- ✅ Allowed: `git push origin ci-fix/lockfile-update` (when `ALLOW_CI_PUSH=1`)
+- ❌ Denied: `git push origin main` (outputs `{"permissionDecision":"deny",...}` with a "High-risk git command" reason)
+- ❌ Denied: `git push origin ci-fix/foo --force` (force-push denied even with `ALLOW_CI_PUSH=1`)
+- ❌ Denied: `git push origin ci-fix/foo` (when `ALLOW_CI_PUSH` is unset)

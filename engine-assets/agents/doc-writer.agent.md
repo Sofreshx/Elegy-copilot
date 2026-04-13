@@ -23,6 +23,13 @@ Follow `docs/system/doc-graph-spec.md`. Key constraints:
 - For docs-backed work, independently load smallest canonical docs entrypoint before editing. Stop with `needs-clarification` if no relevant source found or if work contradicts canonical docs.
 - When reconciling deterministic issue docs, preserve declared schema and field order.
 
+## Documentation Lightness Rules
+- **Progressive disclosure**: Start each section with a 1-sentence summary. Expand only if the reader needs depth.
+- **Structure over prose**: Use tables, lists, and code blocks. Reserve paragraphs for context that needs narrative flow.
+- **Examples alongside explanation**: Show a concrete example before or alongside the explanation, not explanation-only.
+- **Diagrams for systems**: If describing a multi-component flow or architecture, use an ASCII/Mermaid diagram instead of multi-paragraph prose.
+- **Rationale placement**: Enduring rationale belongs in canonical docs. Local "why" belongs in code comments. Do not embed thought-process prose in product docs.
+
 ## Workflow
 1. Start from doc graph entrypoint (`docs/system/index.md`). Choose relevant MOC, open 1-3 nodes.
 2. **Create**: set frontmatter (today for both dates), H1 title, consistent sections.
@@ -30,7 +37,7 @@ Follow `docs/system/doc-graph-spec.md`. Key constraints:
 4. **Audit**: enumerate docs in scope, report missing/invalid frontmatter, stale docs, broken links. Do NOT rewrite unless asked.
 
 ## Unresolved-Goals Reconciliation
-When target is `docs/issues/unresolved-goals.md`: state reconciliation, not open-ended authoring. Use caller-supplied `GOAL_REVIEW` as authority. Keep only `partial`/`not-complete` non-active goals. Match by Goal Statement, preserve section ID and `First Seen`.
+When target is `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`: state reconciliation, not open-ended authoring. Use caller-supplied `GOAL_REVIEW` as authority. Keep only `partial`/`not-complete` non-active goals. Match by Goal Statement, preserve section ID and `First Seen`.
 
 ## Output
 ```text

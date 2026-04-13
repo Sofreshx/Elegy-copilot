@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-04-09
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -137,7 +137,7 @@ Rationale should live at the highest-authority surface that needs to stay durabl
 - enduring workflow policy, architectural intent, design constraints, and repo-wide or subsystem-wide
   "why" belong in canonical docs under `docs/system/**`
 - planning-worthy decisions, deferred tradeoffs, unresolved questions, and findings that may drive
-  later work belong in the appropriate `docs/issues/*` log or other canonical follow-up surface
+  later work belong in the appropriate `~/.copilot/backlogs/{repo-name}/issues/*` log or other canonical follow-up surface
 - code comments are for local rationale that must stay next to the code to prevent accidental
   simplification, cleanup, or boundary erosion
 
@@ -166,6 +166,24 @@ The enforcement posture stays mixed:
   bootstrap requirements
 - review lanes should route these gaps through consistency or implementation review rather than
   treating ordinary comment absence as a hard gate
+
+## Documentation Lightness
+
+Keep documentation concise and scannable. Prefer structured formats over narrative prose.
+
+| Pattern | Use Instead Of |
+|---------|---------------|
+| Table | Multi-sentence list comparing items |
+| Diagram (ASCII/Mermaid) | Multi-paragraph system description |
+| Code example | Abstract explanation of behavior |
+| 1-sentence summary + link | Inline repetition of policy from another doc |
+| Checklist | Paragraph enumerating requirements |
+
+Rules:
+- Start every section with a 1-sentence summary before expanding
+- If rationale exceeds 3 sentences inline, promote to `docs/system/**` and link
+- Thought-process prose (deliberation, alternatives considered) belongs in `docs/research/**`, not product docs
+- Progressive disclosure: index → MOC → node, depth ≤ 2
 
 ## Default Operating Contract
 

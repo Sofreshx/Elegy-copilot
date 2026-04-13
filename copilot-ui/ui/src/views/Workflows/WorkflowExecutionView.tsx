@@ -3,6 +3,8 @@ import { Button, Panel, Toolbar, Badge, StatusBadge } from '../../components';
 import { navigationStore } from '../../stores/navigation';
 import { workflowStore } from './workflowStore';
 import type { WorkflowRunStep, WorkflowRun } from './workflowStore';
+import WorkflowPipeline from './WorkflowPipeline';
+import type { PipelineNode } from './WorkflowPipeline';
 
 // ── Props ──
 
@@ -239,46 +241,21 @@ export default function WorkflowExecutionView({ runId }: WorkflowExecutionViewPr
 
       {/* ── Step progress indicator ── */}
       <Panel title="Steps" testId="workflow-execution-steps-panel">
-        <ol className="workflow-step-list" data-testid="workflow-step-list">
-          {run.steps.map((step, idx) => {
-            const isCurrent = idx === run.currentStepIndex;
-            return (
-              <li
-                key={step.stepId}
-                className={`workflow-step-item ${stepStatusClass(step.status)}${isCurrent ? ' step-current' : ''}`}
-                data-testid={`workflow-step-${step.stepId}`}
-                onClick={() => handleStepClick(step)}
-                style={step.sessionId ? { cursor: 'pointer' } : undefined}
-              >
-                {idx > 0 && <span className="workflow-step-connector" aria-hidden="true" />}
-                <span className="workflow-step-icon" data-testid={`workflow-step-icon-${step.stepId}`}>
-                  {STEP_STATUS_ICONS[step.status]}
-                </span>
-                <span className={`workflow-step-label${step.status === 'skipped' ? ' step-label-skipped' : ''}`}>
-                  {step.label}
-                </span>
-                <Badge tone="neutral" testId={`workflow-step-type-${step.stepId}`}>{step.type}</Badge>
-                <StatusBadge status={step.status} testId={`workflow-step-status-${step.stepId}`} />
-                {step.sessionId && (
-                  <button
-                    className="workflow-step-session-link"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigationStore.selectSession(step.sessionId!);
-                    }}
-                    title={`Open session ${step.sessionId}`}
-                  >
-                    → Session
-                  </button>
-                )}
-                <span className="workflow-step-timing" data-testid={`workflow-step-timing-${step.stepId}`}>
-                  {step.startedAt ? `Started: ${formatTimestamp(step.startedAt)}` : ''}
-                  {step.completedAt ? ` · Completed: ${formatTimestamp(step.completedAt)}` : ''}
-                </span>
-              </li>
-            );
-          })}
-        </ol>
+        <WorkflowPipeline
+          nodes={run.steps.map((step, idx): PipelineNode => ({
+            stepId: step.stepId,
+            label: step.label,
+            type: step.type,
+            status: step.status,
+            isCurrent: idx === run.currentStepIndex,
+            sessionId: step.sessionId,
+          }))}
+          onNodeClick={(node) => {
+            if (node.sessionId) {
+              navigationStore.selectSession(node.sessionId);
+            }
+          }}
+        />
       </Panel>
 
       {/* ── Current step detail panel ── */}

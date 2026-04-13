@@ -126,6 +126,13 @@
       "assetIds": [
         "agent-orchestrator",
         "agent-orchestrator-cli",
+        "agent-orchestrator-claude",
+        "agent-orchestrator-claude-cli",
+        "agent-orchestrator-gpt",
+        "agent-orchestrator-gpt-cli",
+        "agent-prompt-refiner",
+        "agent-deep-researcher",
+        "agent-ci-watcher",
         "agent-o-reframer",
         "agent-o-planner",
         "agent-o-validation-coordinator",
@@ -283,6 +290,12 @@
       "destination": "agents/brief.agent.md"
     },
     {
+      "id": "agent-ci-watcher",
+      "type": "agent",
+      "source": "engine-assets/agents/ci-watcher.agent.md",
+      "destination": "agents/ci-watcher.agent.md"
+    },
+    {
       "id": "agent-code-architect",
       "type": "agent",
       "source": "engine-assets/agents/code-architect.agent.md",
@@ -311,6 +324,12 @@
       "type": "agent",
       "source": "engine-assets/agents/convention-governor.agent.md",
       "destination": "agents/convention-governor.agent.md"
+    },
+    {
+      "id": "agent-deep-researcher",
+      "type": "agent",
+      "source": "engine-assets/agents/deep-researcher.agent.md",
+      "destination": "agents/deep-researcher.agent.md"
     },
     {
       "id": "agent-deploy-auditor",
@@ -427,10 +446,40 @@
       "destination": "agents/orchestrator.agent.md"
     },
     {
+      "id": "agent-orchestrator-claude",
+      "type": "agent",
+      "source": "engine-assets/agents/orchestrator-claude.agent.md",
+      "destination": "agents/orchestrator-claude.agent.md"
+    },
+    {
+      "id": "agent-orchestrator-claude-cli",
+      "type": "agent",
+      "source": "engine-assets/agents/orchestrator-claude-cli.agent.md",
+      "destination": "agents/orchestrator-claude-cli.agent.md"
+    },
+    {
       "id": "agent-orchestrator-cli",
       "type": "agent",
       "source": "engine-assets/agents/orchestrator-cli.agent.md",
       "destination": "agents/orchestrator-cli.agent.md"
+    },
+    {
+      "id": "agent-orchestrator-gpt",
+      "type": "agent",
+      "source": "engine-assets/agents/orchestrator-gpt.agent.md",
+      "destination": "agents/orchestrator-gpt.agent.md"
+    },
+    {
+      "id": "agent-orchestrator-gpt-cli",
+      "type": "agent",
+      "source": "engine-assets/agents/orchestrator-gpt-cli.agent.md",
+      "destination": "agents/orchestrator-gpt-cli.agent.md"
+    },
+    {
+      "id": "agent-prompt-refiner",
+      "type": "agent",
+      "source": "engine-assets/agents/prompt-refiner.agent.md",
+      "destination": "agents/prompt-refiner.agent.md"
     },
     {
       "id": "agent-remaining-work",

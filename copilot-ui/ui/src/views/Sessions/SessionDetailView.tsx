@@ -11,6 +11,7 @@ import SessionTaskBoard from './SessionTaskBoard';
 import SessionArtifactsPanel from './SessionArtifactsPanel';
 import SessionConfigPanel from './SessionConfigPanel';
 import SessionGitPanel from './SessionGitPanel';
+import SessionSkillUsagePanel from './SessionSkillUsagePanel';
 
 function findWorkflowForSession(sessionId: string): { templateName: string; stepLabel: string; runId: string } | null {
   const state = workflowStore.getState();
@@ -33,6 +34,7 @@ const TABS: { id: SessionDetailTab; label: string }[] = [
   { id: 'activity', label: 'Activity' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'artifacts', label: 'Artifacts' },
+  { id: 'usage', label: 'Usage' },
   { id: 'config', label: 'Config' },
   { id: 'git', label: 'Git' },
 ];
@@ -204,6 +206,10 @@ export default function SessionDetailView() {
             session={sessionSummary}
             orchestration={state.orchestration}
           />
+        )}
+
+        {!state.loading && activeTab === 'usage' && (
+          <SessionSkillUsagePanel agentUsage={state.agentUsage} />
         )}
 
         {!state.loading && activeTab === 'git' && (

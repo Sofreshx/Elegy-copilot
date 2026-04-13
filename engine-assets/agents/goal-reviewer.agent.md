@@ -18,7 +18,7 @@ Assess high-level goal completion at end of execution. Additive to `@final-revie
 - `APPROVED`: active goals sufficiently complete. `NEEDS_REVISION`: active goals still partial/not-complete. `BLOCKED`: insufficient evidence (set all carryover fields to `NONE`).
 - `carryover_goals`: only unresolved goals no longer active. Include source artifact + owner per entry. Fallback owner: `workflow-orchestrator`.
 - `resolved_goals_to_remove`: only previously carried goals now complete/active.
-- Read-only: do not create/edit `docs/issues/unresolved-goals.md` or backlog artifacts.
+- Read-only: do not create/edit `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` or backlog artifacts.
 - Do not produce requested-vs-delivered narrative (that's `@final-reviewer`).
 
 ## Output (strict)
@@ -28,9 +28,9 @@ GOAL_REVIEW
 - goals:
   - <goal> | <complete|partial|not-complete> | <evidence or gap>
 - unresolved_goals_path:
-  - docs/issues/unresolved-goals.md | NONE
+  - ~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md | NONE
 - session_backlog_path:
-  - docs/backlogs/<session-slug>.md | NONE
+  - ~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md | NONE
 - carryover_goals:
   - <goal> | <state> | <why> | <intent> | <source path> | <owner>
   - NONE

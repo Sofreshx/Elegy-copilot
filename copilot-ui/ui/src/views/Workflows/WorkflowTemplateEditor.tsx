@@ -3,6 +3,7 @@ import { Button, Panel, Toolbar } from '../../components';
 import { navigationStore } from '../../stores/navigation';
 import { workflowStore } from './workflowStore';
 import type { WorkflowStep } from './workflowStore';
+import WorkflowPipeline from './WorkflowPipeline';
 
 interface WorkflowTemplateEditorProps {
   templateId: string;
@@ -160,6 +161,23 @@ export default function WorkflowTemplateEditor({ templateId }: WorkflowTemplateE
 
         <div className="editor-steps" data-testid="editor-steps">
           <h3>Steps</h3>
+
+          {/* Live pipeline preview */}
+          {steps.length > 0 && steps.some((s) => s.label.trim()) && (
+            <div className="pipeline-preview-section" data-testid="editor-pipeline-preview">
+              <p className="pipeline-preview-label">Preview</p>
+              <WorkflowPipeline
+                compact
+                nodes={steps.map((s) => ({
+                  stepId: s.stepId,
+                  label: s.label || '(untitled)',
+                  type: s.type,
+                  status: 'pending',
+                }))}
+              />
+            </div>
+          )}
+
           {steps.map((step, index) => (
             <div className="step-row" key={step.stepId} data-testid={`step-row-${index}`}>
               <span className="step-index">{index + 1}.</span>

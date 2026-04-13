@@ -26,6 +26,46 @@ const approvedCoordinatorConfigs = new Map([
 		},
 	],
 	[
+		'orchestrator-claude',
+		{
+			optional: true,
+			allowedDelegates: null,
+			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
+		},
+	],
+	[
+		'orchestrator-claude-cli',
+		{
+			optional: true,
+			allowedDelegates: null,
+			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
+		},
+	],
+	[
+		'orchestrator-gpt',
+		{
+			optional: true,
+			allowedDelegates: null,
+			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
+		},
+	],
+	[
+		'orchestrator-gpt-cli',
+		{
+			optional: true,
+			allowedDelegates: null,
+			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
+		},
+	],
+	[
+		'ci-watcher',
+		{
+			optional: true,
+			allowedDelegates: null,
+			allowedApprovedDelegates: new Set(),
+		},
+	],
+	[
 		'e2e-validator',
 		{
 			optional: false,
@@ -64,7 +104,7 @@ const manifestValidationTargets = [
 	'.cli/manifest.json',
 	'engine-assets/manifest.json',
 ];
-const rootCoordinatorNamesForManifestValidation = ['orchestrator', 'orchestrator-cli'];
+const rootCoordinatorNamesForManifestValidation = ['orchestrator', 'orchestrator-cli', 'orchestrator-claude', 'orchestrator-claude-cli', 'orchestrator-gpt', 'orchestrator-gpt-cli'];
 
 const requiredDefaultOrchestratorBaseAssetIds = [
 	'agent-orchestrator',
@@ -414,7 +454,7 @@ function validateAllowedDelegates(agentDefinition, config, knownCoordinatorNames
 			continue;
 		}
 
-		if (name === 'orchestrator' || name === 'orchestrator-cli') {
+		if (name === 'orchestrator' || name === 'orchestrator-cli' || name === 'orchestrator-claude' || name === 'orchestrator-claude-cli' || name === 'orchestrator-gpt' || name === 'orchestrator-gpt-cli') {
 			if (knownCoordinatorNames.has(delegate) && !config.allowedApprovedDelegates.has(delegate)) {
 				errors.push(
 					`${relPath}: root coordinator '${name}' may only delegate to approved coordinators ${formatAgentList([...config.allowedApprovedDelegates])}; found '${delegate}'.`

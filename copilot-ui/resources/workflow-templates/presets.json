@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "description": "Pre-built workflow templates optimized for model routing. Fast tasks use mini models for speed/cost; complex tasks escalate to full models only when needed.",
+  "templates": [
+    {
+      "id": "quick-devops-check",
+      "name": "Quick DevOps Check",
+      "description": "Fast status check: git state, recent commits, deploy health. Uses mini model for speed.",
+      "category": "devops",
+      "steps": [
+        {
+          "stepId": "check-status",
+          "label": "Check repository and deploy status",
+          "objective": "Run git status, list recent commits (last 5), check for uncommitted changes, report branch state. Summarize in 3-5 bullet points.",
+          "type": "action",
+          "agentId": "remaining-work",
+          "model": "gpt-5-mini"
+        }
+      ]
+    },
+    {
+      "id": "ci-failure-triage",
+      "name": "CI Failure Triage",
+      "description": "Fast CI failure analysis. Mini model scans logs; escalates to full model only if repair is needed.",
+      "category": "devops",
+      "steps": [
+        {
+          "stepId": "scan-failure",
+          "label": "Scan CI failure logs",
+          "objective": "List recent failed workflow runs, fetch job logs for the most recent failure, classify failure type (build-error, test-failure, config-drift, infra-flake). Report root cause summary.",
+          "type": "action",
+          "agentId": "ci-watcher",
+          "model": "gpt-5-mini"
+        },
+        {
+          "stepId": "deep-diagnosis",
+          "label": "Deep diagnosis (if needed)",
+          "objective": "If failure classification is build-error or test-failure, perform full root cause analysis with file-level tracing and fix proposal.",
+          "type": "action",
+          "triggerCondition": "previous.failure_class in ['build-error', 'test-failure']",
+          "agentId": "ci-watcher",
+          "model": "gpt-5-4"
+        }
+      ]
+    },
+    {
+      "id": "bug-triage",
+      "name": "Bug Triage",
+      "description": "Quick scoping with mini model, then full model for root cause if needed.",
+      "category": "development",
+      "steps": [
+        {
+          "stepId": "scope-bug",
+          "label": "Scope and reproduce",
+          "objective": "Search codebase for relevant files, check recent changes in the area, gather error context. Classify severity (critical/high/medium/low) and identify affected components.",
+          "type": "action",
+          "agentId": "search",
+          "model": "gpt-5-mini"
+        },
+        {
+          "stepId": "root-cause",
+          "label": "Root cause analysis",
+          "objective": "Trace the bug to root cause. Identify the specific code path, propose fix approach, and list affected tests.",
+          "type": "action",
+          "agentId": "code-explorer",
+          "model": "gpt-5-4"
+        }
+      ]
+    },
+    {
+      "id": "release-verify",
+      "name": "Release Verification",
+      "description": "Post-release artifact and download verification.",
+      "category": "devops",
+      "steps": [
+        {
+          "stepId": "verify-artifacts",
+          "label": "Verify release artifacts",
+          "objective": "Check latest release workflow run. Verify all expected artifacts exist, have non-zero size, and release assets are accessible. Report any missing or broken downloads.",
+          "type": "action",
+          "agentId": "ci-watcher",
+          "model": "gpt-5-mini"
+        }
+      ]
+    }
+  ]
+}

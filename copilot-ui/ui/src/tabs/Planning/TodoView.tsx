@@ -44,6 +44,10 @@ export default function TodoView() {
   const [newTitle, setNewTitle] = useState('');
   const [filter, setFilter] = useState<FilterMode>('all');
 
+  /* ── Error state ── */
+  const [error, setError] = useState<string | null>(null);
+  const [repoError, setRepoError] = useState<string | null>(null);
+
   /* ── Fetch repos on mount ── */
   useEffect(() => {
     let cancelled = false;
@@ -51,17 +55,21 @@ export default function TodoView() {
     async function loadRepos() {
       try {
         const res = await fetch('/api/catalog/repos');
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!cancelled) setRepoError(`Failed to load repositories (HTTP ${res.status})`);
+          return;
+        }
         const data = await res.json();
         if (cancelled) return;
         const list: CatalogRepo[] = Array.isArray(data.repos) ? data.repos : [];
         setRepos(list);
+        setRepoError(null);
         // Auto-select the first repo if nothing selected yet
         if (list.length > 0 && !selectedRepoId) {
           setSelectedRepoId(list[0].repoId);
         }
-      } catch {
-        // API not available — show empty state
+      } catch (err) {
+        if (!cancelled) setRepoError(`Could not connect to the server. Is the engine running?`);
       } finally {
         if (!cancelled) setReposLoading(false);
       }
@@ -88,15 +96,22 @@ export default function TodoView() {
           `/api/planning/artifacts/bullets?repoId=${encodeURIComponent(selectedRepoId!)}`,
         );
         if (!res.ok) {
-          if (!cancelled) setBullets([]);
+          if (!cancelled) {
+            setBullets([]);
+            setError(`Failed to load todos (HTTP ${res.status})`);
+          }
           return;
         }
         const data = await res.json();
         if (cancelled) return;
         const items: BulletArtifact[] = Array.isArray(data.artifacts) ? data.artifacts : [];
         setBullets(items);
+        setError(null);
       } catch {
-        if (!cancelled) setBullets([]);
+        if (!cancelled) {
+          setBullets([]);
+          setError('Failed to load todos. Check your connection.');
+        }
       } finally {
         if (!cancelled) setBulletsLoading(false);
       }
@@ -114,12 +129,16 @@ export default function TodoView() {
       const res = await fetch(
         `/api/planning/artifacts/bullets?repoId=${encodeURIComponent(selectedRepoId)}`,
       );
-      if (!res.ok) return;
+      if (!res.ok) {
+        setError(`Failed to refresh todos (HTTP ${res.status})`);
+        return;
+      }
       const data = await res.json();
       const items: BulletArtifact[] = Array.isArray(data.artifacts) ? data.artifacts : [];
       setBullets(items);
+      setError(null);
     } catch {
-      // silent
+      setError('Failed to refresh todos. Check your connection.');
     }
   }
 
@@ -142,10 +161,13 @@ export default function TodoView() {
       });
       if (res.ok) {
         setNewTitle('');
+        setError(null);
         await refetchBullets();
+      } else {
+        setError(`Failed to add todo (HTTP ${res.status})`);
       }
     } catch {
-      // silent
+      setError('Failed to add todo. Check your connection.');
     }
   }
 
@@ -166,10 +188,13 @@ export default function TodoView() {
         },
       );
       if (res.ok) {
+        setError(null);
         await refetchBullets();
+      } else {
+        setError(`Failed to update todo (HTTP ${res.status})`);
       }
     } catch {
-      // silent
+      setError('Failed to update todo. Check your connection.');
     }
   }
 
@@ -191,10 +216,13 @@ export default function TodoView() {
         },
       );
       if (res.ok) {
+        setError(null);
         await refetchBullets();
+      } else {
+        setError(`Failed to delete todo (HTTP ${res.status})`);
       }
     } catch {
-      // silent
+      setError('Failed to delete todo. Check your connection.');
     }
   }
 
@@ -253,10 +281,13 @@ export default function TodoView() {
         },
       );
       if (res.ok) {
+        setError(null);
         await refetchBullets();
+      } else {
+        setError(`Failed to save edit (HTTP ${res.status})`);
       }
     } catch {
-      // silent
+      setError('Failed to save edit. Check your connection.');
     } finally {
       setEditingId(null);
     }
@@ -279,6 +310,22 @@ export default function TodoView() {
 
   return (
     <div className="todo-view" data-testid="todo-view">
+      {/* ── Error banner ── */}
+      {(error || repoError) && (
+        <div className="todo-error-banner" data-testid="todo-error-banner" role="alert">
+          <span className="todo-error-message">{error || repoError}</span>
+          <button
+            type="button"
+            className="todo-error-dismiss"
+            data-testid="todo-error-dismiss"
+            onClick={() => { setError(null); setRepoError(null); }}
+            aria-label="Dismiss error"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="todo-header" data-testid="todo-header">
         <h2 className="todo-title">Todo</h2>
@@ -299,8 +346,22 @@ export default function TodoView() {
         </select>
       </div>
 
-      {/* ── No repo selected ── */}
-      {!selectedRepoId && (
+      {/* ── Repos loading ── */}
+      {reposLoading && (
+        <p className="todo-empty-state" data-testid="todo-repos-loading">
+          Loading repositories…
+        </p>
+      )}
+
+      {/* ── No repos registered ── */}
+      {!reposLoading && repos.length === 0 && !repoError && (
+        <p className="todo-empty-state" data-testid="todo-empty-no-repos">
+          No repositories registered yet. Register a repository in the Catalog to start tracking todos.
+        </p>
+      )}
+
+      {/* ── No repo selected (repos exist but none picked) ── */}
+      {!reposLoading && repos.length > 0 && !selectedRepoId && (
         <p className="todo-empty-state" data-testid="todo-empty-no-repo">
           Select a repository to see its work queue
         </p>
@@ -324,6 +385,15 @@ export default function TodoView() {
                 }
               }}
             />
+            <button
+              type="button"
+              className="todo-add-button"
+              data-testid="todo-add-button"
+              disabled={!newTitle.trim()}
+              onClick={() => void addBullet()}
+            >
+              + Add
+            </button>
           </div>
 
           {/* ── Filter pills ── */}

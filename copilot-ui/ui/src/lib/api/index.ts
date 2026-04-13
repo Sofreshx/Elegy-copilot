@@ -1,5 +1,6 @@
 export * from './core';
 export * from './health';
+export * from './hooks';
 export * from './sessions';
 export * from './sdk';
 export * from './executor';

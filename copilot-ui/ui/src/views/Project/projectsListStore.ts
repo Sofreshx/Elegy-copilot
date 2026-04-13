@@ -34,8 +34,8 @@ export function getFilteredProjects(state: ProjectsListState): ProjectListItem[]
     const q = state.searchQuery.trim().toLowerCase();
     result = result.filter(
       (p) =>
-        p.label.toLowerCase().includes(q) ||
-        p.repoPath.toLowerCase().includes(q),
+        (p.label || '').toLowerCase().includes(q) ||
+        (p.repoPath || '').toLowerCase().includes(q),
     );
   }
 
@@ -49,7 +49,7 @@ export function getFilteredProjects(state: ProjectsListState): ProjectListItem[]
 
     switch (state.sortField) {
       case 'name':
-        return a.label.toLowerCase().localeCompare(b.label.toLowerCase());
+        return (a.label || '').toLowerCase().localeCompare((b.label || '').toLowerCase());
       case 'activity':
         return (b.lastActivityMs ?? 0) - (a.lastActivityMs ?? 0);
       case 'sessions':

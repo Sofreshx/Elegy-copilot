@@ -1,9 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const storeMocks = vi.hoisted(() => ({
   loadWorkspace: vi.fn(),
-  installProvider: vi.fn(),
   loadSkills: vi.fn(),
 }));
 
@@ -130,7 +129,6 @@ vi.mock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
     getState: () => mockCatalogState,
     subscribe: () => () => {},
     loadWorkspace: storeMocks.loadWorkspace,
-    installProvider: storeMocks.installProvider,
   },
 }));
 
@@ -145,16 +143,14 @@ vi.mock('../ui/src/tabs/SkillsPreview/skillsPreviewStore', () => ({
 describe('Catalog overview and agents surfaces', () => {
   beforeEach(() => {
     storeMocks.loadWorkspace.mockReset();
-    storeMocks.installProvider.mockReset();
     storeMocks.loadSkills.mockReset();
-    storeMocks.installProvider.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     vi.resetModules();
   });
 
-  it('surfaces superpowers-copilot in Catalog Overview with explicit routing actions', async () => {
+  it('renders Catalog Overview with summary metrics, context panel, and navigation actions', async () => {
     const openSection = vi.fn();
     const engageRuntime = vi.fn();
     const { default: CatalogOverviewView } = await import('../ui/src/tabs/Catalog/CatalogOverviewView');
@@ -163,22 +159,26 @@ describe('Catalog overview and agents surfaces', () => {
 
     expect(storeMocks.loadWorkspace).toHaveBeenCalledTimes(1);
     expect(storeMocks.loadSkills).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('catalog-overview-superpowers-provider')).toHaveTextContent('superpowers-copilot');
-    expect(screen.getByTestId('catalog-overview-superpowers-provider')).toHaveTextContent('Superpowers for GitHub Copilot');
 
-    fireEvent.click(screen.getByTestId('catalog-overview-open-superpowers-agents'));
+    // Summary metrics are surfaced
+    expect(screen.getByTestId('catalog-overview-effective-count')).toHaveTextContent('4');
+    expect(screen.getByTestId('catalog-overview-installed-count')).toHaveTextContent('3');
+    expect(screen.getByTestId('catalog-overview-skill-count')).toHaveTextContent('1');
+    expect(screen.getByTestId('catalog-overview-agent-count')).toHaveTextContent('2');
+
+    // Context panel shows projection state
+    expect(screen.getByTestId('catalog-overview-context-panel')).toHaveTextContent('persisted-snapshot');
+    expect(screen.getByTestId('catalog-overview-context-panel')).toHaveTextContent('superpowers-copilot');
+
+    // Navigation buttons route into dedicated sections
+    fireEvent.click(screen.getByTestId('catalog-overview-open-assets'));
+    expect(openSection).toHaveBeenCalledWith('assets');
+
+    fireEvent.click(screen.getByTestId('catalog-overview-open-skills'));
+    expect(openSection).toHaveBeenCalledWith('skills');
+
+    fireEvent.click(screen.getByTestId('catalog-overview-open-agents'));
     expect(openSection).toHaveBeenCalledWith('agents');
-
-    fireEvent.click(screen.getByTestId('catalog-overview-engage-runtime'));
-    expect(engageRuntime).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByTestId('catalog-overview-install-provider'));
-    await waitFor(() => {
-      expect(storeMocks.installProvider).toHaveBeenCalledWith({
-        providerId: 'superpowers-copilot',
-        action: 'update',
-      });
-    });
   });
 
   it('shows provider-qualified agent identity and engagement entry points on the Agents surface', async () => {
@@ -196,10 +196,16 @@ describe('Catalog overview and agents surfaces', () => {
     );
 
     expect(storeMocks.loadWorkspace).toHaveBeenCalledTimes(1);
+
+    // Agent inventory renders both agents
     expect(screen.getByText('Superpowers Reviewer')).toBeInTheDocument();
+    expect(screen.getByText('Local Helper')).toBeInTheDocument();
+
+    // Provider-qualified identity is visible on provider-backed agents
     expect(screen.getAllByText(/superpowers-copilot/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/read-only/).length).toBeGreaterThan(0);
 
+    // Agent card inspect and engage actions work
     const featuredAgentCard = screen.getByText('Superpowers Reviewer').closest('.catalog-agent-card');
     expect(featuredAgentCard).not.toBeNull();
 
@@ -208,8 +214,5 @@ describe('Catalog overview and agents surfaces', () => {
 
     fireEvent.click(within(featuredAgentCard as HTMLElement).getByTestId('catalog-agent-engage'));
     expect(engageRuntime).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByTestId('catalog-agents-open-skills'));
-    expect(openSection).toHaveBeenCalledWith('skills');
   });
 });

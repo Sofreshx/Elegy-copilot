@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, FormInput, Panel, StatusBadge } from '../../components';
 import { useStoreValue } from '../../lib/store';
-import type { CatalogEffectiveAsset, CatalogEntry, CatalogProviderProjection } from '../../lib/types';
+import type { CatalogEffectiveAsset, CatalogEntry } from '../../lib/types';
 import { catalogWorkspaceStore } from '../Assets/catalogWorkspaceStore';
+import { navigationStore } from '../../stores/navigation';
+import { assetCreationStore } from '../../views/Catalog/assetCreationStore';
 
 type CatalogSectionId = 'overview' | 'assets' | 'skills' | 'agents';
 
@@ -21,23 +23,6 @@ function readProvenanceString(entry: CatalogEntry | null | undefined, key: strin
   const provenance = (entry as CatalogEntry & { provenance?: Record<string, unknown> } | null | undefined)?.provenance;
   const value = provenance?.[key];
   return typeof value === 'string' ? value.trim() : '';
-}
-
-function readProviderStateString(provider: CatalogProviderProjection | null | undefined, key: string): string {
-  const value = provider?.state?.[key];
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-function providerLooksInstalled(provider: CatalogProviderProjection | null | undefined): boolean {
-  if (!provider) {
-    return false;
-  }
-
-  if (provider.state?.installed === true) {
-    return true;
-  }
-
-  return Number(provider.discoveredAssets?.count || 0) > 0;
 }
 
 function readAssetProviderId(asset: CatalogEffectiveAsset | null | undefined): string {
@@ -97,9 +82,6 @@ export default function CatalogAgentsView({
     void catalogWorkspaceStore.loadWorkspace();
   }, []);
 
-  const providerProjections = Array.isArray(catalogState.summary?.providers)
-    ? catalogState.summary.providers
-    : [];
   const allAgents = useMemo(() => (
     catalogState.assets
       .filter((asset) => asset.kind === 'agent')
@@ -112,14 +94,6 @@ export default function CatalogAgentsView({
   const filteredAgents = useMemo(() => (
     allAgents.filter((asset) => matchesAgentQuery(asset, searchQuery))
   ), [allAgents, searchQuery]);
-  const featuredProvider =
-    providerProjections.find((provider) => provider.providerId === 'superpowers-copilot') ?? null;
-  const featuredAgents = useMemo(() => (
-    allAgents.filter((asset) => readAssetProviderId(asset) === 'superpowers-copilot')
-  ), [allAgents]);
-  const featuredProviderInstalled = providerLooksInstalled(featuredProvider);
-  const featuredProviderAction = featuredProviderInstalled ? 'update' : 'install';
-  const featuredProviderError = readProviderStateString(featuredProvider, 'lastError');
 
   return (
     <section className="catalog-agents-view" data-testid="catalog-agents-view">
@@ -146,10 +120,6 @@ export default function CatalogAgentsView({
                 {allAgents.filter((asset) => Boolean(readAssetProviderId(asset))).length}
               </p>
             </article>
-            <article className="catalog-metric-card">
-              <p className="catalog-metric-label">Superpowers agents</p>
-              <p className="catalog-metric-value">{featuredAgents.length}</p>
-            </article>
           </div>
 
           <FormInput
@@ -160,56 +130,19 @@ export default function CatalogAgentsView({
             type="search"
             value={searchQuery}
           />
+          <Button
+            onClick={() => {
+              assetCreationStore.reset();
+              assetCreationStore.setKind('agent');
+              navigationStore.openWizard('asset');
+            }}
+            testId="catalog-create-agent"
+            variant="secondary"
+          >
+            + Create Agent
+          </Button>
         </Panel>
 
-        <Panel
-          subtitle="Keep provider-backed agents visible by name and make runtime engagement explicit."
-          testId="catalog-agents-featured-provider-panel"
-          title="Superpowers engagement"
-        >
-          <article className="catalog-spotlight-card" data-testid="catalog-agents-superpowers-provider">
-            <div className="catalog-spotlight-header">
-              <div>
-                <p className="catalog-spotlight-kicker">Featured provider</p>
-                <h4>{featuredProvider?.title || 'Superpowers for GitHub Copilot'}</h4>
-                <p className="catalog-spotlight-copy">
-                  {featuredAgents.length > 0
-                    ? `${featuredAgents.length} provider-backed agent(s) are ready to inspect or hand off into runtime work.`
-                    : 'No superpowers agents are currently projected, but the provider remains surfaced here for discovery and install management.'}
-                </p>
-              </div>
-              <StatusBadge
-                status={featuredProviderInstalled ? 'installed' : 'not-installed'}
-                testId="catalog-agents-superpowers-status"
-              />
-            </div>
-
-            <div className="catalog-overview-actions">
-              <Button onClick={() => onOpenSection('skills')} testId="catalog-agents-open-skills">
-                Open provider skills
-              </Button>
-              <Button onClick={onEngageRuntime} testId="catalog-agents-engage-runtime" variant="secondary">
-                Engage in runtime
-              </Button>
-              {featuredProvider ? (
-                <Button
-                  disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
-                  onClick={() => {
-                    void catalogWorkspaceStore.installProvider({
-                      providerId: featuredProvider.providerId,
-                      action: featuredProviderAction,
-                    });
-                  }}
-                  testId="catalog-agents-install-provider"
-                  variant="ghost"
-                >
-                  {featuredProviderAction === 'update' ? 'Update provider' : 'Install provider'}
-                </Button>
-              ) : null}
-            </div>
-            {featuredProviderError ? <p className="state-message state-error">{featuredProviderError}</p> : null}
-          </article>
-        </Panel>
       </div>
 
       <Panel

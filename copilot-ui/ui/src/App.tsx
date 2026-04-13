@@ -28,6 +28,7 @@ import WorkflowExecutionView from './views/Workflows/WorkflowExecutionView';
 import WorkflowsHub from './views/Workflows/WorkflowsHub';
 import WorkflowTemplateEditor from './views/Workflows/WorkflowTemplateEditor';
 import SettingsView from './views/Settings/SettingsView';
+import AssetCreationWizard from './views/Catalog/AssetCreationWizard';
 
 export default function App() {
   const navigationState = useStoreValue(navigationStore);
@@ -128,6 +129,9 @@ export default function App() {
     }
     if (navigationState.wizardOpen === 'project') {
       return <AddProjectWizard />;
+    }
+    if (navigationState.wizardOpen === 'asset') {
+      return <AssetCreationWizard />;
     }
 
     // Session detail takes priority when a session is selected

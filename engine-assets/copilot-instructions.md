@@ -50,7 +50,7 @@ When I use **/plan** OR custom plan agent, you MUST:
 2. **In Copilot CLI**: rely on Rubber Duck (native cross-model review) to automatically challenge the plan. No manual reviewer delegation needed.
 3. **In VS Code / other environments**: submit the plan for cross-model review by **BOTH** `@reviewer-opus-4-6` and `@reviewer-gpt-5-4`. Revise until BOTH respond “APPROVED”.
 4. Only after review passes: summarize the approved plan and proceed to execution (unless I asked for plan-only).
-5. When work reaches closure, assess the plan's high-level goals, route unresolved non-active goals to `docs/issues/unresolved-goals.md`, and produce the final requested-vs-delivered summary.
+5. When work reaches closure, assess the plan's high-level goals, route unresolved non-active goals to `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`, and produce the final requested-vs-delivered summary.
 
 If a reviewer cannot approve due to missing info, use `vscode/askQuestions` to ask the smallest set of clarifying questions through the interactive tool, then keep refining everything else first.
 
@@ -101,7 +101,7 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
 ## Implementation Friction Capture
 - Constructive complaints about hard-to-work-with code are allowed when they help delivery.
 - When recurring implementation friction is detected (shaky patterns, dead code, brittle design), load the `implementation-friction` skill.
-- Capture issues quickly using the `docs/issues/implementation-friction-log.md` format, then continue implementation without deep side-tracking.
+- Capture issues quickly using the `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md` format, then continue implementation without deep side-tracking.
 
 ## Conflicts (repo-level + user-level)
 - Assume repo-level instructions (e.g. `.github/copilot-instructions.md`) may add constraints.

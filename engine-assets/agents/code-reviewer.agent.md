@@ -20,6 +20,7 @@ Default: unstaged changes or caller-specified files.
 - **Bugs**: logic errors, null handling, race conditions, security, performance.
 - **Code quality**: duplication, missing error handling, inadequate coverage.
 - **Test confidence regressions**: only when assertions relaxed without replacement, hard-case coverage lost, or tests go green by becoming shallow.
+- **Comment quality**: comments explain "why" (invariants, security, boundaries), not "what" (code narration). No restating obvious names or control flow.
 
 ## Adversarial Posture
 Start from "how could this be wrong?" Stay evidence-bound — no report without strong support. Only ≥ 80 confidence issues reported.

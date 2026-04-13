@@ -110,7 +110,7 @@ Route written output to the correct location based on content type:
 - **Plan packs** → return in-chat by default; the host/dashboard persists them outside the repo.
 - **User-facing documentation** → `docs/` or `README.md` — end-user and developer guides.
 - **Generated reports & logs** → avoid `.instructions-output/`; prefer host/session artifacts.
-- **Implementation friction log** → append concise recurring codebase pain points to `docs/issues/implementation-friction-log.md`.
+- **Implementation friction log** → append concise recurring codebase pain points to `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md`.
 - **Task tracking** → avoid repo-local task systems; prefer orchestrator + host persistence.
 
 Key distinctions:
@@ -191,7 +191,7 @@ If a task maps to a known domain, treat skills as the default path:
 
 ## Safety
 - Do destructive scaffolding or large deletions only with an explicit user ask.
-- Record recurring gotchas or major information in repo docs or host/session artifacts. When persisting in the repo, prefer `docs/system/**` for canonical guidance or `docs/issues/**` for operational notes.
+- Record recurring gotchas or major information in repo docs or host/session artifacts. When persisting in the repo, prefer `docs/system/**` for canonical guidance or `~/.copilot/backlogs/{repo-name}/issues/` for operational notes.
 
 ## Secrets & Config
 - Never store secrets in `.env*` files or repo files. Use GitHub Secrets for CI and local secret stores (OS keychain, dotnet user-secrets, or environment variables set outside the repo).

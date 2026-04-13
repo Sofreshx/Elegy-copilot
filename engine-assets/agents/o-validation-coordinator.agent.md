@@ -30,17 +30,21 @@ Provide the narrow V1 validation-coordination path for `@orchestrator` or `@orch
 
 ## Workflow
 1. Verify that the target slice is completed or frozen, dependency overlap is safe enough, and repo policy allows bounded validation overlap. If not, return a result that keeps validation serial.
-2. Select the narrowest validation lane needed now:
+2. Evaluate quality gates per `docs/system/quality-gate-evaluation.md`:
+   - Unit gate first: run `@unit-test-runner`; if FAIL, do not proceed to integration.
+   - Integration gate second (when required): run `@integration-test-runner` only after unit gate PASS or SKIP.
+3. Select the narrowest validation lane needed now:
    - `@unit-test-runner` for default bounded validation
    - `@integration-test-runner` only when integration coverage is required by the current validation basis or repo policy
-3. Delegate only the validation scope that is safe for the current slice.
-4. Return a structured `VALIDATION_COORDINATION_RESULT` with the chosen lane, overlap decision, and any serial-only or blocked reason.
+4. Delegate only the validation scope that is safe for the current slice.
+5. Return a structured `VALIDATION_COORDINATION_RESULT` with gate results, chosen lane, overlap decision, and any serial-only or blocked reason.
 
 ## Output Contract
 Return a `VALIDATION_COORDINATION_RESULT` block with:
 - `status`: `scheduled` | `serial-only` | `blocked`
 - `delegated_lanes`: ordered list of validation lanes used, or `NONE`
 - `overlap_scope`: `unit` | `integration` | `both` | `none`
+- `gate_results`: `unit_gate: PASS|FAIL|SKIPPED`, `integration_gate: PASS|FAIL|SKIPPED` (per `docs/system/quality-gate-evaluation.md`)
 - `requirement_basis`: concise statement of why the selected validation scope is required, or `NONE`
 - `blocked_reason`: `NONE` unless `status != scheduled`
 - `notes`: concise overlap-safety notes for the root orchestrator

@@ -19,7 +19,7 @@ Turn current work state, reviewer outputs, and validation evidence into concrete
 - Keep every task planning-ready: what's missing, why it matters, next action.
 - Distinguish active-session continuation from non-active carryover (avoid zombie follow-ups).
 - Backlog carryover categories: `work_not_done`, `issues`, `suggestions`. May reference existing `RB-*` IDs but must not allocate new ones.
-- Prefer `docs/backlogs/<session-slug>.md`; `docs/backlog.md` is legacy compat only.
+- Prefer `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`; `docs/backlog.md` is deprecated legacy.
 
 ## Finding Normalization
 When review findings come from the project-audit family, reduce each to: `defect`, `rule_drift`, `authority_gap`, `research_thread`, or `improvement`.
@@ -33,7 +33,7 @@ FOLLOW_UP_DISCOVERY
 - current_state:
   - <done items>
 - session_backlog_path:
-  - docs/backlogs/<session-slug>.md | NONE
+  - ~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md | NONE
 - gaps:
   - <missing docs/tests/validation or NONE>
 - immediate_next_tasks:

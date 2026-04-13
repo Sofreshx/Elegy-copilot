@@ -78,7 +78,7 @@ More contributor and community guidance:
 | Type | Count | Location |
 |------|-------|----------|
 | Agents | 45 | `engine-assets/agents/*.agent.md` |
-| Skills | 57 | `engine-assets/skills/<name>/SKILL.md` |
+| Skills | 59 | `engine-assets/skills/<name>/SKILL.md` |
 | Prompts | 3 | `engine-assets/prompts/*.prompt.md` |
 | Instructions | 1 | `engine-assets/copilot-instructions.md` |
 | Canonical asset manifest | — | `engine-assets/manifest.json` |

@@ -222,6 +222,62 @@ test('generator rejects malformed metadata frontmatter with skill file context',
 	}
 });
 
+test('generator parses block-scalar descriptions without breaking inline metadata parsing', () => {
+	const generatorUrl = pathToFileURL(generatorPath).href;
+	withTempRepoFixture(
+		{
+			'engine-assets/manifest.json': JSON.stringify({ assets: [] }, null, 2),
+			'engine-assets/skills/folded-skill/SKILL.md': [
+				'---',
+				'name: folded-skill',
+				'description: >',
+				'  Folded line one',
+				'  line two.',
+				'  Triggers on: folded-skill, folded parser.',
+				'metadata: {"aliasKeys":["folded-alias"]}',
+				'---',
+				'',
+				'# Folded Skill',
+			].join('\n'),
+			'engine-assets/skills/literal-skill/SKILL.md': [
+				'---',
+				'name: literal-skill',
+				'description: |',
+				'  Literal first line',
+				'  Literal second line',
+				'---',
+				'',
+				'# Literal Skill',
+			].join('\n'),
+		},
+		(tempRoot) => {
+			const result = runModuleSnippet(
+				[
+					`import { generateIndex } from ${JSON.stringify(generatorUrl)};`,
+					`const index = generateIndex({ write: false, repoRoot: ${JSON.stringify(tempRoot)} });`,
+					'console.log(JSON.stringify(index));',
+				].join('\n'),
+			);
+
+			assert.strictEqual(result.status, 0, `expected generator success: ${result.stderr || result.stdout}`);
+			const index = JSON.parse(result.stdout.trim());
+			const foldedSkill = index.entries.find((entry) => entry.skill === 'folded-skill');
+			const literalSkill = index.entries.find((entry) => entry.skill === 'literal-skill');
+
+			assert.ok(foldedSkill, 'expected folded-skill entry');
+			assert.strictEqual(
+				foldedSkill.description,
+				'Folded line one line two. Triggers on: folded-skill, folded parser.',
+			);
+			assert.deepStrictEqual(foldedSkill.aliasKeys, ['folded-alias']);
+			assert.deepStrictEqual(foldedSkill.triggersOn, ['folded parser', 'folded-skill']);
+
+			assert.ok(literalSkill, 'expected literal-skill entry');
+			assert.strictEqual(literalSkill.description, 'Literal first line\nLiteral second line');
+		}
+	);
+});
+
 test('output is deterministic across repeated generation', () => {
 	assert.strictEqual(firstRaw, secondRaw, 'raw JSON output changed between runs');
 	assert.deepStrictEqual(first, second, 'parsed JSON changed between runs');

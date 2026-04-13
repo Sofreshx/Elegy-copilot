@@ -41,12 +41,94 @@ function escapeRegExp(value) {
 	return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function countIndent(line) {
+	const match = String(line || '').match(/^\s*/);
+	return match ? match[0].length : 0;
+}
+
+function parseBlockScalarStyle(value) {
+	const trimmed = String(value || '').trim();
+	if (!trimmed) return '';
+	if (!/^[>|](?:[+-]|\d+|[+-]\d+|\d+[+-])?$/.test(trimmed)) {
+		return '';
+	}
+	return trimmed[0];
+}
+
+function foldBlockScalarLines(lines) {
+	let result = '';
+	let paragraph = [];
+
+	function flushParagraph() {
+		if (!paragraph.length) return;
+		const text = paragraph.join(' ').replace(/\s+/g, ' ').trim();
+		if (text) {
+			result += result && !result.endsWith('\n') ? ` ${text}` : text;
+		}
+		paragraph = [];
+	}
+
+	for (const line of lines) {
+		if (!String(line || '').trim()) {
+			flushParagraph();
+			if (result && !result.endsWith('\n')) {
+				result += '\n';
+			}
+			continue;
+		}
+		paragraph.push(String(line).trim());
+	}
+
+	flushParagraph();
+	return result.trim();
+}
+
+function readBlockScalarValue(lines, startIndex, parentIndent, style) {
+	const blockLines = [];
+	let contentIndent = null;
+
+	for (let i = startIndex; i < lines.length; i++) {
+		const line = lines[i];
+		const trimmed = line.trim();
+		const indent = countIndent(line);
+
+		if (trimmed && indent <= parentIndent) {
+			break;
+		}
+
+		if (!trimmed) {
+			blockLines.push('');
+			continue;
+		}
+
+		if (contentIndent === null) {
+			contentIndent = indent;
+		}
+
+		blockLines.push(line.slice(contentIndent));
+	}
+
+	if (style === '|') {
+		return blockLines.join('\n').trim();
+	}
+
+	return foldBlockScalarLines(blockLines);
+}
+
 function readFrontmatterValue(frontmatter, keys) {
+	const lines = String(frontmatter || '').split(/\r?\n/);
 	for (const key of keys) {
-		const regex = new RegExp(`^${escapeRegExp(key)}:\\s*(.+)$`, 'm');
-		const match = frontmatter.match(regex);
-		if (!match) continue;
-		return match[1].trim();
+		const regex = new RegExp(`^${escapeRegExp(key)}:(?:\\s*(.*))?$`);
+		for (let i = 0; i < lines.length; i++) {
+			const match = lines[i].match(regex);
+			if (!match) continue;
+			const rawValue = match[1] ?? '';
+			const blockScalarStyle = parseBlockScalarStyle(rawValue);
+			if (blockScalarStyle) {
+				return readBlockScalarValue(lines, i + 1, countIndent(lines[i]), blockScalarStyle);
+			}
+			return rawValue.trim();
+		}
 	}
 	return '';
 }

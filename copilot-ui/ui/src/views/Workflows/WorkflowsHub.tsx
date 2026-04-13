@@ -4,6 +4,7 @@ import { Button, Panel, Toolbar, Badge, StatusBadge } from '../../components';
 import { navigationStore } from '../../stores/navigation';
 import { workflowStore } from './workflowStore';
 import type { WorkflowTemplate, WorkflowRun } from './workflowStore';
+import WorkflowPipeline from './WorkflowPipeline';
 
 type HubTab = 'templates' | 'runs';
 
@@ -44,6 +45,17 @@ function TemplateCard({ template, onEdit, onLaunch, onDelete }: TemplateCardProp
             )}
           </span>
         </div>
+      )}
+      {template.steps.length > 0 && (
+        <WorkflowPipeline
+          compact
+          nodes={template.steps.map((s) => ({
+            stepId: s.stepId,
+            label: s.label,
+            type: s.type,
+            status: 'pending',
+          }))}
+        />
       )}
       <div className="template-card-actions">
         <Button variant="ghost" size="sm" testId={`edit-template-${template.templateId}`} onClick={() => onEdit(template.templateId)}>

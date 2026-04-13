@@ -13,6 +13,28 @@ $cwd = if ($data.cwd) { $data.cwd } else { (Get-Location).Path }
 $logDir = Join-Path $cwd ".instructions-output\hooks"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
+# --- Hook Rule Configuration ---
+$enabledRules = @{}
+$hookRulesConfigPath = if ($env:HOOK_RULES_FILE) { $env:HOOK_RULES_FILE } else {
+    Join-Path ([Environment]::GetFolderPath("UserProfile")) ".copilot\hook-rules.json"
+}
+try {
+    if (Test-Path $hookRulesConfigPath) {
+        $rulesConfig = Get-Content $hookRulesConfigPath -Raw | ConvertFrom-Json
+        if ($rulesConfig.schemaVersion -eq 1 -and $rulesConfig.overrides) {
+            foreach ($prop in $rulesConfig.overrides.PSObject.Properties) {
+                if ($prop.Value -eq $true) { $enabledRules[$prop.Name] = $true }
+            }
+        }
+    }
+} catch {
+    $enabledRules = @{}
+}
+
+function Test-RuleEnabled([string]$ruleId) {
+    return $enabledRules.ContainsKey($ruleId)
+}
+
 $toolName = if ($data.toolName) { [string]$data.toolName } else { "" }
 $toolArgs = @{}
 if ($data.toolArgs) {
@@ -134,13 +156,21 @@ function Get-HighRiskCommandReason([string]$command) {
     if ([string]::IsNullOrWhiteSpace($command)) { return $null }
     $trim = $command.Trim()
 
-    if ($trim -match '^(?i)\s*git\s+push(\s|$)') {
-        return "High-risk git command blocked by baseline policy: git push (use a PR workflow instead)."
+    if ((Test-RuleEnabled "safety-git-push") -and $trim -match '^(?i)\s*git\s+push(\s|$)') {
+        $hasForceFlag = $trim -match '(?i)(^|\s)(--force|--force-with-lease|--force-if-includes|-f)(\s|$)'
+        $hasRefspec = $trim -match ':'
+        $hasShellChain = $trim -match '[;&|]'
+        $isSafeBranchPush = ($env:ALLOW_CI_PUSH -eq "1") -and
+            ($trim -match '(?i)^git\s+push\s+\S+\s+(ci-fix/|revert/|autofix/)\S+\s*$') -and
+            (-not $hasForceFlag) -and (-not $hasRefspec) -and (-not $hasShellChain)
+        if (-not $isSafeBranchPush) {
+            return "High-risk git command blocked by baseline policy: git push (use a PR workflow instead). Set ALLOW_CI_PUSH=1 for ci-fix/revert/autofix branches."
+        }
     }
-    if ($trim -match '^(?i)\s*git\s+reset\b' -and $trim -match '(?i)(^|\s)--hard(\s|$)') {
+    if ((Test-RuleEnabled "safety-git-reset-hard") -and $trim -match '^(?i)\s*git\s+reset\b' -and $trim -match '(?i)(^|\s)--hard(\s|$)') {
         return "High-risk git command blocked by baseline policy: git reset --hard (can destroy local changes)."
     }
-    if ($trim -match '^(?i)\s*git\s+clean\b') {
+    if ((Test-RuleEnabled "safety-git-clean") -and $trim -match '^(?i)\s*git\s+clean\b') {
         $hasForce = $trim -match '(?i)(^|\s)--force(\s|$)|(^|\s)-[a-z]*f[a-z]*(\s|$)'
         $hasDirs = $trim -match '(?i)(^|\s)--directories(\s|$)|(^|\s)-[a-z]*d[a-z]*(\s|$)'
         $hasIgnored = $trim -match '(?i)(^|\s)--ignored(\s|$)|(^|\s)-[a-z]*x[a-z]*(\s|$)'
@@ -148,38 +178,38 @@ function Get-HighRiskCommandReason([string]$command) {
             return "High-risk git command blocked by baseline policy: git clean -fdx (or equivalent) (can delete untracked/ignored files)."
         }
     }
-    if ($trim -match '^(?i)\s*git\s+(checkout|switch)\b' -and $trim -match '(?i)(^|\s)(-f|--force)(\s|$)') {
+    if ((Test-RuleEnabled "safety-git-force-checkout") -and $trim -match '^(?i)\s*git\s+(checkout|switch)\b' -and $trim -match '(?i)(^|\s)(-f|--force)(\s|$)') {
         return "High-risk git command blocked by baseline policy: git checkout/switch -f/--force (can discard work)."
     }
-    if ($trim -match '^(?i)\s*git\s+rebase\b' -and $trim -match '(?i)(^|\s)(--onto|--interactive|-i)(\s|$)') {
+    if ((Test-RuleEnabled "safety-git-rebase-interactive") -and $trim -match '^(?i)\s*git\s+rebase\b' -and $trim -match '(?i)(^|\s)(--onto|--interactive|-i)(\s|$)') {
         return "High-risk git command blocked by baseline policy: git rebase --onto/-i (history rewriting and often interactive)."
     }
-    if ($trim -match '^(?i)\s*gh\s+repo\s+delete(\s|$)') {
+    if ((Test-RuleEnabled "safety-gh-repo-delete") -and $trim -match '^(?i)\s*gh\s+repo\s+delete(\s|$)') {
         return "High-risk GitHub CLI command blocked by baseline policy: gh repo delete."
     }
 
-    if ($trim -match '^(?i)\s*(sudo\s+)?rm\s+' -and $trim -match '(?i)(^|\s)-[^\s]*r[^\s]*f[^\s]*(\s|$)' -and $trim -match '(?i)(\s|^)(/|/\*|~|~\/\*)(\s|$)') {
+    if ((Test-RuleEnabled "safety-rm-rf") -and $trim -match '^(?i)\s*(sudo\s+)?rm\s+' -and $trim -match '(?i)(^|\s)-[^\s]*r[^\s]*f[^\s]*(\s|$)' -and $trim -match '(?i)(\s|^)(/|/\*|~|~\/\*)(\s|$)') {
         return "Destructive OS command blocked by baseline policy: rm -rf targeting / or ~."
     }
-    if ($trim -match '^(?i)\s*(shutdown|reboot|poweroff|halt)(\s|$)') {
+    if ((Test-RuleEnabled "safety-os-shutdown") -and $trim -match '^(?i)\s*(shutdown|reboot|poweroff|halt)(\s|$)') {
         return "Destructive OS command blocked by baseline policy: shutdown/reboot/poweroff."
     }
-    if ($trim -match '^(?i)\s*(sudo\s+)?dd(\s|$)') {
+    if ((Test-RuleEnabled "safety-disk-ops") -and $trim -match '^(?i)\s*(sudo\s+)?dd(\s|$)') {
         return "Destructive OS command blocked by baseline policy: dd (raw disk write risk)."
     }
-    if ($trim -match '^(?i)\s*(sudo\s+)?mkfs(\.|(\s|$))') {
+    if ((Test-RuleEnabled "safety-disk-ops") -and $trim -match '^(?i)\s*(sudo\s+)?mkfs(\.|(\s|$))') {
         return "Destructive OS command blocked by baseline policy: mkfs* (filesystem format risk)."
     }
-    if ($trim -match '^(?i)\s*(format|diskpart)(\s|$)') {
+    if ((Test-RuleEnabled "safety-disk-ops") -and $trim -match '^(?i)\s*(format|diskpart)(\s|$)') {
         return "Destructive OS command blocked by baseline policy: format/diskpart."
     }
-    if ($trim -match '^(?i)\s*(remove-item|rm|ri)\b' -and $trim -match '(?i)(^|\s)-recurse(\s|$)' -and $trim -match '(?i)(^|\s)-force(\s|$)' -and $trim -match '(?i)(\s|^)(c:\\|c:/)(\s|$)') {
+    if ((Test-RuleEnabled "safety-remove-item") -and $trim -match '^(?i)\s*(remove-item|rm|ri)\b' -and $trim -match '(?i)(^|\s)-recurse(\s|$)' -and $trim -match '(?i)(^|\s)-force(\s|$)' -and $trim -match '(?i)(\s|^)(c:\\|c:/)(\s|$)') {
         return "Destructive OS command blocked by baseline policy: Remove-Item -Recurse -Force targeting C:\."
     }
-    if ($trim -match '^(?i)\s*(rmdir|rd)\b' -and $trim -match '(?i)(^|\s)/s(\s|$)' -and $trim -match '(?i)(^|\s)/q(\s|$)' -and $trim -match '(?i)(\s|^)(c:\\|c:/)(\s|$)') {
+    if ((Test-RuleEnabled "safety-remove-item") -and $trim -match '^(?i)\s*(rmdir|rd)\b' -and $trim -match '(?i)(^|\s)/s(\s|$)' -and $trim -match '(?i)(^|\s)/q(\s|$)' -and $trim -match '(?i)(\s|^)(c:\\|c:/)(\s|$)') {
         return "Destructive OS command blocked by baseline policy: rmdir/rd /s /q targeting C:\."
     }
-    if ($trim -match '^(?i)\s*(del|erase)\b' -and $trim -match '(?i)(^|\s)/s(\s|$)' -and $trim -match '(?i)(^|\s)/q(\s|$)' -and $trim -match '(?i)(\s|^)(c:\\|c:/)(\s|$)') {
+    if ((Test-RuleEnabled "safety-remove-item") -and $trim -match '^(?i)\s*(del|erase)\b' -and $trim -match '(?i)(^|\s)/s(\s|$)' -and $trim -match '(?i)(^|\s)/q(\s|$)' -and $trim -match '(?i)(\s|^)(c:\\|c:/)(\s|$)') {
         return "Destructive OS command blocked by baseline policy: del/erase /s /q targeting C:\."
     }
 
@@ -345,7 +375,7 @@ $isPrivilegedTool = Test-IsPrivilegedTool $toolName
 $requiredEarlyControls = Get-RequiredEarlyControls
 $earlyControlGate = $null
 
-if ($isPrivilegedTool) {
+if ($isPrivilegedTool -and (Test-RuleEnabled "safety-early-control-gate")) {
     $earlyControlGate = Get-EarlyControlGateResult -cwd $cwd -requiredControls $requiredEarlyControls
     if (-not $earlyControlGate.allowed) {
         $decision = "deny"
@@ -353,7 +383,7 @@ if ($isPrivilegedTool) {
     }
 }
 
-if ($toolName -in @("edit", "create", "create_file", "edit_file")) {
+if ((Test-RuleEnabled "safety-secrets-env") -and $toolName -in @("edit", "create", "create_file", "edit_file")) {
     $path = $toolArgs.path
     if (-not $path) { $path = $toolArgs.filePath }
     if (-not $path) { $path = $toolArgs.file_path }
@@ -388,25 +418,25 @@ if (-not $decision -and (Test-IsRunInTerminalTool $toolName)) {
         try { $timeoutInt = [int]$timeout } catch { $timeoutInt = $null }
         $isBackgroundBool = $isBackground -eq $true -or ([string]$isBackground -match '^(?i:true|1|yes)$')
 
-        if ($null -eq $timeoutInt -or $timeoutInt -le 0) {
+        if ((Test-RuleEnabled "anti-hang-timeout") -and ($null -eq $timeoutInt -or $timeoutInt -le 0)) {
         $decision = "deny"
         $reason = "Terminal commands must set a non-zero timeout (ms). Infinite waits are not allowed."
-        } elseif ($isBackgroundBool) {
+        } elseif ((Test-RuleEnabled "anti-hang-background") -and $isBackgroundBool) {
         $decision = "deny"
         $reason = "Terminal commands must not run in the background (isBackground=true). Use foreground execution only."
-    } elseif (Test-IsWatchOrInteractiveCommand $command) {
+    } elseif ((Test-RuleEnabled "anti-hang-watch-interactive") -and (Test-IsWatchOrInteractiveCommand $command)) {
         $decision = "deny"
         $reason = "Watch/interactive commands are not allowed in agent runs (they can hang). Use non-interactive equivalents."
-    } elseif ($command -match "(?i)\bvitest\b") {
+    } elseif ((Test-RuleEnabled "anti-hang-vitest-run") -and $command -match "(?i)\bvitest\b") {
         $hasRun = $command -match "(?i)\bvitest\s+run\b" -or $command -match "(?i)(^|\s)--run(\s|$)"
         if (-not $hasRun) {
             $decision = "deny"
             $reason = "Vitest must be run in non-interactive mode (use vitest run or add --run)."
         }
-    } elseif ($command -match "(?i)\bplaywright\b" -and ($command -match "(?i)(^|\s)--ui(\s|$)" -or $command -match "(?i)(^|\s)--debug(\s|$)" -or $command -match "(?i)(^|\s)pwdebug=1(\s|$)")) {
+    } elseif ((Test-RuleEnabled "anti-hang-playwright") -and $command -match "(?i)\bplaywright\b" -and ($command -match "(?i)(^|\s)--ui(\s|$)" -or $command -match "(?i)(^|\s)--debug(\s|$)" -or $command -match "(?i)(^|\s)pwdebug=1(\s|$)")) {
         $decision = "deny"
         $reason = "Playwright UI/debug mode (--ui/--debug, PWDEBUG=1) is interactive and can hang automation runs."
-    } elseif (Test-IsDotNetTestCommand $command -and -not (Test-HasNoRestore $command)) {
+    } elseif ((Test-RuleEnabled "anti-hang-dotnet-restore") -and (Test-IsDotNetTestCommand $command) -and -not (Test-HasNoRestore $command)) {
         $decision = "deny"
         $reason = "dotnet test must include --no-restore to avoid restore prompts/hangs. Build/restore separately if needed."
     } else {
@@ -417,7 +447,7 @@ if (-not $decision -and (Test-IsRunInTerminalTool $toolName)) {
         }
     }
 
-    if (Test-ProdCommand $command) {
+    if ((Test-RuleEnabled "safety-production-access") -and (Test-ProdCommand $command)) {
         $allowReadonly = $env:ALLOW_PROD_READONLY -eq "1"
         $approved = $env:PROD_APPROVED -eq "1"
         if (-not ($allowReadonly -and $approved)) {
@@ -433,6 +463,7 @@ if (-not $decision -and (Test-IsRunInTerminalTool $toolName)) {
 $logEntry = [ordered]@{
     event = "preToolUse"
     timestamp = $data.timestamp
+    hookRulesStatus = if ($enabledRules.Count -gt 0) { "loaded:$($enabledRules.Count)" } else { "default-off" }
     toolName = $toolName
     isPrivilegedTool = $isPrivilegedTool
     earlyControlsRequired = $requiredEarlyControls

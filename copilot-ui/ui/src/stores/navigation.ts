@@ -60,10 +60,10 @@ export const SIDEBAR_IDS = [
 export type SidebarItemId = (typeof SIDEBAR_IDS)[number];
 
 export type ProjectSubView = 'overview' | 'sessions' | 'tasks' | 'config';
-export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | 'git';
+export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | 'git' | 'usage';
 export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
 export type PlanningSection = 'notes' | 'research' | 'mermaid' | 'ideas';
-export type WizardType = 'session' | 'project' | 'workflow' | null;
+export type WizardType = 'session' | 'project' | 'workflow' | 'asset' | null;
 
 export type SidebarNavItem = {
   id: SidebarItemId;

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-04-09
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -80,23 +80,23 @@ normalization.
 ## V1 Durable Handoff Decision
 
 Instruction Engine does **not** add a dedicated issue ledger in V1. The existing Repository Backlog
-family plus the approved `docs/issues/*` surfaces are sufficient for durable issue-to-plan handoff
+family plus the approved `~/.copilot/backlogs/{repo-name}/issues/*` surfaces are sufficient for durable issue-to-plan handoff
 once routing is explicit. The minimal additive extension for this first pass is therefore a tighter
 mapping contract, not a new persistence surface.
 
 | Normalized output or condition | Canonical durable surface | Notes |
 | --- | --- | --- |
-| unfinished active-goal scope | `docs/backlogs/<session-slug>.md` under `backlog_carryover.work_not_done` | `docs/backlog.md` remains legacy compatibility only |
-| accepted `defect`, `rule_drift`, or `authority_gap` carryover | `docs/backlogs/<session-slug>.md` under `backlog_carryover.issues` | use queued backlog carryover unless the item is explicitly outside approved scope |
-| accepted `improvement` carryover | `docs/backlogs/<session-slug>.md` under `backlog_carryover.suggestions` | use when the idea is real queued repo work rather than a loose note |
-| planning-worthy idea or research outcome not yet accepted as queued work | `docs/issues/planning-ideas-log.md` | use after `research_threads` / `RESEARCH_IDEATION` when the outcome should persist as future planning input |
-| explicitly deferred item outside the approved current scope | `docs/issues/out-of-scope-findings.md` | use for deliberate scope deferral, not for every backlog decision |
-| unresolved high-level goal that is no longer active | `docs/issues/unresolved-goals.md` | reserved for `partial` / `not-complete` goal state under [[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md) |
-| recurring implementation friction discovered during delivery | `docs/issues/implementation-friction-log.md` | use only for repeated delivery pain points, not as a generic issue ledger |
+| unfinished active-goal scope | `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` under `backlog_carryover.work_not_done` | `docs/backlog.md` is deprecated; legacy compatibility only |
+| accepted `defect`, `rule_drift`, or `authority_gap` carryover | `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` under `backlog_carryover.issues` | use queued backlog carryover unless the item is explicitly outside approved scope |
+| accepted `improvement` carryover | `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` under `backlog_carryover.suggestions` | use when the idea is real queued repo work rather than a loose note |
+| planning-worthy idea or research outcome not yet accepted as queued work | `~/.copilot/backlogs/{repo-name}/issues/planning-ideas-log.md` | use after `research_threads` / `RESEARCH_IDEATION` when the outcome should persist as future planning input |
+| explicitly deferred item outside the approved current scope | `~/.copilot/backlogs/{repo-name}/issues/out-of-scope-findings.md` | use for deliberate scope deferral, not for every backlog decision |
+| unresolved high-level goal that is no longer active | `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` | reserved for `partial` / `not-complete` goal state under [[goal-contract-governance]] [docs/system/goal-contract-governance.md](docs/system/goal-contract-governance.md) |
+| recurring implementation friction discovered during delivery | `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md` | use only for repeated delivery pain points, not as a generic issue ledger |
 
 Notes:
 
-- `research_thread` first routes to `research_threads`; persist it in `docs/issues/planning-ideas-log.md`
+- `research_thread` first routes to `research_threads`; persist it in `~/.copilot/backlogs/{repo-name}/issues/planning-ideas-log.md`
   only when the result should survive as planning input and has not yet been accepted into backlog.
 - `unresolved-goals` is a goal-state carryover surface, not a general issue bucket.
 - `implementation-friction-log` is a specialized recurring-friction surface, not a replacement for
@@ -125,7 +125,7 @@ FOLLOW_UP_DISCOVERY
 - current_state:
   - <done items>
 - session_backlog_path:
-  - docs/backlogs/<session-slug>.md | docs/backlog.md | NONE
+  - ~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md | NONE
 - gaps:
   - <missing docs/tests/validation/work>
 - immediate_next_tasks:
@@ -174,18 +174,17 @@ RESEARCH_IDEATION
    `research-ideation` contract proves insufficient.
 7. When carryover context is present, distinguish active-session continuation from non-active carryover so stale goals are not reintroduced as zombie follow-ups.
 8. Do not add or imply a separate V1 issue-ledger artifact; use the Repository Backlog plus approved
-   `docs/issues/*` surfaces above.
+   `~/.copilot/backlogs/{repo-name}/issues/*` surfaces above.
 
 ## Persistent Discovery Surfaces
 
 The goal/discovery governance surface uses these persistent docs for cross-session carryover:
 
-- `docs/backlogs/*.md` (primary per-session Repository Backlog carryover family)
-- `docs/backlog.md` (legacy Repository Backlog compatibility surface)
-- `docs/issues/unresolved-goals.md`
-- `docs/issues/planning-ideas-log.md`
-- `docs/issues/out-of-scope-findings.md`
-- `docs/issues/implementation-friction-log.md`
+- `~/.copilot/backlogs/{repo-name}/backlogs/*.md` (primary per-session Repository Backlog carryover family)
+- `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`
+- `~/.copilot/backlogs/{repo-name}/issues/planning-ideas-log.md`
+- `~/.copilot/backlogs/{repo-name}/issues/out-of-scope-findings.md`
+- `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md`
 
 These paths are approved targets, but this document does not require immediate creation.
 

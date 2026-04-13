@@ -232,7 +232,7 @@ function handleAssetsView(ctx, deps) {
     abs = assertInspectableAssetPath(abs, assetsHomeAbs, fs);
     const text = assets.readTextFileSafe(abs, 512 * 1024);
     if (text == null) {
-      sendText(res, 404, 'Not found');
+      sendText(res, 404, 'Asset not found at the resolved path. If this is a repo-scoped asset, ensure the repo context is active.');
       return;
     }
     sendText(res, 200, text, 'text/plain; charset=utf-8');

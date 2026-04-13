@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-04-09
+updated: 2026-06-22
 category: system
 status: current
 doc_kind: node
@@ -109,7 +109,7 @@ If the user does not specify a narrow lane, use the broad default review path fi
 4. `verification-guide` tells the user how to verify; it does not decide whether the change works.
 5. Cross-model reviewers are workflow-specific planning reviewers. They are not generic replacements for the core reviewer lanes outside workflows that explicitly require them.
 6. `@goal-reviewer` does not replace `@final-reviewer`; the lanes are intentionally complementary.
-7. `@goal-reviewer` remains read-only. Persisting or removing entries in `docs/issues/unresolved-goals.md` should be routed through `@doc-writer` or another explicit docs lane, and Repository Backlog carryover under `docs/backlogs/*.md` should be routed through a backlog-writing lane such as `@backlog-planner`.
+7. `@goal-reviewer` remains read-only. Persisting or removing entries in `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` should be routed through `@doc-writer` or another explicit docs lane, and Repository Backlog carryover under `~/.copilot/backlogs/{repo-name}/backlogs/*.md` should be routed through a backlog-writing lane such as `@backlog-planner`.
 8. The project-audit/static-analysis family is an orchestration and normalization overlay, not a new
    replacement reviewer. Native lane responsibilities stay intact.
 9. Native lane output blocks stay intact in V1. The normalized finding categories above are an
@@ -245,9 +245,9 @@ GOAL_REVIEW
 - goals:
   - <goal text> | <complete|partial|not-complete> | <evidence or gap>
 - unresolved_goals_path:
-  - docs/issues/unresolved-goals.md | NONE
+  - ~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md | NONE
 - session_backlog_path:
-  - docs/backlogs/<session-slug>.md | docs/backlog.md | NONE
+  - ~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md | NONE
 - carryover_goals:
   - <goal text> | <partial|not-complete> | <why unresolved> | <carryover intent> | <source artifact path> | <owner>
   - NONE

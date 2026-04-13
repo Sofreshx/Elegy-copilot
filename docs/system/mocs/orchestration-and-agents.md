@@ -30,6 +30,7 @@ related: [system-docs-index]
 - Agents vs skills: `docs/system/agents-vs-skills.md`
 - Agent architecture simplicity: `docs/system/agent-architecture-simplicity.md`
 - Agent hooks: `docs/system/agent-hooks.md`
+- Model capability profiles: `docs/system/model-capability-profile.md`
 - Channel capability matrix: `docs/system/channel-capability-matrix.md`
 - Repository backlog, roadmap, and plan-pack boundaries: [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md)
 - Governance lanes: [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)

@@ -29,7 +29,7 @@ Redirect docs may also exist in other legacy paths (e.g., `docs/orchestrator/*`)
 
 Operational planning artifacts (backlogs, roadmaps, issues, planning bullets) now live outside the
 repo at `~/.copilot/backlogs/{repo-name}/` and are no longer part of the doc graph. See
-[[planning-backlog-roadmap-contract]] for the current path contract.
+[[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md) for the current path contract.
 
 ## Document Kinds (`doc_kind`)
 

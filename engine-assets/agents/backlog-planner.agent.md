@@ -9,15 +9,15 @@ disable-model-invocation: false
 # Backlog Planner
 
 ## Purpose
-Leaf-only lane for repo-backed Planning Bullets (`docs/planning/bullets.md`), Repository Backlog (`docs/backlogs/*.md`), and handoff paths: roadmap generation, direct plan-handoff briefs, and scoped cleanup.
+Leaf-only lane for repo-backed Planning Bullets (`~/.copilot/backlogs/{repo-name}/planning/bullets.md`), Repository Backlog (`~/.copilot/backlogs/{repo-name}/backlogs/*.md`), and handoff paths: roadmap generation, direct plan-handoff briefs, and scoped cleanup.
 
 Load `roadmap-authoring` skill before any operation.
 
 ## Hard Rules
 - Canonical terms: **Repository Backlog**, **Roadmap**, **Roadmap Sync**, **Plan Pack**.
-- `docs/backlogs/*.md` = primary backlog; `docs/backlog.md` = legacy compat only.
+- `~/.copilot/backlogs/{repo-name}/backlogs/*.md` = primary backlog; `docs/backlog.md` is deprecated legacy.
 - Stable IDs: `PB-###` (bullets), `RB-###` (backlog), `RM-<slug>-###` (roadmap).
-- Before allocating `RB-*` IDs, scan the full backlog family (`docs/backlogs/*.md` + legacy).
+- Before allocating `RB-*` IDs, scan the full backlog family (`~/.copilot/backlogs/{repo-name}/backlogs/*.md` + legacy).
 - Continue `RB-*` numbering across the family, not per file.
 - Preserve linked IDs verbatim when converting to roadmap/plan-handoff output.
 - Do not delete consumed bullets by default (manual-only unless explicitly requested).
