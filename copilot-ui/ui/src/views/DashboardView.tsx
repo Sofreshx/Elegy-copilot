@@ -3,6 +3,10 @@ import { Panel } from '../components';
 import CompactSessionCard from '../components/CompactSessionCard';
 import HealthDot from '../components/HealthDot';
 import { navigationStore } from '../stores/navigation';
+import { STOCK_SESSIONS } from '../constants/stockSessions';
+import type { StockSession } from '../constants/stockSessions';
+import PlanFromBacklogPanel from './Dashboard/PlanFromBacklogPanel';
+import { sessionWizardStore } from './Sessions/sessionWizardStore';
 
 interface DashboardSession {
   sessionId: string;
@@ -49,6 +53,20 @@ export default function DashboardView() {
   const [sessions, setSessions] = useState<DashboardSession[]>([]);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [backlogPanelOpen, setBacklogPanelOpen] = useState(false);
+
+  function handleStockSession(preset: StockSession) {
+    if (preset.usesBacklogFlow) {
+      setBacklogPanelOpen(true);
+      return;
+    }
+    // Pre-fill the wizard and open it
+    sessionWizardStore.reset();
+    sessionWizardStore.setAgentId(preset.agentId);
+    if (preset.defaultModel) sessionWizardStore.setModel(preset.defaultModel);
+    if (preset.objectiveTemplate) sessionWizardStore.setObjective(preset.objectiveTemplate);
+    navigationStore.openWizard('session');
+  }
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -117,6 +135,31 @@ export default function DashboardView() {
           + New Session
         </button>
       </div>
+
+      {/* Quick Start */}
+      <div className="execution-hub-quick-start" data-testid="execution-hub-quick-start">
+        <span className="execution-hub-quick-start-label">Quick Start</span>
+        <div className="execution-hub-quick-start-grid" data-testid="execution-hub-quick-start-grid">
+          {STOCK_SESSIONS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className="execution-hub-stock-card"
+              data-testid={`execution-hub-stock-${preset.id}`}
+              onClick={() => handleStockSession(preset)}
+            >
+              <span className="execution-hub-stock-icon">{preset.icon}</span>
+              <span className="execution-hub-stock-label">{preset.label}</span>
+              <span className="execution-hub-stock-desc">{preset.description}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Plan from Backlog Panel */}
+      {backlogPanelOpen && (
+        <PlanFromBacklogPanel onClose={() => setBacklogPanelOpen(false)} />
+      )}
 
       {/* Active Sessions */}
       <Panel title={`Active Sessions (${activeSessions.length})`} testId="execution-hub-active-sessions">

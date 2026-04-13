@@ -27,7 +27,7 @@ export interface SessionWizardState {
   actorLabel: string;
   actorRole: string;
   // Backlog
-  backlogBullets: Array<{ id: string; title: string; state: string; tags: string[] }>;
+  backlogBullets: Array<{ id: string; title: string; state: string; summary: string; tags: string[] }>;
   backlogLoading: boolean;
   selectedBulletIds: string[];
   // Status
@@ -170,6 +170,7 @@ function createSessionWizardStore() {
         id: b.id,
         title: b.title,
         state: b.state,
+        summary: b.summary ?? '',
         tags: [] as string[],
       }));
       store.setState((s) => ({ ...s, backlogBullets: bullets, backlogLoading: false }));

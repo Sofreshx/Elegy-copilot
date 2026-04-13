@@ -48,6 +48,9 @@ export default function TodoView() {
   const [error, setError] = useState<string | null>(null);
   const [repoError, setRepoError] = useState<string | null>(null);
 
+  /* ── Multi-select state ── */
+  const [selectedBulletIds, setSelectedBulletIds] = useState<string[]>([]);
+
   /* ── Fetch repos on mount ── */
   useEffect(() => {
     let cancelled = false;
@@ -122,6 +125,38 @@ export default function TodoView() {
   }, [selectedRepoId]);
 
   /* ── Actions ── */
+
+  function toggleSelect(bulletId: string) {
+    setSelectedBulletIds((prev) =>
+      prev.includes(bulletId) ? prev.filter((id) => id !== bulletId) : [...prev, bulletId]
+    );
+  }
+
+  async function planFromSelected() {
+    const selected = bullets.filter((b) => selectedBulletIds.includes(b.id));
+    if (selected.length === 0 || !selectedRepoId) return;
+
+    sessionWizardStore.reset();
+    await sessionWizardStore.loadProjects();
+    const projects = sessionWizardStore.getState().projects;
+    const match = projects.find(p => p.repoId === selectedRepoId);
+    if (match) {
+      sessionWizardStore.selectProject(match);
+    }
+
+    const objectiveText = `Create an implementation plan addressing the following backlog items:\n\n${selected.map(b => `- ${b.title}${b.summary ? `: ${b.summary}` : ''}`).join('\n')}`;
+    sessionWizardStore.setObjective(objectiveText);
+    sessionWizardStore.setAgentId('orchestrator-cli');
+
+    for (const b of selected) {
+      sessionWizardStore.toggleBullet(b.id);
+    }
+
+    const hasProject = sessionWizardStore.getState().selectedProject !== null;
+    sessionWizardStore.setStep(hasProject ? 1 : 0);
+    navigationStore.openWizard('session');
+    setSelectedBulletIds([]);
+  }
 
   async function refetchBullets() {
     if (!selectedRepoId) return;
@@ -411,6 +446,29 @@ export default function TodoView() {
             ))}
           </div>
 
+          {/* Bulk action bar */}
+          {selectedBulletIds.length > 0 && (
+            <div className="todo-bulk-bar" data-testid="todo-bulk-bar">
+              <span className="todo-bulk-count">{selectedBulletIds.length} selected</span>
+              <button
+                type="button"
+                className="todo-bulk-plan"
+                data-testid="todo-bulk-plan"
+                onClick={() => void planFromSelected()}
+              >
+                📋 Plan from these
+              </button>
+              <button
+                type="button"
+                className="todo-bulk-clear"
+                data-testid="todo-bulk-clear"
+                onClick={() => setSelectedBulletIds([])}
+              >
+                Clear selection
+              </button>
+            </div>
+          )}
+
           {/* ── Bullet list ── */}
           {bulletsLoading ? (
             <p className="todo-empty-state" data-testid="todo-loading">Loading…</p>
@@ -430,6 +488,15 @@ export default function TodoView() {
                     className={`todo-item${done ? ' todo-item-done' : ''}`}
                     data-testid={`todo-item-${bullet.id}`}
                   >
+                    <input
+                      type="checkbox"
+                      className="todo-item-select"
+                      data-testid={`todo-select-${bullet.id}`}
+                      checked={selectedBulletIds.includes(bullet.id)}
+                      onChange={() => toggleSelect(bullet.id)}
+                      title="Select for bulk actions"
+                    />
+
                     <input
                       type="checkbox"
                       className="todo-item-checkbox"
@@ -465,6 +532,14 @@ export default function TodoView() {
                         {bullet.title}
                       </span>
                     )}
+
+                    <span
+                      className={`todo-item-state todo-state-${bullet.state}`}
+                      data-testid={`todo-state-${bullet.id}`}
+                      title={`State: ${bullet.state}`}
+                    >
+                      {bullet.state}
+                    </span>
 
                     <button
                       type="button"
