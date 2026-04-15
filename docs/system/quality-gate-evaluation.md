@@ -31,7 +31,7 @@ Each gate has an input condition, a pass/fail decision, and routing behavior.
 | Field | Value |
 |---|---|
 | **Input** | Completed code change with test suite |
-| **Pass condition** | All targeted unit tests pass; no assertion count regressions; no dead tests detected by `@test-quality-reviewer` |
+| **Pass condition** | All targeted unit tests pass; no assertion count regressions; no dead/shallow-test concerns detected during validation review |
 | **Fail behavior** | Block integration routing; return to implementation lane with failure evidence |
 | **Skip condition** | Change is docs-only, config-only, or has no unit-testable behavior |
 | **Output** | `unit_gate: PASS | FAIL | SKIPPED` with evidence summary |
@@ -68,14 +68,12 @@ Each gate has an input condition, a pass/fail decision, and routing behavior.
 
 ## Integration with Existing System
 
-- **`@o-validation-coordinator`**: Evaluates unit and integration gates. Uses this doc's gate logic to decide routing.
-- **`@e2e-validator`**: Evaluates E2E gate when triggered by policy or coordinator.
-- **`@test-quality-reviewer`**: Provides input to unit gate (dead test detection, assertion quality).
+- **`@test-runner`**: Evaluates unit, integration, and E2E gates using this doc's gate logic.
 - **Closure summary**: Must include gate results per `docs/system/validation-governance.md` reporting contract.
 
 ## Orchestrator Responsibilities
 
-The orchestrator (or its coordinator delegate) must:
+The orchestrator must:
 
 1. Evaluate each gate in order before routing to the next layer.
 2. Never skip a required gate without documenting the skip reason.

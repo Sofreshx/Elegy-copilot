@@ -77,8 +77,8 @@ More contributor and community guidance:
 
 | Type | Count | Location |
 |------|-------|----------|
-| Agents | 45 | `engine-assets/agents/*.agent.md` |
-| Skills | 59 | `engine-assets/skills/<name>/SKILL.md` |
+| Agents | 18 | `engine-assets/agents/*.agent.md` |
+| Skills | 61 | `engine-assets/skills/<name>/SKILL.md` |
 | Prompts | 3 | `engine-assets/prompts/*.prompt.md` |
 | Instructions | 1 | `engine-assets/copilot-instructions.md` |
 | Canonical asset manifest | — | `engine-assets/manifest.json` |
@@ -90,17 +90,17 @@ More contributor and community guidance:
 
 | Agent | Purpose |
 |-------|---------|
-| `@orchestrator` | Recommended general entry point — routes tasks by complexity and delegates to specialised agents |
-| `@orchestrator-cli` | Copilot CLI root coordinator — same orchestration model, but uses Rubber Duck for plan review |
+| `@orchestrator-gpt` / `@orchestrator-claude` | Preferred flagship entry points for GPT-5.4 and Claude Opus 4.6 sessions |
+| `@orchestrator-gpt-cli` / `@orchestrator-claude-cli` | Preferred Copilot CLI flagship entry points that use Rubber Duck for plan review |
+| `@orchestrator` / `@orchestrator-cli` | Model-agnostic compatibility orchestrators when the host model is unknown |
+| `@o-reframer` | Claude-backed request reframing and ambiguity capture |
+| `@o-planner` | Single planning leaf for actionable plan packs |
 | `@code-explorer` | Read-only codebase analysis and Q&A |
-| `@code-architect` | Designs feature architectures from existing patterns |
 | `@impl` | Unified implementation lane for app/domain or infra work units (`kind: business | infra`) |
-| `@code-reviewer` | Bug, logic, and security review |
-| `@goal-reviewer` | End-gate goal completion assessor (`complete|partial|not-complete`) that emits read-only unresolved-goal sync instructions for the workflow/docs lane |
-| `@final-reviewer` | Requested-vs-delivered and remaining-work post-mortem summary |
-| `@unit-test-runner` | Runs unit tests safely with timeouts |
-| `@security-auditor` | Security audit and remediation guidance |
-| `@agent-governor` | Read-only structural audit pointer for existing agent files |
+| `@code-reviewer` | Single reviewer leaf for spec-fit, correctness, regression, and convention review |
+| `@deep-researcher` | Single orchestrator-only GPT-5.4 research lane |
+| `@test-runner` | Consolidated unit, integration, and browser/E2E validation lane |
+| `@doc-writer` | Markdown docs and durable planning-surface writing lane |
 
 `@orchestrator` is the recommended default for new work. Persisted session-state artifacts remain
 available for workflows that explicitly hand off approved plan packs into

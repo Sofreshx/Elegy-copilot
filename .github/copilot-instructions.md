@@ -131,9 +131,8 @@ Legacy note:
 Use subagents to keep work high-signal and consistent. Prefer only the ones that clearly apply:
 - **Orchestrator**: `@orchestrator` (VS Code) or `@orchestrator-cli` (Copilot CLI — uses native Rubber Duck for plan review). Single entry point for complex work.
 - **Search/Execute (preferred capability routing)**: use `@search` to resolve the smallest relevant capability, then `@execute` to turn it into a compact downstream brief before loading heavy context.
-- Core: `@code-explorer`, `@code-reviewer`, `@unit-test-runner`, `@integration-test-runner`.
+- Core: `@code-explorer`, `@code-reviewer`, `@test-runner`.
 - Implementation: `@impl` (unified — accepts `kind: business | infra`).
-- Audit: `@security-auditor`, `@stack-auditor`, and `@deploy-auditor` depending on the change.
 - Tasking: use `@orchestrator` to plan and execute; avoid creating repo-local task files.
 - Planning: `@orchestrator` (preferred) for all planning workflows.
 - Context: keep durable notes in repo docs or host artifacts (context-curator removed).
@@ -173,7 +172,7 @@ Note: The "Completion Gate" rule ("ask one targeted question") applies to genera
 
 ## Skills (Default to Skills)
 If a task maps to a known domain, treat skills as the default path:
-- A few transversal skills are always loaded in `~/.copilot/skills/`: `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`.
+- A few transversal skills are always loaded in `~/.copilot/skills/`: `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`, `project-guidelines`.
 - **Most domain skills live in `~/.copilot/skills-vault/`** and are NOT loaded by default (saves tokens).
 - Use the staged routing model by default:
 	1. `@search` resolves the smallest relevant capability.
@@ -206,9 +205,8 @@ If a task maps to a known domain, treat skills as the default path:
 ## Testing
 - Run the narrowest relevant tests after changes.
 - When adding features or fixing bugs, add relevant unit/integration tests.
-- **Unit test execution**: Use `@unit-test-runner` (timeouts, non-interactive mode, safe flags).
+- **Test execution**: Use `@test-runner` (timeouts, non-interactive mode, safe flags, and lane-owned unit/integration/browser selection).
 - Generic implementation lanes may request test scope, but they should not execute test commands directly.
-- **Integration test execution**: Use `@integration-test-runner` when policy, risk, or coverage gaps require broader validation; ask before unusually heavy runs.
 - **Integration test authoring**: Prefer Alba (`alba-integration-tests`).
 - **Long E2E/integration runs**: Ask the user before running them and capture any decline in chat or host/session artifacts when a durable note is needed.
 - **Segment large test suites** into smaller batches (e.g., by test class filter).

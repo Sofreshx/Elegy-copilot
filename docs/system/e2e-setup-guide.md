@@ -20,7 +20,7 @@ This repo supports **two** distinct browser-testing flows. Keeping them separate
 Use when you want browser confirmation during an active coding session, especially when policy or
 risk requires real browser coverage for a changed surface.
 
-- Orchestrator route: `@e2e-validator` → `@e2e-browser`
+- Orchestrator route: `@test-runner` when the orchestrator selects browser/E2E coverage
 - Browser tool: `agent-browser` CLI (snapshot-ref workflow)
 - Evidence: snapshot-first (screenshots on failure, or when explicitly requested)
 - Execution rule: keep this lane serial; do not overlap it with active write work

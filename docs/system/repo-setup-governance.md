@@ -175,8 +175,8 @@ The default governance posture remains repo-local for repo-specific governance l
 
 This lane has one narrow exception:
 
-- the shared shipped `repo-setup-governance-global` bundle may install the user-invocable
-  `repo-setup-governor` agent and the `repo-setup-governance` skill into the user-global surface
+- the shared shipped `repo-setup-governance-global` bundle may install the
+  `repo-setup-governance` skill into the user-global surface
 - shipped profile-definition and runtime-projection files under
   `engine-assets/skills/repo-setup-governance/` may ship with that shared lane as authority/
   bootstrap artifacts for classification and update planning

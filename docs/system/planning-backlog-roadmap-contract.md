@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-06-22
+updated: 2026-04-15
 category: system
 status: current
 doc_kind: node
@@ -88,6 +88,12 @@ Primary supported Planning-tab workflow:
 2. promote selected work into `~/.copilot/backlogs/{repo-name}/backlogs/*.md` or reference existing `RB-*` items
 3. organize selected backlog work into `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`
 4. hand one approved slice into `plan.md`
+
+Planning-surface selection and persistence rules are orchestrator-owned. The shipped/default workflow
+must not rely on dedicated `@backlog-planner` or `@roadmap-planner` routes to decide where roadmap
+or backlog work belongs. When the selected surface needs repo-backed writing, the orchestrator should
+use existing writing lanes plus the relevant planning skills/authoring guidance instead of introducing
+separate planner-agent authority lanes.
 
 Plan Packs may also be seeded directly from bullets, backlog items, or roadmap items when explicit
 `PB-*`, `RB-*`, and `RM-*` IDs are preserved.

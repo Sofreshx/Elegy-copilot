@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-22
+updated: 2026-04-15
 category: system
 status: current
 doc_kind: node
@@ -87,17 +87,14 @@ At session end or pause, the orchestrator should normalize:
 - limitations of the run, including cases where evidence is incomplete or the user stopped before
   closure
 
-This summary is composed from execution outcomes plus `@code-reviewer`, `@goal-reviewer`,
-`@final-reviewer`, `@follow-up-finder`, `@remaining-work`, and validation lanes. Ownership stays
-split: `@goal-reviewer` is the active-goal closure gate, `@final-reviewer` is the
-requested-vs-delivered closure narrative, `@follow-up-finder` structures open follow-up work, and
-`@remaining-work` is only a heuristic signal/input rather than a stop/go authority. The orchestrator
-is responsible for normalizing those signals into one closure view instead of pretending one lane
-owns every closure fact.
+This summary is composed from execution outcomes, `@code-reviewer`, validation lanes, and any
+durable planning or carryover state the orchestrator selected during the run. Closure authority stays
+with the orchestrator: it normalizes reviewer findings, validation evidence, and carryover decisions
+into one closure view instead of delegating stop/go judgment to helper lanes.
 
 ## Quick Start
 
-1. **Invoke**: Type `@orchestrator` followed by your request.
+1. **Invoke**: Prefer `@orchestrator-claude` or `@orchestrator-gpt` for normal work; use the base orchestrators only as compatibility surfaces when the model-specific entrypoint is unavailable or the host model is unknown.
 2. **Answer interactive clarifications**: When blocking clarification or a proceed-anyway decision is needed, the orchestrator uses `vscode/askQuestions` through the interactive flow.
 3. **Review the plan interactively** (for non-trivial work): Approve, revise, or cancel in that flow rather than through a plain-text end-of-plan question.
 4. **Watch it execute**: Work units are delegated to specialist agents.
@@ -105,23 +102,26 @@ owns every closure fact.
 
 ## Which Orchestrator?
 
-Model-specific orchestrator variants exploit each model family's strengths and mitigate their
-weaknesses through targeted delegation strategies. The base (model-agnostic) variants remain the
-safe default. See `docs/system/model-capability-profile.md` for the underlying model profiles.
+Model-specific orchestrator variants are the preferred shipped entrypoints. Instruction Engine centers orchestration on the flagship model families — `@orchestrator-claude` for Claude Opus 4.6 sessions and `@orchestrator-gpt` for GPT-5.4 sessions. The base (model-agnostic) variants remain compatibility surfaces when the host model is unknown or a model-specific entrypoint is unavailable. See `docs/system/model-capability-profile.md` for the underlying model profiles.
 
-| Your environment | Your host model | Use this |
-|---|---|---|
-| VS Code | Claude (any) | `@orchestrator-claude` |
-| VS Code | GPT (any) | `@orchestrator-gpt` |
-| VS Code | Unknown/other | `@orchestrator` (base, model-agnostic) |
-| Copilot CLI | Claude (any) | `@orchestrator-claude-cli` |
-| Copilot CLI | GPT (any) | `@orchestrator-gpt-cli` |
-| Copilot CLI | Unknown/other | `@orchestrator-cli` (base, model-agnostic) |
+| Your environment | Your host model | Preferred entrypoint | Compatibility fallback |
+|---|---|---|---|
+| VS Code | Claude Opus 4.6 / Claude-hosted | `@orchestrator-claude` | `@orchestrator` |
+| VS Code | GPT-5.4 / GPT-hosted | `@orchestrator-gpt` | `@orchestrator` |
+| VS Code | Unknown/other | `@orchestrator` | NONE |
+| Copilot CLI | Claude Opus 4.6 / Claude-hosted | `@orchestrator-claude-cli` | `@orchestrator-cli` |
+| Copilot CLI | GPT-5.4 / GPT-hosted | `@orchestrator-gpt-cli` | `@orchestrator-cli` |
+| Copilot CLI | Unknown/other | `@orchestrator-cli` | NONE |
 
 **Key differences:**
-- **Claude variants** add `@deep-researcher` (GPT 5.4) for cross-model deep analysis. Claude crafts precise prompts before GPT delegation.
-- **GPT variants** add `@prompt-refiner` (Claude 4.6) to resolve ambiguous input before planning. Skipped for clear, structured requests.
-- **CLI variants** use Copilot CLI's native Rubber Duck for plan review instead of reviewer agents.
+- **Claude variants** are the preferred flagship entrypoint for ambiguous or conversational work. They keep orchestration on Claude Opus 4.6, use Claude-backed reframing, and delegate only the dedicated research lane to GPT-5.4 when deeper evidence is warranted.
+- **GPT variants** are the preferred flagship entrypoint for well-scoped structured work. They still rely on the Claude-backed `@o-reframer` lane to sharpen raw prompts before GPT-led planning and execution.
+- **CLI variants** keep Copilot CLI's native Rubber Duck review behavior instead of explicit plan-review agents.
+- **Code exploration** stays on `@code-explorer` with an Auto/smaller-model posture so premium reasoning remains concentrated at the orchestration edge.
+- **Research** is consolidated to `@deep-researcher` as the single orchestrator-only GPT-5.4 research lane.
+- **Implementation** stays lean: `@execute` remains the capability-brief extraction lane, and `@impl` is the default shipped write-capable implementation lane.
+- **Testing** is consolidated to `@test-runner`, which owns unit, integration, and browser/E2E validation selection inside one lane.
+- **Roadmap/backlog planning surfaces** remain orchestrator-owned. When persistence is needed, the orchestrator selects the surface and routes the actual write through existing writing lanes and skills rather than dedicated backlog/roadmap planner agents.
 
 ## How Requests Are Routed
 
@@ -133,7 +133,7 @@ The orchestrator classifies every request by complexity:
 | **Standard** | Plan → execute → verify | "Add a new API endpoint for user profiles" |
 | **Complex** | Discuss → research → plan → execute → review → verify | "Redesign the authentication system" |
 
-You don't choose the complexity — the orchestrator's `@o-reframer` subagent analyzes your request and classifies it automatically. If uncertain, it defaults to "standard" and may ask you to confirm scope.
+You don't choose the complexity — the orchestrator's Claude-backed `@o-reframer` subagent analyzes your request and classifies it automatically. If uncertain, it defaults to "standard" and may ask you to confirm scope.
 
 ### Planning Surface Routing
 
@@ -161,7 +161,7 @@ Delivery-oriented requests such as commit prep, review prep, and CI result check
 
 ## Default Routing Policy: `balanced-default`
 
-`@orchestrator` remains the default general entry point even as more capability packs, bundles, and workflows become available.
+When the host model is known, the model-specific orchestrators remain the preferred general entry point. `@orchestrator` stays as the model-agnostic compatibility fallback when that model-specific routing is unavailable.
 
 The default policy is **balanced-default**:
 
@@ -185,17 +185,13 @@ Current prompt/runtime hardening assumes a safe fallback when the backend has no
 
 In that case, the orchestrator stays inside a curated shipped first-party baseline for automatic routing:
 
-- `@o-reframer`, `@o-planner`, `@roadmap-planner`, `@search`, `@execute`
-- `@work-unit-runner`, `@impl`
-- `@code-explorer`, `@code-architect`, `@code-reviewer`
-- `@research-ideation`, `@doc-writer`, `@goal-reviewer`, `@final-reviewer`, `@follow-up-finder`, `@remaining-work`
-- `@o-validation-coordinator`, `@unit-test-runner`, `@integration-test-runner`, `@e2e-validator`
-- `@backlog-planner`
+- `@o-reframer`, `@o-planner`, `@search`, `@execute`
+- `@impl`
+- `@code-explorer`, `@code-reviewer`
+- `@deep-researcher`, `@doc-writer`
+- `@test-runner`
 
-It should **not** auto-select optional audit lanes, provider/imported capabilities, persisted
-session-state workflows, or cross-model reviewers from fallback alone. Planning-time cross-model
-reviewers remain workflow-specific and should run only when an explicit workflow or runtime policy
-snapshot selects them.
+It should **not** auto-select optional audit lanes, provider/imported capabilities, compatibility-only split planning/testing/research lanes, persisted session-state workflows, or cross-model reviewers from fallback alone. Planning-time cross-model reviewers remain workflow-specific and should run only when an explicit workflow or runtime policy snapshot selects them.
 
 ### When a persisted session-state lane is chosen instead
 
@@ -209,21 +205,15 @@ Use an explicit persisted session-state workflow when you need:
 
 ## V1 Nested Delegation Topology
 
-The shipped V1 topology keeps `@orchestrator` as both the root session owner and the root loop
-owner.
+The shipped V1 topology keeps `@orchestrator` as both the root session owner and the root loop owner.
 
 - The effective repo depth cap is 3: `@orchestrator` -> approved coordinator -> leaf.
 - Host/runtime nesting support up to depth 5 is runtime headroom only; the shipped repo topology stays bounded and explicit rather than generally recursive.
-- Planning uses direct orchestrator → `@o-planner` delegation (no planning coordinator).
-- `@o-validation-coordinator` is the bounded validation-overlap coordinator path. It may delegate
-  only to `@unit-test-runner` and `@integration-test-runner`, and integration validation remains
-  policy-driven rather than confirmation-driven.
-- `@e2e-validator` is the narrow validation-only coordinator exception and may delegate only to
-  `@e2e-browser`.
-- Write-capable implementation lanes and reviewer lanes remain leaf-only in V1.
+- Planning uses direct orchestrator-managed surface selection. `@o-planner` stays the default leaf for plan-pack generation; durable backlog/roadmap persistence stays orchestrator-owned and should use existing writing lanes plus planning skills when a repo write is required.
+- Validation uses the single leaf `@test-runner`, which selects unit, integration, and browser/E2E coverage inside one lane instead of routing through separate validation coordinators.
+- Write-capable implementation lanes and reviewer lanes remain leaf-only in V1. `@impl` is the default shipped implementation lane; older split implementation lanes are compatibility-only.
 - Coordinator-to-coordinator chains are disallowed in V1.
-- When nested planning is unavailable or disabled, use the legacy-depth-1 fallback: direct
-  orchestrator -> `@o-planner` planning.
+- When nested planning is unavailable or disabled, use the legacy-depth-1 fallback: direct orchestrator -> `@o-planner` planning.
 
 ## The Lifecycle
 
@@ -277,8 +267,11 @@ tradeoffs, or explicit user preference makes that approval materially necessary.
 This phase runs only when the selected surface includes a plan pack and `execution_readiness` is
 `ready` or `stageable`. Roadmap-only and `none` requests skip the plan-pack lane entirely.
 
-Planning uses direct orchestrator → `@o-planner` delegation. The orchestrator gathers exploration
-context via `@search` / `@execute` and passes findings to leaf-only `@o-planner`.
+Planning uses direct orchestrator → planning-leaf delegation. `@o-planner` is the default planner.
+For complex plan-pack work with large exploration payloads, failed prior plans, or unusually high
+decomposition risk, the orchestrator may explicitly escalate to `@o-planner-gpt`. The orchestrator
+gathers exploration context via `@search` / `@execute` and passes findings to the selected
+leaf-only planner.
 
 Planning refines the **Session Intent Frame** into an execution-ready shape: success criteria,
 validation expectations, missing work that still needs explicit handling, and whether any durable repo
@@ -298,14 +291,7 @@ When Phase 2 needs plan approval, blocking clarification, or an explicit proceed
 Do not fall back to plain-text end-of-plan questions for those decisions.
 
 ### Phase 3: Execute
-The default execution topology is one ready work group at a time through `@work-unit-runner`. The
-orchestrator delegates only the active group, tracks progress after each group, and uses direct
-specialist implementers only when a single WU is clearly one-lane work. Implementer lanes may request
-test scope, but long-running test commands stay in the dedicated runners: unit validation through
-`@unit-test-runner`, integration validation through `@o-validation-coordinator` / `@integration-test-runner`
-when policy or risk requires it, and agent-driven browser validation serially through
-`@e2e-validator` -> `@e2e-browser`. Timeout, stalled-output, and inconclusive validation are treated as
-completed attempts that trigger retry, replan, or user input rather than indefinite waiting.
+The default execution topology is one ready work group at a time through the lean implementation surface centered on `@impl`. The orchestrator delegates only the active slice, tracks progress after each slice, and keeps `@execute` available only for capability-brief extraction when additional constraints or authoring guidance are needed. Implementer lanes may request test scope, but long-running test commands stay in the consolidated `@test-runner` lane for unit, integration, and browser/E2E coverage. Timeout, stalled-output, and inconclusive validation are treated as completed attempts that trigger retry, replan, or user input rather than indefinite waiting.
 
 For any write-capable work unit that affects behavior, workflow policy, or a documentation-backed
 feature, the delegated leaf must independently load the smallest relevant canonical docs entrypoint
@@ -317,28 +303,28 @@ must pause execution and ask the user for direction before it retries, replans, 
 write-capable work.
 
 When a completed or frozen slice can be validated without reopening active writes, the orchestrator may
-use `@o-validation-coordinator` for bounded validation overlap. That overlap is conditioned on
-`overlap_risk`, dependency safety, and current repo policy constraints. Integration validation is
-policy-driven, not confirmation-driven; E2E remains serial and should not overlap active write work.
+route that bounded validation through `@test-runner`. That overlap is conditioned on `overlap_risk`,
+dependency safety, and current repo policy constraints. Integration validation remains policy-driven,
+and browser/E2E validation stays serial with active write work.
 
 During execution, the orchestrator keeps the Session Intent Frame current enough to preserve
 resumability, especially when scope edges change, confidence drops, or refactor/coherence work is
 discovered.
 
 ### Phase 4: Verify
-Final verification uses a layered end gate: `@code-reviewer` for final code quality, `@goal-reviewer` for high-level goal completion plus read-only unresolved-goal sync instructions, then `@doc-writer` for any required `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` reconciliation, and finally `@final-reviewer` for the requested-vs-delivered closure summary. The orchestrator now treats `GOAL_REVIEW` as an active gate:
+Final verification uses a lean end gate: `@code-reviewer` for final code quality and request/spec-fit,
+`@test-runner` for the required validation surface, and `@doc-writer` only when durable carryover
+artifacts under `~/.copilot/backlogs/{repo-name}/**` need to be written or reconciled. The
+orchestrator owns the high-level judgment about whether goals are complete, partial, or blocked, and
+it decides whether unresolved goals or Repository Backlog carryover should be persisted.
 
-- `APPROVED` → continue closure, and route any `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` sync through `@doc-writer`
-- `NEEDS_REVISION` → go back to execution/replan for active-goal gaps instead of treating the run as done
-- `BLOCKED` → pause closure until the missing goal/evidence context is supplied
+When reconciliation runs, `@doc-writer` keeps only unresolved goals that are no longer active,
+preserves existing entries by Goal Statement, and removes carryover entries that are now complete or
+active again.
 
-When reconciliation runs, `@doc-writer` keeps only unresolved goals that are no longer active, preserves existing entries by Goal Statement, and removes carryover entries that are now complete or active again. When `GOAL_REVIEW.unresolved_goals_path = NONE`, the orchestrator either performs a removal-only clean-up (if prior carryover entries should now be removed) or leaves the file untouched.
-
-When closure also needs durable Repository Backlog carryover, the orchestrator should preserve an explicit `session_backlog_path` from `@goal-reviewer` and prefer `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` for new carryover.
-
-If a fast workspace/session-state scan is useful, `@remaining-work` may provide supporting evidence
-about likely open work, but it must not override `GOAL_REVIEW` or the closure narrative owned by
-`@final-reviewer`.
+When closure also needs durable Repository Backlog carryover, the orchestrator should preserve an
+explicit `session_backlog_path` and prefer
+`~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` for new carryover.
 
 Verification is also where the orchestrator assembles most of the **Session Closure Summary**:
 requested-vs-delivered facts, goal closure, validation requirements, tested coverage, code-quality /
@@ -363,17 +349,18 @@ pick one to continue, or choose `Stop — all done` only when closure is actuall
 This phase finalizes the **Session Closure Summary** by separating:
 
 - active continuation work for the same session/request
-- durable repo-planning follow-ups that belong in backlog/roadmap lanes
+- durable repo-planning follow-ups that belong on orchestrator-managed backlog/roadmap surfaces
 - carryover issue-doc material such as unresolved goals or out-of-scope findings
 
-When durable repo-planning follow-ups exist, the orchestrator should use `@follow-up-finder` to
-structure Repository Backlog carryover under `work_not_done`, `issues`, and `suggestions`, then route
-persistence or cleanup through `@backlog-planner` so `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` stays the
-primary end-of-session backlog surface.
+When durable repo-planning follow-ups exist, the orchestrator should structure Repository Backlog
+carryover under `work_not_done`, `issues`, and `suggestions`, then route any required persistence or
+cleanup through existing writing lanes such as `@doc-writer` so
+`~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` stays the primary end-of-session
+backlog surface.
 
-Use `@follow-up-finder` to structure active continuation work, blockers, and carryover ownership.
-Use `@remaining-work` only when a heuristic git/session-state signal would help identify open work;
-it does not decide whether `Stop — all done` is allowed.
+The orchestrator should structure active continuation work, blockers, and carryover ownership
+directly. Fast git/workspace/session-state scans may still help identify open work, but they do not
+decide whether `Stop — all done` is allowed.
 
 The orchestrator should say explicitly when a limitation remains unresolved rather than implying hidden
 memory or automatic future pickup.
@@ -382,34 +369,24 @@ memory or automatic future pickup.
 
 | Agent | Role |
 |---|---|
-| `@o-reframer` | Analyzes requests, classifies complexity |
-| `@o-validation-coordinator` | Bounded validation overlap coordinator for completed or frozen slices |
+| `@o-reframer` | Claude-backed request analysis and classification for routing, scope edges, and ambiguity capture |
 | `@o-planner` | Produces plan packs from enriched briefs |
-| `@roadmap-planner` | Durable multi-session roadmap/backlog lane; leaf-only and not a coordinator handoff into `@o-planner` |
-| `@backlog-planner` | Maintains `~/.copilot/backlogs/{repo-name}/backlogs/*.md`, converts backlog items into roadmap or direct plan-handoff briefs, and cleans consumed backlog/roadmap items |
 | `@reviewer-opus-4-6` | VS Code / non-CLI planning reviewer for cross-model plan risk and completeness review |
 | `@reviewer-gpt-5-4` | VS Code / non-CLI planning reviewer that validates the plan and prior review feedback |
-| `@work-unit-runner` | Implements individual work units |
-| `@code-explorer` | Read-only codebase analysis |
-| `@code-architect` | Design decisions and blueprints |
-| `@impl-reviewer` | Targeted overlay for plan-vs-request/spec fit and implementation-vs-spec review |
-| `@logic-reviewer` | Optional overlay for plan or change review on correctness, sequencing, and edge cases |
-| `@consistency-reviewer` | Optional overlay for plan or change review on conventions and alignment |
-| `@code-reviewer` | Quality gates (APPROVED/NEEDS_REVISION/FAILED) |
-| `@goal-reviewer` | High-level goal closure gate (`APPROVED|NEEDS_REVISION|BLOCKED`) plus per-goal completion states (`complete|partial|not-complete`) + read-only unresolved-goal sync instructions |
-| `@doc-writer` | Documentation lane, including deterministic reconciliation of `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` after `@goal-reviewer` |
-| `@final-reviewer` | Requested-vs-delivered closure summary, including the narrative "what remains" summary, while respecting `GOAL_REVIEW` status |
-| `@follow-up-finder` | Structures actionable follow-up work, blockers, and backlog carryover; not a closure gate |
-| `@remaining-work` | Heuristic git/session-state remaining-work signal; advisory only, not closure authority |
-| `@research-ideation` | Web + codebase research |
-| `@unit-test-runner` | Unit test execution |
-| `@integration-test-runner` | Integration tests when policy or risk requires broader validation |
-| `@e2e-validator` | Policy-driven agent-browser validation coordinator for risky browser coverage |
-| `@e2e-browser` | Serial browser automation using `agent-browser` CLI |
+| `@code-explorer` | Read-only codebase analysis on an Auto/smaller-model posture |
+| `@execute` | Capability-brief extraction lane that loads the selected skill, agent, or canonical doc and distills only the constraints needed downstream |
+| `@impl` | Default shipped write-capable implementation lane |
+| `@code-reviewer` | Single shipped reviewer leaf for quality gates plus request/spec-fit review |
+| `@doc-writer` | Documentation lane, including deterministic reconciliation of carryover docs and repo-backed planning persistence when the orchestrator selects a durable surface |
+| `@deep-researcher` | Single orchestrator-only GPT-5.4 research lane for evidence-backed option evaluation and systematic analysis |
+| `@test-runner` | Consolidated unit, integration, and browser/E2E validation lane |
+
+Governance, conventions, and authoring guidance should prefer skills and canonical docs rather than a
+long tail of direct-invocation helper agents.
 
 ## How `@search` and `@execute` fit in
 
-Most users should still start with `@orchestrator` (VS Code / other chat surfaces) or `@orchestrator-cli` (Copilot CLI), not invoke discovery/apply agents directly.
+Most users should still start with the flagship model-specific orchestrators — `@orchestrator-claude` / `@orchestrator-gpt` in VS Code-style chat surfaces or `@orchestrator-claude-cli` / `@orchestrator-gpt-cli` in Copilot CLI — rather than invoking discovery/apply agents directly. The base orchestrators remain compatibility fallbacks.
 
 Inside the default workflow:
 

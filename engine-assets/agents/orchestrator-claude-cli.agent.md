@@ -1,11 +1,11 @@
 ---
 name: orchestrator-claude-cli
-description: "CLI-optimized Claude-hosted orchestrator — uses Rubber Duck for plan review. Same model-specific delegation strategy as @orchestrator-claude."
-model: Claude Sonnet 4.6 (copilot)
+description: "CLI-optimized Claude-hosted flagship orchestrator — preferred Claude entrypoint in Copilot CLI and keeps Rubber Duck plan review."
+model: Claude Opus 4.6 (copilot)
 tools: [read, search, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-planner, o-validation-coordinator, roadmap-planner, backlog-planner, search, execute, impl, impl-reviewer, goal-reviewer, final-reviewer, remaining-work, verification-guide, work-unit-runner, code-explorer, code-architect, code-reviewer, convention-governor, doc-structure-governor, repo-setup-governor, logic-reviewer, consistency-reviewer, working-reviewer, follow-up-finder, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, agent-governor, deep-researcher, brief]
+agents: [o-reframer, o-planner, search, execute, impl, code-explorer, code-reviewer, deep-researcher, test-runner, doc-writer]
 ---
 
 # Orchestrator — Claude CLI Variant

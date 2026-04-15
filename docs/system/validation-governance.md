@@ -1,6 +1,6 @@
 ---
 created: 2026-04-03
-updated: 2026-04-08
+updated: 2026-04-15
 category: system
 status: current
 doc_kind: node
@@ -32,14 +32,14 @@ Test-quality expectations for any validation artifact are governed by
 
 | Layer | Mandatory when | Default route/tool | If required coverage is missing |
 | --- | --- | --- | --- |
-| Unit | Most behavior-affecting code changes, especially when the changed logic can be verified narrowly in-process | `@o-validation-coordinator` -> `@unit-test-runner` by default. If a direct unit command is needed, it stays inside the validation lane as the runner's narrow deterministic execution path. | Closure confidence must not be `high`; report the gap explicitly |
-| Integration | Cross-boundary behavior, storage/network/API contract changes, new features with weak unit-only coverage, auth/session coupling, or repo policy requiring broader confirmation | `@o-validation-coordinator` -> `@integration-test-runner` by default. Any fallback integration command must remain inside the validation lane/coordinator path. | Keep the gap explicit; do not imply unit coverage alone closed the risk |
-| E2E | Browser-visible or stateful user journeys, auth/login/logout flows, risky UI/API behavior changes, new or untested UI surfaces, or cases where only a real browser confirms the behavior | Agent-driven validation: `@e2e-validator` -> `@e2e-browser` with `agent-browser` CLI. Durable scripted suites: Playwright CLI/test runner | Closure must call out the missing browser coverage and any resulting limitation or inconclusive outcome |
+| Unit | Most behavior-affecting code changes, especially when the changed logic can be verified narrowly in-process | `@test-runner` by default. If a direct unit command is needed, it stays inside the consolidated testing lane as the runner's narrow deterministic execution path. | Closure confidence must not be `high`; report the gap explicitly |
+| Integration | Cross-boundary behavior, storage/network/API contract changes, new features with weak unit-only coverage, auth/session coupling, or repo policy requiring broader confirmation | `@test-runner` by default. Any fallback integration command must remain inside the consolidated testing lane. | Keep the gap explicit; do not imply unit coverage alone closed the risk |
+| E2E | Browser-visible or stateful user journeys, auth/login/logout flows, risky UI/API behavior changes, new or untested UI surfaces, or cases where only a real browser confirms the behavior | `@test-runner` chooses the correct browser path. Agent-driven validation uses `agent-browser` CLI; durable scripted suites use Playwright CLI/test runner. | Closure must call out the missing browser coverage and any resulting limitation or inconclusive outcome |
 
 ## Routing Boundary
 
-- Unit and integration validation route through validation-specific lanes/coordinators by default; implementation lanes must not bypass that boundary by self-running generic test commands as their validation claim.
-- A direct test command is only acceptable when a validation-specific lane uses it as its own narrow execution mechanism.
+- Validation routes through the consolidated `@test-runner` lane by default; implementation lanes must not bypass that boundary by self-running generic test commands as their validation claim.
+- A direct test command is only acceptable when `@test-runner` uses it as its own narrow execution mechanism.
 - Those direct-command exceptions inherit the same timeout controls, scope discipline, evidence capture, and closure-reporting requirements as runner-mediated validation.
 
 ## Typical E2E Triggers
@@ -54,12 +54,12 @@ E2E is commonly mandatory when one or more of these are true:
 
 ## Browser Tooling Split
 
-Instruction Engine intentionally keeps two browser-testing paths separate:
+Instruction Engine intentionally keeps two browser-testing paths separate inside the single testing lane:
 
 ### Agent-driven browser validation
 
-- Route: `@e2e-validator` -> `@e2e-browser`
-- Tool: `agent-browser` CLI
+- Route: `@test-runner`
+- Tool: `agent-browser` CLI selected by the testing lane
 - Use for: active coding-session validation, smoke checks, risky browser confirmation, and policy-driven
   E2E coverage during execution
 - Execution rule: keep it serial; do not overlap E2E with active write work
@@ -69,7 +69,7 @@ Instruction Engine intentionally keeps two browser-testing paths separate:
 - Tool: Playwright CLI/test runner
 - Use for: committed regression suites, CI gates, durable repeatable coverage, and project-owned test
   suites
-- Do not silently substitute this path for the agent-driven lane or vice versa
+- Do not silently substitute this path for the agent-driven browser path or vice versa
 
 ### Not the default path
 

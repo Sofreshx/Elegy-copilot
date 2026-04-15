@@ -140,13 +140,11 @@ The runtime-adoption slice is ready when all of the following are true:
   Session Closure Summary in chat-only form or return no derived summary surface.
 - Do not let persisted summary projections rewrite backlog, roadmap, unresolved-goals, or other durable
   repo-planning surfaces without their own explicit workflow.
-- Preserve existing review-lane ownership:
-  - `@goal-reviewer` owns gate status plus per-goal completion assessment
-  - `@final-reviewer` owns requested-vs-delivered closure analysis
-  - `@follow-up-finder` owns structuring concrete follow-up work and carryover categories
-  - `remaining-work` owns heuristic remaining-work signals from workspace/session-state inspection
-    only; it is not a closure stop/go authority
-  - the orchestrator normalizes those outputs into the Session Closure Summary
+- Preserve orchestrator-owned closure:
+  - the orchestrator owns per-goal completion assessment, requested-vs-delivered closure analysis,
+    and follow-up categorization
+  - reviewer and validation lanes provide evidence, not closure authority
+  - fast workspace/session-state inspection may inform closure, but it is not a separate stop/go lane
 
 ## Risks
 

@@ -45,31 +45,29 @@ Each high-level goal uses exactly one canonical completion state:
 
 These states are for outcome reporting and carryover decisions.
 
-### End-of-Execution Review Strategy
+### End-of-Execution Goal Strategy
 
-The end-of-execution reviewer split is additive:
+High-level goal completion is orchestrator-owned:
 
-- `@goal-reviewer` is the dedicated high-level goal completion assessor.
-- `@final-reviewer` remains the requested-vs-delivered summary gate.
-- `@goal-reviewer` stays read-only; a documentation lane such as `@doc-writer` performs any required `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` updates.
+- the orchestrator decides whether each goal is `complete`, `partial`, or `not-complete`
+- `@code-reviewer` and `@test-runner` provide evidence, but they do not own goal closure
+- `@doc-writer` performs any required `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` updates when the orchestrator decides carryover should persist
 
-This does not deprecate existing reviewer lanes.
+### Goal Closure Workflow Enforcement
 
-### `GOAL_REVIEW` Workflow Enforcement
+Execution workflows must treat the orchestrator's goal assessment as authoritative for goal closure:
 
-Execution workflows must treat `GOAL_REVIEW.status` as authoritative for goal closure:
+1. `complete` allows final closure to continue.
+2. `partial` or `not-complete` means one or more active goals still need execution, replan work, or carryover.
+3. If evidence is insufficient to judge closure, the workflow must pause final closure until unblocked.
 
-1. `APPROVED` allows final closure to continue.
-2. `NEEDS_REVISION` means one or more active goals still need execution or replan work and the run must not be treated as done.
-3. `BLOCKED` means the goal review lacks enough evidence/context to judge closure; the workflow must pause final closure until unblocked.
+Carryover persistence/removal is routed separately from the closure judgment:
 
-Carryover persistence/removal is routed separately from the review lane:
-
-1. `@goal-reviewer` emits read-only sync instructions (`unresolved_goals_path`, `session_backlog_path`, `carryover_goals`, `resolved_goals_to_remove`), including the provenance needed by the unresolved-goals doc schema.
+1. The orchestrator should emit explicit sync instructions (`unresolved_goals_path`, `session_backlog_path`, `carryover_goals`, `resolved_goals_to_remove`) when durable follow-up is needed.
 2. Workflows should pass an explicit carryover owner when one is known. If no stronger owner is available, use a deterministic fallback such as `workflow-orchestrator` rather than leaving Owner undefined.
 3. `session_backlog_path` should prefer `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`. `docs/backlog.md` is a deprecated legacy compatibility target only.
-4. The workflow routes unresolved-goal sync through `@doc-writer` or another explicit docs-writing lane and routes Repository Backlog sync through a backlog-writing lane such as `@backlog-planner`.
-5. No workflow should let `@goal-reviewer` write `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` or Repository Backlog docs directly.
+4. The workflow routes unresolved-goal sync and Repository Backlog persistence through `@doc-writer` or another explicit docs-writing lane.
+5. No workflow should let reviewer or validation lanes write `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` or Repository Backlog docs directly.
 
 ### Unresolved Goal Persistence Contract
 

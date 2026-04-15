@@ -13,8 +13,8 @@ tags: [planpack, spec, planning]
 
 This document defines the canonical structure of an assembled Plan Pack — the first top-level
 document persisted in a session's `plan.md` artifact, produced by `@o-planner` or another
-planner that writes persisted session-state artifacts, and consumed by `work-unit-runner` and
-session-state execution workflows.
+planner that writes persisted session-state artifacts, and consumed by orchestrator-managed
+execution workflows.
 
 > **Scope**: This spec covers the **final assembled** plan pack only. Sub-planning stages may
 > produce preliminary output that gets normalized by the planner during assembly; those
@@ -154,7 +154,7 @@ Operational notes for the runner:
 - The plan pack is **read-only** during execution. Progress is tracked in the appended `# Plan-Pack Progress Tracker`
   document within the same `plan.md` artifact (see [[session-state-artifacts]]
   [docs/system/session-state-artifacts.md](docs/system/session-state-artifacts.md)).
-- Each work unit is executed via `work-unit-runner`.
+- Each work unit is executed via `@impl` or another orchestrator-selected implementation lane.
 
 ### `## Risks / Rollback`
 
@@ -163,13 +163,13 @@ Top-level risks and rollback strategy for the entire plan. Distinct from per-WU 
 ### `## Validation`
 
 Default validation strategy applied after each group completes:
-- Default: `unit-test-runner` after each group completes.
+- Default: `@test-runner` after each group completes.
 - Integration and E2E may be mandatory even without an explicit user request when repo policy or
   current risk/coverage requires them.
 - The plan should state the validation requirement basis clearly enough that executors can tell what
   is mandatory versus nice-to-have.
-- Agent-driven browser validation routes through `@e2e-validator` -> `@e2e-browser` using
-  `agent-browser` CLI.
+- Agent-driven browser validation routes through `@test-runner` when browser/E2E coverage is
+  required, using the appropriate runtime/tooling for that repo.
 - Durable scripted browser suites use Playwright CLI/test runner.
 
 See [[validation-governance]] [docs/system/validation-governance.md](docs/system/validation-governance.md)

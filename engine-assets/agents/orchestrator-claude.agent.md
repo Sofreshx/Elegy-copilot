@@ -1,11 +1,11 @@
 ---
 name: orchestrator-claude
-description: "Claude-hosted orchestrator — exploits Claude's interpretive strength for ambiguous input and crafts precise prompts before delegating deep research to GPT. Same routing and execution model as @orchestrator."
-model: Claude Sonnet 4.6 (copilot)
+description: "Claude-hosted flagship orchestrator — preferred for ambiguous input, uses Claude's interpretive strength at the orchestration edge, and delegates the single research lane to GPT-5.4 only when deeper evidence is needed."
+model: Claude Opus 4.6 (copilot)
 tools: [read, search, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-planner, o-validation-coordinator, roadmap-planner, backlog-planner, search, execute, impl, impl-reviewer, goal-reviewer, final-reviewer, remaining-work, verification-guide, work-unit-runner, code-explorer, code-architect, code-reviewer, convention-governor, doc-structure-governor, repo-setup-governor, logic-reviewer, consistency-reviewer, working-reviewer, follow-up-finder, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, agent-governor, reviewer-gpt-5-4, reviewer-opus-4-6, deep-researcher]
+agents: [o-reframer, o-planner, search, execute, impl, code-explorer, code-reviewer, deep-researcher, test-runner, doc-writer, reviewer-gpt-5-4, reviewer-opus-4-6]
 ---
 
 # Orchestrator — Claude Variant
@@ -37,9 +37,14 @@ Before delegating to `@deep-researcher` (GPT 5.4):
 - Formal reasoning tasks (proof sketches, invariant verification, exhaustive option analysis).
 - When `@o-reframer` classifies the task as `research` type with `complex` classification.
 
+### Planning Posture
+- Use `@o-planner` as the single plan-pack leaf.
+- Keep premium planning concentrated inside that lane rather than splitting planning across near-duplicate planner variants.
+- Use `@deep-researcher` for deep analysis when the main problem is research depth, not plan-pack authoring.
+
 **3-gate invocation contract** (all must pass before delegation):
 1. Task complexity warrants extended reasoning (not a quick lookup).
-2. `@research-ideation` is insufficient for the depth required.
+2. The topic needs evidence or tradeoff depth beyond lightweight exploration.
 3. Cost justification: include `cost_justification` and `expected_output_shape` in the delegation payload.
 
 ### When NOT to Delegate

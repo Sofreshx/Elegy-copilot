@@ -20,8 +20,8 @@ the Instruction Engine ecosystem.
 ## Context
 
 This rollout is **instruction-engine first**. The conventions governance lane is therefore defined
-first against this repo's own canonical docs, repo layout, and operating workflows, then reused
-later as a pattern for downstream repos.
+first against this repo's own canonical docs, repo layout, operating workflows, and the new
+`guidelines.md` pattern, then reused later as a pattern for downstream repos.
 
 The default posture is **audit/propose first**:
 
@@ -78,10 +78,11 @@ When convention sources conflict, resolve them in this order:
 
 1. explicit user instruction for the current task
 2. canonical system docs in `docs/system/**`
-3. other maintained docs in `docs/**` and approved repo-level operating docs such as `README.md`,
+3. the nearest applicable `guidelines.md` for the repo or project being changed
+4. other maintained docs in `docs/**` and approved repo-level operating docs such as `README.md`,
    treated as important design and operating context but not peer authority with `docs/system/**`
-4. stable implementation patterns with repeated evidence in the repo
-5. research notes or speculative drafts
+5. stable implementation patterns with repeated evidence in the repo
+6. research notes or speculative drafts
 
 Agent prompts and historical behavior are inputs, not the source of truth, until promoted into
 canonical docs.
@@ -95,16 +96,20 @@ before or alongside code or asset changes.
 
 ## Repo Rules Authority and Bootstrap Model
 
-For the instruction-engine first pass, repository rules are authoritative only when they are captured
-in canonical docs under `docs/system/**`.
+For the instruction-engine first pass, repository rules are authoritative when they are captured in
+canonical docs under `docs/system/**`, with `guidelines.md` acting as a lighter-weight repo/project
+entrypoint that cannot outrank those canonical docs.
 
 - `docs/system/index.md` and `docs/system/mocs/conventions-and-governance.md` are the canonical
   discovery entrypoints for repo-rule loading
 - the relevant atomic node under `docs/system/**` is the authority for the active rule family once
   identified
+- the nearest applicable `guidelines.md` may summarize how that authority applies to a specific repo
+  or project, but it cannot replace or override the canonical node
 - write-capable planning and implementation work must load the smallest relevant canonical entrypoint
-  before editing, and write-capable leaves must perform that bootstrap independently instead of
-  relying only on orchestrator briefs, plan packs, prompts, or summaries
+  plus the nearest applicable `guidelines.md` before editing, and write-capable leaves must perform
+  that bootstrap independently instead of relying only on orchestrator briefs, plan packs, prompts,
+  or summaries
 - repo-local overlays such as `.github/copilot-instructions.md`, `.github/agents/**`, and
   `.github/skills/**` may improve discovery or routing, but they are not peer authority with
   `docs/system/**` unless a canonical doc explicitly promotes them
@@ -122,6 +127,8 @@ actually used.
 
 - when canonical bootstrap was required, planning, execution, and review outputs should name the
   canonical doc paths they relied on
+- when a `guidelines.md` file informed the work, outputs should name that file separately from the
+  canonical doc path
 - citing only prompts, summaries, or repeated repo patterns does not satisfy repo-rule bootstrap when
   a canonical `docs/system/**` source was required
 - if required write-capable work cannot identify a relevant canonical node, fail closed for that step
@@ -217,6 +224,7 @@ Convention guidance should be easy to locate without requiring hidden prompt con
 Route requests here when the user asks to:
 
 - define or revise repository conventions
+- create or revise a repo/project `guidelines.md`
 - audit whether conventions are documented clearly
 - identify convention drift across docs, code, and review habits
 - propose a canonical conventions entrypoint for future agents
@@ -245,7 +253,7 @@ When convention work produces validated next steps:
 
 ## Output Contract
 
-Use this structure for convention-governance audits or proposals:
+Use this structure for conventions or `guidelines.md` audits/proposals:
 
 ```text
 CONVENTIONS_GOVERNANCE
@@ -278,5 +286,6 @@ CONVENTIONS_GOVERNANCE
 - `docs/system/search-execute-workflow.md`
 - `docs/system/skills-governance.md`
 - `docs/system/documentation-structure-governance.md`
+- `guidelines.md`
 - `docs/system/reviewer-lane-governance.md`
 - `docs/system/follow-up-discovery-governance.md`

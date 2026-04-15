@@ -96,7 +96,7 @@ User
 ```
 
    Note: `@orchestrator-cli` omits reviewer agents and relies on Rubber Duck (native cross-model review).
-   Direct orchestrator → `@o-planner` planning (no coordinator nesting).
+   Direct orchestrator → planning-leaf delegation (no coordinator nesting). `@o-planner` stays the default planning leaf; `@o-planner-gpt` is a non-default escalation leaf.
 
 ### New Subagents
 
@@ -168,9 +168,9 @@ orchestrator → `@o-planner` delegation. The orchestrator gathers exploration c
      - Send the plan plus Opus feedback to `@reviewer-gpt-5-4`
      - Revise until both reviewers return `Verdict: APPROVED`
    - Add `@impl-reviewer` only when plan-vs-request/spec fit still needs a sharper gate
-   - Add `@logic-reviewer` when sequencing, rollback, invariants, or edge cases are the main risk
-   - Add `@consistency-reviewer` when convention or alignment fit is the main risk
-   - Use `@code-reviewer` only when no sharper planning-review lane fits
+   - Prefer `@code-reviewer` when sequencing, rollback, invariants, or edge cases are the main risk
+   - Prefer `@code-reviewer` when convention or alignment fit is the main risk
+   - Use governance lanes only when the main problem is the authority surface rather than the change itself
 4. Present the reviewed plan to the user:
    - Historical prototype assumption: for standard, use `planReview` (Seamless Agent) for inline feedback after the applicable planning-review path converges
    - Historical prototype assumption: for complex, use `planReview` after the applicable planning-review path converges; add specialist overlays as needed

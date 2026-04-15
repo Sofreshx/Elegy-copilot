@@ -268,6 +268,16 @@
       }
     },
     {
+      "skill": "guidelines-authoring",
+      "name": "guidelines-authoring",
+      "description": "How to create or update guidelines.md files with clear authority, minimal scope, and askQuestions-driven approval for new convention surfaces.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-guidelines-authoring",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "implementation-friction",
       "name": "implementation-friction",
       "description": "Capture recurring implementation friction with minimal overhead and append concise findings for future refactor planning. Triggers on: shaky pattern, bad design, dead code, brittle code, hard to work with, architecture drag, recurring workaround, implementation friction.",
@@ -474,6 +484,16 @@
       "manifest": {
         "id": "skill-project-conventions-governance",
         "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "project-guidelines",
+      "name": "project-guidelines",
+      "description": "Always-loaded guidance for locating and following repository or project guidelines.md files before write-capable work.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-project-guidelines",
+        "loadMode": "always"
       }
     },
     {

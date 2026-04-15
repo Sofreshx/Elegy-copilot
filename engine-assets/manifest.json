@@ -7,7 +7,7 @@
   },
   "installDefaults": {
     "copilotHome": "~/.copilot",
-      "description": "Repo-scoped orchestration agents and support skills for reframing, planning, implementation routing, research, verification, and final review. This is the current home of the former Elegy planner and orchestrator lane.",
+    "description": "Repo-scoped orchestration agents and support skills for reframing, planning, implementation routing, research, validation, conventions bootstrap, and closure. This is the current home of the former Elegy planner and orchestrator lane.",
     "skillsDir": "~/.copilot/skills",
     "promptsDir": "~/.copilot/prompts",
     "instructionsFile": "~/.copilot/copilot-instructions.md"
@@ -26,7 +26,7 @@
       "always": "Installed to skills/ (VS Code scans and loads into context). Reserved for meta-skills and transversal skills.",
       "on-demand": "Installed to skills-vault/ only (NOT scanned by VS Code). Discovered via skill-discovery pattern. Default for domain-specific skills."
     },
-    "notes": "When enabled, 'always' skills install full content to skills/. 'on-demand' skills install ONLY to skills-vault/ — no pointer stub in skills/. Agents use the skill-discovery skill to find and load on-demand skills at runtime."
+    "notes": "When enabled, 'always' skills install full content to skills/. 'on-demand' skills install ONLY to skills-vault/ \u2014 no pointer stub in skills/. Agents use the skill-discovery skill to find and load on-demand skills at runtime."
   },
   "governance": {
     "g05": {
@@ -67,15 +67,12 @@
     {
       "id": "core-global",
       "title": "Core Global Agents",
-      "description": "Broadly useful global agents for search, execution, review, auditing, and unit-test workflows.",
+      "description": "Broadly useful global agents for search, execution, and review.",
       "assetIds": [
         "agent-search",
         "agent-execute",
         "agent-code-explorer",
         "agent-code-reviewer",
-        "agent-security-auditor",
-        "agent-stack-auditor",
-        "agent-unit-test-runner",
         "agent-reviewer-opus-4-6",
         "agent-reviewer-gpt-5-4"
       ],
@@ -102,10 +99,9 @@
     },
     {
       "id": "repo-setup-governance-global",
-      "title": "Repo Setup Governance Global",
-      "description": "Narrow shared audit/propose-only lane for evaluating explicit open workspace roots and proposing missing repo setup resources for Elegy Copilot.",
+      "title": "Repo Setup Governance Skill",
+      "description": "Shared repo-setup governance guidance kept as an on-demand skill rather than a dedicated agent lane.",
       "assetIds": [
-        "agent-repo-setup-governor",
         "skill-repo-setup-governance"
       ],
       "installTarget": "user-global",
@@ -132,57 +128,29 @@
     {
       "id": "orchestrator-workflow",
       "title": "Orchestrator Workflow Agents",
-      "description": "Repo-scoped orchestration agents and support skills for reframing, planning, bounded validation coordination, implementation routing, research, verification, and final review.",
+      "description": "Repo-scoped orchestration agents and support skills for flagship model-specific entrypoints, Claude-backed reframing, lean planning, implementation, research, consolidated testing, conventions bootstrap, and orchestrator-owned closure.",
       "assetIds": [
+        "agent-orchestrator-claude",
+        "agent-orchestrator-gpt",
+        "agent-orchestrator-claude-cli",
+        "agent-orchestrator-gpt-cli",
         "agent-orchestrator",
         "agent-orchestrator-cli",
-        "agent-orchestrator-claude",
-        "agent-orchestrator-claude-cli",
-        "agent-orchestrator-gpt",
-        "agent-orchestrator-gpt-cli",
-        "agent-prompt-refiner",
         "agent-deep-researcher",
-        "agent-ci-watcher",
+        "agent-test-runner",
         "agent-o-reframer",
         "agent-o-planner",
-        "agent-o-validation-coordinator",
         "skill-planning-feature",
         "skill-planpack-authoring",
-        "agent-backlog-planner",
-        "agent-brief",
-        "agent-roadmap-planner",
-          "skill-roadmap-authoring",
-        "agent-work-unit-runner",
-        "agent-final-reviewer",
-        "agent-goal-reviewer",
-        "agent-remaining-work",
-        "agent-research-ideation",
-          "agent-code-architect",
+        "skill-roadmap-authoring",
         "agent-doc-writer",
-          "agent-follow-up-finder",
-        "agent-verification-guide",
         "agent-impl",
-        "agent-impl-reviewer",
-          "agent-integration-test-runner",
-          "agent-e2e-browser",
-          "agent-e2e-validator",
-          "skill-e2e-workflow",
-          "agent-convention-governor",
-          "skill-project-conventions-governance",
-          "agent-doc-structure-governor",
-          "skill-documentation-structure-governance",
-          "skill-truth-sync",
-          "agent-logic-reviewer",
-          "agent-consistency-reviewer",
-          "agent-working-reviewer",
-          "skill-stack-detector",
-          "skill-stack-audit-patterns",
-          "agent-deploy-auditor",
-          "skill-audit-report-formats",
-          "skill-security",
-          "agent-instruction-auditor",
-          "skill-instruction-quality",
-          "agent-governor",
+        "skill-e2e-workflow",
+        "skill-project-conventions-governance",
+        "skill-documentation-structure-governance",
+        "skill-truth-sync",
+        "skill-project-guidelines",
+        "skill-guidelines-authoring",
         "skill-friction-feedback"
       ],
       "installTarget": "repo-local",
@@ -211,12 +179,10 @@
     },
     {
       "id": "roadmap-planning-lane",
-      "title": "Repository Backlog & Roadmap Planning Lane",
-      "description": "Repo-local planning lane for per-session Repository Backlog artifacts, Roadmap authoring, direct plan-handoff preparation, and Roadmap Sync-ready cleanup above plan packs.",
+      "title": "Repository Backlog & Roadmap Skills",
+      "description": "Repo-local planning guidance for per-session Repository Backlog artifacts and roadmap authoring without separate planner agents.",
       "assetIds": [
-        "skill-roadmap-authoring",
-        "agent-backlog-planner",
-        "agent-roadmap-planner"
+        "skill-roadmap-authoring"
       ],
       "installTarget": "repo-local",
       "activationScope": "repo",
@@ -246,18 +212,14 @@
     },
     {
       "id": "instruction-engine-governance-lanes",
-      "title": "Instruction-Engine Governance & Specialist Lanes",
-      "description": "Repo-local governance, specialist reviewer, and follow-up lanes for instruction-engine-first workflows. Explicit opt-in keeps default routing curated.",
+      "title": "Instruction-Engine Governance Skills",
+      "description": "Repo-local governance and conventions/bootstrap skills for instruction-engine-first workflows. Explicit opt-in keeps default routing curated.",
       "assetIds": [
         "skill-project-conventions-governance",
         "skill-documentation-structure-governance",
         "skill-truth-sync",
-        "agent-convention-governor",
-        "agent-doc-structure-governor",
-        "agent-logic-reviewer",
-        "agent-consistency-reviewer",
-        "agent-working-reviewer",
-        "agent-follow-up-finder"
+        "skill-project-guidelines",
+        "skill-guidelines-authoring"
       ],
       "installTarget": "repo-local",
       "activationScope": "repo",
@@ -288,7 +250,7 @@
     {
       "id": "superpowers-workflow",
       "title": "Superpowers Workflow Pack",
-        "description": "Optional Jesse Vincent Superpowers compatibility pack, kept catalog-installable for legacy/reference workflows. Its members are default-handled or deprecated-compatibility guidance rather than current default workflow surfaces.",
+      "description": "Optional Jesse Vincent Superpowers compatibility pack, kept catalog-installable for legacy/reference workflows. Its members are default-handled or deprecated-compatibility guidance rather than current default workflow surfaces.",
       "assetIds": [
         "skill-superpowers-brainstorming",
         "skill-superpowers-dispatching-parallel-agents",
@@ -331,12 +293,6 @@
   ],
   "assets": [
     {
-      "id": "agent-code-architect",
-      "type": "agent",
-      "source": "engine-assets/agents/code-architect.agent.md",
-      "destination": "agents/code-architect.agent.md"
-    },
-    {
       "id": "agent-code-explorer",
       "type": "agent",
       "source": "engine-assets/agents/code-explorer.agent.md",
@@ -349,28 +305,10 @@
       "destination": "agents/code-reviewer.agent.md"
     },
     {
-      "id": "agent-consistency-reviewer",
+      "id": "agent-deep-researcher",
       "type": "agent",
-      "source": "engine-assets/agents/consistency-reviewer.agent.md",
-      "destination": "agents/consistency-reviewer.agent.md"
-    },
-    {
-      "id": "agent-convention-governor",
-      "type": "agent",
-      "source": "engine-assets/agents/convention-governor.agent.md",
-      "destination": "agents/convention-governor.agent.md"
-    },
-    {
-      "id": "agent-deploy-auditor",
-      "type": "agent",
-      "source": "engine-assets/agents/deploy-auditor.agent.md",
-      "destination": "agents/deploy-auditor.agent.md"
-    },
-    {
-      "id": "agent-doc-structure-governor",
-      "type": "agent",
-      "source": "engine-assets/agents/doc-structure-governor.agent.md",
-      "destination": "agents/doc-structure-governor.agent.md"
+      "source": "engine-assets/agents/deep-researcher.agent.md",
+      "destination": "agents/deep-researcher.agent.md"
     },
     {
       "id": "agent-doc-writer",
@@ -379,46 +317,10 @@
       "destination": "agents/doc-writer.agent.md"
     },
     {
-      "id": "agent-e2e-browser",
-      "type": "agent",
-      "source": "engine-assets/agents/e2e-browser.agent.md",
-      "destination": "agents/e2e-browser.agent.md"
-    },
-    {
-      "id": "agent-e2e-validator",
-      "type": "agent",
-      "source": "engine-assets/agents/e2e-validator.agent.md",
-      "destination": "agents/e2e-validator.agent.md"
-    },
-    {
       "id": "agent-execute",
       "type": "agent",
       "source": "engine-assets/agents/execute.agent.md",
       "destination": "agents/execute.agent.md"
-    },
-    {
-      "id": "agent-final-reviewer",
-      "type": "agent",
-      "source": "engine-assets/agents/final-reviewer.agent.md",
-      "destination": "agents/final-reviewer.agent.md"
-    },
-    {
-      "id": "agent-follow-up-finder",
-      "type": "agent",
-      "source": "engine-assets/agents/follow-up-finder.agent.md",
-      "destination": "agents/follow-up-finder.agent.md"
-    },
-    {
-      "id": "agent-goal-reviewer",
-      "type": "agent",
-      "source": "engine-assets/agents/goal-reviewer.agent.md",
-      "destination": "agents/goal-reviewer.agent.md"
-    },
-    {
-      "id": "agent-governor",
-      "type": "agent",
-      "source": "engine-assets/agents/agent-governor.agent.md",
-      "destination": "agents/agent-governor.agent.md"
     },
     {
       "id": "agent-impl",
@@ -426,31 +328,6 @@
       "source": "engine-assets/agents/impl.agent.md",
       "destination": "agents/impl.agent.md"
     },
-    {
-      "id": "agent-impl-reviewer",
-      "type": "agent",
-      "source": "engine-assets/agents/impl-reviewer.agent.md",
-      "destination": "agents/impl-reviewer.agent.md"
-    },
-    {
-      "id": "agent-instruction-auditor",
-      "type": "agent",
-      "source": "engine-assets/agents/instruction-auditor.agent.md",
-      "destination": "agents/instruction-auditor.agent.md"
-    },
-    {
-      "id": "agent-integration-test-runner",
-      "type": "agent",
-      "source": "engine-assets/agents/integration-test-runner.agent.md",
-      "destination": "agents/integration-test-runner.agent.md"
-        },
-        {
-      "id": "agent-logic-reviewer",
-      "type": "agent",
-      "source": "engine-assets/agents/logic-reviewer.agent.md",
-      "destination": "agents/logic-reviewer.agent.md"
-    },
-
     {
       "id": "agent-o-planner",
       "type": "agent",
@@ -464,22 +341,10 @@
       "destination": "agents/o-reframer.agent.md"
     },
     {
-      "id": "agent-o-validation-coordinator",
-      "type": "agent",
-      "source": "engine-assets/agents/o-validation-coordinator.agent.md",
-      "destination": "agents/o-validation-coordinator.agent.md"
-    },
-    {
       "id": "agent-orchestrator",
       "type": "agent",
       "source": "engine-assets/agents/orchestrator.agent.md",
       "destination": "agents/orchestrator.agent.md"
-    },
-    {
-      "id": "agent-orchestrator-cli",
-      "type": "agent",
-      "source": "engine-assets/agents/orchestrator-cli.agent.md",
-      "destination": "agents/orchestrator-cli.agent.md"
     },
     {
       "id": "agent-orchestrator-claude",
@@ -494,6 +359,12 @@
       "destination": "agents/orchestrator-claude-cli.agent.md"
     },
     {
+      "id": "agent-orchestrator-cli",
+      "type": "agent",
+      "source": "engine-assets/agents/orchestrator-cli.agent.md",
+      "destination": "agents/orchestrator-cli.agent.md"
+    },
+    {
       "id": "agent-orchestrator-gpt",
       "type": "agent",
       "source": "engine-assets/agents/orchestrator-gpt.agent.md",
@@ -504,60 +375,6 @@
       "type": "agent",
       "source": "engine-assets/agents/orchestrator-gpt-cli.agent.md",
       "destination": "agents/orchestrator-gpt-cli.agent.md"
-    },
-    {
-      "id": "agent-prompt-refiner",
-      "type": "agent",
-      "source": "engine-assets/agents/prompt-refiner.agent.md",
-      "destination": "agents/prompt-refiner.agent.md"
-    },
-    {
-      "id": "agent-deep-researcher",
-      "type": "agent",
-      "source": "engine-assets/agents/deep-researcher.agent.md",
-      "destination": "agents/deep-researcher.agent.md"
-    },
-    {
-      "id": "agent-ci-watcher",
-      "type": "agent",
-      "source": "engine-assets/agents/ci-watcher.agent.md",
-      "destination": "agents/ci-watcher.agent.md"
-    },
-    {
-      "id": "agent-remaining-work",
-      "type": "agent",
-      "source": "engine-assets/agents/remaining-work.agent.md",
-      "destination": "agents/remaining-work.agent.md"
-    },
-    {
-      "id": "agent-backlog-planner",
-      "type": "agent",
-      "source": "engine-assets/agents/backlog-planner.agent.md",
-      "destination": "agents/backlog-planner.agent.md"
-    },
-    {
-      "id": "agent-brief",
-      "type": "agent",
-      "source": "engine-assets/agents/brief.agent.md",
-      "destination": "agents/brief.agent.md"
-    },
-    {
-      "id": "agent-roadmap-planner",
-      "type": "agent",
-      "source": "engine-assets/agents/roadmap-planner.agent.md",
-      "destination": "agents/roadmap-planner.agent.md"
-    },
-    {
-      "id": "agent-repo-setup-governor",
-      "type": "agent",
-      "source": "engine-assets/agents/repo-setup-governor.agent.md",
-      "destination": "agents/repo-setup-governor.agent.md"
-    },
-    {
-      "id": "agent-research-ideation",
-      "type": "agent",
-      "source": "engine-assets/agents/research-ideation.agent.md",
-      "destination": "agents/research-ideation.agent.md"
     },
     {
       "id": "agent-reviewer-gpt-5-4",
@@ -578,42 +395,10 @@
       "destination": "agents/search.agent.md"
     },
     {
-      "id": "agent-security-auditor",
+      "id": "agent-test-runner",
       "type": "agent",
-      "source": "engine-assets/agents/security-auditor.agent.md",
-      "destination": "agents/security-auditor.agent.md"
-    },
-
-    {
-      "id": "agent-stack-auditor",
-      "type": "agent",
-      "source": "engine-assets/agents/stack-auditor.agent.md",
-      "destination": "agents/stack-auditor.agent.md"
-    },
-
-    {
-      "id": "agent-unit-test-runner",
-      "type": "agent",
-      "source": "engine-assets/agents/unit-test-runner.agent.md",
-      "destination": "agents/unit-test-runner.agent.md"
-    },
-    {
-      "id": "agent-verification-guide",
-      "type": "agent",
-      "source": "engine-assets/agents/verification-guide.agent.md",
-      "destination": "agents/verification-guide.agent.md"
-    },
-    {
-      "id": "agent-working-reviewer",
-      "type": "agent",
-      "source": "engine-assets/agents/working-reviewer.agent.md",
-      "destination": "agents/working-reviewer.agent.md"
-    },
-    {
-      "id": "agent-work-unit-runner",
-      "type": "agent",
-      "source": "engine-assets/agents/work-unit-runner.agent.md",
-      "destination": "agents/work-unit-runner.agent.md"
+      "source": "engine-assets/agents/test-runner.agent.md",
+      "destination": "agents/test-runner.agent.md"
     },
     {
       "id": "copilot-instructions",
@@ -727,8 +512,8 @@
       "source": "engine-assets/skills/skill-discovery",
       "destination": "skills/skill-discovery",
       "loadMode": "always"
-        },
-        {
+    },
+    {
       "id": "skill-documentation-structure-governance",
       "type": "skill",
       "source": "engine-assets/skills/documentation-structure-governance",
@@ -750,13 +535,6 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "skill-github-troubleshooting",
-      "type": "skill",
-      "source": "engine-assets/skills/github-troubleshooting",
-      "destination": "skills/github-troubleshooting",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "skill-friction-feedback",
       "type": "skill",
       "source": "engine-assets/skills/friction-feedback",
@@ -768,6 +546,13 @@
       "type": "skill",
       "source": "engine-assets/skills/frontend",
       "destination": "skills/frontend",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-github-troubleshooting",
+      "type": "skill",
+      "source": "engine-assets/skills/github-troubleshooting",
+      "destination": "skills/github-troubleshooting",
       "loadMode": "on-demand"
     },
     {
@@ -848,10 +633,24 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "skill-project-guidelines",
+      "type": "skill",
+      "source": "engine-assets/skills/project-guidelines",
+      "destination": "skills/project-guidelines",
+      "loadMode": "always"
+    },
+    {
       "id": "skill-project-conventions-governance",
       "type": "skill",
       "source": "engine-assets/skills/project-conventions-governance",
       "destination": "skills/project-conventions-governance",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-guidelines-authoring",
+      "type": "skill",
+      "source": "engine-assets/skills/guidelines-authoring",
+      "destination": "skills/guidelines-authoring",
       "loadMode": "on-demand"
     },
     {
@@ -860,6 +659,17 @@
       "source": "engine-assets/skills/react-query",
       "destination": "skills/react-query",
       "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-refactor",
+      "type": "skill",
+      "source": "engine-assets/skills/refactor",
+      "destination": "skills/refactor",
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "default-handled",
+        "routingNote": "Informational only; normal routing should handle this directly unless explicit or compatibility use is needed."
+      }
     },
     {
       "id": "skill-repo-setup-governance",
@@ -874,17 +684,6 @@
       "source": "engine-assets/skills/roadmap-authoring",
       "destination": "skills/roadmap-authoring",
       "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-refactor",
-      "type": "skill",
-      "source": "engine-assets/skills/refactor",
-      "destination": "skills/refactor",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "default-handled",
-        "routingNote": "Informational only; normal routing should handle this directly unless explicit or compatibility use is needed."
-      }
     },
     {
       "id": "skill-security",
@@ -926,154 +725,154 @@
       "type": "skill",
       "source": "engine-assets/skills/superpowers-brainstorming",
       "destination": "skills/superpowers-brainstorming",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "deprecated-compatibility",
-          "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
+      }
     },
     {
       "id": "skill-superpowers-dispatching-parallel-agents",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-dispatching-parallel-agents",
       "destination": "skills/superpowers-dispatching-parallel-agents",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "default-handled",
-          "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "default-handled",
+        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
+      }
     },
     {
       "id": "skill-superpowers-executing-plans",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-executing-plans",
       "destination": "skills/superpowers-executing-plans",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "deprecated-compatibility",
-          "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
+      }
     },
     {
       "id": "skill-superpowers-finishing-a-development-branch",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-finishing-a-development-branch",
       "destination": "skills/superpowers-finishing-a-development-branch",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "deprecated-compatibility",
-          "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
+      }
     },
     {
       "id": "skill-superpowers-receiving-code-review",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-receiving-code-review",
       "destination": "skills/superpowers-receiving-code-review",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "default-handled",
-          "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "default-handled",
+        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
+      }
     },
     {
       "id": "skill-superpowers-requesting-code-review",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-requesting-code-review",
       "destination": "skills/superpowers-requesting-code-review",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "deprecated-compatibility",
-          "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
+      }
     },
     {
       "id": "skill-superpowers-subagent-driven-development",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-subagent-driven-development",
       "destination": "skills/superpowers-subagent-driven-development",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "deprecated-compatibility",
-          "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
+      }
     },
     {
       "id": "skill-superpowers-systematic-debugging",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-systematic-debugging",
       "destination": "skills/superpowers-systematic-debugging",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "default-handled",
-          "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "default-handled",
+        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
+      }
     },
     {
       "id": "skill-superpowers-test-driven-development",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-test-driven-development",
       "destination": "skills/superpowers-test-driven-development",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "default-handled",
-          "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "default-handled",
+        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
+      }
     },
     {
       "id": "skill-superpowers-using-git-worktrees",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-using-git-worktrees",
       "destination": "skills/superpowers-using-git-worktrees",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "default-handled",
-          "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "default-handled",
+        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
+      }
     },
     {
       "id": "skill-superpowers-using-superpowers",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-using-superpowers",
       "destination": "skills/superpowers-using-superpowers",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "deprecated-compatibility",
-          "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
+      }
     },
     {
       "id": "skill-superpowers-verification-before-completion",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-verification-before-completion",
       "destination": "skills/superpowers-verification-before-completion",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "default-handled",
-          "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "default-handled",
+        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
+      }
     },
     {
       "id": "skill-superpowers-writing-plans",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-writing-plans",
       "destination": "skills/superpowers-writing-plans",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "deprecated-compatibility",
-          "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
+      }
     },
     {
       "id": "skill-superpowers-writing-skills",
       "type": "skill",
       "source": "engine-assets/skills/superpowers-writing-skills",
       "destination": "skills/superpowers-writing-skills",
-        "loadMode": "on-demand",
-        "governance": {
-          "routingClass": "deprecated-compatibility",
-          "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-        }
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
+      }
     },
     {
       "id": "skill-system-cleanup",

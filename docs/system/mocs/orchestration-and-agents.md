@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-15
+updated: 2026-04-15
 category: system
 status: current
 doc_kind: moc
@@ -20,7 +20,7 @@ related: [system-docs-index]
 
 ## Start here
 
-- If you are changing how orchestration works: read `docs/system/orchestrator/user-guide.md`.
+- If you are changing how orchestration works: read `docs/system/orchestrator/user-guide.md` (flagship model-specific orchestrators are the preferred entrypoints; base orchestrators are compatibility surfaces).
 - If you are changing staged capability routing: read `docs/system/search-execute-workflow.md`.
 - Contract shape and planning constraints: `docs/system/workflow-planning-contract.md`.
 - Research promotion checklist: `docs/system/research-promotion-checklist.md`.

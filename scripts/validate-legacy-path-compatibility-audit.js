@@ -8,10 +8,6 @@ const repoRoot = path.resolve(__dirname, '..');
 const gateName = 'Legacy-Path Compatibility Audit';
 
 const targetFiles = [
-	'engine-assets/agents/e2e-browser.agent.md',
-	'engine-assets/agents/e2e-validator.agent.md',
-	'engine-assets/agents/stack-auditor.agent.md',
-	'engine-assets/agents/instruction-auditor.agent.md',
 	'engine-assets/skills/system-cleanup/SKILL.md',
 	'engine-assets/skills/code-review/SKILL.md',
 	'engine-assets/skills/auth/SKILL.md',

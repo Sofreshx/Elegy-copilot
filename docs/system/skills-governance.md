@@ -23,6 +23,16 @@ Use staged capability routing by default:
 
 This keeps startup context lean and makes domain loading explicit.
 
+## Current always-loaded meta-skills
+
+These stay loaded by default because they govern cross-cutting workflow safety or repo bootstrap:
+
+- `core-guardrails`
+- `skill-discovery`
+- `implementation-friction`
+- `stack-detector`
+- `project-guidelines`
+
 ## Triage model
 Classify each skill as one of:
 - **Core**: required project-specific patterns and hard constraints.

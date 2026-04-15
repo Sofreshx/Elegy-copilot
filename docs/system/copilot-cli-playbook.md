@@ -36,7 +36,7 @@ This playbook defines the **default operating model** for adopting Copilot CLI a
 Our standard approach for Copilot CLI work is:
 
 Useful maintenance helpers:
-- `@remaining-work` — fast “is anything left to do?” checker (uses the free model `gpt-5-mini`)
+- orchestrator closure — the flagship orchestrator owns the “is anything left to do?” judgment and may use fast repo/status checks as evidence
 
 **Phase 1: Plan-First (Copilot CLI Plan Mode)**
 - Always start with `/plan [goal]` or Shift+Tab to enter plan mode
@@ -481,7 +481,7 @@ echo "E2E environment ready"
 Before running E2E tests:
 1. Run `./scripts/start-e2e-env.sh`
 2. Run either:
-  - Agent-driven UI smoke checks: `@e2e-validator` (agent-browser CLI), or
+  - Agent-driven UI smoke checks through `@test-runner` when the orchestrator selects browser coverage, or
   - Scripted regression suite: `npx playwright test --headed=false`
 3. After tests (if applicable): `./scripts/stop-e2e-env.sh`
 ```
@@ -643,7 +643,7 @@ Source: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot
 
 **Method 1: Explicit selection**
 ```bash
-/agent security-auditor
+/agent code-reviewer
 Review all authentication code in src/auth/
 ```
 
@@ -655,7 +655,7 @@ Review the security of our auth implementation
 
 **Method 3: Programmatic**
 ```bash
-copilot --agent security-auditor --prompt "Check src/"
+copilot --agent code-reviewer --prompt "Check src/"
 ```
 
 ### Subagent Behavior

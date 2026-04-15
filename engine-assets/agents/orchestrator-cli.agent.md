@@ -1,10 +1,10 @@
 ---
 name: orchestrator-cli
-description: "CLI-optimized orchestrator — uses Copilot CLI's native Rubber Duck cross-model review instead of manual reviewer agents. Same routing and execution model as @orchestrator."
+description: "CLI-optimized orchestrator — model-agnostic compatibility surface that keeps Copilot CLI's native Rubber Duck cross-model review. Same routing and execution model as @orchestrator."
 tools: [read, search, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-planner, o-validation-coordinator, roadmap-planner, backlog-planner, search, execute, impl, impl-reviewer, goal-reviewer, final-reviewer, remaining-work, verification-guide, work-unit-runner, code-explorer, code-architect, code-reviewer, convention-governor, doc-structure-governor, repo-setup-governor, logic-reviewer, consistency-reviewer, working-reviewer, follow-up-finder, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, agent-governor, brief]
+agents: [o-reframer, o-planner, search, execute, impl, code-explorer, code-reviewer, deep-researcher, test-runner, doc-writer]
 ---
 
 # Orchestrator — CLI Variant

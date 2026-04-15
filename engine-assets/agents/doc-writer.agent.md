@@ -37,7 +37,7 @@ Follow `docs/system/doc-graph-spec.md`. Key constraints:
 4. **Audit**: enumerate docs in scope, report missing/invalid frontmatter, stale docs, broken links. Do NOT rewrite unless asked.
 
 ## Unresolved-Goals Reconciliation
-When target is `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`: state reconciliation, not open-ended authoring. Use caller-supplied `GOAL_REVIEW` as authority. Keep only `partial`/`not-complete` non-active goals. Match by Goal Statement, preserve section ID and `First Seen`.
+When target is `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`: state reconciliation, not open-ended authoring. Use caller-supplied `GOAL_REVIEW` from `@final-reviewer` as authority. Keep only `partial`/`not-complete` non-active goals. Match by Goal Statement, preserve section ID and `First Seen`.
 
 ## Output
 ```text

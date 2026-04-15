@@ -238,9 +238,9 @@ sequenceDiagram
 
 | WU | Deliverable | Primary Files | Acceptance Checks |
 |---|---|---|---|
-| WS3-WU-01 | Shared explorer/reviewer output schemas formalized | `engine-assets/agents/code-explorer.agent.md`, `engine-assets/agents/code-reviewer.agent.md`, `engine-assets/agents/final-reviewer.agent.md` | Schema examples and required fields enforced in prompts |
-| WS3-WU-02 | Context-budget and fan-out rules standardized in planner/orchestrator agents | `engine-assets/agents/o-planner.agent.md`, `engine-assets/agents/work-unit-runner.agent.md`, `engine-assets/agents/orchestrator.agent.md` | Budget/fan-out rules present and consistent |
-| WS3-WU-03 | Handoff contract metadata standardized | `engine-assets/agents/o-reframer.agent.md`, `engine-assets/agents/o-planner.agent.md`, `engine-assets/agents/work-unit-runner.agent.md` | Planner-to-executor outputs include deterministic required fields |
+| WS3-WU-01 | Shared explorer/reviewer output schemas formalized | `engine-assets/agents/code-explorer.agent.md`, `engine-assets/agents/code-reviewer.agent.md`, `docs/system/reviewer-lane-governance.md` | Schema examples and required fields enforced in prompts/docs |
+| WS3-WU-02 | Context-budget and fan-out rules standardized in planner/orchestrator agents | `engine-assets/agents/o-planner.agent.md`, `engine-assets/agents/impl.agent.md`, `engine-assets/agents/orchestrator.agent.md` | Budget/fan-out rules present and consistent |
+| WS3-WU-03 | Handoff contract metadata standardized | `engine-assets/agents/o-reframer.agent.md`, `engine-assets/agents/o-planner.agent.md`, `engine-assets/agents/impl.agent.md` | Planner-to-executor outputs include deterministic required fields |
 | WS3-WU-04 | Orchestration contract validator implemented | `scripts/validate-orchestration-contracts.js` (new) | Validator fails on schema drift and missing required sections |
 
 ## WS4: File-First Memory 2.0 with Optional MCP Checkpoints

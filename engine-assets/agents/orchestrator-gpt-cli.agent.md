@@ -1,11 +1,11 @@
 ---
 name: orchestrator-gpt-cli
-description: "CLI-optimized GPT-hosted orchestrator — uses Rubber Duck for plan review. Same model-specific delegation strategy as @orchestrator-gpt."
+description: "CLI-optimized GPT-hosted flagship orchestrator — preferred GPT entrypoint in Copilot CLI and keeps Rubber Duck plan review."
 model: GPT-5.4 (copilot)
 tools: [read, search, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-planner, o-validation-coordinator, roadmap-planner, backlog-planner, search, execute, impl, impl-reviewer, goal-reviewer, final-reviewer, remaining-work, verification-guide, work-unit-runner, code-explorer, code-architect, code-reviewer, convention-governor, doc-structure-governor, repo-setup-governor, logic-reviewer, consistency-reviewer, working-reviewer, follow-up-finder, research-ideation, unit-test-runner, integration-test-runner, e2e-browser, e2e-validator, doc-writer, stack-auditor, deploy-auditor, security-auditor, instruction-auditor, agent-governor, prompt-refiner, brief]
+agents: [o-reframer, o-planner, search, execute, impl, code-explorer, code-reviewer, deep-researcher, test-runner, doc-writer]
 ---
 
 # Orchestrator — GPT CLI Variant

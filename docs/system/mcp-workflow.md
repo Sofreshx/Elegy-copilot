@@ -186,7 +186,7 @@ discovery or targeted updates.
 
 - Copilot coding agents can only use MCP tools (no unattended external browsing
   or OAuth flows). See GitHub docs: https://docs.github.com/en/copilot/concepts/agents/coding-agent/mcp-and-coding-agent
-- Browser E2E automation in this repo is CLI-first (`@e2e-validator` -> `@e2e-browser` with agent-browser for agent-driven validation, and Playwright CLI/test runner for durable scripted suites), not MCP-first.
+- Browser E2E automation in this repo is CLI-first (`@test-runner` for agent-driven validation and Playwright CLI/test runner for durable scripted suites), not MCP-first.
   See: [docs/system/e2e-setup-guide.md](docs/system/e2e-setup-guide.md).
 - Remote OAuth flows are not reliably automatable for remote agents. Prefer
   CI PATs or pre-authorized non-interactive tokens for CI or remote use.

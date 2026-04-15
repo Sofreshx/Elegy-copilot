@@ -71,16 +71,16 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
 - Delegate aggressively for speed:
   - capability discovery and staged context loading → `@search`, then `@execute`
   - exploration/synthesis → `@code-explorer` (or `explore` agent)
-  - running builds/tests → route tests to `@unit-test-runner` for narrow in-process checks, route builds through the appropriate execution lane/task agent instead of `@unit-test-runner`, and escalate to `@integration-test-runner` when cross-boundary behavior, repo policy, or coverage gaps require integration validation even without an explicit user ask (`task` agent as fallback)
+  - running builds/tests → route validation through `@test-runner`; it owns unit, integration, and browser/E2E selection, while builds still go through the appropriate execution lane/task agent
   - high-signal review → `@code-reviewer`
-  - request briefing + /fleet workstream split → `@brief` when the work is non-trivial
+  - plan authoring → `@o-planner` after `@o-reframer` plus any needed `askQuestions` clarification; do not keep a separate `@brief` lane alive
 - Keep context lean:
   - quote only the minimum necessary code, paths, and logs,
   - prefer file paths + line ranges over large pastes,
   - keep summaries under ~300 words per workstream unless I ask for depth.
 
 ## Using Instruction Engine assets
-- A few transversal skills are always loaded (`~/.copilot/skills/`): `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`.
+- A few transversal skills are always loaded (`~/.copilot/skills/`): `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`, `project-guidelines`.
 - **Most domain-specific skills live in the vault** (`~/.copilot/skills-vault/`) and are NOT loaded by default to save tokens.
 - The canonical workflow is **search then execute**:
   1. Use `@search` to resolve the smallest relevant capability across docs, agents, and skills.

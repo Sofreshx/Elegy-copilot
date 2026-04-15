@@ -1,6 +1,6 @@
 ---
 created: 2026-04-12
-updated: 2026-04-12
+updated: 2026-04-15
 category: system
 status: current
 doc_kind: node
@@ -45,7 +45,7 @@ Each model family entry uses:
   - Can over-interpret or hallucinate intent when input is genuinely sparse
   - Occasionally verbose when concise structured output is needed
   - May defer rather than commit on edge-case judgment calls
-- **best_as:** orchestrator (especially for messy/ambiguous input), prompt-refiner, reviewer
+- **best_as:** orchestrator (especially for messy/ambiguous input), `o-reframer`, reviewer
 - **delegation_notes:** Responds well to open-ended prompts with rich context. Benefits from explicit "stop and ask" instructions when input is genuinely insufficient.
 - **known_limits:** Update per version.
 
@@ -62,7 +62,7 @@ Each model family entry uses:
   - Struggles with ambiguous or multi-intent input (tends to pick one interpretation)
   - Less effective at conversational back-and-forth for disambiguation
   - May miss implicit context that wasn't explicitly stated
-- **best_as:** deep-researcher, orchestrator (for well-scoped work), reviewer
+- **best_as:** deep-researcher, orchestrator (for well-scoped work), reviewer, `o-planner`
 - **delegation_notes:** Pre-structure prompts with explicit scope, success criteria, and expected output shape. Avoid open-ended "figure out what the user meant" delegation.
 - **known_limits:** xHigh mode available for complex tasks. Update per version.
 
@@ -74,11 +74,31 @@ Each model family entry uses:
   - Adequate for heuristic scans (remaining work, quick status)
 - **weaknesses:**
   - Not suitable for complex reasoning or orchestration
-- **best_as:** remaining-work, fast advisory, triage, exploration
+- **best_as:** fast advisory, triage, exploration
 - **delegation_notes:** Keep prompts short and well-scoped. Expect best-effort quality.
 - **known_limits:** Update per version.
 
-## When to Use Mini vs Full Models
+### Auto (copilot)
+
+- **tier:** utility
+- **strengths:**
+  - Lets Copilot route bounded, read-only work to an appropriate lower-cost model without pinning a premium lane unnecessarily
+  - Good fit for schema-bounded classification, summarization, and first-pass ideation
+  - Reduces premium-model fan-out when the top-level orchestrator already owns judgment and escalation
+- **weaknesses:**
+  - Model choice is runtime-selected rather than explicit
+  - Not appropriate when a workflow requires deterministic cross-model behavior or the highest-judgment model on every hop
+- **best_as:** search, execute, code-explorer, doc-writer, test-runner
+- **delegation_notes:** Use for bounded utility lanes with explicit output contracts and clear escalation back to the orchestrator when confidence is low.
+- **known_limits:** Do not rely on Auto for premium-only guarantees.
+
+## When to Use Auto vs Mini vs Full Models
+
+Route to **Auto** (`Auto (copilot)`) for:
+- First-pass code exploration, summarization, or bounded evidence gathering that can escalate to a premium lane if the evidence is thin
+- Bounded utility lanes with explicit output contracts where the flagship orchestrator still owns the final judgment
+- Closure formatting and follow-up structuring where the orchestrator still owns the final stop/go decision
+- Bounded utility lanes such as `@search`, `@execute`, `@code-explorer`, `@doc-writer`, and `@test-runner`
 
 Route to **mini** (gpt-5-mini, haiku 4.5) for:
 - Status checks: git status, "is there remaining work?", session health
@@ -92,8 +112,9 @@ Route to **full** (gpt-5.4, claude sonnet/opus) for:
 - Deep research: comparative analysis, systematic exploration
 - Review: code review, logic validation, consistency checking
 - Ambiguous input: anything requiring intent interpretation or disambiguation
+- Flagship-orchestrator request reframing via the Claude-backed `@o-reframer` lane
 
-**Rule of thumb**: If the task needs judgment, creativity, or multi-step reasoning, use full. If it needs speed and the answer is mostly lookup/scan, use mini.
+**Rule of thumb**: Keep the top-level orchestrator on a premium model, use Auto for bounded utility lanes, and reserve mini for very cheap status/triage work. If the task needs sustained judgment, creativity, or multi-step reasoning, use full.
 
 ## Integration with Routing
 

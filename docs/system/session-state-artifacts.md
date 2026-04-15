@@ -1050,7 +1050,7 @@ To avoid schema changes, encode checkpoint state in the `Notes` cell using:
 
 Example checkpoint notes:
 ```
-status: passed; unit-test-runner; duration=42s
+status: passed; test-runner; duration=42s
 status: failed; integration-tests; see: execution log 2026-02-23T14:45
 status: skipped; user declined doc update
 ```

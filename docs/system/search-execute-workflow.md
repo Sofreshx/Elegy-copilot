@@ -1,6 +1,6 @@
 ---
 created: 2026-03-07
-updated: 2026-04-09
+updated: 2026-04-15
 category: system
 status: current
 doc_kind: node
@@ -136,14 +136,12 @@ When bootstrap is missing:
 
 Use existing lanes to catch skipped canonical guidance:
 
-- `impl-reviewer` is the primary spec-fit gate for required canonical bootstrap on docs-backed
-  write-capable work
-- `consistency-reviewer` checks cited canonical references, docs/code alignment, and convention
-  guidance that was skipped or only partially applied
-- `code-reviewer` catches high-confidence defects, security issues, or quality regressions caused by
-  ignored canonical guidance
-- `convention-governor` and `doc-structure-governor` own missing-authority-path and missing-entrypoint
-  audits when the real problem is the governance surface itself
+- `code-reviewer` is the primary review surface for request/spec-fit checks on docs-backed
+  write-capable work, plus cited canonical references, docs/code alignment, skipped convention
+  guidance, and high-confidence defects or regressions caused by ignored canonical guidance
+- `docs/system/project-conventions-governance.md`, the always-loaded `project-guidelines` skill,
+  and `guidelines-authoring` own missing-authority-path and missing-entrypoint follow-up when the real
+  problem is the governance surface itself
 - doc and contract validators remain the narrow validation layer for touched governance assets
 
 ### Mixed enforcement posture
@@ -167,9 +165,9 @@ normalized route-selection fields from [docs/system/planning-backlog-roadmap-con
 
 Deterministic routing posture:
 
-- `planning_surface: roadmap` -> route directly to `@roadmap-planner` as a **leaf-only** roadmap/backlog lane for durable multi-session planning
-- `planning_surface: plan-pack` -> route to the plan-pack lane only when `execution_readiness` is `ready` or `stageable`; `@o-planner` remains the **leaf-only** execution-planning lane
-- `planning_surface: both` -> keep `@orchestrator` as the coordinator, route roadmap work first, then route the selected slice to `@o-planner` only when that slice is `ready` or `stageable`; do not allow coordinator handoff from `@roadmap-planner` to `@o-planner`
+- `planning_surface: roadmap` -> keep `@orchestrator` as the owner of roadmap/backlog surface selection and persistence rules; when repo writes are needed, route through existing writing lanes and planning skills rather than dedicated backlog/roadmap planner agents
+- `planning_surface: plan-pack` -> route to the plan-pack lane only when `execution_readiness` is `ready` or `stageable`; use `@o-planner` by default and escalate to `@o-planner-gpt` only when premium planning is justified
+- `planning_surface: both` -> keep `@orchestrator` as the coordinator, handle durable roadmap/backlog framing first, then invoke the selected plan-pack leaf only when that slice is `ready` or `stageable`
 - `planning_surface: none` -> do not create roadmap or plan-pack artifacts; route directly to the bounded delivery/reporting lane needed for the request, such as commit prep, review prep, or CI result checks
 
 This posture keeps planning-surface choice explicit, preserves the bounded coordinator topology, and avoids
@@ -188,20 +186,21 @@ The shipped V1 nested topology is intentionally narrow:
 - Host/runtime nesting support up to depth 5 is runtime headroom only; the shipped repo topology stays bounded and explicit rather than generally recursive.
 - Approved coordinator agents must be named and explicitly allowlisted in frontmatter; all other
    agents remain leaf-only.
-- Planning uses direct orchestrator → `@o-planner` delegation. The orchestrator gathers
-   exploration context via `@search` / `@execute` and passes it to leaf-only `@o-planner`.
-- `@o-validation-coordinator` is the bounded validation-overlap exception and may delegate only to
-   `@unit-test-runner` and `@integration-test-runner`; integration follows policy-driven
-   mandatory-validation rules for the frozen slice rather than a user-confirmed-only gate.
-- `@e2e-validator` -> `@e2e-browser` remains the narrow validation coordinator exception.
-- Write-capable implementation lanes and reviewer lanes remain leaf-only in V1.
+- Planning uses direct orchestrator-owned surface selection. `@o-planner` remains the default
+  planning leaf for plan-pack work, while roadmap/backlog persistence uses existing writing lanes and
+  planning skills instead of dedicated planner agents in the shipped surface.
+- Validation uses the single leaf `@test-runner`; specialized unit, integration, and browser behavior
+  stays inside that lane and its referenced skills rather than nested validation coordinators.
+- Write-capable implementation lanes and reviewer lanes remain leaf-only in V1. `@impl` is the
+  default shipped implementation lane; compatibility-only split implementation lanes are not part of
+  the primary orchestrator workflow.
 - Coordinator-to-coordinator chains are forbidden in V1.
 - If nested planning is unavailable or disabled, use the legacy-depth-1 fallback: direct
    orchestrator -> `@o-planner` planning.
 
-Within this topology, planning-surface selection remains orchestrator-owned. `@roadmap-planner` and
-`@o-planner` stay leaf-only even when the request moves through `roadmap`, `plan-pack`, or `both`
-postures.
+Within this topology, planning-surface selection remains orchestrator-owned. `@o-planner` stays
+leaf-only when the request moves through `plan-pack` or `both` postures, and roadmap/backlog writes
+remain orchestrator-managed instead of handing control to dedicated planner agents.
 
 ## Deterministic capability families
 
@@ -235,6 +234,7 @@ Only transversal meta-skills stay always loaded:
 - `skill-discovery`
 - `implementation-friction`
 - `stack-detector`
+- `project-guidelines`
 
 This keeps startup context small and makes skill loading an explicit act.
 

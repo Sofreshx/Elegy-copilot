@@ -8,7 +8,7 @@ const { pathToFileURL } = require('url');
 const defaultRepoRoot = path.resolve(__dirname, '..');
 const gateName = 'Repo Setup Baseline Gate';
 const shippedLaneBundleId = 'repo-setup-governance-global';
-const shippedLaneAssetIds = ['agent-repo-setup-governor', 'skill-repo-setup-governance'];
+const shippedLaneAssetIds = ['skill-repo-setup-governance'];
 const shippedLaneBundleContract = {
   installTarget: 'user-global',
   activationScope: 'global',

@@ -14,7 +14,7 @@ const approvedCoordinatorConfigs = new Map([
 		{
 			optional: false,
 			allowedDelegates: null,
-			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
+			allowedApprovedDelegates: new Set(),
 		},
 	],
 	[
@@ -22,7 +22,7 @@ const approvedCoordinatorConfigs = new Map([
 		{
 			optional: true,
 			allowedDelegates: null,
-			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
+			allowedApprovedDelegates: new Set(),
 		},
 	],
 	[
@@ -30,7 +30,7 @@ const approvedCoordinatorConfigs = new Map([
 		{
 			optional: true,
 			allowedDelegates: null,
-			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
+			allowedApprovedDelegates: new Set(),
 		},
 	],
 	[
@@ -38,7 +38,7 @@ const approvedCoordinatorConfigs = new Map([
 		{
 			optional: true,
 			allowedDelegates: null,
-			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
+			allowedApprovedDelegates: new Set(),
 		},
 	],
 	[
@@ -46,7 +46,7 @@ const approvedCoordinatorConfigs = new Map([
 		{
 			optional: true,
 			allowedDelegates: null,
-			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
+			allowedApprovedDelegates: new Set(),
 		},
 	],
 	[
@@ -54,30 +54,6 @@ const approvedCoordinatorConfigs = new Map([
 		{
 			optional: true,
 			allowedDelegates: null,
-			allowedApprovedDelegates: new Set(['e2e-validator', 'o-validation-coordinator']),
-		},
-	],
-	[
-		'ci-watcher',
-		{
-			optional: true,
-			allowedDelegates: null,
-			allowedApprovedDelegates: new Set(),
-		},
-	],
-	[
-		'e2e-validator',
-		{
-			optional: false,
-			allowedDelegates: new Set(['e2e-browser']),
-			allowedApprovedDelegates: new Set(),
-		},
-	],
-	[
-		'o-validation-coordinator',
-		{
-			optional: false,
-			allowedDelegates: new Set(['unit-test-runner', 'integration-test-runner']),
 			allowedApprovedDelegates: new Set(),
 		},
 	],
@@ -85,19 +61,12 @@ const approvedCoordinatorConfigs = new Map([
 
 const writeCapableImplementationLanes = new Set([
 	'impl',
-	'work-unit-runner',
 ]);
 
 const reviewerLanes = new Set([
 	'code-reviewer',
-	'consistency-reviewer',
-	'final-reviewer',
-	'goal-reviewer',
-	'impl-reviewer',
-	'logic-reviewer',
 	'reviewer-gpt-5-4',
 	'reviewer-opus-4-6',
-	'working-reviewer',
 ]);
 
 const manifestValidationTargets = [
@@ -113,21 +82,11 @@ const requiredDefaultOrchestratorBaseAssetIds = [
 ];
 
 const requiredOrchestratorSupportAssetIdsByDelegate = new Map([
-	['roadmap-planner', ['skill-roadmap-authoring']],
-	['backlog-planner', ['skill-roadmap-authoring']],
-	['e2e-validator', ['skill-e2e-workflow']],
-	['convention-governor', ['skill-project-conventions-governance']],
-	['doc-structure-governor', ['skill-documentation-structure-governance']],
-	['repo-setup-governor', ['skill-repo-setup-governance']],
-	['instruction-auditor', ['skill-instruction-quality']],
-	['security-auditor', ['skill-audit-report-formats', 'skill-security']],
-	['stack-auditor', ['skill-stack-detector', 'skill-stack-audit-patterns']],
-	['deploy-auditor', ['skill-audit-report-formats']],
+	['test-runner', ['skill-e2e-workflow']],
 ]);
 
 const sharedUserGlobalOrchestratorBundleId = 'repo-setup-governance-global';
 const sharedUserGlobalOrchestratorAssetIds = new Set([
-	'agent-repo-setup-governor',
 	'skill-repo-setup-governance',
 ]);
 

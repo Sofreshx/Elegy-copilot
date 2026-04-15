@@ -4,9 +4,12 @@ description: Reframes raw user requests into a structured, read-only classificat
 tools: [read, search]
 user-invocable: false
 disable-model-invocation: false
+model: Claude Sonnet 4.6 (copilot)
 ---
 
 # Orchestrator Request Reframer (`@o-reframer`)
+
+Claude-backed reframing lane for the orchestrator.
 
 ## Purpose
 Analyze a raw user request + project context, produce a structured classification brief for orchestrator routing. Read-only — never implements, edits, runs commands, or asks the user directly.
