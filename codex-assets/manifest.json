@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "instruction-engine-codex",
+    "version": "0.1.0",
+    "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
+  },
+  "installDefaults": {
+    "codexHome": "~/.codex",
+    "agentsDir": "~/.codex/agents",
+    "skillsDir": "~/.agents/skills",
+    "instructionsFile": "~/.codex/AGENTS.md",
+    "configFile": "~/.codex/config.toml",
+    "description": "Home-installed Codex session assets for planning-first work, review, and minimal repo bootstrap."
+  },
+  "installerHints": {
+    "preferExplicitDestinations": true,
+    "agentsAreFlat": true,
+    "skillsRequireFolderName": true,
+    "notes": "Install instructions and custom agents under ~/.codex, install user-authored skills under ~/.agents/skills, and patch ~/.codex/config.toml conservatively."
+  },
+  "governance": {
+    "g05": {
+      "schemaVersion": "1.0.0",
+      "requiredControls": {
+        "early": [
+          {
+            "id": "safetyTokenParity",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "hookEnforcement",
+            "owner": "Platform Engineering"
+          },
+          {
+            "id": "telemetrySchemaValidation",
+            "owner": "Observability Engineering"
+          }
+        ],
+        "final": [
+          {
+            "id": "evidencePredicates",
+            "owner": "Release Engineering"
+          },
+          {
+            "id": "finalGateWaiverPrecedence",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "trustedEvidenceBindingRetention",
+            "owner": "Release Engineering"
+          }
+        ]
+      }
+    }
+  },
+  "assets": [
+    {
+      "id": "codex-global-instructions",
+      "type": "instructions",
+      "source": "codex-assets/home/AGENTS.md",
+      "destination": "AGENTS.md"
+    },
+    {
+      "id": "codex-reviewer-agent",
+      "type": "agent",
+      "source": "codex-assets/agents/reviewer.toml",
+      "destination": "agents/reviewer.toml"
+    },
+    {
+      "id": "codex-repo-setup-skill",
+      "type": "skill",
+      "source": "codex-assets/skills/repo-setup",
+      "destination": "skills/repo-setup"
+    }
+  ],
+  "sourcePatterns": [
+    {
+      "type": "instructions",
+      "sourceGlob": "codex-assets/home/AGENTS.md",
+      "destinationDir": "."
+    },
+    {
+      "type": "agent",
+      "sourceGlob": "codex-assets/agents/*.toml",
+      "destinationDir": "agents"
+    },
+    {
+      "type": "skill",
+      "sourceGlob": "codex-assets/skills/*",
+      "destinationDir": "skills"
+    }
+  ]
+}

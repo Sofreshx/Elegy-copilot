@@ -27,6 +27,7 @@ node scripts/validate-doc-graph.js
 # Validate shipped asset metadata when touching engine-assets or .cli manifests
 node scripts/validate-manifest.js
 node scripts/validate-skill-discovery-map.js
+node scripts/validate-codex-assets.js
 
 # Build the dashboard UI
 npm --prefix copilot-ui run ui:build
@@ -36,6 +37,7 @@ npm --prefix copilot-ui run ui:build
 
 Source-of-truth areas:
 
+- `codex-assets/` for shipped Codex instructions, custom agents, and skills
 - `engine-assets/` for shipped agents, skills, prompts, and instructions
 - `copilot-ui/` for the local dashboard and desktop shell
 - `contracts/` for shared runtime contracts
@@ -44,10 +46,10 @@ Source-of-truth areas:
 
 When changing assets:
 
-1. Edit canonical assets in `engine-assets/`.
-2. Update `.cli/manifest.allowlist.json` if the shipped baseline changes.
-3. Re-generate `.cli/manifest.json` with `node scripts/generate-cli-manifest.mjs`.
-4. Run the relevant validation scripts.
+1. Edit Copilot assets in `engine-assets/` and Codex assets in `codex-assets/`.
+2. Update `.cli/manifest.allowlist.json` if the shipped Copilot baseline changes.
+3. Re-generate `.cli/manifest.json` with `node scripts/generate-cli-manifest.mjs` when shipped Copilot assets change.
+4. Run `node scripts/validate-manifest.js` and `node scripts/validate-codex-assets.js` when touching shipped asset metadata or Codex content.
 
 When changing workflows or release docs:
 

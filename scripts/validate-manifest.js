@@ -4,21 +4,28 @@ const fs = require('fs');
 const path = require('path');
 
 const root = path.resolve(__dirname, '..');
+const DEFAULT_REQUIRED_ASSETS = [
+	{ id: 'copilot-instructions', type: 'instructions' },
+	{ id: 'skill-core-guardrails', type: 'skill' },
+	{ id: 'skill-discovery', type: 'skill' },
+];
+
+const CODEX_REQUIRED_ASSETS = [
+	{ id: 'codex-global-instructions', type: 'instructions' },
+	{ id: 'codex-reviewer-agent', type: 'agent' },
+	{ id: 'codex-repo-setup-skill', type: 'skill' },
+];
+
 const manifestFiles = [
-	{ path: '.cli/manifest.json', enforceSourceExists: true },
-	{ path: 'engine-assets/manifest.json', enforceSourceExists: true },
+	{ path: '.cli/manifest.json', enforceSourceExists: true, requiredAssets: DEFAULT_REQUIRED_ASSETS },
+	{ path: 'engine-assets/manifest.json', enforceSourceExists: true, requiredAssets: DEFAULT_REQUIRED_ASSETS },
+	{ path: 'codex-assets/manifest.json', enforceSourceExists: true, requiredAssets: CODEX_REQUIRED_ASSETS },
 ];
 
 const REQUIRED_G05_CONTROLS = {
 	early: ['safetyTokenParity', 'hookEnforcement', 'telemetrySchemaValidation'],
 	final: ['evidencePredicates', 'finalGateWaiverPrecedence', 'trustedEvidenceBindingRetention'],
 };
-
-const REQUIRED_ASSETS = [
-	{ id: 'copilot-instructions', type: 'instructions' },
-	{ id: 'skill-core-guardrails', type: 'skill' },
-	{ id: 'skill-discovery', type: 'skill' },
-];
 
 const VALID_LOAD_MODES = ['always', 'on-demand'];
 const VALID_BUNDLE_INSTALL_TARGETS = ['user-global', 'repo-local'];
@@ -315,10 +322,12 @@ function validateBundles(manifest, manifestRelPath, assetIds) {
 	}
 }
 
-function validateRequiredAssets(manifest, manifestRelPath) {
+function validateRequiredAssets(manifest, manifestRelPath, requiredAssets) {
 	if (!Array.isArray(manifest.assets)) return;
 
-	for (const required of REQUIRED_ASSETS) {
+	const resolvedRequiredAssets = Array.isArray(requiredAssets) ? requiredAssets : DEFAULT_REQUIRED_ASSETS;
+
+	for (const required of resolvedRequiredAssets) {
 		const match = manifest.assets.find((asset) => asset && asset.id === required.id);
 		if (!match) {
 			fail(`${manifestRelPath}: missing required asset id '${required.id}'`);
@@ -345,7 +354,7 @@ for (const target of manifestFiles) {
 	validateGovernance(manifest, manifestRelPath);
 	const { checked, assetIds } = validateAssets(manifest, manifestRelPath, target.enforceSourceExists);
 	validateBundles(manifest, manifestRelPath, assetIds);
-	validateRequiredAssets(manifest, manifestRelPath);
+	validateRequiredAssets(manifest, manifestRelPath, target.requiredAssets);
 	checkedByManifest.push(`${manifestRelPath}=${checked}`);
 }
 

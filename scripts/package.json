@@ -5,6 +5,7 @@
   "scripts": {
     "test": "node test-with-ledger.js",
     "test:contract-compatibility-matrix": "node contract-compatibility-matrix.test.js",
+    "validate:codex-assets": "node validate-codex-assets.js",
     "generate:repo-setup-baseline": "node generate-repo-setup-baseline.mjs",
     "generate:repo-setup-profiles": "node generate-repo-setup-profiles.mjs",
     "sync:superpowers": "node sync-superpowers.js",

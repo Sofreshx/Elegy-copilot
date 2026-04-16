@@ -1,6 +1,6 @@
 # Elegy Copilot
 
-Shared GitHub Copilot agents, skills, and workflow conventions for multi-repo development. Elegy Copilot provides structured orchestration so planning, implementation, testing, and reviews stay consistent across all your projects.
+Shared GitHub Copilot assets plus a home-installed Codex session lane for multi-repo development. Copilot and Codex are intentionally supported through different asset models: Copilot gets repo-shipped assets and dashboard support, while Codex gets a lighter home install built around native planning, review, and subagent workflows.
 
 ## Windows Desktop Download
 
@@ -23,6 +23,15 @@ engine-assets/  →  ~/.copilot/
   copilot-instructions.md   copilot-instructions.md
 ```
 
+Codex uses a separate home-installed lane from `codex-assets/`:
+
+```
+codex-assets/   →  ~/.codex/ + ~/.agents/skills/
+  home/AGENTS.md    ~/.codex/AGENTS.md
+  agents/           ~/.codex/agents/
+  skills/           ~/.agents/skills/
+```
+
 ## Quick start
 
 ### Install assets
@@ -38,6 +47,27 @@ bash scripts/cli-install.sh --all --force
 ```
 
 This installs the shipped first-party agents, prompts, and global instructions file into `~/.copilot`, and installs shipped skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode. The installer also prunes stale previously managed shipped agents, prompts, and skills that are no longer part of `engine-assets/`, while leaving repo-local workflow packs and other user-managed `.github/agents` / `.github/skills` content alone.
+
+### Install Codex session assets
+
+**Windows (PowerShell):**
+```powershell
+pwsh -File scripts/codex-install.ps1 --force
+```
+
+**macOS / Linux:**
+```bash
+bash scripts/codex-install.sh --force
+```
+
+This installs `~/.codex/AGENTS.md`, `~/.codex/agents/reviewer.toml`, and `$HOME/.agents/skills/repo-setup`, then patches `~/.codex/config.toml` conservatively. The patcher only adds `review_model` when it is absent and only adds the managed planning profile when that profile name is unused.
+
+### Codex quick use
+
+- Native Codex commands stay primary: `/plan`, `/review`, `/init`, `/resume`, `/fork`
+- This repo adds one global reviewer agent: `reviewer`
+- This repo adds one reusable Codex skill: `repo-setup`
+- There is no custom `/setup-repo` slash command; use the `repo-setup` skill plus native `/init`
 
 Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can then be installed explicitly from the local dashboard in `Catalog` -> `Workflow packs`. Repo-specific governance lanes only appear when you register/select a repo that provides repo-local `.github/*` assets or repo-scoped overrides.
 
@@ -83,6 +113,15 @@ More contributor and community guidance:
 | Instructions | 1 | `engine-assets/copilot-instructions.md` |
 | Canonical asset manifest | — | `engine-assets/manifest.json` |
 | Generated shipping manifest | — | `.cli/manifest.json` |
+
+Codex baseline:
+
+| Type | Count | Location |
+|------|-------|----------|
+| Global instructions | 1 | `codex-assets/home/AGENTS.md` |
+| Custom agents | 1 | `codex-assets/agents/*.toml` |
+| Skills | 1 | `codex-assets/skills/<name>/SKILL.md` |
+| Canonical asset manifest | — | `codex-assets/manifest.json` |
 
 ---
 
@@ -337,6 +376,10 @@ After this, permission prompts for `~/.copilot` should stop (or significantly re
 
 ```
 instruction-engine/
+├── codex-assets/
+│   ├── home/               Codex global AGENTS.md source
+│   ├── agents/             Codex custom agent TOML files
+│   ├── skills/             Codex skill folders with SKILL.md
 ├── engine-assets/
 │   ├── agents/             agent .agent.md files (source of truth)
 │   ├── skills/             skill folders with SKILL.md
@@ -349,6 +392,7 @@ instruction-engine/
 ├── local-tracker/          session/task tracking daemon + Discord gateway
 ├── scripts/
 │   ├── cli-install.ps1/.sh install scripts
+│   ├── codex-install.ps1/.sh Codex install scripts
 │   └── cli-ui.ps1/.sh      dashboard launch scripts
 ├── docs/                   architecture docs and playbooks
 └── .github/
@@ -381,10 +425,10 @@ Start with [CONTRIBUTING.md](CONTRIBUTING.md) for local setup, validation comman
 
 Quick reminders:
 
-1. Edit agents in `engine-assets/agents/` and skills in `engine-assets/skills/<name>/SKILL.md`.
-2. Canonical shipped asset metadata lives in `engine-assets/manifest.json`.
-3. If shipped assets change, update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`.
-4. Keep `engine-assets/copilot-instructions.md` concise because it loads into every Copilot session.
+1. Edit Copilot assets in `engine-assets/` and Codex assets in `codex-assets/`.
+2. Canonical Copilot metadata lives in `engine-assets/manifest.json`; Codex metadata lives in `codex-assets/manifest.json`.
+3. If shipped Copilot assets change, update `.cli/manifest.allowlist.json` and re-generate `.cli/manifest.json` via `node scripts/generate-cli-manifest.mjs`.
+4. Keep `engine-assets/copilot-instructions.md` concise because it loads into every Copilot session, and keep `codex-assets/home/AGENTS.md` workflow-specific because it loads across repos.
 5. Document behavior and workflow changes in `docs/` and the relevant root community docs.
 
 ---
