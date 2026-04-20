@@ -66,6 +66,25 @@ A typical session directory contains:
     rev-0002.md        # Second revision, etc.
 ```
 
+## Materialization Responsibilities
+
+Persisted session-state workflows split **content production** from **artifact materialization**:
+
+- `@o-planner` and equivalent planning leaves return markdown content only. They do **not** own file
+  writes and must not read, poll, or probe `~/.copilot/session-state/<SESSION_ID>/plan.md` or other
+  session-artifact paths to decide whether planning can proceed. Fresh sessions may not have those
+  files yet.
+- Replans and revisions are caller-driven: if a planner needs prior plan state, the orchestrator or
+  host/runtime must supply the relevant prior artifact content inline instead of expecting the planner
+  to fetch it from disk.
+- When a persisted workflow is active, the orchestrator/host owns deciding when markdown artifacts
+  are materialized and should route writes for `plan.md`, `handoff.md`, `proposition.md`, and
+  `verification-guide.md` through `@doc-writer` or another explicit markdown-writing lane.
+- The session root remains an orchestrator/host-selected persistence location. Markdown-writing lanes
+  should use the canonical session root when it exists and must not invent alternate locations.
+- `execution-state.json` is outside that markdown-writing lane. It remains an additive runtime/host
+  overlay persisted under the same session root when the workflow chooses to write it.
+
 ## Research + Diagram Artifacts
 
 Planning records can include structured research and diagram artifacts as additive fields:
@@ -108,6 +127,10 @@ The plan artifact contains **two top-level documents in one markdown file**:
 This dual-document approach matches the persisted session planning workflow output used by the planning/execution lane.
 
 In the default chat-first orchestrator path, the same conceptual state may remain in chat and host/runtime state instead of being written immediately to `plan.md`. When a persisted lane is chosen later, the artifact should still follow this shape.
+
+In persisted workflows, the planner returns the Plan Pack + Progress Tracker content and the
+orchestrator/host materializes `plan.md` through an explicit markdown-writing lane. The planner must
+not assume an existing `plan.md` is already present on disk.
 
 `plan.md` can act as a bridge surface for the Session Intent Frame when persistence is needed: it
 anchors the approved execution slice, active goals, work-unit structure, and current progress without
@@ -281,6 +304,10 @@ Use durable structured sections so resumptions and downstream planning can extra
 
 This remains an optional persisted artifact for the chat-first default path. The orchestrator may instead keep the equivalent guidance in concise chat/host state summaries until an explicit persisted workflow or host/runtime artifact flow writes it out.
 
+When the persisted workflow chooses to materialize `proposition.md`, the orchestrator/host should
+route the markdown write through `@doc-writer` or another explicit markdown-writing lane using this
+artifact contract.
+
 `proposition.md` is a bridge/summary surface, not a new required memory artifact. It may capture
 direction, next actions, watch-outs, and open risks that help rebuild either the Session Intent Frame
 or Session Closure Summary after a pause/resume boundary.
@@ -317,12 +344,14 @@ The plan prioritizes foundational changes before UI work to minimize rework...
 
 ### Handoff Artifact (`handoff.md`)
 
-The planning step writes a bootstrap artifact for the next execution or resume step.
+When a persisted workflow needs it, the orchestrator-managed planning-to-execution handoff step
+materializes a bootstrap artifact for the next execution or resume step through an explicit
+markdown-writing lane.
 
 | Property | Value |
 |---|---|
 | **Write semantics** | Overwrite at end of planning |
-| **Lifecycle** | Written by the planning step; read by the execution/resume step before implementation |
+| **Lifecycle** | Materialized by the orchestrator/host after planning; read by the execution/resume step before implementation |
 | **Required** | Yes for the persisted session execution flow |
 
 Required sections:
@@ -443,7 +472,7 @@ A structured guide for verifying changes made during a session's execution phase
 | Property | Value |
 |---|---|
 | **Write semantics** | Overwrite (full replace on each write) |
-| **Lifecycle** | Written during finalization after review completes |
+| **Lifecycle** | Materialized by the orchestrator/host during finalization after review completes |
 | **Optional** | Yes — not created if verification-guide generation fails or is skipped |
 
 #### Format

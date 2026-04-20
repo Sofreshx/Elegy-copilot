@@ -33,8 +33,10 @@ evidence. It does **not** mean inventing speculative defects, overriding reviewe
 or turning healthy skepticism into nitpicks.
 
 Instruction Engine also supports an explicit persisted session-state lane for teams that want
-file-backed artifacts and an intentional handoff from planning to execution. That lane writes the
-same plan-pack shape to `~/.copilot/session-state/<SESSION_ID>/` for downstream tooling.
+file-backed artifacts and an intentional handoff from planning to execution. In that lane,
+`@o-planner` still returns content only; the orchestrator materializes the same plan-pack shape to
+`~/.copilot/session-state/<SESSION_ID>/` through `@doc-writer` or another explicit
+markdown-writing lane for downstream tooling.
 
 The default autonomous-decision log, when the host/runtime records one, belongs in user-local app
 data managed by the host/runtime. Host/runtime-managed autonomous or auto-mode decisions should go
@@ -264,6 +266,13 @@ concise session-state summary from the returned plan so it can keep long work on
 re-reading full history every step. It asks for plan approval only when unresolved scope, risky
 tradeoffs, or explicit user preference makes that approval materially necessary.
 
+When a persisted session-state workflow is active, `@o-planner` still returns only the **Plan Pack**
+and **Progress Tracker** content. The orchestrator owns materializing `plan.md` from that returned
+content through `@doc-writer` or another explicit markdown-writing lane. Fresh sessions may not have
+`~/.copilot/session-state/<SESSION_ID>/plan.md` yet, so the planner must not poll or probe session
+artifact paths before the first write; any prior revision context must be supplied inline by the
+caller.
+
 This phase runs only when the selected surface includes a plan pack and `execution_readiness` is
 `ready` or `stageable`. Roadmap-only and `none` requests skip the plan-pack lane entirely.
 
@@ -377,7 +386,7 @@ memory or automatic future pickup.
 | `@execute` | Capability-brief extraction lane that loads the selected skill, agent, or canonical doc and distills only the constraints needed downstream |
 | `@impl` | Default shipped write-capable implementation lane |
 | `@code-reviewer` | Single shipped reviewer leaf for quality gates plus request/spec-fit review |
-| `@doc-writer` | Documentation lane, including deterministic reconciliation of carryover docs and repo-backed planning persistence when the orchestrator selects a durable surface |
+| `@doc-writer` | Documentation lane, including deterministic reconciliation of carryover docs plus orchestrator-owned markdown persistence for session artifacts and repo-backed planning surfaces when the orchestrator selects them |
 | `@deep-researcher` | Single orchestrator-only GPT-5.4 research lane for evidence-backed option evaluation and systematic analysis |
 | `@test-runner` | Consolidated unit, integration, and browser/E2E validation lane |
 
@@ -410,6 +419,10 @@ For standard and complex work, the orchestrator uses the shared Plan Pack struct
 - The orchestrator does not create repo-local planning artifacts as part of its normal flow.
 - If you need persisted plan, proposition, handoff, and verification artifacts under
   `~/.copilot/session-state/<SESSION_ID>/`, use an explicit session-state workflow instead.
+- In that persisted workflow, the orchestrator routes markdown artifact writes for `plan.md`,
+  `handoff.md`, `proposition.md`, and `verification-guide.md` through `@doc-writer` (or another
+  explicit markdown-writing lane). `execution-state.json` stays a runtime/host-managed overlay
+  rather than a doc-writer artifact.
 
 The **Session Intent Frame** and **Session Closure Summary** may be represented in chat, host/runtime
 state, or persisted session artifacts depending on the workflow. They do not create new authority over
@@ -447,6 +460,12 @@ Use an explicit persisted planning/execution lane when you need:
 - persisted plan, proposition, and `handoff.md` artifacts under `~/.copilot/session-state/`
 - explicit reviewer-approved planning before execution handoff
 - reuse of session artifacts in `copilot-ui` Sessions and Planning surfaces
+
+In that lane, markdown artifact persistence remains orchestrator-owned: it materializes
+`plan.md` from `@o-planner`'s returned Plan Pack + Progress Tracker and uses the same explicit
+markdown-writing pattern for `handoff.md`, `proposition.md`, and `verification-guide.md` when the
+workflow chooses to write them. `execution-state.json` remains runtime/host overlay data rather
+than part of the markdown-writing lane.
 
 ## Limitations
 

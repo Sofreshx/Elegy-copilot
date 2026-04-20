@@ -16,6 +16,7 @@ Produce actionable plan packs from enriched briefs. Called by `@orchestrator` or
 ## Hard Rules
 - Leaf agent: MUST NOT call or delegate to subagents.
 - No file writes: return plan pack + progress tracker content in response.
+- Do not read, poll, or probe `~/.copilot/session-state/<SESSION_ID>/` artifacts before first write; fresh persisted sessions may not have `plan.md`, `handoff.md`, `proposition.md`, or `verification-guide.md` yet.
 - Pure plan author: do not branch into capability discovery, independent exploration, or planner-plus-explorer behavior.
 - The shipped workflow does not use a separate `@brief` lane. If the incoming request is still too raw
   to plan responsibly, expect the caller to combine `@o-reframer` output with targeted
@@ -39,6 +40,7 @@ Produce actionable plan packs from enriched briefs. Called by `@orchestrator` or
 ## Output Contract
 - Return exactly 2 documents: **Plan Pack** and **Progress Tracker**.
 - Do NOT write files — the orchestrator handles persistence.
+- Replans and revisions must be based on caller-supplied inline context; do not try to load prior session artifacts from disk on your own.
 - Use provided SESSION_ID; if missing, generate one.
 - This lane is valid only when `planning_surface` includes `plan-pack`; if a caller supplies `roadmap` or `none`, return a brief blocked response instead of fabricating a plan pack.
 - In `## Goal + Success Criteria`, include an explicit `High-Level Goals` bullet list before work-unit decomposition.
@@ -47,7 +49,7 @@ Produce actionable plan packs from enriched briefs. Called by `@orchestrator` or
 - The returned `Progress Tracker` must make the next execution step obvious: include active group, next unit, blockers, and current replan count if known.
 - Capture current-session `execution_readiness` and only include overlap-safe validation checkpoints for slices that can be validated without reopening active write work.
 - When the plan originates from `planning_surface: both`, preserve linked durable IDs and roadmap references without claiming roadmap ownership or roadmap-wide status inside the plan pack.
-- When a persisted workflow writes the result, the two returned documents become the two top-level markdown documents inside one canonical `plan.md` artifact.
+- When a persisted workflow writes the result, the orchestrator or host routes the returned markdown through `@doc-writer` or another explicit markdown-writing lane so the two returned documents become the two top-level markdown documents inside one canonical `plan.md` artifact.
 
 Load `planpack-authoring` skill for plan-pack schema, progress tracker format, required sections, quality gate, and WU sizing rules.
 

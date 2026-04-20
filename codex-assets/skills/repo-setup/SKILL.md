@@ -30,15 +30,18 @@ Inspect these inputs before proposing changes:
 ## Decision Rules
 
 1. Decide whether the repo needs any repo-local Codex setup at all.
-2. If the repo does need persistent Codex instructions, use `/init` in the target repo and then refine the generated `AGENTS.md`.
-3. Keep repo-local `AGENTS.md` focused on repo facts only:
+2. For routine install or refresh of the shared Codex agents and skills, use the install script instead of `/init`:
+   - Windows: `pwsh -File scripts/codex-install.ps1 --force`
+   - macOS/Linux: `bash scripts/codex-install.sh --force`
+3. If the repo does need persistent repo-local Codex instructions or bootstrap files, use `/init` in the target repo and then refine the generated `AGENTS.md`.
+4. Keep repo-local `AGENTS.md` focused on repo facts only:
    - layout
    - build/test commands
    - local safety constraints
    - done criteria
-4. Add `.codex/config.toml` only when repo-specific settings are clearly useful.
-5. Suggest repo-local skills only when the repo has a repeated workflow that is too specific for global instructions.
-6. Reuse useful Copilot guidance instead of replacing it wholesale. Translate the intent into Codex-native instructions rather than copying Copilot-specific tools or UI flows.
+5. Add `.codex/config.toml` only when repo-specific settings are clearly useful.
+6. Suggest repo-local skills only when the repo has a repeated workflow that is too specific for global instructions.
+7. Reuse useful Copilot guidance instead of replacing it wholesale. Translate the intent into Codex-native instructions rather than copying Copilot-specific tools or UI flows.
 
 ## Coexistence Rules
 

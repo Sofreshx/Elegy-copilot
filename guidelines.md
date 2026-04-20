@@ -31,3 +31,6 @@ Use this precedence when work touches this repository:
   and session execution artifacts under `~/.copilot/session-state/<SESSION_ID>/`.
 - For agent or skill surface changes, update canonical docs, manifests, allowlists, validators, and
   tests together.
+- For routine shared Copilot or Codex baseline refresh, use the install scripts in `scripts/`; use
+  `/init` only when you need to create or refine repo-local guidance such as `guidelines.md` or
+  `AGENTS.md`.

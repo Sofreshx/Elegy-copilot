@@ -2,14 +2,18 @@
 
 Shared GitHub Copilot assets plus a home-installed Codex session lane for multi-repo development. Copilot and Codex are intentionally supported through different asset models: Copilot gets repo-shipped assets and dashboard support, while Codex gets a lighter home install built around native planning, review, and subagent workflows.
 
-## Windows Desktop Download
+## Get up to date
 
-Windows desktop installers are published on the GitHub Releases page: [Sofreshx/Elegy-copilot releases](https://github.com/Sofreshx/Elegy-copilot/releases).
+Run the installer for the tool you use; re-running it refreshes the shared baseline.
 
-- Stable users should choose the latest non-prerelease `desktop-v*` release.
-- Semver tags such as `1.2.3` and `1.2.3-rc.1` are preview/evaluation releases and stay marked as prerelease on GitHub.
-- The current Windows Tauri lane is a manual-installer path. The app may perform automatic matching-channel checks, but installer download and apply remain explicit user actions.
-- Do not treat `/releases/latest` as the stable shortcut yet; historic semver releases must be remediated so none remain non-prerelease first.
+| Tool | Windows (PowerShell) | macOS / Linux |
+|------|-----------------------|---------------|
+| Copilot | `pwsh -File scripts/cli-install.ps1 --all --force` | `bash scripts/cli-install.sh --all --force` |
+| Codex | `pwsh -File scripts/codex-install.ps1 --force` | `bash scripts/codex-install.sh --force` |
+
+- Use the Copilot installer to refresh shared agents, skills, prompts, and instructions in `~/.copilot`.
+- Use the Codex installer to refresh the shared Codex baseline in `~/.codex` and `~/.agents/skills/`.
+- Use `/init` only for occasional repo-local guidance work such as creating or refining `guidelines.md` or `AGENTS.md`; it is not the normal shared-asset refresh path.
 
 ## How it works
 
@@ -34,40 +38,24 @@ codex-assets/   →  ~/.codex/ + ~/.agents/skills/
 
 ## Quick start
 
-### Install assets
+Use the commands in [Get up to date](#get-up-to-date), then use the notes below for what each installer changes.
 
-**Windows (PowerShell):**
-```powershell
-pwsh -File scripts/cli-install.ps1 --all --force
-```
-
-**macOS / Linux:**
-```bash
-bash scripts/cli-install.sh --all --force
-```
+### Copilot install details
 
 This installs the shipped first-party agents, prompts, and global instructions file into `~/.copilot`, and installs shipped skills into `~/.copilot/skills/` and/or `~/.copilot/skills-vault/` based on pointer mode. The installer also prunes stale previously managed shipped agents, prompts, and skills that are no longer part of `engine-assets/`, while leaving repo-local workflow packs and other user-managed `.github/agents` / `.github/skills` content alone.
 
-### Install Codex session assets
-
-**Windows (PowerShell):**
-```powershell
-pwsh -File scripts/codex-install.ps1 --force
-```
-
-**macOS / Linux:**
-```bash
-bash scripts/codex-install.sh --force
-```
+### Codex install details
 
 This installs `~/.codex/AGENTS.md`, `~/.codex/agents/reviewer.toml`, and `$HOME/.agents/skills/repo-setup`, then patches `~/.codex/config.toml` conservatively. The patcher only adds `review_model` when it is absent and only adds the managed planning profile when that profile name is unused.
 
 ### Codex quick use
 
 - Native Codex commands stay primary: `/plan`, `/review`, `/init`, `/resume`, `/fork`
+- For routine shared-asset setup or refresh, re-run `scripts/codex-install.ps1 --force` or `bash scripts/codex-install.sh --force`
 - This repo adds one global reviewer agent: `reviewer`
 - This repo adds one reusable Codex skill: `repo-setup`
-- There is no custom `/setup-repo` slash command; use the `repo-setup` skill plus native `/init`
+- Use `/init` only when you actually want Codex to create or refine repo-local guidance such as `guidelines.md` or `AGENTS.md`; it is more expensive and is not the normal path for refreshing shared assets
+- There is no custom `/setup-repo` slash command; use the `repo-setup` skill, and pair it with native `/init` only for that occasional repo-local guidance work
 
 Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can then be installed explicitly from the local dashboard in `Catalog` -> `Workflow packs`. Repo-specific governance lanes only appear when you register/select a repo that provides repo-local `.github/*` assets or repo-scoped overrides.
 
@@ -83,6 +71,15 @@ Optional workflow packs, including the vendored `Superpowers Workflow Pack`, can
 
 - VS Code Chat → right-click → **Diagnostics** (shows loaded agents/skills/prompts)
 - Copilot CLI: run `/agents`, `/skills`
+
+## Windows Desktop Download
+
+Windows desktop installers are published on the GitHub Releases page: [Sofreshx/Elegy-copilot releases](https://github.com/Sofreshx/Elegy-copilot/releases).
+
+- Stable users should choose the latest non-prerelease `desktop-v*` release.
+- Semver tags such as `1.2.3` and `1.2.3-rc.1` are preview/evaluation releases and stay marked as prerelease on GitHub.
+- The current Windows Tauri lane is a manual-installer path. The app may perform automatic matching-channel checks, but installer download and apply remain explicit user actions.
+- Do not treat `/releases/latest` as the stable shortcut yet; historic semver releases must be remediated so none remain non-prerelease first.
 
 ### Open-source contributor quickstart
 

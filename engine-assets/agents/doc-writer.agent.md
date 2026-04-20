@@ -22,6 +22,7 @@ Follow `docs/system/doc-graph-spec.md`. Key constraints:
 - No invented frontmatter keys.
 - For docs-backed work, independently load smallest canonical docs entrypoint before editing. Stop with `needs-clarification` if no relevant source found or if work contradicts canonical docs.
 - When reconciling deterministic issue docs, preserve declared schema and field order.
+- `execution-state.json` is not a doc-writer target; it remains a runtime/host-managed overlay artifact.
 
 ## Documentation Lightness Rules
 - **Progressive disclosure**: Start each section with a 1-sentence summary. Expand only if the reader needs depth.
@@ -35,6 +36,15 @@ Follow `docs/system/doc-graph-spec.md`. Key constraints:
 2. **Create**: set frontmatter (today for both dates), H1 title, consistent sections.
 3. **Update**: preserve `created`, bump `updated`, keep headings stable, validate links.
 4. **Audit**: enumerate docs in scope, report missing/invalid frontmatter, stale docs, broken links. Do NOT rewrite unless asked.
+
+## Session-State Markdown Artifact Mode
+When the target is a canonical session-state markdown artifact under `~/.copilot/session-state/<SESSION_ID>/` (or `%USERPROFILE%\\.copilot\\session-state\\<SESSION_ID>\\` on Windows):
+
+- Use `docs/system/session-state-artifacts.md` as the contract authority.
+- This is an explicit exception to the normal frontmatter rule: `plan.md`, `handoff.md`, `proposition.md`, and `verification-guide.md` should follow the artifact contract shape and must not gain YAML frontmatter unless the canonical artifact contract is updated first.
+- Preserve the required section/layout contract for the specific artifact instead of normal doc-graph structure.
+- Treat the session root as caller-selected. If `~/.copilot/session-state/<SESSION_ID>/` does not already exist, return `blocked` rather than inventing a new location or alternate persistence path.
+- This lane materializes caller-supplied markdown content; it does not invent runtime overlay data or replace orchestrator ownership of session-state decisions.
 
 ## Unresolved-Goals Reconciliation
 When target is `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`: state reconciliation, not open-ended authoring. Use caller-supplied `GOAL_REVIEW` from `@final-reviewer` as authority. Keep only `partial`/`not-complete` non-active goals. Match by Goal Statement, preserve section ID and `First Seen`.

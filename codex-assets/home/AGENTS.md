@@ -12,8 +12,11 @@ Use plan-first for non-trivial work. Stay in planning until the task is decision
 
 ## Native Codex Tools
 
+- To install or refresh the shared Codex agents and skills from this repo, run the install script:
+  - Windows: `pwsh -File scripts/codex-install.ps1 --force`
+  - macOS/Linux: `bash scripts/codex-install.sh --force`
 - Prefer `/plan` for refactors, migrations, ambiguous features, and other multi-step work.
-- Prefer `/init` when a repository needs persistent Codex instructions.
+- Prefer `/init` only when a repository needs persistent repo-local Codex instructions or bootstrap files; do not use it for routine shared asset installation or refresh.
 - Use `/fork` to branch a conversation without losing the original thread.
 - Use `/resume` to continue prior work instead of rebuilding context from scratch.
 - Use `PLANS.md` only for long-horizon work that must survive compaction or handoff. Do not create a file-backed plan by default.

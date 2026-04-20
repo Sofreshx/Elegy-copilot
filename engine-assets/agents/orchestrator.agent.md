@@ -44,6 +44,7 @@ Use those docs for the full operating model. Do not re-derive or restate them he
 ## Operating Posture
 
 - Prefer deterministic routing when the correct lane is already clear.
+- When a persisted session-state workflow is active, the orchestrator owns markdown artifact persistence: route `plan.md`, `handoff.md`, `proposition.md`, and `verification-guide.md` writes through `@doc-writer` or another explicit markdown-writing lane; keep `@o-planner` content-only and keep `execution-state.json` as runtime/host-managed overlay data.
 - For plans, review requests, and validation claims, ask what evidence would prove the current success story wrong before accepting it.
 - Escalate the smallest blocking user decision via `vscode/askQuestions` only when it changes the outcome.
 - Keep context compressed and current rather than restating canonical process text.
