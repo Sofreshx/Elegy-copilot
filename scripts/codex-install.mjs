@@ -1,17 +1,241 @@
 #!/usr/bin/env node
 
-import crypto from 'crypto';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { DEFAULT_PROFILE_NAME, DEFAULT_REVIEW_MODEL, patchConfigFile } from './codex-config-patch.mjs';
+import {
+  ensureDir,
+  getUserHome,
+  normalizeRel,
+  syncDirectory,
+  syncFile,
+  syncText,
+} from './install-surface-utils.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const codexAssetsRoot = path.join(repoRoot, 'codex-assets');
 const manifestPath = path.join(codexAssetsRoot, 'manifest.json');
+
+function toPosixJoin(...parts) {
+  return normalizeRel(path.posix.join(...parts.filter(Boolean)));
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function isExpectedPatternMatch(entry, patternType) {
+  const normalizedType = String(patternType || '').trim().toLowerCase();
+  if (normalizedType === 'skill') {
+    return entry.isDirectory();
+  }
+  if (normalizedType === 'agent' || normalizedType === 'instructions') {
+    return entry.isFile();
+  }
+  return true;
+}
+
+function buildCounts(results) {
+  const counts = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    skippedConflict: 0,
+    wouldCreate: 0,
+    wouldUpdate: 0,
+  };
+
+  for (const result of Array.isArray(results) ? results : []) {
+    switch (result?.action) {
+      case 'created':
+        counts.created += 1;
+        break;
+      case 'updated':
+        counts.updated += 1;
+        break;
+      case 'skipped':
+        counts.skipped += 1;
+        break;
+      case 'skipped_conflict':
+        counts.skippedConflict += 1;
+        break;
+      case 'would_create':
+        counts.wouldCreate += 1;
+        break;
+      case 'would_update':
+        counts.wouldUpdate += 1;
+        break;
+      default:
+        break;
+    }
+  }
+
+  return counts;
+}
+
+function readManifest() {
+  return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+}
+
+function listPatternMatches(sourceGlob, patternType) {
+  const normalized = normalizeRel(sourceGlob);
+  if (!normalized.includes('*')) {
+    const sourceAbs = path.join(repoRoot, normalized);
+    if (fs.existsSync(sourceAbs) && !isExpectedPatternMatch(fs.statSync(sourceAbs), patternType)) {
+      return [];
+    }
+    return [normalized];
+  }
+
+  const dirRel = path.posix.dirname(normalized);
+  const basePattern = path.posix.basename(normalized);
+  const dirAbs = path.join(repoRoot, dirRel);
+  const matcher = new RegExp(`^${escapeRegExp(basePattern).replace(/\\\*/g, '.*')}$`);
+  const entries = fs.readdirSync(dirAbs, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name));
+
+  return entries
+    .filter((entry) => matcher.test(entry.name) && isExpectedPatternMatch(entry, patternType))
+    .map((entry) => toPosixJoin(dirRel, entry.name));
+}
+
+function deriveAssetId(type, sourceRel, transform) {
+  const fileName = path.posix.basename(sourceRel);
+  const baseName = fileName
+    .replace(/\.agent\.md$/i, '')
+    .replace(/\.prompt\.md$/i, '')
+    .replace(/\.toml$/i, '')
+    .replace(/\.md$/i, '');
+  const suffix = transform === 'engine-agent-to-codex-role' ? '-role' : '';
+  return `${type}-${baseName}${suffix}`.replace(/[^a-zA-Z0-9-]+/g, '-').toLowerCase();
+}
+
+function createExpandedAsset(pattern, sourceRel) {
+  const destinationDir = normalizeRel(String(pattern.destinationDir || '.')).replace(/\/$/, '');
+  const sourceBaseName = path.posix.basename(sourceRel);
+  const transform = String(pattern.transform || '').trim();
+  const destinationFileName = transform === 'engine-agent-to-codex-role'
+    ? sourceBaseName.replace(/\.agent\.md$/i, '.toml')
+    : sourceBaseName;
+  const destination = destinationDir === '.' || destinationDir === ''
+    ? destinationFileName
+    : toPosixJoin(destinationDir, destinationFileName);
+
+  return {
+    id: deriveAssetId(pattern.type, sourceRel, transform),
+    type: pattern.type,
+    source: sourceRel,
+    destination,
+    transform: transform || undefined,
+    generated: transform === 'engine-agent-to-codex-role',
+  };
+}
+
+function expandManifestAssets(manifest) {
+  const explicitAssets = Array.isArray(manifest.assets) ? [...manifest.assets] : [];
+  const byDestination = new Set(
+    explicitAssets
+      .filter((asset) => asset && typeof asset.destination === 'string')
+      .map((asset) => normalizeRel(asset.destination))
+  );
+  const expandedAssets = [...explicitAssets];
+
+  for (const pattern of Array.isArray(manifest.sourcePatterns) ? manifest.sourcePatterns : []) {
+    if (!pattern || typeof pattern !== 'object') {
+      continue;
+    }
+    for (const sourceRel of listPatternMatches(pattern.sourceGlob, pattern.type)) {
+      const asset = createExpandedAsset(pattern, sourceRel);
+      const destination = normalizeRel(asset.destination);
+      if (byDestination.has(destination)) {
+        continue;
+      }
+      expandedAssets.push(asset);
+      byDestination.add(destination);
+    }
+  }
+
+  return expandedAssets;
+}
+
+function parseFrontmatter(text) {
+  const source = String(text || '');
+  const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+  if (!match) {
+    return {
+      attributes: {},
+      body: source.trim(),
+    };
+  }
+
+  const attributes = {};
+  for (const rawLine of match[1].split(/\r?\n/)) {
+    const trimmed = rawLine.trim();
+    if (!trimmed || trimmed.startsWith('#') || /^\s/.test(rawLine)) {
+      continue;
+    }
+
+    const keyMatch = rawLine.match(/^([A-Za-z0-9_.-]+):\s*(.*)$/);
+    if (!keyMatch) {
+      continue;
+    }
+
+    const [, key, rawValue] = keyMatch;
+    attributes[key] = String(rawValue || '').trim().replace(/^['"]|['"]$/g, '');
+  }
+
+  return {
+    attributes,
+    body: source.slice(match[0].length).trim(),
+  };
+}
+
+function buildCodexRoleToml(agentSourceAbs, sourceRel) {
+  const text = fs.readFileSync(agentSourceAbs, 'utf8');
+  const { attributes, body } = parseFrontmatter(text);
+  const fallbackName = path.posix.basename(sourceRel).replace(/\.agent\.md$/i, '');
+  const name = String(attributes.name || fallbackName).trim();
+  const description = String(attributes.description || `${name} role installed from instruction-engine.`).trim();
+  const developerInstructions = String(body || '').trim();
+
+  if (!name) {
+    throw new Error(`Generated Codex role is missing a name: ${sourceRel}`);
+  }
+  if (!description) {
+    throw new Error(`Generated Codex role is missing a description: ${sourceRel}`);
+  }
+  if (!developerInstructions) {
+    throw new Error(`Generated Codex role is missing developer instructions: ${sourceRel}`);
+  }
+
+  return [
+    `name = ${JSON.stringify(name)}`,
+    `description = ${JSON.stringify(description)}`,
+    `developer_instructions = ${JSON.stringify(developerInstructions)}`,
+    '',
+  ].join('\n');
+}
+
+function mapDestination(asset, codexHome, skillsHome) {
+  const destination = normalizeRel(asset.destination);
+  if (asset.type === 'skill') {
+    const suffix = destination.startsWith('skills/') ? destination.slice('skills/'.length) : destination;
+    return path.join(skillsHome, suffix);
+  }
+  return path.join(codexHome, destination);
+}
+
+function validateManifestAsset(asset) {
+  if (!asset || typeof asset !== 'object') {
+    throw new Error('Manifest asset entry must be an object');
+  }
+  if (!asset.id || !asset.type || !asset.source || !asset.destination) {
+    throw new Error(`Manifest asset is missing required fields: ${JSON.stringify(asset)}`);
+  }
+}
 
 export function parseArgs(argv) {
   const args = {
@@ -87,150 +311,26 @@ export function parseArgs(argv) {
   return args;
 }
 
-function getUserHome() {
-  return process.env.HOME || process.env.USERPROFILE || os.homedir();
-}
-
 export function resolveCodexHome(explicit) {
   if (explicit) return path.resolve(explicit);
   if (process.env.CODEX_HOME) return path.resolve(process.env.CODEX_HOME);
   return path.join(getUserHome(), '.codex');
 }
 
-export function resolveSkillsHome(explicit) {
+export function resolveSkillsHome(explicit, codexHome = '') {
   if (explicit) return path.resolve(explicit);
   if (process.env.INSTRUCTION_ENGINE_CODEX_SKILLS_HOME) {
     return path.resolve(process.env.INSTRUCTION_ENGINE_CODEX_SKILLS_HOME);
   }
-  return path.join(getUserHome(), '.agents', 'skills');
-}
-
-function normalizeRel(value) {
-  return String(value || '').replace(/\\/g, '/');
-}
-
-function shaFile(filePath) {
-  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
-}
-
-function dirHash(dirPath) {
-  if (!fs.existsSync(dirPath)) return '';
-  const files = [];
-
-  function walk(current, base) {
-    const entries = fs.readdirSync(current, { withFileTypes: true })
-      .sort((left, right) => left.name.localeCompare(right.name));
-    for (const entry of entries) {
-      const abs = path.join(current, entry.name);
-      const rel = path.relative(base, abs).replace(/\\/g, '/');
-      if (entry.isDirectory()) {
-        walk(abs, base);
-      } else if (entry.isFile()) {
-        files.push(`${rel}\0${shaFile(abs)}`);
-      }
-    }
-  }
-
-  walk(dirPath, dirPath);
-  return crypto.createHash('sha256').update(files.join('\n')).digest('hex');
-}
-
-function ensureDir(targetPath, dryRun) {
-  if (fs.existsSync(targetPath)) return;
-  if (dryRun) {
-    console.log(`[DRY-RUN] mkdir ${targetPath}`);
-    return;
-  }
-  fs.mkdirSync(targetPath, { recursive: true });
-}
-
-function syncFile(src, dst, options) {
-  const dstDir = path.dirname(dst);
-  ensureDir(dstDir, options.dryRun);
-
-  if (!fs.existsSync(dst)) {
-    if (options.dryRun) {
-      console.log(`[DRY-RUN] CREATE ${dst}`);
-    } else {
-      fs.copyFileSync(src, dst);
-      console.log(`[CREATE] ${dst}`);
-    }
-    return;
-  }
-
-  if (shaFile(src) === shaFile(dst)) {
-    console.log(`[SKIP]   ${dst} (up-to-date)`);
-    return;
-  }
-
-  if (!options.force) {
-    console.log(`[SKIP]   ${dst} (differs; re-run with --force to overwrite)`);
-    return;
-  }
-
-  if (options.dryRun) {
-    console.log(`[DRY-RUN] UPDATE ${dst}`);
-  } else {
-    fs.copyFileSync(src, dst);
-    console.log(`[UPDATE] ${dst}`);
-  }
-}
-
-function syncDirectory(src, dst, options) {
-  ensureDir(path.dirname(dst), options.dryRun);
-
-  if (!fs.existsSync(dst)) {
-    if (options.dryRun) {
-      console.log(`[DRY-RUN] CREATE-DIR ${dst}`);
-    } else {
-      fs.cpSync(src, dst, { recursive: true });
-      console.log(`[CREATE] ${dst}`);
-    }
-    return;
-  }
-
-  if (dirHash(src) === dirHash(dst)) {
-    console.log(`[SKIP]   ${dst} (up-to-date)`);
-    return;
-  }
-
-  if (!options.force) {
-    console.log(`[SKIP]   ${dst} (differs; re-run with --force to overwrite)`);
-    return;
-  }
-
-  if (options.dryRun) {
-    console.log(`[DRY-RUN] UPDATE-DIR ${dst}`);
-  } else {
-    fs.rmSync(dst, { recursive: true, force: true });
-    fs.cpSync(src, dst, { recursive: true });
-    console.log(`[UPDATE] ${dst}`);
-  }
-}
-
-function mapDestination(asset, codexHome, skillsHome) {
-  const destination = normalizeRel(asset.destination);
-  if (asset.type === 'skill') {
-    const suffix = destination.startsWith('skills/') ? destination.slice('skills/'.length) : destination;
-    return path.join(skillsHome, suffix);
-  }
-  return path.join(codexHome, destination);
-}
-
-function validateManifestAsset(asset) {
-  if (!asset || typeof asset !== 'object') {
-    throw new Error('Manifest asset entry must be an object');
-  }
-  if (!asset.id || !asset.type || !asset.source || !asset.destination) {
-    throw new Error(`Manifest asset is missing required fields: ${JSON.stringify(asset)}`);
-  }
+  const resolvedCodexHome = codexHome ? path.resolve(codexHome) : resolveCodexHome('');
+  return path.join(resolvedCodexHome, 'skills');
 }
 
 export function runInstall(args = {}) {
   const codexHome = resolveCodexHome(args.codexHome);
-  const skillsHome = resolveSkillsHome(args.skillsHome);
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
+  const skillsHome = resolveSkillsHome(args.skillsHome, codexHome);
+  const manifest = readManifest();
+  const assets = expandManifestAssets(manifest);
 
   console.log(`Codex home:  ${codexHome}`);
   console.log(`Skills home: ${skillsHome}`);
@@ -241,6 +341,7 @@ export function runInstall(args = {}) {
   ensureDir(path.join(codexHome, 'agents'), args.dryRun);
   ensureDir(skillsHome, args.dryRun);
 
+  const assetResults = [];
   for (const asset of assets) {
     validateManifestAsset(asset);
     const src = path.join(repoRoot, normalizeRel(asset.source));
@@ -249,11 +350,24 @@ export function runInstall(args = {}) {
       throw new Error(`Source asset missing: ${asset.source}`);
     }
 
-    if (asset.type === 'skill') {
-      syncDirectory(src, dst, args);
+    let syncResult;
+    if (asset.transform === 'engine-agent-to-codex-role') {
+      const roleToml = buildCodexRoleToml(src, normalizeRel(asset.source));
+      syncResult = syncText(roleToml, dst, args);
+    } else if (asset.type === 'skill') {
+      syncResult = syncDirectory(src, dst, args);
     } else {
-      syncFile(src, dst, args);
+      syncResult = syncFile(src, dst, args);
     }
+
+    assetResults.push({
+      id: asset.id,
+      type: asset.type,
+      source: normalizeRel(asset.source),
+      destination: normalizeRel(asset.destination),
+      generated: asset.generated === true,
+      ...syncResult,
+    });
   }
 
   const configPath = path.join(codexHome, 'config.toml');
@@ -262,6 +376,9 @@ export function runInstall(args = {}) {
     reviewModel: args.reviewModel,
     profileName: args.profileName,
   });
+  const configAction = args.dryRun
+    ? (configResult.changed ? 'would_patch' : 'skipped')
+    : (configResult.changed ? 'patched' : 'skipped');
   if (args.dryRun) {
     if (configResult.changed) {
       console.log(`[DRY-RUN] PATCH ${configPath}`);
@@ -274,7 +391,29 @@ export function runInstall(args = {}) {
     console.log(`[SKIP]   ${configPath} (up-to-date)`);
   }
 
+  const summary = {
+    surface: 'codex',
+    ok: true,
+    dryRun: Boolean(args.dryRun),
+    force: Boolean(args.force),
+    homes: {
+      codexHome,
+      skillsHome,
+      agentsHome: path.join(codexHome, 'agents'),
+      configPath,
+    },
+    counts: buildCounts(assetResults),
+    assets: assetResults,
+    generatedRoles: assetResults.filter((asset) => asset.generated === true).length,
+    config: {
+      action: configAction,
+      changed: Boolean(configResult.changed),
+      path: configPath,
+    },
+  };
+
   console.log('Done.');
+  return summary;
 }
 
 try {

@@ -16,10 +16,15 @@ const CODEX_REQUIRED_ASSETS = [
 	{ id: 'codex-repo-setup-skill', type: 'skill' },
 ];
 
+const ANTIGRAVITY_REQUIRED_ASSETS = [
+	{ id: 'antigravity-global-instructions', type: 'instructions' },
+];
+
 const manifestFiles = [
 	{ path: '.cli/manifest.json', enforceSourceExists: true, requiredAssets: DEFAULT_REQUIRED_ASSETS },
 	{ path: 'engine-assets/manifest.json', enforceSourceExists: true, requiredAssets: DEFAULT_REQUIRED_ASSETS },
 	{ path: 'codex-assets/manifest.json', enforceSourceExists: true, requiredAssets: CODEX_REQUIRED_ASSETS },
+	{ path: 'antigravity-assets/manifest.json', enforceSourceExists: true, requiredAssets: ANTIGRAVITY_REQUIRED_ASSETS },
 ];
 
 const REQUIRED_G05_CONTROLS = {
@@ -322,6 +327,51 @@ function validateBundles(manifest, manifestRelPath, assetIds) {
 	}
 }
 
+function validateSourcePatterns(manifest, manifestRelPath) {
+	if (manifest.sourcePatterns === undefined) {
+		return;
+	}
+
+	if (!Array.isArray(manifest.sourcePatterns)) {
+		fail(`${manifestRelPath}: sourcePatterns must be an array when present`);
+		return;
+	}
+
+	for (let i = 0; i < manifest.sourcePatterns.length; i++) {
+		const pattern = manifest.sourcePatterns[i];
+		if (!pattern || typeof pattern !== 'object' || Array.isArray(pattern)) {
+			fail(`${manifestRelPath}: sourcePatterns[${i}] must be an object`);
+			continue;
+		}
+
+		const type = typeof pattern.type === 'string' ? pattern.type.trim() : '';
+		const sourceGlob = typeof pattern.sourceGlob === 'string' ? pattern.sourceGlob.trim() : '';
+		const destinationDir = typeof pattern.destinationDir === 'string' ? pattern.destinationDir.trim() : '';
+
+		if (!type) {
+			fail(`${manifestRelPath}: sourcePatterns[${i}] missing non-empty type`);
+		}
+		if (!sourceGlob) {
+			fail(`${manifestRelPath}: sourcePatterns[${i}] missing non-empty sourceGlob`);
+		} else if (!isSafeRelPath(sourceGlob)) {
+			fail(`${manifestRelPath}: sourcePatterns[${i}] has unsafe sourceGlob: ${sourceGlob}`);
+		}
+		if (!destinationDir) {
+			fail(`${manifestRelPath}: sourcePatterns[${i}] missing non-empty destinationDir`);
+		} else if (!isSafeRelPath(destinationDir)) {
+			fail(`${manifestRelPath}: sourcePatterns[${i}] has unsafe destinationDir: ${destinationDir}`);
+		}
+
+		if (sourceGlob.includes('skills-vault') || destinationDir.includes('skills-vault')) {
+			fail(`${manifestRelPath}: sourcePatterns[${i}] must not reference skills-vault paths`);
+		}
+
+		if (pattern.transform !== undefined && (typeof pattern.transform !== 'string' || !pattern.transform.trim())) {
+			fail(`${manifestRelPath}: sourcePatterns[${i}] transform must be a non-empty string when present`);
+		}
+	}
+}
+
 function validateRequiredAssets(manifest, manifestRelPath, requiredAssets) {
 	if (!Array.isArray(manifest.assets)) return;
 
@@ -353,6 +403,7 @@ for (const target of manifestFiles) {
 
 	validateGovernance(manifest, manifestRelPath);
 	const { checked, assetIds } = validateAssets(manifest, manifestRelPath, target.enforceSourceExists);
+	validateSourcePatterns(manifest, manifestRelPath);
 	validateBundles(manifest, manifestRelPath, assetIds);
 	validateRequiredAssets(manifest, manifestRelPath, target.requiredAssets);
 	checkedByManifest.push(`${manifestRelPath}=${checked}`);

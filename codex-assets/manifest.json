@@ -8,16 +8,16 @@
   "installDefaults": {
     "codexHome": "~/.codex",
     "agentsDir": "~/.codex/agents",
-    "skillsDir": "~/.agents/skills",
+    "skillsDir": "~/.codex/skills",
     "instructionsFile": "~/.codex/AGENTS.md",
     "configFile": "~/.codex/config.toml",
-    "description": "Home-installed Codex session assets for planning-first work, review, and minimal repo bootstrap."
+    "description": "Home-installed Codex session assets for planning-first work, review, shared skills, and generated role wrappers from engine agents."
   },
   "installerHints": {
     "preferExplicitDestinations": true,
     "agentsAreFlat": true,
     "skillsRequireFolderName": true,
-    "notes": "Install instructions and custom agents under ~/.codex, install user-authored skills under ~/.agents/skills, and patch ~/.codex/config.toml conservatively."
+    "notes": "Install instructions, custom agents, generated engine role wrappers, and shared skills under ~/.codex, then patch ~/.codex/config.toml conservatively."
   },
   "governance": {
     "g05": {
@@ -89,6 +89,17 @@
       "type": "skill",
       "sourceGlob": "codex-assets/skills/*",
       "destinationDir": "skills"
+    },
+    {
+      "type": "skill",
+      "sourceGlob": "engine-assets/skills/*",
+      "destinationDir": "skills"
+    },
+    {
+      "type": "agent",
+      "sourceGlob": "engine-assets/agents/*.agent.md",
+      "destinationDir": "agents",
+      "transform": "engine-agent-to-codex-role"
     }
   ]
 }

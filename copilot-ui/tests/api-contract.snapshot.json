@@ -801,6 +801,14 @@
       "result"
     ]
   },
+  "POST /api/assets/install-surfaces": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
   "POST /api/assets/sync": {
     "status": 400,
     "contentType": "application/json",

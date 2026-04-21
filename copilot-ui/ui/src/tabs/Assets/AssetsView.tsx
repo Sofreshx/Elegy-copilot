@@ -11,6 +11,7 @@ import type {
   CatalogBundleMember,
   CatalogEffectiveAsset,
   CatalogEntry,
+  InstallSurfaceTarget,
   CatalogProviderProjection,
   CatalogRepoInventoryEntry,
   CatalogRepoInventoryWorkspaceScan,
@@ -60,6 +61,14 @@ interface AssetDraftState {
   content: string;
 }
 
+interface InstallSurfaceCard {
+  target: InstallSurfaceTarget;
+  title: string;
+  description: string;
+  windowsCommand: string;
+  unixCommand: string;
+}
+
 export interface AssetActivationSummary {
   activationLabel: string;
   routingLabel: string;
@@ -70,6 +79,37 @@ export interface AssetActivationSummary {
 }
 
 const BALANCED_DEFAULT_PROFILE_ID = 'balanced-default';
+
+const INSTALL_SURFACE_CARDS: InstallSurfaceCard[] = [
+  {
+    target: 'copilot',
+    title: 'Copilot',
+    description: 'Installs or refreshes the managed Copilot CLI and VS Code asset surfaces.',
+    windowsCommand: 'pwsh -File scripts/cli-install.ps1 --all',
+    unixCommand: 'bash scripts/cli-install.sh --all',
+  },
+  {
+    target: 'codex',
+    title: 'Codex',
+    description: 'Installs native Codex instructions, curated agents, generated role wrappers, and shared skills.',
+    windowsCommand: 'pwsh -File scripts/codex-install.ps1',
+    unixCommand: 'bash scripts/codex-install.sh',
+  },
+  {
+    target: 'antigravity',
+    title: 'Antigravity',
+    description: 'Installs shared Antigravity skills and updates only the managed instruction-engine block in GEMINI.md.',
+    windowsCommand: 'pwsh -File scripts/antigravity-install.ps1',
+    unixCommand: 'bash scripts/antigravity-install.sh',
+  },
+  {
+    target: 'all',
+    title: 'Everything',
+    description: 'Runs the Copilot, Codex, and Antigravity installers in sequence from a single entrypoint.',
+    windowsCommand: 'pwsh -File scripts/install-all.ps1',
+    unixCommand: 'bash scripts/install-all.sh',
+  },
+];
 
 type ObservabilityEvidence = 'none' | 'proxy-only' | 'authoritative' | 'mixed';
 
@@ -1150,22 +1190,22 @@ export default function AssetsView() {
           <Button
             disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
             onClick={() => {
-              void catalogWorkspaceStore.installAll(false);
+              void catalogWorkspaceStore.installSurface('all', false);
             }}
             testId="catalog-install-all"
             variant="secondary"
           >
-            Install/Update All
+            Install Everything
           </Button>
           <Button
             disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
             onClick={() => {
-              void catalogWorkspaceStore.installAll(true);
+              void catalogWorkspaceStore.installSurface('all', true);
             }}
             testId="catalog-force-reinstall"
             variant="ghost"
           >
-            Force Reinstall All
+            Force Everything
           </Button>
         </div>
       </Toolbar>
@@ -1185,6 +1225,64 @@ export default function AssetsView() {
         </p>
       ) : null}
       {catalogState.installMessage ? <p className="catalog-status">{catalogState.installMessage}</p> : null}
+
+      <Panel>
+        <div className="panel-header">
+          <div>
+            <p className="catalog-title">Install surfaces</p>
+            <p className="catalog-copy">
+              Use these buttons to run the same surface-specific installers documented below. The legacy managed-asset sync route remains Copilot-only.
+            </p>
+          </div>
+        </div>
+
+        <div className="catalog-surface-grid">
+          {INSTALL_SURFACE_CARDS.map((card) => (
+            <article key={card.target} className="catalog-surface-card">
+              <div className="catalog-surface-card-header">
+                <p className="catalog-surface-title">{card.title}</p>
+                <p className="catalog-item-copy">{card.description}</p>
+              </div>
+
+              <div className="catalog-action-row">
+                <Button
+                  disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
+                  onClick={() => {
+                    void catalogWorkspaceStore.installSurface(card.target, false);
+                  }}
+                  variant="secondary"
+                >
+                  {card.target === 'all' ? 'Install Everything' : `Install ${card.title}`}
+                </Button>
+                <Button
+                  disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
+                  onClick={() => {
+                    void catalogWorkspaceStore.installSurface(card.target, true);
+                  }}
+                  variant="ghost"
+                >
+                  {card.target === 'all' ? 'Force Everything' : `Force ${card.title}`}
+                </Button>
+              </div>
+
+              <div className="catalog-command-stack">
+                <div className="catalog-command-block">
+                  <p className="catalog-command-label">PowerShell</p>
+                  <pre className="catalog-command">{card.windowsCommand}</pre>
+                </div>
+                <div className="catalog-command-block">
+                  <p className="catalog-command-label">macOS / Linux</p>
+                  <pre className="catalog-command">{card.unixCommand}</pre>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="panel-footer">
+          <p>Add `--force` to overwrite managed targets that diverged. Use `--dry-run` from the shell wrappers when you want a preview before writing anything.</p>
+        </div>
+      </Panel>
 
       <div className="catalog-summary-grid">
         <article className="catalog-stat-card">

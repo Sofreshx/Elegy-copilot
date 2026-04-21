@@ -1,6 +1,6 @@
 # Elegy Copilot
 
-Shared GitHub Copilot assets plus a home-installed Codex session lane for multi-repo development. Copilot and Codex are intentionally supported through different asset models: Copilot gets repo-shipped assets and dashboard support, while Codex gets a lighter home install built around native planning, review, and subagent workflows.
+Shared GitHub Copilot assets plus home-installed Codex and Antigravity session lanes for multi-repo development. Copilot, Codex, and Antigravity are intentionally supported through different asset models: Copilot gets repo-shipped assets and dashboard support, while Codex and Antigravity get lighter native home installs built around each surface's supported global locations.
 
 ## Get up to date
 
@@ -8,11 +8,15 @@ Run the installer for the tool you use; re-running it refreshes the shared basel
 
 | Tool | Windows (PowerShell) | macOS / Linux |
 |------|-----------------------|---------------|
-| Copilot | `pwsh -File scripts/cli-install.ps1 --all --force` | `bash scripts/cli-install.sh --all --force` |
-| Codex | `pwsh -File scripts/codex-install.ps1 --force` | `bash scripts/codex-install.sh --force` |
+| Copilot | `pwsh -File scripts/cli-install.ps1 --all` | `bash scripts/cli-install.sh --all` |
+| Codex | `pwsh -File scripts/codex-install.ps1` | `bash scripts/codex-install.sh` |
+| Antigravity | `pwsh -File scripts/antigravity-install.ps1` | `bash scripts/antigravity-install.sh` |
+| Everything | `pwsh -File scripts/install-all.ps1` | `bash scripts/install-all.sh` |
 
 - Use the Copilot installer to refresh shared agents, skills, prompts, and instructions in `~/.copilot`.
-- Use the Codex installer to refresh the shared Codex baseline in `~/.codex` and `~/.agents/skills/`.
+- Use the Codex installer to refresh the shared Codex baseline in `~/.codex`, including native skills under `~/.codex/skills/`.
+- Use the Antigravity installer to refresh shared skills in `~/.gemini/antigravity/skills/` and the managed Instruction Engine block in `~/.gemini/GEMINI.md`.
+- Add `--force` to overwrite managed targets that diverged, or `--dry-run` to preview changes without writing.
 - Use `/init` only for occasional repo-local guidance work such as creating or refining `guidelines.md` or `AGENTS.md`; it is not the normal shared-asset refresh path.
 
 ## How it works
@@ -27,13 +31,25 @@ engine-assets/  →  ~/.copilot/
   copilot-instructions.md   copilot-instructions.md
 ```
 
-Codex uses a separate home-installed lane from `codex-assets/`:
+Codex uses a separate home-installed lane from `codex-assets/` plus shared engine content:
 
 ```
-codex-assets/   →  ~/.codex/ + ~/.agents/skills/
+codex-assets/   →  ~/.codex/
   home/AGENTS.md    ~/.codex/AGENTS.md
   agents/           ~/.codex/agents/
-  skills/           ~/.agents/skills/
+  skills/           ~/.codex/skills/
+engine-assets/  →  ~/.codex/
+  agents/*.agent.md  ~/.codex/agents/*.toml (generated Codex roles)
+  skills/            ~/.codex/skills/
+```
+
+Antigravity uses `antigravity-assets/` plus shared engine skills:
+
+```
+antigravity-assets/  →  ~/.gemini/
+  home/GEMINI.md        ~/.gemini/GEMINI.md (managed block only)
+engine-assets/       →  ~/.gemini/antigravity/
+  skills/               ~/.gemini/antigravity/skills/
 ```
 
 ## Quick start
@@ -46,14 +62,18 @@ This installs the shipped first-party agents, prompts, and global instructions f
 
 ### Codex install details
 
-This installs `~/.codex/AGENTS.md`, `~/.codex/agents/reviewer.toml`, and `$HOME/.agents/skills/repo-setup`, then patches `~/.codex/config.toml` conservatively. The patcher only adds `review_model` when it is absent and only adds the managed planning profile when that profile name is unused.
+This installs `~/.codex/AGENTS.md`, curated Codex TOML agents, generated Codex role wrappers from shared `engine-assets/agents/*.agent.md`, and shared skills into `~/.codex/skills/`, then patches `~/.codex/config.toml` conservatively. The patcher only adds `review_model` when it is absent and only adds the managed planning profile when that profile name is unused.
+
+### Antigravity install details
+
+This installs shared skills into `~/.gemini/antigravity/skills/` and updates only the bounded Instruction Engine block inside `~/.gemini/GEMINI.md`, preserving user content outside that block.
 
 ### Codex quick use
 
 - Native Codex commands stay primary: `/plan`, `/review`, `/init`, `/resume`, `/fork`
-- For routine shared-asset setup or refresh, re-run `scripts/codex-install.ps1 --force` or `bash scripts/codex-install.sh --force`
-- This repo adds one global reviewer agent: `reviewer`
-- This repo adds one reusable Codex skill: `repo-setup`
+- For routine shared-asset setup or refresh, re-run `scripts/codex-install.ps1`, `bash scripts/codex-install.sh`, or use `scripts/install-all.*` when you want every supported surface updated together
+- This repo adds one curated reviewer agent plus generated role wrappers from shared engine agents
+- This repo adds the curated `repo-setup` Codex skill plus shared engine skills under `~/.codex/skills/`
 - Use `/init` only when you actually want Codex to create or refine repo-local guidance such as `guidelines.md` or `AGENTS.md`; it is more expensive and is not the normal path for refreshing shared assets
 - There is no custom `/setup-repo` slash command; use the `repo-setup` skill, and pair it with native `/init` only for that occasional repo-local guidance work
 

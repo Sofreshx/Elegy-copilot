@@ -23,7 +23,7 @@ import {
   saveCatalogRepoScanRoots,
   searchCatalogAssets,
   selectCatalogRepo,
-  syncAllAssets,
+  installSurfaces,
   unregisterCatalogRepo,
   updateCatalogAsset,
 } from '../../lib/api';
@@ -44,6 +44,7 @@ import type {
   CatalogSearchResult,
   CatalogSearchSelectionPayload,
   CatalogSnapshotEnvelope,
+  InstallSurfaceTarget,
   RuntimeCatalogHealthResponse,
 } from '../../lib/types';
 import { createStore } from '../../lib/store';
@@ -346,6 +347,21 @@ function resolveInspectablePath(asset: CatalogEffectiveAsset | null): string | n
   }
 
   return toCopilotRelativePath(asset.selectedEntry?.contentPath);
+}
+
+function getInstallSurfaceLabel(target: InstallSurfaceTarget): string {
+  switch (target) {
+    case 'copilot':
+      return 'Copilot';
+    case 'codex':
+      return 'Codex';
+    case 'antigravity':
+      return 'Antigravity';
+    case 'all':
+      return 'everything';
+    default:
+      return target;
+  }
 }
 
 function createCatalogWorkspaceStore() {
@@ -833,32 +849,41 @@ function createCatalogWorkspaceStore() {
     }
   }
 
-  async function installAll(force = false): Promise<void> {
+  async function installSurface(target: InstallSurfaceTarget, force = false): Promise<void> {
+    const label = getInstallSurfaceLabel(target);
     store.setState((state) => ({
       ...state,
       installing: true,
       error: null,
-      installMessage: force ? 'Force reinstalling managed assets...' : 'Installing/updating managed assets...',
+      installMessage: force
+        ? `Force reinstalling ${label}...`
+        : `Installing/updating ${label}...`,
     }));
 
     try {
-      const response = await syncAllAssets(force);
-      const results = Array.isArray(response?.result) ? response.result : [];
+      const response = await installSurfaces(target, force);
+      const surfaces = Array.isArray(response?.surfaces) ? response.surfaces : [];
       await loadWorkspace();
       store.setState((state) => ({
         ...state,
         installing: false,
-        installMessage: `${force ? 'Force reinstall' : 'Install/update'} completed for ${results.length} asset(s).`,
+        installMessage: target === 'all'
+          ? `${force ? 'Force reinstall' : 'Install/update'} completed for ${surfaces.length} surface(s).`
+          : `${force ? 'Force reinstall' : 'Install/update'} completed for ${label}.`,
       }));
     } catch (error) {
       store.setState((state) => ({
         ...state,
         installing: false,
-        error: toErrorMessage(error, 'Unable to sync assets.'),
-        installMessage: `${force ? 'Force reinstall' : 'Install/update'} failed.`,
+        error: toErrorMessage(error, 'Unable to install the requested surface.'),
+        installMessage: `${force ? 'Force reinstall' : 'Install/update'} failed for ${label}.`,
       }));
       throw error;
     }
+  }
+
+  async function installAll(force = false): Promise<void> {
+    await installSurface('all', force);
   }
 
   async function installBundle(bundleId: string): Promise<void> {
@@ -1564,6 +1589,7 @@ function createCatalogWorkspaceStore() {
     subscribe: store.subscribe,
     loadWorkspace,
     refreshWorkspace,
+    installSurface,
     installAll,
     installBundle,
     uninstallBundle,

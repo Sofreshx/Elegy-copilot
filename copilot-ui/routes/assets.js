@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 
 const assetsLib = require('../lib/assets');
+const { installSurfaces: defaultInstallSurfaces } = require('../lib/installSurfaces');
 const { sendJson: defaultSendJson, sendText: defaultSendText, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
 function safeResolveUnder(baseAbs, relPath) {
@@ -131,6 +132,43 @@ function handleAssetsSyncAll(ctx, deps) {
       sendJson(res, 200, { result });
     })
     .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
+}
+
+function handleAssetsInstallSurfaces(ctx, deps) {
+  const { req, res, copilotHomeAbs, vscodeHomeAbs } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    assets,
+    engineRoot,
+    installSurfaces,
+    runVscodeSettingsPatcher,
+    codexHome,
+    codexSkillsHome,
+    geminiHome,
+    antigravityHome,
+    antigravitySkillsHome,
+  } = deps;
+
+  readJsonBody(req)
+    .then((body) => installSurfaces({
+      target: body.target,
+      dryRun: Boolean(body.dryRun),
+      force: Boolean(body.force),
+      pointerMode: body.pointerMode !== false,
+      assets,
+      engineRoot,
+      copilotHomeAbs,
+      vscodeHomeAbs,
+      runVscodeSettingsPatcher,
+      codexHome,
+      codexSkillsHome,
+      geminiHome,
+      antigravityHome,
+      antigravitySkillsHome,
+    }))
+    .then((result) => sendJson(res, 200, result))
+    .catch((e) => sendJson(res, e.statusCode || 500, { error: String(e.message || e) }));
 }
 
 function handleAssetsSync(ctx, deps) {
@@ -303,12 +341,19 @@ function register(deps = {}) {
     fs: resolvedFs,
     path: deps.path || path,
     assets: deps.assets || assetsLib,
+    installSurfaces: deps.installSurfaces || defaultInstallSurfaces,
     sendJson: deps.sendJson || defaultSendJson,
     sendText: deps.sendText || defaultSendText,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     safeResolveUnder: deps.safeResolveUnder || safeResolveUnder,
     extractTriggers: deps.extractTriggers || ((absPath) => extractTriggers(absPath, resolvedFs)),
     engineRoot: deps.engineRoot,
+    runVscodeSettingsPatcher: deps.runVscodeSettingsPatcher,
+    codexHome: deps.codexHome,
+    codexSkillsHome: deps.codexSkillsHome,
+    geminiHome: deps.geminiHome,
+    antigravityHome: deps.antigravityHome,
+    antigravitySkillsHome: deps.antigravitySkillsHome,
   };
 
   return [
@@ -326,6 +371,11 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/assets/sync-all',
       handler: (ctx) => handleAssetsSyncAll(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/assets/install-surfaces',
+      handler: (ctx) => handleAssetsInstallSurfaces(ctx, resolvedDeps),
     },
     {
       method: 'POST',

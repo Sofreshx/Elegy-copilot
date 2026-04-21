@@ -993,6 +993,36 @@ export interface InstalledAssetsResponse {
   instructions: InstalledInstructions;
 }
 
+export type InstallSurfaceTarget = 'copilot' | 'codex' | 'antigravity' | 'all';
+
+export interface InstallSurfaceRunSummary {
+  homeKind?: string;
+  home?: string;
+  result?: unknown;
+  [key: string]: unknown;
+}
+
+export interface InstallSurfaceSummary {
+  surface: string;
+  ok?: boolean;
+  dryRun?: boolean;
+  force?: boolean;
+  runs?: InstallSurfaceRunSummary[];
+  settingsPatch?: Record<string, unknown> | null;
+  homes?: Record<string, unknown>;
+  counts?: Record<string, number>;
+  instructions?: Record<string, unknown> | null;
+  assets?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface InstallSurfacesResponse {
+  target: InstallSurfaceTarget;
+  dryRun: boolean;
+  force: boolean;
+  surfaces: InstallSurfaceSummary[];
+}
+
 export type SandboxLifecycleAction =
   | 'create'
   | 'start'

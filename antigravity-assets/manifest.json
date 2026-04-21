@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "instruction-engine-antigravity",
+    "version": "0.1.0",
+    "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
+  },
+  "installDefaults": {
+    "geminiHome": "~/.gemini",
+    "antigravityHome": "~/.gemini/antigravity",
+    "skillsDir": "~/.gemini/antigravity/skills",
+    "instructionsFile": "~/.gemini/GEMINI.md",
+    "description": "Home-installed Antigravity assets for shared skills plus a bounded instruction-engine block in GEMINI.md."
+  },
+  "installerHints": {
+    "preferExplicitDestinations": true,
+    "skillsRequireFolderName": true,
+    "notes": "Install shared skills under ~/.gemini/antigravity/skills and manage only the instruction-engine block inside ~/.gemini/GEMINI.md."
+  },
+  "governance": {
+    "g05": {
+      "schemaVersion": "1.0.0",
+      "requiredControls": {
+        "early": [
+          {
+            "id": "safetyTokenParity",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "hookEnforcement",
+            "owner": "Platform Engineering"
+          },
+          {
+            "id": "telemetrySchemaValidation",
+            "owner": "Observability Engineering"
+          }
+        ],
+        "final": [
+          {
+            "id": "evidencePredicates",
+            "owner": "Release Engineering"
+          },
+          {
+            "id": "finalGateWaiverPrecedence",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "trustedEvidenceBindingRetention",
+            "owner": "Release Engineering"
+          }
+        ]
+      }
+    }
+  },
+  "assets": [
+    {
+      "id": "antigravity-global-instructions",
+      "type": "instructions",
+      "source": "antigravity-assets/home/GEMINI.md",
+      "destination": "GEMINI.md"
+    }
+  ],
+  "sourcePatterns": [
+    {
+      "type": "skill",
+      "sourceGlob": "engine-assets/skills/*",
+      "destinationDir": "antigravity/skills"
+    }
+  ]
+}

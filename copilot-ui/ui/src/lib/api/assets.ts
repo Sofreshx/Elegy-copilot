@@ -1,5 +1,7 @@
 import type {
   InstalledAssetsResponse,
+  InstallSurfacesResponse,
+  InstallSurfaceTarget,
   LspConfigResponse,
   LspInstallResponse,
   ManagedAssetsResponse,
@@ -26,6 +28,23 @@ export function syncAllAssets(force = false, baseUrl?: string, pointerMode = tru
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ force, pointerMode }),
+  });
+}
+
+export function installSurfaces(
+  target: InstallSurfaceTarget,
+  force = false,
+  baseUrl?: string,
+  dryRun = false,
+  pointerMode = true,
+): Promise<InstallSurfacesResponse> {
+  return apiRequest<InstallSurfacesResponse>('/api/assets/install-surfaces', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ target, force, dryRun, pointerMode }),
   });
 }
 

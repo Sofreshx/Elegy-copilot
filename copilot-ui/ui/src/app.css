@@ -776,6 +776,59 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
 }
 
+.catalog-surface-grid {
+  display: grid;
+  gap: var(--space-sm);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.catalog-surface-card,
+.catalog-command-block,
+.catalog-command-stack,
+.catalog-surface-card-header {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.catalog-surface-card {
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-1);
+  padding: var(--space-md);
+}
+
+.catalog-surface-title,
+.catalog-command-label {
+  margin: 0;
+}
+
+.catalog-surface-title {
+  color: var(--color-ink-950);
+  font-weight: 700;
+}
+
+.catalog-command-label {
+  color: var(--color-ink-500);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.catalog-command {
+  margin: 0;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-ink-200);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-ink-900);
+  font-family: var(--font-mono);
+  font-size: 0.83rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .catalog-stat-card {
   border: 1px solid var(--color-ink-200);
   border-radius: var(--radius-md);

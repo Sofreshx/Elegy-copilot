@@ -107,6 +107,24 @@ function invokeView(copilotHomeAbs, relPath, extraDeps = {}) {
   });
 }
 
+function invokeInstallSurfaces(copilotHomeAbs, vscodeHomeAbs, body, extraDeps = {}) {
+  return new Promise((resolve, reject) => {
+    const routes = register({
+      readJsonBody: () => Promise.resolve(body),
+      sendJson: (_res, status, payload) => resolve({ status, payload }),
+      ...extraDeps,
+    });
+
+    const route = routes.find((entry) => entry.method === 'POST' && entry.path === '/api/assets/install-surfaces');
+    if (!route) {
+      reject(new Error('POST /api/assets/install-surfaces route not registered'));
+      return;
+    }
+
+    route.handler({ req: {}, res: {}, copilotHomeAbs, vscodeHomeAbs });
+  });
+}
+
 async function run() {
   console.log('\nAssets Routes Tests\n');
 
@@ -306,6 +324,52 @@ async function run() {
       assert.strictEqual(response.status, 200);
       assert.strictEqual(response.mode, 'text');
       assert.strictEqual(response.payload, '# Agent');
+    });
+
+    await test('install-surfaces forwards target and homes to the backend helper', async () => {
+      const vscodeHomeAbs = path.join(tmpRoot, '.vscode-copilot');
+      let receivedOptions = null;
+
+      const response = await invokeInstallSurfaces(
+        copilotHomeAbs,
+        vscodeHomeAbs,
+        { target: 'all', force: true },
+        {
+          engineRoot: tmpRoot,
+          installSurfaces: async (options) => {
+            receivedOptions = options;
+            return { target: options.target, surfaces: [{ surface: 'copilot', ok: true }] };
+          },
+          assets: {
+            syncAll: () => [],
+          },
+        },
+      );
+
+      assert.strictEqual(response.status, 200);
+      assert.strictEqual(response.payload.target, 'all');
+      assert.ok(receivedOptions, 'expected route to call installSurfaces helper');
+      assert.strictEqual(receivedOptions.target, 'all');
+      assert.strictEqual(receivedOptions.force, true);
+      assert.strictEqual(receivedOptions.copilotHomeAbs, copilotHomeAbs);
+      assert.strictEqual(receivedOptions.vscodeHomeAbs, vscodeHomeAbs);
+    });
+
+    await test('install-surfaces rejects requests without a target', async () => {
+      const response = await invokeInstallSurfaces(
+        copilotHomeAbs,
+        path.join(tmpRoot, '.vscode-copilot'),
+        {},
+        {
+          engineRoot: tmpRoot,
+          assets: {
+            syncAll: () => [],
+          },
+        },
+      );
+
+      assert.strictEqual(response.status, 400);
+      assert.match(String(response.payload.error || ''), /target is required/i);
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

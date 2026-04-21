@@ -189,10 +189,11 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/sessions/test-session-id/archive' },
   { method: 'POST', path: '/api/sessions/test-session-id/delete' },
 
-  // Assets + Skills (8)
+  // Assets + Skills (9)
   { method: 'GET', path: '/api/assets/managed' },
   { method: 'GET', path: '/api/assets/installed' },
   { method: 'POST', path: '/api/assets/sync-all' },
+  { method: 'POST', path: '/api/assets/install-surfaces' },
   { method: 'POST', path: '/api/assets/sync' },
   { method: 'GET', path: '/api/skills/preview' },
   { method: 'POST', path: '/api/assets/remove' },
@@ -431,7 +432,7 @@ async function run() {
 
     // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 137, `Expected 137 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 138, `Expected 138 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

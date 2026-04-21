@@ -182,7 +182,8 @@ The React `Assets` surface consumes both `/api/catalog/assets` and `/api/catalog
 | --- | --- | --- | --- |
 | `GET` | `/api/assets/managed` | Lists managed assets known to the local installation. | `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/assets/installed` | Lists currently installed assets. | `copilot-ui/tests/api-contract.test.js` |
-| `POST` | `/api/assets/sync-all` | Runs bulk sync for installed/managed assets. | `copilot-ui/tests/assets-sync-missing-source.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `POST` | `/api/assets/sync-all` | Runs bulk sync for the managed Copilot asset surface only. | `copilot-ui/tests/assets-sync-missing-source.test.js`, `copilot-ui/tests/api-contract.test.js` |
+| `POST` | `/api/assets/install-surfaces` | Runs the Copilot, Codex, Antigravity, or all-surface installers from one backend contract. | `copilot-ui/tests/assets-routes.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/assets/sync` | Syncs a targeted asset selection. | `copilot-ui/tests/assets-one-click-repair.vitest.ts`, `copilot-ui/tests/api-contract.test.js` |
 | `GET` | `/api/skills/preview` | Serves skill-preview data for the Skills Preview UI surface. | `copilot-ui/tests/skills-preview-catalog.test.js`, `copilot-ui/tests/api-contract.test.js` |
 | `POST` | `/api/assets/remove` | Removes installed assets from the local installation surface. | `copilot-ui/tests/api-contract.test.js` |
