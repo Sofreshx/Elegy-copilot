@@ -1,6 +1,6 @@
 ---
 created: 2026-03-07
-updated: 2026-04-15
+updated: 2026-06-23
 category: system
 status: current
 doc_kind: node
@@ -44,9 +44,22 @@ implementation.
    direct work-unit execution), route directly without broad capability search.
 5. Otherwise use `@search` to resolve the smallest relevant **eligible** capability for the task.
 6. Use `@execute` to load that capability and extract only the constraints and steps needed
-   downstream.
+    downstream.
 7. Delegate actual implementation, testing, review, or documentation work to the normal specialist
-   agents.
+    agents.
+
+## Thin Tool-Facing Entrypoints
+
+Tool-facing instructions should route into canonical docs and execution lanes, not duplicate durable policy.
+
+- use global or repo instruction entrypoints for concise setup notes, tool affordances, and
+  deterministic routing cues
+- point rule-heavy guidance back to `docs/system/**`, usually through `docs/system/index.md`, the
+  relevant MOC, and then the smallest node
+- when passing a downstream brief, include the canonical paths to load rather than copying long
+  policy blocks into the brief itself
+- if a compact instruction surface appears to disagree with canonical docs, treat the compact surface
+  as drift and follow the canonical node
 
 ## Docs-First Progressive Disclosure
 
@@ -152,6 +165,14 @@ Use existing lanes to catch skipped canonical guidance:
   the canonical rule itself is already clear
 - optional polish and local cleanup remain non-blocking unless another canonical rule makes them
   mandatory
+
+## Calibrated Questioning and Depth
+
+The shared policy for calibrated questioning, depth calibration, and explicit deep/grill overlays lives in [docs/system/calibrated-questioning-and-depth-governance.md](docs/system/calibrated-questioning-and-depth-governance.md). This doc keeps staged routing, canonical bootstrap, and planning-surface mechanics.
+
+- use the shared node for the evidence-bound questioning ladder and overlay-activation limits
+- do not treat `balanced-default`, complexity labels, or generic ambiguity as permission to auto-select a deeper overlay
+- keep route selection here: search/execute posture and normalized planning fields still decide when planning, review, or follow-up work is in scope
 
 ## Planning-Surface Routing Posture
 

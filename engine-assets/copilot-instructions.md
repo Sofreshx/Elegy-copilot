@@ -5,6 +5,7 @@ This file is intended to be installed to:
 
 These instructions are optimized for **Copilot CLI** stock modes (**/plan** and **/fleet**) while remaining compatible with VS Code Copilot Chat.
 Assume **both** user-level and repo-level instructions apply; conflicts can be non-deterministic, so explicitly reconcile them (see “Conflicts” below).
+For repo-specific policy, treat these instructions as a thin routing surface and defer to canonical docs in `docs/system/**`.
 
 ## CRITICAL: run_in_terminal MUST NEVER USE isBackground=true
 
@@ -48,7 +49,7 @@ run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 When I use **/plan** OR custom plan agent, you MUST:
 1. Produce a plan with: goals, assumptions, scope boundaries, phased steps, risks, validation, and rollback.
 2. **In Copilot CLI**: rely on Rubber Duck (native cross-model review) to automatically challenge the plan. No manual reviewer delegation needed.
-3. **In VS Code / other environments**: submit the plan for cross-model review by **BOTH** `@reviewer-opus-4-6` and `@reviewer-gpt-5-4`. Revise until BOTH respond “APPROVED”.
+3. **In VS Code / other environments**: submit the plan for cross-model review by **BOTH** `@reviewer-sonnet-4-6` and `@reviewer-gpt-5-4`. Revise until BOTH respond “APPROVED”.
 4. Only after review passes: summarize the approved plan and proceed to execution (unless I asked for plan-only).
 5. When work reaches closure, assess the plan's high-level goals, route unresolved non-active goals to `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`, and produce the final requested-vs-delivered summary.
 
@@ -95,7 +96,7 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   workspace MCP patch flow is for VS Code/workspace sessions, not a prerequisite for the CLI lane.
 - If a skill is not found in the vault, it is not installed — proceed with general knowledge.
 - See `docs/system/search-execute-workflow.md` for the canonical staged-routing model.
-- Prefer canonical documentation in `docs/system/**` and exploratory notes in `docs/research/**`.
+- Prefer canonical documentation in `docs/system/**`; use this file for routing/setup cues, not as a second copy of repo policy.
 - Treat `.instructions/*` paths as legacy and use them only when a repository explicitly opts in.
 
 ## Implementation Friction Capture
@@ -111,21 +112,19 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   3) and default to the **safer** option for anything involving security, data loss, or destructive actions.
 - When in doubt, briefly call out the conflict and the resolution you chose, then proceed.
 
-## Main context sources
-- **Repo docs**: `README.md`, `docs/`, `documentation/`,
-assume those might be outdated sometimes, still do check them for high level guidance and constraints.
+## Supporting context after canonical bootstrap
+- For repo-rule or workflow decisions, start with `docs/system/index.md`, then the closest MOC, then the smallest relevant canonical node in `docs/system/**`.
+- After that bootstrap, use the nearest applicable `guidelines.md`, then supporting repo docs such as `README.md`, `docs/`, or `documentation/`. Treat these as secondary context that can be stale and cannot outrank `docs/system/**`.
 
 ## Documentation Discovery Protocol
 When task decisions depend on repository docs, follow this route first:
 1. Open `docs/system/index.md`.
 2. Choose the closest MOC in `docs/system/mocs/*.md`.
 3. Follow that MOC to the minimal set of canonical nodes in `docs/system/**`.
-4. Expand only when needed.
+4. Expand only when needed, and keep downstream briefs pointer-based instead of copying long policy blocks.
 
-Precedence:
-- Canonical decisions live in `docs/system/**`.
-- Research and exploratory inputs live in `docs/research/**`.
-- If they conflict, follow `docs/system/**` and treat research as non-canonical.
+Use `guidelines.md` and `README.md` only as lighter local overlays after the canonical route is loaded.
+If those surfaces conflict with `docs/system/**`, follow `docs/system/**` and surface the drift.
 
 ## Temp File Safety Controls
 <a id="temp-file-safety-controls-v1"></a>

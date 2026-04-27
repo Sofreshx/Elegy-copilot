@@ -1,6 +1,6 @@
 ---
 created: 2026-03-14
-updated: 2026-04-15
+updated: 2026-04-25
 category: system
 status: current
 doc_kind: node
@@ -95,6 +95,51 @@ or backlog work belongs. When the selected surface needs repo-backed writing, th
 use existing writing lanes plus the relevant planning skills/authoring guidance instead of introducing
 separate planner-agent authority lanes.
 
+### Default Session Scope + Overflow Contract
+
+The default active execution scope is exactly one active issue or one tightly related slice. A session
+plan pack may decompose that slice into multiple work units, but it MUST NOT blend unrelated asks into
+one active execution session just because they arrived in the same user message.
+
+Selection hierarchy:
+
+1. **Repository Backlog** and **Roadmap** are the durable pre-planning selection surfaces.
+2. **Plan Pack** is the downstream active-session execution artifact for the one selected slice.
+3. **Issue surfaces** preserve non-active carryover context and discoveries, but they do not replace
+   backlog or roadmap selection authority.
+
+Routing rules for mixed or oversized requests:
+
+1. choose one active slice for the current session
+2. preserve the remaining unrelated or overflow asks in durable repo planning surfaces before or during
+   closure
+3. if the durable work needs phasing or sequencing first, route through Roadmap before generating a
+   plan pack
+4. if no clear active slice can be selected, fail closed with clarification or durable planning only;
+   do not fabricate a blended plan pack
+
+`plan.md` therefore sits below backlog/roadmap selection. It is not the place to hold the full mixed
+request portfolio for the repo or for the user.
+
+### No-Silent-Loss Carryover Rule
+
+Overflow asks, deferred follow-ups, and out-of-scope discoveries MUST land in durable planning surfaces
+with stable canonical IDs. The canonical selector for future action remains `PB-*`, `RB-*`, and
+`RM-*`; do not invent a second durable ID family for queued work.
+
+Required handling:
+
+1. Any future-action item discovered during a session MUST either reuse an existing `RB-*` item or
+   create a new `RB-*` item in the Repository Backlog artifact family.
+2. Issue docs such as `unresolved-goals.md` and `out-of-scope-findings.md` may store narrative
+   context, but entries there SHOULD point to the linked `RB-*` and `RM-*` IDs when future action is
+   required.
+3. Out-of-scope findings that imply real follow-up work MUST NOT remain issue-doc prose only; they need
+   a durable backlog selector.
+4. Silent loss is forbidden: if the orchestrator decides work is not active now, it must either place
+   that work on a durable planning surface with stable IDs or explicitly tell the user that no durable
+   preservation occurred.
+
 Plan Packs may also be seeded directly from bullets, backlog items, or roadmap items when explicit
 `PB-*`, `RB-*`, and `RM-*` IDs are preserved.
 
@@ -167,6 +212,12 @@ Default interpretation notes:
 - both explicitly separates durable multi-session roadmap authority from session-local execution authority
 - none is valid for commit prep, review prep, CI result checks, and similar delivery/reporting work that should not create backlog or execution artifacts unless explicitly requested
 
+Additional selection rule:
+
+- `plan-pack` and the plan-pack portion of `both` authorize only one active execution slice for the
+  session. Additional unrelated asks belong in backlog/roadmap carryover, not as parallel active plan
+  scope.
+
 ## File Locations
 
 For a selected repository with basename `{repo-name}`:
@@ -198,6 +249,9 @@ cover:
 
 Entries in those categories may introduce new `RB-*` items or explicitly reference existing `RB-*`
 items. Do not invent a new backlog ID family for per-session backlog files.
+
+Issue-surface entries that imply future work should reference the corresponding `RB-*` item whenever
+one exists. Issue docs remain contextual carryover surfaces, not alternate selection authorities.
 
 Plan packs remain session-state artifacts, not repo docs or backlog files:
 
@@ -354,6 +408,27 @@ Default reconciliation stance:
 - physical deletion of satisfied backlog items is optional follow-up compaction, not the default sync
   behavior
 - physical deletion of source bullets is not default sync behavior; prefer retaining the bullet and recording linked backlog or plan references
+
+### Roadmap + Backlog Lifecycle Guidance
+
+Roadmap and backlog surfaces exist above `plan.md` as selection and prioritization layers. The normal
+flow is:
+
+1. queue or accept work in backlog
+2. select and phase work in roadmap when cross-session sequencing matters
+3. hand one approved slice into `plan.md`
+
+Completed-item handling:
+
+1. When a linked plan completes an `RM-*` item, Roadmap Sync should mark that roadmap item satisfied or
+   done with the relevant plan reference.
+2. A completed roadmap item should leave the active roadmap surface. If history is retained in the same
+   file, move it under an explicit completed/archive section rather than leaving it mixed with active
+   selection candidates.
+3. Completed backlog items may remain for audit/history, but they should no longer read as active queue
+   candidates once satisfied.
+4. Stable IDs remain unchanged when items move out of the active surface; lifecycle movement must
+   preserve traceability rather than creating replacement IDs.
 
 Current dashboard/API entrypoint:
 

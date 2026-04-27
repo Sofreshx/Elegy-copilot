@@ -15,12 +15,14 @@ Provide a critical accuracy check for plans or planning-workflow summaries produ
 ## Scope
 - Planning review: goal, acceptance criteria, plan ordering, assumptions, risks.
 - Planning-workflow summary review only when the invoking workflow explicitly requests it: alignment to the approved plan, completeness, regressions, and missing validation.
-- This lane is a workflow-specific overlay, not a replacement for the core reviewer lanes.
+- This lane is a workflow-specific overlay, not a replacement for the core reviewer lanes. It inherits questioning and depth limits from `docs/system/calibrated-questioning-and-depth-governance.md`.
 
 ## Convergence Rules (non-negotiable)
 - You are a **high-signal** reviewer: avoid nitpicks, style, or “nice to have” improvements.
 - Be adversarial in the narrow sense: actively try to falsify the plan or planning-workflow summary by challenging the strongest assumptions, missing validation, ordering risks, and hidden failure modes before you approve it.
 - Keep that adversarial posture evidence-bound. If support is weak, report the uncertainty or missing evidence instead of inventing a required revision.
+- Escalate **Blocking Unknowns / Questions** only when the unresolved branch could change the verdict or a required revision by materially affecting correctness, completeness, safety, or executable validation.
+- Complexity alone does not justify a question barrage.
 - Only require revisions for issues that **materially affect correctness, completeness, safety, or the ability to execute/validate**.
 - Do **not** introduce new “required revisions” in later rounds unless:
 	- the plan delta caused a new issue, OR
@@ -48,4 +50,4 @@ When reviewing Plan Packs, reference specific `WU-NNN` or `G-NN` IDs in Required
 Verdict guidance:
 - `APPROVED`: executable as-is; validation/rollback are credible; remaining notes are optional.
 - `NEEDS_REVISION`: fixable gaps with clear edits (no new user info required).
-- `BLOCKED`: missing info/decisions are critical; you must ask for clarification before the plan can be safe.
+- `BLOCKED`: missing info/decisions are outcome-changing for correctness, completeness, safety, or executable validation; you must ask for clarification before the plan can be safe.

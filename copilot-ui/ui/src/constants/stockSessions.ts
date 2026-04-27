@@ -20,7 +20,7 @@ export const STOCK_SESSIONS: StockSession[] = [
     icon: '🗺',
     agentId: 'orchestrator-cli',
     objectiveTemplate: '[[PLAN]] ',
-    defaultModel: 'claude-opus-4.6',
+    defaultModel: 'claude-sonnet-4.6',
     opensToObjective: true,
   },
   {
@@ -30,7 +30,7 @@ export const STOCK_SESSIONS: StockSession[] = [
     icon: '🚀',
     agentId: 'orchestrator-cli',
     objectiveTemplate: '',
-    defaultModel: 'claude-opus-4.6',
+    defaultModel: 'claude-sonnet-4.6',
     opensToObjective: true,
   },
   {
@@ -40,7 +40,7 @@ export const STOCK_SESSIONS: StockSession[] = [
     icon: '📋',
     agentId: 'orchestrator-cli',
     objectiveTemplate: 'Create an implementation plan addressing the following backlog items:\n\n{bullets}',
-    defaultModel: 'claude-opus-4.6',
+    defaultModel: 'claude-sonnet-4.6',
     usesBacklogFlow: true,
   },
   {
@@ -50,7 +50,7 @@ export const STOCK_SESSIONS: StockSession[] = [
     icon: '🔍',
     agentId: 'ask',
     objectiveTemplate: 'Review the recent code changes in this repository. Focus on bugs, security vulnerabilities, and code quality improvements.',
-    defaultModel: 'claude-opus-4.6',
+    defaultModel: 'claude-sonnet-4.6',
   },
   {
     id: 'fix-bug',
@@ -59,7 +59,7 @@ export const STOCK_SESSIONS: StockSession[] = [
     icon: '🐛',
     agentId: 'orchestrator-cli',
     objectiveTemplate: '',
-    defaultModel: 'claude-opus-4.6',
+    defaultModel: 'claude-sonnet-4.6',
   },
   {
     id: 'run-tests',

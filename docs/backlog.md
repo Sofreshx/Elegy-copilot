@@ -1,27 +1,27 @@
 ---
 created: 2026-03-23
-updated: 2026-04-10
+updated: 2026-04-25
 category: meta
-status: current
+status: archived
 doc_kind: node
-summary: Legacy compatibility Repository Backlog surface for queued and planned work across repo planning workstreams.
+summary: Legacy repo-local Repository Backlog snapshot retained only for compatibility and historical reference.
 ---
 
 # Repository Backlog
 
 <!-- REPOSITORY_BACKLOG_FORMAT_VERSION: 1 -->
 
-Under the planning contract, primary Repository Backlog artifacts live under `docs/backlogs/*.md`;
-this repo currently retains `docs/backlog.md` as its compatibility backlog surface and stable
-cross-link target.
+This repo-local file is a legacy compatibility snapshot. Canonical Repository Backlog artifacts now
+live under `~/.copilot/backlogs/{repo-name}/backlogs/*.md`, and this file should not be treated as
+the active planning authority.
 
-Repository-scoped intake and queued work across repo planning workstreams. The current items span
+The entries below remain as historical repo planning context. They span
 the remaining synced-note rollout/hardening work, orchestrator follow-up adoption for
 **Session Intent Frame** / **Session Closure Summary**, and the **UI Runtime Overlay** lane for
 attach-first runtime observation in `copilot-ui`. Synced-note source contracts, tracker-side source
 persistence plus CRUD wiring, deterministic refresh handling, Planning seed provenance support, and
 operator-facing synced-note management are already complete; the backlog below keeps that lineage
-visible while reserving active synced-note work for end-to-end rollout and hardening.
+visible while newer durable planning should be recorded outside the repo.
 
 ## RB-001 - Validate synced-note source lifecycle and backend contract
 - Status: complete

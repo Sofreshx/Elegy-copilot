@@ -73,7 +73,7 @@
         "agent-execute",
         "agent-code-explorer",
         "agent-code-reviewer",
-        "agent-reviewer-opus-4-6",
+        "agent-reviewer-sonnet-4-6",
         "agent-reviewer-gpt-5-4"
       ],
       "installTarget": "user-global",
@@ -383,10 +383,10 @@
       "destination": "agents/reviewer-gpt-5-4.agent.md"
     },
     {
-      "id": "agent-reviewer-opus-4-6",
+      "id": "agent-reviewer-sonnet-4-6",
       "type": "agent",
-      "source": "engine-assets/agents/reviewer-opus-4-6.agent.md",
-      "destination": "agents/reviewer-opus-4-6.agent.md"
+      "source": "engine-assets/agents/reviewer-sonnet-4-6.agent.md",
+      "destination": "agents/reviewer-sonnet-4-6.agent.md"
     },
     {
       "id": "agent-search",

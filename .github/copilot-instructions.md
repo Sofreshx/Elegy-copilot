@@ -62,10 +62,11 @@ Avoid “handoff-only” endings:
 - Offer optional next steps only after the core request is complete.
 
 ## Read First (Project Truth)
-Before structural changes, consult in this order:
-1. Repo docs (`README.md`, `docs/`, `documentation/`, design notes)
-2. `.instructions/architecture.md` (legacy, if present)
-3. `.instructions/contexts/*.md` (legacy, if present)
+For repo-rule or workflow decisions, consult in this order:
+1. `docs/system/index.md`, then the closest MOC, then the smallest relevant canonical node in `docs/system/**`
+2. the nearest applicable `guidelines.md`
+3. supporting repo docs (`README.md`, `docs/`, `documentation/`, design notes)
+4. legacy `.instructions/architecture.md` and `.instructions/contexts/*.md` only when the repo explicitly opts in
 
 ## Documentation Discovery Protocol
 When task decisions depend on repository docs, follow this route first:
@@ -73,6 +74,9 @@ When task decisions depend on repository docs, follow this route first:
 2. Choose the closest MOC in `docs/system/mocs/*.md`.
 3. Follow that MOC to the minimal set of canonical nodes in `docs/system/**`.
 4. Expand only when needed.
+
+Use `guidelines.md` and `README.md` only as lighter local overlays after the canonical route is loaded.
+If those surfaces conflict with `docs/system/**`, follow `docs/system/**` and surface the drift.
 
 For instruction-engine repo rules and conventions, use this file as a routing aid, not as the final
 authority surface:

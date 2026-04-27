@@ -96,7 +96,7 @@ Evaluate how effectively instruction-engine layers information from surface-leve
 **Current agent families** with specialized personas:
 - Control lane: orchestrator, o-reframer, o-planner, work-unit-runner
 - Implementers: impl-business, impl-infra
-- Reviewers: code-reviewer, reviewer-opus-4-6, reviewer-gpt-5-4
+- Reviewers: code-reviewer, reviewer-sonnet-4-6, reviewer-gpt-5-4
 - Scanners: security-scanner, stack-auditor, deploy-auditor
 - Utilities: agent-governor, instruction-auditor
 
@@ -213,3 +213,4 @@ User asks about security practices
 - [engine-assets/skills/skill-discovery/SKILL.md](../../engine-assets/skills/skill-discovery/SKILL.md)
 - [docs/system/skills-governance.md](../system/skills-governance.md)
 - [docs/research/skillpointer-codemode-techniques.md](skillpointer-codemode-techniques.md)
+

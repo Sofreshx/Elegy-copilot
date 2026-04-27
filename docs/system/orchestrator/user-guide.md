@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-04-15
+updated: 2026-04-27
 category: system
 status: current
 doc_kind: node
@@ -25,12 +25,7 @@ step needs more detail. When intended design, behavior, or workflow policy chang
 orchestrator is also docs-update-first: the first execution slice should update the relevant
 canonical docs before or alongside implementation.
 
-Across planning, review, and verification, the orchestrator uses an adversarial-but-evidence-bound
-posture: before it accepts a plan, a claimed implementation result, a review approval, or a
-validation result, it should actively ask what would prove that success story wrong. That means
-challenging assumptions, probing likely failure modes and regressions, and calling out missing
-evidence. It does **not** mean inventing speculative defects, overriding reviewer-lane boundaries,
-or turning healthy skepticism into nitpicks.
+Across planning, review, and verification, the orchestrator inherits the shared calibrated questioning and depth policy from [docs/system/calibrated-questioning-and-depth-governance.md](docs/system/calibrated-questioning-and-depth-governance.md). In practice, it should answer from canonical docs or repo evidence when that evidence is deterministic, carry a recommended assumption only when the remaining branch is not outcome-changing, and ask you only when the unresolved branch would materially change scope, architecture, validation, verdict, or a proceed-anyway decision.
 
 Instruction Engine also supports an explicit persisted session-state lane for teams that want
 file-backed artifacts and an intentional handoff from planning to execution. In that lane,
@@ -104,19 +99,19 @@ into one closure view instead of delegating stop/go judgment to helper lanes.
 
 ## Which Orchestrator?
 
-Model-specific orchestrator variants are the preferred shipped entrypoints. Instruction Engine centers orchestration on the flagship model families — `@orchestrator-claude` for Claude Opus 4.6 sessions and `@orchestrator-gpt` for GPT-5.4 sessions. The base (model-agnostic) variants remain compatibility surfaces when the host model is unknown or a model-specific entrypoint is unavailable. See `docs/system/model-capability-profile.md` for the underlying model profiles.
+Model-specific orchestrator variants are the preferred shipped entrypoints. Instruction Engine centers orchestration on the flagship model families — `@orchestrator-claude` for Claude Sonnet 4.6 sessions and `@orchestrator-gpt` for GPT-5.4 sessions. The base (model-agnostic) variants remain compatibility surfaces when the host model is unknown or a model-specific entrypoint is unavailable. See `docs/system/model-capability-profile.md` for the underlying model profiles.
 
 | Your environment | Your host model | Preferred entrypoint | Compatibility fallback |
 |---|---|---|---|
-| VS Code | Claude Opus 4.6 / Claude-hosted | `@orchestrator-claude` | `@orchestrator` |
+| VS Code | Claude Sonnet 4.6 / Claude-hosted | `@orchestrator-claude` | `@orchestrator` |
 | VS Code | GPT-5.4 / GPT-hosted | `@orchestrator-gpt` | `@orchestrator` |
 | VS Code | Unknown/other | `@orchestrator` | NONE |
-| Copilot CLI | Claude Opus 4.6 / Claude-hosted | `@orchestrator-claude-cli` | `@orchestrator-cli` |
+| Copilot CLI | Claude Sonnet 4.6 / Claude-hosted | `@orchestrator-claude-cli` | `@orchestrator-cli` |
 | Copilot CLI | GPT-5.4 / GPT-hosted | `@orchestrator-gpt-cli` | `@orchestrator-cli` |
 | Copilot CLI | Unknown/other | `@orchestrator-cli` | NONE |
 
 **Key differences:**
-- **Claude variants** are the preferred flagship entrypoint for ambiguous or conversational work. They keep orchestration on Claude Opus 4.6, use Claude-backed reframing, and delegate only the dedicated research lane to GPT-5.4 when deeper evidence is warranted.
+- **Claude variants** are the preferred flagship entrypoint for ambiguous or conversational work. They keep orchestration on Claude Sonnet 4.6, use Claude-backed reframing, and delegate only the dedicated research lane to GPT-5.4 when deeper evidence is warranted.
 - **GPT variants** are the preferred flagship entrypoint for well-scoped structured work. They still rely on the Claude-backed `@o-reframer` lane to sharpen raw prompts before GPT-led planning and execution.
 - **CLI variants** keep Copilot CLI's native Rubber Duck review behavior instead of explicit plan-review agents.
 - **Code exploration** stays on `@code-explorer` with an Auto/smaller-model posture so premium reasoning remains concentrated at the orchestration edge.
@@ -160,6 +155,21 @@ Selection rules:
 Plan-pack generation runs only when `planning_surface` includes `plan-pack` and `execution_readiness` is `ready` or `stageable`. `planning_surface: roadmap`, `planning_surface: none`, and `execution_readiness: not-ready` must not invoke the plan-pack lane.
 
 Delivery-oriented requests such as commit prep, review prep, and CI result checks are valid request classes in this routing model. They often use `planning_surface: none` when the user wants readiness assessment, packaging help, or evidence review only. That does not imply push automation, remote pull-request writes, or remote CI mutation.
+
+### Default Session Scope
+
+The default execution scope is one active issue or one tightly related slice per session. Repository
+Backlog and Roadmap sit above `plan.md` as durable selection surfaces; the plan pack is only for the
+single slice chosen for active execution now.
+
+For mixed or unrelated multi-ask requests, the orchestrator should:
+
+1. select one active slice
+2. queue the rest on durable backlog/roadmap surfaces with stable canonical IDs
+3. keep the active session plan focused on the selected slice only
+
+If the request bundles unrelated work and no obvious active slice is dominant, fail closed with
+clarification or durable planning only. Do not blend multiple unrelated asks into one active plan pack.
 
 ## Default Routing Policy: `balanced-default`
 
@@ -252,6 +262,10 @@ That same reframing step records `planning_surface`, `session_horizon`, `executi
 `overlap_risk`, then explicitly chooses `plan-pack`, `roadmap`, `both`, or `none` before planning or
 execution begins.
 
+When the request contains multiple unrelated asks, the reframing result should identify which slice is
+active now and which asks should be preserved as durable queued follow-up instead of being blended into
+the same active session scope.
+
 The orchestrator folds this into the **Session Intent Frame**, including what is in vs out, what "done"
 means, which validation layers are required, and where confidence is still too low to proceed blindly.
 
@@ -276,6 +290,10 @@ caller.
 This phase runs only when the selected surface includes a plan pack and `execution_readiness` is
 `ready` or `stageable`. Roadmap-only and `none` requests skip the plan-pack lane entirely.
 
+The plan pack itself should stay single-slice: it may contain multiple work units for the active slice,
+but it should not become a catch-all container for unrelated overflow asks. Overflow belongs on durable
+backlog/roadmap surfaces, not inside active-session execution scope.
+
 Planning uses direct orchestrator → planning-leaf delegation. `@o-planner` is the default planner.
 For complex plan-pack work with large exploration payloads, failed prior plans, or unusually high
 decomposition risk, the orchestrator may explicitly escalate to `@o-planner-gpt`. The orchestrator
@@ -289,11 +307,7 @@ for backlog or roadmap authority. When `planning_surface: roadmap`, no plan pack
 When `planning_surface: both`, the roadmap slice is established first and the generated plan pack must
 carry the linked durable IDs forward into execution.
 
-Phase 2 planning review should use the orchestrator's adversarial posture explicitly: stress-test the
-plan by asking which assumptions are most likely to fail, which rollback or validation steps are
-missing, what edge cases or regressions remain unproven, and what evidence would falsify the current
-claim that the plan is safe to execute. The goal is to challenge the plan hard enough to expose real
-gaps before execution, without inventing speculative blockers.
+When Phase 2 challenges a plan, the orchestrator applies that same shared policy inside the selected planning surface: stress-test assumptions and missing evidence without inventing speculative blockers, and escalate to an interactive user question only when the remaining branch materially changes the outcome.
 
 When Phase 2 needs plan approval, blocking clarification, or an explicit proceed-anyway decision, use
 `vscode/askQuestions` through the interactive flow.
@@ -320,6 +334,10 @@ During execution, the orchestrator keeps the Session Intent Frame current enough
 resumability, especially when scope edges change, confidence drops, or refactor/coherence work is
 discovered.
 
+If execution discovers meaningful out-of-scope work, the orchestrator should keep the current slice
+bounded and route the discovery into durable planning carryover with stable linked IDs rather than
+quietly widening the active session.
+
 ### Phase 4: Verify
 Final verification uses a lean end gate: `@code-reviewer` for final code quality and request/spec-fit,
 `@test-runner` for the required validation surface, and `@doc-writer` only when durable carryover
@@ -340,10 +358,7 @@ requested-vs-delivered facts, goal closure, validation requirements, tested cove
 coherence findings, validation confidence, and limitations or coverage gaps that prevent a stronger
 completion claim.
 
-This phase also applies the same adversarial posture to already-implemented changes and validation
-evidence: the orchestrator should challenge whether green results still prove the intended behavior,
-whether reviewers surfaced only evidence-backed concerns, and whether materially useful improvement
-opportunities remain before it treats the work as done.
+This phase uses the same inherited policy to challenge whether the available review and validation evidence actually closes the request. Reviewer responsibilities, depth limits, and any explicit deeper overlays remain governed by [docs/system/calibrated-questioning-and-depth-governance.md](docs/system/calibrated-questioning-and-depth-governance.md).
 
 If mandatory validation did not run, the orchestrator must say so explicitly. Missing required
 validation lowers closure confidence and may keep the run in a paused or incomplete state rather than a
@@ -367,6 +382,15 @@ cleanup through existing writing lanes such as `@doc-writer` so
 `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` stays the primary end-of-session
 backlog surface.
 
+No-silent-loss rule: overflow asks, deferred work, and out-of-scope discoveries must either be written
+to durable planning surfaces with stable canonical IDs or be called out explicitly as not preserved.
+Issue docs can hold narrative detail, but future-action selection should still resolve through linked
+`RB-*` / `RM-*` items rather than freeform prose alone.
+
+When roadmap-linked work finishes, the orchestrator should ensure completed roadmap items leave the
+active roadmap surface. Keeping history is fine, but done items should move to an explicit completed or
+archive area instead of staying mixed with active roadmap candidates.
+
 The orchestrator should structure active continuation work, blockers, and carryover ownership
 directly. Fast git/workspace/session-state scans may still help identify open work, but they do not
 decide whether `Stop — all done` is allowed.
@@ -380,7 +404,7 @@ memory or automatic future pickup.
 |---|---|
 | `@o-reframer` | Claude-backed request analysis and classification for routing, scope edges, and ambiguity capture |
 | `@o-planner` | Produces plan packs from enriched briefs |
-| `@reviewer-opus-4-6` | VS Code / non-CLI planning reviewer for cross-model plan risk and completeness review |
+| `@reviewer-sonnet-4-6` | VS Code / non-CLI planning reviewer for cross-model plan risk and completeness review |
 | `@reviewer-gpt-5-4` | VS Code / non-CLI planning reviewer that validates the plan and prior review feedback |
 | `@code-explorer` | Read-only codebase analysis on an Auto/smaller-model posture |
 | `@execute` | Capability-brief extraction lane that loads the selected skill, agent, or canonical doc and distills only the constraints needed downstream |
@@ -414,7 +438,7 @@ For standard and complex work, the orchestrator uses the shared Plan Pack struct
 
 - In the default orchestrator path, plan review and progress tracking stay in chat.
 - In the default orchestrator path, plan review and active session state stay in chat or host/runtime state when available.
-- `@orchestrator` (VS Code / non-CLI) normally uses `@reviewer-opus-4-6` and `@reviewer-gpt-5-4` as the manual planning gate before execution; narrower reviewer lanes are overlays, not replacements.
+- `@orchestrator` (VS Code / non-CLI) normally uses `@reviewer-sonnet-4-6` and `@reviewer-gpt-5-4` as the manual planning gate before execution; narrower reviewer lanes are overlays, not replacements.
 - `@orchestrator-cli` (Copilot CLI) uses Rubber Duck for cross-model critique instead of explicitly delegating to the reviewer pair.
 - The orchestrator does not create repo-local planning artifacts as part of its normal flow.
 - If you need persisted plan, proposition, handoff, and verification artifacts under
@@ -507,3 +531,4 @@ The older executive names are historical references only and should not be used 
 - **Review plan packs**: For important work, take time to review the plan before approving.
 - **Use follow-ups**: After completion, the orchestrator's follow-up proposals are often valuable (tests, docs, related refactors).
 - **Resume interrupted work**: Invoke `@orchestrator` again and include the prior plan or session context you want it to continue from.
+

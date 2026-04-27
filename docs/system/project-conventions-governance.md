@@ -1,13 +1,13 @@
 ---
 created: 2026-03-13
-updated: 2026-06-22
+updated: 2026-06-24
 category: system
 status: current
 doc_kind: node
 id: project-conventions-governance
 summary: Canonical contract for how Instruction Engine defines, audits, and routes project-conventions governance work.
 tags: [governance, conventions, routing]
-related: [search-execute-workflow, documentation-structure-governance, reviewer-lane-governance, skills-governance]
+related: [search-execute-workflow, documentation-structure-governance, self-documenting-code-and-rationale-placement, reviewer-lane-governance, skills-governance]
 ---
 
 # Project Conventions Governance
@@ -120,6 +120,19 @@ entrypoint that cannot outrank those canonical docs.
   surface the missing authority path or route the gap through conventions or documentation governance
   instead of silently treating prompt text or local habits as authoritative
 
+## Thin Secondary Entrypoints
+
+Secondary instruction surfaces should help readers reach the right canonical rule, not recreate it.
+
+| Surface | Keep | Avoid |
+|---|---|---|
+| `guidelines.md` | repo-local notes, precedence reminder, canonical breadcrumb | restating full governance policy |
+| `README.md` | install/use overview, canonical-doc breadcrumb | becoming the repo-rules authority |
+| tool instruction entrypoints (`AGENTS.md`, Copilot instructions) | workflow routing, local command hints, canonical references | duplicated convention policy that can drift |
+
+When a rule already exists in `docs/system/**`, these surfaces should summarize in 1 sentence at
+most and point back to the owning canonical node.
+
 ## Observable Rule Reliance
 
 The repo-rules authority model is only effective when other lanes can see which canonical rules were
@@ -141,38 +154,24 @@ actually used.
 
 Rationale should live at the highest-authority surface that needs to stay durable and discoverable.
 
+Use [[self-documenting-code-and-rationale-placement]]
+[docs/system/self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
+as the operational matrix for choosing between self-documenting code, smart comments, doc comments,
+research design notes, canonical docs, ADRs, and thin instruction surfaces.
+
 - enduring workflow policy, architectural intent, design constraints, and repo-wide or subsystem-wide
   "why" belong in canonical docs under `docs/system/**`
 - planning-worthy decisions, deferred tradeoffs, unresolved questions, and findings that may drive
   later work belong in the appropriate `~/.copilot/backlogs/{repo-name}/issues/*` log or other canonical follow-up surface
-- code comments are for local rationale that must stay next to the code to prevent accidental
-  simplification, cleanup, or boundary erosion
-
-Use a smart comment when at least one of these is true:
-
-- the code intentionally looks unusual because it protects a non-obvious invariant
-- the behavior is security-sensitive and a future cleanup pass might weaken it
-- an architectural boundary, protocol detail, or external contract would otherwise look arbitrary
-- duplicated-looking or intentionally separate logic must stay separate for a real reason
-
-Do not use comments as a second source of truth:
-
-- comments are subordinate to canonical docs; if a comment and `docs/system/**` disagree, the
+- code comments are for selective local rationale that must stay next to the code to prevent
+  accidental simplification, cleanup, or boundary erosion
+- API and doc comments are for consumer-facing contract details at the point of use, not for
+  durable policy
+- comments remain subordinate to canonical docs; if a comment and `docs/system/**` disagree, the
   canonical doc wins
-- do not restate large policy text, planning notes, or issue-log content inline when a canonical doc
-  or issue entry is the better home
-- do not comment obvious code, mirror names and types, or narrate straightforward control flow
-- if the explanation now spans multiple files, workflows, or future follow-up ownership, promote the
-  rationale into canonical docs or the appropriate issue surface and keep any code comment brief
-
-The enforcement posture stays mixed:
-
-- missing rationale or smart comments should be raised as review findings when future drift risk is
-  high
-- missing rationale alone is not a contradiction-style hard stop and does not replace canonical
+- missing rationale or smart comments should still be raised as review findings when future drift
+  risk is high, but they are not contradiction-style hard stops and do not replace canonical
   bootstrap requirements
-- review lanes should route these gaps through consistency or implementation review rather than
-  treating ordinary comment absence as a hard gate
 
 ## Documentation Lightness
 
@@ -212,6 +211,8 @@ Convention guidance should be easy to locate without requiring hidden prompt con
   atomic rules
 - AI-facing entrypoints should rely on the same canonical nodes instead of carrying separate rule
   copies in prompt text
+- secondary entrypoints should point downward into the canonical route instead of acting as a second
+  source of truth
 - progressive disclosure is a standing requirement for convention docs and entrypoints: start from
   the smallest canonical node and expand only when the current step needs more detail
 - convention docs should prefer minimal routing updates over duplicate policy summaries spread across

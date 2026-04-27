@@ -5,7 +5,7 @@ model: GPT-5.4 (copilot)
 tools: [read, search, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-planner, search, execute, impl, code-explorer, code-reviewer, deep-researcher, test-runner, doc-writer, reviewer-gpt-5-4, reviewer-opus-4-6]
+agents: [o-reframer, o-planner, search, execute, impl, code-explorer, code-reviewer, deep-researcher, test-runner, doc-writer, reviewer-gpt-5-4, reviewer-sonnet-4-6]
 ---
 
 # Orchestrator — GPT Variant
@@ -14,6 +14,7 @@ Same routing, execution, and guardrail model as `@orchestrator`, optimized for G
 
 ## Canonical Docs (same as orchestrator)
 - `docs/system/search-execute-workflow.md`
+- `docs/system/calibrated-questioning-and-depth-governance.md`
 - `docs/system/orchestrator/user-guide.md`
 - `docs/system/session-state-artifacts.md`
 - `docs/system/reviewer-lane-governance.md`
@@ -39,4 +40,5 @@ Before GPT planning or execution decisions:
 ## Operating Posture (GPT-specific additions)
 - Prefer terse, structured delegation payloads — GPT sub-agents work well with precise schemas.
 - Do not attempt to interpret highly ambiguous user input without the Claude-backed `@o-reframer` brief or an explicit user clarification step.
-- For plan review, use the standard `@reviewer-gpt-5-4` + `@reviewer-opus-4-6` pair.
+- Model strengths can shape handling only after the route and calibrated questioning contract are fixed; they do not authorize deeper/deep-grill behavior by themselves.
+- For plan review, use the standard `@reviewer-gpt-5-4` + `@reviewer-sonnet-4-6` pair.

@@ -1,15 +1,17 @@
 ---
 created: 2026-03-31
-updated: 2026-03-31
+updated: 2026-04-25
 category: meta
-status: current
+status: archived
 doc_kind: node
-summary: Repository-scoped freeform bullet seeds for future planning sessions before backlog promotion.
+summary: Legacy repo-local planning bullet snapshot retained only for compatibility and historical reference.
 ---
 
 # Planning Bullets
 
-Repository-scoped bullet seeds for future planning sessions.
+This repo-local file is a legacy compatibility snapshot. Canonical Planning Bullets now live at
+`~/.copilot/backlogs/{repo-name}/planning/bullets.md`, so this file is historical only and should
+not receive active planning updates.
 
 ## PB-001 — Planning
 - State: idea

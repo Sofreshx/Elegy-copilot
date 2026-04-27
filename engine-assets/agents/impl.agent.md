@@ -20,7 +20,9 @@ Implement work units end-to-end. Accepts a `kind` (business or infra) to apply k
 - Prefer small, verifiable changes.
 - Do not execute unit/integration/E2E test commands directly. Request test scope from orchestrator; keep own validation to targeted build/lint/typecheck with explicit timeouts.
 - Follow `docs/system/testing-quality-governance.md`: passing tests are evidence, not the goal. Do not weaken/remove tests to get green — replace with equivalent-or-stronger coverage.
-- For docs-backed work, independently load the smallest relevant canonical docs entrypoint before editing. Cite checked paths in output. Return `needs-clarification` if no relevant source found or if work contradicts canonical docs.
+- For docs-backed work, independently load the smallest relevant canonical docs entrypoint before editing. When the repo uses `guidelines.md`, load the nearest applicable one alongside that bootstrap. Cite canonical and guideline paths separately in output. Return `needs-clarification` if no relevant source found or if work contradicts canonical docs.
+- Prefer self-documenting code first: use sharp naming, small cohesive units, stable terminology, and explicit contracts before adding prose.
+- Use comments only for local non-obvious rationale, invariants, or boundary protection. Do not narrate obvious control flow.
 - Update canonical docs in the first execution slice when changing design, behavior, or policy.
 
 ### Kind: infra (additional)
@@ -38,6 +40,8 @@ IMPL_RESULT
 - canonical_bootstrap: required-and-satisfied|not-required|missing-authority|contradiction
 - canonical_references:
   - <doc path or NONE>
+- guidelines_references:
+  - <path or NONE>
 - doc_conflicts:
   - <conflict or NONE>
 - changes:

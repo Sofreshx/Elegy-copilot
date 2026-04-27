@@ -2,22 +2,38 @@
 
 Shared GitHub Copilot assets plus home-installed Codex and Antigravity session lanes for multi-repo development. Copilot, Codex, and Antigravity are intentionally supported through different asset models: Copilot gets repo-shipped assets and dashboard support, while Codex and Antigravity get lighter native home installs built around each surface's supported global locations.
 
-## Get up to date
+## Install or refresh
 
-Run the installer for the tool you use; re-running it refreshes the shared baseline.
+Run the installer for the tool you use; re-running the same command refreshes the shared baseline.
 
 | Tool | Windows (PowerShell) | macOS / Linux |
 |------|-----------------------|---------------|
-| Copilot | `pwsh -File scripts/cli-install.ps1 --all` | `bash scripts/cli-install.sh --all` |
-| Codex | `pwsh -File scripts/codex-install.ps1` | `bash scripts/codex-install.sh` |
-| Antigravity | `pwsh -File scripts/antigravity-install.ps1` | `bash scripts/antigravity-install.sh` |
-| Everything | `pwsh -File scripts/install-all.ps1` | `bash scripts/install-all.sh` |
+| Copilot install/refresh | `pwsh -File scripts/cli-install.ps1 --all` | `bash scripts/cli-install.sh --all` |
+| Codex install/refresh | `pwsh -File scripts/codex-install.ps1` | `bash scripts/codex-install.sh` |
+| Antigravity install/refresh | `pwsh -File scripts/antigravity-install.ps1` | `bash scripts/antigravity-install.sh` |
+| Refresh everything | `pwsh -File scripts/install-all.ps1` | `bash scripts/install-all.sh` |
 
 - Use the Copilot installer to refresh shared agents, skills, prompts, and instructions in `~/.copilot`.
 - Use the Codex installer to refresh the shared Codex baseline in `~/.codex`, including native skills under `~/.codex/skills/`.
 - Use the Antigravity installer to refresh shared skills in `~/.gemini/antigravity/skills/` and the managed Instruction Engine block in `~/.gemini/GEMINI.md`.
 - Add `--force` to overwrite managed targets that diverged, or `--dry-run` to preview changes without writing.
 - Use `/init` only for occasional repo-local guidance work such as creating or refining `guidelines.md` or `AGENTS.md`; it is not the normal shared-asset refresh path.
+
+## Canonical docs breadcrumb
+
+Use canonical docs for repo policy and workflow authority:
+
+1. Start at `docs/system/index.md`.
+2. Open the closest MOC.
+3. Follow it to the smallest canonical node for the task.
+4. Use `guidelines.md` and this README as lighter overlays after that bootstrap.
+
+Useful starting points:
+
+- Repo rules and precedence: `docs/system/project-conventions-governance.md`
+- Clarity and rationale placement: `docs/system/self-documenting-code-and-rationale-placement.md`
+- Documentation structure and entrypoints: `docs/system/documentation-structure-governance.md`
+- Search/execute routing: `docs/system/search-execute-workflow.md`
 
 ## How it works
 
@@ -54,7 +70,7 @@ engine-assets/       →  ~/.gemini/antigravity/
 
 ## Quick start
 
-Use the commands in [Get up to date](#get-up-to-date), then use the notes below for what each installer changes.
+Use the commands in [Install or refresh](#install-or-refresh), then use the notes below for what each installer changes.
 
 ### Copilot install details
 
@@ -146,7 +162,7 @@ Codex baseline:
 
 | Agent | Purpose |
 |-------|---------|
-| `@orchestrator-gpt` / `@orchestrator-claude` | Preferred flagship entry points for GPT-5.4 and Claude Opus 4.6 sessions |
+| `@orchestrator-gpt` / `@orchestrator-claude` | Preferred flagship entry points for GPT-5.4 and Claude Sonnet 4.6 sessions |
 | `@orchestrator-gpt-cli` / `@orchestrator-claude-cli` | Preferred Copilot CLI flagship entry points that use Rubber Duck for plan review |
 | `@orchestrator` / `@orchestrator-cli` | Model-agnostic compatibility orchestrators when the host model is unknown |
 | `@o-reframer` | Claude-backed request reframing and ambiguity capture |

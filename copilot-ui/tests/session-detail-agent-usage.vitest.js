@@ -209,7 +209,7 @@ vitest_1.vi.mock('../ui/src/lib/api', function () { return ({
                     delivered: ['Structured-state publishes intent and closure summaries.'],
                     validationRequirements: ['unit: Required for the session-detail artifact view.'],
                     validationCoverage: ['unit: SessionDetail renders derived validation metadata.'],
-                    validationEvidence: ['Review ledger verdict: APPROVED (reviewer-opus-4-6)'],
+                    validationEvidence: ['Review ledger verdict: APPROVED (reviewer-sonnet-4-6)'],
                     coverageGaps: ['browser: No browser E2E was run for this focused metadata rendering test.'],
                     followUps: {
                         activeContinuation: ['Verify the framing cards in Session Details.'],
@@ -451,3 +451,4 @@ vitest_1.vi.mock('../ui/src/lib/api', function () { return ({
         });
     }); });
 });
+

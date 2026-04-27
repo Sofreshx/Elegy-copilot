@@ -224,7 +224,7 @@ export default function WorkflowTemplateEditor({ templateId }: WorkflowTemplateE
                     onChange={(e) => updateStep(index, { model: e.target.value || null })}
                   >
                     <option value="">Default model</option>
-                    <option value="claude-opus-4.6">Claude Opus 4.6</option>
+                    <option value="claude-sonnet-4.6">Claude Sonnet 4.6</option>
                     <option value="gpt-5.4">GPT 5.4</option>
                     <option value="claude-sonnet-4.5">Claude Sonnet 4.5</option>
                     <option value="gpt-4.1">GPT 4.1</option>

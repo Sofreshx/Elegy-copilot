@@ -1,15 +1,18 @@
 ---
 created: 2026-03-31
-updated: 2026-04-10
+updated: 2026-04-25
 category: meta
-status: current
+status: archived
 doc_kind: node
-summary: Repo roadmap for remaining attach-first UI runtime overlay work in copilot-ui, with compact completed-foundation lineage.
+summary: Legacy repo-local roadmap snapshot for UI runtime overlay work, kept only for compatibility and history.
 ---
 
 # UI Runtime Overlay
 
 ## Overview
+This repo-local roadmap is a legacy compatibility snapshot. Canonical roadmap authority now lives
+under `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`, so this file is historical only.
+
 UI Runtime Overlay extends copilot-ui as the local control plane for attach-first runtime observation.
 Current runtime behavior authority remains
 [docs/system/copilot-ui-guide.md](../system/copilot-ui-guide.md); this roadmap focuses on the

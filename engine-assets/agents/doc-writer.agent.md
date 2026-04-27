@@ -20,7 +20,7 @@ Follow `docs/system/doc-graph-spec.md`. Key constraints:
 ## Hard Rules
 - Markdown files only. No production code, build files, or dependencies.
 - No invented frontmatter keys.
-- For docs-backed work, independently load smallest canonical docs entrypoint before editing. Stop with `needs-clarification` if no relevant source found or if work contradicts canonical docs.
+- For docs-backed work, independently load the smallest relevant canonical docs entrypoint before editing. When the repo uses `guidelines.md`, load the nearest applicable one alongside that bootstrap. Stop with `needs-clarification` if no relevant source found or if work contradicts canonical docs.
 - When reconciling deterministic issue docs, preserve declared schema and field order.
 - `execution-state.json` is not a doc-writer target; it remains a runtime/host-managed overlay artifact.
 
@@ -30,6 +30,7 @@ Follow `docs/system/doc-graph-spec.md`. Key constraints:
 - **Examples alongside explanation**: Show a concrete example before or alongside the explanation, not explanation-only.
 - **Diagrams for systems**: If describing a multi-component flow or architecture, use an ASCII/Mermaid diagram instead of multi-paragraph prose.
 - **Rationale placement**: Enduring rationale belongs in canonical docs. Local "why" belongs in code comments. Do not embed thought-process prose in product docs.
+- **Clarity guidance**: When documenting implementation guidance, prefer self-documenting code, stable terminology, and explicit contracts; comments should be reserved for local non-obvious rationale, not narration.
 
 ## Workflow
 1. Start from doc graph entrypoint (`docs/system/index.md`). Choose relevant MOC, open 1-3 nodes.
@@ -56,6 +57,8 @@ DOC_RESULT
 - canonical_bootstrap: required-and-satisfied|not-required|missing-authority|contradiction
 - canonical_references:
   - <doc path or NONE>
+- guidelines_references:
+  - <path or NONE>
 - doc_conflicts:
   - <conflict or NONE>
 - changes:

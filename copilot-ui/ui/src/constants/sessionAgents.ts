@@ -13,14 +13,14 @@ export const SESSION_AGENTS: SessionAgent[] = [
     label: 'Work on Codebase',
     description: 'Plan and implement changes, fix bugs, refactor code',
     icon: '🛠',
-    defaultModel: 'claude-opus-4.6',
+    defaultModel: 'claude-sonnet-4.6',
   },
   {
     id: 'ask',
     label: 'Ask / Research',
     description: 'Ask questions, explore code, get explanations',
     icon: '💬',
-    defaultModel: 'claude-opus-4.6',
+    defaultModel: 'claude-sonnet-4.6',
   },
   {
     id: 'autonomous-tester',

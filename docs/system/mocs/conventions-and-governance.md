@@ -1,13 +1,13 @@
 ---
 created: 2026-03-18
-updated: 2026-04-09
+updated: 2026-06-24
 category: system
 status: current
 doc_kind: moc
 id: moc-conventions-and-governance
 summary: Map of content for canonical conventions, governance routing, and follow-up handoff entrypoints.
 tags: [governance, conventions, routing]
-related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, follow-up-discovery-governance]
+related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance]
 ---
 
 # MOC — Conventions & Governance
@@ -27,6 +27,10 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
   [docs/system/rules-compliance-audit-handoff-workflow.md](docs/system/rules-compliance-audit-handoff-workflow.md)
 - Convention policy, rule precedence, and governance output shape:
   [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
+- Placement matrix for self-documenting code, smart comments, doc comments, ADRs, and thin
+  instruction surfaces:
+  [[self-documenting-code-and-rationale-placement]]
+  [docs/system/self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
 - Documentation entrypoints, information architecture, and discoverability:
   [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
 - Planning-ready follow-up when convention gaps become next tasks:
@@ -53,6 +57,7 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
 ## Quick routing
 
 - "Define or revise repo conventions" -> `docs/system/project-conventions-governance.md`
+- "Decide whether this belongs in code, comments, API docs, or canonical docs" -> `docs/system/self-documenting-code-and-rationale-placement.md`
 - "Show me the whole rules -> compliance -> audit -> follow-up workflow" -> `docs/system/rules-compliance-audit-handoff-workflow.md`
 - "Make the rules easier to discover" -> `docs/system/documentation-structure-governance.md`
 - "Turn convention gaps into follow-up tasks" -> `docs/system/follow-up-discovery-governance.md`

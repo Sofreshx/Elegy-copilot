@@ -1,13 +1,13 @@
 ---
 created: 2026-04-09
-updated: 2026-06-22
+updated: 2026-06-24
 category: system
 status: current
 doc_kind: node
 id: rules-compliance-audit-handoff-workflow
 summary: Canonical overview entrypoint for the first additive slice connecting repo-rule bootstrap, compliance gates, project audit, follow-up routing, and selective rationale capture.
 tags: [governance, compliance, audit, follow-up, routing]
-related: [system-docs-index, moc-conventions-and-governance, project-conventions-governance, documentation-structure-governance, search-execute-workflow, reviewer-lane-governance, follow-up-discovery-governance]
+related: [system-docs-index, moc-conventions-and-governance, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, search-execute-workflow, reviewer-lane-governance, follow-up-discovery-governance]
 ---
 
 # Rules, Compliance, Audit, and Handoff Workflow
@@ -70,6 +70,10 @@ layer. If this page and an atomic node disagree, the atomic canonical node wins.
     - V1 stays on the approved backlog plus the approved specialized `~/.copilot/backlogs/{repo-name}/issues/*` surfaces; it does
       **not** add a dedicated issue ledger.
 5. **Capture "why" at the right authority surface.**
+   - Use [[self-documenting-code-and-rationale-placement]]
+     [docs/system/self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
+     as the placement matrix for self-documenting code, smart comments, doc comments, research
+     design notes, canonical docs, ADRs, and thin instruction surfaces.
    - Put enduring workflow, architectural, and policy rationale in [[project-conventions-governance]]
      [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
      or the smallest relevant canonical node.
@@ -83,7 +87,7 @@ layer. If this page and an atomic node disagree, the atomic canonical node wins.
 | Gate | What must remain true | Validation method |
 | --- | --- | --- |
 | discoverability | this overview is linked from the system index and the conventions/governance MOC, and all dual-link / frontmatter rules still pass | run `node scripts/validate-doc-graph.js` |
-| bootstrap and compliance | docs-backed write-capable work still names canonical references, missing bootstrap still fails closed, and missing smart comments remain review findings rather than authority blockers | verify alignment with `docs/system/search-execute-workflow.md`, `docs/system/project-conventions-governance.md`, and `docs/system/reviewer-lane-governance.md` |
+| bootstrap and compliance | docs-backed write-capable work still names canonical references, missing bootstrap still fails closed, and missing smart comments remain review findings rather than authority blockers | verify alignment with `docs/system/search-execute-workflow.md`, `docs/system/project-conventions-governance.md`, `docs/system/self-documenting-code-and-rationale-placement.md`, and `docs/system/reviewer-lane-governance.md` |
 | additive handoff | project-audit findings still route into the approved backlog plus `~/.copilot/backlogs/{repo-name}/issues/*` surfaces, with no dedicated V1 issue ledger or new peer authority | verify alignment with `docs/system/follow-up-discovery-governance.md` |
 
 For this doc-first slice, the required repo validator is the doc-graph check above. The remaining
@@ -106,6 +110,7 @@ authority or persistence surfaces.
 ## Expand next
 
 - [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
+- [[self-documenting-code-and-rationale-placement]] [docs/system/self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
 - [[search-execute-workflow]] [docs/system/search-execute-workflow.md](docs/system/search-execute-workflow.md)
 - [[reviewer-lane-governance]] [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
 - [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)

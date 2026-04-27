@@ -12,7 +12,7 @@ Use plan-first for non-trivial work. Stay in planning until the task is decision
 
 ## Native Codex Tools
 
-- To install or refresh the shared Codex agents and skills from this repo, run the install script:
+- To install or refresh the shared Codex agents and skills from this repo, run:
   - Windows: `pwsh -File scripts/codex-install.ps1 --force`
   - macOS/Linux: `bash scripts/codex-install.sh --force`
 - Prefer `/plan` for refactors, migrations, ambiguous features, and other multi-step work.
@@ -20,6 +20,12 @@ Use plan-first for non-trivial work. Stay in planning until the task is decision
 - Use `/fork` to branch a conversation without losing the original thread.
 - Use `/resume` to continue prior work instead of rebuilding context from scratch.
 - Use `PLANS.md` only for long-horizon work that must survive compaction or handoff. Do not create a file-backed plan by default.
+
+## Repo docs breadcrumb
+
+For repo-specific policy, start at `docs/system/index.md`, then the nearest MOC, then the smallest
+canonical node. Use `README.md` and `guidelines.md` as lighter local overlays after that route, not
+as peer authority with `docs/system/**`.
 
 ## Boundaries
 

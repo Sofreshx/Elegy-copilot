@@ -744,7 +744,7 @@ Verify the new framing surfaces in Sessions.
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1301,7 +1301,7 @@ Structured validation requirements should stay empty when the section is missing
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1428,7 +1428,7 @@ Review approval remains visible in structured-state, but no validation coverage 
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1557,7 +1557,7 @@ Structured-state now exposes validation-governance closure metadata.
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1702,7 +1702,7 @@ Structured-state now exposes validation-governance closure metadata.
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1788,7 +1788,7 @@ This current verification guide must not contaminate historical reads.
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1893,7 +1893,7 @@ Structured-state should keep review and framing metadata even without tracker se
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 `;
       },
       listPlanArtifacts() {
@@ -2122,7 +2122,7 @@ Structured-state should keep review and framing metadata even without tracker se
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -2610,7 +2610,7 @@ In-progress verification notes that should not unlock compatibility final reads.
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -3202,3 +3202,4 @@ run().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
+

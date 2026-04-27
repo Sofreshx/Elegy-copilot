@@ -1,15 +1,18 @@
 ---
 created: 2026-03-31
-updated: 2026-04-10
+updated: 2026-04-25
 category: meta
-status: current
+status: archived
 doc_kind: node
-summary: Repo roadmap for the remaining synced-note rollout and hardening work, with compact historical lineage for completed foundation slices.
+summary: Legacy repo-local roadmap snapshot for synced-note rollout and hardening, kept only for compatibility and history.
 ---
 
 # Synced-Note Planner Replacement
 
 ## Overview
+This repo-local roadmap is a legacy compatibility snapshot. Canonical roadmap authority now lives
+under `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`, so this file is historical only.
+
 The repo-owned Obsidian bridge is now in place: tracker-backed source records and repo-scoped
 active-source selection are wired into `copilot-ui`, pull sync is hardened with
 lease/cooldown/retry/conflict handling, and external notes can seed plans or be explicitly promoted

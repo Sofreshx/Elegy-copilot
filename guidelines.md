@@ -3,6 +3,11 @@
 This file is the lightweight human/agent entrypoint for repository-specific guidance. It does not
 replace explicit user instructions or the canonical policy docs in `docs/system/**`.
 
+## Canonical breadcrumb
+
+Start with `docs/system/index.md`, then the closest MOC, then the smallest canonical node for the
+active task. Use this file only as the local overlay after that bootstrap.
+
 ## Authority
 
 Use this precedence when work touches this repository:
@@ -19,6 +24,11 @@ Use this precedence when work touches this repository:
 - In this monorepo, project-level `guidelines.md` files may exist under top-level app/package roots;
   use the nearest one that covers the files you are changing.
 - If guidance here conflicts with `docs/system/**`, follow `docs/system/**` and surface the conflict.
+- For routing and governance questions, prefer canonical nodes such as
+  `docs/system/project-conventions-governance.md`,
+  `docs/system/self-documenting-code-and-rationale-placement.md`,
+  `docs/system/documentation-structure-governance.md`, and
+  `docs/system/search-execute-workflow.md`.
 
 ## Current repo guidance
 

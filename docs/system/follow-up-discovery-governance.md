@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-04-15
+updated: 2026-04-27
 category: system
 status: current
 doc_kind: node
@@ -57,6 +57,14 @@ Accepted reviewer or governance findings should be reduced to exactly one catego
 
 `work_not_done` remains reserved for already-committed active-goal scope that was not completed in the
 current session, regardless of which normalized category originally exposed the gap.
+
+## Intake from Calibrated Questioning
+
+Challenged assumptions, evidence gaps, and blocking unknowns inherit from [docs/system/calibrated-questioning-and-depth-governance.md](docs/system/calibrated-questioning-and-depth-governance.md) and route here instead of creating a separate discovery surface.
+
+- challenged assumptions or missing evidence that block the active slice -> `immediate_next_tasks`
+- missing authority or other blocking unknowns for the current step -> `gaps`
+- questions that need comparative analysis before planning or execution -> `research_threads`
 
 ## Durable Handoff Decision
 

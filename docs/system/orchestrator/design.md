@@ -88,7 +88,7 @@ User
         ├── @research-ideation (web + codebase research)
         ├── @unit-test-runner (test execution)
             ├── @integration-test-runner (policy-driven integration validation)
-        ├── @reviewer-opus-4-6 (cross-model review, VS Code only)
+        ├── @reviewer-sonnet-4-6 (cross-model review, VS Code only)
         ├── @reviewer-gpt-5-4 (cross-model review, VS Code only)
       ├── @e2e-validator (narrow coordinator exception)
             ├── @e2e-browser (serial agent-browser validation)
@@ -164,8 +164,8 @@ orchestrator → `@o-planner` delegation. The orchestrator gathers exploration c
 3. Run planning review:
    - In Copilot CLI, rely on Rubber Duck for the secondary-model planning critique.
    - In VS Code / other environments:
-     - Send the plan to `@reviewer-opus-4-6`
-     - Send the plan plus Opus feedback to `@reviewer-gpt-5-4`
+      - Send the plan to `@reviewer-sonnet-4-6`
+      - Send the plan plus Sonnet feedback to `@reviewer-gpt-5-4`
      - Revise until both reviewers return `Verdict: APPROVED`
    - Add `@impl-reviewer` only when plan-vs-request/spec fit still needs a sharper gate
    - Prefer `@code-reviewer` when sequencing, rollback, invariants, or edge cases are the main risk
@@ -180,8 +180,8 @@ orchestrator → `@o-planner` delegation. The orchestrator gathers exploration c
 Cross-model review (primary planning gate):
 - Copilot CLI: Rubber Duck provides the secondary-model planning challenge.
 - VS Code / other environments:
-  - Send plan to @reviewer-opus-4-6
-  - Send plan + opus feedback to @reviewer-gpt-5-4
+  - Send plan to @reviewer-sonnet-4-6
+  - Send plan + Sonnet feedback to @reviewer-gpt-5-4
   - Reconcile and update plan if needed
 
 #### Phase 3: Execute

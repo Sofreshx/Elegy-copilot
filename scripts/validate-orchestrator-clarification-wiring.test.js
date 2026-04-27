@@ -6,16 +6,24 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const expectations = [
   {
+    relativePath: 'engine-assets/agents/o-reframer.agent.md',
+    requiredSnippets: [
+      'List only outcome-changing unknowns in `ambiguities`; branches deterministically answerable from the supplied context, canonical docs, or repo evidence do not belong there.',
+      'Hard no-activate states for deeper/deep-grill behavior: `planning_surface: none`, `planning_surface: roadmap`, `execution_readiness: not-ready`.',
+    ],
+  },
+  {
     relativePath: 'engine-assets/agents/orchestrator.agent.md',
     requiredSnippets: [
-      'Escalate the smallest blocking user decision via `vscode/askQuestions` only when it changes the outcome.',
+      'Escalate the smallest blocking user decision via `vscode/askQuestions` only for outcome-changing unknowns that affect scope, architecture, validation, verdict, or proceed-anyway posture.',
+      'Complexity alone does not justify auto-escalating into deeper/deep-grill behavior.',
     ],
   },
   {
     relativePath: 'engine-assets/prompts/instruction-engine-plan.prompt.md',
     requiredSnippets: [
-      'If a reviewer returns `Verdict: BLOCKED`, use `vscode/askQuestions` to ask the smallest set of clarifying questions needed to unblock, then revise.',
-      'If the plan is not 100% confident (missing info, tradeoffs, risky assumptions), use `vscode/askQuestions` to ask whether to proceed anyway rather than falling back to a plain-text end-of-plan question.',
+      'use `vscode/askQuestions` only for the smallest set of clarifying questions needed to unblock when the unresolved branch materially changes scope, architecture, validation, or plan safety, then revise.',
+      'Use `vscode/askQuestions` rather than a plain-text end-of-plan question when a blocking clarification or explicit proceed-anyway decision is still required.',
     ],
   },
   {

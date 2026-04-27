@@ -66,7 +66,7 @@ const writeCapableImplementationLanes = new Set([
 const reviewerLanes = new Set([
 	'code-reviewer',
 	'reviewer-gpt-5-4',
-	'reviewer-opus-4-6',
+	'reviewer-sonnet-4-6',
 ]);
 
 const manifestValidationTargets = [

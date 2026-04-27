@@ -280,7 +280,7 @@ function createSessionWizardStore() {
       const orchestration = buildOrchestrationPayload(state);
 
       const agentDef = SESSION_AGENTS.find(a => a.id === state.agentId);
-      const effectiveModel = state.model.trim() || agentDef?.defaultModel || 'claude-opus-4.6';
+      const effectiveModel = state.model.trim() || agentDef?.defaultModel || 'claude-sonnet-4.6';
 
       const payload: SdkCreateSessionPayload = {
         model: effectiveModel,

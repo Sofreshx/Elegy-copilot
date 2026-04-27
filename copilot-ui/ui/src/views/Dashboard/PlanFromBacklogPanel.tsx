@@ -127,7 +127,7 @@ export default function PlanFromBacklogPanel({ onClose }: PlanFromBacklogPanelPr
     // Set objective and agent
     sessionWizardStore.setObjective(objectivePreview);
     sessionWizardStore.setAgentId('orchestrator-cli');
-    sessionWizardStore.setModel('claude-opus-4.6');
+    sessionWizardStore.setModel('claude-sonnet-4.6');
 
     // Select the bullets
     for (const id of selectedIds) {

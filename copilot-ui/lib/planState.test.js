@@ -179,7 +179,7 @@ test('parseStructuredState supports comma-separated parallel next-unit batches',
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -497,7 +497,7 @@ test('parseStructuredState merges execution-state overlay without replacing plan
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -640,7 +640,7 @@ test('parseStructuredState applies execution refs to planned rows when overlay t
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -706,7 +706,7 @@ test('parseStructuredState fails soft when execution-state overlay is invalid JS
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -746,7 +746,7 @@ test('parseStructuredState fails soft when execution-state overlay schemaVersion
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -792,7 +792,7 @@ test('parseStructuredState derives summaries from the merged execution-state nex
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -842,7 +842,7 @@ test('parseStructuredState preserves NONE sentinels without creating runtime-onl
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -906,7 +906,7 @@ test('parseStructuredState derives terminal closure metadata from execution-stat
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -962,7 +962,7 @@ test('parseStructuredState does not surface failed terminal execution overlays a
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1019,7 +1019,7 @@ test('parseStructuredState collapses stale terminal overlay recovery state even 
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1214,7 +1214,7 @@ test('parseStructuredState marks resume ready when review ledger approval and ha
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1288,7 +1288,7 @@ test('parseStructuredState still derives resume and framing metadata when progre
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 `;
 
   const handoffText = `## Handoff Manifest
@@ -1359,8 +1359,8 @@ test('parseStructuredState fails closed on the latest review ledger verdict', ()
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
-| 2 | reviewer-opus-4-6 | CHANGES_REQUESTED | tighten resume approval logic | pending |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
+| 2 | reviewer-sonnet-4-6 | CHANGES_REQUESTED | tighten resume approval logic | pending |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1404,8 +1404,8 @@ test('parseStructuredState does not emit completed when terminal closure hints r
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
-| 2 | reviewer-opus-4-6 | CHANGES_REQUESTED | capture follow-up fixes before closeout | pending |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
+| 2 | reviewer-sonnet-4-6 | CHANGES_REQUESTED | capture follow-up fixes before closeout | pending |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1464,7 +1464,7 @@ test('parseStructuredState allows successful terminal execution overlays to comp
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1553,7 +1553,7 @@ test('parseStructuredState derives intent frame and closure summary from existin
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | — | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | — | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1709,7 +1709,7 @@ test('parseStructuredState does not backfill structured validation requirements 
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1785,7 +1785,7 @@ test('parseStructuredState keeps approved review verdict visible without letting
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -1889,7 +1889,7 @@ test('parseStructuredState fails closed when mandatory validation remains uncove
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -2020,7 +2020,7 @@ test('parseStructuredState ignores unlabeled tested coverage and gaps when deriv
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -2144,7 +2144,7 @@ test('parseStructuredState fails closed when a mandatory validation requirement 
 ## Review Ledger
 | Round | Reviewer | Verdict | Required Revisions | Resolution |
 | --- | --- | --- | --- | --- |
-| 1 | reviewer-opus-4-6 | APPROVED | - | accepted |
+| 1 | reviewer-sonnet-4-6 | APPROVED | - | accepted |
 
 # Plan-Pack Progress Tracker
 <!-- IE_PROGRESS_TRACKER_VERSION: 1 -->
@@ -2264,3 +2264,4 @@ if (process.exitCode) {
 } else {
   console.log('All tests passed');
 }
+

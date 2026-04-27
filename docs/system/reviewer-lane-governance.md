@@ -24,7 +24,7 @@ The approved reviewer model is intentionally small:
 
 - `@code-reviewer` is the single shipped reviewer leaf for broad correctness, regression, convention,
   and request/spec-fit review
-- `@reviewer-opus-4-6` and `@reviewer-gpt-5-4` remain planning-review overlays for non-CLI
+- `@reviewer-sonnet-4-6` and `@reviewer-gpt-5-4` remain planning-review overlays for non-CLI
   orchestrators only
 - final closure, remaining-work judgment, and follow-up discovery are orchestrator responsibilities,
   not separate reviewer lanes
@@ -34,8 +34,8 @@ The approved reviewer model is intentionally small:
 | Lane | Primary responsibility | Not responsible for | Default relationship |
 | --- | --- | --- | --- |
 | `@code-reviewer` | high-signal defects, regressions, convention drift, and implementation-vs-request/plan fit | final requested-vs-delivered summary, backlog persistence, roadmap selection | default review lane for execution and bounded review tasks |
-| `@reviewer-opus-4-6` | cross-model plan review in non-CLI orchestrator workflows | generic code review, implementation mutation, end-of-run closure | paired with `@reviewer-gpt-5-4` for non-CLI planning gates |
-| `@reviewer-gpt-5-4` | second cross-model plan review in non-CLI orchestrator workflows | generic code review, implementation mutation, end-of-run closure | paired with `@reviewer-opus-4-6` for non-CLI planning gates |
+| `@reviewer-sonnet-4-6` | cross-model plan review in non-CLI orchestrator workflows | generic code review, implementation mutation, end-of-run closure | paired with `@reviewer-gpt-5-4` for non-CLI planning gates |
+| `@reviewer-gpt-5-4` | second cross-model plan review in non-CLI orchestrator workflows | generic code review, implementation mutation, end-of-run closure | paired with `@reviewer-sonnet-4-6` for non-CLI planning gates |
 | orchestrator | final closure, remaining-work judgment, follow-up discovery, and persistence routing | file-level defect review | consumes reviewer output rather than delegating closure authority away |
 
 ## Normalized Finding Categories
@@ -57,7 +57,7 @@ Use deterministic routing when intent is clear:
 
 - "review this diff", "check correctness", "look for regressions", "did this implementation match the request?" -> `@code-reviewer`
 - "review conventions/style/naming/docs alignment" -> `@code-reviewer`
-- "challenge this plan before execution" -> `@reviewer-opus-4-6` + `@reviewer-gpt-5-4` in non-CLI workflows
+- "challenge this plan before execution" -> `@reviewer-sonnet-4-6` + `@reviewer-gpt-5-4` in non-CLI workflows
 - "summarize what shipped and what remains" -> orchestrator closure, not a reviewer lane
 
 If the user does not specify a narrow lane, use `@code-reviewer`.
@@ -72,17 +72,15 @@ If the user does not specify a narrow lane, use `@code-reviewer`.
 
 ## Adversarial Review Posture
 
-Reviewer lanes should apply an adversarial-but-evidence-bound posture:
+Reviewer falsification posture and depth limits inherit from [docs/system/calibrated-questioning-and-depth-governance.md](docs/system/calibrated-questioning-and-depth-governance.md); this doc keeps reviewer responsibilities, routing, and output contracts.
 
-- try to falsify the current success claim before accepting it
-- challenge hidden failure modes and missing evidence first
-- stay inside the lane's native responsibility instead of expanding into unrelated critique
-- distinguish `missing evidence` from `confirmed defect`
-- avoid low-signal polish comments and duplicate findings
+- try to falsify the current success claim with evidence-backed challenge before accepting it
+- keep depth inside reviewer responsibilities and the shared hard no-activate limits
+- treat deeper review as an explicit overlay, not as permission to invent speculative defects, add a new reviewer lane, or take over closure
 
 ## Canonical Guidance Compliance Detection
 
-Reviewer lanes should reuse the docs-first bootstrap and contradiction rules from
+Reviewer lanes should apply that shared questioning/depth policy and reuse the docs-first bootstrap and contradiction rules from
 `docs/system/search-execute-workflow.md` instead of inventing a separate enforcement hierarchy.
 
 - `@code-reviewer` is the primary review surface for skipped convention guidance, stale or missing canonical references, docs/code alignment drift, and high-confidence bugs or regressions caused by ignored canonical guidance

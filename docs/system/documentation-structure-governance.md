@@ -1,6 +1,6 @@
 ---
 created: 2026-03-13
-updated: 2026-06-22
+updated: 2026-06-23
 category: system
 status: current
 doc_kind: node
@@ -35,11 +35,36 @@ only as needed.
 important design and operating context, but they are not peer authority with the canonical system
 nodes.
 
+Top-down documentation is the default shape: readers should enter through a compact canonical
+entrypoint, move into the relevant MOC, then open the smallest atomic node that answers the current
+question.
+
 For this rollout:
 
 - scope is **instruction-engine first**
 - governance remains **audit/propose first**
 - edits flow through normal documentation execution only after approval
+
+## Top-Down Documentation Model
+
+Documentation should route from broad entrypoint to narrow authority instead of flattening the same rule into every file.
+
+```text
+README / guidelines / tool instructions
+  -> docs/system/index.md
+    -> relevant MOC
+      -> smallest canonical node
+```
+
+| Layer | Primary job | Should contain | Must avoid |
+|---|---|---|---|
+| `docs/system/index.md` | global start point | route to the right MOC | rule-family detail dumps |
+| MOC | cluster and route | when to read + next nodes | duplicating node policy |
+| Canonical node | single source of truth for one rule family | durable policy, constraints, examples | unrelated workflow bundles |
+| README / `guidelines.md` / tool instructions | discovery and local application | brief summary + pointer to canonical docs | peer-authority policy copies |
+
+Secondary entrypoints should stay thin: tell the reader where to start, what local nuance applies,
+and which canonical node owns the rule.
 
 ## Governance Scope
 
@@ -66,6 +91,7 @@ A human-friendly entrypoint should:
 - start from compact canonical entrypoints and expand only when the current task needs more detail
 - treat progressive disclosure as a standing requirement for docs and entrypoints rather than a
   one-time preference
+- follow the top-down route of index -> MOC -> node unless a deterministic node is already known
 - avoid assuming prompt-only or hidden agent knowledge
 - point to canonical nodes instead of duplicating policy text across many pages
 
@@ -98,6 +124,10 @@ The human-friendly and LLM-friendly entrypoints must agree on the same source-of
 Progressive disclosure is a standing requirement for canonical docs and entrypoints: start compact,
 expand only when the current step needs more detail, and avoid flattening the whole rule set into
 every entrypoint.
+
+Tool-facing entrypoints should therefore behave as pointers first: they may carry compact routing,
+local setup notes, or output-shape reminders, but they should defer durable rule text to the
+canonical nodes they cite.
 
 ## Rationale Placement and Authority Boundaries
 

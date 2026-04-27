@@ -10,6 +10,7 @@ Before proceeding, apply `core-guardrails` safety constraints (especially termin
 This prompt is a compatibility entrypoint, not a separate or looser review path. Treat broad review requests as the canonical `code-reviewer` lane and anchor on:
 
 - `engine-assets/agents/code-reviewer.agent.md`
+- `docs/system/calibrated-questioning-and-depth-governance.md`
 - `docs/system/reviewer-lane-governance.md`
 - `docs/system/testing-quality-governance.md`
 - `docs/system/validation-governance.md`
@@ -21,6 +22,7 @@ Canonical routing:
 
 Review contract:
 - Report only high-confidence, high-signal issues with file:line references and canonical citations when relevant.
+- Challenge the strongest assumptions and missing evidence first, but escalate open questions only when they materially affect the verdict or a required revision.
 - Treat passing tests as evidence, not the goal.
 - Flag test changes only when they materially reduce confidence, including green-by-weakening, lost hard-case or failure-path coverage, relaxed assertions without replacement coverage, or shallow coverage that mainly makes failures disappear.
 - If mandatory validation is missing, bypassed, or no longer sufficient under current governance, call the gap out explicitly rather than implying confidence.

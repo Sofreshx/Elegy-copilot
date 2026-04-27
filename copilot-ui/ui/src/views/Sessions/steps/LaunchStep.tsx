@@ -10,7 +10,7 @@ interface LaunchStepProps {
   state: SessionWizardState;
 }
 
-const PRIMARY_MODELS = ['claude-opus-4.6', 'gpt-5.4'];
+const PRIMARY_MODELS = ['claude-sonnet-4.6', 'gpt-5.4'];
 
 function projectLabel(state: SessionWizardState): string {
   if (state.useCustomRepo && state.customRepoPath) return state.customRepoPath;

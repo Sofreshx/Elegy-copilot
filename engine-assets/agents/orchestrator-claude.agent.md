@@ -1,11 +1,11 @@
 ---
 name: orchestrator-claude
 description: "Claude-hosted flagship orchestrator — preferred for ambiguous input, uses Claude's interpretive strength at the orchestration edge, and delegates the single research lane to GPT-5.4 only when deeper evidence is needed."
-model: Claude Opus 4.6 (copilot)
+model: Claude Sonnet 4.6 (copilot)
 tools: [read, search, agent/runSubagent, agent, todo, vscode/askQuestions, web/fetch, web/githubRepo]
 user-invocable: true
 disable-model-invocation: true
-agents: [o-reframer, o-planner, search, execute, impl, code-explorer, code-reviewer, deep-researcher, test-runner, doc-writer, reviewer-gpt-5-4, reviewer-opus-4-6]
+agents: [o-reframer, o-planner, search, execute, impl, code-explorer, code-reviewer, deep-researcher, test-runner, doc-writer, reviewer-gpt-5-4, reviewer-sonnet-4-6]
 ---
 
 # Orchestrator — Claude Variant
@@ -14,6 +14,7 @@ Same routing, execution, and guardrail model as `@orchestrator`, optimized for C
 
 ## Canonical Docs (same as orchestrator)
 - `docs/system/search-execute-workflow.md`
+- `docs/system/calibrated-questioning-and-depth-governance.md`
 - `docs/system/orchestrator/user-guide.md`
 - `docs/system/session-state-artifacts.md`
 - `docs/system/reviewer-lane-governance.md`
@@ -55,4 +56,5 @@ Before delegating to `@deep-researcher` (GPT 5.4):
 ## Operating Posture (Claude-specific additions)
 - When `@o-reframer` reports ambiguities > 3, resolve them conversationally before planning.
 - Prefer longer, more explicit delegation payloads to GPT sub-agents — GPT performs better with precise, pre-structured input than with open-ended prompts.
-- For plan review, use the standard `@reviewer-gpt-5-4` + `@reviewer-opus-4-6` pair.
+- Model strengths can shape handling only after the route and calibrated questioning contract are fixed; they do not authorize deeper/deep-grill behavior by themselves.
+- For plan review, use the standard `@reviewer-gpt-5-4` + `@reviewer-sonnet-4-6` pair.

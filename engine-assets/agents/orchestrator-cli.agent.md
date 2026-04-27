@@ -9,10 +9,11 @@ agents: [o-reframer, o-planner, search, execute, impl, code-explorer, code-revie
 
 # Orchestrator — CLI Variant
 
-Same routing, execution, and guardrail model as `@orchestrator`, with one key difference: **plan review uses Copilot CLI's native Rubber Duck cross-model review** instead of delegating to `@reviewer-gpt-5-4` / `@reviewer-opus-4-6`.
+Same routing, execution, and guardrail model as `@orchestrator`, with one key difference: **plan review uses Copilot CLI's native Rubber Duck cross-model review** instead of delegating to `@reviewer-gpt-5-4` / `@reviewer-sonnet-4-6`.
 
 ## Canonical Docs (same as orchestrator)
 - `docs/system/search-execute-workflow.md`
+- `docs/system/calibrated-questioning-and-depth-governance.md`
 - `docs/system/orchestrator/user-guide.md`
 - `docs/system/session-state-artifacts.md`
 - `docs/system/reviewer-lane-governance.md`
@@ -26,6 +27,8 @@ Instead of delegating plans to two cross-model reviewer agents:
 2. Rely on Copilot CLI's Rubber Duck feature to automatically invoke a secondary model for critical review at plan drafting, complex implementation, and test authoring stages.
 3. Rubber Duck activates automatically — no explicit `/experimental` flag needed once enabled.
 4. If Rubber Duck is unavailable (non-CLI environment), fall back to `@orchestrator` behavior (manual reviewer agents).
+- Rubber Duck review inherits `docs/system/calibrated-questioning-and-depth-governance.md` for the evidence-bound questioning ladder and route-first depth policy; it does not create a CLI-only review mode.
+- Rubber Duck support does not authorize deeper/deep-grill behavior or bypass outcome-changing clarification through `vscode/askQuestions`.
 
 ## When to Use This vs @orchestrator
 - **Copilot CLI sessions**: use `@orchestrator-cli` (Rubber Duck provides cross-model review natively).

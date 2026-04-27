@@ -1,15 +1,18 @@
 ---
 created: 2026-03-31
-updated: 2026-03-31
+updated: 2026-04-25
 category: meta
-status: current
+status: archived
 doc_kind: node
-summary: Repo roadmap for adopting orchestrator framing and closure summaries across runtime, projection, and UI surfaces.
+summary: Legacy repo-local roadmap snapshot for orchestrator framing and closure adoption, kept only for compatibility and history.
 ---
 
 # Orchestrator Framing and Closure Adoption
 
 ## Overview
+This repo-local roadmap is a legacy compatibility snapshot. Canonical roadmap authority now lives
+under `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`, so this file is historical only.
+
 Operationalize **Session Intent Frame** and **Session Closure Summary** across orchestrator runtime, session inspection, and repo-planning follow-up seams without changing canonical planning authority boundaries. This Roadmap builds on the completed contract and prompt hardening slice documented in `docs/system/orchestrator/framing-closure-runtime-adoption.md`, plus completed research on configurable planning/carryover doc roots and rewrite/refactor aggressiveness policy. Durable memory and provider-location routing remain explicitly out of scope for this Roadmap.
 
 ## Roadmap Items
