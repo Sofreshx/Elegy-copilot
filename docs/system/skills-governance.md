@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-06-22
+updated: 2026-04-30
 category: system
 status: current
 doc_kind: node
@@ -22,6 +22,14 @@ Use staged capability routing by default:
 - The majority of skills stay vault-first and on-demand; only transversal meta-skills remain always loaded.
 
 This keeps startup context lean and makes domain loading explicit.
+
+## Codex operating model
+
+Codex should stay leaner than the legacy Copilot fleet:
+- Global Codex install: `AGENTS.md`, one read-only `reviewer` agent, `repo-setup`, `rubberduck-plan-review`, `implementation-review`, and `roadmap-planning`.
+- Repo-specific hazards: repo-local `AGENTS.md` overlays and repo-local skills.
+- Legacy engine/Copilot orchestration agents are not bulk-installed into Codex.
+- Cross-model reviewer agents are not part of the Codex install surface.
 
 ## Current always-loaded meta-skills
 

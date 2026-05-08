@@ -4,6 +4,7 @@ $engineRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $copilotInstaller = Join-Path $engineRoot 'scripts\cli-install.ps1'
 $codexInstaller = Join-Path $engineRoot 'scripts\codex-install.ps1'
 $antigravityInstaller = Join-Path $engineRoot 'scripts\antigravity-install.ps1'
+$opencodeInstaller = Join-Path $engineRoot 'scripts\opencode-install.ps1'
 
 $sharedArgs = @()
 $copilotArgs = @('--all')
@@ -53,3 +54,6 @@ Write-Host '==> Codex'
 
 Write-Host '==> Antigravity'
 & $antigravityInstaller @sharedArgs
+
+Write-Host '==> OpenCode'
+& $opencodeInstaller @sharedArgs

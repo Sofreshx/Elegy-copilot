@@ -60,6 +60,10 @@ No preamble or extra sections. Prefer specific scope hints over generic statemen
 ## Routing Guidance
 
 - Set `planning_surface`, `session_horizon`, `execution_readiness`, and `overlap_risk` first; they decide the route and whether deeper/deep-grill behavior is even in play.
+- Treat `planning_surface: roadmap` as durable multi-session planning, not active execution. A
+  Roadmap is the artifact above Plan Packs: it holds goals, non-goals, targets, sequencing, progress,
+  evidence, and reevaluation notes across sessions. Use this route when the request needs durable
+  phasing or portfolio reasoning before selecting one execution slice.
 - Hard no-activate states for deeper/deep-grill behavior: `planning_surface: none`, `planning_surface: roadmap`, `execution_readiness: not-ready`.
 - `classification`/complexity and `type` are secondary shaping signals only. They do not activate deeper/deep-grill behavior by themselves.
 - Normalize toward one active execution slice per session by default.

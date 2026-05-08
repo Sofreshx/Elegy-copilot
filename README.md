@@ -1,6 +1,6 @@
-# Elegy Copilot
+# Instruction Engine
 
-Shared GitHub Copilot assets plus home-installed Codex and Antigravity session lanes for multi-repo development. Copilot, Codex, and Antigravity are intentionally supported through different asset models: Copilot gets repo-shipped assets and dashboard support, while Codex and Antigravity get lighter native home installs built around each surface's supported global locations.
+A collection of coding assets (agents, skills, instructions) for agentic coding across multiple platforms: Copilot, Codex, Antigravity, and OpenCode. Each platform gets a curated subset of assets installed natively to its supported global locations, with Copilot receiving the broadest set and other platforms getting lighter, purpose-built lanes.
 
 ## Install or refresh
 
@@ -11,11 +11,13 @@ Run the installer for the tool you use; re-running the same command refreshes th
 | Copilot install/refresh | `pwsh -File scripts/cli-install.ps1 --all` | `bash scripts/cli-install.sh --all` |
 | Codex install/refresh | `pwsh -File scripts/codex-install.ps1` | `bash scripts/codex-install.sh` |
 | Antigravity install/refresh | `pwsh -File scripts/antigravity-install.ps1` | `bash scripts/antigravity-install.sh` |
+| OpenCode install/refresh | `pwsh -File scripts/opencode-install.ps1` | `bash scripts/opencode-install.sh` |
 | Refresh everything | `pwsh -File scripts/install-all.ps1` | `bash scripts/install-all.sh` |
 
 - Use the Copilot installer to refresh shared agents, skills, prompts, and instructions in `~/.copilot`.
 - Use the Codex installer to refresh the shared Codex baseline in `~/.codex`, including native skills under `~/.codex/skills/`.
 - Use the Antigravity installer to refresh shared skills in `~/.gemini/antigravity/skills/` and the managed Instruction Engine block in `~/.gemini/GEMINI.md`.
+- Use the OpenCode installer to install light exploration agents and curated skills into `~/.config/opencode/`.
 - Add `--force` to overwrite managed targets that diverged, or `--dry-run` to preview changes without writing.
 - Use `/init` only for occasional repo-local guidance work such as creating or refining `guidelines.md` or `AGENTS.md`; it is not the normal shared-asset refresh path.
 
@@ -47,16 +49,13 @@ engine-assets/  →  ~/.copilot/
   copilot-instructions.md   copilot-instructions.md
 ```
 
-Codex uses a separate home-installed lane from `codex-assets/` plus shared engine content:
+Codex uses a separate lean home-installed lane from `codex-assets/`:
 
 ```
 codex-assets/   →  ~/.codex/
   home/AGENTS.md    ~/.codex/AGENTS.md
   agents/           ~/.codex/agents/
   skills/           ~/.codex/skills/
-engine-assets/  →  ~/.codex/
-  agents/*.agent.md  ~/.codex/agents/*.toml (generated Codex roles)
-  skills/            ~/.codex/skills/
 ```
 
 Antigravity uses `antigravity-assets/` plus shared engine skills:
@@ -66,6 +65,21 @@ antigravity-assets/  →  ~/.gemini/
   home/GEMINI.md        ~/.gemini/GEMINI.md (managed block only)
 engine-assets/       →  ~/.gemini/antigravity/
   skills/               ~/.gemini/antigravity/skills/
+```
+
+OpenCode uses a minimal lane from `opencode-assets/`:
+
+```
+opencode-assets/   →  ~/.config/opencode/
+  home/AGENTS.md      AGENTS.md
+  agents/             agents/
+    code-explorer.md    code-explorer.md
+    web-searcher.md     web-searcher.md
+  skills/             skills/
+    code-review/        code-review/
+    security/           security/
+    refactor/           refactor/
+    ...                 ...
 ```
 
 ## Quick start
@@ -78,18 +92,31 @@ This installs the shipped first-party agents, prompts, and global instructions f
 
 ### Codex install details
 
-This installs `~/.codex/AGENTS.md`, curated Codex TOML agents, generated Codex role wrappers from shared `engine-assets/agents/*.agent.md`, and shared skills into `~/.codex/skills/`, then patches `~/.codex/config.toml` conservatively. The patcher only adds `review_model` when it is absent and only adds the managed planning profile when that profile name is unused.
+This installs `~/.codex/AGENTS.md`, one read-only reviewer TOML agent, and curated Codex skills into `~/.codex/skills/`, then patches `~/.codex/config.toml` conservatively. The patcher only adds `review_model` when it is absent and only adds the managed planning profile when that profile name is unused.
 
 ### Antigravity install details
 
 This installs shared skills into `~/.gemini/antigravity/skills/` and updates only the bounded Instruction Engine block inside `~/.gemini/GEMINI.md`, preserving user content outside that block.
 
+### OpenCode install details
+
+This installs two light exploration subagents (`code-explorer`, `web-searcher`) and curated skills (code-review, security, refactor, conventions, stack-detector) into `~/.config/opencode/`. OpenCode discovers agents and skills automatically at startup. The install does not modify `opencode.json` — configure provider/model preferences separately.
+
+### OpenCode quick use
+
+- OpenCode's built-in agents (Build, Plan, General, Explore) handle most work. Instruction-engine adds:
+  - `@code-explorer` — fast, read-only codebase search using a light model (configure DeepSeek or preferred provider)
+  - `@web-searcher` — fast web research and documentation lookup using a light model
+- Curated skills load on-demand via OpenCode's native `skill` tool — zero context cost until invoked
+- Re-run `scripts/opencode-install.ps1` (or `.sh`) to refresh
+- See [docs/opencode-usage.md](docs/opencode-usage.md) for full configuration and customization guide
+
 ### Codex quick use
 
 - Native Codex commands stay primary: `/plan`, `/review`, `/init`, `/resume`, `/fork`
 - For routine shared-asset setup or refresh, re-run `scripts/codex-install.ps1`, `bash scripts/codex-install.sh`, or use `scripts/install-all.*` when you want every supported surface updated together
-- This repo adds one curated reviewer agent plus generated role wrappers from shared engine agents
-- This repo adds the curated `repo-setup` Codex skill plus shared engine skills under `~/.codex/skills/`
+- This repo adds one curated read-only reviewer agent
+- This repo adds curated Codex skills under `~/.codex/skills/`: `repo-setup`, `rubberduck-plan-review`, `implementation-review`, and `roadmap-planning`
 - Use `/init` only when you actually want Codex to create or refine repo-local guidance such as `guidelines.md` or `AGENTS.md`; it is more expensive and is not the normal path for refreshing shared assets
 - There is no custom `/setup-repo` slash command; use the `repo-setup` skill, and pair it with native `/init` only for that occasional repo-local guidance work
 
@@ -153,8 +180,18 @@ Codex baseline:
 |------|-------|----------|
 | Global instructions | 1 | `codex-assets/home/AGENTS.md` |
 | Custom agents | 1 | `codex-assets/agents/*.toml` |
-| Skills | 1 | `codex-assets/skills/<name>/SKILL.md` |
+| Skills | 4 | `codex-assets/skills/<name>/SKILL.md` |
 | Canonical asset manifest | — | `codex-assets/manifest.json` |
+
+OpenCode baseline:
+
+| Type | Count | Location |
+|------|-------|----------|
+| Global instructions | 1 | `opencode-assets/home/AGENTS.md` |
+| Custom agents | 2 | `opencode-assets/agents/*.md` |
+| Skills | 5 | `opencode-assets/skills/<name>/SKILL.md` |
+| Canonical asset manifest | — | `opencode-assets/manifest.json` |
+| Usage guide | 1 | `docs/opencode-usage.md` |
 
 ---
 

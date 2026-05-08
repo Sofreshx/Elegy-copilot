@@ -117,7 +117,9 @@ Model-specific orchestrator variants are the preferred shipped entrypoints. Inst
 - **Code exploration** stays on `@code-explorer` with an Auto/smaller-model posture so premium reasoning remains concentrated at the orchestration edge.
 - **Research** is consolidated to `@deep-researcher` as the single orchestrator-only GPT-5.4 research lane.
 - **Implementation** stays lean: `@execute` remains the capability-brief extraction lane, and `@impl` is the default shipped write-capable implementation lane.
-- **Testing** is consolidated to `@test-runner`, which owns unit, integration, and browser/E2E validation selection inside one lane.
+- **Testing** is consolidated to `@test-runner`, which owns lean risk-based validation selection inside
+  one lane: run the narrowest proof that closes the active risk, then escalate only when policy,
+  coupling, or missing evidence requires broader coverage.
 - **Roadmap/backlog planning surfaces** remain orchestrator-owned. When persistence is needed, the orchestrator selects the surface and routes the actual write through existing writing lanes and skills rather than dedicated backlog/roadmap planner agents.
 
 ## How Requests Are Routed
@@ -222,7 +224,9 @@ The shipped V1 topology keeps `@orchestrator` as both the root session owner and
 - The effective repo depth cap is 3: `@orchestrator` -> approved coordinator -> leaf.
 - Host/runtime nesting support up to depth 5 is runtime headroom only; the shipped repo topology stays bounded and explicit rather than generally recursive.
 - Planning uses direct orchestrator-managed surface selection. `@o-planner` stays the default leaf for plan-pack generation; durable backlog/roadmap persistence stays orchestrator-owned and should use existing writing lanes plus planning skills when a repo write is required.
-- Validation uses the single leaf `@test-runner`, which selects unit, integration, and browser/E2E coverage inside one lane instead of routing through separate validation coordinators.
+- Validation uses the single leaf `@test-runner`, which selects the narrowest required unit,
+  integration, browser, or E2E coverage inside one lane instead of routing through separate validation
+  coordinators or stacking broad checks by default.
 - Write-capable implementation lanes and reviewer lanes remain leaf-only in V1. `@impl` is the default shipped implementation lane; older split implementation lanes are compatibility-only.
 - Coordinator-to-coordinator chains are disallowed in V1.
 - When nested planning is unavailable or disabled, use the legacy-depth-1 fallback: direct orchestrator -> `@o-planner` planning.
@@ -314,7 +318,7 @@ When Phase 2 needs plan approval, blocking clarification, or an explicit proceed
 Do not fall back to plain-text end-of-plan questions for those decisions.
 
 ### Phase 3: Execute
-The default execution topology is one ready work group at a time through the lean implementation surface centered on `@impl`. The orchestrator delegates only the active slice, tracks progress after each slice, and keeps `@execute` available only for capability-brief extraction when additional constraints or authoring guidance are needed. Implementer lanes may request test scope, but long-running test commands stay in the consolidated `@test-runner` lane for unit, integration, and browser/E2E coverage. Timeout, stalled-output, and inconclusive validation are treated as completed attempts that trigger retry, replan, or user input rather than indefinite waiting.
+The default execution topology is one ready work group at a time through the lean implementation surface centered on `@impl`. The orchestrator delegates only the active slice, tracks progress after each slice, and keeps `@execute` available only for capability-brief extraction when additional constraints or authoring guidance are needed. Implementer lanes may request test scope, but long-running test commands stay in the consolidated `@test-runner` lane. That lane should run the narrowest proof that closes the active risk and add integration or browser/E2E coverage only when repo policy, cross-boundary coupling, or missing evidence makes the broader layer necessary. Timeout, stalled-output, and inconclusive validation are treated as completed attempts that trigger retry, replan, or user input rather than indefinite waiting.
 
 For any write-capable work unit that affects behavior, workflow policy, or a documentation-backed
 feature, the delegated leaf must independently load the smallest relevant canonical docs entrypoint
@@ -327,8 +331,9 @@ write-capable work.
 
 When a completed or frozen slice can be validated without reopening active writes, the orchestrator may
 route that bounded validation through `@test-runner`. That overlap is conditioned on `overlap_risk`,
-dependency safety, and current repo policy constraints. Integration validation remains policy-driven,
-and browser/E2E validation stays serial with active write work.
+dependency safety, and current repo policy constraints. Integration and browser/E2E validation remain
+policy/risk-driven escalations rather than default follow-on checks, and browser/E2E validation stays
+serial with active write work.
 
 During execution, the orchestrator keeps the Session Intent Frame current enough to preserve
 resumability, especially when scope edges change, confidence drops, or refactor/coherence work is
@@ -340,7 +345,7 @@ quietly widening the active session.
 
 ### Phase 4: Verify
 Final verification uses a lean end gate: `@code-reviewer` for final code quality and request/spec-fit,
-`@test-runner` for the required validation surface, and `@doc-writer` only when durable carryover
+`@test-runner` for the narrowest required validation surface, and `@doc-writer` only when durable carryover
 artifacts under `~/.copilot/backlogs/{repo-name}/**` need to be written or reconciled. The
 orchestrator owns the high-level judgment about whether goals are complete, partial, or blocked, and
 it decides whether unresolved goals or Repository Backlog carryover should be persisted.
@@ -468,7 +473,8 @@ authorities. `GET /api/sessions/:id/final` remains compatibility-only and should
 authoritative Sessions summary path.
 
 When validation-governance data is available, the derived summaries should also surface what validation
-was required, what coverage actually ran, and what gaps or limitations remain.
+was required, what coverage actually ran, which broader layers were not required, and what gaps or
+limitations remain.
 
 ### Resuming Sessions
 If a session is interrupted, re-invoke `@orchestrator` with the prior plan summary, host/runtime

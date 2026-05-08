@@ -72,7 +72,8 @@ The Planning workflow uses the repo-backed authority layer defined in
 Catalog repo selection remains the repo-context source,
 `~/.copilot/backlogs/{repo-name}/planning/bullets.md` is the canonical seed surface,
 `~/.copilot/backlogs/{repo-name}/backlogs/*.md` is the primary Repository Backlog location,
-`~/.copilot/backlogs/{repo-name}/roadmaps/*.md` is the canonical Roadmap location, and
+`~/.copilot/backlogs/{repo-name}/roadmaps/<roadmap-slug>/index.md` is the canonical Roadmap index
+location, and
 plan packs remain separate session-state execution artifacts. The primary Planning-tab workflow focuses
 on Plans, Bullets, Backlog, and Roadmaps; typed intake, external Obsidian notes, and legacy
 planning-record artifacts remain compatibility surfaces and should stay out of the main Planning-tab
@@ -326,7 +327,7 @@ When shown there or elsewhere, they may surface:
 - CLI seam/probe state plus pull-sync status with conflict, cooldown, retry, and lease metadata
 - a manual **Sync now** action
 - note list, selection, and note-detail viewing
-- deterministic mirror freshness for canonical `~/.copilot/backlogs/{repo-name}/planning/bullets.md` and `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`
+- deterministic mirror freshness for canonical `~/.copilot/backlogs/{repo-name}/planning/bullets.md` and roadmap folder indexes under `~/.copilot/backlogs/{repo-name}/roadmaps/*/index.md`
 - a manual **Refresh canonical mirrors** action that regenerates those notes from repo docs
 - seed-to-plan actions that preserve `synced-note` provenance
 - explicit **Suggest backlog item** and **Add to roadmap** actions for the selected roadmap

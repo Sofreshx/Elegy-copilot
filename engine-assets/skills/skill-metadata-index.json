@@ -553,7 +553,7 @@
     {
       "skill": "roadmap-authoring",
       "name": "roadmap-authoring",
-      "description": "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmap artifacts, including Roadmap Sync-ready linked IDs and plan-pack handoff boundaries. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio.",
+      "description": "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmaps. A Roadmap is the durable multi-session planning artifact above Plan Packs: a folder with an index, section files, progress/evidence, and a reevaluation log. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio.",
       "triggersOn": [
         "backlog item",
         "phased planning",

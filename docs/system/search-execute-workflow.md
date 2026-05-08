@@ -211,7 +211,10 @@ The shipped V1 nested topology is intentionally narrow:
   planning leaf for plan-pack work, while roadmap/backlog persistence uses existing writing lanes and
   planning skills instead of dedicated planner agents in the shipped surface.
 - Validation uses the single leaf `@test-runner`; specialized unit, integration, and browser behavior
-  stays inside that lane and its referenced skills rather than nested validation coordinators.
+  stays inside that lane and its referenced skills rather than nested validation coordinators. The
+  default validation posture is lean and risk-based: select the narrowest proof that closes the active
+  risk, then escalate only when repo policy, coupling, missing evidence, or inconclusive results
+  require broader coverage.
 - Write-capable implementation lanes and reviewer lanes remain leaf-only in V1. `@impl` is the
   default shipped implementation lane; compatibility-only split implementation lanes are not part of
   the primary orchestrator workflow.
@@ -393,7 +396,9 @@ Instruction Engine owns:
 - Keep nested routing inside the V1 approved-coordinator posture; approved coordinators may not
    re-root session ownership, routing policy ownership, or chain to other coordinators.
 - Keep validation overlap bounded to completed or frozen slices that satisfy overlap-risk,
-   dependency-safety, and repo-policy checks; never treat it as permission for unrestricted parallel writes.
+  dependency-safety, and repo-policy checks; never treat it as permission for unrestricted parallel writes.
+- Do not stack unit, integration, and browser validation by default; broader validation layers need an
+  explicit policy, risk, or confidence basis.
 - In default orchestration, prefer `eligible-only` capability search unless the user explicitly asks to override.
 - Prefer canonical docs over research notes.
 - Surface material contradictions between intended work and current documentation before proceeding.

@@ -6,6 +6,7 @@ ENGINE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COPILOT_INSTALLER="$ENGINE_ROOT/scripts/cli-install.sh"
 CODEX_INSTALLER="$ENGINE_ROOT/scripts/codex-install.sh"
 ANTIGRAVITY_INSTALLER="$ENGINE_ROOT/scripts/antigravity-install.sh"
+OPENCODE_INSTALLER="$ENGINE_ROOT/scripts/opencode-install.sh"
 
 shared_args=()
 copilot_args=(--all)
@@ -48,3 +49,6 @@ bash "$CODEX_INSTALLER" "${shared_args[@]}"
 
 echo '==> Antigravity'
 bash "$ANTIGRAVITY_INSTALLER" "${shared_args[@]}"
+
+echo '==> OpenCode'
+bash "$OPENCODE_INSTALLER" "${shared_args[@]}"

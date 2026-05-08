@@ -11,13 +11,13 @@
     "skillsDir": "~/.codex/skills",
     "instructionsFile": "~/.codex/AGENTS.md",
     "configFile": "~/.codex/config.toml",
-    "description": "Home-installed Codex session assets for planning-first work, review, shared skills, and generated role wrappers from engine agents."
+    "description": "Home-installed Codex session assets for planning-first work, review, and minimal repository setup."
   },
   "installerHints": {
     "preferExplicitDestinations": true,
     "agentsAreFlat": true,
     "skillsRequireFolderName": true,
-    "notes": "Install instructions, custom agents, generated engine role wrappers, and shared skills under ~/.codex, then patch ~/.codex/config.toml conservatively."
+    "notes": "Install only Codex-native home instructions, a read-only reviewer agent, and the repo-setup skill under ~/.codex, then patch ~/.codex/config.toml conservatively. Do not bulk-install Copilot/engine assets into Codex."
   },
   "governance": {
     "g05": {
@@ -72,34 +72,25 @@
       "type": "skill",
       "source": "codex-assets/skills/repo-setup",
       "destination": "skills/repo-setup"
+    },
+    {
+      "id": "codex-rubberduck-plan-review-skill",
+      "type": "skill",
+      "source": "codex-assets/skills/rubberduck-plan-review",
+      "destination": "skills/rubberduck-plan-review"
+    },
+    {
+      "id": "codex-implementation-review-skill",
+      "type": "skill",
+      "source": "codex-assets/skills/implementation-review",
+      "destination": "skills/implementation-review"
+    },
+    {
+      "id": "codex-roadmap-planning-skill",
+      "type": "skill",
+      "source": "codex-assets/skills/roadmap-planning",
+      "destination": "skills/roadmap-planning"
     }
   ],
-  "sourcePatterns": [
-    {
-      "type": "instructions",
-      "sourceGlob": "codex-assets/home/AGENTS.md",
-      "destinationDir": "."
-    },
-    {
-      "type": "agent",
-      "sourceGlob": "codex-assets/agents/*.toml",
-      "destinationDir": "agents"
-    },
-    {
-      "type": "skill",
-      "sourceGlob": "codex-assets/skills/*",
-      "destinationDir": "skills"
-    },
-    {
-      "type": "skill",
-      "sourceGlob": "engine-assets/skills/*",
-      "destinationDir": "skills"
-    },
-    {
-      "type": "agent",
-      "sourceGlob": "engine-assets/agents/*.agent.md",
-      "destinationDir": "agents",
-      "transform": "engine-agent-to-codex-role"
-    }
-  ]
+  "sourcePatterns": []
 }

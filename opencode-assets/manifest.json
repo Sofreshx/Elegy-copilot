@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "name": "instruction-engine-opencode",
+    "version": "0.1.0",
+    "sourceCommitSha": "<REPLACE_WITH_GIT_SHA>"
+  },
+  "installDefaults": {
+    "opencodeHome": "~/.config/opencode",
+    "agentsDir": "~/.config/opencode/agents",
+    "skillsDir": "~/.config/opencode/skills",
+    "instructionsFile": "~/.config/opencode/AGENTS.md",
+    "description": "Lightweight OpenCode agents and curated skills for code exploration, web research, code review, security, and refactoring. Kept intentionally minimal to work with OpenCode's solid built-in harness."
+  },
+  "assets": [
+    {
+      "id": "opencode-global-instructions",
+      "type": "instructions",
+      "source": "opencode-assets/home/AGENTS.md",
+      "destination": "AGENTS.md"
+    },
+    {
+      "id": "opencode-code-explorer-agent",
+      "type": "agent",
+      "source": "opencode-assets/agents/code-explorer.md",
+      "destination": "agents/code-explorer.md"
+    },
+    {
+      "id": "opencode-web-searcher-agent",
+      "type": "agent",
+      "source": "opencode-assets/agents/web-searcher.md",
+      "destination": "agents/web-searcher.md"
+    },
+    {
+      "id": "opencode-code-review-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/code-review",
+      "destination": "skills/code-review"
+    },
+    {
+      "id": "opencode-security-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/security",
+      "destination": "skills/security"
+    },
+    {
+      "id": "opencode-refactor-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/refactor",
+      "destination": "skills/refactor"
+    },
+    {
+      "id": "opencode-project-conventions-governance-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/project-conventions-governance",
+      "destination": "skills/project-conventions-governance"
+    },
+    {
+      "id": "opencode-stack-detector-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/stack-detector",
+      "destination": "skills/stack-detector"
+    }
+  ],
+  "sourcePatterns": []
+}

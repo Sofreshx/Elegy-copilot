@@ -60,7 +60,7 @@ The orchestrator composes two normalized session summaries:
 
 - `plan.md` remains the canonical session execution artifact when a persisted workflow is used.
 - `~/.copilot/backlogs/{repo-name}/backlogs/*.md`,
-  `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`, and issue-doc carryover files remain the
+  roadmap folder indexes under `~/.copilot/backlogs/{repo-name}/roadmaps/*/index.md`, and issue-doc carryover files remain the
   canonical durable planning and carryover authorities.
 - The framing/closure summaries must not silently replace backlog, roadmap, unresolved-goal, or repo
   documentation governance.

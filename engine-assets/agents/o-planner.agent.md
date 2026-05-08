@@ -22,6 +22,10 @@ Produce actionable plan packs from enriched briefs. Called by `@orchestrator` or
   to plan responsibly, expect the caller to combine `@o-reframer` output with targeted
   `vscode/askQuestions` clarification before invoking this planner.
 - Only author a plan pack when `planning_surface` includes `plan-pack`; roadmap state may be referenced through linked IDs but remains a separate durable authority.
+- A Roadmap is the durable multi-session planning artifact above Plan Packs. It owns goals, non-goals,
+  targets, sequencing, progress, evidence, and reevaluation notes across sessions. This planner may
+  consume roadmap references to scope one active slice, but it must not redefine or replace the
+  roadmap.
 - Do not invent or mutate roadmap/backlog state; preserve linked durable IDs only as references when they are already supplied.
 - One active slice per session by default: do not author a single plan pack that blends unrelated asks.
 - If the caller provides overflow or queued follow-up work, keep it out of active work-unit scope except

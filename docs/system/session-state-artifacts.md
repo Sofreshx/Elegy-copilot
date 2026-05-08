@@ -604,7 +604,7 @@ The persistence authority for planning records and planning notes is frozen as f
    - Persistence failures must remain explicit and deterministic to callers.
 
 This freeze applies to planning-record persistence only. Repo-backed `~/.copilot/backlogs/{repo-name}/backlogs/*.md` and
-`~/.copilot/backlogs/{repo-name}/roadmaps/*.md` artifacts are outside session-state
+roadmap folder artifacts under `~/.copilot/backlogs/{repo-name}/roadmaps/*/index.md` are outside session-state
 authority and outside this local planning DB authority boundary.
 
 ### Planning Persistence Operations Contract (WS4 M2)

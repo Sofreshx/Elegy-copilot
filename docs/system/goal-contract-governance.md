@@ -21,7 +21,8 @@ review outcome surface.
 
 Planning and execution already have canonical artifacts for decomposition (`plan.md`/Plan Pack),
 session runtime state (`docs/system/session-state-artifacts.md`), and portfolio planning
-(`~/.copilot/backlogs/{repo-name}/backlogs/*.md`, plus `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`). This goal contract adds a stable cross-workflow
+(`~/.copilot/backlogs/{repo-name}/backlogs/*.md`, plus roadmap folder indexes under
+`~/.copilot/backlogs/{repo-name}/roadmaps/*/index.md`). This goal contract adds a stable cross-workflow
 outcome layer and now explicitly drives workflow behavior in orchestrator and persisted
 session-state execution.
 

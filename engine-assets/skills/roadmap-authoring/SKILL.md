@@ -1,6 +1,6 @@
 ---
 name: roadmap-authoring
-description: "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmap artifacts, including Roadmap Sync-ready linked IDs and plan-pack handoff boundaries. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio."
+description: "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmaps. A Roadmap is the durable multi-session planning artifact above Plan Packs: a folder with an index, section files, progress/evidence, and a reevaluation log. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio."
 ---
 
 # Roadmap Authoring
@@ -10,11 +10,19 @@ description: "Canonical authoring and maintenance rules for Planning Bullets, Re
 Author and maintain repo-backed planning artifacts that define **what matters next** before work is
 decomposed into a Plan Pack.
 
+A **Roadmap** is the durable multi-session planning artifact above execution. It captures goals,
+non-goals, main targets, sequencing, section-level progress, evidence, and reevaluation notes. It is
+not an active task list and not a Plan Pack; a Plan Pack selects one roadmap slice for execution.
+New or substantially edited Roadmaps use a folder: `index.md` for overview/progress,
+section files for detailed `RM-*` items, and `reevaluation-log.md` for out-of-scope or unforeseen
+issues that may require roadmap reevaluation.
+
 This skill governs:
 - **Planning Bullets** at `~/.copilot/backlogs/{repo-name}/planning/bullets.md` as the canonical pre-backlog seed surface
 - the **Repository Backlog** under `~/.copilot/backlogs/{repo-name}/backlogs/*.md` as the primary artifact family
 - `~/.copilot/backlogs/{repo-name}/backlog.md` as a legacy compatibility Repository Backlog surface
-- **Roadmap** files at `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>.md`
+- **Roadmap** folders at `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/`
+- repo-persisted roadmap folders under `<repo>/docs/planning/<slug>/` when the work must be visible to all coding-agent surfaces
 - the explicit ID/linking discipline required for future **Roadmap Sync** and direct plan handoff
 
 `{repo-name}` is the basename of the repository directory.
@@ -52,7 +60,10 @@ For the selected repository root:
 - Planning Bullets: `~/.copilot/backlogs/{repo-name}/planning/bullets.md`
 - Repository Backlog (primary): `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`
 - Repository Backlog (legacy compatibility): `~/.copilot/backlogs/{repo-name}/backlog.md`
-- Roadmaps: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>.md`
+- Roadmaps: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/index.md`
+- Roadmap section files: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/<section-slug>.md`
+- Roadmap reevaluation log: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/reevaluation-log.md`
+- Repo-persisted roadmaps: `<repo>/docs/planning/<slug>/index.md`
 
 Backlog filenames should use lowercase kebab-case session slugs, for example:
 - `~/.copilot/backlogs/{repo-name}/backlogs/2026-04-03-session-close.md`
@@ -60,9 +71,14 @@ Backlog filenames should use lowercase kebab-case session slugs, for example:
 
 If `~/.copilot/backlogs/{repo-name}/roadmaps/` does not exist, create it only when roadmap work is actually requested.
 
-Roadmap filenames should use lowercase kebab-case slugs, for example:
-- `~/.copilot/backlogs/{repo-name}/roadmaps/platform-foundation.md`
-- `~/.copilot/backlogs/{repo-name}/roadmaps/q2-delivery.md`
+Roadmap folder and section filenames should use lowercase kebab-case slugs, for example:
+- `~/.copilot/backlogs/{repo-name}/roadmaps/platform-foundation/index.md`
+- `~/.copilot/backlogs/{repo-name}/roadmaps/q2-delivery/runtime-contracts.md`
+- `<repo>/docs/planning/platform-foundation/index.md`
+
+Legacy single-file roadmaps remain readable at `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>.md`
+and `<repo>/docs/planning/<slug>.md`. Convert only the targeted legacy roadmap when it is
+substantially edited or explicitly migrated.
 
 ## Stable ID Rules
 
@@ -79,7 +95,7 @@ Rules:
 - IDs must remain stable after creation.
 - Continue the highest existing sequence across the Repository Backlog artifact family (`~/.copilot/backlogs/{repo-name}/backlogs/*.md` plus legacy `~/.copilot/backlogs/{repo-name}/backlog.md` when present) or the targeted roadmap family.
 - Never reuse or renumber existing IDs just to make the file look cleaner.
-- The roadmap slug portion must match the roadmap filename slug.
+- The roadmap slug portion must match the roadmap folder slug.
 
 ## Linking Rules for Roadmap Sync
 
@@ -99,6 +115,8 @@ Use this skill when the request is primarily about:
 - shaping roadmap or direct-plan inputs from Planning Bullets
 - adding or triaging work in the Repository Backlog
 - creating a roadmap from selected backlog work
+- creating a repo-persisted roadmap from raw or mixed user instructions
+- selecting one roadmap slice for execution across coding sessions
 - splitting roadmap outcomes across phases
 - keeping roadmap/backlog links explicit and deterministic
 - preparing planning artifacts before execution planning begins
@@ -117,6 +135,8 @@ The future parser may evolve, but these elements are non-negotiable:
 - stable `PB-*`, `RB-*`, and `RM-*` IDs when those artifacts exist
 - explicit roadmap-to-backlog linkage
 - clear separation between roadmap scope and plan-pack detail
+- one selected execution slice at a time
+- evidence before marking roadmap work done
 
 Recommended minimum for each bullet:
 - ID
@@ -138,7 +158,114 @@ Recommended minimum for each roadmap item:
 - explicit phase or section placement
 - explicit covered backlog IDs
 - concise outcome statement
+- explicit status
+- acceptance or evidence field when the roadmap lives in `docs/planning/`
 - optional plan/session references once execution exists
+
+## Roadmap Folder Model
+
+New or substantially edited roadmaps should be folders, not single large Markdown files.
+
+`index.md` is the overview and progress surface. It should include:
+- roadmap title and concise description
+- goals, non-goals, and main targets
+- current slice
+- section index with links, status, progress counts, dependencies, and evidence summary
+- link to `reevaluation-log.md` when that file exists
+
+Section files hold the detailed roadmap work. Each section file should include:
+- section goal and status
+- `RM-<roadmap-slug>-###` items
+- covered backlog IDs and originating bullet IDs when known
+- acceptance checks and evidence
+- notes and a short session log
+
+`reevaluation-log.md` captures out-of-scope issues, unforeseen findings, blockers, scope changes, and
+roadmap-invalidating discoveries. Entries that imply future action must link to an existing `RB-*` or
+`RM-*` ID, create the needed durable item, or explicitly state that no durable action item was created.
+Do not create a new ID family for reevaluation entries.
+
+## Repo-Persisted Roadmap Rules
+
+Use `<repo>/docs/planning/<slug>/` for durable roadmaps that should survive across Codex, Copilot, and other coding-agent sessions.
+
+Core rules:
+- Work one slice at a time; avoid broad "continue the roadmap" execution.
+- Do not execute multiple slices unless the user explicitly selects them.
+- Do not mark a slice `done` without evidence.
+- Keep updates factual and small.
+
+When raw mixed instructions are dumped into chat:
+1. Group by product area, dependency, and risk.
+2. Separate current truth, future goals, bugs, cleanup, research, and open questions.
+3. Order by dependency: unblockers, contracts/data, runtime, UI/UX, validation/docs, polish.
+4. Split unrelated goals into separate sections or roadmap folders.
+5. Assign each executable slice a stable `RM-<roadmap-slug>-###` ID.
+6. Convert vague items into concrete outcomes and acceptance checks.
+7. Put unclear items under questions.
+
+Repo-persisted roadmap minimum index shape:
+
+```markdown
+# <Roadmap Title>
+
+## Description
+<durable goal and current scope>
+
+## Goals
+- <goal>
+
+## Non-Goals
+- <non-goal or none>
+
+## Main Targets
+- <target>
+
+## Current Slice
+- Active: none
+- Started: none
+- Stop condition: none
+
+## Section Index
+| Section | Status | Progress | Depends on | Evidence |
+|---|---|---:|---|---|
+| [Runtime Contracts](runtime-contracts.md) | pending | 0/3 | none | none |
+
+## Reevaluation
+- Log: [reevaluation-log.md](reevaluation-log.md)
+```
+
+Repo-persisted roadmap minimum section shape:
+
+```markdown
+# <Section Title>
+
+## Section Goal
+- <goal>
+
+## Status
+- pending
+
+## Items
+
+### RM-<roadmap-slug>-001 <Slice Name>
+Status: pending
+Depends on: none
+Covers Backlog IDs: RB-001
+Goal:
+- <specific outcome>
+Acceptance:
+- <observable check>
+Evidence:
+- none
+
+## Session Log
+- none
+```
+
+Statuses: `pending`, `ready`, `in-progress`, `blocked`, `done`, `dropped`.
+
+For execution, select one `RM-*` slice, plan only that slice, implement and validate it, then update only that slice's status, evidence, and session log unless the implementation invalidates later work.
 
 ## Suggested Lightweight Templates
 
@@ -160,7 +287,22 @@ Roadmap example:
 ```markdown
 # Roadmap: Platform Foundation
 
-## Phase 1
+## Description
+Foundational platform work that spans multiple sessions.
+
+## Current Slice
+- Active: none
+
+## Section Index
+| Section | Status | Progress | Depends on | Evidence |
+|---|---|---:|---|---|
+| [Phase 1](phase-1.md) | planned | 0/1 | none | none |
+```
+
+Roadmap section example:
+
+```markdown
+# Phase 1
 
 ### RM-platform-foundation-001 - Example outcome
 - Status: planned
@@ -174,13 +316,15 @@ contract.
 
 ## Maintenance Workflow
 
-1. Read the existing Repository Backlog artifact family (`~/.copilot/backlogs/{repo-name}/backlogs/*.md` first, `~/.copilot/backlogs/{repo-name}/backlog.md` when compatibility requires it) and relevant roadmap file(s).
+1. Read the existing Repository Backlog artifact family (`~/.copilot/backlogs/{repo-name}/backlogs/*.md` first, `~/.copilot/backlogs/{repo-name}/backlog.md` when compatibility requires it) and relevant roadmap `index.md` plus section file(s).
 2. Read `~/.copilot/backlogs/{repo-name}/planning/bullets.md` when the request starts from seed ideas or needs `PB-*` linkage.
-3. Decide whether the request belongs in bullets, backlog, roadmap, or future Plan Pack.
-4. Allocate new IDs only where needed.
-5. Add or repair explicit cross-links.
-6. Keep wording concise and portfolio-level.
-7. If the request is now execution-ready, stop and recommend a Plan Pack handoff rather than adding
+3. If the target roadmap is a legacy single file and will be substantially edited, convert only that
+   roadmap into `<slug>/index.md` plus section files before adding new structure.
+4. Decide whether the request belongs in bullets, backlog, roadmap, reevaluation log, or future Plan Pack.
+5. Allocate new IDs only where needed.
+6. Add or repair explicit cross-links.
+7. Keep `index.md` concise and move detailed item content into section files.
+8. If the request is now execution-ready, stop and recommend a Plan Pack handoff rather than adding
    implementation detail here.
 
 ## Roadmap Sync Readiness Checklist

@@ -22,7 +22,9 @@ planning-record artifacts in bounded compatibility roles.
 ## Canonical Names
 
 - **Repository Backlog** — the canonical repo-backed backlog artifact family for planning intake and queued work. Primary per-session artifacts live under `docs/backlogs/*.md`; `docs/backlog.md` remains a legacy compatibility surface.
-- **Roadmap** — the canonical phased planning document that sits above plan packs.
+- **Roadmap** — the canonical phased planning artifact that sits above plan packs. New or
+  substantially edited roadmaps use a folder with an `index.md`, section files, and an optional
+  reevaluation log; legacy single-file roadmaps remain readable compatibility surfaces.
 - **Planning Bullets** — the canonical repo-backed markdown seed file for future-session freeform bullets.
 - **Roadmap Sync** — the canonical name for automatic deterministic reconciliation between linked
   roadmap items, backlog items, and plan packs.
@@ -40,7 +42,7 @@ Do not introduce alternate product names for these same concepts in canonical do
 | --- | --- | --- | --- | --- |
 | Planning Bullets | Host-local per-repo file | `~/.copilot/backlogs/{repo-name}/planning/bullets.md` | Freeform future-plan seeds below backlog acceptance and direct seed input for roadmap/plan handoff | Accepted backlog state, active execution |
 | Repository Backlog | Host-local per-repo artifact family | `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` (primary) | Repo-wide intake, triage, queued work, and session-close carryover | Session execution state, work-unit decomposition |
-| Roadmap | Host-local per-repo files | `~/.copilot/backlogs/{repo-name}/roadmaps/<roadmap-slug>.md` | Phased outcomes, sequencing, and status across work | Detailed execution instructions |
+| Roadmap | Host-local per-repo folder artifacts | `~/.copilot/backlogs/{repo-name}/roadmaps/<roadmap-slug>/index.md` | Phased outcomes, sequencing, and status across work | Detailed execution instructions |
 | Plan Pack | Session-state artifact | `~/.copilot/session-state/<SESSION_ID>/plan.md` | One execution session | Repo backlog ownership or roadmap prioritization |
 | Typed Planning Intake | Host-local per-repo files | `~/.copilot/backlogs/{repo-name}/planning/intake/*.json` | Structured request compatibility surface for audit, roadmap-request, review-prep, commit-prep, and related workflows | Primary Planning-tab authoring workflow, accepted backlog state |
 | External Obsidian notes + mirrors | External/non-canonical compatibility surface | Local Obsidian vault configured for `copilot-ui` | Supplemental notes plus deterministic mirror representations of canonical bullets/roadmaps for the selected repo | Canonical backlog, roadmap, bullets, or active execution authority |
@@ -64,7 +66,8 @@ flow back from the note.
 
 SAFE interpretation for canonical planning mirrors:
 
-- Obsidian may host deterministic mirror notes for `~/.copilot/backlogs/{repo-name}/planning/bullets.md` and `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`.
+- Obsidian may host deterministic mirror notes for `~/.copilot/backlogs/{repo-name}/planning/bullets.md`
+  and roadmap folder indexes under `~/.copilot/backlogs/{repo-name}/roadmaps/*/index.md`.
 - Those mirror notes are a convenience representation only, not an alternate write-authority lane.
 - Mirror generation must be repo-scoped, deterministic, and refreshable from canonical repo artifacts.
 - Mirror metadata or freshness checks may be read, but mirror bodies must not be parsed back into
@@ -86,7 +89,7 @@ Primary supported Planning-tab workflow:
 
 1. start with `~/.copilot/backlogs/{repo-name}/planning/bullets.md`
 2. promote selected work into `~/.copilot/backlogs/{repo-name}/backlogs/*.md` or reference existing `RB-*` items
-3. organize selected backlog work into `~/.copilot/backlogs/{repo-name}/roadmaps/*.md`
+3. organize selected backlog work into `~/.copilot/backlogs/{repo-name}/roadmaps/<roadmap-slug>/index.md`
 4. hand one approved slice into `plan.md`
 
 Planning-surface selection and persistence rules are orchestrator-owned. The shipped/default workflow
@@ -227,13 +230,22 @@ For a selected repository with basename `{repo-name}`:
 - **Repository Backlog** primarily lives under `~/.copilot/backlogs/{repo-name}/backlogs/`.
 - `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` is the primary per-session Repository Backlog artifact for session-close carryover.
 - **Roadmaps** live under `~/.copilot/backlogs/{repo-name}/roadmaps/`.
-- Multiple roadmap files are supported.
+- New roadmaps SHOULD use folder artifacts:
+  - `~/.copilot/backlogs/{repo-name}/roadmaps/<roadmap-slug>/index.md`
+  - `~/.copilot/backlogs/{repo-name}/roadmaps/<roadmap-slug>/<section-slug>.md`
+  - `~/.copilot/backlogs/{repo-name}/roadmaps/<roadmap-slug>/reevaluation-log.md` when out-of-scope, unforeseen, or roadmap-invalidating findings need durable context
+- Repo-visible roadmaps that must be shared across Codex, Copilot, and other coding-agent surfaces
+  SHOULD use the equivalent folder shape under `docs/planning/<roadmap-slug>/`.
+- Legacy single-file roadmaps remain supported at
+  `~/.copilot/backlogs/{repo-name}/roadmaps/<roadmap-slug>.md` and `docs/planning/<roadmap-slug>.md`.
+  Convert only the targeted legacy roadmap when it is substantially edited or explicitly migrated.
 - Backlog filenames SHOULD use lowercase kebab-case session slugs:
   - `~/.copilot/backlogs/{repo-name}/backlogs/2026-04-03-session-close.md`
   - `~/.copilot/backlogs/{repo-name}/backlogs/platform-audit-follow-up.md`
-- Roadmap filenames SHOULD use lowercase kebab-case slugs:
-  - `~/.copilot/backlogs/{repo-name}/roadmaps/platform-foundation.md`
-  - `~/.copilot/backlogs/{repo-name}/roadmaps/q2-delivery.md`
+- Roadmap folder names and section filenames SHOULD use lowercase kebab-case slugs:
+  - `~/.copilot/backlogs/{repo-name}/roadmaps/platform-foundation/index.md`
+  - `~/.copilot/backlogs/{repo-name}/roadmaps/q2-delivery/runtime-contracts.md`
+  - `docs/planning/platform-foundation/index.md`
 - **Issue surfaces** live under `~/.copilot/backlogs/{repo-name}/issues/`:
   - `unresolved-goals.md` — non-active unresolved goal carryover
   - `planning-ideas-log.md` — cross-session planning ideas
@@ -275,7 +287,7 @@ Stable linked IDs are required for automatic reconciliation.
   - Stable after creation
 - **Roadmap item IDs** are canonical machine identifiers with format `RM-<roadmap-slug>-###`.
   - Example: `RM-platform-foundation-001`
-  - `<roadmap-slug>` matches the roadmap filename slug
+  - `<roadmap-slug>` matches the roadmap folder slug
   - Stable after creation
 - **Plan-pack IDs** keep the existing contracts:
   - session ID: `YYYYMMDD_HHMMSS_RAND4`
@@ -340,6 +352,30 @@ The orchestrator should therefore move from planning bullets/intake toward backl
 durable planning, then into a plan pack for active execution, and finally back out to follow-up or
 carryover docs only when the post-run work is no longer active session execution.
 
+## Roadmap Folder Model
+
+A Roadmap folder is the default shape for new durable roadmap work. It keeps overview state small while
+letting each section carry enough detail for focused execution and review.
+
+Required folder responsibilities:
+
+- `index.md` is the authoritative roadmap overview and progress surface. It contains the basic
+  description, goals, non-goals, main targets, current slice, and a section index with links, status,
+  progress counts, dependencies, and evidence summaries.
+- `<section-slug>.md` files hold detailed roadmap work for one product area, phase, dependency group,
+  or execution theme. Section files contain their own goal, status, `RM-<roadmap-slug>-###` items,
+  acceptance checks, evidence, notes, and session log.
+- `reevaluation-log.md` captures out-of-scope issues, unforeseen findings, blockers, scope changes, and
+  roadmap-invalidating discoveries. Entries that imply future action MUST link to an existing `RB-*` or
+  `RM-*` item or state that no durable action item was created.
+
+`index.md` may summarize completion progress per section by counts, status labels, or a compact table,
+but it should not duplicate full section content. Section files own detailed item state.
+
+Roadmap items keep the existing `RM-<roadmap-slug>-###` ID format even when stored in section files.
+The `<roadmap-slug>` portion matches the roadmap folder slug, not the section filename. IDs are stable
+across moves between section files.
+
 ## Logical Planning Surfaces and Default Paths
 
 Logical planning surfaces are the conceptual planning/carryover slots the orchestrator may target.
@@ -351,7 +387,7 @@ extensions and must not be implied unless separately implemented and approved.
 | --- | --- | --- | --- |
 | Planning Bullets | `~/.copilot/backlogs/{repo-name}/planning/bullets.md` | Host-local per-repo | Freeform seed ideas before backlog acceptance |
 | Repository Backlog | `~/.copilot/backlogs/{repo-name}/backlogs/*.md` (primary) | Host-local per-repo | Durable queued/triaged repo work plus per-session carryover |
-| Roadmaps | `~/.copilot/backlogs/{repo-name}/roadmaps/*.md` | Host-local per-repo | Phased outcomes above execution |
+| Roadmaps | `~/.copilot/backlogs/{repo-name}/roadmaps/<roadmap-slug>/index.md` | Host-local per-repo | Phased outcomes above execution |
 | Active Plan Pack | `~/.copilot/session-state/<SESSION_ID>/plan.md` | Session artifact | Active execution plan, not durable repo backlog |
 | Typed Planning Intake | `~/.copilot/backlogs/{repo-name}/planning/intake/` | Host-local per-repo | Compatibility-only typed structured requests exposed from the Planning compatibility/operator area when needed |
 | External Obsidian Notes | Configured Obsidian vault path for selected repo context | External/non-canonical | Compatibility-only note-reading surface plus deterministic mirrors of canonical bullets/roadmaps, exposed from the Planning compatibility/operator area when needed |
@@ -452,7 +488,7 @@ Migration stance:
 
 - no dual-write requirement between repo docs and planning-record notes
 - new bullet/intake/backlog/roadmap workflows should write repo docs only
-- useful legacy notes may be promoted into `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` or roadmap files
+- useful legacy notes may be promoted into `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md` or roadmap folders
 - until promoted, legacy notes remain historical context and compatibility data only
 - legacy record-scoped research artifacts must not override repo-backed backlog or roadmap docs
 
