@@ -86,6 +86,12 @@
       "destination": "skills/implementation-review"
     },
     {
+      "id": "codex-implementation-handoff-skill",
+      "type": "skill",
+      "source": "codex-assets/skills/implementation-handoff",
+      "destination": "skills/implementation-handoff"
+    },
+    {
       "id": "codex-roadmap-planning-skill",
       "type": "skill",
       "source": "codex-assets/skills/roadmap-planning",

@@ -37,6 +37,7 @@ related: [doc-graph-spec, rules-compliance-audit-handoff-workflow]
 ## Applications
 
 - [[copilot-ui-guide]] [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md)
+- [[opencode-guide]] [docs/system/opencode-guide.md](docs/system/opencode-guide.md)
 - [[desktop-runtime-tauri-migration-contract]] [docs/system/desktop-runtime-tauri-migration-contract.md](docs/system/desktop-runtime-tauri-migration-contract.md)
 
 ## Planning

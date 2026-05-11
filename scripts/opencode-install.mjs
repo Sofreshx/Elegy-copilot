@@ -4,11 +4,14 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
+  dirHash,
   ensureDir,
   getUserHome,
   normalizeRel,
+  shaFile,
   syncDirectory,
   syncFile,
+  syncText,
 } from './install-surface-utils.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,6 +19,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const opencodeAssetsRoot = path.join(repoRoot, 'opencode-assets');
 const manifestPath = path.join(opencodeAssetsRoot, 'manifest.json');
+const managedInventoryFileName = '.instruction-engine-opencode-managed.json';
 
 function readManifest() {
   return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
@@ -36,8 +40,11 @@ function buildCounts(results) {
     updated: 0,
     skipped: 0,
     skippedConflict: 0,
+    pruned: 0,
+    skippedPruneConflict: 0,
     wouldCreate: 0,
     wouldUpdate: 0,
+    wouldPrune: 0,
   };
 
   for (const result of Array.isArray(results) ? results : []) {
@@ -54,11 +61,20 @@ function buildCounts(results) {
       case 'skipped_conflict':
         counts.skippedConflict += 1;
         break;
+      case 'pruned':
+        counts.pruned += 1;
+        break;
+      case 'skipped_prune_conflict':
+        counts.skippedPruneConflict += 1;
+        break;
       case 'would_create':
         counts.wouldCreate += 1;
         break;
       case 'would_update':
         counts.wouldUpdate += 1;
+        break;
+      case 'would_prune':
+        counts.wouldPrune += 1;
         break;
       default:
         break;
@@ -68,7 +84,139 @@ function buildCounts(results) {
   return counts;
 }
 
-function resolveOpenCodeHome(explicit) {
+function toStringMap(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(([key, mappedValue]) => typeof key === 'string' && key && typeof mappedValue === 'string')
+  );
+}
+
+function buildManagedInventory(assetResults) {
+  const inventory = {
+    schemaVersion: 1,
+    surface: 'opencode',
+    instructions: {},
+    agents: {},
+    skills: {},
+  };
+
+  for (const result of Array.isArray(assetResults) ? assetResults : []) {
+    const destination = normalizeRel(result.destination);
+    if (result.type === 'instructions') {
+      inventory.instructions[path.basename(destination)] = String(result.sourceHash || '');
+      continue;
+    }
+    if (result.type === 'agent') {
+      inventory.agents[path.basename(destination)] = String(result.sourceHash || '');
+      continue;
+    }
+    if (result.type === 'skill') {
+      const suffix = destination.startsWith('skills/') ? destination.slice('skills/'.length) : destination;
+      const topDirectory = normalizeRel(suffix).split('/').filter(Boolean)[0];
+      if (topDirectory) {
+        inventory.skills[topDirectory] = String(result.sourceHash || '');
+      }
+    }
+  }
+
+  return inventory;
+}
+
+function readManagedInventory(inventoryPath) {
+  if (!fs.existsSync(inventoryPath)) {
+    return buildManagedInventory([]);
+  }
+
+  try {
+    const parsed = JSON.parse(fs.readFileSync(inventoryPath, 'utf8'));
+    return {
+      schemaVersion: 1,
+      surface: 'opencode',
+      instructions: toStringMap(parsed.instructions),
+      agents: toStringMap(parsed.agents),
+      skills: toStringMap(parsed.skills),
+    };
+  } catch {
+    return buildManagedInventory([]);
+  }
+}
+
+function isSafeManagedEntryName(entryName) {
+  return Boolean(entryName) && path.basename(entryName) === entryName && !normalizeRel(entryName).includes('/');
+}
+
+function logPruneAction(action, targetPath, kind, log) {
+  if (action === 'pruned') {
+    log(`[PRUNE]  ${targetPath} (${kind})`);
+    return;
+  }
+  if (action === 'would_prune') {
+    log(`[DRY-RUN] PRUNE ${targetPath} (${kind})`);
+    return;
+  }
+  if (action === 'skipped_prune_conflict') {
+    log(`[SKIP]   ${targetPath} (${kind} diverged; leaving user-modified content in place)`);
+  }
+}
+
+function pruneManagedEntries(targetRoot, recordedEntries, desiredEntries, kind, hashReader, options = {}) {
+  const log = options.log || console.log;
+  const results = [];
+
+  if (!fs.existsSync(targetRoot)) {
+    return results;
+  }
+
+  const entries = Object.entries(recordedEntries || {}).sort(([left], [right]) => left.localeCompare(right));
+  for (const [entryName, recordedHash] of entries) {
+    if (Object.prototype.hasOwnProperty.call(desiredEntries || {}, entryName)) {
+      continue;
+    }
+    if (!isSafeManagedEntryName(entryName)) {
+      continue;
+    }
+
+    const targetPath = path.join(targetRoot, entryName);
+    if (!fs.existsSync(targetPath)) {
+      continue;
+    }
+
+    const currentHash = hashReader(targetPath);
+    if (recordedHash && currentHash && currentHash !== recordedHash) {
+      const result = {
+        action: 'skipped_prune_conflict',
+        kind,
+        path: targetPath,
+        recordedHash,
+        currentHash,
+      };
+      results.push(result);
+      logPruneAction(result.action, targetPath, kind, log);
+      continue;
+    }
+
+    const action = options.dryRun ? 'would_prune' : 'pruned';
+    if (!options.dryRun) {
+      fs.rmSync(targetPath, { recursive: true, force: true });
+    }
+    const result = {
+      action,
+      kind,
+      path: targetPath,
+      recordedHash,
+      currentHash,
+    };
+    results.push(result);
+    logPruneAction(action, targetPath, kind, log);
+  }
+
+  return results;
+}
+
+export function resolveOpenCodeHome(explicit) {
   if (explicit) return path.resolve(explicit);
   if (process.env.OPENCODE_HOME) return path.resolve(process.env.OPENCODE_HOME);
   const cfgDir = process.env.OPENCODE_CONFIG_DIR || process.env.XDG_CONFIG_HOME
@@ -77,7 +225,7 @@ function resolveOpenCodeHome(explicit) {
   return cfgDir;
 }
 
-function resolveSkillsHome(explicit, opencodeHome) {
+export function resolveSkillsHome(explicit, opencodeHome) {
   if (explicit) return path.resolve(explicit);
   if (process.env.INSTRUCTION_ENGINE_OPENCODE_SKILLS_HOME) {
     return path.resolve(process.env.INSTRUCTION_ENGINE_OPENCODE_SKILLS_HOME);
@@ -136,6 +284,7 @@ export function parseArgs(argv) {
 export function runInstall(args = {}) {
   const opencodeHome = resolveOpenCodeHome(args.opencodeHome);
   const skillsHome = resolveSkillsHome(args.skillsHome, opencodeHome);
+  const inventoryPath = path.join(opencodeHome, managedInventoryFileName);
   const manifest = readManifest();
   const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
 
@@ -184,6 +333,17 @@ export function runInstall(args = {}) {
     });
   }
 
+  const previousInventory = readManagedInventory(inventoryPath);
+  const desiredInventory = buildManagedInventory(assetResults);
+  const pruneResults = [
+    ...pruneManagedEntries(path.join(opencodeHome, 'agents'), previousInventory.agents, desiredInventory.agents, 'agent', shaFile, args),
+    ...pruneManagedEntries(skillsHome, previousInventory.skills, desiredInventory.skills, 'skill', dirHash, args),
+  ];
+  const inventoryResult = syncText(`${JSON.stringify(desiredInventory, null, 2)}\n`, inventoryPath, {
+    dryRun: args.dryRun,
+    force: true,
+  });
+
   const summary = {
     surface: 'opencode',
     ok: true,
@@ -193,24 +353,30 @@ export function runInstall(args = {}) {
       opencodeHome,
       skillsHome,
       agentsHome: path.join(opencodeHome, 'agents'),
+      inventoryPath,
     },
-    counts: buildCounts(assetResults),
+    counts: buildCounts([...assetResults, ...pruneResults, inventoryResult]),
     assets: assetResults,
+    cleanup: {
+      inventory: inventoryResult,
+      pruneResults,
+    },
   };
 
   console.log('Done.');
   console.log('');
   console.log('Next steps:');
   console.log(`  1. Ensure your OpenCode config exists at ${path.join(opencodeHome, 'opencode.json')}`);
-  console.log('  2. Configure your provider (e.g. DeepSeek for light agents):');
+  console.log('  2. Configure your provider and preferred models for the built-in OpenCode agents:');
   console.log('     Run /connect in OpenCode TUI and select DeepSeek');
   console.log('  3. Restart OpenCode to pick up new agents and skills');
-  console.log('  4. Try: @code-explorer find the auth module, or @web-searcher check latest React docs');
+  console.log('  4. Try: use Plan for a non-trivial task, Explore for code discovery, Scout for docs, and rubberduck-plan-review for risky plans');
   console.log('');
-  console.log('For light-model agents (code-explorer, web-searcher), add to opencode.json:');
+  console.log('For native-first model overrides, add to opencode.json:');
   console.log('  "agent": {');
-  console.log('    "code-explorer": { "model": "deepseek/deepseek-chat" },');
-  console.log('    "web-searcher": { "model": "deepseek/deepseek-chat" }');
+  console.log('    "plan": { "model": "anthropic/claude-sonnet-4-5" },');
+  console.log('    "explore": { "model": "deepseek/deepseek-chat" },');
+  console.log('    "scout": { "model": "deepseek/deepseek-chat" }');
   console.log('  }');
 
   return summary;

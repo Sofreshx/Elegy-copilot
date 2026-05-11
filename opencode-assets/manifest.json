@@ -10,7 +10,7 @@
     "agentsDir": "~/.config/opencode/agents",
     "skillsDir": "~/.config/opencode/skills",
     "instructionsFile": "~/.config/opencode/AGENTS.md",
-    "description": "Lightweight OpenCode agents and curated skills for code exploration, web research, code review, security, and refactoring. Kept intentionally minimal to work with OpenCode's solid built-in harness."
+    "description": "Native-first OpenCode instructions plus curated planning, roadmap, review, security, and governance skills. Kept intentionally minimal to complement OpenCode's built-in harness."
   },
   "assets": [
     {
@@ -36,6 +36,30 @@
       "type": "skill",
       "source": "opencode-assets/skills/code-review",
       "destination": "skills/code-review"
+    },
+    {
+      "id": "opencode-rubberduck-plan-review-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/rubberduck-plan-review",
+      "destination": "skills/rubberduck-plan-review"
+    },
+    {
+      "id": "opencode-roadmap-planning-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/roadmap-planning",
+      "destination": "skills/roadmap-planning"
+    },
+    {
+      "id": "opencode-implementation-review-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/implementation-review",
+      "destination": "skills/implementation-review"
+    },
+    {
+      "id": "opencode-implementation-handoff-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/implementation-handoff",
+      "destination": "skills/implementation-handoff"
     },
     {
       "id": "opencode-security-skill",

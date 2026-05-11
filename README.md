@@ -100,16 +100,16 @@ This installs shared skills into `~/.gemini/antigravity/skills/` and updates onl
 
 ### OpenCode install details
 
-This installs two light exploration subagents (`code-explorer`, `web-searcher`) and curated skills (code-review, security, refactor, conventions, stack-detector) into `~/.config/opencode/`. OpenCode discovers agents and skills automatically at startup. The install does not modify `opencode.json` — configure provider/model preferences separately.
+This installs a shared global `AGENTS.md`, the primary OpenCode skills (`rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `security`, `project-conventions-governance`, `stack-detector`), and transition compatibility aliases (`code-review`, `refactor`, `code-explorer`, `web-searcher`) into `~/.config/opencode/`. OpenCode discovers agents and skills automatically at startup. The install does not modify `opencode.json` — configure provider and model preferences separately.
 
 ### OpenCode quick use
 
-- OpenCode's built-in agents (Build, Plan, General, Explore) handle most work. Instruction-engine adds:
-  - `@code-explorer` — fast, read-only codebase search using a light model (configure DeepSeek or preferred provider)
-  - `@web-searcher` — fast web research and documentation lookup using a light model
-- Curated skills load on-demand via OpenCode's native `skill` tool — zero context cost until invoked
+- OpenCode's built-in agents stay primary: `Build`, `Plan`, `General`, `Explore`, and `Scout`
+- Configure model overrides for `plan`, `explore`, and `scout` in `opencode.json` instead of growing a second custom agent fleet
+- Instruction-engine adds curated planning, roadmap, review, governance, and security skills that load on-demand via OpenCode's native `skill` tool
+- `@code-explorer` and `@web-searcher` remain transition aliases only; prefer the built-in `Explore` and `Scout` agents
 - Re-run `scripts/opencode-install.ps1` (or `.sh`) to refresh
-- See [docs/opencode-usage.md](docs/opencode-usage.md) for full configuration and customization guide
+- See [docs/system/opencode-guide.md](docs/system/opencode-guide.md) for the supported operating model and configuration guide
 
 ### Codex quick use
 
@@ -189,7 +189,7 @@ OpenCode baseline:
 |------|-------|----------|
 | Global instructions | 1 | `opencode-assets/home/AGENTS.md` |
 | Custom agents | 2 | `opencode-assets/agents/*.md` |
-| Skills | 5 | `opencode-assets/skills/<name>/SKILL.md` |
+| Skills | 6 | `opencode-assets/skills/<name>/SKILL.md` |
 | Canonical asset manifest | — | `opencode-assets/manifest.json` |
 | Usage guide | 1 | `docs/opencode-usage.md` |
 
