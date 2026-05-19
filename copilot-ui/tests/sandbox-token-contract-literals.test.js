@@ -40,13 +40,13 @@ const WS05_LITERAL_ALLOWLIST_ADDITIONS = Object.freeze({
   tracker_token_missing: [
     'copilot-ui/server.js',
     'copilot-ui/server.lifecycle-proxy.test.js',
+    'copilot-ui/routes/sandboxes.js',
     'copilot-ui/routes/tracker.test.js',
   ],
   'Tracker token not configured': [
     'copilot-ui/server.js',
-    'copilot-ui/routes/tracker.js',
+    'copilot-ui/lib/sandboxLifecycleTokenContract.js',
     'copilot-ui/server.lifecycle-proxy.test.js',
-    'copilot-ui/routes/tracker.test.js',
   ],
 });
 

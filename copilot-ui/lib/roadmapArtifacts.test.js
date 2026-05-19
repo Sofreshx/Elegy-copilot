@@ -40,15 +40,15 @@ function createTempRepo() {
 async function run() {
   console.log('\nRoadmap Artifact Helper Tests\n');
 
-  await test('resolveRoadmapFilePath uses canonical docs/roadmaps location', async () => {
+  await test('resolveRoadmapFilePath uses canonical docs/planning/<slug>/index.md location', async () => {
     const { repoRoot } = createTempRepo();
     assert.equal(
       resolveRoadmapFilePath(repoRoot, 'platform-foundation'),
-      path.join(repoRoot, 'docs', 'roadmaps', 'platform-foundation.md'),
+      path.join(repoRoot, 'docs', 'planning', 'platform-foundation', 'index.md'),
     );
     assert.equal(
       buildRepoRelativeRoadmapPath('platform-foundation'),
-      'docs/roadmaps/platform-foundation.md',
+      'docs/planning/platform-foundation/index.md',
     );
   });
 
@@ -82,6 +82,10 @@ async function run() {
     assert.match(markdown, /### RM-platform-foundation-001 — Bootstrap roadmap storage/);
     assert.match(markdown, /- Backlog IDs: RB-001, RB-002/);
 
+    fs.mkdirSync(path.join(repoRoot, 'docs', 'planning', 'intake'), { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, 'docs', 'planning', 'bullets.md'), '# Planning Bullets\n', 'utf8');
+    fs.writeFileSync(path.join(repoRoot, 'docs', 'planning', 'intake', 'PI-001.json'), '{}\n', 'utf8');
+
     const parsed = parseRoadmapMarkdown(markdown, { slug: 'platform-foundation' });
     assert.equal(parsed.items.length, 2);
     assert.deepEqual(parsed.items.map((entry) => entry.id), [
@@ -92,7 +96,84 @@ async function run() {
 
     const listed = listRoadmapDocuments(repoRoot);
     assert.equal(listed.length, 1);
+    assert.equal(listed[0].repoRelativePath, 'docs/planning/platform-foundation/index.md');
+  });
+
+  await test('listRoadmapDocuments reads legacy docs/planning/<slug>.md roadmaps without treating other planning docs as roadmaps', async () => {
+    const { repoRoot } = createTempRepo();
+    const legacyFilePath = path.join(repoRoot, 'docs', 'planning', 'platform-foundation.md');
+    fs.mkdirSync(path.dirname(legacyFilePath), { recursive: true });
+    fs.writeFileSync(legacyFilePath, [
+      '---',
+      'doc_kind: roadmap',
+      'roadmap_slug: platform-foundation',
+      'title: Platform Foundation',
+      'version: 1',
+      '---',
+      '',
+      '# Platform Foundation',
+      '',
+      '## Overview',
+      'Legacy single-file roadmap compatibility.',
+      '',
+      '## Roadmap Items',
+      '',
+      '### RM-platform-foundation-001 — Legacy roadmap item',
+      '- Phase: foundation',
+      '- Status: planned',
+      '- Summary: Read this legacy file without treating bullets as roadmaps.',
+      '- Backlog IDs: RB-001',
+      '- Plan Refs: none',
+      '- Satisfied By Plan Ref: none',
+      '- Superseded By Plan Ref: none',
+      '- Abandoned By Plan Ref: none',
+      '',
+    ].join('\n'), 'utf8');
+    fs.writeFileSync(path.join(repoRoot, 'docs', 'planning', 'bullets.md'), '# Planning Bullets\n', 'utf8');
+
+    const listed = listRoadmapDocuments(repoRoot);
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].filePath, legacyFilePath);
+    assert.equal(listed[0].repoRelativePath, 'docs/planning/platform-foundation.md');
+    assert.equal(listed[0].items[0].id, 'RM-platform-foundation-001');
+  });
+
+  await test('listRoadmapDocuments reads retired docs/roadmaps/<slug>.md roadmaps for old repositories', async () => {
+    const { repoRoot } = createTempRepo();
+    const retiredFilePath = path.join(repoRoot, 'docs', 'roadmaps', 'platform-foundation.md');
+    fs.mkdirSync(path.dirname(retiredFilePath), { recursive: true });
+    fs.writeFileSync(retiredFilePath, [
+      '---',
+      'doc_kind: roadmap',
+      'roadmap_slug: platform-foundation',
+      'title: Platform Foundation',
+      'version: 1',
+      '---',
+      '',
+      '# Platform Foundation',
+      '',
+      '## Overview',
+      'Retired roadmaps directory compatibility.',
+      '',
+      '## Roadmap Items',
+      '',
+      '### RM-platform-foundation-001 — Retired path roadmap item',
+      '- Phase: foundation',
+      '- Status: planned',
+      '- Summary: Read the original roadmap path.',
+      '- Backlog IDs: RB-001',
+      '- Plan Refs: none',
+      '- Satisfied By Plan Ref: none',
+      '- Superseded By Plan Ref: none',
+      '- Abandoned By Plan Ref: none',
+      '',
+    ].join('\n'), 'utf8');
+
+    const listed = listRoadmapDocuments(repoRoot);
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].filePath, retiredFilePath);
     assert.equal(listed[0].repoRelativePath, 'docs/roadmaps/platform-foundation.md');
+    assert.equal(listed[0].items[0].id, 'RM-platform-foundation-001');
   });
 
   await test('mergeRoadmapDocument upserts items and preserves stable ids', async () => {

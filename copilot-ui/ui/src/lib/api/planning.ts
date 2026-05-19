@@ -9,19 +9,15 @@ import type {
   ObsidianPlanningSyncResponse,
   PlanningCompareResponse,
   PlanningCreateResponse,
-  PlanningDiagramsResponse,
   PlanningMergeIntentResponse,
   PlanningMergeResponse,
   PlanningPersistenceInitResponse,
   PlanningRecordsResponse,
-  PlanningResearchNote,
-  PlanningResearchNotesResponse,
   PlanningSearchResponse,
 } from '../types';
 import {
   apiRequest,
   appendPlanningQuery,
-  asRecord,
   asTrimmedString,
   normalizeObsidianPlanningNoteResponse,
   normalizeObsidianPlanningNotesResponse,
@@ -31,112 +27,32 @@ import {
   normalizeObsidianPlanningSourceSelectionResponse,
   normalizeObsidianPlanningStatusResponse,
   normalizeObsidianPlanningSyncResponse,
-  normalizePlanningBacklogMutationResponse,
-  normalizePlanningBacklogResponse,
-  normalizePlanningBulletsResponse,
   normalizePlanningCompareResponse,
   normalizePlanningCreateResponse,
-  normalizePlanningDiagramsResponse,
-  normalizePlanningIntakeArtifactsResponse,
   normalizePlanningMergeIntentResponse,
   normalizePlanningMergeResponse,
   normalizePlanningPersistenceInitResponse,
   normalizePlanningRecordsResponse,
-  normalizePlanningResearchNote,
-  normalizePlanningResearchNotesResponse,
-  normalizePlanningRoadmapMutationResponse,
-  normalizePlanningRoadmapsResponse,
   normalizePlanningSearchResponse,
 } from './core';
+
+export interface PlanningWorkflowArtifactContinuationPackageResponse {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  continuationContractVersion?: string;
+  continuationPackage: Record<string, unknown>;
+}
 import type {
-  PlanningBacklogCreatePayload,
-  PlanningBacklogMutationResponseApi,
-  PlanningBacklogResponseApi,
-  PlanningBacklogUpdatePayload,
-  PlanningBulletCreatePayload,
-  PlanningBulletUpdatePayload,
-  PlanningBulletsResponseApi,
   PlanningComparePayload,
   PlanningContextQuery,
   PlanningCreatePayload,
-  PlanningIntakeArtifactsResponseApi,
-  PlanningIntakeCreatePayload,
-  PlanningIntakeUpdatePayload,
   PlanningMergeIntentPayload,
   PlanningMergePayload,
   PlanningRepoDocRefOptions,
-  PlanningResearchNoteInput,
-  PlanningRoadmapMutationResponseApi,
-  PlanningRoadmapUpdatePayload,
-  PlanningRoadmapsResponseApi,
   PlanningSearchQuery,
   PlanningUpdatePayload,
 } from './core';
-
-export async function getPlanningRoadmaps(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<PlanningRoadmapsResponseApi> {
-  const payload = await apiRequest<unknown>('/api/planning/roadmaps', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizePlanningRoadmapsResponse(payload);
-}
-
-export async function updatePlanningRoadmap(
-  roadmapSlug: string,
-  payload: PlanningRoadmapUpdatePayload,
-  baseUrl?: string,
-): Promise<PlanningRoadmapMutationResponseApi> {
-  const response = await apiRequest<unknown>(`/api/planning/roadmaps/${encodeURIComponent(roadmapSlug)}`, {
-    baseUrl,
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningRoadmapMutationResponse(response);
-}
-
-export async function getPlanningIntakeArtifacts(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<PlanningIntakeArtifactsResponseApi> {
-  const payload = await apiRequest<unknown>('/api/planning/artifacts/intake', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizePlanningIntakeArtifactsResponse(payload);
-}
-
-export async function getPlanningBullets(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<PlanningBulletsResponseApi> {
-  const payload = await apiRequest<unknown>('/api/planning/artifacts/bullets', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-      repoLabel: asTrimmedString(query.repoLabel) || undefined,
-    },
-  });
-
-  return normalizePlanningBulletsResponse(payload);
-}
 
 export async function getPlanningObsidianStatus(
   query: PlanningRepoDocRefOptions = {},
@@ -275,120 +191,6 @@ export async function refreshPlanningObsidianRepresentations(
   return normalizeObsidianPlanningRepresentationsRefreshResponse(payload);
 }
 
-export async function getPlanningBacklog(
-  query: PlanningRepoDocRefOptions = {},
-  baseUrl?: string
-): Promise<PlanningBacklogResponseApi> {
-  const payload = await apiRequest<unknown>('/api/planning/backlog', {
-    baseUrl,
-    query: {
-      repoId: asTrimmedString(query.repoId) || undefined,
-      repoPath: asTrimmedString(query.repoPath) || undefined,
-    },
-  });
-
-  return normalizePlanningBacklogResponse(payload);
-}
-
-export async function createPlanningBacklogItem(
-  payload: PlanningBacklogCreatePayload,
-  baseUrl?: string
-): Promise<PlanningBacklogMutationResponseApi> {
-  const response = await apiRequest<unknown>('/api/planning/backlog', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningBacklogMutationResponse(response);
-}
-
-export async function createPlanningBullet(
-  payload: PlanningBulletCreatePayload,
-  baseUrl?: string
-): Promise<PlanningBulletsResponseApi> {
-  const response = await apiRequest<unknown>('/api/planning/artifacts/bullets', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningBulletsResponse(response);
-}
-
-export async function createPlanningIntakeArtifact(
-  payload: PlanningIntakeCreatePayload,
-  baseUrl?: string
-): Promise<PlanningIntakeArtifactsResponseApi> {
-  const response = await apiRequest<unknown>('/api/planning/artifacts/intake', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningIntakeArtifactsResponse(response);
-}
-
-export async function updatePlanningBullet(
-  bulletId: string,
-  payload: PlanningBulletUpdatePayload,
-  baseUrl?: string
-): Promise<PlanningBulletsResponseApi> {
-  const response = await apiRequest<unknown>(`/api/planning/artifacts/bullets/${encodeURIComponent(bulletId)}`, {
-    baseUrl,
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningBulletsResponse(response);
-}
-
-export async function updatePlanningIntakeArtifact(
-  artifactId: string,
-  payload: PlanningIntakeUpdatePayload,
-  baseUrl?: string
-): Promise<PlanningIntakeArtifactsResponseApi> {
-  const response = await apiRequest<unknown>(`/api/planning/artifacts/intake/${encodeURIComponent(artifactId)}`, {
-    baseUrl,
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningIntakeArtifactsResponse(response);
-}
-
-export async function updatePlanningBacklogItem(
-  itemId: string,
-  payload: PlanningBacklogUpdatePayload,
-  baseUrl?: string
-): Promise<PlanningBacklogMutationResponseApi> {
-  const response = await apiRequest<unknown>(`/api/planning/backlog/${encodeURIComponent(itemId)}`, {
-    baseUrl,
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  return normalizePlanningBacklogMutationResponse(response);
-}
-
 export async function getPlanningRecords(query: PlanningContextQuery = {}, baseUrl?: string): Promise<PlanningRecordsResponse> {
   const endpoint = appendPlanningQuery('/api/planning/records', query);
   const payload = await apiRequest<unknown>(endpoint, { baseUrl });
@@ -476,62 +278,6 @@ export async function mergePlanningRecords(payload: PlanningMergePayload, baseUr
   return normalizePlanningMergeResponse(response);
 }
 
-export async function getPlanningResearchNotes(
-  recordId: string,
-  baseUrl?: string
-): Promise<PlanningResearchNotesResponse> {
-  const payload = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}/research`, {
-    baseUrl,
-  });
-  return normalizePlanningResearchNotesResponse(payload);
-}
-
-export async function savePlanningResearchNote(
-  recordId: string,
-  note: PlanningResearchNoteInput,
-  baseUrl?: string
-): Promise<{ note?: PlanningResearchNote; [key: string]: unknown }> {
-  const payload = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}/research`, {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(note),
-  });
-
-  const response = asRecord(payload);
-  return {
-    ...response,
-    note: normalizePlanningResearchNote(response.note) ?? undefined,
-  };
-}
-
-export async function deletePlanningResearchNote(
-  recordId: string,
-  noteId: string,
-  baseUrl?: string
-): Promise<{ ok?: boolean; [key: string]: unknown }> {
-  return apiRequest<{ ok?: boolean; [key: string]: unknown }>(
-    `/api/planning/records/${encodeURIComponent(recordId)}/research/${encodeURIComponent(noteId)}`,
-    {
-      baseUrl,
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({}),
-    }
-  );
-}
-
-export async function getPlanningDiagrams(recordId: string, baseUrl?: string): Promise<PlanningDiagramsResponse> {
-  const payload = await apiRequest<unknown>(`/api/planning/records/${encodeURIComponent(recordId)}/diagrams`, {
-    baseUrl,
-  });
-  return normalizePlanningDiagramsResponse(payload);
-}
-
 export async function initPlanningPersistence(baseUrl?: string): Promise<PlanningPersistenceInitResponse> {
   const payload = await apiRequest<unknown>('/api/planning/persistence/init', {
     baseUrl,
@@ -543,4 +289,20 @@ export async function initPlanningPersistence(baseUrl?: string): Promise<Plannin
   });
 
   return normalizePlanningPersistenceInitResponse(payload);
+}
+
+export async function getPlanningWorkflowArtifactContinuationPackage(
+  artifactId: string,
+  query: PlanningContextQuery & { targetHarness?: string } = {},
+  baseUrl?: string,
+): Promise<PlanningWorkflowArtifactContinuationPackageResponse> {
+  return apiRequest<PlanningWorkflowArtifactContinuationPackageResponse>('/api/planning/workflow-artifacts/continuation-package', {
+    baseUrl,
+    query: {
+      artifactId,
+      userId: query.userId,
+      repoId: query.repoId,
+      targetHarness: query.targetHarness,
+    },
+  });
 }

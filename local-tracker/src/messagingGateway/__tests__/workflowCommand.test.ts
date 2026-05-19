@@ -208,7 +208,7 @@ describe('/workflow command', () => {
 		expect(mockedExecuteWorkflow).toHaveBeenCalledWith(
 			expect.objectContaining({ id: 'deploy-prod' }),
 			expect.any(Function),
-			{},
+			expect.objectContaining({ workflowId: 'deploy-prod' }),
 			observer,
 		);
 		expect(res.meta?.runId).toBe('run-stream-1');

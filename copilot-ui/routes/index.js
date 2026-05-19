@@ -85,13 +85,11 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./assets'), context);
   registry.registerModule(require('./catalog'), context);
   registry.registerModule(require('./planning'), context);
-  registry.registerModule(require('./planning-artifacts'), context);
   registry.registerModule(require('./planning-obsidian'), context);
-  registry.registerModule(require('./backlog'), context);
-  registry.registerModule(require('./roadmaps'), context);
   registry.registerModule(require('./sessions'), context);
   registry.registerModule(require('./uiRuntimeOverlay'), context);
   registry.registerModule(require('./gateway'), context);
+  registry.registerModule(require('./sandboxes'), context);
   registry.registerModule(require('./tracker'), context);
   registry.registerModule(require('./desktopUpdater'), context);
   registry.registerModule(require('./dashboard'), context);
@@ -99,7 +97,6 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./config'), context);
   registry.registerModule(require('./sdk'), context);
   registry.registerModule(require('./executor'), context);
-  registry.registerModule(require('./workflows'), context);
   registry.registerModule(require('./hooks'), context);
   registry.registerModule(require('./git'), context);
 

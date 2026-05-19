@@ -62,7 +62,7 @@ export default function ProjectSessionsList() {
           title={session.title}
           status={normalizeStatus(session.status)}
           elapsed={formatElapsed(session.elapsedMs)}
-          onSelect={(id) => navigationStore.selectSession(id)}
+          onSelect={(id) => navigationStore.selectSession(id, 'activity', { source: session.source })}
           testId={`project-session-${session.id}`}
         />
       ))}

@@ -383,7 +383,6 @@ $DoCli = $false
 $DoVscode = $false
 $Pointer = $true
 $InstallProfile = 'minimal'
-$VscodeSettings = $null
 $VscodeHome = $null
 
 for ($i = 0; $i -lt $args.Length; $i++) {
@@ -408,17 +407,12 @@ for ($i = 0; $i -lt $args.Length; $i++) {
     '--public' { $InstallProfile = 'minimal' }
     '--full' { $InstallProfile = 'full' }
     '--internal' { $InstallProfile = 'full' }
-    '--vscode-settings' {
-      $i++
-      if ($i -ge $args.Length) { throw 'Missing value for --vscode-settings' }
-      $VscodeSettings = $args[$i]
-    }
     '--vscode-home' {
       $i++
       if ($i -ge $args.Length) { throw 'Missing value for --vscode-home' }
       $VscodeHome = $args[$i]
     }
-    default { throw "Unknown arg: $a (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --profile <minimal|full>, --minimal, --full, --public, --internal, --vscode-settings <path>, --vscode-home <path>)" }
+    default { throw "Unknown arg: $a (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --profile <minimal|full>, --minimal, --full, --public, --internal, --vscode-home <path>)" }
   }
 }
 
@@ -628,21 +622,6 @@ if ($DoVscode) {
   $dstVscodeInstructions = Join-Path $vscodeHomeResolved 'copilot-instructions.md'
   Sync-File $srcVscodeInstructions $dstVscodeInstructions -DryRun:$DryRun -Force:$Force
 
-  if (-not (Confirm-NodeAvailable)) {
-    throw 'VS Code setup requires Node.js on PATH (node). Install Node.js, or rerun with --cli to skip VS Code setup.'
-  }
-
-  $patcher = Join-Path $engineRoot 'scripts\\vscode-settings-patch.mjs'
-  if (-not (Test-Path -LiteralPath $patcher)) {
-    throw "Missing settings patcher script: $patcher"
-  }
-
-  $nodeArgs = @($patcher, '--vscode-home', $vscodeHomeResolved)
-  if ($DryRun) { $nodeArgs += '--dry-run' }
-  if ($VscodeSettings) { $nodeArgs += @('--settings', $VscodeSettings) }
-
-  Write-Host "Patching VS Code settings via node: $patcher"
-  & node @nodeArgs
 }
 
 Write-Host 'Done.'

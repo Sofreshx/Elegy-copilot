@@ -401,7 +401,7 @@ export default function ExecutorView() {
 
     void sdkSessionsStore.loadSessions({ selectSessionId: normalizedSessionId }).then(() => {
       sdkSessionsStore.selectSession(normalizedSessionId);
-      navigationStore.goToRuntime('sessions', { sessionsMode: 'sdk' });
+      navigationStore.navigate('dashboard');
     });
   };
 
@@ -411,7 +411,7 @@ export default function ExecutorView() {
         await sessionsStore.loadSessions();
         sessionsStore.selectSession(sessionId);
       } finally {
-        navigationStore.goToRuntime('sessions', { sessionsMode: 'local' });
+        navigationStore.navigate('dashboard');
       }
     })();
   };
@@ -674,7 +674,7 @@ export default function ExecutorView() {
         )}
         <div className="sessions-actions">
           <Button
-            onClick={() => navigationStore.goToPlanning()}
+            onClick={() => navigationStore.navigate('planning')}
             testId="executor-open-planning-task-board"
             variant="secondary"
           >
@@ -727,11 +727,11 @@ export default function ExecutorView() {
 
             <div className="sessions-actions">
               <Button
-                onClick={() => navigationStore.goToCatalog('assets')}
+                onClick={() => navigationStore.setCatalogSectionId('repository')}
                 testId="executor-ui-runtime-overlay-open-catalog"
                 variant="secondary"
               >
-                Open Catalog Assets
+                Open Repository Catalog
               </Button>
               <Button
                 disabled={uiRuntimeOverlayState.loading}

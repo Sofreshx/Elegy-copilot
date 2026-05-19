@@ -127,12 +127,12 @@ test('effective asset state carries provenance and activation metadata from the 
   const state = resolveEffectiveAssetState([
     entry({
       layer: 'user-installed',
-      assetId: 'skill-superpowers-copilot-superpowers-brainstorming',
-      assetKey: 'superpowers-copilot-superpowers-brainstorming',
-      contentPath: '~/.copilot/skills/providers/superpowers/brainstorming/SKILL.md',
+      assetId: 'skill-external-provider-brainstorming',
+      assetKey: 'external-provider-brainstorming',
+      contentPath: '~/.copilot/skills/providers/external/brainstorming/SKILL.md',
       provenance: {
-        providerId: 'superpowers-copilot',
-        namespace: 'superpowers',
+        providerId: 'external-provider',
+        namespace: 'external',
         readOnly: true,
         discoveryMode: 'managed-import',
       },
@@ -148,7 +148,7 @@ test('effective asset state carries provenance and activation metadata from the 
     }),
   ]);
 
-  assert.equal(state.provenance?.providerId, 'superpowers-copilot');
+  assert.equal(state.provenance?.providerId, 'external-provider');
   assert.equal(state.provenance?.discoveryMode, 'managed-import');
   assert.equal(state.activation?.scope, 'global-and-repo');
 });

@@ -11,8 +11,6 @@ import type {
   CatalogBundleMember,
   CatalogEffectiveAsset,
   CatalogEntry,
-  InstallSurfaceTarget,
-  CatalogProviderProjection,
   CatalogRepoInventoryEntry,
   CatalogRepoInventoryWorkspaceScan,
 } from '../../lib/types';
@@ -61,14 +59,6 @@ interface AssetDraftState {
   content: string;
 }
 
-interface InstallSurfaceCard {
-  target: InstallSurfaceTarget;
-  title: string;
-  description: string;
-  windowsCommand: string;
-  unixCommand: string;
-}
-
 export interface AssetActivationSummary {
   activationLabel: string;
   routingLabel: string;
@@ -79,37 +69,6 @@ export interface AssetActivationSummary {
 }
 
 const BALANCED_DEFAULT_PROFILE_ID = 'balanced-default';
-
-const INSTALL_SURFACE_CARDS: InstallSurfaceCard[] = [
-  {
-    target: 'copilot',
-    title: 'Copilot',
-    description: 'Installs or refreshes the managed Copilot CLI and VS Code asset surfaces.',
-    windowsCommand: 'pwsh -File scripts/cli-install.ps1 --all',
-    unixCommand: 'bash scripts/cli-install.sh --all',
-  },
-  {
-    target: 'codex',
-    title: 'Codex',
-    description: 'Installs native Codex instructions, curated agents, generated role wrappers, and shared skills.',
-    windowsCommand: 'pwsh -File scripts/codex-install.ps1',
-    unixCommand: 'bash scripts/codex-install.sh',
-  },
-  {
-    target: 'antigravity',
-    title: 'Antigravity',
-    description: 'Installs shared Antigravity skills and updates only the managed instruction-engine block in GEMINI.md.',
-    windowsCommand: 'pwsh -File scripts/antigravity-install.ps1',
-    unixCommand: 'bash scripts/antigravity-install.sh',
-  },
-  {
-    target: 'all',
-    title: 'Everything',
-    description: 'Runs the Copilot, Codex, and Antigravity installers in sequence from a single entrypoint.',
-    windowsCommand: 'pwsh -File scripts/install-all.ps1',
-    unixCommand: 'bash scripts/install-all.sh',
-  },
-];
 
 type ObservabilityEvidence = 'none' | 'proxy-only' | 'authoritative' | 'mixed';
 
@@ -605,21 +564,6 @@ function describeActivationSource(source: string | null | undefined): string {
   return 'provider defaults';
 }
 
-function readProviderStateString(provider: CatalogProviderProjection | null | undefined, key: string): string {
-  const value = provider?.state?.[key];
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-function providerLooksInstalled(provider: CatalogProviderProjection | null | undefined): boolean {
-  if (!provider) {
-    return false;
-  }
-  if (provider.state?.installed === true) {
-    return true;
-  }
-  return Number(provider.discoveredAssets?.count || 0) > 0;
-}
-
 function resolveActiveRepo(
   repos: CatalogRepoInventoryEntry[],
   selectedRepo: CatalogRepoInventoryEntry | null | undefined,
@@ -856,9 +800,6 @@ export default function AssetsView() {
 
   const summaryStats = catalogState.summary?.stats;
   const activationState: CatalogActivationState | null = catalogState.summary?.activation ?? null;
-  const providerProjections = Array.isArray(catalogState.summary?.providers)
-    ? catalogState.summary.providers as CatalogProviderProjection[]
-    : [];
   const runtimeProjection = catalogState.runtimeHealth?.projection;
   const repoInventory = catalogState.repoInventory;
   const repoList = repoInventory?.repos ?? [];
@@ -936,10 +877,7 @@ export default function AssetsView() {
   const activationRepoPath = normalizePath(activeRepo?.repoPath || catalogState.activeRepoPath) || undefined;
   const repoOverrideActive = Boolean(activationState?.repoOverride?.active);
   const selectedProviderId = String(readProvenanceString(selectedEntry, 'providerId') || readMetadataString(selectedEntry, 'provider') || '').trim();
-  const selectedProvider = providerProjections.find((provider) => provider.providerId === selectedProviderId) ?? null;
-  const selectedProviderInstallable = Boolean(
-    selectedProvider && String(selectedProvider.installStrategy || '').trim().toLowerCase() === 'managed-import'
-  );
+  const selectedProviderInstallable = selectedProviderId.length > 0;
   const selectedAssetAnalytics = useMemo(
     () => auditAnalytics?.assets.find((asset) => asset.assetId === selectedAsset?.assetId) ?? null,
     [auditAnalytics, selectedAsset?.assetId]
@@ -1225,64 +1163,6 @@ export default function AssetsView() {
         </p>
       ) : null}
       {catalogState.installMessage ? <p className="catalog-status">{catalogState.installMessage}</p> : null}
-
-      <Panel>
-        <div className="panel-header">
-          <div>
-            <p className="catalog-title">Install surfaces</p>
-            <p className="catalog-copy">
-              Use these buttons to run the same surface-specific installers documented below. The legacy managed-asset sync route remains Copilot-only.
-            </p>
-          </div>
-        </div>
-
-        <div className="catalog-surface-grid">
-          {INSTALL_SURFACE_CARDS.map((card) => (
-            <article key={card.target} className="catalog-surface-card">
-              <div className="catalog-surface-card-header">
-                <p className="catalog-surface-title">{card.title}</p>
-                <p className="catalog-item-copy">{card.description}</p>
-              </div>
-
-              <div className="catalog-action-row">
-                <Button
-                  disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
-                  onClick={() => {
-                    void catalogWorkspaceStore.installSurface(card.target, false);
-                  }}
-                  variant="secondary"
-                >
-                  {card.target === 'all' ? 'Install Everything' : `Install ${card.title}`}
-                </Button>
-                <Button
-                  disabled={catalogState.loading || catalogState.installing || catalogState.refreshing}
-                  onClick={() => {
-                    void catalogWorkspaceStore.installSurface(card.target, true);
-                  }}
-                  variant="ghost"
-                >
-                  {card.target === 'all' ? 'Force Everything' : `Force ${card.title}`}
-                </Button>
-              </div>
-
-              <div className="catalog-command-stack">
-                <div className="catalog-command-block">
-                  <p className="catalog-command-label">PowerShell</p>
-                  <pre className="catalog-command">{card.windowsCommand}</pre>
-                </div>
-                <div className="catalog-command-block">
-                  <p className="catalog-command-label">macOS / Linux</p>
-                  <pre className="catalog-command">{card.unixCommand}</pre>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-
-        <div className="panel-footer">
-          <p>Add `--force` to overwrite managed targets that diverged. Use `--dry-run` from the shell wrappers when you want a preview before writing anything.</p>
-        </div>
-      </Panel>
 
       <div className="catalog-summary-grid">
         <article className="catalog-stat-card">
@@ -1865,52 +1745,6 @@ export default function AssetsView() {
         </Panel>
 
         <Panel
-          subtitle="Install and update provider packs here, while Overview and Agents now own the primary discovery spotlight for provider-backed skills and agents."
-          testId="catalog-providers-panel"
-          title="Provider installs & state"
-        >
-          {providerProjections.length === 0 ? (
-            <p className="state-message">No provider integrations were exposed by the current catalog projection.</p>
-          ) : (
-            <div className="catalog-summary-grid">
-              {providerProjections.map((provider) => {
-                const installed = providerLooksInstalled(provider);
-                const providerError = readProviderStateString(provider, 'lastError');
-                const providerAction = installed ? 'update' : 'install';
-
-                return (
-                  <article className="catalog-stat-card" key={provider.providerId}>
-                    <p className="catalog-stat-label">{provider.providerId}</p>
-                    <p className="catalog-stat-value">{provider.title || provider.providerId}</p>
-                    <p className="catalog-stat-copy">{provider.description || 'External provider package.'}</p>
-                    <p className="catalog-inline-note">
-                      strategy: {provider.installStrategy || 'unknown'} · discovered assets: {provider.discoveredAssets?.count || 0}
-                    </p>
-                    {providerError ? <p className="state-message state-error">{providerError}</p> : null}
-                    <div className="catalog-action-row">
-                      <StatusBadge status={installed ? 'installed' : 'not-installed'} testId="catalog-provider-installed" />
-                      <Button
-                        disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || String(provider.installStrategy || '').trim().toLowerCase() !== 'managed-import'}
-                        onClick={() => {
-                          void catalogWorkspaceStore.installProvider({
-                            providerId: provider.providerId,
-                            action: providerAction,
-                          });
-                        }}
-                        testId="catalog-provider-install"
-                        variant="secondary"
-                      >
-                        {providerAction === 'update' ? 'Update provider' : 'Install provider'}
-                      </Button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </Panel>
-
-        <Panel
           subtitle="Create a new agent or skill in the selected authoritative target. The form makes the write path explicit before saving."
           testId="catalog-create-panel"
           title="Create asset"
@@ -2321,10 +2155,10 @@ export default function AssetsView() {
                   <p className="catalog-gap-note" data-testid="catalog-write-target-gap">
                     {selectedIsReadOnly
                       ? selectedProviderInstallable
-                        ? `External provider assets remain read-only here. Use the provider install controls${selectedProvider ? ` for ${selectedProvider.title || selectedProvider.providerId}` : ''} to install or update the source package.`
+                        ? `External provider assets remain read-only here. Use Catalog Status${selectedProviderId ? ` for ${selectedProviderId}` : ''} to inspect and manage the source package.`
                         : 'External plugin-origin assets are read-only in Elegy Copilot. Edit or remove them from their source installation instead.'
                       : sharedEditBlocked
-                      ? 'Shared shipped assets are only writable when the Elegy Copilot workspace repo is the selected write scope.'
+                        ? 'Shared shipped assets are only writable when the Elegy Copilot workspace repo is the selected write scope.'
                       : 'No authoritative write target is available for this effective asset in the current scope.'}
                   </p>
                 )}

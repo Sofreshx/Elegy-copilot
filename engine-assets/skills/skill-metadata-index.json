@@ -161,6 +161,32 @@
       }
     },
     {
+      "skill": "documentation-authoring",
+      "name": "documentation-authoring",
+      "description": "Reusable documentation authoring workflow for durable human-readable and agent-readable docs. Triggers on: documentation authoring, docs writing, docs quality, progressive disclosure, diagram-heavy docs, changelog discipline, docs drift, llms.txt docs.",
+      "triggersOn": [
+        "changelog discipline",
+        "diagram-heavy docs",
+        "docs drift",
+        "docs quality",
+        "docs writing",
+        "documentation authoring",
+        "llms.txt docs",
+        "progressive disclosure"
+      ],
+      "tags": [
+        "authoring",
+        "diagrams",
+        "documentation",
+        "llms",
+        "validation"
+      ],
+      "manifest": {
+        "id": "skill-documentation-authoring",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "documentation-structure-governance",
       "name": "documentation-structure-governance",
       "description": "Governance rules for documentation and project-structure entrypoints, discoverability, and aligned human-friendly plus LLM-friendly access paths. Triggers on: documentation structure, docs IA, docs entrypoint, project structure guidance, LLM-friendly entrypoint, human-friendly entrypoint, doc structure governance.",
@@ -553,7 +579,7 @@
     {
       "skill": "roadmap-authoring",
       "name": "roadmap-authoring",
-      "description": "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmaps. A Roadmap is the durable multi-session planning artifact above Plan Packs: a folder with an index, section files, progress/evidence, and a reevaluation log. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio.",
+      "description": "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmaps. A Roadmap is the durable multi-session planning artifact above Plan Packs. For the current Planning app/API compatibility surface in this repo, use docs/roadmaps/<slug>.md for repo-visible roadmaps. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio.",
       "triggersOn": [
         "backlog item",
         "phased planning",

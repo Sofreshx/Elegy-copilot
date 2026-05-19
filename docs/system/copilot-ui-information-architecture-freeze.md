@@ -1,11 +1,11 @@
 ---
 created: 2026-03-14
-updated: 2026-04-07
+updated: 2026-05-19
 category: system
-status: current
+status: historical
 doc_kind: node
 id: copilot-ui-information-architecture-freeze
-summary: Approved information architecture freeze for the copilot-ui overhaul, including the 4-hub shell, migration map, parallel workstreams, and known risks.
+summary: Historical information architecture freeze retained for research context; the desktop sidebar shell is now canonical.
 tags: [copilot-ui, information-architecture, navigation, planning, catalog, sessions]
 related: [copilot-ui-guide, catalog-control-plane, session-state-artifacts, workflow-planning-contract]
 ---
@@ -22,12 +22,11 @@ overhaul phase. It is a **design decision**, not an implementation log.
 The current shell and tab layout establish the baseline that the overhaul absorbed rather than
 replacing from scratch.
 
-- Top-level hubs are now `Home / Runtime`, `Catalog`, `Planning`, and `Stats`
+- The current canonical shell is the desktop sidebar with `Execution`, `Projects`, `Catalog`,
+  `Todo`, `Maintenance`, and `Settings`
   (`copilot-ui/ui/src/stores/navigation.ts`, `copilot-ui/ui/src/App.tsx`).
-- `HomeRuntimeView` now acts as the runtime, status, and diagnostics hub with `Overview`,
-  `Sessions`, `Executor`, and `Diagnostics` sub-sections, with sandbox lifecycle embedded under
-  `Executor`
-  (`copilot-ui/ui/src/tabs/HomeRuntime/HomeRuntimeView.tsx`).
+- Runtime execution is surfaced through `DashboardView`, session detail views, and maintenance
+  diagnostics instead of the retired runtime tab shell.
 - Diagnostics now exposes `Instruction Engine Runtime`, `Planning Database`, `Gateway`,
   `Tracker`, and `LSP` operator surfaces from the active runtime hub.
 - `SessionsWorkspaceView` remains a narrower legacy/runtime workspace component rather than the
@@ -35,10 +34,9 @@ replacing from scratch.
 - `CatalogView` already groups discovery surfaces under one top-level area and delegates to
   `AssetsView` and `SkillsPreviewView`
   (`copilot-ui/ui/src/tabs/Catalog/CatalogView.tsx`).
-- `PlanningView` already owns idea capture, planning records, compare/merge, and SDK handoff
-  behavior (`copilot-ui/ui/src/tabs/Planning/PlanningView.tsx`,
-  `copilot-ui/ui/src/tabs/Planning/PlanningIdeasPanel.tsx`).
-- `engine-assets/providers.json` already registers `superpowers-copilot` as a provider-backed
+- Historical planning tab prototypes owned idea capture, planning records, compare/merge, and SDK
+  handoff behavior before the Planning Authority surface replaced them.
+- `engine-assets/providers.json` previously registered `external-provider` as a provider-backed
   capability source, which means the overhaul should surface it rather than invent a new provider
   model (`engine-assets/providers.json`).
 
@@ -218,7 +216,7 @@ asset tables. It is responsible for:
 
 **Provider spotlight freeze**
 
-`superpowers-copilot` must be surfaced in Catalog Overview and Catalog Agents as an explicit
+`external-provider` must be surfaced in Catalog Overview and Catalog Agents as an explicit
 provider-backed capability pack. The IA assumes:
 
 - provider presence is visible by name, not hidden in generic metadata
@@ -366,7 +364,7 @@ isolated from Catalog and Planning.
 
 - add Catalog Overview
 - create dedicated Agents surface
-- surface `superpowers-copilot`
+- surface `external-provider`
 - add explicit engagement entry points into Home / Runtime
 
 **Conflict notes**
@@ -397,9 +395,9 @@ UI logic.
 
 ### 2. State overview composition must stay centralized
 
-The former `StateView` composition is now absorbed into `HomeRuntimeView` plus shared
-`stateOverviewStore` polling. Future changes should extend those shared primitives rather than
-reintroducing a separate state/status hub.
+The former `StateView` composition is now absorbed into maintenance diagnostics and status-store
+polling. Future changes should extend those shared primitives rather than reintroducing a separate
+state/status hub.
 
 ### 3. Explicit cross-hub navigation is still lightweight
 
@@ -415,7 +413,7 @@ agent-specific browsing component boundary.
 
 ### 5. Provider spotlighting may expose backend contract gaps
 
-`superpowers-copilot` is registered at the provider layer, but the UI surface may not yet receive
+`external-provider` was registered at the provider layer in the historical design, but the UI surface may not yet receive
 enough provider-shaped data to render a true provider landing card without additional backend or
 store work.
 
@@ -445,4 +443,4 @@ This freeze is complete when later implementation work treats the following as f
 - Catalog owns assets, skills, agents, and provider discovery
 - Planning owns repo-contextual planning plus the visible repo-state task board/workflow controls
 - no fifth top-level runtime destination is introduced for task boards or workflow execution
-- `superpowers-copilot` is surfaced through Catalog plus explicit runtime engagement entry points
+- `external-provider` is surfaced through Catalog plus explicit runtime engagement entry points

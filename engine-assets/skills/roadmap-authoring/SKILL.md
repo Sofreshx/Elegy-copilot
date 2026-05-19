@@ -1,6 +1,6 @@
 ---
 name: roadmap-authoring
-description: "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmaps. A Roadmap is the durable multi-session planning artifact above Plan Packs: a folder with an index, section files, progress/evidence, and a reevaluation log. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio."
+description: "Canonical authoring and maintenance rules for Planning Bullets, Repository Backlog, and Roadmaps. A Roadmap is the durable multi-session planning artifact above Plan Packs. For the current Planning app/API compatibility surface in this repo, use docs/roadmaps/<slug>.md for repo-visible roadmaps. Triggers on: planning bullets, repository backlog, roadmap, roadmap sync, roadmap item, backlog item, phased planning, planning portfolio."
 ---
 
 # Roadmap Authoring
@@ -11,18 +11,15 @@ Author and maintain repo-backed planning artifacts that define **what matters ne
 decomposed into a Plan Pack.
 
 A **Roadmap** is the durable multi-session planning artifact above execution. It captures goals,
-non-goals, main targets, sequencing, section-level progress, evidence, and reevaluation notes. It is
-not an active task list and not a Plan Pack; a Plan Pack selects one roadmap slice for execution.
-New or substantially edited Roadmaps use a folder: `index.md` for overview/progress,
-section files for detailed `RM-*` items, and `reevaluation-log.md` for out-of-scope or unforeseen
-issues that may require roadmap reevaluation.
+main targets, sequencing, and explicit `RM-*` roadmap item state. It is not an active task list and
+not a Plan Pack; a Plan Pack selects one roadmap slice for execution.
 
 This skill governs:
 - **Planning Bullets** at `~/.copilot/backlogs/{repo-name}/planning/bullets.md` as the canonical pre-backlog seed surface
 - the **Repository Backlog** under `~/.copilot/backlogs/{repo-name}/backlogs/*.md` as the primary artifact family
 - `~/.copilot/backlogs/{repo-name}/backlog.md` as a legacy compatibility Repository Backlog surface
 - **Roadmap** folders at `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/`
-- repo-persisted roadmap folders under `<repo>/docs/planning/<slug>/` when the work must be visible to all coding-agent surfaces
+- repo-persisted roadmaps under `<repo>/docs/roadmaps/<slug>.md` for the current Planning app/API compatibility surface in this repo
 - the explicit ID/linking discipline required for future **Roadmap Sync** and direct plan handoff
 
 `{repo-name}` is the basename of the repository directory.
@@ -63,7 +60,7 @@ For the selected repository root:
 - Roadmaps: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/index.md`
 - Roadmap section files: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/<section-slug>.md`
 - Roadmap reevaluation log: `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>/reevaluation-log.md`
-- Repo-persisted roadmaps: `<repo>/docs/planning/<slug>/index.md`
+- Repo-persisted roadmaps: `<repo>/docs/roadmaps/<slug>.md`
 
 Backlog filenames should use lowercase kebab-case session slugs, for example:
 - `~/.copilot/backlogs/{repo-name}/backlogs/2026-04-03-session-close.md`
@@ -74,10 +71,10 @@ If `~/.copilot/backlogs/{repo-name}/roadmaps/` does not exist, create it only wh
 Roadmap folder and section filenames should use lowercase kebab-case slugs, for example:
 - `~/.copilot/backlogs/{repo-name}/roadmaps/platform-foundation/index.md`
 - `~/.copilot/backlogs/{repo-name}/roadmaps/q2-delivery/runtime-contracts.md`
-- `<repo>/docs/planning/platform-foundation/index.md`
+- `<repo>/docs/roadmaps/platform-foundation.md`
 
 Legacy single-file roadmaps remain readable at `~/.copilot/backlogs/{repo-name}/roadmaps/<slug>.md`
-and `<repo>/docs/planning/<slug>.md`. Convert only the targeted legacy roadmap when it is
+and compatibility-era repo docs under `<repo>/docs/planning/<slug>.md`. Convert only the targeted roadmap when it is
 substantially edited or explicitly migrated.
 
 ## Stable ID Rules

@@ -1,4 +1,4 @@
-import { authorizeCopilotFolders, getInstalledAssets, getManagedAssets, patchVscodeSettings, syncAllAssets } from '../../lib/api';
+import { getInstalledAssets, getManagedAssets, syncAllAssets } from '../../lib/api';
 import { createStore } from '../../lib/store';
 import type { InstalledAssetsResponse, ManagedAssetStatus } from '../../lib/types';
 
@@ -284,24 +284,12 @@ function createAssetsStore() {
       syncing: true,
       repairing: true,
       error: null,
-      actionMessage: 'Step 1/3: Repairing managed assets in pointer mode...',
+      actionMessage: 'Repairing managed assets in pointer mode...',
     }));
 
     try {
       const syncResponse = await syncAllAssets(false, undefined, true);
       const repaired = Array.isArray(syncResponse?.result) ? syncResponse.result.length : 0;
-
-      store.setState((state) => ({
-        ...state,
-        actionMessage: `Step 1/3 complete: repaired ${repaired} asset(s). Step 2/3: Patching VS Code settings...`,
-      }));
-      await patchVscodeSettings();
-
-      store.setState((state) => ({
-        ...state,
-        actionMessage: 'Step 2/3 complete: VS Code settings patched. Step 3/3: Authorizing Copilot folders...',
-      }));
-      await authorizeCopilotFolders();
 
       await loadAssets();
 
@@ -309,7 +297,7 @@ function createAssetsStore() {
         ...state,
         syncing: false,
         repairing: false,
-        actionMessage: `One-click repair complete: ${repaired} asset(s) repaired, VS Code settings patched, Copilot folders authorized.`,
+        actionMessage: `Repair complete: ${repaired} asset(s) repaired.`,
       }));
     } catch (error) {
       const message = toErrorMessage(error);
@@ -323,7 +311,7 @@ function createAssetsStore() {
         syncing: false,
         repairing: false,
         error: message,
-        actionMessage: `One-click repair failed: ${message}`,
+        actionMessage: `Repair failed: ${message}`,
       }));
       throw error;
     }

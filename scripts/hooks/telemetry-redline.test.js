@@ -43,7 +43,26 @@ function withTempDir(fn) {
   try {
     fn(dir);
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    removeDirWithRetry(dir);
+  }
+}
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function removeDirWithRetry(dir) {
+  const maxAttempts = 30;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+      return;
+    } catch (error) {
+      if (!['EBUSY', 'ENOTEMPTY', 'EPERM'].includes(error && error.code) || attempt === maxAttempts) {
+        throw error;
+      }
+      sleep(100);
+    }
   }
 }
 
@@ -81,7 +100,7 @@ function runPowerShellHook(scriptPath, payload, env) {
 }
 
 function runBashHook(scriptPath, payload, env) {
-  childProcess.execFileSync('bash', [scriptPath], {
+  childProcess.execFileSync('bash', ['-lc', buildBashScriptCommand(payload.cwd, scriptPath)], {
     cwd: payload.cwd,
     env: {
       ...process.env,
@@ -93,13 +112,35 @@ function runBashHook(scriptPath, payload, env) {
   });
 }
 
+function buildBashScriptCommand(cwd, scriptPath) {
+  const relativePath = path.relative(cwd, scriptPath).replace(/\\/g, '/');
+  return `${quoteForBash(relativePath)} <&0`;
+}
+
+function quoteForBash(value) {
+  return `'${String(value).replace(/'/g, `'"'"'`)}'`;
+}
+
 function assertNoSensitiveOrUnexpectedKeys(entry, expectedAllowedKeys) {
   for (const key of Object.keys(entry)) {
     assert.ok(expectedAllowedKeys.includes(key), `unexpected key found: ${key}`);
   }
 }
 
-const canRunBashPath = hasCommand('bash') && hasCommand('python');
+function bashHasSupportedPython() {
+  try {
+    childProcess.execFileSync(
+      'bash',
+      ['-lc', 'command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || command -v python.exe >/dev/null 2>&1 || command -v py.exe >/dev/null 2>&1 || command -v py >/dev/null 2>&1'],
+      { stdio: 'ignore' }
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const canRunBashPath = hasCommand('bash') && bashHasSupportedPython();
 
 // PowerShell-focused tests (required on Windows).
 test('PowerShell log-prompt drops denylisted sensitive prompt and enforces allowlist', () => {

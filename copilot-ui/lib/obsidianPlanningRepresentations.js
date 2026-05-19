@@ -377,7 +377,7 @@ function buildMissingRoadmapRepresentationSpec(writeContext, roadmapSlug, filePa
   const notePath = writeContext.notesDirectory
     ? obsidianNotesLib.normalizeRelativePath(`${writeContext.notesDirectory.relative}/${noteRelativePath}`)
     : noteRelativePath;
-  const sourceRepoRelativePath = `docs/roadmaps/${roadmapSlug}.md`;
+  const sourceRepoRelativePath = `docs/planning/${roadmapSlug}/index.md`;
   const mirrorMetadata = readOrphanedRoadmapMirrorMetadata(filePath, roadmapSlug);
 
   return {

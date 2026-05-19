@@ -135,19 +135,19 @@ function handleAssetsSyncAll(ctx, deps) {
 }
 
 function handleAssetsInstallSurfaces(ctx, deps) {
-  const { req, res, copilotHomeAbs, vscodeHomeAbs } = ctx;
+  const { req, res } = ctx;
   const {
     sendJson,
     readJsonBody,
-    assets,
     engineRoot,
     installSurfaces,
-    runVscodeSettingsPatcher,
     codexHome,
     codexSkillsHome,
     geminiHome,
     antigravityHome,
     antigravitySkillsHome,
+    opencodeHome,
+    opencodeSkillsHome,
   } = deps;
 
   readJsonBody(req)
@@ -156,16 +156,14 @@ function handleAssetsInstallSurfaces(ctx, deps) {
       dryRun: Boolean(body.dryRun),
       force: Boolean(body.force),
       pointerMode: body.pointerMode !== false,
-      assets,
       engineRoot,
-      copilotHomeAbs,
-      vscodeHomeAbs,
-      runVscodeSettingsPatcher,
       codexHome,
       codexSkillsHome,
       geminiHome,
       antigravityHome,
       antigravitySkillsHome,
+      opencodeHome,
+      opencodeSkillsHome,
     }))
     .then((result) => sendJson(res, 200, result))
     .catch((e) => sendJson(res, e.statusCode || 500, { error: String(e.message || e) }));
@@ -348,12 +346,13 @@ function register(deps = {}) {
     safeResolveUnder: deps.safeResolveUnder || safeResolveUnder,
     extractTriggers: deps.extractTriggers || ((absPath) => extractTriggers(absPath, resolvedFs)),
     engineRoot: deps.engineRoot,
-    runVscodeSettingsPatcher: deps.runVscodeSettingsPatcher,
     codexHome: deps.codexHome,
     codexSkillsHome: deps.codexSkillsHome,
     geminiHome: deps.geminiHome,
     antigravityHome: deps.antigravityHome,
     antigravitySkillsHome: deps.antigravitySkillsHome,
+    opencodeHome: deps.opencodeHome,
+    opencodeSkillsHome: deps.opencodeSkillsHome,
   };
 
   return [

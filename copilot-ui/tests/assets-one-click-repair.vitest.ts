@@ -3,15 +3,11 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 const mockGetManagedAssets = vi.fn();
 const mockGetInstalledAssets = vi.fn();
 const mockSyncAllAssets = vi.fn();
-const mockPatchVscodeSettings = vi.fn();
-const mockAuthorizeCopilotFolders = vi.fn();
 
 vi.mock('../ui/src/lib/api', () => ({
   getManagedAssets: mockGetManagedAssets,
   getInstalledAssets: mockGetInstalledAssets,
   syncAllAssets: mockSyncAllAssets,
-  patchVscodeSettings: mockPatchVscodeSettings,
-  authorizeCopilotFolders: mockAuthorizeCopilotFolders,
 }));
 
 const EMPTY_INSTALLED = {
@@ -29,18 +25,14 @@ describe('assetsStore one-click skill repair', () => {
     mockGetManagedAssets.mockReset();
     mockGetInstalledAssets.mockReset();
     mockSyncAllAssets.mockReset();
-    mockPatchVscodeSettings.mockReset();
-    mockAuthorizeCopilotFolders.mockReset();
   });
 
   afterEach(() => {
     vi.resetModules();
   });
 
-  it('runs sync repair, VS Code patch, and Copilot authorization in order', async () => {
+  it('runs managed asset repair and refreshes inventory', async () => {
     mockSyncAllAssets.mockResolvedValue({ result: [{ id: 'a' }, { id: 'b' }] });
-    mockPatchVscodeSettings.mockResolvedValue({ result: { ok: true } });
-    mockAuthorizeCopilotFolders.mockResolvedValue({ result: { ok: true } });
     mockGetManagedAssets.mockResolvedValue({ managed: [] });
     mockGetInstalledAssets.mockResolvedValue(EMPTY_INSTALLED);
 
@@ -55,41 +47,34 @@ describe('assetsStore one-click skill repair', () => {
     unsubscribe();
 
     expect(mockSyncAllAssets).toHaveBeenCalledWith(false, undefined, true);
-    expect(mockPatchVscodeSettings).toHaveBeenCalledTimes(1);
-    expect(mockAuthorizeCopilotFolders).toHaveBeenCalledTimes(1);
     expect(mockGetManagedAssets).toHaveBeenCalledTimes(1);
     expect(mockGetInstalledAssets).toHaveBeenCalledTimes(1);
 
-    expect(messages.some((entry) => (entry ?? '').includes('Step 1/3'))).toBe(true);
-    expect(messages.some((entry) => (entry ?? '').includes('Step 2/3'))).toBe(true);
-    expect(messages.some((entry) => (entry ?? '').includes('Step 3/3'))).toBe(true);
+    expect(messages.some((entry) => (entry ?? '').includes('Repairing managed assets'))).toBe(true);
 
     const finalState = assetsStore.getState();
     expect(finalState.syncing).toBe(false);
     expect(finalState.repairing).toBe(false);
     expect(finalState.error).toBeNull();
-    expect(finalState.actionMessage).toContain('One-click repair complete');
+    expect(finalState.actionMessage).toContain('Repair complete');
   });
 
   it('surfaces failures and still refreshes asset inventory', async () => {
-    mockSyncAllAssets.mockResolvedValue({ result: [] });
-    mockPatchVscodeSettings.mockRejectedValue(new Error('settings patch failed'));
-    mockAuthorizeCopilotFolders.mockResolvedValue({ result: { ok: true } });
+    mockSyncAllAssets.mockRejectedValue(new Error('sync failed'));
     mockGetManagedAssets.mockResolvedValue({ managed: [] });
     mockGetInstalledAssets.mockResolvedValue(EMPTY_INSTALLED);
 
     const { assetsStore } = await import('../ui/src/tabs/Assets/assetsStore');
 
-    await expect(assetsStore.repairWithSetup()).rejects.toThrow('settings patch failed');
+    await expect(assetsStore.repairWithSetup()).rejects.toThrow('sync failed');
 
-    expect(mockAuthorizeCopilotFolders).not.toHaveBeenCalled();
     expect(mockGetManagedAssets).toHaveBeenCalledTimes(1);
     expect(mockGetInstalledAssets).toHaveBeenCalledTimes(1);
 
     const finalState = assetsStore.getState();
     expect(finalState.syncing).toBe(false);
     expect(finalState.repairing).toBe(false);
-    expect(finalState.error).toBe('settings patch failed');
-    expect(finalState.actionMessage).toContain('One-click repair failed');
+    expect(finalState.error).toBe('sync failed');
+    expect(finalState.actionMessage).toContain('Repair failed');
   });
 });

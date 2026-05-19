@@ -19,7 +19,7 @@ export default function GatewayView() {
     return formatGatewayStateSummary(asSegment(gatewayState.stateEnvelope?.gateway), fallback);
   }, [gatewayState.stateEnvelope]);
 
-  const trackerSummary = useMemo(() => {
+  const sandboxLifecycleSummary = useMemo(() => {
     return formatGatewayStateSummary(asSegment(gatewayState.stateEnvelope?.tracker), 'unavailable');
   }, [gatewayState.stateEnvelope]);
 
@@ -87,7 +87,7 @@ export default function GatewayView() {
 
       <div className="gateway-grid">
         <Panel
-          subtitle="Authoritative readiness from /api/gateway/state, with tracker and planning kept as diagnostics."
+          subtitle="Authoritative readiness from /api/gateway/state, with sandbox lifecycle transport and planning kept as diagnostics."
           testId="gateway-state-panel"
           title="Gateway State"
         >
@@ -130,8 +130,8 @@ export default function GatewayView() {
                 <p className="gateway-item-copy">{gatewaySummary}</p>
               </div>
               <div className="gateway-state-row">
-                <p className="gateway-item-title">Tracker Projection</p>
-                <p className="gateway-item-copy">{trackerSummary}</p>
+                <p className="gateway-item-title">Sandbox Lifecycle Transport</p>
+                <p className="gateway-item-copy">{sandboxLifecycleSummary}</p>
               </div>
               <div className="gateway-state-row">
                 <p className="gateway-item-title">Planning DB Diagnostic</p>

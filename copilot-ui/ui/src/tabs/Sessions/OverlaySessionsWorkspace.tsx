@@ -58,7 +58,7 @@ export default function OverlaySessionsWorkspace() {
 
   const handleResumeSession = (sessionId: string) => {
     uiRuntimeOverlayStore.selectSession(sessionId);
-    navigationStore.goToRuntime('executor');
+    navigationStore.navigate('dashboard');
   };
 
   return (

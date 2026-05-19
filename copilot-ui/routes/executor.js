@@ -30,17 +30,6 @@ function requireExecutor(res, deps) {
   return null;
 }
 
-function requireWorkflowLayer(res, deps) {
-  if (deps.workflowLayerService) {
-    return deps.workflowLayerService;
-  }
-
-  deps.sendJson(res, 503, {
-    error: 'Workflow layer service is unavailable.',
-  });
-  return null;
-}
-
 function handleHealth(ctx, deps) {
   const executor = requireExecutor(ctx.res, deps);
   if (!executor) return;
@@ -51,54 +40,6 @@ function handleHealth(ctx, deps) {
       : null,
     orchestrationContractVersion: SESSION_ORCHESTRATION_CONTRACT_VERSION,
   });
-}
-
-function handleWorkflowLayerStatus(ctx, deps) {
-  const workflowLayer = requireWorkflowLayer(ctx.res, deps);
-  if (!workflowLayer) return;
-  deps.sendJson(ctx.res, 200, workflowLayer.getStatus());
-}
-
-function handleWorkflowLayerTriggers(ctx, deps) {
-  const workflowLayer = requireWorkflowLayer(ctx.res, deps);
-  if (!workflowLayer) return;
-
-  const url = new URL(ctx.req && ctx.req.url ? ctx.req.url : '/api/executor/workflow-layer/triggers', 'http://localhost');
-  const repoId = (url.searchParams.get('repoId') || '').trim();
-  const sessionId = (url.searchParams.get('sessionId') || '').trim();
-  const limit = Number(url.searchParams.get('limit'));
-  deps.sendJson(ctx.res, 200, {
-    triggers: workflowLayer.listTriggers({
-      repoId: repoId || null,
-      sessionId: sessionId || null,
-      limit: Number.isFinite(limit) ? limit : undefined,
-    }),
-  });
-}
-
-function handleWorkflowLayerKillSwitch(ctx, deps) {
-  const workflowLayer = requireWorkflowLayer(ctx.res, deps);
-  if (!workflowLayer) return;
-
-  deps.readJsonBody(ctx.req)
-    .then((body) => {
-      if (!body || typeof body !== 'object' || typeof body.enabled !== 'boolean') {
-        throw Object.assign(new Error('enabled boolean is required'), { statusCode: 400 });
-      }
-      const enabled = body && typeof body === 'object' && body.enabled === true;
-      const reason = body && typeof body === 'object' && typeof body.reason === 'string'
-        ? body.reason
-        : null;
-      return workflowLayer.setAutomationEnabled(enabled, {
-        source: 'api',
-        reason,
-      });
-    })
-    .then((result) => deps.sendJson(ctx.res, 200, result))
-    .catch((error) => {
-      const failure = toErrorPayload(error);
-      deps.sendJson(ctx.res, failure.statusCode, failure.body);
-    });
 }
 
 function handleListJobs(ctx, deps) {
@@ -217,16 +158,6 @@ function register(deps = {}) {
     },
     {
       method: 'GET',
-      path: '/api/executor/workflow-layer/status',
-      handler: (ctx) => handleWorkflowLayerStatus(ctx, resolvedDeps),
-    },
-    {
-      method: 'GET',
-      path: '/api/executor/workflow-layer/triggers',
-      handler: (ctx) => handleWorkflowLayerTriggers(ctx, resolvedDeps),
-    },
-    {
-      method: 'GET',
       path: '/api/executor/worktrees',
       handler: (ctx) => handleListWorktrees(ctx, resolvedDeps),
     },
@@ -244,11 +175,6 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/executor/jobs',
       handler: (ctx) => handleCreateJob(ctx, resolvedDeps),
-    },
-    {
-      method: 'POST',
-      path: '/api/executor/workflow-layer/kill-switch',
-      handler: (ctx) => handleWorkflowLayerKillSwitch(ctx, resolvedDeps),
     },
     {
       method: 'POST',

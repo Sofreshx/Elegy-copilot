@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FormInput } from '../../../components';
 import { SESSION_AGENTS } from '../../../constants/sessionAgents';
 import type { SessionWizardState } from '../sessionWizardStore';
@@ -10,12 +10,6 @@ interface ObjectiveStepProps {
 
 export default function ObjectiveStep({ state }: ObjectiveStepProps) {
   const [showTasks, setShowTasks] = useState(Boolean(state.taskIds));
-
-  useEffect(() => {
-    if (state.selectedProject?.repoPath) {
-      sessionWizardStore.loadBacklog();
-    }
-  }, [state.selectedProject?.repoPath]);
 
   return (
     <div className="session-wizard-objective-step" data-testid="session-wizard-objective-step">
@@ -57,57 +51,6 @@ export default function ObjectiveStep({ state }: ObjectiveStepProps) {
         value={state.objective}
         onChange={(e) => sessionWizardStore.setObjective(e.target.value)}
       />
-
-      {state.objective && state.selectedBulletIds.length > 0 && (
-        <div className="objective-prefill-hint" data-testid="objective-prefill-hint">
-          📋 Pre-filled from backlog ({state.selectedBulletIds.length} item{state.selectedBulletIds.length !== 1 ? 's' : ''})
-        </div>
-      )}
-
-      {/* Backlog items */}
-      <div className="session-wizard-backlog-section" data-testid="session-wizard-backlog-section">
-        <span className="session-wizard-backlog-label">Backlog items</span>
-        {state.backlogLoading && (
-          <div className="session-wizard-backlog-loading" data-testid="session-wizard-backlog-loading">
-            Loading backlog…
-          </div>
-        )}
-        {!state.backlogLoading && state.backlogBullets.length === 0 && (
-          <div className="session-wizard-backlog-empty" data-testid="session-wizard-backlog-empty">
-            No backlog items for this project.
-          </div>
-        )}
-        {!state.backlogLoading && state.backlogBullets.length > 0 && (
-          <div className="session-wizard-backlog-list" data-testid="session-wizard-backlog-list">
-            {state.backlogBullets.map((bullet) => (
-              <label
-                key={bullet.id}
-                className={`session-wizard-backlog-item ${state.selectedBulletIds.includes(bullet.id) ? 'session-wizard-backlog-item-selected' : ''}`}
-                data-testid={`session-wizard-backlog-item-${bullet.id}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={state.selectedBulletIds.includes(bullet.id)}
-                  onChange={() => sessionWizardStore.toggleBullet(bullet.id)}
-                />
-                <span className="session-wizard-backlog-item-id">{bullet.id}</span>
-                <span className="session-wizard-backlog-item-title">{bullet.title}</span>
-                <span className="session-wizard-backlog-item-state">{bullet.state}</span>
-              </label>
-            ))}
-          </div>
-        )}
-        {state.selectedBulletIds.length > 0 && (
-          <button
-            type="button"
-            className="session-wizard-backlog-clear"
-            data-testid="session-wizard-backlog-clear"
-            onClick={() => sessionWizardStore.clearBullets()}
-          >
-            Clear selection ({state.selectedBulletIds.length})
-          </button>
-        )}
-      </div>
 
       <div className="session-wizard-tasks-section">
         <button

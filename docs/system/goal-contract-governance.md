@@ -1,6 +1,6 @@
 ---
 created: 2026-03-15
-updated: 2026-06-22
+updated: 2026-05-18
 category: system
 status: current
 doc_kind: node
@@ -20,11 +20,10 @@ review outcome surface.
 ## Context
 
 Planning and execution already have canonical artifacts for decomposition (`plan.md`/Plan Pack),
-session runtime state (`docs/system/session-state-artifacts.md`), and portfolio planning
-(`~/.copilot/backlogs/{repo-name}/backlogs/*.md`, plus roadmap folder indexes under
-`~/.copilot/backlogs/{repo-name}/roadmaps/*/index.md`). This goal contract adds a stable cross-workflow
-outcome layer and now explicitly drives workflow behavior in orchestrator and persisted
-session-state execution.
+session runtime state (`docs/system/session-state-artifacts.md`), and durable planning authority
+(`elegy-planning`, as summarized in `docs/system/planning-backlog-roadmap-contract.md`). This goal
+contract adds a stable cross-workflow outcome layer and now explicitly drives workflow behavior in
+orchestrator and persisted session-state execution.
 
 ## Details
 
@@ -66,9 +65,9 @@ Carryover persistence/removal is routed separately from the closure judgment:
 
 1. The orchestrator should emit explicit sync instructions (`unresolved_goals_path`, `session_backlog_path`, `carryover_goals`, `resolved_goals_to_remove`) when durable follow-up is needed.
 2. Workflows should pass an explicit carryover owner when one is known. If no stronger owner is available, use a deterministic fallback such as `workflow-orchestrator` rather than leaving Owner undefined.
-3. `session_backlog_path` should prefer `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`. `docs/backlog.md` is a deprecated legacy compatibility target only.
-4. The workflow routes unresolved-goal sync and Repository Backlog persistence through `@doc-writer` or another explicit docs-writing lane.
-5. No workflow should let reviewer or validation lanes write `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` or Repository Backlog docs directly.
+3. If a compatibility workflow still needs a carryover file target, `session_backlog_path` should prefer `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`. `docs/backlog.md` is a deprecated legacy compatibility target only.
+4. The workflow routes unresolved-goal sync and any compatibility carryover-file persistence through `@doc-writer` or another explicit docs-writing lane.
+5. No workflow should let reviewer or validation lanes write `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` or legacy backlog docs directly.
 
 ### Unresolved Goal Persistence Contract
 
@@ -91,9 +90,9 @@ Persistence rules:
    - perform a removal-only clean-up if `resolved_goals_to_remove` is non-empty, or
    - no-op and leave the file untouched if both carryover and removal lists are `NONE`.
 
-### Repository Backlog Carryover Path Contract
+### Compatibility Carryover File Path Contract
 
-Canonical Repository Backlog carryover path family:
+Compatibility carryover file path family:
 
 - `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`
 
@@ -103,8 +102,8 @@ Legacy compatibility path (deprecated):
 
 Path rules:
 
-1. When end-of-session closure needs durable Repository Backlog carryover, workflows should provide or preserve an explicit `session_backlog_path`.
-2. New carryover should target `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`.
+1. When end-of-session closure still needs a file-backed compatibility carryover target, workflows should provide or preserve an explicit `session_backlog_path`.
+2. New compatibility carryover should target `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`.
 3. `docs/backlog.md` may remain in play only for legacy compatibility flows that already depend on it.
 4. Path selection does not create a new backlog ID family; carryover continues to use stable `RB-*` IDs or references.
 
@@ -123,7 +122,7 @@ The following issue-doc paths are canonical persistent supporting surfaces:
 - `~/.copilot/backlogs/{repo-name}/issues/planning-ideas-log.md`
 - `~/.copilot/backlogs/{repo-name}/issues/out-of-scope-findings.md`
 
-Repository Backlog carryover remains in the canonical backlog family under `~/.copilot/backlogs/{repo-name}/backlogs/*.md`, with
+Compatibility backlog carryover files remain available under `~/.copilot/backlogs/{repo-name}/backlogs/*.md`, with
 legacy compatibility support at `docs/backlog.md` (deprecated).
 
 Use these docs for cross-session carryover context that should not be mixed into active in-flight

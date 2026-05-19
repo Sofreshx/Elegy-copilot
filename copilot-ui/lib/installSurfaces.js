@@ -3,7 +3,7 @@
 const path = require('path');
 const { pathToFileURL } = require('url');
 
-const VALID_INSTALL_SURFACE_TARGETS = ['copilot', 'codex', 'antigravity', 'all'];
+const VALID_INSTALL_SURFACE_TARGETS = ['codex', 'antigravity', 'opencode', 'all'];
 
 function createStatusError(statusCode, message) {
   const error = new Error(message);
@@ -26,30 +26,7 @@ function normalizeTarget(target) {
 }
 
 function buildTargetList(target) {
-  return target === 'all' ? ['copilot', 'codex', 'antigravity'] : [target];
-}
-
-function uniqueHomes(copilotHomeAbs, vscodeHomeAbs) {
-  const seen = new Set();
-  const homes = [];
-
-  for (const item of [
-    { kind: 'copilot', home: copilotHomeAbs },
-    { kind: 'vscode', home: vscodeHomeAbs },
-  ]) {
-    if (!item.home) {
-      continue;
-    }
-    const resolved = path.resolve(item.home);
-    const key = process.platform === 'win32' ? resolved.toLowerCase() : resolved;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    homes.push({ kind: item.kind, home: resolved });
-  }
-
-  return homes;
+  return target === 'all' ? ['codex', 'antigravity', 'opencode'] : [target];
 }
 
 async function loadInstallerModule(engineRoot, fileName) {
@@ -59,47 +36,6 @@ async function loadInstallerModule(engineRoot, fileName) {
     throw new Error(`Installer module is missing runInstall(): ${fileName}`);
   }
   return installerModule;
-}
-
-function installCopilotSurface(options) {
-  const homes = uniqueHomes(options.copilotHomeAbs, options.vscodeHomeAbs);
-  const syncRuns = homes.map((home) => ({
-    homeKind: home.kind,
-    home: home.home,
-    result: options.assets.syncAll(options.engineRoot, home.home, {
-      dryRun: options.dryRun,
-      force: options.force,
-      pointerMode: options.pointerMode !== false,
-    }),
-  }));
-
-  let settingsPatch = null;
-  if (typeof options.runVscodeSettingsPatcher === 'function' && options.vscodeHomeAbs) {
-    settingsPatch = options.runVscodeSettingsPatcher({
-      engineRoot: options.engineRoot,
-      vscodeHome: options.vscodeHomeAbs,
-      dryRun: options.dryRun,
-    });
-    if (settingsPatch && settingsPatch.ok === false) {
-      throw new Error(
-        `VS Code settings patch failed: ${String(settingsPatch.stderr || settingsPatch.stdout || settingsPatch.exitCode || 'unknown error')}`,
-      );
-    }
-  }
-
-  return {
-    surface: 'copilot',
-    ok: true,
-    dryRun: Boolean(options.dryRun),
-    force: Boolean(options.force),
-    pointerMode: options.pointerMode !== false,
-    homes: {
-      copilotHome: options.copilotHomeAbs ? path.resolve(options.copilotHomeAbs) : null,
-      vscodeHome: options.vscodeHomeAbs ? path.resolve(options.vscodeHomeAbs) : null,
-    },
-    runs: syncRuns,
-    settingsPatch,
-  };
 }
 
 async function installCodexSurface(options) {
@@ -123,21 +59,24 @@ async function installAntigravitySurface(options) {
   });
 }
 
+async function installOpenCodeSurface(options) {
+  const installerModule = await loadInstallerModule(options.engineRoot, 'opencode-install.mjs');
+  return installerModule.runInstall({
+    dryRun: options.dryRun,
+    force: options.force,
+    opencodeHome: options.opencodeHome,
+    skillsHome: options.opencodeSkillsHome,
+  });
+}
+
 async function installSurfaces(options = {}) {
   const target = normalizeTarget(options.target);
   if (!options.engineRoot) {
     throw new Error('engineRoot is required');
   }
-  if (!options.assets || typeof options.assets.syncAll !== 'function') {
-    throw new Error('assets.syncAll is required');
-  }
 
   const summaries = [];
   for (const surface of buildTargetList(target)) {
-    if (surface === 'copilot') {
-      summaries.push(installCopilotSurface(options));
-      continue;
-    }
     if (surface === 'codex') {
       summaries.push(await installCodexSurface(options));
       continue;
@@ -145,6 +84,9 @@ async function installSurfaces(options = {}) {
     if (surface === 'antigravity') {
       summaries.push(await installAntigravitySurface(options));
       continue;
+    }
+    if (surface === 'opencode') {
+      summaries.push(await installOpenCodeSurface(options));
     }
   }
 

@@ -24,6 +24,9 @@ const {
   readPlanningSuggestion,
   persistPlanningRecap,
   readPlanningRecap,
+  persistRoadmapWorkflowArtifact,
+  readRoadmapWorkflowArtifact,
+  listRoadmapWorkflowArtifacts,
   readPlanningMergeIdempotencyRecord,
   persistPlanningMergeIdempotencyRecord,
   deletePlanningMergeIdempotencyRecord,
@@ -115,6 +118,7 @@ function createMockClient(options = {}) {
         || statement.startsWith('create table if not exists ie_planning_merge_idempotency_ledger')
         || statement.startsWith('create table if not exists ie_planning_suggestions')
         || statement.startsWith('create table if not exists ie_planning_recaps')
+        || statement.startsWith('create table if not exists ie_planning_workflow_artifacts')
       ) {
         appliedMigrationStatements.push(sql);
         return { rows: [], rowCount: 0 };
@@ -251,6 +255,7 @@ function createDurabilityArtifactClient(options = {}) {
   const mergeIntents = new Map();
   const suggestions = new Map();
   const recaps = new Map();
+  const workflowArtifacts = new Map();
   const idempotencyLedger = new Map();
 
   const recordClient = createPlanningRecordClient(
@@ -262,6 +267,7 @@ function createDurabilityArtifactClient(options = {}) {
     mergeIntents,
     suggestions,
     recaps,
+    workflowArtifacts,
     idempotencyLedger,
     recordsById: recordClient.recordsById,
     async query(sql, params = []) {
@@ -449,6 +455,79 @@ function createDurabilityArtifactClient(options = {}) {
         const recapId = String(params[0] || '').trim();
         const row = recapId ? recaps.get(recapId) : null;
         return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
+      }
+
+      if (statement.startsWith('insert into ie_planning_workflow_artifacts')) {
+        const artifactId = String(params[0] || '').trim();
+        const actorId = String(params[1] || '').trim().toLowerCase();
+        const repoId = params[2] == null ? null : String(params[2]).trim().toLowerCase();
+        const existing = artifactId ? workflowArtifacts.get(artifactId) : null;
+
+        if (existing) {
+          if (existing.actor_id !== actorId) {
+            return { rows: [], rowCount: 0 };
+          }
+
+          const updated = {
+            ...existing,
+            actor_id: actorId,
+            repo_id: repoId,
+            roadmap_id: String(params[3] || '').trim(),
+            slice_id: params[4] == null ? null : String(params[4]).trim(),
+            kind: String(params[5] || '').trim(),
+            phase: String(params[6] || '').trim(),
+            status: String(params[7] || '').trim(),
+            checksum: String(params[8] || '').trim(),
+            source_harness: params[9] == null ? null : String(params[9]).trim(),
+            source_model: params[10] == null ? null : String(params[10]).trim(),
+            session_id: params[11] == null ? null : String(params[11]).trim(),
+            body: String(params[12] || ''),
+            structured_state: typeof params[13] === 'string' ? JSON.parse(params[13]) : {},
+            updated_at: String(params[15] || '').trim(),
+          };
+          workflowArtifacts.set(artifactId, updated);
+          return { rows: [{ ...updated }], rowCount: 1 };
+        }
+
+        const inserted = {
+          artifact_id: artifactId,
+          actor_id: actorId,
+          repo_id: repoId,
+          roadmap_id: String(params[3] || '').trim(),
+          slice_id: params[4] == null ? null : String(params[4]).trim(),
+          kind: String(params[5] || '').trim(),
+          phase: String(params[6] || '').trim(),
+          status: String(params[7] || '').trim(),
+          checksum: String(params[8] || '').trim(),
+          source_harness: params[9] == null ? null : String(params[9]).trim(),
+          source_model: params[10] == null ? null : String(params[10]).trim(),
+          session_id: params[11] == null ? null : String(params[11]).trim(),
+          body: String(params[12] || ''),
+          structured_state: typeof params[13] === 'string' ? JSON.parse(params[13]) : {},
+          created_at: String(params[14] || '').trim(),
+          updated_at: String(params[15] || '').trim(),
+        };
+        workflowArtifacts.set(artifactId, inserted);
+        return { rows: [{ ...inserted }], rowCount: 1 };
+      }
+
+      if (statement.startsWith('select artifact_id, actor_id, repo_id, roadmap_id, slice_id, kind, phase, status, checksum, source_harness, source_model, session_id, body, structured_state, created_at, updated_at from ie_planning_workflow_artifacts where artifact_id = $1')) {
+        const artifactId = String(params[0] || '').trim();
+        const row = artifactId ? workflowArtifacts.get(artifactId) : null;
+        return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
+      }
+
+      if (statement.startsWith('select artifact_id, actor_id, repo_id, roadmap_id, slice_id, kind, phase, status, checksum, source_harness, source_model, session_id, body, structured_state, created_at, updated_at from ie_planning_workflow_artifacts where roadmap_id = $1 order by updated_at desc, artifact_id asc')) {
+        const roadmapId = String(params[0] || '').trim();
+        const rows = [...workflowArtifacts.values()]
+          .filter((row) => row.roadmap_id === roadmapId)
+          .sort((left, right) => {
+            const updatedDiff = Date.parse(String(right.updated_at || '')) - Date.parse(String(left.updated_at || ''));
+            if (updatedDiff !== 0) return updatedDiff;
+            return String(left.artifact_id || '').localeCompare(String(right.artifact_id || ''));
+          })
+          .map((row) => ({ ...row }));
+        return { rows, rowCount: rows.length };
       }
 
       if (statement.startsWith('select idempotency_key, actor_id, repo_id, operation_type, target_id, source_ids_hash, compare_hash, payload_hash, merge_record_id, response, created_at, expires_at from ie_planning_merge_idempotency_ledger where idempotency_key = $1')) {
@@ -1376,6 +1455,264 @@ async function run() {
     assert.strictEqual(ownerRead.ok, true);
     assert.strictEqual(ownerRead.recap.actorId, 'user-1');
     assert.strictEqual(ownerRead.recap.state.summary, 'owner one recap');
+  });
+
+  await test('roadmap workflow artifacts persist structured phase outputs deterministically', async () => {
+    const client = createDurabilityArtifactClient();
+
+    const persisted = await persistRoadmapWorkflowArtifact(client, {
+      actorId: 'user-1',
+      artifact: {
+        artifactId: 'wf-artifact-001',
+        actorId: 'user-1',
+        repoId: 'repo-1',
+        roadmapId: 'RM-core',
+        sliceId: 'RM-core-001',
+        kind: 'roadmap.review.result',
+        phase: 'review',
+        status: 'pass',
+        checksum: 'checksum-001',
+        sourceHarness: 'opencode',
+        sourceModel: 'anthropic/claude-sonnet-4-5',
+        sessionId: 'session-1',
+        body: '# Review\n\nLooks good.\n\n## Structured State\n```json\n{"kind":"roadmap.review.result"}\n```',
+        structuredState: {
+          kind: 'roadmap.review.result',
+          roadmapId: 'RM-core',
+          sliceId: 'RM-core-001',
+          phase: 'review',
+          status: 'pass',
+          requiresUserDecision: true,
+          followUps: [],
+        },
+        createdAt: '2026-05-17T12:00:00.000Z',
+        updatedAt: '2026-05-17T12:05:00.000Z',
+      },
+    });
+
+    assert.strictEqual(persisted.ok, true);
+    assert.strictEqual(persisted.artifact.kind, 'roadmap.review.result');
+    assert.strictEqual(persisted.artifact.phase, 'review');
+    assert.strictEqual(persisted.artifact.repoId, 'repo-1');
+
+    const readResult = await readRoadmapWorkflowArtifact(client, {
+      actorId: 'user-1',
+      artifactId: 'wf-artifact-001',
+    });
+
+    assert.strictEqual(readResult.ok, true);
+    assert.strictEqual(readResult.artifact.roadmapId, 'RM-core');
+    assert.strictEqual(readResult.artifact.structuredState.kind, 'roadmap.review.result');
+  });
+
+  await test('roadmap workflow artifacts without explicit timestamps use write-time timestamps instead of epoch defaults', async () => {
+    const client = createDurabilityArtifactClient();
+
+    const beforeMs = Date.now();
+    const persisted = await persistRoadmapWorkflowArtifact(client, {
+      actorId: 'user-1',
+      artifact: {
+        artifactId: 'wf-artifact-implicit-time',
+        actorId: 'user-1',
+        repoId: 'repo-1',
+        roadmapId: 'RM-core',
+        sliceId: 'RM-core-001',
+        kind: 'roadmap.plan.result',
+        phase: 'plan',
+        status: 'proposed',
+        checksum: 'checksum-implicit-time',
+        body: '# Plan\n\n## Structured State\n```json\n{"kind":"roadmap.plan.result"}\n```',
+        structuredState: {
+          kind: 'roadmap.plan.result',
+          roadmapId: 'RM-core',
+          sliceId: 'RM-core-001',
+          phase: 'plan',
+          status: 'proposed',
+          requiresUserDecision: false,
+          followUps: [],
+        },
+      },
+    });
+    const afterMs = Date.now();
+
+    assert.strictEqual(persisted.ok, true);
+    assert.notStrictEqual(persisted.artifact.createdAt, '1970-01-01T00:00:00.000Z');
+    assert.notStrictEqual(persisted.artifact.updatedAt, '1970-01-01T00:00:00.000Z');
+    assert.ok(Date.parse(persisted.artifact.createdAt) >= beforeMs);
+    assert.ok(Date.parse(persisted.artifact.createdAt) <= afterMs);
+    assert.strictEqual(persisted.artifact.updatedAt, persisted.artifact.createdAt);
+
+    const readResult = await readRoadmapWorkflowArtifact(client, {
+      actorId: 'user-1',
+      artifactId: 'wf-artifact-implicit-time',
+    });
+
+    assert.strictEqual(readResult.ok, true);
+    assert.strictEqual(readResult.artifact.createdAt, persisted.artifact.createdAt);
+    assert.strictEqual(readResult.artifact.updatedAt, persisted.artifact.updatedAt);
+  });
+
+  await test('roadmap workflow artifacts fail-close on cross-owner same-id collision', async () => {
+    const client = createDurabilityArtifactClient();
+
+    const firstWrite = await persistRoadmapWorkflowArtifact(client, {
+      actorId: 'user-1',
+      artifact: {
+        artifactId: 'wf-artifact-collision-001',
+        actorId: 'user-1',
+        roadmapId: 'RM-core',
+        kind: 'roadmap.plan.result',
+        phase: 'plan',
+        status: 'proposed',
+        checksum: 'checksum-a',
+        body: 'body-a',
+        structuredState: { kind: 'roadmap.plan.result' },
+        createdAt: '2026-05-17T12:00:00.000Z',
+        updatedAt: '2026-05-17T12:00:00.000Z',
+      },
+    });
+    assert.strictEqual(firstWrite.ok, true);
+
+    const collisionWrite = await persistRoadmapWorkflowArtifact(client, {
+      actorId: 'user-2',
+      artifact: {
+        artifactId: 'wf-artifact-collision-001',
+        actorId: 'user-2',
+        roadmapId: 'RM-core',
+        kind: 'roadmap.plan.result',
+        phase: 'plan',
+        status: 'proposed',
+        checksum: 'checksum-b',
+        body: 'body-b',
+        structuredState: { kind: 'roadmap.plan.result' },
+        createdAt: '2026-05-17T12:01:00.000Z',
+        updatedAt: '2026-05-17T12:01:00.000Z',
+      },
+    });
+
+    assert.strictEqual(collisionWrite.ok, false);
+    assert.strictEqual(collisionWrite.error.code, 'scope_visibility_denied');
+    assert.strictEqual(collisionWrite.error.reason, 'ownership_conflict');
+  });
+
+  await test('roadmap workflow artifacts list visible artifacts deterministically by roadmap id', async () => {
+    const client = createDurabilityArtifactClient();
+
+    await persistRoadmapWorkflowArtifact(client, {
+      actorId: 'user-1',
+      artifact: {
+        artifactId: 'wf-artifact-older',
+        actorId: 'user-1',
+        repoId: 'repo-1',
+        roadmapId: 'RM-core',
+        sliceId: 'RM-core-001',
+        kind: 'roadmap.plan.result',
+        phase: 'plan',
+        status: 'proposed',
+        checksum: 'checksum-older',
+        body: '# Plan\n\n## Structured State\n```json\n{"kind":"roadmap.plan.result"}\n```',
+        structuredState: {
+          kind: 'roadmap.plan.result',
+          roadmapId: 'RM-core',
+          sliceId: 'RM-core-001',
+          phase: 'plan',
+          status: 'proposed',
+          requiresUserDecision: true,
+          followUps: [],
+        },
+        createdAt: '2026-05-16T12:00:00.000Z',
+        updatedAt: '2026-05-16T12:00:00.000Z',
+      },
+    });
+    await persistRoadmapWorkflowArtifact(client, {
+      actorId: 'user-1',
+      artifact: {
+        artifactId: 'wf-artifact-newer',
+        actorId: 'user-1',
+        repoId: 'repo-1',
+        roadmapId: 'RM-core',
+        sliceId: 'RM-core-001',
+        kind: 'roadmap.review.result',
+        phase: 'review',
+        status: 'pass',
+        checksum: 'checksum-newer',
+        body: '# Review\n\n## Structured State\n```json\n{"kind":"roadmap.review.result"}\n```',
+        structuredState: {
+          kind: 'roadmap.review.result',
+          roadmapId: 'RM-core',
+          sliceId: 'RM-core-001',
+          phase: 'review',
+          status: 'pass',
+          requiresUserDecision: false,
+          followUps: [],
+        },
+        createdAt: '2026-05-17T12:00:00.000Z',
+        updatedAt: '2026-05-17T12:00:00.000Z',
+      },
+    });
+    await persistRoadmapWorkflowArtifact(client, {
+      actorId: 'user-2',
+      artifact: {
+        artifactId: 'wf-artifact-hidden',
+        actorId: 'user-2',
+        repoId: 'repo-1',
+        roadmapId: 'RM-core',
+        sliceId: 'RM-core-002',
+        kind: 'roadmap.plan.result',
+        phase: 'plan',
+        status: 'proposed',
+        checksum: 'checksum-hidden',
+        body: '# Plan\n\n## Structured State\n```json\n{"kind":"roadmap.plan.result"}\n```',
+        structuredState: {
+          kind: 'roadmap.plan.result',
+          roadmapId: 'RM-core',
+          sliceId: 'RM-core-002',
+          phase: 'plan',
+          status: 'proposed',
+          requiresUserDecision: false,
+          followUps: [],
+        },
+        createdAt: '2026-05-18T12:00:00.000Z',
+        updatedAt: '2026-05-18T12:00:00.000Z',
+      },
+    });
+    await persistRoadmapWorkflowArtifact(client, {
+      actorId: 'user-1',
+      artifact: {
+        artifactId: 'wf-artifact-global',
+        actorId: 'user-1',
+        roadmapId: 'RM-core',
+        sliceId: 'RM-core-003',
+        kind: 'roadmap.plan.result',
+        phase: 'plan',
+        status: 'proposed',
+        checksum: 'checksum-global',
+        body: '# Plan\n\n## Structured State\n```json\n{"kind":"roadmap.plan.result"}\n```',
+        structuredState: {
+          kind: 'roadmap.plan.result',
+          roadmapId: 'RM-core',
+          sliceId: 'RM-core-003',
+          phase: 'plan',
+          status: 'proposed',
+          requiresUserDecision: false,
+          followUps: [],
+        },
+        createdAt: '2026-05-19T12:00:00.000Z',
+        updatedAt: '2026-05-19T12:00:00.000Z',
+      },
+    });
+
+    const listed = await listRoadmapWorkflowArtifacts(client, {
+      actorId: 'user-1',
+      repoId: 'repo-1',
+      roadmapId: 'RM-core',
+    });
+
+    assert.strictEqual(listed.ok, true);
+    assert.deepStrictEqual(listed.artifacts.map((artifact) => artifact.artifactId), [
+      'wf-artifact-newer',
+      'wf-artifact-older',
+    ]);
   });
 
   await test('persisted merge idempotency ledger enforces deterministic payload conflicts and TTL expiry', async () => {

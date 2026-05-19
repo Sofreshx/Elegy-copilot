@@ -2,11 +2,88 @@
 
 const {
   PLANNING_API_CONTRACT_VERSION: SHARED_PLANNING_API_CONTRACT_VERSION,
+  computeRoadmapWorkflowArtifactChecksum,
+  CONTINUATION_PACKAGE_CONTRACT_VERSION,
+  parseRoadmapWorkflowMarkdownArtifact,
 } = require('@elegy-copilot/contracts');
 const { buildSessionOrchestrationProjection } = require('../lib/runtimeContracts');
+const continuationPackagesLib = require('../lib/continuationPackages');
 
 function normalizeOptionalString(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function uniqueStrings(values) {
+  const seen = new Set();
+  const result = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = typeof value === 'string' ? value.trim() : '';
+    if (!normalized) {
+      continue;
+    }
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(normalized);
+  }
+  return result;
+}
+
+function buildWorkflowArtifactMemorySyncFailure(error) {
+  return {
+    status: 'failed_open',
+    attempted: 0,
+    synced: 0,
+    errors: [{
+      code: typeof error?.code === 'string' && error.code.trim()
+        ? error.code.trim()
+        : 'planning_workflow_memory_sync_failed',
+      message: String(error && error.message ? error.message : error),
+    }],
+  };
+}
+
+function buildWorkflowArtifactPlanningSyncFailure(error) {
+  return {
+    status: 'failed_closed',
+    attempted: 0,
+    synced: 0,
+    errors: [{
+      code: typeof error?.code === 'string' && error.code.trim()
+        ? error.code.trim()
+        : 'planning_workflow_authority_sync_failed',
+      message: String(error && error.message ? error.message : error),
+    }],
+  };
+}
+
+async function syncPlanningWorkflowArtifactMemory(bridge, artifact) {
+  if (!bridge || typeof bridge.persistArtifact !== 'function') {
+    return null;
+  }
+
+  try {
+    return await bridge.persistArtifact(artifact);
+  } catch (error) {
+    return buildWorkflowArtifactMemorySyncFailure(error);
+  }
+}
+
+async function syncPlanningWorkflowArtifactAuthority(bridge, artifact, options = {}) {
+  if (!bridge || typeof bridge.persistArtifact !== 'function') {
+    return buildWorkflowArtifactPlanningSyncFailure({
+      code: 'planning_workflow_authority_bridge_missing',
+      message: 'elegy-planning authority bridge is required for workflow artifact persistence.',
+    });
+  }
+
+  try {
+    return await bridge.persistArtifact(artifact, options);
+  } catch (error) {
+    return buildWorkflowArtifactPlanningSyncFailure(error);
+  }
 }
 
 function buildPlanningTaskBoardItems(taskRecords) {
@@ -1499,9 +1576,407 @@ function handlePlanningRecapsRead(ctx, deps) {
     }));
 }
 
+function handlePlanningWorkflowArtifactsPersist(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    readJsonBody,
+    buildPlanningRequestContext,
+    resolvePlanningDurabilityWriteAuthority,
+    firstStringValue,
+    persistRoadmapWorkflowArtifact,
+    roadmapWorkflowPlanningBridge,
+    roadmapWorkflowMemoryBridge,
+    resolvePlanningDurabilityArtifactErrorStatusCode,
+    buildPlanningDurabilityArtifactFailureEnvelope,
+    buildPlanningDurabilityPersistenceFailure,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  readJsonBody(req)
+    .then(async (body) => {
+      const payload = body && typeof body === 'object' ? body : {};
+      const context = buildPlanningRequestContext(req, u, payload, planningAuthContext);
+
+      const durabilityAuthority = await resolvePlanningDurabilityWriteAuthority({
+        pathname,
+        method: req.method,
+        planningPersistenceConfig,
+        planningPersistenceState,
+      });
+
+      if (!durabilityAuthority.ok) {
+        sendJson(res, durabilityAuthority.failure.statusCode, durabilityAuthority.failure.body);
+        return;
+      }
+
+      const artifact = payload.artifact && typeof payload.artifact === 'object' ? payload.artifact : payload;
+      const markdownBody = typeof artifact.body === 'string'
+        ? artifact.body
+        : (typeof payload.markdown === 'string' ? payload.markdown : '');
+      const parsedArtifact = markdownBody.trim()
+        ? parseRoadmapWorkflowMarkdownArtifact(markdownBody)
+        : null;
+      const structuredState = artifact.structuredState && typeof artifact.structuredState === 'object'
+        ? artifact.structuredState
+        : (parsedArtifact ? parsedArtifact.artifact : null);
+      const derivedRoadmapId = parsedArtifact ? parsedArtifact.artifact.roadmapId : null;
+      const derivedSliceId = parsedArtifact && parsedArtifact.artifact.sliceId ? parsedArtifact.artifact.sliceId : null;
+      const derivedKind = parsedArtifact ? parsedArtifact.artifact.kind : null;
+      const derivedPhase = parsedArtifact ? parsedArtifact.artifact.phase : null;
+      const derivedStatus = parsedArtifact ? parsedArtifact.artifact.status : null;
+      const derivedHarness = parsedArtifact && parsedArtifact.artifact.sourceHarness ? parsedArtifact.artifact.sourceHarness : null;
+      const derivedModel = parsedArtifact && parsedArtifact.artifact.sourceModel ? parsedArtifact.artifact.sourceModel : null;
+      const derivedSessionId = parsedArtifact && parsedArtifact.artifact.sessionId ? parsedArtifact.artifact.sessionId : null;
+      const checksum = firstStringValue(artifact.checksum)
+        || (markdownBody.trim() ? computeRoadmapWorkflowArtifactChecksum(markdownBody) : '');
+      const artifactId = firstStringValue(artifact.artifactId)
+        || [
+          context.userId,
+          context.repoId || firstStringValue(artifact.repoId) || 'global',
+          firstStringValue(artifact.roadmapId) || derivedRoadmapId || 'roadmap',
+          firstStringValue(artifact.sliceId) || derivedSliceId || 'root',
+          firstStringValue(artifact.kind) || derivedKind || 'artifact',
+          checksum.slice(0, 12),
+        ].join(':');
+      const persisted = await persistRoadmapWorkflowArtifact(durabilityAuthority.authority.client, {
+        actorId: context.userId,
+        artifact: {
+          artifactId,
+          actorId: context.userId,
+          repoId: context.repoId || firstStringValue(artifact.repoId) || null,
+          roadmapId: firstStringValue(artifact.roadmapId) || derivedRoadmapId,
+          sliceId: firstStringValue(artifact.sliceId) || derivedSliceId || null,
+          kind: firstStringValue(artifact.kind) || derivedKind,
+          phase: firstStringValue(artifact.phase) || derivedPhase,
+          status: firstStringValue(artifact.status) || derivedStatus,
+          checksum,
+          sourceHarness: firstStringValue(artifact.sourceHarness) || derivedHarness || null,
+          sourceModel: firstStringValue(artifact.sourceModel) || derivedModel || null,
+          sessionId: firstStringValue(artifact.sessionId) || derivedSessionId || null,
+          body: markdownBody,
+          structuredState,
+          createdAt: artifact.createdAt,
+          updatedAt: artifact.updatedAt,
+        },
+      });
+
+      if (!persisted.ok) {
+        const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(persisted.error, {
+          missingReason: 'missing_artifact_id',
+          invalidCode: 'invalid_planning_workflow_artifact',
+        });
+        const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+          statusCode,
+          error: persisted.error,
+        });
+        sendJson(res, failure.statusCode, failure.body);
+        return;
+      }
+
+      const memorySync = await syncPlanningWorkflowArtifactMemory(
+        roadmapWorkflowMemoryBridge,
+        persisted.artifact,
+      );
+      const elegyPlanningSync = await syncPlanningWorkflowArtifactAuthority(
+        roadmapWorkflowPlanningBridge,
+        persisted.artifact,
+        {
+          requestId: firstStringValue(req.headers['x-request-id']) || persisted.artifact.artifactId,
+        },
+      );
+
+      if (!elegyPlanningSync || elegyPlanningSync.status !== 'synced') {
+        const syncError = Array.isArray(elegyPlanningSync?.errors) && elegyPlanningSync.errors[0]
+          ? elegyPlanningSync.errors[0]
+          : null;
+        const failure = buildPlanningDurabilityPersistenceFailure({
+          pathname,
+          method: req.method,
+          statusCode: 503,
+          code: syncError && typeof syncError.code === 'string' && syncError.code.trim()
+            ? syncError.code.trim()
+            : 'planning_workflow_authority_sync_failed',
+          reason: 'planning_workflow_authority_sync_failed',
+          error: 'Planning durability persistence failed',
+          planningPersistenceConfig,
+          planningPersistenceState,
+        });
+        sendJson(res, failure.statusCode, {
+          ...failure.body,
+          detail: syncError && typeof syncError.message === 'string' && syncError.message.trim()
+            ? syncError.message.trim()
+            : 'Workflow artifact was persisted locally, but elegy-planning authority sync did not complete.',
+          ...(memorySync ? { memorySync } : {}),
+          ...(elegyPlanningSync ? { elegyPlanningSync } : {}),
+        });
+        return;
+      }
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.workflow-artifact.persist',
+        deterministic: true,
+        artifact: persisted.artifact,
+        ...(memorySync ? { memorySync } : {}),
+        ...(elegyPlanningSync ? { elegyPlanningSync } : {}),
+      });
+    })
+    .catch((e) => {
+      const errorCode = String(e && e.code ? e.code : '').trim();
+      const statusCode = Number.isFinite(e && e.statusCode)
+        ? Number(e.statusCode)
+        : (
+          errorCode === 'invalid_markdown'
+          || errorCode === 'missing_structured_state'
+          || errorCode === 'invalid_json'
+          || errorCode === 'invalid_artifact_shape'
+          || errorCode === 'invalid_artifact_kind'
+            ? 400
+            : 503
+        );
+      if (statusCode < 500) {
+        sendJson(res, statusCode, {
+          contractVersion: PLANNING_API_CONTRACT_VERSION,
+          kind: 'planning.workflow-artifact.persist',
+          deterministic: true,
+          error: String(e && e.message ? e.message : e),
+        });
+        return;
+      }
+
+      const failure = buildPlanningDurabilityPersistenceFailure({
+        pathname,
+        method: req.method,
+        statusCode,
+        code: 'planning_persistence_write_failed',
+        reason: 'planning_persistence_write_failed',
+        error: 'Planning durability persistence failed',
+        planningPersistenceConfig,
+        planningPersistenceState,
+      });
+      sendJson(res, failure.statusCode, {
+        ...failure.body,
+        detail: String(e && e.message ? e.message : e),
+      });
+    });
+}
+
+function handlePlanningWorkflowArtifactsRead(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    buildPlanningRequestContext,
+    firstStringValue,
+    resolvePlanningPersistenceOperationClient,
+    readRoadmapWorkflowArtifact,
+    resolvePlanningDurabilityArtifactErrorStatusCode,
+    buildPlanningDurabilityArtifactFailureEnvelope,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
+  const artifactId = firstStringValue(u.searchParams.get('artifactId'));
+
+  const operationAuthority = resolvePlanningPersistenceOperationClient({
+    pathname,
+    method: req.method,
+    planningPersistenceConfig,
+    planningPersistenceState,
+  });
+
+  if (!operationAuthority.ok) {
+    sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+    return;
+  }
+
+  readRoadmapWorkflowArtifact(operationAuthority.authority.client, {
+    actorId: context.userId,
+    artifactId,
+  })
+    .then((result) => {
+      if (!result.ok) {
+        const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(result.error, {
+          missingReason: 'missing_artifact_id',
+          invalidCode: 'invalid_planning_workflow_artifact',
+        });
+        const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+          statusCode,
+          error: result.error,
+        });
+        sendJson(res, failure.statusCode, failure.body);
+        return;
+      }
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.workflow-artifact.read',
+        deterministic: true,
+        artifact: result.artifact,
+      });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 503, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.workflow-artifact.read',
+      deterministic: true,
+      error: {
+        code: 'planning_persistence_read_failed',
+        reason: 'planning_persistence_read_failed',
+      },
+      detail: String(e && e.message ? e.message : e),
+    }));
+}
+
+function handlePlanningWorkflowArtifactContinuationPackage(ctx, deps) {
+  const {
+    req,
+    res,
+    u,
+    pathname,
+    planningPersistenceConfig,
+    planningPersistenceState,
+    planningAuthContext,
+  } = ctx;
+  const {
+    sendJson,
+    buildPlanningRequestContext,
+    firstStringValue,
+    resolvePlanningPersistenceOperationClient,
+    readRoadmapWorkflowArtifact,
+    resolvePlanningDurabilityArtifactErrorStatusCode,
+    buildPlanningDurabilityArtifactFailureEnvelope,
+    continuationPackages,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+
+  const context = buildPlanningRequestContext(req, u, null, planningAuthContext);
+  const artifactId = firstStringValue(u.searchParams.get('artifactId'));
+  const targetHarness = continuationPackages.normalizeTargetHarness(u.searchParams.get('targetHarness') || 'opencode');
+
+  const operationAuthority = resolvePlanningPersistenceOperationClient({
+    pathname,
+    method: req.method,
+    planningPersistenceConfig,
+    planningPersistenceState,
+  });
+
+  if (!operationAuthority.ok) {
+    sendJson(res, operationAuthority.failure.statusCode, operationAuthority.failure.body);
+    return;
+  }
+
+  readRoadmapWorkflowArtifact(operationAuthority.authority.client, {
+    actorId: context.userId,
+    artifactId,
+  })
+    .then((result) => {
+      if (!result.ok) {
+        const statusCode = resolvePlanningDurabilityArtifactErrorStatusCode(result.error, {
+          missingReason: 'missing_artifact_id',
+          invalidCode: 'invalid_planning_workflow_artifact',
+        });
+        const failure = buildPlanningDurabilityArtifactFailureEnvelope(pathname, req.method, {
+          statusCode,
+          error: result.error,
+        });
+        sendJson(res, failure.statusCode, failure.body);
+        return;
+      }
+
+      const artifact = result.artifact;
+      const structuredState = artifact && artifact.structuredState && typeof artifact.structuredState === 'object'
+        ? artifact.structuredState
+        : {};
+      const packageBody = continuationPackages.buildSessionContinuationPackage({
+        kind: 'planning.workflow-artifact.continuation-package',
+        targetHarness,
+        source: {
+          kind: 'planning.workflow-artifact',
+          artifactId: artifact.artifactId,
+          sessionId: artifact.sessionId || null,
+          harness: artifact.sourceHarness || 'copilot',
+          model: artifact.sourceModel || null,
+          sessionSource: null,
+        },
+        repo: {
+          repoId: artifact.repoId || null,
+          repoPath: null,
+          repoLabel: artifact.repoId || null,
+          branch: null,
+        },
+        roadmap: {
+          roadmapId: artifact.roadmapId || null,
+          roadmapIds: artifact.roadmapId ? [artifact.roadmapId] : [],
+          sliceId: artifact.sliceId || null,
+          planRef: null,
+          linkedBacklogIds: [],
+        },
+        objective: artifact.roadmapId || artifact.kind || null,
+        summary: normalizeOptionalString(artifact.body) || normalizeOptionalString(structuredState.suggestedNextAction) || null,
+        constraints: uniqueStrings([
+          ...(structuredState.requiresUserDecision ? ['User decision required before execution can continue.'] : []),
+          ...(Array.isArray(structuredState.acceptance && structuredState.acceptance.failedChecks)
+            ? structuredState.acceptance.failedChecks
+            : []),
+        ]),
+        openQuestions: uniqueStrings([
+          ...(Array.isArray(structuredState.followUps) ? structuredState.followUps : []),
+          ...(structuredState.requiresUserDecision ? ['Confirm the next decision before continuing implementation.'] : []),
+        ]),
+        nextActions: uniqueStrings([
+          structuredState.suggestedNextAction,
+          structuredState.roadmapImpact,
+        ]),
+        carryover: uniqueStrings(Array.isArray(structuredState.followUps) ? structuredState.followUps : []),
+        skillsRequired: uniqueStrings([
+          'implementation-handoff',
+          'roadmap-planning',
+          ...(artifact.phase === 'implementation' || artifact.phase === 'review' ? ['implementation-review'] : []),
+        ]),
+        sourceArtifacts: uniqueStrings(['planning.workflow-artifact']),
+        transcriptExcerpt: [],
+      });
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.workflow-artifact.continuation-package',
+        deterministic: true,
+        continuationPackage: packageBody,
+        continuationContractVersion: CONTINUATION_PACKAGE_CONTRACT_VERSION,
+      });
+    })
+    .catch((e) => sendJson(res, e.statusCode || 503, {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind: 'planning.workflow-artifact.continuation-package',
+      deterministic: true,
+      error: {
+        code: 'planning_persistence_read_failed',
+        reason: 'planning_persistence_read_failed',
+      },
+      detail: String(e && e.message ? e.message : e),
+    }));
+}
+
 function register(deps = {}) {
   const resolvedDeps = {
     ...deps,
+    continuationPackages: deps.continuationPackages || continuationPackagesLib,
     PLANNING_API_CONTRACT_VERSION: SHARED_PLANNING_API_CONTRACT_VERSION,
   };
 
@@ -1590,6 +2065,21 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/planning/recaps',
       handler: (ctx) => handlePlanningRecapsRead(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/planning/workflow-artifacts',
+      handler: (ctx) => handlePlanningWorkflowArtifactsPersist(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/workflow-artifacts',
+      handler: (ctx) => handlePlanningWorkflowArtifactsRead(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/workflow-artifacts/continuation-package',
+      handler: (ctx) => handlePlanningWorkflowArtifactContinuationPackage(ctx, resolvedDeps),
     },
   ];
 }

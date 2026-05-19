@@ -102,6 +102,12 @@ function createFixture() {
   return { tmpRoot, copilotHomeAbs, repoPath };
 }
 
+function roadmapSourcePath(repoPath, slug = 'platform-foundation') {
+  const filePath = path.join(repoPath, 'docs', 'planning', slug, 'index.md');
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  return filePath;
+}
+
 function createRepoInventory(repoPath) {
   const repo = {
     repoId: 'repo-workspace-repo',
@@ -1219,7 +1225,6 @@ async function run() {
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     fs.mkdirSync(path.join(repoPath, 'docs', 'planning'), { recursive: true });
-    fs.mkdirSync(path.join(repoPath, 'docs', 'roadmaps'), { recursive: true });
     fs.writeFileSync(path.join(repoPath, 'docs', 'planning', 'bullets.md'), [
       '# Planning Bullets',
       '',
@@ -1235,7 +1240,7 @@ async function run() {
       '- Promoted to backlog: none',
       '',
     ].join('\n'));
-    fs.writeFileSync(path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md'), [
+    fs.writeFileSync(roadmapSourcePath(repoPath), [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -1287,14 +1292,14 @@ async function run() {
   await test('GET /api/planning/obsidian/representations keeps orphaned roadmap mirrors visible as source-missing after the canonical source is removed', async () => {
     const { copilotHomeAbs, repoPath } = createFixture();
     const vaultPath = path.join(copilotHomeAbs, 'planning-vault');
-    const roadmapSourcePath = path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md');
+    const roadmapSourcePathValue = roadmapSourcePath(repoPath);
     fs.mkdirSync(vaultPath, { recursive: true });
     fs.writeFileSync(path.join(copilotHomeAbs, 'obsidian-planning.json'), JSON.stringify({
       vaultPath,
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     fs.mkdirSync(path.join(repoPath, 'docs', 'planning'), { recursive: true });
-    fs.mkdirSync(path.dirname(roadmapSourcePath), { recursive: true });
+    fs.mkdirSync(path.dirname(roadmapSourcePathValue), { recursive: true });
     fs.writeFileSync(path.join(repoPath, 'docs', 'planning', 'bullets.md'), [
       '# Planning Bullets',
       '',
@@ -1310,7 +1315,7 @@ async function run() {
       '- Promoted to backlog: none',
       '',
     ].join('\n'));
-    fs.writeFileSync(roadmapSourcePath, [
+    fs.writeFileSync(roadmapSourcePathValue, [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -1361,8 +1366,8 @@ async function run() {
     );
     const orphanedMirrorContent = fs.readFileSync(roadmapMirrorPath, 'utf8');
 
-    fs.unlinkSync(roadmapSourcePath);
-    assert.equal(fs.existsSync(roadmapSourcePath), false);
+    fs.unlinkSync(roadmapSourcePathValue);
+    assert.equal(fs.existsSync(roadmapSourcePathValue), false);
 
     const listed = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/representations');
     const listedBody = parseJsonBody(listed.res);
@@ -1398,7 +1403,6 @@ async function run() {
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     fs.mkdirSync(path.join(repoPath, 'docs', 'planning'), { recursive: true });
-    fs.mkdirSync(path.join(repoPath, 'docs', 'roadmaps'), { recursive: true });
     fs.writeFileSync(path.join(repoPath, 'docs', 'planning', 'bullets.md'), [
       '# Planning Bullets',
       '',
@@ -1414,7 +1418,7 @@ async function run() {
       '- Promoted to backlog: none',
       '',
     ].join('\n'));
-    fs.writeFileSync(path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md'), [
+    fs.writeFileSync(roadmapSourcePath(repoPath), [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -1491,7 +1495,6 @@ async function run() {
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     fs.mkdirSync(path.join(repoPath, 'docs', 'planning'), { recursive: true });
-    fs.mkdirSync(path.join(repoPath, 'docs', 'roadmaps'), { recursive: true });
     fs.writeFileSync(path.join(repoPath, 'docs', 'planning', 'bullets.md'), [
       '# Planning Bullets',
       '',
@@ -1507,7 +1510,7 @@ async function run() {
       '- Promoted to backlog: none',
       '',
     ].join('\n'));
-    fs.writeFileSync(path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md'), [
+    fs.writeFileSync(roadmapSourcePath(repoPath), [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -1566,9 +1569,9 @@ async function run() {
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     const bulletsSourcePath = path.join(repoPath, 'docs', 'planning', 'bullets.md');
-    const roadmapSourcePath = path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md');
+    const roadmapSourcePathValue = roadmapSourcePath(repoPath);
     fs.mkdirSync(path.dirname(bulletsSourcePath), { recursive: true });
-    fs.mkdirSync(path.dirname(roadmapSourcePath), { recursive: true });
+    fs.mkdirSync(path.dirname(roadmapSourcePathValue), { recursive: true });
     fs.writeFileSync(bulletsSourcePath, [
       '# Planning Bullets',
       '',
@@ -1584,7 +1587,7 @@ async function run() {
       '- Promoted to backlog: none',
       '',
     ].join('\n'));
-    fs.writeFileSync(roadmapSourcePath, [
+    fs.writeFileSync(roadmapSourcePathValue, [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -1635,7 +1638,7 @@ async function run() {
     const roadmapMirrorMtimeBefore = fs.statSync(roadmapMirrorPath).mtimeMs;
     const sourceFutureTime = new Date('2026-03-24T12:00:00.000Z');
     fs.utimesSync(bulletsSourcePath, sourceFutureTime, sourceFutureTime);
-    fs.utimesSync(roadmapSourcePath, sourceFutureTime, sourceFutureTime);
+    fs.utimesSync(roadmapSourcePathValue, sourceFutureTime, sourceFutureTime);
 
     const listed = await invoke(routes, { copilotHomeAbs }, 'GET', '/api/planning/obsidian/representations');
     const listBody = parseJsonBody(listed.res);
@@ -1666,7 +1669,6 @@ async function run() {
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     fs.mkdirSync(path.join(repoPath, 'docs', 'planning'), { recursive: true });
-    fs.mkdirSync(path.join(repoPath, 'docs', 'roadmaps'), { recursive: true });
     fs.writeFileSync(path.join(repoPath, 'docs', 'planning', 'bullets.md'), [
       '# Planning Bullets',
       '',
@@ -1682,7 +1684,7 @@ async function run() {
       '- Promoted to backlog: none',
       '',
     ].join('\n'));
-    fs.writeFileSync(path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md'), [
+    fs.writeFileSync(roadmapSourcePath(repoPath), [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -1965,9 +1967,8 @@ async function run() {
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     fs.mkdirSync(path.join(otherRepoPath, 'docs', 'planning'), { recursive: true });
-    fs.mkdirSync(path.join(otherRepoPath, 'docs', 'roadmaps'), { recursive: true });
     fs.writeFileSync(path.join(otherRepoPath, 'docs', 'planning', 'bullets.md'), '# Planning Bullets\n');
-    fs.writeFileSync(path.join(otherRepoPath, 'docs', 'roadmaps', 'platform-foundation.md'), [
+    fs.writeFileSync(roadmapSourcePath(otherRepoPath), [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -2023,14 +2024,13 @@ async function run() {
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     fs.mkdirSync(path.join(repoPath, 'docs', 'planning'), { recursive: true });
-    fs.mkdirSync(path.join(repoPath, 'docs', 'roadmaps'), { recursive: true });
     fs.writeFileSync(path.join(repoPath, 'docs', 'planning', 'bullets.md'), [
       '# Planning Bullets',
       '',
       'Repository-scoped bullet seeds for future planning sessions.',
       '',
     ].join('\n'));
-    fs.writeFileSync(path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md'), [
+    fs.writeFileSync(roadmapSourcePath(repoPath), [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -2119,14 +2119,13 @@ async function run() {
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     fs.mkdirSync(path.join(repoPath, 'docs', 'planning'), { recursive: true });
-    fs.mkdirSync(path.join(repoPath, 'docs', 'roadmaps'), { recursive: true });
     fs.writeFileSync(path.join(repoPath, 'docs', 'planning', 'bullets.md'), [
       '# Planning Bullets',
       '',
       'Initial bullet mirror source.',
       '',
     ].join('\n'));
-    fs.writeFileSync(path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md'), [
+    fs.writeFileSync(roadmapSourcePath(repoPath), [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -2173,7 +2172,7 @@ async function run() {
       'Updated bullet mirror source that would be written first.',
       '',
     ].join('\n'));
-    fs.writeFileSync(path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md'), [
+    fs.writeFileSync(roadmapSourcePath(repoPath), [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -2201,7 +2200,7 @@ async function run() {
       'ie_external: true',
       'ie_canonical_authority: false',
       'ie_roadmap_slug: platform-foundation',
-      'ie_source_repo_relative_path: docs/roadmaps/platform-foundation.md',
+      'ie_source_repo_relative_path: docs/planning/platform-foundation/index.md',
       'ie_source_content_hash: drifted',
       'ie_generated_at: 2026-03-23T00:00:00.000Z',
       'ie_rendered_content_hash: drifted',
@@ -2248,14 +2247,13 @@ async function run() {
       notesPathTemplate: 'Planning/{repoId}',
     }, null, 2));
     fs.mkdirSync(path.join(repoPath, 'docs', 'planning'), { recursive: true });
-    fs.mkdirSync(path.join(repoPath, 'docs', 'roadmaps'), { recursive: true });
     fs.writeFileSync(path.join(repoPath, 'docs', 'planning', 'bullets.md'), [
       '# Planning Bullets',
       '',
       'Initial bullet mirror source.',
       '',
     ].join('\n'));
-    fs.writeFileSync(path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md'), [
+    fs.writeFileSync(roadmapSourcePath(repoPath), [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -2302,7 +2300,7 @@ async function run() {
       'Updated bullet mirror source that should remain unapplied.',
       '',
     ].join('\n'));
-    fs.writeFileSync(path.join(repoPath, 'docs', 'roadmaps', 'platform-foundation.md'), [
+    fs.writeFileSync(roadmapSourcePath(repoPath), [
       '---',
       'doc_kind: roadmap',
       'roadmap_slug: platform-foundation',
@@ -2330,7 +2328,7 @@ async function run() {
       'ie_external: true',
       'ie_canonical_authority: false',
       'ie_roadmap_slug: platform-foundation',
-      'ie_source_repo_relative_path: docs/roadmaps/platform-foundation.md',
+      'ie_source_repo_relative_path: docs/planning/platform-foundation/index.md',
       'ie_source_content_hash: drifted',
       'ie_generated_at: 2026-03-23T00:00:00.000Z',
       'ie_rendered_content_hash: drifted',

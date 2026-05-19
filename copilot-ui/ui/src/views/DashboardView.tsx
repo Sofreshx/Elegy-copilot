@@ -192,7 +192,7 @@ export default function DashboardView() {
                 repoLabel={session.repoLabel || undefined}
                 status={normalizeStatus(session.status)}
                 elapsed={formatElapsed(session.elapsedMs)}
-                onSelect={(id) => navigationStore.selectSession(id)}
+                onSelect={(id) => navigationStore.selectSession(id, 'activity', { source: session.source })}
                 testId={`execution-hub-session-${session.sessionId}`}
               />
             ))}
@@ -213,7 +213,7 @@ export default function DashboardView() {
                 repoLabel={session.repoLabel || undefined}
                 status={normalizeStatus(session.status)}
                 elapsed={formatElapsed(session.elapsedMs)}
-                onSelect={(id) => navigationStore.selectSession(id)}
+                onSelect={(id) => navigationStore.selectSession(id, 'activity', { source: session.source })}
                 testId={`execution-hub-session-${session.sessionId}`}
               />
             ))}

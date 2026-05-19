@@ -5,7 +5,9 @@ import {
   getSessionProposition,
   getSessionVerificationGuide,
   getSessionAgentUsage,
+  getSessionContinuationPackage,
   listSessionPlans,
+  listSessionsWorkspace,
   getSessionEvents,
   getSessionPlanById,
   sendSdkMessage,
@@ -26,7 +28,35 @@ import type {
   SessionAgentUsageResponse,
   ToolCallBlock,
   PendingQuestion,
+  SessionsWorkspaceEntry,
 } from '../../lib/types';
+
+type SessionArtifactSource = 'cli' | 'vscode' | 'sandbox';
+type ContinuationTargetHarness = 'codex' | 'opencode';
+type ContinuationActionMode = 'copy' | 'download';
+type PendingQuestionOption = NonNullable<PendingQuestion['options']>[number];
+
+function normalizeSdkMessageRole(value: unknown): SdkMessageEntry['role'] {
+  const normalized = asNonEmptyString(value)?.toLowerCase();
+  if (normalized === 'user' || normalized === 'assistant' || normalized === 'system' || normalized === 'tool') {
+    return normalized;
+  }
+  return 'unknown';
+}
+
+function normalizeSdkMessageStatus(value: unknown): SdkMessageEntry['status'] {
+  const normalized = asNonEmptyString(value)?.toLowerCase();
+  if (normalized === 'streaming' || normalized === 'complete' || normalized === 'error') {
+    return normalized;
+  }
+  return 'complete';
+}
+
+function asRecordOrUndefined(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
 
 export interface SessionDetailState {
   sessionId: string | null;
@@ -59,6 +89,7 @@ export interface SessionDetailState {
   isRemote: boolean;
   remoteUrl: string | null;
   remoteSessionId: string | null;
+  continuationActionKey: string | null;
 }
 
 const INITIAL_STATE: SessionDetailState = {
@@ -92,7 +123,80 @@ const INITIAL_STATE: SessionDetailState = {
   isRemote: false,
   remoteUrl: null,
   remoteSessionId: null,
+  continuationActionKey: null,
 };
+
+function asNonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizeSessionArtifactSource(value: unknown): SessionArtifactSource | null {
+  const normalized = asNonEmptyString(value)?.toLowerCase();
+  if (normalized === 'cli' || normalized === 'vscode' || normalized === 'sandbox') {
+    return normalized;
+  }
+  return null;
+}
+
+function findWorkspaceSessionEntry(entries: SessionsWorkspaceEntry[], sessionId: string): SessionsWorkspaceEntry | null {
+  return entries.find((entry) => entry.sessionId === sessionId)
+    ?? entries.find((entry) => entry.linkedSessionId === sessionId)
+    ?? null;
+}
+
+async function resolveSessionArtifactLocator(
+  sessionId: string,
+  source?: string,
+  sandbox?: string
+): Promise<{ source?: SessionArtifactSource; sandbox?: string }> {
+  const normalizedSource = normalizeSessionArtifactSource(source);
+  const normalizedSandbox = normalizedSource === 'sandbox'
+    ? asNonEmptyString(sandbox) ?? undefined
+    : undefined;
+
+  if (normalizedSource) {
+    return {
+      source: normalizedSource,
+      sandbox: normalizedSandbox,
+    };
+  }
+
+  try {
+    const workspace = await listSessionsWorkspace();
+    const entry = findWorkspaceSessionEntry(
+      [...workspace.active, ...workspace.history],
+      sessionId,
+    );
+    const workspaceSource = normalizeSessionArtifactSource(entry?.detail?.source ?? entry?.source);
+    if (!workspaceSource) {
+      return {};
+    }
+    return {
+      source: workspaceSource,
+      sandbox: workspaceSource === 'sandbox'
+        ? asNonEmptyString(entry?.detail?.sandbox) ?? undefined
+        : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function buildContinuationActionKey(mode: ContinuationActionMode, targetHarness: ContinuationTargetHarness): string {
+  return `${mode}:${targetHarness}`;
+}
+
+function formatContinuationHarnessLabel(targetHarness: ContinuationTargetHarness): string {
+  return targetHarness === 'opencode' ? 'OpenCode' : 'Codex';
+}
+
+function sanitizeFilenameSegment(value: string): string {
+  return value.replace(/[^a-zA-Z0-9._-]+/g, '-');
+}
+
+function buildContinuationFilename(sessionId: string, targetHarness: ContinuationTargetHarness): string {
+  return `${sanitizeFilenameSegment(sessionId)}-${targetHarness}-continuation-package.json`;
+}
 
 function isOrchestrationProjection(
   value: unknown
@@ -264,11 +368,25 @@ function createSessionDetailStore() {
       pendingQuestions: [],
       planContents: {},
       sendError: null,
-      lastFailedPrompt: null,
-      lastFailedMessageId: null,
+        lastFailedPrompt: null,
+        lastFailedMessageId: null,
+      }));
+
+    const locator = await resolveSessionArtifactLocator(sessionId, source, sandbox);
+    const resolvedSource = locator.source;
+    const resolvedSandbox = locator.sandbox;
+
+    if (store.getState().sessionId !== sessionId) {
+      return;
+    }
+
+    store.setState((s) => ({
+      ...s,
+      sessionSource: resolvedSource ?? null,
+      sessionSandbox: resolvedSandbox ?? null,
     }));
 
-    const opts = { source, sandbox };
+    const opts = { source: resolvedSource, sandbox: resolvedSandbox };
 
     const results = await Promise.allSettled([
       getSessionStructuredState(sessionId, opts),
@@ -368,14 +486,14 @@ function createSessionDetailStore() {
       if (eventData.id && eventData.role) {
         const entry: SdkMessageEntry = {
           id: String(eventData.id),
-          role: eventData.role as string ?? 'unknown',
+          role: normalizeSdkMessageRole(eventData.role),
           content: String(eventData.content ?? ''),
           reasoning: eventData.reasoning ? String(eventData.reasoning) : undefined,
           createdAtMs:
             typeof eventData.createdAtMs === 'number'
               ? eventData.createdAtMs
               : Date.now(),
-          status: (eventData.status as string) ?? 'complete',
+          status: normalizeSdkMessageStatus(eventData.status),
           eventType: eventData.eventType as string | undefined,
         };
 
@@ -402,7 +520,7 @@ function createSessionDetailStore() {
         const block: ToolCallBlock = {
           toolCallId: String(eventData.toolCallId),
           toolName: String(eventData.toolName ?? 'unknown'),
-          arguments: eventData.arguments ?? undefined,
+          arguments: asRecordOrUndefined(eventData.arguments),
           status: 'executing',
           startedAtMs: typeof eventData.startedAtMs === 'number'
             ? eventData.startedAtMs
@@ -442,7 +560,7 @@ function createSessionDetailStore() {
                 {
                   toolCallId,
                   toolName: String(eventData.toolName ?? 'unknown'),
-                  arguments: eventData.arguments ?? undefined,
+                  arguments: asRecordOrUndefined(eventData.arguments),
                   output,
                   status: 'completed' as const,
                   startedAtMs: completedAtMs,
@@ -468,7 +586,16 @@ function createSessionDetailStore() {
           questionId: String(eventData.toolCallId || `q-${Date.now()}`),
           toolCallId: String(eventData.toolCallId || ''),
           question: String(eventData.question || ''),
-          options: Array.isArray(eventData.options) ? eventData.options : undefined,
+          options: Array.isArray(eventData.options)
+            ? eventData.options.filter((option): option is PendingQuestionOption => {
+                return Boolean(
+                  option
+                  && typeof option === 'object'
+                  && typeof (option as { label?: unknown }).label === 'string'
+                  && typeof (option as { value?: unknown }).value === 'string'
+                );
+              })
+            : undefined,
           askedAtMs: Date.now(),
           answered: false,
         };
@@ -838,6 +965,111 @@ function createSessionDetailStore() {
     }
   }
 
+  async function fetchContinuationPackage(targetHarness: ContinuationTargetHarness) {
+    const { sessionId, sessionSource, sessionSandbox } = store.getState();
+    if (!sessionId) {
+      throw new Error('No session selected.');
+    }
+
+    return getSessionContinuationPackage(sessionId, {
+      source: sessionSource ?? undefined,
+      sandbox: sessionSandbox ?? undefined,
+      targetHarness,
+    });
+  }
+
+  async function copyContinuationPrompt(targetHarness: ContinuationTargetHarness): Promise<void> {
+    if (typeof navigator === 'undefined' || typeof navigator.clipboard?.writeText !== 'function') {
+      notificationStore.error('Continuation copy failed', {
+        message: 'Clipboard access is unavailable in this environment.',
+      });
+      return;
+    }
+
+    const actionKey = buildContinuationActionKey('copy', targetHarness);
+    store.setState((s) => ({ ...s, continuationActionKey: actionKey }));
+
+    try {
+      const continuationPackage = await fetchContinuationPackage(targetHarness);
+      await navigator.clipboard.writeText(continuationPackage.prompt.text);
+      notificationStore.success('Continuation prompt copied', {
+        message: `${formatContinuationHarnessLabel(targetHarness)} continuation prompt copied to the clipboard.`,
+      });
+    } catch (err) {
+      notificationStore.error('Continuation copy failed', {
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      store.setState((s) => (
+        s.continuationActionKey === actionKey
+          ? { ...s, continuationActionKey: null }
+          : s
+      ));
+    }
+  }
+
+  async function downloadContinuationPackage(targetHarness: ContinuationTargetHarness): Promise<void> {
+    const { sessionId } = store.getState();
+    if (!sessionId) {
+      notificationStore.error('Continuation export failed', {
+        message: 'No session selected.',
+      });
+      return;
+    }
+
+    if (
+      typeof window === 'undefined'
+      || typeof document === 'undefined'
+      || typeof Blob === 'undefined'
+      || typeof window.URL?.createObjectURL !== 'function'
+      || typeof window.URL?.revokeObjectURL !== 'function'
+    ) {
+      notificationStore.error('Continuation export failed', {
+        message: 'File downloads are unavailable in this environment.',
+      });
+      return;
+    }
+
+    const actionKey = buildContinuationActionKey('download', targetHarness);
+    store.setState((s) => ({ ...s, continuationActionKey: actionKey }));
+
+    try {
+      const continuationPackage = await fetchContinuationPackage(targetHarness);
+      const fileName = buildContinuationFilename(sessionId, targetHarness);
+      const blob = new Blob([JSON.stringify(continuationPackage, null, 2)], {
+        type: 'application/json',
+      });
+      const objectUrl = window.URL.createObjectURL(blob);
+
+      try {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        if (document.body) {
+          document.body.appendChild(link);
+        }
+        link.click();
+        link.remove();
+      } finally {
+        window.URL.revokeObjectURL(objectUrl);
+      }
+
+      notificationStore.success('Continuation package exported', {
+        message: `Downloaded ${fileName}.`,
+      });
+    } catch (err) {
+      notificationStore.error('Continuation export failed', {
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      store.setState((s) => (
+        s.continuationActionKey === actionKey
+          ? { ...s, continuationActionKey: null }
+          : s
+      ));
+    }
+  }
+
   async function loadPlanContent(planId: string): Promise<void> {
     const { sessionId, sessionSource, sessionSandbox, planContents } = store.getState();
     if (!sessionId || planContents[planId] !== undefined) return;
@@ -880,6 +1112,8 @@ function createSessionDetailStore() {
     dismissSendError,
     stopSession,
     refreshSession,
+    copyContinuationPrompt,
+    downloadContinuationPackage,
     loadPlanContent,
     pauseStream,
     resumeStream,

@@ -3,7 +3,6 @@ import { Panel } from '../../components';
 import GatewayView from '../../tabs/Gateway/GatewayView';
 import LspView from '../../tabs/LSP/LspView';
 import StatsView from '../../tabs/Stats/StatsView';
-import TrackerView from '../../tabs/Tracker/TrackerView';
 
 interface DiagnosticSection {
   id: string;
@@ -14,7 +13,6 @@ interface DiagnosticSection {
 const SECTIONS: DiagnosticSection[] = [
   { id: 'stats', label: 'Runtime & Stats', content: <StatsView /> },
   { id: 'gateway', label: 'Gateway', content: <GatewayView /> },
-  { id: 'tracker', label: 'Tracker', content: <TrackerView /> },
   { id: 'lsp', label: 'LSP', content: <LspView /> },
 ];
 
@@ -22,7 +20,6 @@ export default function DiagnosticsPanel() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     stats: true,
     gateway: false,
-    tracker: false,
     lsp: false,
   });
 

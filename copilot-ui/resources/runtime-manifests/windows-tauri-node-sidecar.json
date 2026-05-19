@@ -41,12 +41,6 @@
       "target": "copilot-ui/routes"
     },
     {
-      "id": "copilot-ui-public",
-      "kind": "directory",
-      "source": "public",
-      "target": "copilot-ui/public"
-    },
-    {
       "id": "copilot-ui-ui-dist",
       "kind": "directory",
       "source": "ui-dist",
@@ -107,8 +101,7 @@
         "cli-*.sh",
         "mcp-env.ps1",
         "mcp-env.sh",
-        "validate-policy-lockfiles.js",
-        "vscode-settings-patch.mjs"
+        "validate-policy-lockfiles.js"
       ]
     },
     {

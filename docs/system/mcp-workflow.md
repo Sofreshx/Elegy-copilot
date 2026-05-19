@@ -21,36 +21,25 @@ This guide explains how Instruction Engine integrates MCP providers without load
 
 ## Recommended Workflow
 
-1. Open the Skill Installer sidebar.
-2. Go to Operations -> MCP Providers.
-3. Enable only the provider you need for the current task.
-4. Store MCP secrets outside the repo (for example, `~/.config/instruction-engine/mcp.env`) or set `MCP_ENV_FILE`.
-5. Launch VS Code from `scripts/mcp-env.sh` (macOS/Linux) or
-  `scripts/mcp-env.ps1` (Windows) so MCP env vars are loaded.
-6. Review or edit provider settings in VS Code settings.
-7. Sync MCP config (auto-sync is enabled by default).
-8. Use the provider-specific agent or skill.
-9. Disable the provider when done.
+1. Open the desktop Catalog status surface.
+2. Enable only the external source/provider you need for the current task.
+3. Store MCP secrets outside the repo (for example, `~/.config/instruction-engine/mcp.env`) or set `MCP_ENV_FILE`.
+4. Use the provider-specific agent or skill through the desktop runtime.
+5. Disable the provider when done.
 
 ### GitHub access default
 
-- **Copilot CLI sessions** already expose built-in read-only GitHub MCP tools.
-- **VS Code/workspace sessions** should add a GitHub entry to `.vscode/mcp.json` and keep credentials in the
-  external MCP env file rather than in the repository.
-- The recommended local token env var for the GitHub workspace lane is `GITHUB_MCP_PAT`.
-- In CI, map `GITHUB_MCP_PAT` from `GITHUB_TOKEN` or another least-privilege secret instead of committing
-  credentials into `mcp.json`.
+- Desktop sessions should rely on configured external sources or the managed runtime's own connector surface.
+- Keep credentials in external env files or OS-level secret storage, not repo files.
 
 ## MCP Config Location
 
-The extension writes to the path configured in:
-
-- `skillInstaller.mcp.configPath` (default: `.vscode/mcp.json`)
+MCP config is managed by the selected external source/provider integration. The desktop app no longer writes a VS Code workspace MCP file as part of runtime health or setup.
 
 ## Local MCP Env
 
 Store local MCP secrets outside the repo (for example, `~/.config/instruction-engine/mcp.env`).
-Use the helper scripts to load env vars before opening VS Code:
+Use the helper scripts to load env vars before running local tooling:
 
 - macOS/Linux: `./scripts/mcp-env.sh`
 - Windows (PowerShell): `./scripts/mcp-env.ps1`
@@ -61,8 +50,7 @@ You can also pass a command to the scripts to run tools in the same env.
 
 ## Provider Defaults
 
-The extension ships with safe defaults in `skillInstaller.mcp.providers`.
-Adjust any provider config through VS Code settings.
+Provider defaults live with the desktop Catalog/source integration.
 
 ### Supabase
 
@@ -88,36 +76,9 @@ Adjust any provider config through VS Code settings.
 
 ### GitHub
 
-- **CLI**: use the built-in `github-mcp-server` read-only tool surface during Copilot CLI sessions.
-- **VS Code/workspace**: use the hosted GitHub MCP endpoint and store auth in external env files.
-- Recommended local token env var: `GITHUB_MCP_PAT`.
+- Use the desktop runtime's configured GitHub connector/external source.
+- Keep tokens in external env files or OS-level secret storage.
 - Recommended read-only scopes: repository metadata/contents, pull requests, issues, and Actions.
-
-Workspace MCP example:
-
-```json
-{
-  "mcpServers": {
-    "github": {
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/",
-      "headers": {
-        "Authorization": "Bearer ${env:GITHUB_MCP_PAT}"
-      }
-    }
-  }
-}
-```
-
-CI snippet (GitHub Actions example):
-
-```yaml
-env:
-  GITHUB_MCP_PAT: ${{ github.token }}
-```
-
-Use the Home / Runtime diagnostics view to patch `.vscode/mcp.json`, then launch VS Code through
-`scripts/mcp-env.ps1` or `scripts/mcp-env.sh` so the token is present in the MCP client process.
 
 ## Supabase MCP
 

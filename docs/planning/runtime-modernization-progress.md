@@ -41,7 +41,7 @@ This workstream covers five linked runtime improvements:
 
 - Added stable scrollbar reservation in `copilot-ui/ui/src/styles/global.css`.
 - Added a non-wrapping stable runtime workspace-nav variant in `copilot-ui/ui/src/app.css`.
-- Opted the Home / Runtime primary and diagnostics sub-nav rows into that stable variant in `copilot-ui/ui/src/tabs/HomeRuntime/HomeRuntimeView.tsx`.
+- Historical note: the retired runtime tab previously used the stable workspace-nav variant before the desktop sidebar became canonical.
 - Added a smoke assertion covering the new layout contract in `copilot-ui/tests/ui-react-smoke.test.js`.
 
 ### Startup managed-asset reconciliation

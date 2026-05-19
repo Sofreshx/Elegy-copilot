@@ -16,7 +16,7 @@ legacy compatibility during migration, set `TRACKER_ENABLE_LEGACY_TASK_SURFACE=t
 watching that repo-local path as a bounded compatibility shim. The tracker now logs that opt-in
 explicitly so repo-local task watching is not mistaken for a peer authority.
 
-It also exposes a local WebSocket server (default `127.0.0.1:9821`) for local runtime clients plus a local-only status dashboard on `127.0.0.1:9822`.
+It also exposes a local-only status dashboard on `127.0.0.1:9822`.
 
 The tracker stays loopback-only for these local surfaces. Obsidian monitoring only reads local files and
 broadcasts the resulting events to connected local clients; it does not open any additional remote
@@ -100,7 +100,6 @@ All configuration is via environment variables:
 | `TRACKER_WORKSPACE_PATHS` | `.` | Comma-separated workspace paths to watch |
 | `TRACKER_RELAY_URL` | — | Cloud relay WebSocket URL |
 | `TRACKER_RELAY_TOKEN` | — | Auth token for the relay (see [Authentication](#authentication)) |
-| `TRACKER_WS_PORT` | `9821` | Local WebSocket server port (bound to `127.0.0.1` only) |
 | `TRACKER_STATUS_PORT` | `9822` | Local status dashboard port (bound to `127.0.0.1` only) |
 | `TRACKER_WATCH_INTERVAL` | `2000` | Polling interval in ms |
 | `TRACKER_OBSIDIAN_NOTE_PATHS` | — | Comma-separated local note file paths to poll for optional Obsidian note updates |

@@ -7,11 +7,16 @@ import type {
   CatalogAuditEventsResponse,
   CatalogBundleUninstallResponse,
   CatalogBundlesResponse,
+  CatalogContentQuery,
   CatalogProviderInstallResponse,
   CatalogRefreshResponse,
   CatalogRepoMutationResponse,
   CatalogRepoScanRootsMutationResponse,
   CatalogReposListResponse,
+  CatalogSourceDetailResponse,
+  CatalogSourceInstallableMutationResponse,
+  CatalogSourceMutationResponse,
+  CatalogSourcesListResponse,
   CatalogSearchRequest,
   CatalogSearchResponse,
   CatalogSearchSelectionPayload,
@@ -43,6 +48,9 @@ import type {
   CatalogRepoInventoryQuery,
   CatalogRepoMutationPayload,
   CatalogRepoScanRootsPayload,
+  CatalogSourceAddPayload,
+  CatalogSourceIdPayload,
+  CatalogSourceInstallableMutationPayload,
   CatalogSelectorQuery,
 } from './core';
 
@@ -50,6 +58,102 @@ export function getCatalogSummary(query: CatalogSelectorQuery = {}, baseUrl?: st
   return apiRequest<CatalogSummaryResponse>('/api/catalog/summary', {
     baseUrl,
     query: buildCatalogSelectorQuery(query),
+  });
+}
+
+export function getCatalogContent(query: CatalogContentQuery, baseUrl?: string): Promise<string> {
+  return apiRequest<string>('/api/catalog/content', {
+    baseUrl,
+    query: {
+      mode: query.mode,
+      path: query.path,
+      sourceId: query.sourceId,
+    },
+  });
+}
+
+export function getCatalogSources(baseUrl?: string): Promise<CatalogSourcesListResponse> {
+  return apiRequest<CatalogSourcesListResponse>('/api/catalog/sources', {
+    baseUrl,
+  });
+}
+
+export function getCatalogSourceDetail(
+  sourceId: string,
+  baseUrl?: string
+): Promise<CatalogSourceDetailResponse> {
+  return apiRequest<CatalogSourceDetailResponse>(`/api/catalog/sources/${encodeURIComponent(sourceId)}`, {
+    baseUrl,
+  });
+}
+
+export function addCatalogSource(
+  payload: CatalogSourceAddPayload,
+  baseUrl?: string
+): Promise<CatalogSourceMutationResponse> {
+  return apiRequest<CatalogSourceMutationResponse>('/api/catalog/sources/add', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function removeCatalogSource(
+  payload: CatalogSourceIdPayload,
+  baseUrl?: string
+): Promise<CatalogSourceMutationResponse> {
+  return apiRequest<CatalogSourceMutationResponse>('/api/catalog/sources/remove', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function refreshCatalogSource(
+  payload: CatalogSourceIdPayload,
+  baseUrl?: string
+): Promise<CatalogSourceMutationResponse> {
+  return apiRequest<CatalogSourceMutationResponse>('/api/catalog/sources/refresh', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function activateCatalogSourceInstallable(
+  payload: CatalogSourceInstallableMutationPayload,
+  baseUrl?: string
+): Promise<CatalogSourceInstallableMutationResponse> {
+  return apiRequest<CatalogSourceInstallableMutationResponse>('/api/catalog/sources/activate', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deactivateCatalogSourceInstallable(
+  payload: CatalogSourceInstallableMutationPayload,
+  baseUrl?: string
+): Promise<CatalogSourceInstallableMutationResponse> {
+  return apiRequest<CatalogSourceInstallableMutationResponse>('/api/catalog/sources/deactivate', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
   });
 }
 

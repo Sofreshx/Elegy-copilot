@@ -41,7 +41,26 @@ function withTempDir(fn) {
   try {
     fn(dir);
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    removeDirWithRetry(dir);
+  }
+}
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function removeDirWithRetry(dir) {
+  const maxAttempts = 30;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+      return;
+    } catch (error) {
+      if (!['EBUSY', 'ENOTEMPTY', 'EPERM'].includes(error && error.code) || attempt === maxAttempts) {
+        throw error;
+      }
+      sleep(100);
+    }
   }
 }
 
@@ -139,7 +158,7 @@ function runPowerShellSessionStart(payload, env) {
 function runBashPreToolUse(payload, env) {
   return childProcess.execFileSync(
     'bash',
-    [PRE_TOOL_USE_SH],
+    ['-lc', buildBashScriptCommand(payload.cwd, PRE_TOOL_USE_SH)],
     {
       cwd: payload.cwd,
       env: {
@@ -156,7 +175,7 @@ function runBashPreToolUse(payload, env) {
 function runBashSessionStart(payload, env) {
   return childProcess.execFileSync(
     'bash',
-    [SESSION_START_SH],
+    ['-lc', buildBashScriptCommand(payload.cwd, SESSION_START_SH)],
     {
       cwd: payload.cwd,
       env: {
@@ -176,6 +195,15 @@ function parseDenyJson(output) {
   return JSON.parse(trimmed);
 }
 
+function buildBashScriptCommand(cwd, scriptPath) {
+  const relativePath = path.relative(cwd, scriptPath).replace(/\\/g, '/');
+  return `${quoteForBash(relativePath)} <&0`;
+}
+
+function quoteForBash(value) {
+  return `'${String(value).replace(/'/g, `'"'"'`)}'`;
+}
+
 function hasCommand(command) {
   try {
     childProcess.execFileSync(command, ['--version'], { stdio: 'ignore' });
@@ -185,7 +213,20 @@ function hasCommand(command) {
   }
 }
 
-const canRunBashPath = hasCommand('bash') && hasCommand('python');
+function bashHasSupportedPython() {
+  try {
+    childProcess.execFileSync(
+      'bash',
+      ['-lc', 'command -v python3 >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || command -v python.exe >/dev/null 2>&1 || command -v py.exe >/dev/null 2>&1 || command -v py >/dev/null 2>&1'],
+      { stdio: 'ignore' }
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const canRunBashPath = hasCommand('bash') && bashHasSupportedPython();
 
 test('PowerShell privileged action is denied when early-control state is missing', () => {
   withTempDir((cwd) => {

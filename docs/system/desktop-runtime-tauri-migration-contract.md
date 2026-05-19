@@ -161,41 +161,6 @@ Checkpoint rules:
 - Public GitHub semver tags such as `1.2.3` and `1.2.3-rc.1` remain preview/evaluation releases and should stay marked as prerelease, while stable desktop downloads come from promoted non-prerelease `desktop-v*` releases.
 - Until historic semver releases are remediated so none remain non-prerelease, `/releases/latest` must not be treated as the stable desktop shortcut.
 
-## Electron-user migration handoff
-
-The first Tauri cut must assume **manual migration handoff**, not silent in-place binary replacement from Electron.
-
-Frozen expectations:
-
-- Existing Electron installs are not assumed to auto-update into a Tauri install.
-- Electron remains updateable long enough to point users at the Tauri download/handoff path.
-- Tauri preview/release installers must clearly state whether they install side-by-side with Electron or replace it after user confirmation.
-- Migration communication must preserve channel intent:
-  - stable Electron users are handed to the stable Tauri lane
-  - prerelease Electron users are handed to the prerelease Tauri lane
-
-Concrete handoff flow for the current preview/manual-installer lane:
-
-1. Release engineering publishes the matching-channel Tauri Windows installer plus
-   `release/tauri/windows/release-manifest.json`.
-2. The Tauri release metadata must also ship a human-readable Electron-to-Tauri handoff artifact that says:
-   - Electron is still available until final cutover
-   - migration is manual
-   - no in-place Electron-to-Tauri auto-update is provided in this slice
-3. Electron-facing release notes/operator messaging may direct users to that matching-channel Tauri installer,
-   but must not present the handoff as a seamless updater replacement.
-4. Users download and run the Tauri installer manually, then verify startup against their existing local
-   `~/.copilot` runtime state.
-5. Users may keep Electron installed until they confirm the Tauri install works; optional Electron removal is a
-   post-verification user choice, not an automatic replacement step.
-
-Current required release-metadata posture:
-
-- `release-manifest.json` records that the Tauri lane is `manual_installer`.
-- Release metadata must explicitly record that in-place Electron-to-Tauri upgrade is unsupported in this slice.
-- Staged release artifacts must include the human-readable Electron-to-Tauri handoff guidance so operators can
-  publish the honest migration instructions with the installer.
-
 ## Cutover checkpoint status
 
 The current Windows-first Tauri cut now owns the canonical desktop path because these checkpoint
@@ -205,13 +170,7 @@ conditions are in place:
 2. startup-token handoff parity is proven under Tauri
 3. updater/feed/signing decisions for the current slice are documented as an explicit manual-installer posture
 4. rollback/kill-switch posture remains fail closed
-5. Electron-user migration handoff is documented in release/runbook canon
-
-Electron compatibility residue may remain only while it serves one of these bounded purposes:
-
-- incumbent Electron updater behavior for already-installed users
-- legacy release workflow coverage that has not yet been safely cut over
-- explicit user/operator handoff guidance during the transition window
+5. legacy shell migration guidance has been retired from release metadata
 
 That residue must stay clearly marked and must not retake primary-path status without an explicit
 rollback or follow-up cutover decision.

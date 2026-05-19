@@ -5,7 +5,7 @@ category: system
 status: current
 doc_kind: node
 id: runtime-permissions-contracts
-summary: Canonical runtime and Copilot permissions contracts for API behavior, non-Docker primary runtime policy, fallback compatibility, and dynamic location authorization.
+summary: Canonical runtime and permissions contracts for API behavior, non-Docker primary runtime policy, and fallback compatibility.
 tags: [runtime, permissions, contracts, copilot-ui]
 related: [security-model, system-docs-index]
 ---
@@ -17,7 +17,7 @@ related: [security-model, system-docs-index]
 This document is the canonical contract for:
 - Runtime capability payloads emitted by `copilot-ui/server.js`.
 - Runtime provider policy for sandbox lifecycle routing (non-Docker primary, Docker supported).
-- Copilot permissions location authorization used by `scripts/vscode-settings-patch.mjs` and `POST /api/copilot/authorize`.
+- Runtime permission contract helpers used by the desktop sidecar and validation suite.
 
 ## Runtime Contract
 
@@ -196,13 +196,11 @@ WS4 closure is complete only when freeze evidence and tracker alignment semantic
 ### Contract source
 - `copilot-ui/lib/permissionsContracts.js`
 - `copilot-ui/lib/permissionLocationsResolver.js`
-- `scripts/vscode-settings-patch.mjs`
-- `patchCopilotPermissionsConfig()` in `copilot-ui/server.js`
 
 ### Location model
 
 Authorization locations are built from:
-1. Base roots (`~/.copilot` and configured VS Code asset root)
+1. Base roots provided by the caller, with `~/.copilot` remaining the desktop runtime state root.
 2. Default subdirs:
    - `agents`, `skills`, `prompts`, `session-state`, `repo-state`, `sessions-archive`
 3. Dynamically discovered first-level subdirectories under each base root
@@ -224,7 +222,6 @@ Run narrow tests:
 ```bash
 node copilot-ui/lib/permissionsContracts.test.js
 node copilot-ui/lib/permissionLocationsResolver.test.js
-node scripts/vscode-settings-patch.test.mjs
 node copilot-ui/lib/runtimeContracts.test.js
 node copilot-ui/server.runtime-health.test.js
 ```

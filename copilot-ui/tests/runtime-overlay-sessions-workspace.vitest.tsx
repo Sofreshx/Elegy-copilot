@@ -17,7 +17,7 @@ const overlayStoreMocks = vi.hoisted(() => ({
 }));
 
 const navigationMocks = vi.hoisted(() => ({
-  goToRuntime: vi.fn(),
+  navigate: vi.fn(),
 }));
 
 vi.mock('../ui/src/tabs/Executor/uiRuntimeOverlayStore', () => ({
@@ -97,7 +97,7 @@ describe('OverlaySessionsWorkspace', () => {
     overlayState.error = null;
     overlayStoreMocks.load.mockReset();
     overlayStoreMocks.selectSession.mockReset();
-    navigationMocks.goToRuntime.mockReset();
+    navigationMocks.navigate.mockReset();
   });
 
   it('resumes attached sessions into Executor and keeps review lightweight', () => {
@@ -116,14 +116,14 @@ describe('OverlaySessionsWorkspace', () => {
     fireEvent.click(screen.getByTestId('runtime-overlay-session-select-overlay-1'));
 
     expect(overlayStoreMocks.selectSession).toHaveBeenCalledWith('overlay-1');
-    expect(navigationMocks.goToRuntime).not.toHaveBeenCalled();
+    expect(navigationMocks.navigate).not.toHaveBeenCalled();
 
     overlayStoreMocks.selectSession.mockClear();
 
     fireEvent.click(screen.getByTestId('runtime-overlay-session-open-executor-overlay-1'));
 
     expect(overlayStoreMocks.selectSession).toHaveBeenCalledWith('overlay-1');
-    expect(navigationMocks.goToRuntime).toHaveBeenCalledWith('executor');
+    expect(navigationMocks.navigate).toHaveBeenCalledWith('dashboard');
   });
 
   it('keeps closed sessions reviewable without resumable handoff actions', () => {
@@ -142,6 +142,6 @@ describe('OverlaySessionsWorkspace', () => {
     fireEvent.click(screen.getByTestId('runtime-overlay-session-select-overlay-closed'));
 
     expect(overlayStoreMocks.selectSession).toHaveBeenCalledWith('overlay-closed');
-    expect(navigationMocks.goToRuntime).not.toHaveBeenCalled();
+    expect(navigationMocks.navigate).not.toHaveBeenCalled();
   });
 });

@@ -22,7 +22,6 @@ const sessions = require('./lib/sessions');
 const assets = require('./lib/assets');
 const planState = require('./lib/planState');
 const { createAutonomousDecisionLog } = require('./lib/autonomousDecisionLog');
-const { resolvePermissionLocations } = require('./lib/permissionLocationsResolver');
 const {
   SESSION_RECONCILIATION_CONTRACT_VERSION,
   SESSION_RECONCILIATION_SOURCES,
@@ -49,6 +48,9 @@ const {
   readPlanningSuggestion,
   persistPlanningRecap,
   readPlanningRecap,
+  persistRoadmapWorkflowArtifact,
+  readRoadmapWorkflowArtifact,
+  listRoadmapWorkflowArtifacts,
   readPlanningMergeIdempotencyRecord,
   persistPlanningMergeIdempotencyRecord,
   deletePlanningMergeIdempotencyRecord,
@@ -95,7 +97,6 @@ const { createPostgresPlanningPersistenceClient } = require('./lib/planningPersi
 const { createDesktopUpdaterController } = require('./lib/desktop-shell/updater');
 const { createRegistry } = require('./routes');
 const { createExecutorService } = require('./lib/executorService');
-const { createWorkflowExecutionService } = require('./lib/workflowExecutionService');
 const { createWorkflowLayerService } = require('./lib/workflowLayerService');
 const { createUiRuntimeOverlayService } = require('./lib/uiRuntimeOverlayService');
 const {
@@ -112,6 +113,8 @@ const {
   resolveSessionsHome,
 } = require('./lib/server/paths');
 const { createRuntimeHealthResolver } = require('./lib/server/runtimeHealth');
+const { createRoadmapWorkflowMemoryBridge } = require('./lib/roadmapWorkflowMemoryBridge');
+const { createRoadmapWorkflowPlanningBridge } = require('./lib/roadmapWorkflowPlanningBridge');
 const {
   resolveTrackerUrl,
   resolveTrackerToken,
@@ -2305,6 +2308,7 @@ function isPlanningDurabilityRoute(pathname) {
     || route === '/api/planning/merge'
     || route === '/api/planning/suggestions'
     || route === '/api/planning/recaps'
+    || route === '/api/planning/workflow-artifacts'
     || route === '/api/planning/persistence/init'
     || route === '/api/planning/persistence/retention'
     || route === '/api/planning/persistence/export'
@@ -2337,6 +2341,11 @@ function resolvePlanningDurabilityGateKind(pathname, method) {
   }
   if (route === '/api/planning/recaps') {
     return normalizedMethod === 'POST' ? 'planning.recap.persist' : 'planning.recap.read';
+  }
+  if (route === '/api/planning/workflow-artifacts') {
+    return normalizedMethod === 'POST'
+      ? 'planning.workflow-artifact.persist'
+      : 'planning.workflow-artifact.read';
   }
   if (route === '/api/planning/persistence/init') {
     return 'planning.persistence.init';
@@ -3647,71 +3656,43 @@ function parseNumberQuery(searchParams, key, defaultValue) {
   return n;
 }
 
-function runVscodeSettingsPatcher({ engineRoot, vscodeHome, settingsPath, dryRun }) {
-  const patcher = path.join(path.resolve(engineRoot), 'scripts', 'vscode-settings-patch.mjs');
-  if (!fs.existsSync(patcher)) {
-    throw new Error(`Missing settings patcher script: ${patcher}`);
-  }
-
-  const args = [patcher, '--vscode-home', String(vscodeHome || '')];
-  if (dryRun) args.push('--dry-run');
-  if (settingsPath) args.push('--settings', String(settingsPath));
-
-  const result = childProcess.spawnSync(process.execPath, args, {
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: 15_000,
-    maxBuffer: 2 * 1024 * 1024,
-  });
-
-  return {
-    ok: result.status === 0,
-    exitCode: result.status,
-    signal: result.signal || null,
-    patcher,
-    args: args.slice(1),
-    stdout: result.stdout || '',
-    stderr: result.stderr || '',
-  };
+function resolveCodexHomeFromEnv(env) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  return path.resolve(String(source.CODEX_HOME || path.join(os.homedir(), '.codex')));
 }
 
-function runVscodeGithubMcpPatcher({ engineRoot, mcpPath, dryRun }) {
-  const patcher = path.join(path.resolve(engineRoot), 'scripts', 'vscode-github-mcp-patch.mjs');
-  if (!fs.existsSync(patcher)) {
-    throw new Error(`Missing GitHub MCP patcher script: ${patcher}`);
+function resolveCodexSkillsHomeFromEnv(env, codexHome) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  return path.resolve(String(source.INSTRUCTION_ENGINE_CODEX_SKILLS_HOME || path.join(codexHome, 'skills')));
+}
+
+function resolveGeminiHomeFromEnv(env) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  return path.resolve(String(source.GEMINI_HOME || path.join(os.homedir(), '.gemini')));
+}
+
+function resolveAntigravityHomeFromEnv(env, geminiHome) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  return path.resolve(String(source.INSTRUCTION_ENGINE_ANTIGRAVITY_HOME || path.join(geminiHome, 'antigravity')));
+}
+
+function resolveAntigravitySkillsHomeFromEnv(env, antigravityHome) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  return path.resolve(String(source.INSTRUCTION_ENGINE_ANTIGRAVITY_SKILLS_HOME || path.join(antigravityHome, 'skills')));
+}
+
+function resolveOpenCodeHomeFromEnv(env) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  if (source.OPENCODE_HOME) {
+    return path.resolve(String(source.OPENCODE_HOME));
   }
+  const configHome = source.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
+  return path.resolve(path.join(configHome, 'opencode'));
+}
 
-  const args = [patcher, '--workspace-root', path.resolve(engineRoot)];
-  if (dryRun) args.push('--dry-run');
-  if (mcpPath) args.push('--mcp', String(mcpPath));
-
-  const result = childProcess.spawnSync(process.execPath, args, {
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: 15_000,
-    maxBuffer: 2 * 1024 * 1024,
-  });
-
-  let parsedStdout = null;
-  const stdout = result.stdout || '';
-  if (stdout.trim()) {
-    try {
-      parsedStdout = JSON.parse(stdout);
-    } catch {
-      parsedStdout = null;
-    }
-  }
-
-  return {
-    ok: result.status === 0,
-    exitCode: result.status,
-    signal: result.signal || null,
-    patcher,
-    args: args.slice(1),
-    stdout,
-    stderr: result.stderr || '',
-    payload: parsedStdout,
-  };
+function resolveOpenCodeSkillsHomeFromEnv(env, opencodeHome) {
+  const source = env && typeof env === 'object' ? env : process.env;
+  return path.resolve(String(source.INSTRUCTION_ENGINE_OPENCODE_SKILLS_HOME || path.join(opencodeHome, 'skills')));
 }
 
 const policyPreflightCache = new Map();
@@ -3924,79 +3905,6 @@ function readPlanArtifact(sessionDirAbs, planId) {
   // revision id: map to plans/<id>.md
   const abs = path.join(plansDir, `${id}.md`);
   return readTextFileIfExists(abs, 2 * 1024 * 1024);
-}
-
-function backupFile(filePath) {
-  const dir = path.dirname(filePath);
-  const base = path.basename(filePath);
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const backup = path.join(dir, `${base}.bak.${stamp}`);
-  fs.copyFileSync(filePath, backup);
-  return backup;
-}
-
-function ensureApproval(toolApprovals, kind) {
-  if (!Array.isArray(toolApprovals)) return false;
-  const k = String(kind || '').trim();
-  if (!k) return false;
-  if (toolApprovals.some((x) => x && typeof x === 'object' && String(x.kind || '').trim() === k)) {
-    return false;
-  }
-  toolApprovals.push({ kind: k });
-  return true;
-}
-
-function patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun }) {
-  const copilotHome = path.resolve(copilotHomeAbs);
-  const vscodeHome = path.resolve(vscodeHomeAbs);
-  const filePath = path.join(copilotHome, 'permissions-config.json');
-
-  const existing = readJsonFileSafe(filePath);
-  const root = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {};
-  if (!root.locations || typeof root.locations !== 'object' || Array.isArray(root.locations)) {
-    root.locations = {};
-  }
-
-  const { locations: desired } = resolvePermissionLocations({
-    baseRoots: [copilotHome, vscodeHome],
-    includeDefaultSubdirs: true,
-    scanExistingSubdirs: true,
-  });
-  let changed = false;
-
-  for (const loc of desired) {
-    if (!root.locations[loc] || typeof root.locations[loc] !== 'object' || Array.isArray(root.locations[loc])) {
-      root.locations[loc] = {};
-      changed = true;
-    }
-    const slot = root.locations[loc];
-    if (!Array.isArray(slot.tool_approvals)) {
-      slot.tool_approvals = [];
-      changed = true;
-    }
-
-    changed = ensureApproval(slot.tool_approvals, 'read') || changed;
-    changed = ensureApproval(slot.tool_approvals, 'write') || changed;
-    changed = ensureApproval(slot.tool_approvals, 'memory') || changed;
-  }
-
-  if (!changed) {
-    return { ok: true, action: 'noop', filePath, locations: desired };
-  }
-
-  if (dryRun) {
-    return { ok: true, action: 'would_patch', filePath, locations: desired };
-  }
-
-  let backup = null;
-  if (fs.existsSync(filePath)) {
-    backup = backupFile(filePath);
-  } else {
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  }
-  fs.writeFileSync(filePath, JSON.stringify(root, null, 2) + '\n', 'utf8');
-
-  return { ok: true, action: 'patched', filePath, backup, locations: desired };
 }
 
 function writeTrackerProxyResponse(res, responsePlan) {
@@ -4283,6 +4191,13 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
   const pathname = u.pathname;
   const copilotHomeAbs = path.resolve(copilotHome);
   const vscodeHomeAbs = path.resolve(vscodeHome);
+  const codexHome = resolveCodexHomeFromEnv(process.env);
+  const codexSkillsHome = resolveCodexSkillsHomeFromEnv(process.env, codexHome);
+  const geminiHome = resolveGeminiHomeFromEnv(process.env);
+  const antigravityHome = resolveAntigravityHomeFromEnv(process.env, geminiHome);
+  const antigravitySkillsHome = resolveAntigravitySkillsHomeFromEnv(process.env, antigravityHome);
+  const opencodeHome = resolveOpenCodeHomeFromEnv(process.env);
+  const opencodeSkillsHome = resolveOpenCodeSkillsHomeFromEnv(process.env, opencodeHome);
   const activePlanningDurabilityDependencyGate = planningDurabilityDependencyGate
     && typeof planningDurabilityDependencyGate === 'object'
     ? planningDurabilityDependencyGate
@@ -4334,6 +4249,13 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     changeTracker,
     copilotHomeAbs,
     vscodeHomeAbs,
+    codexHome,
+    codexSkillsHome,
+    geminiHome,
+    antigravityHome,
+    antigravitySkillsHome,
+    opencodeHome,
+    opencodeSkillsHome,
     planningDurabilityDependencyGate: activePlanningDurabilityDependencyGate,
     activePlanningDurabilityDependencyGate,
     planningPersistenceConfig,
@@ -4639,7 +4561,6 @@ async function startServer(options = {}) {
   let sdkBridge = null;
   let executorService = null;
   let workflowLayerService = null;
-  let workflowExecutionService = null;
 
   if (sdkBridgeEnabled) {
     try {
@@ -4687,27 +4608,25 @@ async function startServer(options = {}) {
     throw new Error(`Workflow layer startup failed: ${detail}`);
   }
 
-  try {
-    workflowExecutionService = await createWorkflowExecutionService({
-      workflowTemplateService: require('./lib/workflowTemplateService'),
-      executorService,
-      copilotHome,
-    }).init();
-  } catch (error) {
-    stopDesktopUpdaterBackgroundWork();
-    await shutdownWorkflowLayerServiceSafely(workflowLayerService);
-    await shutdownExecutorServiceSafely(executorService);
-    await shutdownSdkBridgeSafely(sdkBridge);
-    changeTracker.close();
-    await closePlanningPersistenceClientSafely(ownedPlanningPersistenceClient);
-    const detail = String(error && error.message ? error.message : error);
-    throw new Error(`Workflow execution service startup failed: ${detail}`);
-  }
-
   const uiRuntimeOverlayService = createUiRuntimeOverlayService({
     copilotHome,
     engineRoot,
   });
+  const roadmapWorkflowMemoryBridge = Object.prototype.hasOwnProperty.call(options, 'roadmapWorkflowMemoryBridge')
+    ? options.roadmapWorkflowMemoryBridge
+    : createRoadmapWorkflowMemoryBridge({
+      copilotHome,
+      childProcess: options.childProcess || childProcess,
+      env,
+    });
+  const roadmapWorkflowPlanningBridge = Object.prototype.hasOwnProperty.call(options, 'roadmapWorkflowPlanningBridge')
+    ? options.roadmapWorkflowPlanningBridge
+    : createRoadmapWorkflowPlanningBridge({
+      enabled: true,
+      copilotHome,
+      childProcess: options.childProcess || childProcess,
+      env,
+    });
 
   let routeRegistry;
   try {
@@ -4736,9 +4655,6 @@ async function startServer(options = {}) {
       sendJson,
       sendText,
       readJsonBody,
-      runVscodeSettingsPatcher,
-      runVscodeGithubMcpPatcher,
-      patchCopilotPermissionsConfig,
       safeResolveUnder,
       extractTriggers,
       parseNumberQuery,
@@ -4798,18 +4714,19 @@ async function startServer(options = {}) {
       readPlanningSuggestion,
       persistPlanningRecap,
       readPlanningRecap,
+      persistRoadmapWorkflowArtifact,
+      roadmapWorkflowPlanningBridge,
+      roadmapWorkflowMemoryBridge,
+      readRoadmapWorkflowArtifact,
+      listRoadmapWorkflowArtifacts,
       desktopUpdaterController,
       sdkBridge,
       executorService,
       workflowLayerService,
-      workflowExecutionService,
       uiRuntimeOverlayService,
     });
   } catch (error) {
     stopDesktopUpdaterBackgroundWork();
-    if (workflowExecutionService && typeof workflowExecutionService.shutdown === 'function') {
-      await workflowExecutionService.shutdown().catch(() => {});
-    }
     await shutdownWorkflowLayerServiceSafely(workflowLayerService);
     await shutdownExecutorServiceSafely(executorService);
     await shutdownSdkBridgeSafely(sdkBridge);
@@ -4880,7 +4797,6 @@ async function startServer(options = {}) {
       settled = true;
       Promise.resolve()
         .then(() => stopDesktopUpdaterBackgroundWork())
-        .then(() => workflowExecutionService && typeof workflowExecutionService.shutdown === 'function' ? workflowExecutionService.shutdown() : null)
         .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
         .then(() => shutdownExecutorServiceSafely(executorService))
         .then(() => shutdownSdkBridgeSafely(sdkBridge))
@@ -4943,7 +4859,6 @@ async function startServer(options = {}) {
         close: () => new Promise((closeResolve) => {
           Promise.resolve()
             .then(() => stopDesktopUpdaterBackgroundWork())
-            .then(() => workflowExecutionService && typeof workflowExecutionService.shutdown === 'function' ? workflowExecutionService.shutdown() : null)
             .then(() => shutdownWorkflowLayerServiceSafely(workflowLayerService))
             .then(() => shutdownExecutorServiceSafely(executorService))
             .then(() => shutdownSdkBridgeSafely(sdkBridge))

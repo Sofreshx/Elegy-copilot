@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "canonicalSourceRoot": ".github/skills",
+  "targets": {
+    "copilot": {
+      "kind": "repo-mirror",
+      "enabled": false,
+      "description": "Copilot repo-local skills already use .github/skills directly; no mirror is generated."
+    },
+    "codex": {
+      "kind": "repo-mirror",
+      "enabled": true,
+      "mirrorRoot": ".agents/skills",
+      "description": "Official Codex repo-local skills path. Generated from the canonical .github/skills source."
+    },
+    "opencode": {
+      "kind": "repo-mirror",
+      "enabled": true,
+      "mirrorRoot": ".opencode/skills",
+      "description": "Repo-local OpenCode skill mirror for compatibility with project-scoped skill loading."
+    },
+    "antigravity": {
+      "kind": "repo-mirror",
+      "enabled": true,
+      "mirrorRoot": ".gemini/skills",
+      "description": "Repo-local Gemini/Antigravity skill mirror using Gemini CLI's documented repo skill directory."
+    },
+    "gemini-cli": {
+      "kind": "repo-mirror",
+      "enabled": true,
+      "mirrorRoot": ".gemini/skills",
+      "description": "Alias target for the same Gemini CLI repo-local skill directory used by Antigravity."
+    }
+  }
+}

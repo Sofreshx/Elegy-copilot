@@ -44,8 +44,13 @@ function httpRequest(baseUrl, method, routePath) {
 
     const req = http.request(options, (res) => {
       const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => {
+      let settled = false;
+
+      const finish = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
         const raw = Buffer.concat(chunks).toString('utf8');
         let bodyKeys = null;
         let bodyType = 'unknown';
@@ -64,7 +69,17 @@ function httpRequest(baseUrl, method, routePath) {
           bodyType,
           bodyKeys,
         });
+      };
+
+      res.on('data', (chunk) => {
+        chunks.push(chunk);
+        const contentType = String(res.headers['content-type'] || '').split(';')[0].trim();
+        if (contentType === 'text/event-stream' && chunks.length > 0) {
+          req.destroy();
+          finish();
+        }
       });
+      res.on('end', finish);
     });
 
     req.on('error', (err) => {
@@ -115,19 +130,29 @@ function describeRouteDescriptor(route) {
   return `${route.method} ${typeof route.path === 'string' ? route.path : String(route.path)}`;
 }
 
+function isRetiredRepoFilePlanningRoute(sample) {
+  const key = `${sample.method} ${sample.path}`;
+  return [
+  ].includes(key);
+}
+
+function isRetiredStandaloneWorkflowRoute(sample) {
+  const key = `${sample.method} ${sample.path}`;
+  return [
+  ].includes(key);
+}
+
 // Route inventory snapshot for public backend endpoints.
 const ROUTE_INVENTORY = [
-  // Lifecycle/Misc (8)
+  // Lifecycle/Misc (5)
   { method: 'GET', path: '/api/policy/preflight' },
   { method: 'GET', path: '/api/health' },
   { method: 'GET', path: '/api/version' },
-  { method: 'POST', path: '/api/vscode/patch-settings' },
-  { method: 'POST', path: '/api/vscode/patch-github-mcp' },
-  { method: 'POST', path: '/api/copilot/authorize' },
   { method: 'GET', path: '/api/lsp/config' },
   { method: 'POST', path: '/api/lsp/install' },
 
-  // Planning (41)
+  // Planning (45)
+  { method: 'GET', path: '/api/planning/task-board' },
   { method: 'POST', path: '/api/planning/persistence/init' },
   { method: 'POST', path: '/api/planning/persistence/corruption/scan' },
   { method: 'POST', path: '/api/planning/persistence/retention' },
@@ -144,16 +169,9 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/planning/suggestions' },
   { method: 'POST', path: '/api/planning/recaps' },
   { method: 'GET', path: '/api/planning/recaps' },
-  { method: 'GET', path: '/api/planning/artifacts/bullets' },
-  { method: 'POST', path: '/api/planning/artifacts/bullets' },
-  { method: 'PATCH', path: '/api/planning/artifacts/bullets/bullet-0001' },
-  { method: 'GET', path: '/api/planning/artifacts/intake' },
-  { method: 'POST', path: '/api/planning/artifacts/intake' },
-  { method: 'PATCH', path: '/api/planning/artifacts/intake/intake-0001' },
-  { method: 'GET', path: '/api/planning/records/planning-000001/research' },
-  { method: 'POST', path: '/api/planning/records/planning-000001/research' },
-  { method: 'DELETE', path: '/api/planning/records/planning-000001/research/note-0001' },
-  { method: 'GET', path: '/api/planning/records/planning-000001/diagrams' },
+  { method: 'POST', path: '/api/planning/workflow-artifacts' },
+  { method: 'GET', path: '/api/planning/workflow-artifacts' },
+  { method: 'GET', path: '/api/planning/workflow-artifacts/continuation-package' },
   { method: 'GET', path: '/api/planning/obsidian/status' },
   { method: 'GET', path: '/api/planning/obsidian/notes' },
   { method: 'GET', path: '/api/planning/obsidian/notes/obsnote-0001' },
@@ -162,17 +180,10 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/planning/obsidian/representations/status' },
   { method: 'GET', path: '/api/planning/obsidian/representations' },
   { method: 'POST', path: '/api/planning/obsidian/representations/refresh' },
-  { method: 'GET', path: '/api/planning/backlog' },
-  { method: 'POST', path: '/api/planning/backlog' },
-  { method: 'PATCH', path: '/api/planning/backlog/RB-001' },
-  { method: 'GET', path: '/api/planning/roadmaps' },
-  { method: 'GET', path: '/api/planning/roadmaps/platform-foundation' },
-  { method: 'POST', path: '/api/planning/roadmaps' },
-  { method: 'PATCH', path: '/api/planning/roadmaps/platform-foundation' },
-  { method: 'POST', path: '/api/planning/roadmaps/platform-foundation/reconcile' },
 
-  // Sessions (16: 3 exact + 13 regex)
+  // Sessions (18: 4 exact + 14 regex)
   { method: 'GET', path: '/api/sessions/workspace' },
+  { method: 'GET', path: '/api/sessions/unified' },
   { method: 'GET', path: '/api/sessions' },
   { method: 'GET', path: '/api/sessions/test-session-id/events' },
   { method: 'GET', path: '/api/sessions/test-session-id/agent-usage' },
@@ -185,6 +196,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/sessions/test-session-id/proposition' },
   { method: 'GET', path: '/api/sessions/test-session-id/handoff' },
   { method: 'GET', path: '/api/sessions/test-session-id/verification-guide' },
+  { method: 'GET', path: '/api/sessions/test-session-id/continuation-package' },
   { method: 'POST', path: '/api/sessions/test-session-id/roadmap-sync' },
   { method: 'POST', path: '/api/sessions/test-session-id/archive' },
   { method: 'POST', path: '/api/sessions/test-session-id/delete' },
@@ -200,7 +212,7 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/assets/view' },
   { method: 'POST', path: '/api/assets/delete' },
 
-  // Catalog/Search/Audit/Runtime (26)
+  // Catalog/Search/Audit/Runtime (32)
   { method: 'GET', path: '/api/catalog/repos' },
   { method: 'POST', path: '/api/catalog/repos/register' },
   { method: 'POST', path: '/api/catalog/repos/scan-roots' },
@@ -208,11 +220,19 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/catalog/repos/select' },
   { method: 'POST', path: '/api/catalog/repos/refresh' },
   { method: 'GET', path: '/api/catalog/summary' },
+  { method: 'GET', path: '/api/catalog/sources' },
+  { method: 'GET', path: '/api/catalog/content' },
+  { method: 'GET', path: '/api/catalog/sources/demo-source' },
   { method: 'GET', path: '/api/catalog/assets' },
   { method: 'GET', path: '/api/catalog/bundles' },
   { method: 'GET', path: '/api/catalog/entries' },
   { method: 'GET', path: '/api/catalog/assets/test-asset-id' },
   { method: 'POST', path: '/api/catalog/refresh' },
+  { method: 'POST', path: '/api/catalog/sources/add' },
+  { method: 'POST', path: '/api/catalog/sources/remove' },
+  { method: 'POST', path: '/api/catalog/sources/refresh' },
+  { method: 'POST', path: '/api/catalog/sources/activate' },
+  { method: 'POST', path: '/api/catalog/sources/deactivate' },
   { method: 'POST', path: '/api/catalog/assets/create' },
   { method: 'POST', path: '/api/catalog/assets/update' },
   { method: 'POST', path: '/api/catalog/assets/delete' },
@@ -227,6 +247,8 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/audit/assets' },
   { method: 'GET', path: '/api/audit/events' },
   { method: 'GET', path: '/api/runtime/catalog-health' },
+  { method: 'GET', path: '/api/projects' },
+  { method: 'PATCH', path: '/api/projects/test-project-id' },
 
   // Gateway (5)
   { method: 'GET', path: '/api/gateway/state' },
@@ -235,7 +257,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/gateway/config' },
   { method: 'GET', path: '/api/gateway/scan-repos' },
 
-  // Tracker proxy (11: 6 exact + 5 regex)
+  // Tracker retirement + sandbox lifecycle (12: 7 exact + 5 regex)
   { method: 'GET', path: '/api/tracker/status' },
   { method: 'GET', path: '/api/tracker/sessions' },
   { method: 'GET', path: '/api/tracker/permissions' },
@@ -247,6 +269,7 @@ const ROUTE_INVENTORY = [
   { method: 'DELETE', path: '/api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef' },
   { method: 'POST', path: '/api/tracker/permissions/test-id/approve' },
   { method: 'POST', path: '/api/tracker/lifecycle/start' },
+  { method: 'POST', path: '/api/sandboxes/lifecycle/start' },
 
   // UI Runtime Overlay (8)
   { method: 'GET', path: '/api/ui-runtime-overlay/sessions' },
@@ -258,22 +281,51 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/release' },
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/executor-job' },
 
-  // SDK bridge (6)
+  // Desktop + Dashboard + Config (9)
+  { method: 'GET', path: '/api/desktop-updater' },
+  { method: 'POST', path: '/api/desktop-updater/check' },
+  { method: 'POST', path: '/api/desktop-updater/download' },
+  { method: 'POST', path: '/api/desktop-updater/restart' },
+  { method: 'GET', path: '/api/dashboard/summary' },
+  { method: 'GET', path: '/api/projects/test-project-id/sessions' },
+  { method: 'GET', path: '/api/projects/test-project-id/activity' },
+  { method: 'GET', path: '/api/config/remote-sessions' },
+  { method: 'PUT', path: '/api/config/remote-sessions' },
+
+  // SDK bridge (9)
   { method: 'GET', path: '/api/sdk/health' },
+  { method: 'GET', path: '/api/sdk/models' },
   { method: 'POST', path: '/api/sdk/session' },
   { method: 'GET', path: '/api/sdk/sessions' },
   { method: 'DELETE', path: '/api/sdk/session/test-session-id' },
+  { method: 'POST', path: '/api/sdk/session/test-session-id/enable-remote' },
   { method: 'POST', path: '/api/sdk/send' },
+  { method: 'POST', path: '/api/sdk/answer' },
   { method: 'GET', path: '/api/sdk/stream/test-session-id' },
 
-  // Executor (7)
+  // Executor (12)
   { method: 'GET', path: '/api/executor/health' },
   { method: 'GET', path: '/api/executor/jobs' },
+  { method: 'GET', path: '/api/executor/worktrees' },
   { method: 'GET', path: '/api/executor/runs' },
   { method: 'GET', path: '/api/executor/runs/test-run-id' },
   { method: 'POST', path: '/api/executor/jobs' },
+  { method: 'POST', path: '/api/executor/worktrees/resolve' },
   { method: 'POST', path: '/api/executor/jobs/test-job-id/trigger' },
   { method: 'POST', path: '/api/executor/jobs/test-job-id/cancel' },
+
+  // Workflows (16)
+
+  // Hooks + Git (9)
+  { method: 'GET', path: '/api/hooks/rules' },
+  { method: 'PATCH', path: '/api/hooks/rules/sample-rule' },
+  { method: 'POST', path: '/api/hooks/rules/batch' },
+  { method: 'GET', path: '/api/git/status' },
+  { method: 'GET', path: '/api/git/diff' },
+  { method: 'GET', path: '/api/git/log' },
+  { method: 'POST', path: '/api/git/stage' },
+  { method: 'POST', path: '/api/git/unstage' },
+  { method: 'POST', path: '/api/git/commit' },
 ];
 
 async function run() {
@@ -315,11 +367,15 @@ async function run() {
       ? runningServer.routeRegistry._routes
       : [];
 
-    await test('route inventory matches registered route count', async () => {
+    await test('route inventory matches registered route count after excluding retired planning and workflow handlers', async () => {
+      const activeInventoryCount = ROUTE_INVENTORY.filter((sample) => (
+        !isRetiredRepoFilePlanningRoute(sample)
+        && !isRetiredStandaloneWorkflowRoute(sample)
+      )).length;
       assert.strictEqual(
-        ROUTE_INVENTORY.length,
+        activeInventoryCount,
         registeredRoutes.length,
-        `Inventory count ${ROUTE_INVENTORY.length} does not match registered route count ${registeredRoutes.length}`
+        `Active inventory count ${activeInventoryCount} does not match registered route count ${registeredRoutes.length}`
       );
     });
 
@@ -432,7 +488,7 @@ async function run() {
 
     // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 138, `Expected 138 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 157, `Expected 157 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

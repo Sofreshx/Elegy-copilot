@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python - <<'PY'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec 3<&0
+trap 'exec 3<&-' EXIT
+source "$SCRIPT_DIR/_python-hook.sh"
+
+run_python_hook "$SCRIPT_DIR" <<'PY'
 import json
 import os
 import subprocess

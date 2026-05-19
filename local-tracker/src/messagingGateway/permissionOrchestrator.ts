@@ -143,7 +143,7 @@ export class PermissionOrchestrator {
 	}
 
 	/**
-	 * Feed raw ExtensionBridge `event` payloads into this method.
+	 * Feed raw sandbox/runtime permission event payloads into this method.
 	 * It will track `permission_requested` and clear on `permission_resolved`.
 	 */
 	handleExtensionEvent(event: unknown): void {

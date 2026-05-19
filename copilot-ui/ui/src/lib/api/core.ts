@@ -459,6 +459,31 @@ export interface CatalogProviderInstallPayload {
   action?: 'install' | 'update' | string;
 }
 
+export interface CatalogSourceAddPayload {
+  sourceId?: string;
+  title?: string;
+  description?: string;
+  url: string;
+  ref?: string;
+  defaultRef?: string;
+  includeSkills?: boolean;
+  includeMcp?: boolean;
+  preferredSkillPathPrefixes?: string[];
+  hiddenPathPrefixes?: string[];
+  deprecatedPathPrefixes?: string[];
+  mcpManifestPath?: string;
+}
+
+export interface CatalogSourceIdPayload {
+  sourceId: string;
+}
+
+export interface CatalogSourceInstallableMutationPayload {
+  sourceId: string;
+  installableId: string;
+  target: 'copilot' | 'codex' | 'opencode' | 'antigravity' | 'gemini-cli' | string;
+}
+
 export interface CatalogAssetUpdatePayload extends Omit<CatalogAssetCreatePayload, 'content'> {
   assetId?: string;
   expectedHash?: string;
@@ -679,7 +704,7 @@ export interface PlanningRoadmapDirectoryRefApi extends PlanningRoadmapDirectory
   canonicalName: 'Roadmap';
   repo: PlanningRepoSummary;
   directoryPath: string;
-  repoRelativePath: 'docs/roadmaps';
+  repoRelativePath: 'docs/planning';
   stableIdPattern: 'RM-<roadmap-slug>-###';
 }
 
@@ -702,6 +727,103 @@ export interface PlanningRoadmapApi extends PlanningRoadmap {
   itemCount: number;
   statusCounts: Record<string, number>;
   items: PlanningRoadmapItemApi[];
+}
+
+function normalizePlanningRoadmapWorkflowArtifactSummary(value: unknown) {
+  const record = asRecord(value);
+  const artifactId = asTrimmedString(record.artifactId);
+  if (!artifactId) {
+    return null;
+  }
+
+  const acceptanceRecord = asRecord(record.acceptance);
+  const failedChecks = asStringList(acceptanceRecord.failedChecks);
+  const passedChecks = asStringList(acceptanceRecord.passedChecks);
+
+  return {
+    artifactId,
+    kind: asTrimmedString(record.kind),
+    phase: asTrimmedString(record.phase),
+    status: asTrimmedString(record.status),
+    normalizedStatus: asTrimmedString(record.normalizedStatus) || undefined,
+    sourceHarness: typeof record.sourceHarness === 'string' || record.sourceHarness === null
+      ? (record.sourceHarness as string | null)
+      : undefined,
+    sourceModel: typeof record.sourceModel === 'string' || record.sourceModel === null
+      ? (record.sourceModel as string | null)
+      : undefined,
+    sessionId: typeof record.sessionId === 'string' || record.sessionId === null
+      ? (record.sessionId as string | null)
+      : undefined,
+    updatedAt: typeof record.updatedAt === 'string' || record.updatedAt === null
+      ? (record.updatedAt as string | null)
+      : undefined,
+    createdAt: typeof record.createdAt === 'string' || record.createdAt === null
+      ? (record.createdAt as string | null)
+      : undefined,
+    requiresUserDecision: asBoolean(record.requiresUserDecision, false),
+    suggestedNextAction: typeof record.suggestedNextAction === 'string' || record.suggestedNextAction === null
+      ? (record.suggestedNextAction as string | null)
+      : undefined,
+    acceptance: Object.keys(acceptanceRecord).length > 0
+      ? {
+        allPassed: asBoolean(acceptanceRecord.allPassed, false),
+        failedChecks,
+        ...(passedChecks.length ? { passedChecks } : {}),
+      }
+      : null,
+  };
+}
+
+function normalizePlanningRoadmapWorkflowSliceProjection(value: unknown) {
+  const record = asRecord(value);
+  if (!Object.keys(record).length) {
+    return undefined;
+  }
+  return {
+    latest: normalizePlanningRoadmapWorkflowArtifactSummary(record.latest),
+    history: asArray(record.history)
+      .map((entry) => normalizePlanningRoadmapWorkflowArtifactSummary(entry))
+      .filter((entry): entry is NonNullable<ReturnType<typeof normalizePlanningRoadmapWorkflowArtifactSummary>> => entry !== null),
+  };
+}
+
+function normalizePlanningRoadmapWorkflowDesync(value: unknown) {
+  const record = asRecord(value);
+  if (!Object.keys(record).length) {
+    return undefined;
+  }
+  return {
+    statusMismatch: asBoolean(record.statusMismatch, false),
+    roadmapStatus: asTrimmedString(record.roadmapStatus),
+    workflowStatus: typeof record.workflowStatus === 'string' || record.workflowStatus === null
+      ? (record.workflowStatus as string | null)
+      : undefined,
+    reasons: asStringList(record.reasons),
+  };
+}
+
+function normalizePlanningRoadmapWorkflowProjection(value: unknown) {
+  const record = asRecord(value);
+  if (!Object.keys(record).length) {
+    return undefined;
+  }
+  return {
+    artifactCount: asNumber(record.artifactCount, 0),
+    projectedItemCount: asNumber(record.projectedItemCount, 0),
+    desyncCount: asNumber(record.desyncCount, 0),
+    synced: asBoolean(record.synced, false),
+    unmatchedWorkflowArtifacts: asArray(record.unmatchedWorkflowArtifacts).map((entry) => {
+      const unmatched = asRecord(entry);
+      return {
+        sliceId: asTrimmedString(unmatched.sliceId),
+        history: asArray(unmatched.history)
+          .map((historyEntry) => normalizePlanningRoadmapWorkflowArtifactSummary(historyEntry))
+          .filter((historyEntry): historyEntry is NonNullable<ReturnType<typeof normalizePlanningRoadmapWorkflowArtifactSummary>> => historyEntry !== null),
+        reasons: asStringList(unmatched.reasons),
+      };
+    }).filter((entry) => entry.sliceId),
+  };
 }
 
 export interface PlanningRoadmapsResponseApi {
@@ -908,6 +1030,8 @@ export function normalizePlanningRoadmapItem(value: unknown): PlanningRoadmapIte
     summary: asTrimmedString(record.summary) || undefined,
     backlogIds: asStringList(record.backlogIds),
     planRefs: asStringList(record.planRefs),
+    workflowProjection: normalizePlanningRoadmapWorkflowSliceProjection(record.workflowProjection),
+    desync: normalizePlanningRoadmapWorkflowDesync(record.desync),
   };
 }
 
@@ -940,6 +1064,7 @@ export function normalizePlanningRoadmap(value: unknown): PlanningRoadmapApi | n
     itemCount: asNumber(record.itemCount, items.length),
     statusCounts,
     items,
+    workflowProjection: normalizePlanningRoadmapWorkflowProjection(record.workflowProjection),
   };
 }
 
@@ -1690,8 +1815,8 @@ export function buildPlanningRoadmapDirectoryRef(
       repoPath: normalizedRepoPath,
       repoLabel,
     },
-    directoryPath: buildRepoPath(normalizedRepoPath, 'docs', 'roadmaps'),
-    repoRelativePath: 'docs/roadmaps',
+    directoryPath: buildRepoPath(normalizedRepoPath, 'docs', 'planning'),
+    repoRelativePath: 'docs/planning',
     stableIdPattern: 'RM-<roadmap-slug>-###',
   };
 }

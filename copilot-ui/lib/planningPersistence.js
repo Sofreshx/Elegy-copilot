@@ -26,6 +26,7 @@ const PLANNING_WS5A_DURABILITY_REQUIRED_MIGRATION_VERSIONS = Object.freeze([
   '006_planning_merge_idempotency_ledger_init',
   '007_planning_suggestions_init',
   '008_planning_recaps_init',
+  '009_planning_workflow_artifacts_init',
 ]);
 
 const PLANNING_WS5A_DURABILITY_ARTIFACT_TABLES = Object.freeze({
@@ -34,6 +35,7 @@ const PLANNING_WS5A_DURABILITY_ARTIFACT_TABLES = Object.freeze({
   MERGE_IDEMPOTENCY_LEDGER: 'ie_planning_merge_idempotency_ledger',
   SUGGESTIONS: 'ie_planning_suggestions',
   RECAPS: 'ie_planning_recaps',
+  WORKFLOW_ARTIFACTS: 'ie_planning_workflow_artifacts',
 });
 
 const RAW_PLANNING_MIGRATIONS = Object.freeze([
@@ -183,6 +185,30 @@ CREATE TABLE IF NOT EXISTS ie_planning_recaps (
   repo_id TEXT,
   scope TEXT NOT NULL,
   state JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`,
+  }),
+  Object.freeze({
+    version: '009_planning_workflow_artifacts_init',
+    description: 'Create planning roadmap workflow artifact durability table',
+    sql: `
+CREATE TABLE IF NOT EXISTS ie_planning_workflow_artifacts (
+  artifact_id TEXT PRIMARY KEY,
+  actor_id TEXT NOT NULL,
+  repo_id TEXT,
+  roadmap_id TEXT NOT NULL,
+  slice_id TEXT,
+  kind TEXT NOT NULL,
+  phase TEXT NOT NULL,
+  status TEXT NOT NULL,
+  checksum TEXT NOT NULL,
+  source_harness TEXT,
+  source_model TEXT,
+  session_id TEXT,
+  body TEXT NOT NULL,
+  structured_state JSONB NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -1424,6 +1450,11 @@ function normalizePlanningText(value) {
   return normalized || '';
 }
 
+function normalizeNullablePlanningText(value) {
+  const normalized = normalizePlanningText(value);
+  return normalized || null;
+}
+
 function normalizePlanningNumericScore(value) {
   if (value == null) return null;
   const numeric = Number(value);
@@ -1440,6 +1471,73 @@ function normalizeRecordTimestamp(value) {
   }
 
   return normalizeIsoTimestamp(typeof value === 'string' ? value : null);
+}
+
+function normalizeRoadmapWorkflowArtifactForPersistence(artifact = {}) {
+  const source = isPlainObject(artifact) ? artifact : {};
+  const nowIso = new Date().toISOString();
+  const artifactId = normalizeToken(source.artifactId, { lowerCase: false });
+  const actorId = normalizeIdentity(source.actorId);
+  const repoId = normalizeIdentity(source.repoId);
+  const roadmapId = normalizeToken(source.roadmapId, { lowerCase: false });
+  const sliceId = normalizeToken(source.sliceId, { lowerCase: false });
+  const kind = normalizePlanningText(source.kind);
+  const phase = normalizePlanningText(source.phase);
+  const status = normalizePlanningText(source.status);
+  const checksum = normalizeToken(source.checksum, { lowerCase: false });
+  const sourceHarness = normalizeNullablePlanningText(source.sourceHarness);
+  const sourceModel = normalizeNullablePlanningText(source.sourceModel);
+  const sessionId = normalizeNullablePlanningText(source.sessionId);
+  const body = typeof source.body === 'string' ? source.body : '';
+  const structuredState = isPlainObject(source.structuredState) ? source.structuredState : null;
+  const createdAt = normalizeRecordTimestamp(source.createdAt) || nowIso;
+  const updatedAt = normalizeRecordTimestamp(source.updatedAt) || createdAt;
+
+  if (!artifactId || !actorId || !roadmapId || !kind || !phase || !status || !checksum || !body.trim() || !structuredState) {
+    return null;
+  }
+
+  return {
+    artifactId,
+    actorId,
+    repoId: repoId || null,
+    roadmapId,
+    sliceId: sliceId || null,
+    kind,
+    phase,
+    status,
+    checksum,
+    sourceHarness,
+    sourceModel,
+    sessionId,
+    body,
+    structuredState,
+    createdAt,
+    updatedAt,
+  };
+}
+
+function mapPersistedRoadmapWorkflowArtifactRow(row) {
+  if (!isPlainObject(row)) return null;
+
+  return normalizeRoadmapWorkflowArtifactForPersistence({
+    artifactId: row.artifact_id,
+    actorId: row.actor_id,
+    repoId: row.repo_id,
+    roadmapId: row.roadmap_id,
+    sliceId: row.slice_id,
+    kind: row.kind,
+    phase: row.phase,
+    status: row.status,
+    checksum: row.checksum,
+    sourceHarness: row.source_harness,
+    sourceModel: row.source_model,
+    sessionId: row.session_id,
+    body: row.body,
+    structuredState: isPlainObject(row.structured_state) ? row.structured_state : null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
 }
 
 function normalizePlanningRecordForPersistence(record = {}) {
@@ -2898,6 +2996,260 @@ LIMIT 1
   };
 }
 
+async function persistRoadmapWorkflowArtifact(client, input = {}) {
+  ensureQueryClient(client);
+
+  const normalized = normalizeRoadmapWorkflowArtifactForPersistence(input.artifact);
+  if (!normalized) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_planning_workflow_artifact',
+        reason: 'planning_workflow_artifact_shape_invalid',
+      },
+    };
+  }
+
+  const writeContext = validatePlanningReadWriteContext({
+    action: 'write',
+    scope: normalized.repoId ? 'repo' : 'user',
+    actorId: normalizeIdentity(input.actorId || input.userId || normalized.actorId),
+    ownerId: normalized.actorId,
+    repoId: normalized.repoId,
+  });
+
+  if (!writeContext.ok) {
+    return {
+      ok: false,
+      error: writeContext.error,
+    };
+  }
+
+  const result = await client.query(
+    `
+INSERT INTO ie_planning_workflow_artifacts (
+  artifact_id,
+  actor_id,
+  repo_id,
+  roadmap_id,
+  slice_id,
+  kind,
+  phase,
+  status,
+  checksum,
+  source_harness,
+  source_model,
+  session_id,
+  body,
+  structured_state,
+  created_at,
+  updated_at
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::timestamptz, $16::timestamptz)
+ON CONFLICT (artifact_id)
+DO UPDATE SET
+  actor_id = EXCLUDED.actor_id,
+  repo_id = EXCLUDED.repo_id,
+  roadmap_id = EXCLUDED.roadmap_id,
+  slice_id = EXCLUDED.slice_id,
+  kind = EXCLUDED.kind,
+  phase = EXCLUDED.phase,
+  status = EXCLUDED.status,
+  checksum = EXCLUDED.checksum,
+  source_harness = EXCLUDED.source_harness,
+  source_model = EXCLUDED.source_model,
+  session_id = EXCLUDED.session_id,
+  body = EXCLUDED.body,
+  structured_state = EXCLUDED.structured_state,
+  updated_at = EXCLUDED.updated_at
+WHERE ie_planning_workflow_artifacts.actor_id = EXCLUDED.actor_id
+RETURNING artifact_id, actor_id, repo_id, roadmap_id, slice_id, kind, phase, status, checksum, source_harness, source_model, session_id, body, structured_state, created_at, updated_at
+`,
+    [
+      normalized.artifactId,
+      normalized.actorId,
+      normalized.repoId,
+      normalized.roadmapId,
+      normalized.sliceId,
+      normalized.kind,
+      normalized.phase,
+      normalized.status,
+      normalized.checksum,
+      normalized.sourceHarness,
+      normalized.sourceModel,
+      normalized.sessionId,
+      normalized.body,
+      JSON.stringify(normalized.structuredState),
+      normalized.createdAt,
+      normalized.updatedAt,
+    ],
+  );
+
+  const row = Array.isArray(result && result.rows) ? result.rows[0] : null;
+  if (!row) {
+    return {
+      ok: false,
+      error: {
+        code: 'scope_visibility_denied',
+        reason: 'ownership_conflict',
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    artifact: mapPersistedRoadmapWorkflowArtifactRow(row) || normalized,
+  };
+}
+
+async function readRoadmapWorkflowArtifact(client, input = {}) {
+  ensureQueryClient(client);
+
+  const artifactId = normalizeToken(input.artifactId, { lowerCase: false });
+  const actorId = normalizeIdentity(input.actorId || input.userId);
+
+  if (!artifactId) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_planning_workflow_artifact',
+        reason: 'missing_artifact_id',
+      },
+    };
+  }
+
+  if (!actorId) {
+    return {
+      ok: false,
+      error: {
+        code: 'scope_visibility_denied',
+        reason: 'missing_user_context',
+      },
+    };
+  }
+
+  const result = await client.query(
+    `
+SELECT artifact_id, actor_id, repo_id, roadmap_id, slice_id, kind, phase, status, checksum, source_harness, source_model, session_id, body, structured_state, created_at, updated_at
+FROM ie_planning_workflow_artifacts
+WHERE artifact_id = $1
+LIMIT 1
+`,
+    [artifactId],
+  );
+
+  const row = Array.isArray(result && result.rows) ? result.rows[0] : null;
+  if (!row) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_planning_workflow_artifact',
+        reason: 'planning_workflow_artifact_not_found',
+      },
+    };
+  }
+
+  const artifact = mapPersistedRoadmapWorkflowArtifactRow(row);
+  if (!artifact) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_planning_workflow_artifact',
+        reason: 'planning_workflow_artifact_corrupt',
+      },
+    };
+  }
+
+  const readContext = validatePlanningReadWriteContext({
+    action: 'read',
+    scope: artifact.repoId ? 'repo' : 'user',
+    actorId,
+    ownerId: artifact.actorId,
+    repoId: artifact.repoId,
+  });
+
+  if (!readContext.ok) {
+    return {
+      ok: false,
+      error: readContext.error,
+    };
+  }
+
+  return {
+    ok: true,
+    artifact,
+  };
+}
+
+async function listRoadmapWorkflowArtifacts(client, input = {}) {
+  ensureQueryClient(client);
+
+  const actorId = normalizeIdentity(input.actorId || input.userId);
+  const repoId = normalizeIdentity(input.repoId);
+  const roadmapId = normalizeToken(input.roadmapId, { lowerCase: false });
+
+  if (!actorId) {
+    return {
+      ok: false,
+      error: {
+        code: 'scope_visibility_denied',
+        reason: 'missing_user_context',
+      },
+    };
+  }
+
+  if (!roadmapId) {
+    return {
+      ok: false,
+      error: {
+        code: 'invalid_planning_workflow_artifact',
+        reason: 'missing_roadmap_id',
+      },
+    };
+  }
+
+  const result = await client.query(
+    `
+SELECT artifact_id, actor_id, repo_id, roadmap_id, slice_id, kind, phase, status, checksum, source_harness, source_model, session_id, body, structured_state, created_at, updated_at
+FROM ie_planning_workflow_artifacts
+WHERE roadmap_id = $1
+ORDER BY updated_at DESC, artifact_id ASC
+`,
+    [roadmapId],
+  );
+
+  const rows = Array.isArray(result && result.rows) ? result.rows : [];
+  const artifacts = [];
+  for (const row of rows) {
+    const artifact = mapPersistedRoadmapWorkflowArtifactRow(row);
+    if (!artifact) {
+      continue;
+    }
+
+    const readContext = validatePlanningReadWriteContext({
+      action: 'read',
+      scope: artifact.repoId ? 'repo' : 'user',
+      actorId,
+      ownerId: artifact.actorId,
+      repoId: artifact.repoId,
+    });
+    if (!readContext.ok) {
+      continue;
+    }
+
+    if (repoId && artifact.repoId !== repoId) {
+      continue;
+    }
+
+    artifacts.push(artifact);
+  }
+
+  return {
+    ok: true,
+    artifacts,
+  };
+}
+
 function mapPersistedPlanningMergeIdempotencyRow(row) {
   if (!isPlainObject(row)) return null;
 
@@ -3228,6 +3580,9 @@ module.exports = {
   readPlanningSuggestion,
   persistPlanningRecap,
   readPlanningRecap,
+  persistRoadmapWorkflowArtifact,
+  readRoadmapWorkflowArtifact,
+  listRoadmapWorkflowArtifacts,
   readPlanningMergeIdempotencyRecord,
   persistPlanningMergeIdempotencyRecord,
   deletePlanningMergeIdempotencyRecord,

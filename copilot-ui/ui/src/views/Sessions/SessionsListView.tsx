@@ -3,7 +3,6 @@ import { Button, Panel, Toolbar } from '../../components';
 import CompactSessionCard from '../../components/CompactSessionCard';
 import { useStoreValue } from '../../lib/store';
 import { navigationStore } from '../../stores/navigation';
-import { workflowStore } from '../Workflows/workflowStore';
 import {
   sessionsListStore,
   getFilteredSessions,
@@ -12,25 +11,6 @@ import {
   type SessionStatusFilter,
   type SessionSortField,
 } from './sessionsListStore';
-
-// ── Helpers ──
-
-function findWorkflowForSession(sessionId: string): { templateName: string; stepLabel: string; runId: string } | null {
-  const state = workflowStore.getState();
-  for (const run of state.runs) {
-    for (const step of run.steps) {
-      if (step.sessionId === sessionId) {
-        const template = state.templates.find((t) => t.templateId === run.templateId);
-        return {
-          templateName: template?.name ?? 'Workflow',
-          stepLabel: step.label,
-          runId: run.workflowRunId,
-        };
-      }
-    }
-  }
-  return null;
-}
 
 function formatElapsed(ms: number | null | undefined): string {
   if (!ms || ms <= 0) return '';
@@ -73,8 +53,6 @@ export default function SessionsListView() {
   // Load on mount + auto-refresh every 15s
   useEffect(() => {
     void sessionsListStore.loadSessions();
-    void workflowStore.loadRuns();
-    void workflowStore.loadTemplates();
     const interval = setInterval(() => sessionsListStore.refresh(), 15_000);
     return () => clearInterval(interval);
   }, []);
@@ -204,35 +182,20 @@ export default function SessionsListView() {
 
     return (
       <div className="sessions-list-grid" data-testid="sessions-list-grid">
-        {filtered.map((session) => {
-          const wf = findWorkflowForSession(session.id);
-          return (
-            <div key={session.id} className="session-list-item-wrapper">
-              <CompactSessionCard
-                id={session.id}
-                title={session.title}
-                projectName={session.projectName || undefined}
-                repoLabel={session.repoLabel || undefined}
-                status={normalizeStatus(session.status)}
-                elapsed={formatElapsed(session.elapsedMs)}
-                onSelect={(id) => navigationStore.selectSession(id)}
-                testId={`session-card-${session.id}`}
-              />
-              {wf && (
-                <button
-                  className="session-workflow-badge"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigationStore.selectWorkflowRun(wf.runId);
-                  }}
-                  title={`Part of workflow: ${wf.templateName} → ${wf.stepLabel}`}
-                >
-                  ⚙ {wf.templateName} → {wf.stepLabel}
-                </button>
-              )}
-            </div>
-          );
-        })}
+        {filtered.map((session) => (
+          <div key={session.id} className="session-list-item-wrapper">
+            <CompactSessionCard
+              id={session.id}
+              title={session.title}
+              projectName={session.projectName || undefined}
+              repoLabel={session.repoLabel || undefined}
+              status={normalizeStatus(session.status)}
+              elapsed={formatElapsed(session.elapsedMs)}
+              onSelect={(id) => navigationStore.selectSession(id, 'activity', { source: session.source })}
+              testId={`session-card-${session.id}`}
+            />
+          </div>
+        ))}
       </div>
     );
   }

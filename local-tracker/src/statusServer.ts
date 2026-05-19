@@ -25,7 +25,6 @@ export interface TrackerStatus {
   contractVersion: typeof TRACKER_STATUS_CONTRACT_VERSION;
   uptime: number;
   gitSnapshots: GitSnapshot[];
-  connectedExtensions: number;
   recentEvents: TrackerEvent[];
   startedAt: string;
   relayTokenReadiness: TrackerTokenReadinessV1;
@@ -43,7 +42,6 @@ export class StatusServer {
       contractVersion: TRACKER_STATUS_CONTRACT_VERSION,
       uptime: 0,
       gitSnapshots: [],
-      connectedExtensions: 0,
       recentEvents: [],
       startedAt: new Date().toISOString(),
       relayTokenReadiness: options.relayTokenReadiness ?? createMissingTokenReadiness(config.relayTokenSource),
@@ -60,10 +58,6 @@ export class StatusServer {
 
   updateGitSnapshots(snapshots: GitSnapshot[]): void {
     this.status.gitSnapshots = snapshots;
-  }
-
-  updateExtensionCount(count: number): void {
-    this.status.connectedExtensions = count;
   }
 
   pushEvent(event: TrackerEvent): void {
@@ -179,7 +173,6 @@ export class StatusServer {
 
         const overviewCard = createCard('Overview');
         overviewCard.appendChild(createStat(Math.round(d.uptime) + 's', 'Uptime'));
-        overviewCard.appendChild(createStat(String(d.connectedExtensions), 'Extensions'));
         overviewCard.appendChild(createStat(String(d.recentEvents.length), 'Events'));
         fragment.appendChild(overviewCard);
 

@@ -993,7 +993,7 @@ export interface InstalledAssetsResponse {
   instructions: InstalledInstructions;
 }
 
-export type InstallSurfaceTarget = 'copilot' | 'codex' | 'antigravity' | 'all';
+export type InstallSurfaceTarget = 'codex' | 'antigravity' | 'opencode' | 'all';
 
 export interface InstallSurfaceRunSummary {
   homeKind?: string;
@@ -1299,6 +1299,123 @@ export interface CatalogProviderProjection {
   [key: string]: unknown;
 }
 
+export interface CatalogExternalSourceInstallable {
+  installableId: string;
+  kind: string;
+  name?: string;
+  title?: string;
+  description?: string | null;
+  relativePath?: string;
+  sourcePath?: string;
+  status?: string;
+  hiddenByDefault?: boolean;
+  deprecated?: boolean;
+  setupHints?: string[];
+  targetSupport?: string[];
+  metadata?: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogExternalSourceActivationState {
+  installables?: Record<string, Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface CatalogExternalSourceProjection {
+  sourceId: string;
+  title: string;
+  description?: string | null;
+  url?: string | null;
+  sourceType?: string | null;
+  owner?: string | null;
+  repo?: string | null;
+  defaultRef?: string | null;
+  editable?: boolean;
+  sync?: {
+    status?: string | null;
+    lastSyncedAt?: string | null;
+    lastError?: string | null;
+    resolvedRef?: string | null;
+    [key: string]: unknown;
+  } | null;
+  installables?: CatalogExternalSourceInstallable[];
+  activation?: Record<string, CatalogExternalSourceActivationState>;
+  [key: string]: unknown;
+}
+
+export interface CatalogGlobalHarness {
+  harnessId: string;
+  title: string;
+  homePath?: string | null;
+  skillsHomePath?: string | null;
+  supportsMcp?: boolean;
+  [key: string]: unknown;
+}
+
+export interface CatalogGlobalHarnessActions {
+  canInstall?: boolean;
+  canActivate?: boolean;
+  canDeactivate?: boolean;
+  canSync?: boolean;
+  [key: string]: unknown;
+}
+
+export interface CatalogGlobalHarnessState {
+  harnessId: string;
+  title: string;
+  supported: boolean;
+  installed?: boolean;
+  active?: boolean;
+  installPath?: string | null;
+  actions?: CatalogGlobalHarnessActions;
+  detail?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogGlobalItemActions {
+  kind?: 'catalog-asset' | 'install-surface' | 'external-source' | string;
+  installAssetId?: string | null;
+  installSurfaceTargets?: string[];
+  [key: string]: unknown;
+}
+
+export interface CatalogGlobalItemDetail {
+  itemType?: string | null;
+  readPath?: string | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogGlobalItem {
+  itemId: string;
+  itemKey: string;
+  kind: 'skill' | 'agent' | 'mcp' | string;
+  title: string;
+  description?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  providerId?: string | null;
+  readPath?: string | null;
+  detail?: CatalogGlobalItemDetail | Record<string, unknown> | null;
+  actions?: CatalogGlobalItemActions | null;
+  harnessStates?: CatalogGlobalHarnessState[];
+  [key: string]: unknown;
+}
+
+export interface CatalogGlobalSection {
+  kind: 'skill' | 'agent' | 'mcp' | string;
+  title: string;
+  count: number;
+  items: CatalogGlobalItem[];
+  [key: string]: unknown;
+}
+
+export interface CatalogGlobalInventory {
+  harnesses: CatalogGlobalHarness[];
+  sections: CatalogGlobalSection[];
+  [key: string]: unknown;
+}
+
 export interface CatalogSnapshotWarningSummary {
   count: number;
   items: unknown[];
@@ -1360,6 +1477,8 @@ export interface CatalogSnapshotEnvelope {
   repoContext?: CatalogRepoContext | null;
   activation?: CatalogActivationState;
   providers?: CatalogProviderProjection[];
+  externalSources?: CatalogExternalSourceProjection[];
+  globalInventory?: CatalogGlobalInventory;
   storage?: {
     catalogRoot?: string;
     snapshotPath?: string;
@@ -1397,54 +1516,6 @@ export interface CatalogAssetsResponse {
   [key: string]: unknown;
 }
 
-export interface CatalogBundleMember {
-  assetId: string;
-  assetKey?: string;
-  kind?: string;
-  title?: string;
-  available?: boolean;
-  installed?: boolean;
-  enabled?: boolean;
-  selectedLayer?: string | null;
-  loadMode?: string | null;
-  defaultLoadMode?: string | null;
-  missing?: boolean;
-  [key: string]: unknown;
-}
-
-export interface CatalogBundleStats {
-  memberCount?: number;
-  availableCount?: number;
-  installedCount?: number;
-  enabledCount?: number;
-  missingCount?: number;
-  [key: string]: unknown;
-}
-
-export interface CatalogBundle {
-  bundleId: string;
-  title?: string;
-  description?: string;
-  assetIds?: string[];
-  installTarget?: string;
-  activationScope?: string;
-  materialization?: string;
-  classification?: string | null;
-  targeting?: Record<string, unknown>;
-  tags?: string[];
-  defaultRecommended?: boolean;
-  dependsOn?: string[];
-  defaultMemberLoadMode?: string | null;
-  uninstallPolicy?: Record<string, unknown>;
-  activationStatus?: string;
-  activationSource?: string | null;
-  selected?: boolean;
-  status?: string;
-  stats?: CatalogBundleStats;
-  members?: CatalogBundleMember[];
-  [key: string]: unknown;
-}
-
 export interface CatalogBundlesResponse {
   kind?: string;
   deterministic?: boolean;
@@ -1461,16 +1532,6 @@ export interface CatalogAssetDetailResponse {
   asset?: CatalogEffectiveAsset;
   entries?: CatalogEntry[];
   snapshot?: CatalogSnapshotEnvelope;
-  [key: string]: unknown;
-}
-
-export interface CatalogBundlesResponse {
-  kind?: string;
-  deterministic?: boolean;
-  filters?: Record<string, unknown>;
-  count: number;
-  snapshot?: CatalogSnapshotEnvelope;
-  bundles: CatalogBundle[];
   [key: string]: unknown;
 }
 
@@ -1811,6 +1872,62 @@ export interface CatalogProviderInstallResponse {
   commands?: Array<Record<string, unknown>>;
   snapshot?: CatalogSnapshotEnvelope;
   error?: string;
+  [key: string]: unknown;
+}
+
+export interface CatalogContentQuery {
+  mode: 'absolute' | 'engine' | 'external-source';
+  path: string;
+  sourceId?: string;
+}
+
+export interface CatalogSourcesListResponse {
+  kind?: string;
+  deterministic?: boolean;
+  count: number;
+  sources: CatalogExternalSourceProjection[];
+  storage?: {
+    catalogPath?: string;
+    userSourcesPath?: string;
+    statePath?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface CatalogSourceDetailResponse {
+  kind?: string;
+  deterministic?: boolean;
+  source?: CatalogExternalSourceProjection;
+  storage?: {
+    catalogPath?: string;
+    userSourcesPath?: string;
+    statePath?: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface CatalogSourceMutationResponse {
+  kind?: string;
+  deterministic?: boolean;
+  source?: CatalogExternalSourceProjection | Record<string, unknown>;
+  snapshot?: Record<string, unknown>;
+  userSourcesPath?: string;
+  sourceId?: string;
+  removed?: boolean;
+  [key: string]: unknown;
+}
+
+export interface CatalogSourceInstallableMutationResponse {
+  kind?: string;
+  deterministic?: boolean;
+  source?: CatalogExternalSourceProjection | Record<string, unknown>;
+  installable?: CatalogExternalSourceInstallable | Record<string, unknown>;
+  target?: string;
+  materialized?: Record<string, unknown>;
+  removed?: Record<string, unknown>;
+  state?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -2313,13 +2430,6 @@ export interface ObsidianPlanningSourceSelectionResponse extends ObsidianPlannin
   sourceSelection?: ObsidianSourceResolutionStatus;
 }
 
-export interface PlanningRepoSummary {
-  repoId: string;
-  repoPath: string;
-  repoLabel: string;
-  [key: string]: unknown;
-}
-
 export interface PlanningRepositoryBacklogRef {
   canonicalName: 'Repository Backlog';
   repo: PlanningRepoSummary;
@@ -2367,7 +2477,7 @@ export interface PlanningRoadmapDirectoryRef {
   canonicalName: 'Roadmap';
   repo: PlanningRepoSummary;
   directoryPath: string;
-  repoRelativePath: 'docs/roadmaps';
+  repoRelativePath: 'docs/planning';
   stableIdPattern: 'RM-<roadmap-slug>-###';
 }
 
@@ -2476,6 +2586,8 @@ export interface PlanningRoadmapItem {
   summary?: string;
   backlogIds: string[];
   planRefs: string[];
+  workflowProjection?: PlanningRoadmapWorkflowSliceProjection;
+  desync?: PlanningRoadmapWorkflowDesync;
 }
 
 export interface PlanningRoadmap {
@@ -2487,59 +2599,51 @@ export interface PlanningRoadmap {
   itemCount: number;
   statusCounts: Record<string, number>;
   items: PlanningRoadmapItem[];
+  workflowProjection?: PlanningRoadmapWorkflowProjection;
 }
 
-export interface PlanningBacklogKeyPoint {
-  date: string;
-  text: string;
-  [key: string]: unknown;
-}
-
-export interface PlanningBacklogItem {
-  id: string;
-  title: string;
+export interface PlanningRoadmapWorkflowArtifactSummary {
+  artifactId: string;
+  kind: string;
+  phase: string;
   status: string;
-  summary?: string;
-  roadmapIds: string[];
-  planRefs: string[];
-  satisfiedByPlanRef?: string | null;
-  supersededByPlanRef?: string | null;
-  abandonedByPlanRef?: string | null;
-  importance?: number | null;
-  keyPoints: PlanningBacklogKeyPoint[];
-  [key: string]: unknown;
+  normalizedStatus?: string;
+  sourceHarness?: string | null;
+  sourceModel?: string | null;
+  sessionId?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+  requiresUserDecision: boolean;
+  suggestedNextAction?: string | null;
+  acceptance?: {
+    allPassed: boolean;
+    failedChecks: string[];
+    passedChecks?: string[];
+  } | null;
 }
 
-export interface PlanningBacklogSummary {
-  backlogPath?: string | null;
-  repoRelativePath?: string;
-  primaryDirectoryPath?: string | null;
-  primaryRepoRelativePath?: string;
-  primaryFamilyRepoRelativePath?: string;
-  legacyBacklogPath?: string | null;
-  legacyRepoRelativePath?: string;
-  resolvedBacklogPaths?: string[];
-  resolvedRepoRelativePaths?: string[];
-  exists: boolean;
-  formatVersion?: string;
-  title?: string;
-  description?: string;
-  itemCount: number;
-  items: PlanningBacklogItem[];
-  [key: string]: unknown;
+export interface PlanningRoadmapWorkflowSliceProjection {
+  latest: PlanningRoadmapWorkflowArtifactSummary | null;
+  history: PlanningRoadmapWorkflowArtifactSummary[];
 }
 
-export interface PlanningBacklogResponse {
-  contractVersion?: string;
-  kind?: string;
-  deterministic?: boolean;
-  repo: PlanningRepoSummary | null;
-  backlog: PlanningBacklogSummary;
-  [key: string]: unknown;
+export interface PlanningRoadmapWorkflowDesync {
+  statusMismatch: boolean;
+  roadmapStatus: string;
+  workflowStatus?: string | null;
+  reasons: string[];
 }
 
-export interface PlanningBacklogMutationResponse extends PlanningBacklogResponse {
-  item?: PlanningBacklogItem | null;
+export interface PlanningRoadmapWorkflowProjection {
+  artifactCount: number;
+  projectedItemCount: number;
+  desyncCount: number;
+  synced: boolean;
+  unmatchedWorkflowArtifacts: Array<{
+    sliceId: string;
+    history: PlanningRoadmapWorkflowArtifactSummary[];
+    reasons: string[];
+  }>;
 }
 
 export interface PlanningResearchNote {

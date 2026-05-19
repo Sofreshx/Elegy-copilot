@@ -248,49 +248,7 @@ const CANONICAL_PROVIDER_CATALOG_PATH = path.resolve(__dirname, '..', '..', 'eng
  */
 const SYNCED_PROVIDER_CATALOG_MIRROR: ProviderCatalogDocument = {
   schemaVersion: 1,
-  providers: [
-    {
-      id: 'superpowers-copilot',
-      title: 'Superpowers for GitHub Copilot',
-      description:
-        'External capability pack discovered via managed imports or compatible raw plugin layouts.',
-      sourceType: 'github-repo',
-      source: {
-        owner: 'DwainTR',
-        repo: 'superpowers-copilot',
-        defaultRef: 'main',
-      },
-      installStrategy: 'managed-import',
-      bridgeStrategy: 'plugin-layout',
-      assetLayout: {
-        namespace: 'superpowers',
-        skillsRoot: 'plugins/superpowers/skills',
-        agentsRoot: 'plugins/superpowers/agents',
-        managedSkillsRoot: 'skills/providers/superpowers',
-        managedVaultSkillsRoot: 'skills-vault/providers/superpowers',
-        managedAgentsPattern: 'agents/providers--superpowers--*.md',
-      },
-      defaultBundles: [],
-      trustPolicy: {
-        pinBy: 'commit',
-        requireUserApproval: true,
-      },
-      compatibility: {
-        readOnlyBridge: true,
-        supportsNamespacedSkills: true,
-        supportsPlainMarkdownAgents: true,
-        providerQualifiedIdentity: true,
-      },
-      activationDefaults: {
-        scope: 'global-and-repo',
-        repoOverrides: true,
-        plannerProfile: 'balanced-default',
-        orchestrationPolicy: 'balanced-default',
-      },
-      sourcePackageMatchers: ['dwaintr-superpowers-copilot', 'superpowers-copilot'],
-      namespaceMatchers: ['superpowers'],
-    },
-  ],
+  providers: [],
 };
 
 function loadCanonicalProviderCatalog(): ProviderCatalogDocument {

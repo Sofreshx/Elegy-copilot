@@ -7,7 +7,7 @@ doc_kind: moc
 id: moc-conventions-and-governance
 summary: Map of content for canonical conventions, governance routing, and follow-up handoff entrypoints.
 tags: [governance, conventions, routing]
-related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance]
+related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-conventions-governance, documentation-structure-governance, documentation-authoring-governance, self-documenting-code-and-rationale-placement, follow-up-discovery-governance]
 ---
 
 # MOC — Conventions & Governance
@@ -33,6 +33,12 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
   [docs/system/self-documenting-code-and-rationale-placement.md](docs/system/self-documenting-code-and-rationale-placement.md)
 - Documentation entrypoints, information architecture, and discoverability:
   [[documentation-structure-governance]] [docs/system/documentation-structure-governance.md](docs/system/documentation-structure-governance.md)
+- Documentation page quality, progressive disclosure, diagrams, changelog discipline, and drift
+  resistance:
+  [[documentation-authoring-governance]]
+  [docs/system/documentation-authoring-governance.md](docs/system/documentation-authoring-governance.md)
+- Repo-local skill source-of-truth and deterministic cross-harness mirror rules:
+  [[repo-skill-sync-governance]] [docs/system/repo-skill-sync-governance.md](docs/system/repo-skill-sync-governance.md)
 - Planning-ready follow-up when convention gaps become next tasks:
   [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
 - Specific change review versus governance authoring:
@@ -49,9 +55,12 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
    repo rules are or how they should be clarified.
 3. Add `docs/system/documentation-structure-governance.md` when the main gap is that conventions are
    hard to find, hard to route, or split across too many entrypoints.
-4. Route confirmed next steps to `docs/system/follow-up-discovery-governance.md` when convention or
+4. Add `docs/system/documentation-authoring-governance.md` when the main gap is durable page
+   quality, progressive disclosure, diagrams, changelog discipline, or docs drift resistance.
+5. Add `docs/system/repo-skill-sync-governance.md` when the main question is how repo-local skills should mirror safely across harnesses.
+6. Route confirmed next steps to `docs/system/follow-up-discovery-governance.md` when convention or
    audit findings should become planning-ready tasks later.
-5. Use `docs/system/reviewer-lane-governance.md` instead when the task is review of a concrete
+7. Use `docs/system/reviewer-lane-governance.md` instead when the task is review of a concrete
    change rather than governance authoring.
 
 ## Quick routing
@@ -60,6 +69,8 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
 - "Decide whether this belongs in code, comments, API docs, or canonical docs" -> `docs/system/self-documenting-code-and-rationale-placement.md`
 - "Show me the whole rules -> compliance -> audit -> follow-up workflow" -> `docs/system/rules-compliance-audit-handoff-workflow.md`
 - "Make the rules easier to discover" -> `docs/system/documentation-structure-governance.md`
+- "Make this documentation more durable, diagram-first, or agent-readable" -> `docs/system/documentation-authoring-governance.md`
+- "How should repo-local skills mirror across Codex/OpenCode/Gemini?" -> `docs/system/repo-skill-sync-governance.md`
 - "Turn convention gaps into follow-up tasks" -> `docs/system/follow-up-discovery-governance.md`
 - "Review this implementation for correctness" -> `docs/system/reviewer-lane-governance.md`
 

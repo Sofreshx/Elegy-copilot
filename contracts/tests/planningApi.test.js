@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
   OBSIDIAN_SYNCED_NOTE_ID_PREFIX,
   PLANNING_API_CONTRACT_VERSION,
+  ROADMAP_WORKFLOW_ARTIFACT_SCHEMA_VERSION,
   SYNCED_NOTE_SOURCE_ID_PATTERN,
   SYNCED_NOTE_SOURCE_PRIMARY_PROVIDER,
   SYNCED_NOTE_SOURCE_FALLBACK_PROVIDERS,
@@ -11,11 +12,14 @@ const {
   buildPlanningApiEnvelope,
   buildPlanningApiErrorEnvelope,
   canonicalizeObsidianSyncedNoteConfig,
+  computeRoadmapWorkflowArtifactChecksum,
   canonicalizeSyncedNoteSourceLocator,
   deriveObsidianSyncedNoteId,
   deriveSyncedNoteSourceId,
   getSyncedNoteSourceProviderPolicy,
   normalizeSyncedNoteSourceId,
+  normalizeRoadmapWorkflowStructuredArtifact,
+  parseRoadmapWorkflowMarkdownArtifact,
 } = require('../dist');
 
 test('planning api envelope builder keeps shared contract metadata authoritative', () => {
@@ -201,4 +205,54 @@ test('obsidian synced-note ids stay deterministic for the selected repo context'
       notePath: 'Planning/repo-instruction-engine/follow-up.md',
     }),
   );
+});
+
+test('roadmap workflow structured artifacts normalize required deterministic fields', () => {
+  const normalized = normalizeRoadmapWorkflowStructuredArtifact({
+    kind: 'roadmap.review.result',
+    roadmapId: 'RM-core',
+    sliceId: 'RM-core-001',
+    phase: 'review',
+    status: 'pass',
+    repoId: 'instruction-engine',
+    followUps: ['none'],
+    requiresUserDecision: true,
+    suggestedNextAction: 'plan-next-slice',
+    acceptance: {
+      allPassed: true,
+      failedChecks: [],
+    },
+  });
+
+  assert.deepEqual(normalized, {
+    schemaVersion: ROADMAP_WORKFLOW_ARTIFACT_SCHEMA_VERSION,
+    kind: 'roadmap.review.result',
+    roadmapId: 'RM-core',
+    sliceId: 'RM-core-001',
+    phase: 'review',
+    status: 'pass',
+    repoId: 'instruction-engine',
+    followUps: ['none'],
+    requiresUserDecision: true,
+    suggestedNextAction: 'plan-next-slice',
+    acceptance: {
+      allPassed: true,
+      failedChecks: [],
+    },
+  });
+});
+
+test('roadmap workflow markdown parser extracts structured block and checksum deterministically', () => {
+  const markdown = `# Review\n\nEverything looks good.\n\n## Structured State\n\n\
+\
+\
+\`\`\`json\n{\n  "kind": "roadmap.review.result",\n  "roadmapId": "RM-core",\n  "sliceId": "RM-core-001",\n  "phase": "review",\n  "status": "pass",\n  "followUps": [],\n  "requiresUserDecision": true\n}\n\`\`\``;
+
+  const parsed = parseRoadmapWorkflowMarkdownArtifact(markdown);
+
+  assert.equal(parsed.artifact.kind, 'roadmap.review.result');
+  assert.equal(parsed.artifact.roadmapId, 'RM-core');
+  assert.equal(parsed.artifact.sliceId, 'RM-core-001');
+  assert.equal(parsed.structuredBlock.includes('"phase": "review"'), true);
+  assert.equal(parsed.checksum, computeRoadmapWorkflowArtifactChecksum(markdown));
 });

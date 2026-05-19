@@ -788,17 +788,17 @@ async function run() {
         schemaVersion: 1,
         providers: [
           {
-            id: 'superpowers-copilot',
-            title: 'Superpowers for GitHub Copilot',
+            id: 'external-provider',
+            title: 'Example External Provider',
             sourceType: 'github-repo',
             source: {
               owner: 'DwainTR',
-              repo: 'superpowers-copilot',
+              repo: 'external-provider',
             },
             installStrategy: 'managed-import',
             bridgeStrategy: 'plugin-layout',
             assetLayout: {
-              namespace: 'superpowers',
+              namespace: 'external',
             },
           },
         ],
@@ -838,13 +838,13 @@ async function run() {
       });
 
       const installResponse = await invoke(providerRoutes, baseCtx, 'POST', '/api/catalog/providers/install', {
-        providerId: 'superpowers-copilot',
+        providerId: 'external-provider',
         action: 'install',
       });
 
       assert.equal(installResponse.res.statusCode, 200);
       assert.equal(installResponse.body.kind, 'catalog.provider.install');
-      assert.equal(installResponse.body.providerId, 'superpowers-copilot');
+      assert.equal(installResponse.body.providerId, 'external-provider');
       assert.equal(installResponse.body.action, 'install');
       assert.ok(Array.isArray(installResponse.body.commands));
       assert.equal(installResponse.body.commands.length, 2);
@@ -852,8 +852,8 @@ async function run() {
 
       const providerStatePath = path.join(copilotHomeAbs, 'catalog', 'providers-state.json');
       const providerState = JSON.parse(fs.readFileSync(providerStatePath, 'utf8'));
-      assert.equal(providerState.providers['superpowers-copilot'].installed, true);
-      assert.equal(providerState.providers['superpowers-copilot'].pluginRef, 'superpowers@superpowers-copilot');
+      assert.equal(providerState.providers['external-provider'].installed, true);
+      assert.equal(providerState.providers['external-provider'].pluginRef, 'external@external-provider');
     });
 
     await test('catalog provider install route fails deterministically when the managed CLI runtime state is unavailable', async () => {
@@ -861,17 +861,17 @@ async function run() {
         schemaVersion: 1,
         providers: [
           {
-            id: 'superpowers-copilot',
-            title: 'Superpowers for GitHub Copilot',
+            id: 'external-provider',
+            title: 'Example External Provider',
             sourceType: 'github-repo',
             source: {
               owner: 'DwainTR',
-              repo: 'superpowers-copilot',
+              repo: 'external-provider',
             },
             installStrategy: 'managed-import',
             bridgeStrategy: 'plugin-layout',
             assetLayout: {
-              namespace: 'superpowers',
+              namespace: 'external',
             },
           },
         ],
@@ -894,7 +894,7 @@ async function run() {
       });
 
       const installResponse = await invoke(providerRoutes, baseCtx, 'POST', '/api/catalog/providers/install', {
-        providerId: 'superpowers-copilot',
+        providerId: 'external-provider',
         action: 'install',
       });
 

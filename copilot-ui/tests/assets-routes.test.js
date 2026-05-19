@@ -32,7 +32,7 @@ function installPluginAgent(copilotHomeAbs, text) {
   const pluginAgentAbs = path.join(
     copilotHomeAbs,
     'marketplace-cache',
-    'dwaintr-superpowers-copilot',
+    'example-external-provider',
     'plugins',
     'superpowers',
     'agents',
@@ -177,7 +177,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHomeAbs, 'agents', 'providers--superpowers--workflow-guide.md'),
+      path.join(copilotHomeAbs, 'agents', 'providers--external--workflow-guide.md'),
       [
         '---',
         'name: workflow-guide',
@@ -204,11 +204,11 @@ async function run() {
       assert.ok(pluginSkill, 'expected plugin skill in installed inventory');
       assert.strictEqual(pluginSkill.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
       assert.strictEqual(pluginSkill.readOnly, true);
-      assert.strictEqual(pluginSkill.provider, 'superpowers-copilot');
+      assert.strictEqual(pluginSkill.provider, 'copilot-home-plugin');
 
       const importedSkill = response.payload.skills.find((skill) => skill.viewPath === 'skills/providers/superpowers/workflow-kit/SKILL.md');
       assert.ok(importedSkill, 'expected managed-import provider skill in installed inventory');
-      assert.strictEqual(importedSkill.provider, 'superpowers-copilot');
+      assert.strictEqual(importedSkill.provider, 'copilot-home-plugin');
       assert.strictEqual(importedSkill.readOnly, true);
 
       const namespacedIndexSkill = response.payload.skills.find((skill) => skill.viewPath === 'skills/operations/release-drill/index.md');
@@ -226,23 +226,23 @@ async function run() {
         (skill) => skill.viewPath === 'skills-vault/providers/superpowers/incident-kit/index.md'
       );
       assert.ok(vaultedProviderIndexSkill, 'expected vault provider index.md skill in installed inventory');
-      assert.strictEqual(vaultedProviderIndexSkill.provider, 'superpowers-copilot');
+      assert.strictEqual(vaultedProviderIndexSkill.provider, 'copilot-home-plugin');
       assert.strictEqual(vaultedProviderIndexSkill.readOnly, true);
 
       const pluginAgent = response.payload.agents.find((agent) => agent.fileName === 'code-reviewer.md');
       assert.ok(pluginAgent, 'expected plain markdown plugin agent in installed inventory');
       assert.strictEqual(pluginAgent.readOnly, true);
       if (pluginAgentInstall.linked) {
-        assert.strictEqual(pluginAgent.provider, 'superpowers-copilot');
+        assert.strictEqual(pluginAgent.provider, 'copilot-marketplace-plugin');
         assert.strictEqual(pluginAgent.namespace, 'superpowers');
-        assert.strictEqual(pluginAgent.sourcePackage, 'dwaintr-superpowers-copilot');
+        assert.strictEqual(pluginAgent.sourcePackage, 'example-external-provider');
       } else {
         assert.strictEqual(pluginAgent.provider, 'copilot-home-plain-agent');
       }
 
-      const importedAgent = response.payload.agents.find((agent) => agent.fileName === 'providers--superpowers--workflow-guide.md');
+      const importedAgent = response.payload.agents.find((agent) => agent.fileName === 'providers--external--workflow-guide.md');
       assert.ok(importedAgent, 'expected managed-import provider agent in installed inventory');
-      assert.strictEqual(importedAgent.provider, 'superpowers-copilot');
+      assert.strictEqual(importedAgent.provider, 'copilot-home-plugin');
       assert.strictEqual(importedAgent.readOnly, true);
     });
 
@@ -326,7 +326,7 @@ async function run() {
       assert.strictEqual(response.payload, '# Agent');
     });
 
-    await test('install-surfaces forwards target and homes to the backend helper', async () => {
+    await test('install-surfaces forwards target to the backend helper', async () => {
       const vscodeHomeAbs = path.join(tmpRoot, '.vscode-copilot');
       let receivedOptions = null;
 
@@ -338,7 +338,7 @@ async function run() {
           engineRoot: tmpRoot,
           installSurfaces: async (options) => {
             receivedOptions = options;
-            return { target: options.target, surfaces: [{ surface: 'copilot', ok: true }] };
+            return { target: options.target, surfaces: [{ surface: 'codex', ok: true }] };
           },
           assets: {
             syncAll: () => [],
@@ -351,8 +351,34 @@ async function run() {
       assert.ok(receivedOptions, 'expected route to call installSurfaces helper');
       assert.strictEqual(receivedOptions.target, 'all');
       assert.strictEqual(receivedOptions.force, true);
-      assert.strictEqual(receivedOptions.copilotHomeAbs, copilotHomeAbs);
-      assert.strictEqual(receivedOptions.vscodeHomeAbs, vscodeHomeAbs);
+      assert.strictEqual(Object.prototype.hasOwnProperty.call(receivedOptions, 'copilotHomeAbs'), false);
+      assert.strictEqual(Object.prototype.hasOwnProperty.call(receivedOptions, 'vscodeHomeAbs'), false);
+    });
+
+    await test('install-surfaces forwards the opencode target to the backend helper', async () => {
+      let receivedOptions = null;
+
+      const response = await invokeInstallSurfaces(
+        copilotHomeAbs,
+        path.join(tmpRoot, '.vscode-copilot'),
+        { target: 'opencode', force: false },
+        {
+          engineRoot: tmpRoot,
+          installSurfaces: async (options) => {
+            receivedOptions = options;
+            return { target: options.target, surfaces: [{ surface: 'opencode', ok: true }] };
+          },
+          assets: {
+            syncAll: () => [],
+          },
+        },
+      );
+
+      assert.strictEqual(response.status, 200);
+      assert.strictEqual(response.payload.target, 'opencode');
+      assert.ok(receivedOptions, 'expected route to call installSurfaces helper');
+      assert.strictEqual(receivedOptions.target, 'opencode');
+      assert.strictEqual(receivedOptions.force, false);
     });
 
     await test('install-surfaces rejects requests without a target', async () => {

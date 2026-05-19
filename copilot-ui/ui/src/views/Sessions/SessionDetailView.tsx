@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
+import { Fragment } from 'react';
 import { Button, StatusBadge, Toolbar } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { resolveSessionStatus, humanizeToken } from '../../lib/stateDiagnostics';
 import { navigationStore } from '../../stores/navigation';
 import type { SessionDetailTab } from '../../stores/navigation';
-import { workflowStore } from '../Workflows/workflowStore';
 import { sessionDetailStore } from './sessionDetailStore';
 import SessionActivityStream from './SessionActivityStream';
 import SessionTaskBoard from './SessionTaskBoard';
@@ -14,23 +14,6 @@ import SessionGitPanel from './SessionGitPanel';
 import SessionSkillUsagePanel from './SessionSkillUsagePanel';
 import RemoteSessionBanner from './RemoteSessionBanner';
 
-function findWorkflowForSession(sessionId: string): { templateName: string; stepLabel: string; runId: string } | null {
-  const state = workflowStore.getState();
-  for (const run of state.runs) {
-    for (const step of run.steps) {
-      if (step.sessionId === sessionId) {
-        const template = state.templates.find((t) => t.templateId === run.templateId);
-        return {
-          templateName: template?.name ?? 'Workflow',
-          stepLabel: step.label,
-          runId: run.workflowRunId,
-        };
-      }
-    }
-  }
-  return null;
-}
-
 const TABS: { id: SessionDetailTab; label: string }[] = [
   { id: 'activity', label: 'Activity' },
   { id: 'tasks', label: 'Tasks' },
@@ -39,6 +22,11 @@ const TABS: { id: SessionDetailTab; label: string }[] = [
   { id: 'config', label: 'Config' },
   { id: 'git', label: 'Git' },
 ];
+
+const CONTINUATION_ACTIONS = [
+  { target: 'codex', label: 'Codex' },
+  { target: 'opencode', label: 'OpenCode' },
+] as const;
 
 export default function SessionDetailView() {
   const nav = useStoreValue(navigationStore);
@@ -51,9 +39,14 @@ export default function SessionDetailView() {
     if (!sessionId) return;
 
     let cancelled = false;
+    const selectedSessionContext = nav.selectedSessionContext;
 
     // Load historical data first, then attach live SSE
-    sessionDetailStore.loadSession(sessionId).then(() => {
+    sessionDetailStore.loadSession(
+      sessionId,
+      selectedSessionContext?.source ?? undefined,
+      selectedSessionContext?.sandbox ?? undefined,
+    ).then(() => {
       if (!cancelled) {
         sessionDetailStore.attachStream(sessionId);
       }
@@ -63,7 +56,7 @@ export default function SessionDetailView() {
       cancelled = true;
       sessionDetailStore.detachStream();
     };
-  }, [sessionId]);
+  }, [sessionId, nav.selectedSessionContext]);
 
   if (!sessionId) {
     return (
@@ -82,9 +75,10 @@ export default function SessionDetailView() {
     : { id: sessionId, source: state.sessionSource ?? undefined };
 
   const status = resolveSessionStatus(sessionSummary);
+  const continuationBusy = Boolean(state.continuationActionKey);
 
   function handleTabClick(tab: SessionDetailTab) {
-    navigationStore.selectSession(sessionId, tab);
+    navigationStore.selectSession(sessionId, tab, nav.selectedSessionContext);
   }
 
   function handleBack() {
@@ -117,22 +111,37 @@ export default function SessionDetailView() {
               status={humanizeToken(status)}
               testId="session-detail-status-badge"
             />
-            {(() => {
-              const wf = findWorkflowForSession(sessionId);
-              if (!wf) return null;
-              return (
-                <button
-                  className="session-workflow-link"
-                  onClick={() => navigationStore.selectWorkflowRun(wf.runId)}
-                  data-testid="session-workflow-link"
-                  title={`Part of: ${wf.templateName}`}
-                >
-                  ⚙ {wf.templateName} → {wf.stepLabel}
-                </button>
-              );
-            })()}
           </div>
           <div className="session-detail-actions">
+            {CONTINUATION_ACTIONS.map((action) => {
+              const copyActionKey = `copy:${action.target}`;
+              const downloadActionKey = `download:${action.target}`;
+              const copyBusy = state.continuationActionKey === copyActionKey;
+              const downloadBusy = state.continuationActionKey === downloadActionKey;
+
+              return (
+                <Fragment key={action.target}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    testId={`session-copy-${action.target}-button`}
+                    onClick={() => sessionDetailStore.copyContinuationPrompt(action.target)}
+                    disabled={continuationBusy}
+                  >
+                    {copyBusy ? `Copying ${action.label}…` : `Copy ${action.label}`}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    testId={`session-export-${action.target}-button`}
+                    onClick={() => sessionDetailStore.downloadContinuationPackage(action.target)}
+                    disabled={continuationBusy}
+                  >
+                    {downloadBusy ? `Exporting ${action.label}…` : `Export ${action.label}`}
+                  </Button>
+                </Fragment>
+              );
+            })}
             <Button
               variant="ghost"
               size="sm"
@@ -159,7 +168,7 @@ export default function SessionDetailView() {
 
       <RemoteSessionBanner />
 
-      <nav className="session-detail-tabs"data-testid="session-detail-tabs" role="tablist">
+      <nav className="session-detail-tabs" data-testid="session-detail-tabs" role="tablist">
         {TABS.map((tab) => (
           <button
             key={tab.id}

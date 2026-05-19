@@ -2,7 +2,7 @@
 /**
  * Shared CLI utilities for Node scripts under scripts/.
  *
- * Conventions (aligned with scripts/cli-install.sh and scripts/vscode-settings-patch.mjs):
+ * Conventions (aligned with scripts/cli-install.sh):
  *   - Deterministic repo-root resolution via import.meta.url (never process.cwd())
  *   - die() for fatal errors: prints to stderr and exits
  */

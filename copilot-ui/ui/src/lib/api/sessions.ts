@@ -6,8 +6,10 @@ import type {
   PlanningTaskBoardResponse,
   SessionAgentUsageResponse,
   SessionEventsResponse,
+  SessionHandoffResponse,
   SessionPlansResponse,
   SessionPlanMutationResponse,
+  SessionPropositionResponse,
   SessionStructuredStateResponse,
   SessionTextArtifactResponse,
   SessionsListResponse,
@@ -26,6 +28,53 @@ import type {
   SessionAgentUsageQueryOptions,
   SessionPlanMutationPayload,
 } from './core';
+
+export interface ContinuationTranscriptEntry {
+  role: 'user' | 'assistant';
+  content: string;
+  createdAt?: string | null;
+}
+
+export interface ContinuationPackage {
+  contractVersion: string;
+  kind: string;
+  deterministic: boolean;
+  targetHarness: string;
+  source: {
+    kind: string;
+    sessionId?: string | null;
+    artifactId?: string | null;
+    harness?: string | null;
+    model?: string | null;
+    sessionSource?: string | null;
+  };
+  repo: {
+    repoId?: string | null;
+    repoPath?: string | null;
+    repoLabel?: string | null;
+    branch?: string | null;
+  } | null;
+  roadmap: {
+    roadmapId?: string | null;
+    roadmapIds?: string[];
+    sliceId?: string | null;
+    planRef?: string | null;
+    linkedBacklogIds?: string[];
+  } | null;
+  objective?: string | null;
+  summary?: string | null;
+  constraints: string[];
+  openQuestions: string[];
+  nextActions: string[];
+  carryover: string[];
+  skillsRequired: string[];
+  sourceArtifacts: string[];
+  transcriptExcerpt: ContinuationTranscriptEntry[];
+  prompt: {
+    title: string;
+    text: string;
+  };
+}
 
 export function listSessions(baseUrl?: string, options: ListSessionsOptions = {}): Promise<SessionsListResponse> {
   return apiRequest<SessionsListResponse>('/api/sessions', {
@@ -321,6 +370,25 @@ export function getSessionVerificationGuide(
       query: {
         source: options.source,
         sandbox: options.sandbox,
+      },
+    }
+  );
+}
+
+export function getSessionContinuationPackage(
+  sessionId: string,
+  options: SessionArtifactQueryOptions & { targetHarness?: string } = {},
+  baseUrl?: string
+): Promise<ContinuationPackage> {
+  return apiRequest<ContinuationPackage>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/continuation-package`,
+    {
+      baseUrl,
+      query: {
+        source: options.source,
+        sandbox: options.sandbox,
+        planId: options.planId,
+        targetHarness: options.targetHarness,
       },
     }
   );

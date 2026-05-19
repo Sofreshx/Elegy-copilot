@@ -148,6 +148,7 @@
         "skill-e2e-workflow",
         "skill-project-conventions-governance",
         "skill-documentation-structure-governance",
+        "skill-documentation-authoring",
         "skill-truth-sync",
         "skill-project-guidelines",
         "skill-guidelines-authoring",
@@ -217,6 +218,7 @@
       "assetIds": [
         "skill-project-conventions-governance",
         "skill-documentation-structure-governance",
+        "skill-documentation-authoring",
         "skill-truth-sync",
         "skill-project-guidelines",
         "skill-guidelines-authoring"
@@ -518,6 +520,13 @@
       "type": "skill",
       "source": "engine-assets/skills/documentation-structure-governance",
       "destination": "skills/documentation-structure-governance",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-documentation-authoring",
+      "type": "skill",
+      "source": "engine-assets/skills/documentation-authoring",
+      "destination": "skills/documentation-authoring",
       "loadMode": "on-demand"
     },
     {

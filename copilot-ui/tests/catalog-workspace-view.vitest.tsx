@@ -2,8 +2,15 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const storeMocks = vi.hoisted(() => ({
+  addExternalSource: vi.fn(),
+  activateExternalSourceInstallable: vi.fn(),
   loadWorkspace: vi.fn(),
+  deactivateExternalSourceInstallable: vi.fn(),
   refreshWorkspace: vi.fn(),
+  refreshExternalSource: vi.fn(),
+  removeExternalSource: vi.fn(),
+  reinstallExternalSourceAllTargets: vi.fn(),
+  reinstallExternalSourceTarget: vi.fn(),
   installAll: vi.fn(),
   installBundle: vi.fn(),
   uninstallBundle: vi.fn(),
@@ -56,6 +63,40 @@ const mockState = {
   summary: {
     schemaVersion: 1,
     generatedAt: '2026-03-09T00:00:00.000Z',
+    externalSources: [
+      {
+        sourceId: 'demo-source',
+        title: 'Demo Source',
+        description: 'Shared external catalog source.',
+        sync: {
+          status: 'ready',
+          lastSyncedAt: '2026-03-09T00:00:00.000Z',
+          resolvedRef: 'main',
+        },
+        editable: true,
+        installables: [
+          {
+            installableId: 'skill:brainstorming',
+            kind: 'skill',
+            title: 'Brainstorming',
+            description: 'Prompted ideation skill.',
+            targetSupport: ['codex', 'opencode'],
+          },
+        ],
+        activation: {
+          codex: {
+            installables: {
+              'skill:brainstorming': {
+                installed: true,
+                enabled: true,
+                managedName: 'external--demo-source--brainstorming',
+                installedPath: 'C:\\Users\\demo\\.codex\\skills\\external--demo-source--brainstorming',
+              },
+            },
+          },
+        },
+      },
+    ],
     stats: {
       effectiveCount: 2,
       installedCount: 1,
@@ -481,6 +522,13 @@ const mockCatalogWorkspaceStore = {
   installAsset: storeMocks.installAsset,
   enableAsset: storeMocks.enableAsset,
   disableAsset: storeMocks.disableAsset,
+  addExternalSource: storeMocks.addExternalSource,
+  removeExternalSource: storeMocks.removeExternalSource,
+  refreshExternalSource: storeMocks.refreshExternalSource,
+  activateExternalSourceInstallable: storeMocks.activateExternalSourceInstallable,
+  deactivateExternalSourceInstallable: storeMocks.deactivateExternalSourceInstallable,
+  reinstallExternalSourceTarget: storeMocks.reinstallExternalSourceTarget,
+  reinstallExternalSourceAllTargets: storeMocks.reinstallExternalSourceAllTargets,
   registerRepo: storeMocks.registerRepo,
   saveCustomScanRoots: storeMocks.saveCustomScanRoots,
   unregisterRepo: storeMocks.unregisterRepo,
@@ -539,6 +587,21 @@ describe('AssetsView catalog workspace', () => {
     expect(screen.getAllByText(/Mixed evidence:/i).length).toBeGreaterThan(0);
     expect(screen.getByText('# Test skill')).toBeInTheDocument();
     expect(screen.getByText(/Privacy-safe selection telemetry/i)).toBeInTheDocument();
+  });
+
+  it('no longer renders the external source management panel in AssetsView', async () => {
+    vi.doMock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
+      catalogWorkspaceStore: mockCatalogWorkspaceStore,
+      CATALOG_SEARCH_RESULT_LIMIT: 20,
+      CATALOG_AUDIT_EVENT_LIMIT: 25,
+    }));
+
+    const { default: AssetsView } = await import('../ui/src/tabs/Assets/AssetsView');
+
+    render(<AssetsView />);
+
+    expect(screen.queryByTestId('catalog-external-sources-panel')).not.toBeInTheDocument();
+    expect(screen.queryByText('Demo Source')).not.toBeInTheDocument();
   });
 
   it('saves custom scan roots through the workspace store', async () => {

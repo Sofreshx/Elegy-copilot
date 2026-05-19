@@ -2,7 +2,8 @@
 
 const assert = require('node:assert/strict');
 
-const { register } = require('./tracker');
+const trackerRoutes = require('./tracker');
+const sandboxesRoutes = require('./sandboxes');
 
 let passed = 0;
 
@@ -104,10 +105,10 @@ function createSendJson() {
 }
 
 async function run() {
-  await test('WS05-I2 local pre-proxy guard short-circuits with canonical envelope and proxy count 0', async () => {
+  await test('WS05-I2 sandbox lifecycle pre-proxy guard short-circuits with canonical envelope and proxy count 0', async () => {
     let proxyCount = 0;
 
-    const routes = register({
+    const routes = sandboxesRoutes.register({
       sendJson: createSendJson(),
       proxyToTracker() {
         proxyCount += 1;
@@ -116,7 +117,7 @@ async function run() {
       trackerToken: '',
     });
 
-    const { res } = await invoke(routes, 'GET', '/api/tracker/status');
+    const { res } = await invoke(routes, 'POST', '/api/sandboxes/lifecycle/start');
     const body = parseJson(res.bodyText);
 
     assert.equal(proxyCount, 0);
@@ -128,14 +129,14 @@ async function run() {
     assert.equal(body.legacyReason, 'tracker_token_missing');
     assert.equal(
       body.message,
-      'Tracker token not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.'
+      'Sandbox lifecycle auth not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.'
     );
   });
 
-  await test('WS05-I3 token-present path proxies once without local remap', async () => {
+  await test('WS05-I3 sandbox lifecycle token-present path proxies once without local remap', async () => {
     let proxyCount = 0;
 
-    const routes = register({
+    const routes = sandboxesRoutes.register({
       sendJson: createSendJson(),
       proxyToTracker(_trackerUrl, _trackerToken, _path, _method, _req, res) {
         proxyCount += 1;
@@ -143,116 +144,49 @@ async function run() {
           'Content-Type': 'application/json; charset=utf-8',
           'Cache-Control': 'no-store',
         });
-        res.end('{"ok":true,"path":"/api/status"}');
+        res.end('{"ok":true,"path":"/api/lifecycle/start"}');
+      },
+      resolveLifecycleCapabilityGate() {
+        return { allowed: true };
       },
       trackerUrl: 'http://127.0.0.1:4100',
       trackerToken: 'ws2-token',
     });
 
-    const { res } = await invoke(routes, 'GET', '/api/tracker/status');
+    const { res } = await invoke(routes, 'POST', '/api/sandboxes/lifecycle/start');
 
     assert.equal(proxyCount, 1);
     assert.equal(res.statusCode, 200);
-    assert.deepEqual(parseJson(res.bodyText), { ok: true, path: '/api/status' });
+    assert.deepEqual(parseJson(res.bodyText), { ok: true, path: '/api/lifecycle/start' });
   });
 
-  await test('synced-note source collection routes fail closed when tracker token is missing', async () => {
-    let proxyCount = 0;
-
-    const routes = register({
+  await test('retired tracker compatibility routes return 410 with a deterministic retirement marker', async () => {
+    const routes = trackerRoutes.register({
       sendJson: createSendJson(),
-      proxyToTracker() {
-        proxyCount += 1;
-      },
-      trackerUrl: 'http://127.0.0.1:4100',
-      trackerToken: '',
-    });
-
-    const { res } = await invoke(routes, 'GET', '/api/tracker/synced-notes/sources');
-    const body = parseJson(res.bodyText);
-
-    assert.equal(proxyCount, 0);
-    assert.equal(res.statusCode, 502);
-    assert.equal(body.status, 'token_missing');
-    assert.equal(body.code, 'MISSING_SANDBOX_TOKEN');
-    assert.equal(body.reason, 'token_missing');
-    assert.equal(body.legacyCode, 'tracker_token_missing');
-    assert.equal(body.legacyReason, 'tracker_token_missing');
-    assert.equal(
-      body.message,
-      'Tracker token not configured. Set --tracker-token or INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN.'
-    );
-  });
-
-  await test('synced-note source collection routes proxy list and create to local-tracker', async () => {
-    const proxyCalls = [];
-
-    const routes = register({
-      sendJson: createSendJson(),
-      proxyToTracker(_trackerUrl, _trackerToken, targetPath, method, _req, res) {
-        proxyCalls.push({ targetPath, method });
-        res.writeHead(200, {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': 'no-store',
-        });
-        res.end(JSON.stringify({ ok: true, targetPath, method }));
-      },
-      trackerUrl: 'http://127.0.0.1:4100',
-      trackerToken: 'ws2-token',
     });
 
     for (const sample of [
+      { method: 'GET', pathname: '/api/tracker/status' },
+      { method: 'GET', pathname: '/api/tracker/sessions' },
+      { method: 'GET', pathname: '/api/tracker/permissions' },
       { method: 'GET', pathname: '/api/tracker/synced-notes/sources' },
       { method: 'POST', pathname: '/api/tracker/synced-notes/sources' },
+      { method: 'GET', pathname: '/api/tracker/events' },
+      { method: 'GET', pathname: '/api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef' },
+      { method: 'PUT', pathname: '/api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef' },
+      { method: 'DELETE', pathname: '/api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef' },
+      { method: 'POST', pathname: '/api/tracker/permissions/test-id/approve' },
+      { method: 'POST', pathname: '/api/tracker/lifecycle/start' },
     ]) {
       const { res } = await invoke(routes, sample.method, sample.pathname);
-      assert.equal(res.statusCode, 200);
-      assert.deepEqual(parseJson(res.bodyText), {
-        ok: true,
-        targetPath: '/api/synced-notes/sources',
-        method: sample.method,
-      });
+      const body = parseJson(res.bodyText);
+      assert.equal(res.statusCode, 410, `${sample.method} ${sample.pathname} should return 410`);
+      assert.equal(body.code, 'tracker_surface_retired');
+      assert.equal(body.reason, 'tracker_surface_retired');
+      assert.equal(body.deterministic, true);
+      assert.equal(typeof body.kind, 'string');
+      assert.match(body.error, /retired/i);
     }
-
-    assert.deepEqual(proxyCalls, [
-      { targetPath: '/api/synced-notes/sources', method: 'GET' },
-      { targetPath: '/api/synced-notes/sources', method: 'POST' },
-    ]);
-  });
-
-  await test('synced-note source detail routes proxy read, update, and delete to local-tracker', async () => {
-    const proxyCalls = [];
-    const sourceId = 'snsrc_0123456789abcdef0123456789abcdef';
-
-    const routes = register({
-      sendJson: createSendJson(),
-      proxyToTracker(_trackerUrl, _trackerToken, targetPath, method, _req, res) {
-        proxyCalls.push({ targetPath, method });
-        res.writeHead(200, {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': 'no-store',
-        });
-        res.end(JSON.stringify({ ok: true, targetPath, method }));
-      },
-      trackerUrl: 'http://127.0.0.1:4100',
-      trackerToken: 'ws2-token',
-    });
-
-    for (const method of ['GET', 'PUT', 'DELETE']) {
-      const { res } = await invoke(routes, method, `/api/tracker/synced-notes/sources/${sourceId}`);
-      assert.equal(res.statusCode, 200);
-      assert.deepEqual(parseJson(res.bodyText), {
-        ok: true,
-        targetPath: `/api/synced-notes/sources/${sourceId}`,
-        method,
-      });
-    }
-
-    assert.deepEqual(proxyCalls, [
-      { targetPath: `/api/synced-notes/sources/${sourceId}`, method: 'GET' },
-      { targetPath: `/api/synced-notes/sources/${sourceId}`, method: 'PUT' },
-      { targetPath: `/api/synced-notes/sources/${sourceId}`, method: 'DELETE' },
-    ]);
   });
 
   console.log(`\n${passed} tests passed`);

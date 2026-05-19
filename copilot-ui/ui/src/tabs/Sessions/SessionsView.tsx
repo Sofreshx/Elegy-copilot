@@ -204,10 +204,10 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
       ? 'Connected'
       : humanizeToken(typeof trackerSegment?.status === 'string' ? trackerSegment.status : 'unknown');
   const sandboxConnectionDetail = gatewayState.sandboxTokenMissing
-    ? (gatewayState.sandboxTokenGuidance || 'Tracker token is missing for sandbox lifecycle actions.')
+    ? (gatewayState.sandboxTokenGuidance || 'Gateway auth is missing for sandbox lifecycle actions.')
     : (typeof trackerReason?.message === 'string' && trackerReason.message.trim()
       ? trackerReason.message
-      : 'Sandbox lifecycle follows tracker readiness and token policy.');
+      : 'Sandbox lifecycle follows gateway transport readiness and token policy.');
   const sandboxLifecycleBlocked = gatewayState.sandboxTokenMissing;
 
   const handleRefresh = async () => {
@@ -585,7 +585,7 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
               ) : null}
               {selectedWorkspaceEntry?.detail?.handoffTarget === 'overlay' ? (
                 <Button
-                  onClick={() => navigationStore.goToRuntime('executor')}
+                  onClick={() => navigationStore.navigate('dashboard')}
                   testId="sessions-open-overlay-executor"
                   variant="secondary"
                 >
@@ -593,7 +593,7 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
                 </Button>
               ) : null}
               <Button
-                onClick={() => navigationStore.goToPlanning()}
+                onClick={() => navigationStore.navigate('planning')}
                 testId="sessions-open-planning-task-board"
                 variant="secondary"
               >

@@ -9,7 +9,6 @@ INSTALL_PROFILE="minimal"
 
 DO_CLI=false
 DO_VSCODE=false
-VSCODE_SETTINGS=""
 VSCODE_HOME=""
 
 SKIP_NEXT_ARG=false
@@ -27,16 +26,15 @@ for arg in "$@"; do
     --all) DO_CLI=true; DO_VSCODE=true ;;
     --pointer) POINTER_MODE=true ;;
     --profile=*) INSTALL_PROFILE="${arg#--profile=}" ;;
-    --profile|--vscode-settings|--vscode-home) SKIP_NEXT_ARG=true ;;
+    --profile|--vscode-home) SKIP_NEXT_ARG=true ;;
     --minimal|--public) INSTALL_PROFILE="minimal" ;;
     --full|--internal) INSTALL_PROFILE="full" ;;
-    --vscode-settings=*) VSCODE_SETTINGS="${arg#--vscode-settings=}" ;;
     --vscode-home=*) VSCODE_HOME="${arg#--vscode-home=}" ;;
-    *) echo "Unknown arg: $arg (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --profile=<minimal|full>, --minimal, --full, --public, --internal, --vscode-settings=<path>, --vscode-home=<path>)" >&2; exit 2 ;;
+    *) echo "Unknown arg: $arg (supported: --dry-run, --force, --cli, --vscode, --all, --pointer, --profile=<minimal|full>, --minimal, --full, --public, --internal, --vscode-home=<path>)" >&2; exit 2 ;;
   esac
 done
 
-# Handle the space-separated forms: --profile <name>, --vscode-settings <path>, --vscode-home <path>
+# Handle the space-separated forms: --profile <name>, --vscode-home <path>
 for ((i=1; i<=$#; i++)); do
   if [[ "${!i}" == "--profile" ]]; then
     next=$((i+1))
@@ -44,16 +42,6 @@ for ((i=1; i<=$#; i++)); do
       INSTALL_PROFILE="${!next}"
     else
       echo "Missing value for --profile" >&2
-      exit 2
-    fi
-  fi
-
-  if [[ "${!i}" == "--vscode-settings" ]]; then
-    next=$((i+1))
-    if [[ $next -le $# ]]; then
-      VSCODE_SETTINGS="${!next}"
-    else
-      echo "Missing value for --vscode-settings" >&2
       exit 2
     fi
   fi
@@ -747,23 +735,6 @@ if $DO_VSCODE; then
 
   sync_file "$SRC_VSCODE_INSTRUCTIONS" "$VSCODE_HOME_RESOLVED/copilot-instructions.md"
 
-  if ! command -v node >/dev/null 2>&1; then
-    echo "VS Code setup requires Node.js on PATH (node). Install Node.js, or rerun with --cli to skip VS Code setup." >&2
-    exit 1
-  fi
-
-  PATCHER="$ENGINE_ROOT/scripts/vscode-settings-patch.mjs"
-  if [[ ! -f "$PATCHER" ]]; then
-    echo "Missing settings patcher script: $PATCHER" >&2
-    exit 1
-  fi
-
-  NODE_ARGS=("$PATCHER" --vscode-home "$VSCODE_HOME_RESOLVED")
-  if $DRY_RUN; then NODE_ARGS+=(--dry-run); fi
-  if [[ -n "$VSCODE_SETTINGS" ]]; then NODE_ARGS+=(--settings "$VSCODE_SETTINGS"); fi
-
-  echo "Patching VS Code settings via node: $PATCHER"
-  node "${NODE_ARGS[@]}"
 fi
 
 echo "Done."

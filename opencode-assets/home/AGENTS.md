@@ -46,7 +46,7 @@ Instruction-engine installs curated skills under OpenCode. Skills are loaded on-
 
 Primary skills available:
 - `rubberduck-plan-review` — Adversarial plan review before complex implementation work
-- `roadmap-planning` — Durable multi-session roadmap work under `docs/planning/`
+- `roadmap-planning` — Durable multi-session roadmap work under `docs/roadmaps/<roadmap-slug>.md`
 - `implementation-handoff` — Executor-ready brief for another session or model
 - `implementation-review` — Post-edit review before handoff
 - `security` — Security review and vulnerability detection

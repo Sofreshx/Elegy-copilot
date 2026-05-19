@@ -12,6 +12,7 @@ const {
 } = require('../lib/catalogActivationState');
 const catalogProjectionLib = require('../lib/catalogProjectionService');
 const catalogMutationLib = require('../lib/catalogMutationService');
+const externalSourcesLib = require('../lib/externalSources');
 const providerCatalogLib = require('../lib/providerCatalog');
 const repoInventoryLib = require('../lib/repoInventoryService');
 const repoDiscoveryLib = require('../lib/repoDiscoveryService');
@@ -28,19 +29,95 @@ const {
   sanitizeQueryForTelemetry,
   searchSkills,
 } = require('../lib/skillSearchService');
-const { sendJson: defaultSendJson, readJsonBody: defaultReadJsonBody } = require('./_helpers');
+const { sendJson: defaultSendJson, sendText: defaultSendText, readJsonBody: defaultReadJsonBody } = require('./_helpers');
 
 const MAX_AUDIT_BYTES = 2 * 1024 * 1024;
 const DEFAULT_AUDIT_LIMIT = 50;
 const MAX_AUDIT_LIMIT = 200;
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
+const GLOBAL_HARNESSES = Object.freeze([
+  { id: 'copilot', title: 'Copilot', homeKey: 'copilotHomeAbs', skillsHomeKey: null, supportsMcp: false },
+  { id: 'codex', title: 'Codex', homeKey: 'codexHome', skillsHomeKey: 'codexSkillsHome', supportsMcp: true },
+  { id: 'opencode', title: 'OpenCode', homeKey: 'opencodeHome', skillsHomeKey: 'opencodeSkillsHome', supportsMcp: true },
+  { id: 'antigravity', title: 'Antigravity', homeKey: 'antigravityHome', skillsHomeKey: 'antigravitySkillsHome', supportsMcp: false },
+  { id: 'gemini-cli', title: 'Gemini CLI', homeKey: 'geminiHome', skillsHomeKey: null, supportsMcp: true },
+]);
+const INSTALL_SURFACE_HARNESSES = new Set(['codex', 'opencode', 'antigravity']);
+const HARNESS_INSTALLABLE_KINDS = Object.freeze({
+  copilot: new Set(['agent', 'skill']),
+  codex: new Set(['agent', 'skill', 'mcp']),
+  opencode: new Set(['agent', 'skill', 'mcp']),
+  antigravity: new Set(['skill']),
+  'gemini-cli': new Set(['mcp']),
+});
+
+function normalizeComparablePathForPrefix(inputPath) {
+  const resolved = path.resolve(String(inputPath || ''));
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function isPathWithinRoot(rootAbs, candidateAbs) {
+  const root = normalizeComparablePathForPrefix(rootAbs);
+  const candidate = normalizeComparablePathForPrefix(candidateAbs);
+  if (!root || !candidate) {
+    return false;
+  }
+  if (candidate === root) {
+    return true;
+  }
+  const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  return candidate.startsWith(prefix);
+}
+
+function safeResolveUnder(baseAbs, relPath, pathImpl = path) {
+  if (typeof relPath !== 'string' || !relPath.trim()) {
+    throw Object.assign(new Error('path must be a non-empty string'), { statusCode: 400 });
+  }
+  if (pathImpl.isAbsolute(relPath)) {
+    throw Object.assign(new Error('path must be relative'), { statusCode: 400 });
+  }
+  const base = pathImpl.resolve(baseAbs);
+  const abs = pathImpl.resolve(base, relPath);
+  if (!isPathWithinRoot(base, abs)) {
+    throw Object.assign(new Error('path escapes base'), { statusCode: 400 });
+  }
+  return abs;
+}
+
+function safeReadText(absPath, maxBytes = 512 * 1024, fsImpl = fs) {
+  try {
+    const stat = fsImpl.statSync(absPath);
+    if (!stat.isFile()) {
+      return null;
+    }
+    const bytesToRead = Math.min(stat.size, Math.max(1024, maxBytes));
+    const fd = fsImpl.openSync(absPath, 'r');
+    try {
+      const buffer = Buffer.alloc(bytesToRead);
+      const bytesRead = fsImpl.readSync(fd, buffer, 0, bytesToRead, 0);
+      return buffer.subarray(0, bytesRead).toString('utf8');
+    } finally {
+      fsImpl.closeSync(fd);
+    }
+  } catch {
+    return null;
+  }
+}
 
 function safeStat(absPath, fsImpl = fs) {
   try {
     return fsImpl.statSync(absPath);
   } catch {
     return null;
+  }
+}
+
+function safeReadDir(absPath, options, fsImpl = fs) {
+  try {
+    return fsImpl.readdirSync(absPath, options);
+  } catch {
+    return [];
   }
 }
 
@@ -519,12 +596,21 @@ function buildFreshness(snapshot, files) {
 }
 
 function buildSnapshotEnvelope(snapshot, projectionContext, deps, runtimeState, extra = {}) {
+  const externalSourcesEngineRoot = snapshot?.engineRoot || deps.engineRoot || extra.engineRoot || process.cwd();
+  const externalSourcesCopilotHome = projectionContext?.storage?.copilotHome || snapshot?.copilotHome;
+  const externalSourcesSummary = deps.externalSources.listSources({
+    engineRoot: externalSourcesEngineRoot,
+    copilotHome: externalSourcesCopilotHome,
+  });
   const inputFiles = {
     manifest: describeFile(snapshot?.inputs?.manifestPath, deps.fs),
     metadataIndex: describeFile(snapshot?.inputs?.metadataIndexPath, deps.fs),
     registry: describeFile(snapshot?.inputs?.registryPath, deps.fs),
     providerCatalog: describeFile(snapshot?.inputs?.providerCatalogPath, deps.fs),
     providerState: describeFile(snapshot?.inputs?.providerStatePath, deps.fs),
+    externalSourcesCatalog: describeFile(externalSourcesSummary.catalogPath, deps.fs),
+    externalSourcesUserSources: describeFile(externalSourcesSummary.userSourcesPath, deps.fs),
+    externalSourcesState: describeFile(externalSourcesSummary.statePath, deps.fs),
     snapshot: describeFile(projectionContext.storage.snapshotPath, deps.fs),
   };
   const warnings = summarizeWarnings(snapshot);
@@ -535,6 +621,7 @@ function buildSnapshotEnvelope(snapshot, projectionContext, deps, runtimeState, 
     readMode: projectionContext.readMode,
     repoContext: snapshot?.repoContext || projectionContext.storage.repoContext || null,
     providers: Array.isArray(snapshot?.providers) ? snapshot.providers : [],
+    externalSources: Array.isArray(externalSourcesSummary.sources) ? externalSourcesSummary.sources : [],
     storage: {
       catalogRoot: projectionContext.storage.catalogRoot,
       snapshotPath: projectionContext.storage.snapshotPath,
@@ -555,6 +642,634 @@ function buildSnapshotEnvelope(snapshot, projectionContext, deps, runtimeState, 
     },
     ...extra,
   };
+}
+
+function readJsonIfExists(absPath, fsImpl = fs) {
+  try {
+    const stat = fsImpl.statSync(absPath);
+    if (!stat.isFile()) {
+      return null;
+    }
+    return JSON.parse(fsImpl.readFileSync(absPath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function normalizeDisplayText(value, fallback = 'Unknown') {
+  const normalized = normalizeString(value);
+  return normalized || fallback;
+}
+
+function normalizeCatalogItemKind(value) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (normalized === 'mcp-server') {
+    return 'mcp';
+  }
+  return normalized;
+}
+
+function normalizeHarnessId(value) {
+  return normalizeString(value).toLowerCase();
+}
+
+function humanizeHarnessId(value) {
+  const normalized = normalizeHarnessId(value);
+  const harness = GLOBAL_HARNESSES.find((entry) => entry.id === normalized);
+  if (harness) {
+    return harness.title;
+  }
+  return normalized || 'Unknown';
+}
+
+function humanizeItemKind(kind) {
+  switch (normalizeCatalogItemKind(kind)) {
+    case 'skill':
+      return 'Skill';
+    case 'agent':
+      return 'Agent';
+    case 'mcp':
+      return 'MCP';
+    default:
+      return normalizeDisplayText(kind, 'Item');
+  }
+}
+
+function normalizeDescription(value) {
+  const normalized = normalizeString(value);
+  return normalized || null;
+}
+
+function normalizeStringList(value) {
+  return Array.isArray(value)
+    ? value.map((entry) => normalizeString(entry)).filter(Boolean)
+    : [];
+}
+
+function normalizeManifestAssetItemKind(type) {
+  const normalized = normalizeString(type).toLowerCase();
+  if (normalized === 'mcp-server') {
+    return 'mcp';
+  }
+  return normalized;
+}
+
+function isManifestAssetSupportedForGlobalInventory(type) {
+  const normalized = normalizeManifestAssetItemKind(type);
+  return normalized === 'skill' || normalized === 'agent' || normalized === 'mcp';
+}
+
+function listHarnessRows(ctx) {
+  return GLOBAL_HARNESSES.map((harness) => ({
+    harnessId: harness.id,
+    title: harness.title,
+    homePath: normalizeString(ctx[harness.homeKey]) || null,
+    skillsHomePath: harness.skillsHomeKey ? normalizeString(ctx[harness.skillsHomeKey]) || null : null,
+    supportsMcp: harness.supportsMcp === true,
+  }));
+}
+
+function detectHarnessInstallPath(ctx, harnessId, kind, paths) {
+  const harness = GLOBAL_HARNESSES.find((entry) => entry.id === harnessId);
+  if (!harness) {
+    return null;
+  }
+  const homePath = normalizeString(ctx[harness.homeKey]);
+  const skillsHomePath = harness.skillsHomeKey ? normalizeString(ctx[harness.skillsHomeKey]) : '';
+  const candidates = normalizeStringList(paths);
+
+  for (const candidatePath of candidates) {
+    const normalizedCandidate = path.resolve(candidatePath);
+    if (normalizeCatalogItemKind(kind) === 'skill' && skillsHomePath && isPathWithinRoot(skillsHomePath, normalizedCandidate)) {
+      return normalizedCandidate;
+    }
+    if (homePath && isPathWithinRoot(homePath, normalizedCandidate)) {
+      return normalizedCandidate;
+    }
+  }
+
+  return null;
+}
+
+function buildHarnessState({
+  ctx,
+  harnessId,
+  kind,
+  installedPaths = [],
+  canInstall = false,
+  canActivate = false,
+  canDeactivate = false,
+  canSync = false,
+  detail = null,
+  metadata = null,
+}) {
+  const installPath = detectHarnessInstallPath(ctx, harnessId, kind, installedPaths);
+  const supported = HARNESS_INSTALLABLE_KINDS[harnessId]?.has(normalizeCatalogItemKind(kind)) === true;
+  return {
+    harnessId,
+    title: humanizeHarnessId(harnessId),
+    supported,
+    installed: Boolean(installPath),
+    active: Boolean(installPath),
+    installPath,
+    actions: {
+      canInstall: supported && canInstall,
+      canActivate: supported && canActivate,
+      canDeactivate: supported && canDeactivate,
+      canSync: supported && canSync,
+    },
+    detail,
+    metadata,
+  };
+}
+
+function buildSourceActionMetadata(kind, sourceEntry, selectedEntry) {
+  const metadata = {};
+  const normalizedKind = normalizeCatalogItemKind(kind);
+  const sourcePath = normalizeString(sourceEntry?.contentPath);
+  if (sourcePath) {
+    metadata.contentSource = 'projection-entry';
+    metadata.contentPath = sourcePath;
+  }
+  const viewPath = normalizeString(selectedEntry?.metadata?.viewPath);
+  if (viewPath) {
+    metadata.viewPath = viewPath;
+  }
+  if (normalizeString(sourceEntry?.layer) === 'source') {
+    metadata.sourceLayer = sourceEntry.layer;
+  }
+  if (normalizedKind === 'skill' && normalizeString(selectedEntry?.installState?.loadMode)) {
+    metadata.loadMode = selectedEntry.installState.loadMode;
+  }
+  return Object.keys(metadata).length > 0 ? metadata : null;
+}
+
+function listManifestPatternMatches(engineRoot, sourceGlob, patternType, fsImpl = fs, pathImpl = path) {
+  const normalized = String(sourceGlob || '').trim().replace(/\\/g, '/');
+  if (!normalized || !normalized.includes('*')) {
+    return normalized ? [normalized] : [];
+  }
+
+  const dirRel = path.posix.dirname(normalized);
+  const basePattern = path.posix.basename(normalized);
+  const matcher = new RegExp(`^${basePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*')}$`);
+  const dirAbs = pathImpl.join(path.resolve(engineRoot), dirRel);
+  let entries = [];
+  try {
+    entries = fsImpl.readdirSync(dirAbs, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  return entries
+    .filter((entry) => matcher.test(entry.name))
+    .filter((entry) => {
+      const normalizedType = normalizeString(patternType).toLowerCase();
+      if (normalizedType === 'skill') {
+        return typeof entry.isDirectory === 'function' ? entry.isDirectory() : false;
+      }
+      if (normalizedType === 'agent' || normalizedType === 'instructions') {
+        return typeof entry.isFile === 'function' ? entry.isFile() : false;
+      }
+      return true;
+    })
+    .sort((left, right) => left.name.localeCompare(right.name))
+    .map((entry) => path.posix.join(dirRel, entry.name));
+}
+
+function expandManifestAssets(engineRoot, manifestDocument) {
+  const explicitAssets = Array.isArray(manifestDocument?.assets) ? manifestDocument.assets.filter(Boolean) : [];
+  const byDestination = new Set(
+    explicitAssets
+      .map((asset) => normalizeString(asset?.destination).replace(/\\/g, '/'))
+      .filter(Boolean)
+  );
+  const expandedAssets = [...explicitAssets];
+
+  for (const pattern of Array.isArray(manifestDocument?.sourcePatterns) ? manifestDocument.sourcePatterns : []) {
+    if (!pattern || typeof pattern !== 'object') {
+      continue;
+    }
+    const destinationDir = normalizeString(pattern.destinationDir).replace(/\\/g, '/').replace(/\/$/, '');
+    for (const sourceRel of listManifestPatternMatches(engineRoot, pattern.sourceGlob, pattern.type)) {
+      const sourceBaseName = path.posix.basename(sourceRel);
+      const destination = destinationDir ? path.posix.join(destinationDir, sourceBaseName) : sourceBaseName;
+      if (byDestination.has(destination)) {
+        continue;
+      }
+      byDestination.add(destination);
+      expandedAssets.push({
+        id: `${normalizeString(pattern.type)}-${sourceBaseName.replace(/\.[^.]+$/g, '')}`.replace(/[^a-zA-Z0-9-]+/g, '-').toLowerCase(),
+        type: pattern.type,
+        source: sourceRel,
+        destination,
+      });
+    }
+  }
+
+  return expandedAssets;
+}
+
+function buildProjectionInventory(summary, ctx, engineManifestAssetIds = new Set()) {
+  const effectiveAssets = Array.isArray(summary?.effectiveAssets) ? summary.effectiveAssets : [];
+  const grouped = {
+    skill: [],
+    agent: [],
+    mcp: [],
+  };
+
+  for (const effectiveAsset of effectiveAssets) {
+    if (!effectiveAsset || typeof effectiveAsset !== 'object') {
+      continue;
+    }
+    const kind = normalizeCatalogItemKind(effectiveAsset.kind);
+    if (kind !== 'skill' && kind !== 'agent') {
+      continue;
+    }
+
+    const selectedEntry = effectiveAsset.selectedEntry && typeof effectiveAsset.selectedEntry === 'object'
+      ? effectiveAsset.selectedEntry
+      : {};
+    const installState = effectiveAsset.installState && typeof effectiveAsset.installState === 'object'
+      ? effectiveAsset.installState
+      : {};
+    const installedPaths = installState.installedPaths && typeof installState.installedPaths === 'object'
+      ? Object.values(installState.installedPaths).filter((value) => typeof value === 'string')
+      : [];
+    const sourceActionMetadata = buildSourceActionMetadata(kind, selectedEntry, selectedEntry);
+
+    grouped[kind].push({
+      itemId: effectiveAsset.assetId,
+      itemKey: normalizeString(effectiveAsset.assetKey) || normalizeString(selectedEntry.assetKey) || effectiveAsset.assetId,
+      kind,
+      title: normalizeDisplayText(selectedEntry.title || effectiveAsset.assetKey || effectiveAsset.assetId),
+      description: normalizeDescription(selectedEntry.description),
+      sourceType: 'catalog-asset',
+      sourceId: null,
+      providerId: normalizeString(selectedEntry?.provenance?.providerId || selectedEntry?.metadata?.provider) || null,
+      readPath: sourceActionMetadata?.contentPath || null,
+      detail: {
+        itemType: 'catalog-asset',
+        sourceLayer: normalizeString(selectedEntry.layer) || null,
+        availability: normalizeString(installState.availability) || null,
+        loadMode: normalizeString(installState.loadMode) || null,
+        selectedLayer: normalizeString(effectiveAsset.selectedLayer) || null,
+        readPath: sourceActionMetadata?.contentPath || null,
+      },
+      actions: {
+        kind: 'catalog-asset',
+        installAssetId: engineManifestAssetIds.has(effectiveAsset.assetId) ? effectiveAsset.assetId : null,
+        installSurfaceTargets: [],
+      },
+      harnessStates: listHarnessRows(ctx)
+        .filter((harness) => harness.harnessId === 'copilot')
+        .map((harness) => buildHarnessState({
+          ctx,
+          harnessId: harness.harnessId,
+          kind,
+          installedPaths,
+          canInstall: harness.harnessId === 'copilot' && engineManifestAssetIds.has(effectiveAsset.assetId),
+          detail: sourceActionMetadata,
+        })),
+    });
+  }
+
+  return grouped;
+}
+
+function loadManifestDocument(engineRoot, fileName, fsImpl = fs, pathImpl = path) {
+  const manifestPath = pathImpl.join(path.resolve(engineRoot), fileName);
+  const document = readJsonIfExists(manifestPath, fsImpl);
+  return {
+    manifestPath,
+    document: document && typeof document === 'object' ? document : null,
+  };
+}
+
+function buildInstalledPathCandidatesForManifestAsset(ctx, source, asset) {
+  const destination = normalizeString(asset?.destination);
+  if (!destination) {
+    return [];
+  }
+
+  const candidates = [];
+  if (source === 'codex') {
+    const codexHome = normalizeString(ctx.codexHome);
+    const codexSkillsHome = normalizeString(ctx.codexSkillsHome);
+    if (normalizeManifestAssetItemKind(asset.type) === 'skill') {
+      const suffix = destination.replace(/^skills[\\/]/i, '');
+      if (codexSkillsHome) {
+        candidates.push(path.join(codexSkillsHome, suffix));
+      }
+    } else if (codexHome) {
+      candidates.push(path.join(codexHome, destination));
+    }
+  }
+
+  if (source === 'opencode') {
+    const opencodeHome = normalizeString(ctx.opencodeHome);
+    const opencodeSkillsHome = normalizeString(ctx.opencodeSkillsHome);
+    if (normalizeManifestAssetItemKind(asset.type) === 'skill') {
+      const suffix = destination.replace(/^skills[\\/]/i, '');
+      if (opencodeSkillsHome) {
+        candidates.push(path.join(opencodeSkillsHome, suffix));
+      }
+    } else if (opencodeHome) {
+      candidates.push(path.join(opencodeHome, destination));
+    }
+  }
+
+  if (source === 'antigravity') {
+    const geminiHome = normalizeString(ctx.geminiHome);
+    const antigravitySkillsHome = normalizeString(ctx.antigravitySkillsHome);
+    const normalizedKind = normalizeManifestAssetItemKind(asset.type);
+    if (normalizedKind === 'skill') {
+      const suffix = destination
+        .replace(/^antigravity[\\/]skills[\\/]/i, '')
+        .replace(/^skills[\\/]/i, '');
+      if (antigravitySkillsHome) {
+        candidates.push(path.join(antigravitySkillsHome, suffix));
+      }
+    } else if (normalizedKind === 'instructions' && geminiHome) {
+      candidates.push(path.join(geminiHome, destination));
+    }
+  }
+
+  return candidates;
+}
+
+function buildManifestInventory(ctx) {
+  const manifests = [
+    { source: 'codex', fileName: 'codex-assets/manifest.json', harnessId: 'codex', supportsItemInstall: false },
+    { source: 'opencode', fileName: 'opencode-assets/manifest.json', harnessId: 'opencode', supportsItemInstall: false },
+    { source: 'antigravity', fileName: 'antigravity-assets/manifest.json', harnessId: 'antigravity', supportsItemInstall: false },
+  ];
+  const grouped = {
+    skill: [],
+    agent: [],
+    mcp: [],
+  };
+
+  for (const manifestSource of manifests) {
+    const manifestScan = loadManifestDocument(ctx.engineRoot, manifestSource.fileName);
+    const assets = expandManifestAssets(ctx.engineRoot, manifestScan.document);
+    for (const asset of assets) {
+      const kind = normalizeManifestAssetItemKind(asset?.type);
+      if (!isManifestAssetSupportedForGlobalInventory(asset?.type)) {
+        continue;
+      }
+      const sourcePath = normalizeString(asset?.source);
+      const sourceAbs = sourcePath ? path.join(path.resolve(ctx.engineRoot), sourcePath) : '';
+      const installedPaths = buildInstalledPathCandidatesForManifestAsset(ctx, manifestSource.source, asset)
+        .filter((candidate) => candidate && safeStat(candidate, fs));
+      grouped[kind].push({
+        itemId: normalizeString(asset?.id) || `${manifestSource.harnessId}-${kind}-${grouped[kind].length + 1}`,
+        itemKey: normalizeString(asset?.destination || asset?.id) || `${manifestSource.harnessId}-${kind}`,
+        kind,
+        title: normalizeDisplayText(asset?.id || asset?.destination),
+        description: normalizeDescription(manifestScan.document?.installDefaults?.description),
+        sourceType: 'harness-manifest',
+        sourceId: manifestSource.source,
+        providerId: null,
+        readPath: sourceAbs || null,
+        detail: {
+          itemType: 'harness-manifest',
+          harnessId: manifestSource.harnessId,
+          manifestPath: manifestScan.manifestPath,
+          sourcePath,
+          destination: normalizeString(asset?.destination) || null,
+          readPath: sourceAbs || null,
+        },
+        actions: {
+          kind: 'install-surface',
+          installAssetId: null,
+          installSurfaceTargets: INSTALL_SURFACE_HARNESSES.has(manifestSource.harnessId)
+            ? [manifestSource.harnessId]
+            : [],
+        },
+        harnessStates: listHarnessRows(ctx)
+          .filter((harness) => harness.harnessId === manifestSource.harnessId)
+          .map((harness) => buildHarnessState({
+            ctx,
+            harnessId: harness.harnessId,
+            kind,
+            installedPaths,
+            canInstall: INSTALL_SURFACE_HARNESSES.has(harness.harnessId),
+            canSync: INSTALL_SURFACE_HARNESSES.has(harness.harnessId),
+            detail: {
+              readPath: sourceAbs || null,
+              sourcePath,
+              destination: normalizeString(asset?.destination) || null,
+            },
+          })),
+      });
+    }
+  }
+
+  return grouped;
+}
+
+function buildExternalSourceInventory(summary, ctx) {
+  const grouped = {
+    skill: [],
+    agent: [],
+    mcp: [],
+  };
+  const sources = Array.isArray(summary?.externalSources) ? summary.externalSources : [];
+
+  for (const source of sources) {
+    const installables = Array.isArray(source?.installables) ? source.installables : [];
+    const activation = source?.activation && typeof source.activation === 'object' ? source.activation : {};
+    for (const installable of installables) {
+      const kind = normalizeCatalogItemKind(installable?.kind);
+      if (kind !== 'skill' && kind !== 'mcp') {
+        continue;
+      }
+      const targetSupport = normalizeStringList(installable?.targetSupport);
+      const installableMetadata = installable?.metadata && typeof installable.metadata === 'object'
+        ? installable.metadata
+        : {};
+      const externalReadPath = normalizeString(
+        installableMetadata.relativeSkillFilePath
+        || installableMetadata.readPath
+        || installable?.sourcePath
+        || installable?.relativePath
+      ) || null;
+      grouped[kind].push({
+        itemId: `${normalizeString(source.sourceId)}:${normalizeString(installable.installableId)}`,
+        itemKey: normalizeString(installable.installableId) || `${normalizeString(source.sourceId)}-${kind}`,
+        kind,
+        title: normalizeDisplayText(installable.title || installable.name || installable.installableId),
+        description: normalizeDescription(installable.description || source.description),
+        sourceType: 'external-source',
+        sourceId: normalizeString(source.sourceId) || null,
+        providerId: null,
+        readPath: externalReadPath,
+        detail: {
+          itemType: 'external-source',
+          sourceId: normalizeString(source.sourceId) || null,
+          sourceTitle: normalizeDisplayText(source.title),
+          installableId: normalizeString(installable.installableId) || null,
+          relativePath: normalizeString(installable.relativePath) || null,
+          sourcePath: normalizeString(installable.sourcePath) || null,
+          readPath: externalReadPath,
+        },
+        actions: {
+          kind: 'external-source',
+          installAssetId: null,
+          installSurfaceTargets: [],
+        },
+        harnessStates: listHarnessRows(ctx)
+          .filter((harness) => targetSupport.includes(harness.harnessId))
+          .map((harness) => {
+            const targetState = activation[harness.harnessId] && typeof activation[harness.harnessId] === 'object'
+              ? activation[harness.harnessId]
+              : {};
+            const targetInstallables = targetState.installables && typeof targetState.installables === 'object'
+              ? targetState.installables
+              : {};
+            const entry = targetInstallables[installable.installableId] && typeof targetInstallables[installable.installableId] === 'object'
+              ? targetInstallables[installable.installableId]
+              : {};
+            return buildHarnessState({
+              ctx,
+              harnessId: harness.harnessId,
+              kind,
+              installedPaths: normalizeStringList([entry.installedPath]),
+              canActivate: true,
+              canDeactivate: true,
+              detail: {
+                managedName: normalizeString(entry.managedName) || null,
+                installedPath: normalizeString(entry.installedPath) || null,
+              },
+              metadata: {
+                sourceId: normalizeString(source.sourceId) || null,
+                installableId: normalizeString(installable.installableId) || null,
+              },
+            });
+          }),
+      });
+    }
+  }
+
+  return grouped;
+}
+
+function dedupeInventoryItems(items) {
+  const seen = new Set();
+  const results = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    if (!item || typeof item !== 'object') {
+      continue;
+    }
+    const key = `${normalizeCatalogItemKind(item.kind)}::${normalizeString(item.itemKey)}::${normalizeString(item.sourceType)}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    results.push(item);
+  }
+  return results.sort((left, right) => {
+    const titleCompare = String(left.title || '').localeCompare(String(right.title || ''));
+    if (titleCompare !== 0) {
+      return titleCompare;
+    }
+    return String(left.itemId || '').localeCompare(String(right.itemId || ''));
+  });
+}
+
+function buildGlobalCatalogInventory(summary, externalSourcesSummary, ctx) {
+  const engineManifestScan = loadManifestDocument(ctx.engineRoot, 'engine-assets/manifest.json');
+  const engineManifestAssetIds = new Set(
+    expandManifestAssets(ctx.engineRoot, engineManifestScan.document)
+      .map((asset) => normalizeString(asset?.id))
+      .filter(Boolean)
+  );
+  const projectionInventory = buildProjectionInventory(summary, ctx, engineManifestAssetIds);
+  const manifestInventory = buildManifestInventory(ctx);
+  const externalInventory = buildExternalSourceInventory({ externalSources: externalSourcesSummary?.sources || [] }, ctx);
+
+  const sections = ['skill', 'agent', 'mcp'].map((kind) => {
+    const items = dedupeInventoryItems([
+      ...(projectionInventory[kind] || []),
+      ...(manifestInventory[kind] || []),
+      ...(externalInventory[kind] || []),
+    ]);
+    return {
+      kind,
+      title: humanizeItemKind(kind),
+      count: items.length,
+      items,
+    };
+  });
+
+  return {
+    harnesses: listHarnessRows(ctx),
+    sections,
+  };
+}
+
+function resolveExternalSourceReadablePath(ctx, sourceId, relativePath) {
+  const normalizedSourceId = normalizeString(sourceId).toLowerCase();
+  const normalizedRelativePath = normalizeString(relativePath).replace(/\\/g, '/');
+  if (!normalizedSourceId || !normalizedRelativePath) {
+    throw Object.assign(new Error('sourceId and path are required'), { statusCode: 400 });
+  }
+  const cacheRoot = depsResolveExternalSourceCacheRoot(ctx);
+  const extractedRoot = path.join(cacheRoot, normalizedSourceId, 'extracted');
+  const extractedEntries = safeReadDir(extractedRoot, { withFileTypes: true });
+  const rootDirectory = extractedEntries.find((entry) => entry.isDirectory());
+  if (!rootDirectory) {
+    throw Object.assign(new Error(`Cached contents unavailable for source ${normalizedSourceId}`), { statusCode: 404 });
+  }
+  const sourceRoot = path.join(extractedRoot, rootDirectory.name);
+  return safeResolveUnder(sourceRoot, normalizedRelativePath, path);
+}
+
+function depsResolveExternalSourceCacheRoot(ctx) {
+  if (ctx.externalSources && typeof ctx.externalSources.resolveCacheRoot === 'function') {
+    return ctx.externalSources.resolveCacheRoot(ctx.copilotHomeAbs);
+  }
+  return path.join(path.resolve(ctx.copilotHomeAbs), 'catalog', 'external-sources', 'cache');
+}
+
+function handleCatalogContent(ctx, deps) {
+  const mode = normalizeString(ctx.u.searchParams.get('mode')).toLowerCase();
+  const requestedPath = normalizeString(ctx.u.searchParams.get('path'));
+  if (!mode || !requestedPath) {
+    sendJsonError(ctx.res, deps.sendJson, 400, 'catalog.content', 'mode and path are required');
+    return;
+  }
+
+  try {
+    let absPath = null;
+    if (mode === 'absolute') {
+      absPath = path.resolve(requestedPath);
+      const allowedRoots = listHarnessRows(ctx)
+        .map((entry) => entry.homePath)
+        .filter(Boolean)
+        .concat(path.resolve(ctx.engineRoot));
+      if (!allowedRoots.some((root) => isPathWithinRoot(root, absPath))) {
+        throw Object.assign(new Error('Requested path is outside supported catalog roots'), { statusCode: 400 });
+      }
+    } else if (mode === 'engine') {
+      absPath = safeResolveUnder(ctx.engineRoot, requestedPath, path);
+    } else if (mode === 'external-source') {
+      const sourceId = normalizeString(ctx.u.searchParams.get('sourceId'));
+      absPath = resolveExternalSourceReadablePath({ ...ctx, externalSources: deps.externalSources }, sourceId, requestedPath);
+    } else {
+      throw Object.assign(new Error(`Unsupported mode: ${mode}`), { statusCode: 400 });
+    }
+
+    const text = safeReadText(absPath, 512 * 1024, deps.fs);
+    if (text == null) {
+      deps.sendText(ctx.res, 404, 'Catalog content not found at the resolved path.', 'text/plain; charset=utf-8');
+      return;
+    }
+    deps.sendText(ctx.res, 200, text, 'text/plain; charset=utf-8');
+  } catch (error) {
+    sendJsonError(ctx.res, deps.sendJson, error.statusCode || 400, 'catalog.content', String(error.message || error));
+  }
 }
 
 function normalizeCatalogFilters(searchParams) {
@@ -894,6 +1609,18 @@ function handleCatalogSummary(ctx, deps) {
 
   const activation = buildActivationStateForProjection(ctx, projectionContext);
   const routingPolicy = buildRoutingPolicyForProjection(ctx, projectionContext, activation);
+  const externalSourcesSummary = deps.externalSources.listSources({
+    engineRoot: ctx.engineRoot,
+    copilotHome: ctx.copilotHomeAbs,
+    codexHome: ctx.codexHome,
+    codexSkillsHome: ctx.codexSkillsHome,
+    opencodeHome: ctx.opencodeHome,
+    opencodeSkillsHome: ctx.opencodeSkillsHome,
+    geminiHome: ctx.geminiHome,
+    antigravityHome: ctx.antigravityHome,
+    antigravitySkillsHome: ctx.antigravitySkillsHome,
+  });
+  const globalInventory = buildGlobalCatalogInventory(projectionContext.snapshot, externalSourcesSummary, ctx);
   deps.sendJson(ctx.res, 200, {
     kind: 'catalog.summary',
     deterministic: true,
@@ -902,7 +1629,7 @@ function handleCatalogSummary(ctx, deps) {
       projectionContext,
       deps,
       deps.catalogRuntimeState,
-      { activation, routingPolicy },
+      { activation, routingPolicy, globalInventory },
     ),
   });
 }
@@ -1175,6 +1902,177 @@ function handleCatalogProviderInstall(ctx, deps) {
       'catalog.provider.install',
       String(error.message || error),
     ));
+}
+
+function handleCatalogSourcesList(ctx, deps) {
+  try {
+    const result = deps.externalSources.listSources({
+      engineRoot: ctx.engineRoot,
+      copilotHome: ctx.copilotHomeAbs,
+      codexHome: ctx.codexHome,
+      codexSkillsHome: ctx.codexSkillsHome,
+      opencodeHome: ctx.opencodeHome,
+      opencodeSkillsHome: ctx.opencodeSkillsHome,
+      geminiHome: ctx.geminiHome,
+      antigravityHome: ctx.antigravityHome,
+      antigravitySkillsHome: ctx.antigravitySkillsHome,
+    });
+    deps.sendJson(ctx.res, 200, {
+      kind: 'catalog.sources.list',
+      deterministic: true,
+      count: result.sources.length,
+      sources: result.sources,
+      storage: {
+        catalogPath: result.catalogPath,
+        userSourcesPath: result.userSourcesPath,
+        statePath: result.statePath,
+      },
+    });
+  } catch (error) {
+    sendJsonError(ctx.res, deps.sendJson, error.statusCode || 500, 'catalog.sources.list', String(error.message || error));
+  }
+}
+
+function handleCatalogSourceDetail(ctx, deps) {
+  try {
+    const sourceId = normalizeString(ctx.match?.[1]);
+    const result = deps.externalSources.getSourceDetail({
+      engineRoot: ctx.engineRoot,
+      copilotHome: ctx.copilotHomeAbs,
+      codexHome: ctx.codexHome,
+      codexSkillsHome: ctx.codexSkillsHome,
+      opencodeHome: ctx.opencodeHome,
+      opencodeSkillsHome: ctx.opencodeSkillsHome,
+      geminiHome: ctx.geminiHome,
+      antigravityHome: ctx.antigravityHome,
+      antigravitySkillsHome: ctx.antigravitySkillsHome,
+    }, sourceId);
+    deps.sendJson(ctx.res, 200, {
+      kind: 'catalog.sources.detail',
+      deterministic: true,
+      source: result.source,
+      storage: {
+        catalogPath: result.catalogPath,
+        userSourcesPath: result.userSourcesPath,
+        statePath: result.statePath,
+      },
+    });
+  } catch (error) {
+    sendJsonError(ctx.res, deps.sendJson, error.statusCode || 500, 'catalog.sources.detail', String(error.message || error));
+  }
+}
+
+function handleCatalogSourceAdd(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then((body) => {
+      const result = deps.externalSources.addSource({
+        engineRoot: ctx.engineRoot,
+        copilotHome: ctx.copilotHomeAbs,
+      }, body);
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.sources.add',
+        deterministic: true,
+        source: result.source,
+        userSourcesPath: result.userSourcesPath,
+      });
+    })
+    .catch((error) => sendJsonError(ctx.res, deps.sendJson, error.statusCode || 500, 'catalog.sources.add', String(error.message || error)));
+}
+
+function handleCatalogSourceRemove(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then((body) => {
+      const sourceId = normalizeString(body?.sourceId);
+      const result = deps.externalSources.removeSource({
+        copilotHome: ctx.copilotHomeAbs,
+      }, sourceId);
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.sources.remove',
+        deterministic: true,
+        ...result,
+      });
+    })
+    .catch((error) => sendJsonError(ctx.res, deps.sendJson, error.statusCode || 500, 'catalog.sources.remove', String(error.message || error)));
+}
+
+function handleCatalogSourceRefresh(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const sourceId = normalizeString(body?.sourceId);
+      const result = await deps.externalSources.refreshSource({
+        engineRoot: ctx.engineRoot,
+        copilotHome: ctx.copilotHomeAbs,
+        codexHome: ctx.codexHome,
+        codexSkillsHome: ctx.codexSkillsHome,
+        opencodeHome: ctx.opencodeHome,
+        opencodeSkillsHome: ctx.opencodeSkillsHome,
+        geminiHome: ctx.geminiHome,
+        antigravityHome: ctx.antigravityHome,
+        antigravitySkillsHome: ctx.antigravitySkillsHome,
+        fetch: deps.fetch,
+      }, sourceId);
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.sources.refresh',
+        deterministic: true,
+        source: result.source,
+        snapshot: result.snapshot,
+      });
+    })
+    .catch((error) => sendJsonError(ctx.res, deps.sendJson, error.statusCode || 500, 'catalog.sources.refresh', String(error.message || error)));
+}
+
+function handleCatalogSourceActivate(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then((body) => {
+      const result = deps.externalSources.activateInstallable({
+        engineRoot: ctx.engineRoot,
+        copilotHome: ctx.copilotHomeAbs,
+        codexHome: ctx.codexHome,
+        codexSkillsHome: ctx.codexSkillsHome,
+        opencodeHome: ctx.opencodeHome,
+        opencodeSkillsHome: ctx.opencodeSkillsHome,
+        geminiHome: ctx.geminiHome,
+        antigravityHome: ctx.antigravityHome,
+        antigravitySkillsHome: ctx.antigravitySkillsHome,
+      }, body);
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.sources.activate',
+        deterministic: true,
+        source: result.source,
+        installable: result.installable,
+        target: result.target,
+        materialized: result.materialized,
+        state: result.state,
+      });
+    })
+    .catch((error) => sendJsonError(ctx.res, deps.sendJson, error.statusCode || 500, 'catalog.sources.activate', String(error.message || error)));
+}
+
+function handleCatalogSourceDeactivate(ctx, deps) {
+  deps.readJsonBody(ctx.req)
+    .then((body) => {
+      const result = deps.externalSources.deactivateInstallable({
+        engineRoot: ctx.engineRoot,
+        copilotHome: ctx.copilotHomeAbs,
+        codexHome: ctx.codexHome,
+        codexSkillsHome: ctx.codexSkillsHome,
+        opencodeHome: ctx.opencodeHome,
+        opencodeSkillsHome: ctx.opencodeSkillsHome,
+        geminiHome: ctx.geminiHome,
+        antigravityHome: ctx.antigravityHome,
+        antigravitySkillsHome: ctx.antigravitySkillsHome,
+      }, body);
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.sources.deactivate',
+        deterministic: true,
+        source: result.source,
+        installable: result.installable,
+        target: result.target,
+        removed: result.removed,
+        state: result.state,
+      });
+    })
+    .catch((error) => sendJsonError(ctx.res, deps.sendJson, error.statusCode || 500, 'catalog.sources.deactivate', String(error.message || error)));
 }
 
 function handleCatalogAssetEnable(ctx, deps) {
@@ -1820,13 +2718,17 @@ function register(deps = {}) {
     path: deps.path || path,
     process: deps.process || process,
     crypto: deps.crypto || crypto,
+    engineRoot: deps.engineRoot || process.cwd(),
     catalogProjection: deps.catalogProjection || catalogProjectionLib,
     catalogMutation: deps.catalogMutation || catalogMutationLib,
+    externalSources: deps.externalSources || externalSourcesLib,
     providerCatalog: deps.providerCatalog || providerCatalogLib,
     executeProviderCommand: deps.executeProviderCommand,
+    fetch: deps.fetch || globalThis.fetch,
     repoInventory: deps.repoInventory || repoInventoryLib,
     repoDiscovery: deps.repoDiscovery || repoDiscoveryLib,
     sendJson: deps.sendJson || defaultSendJson,
+    sendText: deps.sendText || defaultSendText,
     readJsonBody: deps.readJsonBody || defaultReadJsonBody,
     catalogRuntimeState: deps.catalogRuntimeState || createCatalogRuntimeState(),
   };
@@ -1869,6 +2771,21 @@ function register(deps = {}) {
     },
     {
       method: 'GET',
+      path: '/api/catalog/sources',
+      handler: (ctx) => handleCatalogSourcesList(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/catalog/content',
+      handler: (ctx) => handleCatalogContent(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: /^\/api\/catalog\/sources\/([^/]+)$/,
+      handler: (ctx) => handleCatalogSourceDetail(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
       path: '/api/catalog/assets',
       handler: (ctx) => handleCatalogAssets(ctx, resolvedDeps),
     },
@@ -1891,6 +2808,31 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/refresh',
       handler: (ctx) => handleCatalogRefresh(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/sources/add',
+      handler: (ctx) => handleCatalogSourceAdd(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/sources/remove',
+      handler: (ctx) => handleCatalogSourceRemove(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/sources/refresh',
+      handler: (ctx) => handleCatalogSourceRefresh(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/sources/activate',
+      handler: (ctx) => handleCatalogSourceActivate(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/sources/deactivate',
+      handler: (ctx) => handleCatalogSourceDeactivate(ctx, resolvedDeps),
     },
     {
       method: 'POST',

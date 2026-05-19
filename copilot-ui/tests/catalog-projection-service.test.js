@@ -50,6 +50,45 @@ async function run() {
   const repoPath = path.join(tmpRoot, 'workspace-repo');
 
   try {
+    writeJson(path.join(engineRoot, 'engine-assets', 'providers.json'), {
+      schemaVersion: 1,
+      providers: [
+        {
+          id: 'external-provider',
+          title: 'External Provider',
+          description: 'Fixture provider for external plugin and managed-import assets.',
+          sourceType: 'github-repo',
+          source: {
+            owner: 'example',
+            repo: 'example-external-provider',
+            defaultRef: 'main',
+          },
+          installStrategy: 'managed-import',
+          bridgeStrategy: 'plugin-layout',
+          assetLayout: {
+            namespace: 'superpowers',
+            skillsRoot: 'plugins/superpowers/skills',
+            agentsRoot: 'plugins/superpowers/agents',
+            managedSkillsRoot: 'skills/providers/superpowers',
+            managedVaultSkillsRoot: 'skills-vault/providers/superpowers',
+            managedAgentsPattern: 'agents/providers--external--*.md',
+          },
+          compatibility: {
+            readOnlyBridge: true,
+            supportsNamespacedSkills: true,
+            supportsPlainMarkdownAgents: true,
+            providerQualifiedIdentity: true,
+          },
+          activationDefaults: {
+            scope: 'global-and-repo',
+            repoOverrides: true,
+          },
+          sourcePackageMatchers: ['example-external-provider'],
+          namespaceMatchers: ['superpowers', 'external'],
+        },
+      ],
+    });
+
     writeJson(path.join(engineRoot, 'engine-assets', 'manifest.json'), {
       bundles: [
         {
@@ -163,7 +202,7 @@ async function run() {
       path.join(
         copilotHome,
         'marketplace-cache',
-        'dwaintr-superpowers-copilot',
+        'example-external-provider',
         'plugins',
         'superpowers',
         'agents',
@@ -189,7 +228,7 @@ async function run() {
         path.join(
           copilotHome,
           'marketplace-cache',
-          'dwaintr-superpowers-copilot',
+          'example-external-provider',
           'plugins',
           'superpowers',
           'agents',
@@ -269,7 +308,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'agents', 'providers--superpowers--workflow-guide.md'),
+      path.join(copilotHome, 'agents', 'providers--external--workflow-guide.md'),
       [
         '---',
         'name: workflow-guide',
@@ -378,11 +417,11 @@ async function run() {
       assert.strictEqual(pluginAgent.selectedEntry.metadata.logicalName, 'code-reviewer');
       assert.strictEqual(pluginAgent.selectedEntry.metadata.readOnly, true);
       if (pluginAgentWasLinked) {
-        assert.strictEqual(pluginAgent.selectedEntry.metadata.provider, 'superpowers-copilot');
-        assert.strictEqual(pluginAgent.selectedEntry.provenance.providerId, 'superpowers-copilot');
+        assert.strictEqual(pluginAgent.selectedEntry.metadata.provider, 'external-provider');
+        assert.strictEqual(pluginAgent.selectedEntry.provenance.providerId, 'external-provider');
         assert.strictEqual(pluginAgent.selectedEntry.provenance.discoveryMode, 'compatibility-bridge');
         assert.strictEqual(pluginAgent.selectedEntry.metadata.namespace, 'superpowers');
-        assert.strictEqual(pluginAgent.selectedEntry.metadata.sourcePackage, 'dwaintr-superpowers-copilot');
+        assert.strictEqual(pluginAgent.selectedEntry.metadata.sourcePackage, 'example-external-provider');
       } else {
         assert.strictEqual(pluginAgent.selectedEntry.metadata.provider, 'copilot-home-plain-agent');
       }
@@ -396,15 +435,15 @@ async function run() {
       assert.strictEqual(pluginSkill.selectedEntry.metadata.logicalName, 'brainstorming');
       assert.strictEqual(pluginSkill.selectedEntry.metadata.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
       assert.strictEqual(pluginSkill.selectedEntry.metadata.readOnly, true);
-      assert.strictEqual(pluginSkill.selectedEntry.metadata.provider, 'superpowers-copilot');
-      assert.strictEqual(pluginSkill.selectedEntry.provenance.providerId, 'superpowers-copilot');
+      assert.strictEqual(pluginSkill.selectedEntry.metadata.provider, 'external-provider');
+      assert.strictEqual(pluginSkill.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(pluginSkill.selectedEntry.provenance.discoveryMode, 'compatibility-bridge');
 
       const importedProviderSkill = snapshot.effectiveAssets.find(
         (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/providers/superpowers/workflow-kit/SKILL.md',
       );
       assert.ok(importedProviderSkill, 'expected managed-import provider skill to be projected');
-      assert.strictEqual(importedProviderSkill.selectedEntry.provenance.providerId, 'superpowers-copilot');
+      assert.strictEqual(importedProviderSkill.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(importedProviderSkill.selectedEntry.provenance.discoveryMode, 'managed-import');
       assert.strictEqual(importedProviderSkill.selectedEntry.provenance.originKind, 'provider-import');
 
@@ -425,9 +464,9 @@ async function run() {
       );
       assert.ok(vaultedProviderIndexSkill, 'expected vault provider index.md skill to be projected');
       assert.strictEqual(vaultedProviderIndexSkill.selectedLayer, 'vault-only');
-      assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.metadata.provider, 'superpowers-copilot');
+      assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.metadata.provider, 'external-provider');
       assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.metadata.readOnly, true);
-      assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.provenance.providerId, 'superpowers-copilot');
+      assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.provenance.discoveryMode, 'managed-import');
 
       const repoProviderIndexSkill = snapshot.effectiveAssets.find(
@@ -435,19 +474,19 @@ async function run() {
       );
       assert.ok(repoProviderIndexSkill, 'expected repo-local provider index.md skill to be projected');
       assert.strictEqual(repoProviderIndexSkill.selectedLayer, 'repo-local');
-      assert.strictEqual(repoProviderIndexSkill.selectedEntry.metadata.provider, 'superpowers-copilot');
+      assert.strictEqual(repoProviderIndexSkill.selectedEntry.metadata.provider, 'external-provider');
       assert.strictEqual(repoProviderIndexSkill.selectedEntry.metadata.readOnly, true);
-      assert.strictEqual(repoProviderIndexSkill.selectedEntry.provenance.providerId, 'superpowers-copilot');
+      assert.strictEqual(repoProviderIndexSkill.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(repoProviderIndexSkill.selectedEntry.provenance.discoveryMode, 'managed-import');
 
       const importedProviderAgent = snapshot.effectiveAssets.find(
         (asset) => asset.selectedEntry?.metadata?.logicalName === 'workflow-guide',
       );
       assert.ok(importedProviderAgent, 'expected managed-import provider agent to be projected');
-      assert.strictEqual(importedProviderAgent.selectedEntry.provenance.providerId, 'superpowers-copilot');
+      assert.strictEqual(importedProviderAgent.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(importedProviderAgent.selectedEntry.provenance.discoveryMode, 'managed-import');
 
-      const providerRecord = snapshot.providers.find((provider) => provider.providerId === 'superpowers-copilot');
+      const providerRecord = snapshot.providers.find((provider) => provider.providerId === 'external-provider');
       assert.ok(providerRecord, 'expected provider record in projection');
       assert.ok(providerRecord.discoveredAssets.count >= 3, 'expected provider asset rollup');
 

@@ -100,7 +100,7 @@ export default function SandboxesView({ onFollowSessions }: SandboxesViewProps) 
 
       {lifecycleBlockedByToken ? (
         <p className="sandboxes-error" data-testid="sandbox-token-remediation" role="alert">
-          Sandbox lifecycle actions are disabled until tracker auth is configured. {lifecycleBlockedMessage}
+          Sandbox lifecycle actions are disabled until gateway auth is configured. {lifecycleBlockedMessage}
         </p>
       ) : null}
 

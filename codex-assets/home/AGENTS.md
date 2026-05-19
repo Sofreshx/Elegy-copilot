@@ -45,7 +45,7 @@ Use plan-first for non-trivial work. Stay in planning until the task is decision
 - Use `/fork` to branch a conversation without losing the original thread.
 - Use `/resume` to continue prior work instead of rebuilding context from scratch.
 - Use `PLANS.md` only for long-horizon work that must survive compaction or handoff. Do not create a file-backed plan by default.
-- Use `$roadmap-planning` for persisted multi-session goals under `docs/planning/<roadmap-slug>/`; update the roadmap index and the selected section lightly after completing a slice.
+- Use `$roadmap-planning` for persisted multi-session goals under `docs/roadmaps/<roadmap-slug>.md`; update the roadmap lightly after completing a slice.
 - Treat a Roadmap as durable multi-session planning above a session plan: it records goals, non-goals, targets, sequencing, progress, evidence, and reevaluation notes, while the current session implements one selected slice.
 
 ## Repo docs breadcrumb

@@ -21,7 +21,6 @@ export interface TrackerConfig {
   relayUrl?: string;
   relayToken?: string;
   relayTokenSource: TrackerRelayTokenSource;
-  localWsPort: number;
   watchIntervalMs: number;
   statusPort: number;
   obsidianNotePaths: string[];
@@ -48,7 +47,6 @@ export function loadConfig(): TrackerConfig {
     relayUrl: process.env.TRACKER_RELAY_URL,
     relayToken,
     relayTokenSource: relayToken ? "env" : "missing",
-    localWsPort: parseInt(process.env.TRACKER_WS_PORT || "9821", 10),
     watchIntervalMs: parseInt(process.env.TRACKER_WATCH_INTERVAL || "2000", 10),
     statusPort: parseInt(process.env.TRACKER_STATUS_PORT || "9822", 10),
     obsidianNotePaths,

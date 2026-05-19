@@ -3,6 +3,10 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
 
+const {
+  CONTINUATION_PACKAGE_CONTRACT_VERSION,
+} = require('@elegy-copilot/contracts');
+
 const { register } = require('./sessions');
 
 let passed = 0;
@@ -2881,6 +2885,176 @@ WU-001 — Continue execution
     assert.deepEqual(assetReads, []);
   });
 
+  await test('GET /api/sessions/:id/continuation-package returns a portable continuation package for the requested harness', async () => {
+    const assetReads = [];
+    const routes = register({
+      sendJson: createSendJson(),
+      fs: createSessionFs(),
+      readPlanArtifact(sessionDir, planId) {
+        assert.equal(sessionDir, 'C:\\cli-home\\session-state\\session-continue');
+        assert.equal(planId, 'latest');
+        return [
+          '<!-- IE_PLAN_REF: session:session-continue -->',
+          '<!-- IE_LINKED_BACKLOG_IDS: RB-200 -->',
+          '<!-- IE_LINKED_ROADMAP_IDS: RM-platform -->',
+          '',
+          '# Plan Pack',
+          '',
+          '## Goal',
+          '',
+          'Ship portable continuation exports.',
+        ].join('\n');
+      },
+      assets: {
+        readTextFileSafe(targetPath) {
+          assetReads.push(String(targetPath));
+          if (String(targetPath).endsWith('handoff.md')) {
+            return '# Handoff\n';
+          }
+          if (String(targetPath).endsWith('proposition.md')) {
+            return '# Proposition\n';
+          }
+          if (String(targetPath).endsWith('verification-guide.md')) {
+            return '# Verification Guide\n';
+          }
+          if (String(targetPath).endsWith('execution-state.json')) {
+            return JSON.stringify({ status: 'active' });
+          }
+          return null;
+        },
+      },
+      planState: {
+        parseStructuredState(planText, options) {
+          assert.equal(options.sessionId, 'session-continue');
+          assert.match(planText, /portable continuation exports/);
+          return {
+            meta: {
+              intentFrame: {
+                summary: 'Continue the export implementation.',
+                constraints: ['Keep exports explicit.'],
+                watchOuts: ['Do not rely on hidden memory.'],
+                nextSuggestedUnits: ['Finish the UI export actions.'],
+                inScope: ['Add route coverage.'],
+                carryoverSignals: ['Roadmap continuity remains required.'],
+                outOfScope: ['Native session-store migration.'],
+                sourceArtifacts: ['plan.md'],
+              },
+              closureSummary: {
+                summary: 'Backend export routes landed; UI follow-up remains.',
+                blockers: ['Session detail export buttons are still pending.'],
+                coverageGaps: ['Route tests still need to run.'],
+                roadmapIds: ['RM-platform'],
+                followUps: {
+                  activeContinuation: ['Wire Codex and OpenCode export actions.'],
+                  durableCarryover: ['Keep roadmap artifacts portable across harnesses.'],
+                },
+              },
+              resume: {
+                blockers: ['Confirm copy/export UX in session detail.'],
+              },
+            },
+          };
+        },
+      },
+      sessionPlanRoadmapSync: {
+        parsePlanSyncMarkers(planText) {
+          assert.match(planText, /IE_PLAN_REF/);
+          return {
+            planRef: 'session:session-continue',
+            linkedBacklogIds: ['RB-200'],
+            linkedRoadmapIds: ['RM-platform'],
+          };
+        },
+      },
+      sessions: {
+        readRecentEvents(sessionDir, limit) {
+          assert.equal(sessionDir, 'C:\\cli-home\\session-state\\session-continue');
+          assert.equal(limit, 120);
+          return [
+            {
+              type: 'user.message',
+              payload: { content: 'Can we continue this in Codex?' },
+              timestamp: '2026-05-19T10:00:00.000Z',
+            },
+            {
+              type: 'assistant.message',
+              payload: { content: 'Yes, export a continuation package first.' },
+              timestamp: '2026-05-19T10:01:00.000Z',
+            },
+          ];
+        },
+      },
+      repoInventory: {
+        listKnownRepos() {
+          return {
+            selectedRepo: {
+              repoId: 'repo-1',
+              repoPath: 'C:\\repo',
+              repoLabel: 'Repo One',
+            },
+          };
+        },
+        resolveRepoEntry(inventory) {
+          return inventory.selectedRepo;
+        },
+      },
+      sdkBridge: {
+        getSdkSession(sessionId) {
+          assert.equal(sessionId, 'session-continue');
+          return {
+            sessionId,
+            cwd: 'C:\\repo',
+            orchestration: {
+              repo: {
+                repoId: 'repo-1',
+                repoPath: 'C:\\repo',
+                repoLabel: 'Repo One',
+                branch: 'main',
+              },
+              workflow: {
+                model: 'gpt-5.4',
+              },
+            },
+          };
+        },
+      },
+      sessionArtifacts: {
+        deriveSessionObjective() {
+          return 'Ship portable continuation exports.';
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, {
+      copilotHome: 'C:\\cli-home',
+      vscodeHome: 'C:\\vscode-home',
+      sandboxesHome: 'C:\\sandboxes-home',
+    }, 'GET', '/api/sessions/session-continue/continuation-package?targetHarness=codex');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.contractVersion, CONTINUATION_PACKAGE_CONTRACT_VERSION);
+    assert.equal(body.kind, 'session.continuation-package');
+    assert.equal(body.targetHarness, 'codex');
+    assert.equal(body.source.kind, 'session');
+    assert.equal(body.source.sessionId, 'session-continue');
+    assert.equal(body.source.sessionSource, 'cli');
+    assert.equal(body.repo.repoId, 'repo-1');
+    assert.equal(body.repo.branch, 'main');
+    assert.deepEqual(body.roadmap.roadmapIds, ['RM-platform']);
+    assert.deepEqual(body.roadmap.linkedBacklogIds, ['RB-200']);
+    assert.ok(body.constraints.includes('Keep exports explicit.'));
+    assert.ok(body.openQuestions.includes('Confirm copy/export UX in session detail.'));
+    assert.ok(body.nextActions.includes('Wire Codex and OpenCode export actions.'));
+    assert.ok(body.carryover.includes('Keep roadmap artifacts portable across harnesses.'));
+    assert.ok(body.skillsRequired.includes('implementation-handoff'));
+    assert.ok(body.skillsRequired.includes('roadmap-planning'));
+    assert.deepEqual(body.transcriptExcerpt.map((entry) => entry.role), ['user', 'assistant']);
+    assert.match(body.prompt.title, /Codex/);
+    assert.match(body.prompt.text, /Continue this discussion in Codex\./);
+    assert.ok(assetReads.some((targetPath) => targetPath.endsWith('handoff.md')));
+    assert.ok(assetReads.some((targetPath) => targetPath.endsWith('execution-state.json')));
+  });
+
   await test('POST /api/sessions/plan creates a linked local plan session and writes plan/events artifacts', async () => {
     const writes = [];
     const ensuredDirs = [];
@@ -3161,8 +3335,8 @@ WU-001 — Continue execution
             },
             roadmaps: [{
               slug: 'platform-foundation',
-              filePath: 'C:\\repo\\docs\\roadmaps\\platform-foundation.md',
-              repoRelativePath: 'docs/roadmaps/platform-foundation.md',
+              filePath: 'C:\\repo\\docs\\planning\\platform-foundation\\index.md',
+              repoRelativePath: 'docs/planning/platform-foundation/index.md',
               items: [{ id: 'RM-platform-foundation-001', status: 'done' }],
             }],
           };

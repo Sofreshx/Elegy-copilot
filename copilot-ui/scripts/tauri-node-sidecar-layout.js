@@ -117,7 +117,6 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
     'copilot-ui-server',
     'copilot-ui-lib',
     'copilot-ui-routes',
-    'copilot-ui-public',
     'copilot-ui-ui-dist',
     'copilot-ui-package-json',
     'copilot-cli',

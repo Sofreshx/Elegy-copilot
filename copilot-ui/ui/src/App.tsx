@@ -13,8 +13,7 @@ import {
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { questionBadgeStore } from './stores/questionBadgeStore';
 import { sdkHealthStore } from './stores/sdkHealthStore';
-import PlanningView from './tabs/Planning/PlanningView';
-import TodoView from './tabs/Planning/TodoView';
+import PlanningAuthorityView from './tabs/Planning/PlanningAuthorityView';
 import CatalogShellView from './views/Catalog/CatalogShellView';
 import DashboardView from './views/DashboardView';
 import MaintenanceView from './views/Maintenance/MaintenanceView';
@@ -24,9 +23,6 @@ import ProjectsListView from './views/Project/ProjectsListView';
 import SessionDetailView from './views/Sessions/SessionDetailView';
 import SessionsListView from './views/Sessions/SessionsListView';
 import SessionWizard from './views/Sessions/SessionWizard';
-import WorkflowExecutionView from './views/Workflows/WorkflowExecutionView';
-import WorkflowsHub from './views/Workflows/WorkflowsHub';
-import WorkflowTemplateEditor from './views/Workflows/WorkflowTemplateEditor';
 import SettingsView from './views/Settings/SettingsView';
 import AssetCreationWizard from './views/Catalog/AssetCreationWizard';
 
@@ -59,12 +55,6 @@ export default function App() {
       } else if (navigationStore.getState().selectedSessionId) {
         navigationStore.selectSession(null);
         e.preventDefault();
-      } else if (navigationStore.getState().selectedWorkflowRunId) {
-        navigationStore.selectWorkflowRun(null);
-        e.preventDefault();
-      } else if (navigationStore.getState().selectedWorkflowTemplateId) {
-        navigationStore.selectWorkflowTemplate(null);
-        e.preventDefault();
       }
       return;
     }
@@ -78,7 +68,7 @@ export default function App() {
       return;
     }
 
-    // Ctrl+1-7 — sidebar navigation
+    // Ctrl+1-6 — sidebar navigation
     const digit = parseInt(e.key, 10);
     if (digit >= 1 && digit <= SIDEBAR_NAV_ITEMS.length) {
       e.preventDefault();
@@ -149,17 +139,9 @@ export default function App() {
       case 'catalog':
         return <CatalogShellView />;
       case 'planning':
-        return <TodoView />;
+        return <PlanningAuthorityView />;
       case 'maintenance':
         return <MaintenanceView />;
-      case 'workflows':
-        if (navigationState.selectedWorkflowRunId) {
-          return <WorkflowExecutionView runId={navigationState.selectedWorkflowRunId} />;
-        }
-        if (navigationState.selectedWorkflowTemplateId) {
-          return <WorkflowTemplateEditor templateId={navigationState.selectedWorkflowTemplateId} />;
-        }
-        return <WorkflowsHub />;
       case 'settings':
         return <SettingsView />;
       default:

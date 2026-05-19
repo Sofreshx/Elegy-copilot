@@ -117,41 +117,9 @@ function refreshTauriWindowsReleaseMetadata(options = {}) {
       applyRequiresUserAction: true,
       releaseSource: 'github_release_manifest',
       failClosedChannelPolicy: manifest.releaseLane.failClosedChannelPolicy,
-      electronReleaseLaneRemainsAvailable: true,
-      migrationHandoff: 'manual_electron_to_tauri_download',
-      migrationGuidanceRelativePath: 'electron-to-tauri-handoff.md',
       installationGuidanceRelativePath: installationGuidanceFileName,
       inPlaceUpgradeSupported: false,
       updaterBridgeStatus: 'bridge_available_github_release_manual_installer',
-    },
-    migrationHandoff: {
-      sourceShell: 'electron',
-      targetShell: 'tauri',
-      handoffMode: 'manual_matching_channel_installer',
-      inPlaceUpgradeSupported: false,
-      electronReleaseLaneRemainsAvailableUntilCutover: true,
-      releaseNotesRequired: true,
-      canonicalDocs: [
-        'docs/system/desktop-runtime-tauri-migration-contract.md',
-        'docs/system/desktop-update-rollback-runbook.md',
-        'docs/system/copilot-ui-guide.md',
-      ],
-      operatorChecklist: [
-        'Publish the matching-channel Tauri Windows installer plus release-manifest.json.',
-        'Keep the incumbent Electron release lane available until the final cutover.',
-        'Point Electron users to the manual Tauri installer download in release notes and operator messaging.',
-        'Do not describe this slice as an in-place Electron-to-Tauri auto-update.',
-      ],
-      userChecklist: [
-        'Stay on the current Electron build until you are ready to migrate.',
-        'Download the matching-channel Tauri installer manually.',
-        'Install and launch Tauri, then verify it starts against the existing local runtime state.',
-        'Remove Electron only after Tauri is confirmed working.',
-      ],
-      artifact: {
-        relativePath: 'electron-to-tauri-handoff.md',
-        format: 'markdown',
-      },
     },
     runtime: {
       manifestRelativePath: 'runtime-manifests/windows-tauri-node-sidecar.json',
@@ -178,7 +146,6 @@ function refreshTauriWindowsReleaseMetadata(options = {}) {
     installerPath: installerOutputPath,
     installerName,
     installationGuidancePath,
-    migrationGuidancePath: path.join(releaseRoot, 'electron-to-tauri-handoff.md'),
     channel: channelResolution.contract.channel,
   };
 }

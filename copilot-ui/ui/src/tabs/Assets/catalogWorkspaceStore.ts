@@ -1,6 +1,9 @@
 import {
+  activateCatalogSourceInstallable,
+  addCatalogSource,
   updateCatalogActivation,
   createCatalogAsset,
+  deactivateCatalogSourceInstallable,
   deleteCatalogAsset,
   disableCatalogAsset,
   enableCatalogAsset,
@@ -15,7 +18,9 @@ import {
   getRuntimeCatalogHealth,
   installCatalogProvider,
   installCatalogAsset,
+  refreshCatalogSource,
   uninstallCatalogBundle,
+  removeCatalogSource,
   refreshCatalogProjection,
   refreshCatalogRepo,
   registerCatalogRepo,
@@ -37,6 +42,7 @@ import type {
   CatalogBundleUninstallResponse,
   CatalogEffectiveAsset,
   CatalogEntry,
+  CatalogExternalSourceProjection,
   CatalogRepoInventoryEntry,
   CatalogRepoInventoryStorage,
   CatalogRepoInventoryWorkspaceScan,
@@ -246,12 +252,13 @@ function normalizeRepoInventory(input: CatalogReposListResponse | null | undefin
     if (!value || typeof value !== 'object') {
       return undefined;
     }
+    const storage = value as CatalogRepoInventoryStorage;
     return {
-      ...(value as CatalogRepoInventoryStorage),
-      path: typeof (value as CatalogRepoInventoryStorage).path === 'string'
-        ? (value as CatalogRepoInventoryStorage).path.trim()
+      ...storage,
+      path: typeof storage.path === 'string'
+        ? storage.path.trim()
         : undefined,
-      exists: (value as CatalogRepoInventoryStorage).exists === true,
+      exists: storage.exists === true,
     };
   };
   const normalizeRepo = (value: CatalogRepoInventoryEntry | null | undefined): CatalogRepoInventoryEntry | null => {
@@ -351,17 +358,43 @@ function resolveInspectablePath(asset: CatalogEffectiveAsset | null): string | n
 
 function getInstallSurfaceLabel(target: InstallSurfaceTarget): string {
   switch (target) {
-    case 'copilot':
-      return 'Copilot';
     case 'codex':
       return 'Codex';
     case 'antigravity':
       return 'Antigravity';
+    case 'opencode':
+      return 'OpenCode';
     case 'all':
       return 'everything';
     default:
       return target;
   }
+}
+
+function listExternalSources(state: CatalogWorkspaceState): CatalogExternalSourceProjection[] {
+  return Array.isArray(state.summary?.externalSources)
+    ? state.summary.externalSources.filter((source): source is CatalogExternalSourceProjection => Boolean(source?.sourceId))
+    : [];
+}
+
+function resolveExternalSourceTargetState(source: CatalogExternalSourceProjection | null | undefined, target: string): Record<string, unknown> {
+  const activation = source?.activation && typeof source.activation === 'object'
+    ? source.activation
+    : {};
+  const targetState = activation[target];
+  return targetState && typeof targetState === 'object' ? targetState : {};
+}
+
+function isExternalInstallableEnabledForTarget(
+  source: CatalogExternalSourceProjection | null | undefined,
+  installableId: string,
+  target: string
+): boolean {
+  const targetState = resolveExternalSourceTargetState(source, target);
+  const installables = targetState.installables && typeof targetState.installables === 'object'
+    ? targetState.installables as Record<string, Record<string, unknown>>
+    : {};
+  return installables[installableId]?.enabled === true;
 }
 
 function createCatalogWorkspaceStore() {
@@ -562,9 +595,10 @@ function createCatalogWorkspaceStore() {
   ): Promise<void> {
     const nextVersion = ++auditAnalyticsRequestVersion;
     const requestSelector = selectorOverride ?? selector();
+    const summary = store.getState().summary;
     const summaryRepoContext =
-      store.getState().summary?.repoContext && typeof store.getState().summary.repoContext === 'object'
-        ? store.getState().summary.repoContext
+      summary?.repoContext && typeof summary.repoContext === 'object'
+        ? summary.repoContext
         : null;
     const repoId =
       requestSelector.repoId ||
@@ -1111,6 +1145,183 @@ function createCatalogWorkspaceStore() {
     }
   }
 
+  async function runExternalSourceMutation<T>(
+    startMessage: string,
+    mutate: () => Promise<T>,
+    successMessage: (response: T) => string
+  ): Promise<T> {
+    store.setState((state) => ({
+      ...state,
+      mutating: true,
+      error: null,
+      installMessage: startMessage,
+    }));
+
+    try {
+      const response = await mutate();
+      await loadWorkspace();
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        installMessage: successMessage(response),
+      }));
+      return response;
+    } catch (error) {
+      store.setState((state) => ({
+        ...state,
+        mutating: false,
+        error: toErrorMessage(error, 'External source action failed.'),
+        installMessage: `${startMessage} failed.`,
+      }));
+      throw error;
+    }
+  }
+
+  async function addExternalSource(
+    payload: Parameters<typeof addCatalogSource>[0]
+  ): Promise<void> {
+    await runExternalSourceMutation(
+      `Adding source ${payload.title?.trim() || payload.sourceId?.trim() || payload.url}...`,
+      () => addCatalogSource(payload),
+      (response) => `Added source ${String(response.source?.title || response.source?.sourceId || payload.url)}.`
+    );
+  }
+
+  async function removeExternalSource(sourceId: string): Promise<void> {
+    const normalizedSourceId = sourceId.trim();
+    if (!normalizedSourceId) {
+      return;
+    }
+    await runExternalSourceMutation(
+      `Removing source ${normalizedSourceId}...`,
+      () => removeCatalogSource({ sourceId: normalizedSourceId }),
+      () => `Removed source ${normalizedSourceId}.`
+    );
+  }
+
+  async function refreshExternalSource(sourceId: string): Promise<void> {
+    const normalizedSourceId = sourceId.trim();
+    if (!normalizedSourceId) {
+      return;
+    }
+    await runExternalSourceMutation(
+      `Refreshing source ${normalizedSourceId}...`,
+      () => refreshCatalogSource({ sourceId: normalizedSourceId }),
+      (response) => {
+        const installableCount = Array.isArray((response as { snapshot?: { installables?: unknown[] } }).snapshot?.installables)
+          ? (response as { snapshot?: { installables?: unknown[] } }).snapshot?.installables?.length || 0
+          : 0;
+        return `Refreshed source ${normalizedSourceId}${installableCount ? ` with ${installableCount} installable(s)` : ''}.`;
+      }
+    );
+  }
+
+  async function activateExternalSourceInstallable(
+    payload: Parameters<typeof activateCatalogSourceInstallable>[0]
+  ): Promise<void> {
+    await runExternalSourceMutation(
+      `Activating ${payload.installableId} for ${payload.target}...`,
+      () => activateCatalogSourceInstallable(payload),
+      () => `Activated ${payload.installableId} for ${payload.target}.`
+    );
+  }
+
+  async function deactivateExternalSourceInstallable(
+    payload: Parameters<typeof deactivateCatalogSourceInstallable>[0]
+  ): Promise<void> {
+    await runExternalSourceMutation(
+      `Deactivating ${payload.installableId} for ${payload.target}...`,
+      () => deactivateCatalogSourceInstallable(payload),
+      () => `Deactivated ${payload.installableId} for ${payload.target}.`
+    );
+  }
+
+  async function reinstallExternalSourceTarget(sourceId: string, target: string): Promise<void> {
+    const normalizedSourceId = sourceId.trim();
+    const normalizedTarget = target.trim();
+    if (!normalizedSourceId || !normalizedTarget) {
+      return;
+    }
+
+    const source = listExternalSources(store.getState()).find((entry) => entry.sourceId === normalizedSourceId) ?? null;
+    const installables = Array.isArray(source?.installables) ? source.installables : [];
+    const enabledInstallables = installables.filter((installable) =>
+      isExternalInstallableEnabledForTarget(source, installable.installableId, normalizedTarget)
+    );
+    if (enabledInstallables.length === 0) {
+      store.setState((state) => ({
+        ...state,
+        installMessage: `No active installables found for ${normalizedSourceId} on ${normalizedTarget}.`,
+      }));
+      return;
+    }
+
+    await runExternalSourceMutation(
+      `Reinstalling ${enabledInstallables.length} installable(s) for ${normalizedTarget} from ${normalizedSourceId}...`,
+      async () => {
+        for (const installable of enabledInstallables) {
+          await activateCatalogSourceInstallable({
+            sourceId: normalizedSourceId,
+            installableId: installable.installableId,
+            target: normalizedTarget,
+          });
+        }
+        return { count: enabledInstallables.length };
+      },
+      (response) => `Reinstalled ${(response as { count: number }).count} installable(s) for ${normalizedTarget}.`
+    );
+  }
+
+  async function reinstallExternalSourceAllTargets(sourceId: string): Promise<void> {
+    const normalizedSourceId = sourceId.trim();
+    if (!normalizedSourceId) {
+      return;
+    }
+
+    const source = listExternalSources(store.getState()).find((entry) => entry.sourceId === normalizedSourceId) ?? null;
+    const sourceInstallables = Array.isArray(source?.installables) ? source.installables : [];
+    const targetSet = new Set<string>();
+    const activation = source?.activation && typeof source.activation === 'object'
+      ? source.activation
+      : {};
+    for (const [target, targetState] of Object.entries(activation)) {
+      const installables = targetState && typeof targetState === 'object' && (targetState as { installables?: Record<string, { enabled?: boolean }> }).installables
+        ? (targetState as { installables?: Record<string, { enabled?: boolean }> }).installables || {}
+        : {};
+      if (Object.values(installables).some((entry) => entry?.enabled === true)) {
+        targetSet.add(target);
+      }
+    }
+
+    if (targetSet.size === 0) {
+      store.setState((state) => ({
+        ...state,
+        installMessage: `No active targets found for ${normalizedSourceId}.`,
+      }));
+      return;
+    }
+
+    await runExternalSourceMutation(
+      `Reinstalling all active targets for ${normalizedSourceId}...`,
+      async () => {
+        for (const target of targetSet) {
+          for (const installable of sourceInstallables) {
+            if (!isExternalInstallableEnabledForTarget(source, installable.installableId, target)) {
+              continue;
+            }
+            await activateCatalogSourceInstallable({
+              sourceId: normalizedSourceId,
+              installableId: installable.installableId,
+              target,
+            });
+          }
+        }
+        return { count: targetSet.size };
+      },
+      (response) => `Reinstalled ${(response as { count: number }).count} active target(s) for ${normalizedSourceId}.`
+    );
+  }
+
   async function enableAsset(
     payload: Parameters<typeof enableCatalogAsset>[0]
   ): Promise<CatalogAssetMutationResponse> {
@@ -1598,6 +1809,13 @@ function createCatalogWorkspaceStore() {
     deleteAsset,
     installAsset,
     installProvider,
+    addExternalSource,
+    removeExternalSource,
+    refreshExternalSource,
+    activateExternalSourceInstallable,
+    deactivateExternalSourceInstallable,
+    reinstallExternalSourceTarget,
+    reinstallExternalSourceAllTargets,
     enableAsset,
     disableAsset,
     activateBundle,

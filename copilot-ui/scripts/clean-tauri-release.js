@@ -99,7 +99,6 @@ function removeTarget(targetPath) {
 }
 
 const trackedGuidanceDocs = [
-  'windows/electron-to-tauri-handoff.md',
   'windows/windows-installation-guide.md',
 ];
 

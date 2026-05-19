@@ -70,52 +70,6 @@ function handleVersion(ctx, deps) {
   sendJson(res, 200, changes);
 }
 
-function handlePatchVscodeSettings(ctx, deps) {
-  const { req, res, engineRoot, vscodeHomeAbs } = ctx;
-  const { sendJson, readJsonBody, runVscodeSettingsPatcher } = deps;
-
-  readJsonBody(req)
-    .then((body) => {
-      const settingsPath = body && body.settingsPath ? String(body.settingsPath) : null;
-      const dryRun = Boolean(body && body.dryRun);
-
-      if (!vscodeHomeAbs || !String(vscodeHomeAbs).trim()) {
-        throw Object.assign(new Error('vscodeHome is not configured'), { statusCode: 400 });
-      }
-
-      const result = runVscodeSettingsPatcher({ engineRoot, vscodeHome: vscodeHomeAbs, settingsPath, dryRun });
-      sendJson(res, result.ok ? 200 : 400, { result });
-    })
-    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
-}
-
-function handlePatchVscodeGithubMcp(ctx, deps) {
-  const { req, res, engineRoot } = ctx;
-  const { sendJson, readJsonBody, runVscodeGithubMcpPatcher } = deps;
-
-  readJsonBody(req)
-    .then((body) => {
-      const mcpPath = body && body.mcpPath ? String(body.mcpPath) : null;
-      const dryRun = Boolean(body && body.dryRun);
-      const result = runVscodeGithubMcpPatcher({ engineRoot, mcpPath, dryRun });
-      sendJson(res, result.ok ? 200 : 400, { result: result.payload || result });
-    })
-    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
-}
-
-function handleCopilotAuthorize(ctx, deps) {
-  const { req, res, copilotHomeAbs, vscodeHomeAbs } = ctx;
-  const { sendJson, readJsonBody, patchCopilotPermissionsConfig } = deps;
-
-  readJsonBody(req)
-    .then((body) => {
-      const dryRun = Boolean(body && body.dryRun);
-      const result = patchCopilotPermissionsConfig({ copilotHomeAbs, vscodeHomeAbs, dryRun });
-      sendJson(res, 200, { result });
-    })
-    .catch((e) => sendJson(res, e.statusCode || 400, { error: String(e.message || e) }));
-}
-
 function handleLspConfig(ctx, deps) {
   const { res, copilotHomeAbs } = ctx;
   const { sendJson, path, readJsonFileSafe } = deps;
@@ -168,9 +122,6 @@ function register(deps = {}) {
     getRuntimeHealth: deps.getRuntimeHealth,
     getPlanningPersistenceHealth: deps.getPlanningPersistenceHealth,
     buildPlanningPersistenceHealthEnvelope: deps.buildPlanningPersistenceHealthEnvelope,
-    runVscodeSettingsPatcher: deps.runVscodeSettingsPatcher,
-    runVscodeGithubMcpPatcher: deps.runVscodeGithubMcpPatcher,
-    patchCopilotPermissionsConfig: deps.patchCopilotPermissionsConfig,
     readJsonFileSafe: deps.readJsonFileSafe,
   };
 
@@ -189,21 +140,6 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/version',
       handler: (ctx) => handleVersion(ctx, resolvedDeps),
-    },
-    {
-      method: 'POST',
-      path: '/api/vscode/patch-settings',
-      handler: (ctx) => handlePatchVscodeSettings(ctx, resolvedDeps),
-    },
-    {
-      method: 'POST',
-      path: '/api/vscode/patch-github-mcp',
-      handler: (ctx) => handlePatchVscodeGithubMcp(ctx, resolvedDeps),
-    },
-    {
-      method: 'POST',
-      path: '/api/copilot/authorize',
-      handler: (ctx) => handleCopilotAuthorize(ctx, resolvedDeps),
     },
     {
       method: 'GET',

@@ -14,10 +14,8 @@ related: [runtime-permissions-contracts, security-model, desktop-runtime-tauri-m
 
 ## Scope
 
-This runbook applies to the packaged desktop update surface for Elegy Copilot across the primary
-Windows-first Tauri lane and the bounded Electron compatibility residue described in
-[[desktop-runtime-tauri-migration-contract]]
-[docs/system/desktop-runtime-tauri-migration-contract.md](docs/system/desktop-runtime-tauri-migration-contract.md).
+This runbook applies to the packaged desktop update surface for Elegy Copilot across the
+Windows-first Tauri lane.
 The raw Node.js server mode described in [[copilot-ui-guide]]
 [docs/system/copilot-ui-guide.md](docs/system/copilot-ui-guide.md) remains a developer fallback, not
 the end-user delivery path.
@@ -32,13 +30,7 @@ Migration posture:
 - The current Tauri preview/release lane is limited to a manual-installer release manifest + packaged
   Windows installer; the app may automatically check matching-channel GitHub releases, but installer download/apply still require explicit user action and in-app Tauri updater/feed behavior remains intentionally disabled in this slice.
 - The Tauri shell may expose a desktop updater bridge for GitHub-release-backed state, checks, and manual-installer download handoff, but that bridge must not imply seamless in-place updater transport.
-- The active Tauri lane must not assume in-place updater replacement of an existing Electron install.
-- Electron updater behavior remains available only as bounded compatibility residue for incumbent installs
-  until full retirement is safe.
-- The Tauri lane must continue to publish explicit Electron-to-Tauri handoff guidance with the installer
-  metadata so operators tell users to migrate manually instead of implying an updater bridge.
-- Tauri primary path and any Electron compatibility remainder must preserve the same fail-closed rollback
-  and kill-switch semantics documented here.
+- Tauri primary path must preserve the fail-closed rollback and kill-switch semantics documented here.
 
 ## Ownership
 

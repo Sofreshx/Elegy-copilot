@@ -1,14 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { sessionWizardStore } from '../Sessions/sessionWizardStore';
 import { navigationStore } from '../../stores/navigation';
 import type { CatalogRepoInventoryEntry } from '../../lib/types';
-
-interface BulletItem {
-  id: string;
-  title: string;
-  state: string;
-  summary: string;
-}
 
 interface PlanFromBacklogPanelProps {
   onClose: () => void;
@@ -18,10 +11,6 @@ export default function PlanFromBacklogPanel({ onClose }: PlanFromBacklogPanelPr
   const [repos, setRepos] = useState<CatalogRepoInventoryEntry[]>([]);
   const [reposLoading, setReposLoading] = useState(true);
   const [selectedRepo, setSelectedRepo] = useState<CatalogRepoInventoryEntry | null>(null);
-
-  const [bullets, setBullets] = useState<BulletItem[]>([]);
-  const [bulletsLoading, setBulletsLoading] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -50,68 +39,8 @@ export default function PlanFromBacklogPanel({ onClose }: PlanFromBacklogPanelPr
     return () => { cancelled = true; };
   }, []);
 
-  // Load bullets when repo changes
-  useEffect(() => {
-    if (!selectedRepo) {
-      setBullets([]);
-      return;
-    }
-    let cancelled = false;
-    setBulletsLoading(true);
-    async function load() {
-      try {
-        const res = await fetch(
-          `/api/planning/artifacts/bullets?repoId=${encodeURIComponent(selectedRepo!.repoId ?? '')}`
-        );
-        if (!res.ok) {
-          if (!cancelled) setError(`Failed to load bullets (HTTP ${res.status})`);
-          return;
-        }
-        const data = await res.json();
-        if (cancelled) return;
-        const items: BulletItem[] = (Array.isArray(data.artifacts) ? data.artifacts : [])
-          .filter((b: any) => b.state !== 'pre-plan') // Only show active bullets
-          .map((b: any) => ({
-            id: b.id,
-            title: b.title || '',
-            state: b.state || 'idea',
-            summary: b.summary || '',
-          }));
-        setBullets(items);
-        setSelectedIds([]);
-        setError(null);
-      } catch {
-        if (!cancelled) setError('Failed to load backlog items.');
-      } finally {
-        if (!cancelled) setBulletsLoading(false);
-      }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [selectedRepo]);
-
-  const toggleBullet = useCallback((id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }, []);
-
-  const selectAll = useCallback(() => {
-    setSelectedIds(bullets.map((b) => b.id));
-  }, [bullets]);
-
-  const clearAll = useCallback(() => {
-    setSelectedIds([]);
-  }, []);
-
-  // Build objective from selected bullets
-  const selectedBullets = bullets.filter((b) => selectedIds.includes(b.id));
-  const objectivePreview = selectedBullets.length > 0
-    ? `Create an implementation plan addressing the following backlog items:\n\n${selectedBullets.map((b) => `- ${b.title}${b.summary ? `: ${b.summary}` : ''}`).join('\n')}`
-    : '';
-
   async function handleLaunch() {
-    if (!selectedRepo || selectedIds.length === 0) return;
+    if (!selectedRepo) return;
 
     // Hydrate the session wizard store
     sessionWizardStore.reset();
@@ -125,14 +54,9 @@ export default function PlanFromBacklogPanel({ onClose }: PlanFromBacklogPanelPr
     }
 
     // Set objective and agent
-    sessionWizardStore.setObjective(objectivePreview);
+    sessionWizardStore.setObjective(`Create an implementation plan for ${selectedRepo.repoLabel || selectedRepo.repoId || 'the selected repository'}.`);
     sessionWizardStore.setAgentId('orchestrator-cli');
     sessionWizardStore.setModel('claude-sonnet-4.6');
-
-    // Select the bullets
-    for (const id of selectedIds) {
-      sessionWizardStore.toggleBullet(id);
-    }
 
     // Open wizard at the Objective step (step 1) if project was set, else step 0
     const hasProject = sessionWizardStore.getState().selectedProject !== null;
@@ -188,71 +112,11 @@ export default function PlanFromBacklogPanel({ onClose }: PlanFromBacklogPanelPr
         )}
       </div>
 
-      {/* Bullets list */}
-      {selectedRepo && (
-        <div className="plan-from-backlog-bullets-section">
-          <div className="plan-from-backlog-bullets-header">
-            <span className="plan-from-backlog-label">
-              Backlog Items {bullets.length > 0 ? `(${selectedIds.length}/${bullets.length})` : ''}
-            </span>
-            {bullets.length > 0 && (
-              <div className="plan-from-backlog-bulk-actions">
-                <button
-                  type="button"
-                  className="plan-from-backlog-bulk-btn"
-                  data-testid="plan-from-backlog-select-all"
-                  onClick={selectAll}
-                >
-                  Select all
-                </button>
-                <button
-                  type="button"
-                  className="plan-from-backlog-bulk-btn"
-                  data-testid="plan-from-backlog-clear-all"
-                  onClick={clearAll}
-                >
-                  Clear
-                </button>
-              </div>
-            )}
-          </div>
-
-          {bulletsLoading ? (
-            <p className="plan-from-backlog-loading" data-testid="plan-from-backlog-loading">Loading backlog…</p>
-          ) : bullets.length === 0 ? (
-            <p className="plan-from-backlog-empty" data-testid="plan-from-backlog-empty">
-              No active backlog items for this repository.
-            </p>
-          ) : (
-            <ul className="plan-from-backlog-list" data-testid="plan-from-backlog-list">
-              {bullets.map((b) => (
-                <li key={b.id} className={`plan-from-backlog-item ${selectedIds.includes(b.id) ? 'plan-from-backlog-item-selected' : ''}`}>
-                  <label className="plan-from-backlog-item-label" data-testid={`plan-from-backlog-item-${b.id}`}>
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.includes(b.id)}
-                      onChange={() => toggleBullet(b.id)}
-                    />
-                    <span className="plan-from-backlog-item-title">{b.title}</span>
-                    <span className={`plan-from-backlog-item-state plan-from-backlog-state-${b.state}`}>{b.state}</span>
-                  </label>
-                  {b.summary && (
-                    <p className="plan-from-backlog-item-summary">{b.summary}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
+      {selectedRepo ? (
+        <div className="plan-from-backlog-empty" data-testid="plan-from-backlog-empty">
+          Retired repo-file backlog bullets are no longer available here. Launch a planning session for the selected repository instead.
         </div>
-      )}
-
-      {/* Objective preview */}
-      {selectedIds.length > 0 && (
-        <div className="plan-from-backlog-objective" data-testid="plan-from-backlog-objective">
-          <span className="plan-from-backlog-label">Objective preview</span>
-          <pre className="plan-from-backlog-objective-text">{objectivePreview}</pre>
-        </div>
-      )}
+      ) : null}
 
       {/* Launch button */}
       <div className="plan-from-backlog-actions">
@@ -271,10 +135,10 @@ export default function PlanFromBacklogPanel({ onClose }: PlanFromBacklogPanelPr
           type="button"
           className="button button-primary"
           data-testid="plan-from-backlog-launch"
-          disabled={selectedIds.length === 0 || !selectedRepo}
+          disabled={!selectedRepo}
           onClick={() => void handleLaunch()}
         >
-          Launch Planning Session ({selectedIds.length})
+          Launch Planning Session
         </button>
       </div>
     </div>

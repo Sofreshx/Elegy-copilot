@@ -427,27 +427,84 @@ function parseRoadmapMarkdown(markdown, options = {}) {
 }
 
 function resolveRoadmapsDir(repoRoot, pathImpl = path) {
+  return pathImpl.join(pathImpl.resolve(String(repoRoot || '')), 'docs', 'planning');
+}
+
+function resolveRetiredRoadmapsDir(repoRoot, pathImpl = path) {
   return pathImpl.join(pathImpl.resolve(String(repoRoot || '')), 'docs', 'roadmaps');
 }
 
 function buildRepoRelativeRoadmapPath(slug, pathImpl = path) {
-  return pathImpl.join('docs', 'roadmaps', `${assertRoadmapSlug(slug)}.md`).replace(/\\/g, '/');
+  return pathImpl.join('docs', 'planning', assertRoadmapSlug(slug), 'index.md').replace(/\\/g, '/');
 }
 
 function resolveRoadmapFilePath(repoRoot, slug, pathImpl = path) {
+  return pathImpl.join(resolveRoadmapsDir(repoRoot, pathImpl), assertRoadmapSlug(slug), 'index.md');
+}
+
+function buildLegacyRepoRelativeRoadmapPath(slug, pathImpl = path) {
+  return pathImpl.join('docs', 'planning', `${assertRoadmapSlug(slug)}.md`).replace(/\\/g, '/');
+}
+
+function resolveLegacyRoadmapFilePath(repoRoot, slug, pathImpl = path) {
   return pathImpl.join(resolveRoadmapsDir(repoRoot, pathImpl), `${assertRoadmapSlug(slug)}.md`);
+}
+
+function buildRetiredRepoRelativeRoadmapPath(slug, pathImpl = path) {
+  return pathImpl.join('docs', 'roadmaps', `${assertRoadmapSlug(slug)}.md`).replace(/\\/g, '/');
+}
+
+function resolveRetiredRoadmapFilePath(repoRoot, slug, pathImpl = path) {
+  return pathImpl.join(resolveRetiredRoadmapsDir(repoRoot, pathImpl), `${assertRoadmapSlug(slug)}.md`);
+}
+
+function isFile(fsImpl, filePath) {
+  try {
+    return fsImpl.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+function resolveExistingRoadmapFilePath(repoRoot, slug, deps = {}) {
+  const fsImpl = deps.fs || fs;
+  const pathImpl = deps.path || path;
+  const normalizedSlug = assertRoadmapSlug(slug);
+  const canonicalFilePath = resolveRoadmapFilePath(repoRoot, normalizedSlug, pathImpl);
+  if (isFile(fsImpl, canonicalFilePath)) {
+    return canonicalFilePath;
+  }
+  const legacyFilePath = resolveLegacyRoadmapFilePath(repoRoot, normalizedSlug, pathImpl);
+  if (isFile(fsImpl, legacyFilePath)) {
+    return legacyFilePath;
+  }
+  const retiredFilePath = resolveRetiredRoadmapFilePath(repoRoot, normalizedSlug, pathImpl);
+  return isFile(fsImpl, retiredFilePath) ? retiredFilePath : null;
+}
+
+function buildRoadmapRepoRelativePathForFile(repoRoot, slug, filePath, pathImpl = path) {
+  const normalizedSlug = assertRoadmapSlug(slug);
+  const normalizedFilePath = pathImpl.resolve(String(filePath || ''));
+  if (normalizedFilePath === pathImpl.resolve(resolveLegacyRoadmapFilePath(repoRoot, normalizedSlug, pathImpl))) {
+    return buildLegacyRepoRelativeRoadmapPath(normalizedSlug, pathImpl);
+  }
+  if (normalizedFilePath === pathImpl.resolve(resolveRetiredRoadmapFilePath(repoRoot, normalizedSlug, pathImpl))) {
+    return buildRetiredRepoRelativeRoadmapPath(normalizedSlug, pathImpl);
+  }
+  return buildRepoRelativeRoadmapPath(normalizedSlug, pathImpl);
 }
 
 function readRoadmapDocument(repoRoot, slug, deps = {}) {
   const fsImpl = deps.fs || fs;
   const pathImpl = deps.path || path;
   const normalizedSlug = assertRoadmapSlug(slug);
-  const filePath = resolveRoadmapFilePath(repoRoot, normalizedSlug, pathImpl);
+  const filePath = resolveExistingRoadmapFilePath(repoRoot, normalizedSlug, { fs: fsImpl, path: pathImpl })
+    || resolveRoadmapFilePath(repoRoot, normalizedSlug, pathImpl);
   const markdown = fsImpl.readFileSync(filePath, 'utf8');
   return {
     ...parseRoadmapMarkdown(markdown, { slug: normalizedSlug }),
     filePath,
-    repoRelativePath: buildRepoRelativeRoadmapPath(normalizedSlug, pathImpl),
+    repoRelativePath: buildRoadmapRepoRelativePathForFile(repoRoot, normalizedSlug, filePath, pathImpl),
   };
 }
 
@@ -469,18 +526,60 @@ function listRoadmapDocuments(repoRoot, deps = {}) {
   const fsImpl = deps.fs || fs;
   const pathImpl = deps.path || path;
   const roadmapsDir = resolveRoadmapsDir(repoRoot, pathImpl);
+  const retiredRoadmapsDir = resolveRetiredRoadmapsDir(repoRoot, pathImpl);
 
   let entries = [];
   try {
     entries = fsImpl.readdirSync(roadmapsDir, { withFileTypes: true });
   } catch {
-    return [];
+    entries = [];
   }
 
-  return entries
+  const canonicalSlugs = entries
+    .filter((entry) => entry && entry.isDirectory && entry.isDirectory() && ROADMAP_SLUG_RE.test(entry.name))
+    .map((entry) => entry.name)
+    .filter((slug) => {
+      try {
+        return fsImpl.statSync(resolveRoadmapFilePath(repoRoot, slug, pathImpl)).isFile();
+      } catch {
+        return false;
+      }
+    });
+
+  const legacySlugs = entries
     .filter((entry) => entry && entry.isFile && entry.isFile() && entry.name.endsWith('.md'))
     .map((entry) => entry.name.replace(/\.md$/i, ''))
-    .filter((slug) => ROADMAP_SLUG_RE.test(slug))
+    .filter((slug) => ROADMAP_SLUG_RE.test(slug) && !canonicalSlugs.includes(slug))
+    .filter((slug) => {
+      try {
+        const markdown = fsImpl.readFileSync(resolveLegacyRoadmapFilePath(repoRoot, slug, pathImpl), 'utf8');
+        return normalizeString(parseFrontMatter(markdown).attributes.doc_kind) === ROADMAP_DOC_KIND;
+      } catch {
+        return false;
+      }
+    });
+
+  let retiredEntries = [];
+  try {
+    retiredEntries = fsImpl.readdirSync(retiredRoadmapsDir, { withFileTypes: true });
+  } catch {
+    retiredEntries = [];
+  }
+
+  const retiredLegacySlugs = retiredEntries
+    .filter((entry) => entry && entry.isFile && entry.isFile() && entry.name.endsWith('.md'))
+    .map((entry) => entry.name.replace(/\.md$/i, ''))
+    .filter((slug) => ROADMAP_SLUG_RE.test(slug) && !canonicalSlugs.includes(slug) && !legacySlugs.includes(slug))
+    .filter((slug) => {
+      try {
+        const markdown = fsImpl.readFileSync(resolveRetiredRoadmapFilePath(repoRoot, slug, pathImpl), 'utf8');
+        return normalizeString(parseFrontMatter(markdown).attributes.doc_kind) === ROADMAP_DOC_KIND;
+      } catch {
+        return false;
+      }
+    });
+
+  return [...canonicalSlugs, ...legacySlugs, ...retiredLegacySlugs]
     .sort(deterministicStringCompare)
     .map((slug) => readRoadmapDocument(repoRoot, slug, { fs: fsImpl, path: pathImpl }));
 }
@@ -643,7 +742,11 @@ module.exports = {
   readRoadmapDocument,
   reconcileRoadmapItem,
   resolveRoadmapFilePath,
+  resolveExistingRoadmapFilePath,
+  resolveLegacyRoadmapFilePath,
+  resolveRetiredRoadmapFilePath,
   resolveRoadmapsDir,
+  resolveRetiredRoadmapsDir,
   serializeRoadmapDocument,
   slugToTitle,
   writeRoadmapDocument,

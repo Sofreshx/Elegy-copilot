@@ -33,7 +33,7 @@ Implementation seams this brief is anchored to:
 - `copilot-ui/routes/executor.js`
 - `copilot-ui/lib/planState.js`
 - `copilot-ui/lib/sessionArtifacts.js`
-- `copilot-ui/ui/src/tabs/HomeRuntime/HomeRuntimeView.tsx`
+- Historical runtime tab view, since replaced by the desktop sidebar execution surface.
 - `copilot-ui/ui/src/tabs/Sessions/`
 - `copilot-ui/ui/src/tabs/Executor/`
 - `copilot-ui/ui/src/tabs/Planning/planningStore.ts`
@@ -264,7 +264,7 @@ This keeps:
 | `copilot-ui/routes/executor.js` | Remains the job/run control plane; workflow runs and auto-trigger actions layer here |
 | `copilot-ui/lib/planState.js` | Continues parsing session `plan.md`; does not become task-board state authority |
 | `copilot-ui/lib/sessionArtifacts.js` | Continues parsing handoff/proposition/verification artifacts for resume and summary projections |
-| `HomeRuntimeView.tsx` | Continues as the runtime shell; shows summaries and jump points, not a new task authority |
+| Desktop execution surface | Continues as the runtime shell; shows summaries and jump points, not a new task authority |
 | `ui/src/tabs/Sessions/` | Owns session listing, session inspection, attach/resume, and SDK session engagement |
 | `ui/src/tabs/Executor/` | Owns workflow runs, queued work, executor jobs, overlay session CRUD, and worktree/workflow diagnostics |
 | `ui/src/tabs/Planning/planningStore.ts` | Owns task-board projection state, repo-context handoff, and board-side control actions without owning live runtime state |

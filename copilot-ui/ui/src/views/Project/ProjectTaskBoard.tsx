@@ -37,11 +37,11 @@ function TaskCard({ session }: TaskCardProps) {
       data-testid={`task-card-${session.id}`}
       role="button"
       tabIndex={0}
-      onClick={() => navigationStore.selectSession(session.id)}
+      onClick={() => navigationStore.selectSession(session.id, 'activity', { source: session.source })}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          navigationStore.selectSession(session.id);
+          navigationStore.selectSession(session.id, 'activity', { source: session.source });
         }
       }}
     >

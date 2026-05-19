@@ -1,5 +1,5 @@
 import { createStore } from '../../lib/store';
-import { getCatalogRepos, createSdkSession, getPlanningBullets, SdkCreateSessionPayload } from '../../lib/api';
+import { getCatalogRepos, createSdkSession, SdkCreateSessionPayload } from '../../lib/api';
 import type { CatalogRepoInventoryEntry, SdkSessionSummary } from '../../lib/types';
 import { notificationStore } from '../../stores/notificationStore';
 import { SESSION_AGENTS } from '../../constants/sessionAgents';
@@ -27,10 +27,6 @@ export interface SessionWizardState {
   actorLabel: string;
   actorRole: string;
   remoteEnabled: boolean | null; // null = follow global default
-  // Backlog
-  backlogBullets: Array<{ id: string; title: string; state: string; summary: string; tags: string[] }>;
-  backlogLoading: boolean;
-  selectedBulletIds: string[];
   // Status
   launching: boolean;
   launchError: string | null;
@@ -56,9 +52,6 @@ const INITIAL_STATE: SessionWizardState = {
   actorLabel: '',
   actorRole: '',
   remoteEnabled: null,
-  backlogBullets: [],
-  backlogLoading: false,
-  selectedBulletIds: [],
   launching: false,
   launchError: null,
   launchStatus: null,
@@ -94,13 +87,7 @@ function createSessionWizardStore() {
       selectedProject: project,
       useCustomRepo: false,
       customRepoPath: '',
-      selectedBulletIds: [],
-      backlogBullets: [],
-      backlogLoading: false,
     }));
-    if (project?.repoPath) {
-      void loadBacklog();
-    }
   }
 
   function setCustomRepoPath(customRepoPath: string): void {
@@ -160,44 +147,6 @@ function createSessionWizardStore() {
     store.setState((s) => ({ ...s, remoteEnabled }));
   }
 
-  async function loadBacklog(): Promise<void> {
-    const current = store.getState();
-    if (current.backlogLoading) return;
-
-    const repoPath = current.useCustomRepo
-      ? current.customRepoPath.trim()
-      : current.selectedProject?.repoPath ?? null;
-    if (!repoPath) return;
-
-    store.setState((s) => ({ ...s, backlogLoading: true }));
-    try {
-      const response = await getPlanningBullets({ repoPath });
-      const bullets = (response.artifacts ?? []).map((b) => ({
-        id: b.id,
-        title: b.title,
-        state: b.state,
-        summary: b.summary ?? '',
-        tags: [] as string[],
-      }));
-      store.setState((s) => ({ ...s, backlogBullets: bullets, backlogLoading: false }));
-    } catch {
-      store.setState((s) => ({ ...s, backlogBullets: [], backlogLoading: false }));
-    }
-  }
-
-  function toggleBullet(bulletId: string): void {
-    store.setState((s) => ({
-      ...s,
-      selectedBulletIds: s.selectedBulletIds.includes(bulletId)
-        ? s.selectedBulletIds.filter((id) => id !== bulletId)
-        : [...s.selectedBulletIds, bulletId],
-    }));
-  }
-
-  function clearBullets(): void {
-    store.setState((s) => ({ ...s, selectedBulletIds: [] }));
-  }
-
   function buildOrchestrationPayload(state: SessionWizardState): Record<string, unknown> {
     const repoPath = state.useCustomRepo
       ? state.customRepoPath.trim()
@@ -252,15 +201,6 @@ function createSessionWizardStore() {
     if (taskRefs.length > 0) {
       orchestration.taskBoard = {
         items: taskRefs.map((taskId) => ({ taskId, status: 'pending' })),
-      };
-    }
-
-    if (state.selectedBulletIds.length > 0) {
-      orchestration.backlog = {
-        bulletIds: state.selectedBulletIds,
-        bullets: state.backlogBullets
-          .filter((b) => state.selectedBulletIds.includes(b.id))
-          .map((b) => ({ id: b.id, title: b.title })),
       };
     }
 
@@ -339,9 +279,6 @@ function createSessionWizardStore() {
     setActorLabel,
     setActorRole,
     setRemoteEnabled,
-    loadBacklog,
-    toggleBullet,
-    clearBullets,
     launch,
     reset,
   };

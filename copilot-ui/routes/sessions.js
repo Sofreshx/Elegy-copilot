@@ -12,6 +12,7 @@ const repoInventoryLib = require('../lib/repoInventoryService');
 const roadmapArtifactsLib = require('../lib/roadmapArtifacts');
 const repositoryBacklogFileLib = require('../lib/repositoryBacklogFile');
 const sessionPlanRoadmapSyncLib = require('../lib/sessionPlanRoadmapSync');
+const continuationPackagesLib = require('../lib/continuationPackages');
 const {
   SESSION_RECONCILIATION_CONTRACT_VERSION,
   SESSION_RECONCILIATION_SOURCES,
@@ -111,6 +112,24 @@ function ensureDir(p) {
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function uniqueStrings(values) {
+  const seen = new Set();
+  const result = [];
+  for (const value of Array.isArray(values) ? values : []) {
+    const normalized = normalizeString(value);
+    if (!normalized) {
+      continue;
+    }
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(normalized);
+  }
+  return result;
 }
 
 const TERMINAL_EXECUTION_STATE_TOKENS = new Set([
@@ -218,6 +237,146 @@ function normalizePlanContent(value) {
 
   const normalized = value.replace(/\r\n/g, '\n');
   return normalized.endsWith('\n') ? normalized : `${normalized}\n`;
+}
+
+function formatEventCreatedAt(event) {
+  const raw = event && (event.timestamp || event.time || event.ts || event.createdAt || event.at || event.date);
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.trim();
+  }
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    const ms = raw > 1e12 ? raw : raw * 1000;
+    return new Date(ms).toISOString();
+  }
+  return null;
+}
+
+function buildTranscriptExcerptFromEvents(events) {
+  return (Array.isArray(events) ? events : [])
+    .map((event) => {
+      const type = normalizeString(event && (event.type || event.event || event.name)).toLowerCase();
+      const payload = event && typeof event === 'object'
+        ? (event.payload || event.data || event)
+        : {};
+      if (type !== 'user.message' && type !== 'assistant.message') {
+        return null;
+      }
+      const content = normalizeString(payload && payload.content);
+      if (!content) {
+        return null;
+      }
+      return {
+        role: type === 'user.message' ? 'user' : 'assistant',
+        content,
+        createdAt: formatEventCreatedAt(event),
+      };
+    })
+    .filter(Boolean);
+}
+
+function parsePlanRoadmapMarkers(planText, sessionPlanRoadmapSync) {
+  if (!sessionPlanRoadmapSync || typeof sessionPlanRoadmapSync.parsePlanSyncMarkers !== 'function') {
+    return null;
+  }
+  try {
+    return sessionPlanRoadmapSync.parsePlanSyncMarkers(planText || '');
+  } catch {
+    return null;
+  }
+}
+
+function buildSessionContinuationPackage(ctx, deps, input) {
+  const structuredState = input && input.structuredState && typeof input.structuredState === 'object'
+    ? input.structuredState
+    : {};
+  const orchestration = input && input.orchestration && typeof input.orchestration === 'object'
+    ? input.orchestration
+    : {};
+  const meta = structuredState.meta && typeof structuredState.meta === 'object'
+    ? structuredState.meta
+    : {};
+  const intentFrame = meta.intentFrame && typeof meta.intentFrame === 'object' ? meta.intentFrame : {};
+  const closureSummary = meta.closureSummary && typeof meta.closureSummary === 'object' ? meta.closureSummary : {};
+  const repo = orchestration.repo && typeof orchestration.repo === 'object' ? orchestration.repo : {};
+  const workflow = orchestration.workflow && typeof orchestration.workflow === 'object' ? orchestration.workflow : {};
+  const planMarkers = parsePlanRoadmapMarkers(input.planText, deps.sessionPlanRoadmapSync);
+  const targetHarness = deps.continuationPackages.normalizeTargetHarness(
+    normalizeString(input.targetHarness || (ctx.u && ctx.u.searchParams && ctx.u.searchParams.get('targetHarness')) || 'opencode')
+  );
+  const roadmapIds = uniqueStrings([
+    ...(planMarkers && Array.isArray(planMarkers.linkedRoadmapIds) ? planMarkers.linkedRoadmapIds : []),
+    ...(Array.isArray(closureSummary.roadmapIds) ? closureSummary.roadmapIds : []),
+  ]);
+
+  const constraints = uniqueStrings([
+    ...(Array.isArray(intentFrame.constraints) ? intentFrame.constraints : []),
+    ...(Array.isArray(intentFrame.watchOuts) ? intentFrame.watchOuts : []),
+    ...(Array.isArray(closureSummary.limitations) ? closureSummary.limitations : []),
+  ]);
+  const openQuestions = uniqueStrings([
+    ...(Array.isArray(meta.resume && meta.resume.blockers) ? meta.resume.blockers : []),
+    ...(Array.isArray(closureSummary.blockers) ? closureSummary.blockers : []),
+    ...(Array.isArray(closureSummary.coverageGaps) ? closureSummary.coverageGaps : []),
+  ]);
+  const nextActions = uniqueStrings([
+    ...(Array.isArray(closureSummary.followUps && closureSummary.followUps.activeContinuation)
+      ? closureSummary.followUps.activeContinuation
+      : []),
+    ...(Array.isArray(intentFrame.nextSuggestedUnits) ? intentFrame.nextSuggestedUnits : []),
+    ...(Array.isArray(intentFrame.inScope) ? intentFrame.inScope : []),
+  ]);
+  const carryover = uniqueStrings([
+    ...(Array.isArray(closureSummary.followUps && closureSummary.followUps.durableCarryover)
+      ? closureSummary.followUps.durableCarryover
+      : []),
+    ...(Array.isArray(intentFrame.carryoverSignals) ? intentFrame.carryoverSignals : []),
+    ...(Array.isArray(intentFrame.outOfScope) ? intentFrame.outOfScope : []),
+  ]);
+  const skillsRequired = uniqueStrings([
+    'implementation-handoff',
+    ...(roadmapIds.length > 0 ? ['roadmap-planning'] : []),
+    ...(closureSummary.outcome === 'completed' ? ['implementation-review'] : []),
+  ]);
+  const sourceArtifacts = uniqueStrings([
+    ...(Array.isArray(intentFrame.sourceArtifacts) ? intentFrame.sourceArtifacts : []),
+    ...(Array.isArray(closureSummary.sourceArtifacts) ? closureSummary.sourceArtifacts : []),
+  ]);
+
+  return deps.continuationPackages.buildSessionContinuationPackage({
+    kind: 'session.continuation-package',
+    targetHarness,
+    source: {
+      kind: 'session',
+      sessionId: input.sessionId,
+      harness: 'copilot',
+      sessionSource: input.source,
+      model: normalizeString(workflow.model) || null,
+    },
+    repo: {
+      repoId: normalizeString(repo.repoId) || null,
+      repoPath: normalizeString(repo.repoPath) || null,
+      repoLabel: normalizeString(repo.repoLabel) || null,
+      branch: normalizeString(repo.branch) || null,
+    },
+    roadmap: roadmapIds.length > 0 || (planMarkers && planMarkers.planRef)
+      ? {
+          roadmapId: roadmapIds[0] || null,
+          roadmapIds,
+          sliceId: null,
+          planRef: planMarkers && planMarkers.planRef ? planMarkers.planRef : null,
+          linkedBacklogIds: planMarkers && Array.isArray(planMarkers.linkedBacklogIds) ? planMarkers.linkedBacklogIds : [],
+        }
+      : null,
+    objective: normalizeString(orchestration.objective) || normalizeString(intentFrame.summary) || null,
+    summary: normalizeString(closureSummary.summary) || normalizeString(intentFrame.summary) || null,
+    constraints,
+    openQuestions,
+    nextActions,
+    carryover,
+    skillsRequired,
+    sourceArtifacts,
+    transcriptExcerpt: input.transcriptExcerpt,
+  });
 }
 
 function buildGeneratedSessionId(cryptoLib) {
@@ -1611,6 +1770,71 @@ function handleSessionRoadmapSync(ctx, deps) {
     });
 }
 
+function handleSessionContinuationPackage(ctx, deps) {
+  const { res, u, match } = ctx;
+  const { sendJson, isValidSessionId, readPlanArtifact, planState, assets, fs, path } = deps;
+
+  const id = decodeURIComponent(match[1]);
+  if (!isValidSessionId(id)) { sendJson(res, 400, { error: 'Invalid session id' }); return; }
+  const source = (u.searchParams.get('source') || 'cli').toLowerCase();
+  const planId = u.searchParams.get('planId') || 'latest';
+
+  try {
+    const { home, sessionDir } = resolveSessionRequestDir(ctx, deps, id, source);
+    if (!fs.existsSync(sessionDir) || !fs.statSync(sessionDir).isDirectory()) {
+      sendJson(res, 404, { error: 'Session not found', id, source: home.source });
+      return;
+    }
+
+    const planText = readPlanArtifact(sessionDir, planId);
+    if (!planText) {
+      sendJson(res, 404, { error: 'Plan artifact not found', id, source: home.source, planId });
+      return;
+    }
+
+    const useLatestSessionArtifacts = planId === 'latest';
+    const handoffText = useLatestSessionArtifacts
+      ? assets.readTextFileSafe(path.join(sessionDir, 'handoff.md'), 256 * 1024)
+      : null;
+    const propositionText = useLatestSessionArtifacts
+      ? assets.readTextFileSafe(path.join(sessionDir, 'proposition.md'), 512 * 1024)
+      : null;
+    const verificationGuideText = useLatestSessionArtifacts
+      ? assets.readTextFileSafe(path.join(sessionDir, 'verification-guide.md'), 512 * 1024)
+      : null;
+    const executionStateText = useLatestSessionArtifacts
+      ? assets.readTextFileSafe(path.join(sessionDir, 'execution-state.json'), 512 * 1024)
+      : null;
+    const structuredState = planState.parseStructuredState(planText, {
+      handoffText,
+      propositionText,
+      verificationGuideText,
+      executionStateText,
+      requireHandoff: useLatestSessionArtifacts,
+      sessionId: id,
+    });
+    const orchestration = buildSessionOrchestrationState(ctx, deps, id, sessionDir, structuredState);
+    const transcriptExcerpt = buildTranscriptExcerptFromEvents(
+      deps.sessions && typeof deps.sessions.readRecentEvents === 'function'
+        ? deps.sessions.readRecentEvents(sessionDir, 120)
+        : []
+    );
+    const continuationPackage = buildSessionContinuationPackage(ctx, deps, {
+      sessionId: id,
+      source: home.source,
+      planText,
+      structuredState,
+      orchestration,
+      transcriptExcerpt,
+      targetHarness: u.searchParams.get('targetHarness'),
+    });
+
+    sendJson(res, 200, continuationPackage);
+  } catch (e) {
+    sendJson(res, e.statusCode || 400, { error: String(e.message || e), id, source });
+  }
+}
+
 function handleSessionVerificationGuide(ctx, deps) {
   const { res, u, match, copilotHome, vscodeHome, sandboxesHome } = ctx;
   const { sendJson, resolveSessionsHome, isValidSessionId, assets, path } = deps;
@@ -1738,6 +1962,7 @@ function register(deps = {}) {
     sessionPlanRoadmapSync: deps.sessionPlanRoadmapSync || sessionPlanRoadmapSyncLib,
     sessionArtifacts: deps.sessionArtifacts || sessionArtifactsLib,
     sessionAggregation: deps.sessionAggregation || sessionAggregationLib,
+    continuationPackages: deps.continuationPackages || continuationPackagesLib,
     sdkBridge: deps.sdkBridge || null,
     executorService: deps.executorService || null,
     workflowLayerService: deps.workflowLayerService || null,
@@ -1824,6 +2049,11 @@ function register(deps = {}) {
       method: 'GET',
       path: /^\/api\/sessions\/([^/]+)\/verification-guide$/,
       handler: (ctx) => handleSessionVerificationGuide(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: /^\/api\/sessions\/([^/]+)\/continuation-package$/,
+      handler: (ctx) => handleSessionContinuationPackage(ctx, resolvedDeps),
     },
     {
       method: 'POST',

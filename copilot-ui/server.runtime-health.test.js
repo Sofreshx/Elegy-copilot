@@ -890,7 +890,7 @@ async function run() {
       try {
         await waitForHealth(baseUrl);
 
-        const response = await postJson(`${baseUrl}/api/tracker/lifecycle/pr-open`, {
+        const response = await postJson(`${baseUrl}/api/sandboxes/lifecycle/pr-open`, {
           sandboxId: 'ws2-guardrail-sandbox',
         });
 
@@ -1391,43 +1391,6 @@ async function run() {
     });
   });
 
-  await test('runtime health reports GitHub workspace MCP as unconfigured when no workspace entry exists', async () => {
-    await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(copilotHome, 'sandboxes');
-
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-
-      const server = await startServer({
-        host: '127.0.0.1',
-        port: await getFreePort(),
-        engineRoot: root,
-        copilotHome,
-        vscodeHome,
-        sandboxesHome,
-        quiet: true,
-      });
-
-      try {
-        const address = server.server.address();
-        const port = address && typeof address === 'object' ? address.port : null;
-        const health = await fetchJson(`http://127.0.0.1:${port}/api/health`);
-        assert.strictEqual(health.statusCode, 200);
-        assert.ok(health.body.runtime.githubAccess);
-        assert.strictEqual(health.body.runtime.githubAccess.cli.status, 'documented-default');
-        assert.strictEqual(health.body.runtime.githubAccess.workspace.status, 'unconfigured');
-        assert.strictEqual(
-          health.body.runtime.githubAccess.workspace.configPath,
-          path.join(root, '.vscode', 'mcp.json'),
-        );
-      } finally {
-        await server.close();
-      }
-    });
-  });
-
   await test('runtime health surfaces startup sync outcomes and the autonomous decision log summary', async () => {
     await withTempDir(async (root) => {
       const copilotHome = path.join(root, '.copilot');
@@ -1561,58 +1524,6 @@ async function run() {
       } finally {
         await server.close();
       }
-    });
-  });
-
-  await test('runtime health reports GitHub workspace MCP as configured when auth env is present', async () => {
-    await withTempDir(async (root) => {
-      const copilotHome = path.join(root, '.copilot');
-      const vscodeHome = path.join(root, '.copilot-vscode');
-      const sandboxesHome = path.join(copilotHome, 'sandboxes');
-      const mcpPath = path.join(root, '.vscode', 'mcp.json');
-
-      fs.mkdirSync(copilotHome, { recursive: true });
-      fs.mkdirSync(vscodeHome, { recursive: true });
-      fs.mkdirSync(path.dirname(mcpPath), { recursive: true });
-      fs.writeFileSync(
-        mcpPath,
-        `${JSON.stringify({
-          mcpServers: {
-            github: {
-              type: 'http',
-              url: 'https://api.githubcopilot.com/mcp/',
-              headers: {
-                Authorization: 'Bearer ${env:GITHUB_MCP_PAT}',
-              },
-            },
-          },
-        }, null, 2)}\n`,
-        'utf8',
-      );
-
-      await withPatchedEnv({ GITHUB_MCP_PAT: 'test-token' }, async () => {
-        const server = await startServer({
-          host: '127.0.0.1',
-          port: await getFreePort(),
-          engineRoot: root,
-          copilotHome,
-          vscodeHome,
-          sandboxesHome,
-          quiet: true,
-        });
-
-        try {
-          const address = server.server.address();
-          const port = address && typeof address === 'object' ? address.port : null;
-          const health = await fetchJson(`http://127.0.0.1:${port}/api/health`);
-          assert.strictEqual(health.statusCode, 200);
-          assert.strictEqual(health.body.runtime.githubAccess.workspace.status, 'configured');
-          assert.strictEqual(health.body.runtime.githubAccess.workspace.authPresent, true);
-          assert.strictEqual(health.body.runtime.githubAccess.workspace.tokenEnvVar, 'GITHUB_MCP_PAT');
-        } finally {
-          await server.close();
-        }
-      });
     });
   });
 

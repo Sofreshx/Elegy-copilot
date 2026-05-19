@@ -7,7 +7,6 @@ function makeConfig(overrides: Partial<TrackerConfig> = {}): TrackerConfig {
   return {
     workspacePaths: ["/tmp/test"],
     relayTokenSource: "missing",
-    localWsPort: 0,
     watchIntervalMs: 5000,
     statusPort: 0, // port 0 = OS picks a free port
     obsidianNotePaths: [],
@@ -76,7 +75,6 @@ describe("StatusServer", () => {
       const data: TrackerStatus = JSON.parse(res.body);
       expect(data).toHaveProperty("uptime");
       expect(data).toHaveProperty("gitSnapshots");
-      expect(data).toHaveProperty("connectedExtensions");
       expect(data).toHaveProperty("recentEvents");
       expect(data).toHaveProperty("startedAt");
       expect(data).toHaveProperty("schemaVersion");
@@ -85,7 +83,6 @@ describe("StatusServer", () => {
       expect(typeof data.uptime).toBe("number");
       expect(Array.isArray(data.gitSnapshots)).toBe(true);
       expect(Array.isArray(data.recentEvents)).toBe(true);
-      expect(typeof data.connectedExtensions).toBe("number");
       expect(data.schemaVersion).toBe(1);
       expect(data.contractVersion).toBe("tracker_status_v1");
       expect(data.relayTokenReadiness).toEqual({
@@ -105,14 +102,6 @@ describe("StatusServer", () => {
       expect(data.gitSnapshots).toHaveLength(1);
       expect(data.gitSnapshots[0].repo).toBe("repo-a");
       expect(data.gitSnapshots[0].branch).toBe("main");
-    });
-
-    it("reflects updated extension count", async () => {
-      server.updateExtensionCount(3);
-
-      const res = await fetch(`${baseUrl}/api/status`);
-      const data: TrackerStatus = JSON.parse(res.body);
-      expect(data.connectedExtensions).toBe(3);
     });
 
     it("reflects updated relay token readiness", async () => {

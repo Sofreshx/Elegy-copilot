@@ -201,7 +201,7 @@ export default function ObsidianNotesPanel(props: ObsidianNotesPanelProps) {
             {' '}
             and
             {' '}
-            <code>docs/roadmaps/*.md</code>
+            <code>docs/planning/&lt;roadmap-slug&gt;/index.md</code>
             . They remain <strong>external / non-canonical</strong> and are never parsed back as authority.
           </p>
           <p className="planning-copy">

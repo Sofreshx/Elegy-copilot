@@ -4,7 +4,8 @@ const { spawnSync } = require('child_process');
 const path = require('path');
 
 const workspaceRoot = path.resolve(__dirname, '..');
-const cargoManifestPath = path.join('src-tauri', 'Cargo.toml');
+const tauriRoot = path.join(workspaceRoot, 'src-tauri');
+const cargoManifestPath = 'Cargo.toml';
 const tauriDevBinaryNames = [
   'elegy-copilot-tauri-shell.exe',
   'elegy_copilot_tauri_shell.exe',
@@ -16,7 +17,7 @@ function commandLabel(command, args) {
 
 function runCommand(command, args, options = {}) {
   const result = spawnSync(command, args, {
-    cwd: workspaceRoot,
+    cwd: options.cwd || workspaceRoot,
     env: process.env,
     encoding: 'utf8',
     stdio: 'pipe',
@@ -63,7 +64,7 @@ function runCargoTauriDev() {
   const label = commandLabel(command, args);
   console.log(`[tauri-dev:windows] running ${label}`);
 
-  const firstAttempt = runCommand(command, args);
+  const firstAttempt = runCommand(command, args, { cwd: tauriRoot });
   if (firstAttempt.error) {
     console.error(`[tauri-dev:windows] failed to execute ${label}: ${firstAttempt.error.message}`);
     return 1;
@@ -80,7 +81,7 @@ function runCargoTauriDev() {
   console.warn('[tauri-dev:windows] detected Windows file lock (os error 32). Terminating stale Tauri dev processes and retrying once.');
   killTauriDevProcesses();
 
-  const secondAttempt = runCommand(command, args);
+  const secondAttempt = runCommand(command, args, { cwd: tauriRoot });
   if (secondAttempt.error) {
     console.error(`[tauri-dev:windows] retry failed to execute ${label}: ${secondAttempt.error.message}`);
     return 1;

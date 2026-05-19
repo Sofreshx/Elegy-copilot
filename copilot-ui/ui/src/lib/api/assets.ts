@@ -48,46 +48,13 @@ export function installSurfaces(
   });
 }
 
-export function patchVscodeSettings(baseUrl?: string): Promise<{ result: unknown }> {
-  return apiRequest<{ result: unknown }>('/api/vscode/patch-settings', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ dryRun: false }),
-  });
-}
-
-export function patchVscodeGithubMcp(baseUrl?: string): Promise<{ result: unknown }> {
-  return apiRequest<{ result: unknown }>('/api/vscode/patch-github-mcp', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ dryRun: false }),
-  });
-}
-
-export function authorizeCopilotFolders(baseUrl?: string): Promise<{ result: unknown }> {
-  return apiRequest<{ result: unknown }>('/api/copilot/authorize', {
-    baseUrl,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ dryRun: false }),
-  });
-}
-
 export function runSandboxLifecycleAction(
   action: SandboxLifecycleAction,
   payload: SandboxLifecyclePayload,
   baseUrl?: string
 ): Promise<SandboxLifecycleResponse> {
   return apiRequest<SandboxLifecycleResponse>(
-    `/api/tracker/lifecycle/${encodeURIComponent(action)}`,
+    `/api/sandboxes/lifecycle/${encodeURIComponent(action)}`,
     {
       baseUrl,
       method: 'POST',

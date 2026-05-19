@@ -8,7 +8,6 @@ function makeConfig(tmpRoot: string, overrides: Partial<TrackerConfig> = {}): Tr
   return {
     workspacePaths: [tmpRoot],
     relayTokenSource: "missing",
-    localWsPort: 9821,
     watchIntervalMs: 2000,
     statusPort: 0,
     obsidianNotePaths: [],

@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python - <<'PY'
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec 3<&0
+trap 'exec 3<&-' EXIT
+source "$SCRIPT_DIR/_python-hook.sh"
+HOOK_ENFORCEMENT_STATUS='fail'
+if [[ -f "$SCRIPT_DIR/pre-tool-use.sh" ]]; then
+  HOOK_ENFORCEMENT_STATUS='pass'
+fi
+
+run_python_hook "$SCRIPT_DIR" "$HOOK_ENFORCEMENT_STATUS" <<'PY'
 import json
 import os
 import subprocess
@@ -38,8 +47,7 @@ def build_early_control_state(timestamp: str, required_controls: list[str]) -> d
     parity_token = hashlib.sha256(safety_token.encode("utf-8")).hexdigest()
     safety_passed = bool(safety_token) and bool(parity_token) and len(parity_token) == 64
 
-    pre_tool_path = os.path.join(os.path.dirname(__file__), "pre-tool-use.sh")
-    hook_enforcement_passed = os.path.isfile(pre_tool_path)
+    hook_enforcement_passed = (sys.argv[1] if len(sys.argv) > 1 else "").strip().lower() == "pass"
 
     controls = {
         "safetyTokenParity": {

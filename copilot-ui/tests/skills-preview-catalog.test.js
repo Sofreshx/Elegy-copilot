@@ -187,7 +187,7 @@ async function run() {
       assert.strictEqual(pluginEntry.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
       assert.strictEqual(pluginEntry.readOnly, true);
       assert.ok(
-        ['superpowers-copilot', 'copilot-home-plugin', 'copilot-marketplace-plugin'].includes(pluginEntry.provider),
+        ['external-provider', 'copilot-home-plugin', 'copilot-marketplace-plugin'].includes(pluginEntry.provider),
         `unexpected plugin provider: ${pluginEntry.provider}`,
       );
     });

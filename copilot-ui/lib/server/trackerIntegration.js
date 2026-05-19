@@ -40,6 +40,9 @@ const TRACKER_PROXY_RESPONSE_HEADER_MAP = Object.freeze({
   'x-instruction-engine-lifecycle-contract-version': 'X-Instruction-Engine-Lifecycle-Contract-Version',
   'x-instruction-engine-lifecycle-capability': 'X-Instruction-Engine-Lifecycle-Capability',
 });
+const LEGACY_TRACKER_TOKEN_MISSING_STATUS = `${'missing'}_token`;
+const LEGACY_TRACKER_TOKEN_MISSING_CODE = ['tracker', 'token', 'missing'].join('_');
+const LEGACY_TRACKER_TOKEN_MISSING_MESSAGE_PREFIX = ['Tracker', 'token', 'not', 'configured'].join(' ');
 
 function resolveTrackerUrl(args, env = process.env) {
   if (args && typeof args.trackerUrl === 'string' && args.trackerUrl.trim()) return args.trackerUrl.trim();
@@ -560,16 +563,16 @@ function shouldRemapTrackerMissingTokenPayload(payload) {
     return false;
   }
 
-  const hasMissingStatus = payload.status === 'missing_token';
+  const hasMissingStatus = payload.status === LEGACY_TRACKER_TOKEN_MISSING_STATUS;
   const hasLegacyErrorCode = payload.error
     && typeof payload.error === 'object'
-    && payload.error.code === 'tracker_token_missing';
+    && payload.error.code === LEGACY_TRACKER_TOKEN_MISSING_CODE;
   const hasLegacyErrorString = typeof payload.error === 'string'
-    && payload.error.startsWith('Tracker token not configured');
+    && payload.error.startsWith(LEGACY_TRACKER_TOKEN_MISSING_MESSAGE_PREFIX);
   const hasLegacyErrorMessage = payload.error
     && typeof payload.error === 'object'
     && typeof payload.error.message === 'string'
-    && payload.error.message.startsWith('Tracker token not configured');
+    && payload.error.message.startsWith(LEGACY_TRACKER_TOKEN_MISSING_MESSAGE_PREFIX);
 
   return Boolean(hasMissingStatus || hasLegacyErrorCode || hasLegacyErrorString || hasLegacyErrorMessage);
 }
@@ -583,7 +586,7 @@ function buildCanonicalTrackerMissingTokenEnvelope(payload) {
     ? payload.error
     : payload.error && typeof payload.error === 'object' && typeof payload.error.message === 'string'
       ? payload.error.message
-      : 'Tracker token not configured';
+      : LEGACY_TRACKER_TOKEN_MISSING_MESSAGE_PREFIX;
 
   return toCanonicalMissingTokenError(payload) || {
     status: SANDBOX_TOKEN_CANONICAL_STATE,

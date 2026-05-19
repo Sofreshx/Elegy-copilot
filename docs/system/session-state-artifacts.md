@@ -102,8 +102,8 @@ The dashboard planning artifact routes expose these fields per record:
 These APIs are deterministic and operate on the existing planning record state in memory/persistence projection.
 
 These record-scoped research and diagram artifacts are legacy compatibility surfaces for planning
-records. The repo-backed Planning workflow uses Repository Backlog and Roadmap docs under the selected
-repo instead; see [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
+records. The live Planning workflow now uses workflow-artifact sync into `elegy-planning` instead;
+see [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
 
 Deprecated compatibility status:
 
@@ -259,8 +259,8 @@ Emission rules:
   follow-up work, not to imply unrestricted parallel execution.
 - If no persisted session workflow is in use, chat-first state may remain in chat/runtime state only.
 
-When a plan pack is linked to repo-backed Planning artifacts, `plan.md` may also include explicit
-Roadmap Sync markers such as:
+When a plan pack participates in downstream planning reconciliation or compatibility flows, `plan.md`
+may also include explicit linkage markers such as:
 
 - `IE_LINKED_BACKLOG_IDS`
 - `IE_LINKED_ROADMAP_IDS`
@@ -270,8 +270,8 @@ Roadmap Sync markers such as:
 - `IE_PLAN_OUTCOME`
 
 These markers are optional for generic plan packs, but they are required when the session is expected to
-reconcile Repository Backlog or Roadmap state automatically. The canonical linkage and sync semantics are
-defined in [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
+participate in automatic downstream planning reconciliation. The canonical linkage and authority semantics
+are defined in [[planning-backlog-roadmap-contract]] [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md).
 
 ### Unresolved Goal Carryover Boundary
 
@@ -603,9 +603,9 @@ The persistence authority for planning records and planning notes is frozen as f
    - Implementations MUST NOT silently fall back to file-based persistence for planning records/notes when local DB persistence is unavailable.
    - Persistence failures must remain explicit and deterministic to callers.
 
-This freeze applies to planning-record persistence only. Repo-backed `~/.copilot/backlogs/{repo-name}/backlogs/*.md` and
-roadmap folder artifacts under `~/.copilot/backlogs/{repo-name}/roadmaps/*/index.md` are outside session-state
-authority and outside this local planning DB authority boundary.
+This freeze applies to planning-record persistence only. Live `elegy-planning` authority data and
+other non-session planning surfaces remain outside session-state authority and outside this local
+planning DB authority boundary.
 
 ### Planning Persistence Operations Contract (WS4 M2)
 

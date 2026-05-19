@@ -5,11 +5,16 @@ const mockGetCatalogBundles = vi.fn();
 const mockGetCatalogAssets = vi.fn();
 const mockGetRuntimeCatalogHealth = vi.fn();
 const mockGetCatalogAssetDetail = vi.fn();
+const mockAddCatalogSource = vi.fn();
+const mockActivateCatalogSourceInstallable = vi.fn();
 const mockGetCatalogAuditEvents = vi.fn();
 const mockGetCatalogAssetAnalytics = vi.fn();
 const mockGetCatalogRepos = vi.fn();
 const mockGetAssetView = vi.fn();
+const mockDeactivateCatalogSourceInstallable = vi.fn();
 const mockRefreshCatalogProjection = vi.fn();
+const mockRefreshCatalogSource = vi.fn();
+const mockRemoveCatalogSource = vi.fn();
 const mockSearchCatalogAssets = vi.fn();
 const mockRecordCatalogSearchSelection = vi.fn();
 const mockSyncAllAssets = vi.fn();
@@ -27,7 +32,10 @@ const mockRefreshCatalogRepo = vi.fn();
 const mockUnregisterCatalogRepo = vi.fn();
 
 vi.mock('../ui/src/lib/api', () => ({
+  activateCatalogSourceInstallable: mockActivateCatalogSourceInstallable,
+  addCatalogSource: mockAddCatalogSource,
   createCatalogAsset: mockCreateCatalogAsset,
+  deactivateCatalogSourceInstallable: mockDeactivateCatalogSourceInstallable,
   deleteCatalogAsset: mockDeleteCatalogAsset,
   disableCatalogAsset: mockDisableCatalogAsset,
   enableCatalogAsset: mockEnableCatalogAsset,
@@ -42,6 +50,8 @@ vi.mock('../ui/src/lib/api', () => ({
   getRuntimeCatalogHealth: mockGetRuntimeCatalogHealth,
   installCatalogAsset: mockInstallCatalogAsset,
   uninstallCatalogBundle: mockUninstallCatalogBundle,
+  refreshCatalogSource: mockRefreshCatalogSource,
+  removeCatalogSource: mockRemoveCatalogSource,
   refreshCatalogProjection: mockRefreshCatalogProjection,
   recordCatalogSearchSelection: mockRecordCatalogSearchSelection,
   refreshCatalogRepo: mockRefreshCatalogRepo,
@@ -62,11 +72,16 @@ describe('catalogWorkspaceStore', () => {
     mockGetCatalogBundles.mockReset();
     mockGetRuntimeCatalogHealth.mockReset();
     mockGetCatalogAssetDetail.mockReset();
+    mockAddCatalogSource.mockReset();
+    mockActivateCatalogSourceInstallable.mockReset();
     mockGetCatalogAuditEvents.mockReset();
     mockGetCatalogAssetAnalytics.mockReset();
     mockGetCatalogRepos.mockReset();
     mockGetAssetView.mockReset();
+    mockDeactivateCatalogSourceInstallable.mockReset();
     mockRefreshCatalogProjection.mockReset();
+    mockRefreshCatalogSource.mockReset();
+    mockRemoveCatalogSource.mockReset();
     mockSearchCatalogAssets.mockReset();
     mockRecordCatalogSearchSelection.mockReset();
     mockSyncAllAssets.mockReset();
@@ -607,6 +622,7 @@ describe('catalogWorkspaceStore', () => {
         assetKey: 'search-skill',
         kind: 'skill',
         scope: {
+          kind: 'repo',
           repoId: 'repo-1',
         },
       },
@@ -615,6 +631,7 @@ describe('catalogWorkspaceStore', () => {
         assetKey: 'search-skill',
         kind: 'skill',
         scope: {
+          kind: 'repo',
           repoId: 'repo-1',
         },
       },
@@ -1109,5 +1126,238 @@ describe('catalogWorkspaceStore', () => {
     });
     expect(mockGetCatalogSummary).toHaveBeenCalledTimes(2);
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Created');
+  });
+
+  it('adds an external source and reloads the workspace', async () => {
+    primeWorkspaceLoad();
+    mockGetCatalogRepos.mockResolvedValue({ repos: [], selectedRepo: null });
+    mockAddCatalogSource.mockResolvedValue({
+      source: {
+        sourceId: 'demo-source',
+        title: 'Demo Source',
+      },
+    });
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    await catalogWorkspaceStore.loadWorkspace();
+    await catalogWorkspaceStore.addExternalSource({
+      url: 'https://github.com/example/demo',
+      title: 'Demo Source',
+      includeMcp: true,
+    });
+
+    expect(mockAddCatalogSource).toHaveBeenCalledWith({
+      url: 'https://github.com/example/demo',
+      title: 'Demo Source',
+      includeMcp: true,
+    });
+    expect(mockGetCatalogSummary).toHaveBeenCalledTimes(2);
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Added source Demo Source');
+  });
+
+  it('activates and deactivates an external installable for a target', async () => {
+    mockGetCatalogRepos.mockResolvedValue({ repos: [], selectedRepo: null });
+    mockGetCatalogSummary
+      .mockResolvedValueOnce({
+        summary: {
+          schemaVersion: 1,
+          generatedAt: '2026-03-09T00:00:00.000Z',
+          stats: {
+            effectiveCount: 0,
+            installedCount: 0,
+            overriddenCount: 0,
+          },
+          externalSources: [
+            {
+              sourceId: 'demo-source',
+              title: 'Demo Source',
+              installables: [
+                {
+                  installableId: 'skill:brainstorming',
+                  kind: 'skill',
+                  title: 'Brainstorming',
+                  targetSupport: ['codex', 'opencode'],
+                },
+              ],
+              activation: {},
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        summary: {
+          schemaVersion: 1,
+          generatedAt: '2026-03-09T00:00:01.000Z',
+          stats: {
+            effectiveCount: 0,
+            installedCount: 0,
+            overriddenCount: 0,
+          },
+          externalSources: [
+            {
+              sourceId: 'demo-source',
+              title: 'Demo Source',
+              installables: [
+                {
+                  installableId: 'skill:brainstorming',
+                  kind: 'skill',
+                  title: 'Brainstorming',
+                  targetSupport: ['codex', 'opencode'],
+                },
+              ],
+              activation: {
+                codex: {
+                  installables: {
+                    'skill:brainstorming': {
+                      enabled: true,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        summary: {
+          schemaVersion: 1,
+          generatedAt: '2026-03-09T00:00:02.000Z',
+          stats: {
+            effectiveCount: 0,
+            installedCount: 0,
+            overriddenCount: 0,
+          },
+          externalSources: [
+            {
+              sourceId: 'demo-source',
+              title: 'Demo Source',
+              installables: [
+                {
+                  installableId: 'skill:brainstorming',
+                  kind: 'skill',
+                  title: 'Brainstorming',
+                  targetSupport: ['codex', 'opencode'],
+                },
+              ],
+              activation: {
+                codex: {
+                  installables: {
+                    'skill:brainstorming': {
+                      enabled: false,
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        },
+      });
+    mockGetCatalogAssets.mockResolvedValue({ assets: [] });
+    mockGetCatalogBundles.mockResolvedValue({ bundles: [] });
+    mockGetRuntimeCatalogHealth.mockResolvedValue({ ok: true, projection: { schemaVersion: 1, generatedAt: '2026-03-09T00:00:00.000Z' } });
+    mockGetCatalogAuditEvents.mockResolvedValue({ events: [] });
+    mockActivateCatalogSourceInstallable.mockResolvedValue({});
+    mockDeactivateCatalogSourceInstallable.mockResolvedValue({});
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    await catalogWorkspaceStore.loadWorkspace();
+    await catalogWorkspaceStore.activateExternalSourceInstallable({
+      sourceId: 'demo-source',
+      installableId: 'skill:brainstorming',
+      target: 'codex',
+    });
+    await catalogWorkspaceStore.deactivateExternalSourceInstallable({
+      sourceId: 'demo-source',
+      installableId: 'skill:brainstorming',
+      target: 'codex',
+    });
+
+    expect(mockActivateCatalogSourceInstallable).toHaveBeenCalledWith({
+      sourceId: 'demo-source',
+      installableId: 'skill:brainstorming',
+      target: 'codex',
+    });
+    expect(mockDeactivateCatalogSourceInstallable).toHaveBeenCalledWith({
+      sourceId: 'demo-source',
+      installableId: 'skill:brainstorming',
+      target: 'codex',
+    });
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Deactivated skill:brainstorming for codex');
+  });
+
+  it('reinstalls active external installables for one target and across all active targets', async () => {
+    mockGetCatalogRepos.mockResolvedValue({ repos: [], selectedRepo: null });
+    mockGetCatalogSummary.mockResolvedValue({
+      summary: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+        stats: {
+          effectiveCount: 0,
+          installedCount: 0,
+          overriddenCount: 0,
+        },
+        externalSources: [
+          {
+            sourceId: 'demo-source',
+            title: 'Demo Source',
+            installables: [
+              {
+                installableId: 'skill:brainstorming',
+                kind: 'skill',
+                targetSupport: ['codex', 'opencode'],
+              },
+              {
+                installableId: 'mcp:context7',
+                kind: 'mcp-server',
+                targetSupport: ['codex', 'opencode', 'gemini-cli'],
+              },
+            ],
+            activation: {
+              codex: {
+                installables: {
+                  'skill:brainstorming': { enabled: true },
+                  'mcp:context7': { enabled: true },
+                },
+              },
+              opencode: {
+                installables: {
+                  'skill:brainstorming': { enabled: true },
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+    mockGetCatalogAssets.mockResolvedValue({ assets: [] });
+    mockGetCatalogBundles.mockResolvedValue({ bundles: [] });
+    mockGetRuntimeCatalogHealth.mockResolvedValue({ ok: true, projection: { schemaVersion: 1, generatedAt: '2026-03-09T00:00:00.000Z' } });
+    mockGetCatalogAuditEvents.mockResolvedValue({ events: [] });
+    mockActivateCatalogSourceInstallable.mockResolvedValue({});
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    await catalogWorkspaceStore.loadWorkspace();
+    await catalogWorkspaceStore.reinstallExternalSourceTarget('demo-source', 'codex');
+    await catalogWorkspaceStore.reinstallExternalSourceAllTargets('demo-source');
+
+    expect(mockActivateCatalogSourceInstallable).toHaveBeenCalledWith({
+      sourceId: 'demo-source',
+      installableId: 'skill:brainstorming',
+      target: 'codex',
+    });
+    expect(mockActivateCatalogSourceInstallable).toHaveBeenCalledWith({
+      sourceId: 'demo-source',
+      installableId: 'mcp:context7',
+      target: 'codex',
+    });
+    expect(mockActivateCatalogSourceInstallable).toHaveBeenCalledWith({
+      sourceId: 'demo-source',
+      installableId: 'skill:brainstorming',
+      target: 'opencode',
+    });
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Reinstalled 2 active target(s)');
   });
 });

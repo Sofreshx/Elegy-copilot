@@ -789,8 +789,8 @@ WS4 freeze decision:
 | Invariant | Test file | Case ID/title |
 |---|---|---|
 | WS05-I1 strict predicate truth table | `copilot-ui/lib/sandboxLifecycleTokenContract.test.js` | `WS05-I1 isKnownMissingTokenIndicator strict predicate truth table` |
-| WS05-I2 local pre-proxy guard -> proxy count 0 | `copilot-ui/routes/tracker.test.js` | `WS05-I2 local pre-proxy guard short-circuits with canonical envelope and proxy count 0` |
-| WS05-I3 token-present path -> proxy count 1, no remap | `copilot-ui/routes/tracker.test.js` | `WS05-I3 token-present path proxies once without local remap` |
+| WS05-I2 local pre-proxy guard -> proxy count 0 | `copilot-ui/routes/tracker.test.js` | `WS05-I2 sandbox lifecycle pre-proxy guard short-circuits with canonical envelope and proxy count 0` |
+| WS05-I3 token-present path -> proxy count 1, no remap | `copilot-ui/routes/tracker.test.js` | `WS05-I3 sandbox lifecycle token-present path proxies once without local remap` |
 | WS05-I4 unrelated failures pass through with status/body/selected headers parity | `copilot-ui/server.lifecycle-proxy.test.js` | `WS05-I4 buildTrackerProxyResponsePlan passes unrelated failures through with status/body/selected headers parity` |
 | WS05-I5 TabShell/Panel selector contract present in app.css and component refs | `copilot-ui/tests/ui-react-smoke.test.js` | `WS05-I5 TabShell/Panel selector contract is present in app.css and component refs` |
 

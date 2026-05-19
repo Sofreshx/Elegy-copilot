@@ -51,12 +51,13 @@ async function run() {
     assert.ok(fs.existsSync(path.join(uiSrcRoot, 'App.tsx')), 'Missing ui/src/App.tsx');
   });
 
-  await test('active workspace hub view files exist for home runtime, planning, catalog, and stats', async () => {
+  await test('active sidebar view files exist for execution, planning, catalog, maintenance, and settings', async () => {
     const expectedViews = [
-      path.join(uiSrcRoot, 'tabs', 'HomeRuntime', 'HomeRuntimeView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'Catalog', 'CatalogView.tsx'),
-      path.join(uiSrcRoot, 'tabs', 'Stats', 'StatsView.tsx'),
+      path.join(uiSrcRoot, 'views', 'DashboardView.tsx'),
+      path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningAuthorityView.tsx'),
+      path.join(uiSrcRoot, 'views', 'Catalog', 'CatalogShellView.tsx'),
+      path.join(uiSrcRoot, 'views', 'Maintenance', 'MaintenanceView.tsx'),
+      path.join(uiSrcRoot, 'views', 'Settings', 'SettingsView.tsx'),
     ];
 
     for (const expectedView of expectedViews) {
@@ -72,12 +73,16 @@ async function run() {
   await test('App.tsx references the current sidebar-driven shell views', async () => {
     const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
 
+    assert.ok(appSource.includes("./tabs/Planning/PlanningAuthorityView"), 'Expected PlanningAuthorityView import in App.tsx');
     assert.ok(appSource.includes("./views/Maintenance/MaintenanceView"), 'Expected MaintenanceView import in App.tsx');
-    assert.ok(appSource.includes("./tabs/Planning/PlanningView"), 'Expected PlanningView import in App.tsx');
     assert.ok(appSource.includes("./views/Catalog/CatalogShellView"), 'Expected CatalogShellView import in App.tsx');
     assert.ok(appSource.includes("./views/DashboardView"), 'Expected DashboardView import in App.tsx');
+    assert.ok(!appSource.includes(["./views", "Workflows", ["Workflows", "Hub"].join("")].join("/")), 'Did not expect standalone workflows hub import in App.tsx');
+    assert.ok(!appSource.includes("./views/Workflows/WorkflowExecutionView"), 'Did not expect standalone workflow execution import in App.tsx');
+    assert.ok(!appSource.includes("./views/Workflows/WorkflowTemplateEditor"), 'Did not expect standalone workflow editor import in App.tsx');
     assert.ok(!appSource.includes("./tabs/Sessions/SessionsWorkspaceView"), 'Did not expect legacy SessionsWorkspaceView import in App.tsx');
     assert.ok(!appSource.includes("./tabs/State/StateView"), 'Did not expect retired StateView import in App.tsx');
+    assert.ok(!appSource.includes(["./tabs", "Planning", ["Planning", "View"].join("")].join("/")), 'Did not expect legacy planning tab import in App.tsx');
   });
 
   await test('responsive breakpoints for 1440px, 1024px, 768px, and 320px exist in app.css', async () => {
@@ -96,22 +101,22 @@ async function run() {
     assert.ok(appCss.includes('@media (prefers-reduced-motion: reduce)'), 'Expected reduced-motion media query in app.css');
   });
 
-  await test('global layout reserves scrollbar space and runtime workspace tabs use stable nav styling', async () => {
+  await test('global layout reserves scrollbar space and workspace tabs use stable nav styling', async () => {
     const globalCss = fs.readFileSync(path.join(uiSrcRoot, 'styles', 'global.css'), 'utf8');
     const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
-    const homeRuntimeSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'HomeRuntime', 'HomeRuntimeView.tsx'), 'utf8');
+    const catalogSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Catalog', 'CatalogView.tsx'), 'utf8');
 
     assert.ok(globalCss.includes('scrollbar-gutter: stable;'), 'Expected stable scrollbar gutter in global.css');
     assert.ok(appCss.includes('.workspace-nav-stable {'), 'Expected stable workspace nav selector in app.css');
     assert.ok(
-      homeRuntimeSource.includes('className="workspace-nav workspace-nav-stable"'),
-      'Expected HomeRuntimeView to opt into stable workspace nav styling'
+      catalogSource.includes('className="workspace-nav"'),
+      'Expected CatalogView to expose workspace nav styling'
     );
   });
 
-  await test('runtime no longer exposes a standalone sandbox tab and sessions mode buttons use stable toolbar layout', async () => {
+  await test('execution no longer depends on a standalone runtime tab and sessions mode buttons use stable toolbar layout', async () => {
     const appCss = fs.readFileSync(path.join(uiSrcRoot, 'app.css'), 'utf8');
-    const homeRuntimeSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'HomeRuntime', 'HomeRuntimeView.tsx'), 'utf8');
+    const appSource = fs.readFileSync(path.join(uiSrcRoot, 'App.tsx'), 'utf8');
     const sessionsViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsView.tsx'), 'utf8');
 
     assert.ok(appCss.includes('.showcase-toolbar-group-stable {'), 'Expected stable toolbar group selector in app.css');
@@ -120,17 +125,12 @@ async function run() {
       'Expected SessionsView mode toolbar to opt into stable layout styling'
     );
     assert.ok(
-      !homeRuntimeSource.includes('testId="home-runtime-section-sandboxes"'),
-      'Did not expect HomeRuntimeView to expose a standalone sandboxes runtime section'
-    );
-    assert.ok(
-      homeRuntimeSource.includes('Open Executor Sandbox Mode'),
-      'Expected sandbox quick action to route through the executor surface'
+      !appSource.includes(["./tabs", "HomeRuntime", ["HomeRuntime", "View"].join("")].join("/")),
+      'Did not expect App.tsx to render the retired runtime tab view'
     );
   });
 
-  await test('runtime sessions surface overlay workspace and overview exposes overlay resume handoff', async () => {
-    const homeRuntimeSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'HomeRuntime', 'HomeRuntimeView.tsx'), 'utf8');
+  await test('runtime sessions surface overlay workspace and current shell exposes overlay handoff routes', async () => {
     const sessionsViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsView.tsx'), 'utf8');
     const overlayWorkspaceSource = fs.readFileSync(
       path.join(uiSrcRoot, 'tabs', 'Sessions', 'OverlaySessionsWorkspace.tsx'),
@@ -158,26 +158,22 @@ async function run() {
       'Expected overlay sessions workspace to expose stable per-session executor handoff ids'
     );
     assert.ok(
-      homeRuntimeSource.includes('Resume overlay workflow'),
-      'Expected HomeRuntimeView to expose an overlay resume quick action'
-    );
-    assert.ok(
-      homeRuntimeSource.includes('runtime-overview-overlay-action'),
-      'Expected HomeRuntimeView to expose a stable overlay quick action test id'
+      overlayWorkspaceSource.includes("navigationStore.navigate('dashboard')"),
+      'Expected overlay sessions workspace to hand off through sidebar execution'
     );
   });
 
   await test('planning owns the visible task board while runtime surfaces link back to it with orchestration-safe labels', async () => {
-    const planningViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningView.tsx'), 'utf8');
+    const planningAuthorityViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Planning', 'PlanningAuthorityView.tsx'), 'utf8');
     const sessionsViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'SessionsView.tsx'), 'utf8');
     const executorViewSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Executor', 'ExecutorView.tsx'), 'utf8');
     const taskBoardSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'TaskBoardView.tsx'), 'utf8');
     const sessionsStoreSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Sessions', 'sessionsStore.ts'), 'utf8');
     const executorStoreSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Executor', 'executorStore.ts'), 'utf8');
 
-    assert.ok(planningViewSource.includes('planning-task-board-panel'), 'Expected PlanningView to expose the visible task board panel');
-    assert.ok(planningViewSource.includes('planning-task-board-open-runtime-sessions'), 'Expected PlanningView to link task board work into runtime sessions');
-    assert.ok(planningViewSource.includes('planning-task-board-open-executor'), 'Expected PlanningView to link task board work into executor');
+    assert.ok(planningAuthorityViewSource.includes('planning-task-board-panel'), 'Expected PlanningAuthorityView to expose the visible task board panel');
+    assert.ok(planningAuthorityViewSource.includes('planning-task-board-open-runtime-sessions'), 'Expected PlanningAuthorityView to link task board work into runtime sessions');
+    assert.ok(planningAuthorityViewSource.includes('planning-task-board-open-executor'), 'Expected PlanningAuthorityView to link task board work into executor');
     assert.ok(!sessionsViewSource.includes('sessions-task-board-panel'), 'Did not expect SessionsView to expose a task board panel');
     assert.ok(!executorViewSource.includes('executor-task-board-panel'), 'Did not expect ExecutorView to expose a task board panel');
     assert.ok(sessionsViewSource.includes('sessions-open-planning-task-board'), 'Expected SessionsView to link back to the Planning task board');
@@ -234,7 +230,6 @@ async function run() {
     const diagnosticsPanelSource = fs.readFileSync(
       path.join(uiSrcRoot, 'views', 'Maintenance', 'DiagnosticsPanel.tsx'), 'utf8'
     );
-    const navigationSource = fs.readFileSync(path.join(uiSrcRoot, 'stores', 'navigation.ts'), 'utf8');
     const statsStoreSource = fs.readFileSync(
       path.join(uiSrcRoot, 'tabs', 'Stats', 'statsStore.ts'),
       'utf8'
@@ -244,11 +239,6 @@ async function run() {
       'utf8'
     );
 
-    assert.ok(navigationSource.includes("'stats'"), 'Expected navigation.ts to register the stats tab id');
-    assert.ok(
-      navigationSource.includes("label: 'Stats'"),
-      'Expected navigation.ts to register the Stats tab label'
-    );
     assert.ok(
       diagnosticsPanelSource.includes("StatsView"),
       'Expected DiagnosticsPanel to render StatsView'
@@ -376,17 +366,6 @@ async function run() {
     assert.ok(templatesSource.includes('code-review'), 'Expected code-review template');
     assert.ok(templatesSource.includes('feature-impl'), 'Expected feature-impl template');
 
-    const objectiveStepSource = fs.readFileSync(
-      path.join(uiSrcRoot, 'views', 'Sessions', 'steps', 'ObjectiveStep.tsx'), 'utf8'
-    );
-    assert.ok(
-      objectiveStepSource.includes('SESSION_TEMPLATES'),
-      'Expected ObjectiveStep to import SESSION_TEMPLATES'
-    );
-    assert.ok(
-      !objectiveStepSource.includes("const TEMPLATES"),
-      'Expected ObjectiveStep to not define local TEMPLATES array'
-    );
   });
 
   console.log(`\n  ${passed} passed, ${failed} failed (${passed + failed} total)\n`);

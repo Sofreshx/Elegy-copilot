@@ -39,30 +39,6 @@
       "version"
     ]
   },
-  "POST /api/vscode/patch-settings": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "result"
-    ]
-  },
-  "POST /api/vscode/patch-github-mcp": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "result"
-    ]
-  },
-  "POST /api/copilot/authorize": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "result"
-    ]
-  },
   "GET /api/lsp/config": {
     "status": 200,
     "contentType": "application/json",
@@ -80,6 +56,17 @@
       "ok",
       "stderr",
       "stdout"
+    ]
+  },
+  "GET /api/planning/task-board": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind"
     ]
   },
   "POST /api/planning/persistence/init": {
@@ -303,8 +290,8 @@
       "reason"
     ]
   },
-  "GET /api/planning/artifacts/bullets": {
-    "status": 409,
+  "POST /api/planning/workflow-artifacts": {
+    "status": 503,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
@@ -313,11 +300,12 @@
       "deterministic",
       "error",
       "kind",
+      "planningPersistence",
       "reason"
     ]
   },
-  "POST /api/planning/artifacts/bullets": {
-    "status": 409,
+  "GET /api/planning/workflow-artifacts": {
+    "status": 503,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
@@ -326,11 +314,12 @@
       "deterministic",
       "error",
       "kind",
+      "planningPersistence",
       "reason"
     ]
   },
-  "PATCH /api/planning/artifacts/bullets/bullet-0001": {
-    "status": 409,
+  "GET /api/planning/workflow-artifacts/continuation-package": {
+    "status": 503,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
@@ -339,82 +328,8 @@
       "deterministic",
       "error",
       "kind",
+      "planningPersistence",
       "reason"
-    ]
-  },
-  "GET /api/planning/artifacts/intake": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "POST /api/planning/artifacts/intake": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "PATCH /api/planning/artifacts/intake/intake-0001": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/planning/records/planning-000001/research": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error",
-      "recordId"
-    ]
-  },
-  "POST /api/planning/records/planning-000001/research": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error",
-      "recordId"
-    ]
-  },
-  "DELETE /api/planning/records/planning-000001/research/note-0001": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error",
-      "recordId"
-    ]
-  },
-  "GET /api/planning/records/planning-000001/diagrams": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "error",
-      "recordId"
     ]
   },
   "GET /api/planning/obsidian/status": {
@@ -521,110 +436,6 @@
       "reason"
     ]
   },
-  "GET /api/planning/backlog": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "POST /api/planning/backlog": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "PATCH /api/planning/backlog/RB-001": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/planning/roadmaps": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/planning/roadmaps/platform-foundation": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "POST /api/planning/roadmaps": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "PATCH /api/planning/roadmaps/platform-foundation": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "POST /api/planning/roadmaps/platform-foundation/reconcile": {
-    "status": 409,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "contractVersion",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
   "GET /api/sessions/workspace": {
     "status": 200,
     "contentType": "application/json",
@@ -633,6 +444,14 @@
       "active",
       "authorityModel",
       "history"
+    ]
+  },
+  "GET /api/sessions/unified": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "[array]"
     ]
   },
   "GET /api/sessions": {
@@ -732,6 +551,16 @@
     ]
   },
   "GET /api/sessions/test-session-id/verification-guide": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error",
+      "id",
+      "source"
+    ]
+  },
+  "GET /api/sessions/test-session-id/continuation-package": {
     "status": 404,
     "contentType": "application/json",
     "bodyType": "json",
@@ -928,6 +757,38 @@
       "summary"
     ]
   },
+  "GET /api/catalog/sources": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "count",
+      "deterministic",
+      "kind",
+      "sources",
+      "storage"
+    ]
+  },
+  "GET /api/catalog/content": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "GET /api/catalog/sources/demo-source": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
   "GET /api/catalog/assets": {
     "status": 200,
     "contentType": "application/json",
@@ -987,6 +848,56 @@
       "kind",
       "refreshed",
       "snapshot"
+    ]
+  },
+  "POST /api/catalog/sources/add": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/sources/remove": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/sources/refresh": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/sources/activate": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/sources/deactivate": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
     ]
   },
   "POST /api/catalog/assets/create": {
@@ -1138,6 +1049,24 @@
       "projection"
     ]
   },
+  "GET /api/projects": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "[array]"
+    ]
+  },
+  "PATCH /api/projects/test-project-id": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
   "GET /api/gateway/state": {
     "status": 200,
     "contentType": "application/json",
@@ -1206,123 +1135,138 @@
     ]
   },
   "GET /api/tracker/status": {
-    "status": 502,
+    "status": 410,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "code",
-      "legacyCode",
-      "legacyReason",
-      "message",
-      "reason",
-      "status"
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "GET /api/tracker/sessions": {
-    "status": 502,
+    "status": 410,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "code",
-      "legacyCode",
-      "legacyReason",
-      "message",
-      "reason",
-      "status"
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "GET /api/tracker/permissions": {
-    "status": 502,
+    "status": 410,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "code",
-      "legacyCode",
-      "legacyReason",
-      "message",
-      "reason",
-      "status"
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "GET /api/tracker/synced-notes/sources": {
-    "status": 502,
+    "status": 410,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "code",
-      "legacyCode",
-      "legacyReason",
-      "message",
-      "reason",
-      "status"
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "POST /api/tracker/synced-notes/sources": {
-    "status": 502,
+    "status": 410,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "code",
-      "legacyCode",
-      "legacyReason",
-      "message",
-      "reason",
-      "status"
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "GET /api/tracker/events": {
-    "status": 502,
+    "status": 410,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "code",
-      "legacyCode",
-      "legacyReason",
-      "message",
-      "reason",
-      "status"
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "GET /api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef": {
-    "status": 502,
+    "status": 410,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "code",
-      "legacyCode",
-      "legacyReason",
-      "message",
-      "reason",
-      "status"
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "PUT /api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef": {
-    "status": 502,
+    "status": 410,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "code",
-      "legacyCode",
-      "legacyReason",
-      "message",
-      "reason",
-      "status"
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "DELETE /api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef": {
-    "status": 502,
+    "status": 410,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "code",
-      "legacyCode",
-      "legacyReason",
-      "message",
-      "reason",
-      "status"
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
     ]
   },
   "POST /api/tracker/permissions/test-id/approve": {
+    "status": 410,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "POST /api/tracker/lifecycle/start": {
+    "status": 410,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "POST /api/sandboxes/lifecycle/start": {
     "status": 502,
     "contentType": "application/json",
     "bodyType": "json",
@@ -1335,17 +1279,183 @@
       "status"
     ]
   },
-  "POST /api/tracker/lifecycle/start": {
-    "status": 502,
+  "GET /api/ui-runtime-overlay/sessions": {
+    "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "code",
-      "legacyCode",
-      "legacyReason",
+      "orchestrationContractVersion",
+      "sessions"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/close": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/observations": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/annotations": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/change-requests": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/release": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/executor-job": {
+    "status": 404,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "GET /api/desktop-updater": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "availableVersion",
+      "canCheckForUpdates",
+      "canDownload",
+      "canRestartToUpdate",
+      "channel",
+      "currentVersion",
+      "lastUpdatedAtMs",
       "message",
+      "progressPercent",
       "reason",
-      "status"
+      "status",
+      "supported",
+      "totalBytes",
+      "transferredBytes"
+    ]
+  },
+  "POST /api/desktop-updater/check": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "availableVersion",
+      "canCheckForUpdates",
+      "canDownload",
+      "canRestartToUpdate",
+      "channel",
+      "currentVersion",
+      "lastUpdatedAtMs",
+      "message",
+      "progressPercent",
+      "reason",
+      "status",
+      "supported",
+      "totalBytes",
+      "transferredBytes"
+    ]
+  },
+  "POST /api/desktop-updater/download": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "availableVersion",
+      "canCheckForUpdates",
+      "canDownload",
+      "canRestartToUpdate",
+      "channel",
+      "currentVersion",
+      "lastUpdatedAtMs",
+      "message",
+      "progressPercent",
+      "reason",
+      "status",
+      "supported",
+      "totalBytes",
+      "transferredBytes"
+    ]
+  },
+  "POST /api/desktop-updater/restart": {
+    "status": 409,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "ok"
+    ]
+  },
+  "GET /api/dashboard/summary": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "activeSessionCount",
+      "healthIndicator",
+      "recentActivity",
+      "totalSessionCount"
+    ]
+  },
+  "GET /api/projects/test-project-id/sessions": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "[array]"
+    ]
+  },
+  "GET /api/projects/test-project-id/activity": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "[array]"
+    ]
+  },
+  "GET /api/config/remote-sessions": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "enabled"
+    ]
+  },
+  "PUT /api/config/remote-sessions": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
     ]
   },
   "GET /api/sdk/health": {
@@ -1353,6 +1463,7 @@
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
+      "cliManager",
       "connected",
       "enabled",
       "error",
@@ -1360,6 +1471,14 @@
       "reason",
       "sessionCount",
       "state"
+    ]
+  },
+  "GET /api/sdk/models": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "models"
     ]
   },
   "POST /api/sdk/session": {
@@ -1392,7 +1511,27 @@
       "reason"
     ]
   },
+  "POST /api/sdk/session/test-session-id/enable-remote": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "reason"
+    ]
+  },
   "POST /api/sdk/send": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "error",
+      "reason"
+    ]
+  },
+  "POST /api/sdk/answer": {
     "status": 503,
     "contentType": "application/json",
     "bodyType": "json",
@@ -1418,14 +1557,20 @@
     "bodyType": "json",
     "bodyKeys": [
       "activeRunCount",
+      "activeWorktreeCount",
       "enabled",
       "jobCount",
       "lastError",
       "openedSessionCount",
+      "orchestrationContractVersion",
+      "pendingWorktreeCount",
       "runCount",
       "scheduledJobCount",
       "state",
-      "statePath"
+      "statePath",
+      "workflowLayer",
+      "workflowLayerSubscriberCount",
+      "worktreeCount"
     ]
   },
   "GET /api/executor/jobs": {
@@ -1434,6 +1579,15 @@
     "bodyType": "json",
     "bodyKeys": [
       "jobs"
+    ]
+  },
+  "GET /api/executor/worktrees": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "orchestrationContractVersion",
+      "worktrees"
     ]
   },
   "GET /api/executor/runs": {
@@ -1460,6 +1614,14 @@
       "error"
     ]
   },
+  "POST /api/executor/worktrees/resolve": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
   "POST /api/executor/jobs/test-job-id/trigger": {
     "status": 503,
     "contentType": "application/json",
@@ -1476,64 +1638,73 @@
       "error"
     ]
   },
-  "GET /api/ui-runtime-overlay/sessions": {
+  "GET /api/hooks/rules": {
     "status": 200,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
-      "sessions"
+      "rules",
+      "schemaVersion"
     ]
   },
-  "POST /api/ui-runtime-overlay/sessions": {
-    "status": 409,
+  "PATCH /api/hooks/rules/sample-rule": {
+    "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "error"
     ]
   },
-  "POST /api/ui-runtime-overlay/sessions/test-session-id/observations": {
-      "status": 400,
+  "POST /api/hooks/rules/batch": {
+    "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "error"
     ]
   },
-  "POST /api/ui-runtime-overlay/sessions/test-session-id/annotations": {
-      "status": 400,
+  "GET /api/git/status": {
+    "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "error"
     ]
   },
-  "POST /api/ui-runtime-overlay/sessions/test-session-id/change-requests": {
-      "status": 400,
+  "GET /api/git/diff": {
+    "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "error"
     ]
   },
-  "POST /api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/release": {
-    "status": 404,
+  "GET /api/git/log": {
+    "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "error"
     ]
   },
-  "POST /api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/executor-job": {
-    "status": 404,
+  "POST /api/git/stage": {
+    "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
       "error"
     ]
   },
-  "POST /api/ui-runtime-overlay/sessions/test-session-id/close": {
-    "status": 404,
+  "POST /api/git/unstage": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/git/commit": {
+    "status": 400,
     "contentType": "application/json",
     "bodyType": "json",
     "bodyKeys": [
