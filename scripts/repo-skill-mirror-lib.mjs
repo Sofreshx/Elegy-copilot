@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -14,35 +12,50 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultRepoRoot = path.resolve(__dirname, '..');
 const defaultTargetMapPath = path.join(__dirname, 'repo-skill-sync.targets.json');
-const gateName = 'Repo Skill Sync';
+const gateName = 'Repo Skill Mirrors';
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function usage() {
-  return [
-    'Usage: node scripts/sync-repo-skills.mjs [options]',
-    '',
-    'Options:',
-    '  --repo <path>               Repository root to sync (defaults to instruction-engine repo root)',
-    '  --config <path>             Path to target-map JSON config',
-    '  --targets <csv>             Limit to selected targets (for example codex,opencode,gemini-cli)',
-    '  --check                     Validate generated mirrors only; exit non-zero on drift',
-    '  --dry-run                   Preview writes without changing files',
-    '  --force                     Overwrite diverged generated mirrors',
-    '  --help                      Show this help text',
-  ].join('\n');
+function isDirectory(entryPath) {
+  return fs.existsSync(entryPath) && fs.statSync(entryPath).isDirectory();
 }
 
-function parseArgs(argv) {
+function hasSkillDocument(entryPath) {
+  return isDirectory(entryPath) && fs.existsSync(path.join(entryPath, 'SKILL.md'));
+}
+
+function formatRepoPath(repoRoot, targetPath) {
+  return path.relative(repoRoot, targetPath).replace(/\\/g, '/');
+}
+
+function getMirrorTargetKey(targetName, targetConfig) {
+  const mirrorRoot = typeof targetConfig?.mirrorRoot === 'string' ? normalizeRel(targetConfig.mirrorRoot) : '';
+  return mirrorRoot || `target:${targetName}`;
+}
+
+function pruneDirectory(targetPath, options = {}) {
+  const log = typeof options.log === 'function' ? options.log : console.log;
+  const action = options.dryRun ? 'would_prune' : 'pruned';
+  if (!options.dryRun) {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  }
+  if (action === 'would_prune') {
+    log(`[DRY-RUN] PRUNE ${targetPath}`);
+  } else {
+    log(`[PRUNE]  ${targetPath}`);
+  }
+  return { action, path: targetPath };
+}
+
+export function parseMirrorActionArgs(argv, options = {}) {
+  const allowDryRun = options.allowDryRun !== false;
   const args = {
     repoRoot: defaultRepoRoot,
     configPath: defaultTargetMapPath,
     targets: [],
-    check: false,
     dryRun: false,
-    force: false,
     help: false,
   };
 
@@ -52,16 +65,11 @@ function parseArgs(argv) {
       args.help = true;
       continue;
     }
-    if (value === '--check') {
-      args.check = true;
-      continue;
-    }
     if (value === '--dry-run') {
+      if (!allowDryRun) {
+        throw new Error('Unknown arg: --dry-run');
+      }
       args.dryRun = true;
-      continue;
-    }
-    if (value === '--force') {
-      args.force = true;
       continue;
     }
     if (value.startsWith('--repo=')) {
@@ -101,7 +109,28 @@ function parseArgs(argv) {
   return args;
 }
 
-function readTargetMap(configPath) {
+export function buildUsage(scriptName, description, options = {}) {
+  const allowDryRun = options.allowDryRun !== false;
+  const lines = [
+    `Usage: node scripts/${scriptName} [options]`,
+    '',
+    description,
+    '',
+    'Options:',
+    '  --repo <path>               Repository root to inspect (defaults to instruction-engine repo root)',
+    '  --config <path>             Path to target-map JSON config',
+    '  --targets <csv>             Limit to selected targets (for example codex,opencode,gemini-cli)',
+  ];
+
+  if (allowDryRun) {
+    lines.push('  --dry-run                   Preview writes without changing files');
+  }
+
+  lines.push('  --help                      Show this help text');
+  return lines.join('\n');
+}
+
+export function readTargetMap(configPath) {
   const config = readJson(configPath);
   if (!config || typeof config !== 'object' || Array.isArray(config)) {
     throw new Error('Target map must be a JSON object.');
@@ -115,20 +144,30 @@ function readTargetMap(configPath) {
   if (!config.targets || typeof config.targets !== 'object' || Array.isArray(config.targets)) {
     throw new Error('Target map must define a targets object.');
   }
+
+  for (const [targetName, targetConfig] of Object.entries(config.targets)) {
+    if (!targetConfig || typeof targetConfig !== 'object' || Array.isArray(targetConfig)) {
+      throw new Error(`Target '${targetName}' must be a JSON object.`);
+    }
+    if (targetConfig.enabled === false || targetConfig.kind !== 'repo-mirror') {
+      continue;
+    }
+    if (typeof targetConfig.mirrorRoot !== 'string' || !targetConfig.mirrorRoot.trim()) {
+      throw new Error(`Target '${targetName}' must define mirrorRoot.`);
+    }
+  }
+
   return config;
 }
 
-function isDirectory(entryPath) {
-  return fs.existsSync(entryPath) && fs.statSync(entryPath).isDirectory();
-}
-
-function listCanonicalSkills(sourceRoot) {
+export function listCanonicalSkills(sourceRoot) {
   if (!fs.existsSync(sourceRoot)) {
     return [];
   }
 
   return fs.readdirSync(sourceRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
+    .filter((entry) => hasSkillDocument(path.join(sourceRoot, entry.name)))
     .map((entry) => entry.name)
     .sort((left, right) => left.localeCompare(right));
 }
@@ -143,35 +182,49 @@ function readOptionalDirChildren(rootPath) {
     .sort((left, right) => left.localeCompare(right));
 }
 
-function normalizeTargetSelection(targetsConfig, requestedTargets) {
+export function normalizeTargetSelection(targetsConfig, requestedTargets) {
   const availableTargets = Object.entries(targetsConfig)
     .filter(([, config]) => config && config.enabled !== false && config.kind === 'repo-mirror')
     .map(([name]) => name);
 
-  if (!requestedTargets || requestedTargets.length === 0) {
-    return availableTargets;
-  }
+  const selectedTargets = requestedTargets && requestedTargets.length > 0
+    ? requestedTargets
+    : availableTargets;
 
-  for (const target of requestedTargets) {
+  for (const target of selectedTargets) {
     if (!Object.prototype.hasOwnProperty.call(targetsConfig, target)) {
       throw new Error(`Unknown target '${target}'.`);
     }
+    const config = targetsConfig[target];
+    if (!config || config.enabled === false || config.kind !== 'repo-mirror') {
+      throw new Error(`Target '${target}' is not an enabled repo-local mirror target.`);
+    }
   }
 
-  return requestedTargets.filter((target) => {
-    const config = targetsConfig[target];
-    return config && config.enabled !== false && config.kind === 'repo-mirror';
-  });
+  const dedupedTargets = [];
+  const seenMirrorRoots = new Set();
+  for (const targetName of selectedTargets) {
+    const targetKey = getMirrorTargetKey(targetName, targetsConfig[targetName]);
+    if (seenMirrorRoots.has(targetKey)) {
+      continue;
+    }
+    seenMirrorRoots.add(targetKey);
+    dedupedTargets.push(targetName);
+  }
+
+  return dedupedTargets;
 }
 
-function buildCounts(results) {
+export function buildCounts(results) {
   const counts = {
     created: 0,
     updated: 0,
     skipped: 0,
     skippedConflict: 0,
+    pruned: 0,
     wouldCreate: 0,
     wouldUpdate: 0,
+    wouldPrune: 0,
     staleMirrors: 0,
     unexpectedMirrors: 0,
     missingMirrors: 0,
@@ -191,11 +244,17 @@ function buildCounts(results) {
       case 'skipped_conflict':
         counts.skippedConflict += 1;
         break;
+      case 'pruned':
+        counts.pruned += 1;
+        break;
       case 'would_create':
         counts.wouldCreate += 1;
         break;
       case 'would_update':
         counts.wouldUpdate += 1;
+        break;
+      case 'would_prune':
+        counts.wouldPrune += 1;
         break;
       case 'stale_mirror':
         counts.staleMirrors += 1;
@@ -214,18 +273,19 @@ function buildCounts(results) {
   return counts;
 }
 
-function summarizeCheckDrift(sourceRoot, mirrorRoot, skillName) {
+export function summarizeCheckDrift(sourceRoot, mirrorRoot, skillName) {
   const sourcePath = path.join(sourceRoot, skillName);
   const mirrorPath = path.join(mirrorRoot, skillName);
-  const sourceExists = isDirectory(sourcePath);
-  const mirrorExists = isDirectory(mirrorPath);
+  const sourceExists = hasSkillDocument(sourcePath);
+  const mirrorExists = hasSkillDocument(mirrorPath);
+  const mirrorDirectoryExists = isDirectory(mirrorPath);
   if (sourceExists && !mirrorExists) {
     return { action: 'missing_mirror', skill: skillName, sourcePath, mirrorPath };
   }
-  if (!sourceExists && mirrorExists) {
+  if (!sourceExists && mirrorDirectoryExists) {
     return { action: 'unexpected_mirror', skill: skillName, sourcePath, mirrorPath };
   }
-  if (!sourceExists && !mirrorExists) {
+  if (!sourceExists && !mirrorDirectoryExists) {
     return null;
   }
   const sourceHash = dirHash(sourcePath);
@@ -242,9 +302,9 @@ function syncTargetSkills(options) {
     sourceRoot,
     targetName,
     targetConfig,
+    mode,
     dryRun,
-    force,
-    check,
+    log,
   } = options;
 
   const mirrorRoot = path.join(repoRoot, normalizeRel(targetConfig.mirrorRoot));
@@ -253,34 +313,42 @@ function syncTargetSkills(options) {
   const skillNames = Array.from(new Set([...canonicalSkills, ...mirrorSkills])).sort((left, right) => left.localeCompare(right));
   const results = [];
 
-  if (!check) {
-    ensureDir(mirrorRoot, dryRun);
+  if (mode !== 'check' && (canonicalSkills.length > 0 || mirrorSkills.length > 0 || fs.existsSync(mirrorRoot))) {
+    ensureDir(mirrorRoot, dryRun, log);
   }
 
   for (const skillName of skillNames) {
     const sourcePath = path.join(sourceRoot, skillName);
     const mirrorPath = path.join(mirrorRoot, skillName);
-    const sourceExists = isDirectory(sourcePath);
-    const mirrorExists = isDirectory(mirrorPath);
+    const sourceExists = hasSkillDocument(sourcePath);
+    const mirrorExists = hasSkillDocument(mirrorPath);
+    const mirrorDirectoryExists = isDirectory(mirrorPath);
 
-    if (!sourceExists && mirrorExists) {
-      results.push({ action: 'unexpected_mirror', target: targetName, skill: skillName, sourcePath, mirrorPath });
+    if (!sourceExists && mirrorDirectoryExists) {
+      if (mode === 'update') {
+        const pruneResult = pruneDirectory(mirrorPath, { dryRun, log });
+        results.push({ ...pruneResult, target: targetName, skill: skillName, sourcePath, mirrorPath });
+      } else {
+        results.push({ action: 'unexpected_mirror', target: targetName, skill: skillName, sourcePath, mirrorPath });
+      }
       continue;
     }
+
     if (sourceExists && !mirrorExists) {
-      if (check) {
+      if (mode === 'check') {
         results.push({ action: 'missing_mirror', target: targetName, skill: skillName, sourcePath, mirrorPath });
         continue;
       }
-      const syncResult = syncDirectory(sourcePath, mirrorPath, { dryRun, force: true });
+      const syncResult = syncDirectory(sourcePath, mirrorPath, { dryRun, force: true, log });
       results.push({ ...syncResult, target: targetName, skill: skillName, sourcePath, mirrorPath });
       continue;
     }
+
     if (!sourceExists && !mirrorExists) {
       continue;
     }
 
-    if (check) {
+    if (mode === 'check') {
       const drift = summarizeCheckDrift(sourceRoot, mirrorRoot, skillName);
       if (drift) {
         results.push({ ...drift, target: targetName });
@@ -288,7 +356,11 @@ function syncTargetSkills(options) {
       continue;
     }
 
-    const syncResult = syncDirectory(sourcePath, mirrorPath, { dryRun, force });
+    const syncResult = syncDirectory(sourcePath, mirrorPath, {
+      dryRun,
+      force: mode === 'update',
+      log,
+    });
     results.push({ ...syncResult, target: targetName, skill: skillName, sourcePath, mirrorPath });
   }
 
@@ -300,25 +372,27 @@ function syncTargetSkills(options) {
   };
 }
 
-export function runRepoSkillSync(options = {}) {
+export function runRepoSkillMirrors(options = {}) {
+  const mode = String(options.mode || '').trim();
+  if (!['check', 'install', 'update'].includes(mode)) {
+    throw new Error(`Unsupported repo skill mirror mode: ${mode || '(empty)'}`);
+  }
+
   const repoRoot = path.resolve(options.repoRoot || defaultRepoRoot);
   const configPath = path.resolve(options.configPath || defaultTargetMapPath);
+  const log = typeof options.log === 'function' ? options.log : console.log;
   const config = readTargetMap(configPath);
   const sourceRoot = path.join(repoRoot, normalizeRel(config.canonicalSourceRoot));
   const targets = normalizeTargetSelection(config.targets, options.targets || []);
-
-  if (!isDirectory(sourceRoot)) {
-    throw new Error(`Canonical source root not found: ${path.relative(repoRoot, sourceRoot) || sourceRoot}`);
-  }
 
   const targetSummaries = targets.map((targetName) => syncTargetSkills({
     repoRoot,
     sourceRoot,
     targetName,
     targetConfig: config.targets[targetName],
+    mode,
     dryRun: Boolean(options.dryRun),
-    force: Boolean(options.force),
-    check: Boolean(options.check),
+    log,
   }));
 
   const results = targetSummaries.flatMap((summary) => summary.results);
@@ -327,6 +401,7 @@ export function runRepoSkillSync(options = {}) {
 
   return {
     gateName,
+    mode,
     repoRoot,
     configPath,
     sourceRoot,
@@ -334,12 +409,12 @@ export function runRepoSkillSync(options = {}) {
     counts,
     results,
     targetSummaries,
-    ok: !hasCheckFailures,
+    ok: mode === 'check' ? !hasCheckFailures : true,
   };
 }
 
-function logSummary(summary) {
-  console.log(`${gateName}: repo=${summary.repoRoot}`);
+export function logSummary(summary) {
+  console.log(`${gateName}: mode=${summary.mode} repo=${summary.repoRoot}`);
   console.log(`${gateName}: source=${summary.sourceRoot}`);
   console.log(`${gateName}: targets=${summary.targets.join(', ') || '(none)'}`);
 
@@ -348,59 +423,30 @@ function logSummary(summary) {
   }
 }
 
-function logCheckFailures(summary) {
+export function logCheckFailures(summary) {
   for (const result of summary.results) {
     if (result.action === 'missing_mirror') {
-      console.error(`${gateName} failed: ${result.target}:${result.skill} missing mirror at ${path.relative(summary.repoRoot, result.mirrorPath).replace(/\\/g, '/')}`);
+      console.error(`${gateName} failed: ${result.target}:${result.skill} missing mirror at ${formatRepoPath(summary.repoRoot, result.mirrorPath)}`);
     } else if (result.action === 'unexpected_mirror') {
-      console.error(`${gateName} failed: ${result.target}:${result.skill} unexpected generated mirror at ${path.relative(summary.repoRoot, result.mirrorPath).replace(/\\/g, '/')}`);
+      console.error(`${gateName} failed: ${result.target}:${result.skill} unexpected generated mirror at ${formatRepoPath(summary.repoRoot, result.mirrorPath)}`);
     } else if (result.action === 'stale_mirror') {
-      console.error(`${gateName} failed: ${result.target}:${result.skill} stale mirror at ${path.relative(summary.repoRoot, result.mirrorPath).replace(/\\/g, '/')} (source and mirror hashes differ)`);
+      console.error(`${gateName} failed: ${result.target}:${result.skill} stale mirror at ${formatRepoPath(summary.repoRoot, result.mirrorPath)} (source and mirror hashes differ)`);
     }
   }
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help) {
-    console.log(usage());
-    return;
-  }
-
-  const summary = runRepoSkillSync(args);
-  logSummary(summary);
-
-  if (args.check) {
-    if (!summary.ok) {
-      logCheckFailures(summary);
-      process.exitCode = 1;
-      return;
+export function logInstallWarnings(summary) {
+  for (const result of summary.results) {
+    if (result.action === 'skipped_conflict') {
+      console.warn(`${gateName}: ${result.target}:${result.skill} left diverged mirror at ${formatRepoPath(summary.repoRoot, result.mirrorPath)}; run node scripts/update-repo-skill-mirrors.mjs to overwrite it`);
+    } else if (result.action === 'unexpected_mirror') {
+      console.warn(`${gateName}: ${result.target}:${result.skill} left unexpected mirror at ${formatRepoPath(summary.repoRoot, result.mirrorPath)}; run node scripts/update-repo-skill-mirrors.mjs to prune it`);
     }
-    console.log(`${gateName} ok`);
-    return;
   }
-
-  console.log(`${gateName}: created=${summary.counts.created} updated=${summary.counts.updated} skipped=${summary.counts.skipped} conflicts=${summary.counts.skippedConflict} dryRunCreate=${summary.counts.wouldCreate} dryRunUpdate=${summary.counts.wouldUpdate}`);
-}
-
-if (import.meta.url === fileURLToPath(import.meta.url) ? false : false) {
-  // unreachable placeholder to keep static analyzers quiet in some hosts
-}
-
-const isEntrypoint = process.argv[1] && path.resolve(process.argv[1]) === __filename;
-if (isEntrypoint) {
-  main().catch((error) => {
-    console.error(`${gateName} failed: ${error.message || String(error)}`);
-    process.exit(1);
-  });
 }
 
 export {
+  defaultRepoRoot,
+  defaultTargetMapPath,
   gateName,
-  parseArgs,
-  readTargetMap,
-  listCanonicalSkills,
-  normalizeTargetSelection,
-  buildCounts,
-  summarizeCheckDrift,
 };

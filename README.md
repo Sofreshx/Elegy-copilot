@@ -41,11 +41,12 @@ Instruction Engine is the shared asset repo behind Elegy Copilot. It ships curat
 
 - Canonical source: `.github/skills/<skill>/SKILL.md`
 - Generated mirrors: `.agents/skills/<skill>`, `.opencode/skills/<skill>`, `.gemini/skills/<skill>`
-- Sync and validate with:
+- Check, install, or fully reconcile mirrors with:
 
 ```powershell
-node scripts/sync-repo-skills.mjs
-node scripts/validate-repo-skill-sync.js
+node scripts/check-repo-skill-mirrors.mjs
+node scripts/install-repo-skill-mirrors.mjs
+node scripts/update-repo-skill-mirrors.mjs
 ```
 
 - This applies only to repo-local skills. Shipped global assets still live in their harness-specific trees.

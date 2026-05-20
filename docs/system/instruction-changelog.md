@@ -14,9 +14,9 @@ tags: [changelog]
 ## 2026-05-19 - Repo-local skill sync governance and deterministic mirror tooling
 
 - Added canonical node `docs/system/repo-skill-sync-governance.md` defining `.github/skills/**` as the canonical repo-local skill source and `.agents/skills`, `.opencode/skills`, and `.gemini/skills` as deterministic mirrors.
-- Added repo maintainer skill `.github/skills/repo-skill-sync/SKILL.md` for cross-harness repo-local skill sync routing.
-- Added deterministic sync script `scripts/sync-repo-skills.mjs` with target-map config `scripts/repo-skill-sync.targets.json`.
-- Added validation gate `scripts/validate-repo-skill-sync.js` plus test coverage for sync and drift detection.
+- Replaced the temporary repo maintainer sync skills with deterministic mirror scripts so repo-local skill maintenance no longer depends on agent routing skills.
+- Added explicit mirror actions `scripts/check-repo-skill-mirrors.mjs`, `scripts/install-repo-skill-mirrors.mjs`, and `scripts/update-repo-skill-mirrors.mjs` with shared target-map config `scripts/repo-skill-sync.targets.json`.
+- Added prune support so full mirror reconciliation removes orphaned generated directories as well as stale content.
 - Added Gemini CLI to the repo-local mirror scope alongside Antigravity using the shared `.gemini/skills/` mirror root.
 
 ## 2026-03-01 - WS2 WU-04/05 deterministic skill metadata + discovery telemetry
