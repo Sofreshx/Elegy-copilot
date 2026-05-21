@@ -3,6 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
 import {
   dirHash,
   ensureDir,
@@ -238,6 +239,8 @@ export function parseArgs(argv) {
     dryRun: false,
     force: false,
     opencodeHome: '',
+    repoRoot: '',
+    setupProfile: '',
     skillsHome: '',
   };
 
@@ -275,7 +278,39 @@ export function parseArgs(argv) {
       args.skillsHome = argv[i] || '';
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --opencode-home <path>, --skills-home <path>)`);
+    if (value.startsWith('--repo-root=')) {
+      args.repoRoot = value.slice('--repo-root='.length);
+      continue;
+    }
+    if (value === '--repo-root') {
+      i += 1;
+      if (i >= argv.length) {
+        throw new Error('Missing value for --repo-root');
+      }
+      args.repoRoot = argv[i] || '';
+      continue;
+    }
+    if (value.startsWith('--setup-profile=')) {
+      args.setupProfile = value.slice('--setup-profile='.length);
+      continue;
+    }
+    if (value === '--setup-profile') {
+      i += 1;
+      if (i >= argv.length) {
+        throw new Error('Missing value for --setup-profile');
+      }
+      args.setupProfile = argv[i] || '';
+      continue;
+    }
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --opencode-home <path>, --skills-home <path>, --repo-root <path>, --setup-profile <key>)`);
+  }
+
+  if (args.repoRoot && !args.setupProfile) {
+    throw new Error('Missing value for --setup-profile when --repo-root is provided');
+  }
+
+  if (args.setupProfile && !args.repoRoot) {
+    throw new Error('Missing value for --repo-root when --setup-profile is provided');
   }
 
   return args;
@@ -284,6 +319,7 @@ export function parseArgs(argv) {
 export function runInstall(args = {}) {
   const opencodeHome = resolveOpenCodeHome(args.opencodeHome);
   const skillsHome = resolveSkillsHome(args.skillsHome, opencodeHome);
+  const repoSetupRoot = args.repoRoot ? path.resolve(args.repoRoot) : '';
   const inventoryPath = path.join(opencodeHome, managedInventoryFileName);
   const manifest = readManifest();
   const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
@@ -292,6 +328,9 @@ export function runInstall(args = {}) {
   console.log(`Skills home:   ${skillsHome}`);
   console.log(`Engine root:   ${repoRoot}`);
   console.log(`Assets:        ${assets.length}`);
+  if (repoSetupRoot) {
+    console.log(`Repo setup:    ${repoSetupRoot} (${args.setupProfile})`);
+  }
 
   ensureDir(opencodeHome, args.dryRun);
   ensureDir(path.join(opencodeHome, 'agents'), args.dryRun);
@@ -343,6 +382,15 @@ export function runInstall(args = {}) {
     dryRun: args.dryRun,
     force: true,
   });
+  const repoSetup = repoSetupRoot
+    ? runRepoSetupProfileBootstrap({
+      surface: 'opencode',
+      repoRoot: repoSetupRoot,
+      profileKey: args.setupProfile,
+      dryRun: args.dryRun,
+      force: args.force,
+    })
+    : null;
 
   const summary = {
     surface: 'opencode',
@@ -361,6 +409,7 @@ export function runInstall(args = {}) {
       inventory: inventoryResult,
       pruneResults,
     },
+    repoSetup,
   };
 
   console.log('Done.');

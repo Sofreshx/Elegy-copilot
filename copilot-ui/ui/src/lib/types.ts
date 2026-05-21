@@ -3013,6 +3013,33 @@ export interface GatewayConfigResponse {
   [key: string]: unknown;
 }
 
+export interface CodexProviderGatewayConfig {
+  providerId: string;
+  model: string;
+  baseUrl: string;
+  envKey: string;
+  [key: string]: unknown;
+}
+
+export interface CodexProviderStatusResponse {
+  codexHome: string;
+  configPath: string;
+  statePath: string;
+  backupPath: string;
+  exists: boolean;
+  activeMode: 'native' | 'elegy-routed' | string;
+  providerId: string;
+  hasManagedBlock: boolean;
+  hasBackup: boolean;
+  lastAppliedAt?: string | null;
+  lastResetAt?: string | null;
+  backupCreatedAt?: string | null;
+  gateway: CodexProviderGatewayConfig;
+  changed?: boolean;
+  action?: string;
+  [key: string]: unknown;
+}
+
 export interface GatewaySaveConfigResponse {
   ok?: boolean;
   configPath?: string;

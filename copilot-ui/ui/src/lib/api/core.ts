@@ -8,12 +8,12 @@ import type {
   CatalogBundlesResponse,
   CatalogAuditEventsResponse,
   CatalogProviderInstallResponse,
-  CatalogBundlesResponse,
   CatalogRepoMutationResponse,
   CatalogRepoScanRootsMutationResponse,
   CatalogReposListResponse,
   CatalogRefreshResponse,
   CatalogSearchRequest,
+  CodexProviderStatusResponse,
   CatalogSearchSelectionPayload,
   CatalogSearchSelectionResponse,
   CatalogSearchResponse,
@@ -58,7 +58,6 @@ import type {
   ObsidianPlanningSourceSelectionResponse,
   ObsidianPlanningStatus,
   ObsidianPlanningStatusResponse,
-  PlanningBacklogMutationResponse,
   PlanningBacklogResponse,
   PlanningBullet,
   PlanningBulletsResponse,
@@ -700,6 +699,7 @@ export interface PlanningRepoSummary {
   repoId: string;
   repoPath: string;
   repoLabel: string;
+  [key: string]: unknown;
 }
 
 export interface PlanningRepositoryBacklogRefApi extends PlanningRepositoryBacklogRef {
@@ -859,6 +859,7 @@ export interface PlanningRoadmapMutationResponseApi {
 export interface PlanningBacklogKeyPointApi {
   date: string;
   text: string;
+  [key: string]: unknown;
 }
 
 export interface PlanningBacklogItemApi {
@@ -873,6 +874,7 @@ export interface PlanningBacklogItemApi {
   abandonedByPlanRef?: string | null;
   importance?: number | null;
   keyPoints: PlanningBacklogKeyPointApi[];
+  [key: string]: unknown;
 }
 
 export interface PlanningBacklogSummaryApi {
@@ -891,6 +893,7 @@ export interface PlanningBacklogSummaryApi {
   description?: string;
   itemCount: number;
   items: PlanningBacklogItemApi[];
+  [key: string]: unknown;
 }
 
 export interface PlanningBacklogResponseApi extends PlanningBacklogResponse {
@@ -901,8 +904,14 @@ export interface PlanningBacklogResponseApi extends PlanningBacklogResponse {
   backlog: PlanningBacklogSummaryApi;
 }
 
-export interface PlanningBacklogMutationResponseApi extends PlanningBacklogMutationResponse {
+export interface PlanningBacklogMutationResponseApi {
+  contractVersion?: string;
+  kind?: string;
+  deterministic?: boolean;
+  repo?: PlanningRepoSummary | null;
+  backlog?: PlanningBacklogSummaryApi;
   item?: PlanningBacklogItemApi | null;
+  [key: string]: unknown;
 }
 
 export interface PlanningIntakeDirectoryRefApi extends PlanningIntakeDirectoryRef {
@@ -982,6 +991,7 @@ export interface PlanningIntakeSummaryApi {
   artifactCount: number;
   stableIdPattern?: string;
   supportedCategories: PlanningIntakeCategory[];
+  [key: string]: unknown;
 }
 
 export interface PlanningIntakeArtifactsResponseApi extends PlanningIntakeArtifactsResponse {
@@ -2516,6 +2526,37 @@ export function normalizeGatewayConfigResponse(payload: unknown): GatewayConfigR
   };
 }
 
+export function normalizeCodexProviderStatusResponse(payload: unknown): CodexProviderStatusResponse {
+  const record = asRecord(payload);
+  const gateway = asRecord(record.gateway);
+  const providerId = asTrimmedString(record.providerId) || 'openai';
+
+  return {
+    ...record,
+    codexHome: asString(record.codexHome),
+    configPath: asString(record.configPath),
+    statePath: asString(record.statePath),
+    backupPath: asString(record.backupPath),
+    exists: asBoolean(record.exists, false),
+    activeMode: asTrimmedString(record.activeMode) || 'native',
+    providerId,
+    hasManagedBlock: asBoolean(record.hasManagedBlock, false),
+    hasBackup: asBoolean(record.hasBackup, false),
+    lastAppliedAt: asTrimmedString(record.lastAppliedAt) || null,
+    lastResetAt: asTrimmedString(record.lastResetAt) || null,
+    backupCreatedAt: asTrimmedString(record.backupCreatedAt) || null,
+    changed: asBoolean(record.changed, false),
+    action: asTrimmedString(record.action) || undefined,
+    gateway: {
+      ...gateway,
+      providerId: asTrimmedString(gateway.providerId) || providerId,
+      model: asTrimmedString(gateway.model) || '',
+      baseUrl: asTrimmedString(gateway.baseUrl) || '',
+      envKey: asTrimmedString(gateway.envKey) || '',
+    },
+  };
+}
+
 export function normalizeGatewaySaveConfigResponse(payload: unknown): GatewaySaveConfigResponse {
   const record = asRecord(payload);
 
@@ -2603,7 +2644,7 @@ export function normalizeGatewayScanReposResponse(payload: unknown): GatewayScan
           isGit: asBoolean(repoRecord.isGit, true),
         };
       })
-      .filter((repo): repo is { absPath: string; name: string; isGit?: boolean; [key: string]: unknown } => repo !== null);
+      .filter((repo): repo is { absPath: string; name: string; isGit: boolean; [key: string]: unknown } => repo !== null);
 
     return {
       ...rootRecord,

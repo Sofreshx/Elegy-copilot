@@ -1,11 +1,11 @@
 ---
 created: 2026-04-10
-updated: 2026-04-10
+updated: 2026-05-21
 category: system
 status: current
 doc_kind: node
 id: repo-setup-governance
-summary: Canonical authority and Slice A plus Slice B bootstrap contract for shared repo-setup governance of target-repo Copilot readiness.
+summary: Canonical authority for shared repo-setup governance plus approved opt-in installer bootstrap profiles for selected repos.
 tags: [governance, repo-setup, copilot, workspace]
 related: [catalog-control-plane, copilot-ui-guide, domain-authorities-freeze, search-execute-workflow, skills-governance]
 ---
@@ -15,8 +15,8 @@ related: [catalog-control-plane, copilot-ui-guide, domain-authorities-freeze, se
 ## Purpose
 
 This node defines the canonical authority for the shared repo-setup governance lane that evaluates
-whether a target repository is prepared to work well with Elegy Copilot and proposes the smallest
-missing setup resources.
+whether a target repository is prepared to work well with instruction-engine repo-local surfaces and
+proposes the smallest missing setup resources.
 
 Slice A is intentionally narrow:
 
@@ -28,8 +28,14 @@ Slice A is intentionally narrow:
 Slice B is the next approved authority slice:
 
 - canonical profile-definition ownership for profile-backed setup classification and update planning
-- no profile-backed update execution until a host/runtime mutation handoff exists
+- no profile-backed update execution inside the shared repo-setup lane until a host/runtime mutation handoff exists
 - no support-resource writes outside repo-local agent/skill assets
+
+Approved installer-mediated bootstrap is separate from the shared lane:
+
+- harness-native installers may apply an approved setup profile only when the user explicitly supplies both a selected repo root and a profile key
+- installer-mediated bootstrap does not change the shared lane's default `audit/propose-first` posture
+- installer-mediated bootstrap must stay within the approved profile contract defined by this doc and `profile-definitions.json`
 
 ## Scope and source precedence
 
@@ -139,6 +145,36 @@ Slice B is authority/bootstrap only:
   catalog/control-plane mutation authority rather than direct editor writes
 - support-resource writes outside repo-local agent/skill assets remain deferred and out of scope for
   this slice
+
+Installer-mediated bootstrap for an explicit repo root is the approved exception for applying a
+small repo-local profile bundle without widening the shared lane itself into a write path.
+
+## Approved overlay profile: `spec-driven`
+
+`spec-driven` is an opt-in overlay profile for repositories that want durable spec scaffolding under
+the canonical `specs/` contract.
+
+- it extends the approved canonical-doc-entrypoint profiles instead of replacing them
+- it is applied only through a harness-native installer with explicit `repo-root` plus `setup-profile`
+- it does not widen the shared lane into direct mutation
+
+Installer-mediated `spec-driven` bootstrap may create or refresh these repo-local assets:
+
+- `.github/copilot-instructions.md` managed spec-driven block
+- repo `AGENTS.md` or repo `GEMINI.md` managed spec-driven block depending on the selected harness
+- `.github/agents/`
+- `.github/skills/`
+- `specs/` and starter `specs/index.md`
+- `scripts/validate-specs.js`
+- `package.json` script entry `validate:specs` when `package.json` exists and the script name is free
+- selected-harness repo skill mirrors derived from `.github/skills/`
+
+Installer-mediated `spec-driven` bootstrap must preserve local user content conservatively:
+
+- use bounded managed blocks for repo instruction overlays instead of replacing whole files
+- do not overwrite an existing `specs/index.md` starter with a new template
+- do not replace an existing conflicting `package.json` `validate:specs` script silently
+- keep `.github/skills/` as the only editable repo-local skill authority and generate mirrors from it
 
 ## Compatibility gate
 

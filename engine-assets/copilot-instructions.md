@@ -95,6 +95,8 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   **Copilot CLI**, load `github-troubleshooting` and prefer the built-in read-only `github-mcp-server` tools. The UI
   workspace MCP patch flow is for VS Code/workspace sessions, not a prerequisite for the CLI lane.
 - If a skill is not found in the vault, it is not installed — proceed with general knowledge.
+- For spec-driven work, load `spec-dev` first to choose `spec-first`, `spec-anchored`, or `spec-as-source`.
+- Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`; use `spec-authoring` and `spec-review` on demand.
 - See `docs/system/search-execute-workflow.md` for the canonical staged-routing model.
 - Prefer canonical documentation in `docs/system/**`; use this file for routing/setup cues, not as a second copy of repo policy.
 - Treat `.instructions/*` paths as legacy and use them only when a repository explicitly opts in.

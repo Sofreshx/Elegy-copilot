@@ -13,17 +13,40 @@ function makeMocks(overrides = {}) {
     getRemoteSessions: overrides.getRemoteSessions || (() => false),
     setRemoteSessions: overrides.setRemoteSessions || (() => {}),
   };
-  return { sendJson, readJsonBody, copilotConfig, sent };
+  const codexConfig = {
+    getStatus: overrides.getCodexStatus || (() => ({
+      activeMode: 'native',
+      providerId: 'openai',
+      gateway: {
+        baseUrl: 'http://127.0.0.1:4318/v1',
+        envKey: 'OPENCODE_GO_API_KEY',
+      },
+    })),
+    setMode: overrides.setCodexMode || ((_home, mode) => ({ activeMode: mode, providerId: mode === 'elegy-routed' ? 'elegy' : 'openai' })),
+    hardReset: overrides.hardResetCodex || (() => ({ activeMode: 'native', providerId: 'openai', action: 'hard-reset' })),
+  };
+  return {
+    sendJson,
+    readJsonBody,
+    copilotConfig,
+    codexConfig,
+    sent,
+    env: overrides.env || { OPENCODE_GO_API_KEY: 'demo-key' },
+    probeCodexGatewayReachability: overrides.probeCodexGatewayReachability || (async () => {}),
+  };
 }
 
 describe('config routes', () => {
   it('register returns GET and PUT routes', () => {
     const routes = register();
-    assert.equal(routes.length, 2);
+    assert.equal(routes.length, 5);
     assert.equal(routes[0].method, 'GET');
     assert.equal(routes[0].path, '/api/config/remote-sessions');
     assert.equal(routes[1].method, 'PUT');
     assert.equal(routes[1].path, '/api/config/remote-sessions');
+    assert.equal(routes[2].path, '/api/config/codex-provider');
+    assert.equal(routes[3].path, '/api/config/codex-provider');
+    assert.equal(routes[4].path, '/api/config/codex-provider/reset');
   });
 
   it('GET returns current remote preference', () => {
@@ -80,5 +103,115 @@ describe('config routes', () => {
     assert.equal(mocks.sent[0].code, 200);
     assert.equal(mocks.sent[0].obj.enabled, false);
     assert.ok(mocks.sent[0].obj.warning.includes('oops'));
+  });
+
+  it('GET returns current Codex provider status', () => {
+    const mocks = makeMocks({
+      getCodexStatus: () => ({ activeMode: 'elegy-routed', providerId: 'elegy', gateway: { baseUrl: 'http://127.0.0.1:4318/v1', envKey: 'OPENCODE_GO_API_KEY' } }),
+    });
+    const routes = register(mocks);
+    routes[2].handler({ codexHome: '/tmp/codex', res: {} });
+    assert.equal(mocks.sent[0].code, 200);
+    assert.deepEqual(mocks.sent[0].obj, {
+      activeMode: 'elegy-routed',
+      providerId: 'elegy',
+      gateway: { baseUrl: 'http://127.0.0.1:4318/v1', envKey: 'OPENCODE_GO_API_KEY' },
+    });
+  });
+
+  it('PUT updates Codex provider mode', async () => {
+    let savedMode;
+    let probedBaseUrl;
+    const mocks = makeMocks({
+      body: { mode: 'elegy-routed' },
+      probeCodexGatewayReachability: async (baseUrl) => {
+        probedBaseUrl = baseUrl;
+      },
+      setCodexMode: (_home, mode) => {
+        savedMode = mode;
+        return { activeMode: mode, providerId: 'elegy' };
+      },
+    });
+    const routes = register(mocks);
+    await routes[3].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+    assert.equal(savedMode, 'elegy-routed');
+    assert.equal(probedBaseUrl, 'http://127.0.0.1:4318/v1');
+    assert.equal(mocks.sent[0].code, 200);
+    assert.equal(mocks.sent[0].obj.providerId, 'elegy');
+  });
+
+  it('PUT rejects Elegy routed mode when API key env var is missing', async () => {
+    let setModeCalled = false;
+    const mocks = makeMocks({
+      body: { mode: 'elegy-routed' },
+      env: {},
+      setCodexMode: () => {
+        setModeCalled = true;
+        return { activeMode: 'elegy-routed', providerId: 'elegy' };
+      },
+    });
+    const routes = register(mocks);
+
+    await routes[3].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+
+    assert.equal(setModeCalled, false);
+    assert.equal(mocks.sent[0].code, 503);
+    assert.equal(mocks.sent[0].obj.error, 'Set OPENCODE_GO_API_KEY before enabling Elegy Routed.');
+  });
+
+  it('PUT rejects Elegy routed mode when gateway probe fails', async () => {
+    let setModeCalled = false;
+    const mocks = makeMocks({
+      body: { mode: 'elegy-routed' },
+      probeCodexGatewayReachability: async () => {
+        throw Object.assign(new Error('Elegy gateway is unavailable at http://127.0.0.1:4318/v1. Start the local gateway and try again.'), {
+          statusCode: 503,
+        });
+      },
+      setCodexMode: () => {
+        setModeCalled = true;
+        return { activeMode: 'elegy-routed', providerId: 'elegy' };
+      },
+    });
+    const routes = register(mocks);
+
+    await routes[3].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+
+    assert.equal(setModeCalled, false);
+    assert.equal(mocks.sent[0].code, 503);
+    assert.equal(mocks.sent[0].obj.error, 'Elegy gateway is unavailable at http://127.0.0.1:4318/v1. Start the local gateway and try again.');
+  });
+
+  it('PUT exposes existing managed provider conflicts', async () => {
+    const mocks = makeMocks({
+      body: { mode: 'elegy-routed' },
+      setCodexMode: () => {
+        throw Object.assign(new Error('Existing Codex config already defines [model_providers.instruction_engine_elegy].'), {
+          statusCode: 409,
+        });
+      },
+    });
+    const routes = register(mocks);
+
+    await routes[3].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+
+    assert.equal(mocks.sent[0].code, 409);
+    assert.equal(mocks.sent[0].obj.error, 'Existing Codex config already defines [model_providers.instruction_engine_elegy].');
+  });
+
+  it('POST reset performs hard restore when requested', async () => {
+    let hardResetCalled = false;
+    const mocks = makeMocks({
+      body: { hard: true },
+      hardResetCodex: () => {
+        hardResetCalled = true;
+        return { activeMode: 'native', providerId: 'openai', action: 'hard-reset' };
+      },
+    });
+    const routes = register(mocks);
+    await routes[4].handler({ codexHome: '/tmp/codex', req: {}, res: {} });
+    assert.equal(hardResetCalled, true);
+    assert.equal(mocks.sent[0].code, 200);
+    assert.equal(mocks.sent[0].obj.action, 'hard-reset');
   });
 });

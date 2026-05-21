@@ -86,6 +86,27 @@
       "source": "catalog-assets/shared-skills/roadmap-planning",
       "destination": "antigravity/skills/roadmap-planning",
       "loadMode": "on-demand"
+    },
+    {
+      "id": "antigravity-spec-dev-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-dev",
+      "destination": "antigravity/skills/spec-dev",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "antigravity-spec-authoring-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-authoring",
+      "destination": "antigravity/skills/spec-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "antigravity-spec-review-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-review",
+      "destination": "antigravity/skills/spec-review",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

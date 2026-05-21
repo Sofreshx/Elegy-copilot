@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "profileSetKey": "repo-setup-governance",
-  "profileSetVersion": "1.0.0",
+  "profileSetVersion": "1.1.0",
   "slice": "B",
   "authority": {
     "canonicalDocPath": "docs/system/repo-setup-governance.md",
@@ -18,15 +18,17 @@
   },
   "source": {
     "definitionPath": "engine-assets/skills/repo-setup-governance/profile-definitions.json",
-    "sourceRevision": "sha256:96c4315c017a2b0c832e2756941159fb8053c9f1aed9a1adba065b05b7e187ea",
-    "checksum": "sha256:96c4315c017a2b0c832e2756941159fb8053c9f1aed9a1adba065b05b7e187ea"
+    "sourceRevision": "sha256:e80af3d5e5836a95f474ff1816de416e03eb87b061d702c5242beec44012d18e",
+    "checksum": "sha256:e80af3d5e5836a95f474ff1816de416e03eb87b061d702c5242beec44012d18e"
   },
   "profiles": [
     {
       "key": "docs-root-index",
       "label": "Docs Root Index",
+      "profileType": "canonical-doc-entrypoint",
       "match": {
         "canonicalDocEntrypointPath": "docs/index.md",
+        "extendsProfileKeys": [],
         "requiredAssetKeys": [
           "repo-agents-directory",
           "repo-copilot-instructions",
@@ -54,8 +56,10 @@
     {
       "key": "documentation-root-index",
       "label": "Documentation Root Index",
+      "profileType": "canonical-doc-entrypoint",
       "match": {
         "canonicalDocEntrypointPath": "documentation/index.md",
+        "extendsProfileKeys": [],
         "requiredAssetKeys": [
           "repo-agents-directory",
           "repo-copilot-instructions",
@@ -81,10 +85,42 @@
       }
     },
     {
+      "key": "spec-driven",
+      "label": "Spec-Driven Repo Bootstrap",
+      "profileType": "overlay",
+      "match": {
+        "canonicalDocEntrypointPath": "",
+        "extendsProfileKeys": [
+          "docs-root-index",
+          "documentation-root-index",
+          "system-docs-index"
+        ],
+        "requiredAssetKeys": [],
+        "workspaceRoots": "open-workspace-only"
+      },
+      "proposals": {
+        "preferredCanonicalDocEntrypointPath": "",
+        "requiredResourcePaths": [
+          ".github/copilot-instructions.md",
+          ".github/skills",
+          "specs/index.md"
+        ],
+        "recommendedResourcePaths": [
+          "AGENTS.md",
+          "GEMINI.md",
+          "package.json#scripts.validate:specs",
+          "scripts/validate-specs.js"
+        ],
+        "planningMode": "classify-and-propose-only"
+      }
+    },
+    {
       "key": "system-docs-index",
       "label": "System Docs Index",
+      "profileType": "canonical-doc-entrypoint",
       "match": {
         "canonicalDocEntrypointPath": "docs/system/index.md",
+        "extendsProfileKeys": [],
         "requiredAssetKeys": [
           "repo-agents-directory",
           "repo-copilot-instructions",

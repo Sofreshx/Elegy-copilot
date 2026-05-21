@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "profileSetKey": "repo-setup-governance",
-  "profileSetVersion": "1.0.0",
+  "profileSetVersion": "1.1.0",
   "slice": "B",
   "authority": {
     "canonicalDocPath": "docs/system/repo-setup-governance.md",
@@ -20,6 +20,7 @@
     {
       "key": "documentation-root-index",
       "label": "Documentation Root Index",
+      "profileType": "canonical-doc-entrypoint",
       "match": {
         "canonicalDocEntrypointPath": "documentation/index.md",
         "requiredAssetKeys": [
@@ -49,6 +50,7 @@
     {
       "key": "docs-root-index",
       "label": "Docs Root Index",
+      "profileType": "canonical-doc-entrypoint",
       "match": {
         "canonicalDocEntrypointPath": "docs/index.md",
         "requiredAssetKeys": [
@@ -78,6 +80,7 @@
     {
       "key": "system-docs-index",
       "label": "System Docs Index",
+      "profileType": "canonical-doc-entrypoint",
       "match": {
         "canonicalDocEntrypointPath": "docs/system/index.md",
         "requiredAssetKeys": [
@@ -100,6 +103,34 @@
         "recommendedResourcePaths": [
           ".vscode/settings.json",
           ".vscode/mcp.json"
+        ],
+        "planningMode": "classify-and-propose-only"
+      }
+    },
+    {
+      "key": "spec-driven",
+      "label": "Spec-Driven Repo Bootstrap",
+      "profileType": "overlay",
+      "match": {
+        "extendsProfileKeys": [
+          "documentation-root-index",
+          "docs-root-index",
+          "system-docs-index"
+        ],
+        "requiredAssetKeys": [],
+        "workspaceRoots": "open-workspace-only"
+      },
+      "proposals": {
+        "requiredResourcePaths": [
+          ".github/copilot-instructions.md",
+          ".github/skills",
+          "specs/index.md"
+        ],
+        "recommendedResourcePaths": [
+          "AGENTS.md",
+          "GEMINI.md",
+          "package.json#scripts.validate:specs",
+          "scripts/validate-specs.js"
         ],
         "planningMode": "classify-and-propose-only"
       }

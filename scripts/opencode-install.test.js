@@ -52,6 +52,9 @@ async function main() {
       assert.ok(fs.existsSync(path.join(skillsHome, 'roadmap-planning', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'spec-dev', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'spec-authoring', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'spec-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'security', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'project-conventions-governance', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'stack-detector', 'SKILL.md')));
@@ -123,6 +126,43 @@ async function main() {
       assert.ok(!fs.existsSync(opencodeHome));
       assert.ok(!fs.existsSync(skillsHome));
       assert.ok(summary.counts.wouldCreate > 0 || summary.counts.wouldUpdate > 0 || summary.counts.wouldPrune > 0);
+    });
+  });
+
+  await test('installer bootstraps opt-in spec-driven repo files', async () => {
+    withTempDir((root) => {
+      const opencodeHome = path.join(root, '.config', 'opencode');
+      const skillsHome = path.join(opencodeHome, 'skills');
+      const repoRoot = path.join(root, 'target-repo');
+      fs.mkdirSync(path.join(repoRoot, 'docs', 'system'), { recursive: true });
+      fs.mkdirSync(path.join(repoRoot, '.github', 'skills', 'repo-helper'), { recursive: true });
+      fs.writeFileSync(path.join(repoRoot, 'README.md'), '# Target Repo\n', 'utf8');
+      fs.writeFileSync(path.join(repoRoot, 'docs', 'system', 'index.md'), '# System Docs\n', 'utf8');
+      fs.writeFileSync(path.join(repoRoot, 'package.json'), `${JSON.stringify({ name: 'target-repo', scripts: {} }, null, 2)}\n`, 'utf8');
+      fs.writeFileSync(path.join(repoRoot, '.github', 'skills', 'repo-helper', 'SKILL.md'), '---\nname: repo-helper\ndescription: Repo helper\n---\n', 'utf8');
+
+      const summary = installer.runInstall({
+        force: true,
+        opencodeHome,
+        skillsHome,
+        repoRoot,
+        setupProfile: 'spec-driven',
+      });
+
+      const copilotInstructions = fs.readFileSync(path.join(repoRoot, '.github', 'copilot-instructions.md'), 'utf8');
+      const agentsInstructions = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
+      const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+
+      assert.ok(copilotInstructions.includes('instruction-engine:begin spec-driven'));
+      assert.ok(agentsInstructions.includes('instruction-engine:begin spec-driven'));
+      assert.ok(fs.existsSync(path.join(repoRoot, 'specs', 'index.md')));
+      assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
+      assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'agents')));
+      assert.ok(fs.existsSync(path.join(repoRoot, '.opencode', 'skills', 'repo-helper', 'SKILL.md')));
+      assert.strictEqual(packageJson.scripts['validate:specs'], 'node scripts/validate-specs.js');
+      assert.strictEqual(summary.repoSetup.profileKey, 'spec-driven');
+      assert.strictEqual(summary.repoSetup.repoInstructionFile, 'AGENTS.md');
+      assert.ok(summary.repoSetup.skillMirrors.counts.created > 0 || summary.repoSetup.skillMirrors.counts.skipped > 0);
     });
   });
 

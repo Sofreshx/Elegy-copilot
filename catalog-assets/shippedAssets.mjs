@@ -138,6 +138,15 @@ export const SHIPPED_ASSETS = [
   skill('skill-roadmap-planning', 'catalog-assets/shared-skills/roadmap-planning', {
     loadMode: 'on-demand',
   }),
+  skill('skill-spec-dev', 'catalog-assets/shared-skills/spec-dev', {
+    loadMode: 'on-demand',
+  }),
+  skill('skill-spec-authoring', 'catalog-assets/shared-skills/spec-authoring', {
+    loadMode: 'on-demand',
+  }),
+  skill('skill-spec-review', 'catalog-assets/shared-skills/spec-review', {
+    loadMode: 'on-demand',
+  }),
 
   instructions('codex-global-instructions', 'codex-assets/home/AGENTS.md'),
   agent('codex-reviewer-agent', 'codex-assets/agents/reviewer.toml'),
@@ -277,6 +286,24 @@ export const SHIPPED_BUNDLES = [
       tags: ['instruction-engine', 'governance', 'review', 'follow-up'],
     },
     tags: ['instruction-engine', 'governance', 'review', 'follow-up'],
+    defaultRecommended: false,
+    dependsOn: ['orchestrator-workflow'],
+  },
+  {
+    id: 'spec-driven-development-lane',
+    title: 'Spec-Driven Development Skills',
+    description:
+      'Repo-local spec routing, authoring, and adversarial review skills for durable specs under specs/ without creating a separate planner fleet.',
+    assetIds: ['skill-spec-dev', 'skill-spec-authoring', 'skill-spec-review'],
+    installTarget: 'repo-local',
+    activationScope: 'repo',
+    materialization: 'on-demand',
+    classification: 'workflow',
+    targeting: {
+      scopeKinds: ['repo'],
+      tags: ['specs', 'requirements', 'design', 'validation'],
+    },
+    tags: ['specs', 'requirements', 'design', 'validation'],
     defaultRecommended: false,
     dependsOn: ['orchestrator-workflow'],
   },

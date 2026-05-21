@@ -3,6 +3,7 @@ export * from './health';
 export * from './hooks';
 export * from './sessions';
 export * from './sdk';
+export * from './codexConfig';
 export * from './executor';
 export * from './assets';
 export * from './catalog';

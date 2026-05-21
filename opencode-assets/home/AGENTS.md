@@ -49,9 +49,14 @@ Primary skills available:
 - `roadmap-planning` — Durable multi-session roadmap work under `docs/roadmaps/<roadmap-slug>.md`
 - `implementation-handoff` — Executor-ready brief for another session or model
 - `implementation-review` — Post-edit review before handoff
+- `spec-dev` — Spec-driven router for spec-first, spec-anchored, and spec-as-source work
+- `spec-authoring` — Durable spec authoring under `specs/<spec-slug>/spec.md`
+- `spec-review` — Adversarial spec review before implementation planning
 - `security` — Security review and vulnerability detection
 - `project-conventions-governance` — Repo conventions and governance
 - `stack-detector` — Automatic tech stack detection
+
+Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
 
 Compatibility-only skills:
 - `code-review`

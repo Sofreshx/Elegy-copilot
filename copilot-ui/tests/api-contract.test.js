@@ -297,6 +297,9 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/projects/test-project-id/activity' },
   { method: 'GET', path: '/api/config/remote-sessions' },
   { method: 'PUT', path: '/api/config/remote-sessions' },
+  { method: 'GET', path: '/api/config/codex-provider' },
+  { method: 'PUT', path: '/api/config/codex-provider' },
+  { method: 'POST', path: '/api/config/codex-provider/reset' },
 
   // SDK bridge (9)
   { method: 'GET', path: '/api/sdk/health' },
@@ -501,7 +504,7 @@ async function run() {
 
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 170, `Expected 170 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 173, `Expected 173 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

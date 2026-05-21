@@ -71,6 +71,7 @@ import {
 import { WorkflowHttpError } from './workflows/workflowHttpRoutes';
 import { createWorkflowStreamingModule } from './workflows/workflowStreaming';
 import { SyncedNoteSourceStore } from './syncedNotes/syncedNoteSourceStore';
+import { CodexResponsesBridgeServer } from './codexResponsesBridge';
 
 function isLoopbackAddress(address: string | undefined): boolean {
 	if (!address) return false;
@@ -476,6 +477,7 @@ export async function main(argv: string[] = process.argv.slice(2)) {
 
 	let acpConnected = false;
 	let gatewayHttpServer: GatewayHttpServer | undefined;
+	let codexResponsesBridgeServer: CodexResponsesBridgeServer | undefined;
 	let router: CommandRouter | undefined;
 	function refreshDynamicStatusFields(status: MessagingGatewayStatusV1): void {
 		status.config.workspaces.activeRoot = activeWorkspaceRoot;
@@ -908,7 +910,10 @@ export async function main(argv: string[] = process.argv.slice(2)) {
 	});
 
 	await gatewayHttpServer.start();
+	codexResponsesBridgeServer = new CodexResponsesBridgeServer();
+	await codexResponsesBridgeServer.start();
 	console.log(`[Gateway] HTTP API token (first 8 chars): ${gatewayHttpToken.slice(0, 8)}...`);
+	console.log(`[Gateway] Codex Responses bridge: http://127.0.0.1:${codexResponsesBridgeServer.getPort() ?? 4318}/v1`);
 
 	const configIsPersistable = !loaded.configPath.startsWith('(env:');
 	async function setActiveWorkspaceRoot(nextWorkspaceRoot: string): Promise<void> {
@@ -1094,6 +1099,7 @@ export async function main(argv: string[] = process.argv.slice(2)) {
 				await extensionClient?.stop();
 				await discord?.stop();
 				await telegram?.stop();
+				await codexResponsesBridgeServer?.stop();
 				await gatewayHttpServer?.stop();
 				await sandboxRegistry.stopAll();
 				await containerManager.stopAll();

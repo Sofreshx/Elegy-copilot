@@ -11,6 +11,9 @@ const expectedMutationAuthority = 'copilot-ui-catalog-mutation-api';
 const expectedUpdateExecution = 'gated-not-yet-enabled';
 const expectedPlanningMode = 'classify-and-propose-only';
 const expectedWorkspaceRoots = 'open-workspace-only';
+const expectedCanonicalProfileType = 'canonical-doc-entrypoint';
+const expectedOverlayProfileType = 'overlay';
+const expectedSpecDrivenProfileKey = 'spec-driven';
 const expectedRequiredRepoResourcePaths = [
   'README.md',
   '.github/copilot-instructions.md',
@@ -20,6 +23,22 @@ const expectedRequiredRepoResourcePaths = [
 const expectedRecommendedResourcePaths = [
   '.vscode/settings.json',
   '.vscode/mcp.json',
+];
+const expectedSpecDrivenExtendsProfileKeys = [
+  'documentation-root-index',
+  'docs-root-index',
+  'system-docs-index',
+];
+const expectedSpecDrivenRequiredResourcePaths = [
+  '.github/copilot-instructions.md',
+  '.github/skills',
+  'specs/index.md',
+];
+const expectedSpecDrivenRecommendedResourcePaths = [
+  'AGENTS.md',
+  'GEMINI.md',
+  'package.json#scripts.validate:specs',
+  'scripts/validate-specs.js',
 ];
 
 function toRepoPath(repoRoot, filePath) {
@@ -133,6 +152,7 @@ function validateUniqueProfilesDocument(options) {
 
   for (const profile of profiles) {
     const profileKey = String(profile?.key || '').trim();
+    const profileType = String(profile?.profileType || expectedCanonicalProfileType).trim();
     const canonicalDocEntrypointPath = String(profile?.match?.canonicalDocEntrypointPath || '').trim();
 
     if (seenKeys.has(profileKey)) {
@@ -141,9 +161,11 @@ function validateUniqueProfilesDocument(options) {
       seenKeys.add(profileKey);
     }
 
-    const profileKeys = canonicalDocPathToProfileKeys.get(canonicalDocEntrypointPath) || [];
-    profileKeys.push(profileKey);
-    canonicalDocPathToProfileKeys.set(canonicalDocEntrypointPath, profileKeys);
+    if (profileType === expectedCanonicalProfileType && canonicalDocEntrypointPath) {
+      const profileKeys = canonicalDocPathToProfileKeys.get(canonicalDocEntrypointPath) || [];
+      profileKeys.push(profileKey);
+      canonicalDocPathToProfileKeys.set(canonicalDocEntrypointPath, profileKeys);
+    }
   }
 
   for (const duplicateKey of Array.from(duplicateKeys).sort((left, right) => left.localeCompare(right))) {
@@ -170,6 +192,9 @@ function validateProfileAuthorityBoundary(options) {
   const profiles = Array.isArray(profilesDocument?.profiles) ? profilesDocument.profiles : [];
   const { requiredAssetKeys, canonicalDocEntrypointPaths } = getBaselineConstraints(baselineDefinition);
   const observedCanonicalDocEntrypointPaths = [];
+  const canonicalProfiles = profiles.filter((profile) => String(profile?.profileType || expectedCanonicalProfileType).trim() === expectedCanonicalProfileType);
+  const overlayProfiles = profiles.filter((profile) => String(profile?.profileType || expectedCanonicalProfileType).trim() === expectedOverlayProfileType);
+  const canonicalProfileKeys = new Set(canonicalProfiles.map((profile) => String(profile?.key || '').trim()).filter(Boolean));
 
   if (compatibility.mutationAuthority !== expectedMutationAuthority) {
     errors.push(`setup-profiles.compatibility.mutationAuthority must be '${expectedMutationAuthority}'`);
@@ -189,6 +214,7 @@ function validateProfileAuthorityBoundary(options) {
 
   for (const profile of profiles) {
     const profileKey = String(profile?.key || '<unknown-profile>');
+    const profileType = String(profile?.profileType || expectedCanonicalProfileType).trim();
     const workspaceRoots = profile?.match?.workspaceRoots;
     const preferredCanonicalDocEntrypointPath = String(profile?.proposals?.preferredCanonicalDocEntrypointPath || '').trim();
     const planningMode = profile?.proposals?.planningMode;
@@ -203,30 +229,81 @@ function validateProfileAuthorityBoundary(options) {
       errors.push(`setup-profiles profile '${profileKey}' must use match.workspaceRoots '${expectedWorkspaceRoots}'`);
     }
 
-    if (preferredCanonicalDocEntrypointPath !== canonicalDocEntrypointPath) {
-      errors.push(
-        `setup-profiles profile '${profileKey}' proposals.preferredCanonicalDocEntrypointPath must match match.canonicalDocEntrypointPath`
-      );
+    if (profileType !== expectedCanonicalProfileType && profileType !== expectedOverlayProfileType) {
+      errors.push(`setup-profiles profile '${profileKey}' must use profileType '${expectedCanonicalProfileType}' or '${expectedOverlayProfileType}'`);
+      continue;
     }
 
-    if (canonicalDocEntrypointPath && canonicalDocEntrypointPaths.size > 0 && !canonicalDocEntrypointPaths.has(canonicalDocEntrypointPath)) {
-      errors.push(
-        `setup-profiles profile '${profileKey}' uses unsupported canonical doc entrypoint '${canonicalDocEntrypointPath}'`
-      );
-    }
+    if (profileType === expectedCanonicalProfileType) {
+      if (preferredCanonicalDocEntrypointPath !== canonicalDocEntrypointPath) {
+        errors.push(
+          `setup-profiles profile '${profileKey}' proposals.preferredCanonicalDocEntrypointPath must match match.canonicalDocEntrypointPath`
+        );
+      }
 
-    validateExactStringCollection(
-      `setup-profiles profile '${profileKey}' proposals.requiredResourcePaths`,
-      Array.isArray(profile?.proposals?.requiredResourcePaths) ? profile.proposals.requiredResourcePaths : [],
-      [...expectedRequiredRepoResourcePaths, canonicalDocEntrypointPath],
-      errors
-    );
-    validateExactStringCollection(
-      `setup-profiles profile '${profileKey}' proposals.recommendedResourcePaths`,
-      Array.isArray(profile?.proposals?.recommendedResourcePaths) ? profile.proposals.recommendedResourcePaths : [],
-      expectedRecommendedResourcePaths,
-      errors
-    );
+      if (canonicalDocEntrypointPath && canonicalDocEntrypointPaths.size > 0 && !canonicalDocEntrypointPaths.has(canonicalDocEntrypointPath)) {
+        errors.push(
+          `setup-profiles profile '${profileKey}' uses unsupported canonical doc entrypoint '${canonicalDocEntrypointPath}'`
+        );
+      }
+
+      validateExactStringCollection(
+        `setup-profiles profile '${profileKey}' proposals.requiredResourcePaths`,
+        Array.isArray(profile?.proposals?.requiredResourcePaths) ? profile.proposals.requiredResourcePaths : [],
+        [...expectedRequiredRepoResourcePaths, canonicalDocEntrypointPath],
+        errors
+      );
+      validateExactStringCollection(
+        `setup-profiles profile '${profileKey}' proposals.recommendedResourcePaths`,
+        Array.isArray(profile?.proposals?.recommendedResourcePaths) ? profile.proposals.recommendedResourcePaths : [],
+        expectedRecommendedResourcePaths,
+        errors
+      );
+    } else {
+      const extendsProfileKeys = Array.isArray(profile?.match?.extendsProfileKeys) ? profile.match.extendsProfileKeys : [];
+      validateExactStringCollection(
+        `setup-profiles overlay profile '${profileKey}' match.extendsProfileKeys`,
+        extendsProfileKeys,
+        expectedSpecDrivenExtendsProfileKeys,
+        errors
+      );
+      validateExactStringCollection(
+        `setup-profiles overlay profile '${profileKey}' match.requiredAssetKeys`,
+        Array.isArray(profile?.match?.requiredAssetKeys) ? profile.match.requiredAssetKeys : [],
+        [],
+        errors
+      );
+      validateExactStringCollection(
+        `setup-profiles overlay profile '${profileKey}' proposals.requiredResourcePaths`,
+        Array.isArray(profile?.proposals?.requiredResourcePaths) ? profile.proposals.requiredResourcePaths : [],
+        expectedSpecDrivenRequiredResourcePaths,
+        errors
+      );
+      validateExactStringCollection(
+        `setup-profiles overlay profile '${profileKey}' proposals.recommendedResourcePaths`,
+        Array.isArray(profile?.proposals?.recommendedResourcePaths) ? profile.proposals.recommendedResourcePaths : [],
+        expectedSpecDrivenRecommendedResourcePaths,
+        errors
+      );
+
+      if (profileKey !== expectedSpecDrivenProfileKey) {
+        errors.push(`setup-profiles overlay profile '${profileKey}' is unsupported; expected only '${expectedSpecDrivenProfileKey}'`);
+      }
+
+      if (canonicalDocEntrypointPath) {
+        errors.push(`setup-profiles overlay profile '${profileKey}' must not declare match.canonicalDocEntrypointPath`);
+      }
+
+      if (preferredCanonicalDocEntrypointPath) {
+        errors.push(`setup-profiles overlay profile '${profileKey}' must not declare proposals.preferredCanonicalDocEntrypointPath`);
+      }
+
+      for (const extendedProfileKey of extendsProfileKeys) {
+        if (!canonicalProfileKeys.has(String(extendedProfileKey || '').trim())) {
+          errors.push(`setup-profiles overlay profile '${profileKey}' extends unknown canonical profile '${extendedProfileKey}'`);
+        }
+      }
+    }
 
     const profileRequiredAssetKeys = Array.isArray(profile?.match?.requiredAssetKeys) ? profile.match.requiredAssetKeys : [];
     for (const assetKey of profileRequiredAssetKeys) {
@@ -236,10 +313,14 @@ function validateProfileAuthorityBoundary(options) {
     }
   }
 
+  if (overlayProfiles.length !== 1 || String(overlayProfiles[0]?.key || '').trim() !== expectedSpecDrivenProfileKey) {
+    errors.push(`setup-profiles must include exactly one overlay profile '${expectedSpecDrivenProfileKey}'`);
+  }
+
   if (canonicalDocEntrypointPaths.size > 0) {
     validateExactStringCollection(
       'setup-profiles match.canonicalDocEntrypointPath coverage',
-      observedCanonicalDocEntrypointPaths,
+      observedCanonicalDocEntrypointPaths.filter(Boolean),
       Array.from(canonicalDocEntrypointPaths),
       errors
     );

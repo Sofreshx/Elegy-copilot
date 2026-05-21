@@ -1,6 +1,6 @@
 ---
 created: 2026-02-25
-updated: 2026-03-01
+updated: 2026-05-21
 category: system
 status: current
 doc_kind: moc
@@ -24,6 +24,7 @@ This MOC provides a navigational hub for software design knowledge used in agent
 
 - Core glossary and pattern reference: [[software-design-concepts-glossary]] [docs/system/software-design-concepts-glossary.md](docs/system/software-design-concepts-glossary.md)
 - Architecture simplicity constraints: `docs/system/agent-architecture-simplicity.md`
+- Spec-driven design contract and operating model: [[spec-driven-development]] [docs/system/spec-driven-development.md](docs/system/spec-driven-development.md)
 
 ## See also
 

@@ -1,6 +1,6 @@
 ---
 created: 2026-03-18
-updated: 2026-06-24
+updated: 2026-05-21
 category: system
 status: current
 doc_kind: moc
@@ -39,6 +39,8 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
   [docs/system/documentation-authoring-governance.md](docs/system/documentation-authoring-governance.md)
 - Repo-local skill source-of-truth and deterministic cross-harness mirror rules:
   [[repo-skill-sync-governance]] [docs/system/repo-skill-sync-governance.md](docs/system/repo-skill-sync-governance.md)
+- Durable repo spec contract and `specs/` layout:
+  [[spec-driven-development]] [docs/system/spec-driven-development.md](docs/system/spec-driven-development.md)
 - Planning-ready follow-up when convention gaps become next tasks:
   [[follow-up-discovery-governance]] [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
 - Specific change review versus governance authoring:
@@ -71,6 +73,7 @@ related: [system-docs-index, rules-compliance-audit-handoff-workflow, project-co
 - "Make the rules easier to discover" -> `docs/system/documentation-structure-governance.md`
 - "Make this documentation more durable, diagram-first, or agent-readable" -> `docs/system/documentation-authoring-governance.md`
 - "How should repo-local skills mirror across Codex/OpenCode/Gemini?" -> `docs/system/repo-skill-sync-governance.md`
+- "Define a durable repo spec or shared `specs/` contract" -> `docs/system/spec-driven-development.md`
 - "Turn convention gaps into follow-up tasks" -> `docs/system/follow-up-discovery-governance.md`
 - "Review this implementation for correctness" -> `docs/system/reviewer-lane-governance.md`
 

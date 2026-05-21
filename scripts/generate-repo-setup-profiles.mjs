@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename);
 const defaultRepoRoot = path.resolve(__dirname, '..');
 const defaultDefinitionPath = path.join(defaultRepoRoot, 'engine-assets', 'skills', 'repo-setup-governance', 'profile-definitions.json');
 const defaultOutputPath = path.join(defaultRepoRoot, 'engine-assets', 'skills', 'repo-setup-governance', 'setup-profiles.json');
+const supportedProfileTypes = new Set(['canonical-doc-entrypoint', 'overlay']);
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -41,11 +42,14 @@ function normalizeStringList(values) {
 }
 
 function normalizeProfile(profile) {
+  const profileType = String(profile.profileType || 'canonical-doc-entrypoint').trim() || 'canonical-doc-entrypoint';
   return {
     key: String(profile.key || '').trim(),
     label: String(profile.label || '').trim(),
+    profileType,
     match: {
       canonicalDocEntrypointPath: String(profile.match?.canonicalDocEntrypointPath || '').trim(),
+      extendsProfileKeys: normalizeStringList(profile.match?.extendsProfileKeys),
       requiredAssetKeys: normalizeStringList(profile.match?.requiredAssetKeys),
       workspaceRoots: String(profile.match?.workspaceRoots || '').trim(),
     },
@@ -72,10 +76,29 @@ function validateNormalizedProfiles(profiles) {
   const duplicateKeys = new Set();
   const seenKeys = new Set();
   const canonicalDocPathToProfileKeys = new Map();
+  const errors = [];
 
   for (const profile of profiles) {
     const profileKey = String(profile?.key || '').trim();
+    const profileType = String(profile?.profileType || '').trim();
     const canonicalDocEntrypointPath = String(profile?.match?.canonicalDocEntrypointPath || '').trim();
+    const extendsProfileKeys = Array.isArray(profile?.match?.extendsProfileKeys) ? profile.match.extendsProfileKeys : [];
+
+    if (!supportedProfileTypes.has(profileType)) {
+      errors.push(`unsupported normalized profileType ${formatValueForError(profileType)} for profile ${formatValueForError(profileKey)}`);
+    }
+
+    if (profileType === 'canonical-doc-entrypoint' && !canonicalDocEntrypointPath) {
+      errors.push(`canonical-doc-entrypoint profile ${formatValueForError(profileKey)} is missing match.canonicalDocEntrypointPath`);
+    }
+
+    if (profileType === 'overlay' && canonicalDocEntrypointPath) {
+      errors.push(`overlay profile ${formatValueForError(profileKey)} must not declare match.canonicalDocEntrypointPath`);
+    }
+
+    if (profileType === 'overlay' && extendsProfileKeys.length === 0) {
+      errors.push(`overlay profile ${formatValueForError(profileKey)} must declare at least one match.extendsProfileKeys entry`);
+    }
 
     if (seenKeys.has(profileKey)) {
       duplicateKeys.add(profileKey);
@@ -83,12 +106,12 @@ function validateNormalizedProfiles(profiles) {
       seenKeys.add(profileKey);
     }
 
-    const profileKeys = canonicalDocPathToProfileKeys.get(canonicalDocEntrypointPath) || [];
-    profileKeys.push(profileKey);
-    canonicalDocPathToProfileKeys.set(canonicalDocEntrypointPath, profileKeys);
+    if (profileType === 'canonical-doc-entrypoint' && canonicalDocEntrypointPath) {
+      const profileKeys = canonicalDocPathToProfileKeys.get(canonicalDocEntrypointPath) || [];
+      profileKeys.push(profileKey);
+      canonicalDocPathToProfileKeys.set(canonicalDocEntrypointPath, profileKeys);
+    }
   }
-
-  const errors = [];
 
   for (const duplicateKey of Array.from(duplicateKeys).sort((left, right) => left.localeCompare(right))) {
     errors.push(`duplicate normalized profile key ${formatValueForError(duplicateKey)}`);
@@ -139,7 +162,9 @@ export function buildSetupProfilesProjection(definition, options = {}) {
   const definitionJson = stringifyDeterministic(normalizedDefinition);
   const checksum = `sha256:${crypto.createHash('sha256').update(definitionJson).digest('hex')}`;
   const profileLookup = normalizedDefinition.profiles.reduce((result, profile) => {
-    result[profile.match.canonicalDocEntrypointPath] = profile.key;
+    if (profile.profileType === 'canonical-doc-entrypoint' && profile.match.canonicalDocEntrypointPath) {
+      result[profile.match.canonicalDocEntrypointPath] = profile.key;
+    }
     return result;
   }, {});
 

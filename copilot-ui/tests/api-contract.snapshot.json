@@ -1536,6 +1536,56 @@
       "error"
     ]
   },
+  "GET /api/config/codex-provider": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "activeMode",
+      "backupCreatedAt",
+      "backupPath",
+      "codexHome",
+      "configPath",
+      "exists",
+      "gateway",
+      "hasBackup",
+      "hasManagedBlock",
+      "lastAppliedAt",
+      "lastResetAt",
+      "providerId",
+      "statePath"
+    ]
+  },
+  "PUT /api/config/codex-provider": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/config/codex-provider/reset": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "action",
+      "activeMode",
+      "backupCreatedAt",
+      "backupPath",
+      "changed",
+      "codexHome",
+      "configPath",
+      "exists",
+      "gateway",
+      "hasBackup",
+      "hasManagedBlock",
+      "lastAppliedAt",
+      "lastResetAt",
+      "providerId",
+      "statePath"
+    ]
+  },
   "GET /api/sdk/health": {
     "status": 200,
     "contentType": "application/json",

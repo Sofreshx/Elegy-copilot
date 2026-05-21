@@ -1,6 +1,6 @@
-# Instruction Engine
+# Elegy Copilot
 
-Instruction Engine is the shared asset repo behind Elegy Copilot. It ships curated install surfaces for Copilot, Codex, OpenCode, and Antigravity 2 / Antigravity CLI with Gemini CLI compatibility, plus a local catalog UI for status, external sources, and repo registration.
+Elegy Copilot (formerly Instruction Engine) is the shared asset repo for the desktop application and supporting install surfaces. It ships curated assets for Copilot, Codex, OpenCode, and Antigravity 2 / Antigravity CLI with Gemini CLI compatibility, plus a local catalog UI for status, external sources, and repo registration.
 
 ## Install Or Refresh
 
@@ -14,6 +14,31 @@ Instruction Engine is the shared asset repo behind Elegy Copilot. It ships curat
 
 - Add `--force` to overwrite managed files.
 - Add `--dry-run` to preview writes.
+
+## Opt-In Spec-Driven Repo Setup
+
+- Shared spec skills still install globally per harness.
+- Repo-local spec bootstrap is opt-in for one selected repo at a time.
+- Use the existing harness installer with `--repo-root <path> --setup-profile spec-driven`.
+- This bootstraps repo-local spec surfaces without creating a new runtime or planner fleet.
+
+Examples:
+
+```powershell
+pwsh -File scripts/codex-install.ps1 --repo-root C:\src\my-repo --setup-profile spec-driven
+pwsh -File scripts/opencode-install.ps1 --repo-root C:\src\my-repo --setup-profile spec-driven
+pwsh -File scripts/antigravity-install.ps1 --repo-root C:\src\my-repo --setup-profile spec-driven
+```
+
+What the `spec-driven` profile bootstraps:
+
+- `.github/copilot-instructions.md` managed spec-driven block
+- repo `AGENTS.md` for Codex/OpenCode or repo `GEMINI.md` for Antigravity managed spec-driven block
+- `.github/agents/` and `.github/skills/`
+- `specs/` with starter `specs/index.md`
+- `scripts/validate-specs.js`
+- `package.json` script `validate:specs` when `package.json` exists and the script name is free
+- repo-local skill mirrors for the selected harness: `.agents/skills/`, `.opencode/skills/`, or `.gemini/skills/`
 
 ## Current Install Model
 
@@ -50,6 +75,7 @@ node scripts/update-repo-skill-mirrors.mjs
 ```
 
 - This applies only to repo-local skills. Shipped global assets still live in their harness-specific trees.
+- The `spec-driven` repo setup profile uses the same `.github/skills` authority and installs only the selected harness mirror.
 
 ## Docs
 

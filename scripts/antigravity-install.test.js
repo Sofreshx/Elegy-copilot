@@ -49,6 +49,9 @@ async function main() {
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'roadmap-planning', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'spec-dev', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'spec-authoring', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'spec-review', 'SKILL.md')));
       assert.ok(summary.counts.created > 0);
 
       const geminiInstructions = fs.readFileSync(path.join(geminiHome, 'GEMINI.md'), 'utf8');
@@ -122,6 +125,47 @@ async function main() {
       assert.ok(!fs.existsSync(geminiHome));
       assert.ok(!fs.existsSync(skillsHome));
       assert.ok(summary.counts.wouldCreate > 0 || summary.counts.wouldUpdate > 0);
+    });
+  });
+
+  await test('installer bootstraps opt-in spec-driven repo files', async () => {
+    withTempDir((root) => {
+      const geminiHome = path.join(root, '.gemini');
+      const antigravityHome = path.join(geminiHome, 'antigravity');
+      const skillsHome = path.join(antigravityHome, 'skills');
+      const repoRoot = path.join(root, 'target-repo');
+      fs.mkdirSync(path.join(repoRoot, 'documentation'), { recursive: true });
+      fs.mkdirSync(path.join(repoRoot, '.github', 'skills', 'repo-helper'), { recursive: true });
+      fs.writeFileSync(path.join(repoRoot, 'README.md'), '# Target Repo\n', 'utf8');
+      fs.writeFileSync(path.join(repoRoot, 'documentation', 'index.md'), '# Documentation\n', 'utf8');
+      fs.writeFileSync(path.join(repoRoot, 'package.json'), `${JSON.stringify({ name: 'target-repo', scripts: {} }, null, 2)}\n`, 'utf8');
+      fs.writeFileSync(path.join(repoRoot, 'GEMINI.md'), '# Notes\n\nKeep this footer.\n', 'utf8');
+      fs.writeFileSync(path.join(repoRoot, '.github', 'skills', 'repo-helper', 'SKILL.md'), '---\nname: repo-helper\ndescription: Repo helper\n---\n', 'utf8');
+
+      const summary = installer.runInstall({
+        force: true,
+        geminiHome,
+        antigravityHome,
+        skillsHome,
+        repoRoot,
+        setupProfile: 'spec-driven',
+      });
+
+      const geminiInstructions = fs.readFileSync(path.join(repoRoot, 'GEMINI.md'), 'utf8');
+      const copilotInstructions = fs.readFileSync(path.join(repoRoot, '.github', 'copilot-instructions.md'), 'utf8');
+      const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
+
+      assert.ok(geminiInstructions.includes('Keep this footer.'));
+      assert.ok(geminiInstructions.includes('instruction-engine:begin spec-driven'));
+      assert.ok(copilotInstructions.includes('instruction-engine:begin spec-driven'));
+      assert.ok(fs.existsSync(path.join(repoRoot, 'specs', 'index.md')));
+      assert.ok(fs.existsSync(path.join(repoRoot, 'scripts', 'validate-specs.js')));
+      assert.ok(fs.existsSync(path.join(repoRoot, '.github', 'agents')));
+      assert.ok(fs.existsSync(path.join(repoRoot, '.gemini', 'skills', 'repo-helper', 'SKILL.md')));
+      assert.strictEqual(packageJson.scripts['validate:specs'], 'node scripts/validate-specs.js');
+      assert.strictEqual(summary.repoSetup.profileKey, 'spec-driven');
+      assert.strictEqual(summary.repoSetup.repoInstructionFile, 'GEMINI.md');
+      assert.ok(summary.repoSetup.skillMirrors.counts.created > 0 || summary.repoSetup.skillMirrors.counts.skipped > 0);
     });
   });
 

@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { DEFAULT_PROFILE_NAME, DEFAULT_REVIEW_MODEL, patchConfigFile } from './codex-config-patch.mjs';
+import { runRepoSetupProfileBootstrap } from './repo-setup-profile-bootstrap.mjs';
 import {
   ensureDir,
   getUserHome,
@@ -243,8 +244,10 @@ export function parseArgs(argv) {
     force: false,
     codexHome: '',
     skillsHome: '',
+    repoRoot: '',
     reviewModel: DEFAULT_REVIEW_MODEL,
     profileName: DEFAULT_PROFILE_NAME,
+    setupProfile: '',
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -281,6 +284,18 @@ export function parseArgs(argv) {
       args.skillsHome = argv[i] || '';
       continue;
     }
+    if (value.startsWith('--repo-root=')) {
+      args.repoRoot = value.slice('--repo-root='.length);
+      continue;
+    }
+    if (value === '--repo-root') {
+      i += 1;
+      if (i >= argv.length) {
+        throw new Error('Missing value for --repo-root');
+      }
+      args.repoRoot = argv[i] || '';
+      continue;
+    }
     if (value.startsWith('--review-model=')) {
       args.reviewModel = value.slice('--review-model='.length);
       continue;
@@ -305,7 +320,27 @@ export function parseArgs(argv) {
       args.profileName = argv[i] || '';
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --codex-home <path>, --skills-home <path>, --review-model <model>, --profile-name <name>)`);
+    if (value.startsWith('--setup-profile=')) {
+      args.setupProfile = value.slice('--setup-profile='.length);
+      continue;
+    }
+    if (value === '--setup-profile') {
+      i += 1;
+      if (i >= argv.length) {
+        throw new Error('Missing value for --setup-profile');
+      }
+      args.setupProfile = argv[i] || '';
+      continue;
+    }
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --codex-home <path>, --skills-home <path>, --repo-root <path>, --review-model <model>, --profile-name <name>, --setup-profile <key>)`);
+  }
+
+  if (args.repoRoot && !args.setupProfile) {
+    throw new Error('Missing value for --setup-profile when --repo-root is provided');
+  }
+
+  if (args.setupProfile && !args.repoRoot) {
+    throw new Error('Missing value for --repo-root when --setup-profile is provided');
   }
 
   return args;
@@ -329,6 +364,7 @@ export function resolveSkillsHome(explicit, codexHome = '') {
 export function runInstall(args = {}) {
   const codexHome = resolveCodexHome(args.codexHome);
   const skillsHome = resolveSkillsHome(args.skillsHome, codexHome);
+  const repoSetupRoot = args.repoRoot ? path.resolve(args.repoRoot) : '';
   const manifest = readManifest();
   const assets = expandManifestAssets(manifest);
 
@@ -336,6 +372,9 @@ export function runInstall(args = {}) {
   console.log(`Skills home: ${skillsHome}`);
   console.log(`Engine root: ${repoRoot}`);
   console.log(`Assets:      ${assets.length}`);
+  if (repoSetupRoot) {
+    console.log(`Repo setup:  ${repoSetupRoot} (${args.setupProfile})`);
+  }
 
   ensureDir(codexHome, args.dryRun);
   ensureDir(path.join(codexHome, 'agents'), args.dryRun);
@@ -391,6 +430,16 @@ export function runInstall(args = {}) {
     console.log(`[SKIP]   ${configPath} (up-to-date)`);
   }
 
+  const repoSetup = repoSetupRoot
+    ? runRepoSetupProfileBootstrap({
+      surface: 'codex',
+      repoRoot: repoSetupRoot,
+      profileKey: args.setupProfile,
+      dryRun: args.dryRun,
+      force: args.force,
+    })
+    : null;
+
   const summary = {
     surface: 'codex',
     ok: true,
@@ -410,6 +459,7 @@ export function runInstall(args = {}) {
       changed: Boolean(configResult.changed),
       path: configPath,
     },
+    repoSetup,
   };
 
   console.log('Done.');

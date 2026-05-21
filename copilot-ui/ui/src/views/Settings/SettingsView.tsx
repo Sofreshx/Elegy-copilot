@@ -4,6 +4,7 @@ import { useStoreValue } from '../../lib/store';
 import { navigationStore } from '../../stores/navigation';
 import { hookRulesStore, type HookRulesState } from '../../stores/hookRulesStore';
 import type { HookRule } from '../../lib/api/hooks';
+import CodexProviderPanel from './CodexProviderPanel';
 import RemoteSessionsPanel from './RemoteSessionsPanel';
 
 interface AppInfo {
@@ -197,6 +198,8 @@ export default function SettingsView() {
         </Panel>
 
         <HookRulesPanel />
+
+        <CodexProviderPanel />
 
         <RemoteSessionsPanel />
 

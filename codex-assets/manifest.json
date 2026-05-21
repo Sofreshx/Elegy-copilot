@@ -100,6 +100,27 @@
       "source": "catalog-assets/shared-skills/roadmap-planning",
       "destination": "skills/roadmap-planning",
       "loadMode": "on-demand"
+    },
+    {
+      "id": "codex-spec-dev-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-dev",
+      "destination": "skills/spec-dev",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "codex-spec-authoring-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-authoring",
+      "destination": "skills/spec-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "codex-spec-review-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/spec-review",
+      "destination": "skills/spec-review",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-01
+updated: 2026-05-21
 category: system
 status: current
 doc_kind: moc
@@ -21,6 +21,7 @@ related: [system-docs-index]
 ## Start here
 
 - Skills governance: `docs/system/skills-governance.md`
+- Spec-driven development: [[spec-driven-development]] [docs/system/spec-driven-development.md](docs/system/spec-driven-development.md)
 - Search/execute workflow: `docs/system/search-execute-workflow.md`
 - Research promotion checklist: `docs/system/research-promotion-checklist.md`
 - Skill discovery telemetry: `docs/system/skill-discovery-telemetry.md`

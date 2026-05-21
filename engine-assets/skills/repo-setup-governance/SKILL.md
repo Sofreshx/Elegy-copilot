@@ -51,6 +51,7 @@ needed to justify version-sensitive setup requirements.
 
 - classification and update planning may consult `setup-profiles.json`
 - repo mutation and profile-backed update execution are intentionally unavailable in the current lane
+- approved installer-mediated bootstrap, such as the opt-in `spec-driven` overlay profile, is out-of-band from this shared lane and still requires an explicit selected repo root
 
 ## Operating Rules
 
@@ -71,6 +72,10 @@ needed to justify version-sensitive setup requirements.
 5. Record missing, stale, unknown, and conflicting evidence separately.
 6. Propose only the smallest next resources or authoritative refresh actions.
 7. Report that update execution remains gated and unavailable.
+
+If the user asks how to apply an approved overlay profile, explain that the lane itself stays
+read-only and point them to the relevant harness installer flow instead of pretending the lane can
+write the repo directly.
 
 ## Output Contract
 

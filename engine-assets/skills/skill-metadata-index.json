@@ -667,6 +667,75 @@
       }
     },
     {
+      "skill": "spec-authoring",
+      "name": "spec-authoring",
+      "description": "Create or refine a durable repo spec under specs/<spec-slug>/spec.md using the shared contract. Use when work should be spec-anchored or spec-as-source and needs a concrete spec artifact before implementation planning. Triggers on: author a spec, create a spec, refine spec.md, specs template, specs folder, durable repo spec.",
+      "triggersOn": [
+        "author a spec",
+        "create a spec",
+        "durable repo spec",
+        "refine spec.md",
+        "specs folder",
+        "specs template"
+      ],
+      "tags": [
+        "authoring",
+        "contracts",
+        "requirements",
+        "specs"
+      ],
+      "manifest": {
+        "id": "skill-spec-authoring",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "spec-dev",
+      "name": "spec-dev",
+      "description": "Entrypoint/router for spec-driven development. Decide whether the task should use spec-first clarification, a durable repo spec under specs/, or spec-as-source declarative authoring. Triggers on: spec-driven development, write a spec, refine a spec, spec-first, spec-anchored, spec-as-source, specs folder.",
+      "triggersOn": [
+        "refine a spec",
+        "spec-anchored",
+        "spec-as-source",
+        "spec-driven development",
+        "spec-first",
+        "specs folder",
+        "write a spec"
+      ],
+      "tags": [
+        "planning",
+        "requirements",
+        "specs",
+        "validation"
+      ],
+      "manifest": {
+        "id": "skill-spec-dev",
+        "loadMode": "on-demand"
+      }
+    },
+    {
+      "skill": "spec-review",
+      "name": "spec-review",
+      "description": "Adversarial review for a durable repo spec before implementation planning. Use after spec authoring to find ambiguity, missing evidence, weak acceptance checks, or source-of-truth drift. Triggers on: review a spec, spec review, critique spec.md, spec readiness, requirements gaps.",
+      "triggersOn": [
+        "critique spec.md",
+        "requirements gaps",
+        "review a spec",
+        "spec readiness",
+        "spec review"
+      ],
+      "tags": [
+        "planning",
+        "requirements",
+        "review",
+        "specs"
+      ],
+      "manifest": {
+        "id": "skill-spec-review",
+        "loadMode": "on-demand"
+      }
+    },
+    {
       "skill": "stack-audit-patterns",
       "name": "stack-audit-patterns",
       "description": "Framework-specific audit patterns for Marten, Wolverine, Orleans, SignalR, and Aspire. Triggers on: stack audit, framework audit, pattern check, stack-audit-patterns, runtime failure patterns.",
