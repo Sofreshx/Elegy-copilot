@@ -436,6 +436,102 @@ function buildMissingAuthorityFailure(reason, message) {
   };
 }
 
+function buildBridgeReadError(code, message, statusCode = 503) {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  return error;
+}
+
+function extractMachineData(parsed) {
+  return isPlainObject(parsed && parsed.data) ? parsed.data : {};
+}
+
+function ensureReadableAuthority({ disabled, configured, config }) {
+  if (disabled) {
+    throw buildBridgeReadError(
+      'bridge_disabled',
+      'elegy-planning authority is disabled but required for live roadmap reads.',
+    );
+  }
+
+  if (!configured) {
+    throw buildBridgeReadError(
+      'bridge_not_configured',
+      'elegy-planning authority is not configured for live roadmap reads.',
+    );
+  }
+
+  if (!config.dbPath) {
+    throw buildBridgeReadError(
+      'missing_db_path',
+      'elegy-planning authority requires a database path.',
+    );
+  }
+}
+
+function resolveReadRequestId(input = {}, fallback = 'planning-read') {
+  return normalizeString(input.requestId)
+    || normalizeString(input.correlationId)
+    || normalizeString(input.roadmapId)
+    || normalizeString(input.goalId)
+    || normalizeString(input.planId)
+    || fallback;
+}
+
+async function listRoadmaps(config, requestId) {
+  const result = await runMachineCommand(config, requestId, ['roadmap', 'list']);
+  if (normalizeMachineStatus(result.parsed) !== 'ok') {
+    throw buildCommandFailure(result.parsed, result.commandArgs);
+  }
+
+  return {
+    parsed: result.parsed,
+    roadmaps: Array.isArray(extractMachineData(result.parsed).roadmaps)
+      ? extractMachineData(result.parsed).roadmaps
+      : [],
+  };
+}
+
+async function listPlans(config, requestId) {
+  const result = await runMachineCommand(config, requestId, ['plan', 'list']);
+  if (normalizeMachineStatus(result.parsed) !== 'ok') {
+    throw buildCommandFailure(result.parsed, result.commandArgs);
+  }
+
+  return {
+    parsed: result.parsed,
+    plans: Array.isArray(extractMachineData(result.parsed).plans)
+      ? extractMachineData(result.parsed).plans
+      : [],
+  };
+}
+
+async function listTodos(config, requestId) {
+  const result = await runMachineCommand(config, requestId, ['todo', 'list']);
+  if (normalizeMachineStatus(result.parsed) !== 'ok') {
+    throw buildCommandFailure(result.parsed, result.commandArgs);
+  }
+
+  return {
+    parsed: result.parsed,
+    todos: Array.isArray(extractMachineData(result.parsed).todos)
+      ? extractMachineData(result.parsed).todos
+      : [],
+  };
+}
+
+async function readPlan(config, requestId, planId) {
+  const result = await runMachineCommand(config, requestId, ['plan', 'show', '--plan-id', planId]);
+  if (normalizeMachineStatus(result.parsed) === 'ok') {
+    return { found: true, parsed: result.parsed };
+  }
+  if (isNotFoundResponse(result.parsed)) {
+    return { found: false, parsed: result.parsed };
+  }
+  throw buildCommandFailure(result.parsed, result.commandArgs);
+}
+
 function createRoadmapWorkflowPlanningBridge(options = {}) {
   const processObject = options.processObject && typeof options.processObject === 'object'
     ? options.processObject
@@ -469,6 +565,86 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
   };
 
   return {
+    async listRoadmaps(input = {}) {
+      ensureReadableAuthority({ disabled, configured, config });
+      const requestId = resolveReadRequestId(input, 'roadmap-list');
+      return listRoadmaps(config, requestId);
+    },
+    async showRoadmap(input = {}) {
+      ensureReadableAuthority({ disabled, configured, config });
+      const roadmapId = normalizeString(input.roadmapId);
+      if (!roadmapId) {
+        throw buildBridgeReadError('missing_roadmap_id', 'roadmapId is required to load a roadmap.', 400);
+      }
+
+      const requestId = resolveReadRequestId(input, roadmapId);
+      const result = await readRoadmap(config, requestId, roadmapId);
+      if (!result.found) {
+        throw buildBridgeReadError('roadmap_not_found', `elegy-planning roadmap ${roadmapId} was not found.`, 404);
+      }
+
+      const data = extractMachineData(result.parsed);
+      return {
+        parsed: result.parsed,
+        roadmap: isPlainObject(data.roadmap) ? data.roadmap : {},
+        sections: Array.isArray(data.sections) ? data.sections : [],
+        workPoints: Array.isArray(data.workPoints) ? data.workPoints : [],
+        validation: isPlainObject(data.validation) ? data.validation : {},
+      };
+    },
+    async showGoal(input = {}) {
+      ensureReadableAuthority({ disabled, configured, config });
+      const goalId = normalizeString(input.goalId);
+      if (!goalId) {
+        throw buildBridgeReadError('missing_goal_id', 'goalId is required to load a goal.', 400);
+      }
+
+      const requestId = resolveReadRequestId(input, goalId);
+      const result = await readGoal(config, requestId, goalId);
+      if (!result.found) {
+        throw buildBridgeReadError('goal_not_found', `elegy-planning goal ${goalId} was not found.`, 404);
+      }
+
+      const data = extractMachineData(result.parsed);
+      return {
+        parsed: result.parsed,
+        goal: isPlainObject(data.goal) ? data.goal : {},
+        roadmaps: Array.isArray(data.roadmaps) ? data.roadmaps : [],
+        validation: isPlainObject(data.validation) ? data.validation : {},
+      };
+    },
+    async listPlans(input = {}) {
+      ensureReadableAuthority({ disabled, configured, config });
+      const requestId = resolveReadRequestId(input, 'plan-list');
+      return listPlans(config, requestId);
+    },
+    async showPlan(input = {}) {
+      ensureReadableAuthority({ disabled, configured, config });
+      const planId = normalizeString(input.planId);
+      if (!planId) {
+        throw buildBridgeReadError('missing_plan_id', 'planId is required to load a plan.', 400);
+      }
+
+      const requestId = resolveReadRequestId(input, planId);
+      const result = await readPlan(config, requestId, planId);
+      if (!result.found) {
+        throw buildBridgeReadError('plan_not_found', `elegy-planning plan ${planId} was not found.`, 404);
+      }
+
+      const data = extractMachineData(result.parsed);
+      return {
+        parsed: result.parsed,
+        plan: isPlainObject(data.plan) ? data.plan : {},
+        todos: Array.isArray(data.todos) ? data.todos : [],
+        reviewPoints: Array.isArray(data.reviewPoints) ? data.reviewPoints : [],
+        validation: isPlainObject(data.validation) ? data.validation : {},
+      };
+    },
+    async listTodos(input = {}) {
+      ensureReadableAuthority({ disabled, configured, config });
+      const requestId = resolveReadRequestId(input, 'todo-list');
+      return listTodos(config, requestId);
+    },
     async persistArtifact(artifact, input = {}) {
       if (disabled) {
         return buildMissingAuthorityFailure(

@@ -70,6 +70,21 @@ import type {
   PlanningCompareReceipt,
   PlanningCompareResponse,
   PlanningCreateResponse,
+  PlanningLiveGoal,
+  PlanningLiveGoalResponse,
+  PlanningLivePlanResponse,
+  PlanningLivePlanSummary,
+  PlanningLivePlansResponse,
+  PlanningLiveReviewPoint,
+  PlanningLiveRoadmapResponse,
+  PlanningLiveRoadmapSection,
+  PlanningLiveRoadmapsResponse,
+  PlanningLiveRoadmapSummary,
+  PlanningLiveTodo,
+  PlanningLiveTodosResponse,
+  PlanningLiveValidationFinding,
+  PlanningLiveValidationSummary,
+  PlanningLiveWorkPoint,
   PlanningMergeIntentResponse,
   PlanningMergeIntentToken,
   PlanningMergeResponse,
@@ -481,7 +496,7 @@ export interface CatalogSourceIdPayload {
 export interface CatalogSourceInstallableMutationPayload {
   sourceId: string;
   installableId: string;
-  target: 'copilot' | 'codex' | 'opencode' | 'antigravity' | 'gemini-cli' | string;
+  target: 'copilot' | 'codex' | 'opencode' | 'antigravity' | 'gemini-cli' | 'antigravity-cli' | string;
 }
 
 export interface CatalogAssetUpdatePayload extends Omit<CatalogAssetCreatePayload, 'content'> {

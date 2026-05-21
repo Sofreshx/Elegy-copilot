@@ -2,20 +2,7 @@ import { useState } from 'react';
 import { Badge, Panel } from '../../components';
 import { useStoreValue } from '../../lib/store';
 import { projectOverviewStore } from './projectOverviewStore';
-
-// ── Helpers ──
-
-function formatTimeAgo(ms: number | null): string {
-  if (!ms) return 'Never';
-  const diff = Date.now() - ms;
-  if (diff < 60000) return 'just now';
-  const min = Math.floor(diff / 60000);
-  if (min < 60) return `${min}m ago`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
+import { formatRelativeTime } from './gitUi';
 
 // ── Component ──
 
@@ -83,7 +70,7 @@ export default function ProjectConfigSummary() {
 
           <dt>Last Activity</dt>
           <dd data-testid="config-last-activity">
-            {formatTimeAgo(projectInfo.lastActivityMs)}
+            {formatRelativeTime(projectInfo.lastActivityMs)}
           </dd>
         </dl>
       </Panel>

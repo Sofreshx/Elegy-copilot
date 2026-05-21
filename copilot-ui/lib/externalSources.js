@@ -93,6 +93,9 @@ const STATE_FILE = 'state.json';
 const SHIPPED_CATALOG_PATH = path.join('engine-assets', 'external-sources.json');
 const CONTEXT7_DEFAULT_COMMAND = 'npx';
 const CONTEXT7_DEFAULT_ARGS = ['-y', '@upstash/context7-mcp'];
+const EXTERNAL_SOURCE_TARGET_ALIASES = Object.freeze({
+  'antigravity-cli': 'gemini-cli',
+});
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -102,6 +105,26 @@ function normalizeStringList(value) {
   return Array.isArray(value)
     ? value.map((entry) => normalizeString(entry)).filter(Boolean)
     : [];
+}
+
+function normalizeExternalSourceTarget(value) {
+  const normalized = normalizeString(value).toLowerCase();
+  return EXTERNAL_SOURCE_TARGET_ALIASES[normalized] || normalized;
+}
+
+function normalizeExternalSourceTargetList(value) {
+  const normalizedTargets = Array.isArray(value) ? value : [];
+  const seen = new Set();
+  const result = [];
+  for (const entry of normalizedTargets) {
+    const normalized = normalizeExternalSourceTarget(entry);
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    result.push(normalized);
+  }
+  return result;
 }
 
 function ensureDir(dirPath) {
@@ -484,7 +507,7 @@ function normalizeFetchedInstallable(entry) {
       ? entry.metadata
       : {},
     targetSupport: Array.isArray(entry.targetSupport)
-      ? normalizeStringList(entry.targetSupport)
+      ? normalizeExternalSourceTargetList(entry.targetSupport)
       : undefined,
   };
 }
@@ -1180,7 +1203,7 @@ function resolveTargetHomes(options = {}) {
 function activateInstallable(options, payload) {
   const normalizedSourceId = normalizeExternalSourceId(payload?.sourceId);
   const installableId = normalizeString(payload?.installableId);
-  const target = normalizeString(payload?.target).toLowerCase();
+  const target = normalizeExternalSourceTarget(payload?.target);
   if (!normalizedSourceId || !installableId || !target) {
     throw Object.assign(new Error('sourceId, installableId, and target are required'), { statusCode: 400 });
   }
@@ -1198,7 +1221,7 @@ function activateInstallable(options, payload) {
   }
 
   const supportedTargets = Array.isArray(installable.targetSupport) && installable.targetSupport.length > 0
-    ? installable.targetSupport
+    ? normalizeExternalSourceTargetList(installable.targetSupport)
     : installable.kind === 'skill'
       ? ['codex', 'opencode', 'antigravity']
       : ['codex', 'opencode', 'gemini-cli'];
@@ -1269,7 +1292,7 @@ function activateInstallable(options, payload) {
 function deactivateInstallable(options, payload) {
   const normalizedSourceId = normalizeExternalSourceId(payload?.sourceId);
   const installableId = normalizeString(payload?.installableId);
-  const target = normalizeString(payload?.target).toLowerCase();
+  const target = normalizeExternalSourceTarget(payload?.target);
   if (!normalizedSourceId || !installableId || !target) {
     throw Object.assign(new Error('sourceId, installableId, and target are required'), { statusCode: 400 });
   }

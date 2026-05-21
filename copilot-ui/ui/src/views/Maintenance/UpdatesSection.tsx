@@ -30,16 +30,6 @@ function AppUpdateCard() {
       testId="updates-app-card"
       actions={
         <>
-          {updaterState.canCheckForUpdates ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              testId="updates-app-check"
-              onClick={() => void desktopUpdaterStore.checkForUpdates()}
-            >
-              Check for Updates
-            </Button>
-          ) : null}
           {updaterState.canDownload ? (
             <Button
               variant="primary"
@@ -47,7 +37,7 @@ function AppUpdateCard() {
               testId="updates-app-download"
               onClick={() => void desktopUpdaterStore.downloadUpdate()}
             >
-              Download
+              Update
             </Button>
           ) : null}
           {updaterState.canRestartToUpdate ? (

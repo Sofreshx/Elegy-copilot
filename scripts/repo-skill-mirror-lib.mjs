@@ -119,7 +119,7 @@ export function buildUsage(scriptName, description, options = {}) {
     'Options:',
     '  --repo <path>               Repository root to inspect (defaults to instruction-engine repo root)',
     '  --config <path>             Path to target-map JSON config',
-    '  --targets <csv>             Limit to selected targets (for example codex,opencode,gemini-cli)',
+    '  --targets <csv>             Limit to selected targets (for example codex,opencode,antigravity-cli)',
   ];
 
   if (allowDryRun) {

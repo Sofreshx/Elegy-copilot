@@ -589,7 +589,7 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
                   testId="sessions-open-overlay-executor"
                   variant="secondary"
                 >
-                  Open Executor
+                  Open Runtime Workspace
                 </Button>
               ) : null}
               <Button
@@ -597,7 +597,7 @@ export default function SessionsView({ preferredMode = 'local' }: { preferredMod
                 testId="sessions-open-planning-task-board"
                 variant="secondary"
               >
-                Open Planning Task Board
+                Open Planning Workspace
               </Button>
             </div>
           </Panel>

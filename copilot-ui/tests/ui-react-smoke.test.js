@@ -146,8 +146,8 @@ async function run() {
       'Expected SessionsView to render the overlay sessions workspace'
     );
     assert.ok(
-      overlayWorkspaceSource.includes('Open Selected in Executor'),
-      'Expected overlay sessions workspace to expose selected-session executor handoff copy'
+      overlayWorkspaceSource.includes('Open Selected in Runtime'),
+      'Expected overlay sessions workspace to expose selected-session runtime handoff copy'
     );
     assert.ok(
       overlayWorkspaceSource.includes('Resume'),
@@ -155,11 +155,11 @@ async function run() {
     );
     assert.ok(
       overlayWorkspaceSource.includes('runtime-overlay-session-open-executor-'),
-      'Expected overlay sessions workspace to expose stable per-session executor handoff ids'
+      'Expected overlay sessions workspace to expose stable per-session runtime handoff ids'
     );
     assert.ok(
       overlayWorkspaceSource.includes("navigationStore.navigate('dashboard')"),
-      'Expected overlay sessions workspace to hand off through sidebar execution'
+      'Expected overlay sessions workspace to hand off through the runtime sidebar destination'
     );
   });
 
@@ -172,12 +172,14 @@ async function run() {
     const executorStoreSource = fs.readFileSync(path.join(uiSrcRoot, 'tabs', 'Executor', 'executorStore.ts'), 'utf8');
 
     assert.ok(planningAuthorityViewSource.includes('planning-task-board-panel'), 'Expected PlanningAuthorityView to expose the visible task board panel');
-    assert.ok(planningAuthorityViewSource.includes('planning-task-board-open-runtime-sessions'), 'Expected PlanningAuthorityView to link task board work into runtime sessions');
-    assert.ok(planningAuthorityViewSource.includes('planning-task-board-open-executor'), 'Expected PlanningAuthorityView to link task board work into executor');
+    assert.ok(planningAuthorityViewSource.includes('planning-open-transfer-tab'), 'Expected PlanningAuthorityView to expose the transfer workspace entry point');
+    assert.ok(planningAuthorityViewSource.includes('planning-transfer-panel'), 'Expected PlanningAuthorityView to expose the harness transfer panel');
     assert.ok(!sessionsViewSource.includes('sessions-task-board-panel'), 'Did not expect SessionsView to expose a task board panel');
     assert.ok(!executorViewSource.includes('executor-task-board-panel'), 'Did not expect ExecutorView to expose a task board panel');
     assert.ok(sessionsViewSource.includes('sessions-open-planning-task-board'), 'Expected SessionsView to link back to the Planning task board');
     assert.ok(executorViewSource.includes('executor-open-planning-task-board'), 'Expected ExecutorView to link back to the Planning task board');
+    assert.ok(sessionsViewSource.includes('Open Planning Workspace'), 'Expected SessionsView planning handoff copy to match the Planning workspace label');
+    assert.ok(executorViewSource.includes('Open Planning Workspace'), 'Expected ExecutorView planning handoff copy to match the Planning workspace label');
     assert.ok(taskBoardSource.includes('Linked live session'), 'Expected task board labels to distinguish linked live session state');
     assert.ok(taskBoardSource.includes('In-session actors'), 'Expected task board labels to distinguish in-session actors');
     assert.ok(taskBoardSource.includes('Worktree isolation'), 'Expected task board labels to distinguish worktree isolation');

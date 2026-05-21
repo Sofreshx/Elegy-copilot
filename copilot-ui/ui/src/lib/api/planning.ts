@@ -9,15 +9,36 @@ import type {
   ObsidianPlanningSyncResponse,
   PlanningCompareResponse,
   PlanningCreateResponse,
+  PlanningLiveGoal,
+  PlanningLiveGoalResponse,
+  PlanningLivePlanResponse,
+  PlanningLivePlansResponse,
+  PlanningLivePlanSummary,
+  PlanningLiveReviewPoint,
+  PlanningLiveRoadmapResponse,
+  PlanningLiveRoadmapsResponse,
+  PlanningLiveRoadmapSection,
+  PlanningLiveRoadmapSummary,
+  PlanningLiveTodo,
+  PlanningLiveTodosResponse,
+  PlanningLiveValidationFinding,
+  PlanningLiveValidationSummary,
+  PlanningLiveWorkPoint,
   PlanningMergeIntentResponse,
   PlanningMergeResponse,
   PlanningPersistenceInitResponse,
   PlanningRecordsResponse,
   PlanningSearchResponse,
+  PlanningRepoSummary,
 } from '../types';
 import {
   apiRequest,
   appendPlanningQuery,
+  asArray,
+  asBoolean,
+  asNumber,
+  asRecord,
+  asStringList,
   asTrimmedString,
   normalizeObsidianPlanningNoteResponse,
   normalizeObsidianPlanningNotesResponse,
@@ -53,6 +74,328 @@ import type {
   PlanningSearchQuery,
   PlanningUpdatePayload,
 } from './core';
+
+export interface PlanningLiveRoadmapsQuery extends PlanningRepoDocRefOptions {}
+
+export interface PlanningLiveGoalQuery extends PlanningRepoDocRefOptions {}
+
+export interface PlanningLivePlansQuery extends PlanningRepoDocRefOptions {
+  goalId?: string;
+  roadmapId?: string;
+}
+
+export interface PlanningLiveTodosQuery extends PlanningRepoDocRefOptions {
+  roadmapId?: string;
+  planId?: string;
+  workPointId?: string;
+}
+
+function normalizePlanningLiveRepoSummary(value: unknown): PlanningRepoSummary | null {
+  const record = asRecord(value);
+  const repoId = asTrimmedString(record.repoId);
+  const repoPath = asTrimmedString(record.repoPath);
+  const repoLabel = asTrimmedString(record.repoLabel);
+
+  if (!repoId && !repoPath && !repoLabel) {
+    return null;
+  }
+
+  return {
+    ...record,
+    repoId,
+    repoPath,
+    repoLabel,
+  };
+}
+
+function normalizePlanningLiveValidationFinding(value: unknown): PlanningLiveValidationFinding | null {
+  const record = asRecord(value);
+  const code = asTrimmedString(record.code);
+  const message = asTrimmedString(record.message);
+  const findingId = asTrimmedString(record.findingId);
+  if (!findingId && !code && !message) {
+    return null;
+  }
+
+  return {
+    ...record,
+    findingId: findingId || undefined,
+    entityType: asTrimmedString(record.entityType) || undefined,
+    entityId: asTrimmedString(record.entityId) || undefined,
+    severity: asTrimmedString(record.severity) || undefined,
+    code: code || undefined,
+    message: message || undefined,
+    createdAt: asTrimmedString(record.createdAt) || undefined,
+  };
+}
+
+function normalizePlanningLiveValidationSummary(value: unknown): PlanningLiveValidationSummary | null {
+  const record = asRecord(value);
+  if (!Object.keys(record).length) {
+    return null;
+  }
+
+  return {
+    ...record,
+    status: asTrimmedString(record.status) || null,
+    findings: asArray(record.findings)
+      .map((entry) => normalizePlanningLiveValidationFinding(entry))
+      .filter((entry): entry is PlanningLiveValidationFinding => entry !== null),
+  };
+}
+
+function normalizePlanningLiveGoal(value: unknown): PlanningLiveGoal | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    ...record,
+    id,
+    correlationId: asTrimmedString(record.correlationId) || null,
+    title: asTrimmedString(record.title) || null,
+    description: asTrimmedString(record.description) || null,
+    acceptanceCriteria: asStringList(record.acceptanceCriteria),
+    rejectionCriteria: asStringList(record.rejectionCriteria),
+    status: asTrimmedString(record.status) || null,
+    tags: asStringList(record.tags),
+    revision: Number.isFinite(Number(record.revision)) ? asNumber(record.revision) : null,
+    createdAt: asTrimmedString(record.createdAt) || null,
+    updatedAt: asTrimmedString(record.updatedAt) || null,
+  };
+}
+
+function normalizePlanningLiveRoadmapSummary(value: unknown): PlanningLiveRoadmapSummary | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    ...record,
+    id,
+    goalId: asTrimmedString(record.goalId) || null,
+    correlationId: asTrimmedString(record.correlationId) || null,
+    title: asTrimmedString(record.title) || null,
+    summary: asTrimmedString(record.summary) || null,
+    status: asTrimmedString(record.status) || null,
+    tags: asStringList(record.tags),
+    revision: Number.isFinite(Number(record.revision)) ? asNumber(record.revision) : null,
+    createdAt: asTrimmedString(record.createdAt) || null,
+    updatedAt: asTrimmedString(record.updatedAt) || null,
+  };
+}
+
+function normalizePlanningLiveRoadmapSection(value: unknown): PlanningLiveRoadmapSection | null {
+  const record = asRecord(value);
+  if (!Object.keys(record).length) {
+    return null;
+  }
+
+  return {
+    ...record,
+    id: asTrimmedString(record.id) || null,
+    roadmapId: asTrimmedString(record.roadmapId) || null,
+    title: asTrimmedString(record.title) || null,
+    summary: asTrimmedString(record.summary) || null,
+    ordering: Number.isFinite(Number(record.ordering)) ? asNumber(record.ordering) : null,
+  };
+}
+
+function normalizePlanningLiveWorkPoint(value: unknown): PlanningLiveWorkPoint | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    ...record,
+    id,
+    roadmapId: asTrimmedString(record.roadmapId) || null,
+    sectionId: asTrimmedString(record.sectionId) || null,
+    title: asTrimmedString(record.title) || null,
+    summary: asTrimmedString(record.summary) || null,
+    status: asTrimmedString(record.status) || null,
+    ordering: Number.isFinite(Number(record.ordering)) ? asNumber(record.ordering) : null,
+    dependencyIds: asStringList(record.dependencyIds),
+    validationExpectations: asStringList(record.validationExpectations),
+    tags: asStringList(record.tags),
+    revision: Number.isFinite(Number(record.revision)) ? asNumber(record.revision) : null,
+    createdAt: asTrimmedString(record.createdAt) || null,
+    updatedAt: asTrimmedString(record.updatedAt) || null,
+  };
+}
+
+function normalizePlanningLivePlanSummary(value: unknown): PlanningLivePlanSummary | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    ...record,
+    id,
+    goalId: asTrimmedString(record.goalId) || null,
+    roadmapId: asTrimmedString(record.roadmapId) || null,
+    correlationId: asTrimmedString(record.correlationId) || null,
+    title: asTrimmedString(record.title) || null,
+    summary: asTrimmedString(record.summary) || null,
+    scope: asTrimmedString(record.scope) || null,
+    assumptions: asStringList(record.assumptions),
+    stopConditions: asStringList(record.stopConditions),
+    validationSteps: asStringList(record.validationSteps),
+    targetedWorkPointIds: asStringList(record.targetedWorkPointIds),
+    status: asTrimmedString(record.status) || null,
+    tags: asStringList(record.tags),
+    revision: Number.isFinite(Number(record.revision)) ? asNumber(record.revision) : null,
+    createdAt: asTrimmedString(record.createdAt) || null,
+    updatedAt: asTrimmedString(record.updatedAt) || null,
+  };
+}
+
+function normalizePlanningLiveTodo(value: unknown): PlanningLiveTodo | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    ...record,
+    id,
+    planId: asTrimmedString(record.planId) || null,
+    workPointId: asTrimmedString(record.workPointId) || null,
+    title: asTrimmedString(record.title) || null,
+    summary: asTrimmedString(record.summary) || null,
+    status: asTrimmedString(record.status) || null,
+    priority: asTrimmedString(record.priority) || null,
+    evidenceRefs: asStringList(record.evidenceRefs),
+    tags: asStringList(record.tags),
+    ordering: Number.isFinite(Number(record.ordering)) ? asNumber(record.ordering) : null,
+    revision: Number.isFinite(Number(record.revision)) ? asNumber(record.revision) : null,
+    createdAt: asTrimmedString(record.createdAt) || null,
+    updatedAt: asTrimmedString(record.updatedAt) || null,
+  };
+}
+
+function normalizePlanningLiveReviewPoint(value: unknown): PlanningLiveReviewPoint | null {
+  const record = asRecord(value);
+  const id = asTrimmedString(record.id);
+  if (!id) {
+    return null;
+  }
+
+  return {
+    ...record,
+    id,
+  };
+}
+
+function normalizePlanningLiveRoadmapsResponse(payload: unknown): PlanningLiveRoadmapsResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningLiveRepoSummary(record.repo),
+    count: asNumber(record.count, 0),
+    roadmaps: asArray(record.roadmaps)
+      .map((entry) => normalizePlanningLiveRoadmapSummary(entry))
+      .filter((entry): entry is PlanningLiveRoadmapSummary => entry !== null),
+  };
+}
+
+function normalizePlanningLiveRoadmapResponse(payload: unknown): PlanningLiveRoadmapResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningLiveRepoSummary(record.repo),
+    roadmap: normalizePlanningLiveRoadmapSummary(record.roadmap),
+    sections: asArray(record.sections)
+      .map((entry) => normalizePlanningLiveRoadmapSection(entry))
+      .filter((entry): entry is PlanningLiveRoadmapSection => entry !== null),
+    workPoints: asArray(record.workPoints)
+      .map((entry) => normalizePlanningLiveWorkPoint(entry))
+      .filter((entry): entry is PlanningLiveWorkPoint => entry !== null),
+    validation: normalizePlanningLiveValidationSummary(record.validation),
+  };
+}
+
+function normalizePlanningLiveGoalResponse(payload: unknown): PlanningLiveGoalResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningLiveRepoSummary(record.repo),
+    goal: normalizePlanningLiveGoal(record.goal),
+    roadmaps: asArray(record.roadmaps)
+      .map((entry) => normalizePlanningLiveRoadmapSummary(entry))
+      .filter((entry): entry is PlanningLiveRoadmapSummary => entry !== null),
+    validation: normalizePlanningLiveValidationSummary(record.validation),
+  };
+}
+
+function normalizePlanningLivePlansResponse(payload: unknown): PlanningLivePlansResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningLiveRepoSummary(record.repo),
+    filters: asRecord(record.filters),
+    count: asNumber(record.count, 0),
+    plans: asArray(record.plans)
+      .map((entry) => normalizePlanningLivePlanSummary(entry))
+      .filter((entry): entry is PlanningLivePlanSummary => entry !== null),
+  };
+}
+
+function normalizePlanningLivePlanResponse(payload: unknown): PlanningLivePlanResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningLiveRepoSummary(record.repo),
+    plan: normalizePlanningLivePlanSummary(record.plan),
+    todos: asArray(record.todos)
+      .map((entry) => normalizePlanningLiveTodo(entry))
+      .filter((entry): entry is PlanningLiveTodo => entry !== null),
+    reviewPoints: asArray(record.reviewPoints)
+      .map((entry) => normalizePlanningLiveReviewPoint(entry))
+      .filter((entry): entry is PlanningLiveReviewPoint => entry !== null),
+    validation: normalizePlanningLiveValidationSummary(record.validation),
+  };
+}
+
+function normalizePlanningLiveTodosResponse(payload: unknown): PlanningLiveTodosResponse {
+  const record = asRecord(payload);
+  return {
+    ...record,
+    contractVersion: asTrimmedString(record.contractVersion) || undefined,
+    kind: asTrimmedString(record.kind) || undefined,
+    deterministic: asBoolean(record.deterministic, true),
+    repo: normalizePlanningLiveRepoSummary(record.repo),
+    filters: asRecord(record.filters),
+    count: asNumber(record.count, 0),
+    todos: asArray(record.todos)
+      .map((entry) => normalizePlanningLiveTodo(entry))
+      .filter((entry): entry is PlanningLiveTodo => entry !== null),
+  };
+}
 
 export async function getPlanningObsidianStatus(
   query: PlanningRepoDocRefOptions = {},
@@ -189,6 +532,110 @@ export async function refreshPlanningObsidianRepresentations(
   });
 
   return normalizeObsidianPlanningRepresentationsRefreshResponse(payload);
+}
+
+export async function listPlanningLiveRoadmaps(
+  query: PlanningLiveRoadmapsQuery = {},
+  baseUrl?: string,
+): Promise<PlanningLiveRoadmapsResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/live/roadmaps', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizePlanningLiveRoadmapsResponse(payload);
+}
+
+export async function getPlanningLiveRoadmap(
+  roadmapId: string,
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string,
+): Promise<PlanningLiveRoadmapResponse> {
+  const payload = await apiRequest<unknown>(`/api/planning/live/roadmaps/${encodeURIComponent(roadmapId)}`, {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizePlanningLiveRoadmapResponse(payload);
+}
+
+export async function getPlanningLiveGoal(
+  goalId: string,
+  query: PlanningLiveGoalQuery = {},
+  baseUrl?: string,
+): Promise<PlanningLiveGoalResponse> {
+  const payload = await apiRequest<unknown>(`/api/planning/live/goals/${encodeURIComponent(goalId)}`, {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizePlanningLiveGoalResponse(payload);
+}
+
+export async function listPlanningLivePlans(
+  query: PlanningLivePlansQuery = {},
+  baseUrl?: string,
+): Promise<PlanningLivePlansResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/live/plans', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+      goalId: asTrimmedString(query.goalId) || undefined,
+      roadmapId: asTrimmedString(query.roadmapId) || undefined,
+    },
+  });
+
+  return normalizePlanningLivePlansResponse(payload);
+}
+
+export async function getPlanningLivePlan(
+  planId: string,
+  query: PlanningRepoDocRefOptions = {},
+  baseUrl?: string,
+): Promise<PlanningLivePlanResponse> {
+  const payload = await apiRequest<unknown>(`/api/planning/live/plans/${encodeURIComponent(planId)}`, {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+    },
+  });
+
+  return normalizePlanningLivePlanResponse(payload);
+}
+
+export async function listPlanningLiveTodos(
+  query: PlanningLiveTodosQuery = {},
+  baseUrl?: string,
+): Promise<PlanningLiveTodosResponse> {
+  const payload = await apiRequest<unknown>('/api/planning/live/todos', {
+    baseUrl,
+    query: {
+      repoId: asTrimmedString(query.repoId) || undefined,
+      repoPath: asTrimmedString(query.repoPath) || undefined,
+      repoLabel: asTrimmedString(query.repoLabel) || undefined,
+      roadmapId: asTrimmedString(query.roadmapId) || undefined,
+      planId: asTrimmedString(query.planId) || undefined,
+      workPointId: asTrimmedString(query.workPointId) || undefined,
+    },
+  });
+
+  return normalizePlanningLiveTodosResponse(payload);
 }
 
 export async function getPlanningRecords(query: PlanningContextQuery = {}, baseUrl?: string): Promise<PlanningRecordsResponse> {

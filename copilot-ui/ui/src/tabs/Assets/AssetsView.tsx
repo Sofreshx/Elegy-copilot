@@ -785,7 +785,7 @@ export default function AssetsView() {
   );
   const recommendedAssets = catalogState.assets.filter((asset) => asset.recommended);
   const workflowBundles = useMemo(
-    () => catalogState.bundles.filter((bundle) => bundle.bundleId === 'superpowers-workflow' || bundleHasTag(bundle, 'superpowers')),
+    () => catalogState.bundles.filter((bundle) => bundle.classification === 'workflow' && !isBundleActive(bundle)),
     [catalogState.bundles]
   );
   const auditCounts = useMemo(() => {

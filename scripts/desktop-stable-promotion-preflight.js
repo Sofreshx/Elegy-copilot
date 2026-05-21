@@ -121,6 +121,14 @@ function resolveGitHubAuthToken(options = {}) {
   );
 }
 
+function resolveOptionalGitHubAuthToken(options = {}) {
+  try {
+    return resolveGitHubAuthToken(options);
+  } catch (_error) {
+    return '';
+  }
+}
+
 function getMissingPreviewReleaseAssets(release) {
   const assets = Array.isArray(release && release.assets) ? release.assets : [];
   const assetNames = assets.map((asset) => normalizeString(asset && asset.name)).filter(Boolean);
@@ -148,14 +156,19 @@ async function fetchPreviewReleaseByTag(options) {
     throw new Error('Global fetch is unavailable; stable desktop promotion preflight cannot query GitHub releases.');
   }
 
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    'Cache-Control': 'no-store',
+    'User-Agent': 'elegy-copilot-desktop-stable-preflight',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+  const githubToken = normalizeString(options.githubToken);
+  if (githubToken) {
+    headers.Authorization = `Bearer ${githubToken}`;
+  }
+
   const response = await fetchImpl(options.url, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      Authorization: `Bearer ${options.githubToken}`,
-      'Cache-Control': 'no-store',
-      'User-Agent': 'elegy-copilot-desktop-stable-preflight',
-      'X-GitHub-Api-Version': '2022-11-28',
-    },
+    headers,
   });
 
   if (response.status === 404) {
@@ -290,7 +303,7 @@ async function verifyStableDesktopPromotionPreflight(options = {}) {
     );
   }
 
-  const githubToken = resolveGitHubAuthToken({
+  const githubToken = resolveOptionalGitHubAuthToken({
     githubToken: options.githubToken,
     env: options.env,
     commandRunner: options.commandRunner,

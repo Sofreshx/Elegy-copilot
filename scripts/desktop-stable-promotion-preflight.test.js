@@ -228,7 +228,7 @@ test('stable desktop promotion preflight fails when the desktop tag points at a 
   }
 });
 
-test('stable desktop promotion preflight fails closed when GitHub metadata auth is unavailable', async () => {
+test('stable desktop promotion preflight can query public preview metadata without GitHub auth', async () => {
   const { root, repoRoot } = createRepoWithOrigin();
 
   try {
@@ -237,15 +237,22 @@ test('stable desktop promotion preflight fails closed when GitHub metadata auth 
     runCommand('git', ['push', '-u', 'origin', 'main'], { cwd: repoRoot });
     pushTag(repoRoot, '1.2.3');
 
-    await assert.rejects(
-      verifyStableDesktopPromotionPreflight({
-        commandRunner() {
-          return { ok: false, output: '' };
-        },
-        repoRoot,
-      }),
-      /could not authenticate GitHub metadata checks/,
-    );
+    let requestHeaders = null;
+
+    const result = await verifyStableDesktopPromotionPreflight({
+      commandRunner() {
+        return { ok: false, output: '' };
+      },
+      fetchImpl: async (_url, options) => {
+        requestHeaders = options.headers;
+        return jsonResponse(createRelease('1.2.3'));
+      },
+      repoRoot,
+      selectedRef: 'HEAD',
+    });
+
+    assert.equal(result.status, 'passed');
+    assert.equal(requestHeaders.Authorization, undefined);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

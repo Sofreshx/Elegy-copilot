@@ -1,6 +1,6 @@
 html {
   font-size: 16px;
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
@@ -8,9 +8,9 @@ body {
   font-family: var(--font-body);
   color: var(--color-ink-700);
   background:
-    radial-gradient(circle at 12% 14%, rgba(47, 165, 157, 0.28), transparent 46%),
-    radial-gradient(circle at 88% 10%, rgba(210, 106, 61, 0.2), transparent 45%),
-    linear-gradient(180deg, #f8fbff 0%, #edf2ff 100%);
+    radial-gradient(circle at 14% 15%, rgba(110, 175, 168, 0.18), transparent 34%),
+    radial-gradient(circle at 86% 9%, rgba(201, 156, 99, 0.12), transparent 26%),
+    linear-gradient(180deg, #0f1216 0%, #14181d 52%, #101318 100%);
   line-height: 1.5;
   min-height: 100vh;
   scrollbar-gutter: stable;
@@ -20,10 +20,10 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.5) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.45) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 28px 28px;
-  opacity: 0.18;
+  opacity: 0.5;
   pointer-events: none;
   z-index: var(--z-base);
 }
@@ -54,7 +54,8 @@ a {
 code {
   font-family: var(--font-mono);
   background: var(--color-ink-100);
-  color: var(--color-ink-700);
+  color: var(--color-ink-900);
+  border: 1px solid var(--color-border-100);
   border-radius: var(--radius-sm);
   padding: 0.125rem 0.375rem;
 }

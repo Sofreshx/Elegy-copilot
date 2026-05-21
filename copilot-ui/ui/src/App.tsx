@@ -161,10 +161,8 @@ export default function App() {
           managedCliSummary={managedCliSummary}
           desktopUpdaterTone={desktopUpdaterPresentation.tone}
           desktopUpdaterSummary={desktopUpdaterPresentation.summary}
-          canCheckForUpdates={desktopUpdaterState.canCheckForUpdates}
           canDownload={desktopUpdaterState.canDownload}
           canRestartToUpdate={desktopUpdaterState.canRestartToUpdate}
-          onCheckForUpdates={() => void desktopUpdaterStore.checkForUpdates()}
           onDownloadUpdate={() => void desktopUpdaterStore.downloadUpdate()}
           onRestartToUpdate={() => void desktopUpdaterStore.restartToUpdate()}
         />

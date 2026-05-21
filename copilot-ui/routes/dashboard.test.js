@@ -114,6 +114,19 @@ function registerWithMocks(overrides = {}) {
   return register({
     sendJson: createSendJson(),
     sessionAggregation: null,
+    repoInventory: {
+      loadRepoInventoryState() {
+        return {
+          manualRepos: [
+            {
+              repoId: 'proj-a',
+              repoPath: '/home/user/my-repo',
+              canonicalRemote: 'owner/my-repo',
+            },
+          ],
+        };
+      },
+    },
     ...overrides,
   });
 }
@@ -263,6 +276,19 @@ async function run() {
     assert.equal(body[0].id, 's1');
   });
 
+  await test('project sessions matches tracked project repoPath through cwd', async () => {
+    const sessions = makeSessions([
+      { id: 's1', cwd: '/home/user/my-repo', status: 'active', lastEventTime: 2000 },
+      { id: 's2', cwd: '/home/user/other-repo', status: 'idle', lastEventTime: 1000 },
+    ]);
+    const routes = registerWithMocks({ sessions: createMockSessions(sessions) });
+    const { res, body } = invoke(routes, { copilotHome: '/fake', copilotHomeAbs: '/fake' }, 'GET', '/api/projects/proj-a/sessions');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.length, 1);
+    assert.equal(body[0].id, 's1');
+  });
+
   await test('project sessions returns empty array when no sessions match', async () => {
     const sessions = makeSessions([
       { id: 's1', projectId: 'proj-a', status: 'idle', lastEventTime: 1000 },
@@ -293,6 +319,19 @@ async function run() {
     assert.equal(body[0].timestamp, 3000);
     assert.equal(body[1].timestamp, 2000);
     assert.equal(body[2].timestamp, 1000);
+  });
+
+  await test('project activity matches tracked project by canonical remote', async () => {
+    const sessions = makeSessions([
+      { id: 's1', status: 'active', lastEventTime: 4000 },
+    ]);
+    sessions[0].repository = { fullName: 'owner/my-repo' };
+    const routes = registerWithMocks({ sessions: createMockSessions(sessions) });
+    const { res, body } = invoke(routes, { copilotHome: '/fake', copilotHomeAbs: '/fake' }, 'GET', '/api/projects/proj-a/activity');
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.length, 1);
+    assert.equal(body[0].timestamp, 4000);
   });
 
   await test('project activity limits to 20 items', async () => {

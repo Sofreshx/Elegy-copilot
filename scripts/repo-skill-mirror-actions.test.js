@@ -122,22 +122,23 @@ async function main() {
     });
   });
 
-  await test('target selection accepts gemini-cli alias without processing the shared mirror root twice', async () => {
+  await test('target selection accepts Antigravity CLI aliases without processing the shared mirror root twice', async () => {
     withTempRepo((repoRoot) => {
       writeFile(repoRoot, '.github/skills/example-skill/SKILL.md', skillDoc('Canonical version.'));
       const configPath = writeConfig(repoRoot, {
         antigravity: { kind: 'repo-mirror', enabled: true, mirrorRoot: '.gemini/skills' },
+        'antigravity-cli': { kind: 'repo-mirror', enabled: true, mirrorRoot: '.gemini/skills' },
         'gemini-cli': { kind: 'repo-mirror', enabled: true, mirrorRoot: '.gemini/skills' },
       });
 
       const result = updateModule.runUpdateRepoSkillMirrors({
         repoRoot,
         configPath,
-        targets: ['gemini-cli', 'antigravity'],
+        targets: ['antigravity-cli', 'gemini-cli', 'antigravity'],
         log: quietLog,
       });
 
-      assert.deepStrictEqual(result.targets, ['gemini-cli']);
+      assert.deepStrictEqual(result.targets, ['antigravity-cli']);
       assert.ok(fs.existsSync(path.join(repoRoot, '.gemini', 'skills', 'example-skill', 'SKILL.md')));
     });
   });

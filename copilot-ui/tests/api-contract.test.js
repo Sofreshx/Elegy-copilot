@@ -151,8 +151,14 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/lsp/config' },
   { method: 'POST', path: '/api/lsp/install' },
 
-  // Planning (45)
+  // Planning (51)
   { method: 'GET', path: '/api/planning/task-board' },
+  { method: 'GET', path: '/api/planning/live/roadmaps' },
+  { method: 'GET', path: '/api/planning/live/roadmaps/RM-demo' },
+  { method: 'GET', path: '/api/planning/live/goals/GOAL-demo' },
+  { method: 'GET', path: '/api/planning/live/plans' },
+  { method: 'GET', path: '/api/planning/live/plans/PLAN-demo' },
+  { method: 'GET', path: '/api/planning/live/todos' },
   { method: 'POST', path: '/api/planning/persistence/init' },
   { method: 'POST', path: '/api/planning/persistence/corruption/scan' },
   { method: 'POST', path: '/api/planning/persistence/retention' },
@@ -323,9 +329,16 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/git/status' },
   { method: 'GET', path: '/api/git/diff' },
   { method: 'GET', path: '/api/git/log' },
+  { method: 'GET', path: '/api/git/branches' },
+  { method: 'GET', path: '/api/git/summary' },
+  { method: 'GET', path: '/api/git/pull-request' },
   { method: 'POST', path: '/api/git/stage' },
   { method: 'POST', path: '/api/git/unstage' },
   { method: 'POST', path: '/api/git/commit' },
+  { method: 'POST', path: '/api/git/checkout' },
+  { method: 'POST', path: '/api/git/pull' },
+  { method: 'POST', path: '/api/git/push' },
+  { method: 'POST', path: '/api/git/pull-request' },
 ];
 
 async function run() {
@@ -486,9 +499,9 @@ async function run() {
       }
     }
 
-    // Summary: route count
+  // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 157, `Expected 157 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 170, `Expected 170 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

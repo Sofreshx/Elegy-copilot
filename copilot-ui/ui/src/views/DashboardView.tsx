@@ -114,10 +114,10 @@ export default function DashboardView() {
 
   return (
     <div className="dashboard-view" data-testid="execution-hub">
-      {/* Execution Header */}
+      {/* Runtime Header */}
       <div className="execution-hub-header" data-testid="execution-hub-header">
         <div className="execution-hub-header-left">
-          <h1 className="execution-hub-title" data-testid="execution-hub-title">Execution</h1>
+          <h1 className="execution-hub-title" data-testid="execution-hub-title">Runtime</h1>
           <span className="execution-hub-count" data-testid="execution-hub-count">
             {totalCount} session{totalCount !== 1 ? 's' : ''}
           </span>

@@ -57,6 +57,17 @@ jobs:
             exit 1
           fi
 
+      - name: Validate signing endpoint configuration (fail closed)
+        shell: bash
+        env:
+          SIGNING_SERVICE_URL: ${{ vars.DESKTOP_SIGNING_SERVICE_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SIGNING_SERVICE_URL}" ]]; then
+            echo "DESKTOP_SIGNING_SERVICE_URL is not configured. Refusing to build a stable desktop release that cannot be signed." >&2
+            exit 1
+          fi
+
       - name: Resolve release tag and channel
         id: meta
         shell: bash

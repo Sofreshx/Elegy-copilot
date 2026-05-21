@@ -132,6 +132,9 @@ const {
 } = require('./lib/server/trackerIntegration');
 
 const copilotUiPackageJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+const DEFAULT_DESKTOP_ROLLBACK_POLICY_FILE_NAME = 'default-desktop-rollback-policy.json';
+const DEFAULT_DESKTOP_ROLLBACK_POLICY_RUNTIME_DIRECTORY = 'runtime-manifests';
+const DEFAULT_DESKTOP_ROLLBACK_POLICY_WORKSPACE_DIRECTORY = path.join('resources', 'runtime-manifests');
 
 const WS3_AUTHORITY_DEPENDENCY_GATE_CONTRACT_VERSION = '1';
 const WS3_AUTHORITY_DEPENDENCY_NAME = 'ws3_authority_reconciliation_contract';
@@ -147,6 +150,33 @@ const WS5A_DURABILITY_CRITICAL_ROUTES = Object.freeze(new Set([
   '/api/planning/recaps',
 ]));
 const getRuntimeHealth = createRuntimeHealthResolver();
+
+function readDefaultDesktopRollbackPolicy(engineRoot, logger = () => {}) {
+  const resolvedEngineRoot = path.resolve(engineRoot || path.resolve(__dirname, '..'));
+  const candidatePaths = [
+    path.join(resolvedEngineRoot, DEFAULT_DESKTOP_ROLLBACK_POLICY_RUNTIME_DIRECTORY, DEFAULT_DESKTOP_ROLLBACK_POLICY_FILE_NAME),
+    path.join(resolvedEngineRoot, 'copilot-ui', DEFAULT_DESKTOP_ROLLBACK_POLICY_WORKSPACE_DIRECTORY, DEFAULT_DESKTOP_ROLLBACK_POLICY_FILE_NAME),
+    path.join(resolvedEngineRoot, DEFAULT_DESKTOP_ROLLBACK_POLICY_WORKSPACE_DIRECTORY, DEFAULT_DESKTOP_ROLLBACK_POLICY_FILE_NAME),
+    path.join(__dirname, DEFAULT_DESKTOP_ROLLBACK_POLICY_WORKSPACE_DIRECTORY, DEFAULT_DESKTOP_ROLLBACK_POLICY_FILE_NAME),
+  ];
+
+  for (const policyPath of candidatePaths) {
+    try {
+      if (!fs.existsSync(policyPath)) {
+        continue;
+      }
+
+      const raw = fs.readFileSync(policyPath, 'utf8').trim();
+      if (raw) {
+        return raw;
+      }
+    } catch (error) {
+      logger(`[desktop-updater] unable to read bundled rollback policy ${policyPath}: ${String(error && error.message ? error.message : error)}`);
+    }
+  }
+
+  return null;
+}
 
 function createChangeTracker(copilotHomeAbs, vscodeHomeAbs, sandboxesHomeAbs) {
   let version = 0;
@@ -4378,6 +4408,7 @@ async function startServer(options = {}) {
     typeof options.engineRoot === 'string' && options.engineRoot.trim()
       ? path.resolve(options.engineRoot.trim())
       : path.resolve(__dirname, '..');
+  const logger = quiet ? () => {} : (message) => console.log(message);
   const copilotHome = resolveCopilotHome(args);
   const vscodeHome = resolveVscodeHome(args);
   const sandboxesHome = resolveSandboxesHome(args);
@@ -4532,21 +4563,23 @@ async function startServer(options = {}) {
     decisionLoggedAt: startupManagedAssetSyncDecision.ok ? startupManagedAssetSyncDecision.event.occurredAt : null,
     decisionLogError: startupManagedAssetSyncDecision.ok ? null : startupManagedAssetSyncDecision.error,
   };
+  const bundledRollbackPolicyJson = readDefaultDesktopRollbackPolicy(engineRoot, logger);
   const desktopUpdaterController = options.desktopUpdaterController || createDesktopUpdaterController({
     appVersion: String(env.ELEGY_TAURI_APP_VERSION || copilotUiPackageJson.version || 'unknown').trim() || 'unknown',
     explicitChannel: env.INSTRUCTION_ENGINE_UPDATE_CHANNEL || null,
     rollbackPolicyJson: env.INSTRUCTION_ENGINE_ROLLBACK_POLICY_JSON,
+    defaultRollbackPolicyJson: bundledRollbackPolicyJson,
     disableUpdates: env.INSTRUCTION_ENGINE_DISABLE_UPDATES,
     publishRepository: copilotUiPackageJson.desktopRelease && copilotUiPackageJson.desktopRelease.publishRepository,
     downloadRoot: path.join(copilotHome, 'desktop-updater'),
     fetch: options.fetch,
-    logger: quiet ? () => {} : (message) => console.log(message),
+    logger,
     platform: process.platform,
   });
   const desktopUpdaterAutoCheckIntervalMs = Number.isFinite(options.desktopUpdaterAutoCheckIntervalMs)
     && Number(options.desktopUpdaterAutoCheckIntervalMs) > 0
     ? Number(options.desktopUpdaterAutoCheckIntervalMs)
-    : 6 * 60 * 60 * 1000;
+    : 15 * 60 * 1000;
   let desktopUpdaterAutoCheckTimer = null;
   function stopDesktopUpdaterBackgroundWork() {
     if (desktopUpdaterAutoCheckTimer) {
@@ -4892,6 +4925,7 @@ if (require.main === module) {
 
 module.exports = {
   startServer,
+  readDefaultDesktopRollbackPolicy,
   parseArgs,
   probeTrackerReadiness,
   containsUnsafeShellSyntax,

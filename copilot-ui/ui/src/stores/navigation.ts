@@ -18,7 +18,7 @@ export const SIDEBAR_IDS = [
 
 export type SidebarItemId = (typeof SIDEBAR_IDS)[number];
 
-export type ProjectSubView = 'overview' | 'sessions' | 'tasks' | 'config';
+export type ProjectSubView = 'overview' | 'sessions' | 'tasks' | 'git' | 'config';
 export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | 'git' | 'usage';
 export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
 export type PlanningSection = 'notes' | 'research' | 'mermaid' | 'ideas';
@@ -37,10 +37,10 @@ export type SidebarNavItem = {
 };
 
 export const SIDEBAR_NAV_ITEMS: readonly SidebarNavItem[] = [
-  { id: 'dashboard', label: 'Execution', icon: '▶', description: 'Active sessions, session output, and quick launch' },
+  { id: 'dashboard', label: 'Runtime', icon: '▶', description: 'Active sessions, runtime output, and quick launch' },
   { id: 'projects', label: 'Projects', icon: '◆', description: 'Registered repositories and project views' },
   { id: 'catalog', label: 'Catalog', icon: '▤', description: 'Asset workspace, installs, and skill discovery' },
-  { id: 'planning', label: 'Todo', icon: '☑', description: 'Work queue and backlog per repository' },
+  { id: 'planning', label: 'Planning', icon: '☑', description: 'Live roadmaps, durable task boards, and transfer per repository' },
   { id: 'maintenance', label: 'Maintenance', icon: '⚙', description: 'Updates, sandboxes, diagnostics' },
   { id: 'settings', label: 'Settings', icon: '☰', description: 'App configuration and preferences' },
 ];

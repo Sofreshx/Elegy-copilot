@@ -100,7 +100,7 @@ describe('OverlaySessionsWorkspace', () => {
     navigationMocks.navigate.mockReset();
   });
 
-  it('resumes attached sessions into Executor and keeps review lightweight', () => {
+  it('resumes attached sessions into the runtime workspace and keeps review lightweight', () => {
     render(<OverlaySessionsWorkspace />);
 
     expect(overlayStoreMocks.load).toHaveBeenCalledTimes(1);
@@ -136,7 +136,7 @@ describe('OverlaySessionsWorkspace', () => {
     expect(screen.queryByTestId('runtime-overlay-session-open-executor-overlay-closed')).not.toBeInTheDocument();
     expect(screen.getByTestId('runtime-overlay-session-select-overlay-closed')).toHaveTextContent('Reviewing');
     expect(screen.getByTestId('runtime-overlay-selected-session-summary')).toHaveTextContent(
-      'Closed overlay sessions stay reviewable here without reopening Executor handoff.',
+      'Closed overlay sessions stay reviewable here without reopening runtime handoff.',
     );
 
     fireEvent.click(screen.getByTestId('runtime-overlay-session-select-overlay-closed'));

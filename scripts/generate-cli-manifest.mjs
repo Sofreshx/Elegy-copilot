@@ -1,48 +1,13 @@
 #!/usr/bin/env node
 /* eslint-disable no-console */
 
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+import { writeCompatibilityManifest } from './catalogManifestLib.mjs';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-function listFiles(dirAbs, predicate) {
-	let entries;
-	try {
-		entries = fs.readdirSync(dirAbs, { withFileTypes: true });
-	} catch {
-		return [];
-	}
-	return entries
-		.filter((e) => e.isFile() && (!predicate || predicate(e.name)))
-		.map((e) => path.join(dirAbs, e.name));
-}
-
-function listDirs(dirAbs) {
-	let entries;
-	try {
-		entries = fs.readdirSync(dirAbs, { withFileTypes: true });
-	} catch {
-		return [];
-	}
-	return entries.filter((e) => e.isDirectory()).map((e) => path.join(dirAbs, e.name));
-}
-
-function stableSort(a, b) {
-	return a.localeCompare(b);
-}
-
-function normalizePathValue(value) {
-	return String(value || '').replace(/\\/g, '/');
-}
-
-const MANDATORY_ALLOWLIST_ITEMS = Object.freeze({
-	agents: [],
-	skills: ['core-guardrails'],
-	prompts: []
-});
 
 function parseArgs(argv) {
 	const args = { all: false };
@@ -56,212 +21,14 @@ function parseArgs(argv) {
 	return args;
 }
 
-function loadAllowlist(engineRoot, args) {
-	if (args && args.all) return null;
-	const allowPath = path.join(engineRoot, '.cli', 'manifest.allowlist.json');
-	if (!fs.existsSync(allowPath)) return null;
-
-	const parsed = JSON.parse(fs.readFileSync(allowPath, 'utf8'));
-	if (!parsed || typeof parsed !== 'object') {
-		throw new Error('Invalid manifest.allowlist.json (expected JSON object)');
-	}
-	const agents = Array.isArray(parsed.agents) ? parsed.agents : [];
-	const skills = Array.isArray(parsed.skills) ? parsed.skills : [];
-	const prompts = Array.isArray(parsed.prompts) ? parsed.prompts : [];
-
-	return {
-		allowPath,
-		agents: new Set(agents.map((x) => String(x))),
-		skills: new Set(skills.map((x) => String(x))),
-		prompts: new Set(prompts.map((x) => String(x)))
-	};
-}
-
-function enforceMandatoryAllowlistItems(allow) {
-	if (!allow) return;
-
-	for (const name of MANDATORY_ALLOWLIST_ITEMS.agents) allow.agents.add(name);
-	for (const name of MANDATORY_ALLOWLIST_ITEMS.skills) allow.skills.add(name);
-	for (const name of MANDATORY_ALLOWLIST_ITEMS.prompts) allow.prompts.add(name);
-}
-
-function collectCanonicalAssetMetadata(engineManifest) {
-	const metadata = new Map();
-	const assets = Array.isArray(engineManifest?.assets) ? engineManifest.assets : [];
-
-	for (const asset of assets) {
-		if (!asset || typeof asset !== 'object') continue;
-		const source = normalizePathValue(asset.source);
-		if (!source) continue;
-		metadata.set(source, {
-			id: String(asset.id || ''),
-			loadMode: typeof asset.loadMode === 'string' ? asset.loadMode : undefined,
-		});
-	}
-
-	return metadata;
-}
-
-function filterBundlesForCli(bundles, availableAssetIds) {
-	if (!Array.isArray(bundles)) return [];
-
-	const included = [];
-	for (const bundle of bundles) {
-		if (!bundle || typeof bundle !== 'object') continue;
-		const assetIds = Array.isArray(bundle.assetIds)
-			? bundle.assetIds.filter((assetId) => availableAssetIds.has(String(assetId || '')))
-			: [];
-		if (assetIds.length === 0) continue;
-		included.push({
-			...bundle,
-			assetIds,
-		});
-	}
-
-	const includedBundleIds = new Set(included.map((bundle) => String(bundle.id || '')));
-	return included.map((bundle) => ({
-		...bundle,
-		dependsOn: Array.isArray(bundle.dependsOn)
-			? bundle.dependsOn.filter((bundleId) => includedBundleIds.has(String(bundleId || '')))
-			: [],
-	}));
-}
-
 function main() {
 	const args = parseArgs(process.argv.slice(2));
 	const engineRoot = path.resolve(__dirname, '..');
-	const manifestPath = path.join(engineRoot, '.cli', 'manifest.json');
-	const engineManifestPath = path.join(engineRoot, 'engine-assets', 'manifest.json');
-	const assetsRoot = path.join(engineRoot, 'engine-assets');
-	const assetsAgents = path.join(assetsRoot, 'agents');
-	const assetsSkills = path.join(assetsRoot, 'skills');
-	const assetsPrompts = path.join(assetsRoot, 'prompts');
-	const cliInstructions = path.join(assetsRoot, 'copilot-instructions.md');
-	const allow = loadAllowlist(engineRoot, args);
-	enforceMandatoryAllowlistItems(allow);
-
-	if (!fs.existsSync(manifestPath)) {
-		console.error(`Missing manifest: ${manifestPath}`);
-		process.exit(1);
-	}
-
-	const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-	if (!manifest || typeof manifest !== 'object') throw new Error('Invalid manifest JSON');
-	const engineManifest = JSON.parse(fs.readFileSync(engineManifestPath, 'utf8'));
-	if (!engineManifest || typeof engineManifest !== 'object') throw new Error('Invalid engine-assets manifest JSON');
-	const canonicalAssets = collectCanonicalAssetMetadata(engineManifest);
-
-	const assets = [];
-	const matched = {
-		agents: new Set(),
-		skills: new Set(),
-		prompts: new Set()
-	};
-
-	// Agents (files)
-	for (const fileAbs of listFiles(assetsAgents, (n) => n.toLowerCase().endsWith('.agent.md')).sort(stableSort)) {
-		const fileName = path.basename(fileAbs);
-		const base = fileName.replace(/\.agent\.md$/i, '');
-		if (allow && !allow.agents.has(base)) continue;
-		matched.agents.add(base);
-		const source = `engine-assets/agents/${fileName}`;
-		const canonical = canonicalAssets.get(source);
-		const id = canonical?.id || (base.startsWith('agent-') ? base : `agent-${base}`);
-		assets.push({
-			id,
-			type: 'agent',
-			source,
-			destination: `agents/${fileName}`
-		});
-	}
-
-	// Skills (directory assets)
-	for (const dirAbs of listDirs(assetsSkills).sort(stableSort)) {
-		const name = path.basename(dirAbs);
-		if (allow && !allow.skills.has(name)) continue;
-		const skillFile = path.join(dirAbs, 'SKILL.md');
-		if (!fs.existsSync(skillFile)) continue;
-		matched.skills.add(name);
-		const source = `engine-assets/skills/${name}`;
-		const canonical = canonicalAssets.get(source);
-		const asset = {
-			id: canonical?.id || `skill-${name}`,
-			type: 'skill',
-			source,
-			destination: `skills/${name}`
-		};
-		if (canonical?.loadMode) {
-			asset.loadMode = canonical.loadMode;
-		}
-
-		// Detect pointer skills (vault-ref in SKILL.md frontmatter)
-		const skillContent = fs.readFileSync(skillFile, 'utf8');
-		const isPointer = /^---[\s\S]*?vault-ref:\s*.+[\s\S]*?---/m.test(skillContent);
-		if (isPointer) {
-			const vaultRefMatch = skillContent.match(/vault-ref:\s*(.+)/);
-			asset.pointer = true;
-			if (vaultRefMatch) {
-				asset.vaultRef = vaultRefMatch[1].trim();
-			}
-		}
-
-		assets.push(asset);
-	}
-
-	// Prompts (files)
-	if (fs.existsSync(assetsPrompts)) {
-		for (const fileAbs of listFiles(assetsPrompts, (n) => n.toLowerCase().endsWith('.prompt.md')).sort(stableSort)) {
-			const fileName = path.basename(fileAbs);
-			const base = fileName.replace(/\.prompt\.md$/i, '');
-			if (allow && !allow.prompts.has(base)) continue;
-			matched.prompts.add(base);
-			const source = `engine-assets/prompts/${fileName}`;
-			const canonical = canonicalAssets.get(source);
-			assets.push({
-				id: canonical?.id || `prompt-${base}`,
-				type: 'prompt',
-				source,
-				destination: `prompts/${fileName}`
-			});
-		}
-	}
-
-	// Global instructions (file)
-	if (fs.existsSync(cliInstructions)) {
-		assets.push({
-			id: 'copilot-instructions',
-			type: 'instructions',
-			source: 'engine-assets/copilot-instructions.md',
-			destination: 'copilot-instructions.md'
-		});
-	}
-
-	assets.sort((a, b) => (a.type || '').localeCompare(b.type || '') || (a.id || '').localeCompare(b.id || ''));
-
-	if (allow) {
-		const missingAgents = [...allow.agents].filter((x) => !matched.agents.has(x));
-		const missingSkills = [...allow.skills].filter((x) => !matched.skills.has(x));
-		const missingPrompts = [...allow.prompts].filter((x) => !matched.prompts.has(x));
-		const missing = [...missingAgents, ...missingSkills, ...missingPrompts];
-		if (missing.length > 0) {
-			throw new Error(
-				`Allowlist contains items not found in repo. Check ${allow.allowPath}: ${missing.join(', ')}`
-			);
-		}
-	}
-
-	const availableAssetIds = new Set(assets.map((asset) => String(asset.id || '')));
-	manifest.bundles = filterBundlesForCli(engineManifest.bundles, availableAssetIds);
-	manifest.assets = assets;
-	manifest.sourcePatterns = [
-		{ type: 'agent', sourceGlob: 'engine-assets/agents/*.agent.md', destinationDir: 'agents' },
-		{ type: 'skill', sourceGlob: 'engine-assets/skills/*', destinationDir: 'skills' },
-		{ type: 'prompt', sourceGlob: 'engine-assets/prompts/*.prompt.md', destinationDir: 'prompts' }
-	];
-
-	fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n', 'utf8');
-	const suffix = allow ? ` (allowlist: ${allow.allowPath})` : '';
-	console.log(`Wrote ${manifestPath} (${assets.length} assets)${suffix}`);
+	const result = writeCompatibilityManifest('cli', {
+		repoRoot: engineRoot,
+		all: args.all,
+	});
+	console.log(`Wrote ${result.outputPath} (${result.manifest.assets.length} assets)`);
 }
 
 main();

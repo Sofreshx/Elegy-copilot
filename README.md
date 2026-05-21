@@ -1,6 +1,6 @@
 # Instruction Engine
 
-Instruction Engine is the shared asset repo behind Elegy Copilot. It ships curated install surfaces for Copilot, Codex, OpenCode, and Antigravity/Gemini, plus a local catalog UI for status, external sources, and repo registration.
+Instruction Engine is the shared asset repo behind Elegy Copilot. It ships curated install surfaces for Copilot, Codex, OpenCode, and Antigravity 2 / Antigravity CLI with Gemini CLI compatibility, plus a local catalog UI for status, external sources, and repo registration.
 
 ## Install Or Refresh
 
@@ -21,7 +21,7 @@ Instruction Engine is the shared asset repo behind Elegy Copilot. It ships curat
 - Copilot skills use `~/.copilot/skills` and `~/.copilot/skills-vault` based on `loadMode`.
 - Codex installs from `codex-assets/` into `~/.codex`.
 - OpenCode installs from `opencode-assets/` into `~/.config/opencode`.
-- Antigravity installs from `antigravity-assets/` into `~/.gemini`, with shared skills under `~/.gemini/antigravity/skills`.
+- Antigravity 2 / Antigravity CLI installs from `antigravity-assets/` into the current Gemini-compatible `~/.gemini` layout, with shared skills under `~/.gemini/antigravity/skills`.
 - Global shipped assets are still split by harness. There is not one universal global skill root yet.
 
 ## Catalog
@@ -35,7 +35,7 @@ Instruction Engine is the shared asset repo behind Elegy Copilot. It ships curat
 - Upstream installer scripts are never executed.
 - Activation is global per target, not repo-scoped.
 - Current external-source skill targets: `codex`, `opencode`, `antigravity`.
-- Current external-source MCP targets: `codex`, `opencode`, `gemini-cli`.
+- Current external-source MCP targets: `codex`, `opencode`, `antigravity-cli` (legacy alias: `gemini-cli`).
 
 ## Repo-Local Skills
 

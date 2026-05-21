@@ -53,7 +53,18 @@ function parseJsonBody(response) {
 }
 
 function findRoute(routes, method, pathname) {
-  const route = routes.find((candidate) => candidate.method === method && candidate.path === pathname);
+  const route = routes.find((candidate) => {
+    if (candidate.method !== method) {
+      return false;
+    }
+    if (typeof candidate.path === 'string') {
+      return candidate.path === pathname;
+    }
+    if (candidate.path instanceof RegExp) {
+      return candidate.path.test(pathname);
+    }
+    return false;
+  });
   if (!route) {
     throw new Error(`Route not found: ${method} ${pathname}`);
   }
@@ -63,6 +74,7 @@ function findRoute(routes, method, pathname) {
 async function invoke(routes, method, pathname, ctx) {
   const u = new URL(`http://127.0.0.1${pathname}`);
   const route = findRoute(routes, method, u.pathname);
+  const match = route.path instanceof RegExp ? u.pathname.match(route.path) : null;
   const res = createResponse();
   const req = {
     method,
@@ -75,6 +87,7 @@ async function invoke(routes, method, pathname, ctx) {
     res,
     u,
     pathname: u.pathname,
+    match,
     ...ctx,
   });
 
@@ -86,6 +99,167 @@ async function invoke(routes, method, pathname, ctx) {
 }
 
 async function run() {
+  await test('planning live roadmaps list filters by selected repo tag', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async listRoadmaps(input) {
+          assert.equal(input.requestId, 'repo-1');
+          return {
+            roadmaps: [
+              {
+                id: 'RM-one',
+                goalId: 'GOAL-one',
+                title: 'Roadmap One',
+                status: 'active',
+                tags: ['repo:repo-1'],
+              },
+              {
+                id: 'RM-two',
+                goalId: 'GOAL-two',
+                title: 'Roadmap Two',
+                status: 'finished',
+                tags: ['repo:repo-2'],
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/planning/live/roadmaps?repoId=repo-1&repoLabel=Repo%201', {});
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
+    assert.equal(body.kind, 'planning.live.roadmaps');
+    assert.equal(body.count, 1);
+    assert.deepEqual(body.repo, {
+      repoId: 'repo-1',
+      repoPath: '',
+      repoLabel: 'Repo 1',
+    });
+    assert.deepEqual(body.roadmaps.map((entry) => entry.id), ['RM-one']);
+  });
+
+  await test('planning live roadmap detail rejects repo scope mismatches', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async showRoadmap(input) {
+          assert.equal(input.roadmapId, 'RM-one');
+          return {
+            roadmap: {
+              id: 'RM-one',
+              goalId: 'GOAL-one',
+              title: 'Roadmap One',
+              tags: ['repo:repo-2'],
+            },
+            sections: [],
+            workPoints: [],
+            validation: {
+              status: 'valid',
+              findings: [],
+            },
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/planning/live/roadmaps/RM-one?repoId=repo-1', {});
+
+    assert.equal(res.statusCode, 404);
+    assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
+    assert.equal(body.kind, 'planning.live.roadmap');
+    assert.equal(body.code, 'planning_live_repo_scope_mismatch');
+    assert.equal(body.reason, 'planning_live_repo_scope_mismatch');
+  });
+
+  await test('planning live plan detail returns plan todos and validation', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async showPlan(input) {
+          assert.equal(input.planId, 'PLAN-one');
+          return {
+            plan: {
+              id: 'PLAN-one',
+              roadmapId: 'RM-one',
+              title: 'Plan One',
+              tags: ['repo:repo-1'],
+            },
+            todos: [{ id: 'TODO-one', planId: 'PLAN-one', tags: ['repo:repo-1'] }],
+            reviewPoints: [{ id: 'REVIEW-one' }],
+            validation: {
+              status: 'warning',
+              findings: [{ code: 'PLAN-NO-VALIDATION-STEPS' }],
+            },
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/planning/live/plans/PLAN-one?repoId=repo-1', {});
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
+    assert.equal(body.kind, 'planning.live.plan');
+    assert.equal(body.plan.id, 'PLAN-one');
+    assert.equal(body.todos.length, 1);
+    assert.equal(body.reviewPoints.length, 1);
+    assert.equal(body.validation.status, 'warning');
+  });
+
+  await test('planning live todos list can filter by roadmap through plan linkage', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async listPlans(input) {
+          assert.equal(input.requestId, 'RM-one');
+          return {
+            plans: [
+              { id: 'PLAN-one', roadmapId: 'RM-one', tags: ['repo:repo-1'] },
+              { id: 'PLAN-two', roadmapId: 'RM-two', tags: ['repo:repo-1'] },
+            ],
+          };
+        },
+        async listTodos(input) {
+          assert.equal(input.requestId, 'RM-one');
+          return {
+            todos: [
+              { id: 'TODO-one', planId: 'PLAN-one', tags: ['repo:repo-1'] },
+              { id: 'TODO-two', planId: 'PLAN-two', tags: ['repo:repo-1'] },
+              { id: 'TODO-three', planId: 'PLAN-one', tags: ['repo:repo-2'] },
+            ],
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/planning/live/todos?repoId=repo-1&roadmapId=RM-one', {});
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
+    assert.equal(body.kind, 'planning.live.todos');
+    assert.equal(body.count, 1);
+    assert.deepEqual(body.todos.map((entry) => entry.id), ['TODO-one']);
+  });
+
   await test('planning persistence init failures use the shared planning contract envelope', async () => {
     const routes = register({
       PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',

@@ -201,11 +201,11 @@ describe('catalogWorkspaceStore', () => {
     mockGetCatalogBundles.mockResolvedValue({
       bundles: [
         {
-          bundleId: 'superpowers-workflow',
-          title: 'Superpowers Workflow Pack',
+          bundleId: 'repo-setup-governance-global',
+          title: 'Repo Setup Governance Skill',
           status: 'available',
           stats: {
-            memberCount: 15,
+            memberCount: 1,
             installedCount: 0,
           },
           members: [],
@@ -731,21 +731,16 @@ describe('catalogWorkspaceStore', () => {
       .mockResolvedValueOnce({
         bundles: [
           {
-            bundleId: 'superpowers-workflow',
-            title: 'Superpowers Workflow Pack',
+            bundleId: 'repo-setup-governance-global',
+            title: 'Repo Setup Governance Skill',
             status: 'available',
             stats: {
-              memberCount: 2,
+              memberCount: 1,
               installedCount: 0,
             },
             members: [
               {
-                assetId: 'skill-superpowers-brainstorming',
-                available: true,
-                installed: false,
-              },
-              {
-                assetId: 'agent-superpowers-code-reviewer',
+                assetId: 'skill-repo-setup-governance',
                 available: true,
                 installed: false,
               },
@@ -756,21 +751,16 @@ describe('catalogWorkspaceStore', () => {
       .mockResolvedValueOnce({
         bundles: [
           {
-            bundleId: 'superpowers-workflow',
-            title: 'Superpowers Workflow Pack',
+            bundleId: 'repo-setup-governance-global',
+            title: 'Repo Setup Governance Skill',
             status: 'available',
             stats: {
-              memberCount: 2,
+              memberCount: 1,
               installedCount: 0,
             },
             members: [
               {
-                assetId: 'skill-superpowers-brainstorming',
-                available: true,
-                installed: false,
-              },
-              {
-                assetId: 'agent-superpowers-code-reviewer',
+                assetId: 'skill-repo-setup-governance',
                 available: true,
                 installed: false,
               },
@@ -781,12 +771,12 @@ describe('catalogWorkspaceStore', () => {
       .mockResolvedValueOnce({
         bundles: [
           {
-            bundleId: 'superpowers-workflow',
-            title: 'Superpowers Workflow Pack',
+            bundleId: 'repo-setup-governance-global',
+            title: 'Repo Setup Governance Skill',
             status: 'installed',
             stats: {
-              memberCount: 2,
-              installedCount: 2,
+              memberCount: 1,
+              installedCount: 1,
             },
             members: [],
           },
@@ -810,12 +800,11 @@ describe('catalogWorkspaceStore', () => {
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
 
     await catalogWorkspaceStore.loadWorkspace();
-    await catalogWorkspaceStore.installBundle('superpowers-workflow');
+    await catalogWorkspaceStore.installBundle('repo-setup-governance-global');
 
-    expect(mockInstallCatalogAsset).toHaveBeenCalledTimes(2);
-    expect(mockInstallCatalogAsset).toHaveBeenNthCalledWith(1, { assetId: 'skill-superpowers-brainstorming' });
-    expect(mockInstallCatalogAsset).toHaveBeenNthCalledWith(2, { assetId: 'agent-superpowers-code-reviewer' });
-    expect(catalogWorkspaceStore.getState().installMessage).toContain('Installed 2 bundle asset(s)');
+    expect(mockInstallCatalogAsset).toHaveBeenCalledTimes(1);
+    expect(mockInstallCatalogAsset).toHaveBeenNthCalledWith(1, { assetId: 'skill-repo-setup-governance' });
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Installed 1 bundle asset(s)');
   });
 
   it('uninstalls a bundle through the lifecycle route and reloads workspace state', async () => {
@@ -852,26 +841,20 @@ describe('catalogWorkspaceStore', () => {
       .mockResolvedValueOnce({
         bundles: [
           {
-            bundleId: 'superpowers-workflow',
-            title: 'Superpowers Workflow Pack',
+            bundleId: 'repo-setup-governance-global',
+            title: 'Repo Setup Governance Skill',
             activationStatus: 'active',
             status: 'installed',
             stats: {
-              memberCount: 2,
-              installedCount: 2,
+              memberCount: 1,
+              installedCount: 1,
             },
             uninstallPolicy: {
               preservesExternalPackages: true,
             },
             members: [
               {
-                assetId: 'skill-superpowers-brainstorming',
-                available: true,
-                installed: true,
-                enabled: true,
-              },
-              {
-                assetId: 'agent-superpowers-code-reviewer',
+                assetId: 'skill-repo-setup-governance',
                 available: true,
                 installed: true,
                 enabled: true,
@@ -883,12 +866,12 @@ describe('catalogWorkspaceStore', () => {
       .mockResolvedValueOnce({
         bundles: [
           {
-            bundleId: 'superpowers-workflow',
-            title: 'Superpowers Workflow Pack',
+            bundleId: 'repo-setup-governance-global',
+            title: 'Repo Setup Governance Skill',
             activationStatus: 'inactive',
             status: 'available',
             stats: {
-              memberCount: 2,
+              memberCount: 1,
               installedCount: 0,
             },
             members: [],
@@ -910,23 +893,23 @@ describe('catalogWorkspaceStore', () => {
     });
     mockUninstallCatalogBundle.mockResolvedValue({
       action: 'bundle-uninstalled',
-      bundleId: 'superpowers-workflow',
-      removedAssetIds: ['skill-superpowers-brainstorming', 'agent-superpowers-code-reviewer'],
+      bundleId: 'repo-setup-governance-global',
+      removedAssetIds: ['skill-repo-setup-governance'],
       preserveExternalPackages: true,
     });
 
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
 
     await catalogWorkspaceStore.loadWorkspace();
-    await catalogWorkspaceStore.uninstallBundle('superpowers-workflow');
+    await catalogWorkspaceStore.uninstallBundle('repo-setup-governance-global');
 
     expect(mockUninstallCatalogBundle).toHaveBeenCalledWith({
-      bundleId: 'superpowers-workflow',
+      bundleId: 'repo-setup-governance-global',
       repoId: 'repo-1',
       repoPath: 'C:\\repo',
     });
     expect(mockGetCatalogSummary).toHaveBeenCalledTimes(2);
-    expect(catalogWorkspaceStore.getState().installMessage).toContain('Uninstalled 2 bundle asset(s)');
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Uninstalled 1 bundle asset(s)');
     expect(catalogWorkspaceStore.getState().installMessage).toContain('External provider packages were preserved');
   });
 

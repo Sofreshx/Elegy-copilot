@@ -25,7 +25,7 @@ For repo-local skills in this repository, the only editable source is:
 - Copilot uses `.github/skills/<skill-name>/SKILL.md` directly.
 - Codex mirrors to `.agents/skills/<skill-name>/SKILL.md`.
 - OpenCode mirrors to `.opencode/skills/<skill-name>/SKILL.md`.
-- Gemini CLI and Antigravity mirror to `.gemini/skills/<skill-name>/SKILL.md`.
+- Antigravity, Antigravity CLI, and Gemini CLI share `.gemini/skills/<skill-name>/SKILL.md`.
 - Generated mirrors are compatibility surfaces, not peer authority.
 
 ## Deterministic Maintenance
@@ -34,7 +34,7 @@ For repo-local skills in this repository, the only editable source is:
 node scripts/check-repo-skill-mirrors.mjs
 node scripts/install-repo-skill-mirrors.mjs
 node scripts/update-repo-skill-mirrors.mjs
-node scripts/check-repo-skill-mirrors.mjs --targets codex,opencode,gemini-cli
+node scripts/check-repo-skill-mirrors.mjs --targets codex,opencode,antigravity-cli
 ```
 
 ## Rules

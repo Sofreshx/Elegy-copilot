@@ -129,7 +129,7 @@ export default function PlanFromBacklogPanel({ onClose }: PlanFromBacklogPanelPr
             onClose();
           }}
         >
-          View all in Todo
+          Open Planning Workspace
         </button>
         <button
           type="button"

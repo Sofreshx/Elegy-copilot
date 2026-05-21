@@ -110,7 +110,8 @@
       "source": "resources/runtime-manifests",
       "target": "runtime-manifests",
       "filter": [
-        "windows-tauri-node-sidecar.json"
+        "windows-tauri-node-sidecar.json",
+        "default-desktop-rollback-policy.json"
       ]
     }
   ],

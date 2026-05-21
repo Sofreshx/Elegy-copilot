@@ -8,6 +8,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const scriptPath = path.resolve(__dirname, 'skill-forge.mjs');
 const skillsRoot = path.resolve(repoRoot, 'engine-assets', 'skills');
 const indexPath = path.resolve(skillsRoot, 'skill-metadata-index.json');
+const manifestPath = path.resolve(repoRoot, 'engine-assets', 'manifest.json');
 
 let passed = 0;
 function test(name, fn) {
@@ -34,6 +35,16 @@ function cleanup(skillName) {
 	const skillDir = path.join(skillsRoot, skillName);
 	if (fs.existsSync(skillDir)) {
 		fs.rmSync(skillDir, { recursive: true, force: true });
+	}
+
+	const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+	const assetId = `skill-${skillName}`;
+	const nextAssets = Array.isArray(manifest.assets)
+		? manifest.assets.filter((asset) => asset && asset.id !== assetId)
+		: [];
+	if (nextAssets.length !== (Array.isArray(manifest.assets) ? manifest.assets.length : 0)) {
+		manifest.assets = nextAssets;
+		fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 	}
 }
 
@@ -115,6 +126,8 @@ test('creates skill and regenerates index', () => {
 	assert.strictEqual(indexAfter.entries.length, countBefore + 1, 'expected one more entry in index');
 	const newEntry = indexAfter.entries.find((e) => e.skill === testSkillName);
 	assert.ok(newEntry, 'expected new entry in index');
+	const manifestAfter = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+	assert.ok(manifestAfter.assets.some((asset) => asset && asset.id === `skill-${testSkillName}`), 'expected manifest asset entry');
 
 	cleanup(testSkillName);
 });

@@ -20,10 +20,17 @@ const ANTIGRAVITY_REQUIRED_ASSETS = [
 	{ id: 'antigravity-global-instructions', type: 'instructions' },
 ];
 
+const OPENCODE_REQUIRED_ASSETS = [
+	{ id: 'opencode-global-instructions', type: 'instructions' },
+	{ id: 'opencode-code-explorer-agent', type: 'agent' },
+	{ id: 'opencode-web-searcher-agent', type: 'agent' },
+];
+
 const manifestFiles = [
 	{ path: '.cli/manifest.json', enforceSourceExists: true, requiredAssets: DEFAULT_REQUIRED_ASSETS },
 	{ path: 'engine-assets/manifest.json', enforceSourceExists: true, requiredAssets: DEFAULT_REQUIRED_ASSETS },
 	{ path: 'codex-assets/manifest.json', enforceSourceExists: true, requiredAssets: CODEX_REQUIRED_ASSETS },
+	{ path: 'opencode-assets/manifest.json', enforceSourceExists: true, requiredAssets: OPENCODE_REQUIRED_ASSETS },
 	{ path: 'antigravity-assets/manifest.json', enforceSourceExists: true, requiredAssets: ANTIGRAVITY_REQUIRED_ASSETS },
 ];
 

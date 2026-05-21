@@ -5,6 +5,7 @@ import { execSync } from 'child_process';
 import { repoRoot } from './lib/cli-utils.mjs';
 
 const skillsRoot = path.join(repoRoot, 'engine-assets', 'skills');
+const manifestPath = path.join(repoRoot, 'engine-assets', 'manifest.json');
 const generatorPath = path.join(repoRoot, 'scripts', 'generate-skill-metadata-index.mjs');
 
 const KEBAB_CASE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -139,6 +140,49 @@ function buildSkillMd(args) {
 	return lines.join('\n');
 }
 
+function readJson(filePath) {
+	return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function sortManifestAssets(assets) {
+	const typeOrder = new Map([
+		['agent', 0],
+		['instructions', 1],
+		['prompt', 2],
+		['skill', 3],
+	]);
+	return [...assets].sort((left, right) => {
+		const leftOrder = typeOrder.get(String(left?.type || '')) ?? 9;
+		const rightOrder = typeOrder.get(String(right?.type || '')) ?? 9;
+		if (leftOrder !== rightOrder) {
+			return leftOrder - rightOrder;
+		}
+		return String(left?.id || '').localeCompare(String(right?.id || ''));
+	});
+}
+
+function ensureManifestSkillEntry(skillName) {
+	const manifest = readJson(manifestPath);
+	const assetId = `skill-${skillName}`;
+	const existingAssets = Array.isArray(manifest.assets) ? manifest.assets : [];
+	if (existingAssets.some((asset) => asset && asset.id === assetId)) {
+		return false;
+	}
+
+	manifest.assets = sortManifestAssets([
+		...existingAssets,
+		{
+			id: assetId,
+			type: 'skill',
+			source: `engine-assets/skills/${skillName}`,
+			destination: `skills/${skillName}`,
+			loadMode: 'on-demand',
+		},
+	]);
+	fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+	return true;
+}
+
 function regenerateIndex() {
 	execSync(`"${process.execPath}" "${generatorPath}"`, {
 		cwd: repoRoot,
@@ -179,6 +223,11 @@ if (fs.existsSync(skillMd)) {
 fs.mkdirSync(skillDir, { recursive: true });
 fs.writeFileSync(skillMd, content, 'utf8');
 console.log(`Created: ${path.relative(repoRoot, skillMd)}`);
+
+const manifestUpdated = ensureManifestSkillEntry(args.name);
+if (manifestUpdated) {
+	console.log(`Updated: ${path.relative(repoRoot, manifestPath)}`);
+}
 
 // Regenerate index from source
 regenerateIndex();

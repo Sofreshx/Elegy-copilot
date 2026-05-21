@@ -80,7 +80,7 @@ export default function OverlaySessionsWorkspace() {
             testId="runtime-overlay-open-selected-executor"
             variant="ghost"
           >
-            Open Selected in Executor
+            Open Selected in Runtime
           </Button>
         ) : null}
       </div>
@@ -92,11 +92,11 @@ export default function OverlaySessionsWorkspace() {
       ) : null}
 
       {overlayState.sessions.length === 0 ? (
-        <p className="state-message">
-          {overlayState.loading
-            ? 'Loading overlay sessions...'
-            : 'No attach-first overlay sessions have been recorded yet. Create and mutate them in Executor, then resume them here.'}
-        </p>
+          <p className="state-message">
+            {overlayState.loading
+              ? 'Loading overlay sessions...'
+              : 'No attach-first overlay sessions have been recorded yet. Create and mutate them in the runtime workspace, then resume them here.'}
+          </p>
       ) : (
         <>
           <ul className="tracker-session-list" data-testid="runtime-overlay-sessions-list">
@@ -194,11 +194,11 @@ export default function OverlaySessionsWorkspace() {
                 </div>
               </dl>
               <p className="tracker-item-copy">Runtime URL: {selectedSession.runtimeUrl}</p>
-              <p className="tracker-item-copy">
-                {selectedSessionClosed
-                  ? 'Closed overlay sessions stay reviewable here without reopening Executor handoff.'
-                  : 'Use Executor for attach, close, annotation, change-request, and queue actions; this Sessions workspace stays read-light with one-click handoff.'}
-              </p>
+                <p className="tracker-item-copy">
+                  {selectedSessionClosed
+                    ? 'Closed overlay sessions stay reviewable here without reopening runtime handoff.'
+                    : 'Use Executor for attach, close, annotation, change-request, and queue actions; this Sessions workspace stays read-light with one-click handoff.'}
+                </p>
             </section>
           ) : null}
         </>

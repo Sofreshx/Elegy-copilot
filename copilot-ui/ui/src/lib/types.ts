@@ -143,6 +143,196 @@ export interface PlanningTaskBoardResponse {
   projection: SessionOrchestrationProjection;
 }
 
+export interface PlanningLiveValidationFinding {
+  findingId?: string;
+  entityType?: string;
+  entityId?: string;
+  severity?: string;
+  code?: string;
+  message?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveValidationSummary {
+  status?: string | null;
+  findings: PlanningLiveValidationFinding[];
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveGoal {
+  id: string;
+  correlationId?: string | null;
+  title?: string | null;
+  description?: string | null;
+  acceptanceCriteria: string[];
+  rejectionCriteria: string[];
+  status?: string | null;
+  tags: string[];
+  revision?: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveRoadmapSummary {
+  id: string;
+  goalId?: string | null;
+  correlationId?: string | null;
+  title?: string | null;
+  summary?: string | null;
+  status?: string | null;
+  tags: string[];
+  revision?: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveRoadmapSection {
+  id?: string | null;
+  roadmapId?: string | null;
+  title?: string | null;
+  summary?: string | null;
+  ordering?: number | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveWorkPoint {
+  id: string;
+  roadmapId?: string | null;
+  sectionId?: string | null;
+  title?: string | null;
+  summary?: string | null;
+  status?: string | null;
+  ordering?: number | null;
+  dependencyIds: string[];
+  validationExpectations: string[];
+  tags: string[];
+  revision?: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningLivePlanSummary {
+  id: string;
+  goalId?: string | null;
+  roadmapId?: string | null;
+  correlationId?: string | null;
+  title?: string | null;
+  summary?: string | null;
+  scope?: string | null;
+  assumptions: string[];
+  stopConditions: string[];
+  validationSteps: string[];
+  targetedWorkPointIds: string[];
+  status?: string | null;
+  tags: string[];
+  revision?: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveTodo {
+  id: string;
+  planId?: string | null;
+  workPointId?: string | null;
+  title?: string | null;
+  summary?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  evidenceRefs: string[];
+  tags: string[];
+  ordering?: number | null;
+  revision?: number | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveReviewPoint {
+  id: string;
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveRoadmapsResponse {
+  contractVersion?: string | null;
+  kind?: string | null;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  count: number;
+  roadmaps: PlanningLiveRoadmapSummary[];
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveRoadmapResponse {
+  contractVersion?: string | null;
+  kind?: string | null;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  roadmap: PlanningLiveRoadmapSummary | null;
+  sections: PlanningLiveRoadmapSection[];
+  workPoints: PlanningLiveWorkPoint[];
+  validation: PlanningLiveValidationSummary | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveGoalResponse {
+  contractVersion?: string | null;
+  kind?: string | null;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  goal: PlanningLiveGoal | null;
+  roadmaps: PlanningLiveRoadmapSummary[];
+  validation: PlanningLiveValidationSummary | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningLivePlansResponse {
+  contractVersion?: string | null;
+  kind?: string | null;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  filters?: {
+    goalId?: string;
+    roadmapId?: string;
+    [key: string]: unknown;
+  } | null;
+  count: number;
+  plans: PlanningLivePlanSummary[];
+  [key: string]: unknown;
+}
+
+export interface PlanningLivePlanResponse {
+  contractVersion?: string | null;
+  kind?: string | null;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  plan: PlanningLivePlanSummary | null;
+  todos: PlanningLiveTodo[];
+  reviewPoints: PlanningLiveReviewPoint[];
+  validation: PlanningLiveValidationSummary | null;
+  [key: string]: unknown;
+}
+
+export interface PlanningLiveTodosResponse {
+  contractVersion?: string | null;
+  kind?: string | null;
+  deterministic?: boolean;
+  repo: PlanningRepoSummary | null;
+  filters?: {
+    roadmapId?: string;
+    planId?: string;
+    workPointId?: string;
+    [key: string]: unknown;
+  } | null;
+  count: number;
+  todos: PlanningLiveTodo[];
+  [key: string]: unknown;
+}
+
 export interface SessionsListResponse {
   sessions: SessionSummary[];
 }

@@ -23,13 +23,19 @@
       "kind": "repo-mirror",
       "enabled": true,
       "mirrorRoot": ".gemini/skills",
-      "description": "Repo-local Gemini/Antigravity skill mirror using Gemini CLI's documented repo skill directory."
+      "description": "Repo-local Antigravity skill mirror using the shared Gemini-compatible .gemini skill directory."
+    },
+    "antigravity-cli": {
+      "kind": "repo-mirror",
+      "enabled": true,
+      "mirrorRoot": ".gemini/skills",
+      "description": "Alias target for Antigravity CLI using the same shared .gemini repo-local skill directory."
     },
     "gemini-cli": {
       "kind": "repo-mirror",
       "enabled": true,
       "mirrorRoot": ".gemini/skills",
-      "description": "Alias target for the same Gemini CLI repo-local skill directory used by Antigravity."
+      "description": "Legacy alias target for the same shared .gemini repo-local skill directory used by Antigravity CLI."
     }
   }
 }

@@ -7,10 +7,8 @@ interface StatusBarProps {
   managedCliSummary: string;
   desktopUpdaterTone: string;
   desktopUpdaterSummary: string;
-  canCheckForUpdates: boolean;
   canDownload: boolean;
   canRestartToUpdate: boolean;
-  onCheckForUpdates: () => void;
   onDownloadUpdate: () => void;
   onRestartToUpdate: () => void;
   testId?: string;
@@ -31,10 +29,8 @@ export default function StatusBar({
   managedCliSummary,
   desktopUpdaterTone,
   desktopUpdaterSummary,
-  canCheckForUpdates,
   canDownload,
   canRestartToUpdate,
-  onCheckForUpdates,
   onDownloadUpdate,
   onRestartToUpdate,
   testId = 'status-bar',
@@ -66,15 +62,6 @@ export default function StatusBar({
       </div>
 
       <div className="status-bar-actions" data-testid="desktop-updater-actions">
-        <button
-          className="status-bar-btn"
-          data-testid="desktop-updater-check"
-          disabled={!canCheckForUpdates}
-          onClick={onCheckForUpdates}
-          type="button"
-        >
-          Check updates
-        </button>
         {canDownload ? (
           <button
             className="status-bar-btn status-bar-btn-primary"
@@ -82,7 +69,7 @@ export default function StatusBar({
             onClick={onDownloadUpdate}
             type="button"
           >
-            Download
+            Update
           </button>
         ) : null}
         {canRestartToUpdate ? (

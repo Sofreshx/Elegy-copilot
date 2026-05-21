@@ -201,7 +201,6 @@ test('desktop tag helper proposes creating a tag after a version bump', async ()
 
     const output = await runTagHelper(repoRoot, [], {
       DESKTOP_RELEASE_GITHUB_API_BASE_URL: server.baseUrl,
-      GH_TOKEN: 'test-token',
     });
     assert.match(output, /Stable desktop promotion preflight passed for 'desktop-v0\.2\.0' via preview release '0\.2\.0'\./);
     assert.match(output, /Would create local tag 'desktop-v0\.2\.0'\./);

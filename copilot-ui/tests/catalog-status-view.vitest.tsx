@@ -44,7 +44,7 @@ const mockCatalogState = {
             kind: 'skill',
             title: 'Brainstorming',
             description: 'Prompted ideation skill.',
-            targetSupport: ['codex', 'opencode'],
+            targetSupport: ['codex', 'opencode', 'gemini-cli'],
           },
         ],
         activation: {
@@ -55,6 +55,14 @@ const mockCatalogState = {
                 enabled: true,
                 managedName: 'external--demo-source--brainstorming',
                 installedPath: 'C:\\Users\\demo\\.codex\\skills\\external--demo-source--brainstorming',
+              },
+            },
+          },
+          'gemini-cli': {
+            installables: {
+              'skill:brainstorming': {
+                installed: false,
+                enabled: false,
               },
             },
           },
@@ -74,7 +82,7 @@ const mockCatalogState = {
 const mockSkillsState = {
   skills: [
     {
-      assetId: 'skill-superpowers-brainstorming',
+      assetId: 'skill-external-provider-brainstorming',
       name: 'brainstorming',
       kind: 'full',
       loadMode: 'always',
@@ -202,10 +210,11 @@ describe('CatalogStatusView', () => {
     expect(screen.getByTestId('catalog-status-runtime-panel')).toBeInTheDocument();
 
     expect(screen.getByText('Demo Source')).toBeInTheDocument();
-    expect(screen.getByText(/Supports: Codex, OpenCode/i)).toBeInTheDocument();
+    expect(screen.getByText(/Supports: Codex, OpenCode, Antigravity CLI/i)).toBeInTheDocument();
     const targetDetails = screen.getAllByTestId('catalog-status-installable-target-detail').map((node) => node.textContent || '');
     expect(targetDetails.some((value) => /Codex: installed and active/i.test(value))).toBe(true);
     expect(targetDetails.some((value) => /OpenCode: supported, not active/i.test(value))).toBe(true);
+    expect(targetDetails.some((value) => /Antigravity CLI: supported, not active/i.test(value))).toBe(true);
     expect(screen.getByText('brainstorming')).toBeInTheDocument();
     expect(screen.getByText('skill:brainstorming')).toBeInTheDocument();
 

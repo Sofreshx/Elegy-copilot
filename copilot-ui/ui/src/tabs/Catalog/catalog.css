@@ -24,10 +24,11 @@
 
 .catalog-global-harness-card,
 .catalog-global-item-card {
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  border: 1px solid var(--color-ink-200);
   border-radius: 0.9rem;
   padding: 0.9rem;
-  background: rgba(15, 23, 42, 0.22);
+  background: var(--color-surface-1);
+  box-shadow: var(--shadow-sm);
 }
 
 .catalog-global-card-header {
@@ -65,7 +66,7 @@
   gap: 0.75rem;
   align-items: flex-start;
   padding-top: 0.75rem;
-  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  border-top: 1px solid var(--color-ink-200);
 }
 
 .catalog-global-item-actions {
@@ -85,7 +86,7 @@
 
 .catalog-global-error {
   margin: 0 0 0.75rem;
-  color: #fca5a5;
+  color: var(--color-danger-500);
 }
 
 @media (max-width: 960px) {

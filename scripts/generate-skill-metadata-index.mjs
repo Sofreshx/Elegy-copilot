@@ -283,7 +283,7 @@ export function collectManifestSkillMetadata(manifest) {
 	for (const asset of assets) {
 		if (!asset || asset.type !== 'skill') continue;
 		const source = String(asset.source || '').replace(/\\/g, '/');
-		const match = source.match(/^engine-assets\/skills\/([^/]+)$/);
+		const match = source.match(/^(?:engine-assets\/skills|catalog-assets\/shared-skills)\/([^/]+)$/);
 		if (!match) continue;
 
 		const skillKey = match[1];
@@ -296,6 +296,23 @@ export function collectManifestSkillMetadata(manifest) {
 	return map;
 }
 
+function listManifestSkillKeys(manifest) {
+	const keys = new Set();
+	const assets = Array.isArray(manifest?.assets) ? manifest.assets : [];
+
+	for (const asset of assets) {
+		if (!asset || asset.type !== 'skill') continue;
+		const source = String(asset.source || '').replace(/\\/g, '/');
+		const match = source.match(/^(?:engine-assets\/skills|catalog-assets\/shared-skills)\/([^/]+)$/);
+		const skillKey = match?.[1];
+		if (skillKey) {
+			keys.add(skillKey);
+		}
+	}
+
+	return Array.from(keys).sort((a, b) => a.localeCompare(b));
+}
+
 export function generateIndex(options = {}) {
 	const {
 		write = true,
@@ -304,17 +321,20 @@ export function generateIndex(options = {}) {
 		manifestPath = path.join(repoRoot, 'engine-assets', 'manifest.json'),
 		outputPath = path.join(skillsRoot, 'skill-metadata-index.json'),
 	} = options;
-	const manifest = readJson(manifestPath);
-	const manifestSkills = collectManifestSkillMetadata(manifest);
+	const effectiveManifest = options.manifest || readJson(manifestPath);
+	const manifestSkills = collectManifestSkillMetadata(effectiveManifest);
 
-	const skillDirs = fs
-		.readdirSync(skillsRoot)
-		.filter((entry) => isDirectory(path.join(skillsRoot, entry)))
-		.filter((entry) => fs.existsSync(path.join(skillsRoot, entry, 'SKILL.md')))
-		.sort((a, b) => a.localeCompare(b));
+	const skillDirs = listManifestSkillKeys(effectiveManifest);
 
 	const skills = skillDirs.map((skillKey) => {
-		const skillPath = path.join(skillsRoot, skillKey, 'SKILL.md');
+		const manifestMeta = manifestSkills.get(skillKey);
+		const manifestAsset = Array.isArray(effectiveManifest?.assets)
+			? effectiveManifest.assets.find((asset) => asset?.type === 'skill' && String(asset?.id || '') === String(manifestMeta?.id || ''))
+			: null;
+		const skillRoot = manifestAsset
+			? path.join(repoRoot, String(manifestAsset.source || '').replace(/\//g, path.sep))
+			: path.join(skillsRoot, skillKey);
+		const skillPath = path.join(skillRoot, 'SKILL.md');
 		const displaySkillPath = path.relative(repoRoot, skillPath).replace(/\\/g, '/');
 		const content = readText(skillPath);
 		const frontmatter = extractFrontmatter(content);
@@ -327,7 +347,6 @@ export function generateIndex(options = {}) {
 		const stacks = normalizeListValues(metadata.stacks || parseFrontmatterList(frontmatter, 'stacks'));
 		const languages = normalizeListValues(metadata.languages || parseFrontmatterList(frontmatter, 'languages'));
 		const tags = normalizeListValues(metadata.tags || metadata.keywords || parseFrontmatterList(frontmatter, 'tags', ['keywords']));
-		const manifestMeta = manifestSkills.get(skillKey);
 
 		return {
 			skill: skillKey,

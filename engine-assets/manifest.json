@@ -26,7 +26,7 @@
       "always": "Installed to skills/ (VS Code scans and loads into context). Reserved for meta-skills and transversal skills.",
       "on-demand": "Installed to skills-vault/ only (NOT scanned by VS Code). Discovered via skill-discovery pattern. Default for domain-specific skills."
     },
-    "notes": "When enabled, 'always' skills install full content to skills/. 'on-demand' skills install ONLY to skills-vault/ \u2014 no pointer stub in skills/. Agents use the skill-discovery skill to find and load on-demand skills at runtime."
+    "notes": "When enabled, 'always' skills install full content to skills/. 'on-demand' skills install ONLY to skills-vault/ - no pointer stub in skills/. Agents use the skill-discovery skill to find and load on-demand skills at runtime."
   },
   "governance": {
     "g05": {
@@ -248,49 +248,6 @@
       "dependsOn": [
         "orchestrator-workflow"
       ]
-    },
-    {
-      "id": "superpowers-workflow",
-      "title": "Superpowers Workflow Pack",
-      "description": "Optional Jesse Vincent Superpowers compatibility pack, kept catalog-installable for legacy/reference workflows. Its members are default-handled or deprecated-compatibility guidance rather than current default workflow surfaces.",
-      "assetIds": [
-        "skill-superpowers-brainstorming",
-        "skill-superpowers-dispatching-parallel-agents",
-        "skill-superpowers-executing-plans",
-        "skill-superpowers-finishing-a-development-branch",
-        "skill-superpowers-receiving-code-review",
-        "skill-superpowers-requesting-code-review",
-        "skill-superpowers-subagent-driven-development",
-        "skill-superpowers-systematic-debugging",
-        "skill-superpowers-test-driven-development",
-        "skill-superpowers-using-git-worktrees",
-        "skill-superpowers-using-superpowers",
-        "skill-superpowers-verification-before-completion",
-        "skill-superpowers-writing-plans",
-        "skill-superpowers-writing-skills"
-      ],
-      "installTarget": "user-global",
-      "activationScope": "global",
-      "materialization": "on-demand",
-      "classification": "workflow",
-      "targeting": {
-        "tags": [
-          "superpowers",
-          "workflow",
-          "planning",
-          "debugging",
-          "tdd"
-        ]
-      },
-      "tags": [
-        "superpowers",
-        "workflow",
-        "planning",
-        "debugging",
-        "tdd"
-      ],
-      "defaultRecommended": false,
-      "dependsOn": []
     }
   ],
   "assets": [
@@ -516,17 +473,17 @@
       "loadMode": "always"
     },
     {
-      "id": "skill-documentation-structure-governance",
-      "type": "skill",
-      "source": "engine-assets/skills/documentation-structure-governance",
-      "destination": "skills/documentation-structure-governance",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "skill-documentation-authoring",
       "type": "skill",
       "source": "engine-assets/skills/documentation-authoring",
       "destination": "skills/documentation-authoring",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-documentation-structure-governance",
+      "type": "skill",
+      "source": "engine-assets/skills/documentation-structure-governance",
+      "destination": "skills/documentation-structure-governance",
       "loadMode": "on-demand"
     },
     {
@@ -562,6 +519,13 @@
       "type": "skill",
       "source": "engine-assets/skills/github-troubleshooting",
       "destination": "skills/github-troubleshooting",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-guidelines-authoring",
+      "type": "skill",
+      "source": "engine-assets/skills/guidelines-authoring",
+      "destination": "skills/guidelines-authoring",
       "loadMode": "on-demand"
     },
     {
@@ -642,13 +606,6 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "skill-project-guidelines",
-      "type": "skill",
-      "source": "engine-assets/skills/project-guidelines",
-      "destination": "skills/project-guidelines",
-      "loadMode": "always"
-    },
-    {
       "id": "skill-project-conventions-governance",
       "type": "skill",
       "source": "engine-assets/skills/project-conventions-governance",
@@ -656,11 +613,11 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "skill-guidelines-authoring",
+      "id": "skill-project-guidelines",
       "type": "skill",
-      "source": "engine-assets/skills/guidelines-authoring",
-      "destination": "skills/guidelines-authoring",
-      "loadMode": "on-demand"
+      "source": "engine-assets/skills/project-guidelines",
+      "destination": "skills/project-guidelines",
+      "loadMode": "always"
     },
     {
       "id": "skill-react-query",
@@ -730,160 +687,6 @@
       "loadMode": "always"
     },
     {
-      "id": "skill-superpowers-brainstorming",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-brainstorming",
-      "destination": "skills/superpowers-brainstorming",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "deprecated-compatibility",
-        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-      }
-    },
-    {
-      "id": "skill-superpowers-dispatching-parallel-agents",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-dispatching-parallel-agents",
-      "destination": "skills/superpowers-dispatching-parallel-agents",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "default-handled",
-        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-      }
-    },
-    {
-      "id": "skill-superpowers-executing-plans",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-executing-plans",
-      "destination": "skills/superpowers-executing-plans",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "deprecated-compatibility",
-        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-      }
-    },
-    {
-      "id": "skill-superpowers-finishing-a-development-branch",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-finishing-a-development-branch",
-      "destination": "skills/superpowers-finishing-a-development-branch",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "deprecated-compatibility",
-        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-      }
-    },
-    {
-      "id": "skill-superpowers-receiving-code-review",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-receiving-code-review",
-      "destination": "skills/superpowers-receiving-code-review",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "default-handled",
-        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-      }
-    },
-    {
-      "id": "skill-superpowers-requesting-code-review",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-requesting-code-review",
-      "destination": "skills/superpowers-requesting-code-review",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "deprecated-compatibility",
-        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-      }
-    },
-    {
-      "id": "skill-superpowers-subagent-driven-development",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-subagent-driven-development",
-      "destination": "skills/superpowers-subagent-driven-development",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "deprecated-compatibility",
-        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-      }
-    },
-    {
-      "id": "skill-superpowers-systematic-debugging",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-systematic-debugging",
-      "destination": "skills/superpowers-systematic-debugging",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "default-handled",
-        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-      }
-    },
-    {
-      "id": "skill-superpowers-test-driven-development",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-test-driven-development",
-      "destination": "skills/superpowers-test-driven-development",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "default-handled",
-        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-      }
-    },
-    {
-      "id": "skill-superpowers-using-git-worktrees",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-using-git-worktrees",
-      "destination": "skills/superpowers-using-git-worktrees",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "default-handled",
-        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-      }
-    },
-    {
-      "id": "skill-superpowers-using-superpowers",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-using-superpowers",
-      "destination": "skills/superpowers-using-superpowers",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "deprecated-compatibility",
-        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-      }
-    },
-    {
-      "id": "skill-superpowers-verification-before-completion",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-verification-before-completion",
-      "destination": "skills/superpowers-verification-before-completion",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "default-handled",
-        "routingNote": "Informational only; normal routing should handle this directly unless explicit compatibility use is needed."
-      }
-    },
-    {
-      "id": "skill-superpowers-writing-plans",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-writing-plans",
-      "destination": "skills/superpowers-writing-plans",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "deprecated-compatibility",
-        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-      }
-    },
-    {
-      "id": "skill-superpowers-writing-skills",
-      "type": "skill",
-      "source": "engine-assets/skills/superpowers-writing-skills",
-      "destination": "skills/superpowers-writing-skills",
-      "loadMode": "on-demand",
-      "governance": {
-        "routingClass": "deprecated-compatibility",
-        "routingNote": "Informational only; retained for compatibility-oriented use rather than current default workflow guidance."
-      }
-    },
-    {
       "id": "skill-system-cleanup",
       "type": "skill",
       "source": "engine-assets/skills/system-cleanup",
@@ -937,21 +740,5 @@
       "loadMode": "on-demand"
     }
   ],
-  "sourcePatterns": [
-    {
-      "type": "agent",
-      "sourceGlob": "engine-assets/agents/*.agent.md",
-      "destinationDir": "agents"
-    },
-    {
-      "type": "skill",
-      "sourceGlob": "engine-assets/skills/*",
-      "destinationDir": "skills"
-    },
-    {
-      "type": "prompt",
-      "sourceGlob": "engine-assets/prompts/*.prompt.md",
-      "destinationDir": "prompts"
-    }
-  ]
+  "sourcePatterns": []
 }

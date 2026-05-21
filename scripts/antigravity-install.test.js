@@ -45,8 +45,10 @@ async function main() {
         skillsHome,
       });
 
-      assert.ok(fs.existsSync(path.join(skillsHome, 'core-guardrails', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(skillsHome, 'project-guidelines', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'rubberduck-plan-review', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'roadmap-planning', 'SKILL.md')));
       assert.ok(summary.counts.created > 0);
 
       const geminiInstructions = fs.readFileSync(path.join(geminiHome, 'GEMINI.md'), 'utf8');

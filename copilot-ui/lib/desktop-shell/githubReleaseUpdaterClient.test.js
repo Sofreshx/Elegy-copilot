@@ -219,6 +219,72 @@ test('GitHub release updater client ignores historic semver releases when select
   assert.equal(result.candidate.releaseTag, 'desktop-v1.0.2');
 });
 
+test('GitHub release updater client tolerates normalized installer asset name matches', async () => {
+  const fetch = async (url) => {
+    if (String(url).includes('/releases?')) {
+      return jsonResponse([
+        {
+          id: 16,
+          tag_name: 'desktop-v1.0.2',
+          name: '1.0.2',
+          html_url: 'https://github.com/Sofreshx/Elegy-copilot/releases/tag/desktop-v1.0.2',
+          published_at: '2026-04-09T00:00:00Z',
+          draft: false,
+          prerelease: false,
+          assets: [
+            {
+              name: 'release-manifest.json',
+              browser_download_url: 'https://example.test/release-manifest.json',
+            },
+            {
+              name: 'Elegy.Copilot_1.0.2_x64-setup.exe',
+              browser_download_url: 'https://example.test/Elegy.Copilot_1.0.2_x64-setup.exe',
+            },
+          ],
+        },
+      ]);
+    }
+
+    return jsonResponse({
+      schemaVersion: 1,
+      platform: 'windows',
+      shell: 'tauri',
+      version: '1.0.2',
+      releaseChannel: 'stable',
+      desktopReleaseChannelContract: {
+        channel: 'stable',
+        sdkChannel: 'stable',
+        cliChannel: 'stable',
+      },
+      artifact: {
+        relativePath: 'Elegy Copilot_1.0.2_x64-setup.exe',
+        sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      },
+      updateLane: {
+        mode: 'manual_installer',
+        autoUpdateEnabled: false,
+        failClosedChannelPolicy: true,
+        inPlaceUpgradeSupported: false,
+      },
+    });
+  };
+
+  const client = createGitHubReleaseUpdaterClient({
+    publishRepository: 'Sofreshx/Elegy-copilot',
+    fetch,
+  });
+
+  const result = await client.findLatestReleaseCandidate({
+    channel: 'stable',
+    currentVersion: '1.0.1',
+    isCandidateAllowed: () => ({ allowed: true, reason: 'allowed_by_channel_policy' }),
+  });
+
+  assert.equal(result.outcome, 'available');
+  assert.equal(result.candidate.artifact.name, 'Elegy.Copilot_1.0.2_x64-setup.exe');
+  assert.equal(result.candidate.artifact.declaredName, 'Elegy Copilot_1.0.2_x64-setup.exe');
+});
+
 test('GitHub release updater client downloads the installer and verifies sha256', async () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-updater-client-'));
   const installerBody = 'hello-installer';

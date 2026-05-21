@@ -56,7 +56,7 @@ const INSTALL_SURFACE_CARDS: Array<{
   {
     target: 'antigravity',
     title: 'Antigravity',
-    description: 'Managed Antigravity/Gemini skills and GEMINI.md block.',
+    description: 'Managed Antigravity 2 skills and GEMINI.md compatibility block.',
   },
   {
     target: 'opencode',
@@ -86,8 +86,9 @@ function getExternalTargetLabel(target: string): string {
       return 'OpenCode';
     case 'antigravity':
       return 'Antigravity';
+    case 'antigravity-cli':
     case 'gemini-cli':
-      return 'Gemini CLI';
+      return 'Antigravity CLI';
     default:
       return target;
   }
@@ -102,6 +103,11 @@ function readExternalInstallableTargets(installable: CatalogExternalSourceInstal
     : [];
 }
 
+function normalizeExternalTargetKey(target: string): string {
+  const normalized = target.trim().toLowerCase();
+  return normalized === 'antigravity-cli' ? 'gemini-cli' : normalized;
+}
+
 function readExternalInstallableTargetDetails(
   source: CatalogExternalSourceProjection | null | undefined,
   installableId: string,
@@ -110,8 +116,9 @@ function readExternalInstallableTargetDetails(
   const activation = source?.activation && typeof source.activation === 'object'
     ? source.activation
     : {};
-  const targetState = activation[target] && typeof activation[target] === 'object'
-    ? activation[target]
+  const targetKey = normalizeExternalTargetKey(target);
+  const targetState = activation[targetKey] && typeof activation[targetKey] === 'object'
+    ? activation[targetKey]
     : {};
   const installables = targetState.installables && typeof targetState.installables === 'object'
     ? targetState.installables as Record<string, Record<string, unknown>>

@@ -188,7 +188,16 @@ test('generator rejects malformed metadata frontmatter with skill file context',
 	for (const testCase of cases) {
 		withTempRepoFixture(
 			{
-				'engine-assets/manifest.json': JSON.stringify({ assets: [] }, null, 2),
+				'engine-assets/manifest.json': JSON.stringify({
+					assets: [
+						{
+							type: 'skill',
+							source: `engine-assets/skills/${testCase.skillKey}`,
+							id: `skill-${testCase.skillKey}`,
+							loadMode: 'on-demand',
+						},
+					],
+				}, null, 2),
 				[`engine-assets/skills/${testCase.skillKey}/SKILL.md`]: [
 					'---',
 					`name: ${testCase.skillKey}`,
@@ -226,7 +235,22 @@ test('generator parses block-scalar descriptions without breaking inline metadat
 	const generatorUrl = pathToFileURL(generatorPath).href;
 	withTempRepoFixture(
 		{
-			'engine-assets/manifest.json': JSON.stringify({ assets: [] }, null, 2),
+			'engine-assets/manifest.json': JSON.stringify({
+				assets: [
+					{
+						type: 'skill',
+						source: 'engine-assets/skills/folded-skill',
+						id: 'skill-folded-skill',
+						loadMode: 'on-demand',
+					},
+					{
+						type: 'skill',
+						source: 'engine-assets/skills/literal-skill',
+						id: 'skill-literal-skill',
+						loadMode: 'on-demand',
+					},
+				],
+			}, null, 2),
 			'engine-assets/skills/folded-skill/SKILL.md': [
 				'---',
 				'name: folded-skill',

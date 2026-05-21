@@ -57,6 +57,12 @@ function findResourceCopy(manifest, id) {
     : null;
 }
 
+function getRuntimeManifestsCopy(manifest, manifestPath) {
+  const runtimeManifestsCopy = findResourceCopy(manifest, 'runtime-manifests');
+  assert(runtimeManifestsCopy, `Expected ${manifestPath} resourceCopies to include runtime-manifests.`);
+  return runtimeManifestsCopy;
+}
+
 function loadTauriNodeSidecarLayout(options = {}) {
   const activeWorkspaceRoot = path.resolve(options.workspaceRoot || workspaceRoot);
   const manifestPath = path.resolve(options.manifestPath || path.join(activeWorkspaceRoot, manifestRelativePath));
@@ -152,6 +158,15 @@ function validateTauriNodeSidecarLayoutModel(options = {}) {
   for (const resourceId of requiredResourceIds) {
     assert(findResourceCopy(manifest, resourceId), `Expected ${manifestPath} resourceCopies to include ${resourceId}.`);
   }
+
+  const runtimeManifestsCopy = getRuntimeManifestsCopy(manifest, manifestPath);
+  const runtimeManifestFilter = Array.isArray(runtimeManifestsCopy.filter)
+    ? runtimeManifestsCopy.filter
+    : [];
+  assert(
+    runtimeManifestFilter.includes('default-desktop-rollback-policy.json'),
+    `Expected ${manifestPath} runtime-manifests filter to include default-desktop-rollback-policy.json.`,
+  );
 
   let validatedResourceCount = 0;
   for (const resource of manifest.resourceCopies) {
@@ -258,12 +273,16 @@ function validateTauriBundleConfig(options = {}) {
 function validatePackagedTauriNodeSidecarLayoutMetadata(options = {}) {
   const { workspaceRoot: activeWorkspaceRoot, manifestPath, manifest } = loadTauriNodeSidecarLayout(options);
   const packagedResourcesRoot = path.resolve(options.packagedResourcesRoot || path.join(activeWorkspaceRoot, 'release', 'win-unpacked', 'resources'));
-  const packagedManifestPath = path.join(packagedResourcesRoot, manifest.resourceCopies.find((entry) => entry.id === 'runtime-manifests').target, path.basename(manifestPath));
+  const runtimeManifestsCopy = getRuntimeManifestsCopy(manifest, manifestPath);
+  const packagedRuntimeManifestsRoot = path.join(packagedResourcesRoot, runtimeManifestsCopy.target);
+  const packagedManifestPath = path.join(packagedRuntimeManifestsRoot, path.basename(manifestPath));
   requireFile('packaged Windows Tauri sidecar layout manifest', packagedManifestPath);
   assert(
     fs.readFileSync(packagedManifestPath, 'utf8') === fs.readFileSync(manifestPath, 'utf8'),
     `Packaged Tauri sidecar layout manifest drifted from source metadata: ${packagedManifestPath}`,
   );
+  const bundledRollbackPolicyPath = path.join(packagedRuntimeManifestsRoot, 'default-desktop-rollback-policy.json');
+  requireFile('packaged Windows default desktop rollback policy', bundledRollbackPolicyPath);
 
   const packagedPgliteDist = path.join(packagedResourcesRoot, 'app.asar.unpacked', 'node_modules', '@electric-sql', 'pglite', 'dist');
   requireDirectory('packaged Tauri sidecar pglite dist directory', packagedPgliteDist);
@@ -273,6 +292,7 @@ function validatePackagedTauriNodeSidecarLayoutMetadata(options = {}) {
 
   return {
     packagedManifestPath,
+    bundledRollbackPolicyPath,
     packagedPgliteDist,
   };
 }
@@ -280,9 +300,10 @@ function validatePackagedTauriNodeSidecarLayoutMetadata(options = {}) {
 function validateStagedTauriNodeSidecarLayoutMetadata(options = {}) {
   const { workspaceRoot: activeWorkspaceRoot, manifestPath, manifest } = loadTauriNodeSidecarLayout(options);
   const stagedResourcesRoot = path.resolve(options.stagedResourcesRoot || path.join(activeWorkspaceRoot, 'src-tauri', 'gen', 'resources'));
+  const runtimeManifestsCopy = getRuntimeManifestsCopy(manifest, manifestPath);
+  const stagedRuntimeManifestsRoot = path.join(stagedResourcesRoot, runtimeManifestsCopy.target);
   const stagedManifestPath = path.join(
-    stagedResourcesRoot,
-    manifest.resourceCopies.find((entry) => entry.id === 'runtime-manifests').target,
+    stagedRuntimeManifestsRoot,
     path.basename(manifestPath),
   );
   requireFile('staged Windows Tauri sidecar layout manifest', stagedManifestPath);
@@ -290,6 +311,8 @@ function validateStagedTauriNodeSidecarLayoutMetadata(options = {}) {
     fs.readFileSync(stagedManifestPath, 'utf8') === fs.readFileSync(manifestPath, 'utf8'),
     `Staged Tauri sidecar layout manifest drifted from source metadata: ${stagedManifestPath}`,
   );
+  const bundledRollbackPolicyPath = path.join(stagedRuntimeManifestsRoot, 'default-desktop-rollback-policy.json');
+  requireFile('staged Windows default desktop rollback policy', bundledRollbackPolicyPath);
 
   const stagedNodeRuntimePath = path.join(stagedResourcesRoot, manifest.nodeRuntime.relativePath);
   requireFile('staged Windows Node sidecar runtime', stagedNodeRuntimePath);
@@ -309,6 +332,7 @@ function validateStagedTauriNodeSidecarLayoutMetadata(options = {}) {
   return {
     stagedResourcesRoot,
     stagedManifestPath,
+    bundledRollbackPolicyPath,
     nodeRuntimeRelativePath: manifest.nodeRuntime.relativePath,
     stagedPgliteDist,
   };

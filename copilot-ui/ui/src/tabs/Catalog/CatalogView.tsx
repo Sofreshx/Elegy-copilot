@@ -16,7 +16,7 @@ import './catalog.css';
 const SECTION_COPY: Record<CatalogSectionId, { title: string; body: string }> = {
   global: {
     title: 'Global',
-    body: 'Inspect the real global inventory for Copilot, Codex, OpenCode, Antigravity, and Gemini-backed catalog content.',
+    body: 'Inspect the real global inventory for Copilot, Codex, OpenCode, Antigravity, and Antigravity CLI-compatible catalog content.',
   },
   repository: {
     title: 'Per Repository',

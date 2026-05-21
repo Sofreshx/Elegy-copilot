@@ -9,7 +9,7 @@ const path = require('path');
 export type ExternalSourceType = ExtensibleString<'github-repo'>;
 export type ExternalInstallableKind = ExtensibleString<'skill' | 'mcp-server'>;
 export type ExternalSourceTarget = ExtensibleString<
-  'copilot' | 'codex' | 'opencode' | 'antigravity' | 'gemini-cli'
+  'copilot' | 'codex' | 'opencode' | 'antigravity' | 'gemini-cli' | 'antigravity-cli'
 >;
 
 export interface ExternalSourceRecord {

@@ -76,26 +76,30 @@
     {
       "id": "codex-rubberduck-plan-review-skill",
       "type": "skill",
-      "source": "codex-assets/skills/rubberduck-plan-review",
-      "destination": "skills/rubberduck-plan-review"
+      "source": "catalog-assets/shared-skills/rubberduck-plan-review",
+      "destination": "skills/rubberduck-plan-review",
+      "loadMode": "on-demand"
     },
     {
       "id": "codex-implementation-review-skill",
       "type": "skill",
-      "source": "codex-assets/skills/implementation-review",
-      "destination": "skills/implementation-review"
+      "source": "catalog-assets/shared-skills/implementation-review",
+      "destination": "skills/implementation-review",
+      "loadMode": "on-demand"
     },
     {
       "id": "codex-implementation-handoff-skill",
       "type": "skill",
-      "source": "codex-assets/skills/implementation-handoff",
-      "destination": "skills/implementation-handoff"
+      "source": "catalog-assets/shared-skills/implementation-handoff",
+      "destination": "skills/implementation-handoff",
+      "loadMode": "on-demand"
     },
     {
       "id": "codex-roadmap-planning-skill",
       "type": "skill",
-      "source": "codex-assets/skills/roadmap-planning",
-      "destination": "skills/roadmap-planning"
+      "source": "catalog-assets/shared-skills/roadmap-planning",
+      "destination": "skills/roadmap-planning",
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

@@ -52,12 +52,12 @@ export default function AddProjectWizard() {
         const body = await res.text();
         throw new Error(body || `Registration failed (${res.status})`);
       }
-      const result: { key?: string } = await res.json();
+      const result: { repo?: { repoId?: string | null } } = await res.json();
       notificationStore.success('Project registered', { message: repoPath.trim() });
       navigationStore.closeWizard();
       projectsListStore.refresh();
-      if (result.key) {
-        navigationStore.selectProject(result.key);
+      if (result.repo?.repoId) {
+        navigationStore.selectProject(result.repo.repoId);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';

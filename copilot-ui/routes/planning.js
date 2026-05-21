@@ -31,6 +31,152 @@ function uniqueStrings(values) {
   return result;
 }
 
+function normalizeStringList(values) {
+  return uniqueStrings(Array.isArray(values) ? values : []);
+}
+
+function buildPlanningRepoSelection(repoId, repoPath, repoLabel) {
+  const normalizedRepoId = normalizeOptionalString(repoId) || '';
+  const normalizedRepoPath = normalizeOptionalString(repoPath) || '';
+  const normalizedRepoLabel = normalizeOptionalString(repoLabel)
+    || normalizedRepoId
+    || normalizedRepoPath
+    || '';
+
+  if (!normalizedRepoId && !normalizedRepoPath && !normalizedRepoLabel) {
+    return null;
+  }
+
+  return {
+    repoId: normalizedRepoId,
+    repoPath: normalizedRepoPath,
+    repoLabel: normalizedRepoLabel,
+  };
+}
+
+function resolvePlanningLiveRepoSelection(u) {
+  const repoId = normalizeOptionalString(u.searchParams.get('repoId'));
+  const repoPath = normalizeOptionalString(u.searchParams.get('repoPath'));
+  const repoLabel = normalizeOptionalString(u.searchParams.get('repoLabel')) || repoId || repoPath;
+  return buildPlanningRepoSelection(repoId, repoPath, repoLabel);
+}
+
+function getPlanningEntityTags(entity) {
+  return normalizeStringList(entity && entity.tags);
+}
+
+function planningEntityMatchesRepo(entity, repoId) {
+  const normalizedRepoId = normalizeOptionalString(repoId);
+  if (!normalizedRepoId) {
+    return true;
+  }
+
+  const expectedTag = `repo:${normalizedRepoId}`.toLowerCase();
+  return getPlanningEntityTags(entity).some((tag) => tag.toLowerCase() === expectedTag);
+}
+
+function filterPlanningLiveRoadmaps(roadmaps, repoId) {
+  return (Array.isArray(roadmaps) ? roadmaps : []).filter((roadmap) => planningEntityMatchesRepo(roadmap, repoId));
+}
+
+function filterPlanningLivePlans(plans, filters = {}) {
+  const repoId = normalizeOptionalString(filters.repoId);
+  const goalId = normalizeOptionalString(filters.goalId);
+  const roadmapId = normalizeOptionalString(filters.roadmapId);
+
+  return (Array.isArray(plans) ? plans : []).filter((plan) => {
+    if (!planningEntityMatchesRepo(plan, repoId)) {
+      return false;
+    }
+    if (goalId && normalizeOptionalString(plan && plan.goalId) !== goalId) {
+      return false;
+    }
+    if (roadmapId && normalizeOptionalString(plan && plan.roadmapId) !== roadmapId) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function filterPlanningLiveTodos(todos, filters = {}) {
+  const repoId = normalizeOptionalString(filters.repoId);
+  const planId = normalizeOptionalString(filters.planId);
+  const workPointId = normalizeOptionalString(filters.workPointId);
+  const allowedPlanIds = filters.allowedPlanIds instanceof Set ? filters.allowedPlanIds : null;
+
+  return (Array.isArray(todos) ? todos : []).filter((todo) => {
+    if (!planningEntityMatchesRepo(todo, repoId)) {
+      return false;
+    }
+
+    const todoPlanId = normalizeOptionalString(todo && todo.planId);
+    if (planId && todoPlanId !== planId) {
+      return false;
+    }
+    if (allowedPlanIds && !allowedPlanIds.has(todoPlanId || '')) {
+      return false;
+    }
+    if (workPointId && normalizeOptionalString(todo && todo.workPointId) !== workPointId) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function buildPlanningLiveReadFailure(error, PLANNING_API_CONTRACT_VERSION, kind, fallbackMessage) {
+  const statusCode = Number.isFinite(error && error.statusCode)
+    ? Number(error.statusCode)
+    : 503;
+  const code = normalizeOptionalString(error && error.code) || 'planning_live_authority_read_failed';
+  const message = normalizeOptionalString(error && error.message) || fallbackMessage;
+
+  return {
+    statusCode,
+    body: {
+      contractVersion: PLANNING_API_CONTRACT_VERSION,
+      kind,
+      deterministic: true,
+      error: message,
+      code,
+      reason: code,
+    },
+  };
+}
+
+function buildPlanningLiveRouteError(code, message, statusCode = 503) {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  return error;
+}
+
+function requirePlanningLiveAuthorityBridge(bridge) {
+  if (!bridge || typeof bridge !== 'object') {
+    throw buildPlanningLiveRouteError(
+      'planning_live_authority_bridge_missing',
+      'elegy-planning authority bridge is required for live planning reads.',
+    );
+  }
+
+  return bridge;
+}
+
+function assertPlanningEntityInRepo(entity, repoId, entityLabel) {
+  if (planningEntityMatchesRepo(entity, repoId)) {
+    return;
+  }
+
+  throw buildPlanningLiveRouteError(
+    'planning_live_repo_scope_mismatch',
+    `${entityLabel} is outside the selected repo scope.`,
+    404,
+  );
+}
+
+function resolvePlanningLiveRequestId(req, fallback) {
+  return normalizeOptionalString(req && req.headers && req.headers['x-request-id']) || fallback;
+}
+
 function buildWorkflowArtifactMemorySyncFailure(error) {
   return {
     status: 'failed_open',
@@ -153,6 +299,346 @@ function handlePlanningTaskBoard(ctx, deps) {
     deterministic: true,
     projection,
   });
+}
+
+function handlePlanningLiveRoadmapsList(ctx, deps) {
+  const { req, res, u } = ctx;
+  const {
+    sendJson,
+    roadmapWorkflowPlanningBridge,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+  const repo = resolvePlanningLiveRepoSelection(u);
+
+  Promise.resolve()
+    .then(async () => {
+      const bridge = requirePlanningLiveAuthorityBridge(roadmapWorkflowPlanningBridge);
+      if (typeof bridge.listRoadmaps !== 'function') {
+        throw buildPlanningLiveRouteError(
+          'planning_live_roadmaps_unavailable',
+          'elegy-planning authority bridge does not expose roadmap listing.',
+        );
+      }
+
+      const response = await bridge.listRoadmaps({
+        requestId: resolvePlanningLiveRequestId(req, repo && repo.repoId ? repo.repoId : 'planning-live-roadmaps'),
+      });
+      const roadmaps = filterPlanningLiveRoadmaps(response && response.roadmaps, repo && repo.repoId);
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.live.roadmaps',
+        deterministic: true,
+        repo,
+        count: roadmaps.length,
+        roadmaps,
+      });
+    })
+    .catch((error) => {
+      const failure = buildPlanningLiveReadFailure(
+        error,
+        PLANNING_API_CONTRACT_VERSION,
+        'planning.live.roadmaps',
+        'Unable to load live roadmaps from elegy-planning.',
+      );
+      sendJson(res, failure.statusCode, failure.body);
+    });
+}
+
+function handlePlanningLiveRoadmapRead(ctx, deps) {
+  const { req, res, u, match } = ctx;
+  const {
+    sendJson,
+    roadmapWorkflowPlanningBridge,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+  const roadmapId = decodeURIComponent((match && match[1]) || '').trim();
+  const repo = resolvePlanningLiveRepoSelection(u);
+
+  Promise.resolve()
+    .then(async () => {
+      if (!roadmapId) {
+        throw buildPlanningLiveRouteError('missing_roadmap_id', 'roadmapId is required to load a live roadmap.', 400);
+      }
+
+      const bridge = requirePlanningLiveAuthorityBridge(roadmapWorkflowPlanningBridge);
+      if (typeof bridge.showRoadmap !== 'function') {
+        throw buildPlanningLiveRouteError(
+          'planning_live_roadmap_unavailable',
+          'elegy-planning authority bridge does not expose roadmap detail reads.',
+        );
+      }
+
+      const response = await bridge.showRoadmap({
+        roadmapId,
+        requestId: resolvePlanningLiveRequestId(req, roadmapId),
+      });
+      assertPlanningEntityInRepo(response && response.roadmap, repo && repo.repoId, `Roadmap ${roadmapId}`);
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.live.roadmap',
+        deterministic: true,
+        repo,
+        roadmap: response && response.roadmap ? response.roadmap : {},
+        sections: Array.isArray(response && response.sections) ? response.sections : [],
+        workPoints: Array.isArray(response && response.workPoints) ? response.workPoints : [],
+        validation: response && response.validation && typeof response.validation === 'object'
+          ? response.validation
+          : {},
+      });
+    })
+    .catch((error) => {
+      const failure = buildPlanningLiveReadFailure(
+        error,
+        PLANNING_API_CONTRACT_VERSION,
+        'planning.live.roadmap',
+        `Unable to load live roadmap ${roadmapId || '(unknown)'} from elegy-planning.`,
+      );
+      sendJson(res, failure.statusCode, failure.body);
+    });
+}
+
+function handlePlanningLiveGoalRead(ctx, deps) {
+  const { req, res, u, match } = ctx;
+  const {
+    sendJson,
+    roadmapWorkflowPlanningBridge,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+  const goalId = decodeURIComponent((match && match[1]) || '').trim();
+  const repo = resolvePlanningLiveRepoSelection(u);
+
+  Promise.resolve()
+    .then(async () => {
+      if (!goalId) {
+        throw buildPlanningLiveRouteError('missing_goal_id', 'goalId is required to load a live goal.', 400);
+      }
+
+      const bridge = requirePlanningLiveAuthorityBridge(roadmapWorkflowPlanningBridge);
+      if (typeof bridge.showGoal !== 'function') {
+        throw buildPlanningLiveRouteError(
+          'planning_live_goal_unavailable',
+          'elegy-planning authority bridge does not expose goal detail reads.',
+        );
+      }
+
+      const response = await bridge.showGoal({
+        goalId,
+        requestId: resolvePlanningLiveRequestId(req, goalId),
+      });
+      assertPlanningEntityInRepo(response && response.goal, repo && repo.repoId, `Goal ${goalId}`);
+      const roadmaps = filterPlanningLiveRoadmaps(response && response.roadmaps, repo && repo.repoId);
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.live.goal',
+        deterministic: true,
+        repo,
+        goal: response && response.goal ? response.goal : {},
+        roadmaps,
+        validation: response && response.validation && typeof response.validation === 'object'
+          ? response.validation
+          : {},
+      });
+    })
+    .catch((error) => {
+      const failure = buildPlanningLiveReadFailure(
+        error,
+        PLANNING_API_CONTRACT_VERSION,
+        'planning.live.goal',
+        `Unable to load live goal ${goalId || '(unknown)'} from elegy-planning.`,
+      );
+      sendJson(res, failure.statusCode, failure.body);
+    });
+}
+
+function handlePlanningLivePlansList(ctx, deps) {
+  const { req, res, u } = ctx;
+  const {
+    sendJson,
+    roadmapWorkflowPlanningBridge,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+  const repo = resolvePlanningLiveRepoSelection(u);
+  const goalId = normalizeOptionalString(u.searchParams.get('goalId'));
+  const roadmapId = normalizeOptionalString(u.searchParams.get('roadmapId'));
+
+  Promise.resolve()
+    .then(async () => {
+      const bridge = requirePlanningLiveAuthorityBridge(roadmapWorkflowPlanningBridge);
+      if (typeof bridge.listPlans !== 'function') {
+        throw buildPlanningLiveRouteError(
+          'planning_live_plans_unavailable',
+          'elegy-planning authority bridge does not expose plan listing.',
+        );
+      }
+
+      const response = await bridge.listPlans({
+        requestId: resolvePlanningLiveRequestId(req, roadmapId || goalId || (repo && repo.repoId) || 'planning-live-plans'),
+      });
+      const plans = filterPlanningLivePlans(response && response.plans, {
+        repoId: repo && repo.repoId,
+        goalId,
+        roadmapId,
+      });
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.live.plans',
+        deterministic: true,
+        repo,
+        filters: {
+          goalId: goalId || '',
+          roadmapId: roadmapId || '',
+        },
+        count: plans.length,
+        plans,
+      });
+    })
+    .catch((error) => {
+      const failure = buildPlanningLiveReadFailure(
+        error,
+        PLANNING_API_CONTRACT_VERSION,
+        'planning.live.plans',
+        'Unable to load live plans from elegy-planning.',
+      );
+      sendJson(res, failure.statusCode, failure.body);
+    });
+}
+
+function handlePlanningLivePlanRead(ctx, deps) {
+  const { req, res, u, match } = ctx;
+  const {
+    sendJson,
+    roadmapWorkflowPlanningBridge,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+  const planId = decodeURIComponent((match && match[1]) || '').trim();
+  const repo = resolvePlanningLiveRepoSelection(u);
+
+  Promise.resolve()
+    .then(async () => {
+      if (!planId) {
+        throw buildPlanningLiveRouteError('missing_plan_id', 'planId is required to load a live plan.', 400);
+      }
+
+      const bridge = requirePlanningLiveAuthorityBridge(roadmapWorkflowPlanningBridge);
+      if (typeof bridge.showPlan !== 'function') {
+        throw buildPlanningLiveRouteError(
+          'planning_live_plan_unavailable',
+          'elegy-planning authority bridge does not expose plan detail reads.',
+        );
+      }
+
+      const response = await bridge.showPlan({
+        planId,
+        requestId: resolvePlanningLiveRequestId(req, planId),
+      });
+      assertPlanningEntityInRepo(response && response.plan, repo && repo.repoId, `Plan ${planId}`);
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.live.plan',
+        deterministic: true,
+        repo,
+        plan: response && response.plan ? response.plan : {},
+        todos: Array.isArray(response && response.todos) ? response.todos : [],
+        reviewPoints: Array.isArray(response && response.reviewPoints) ? response.reviewPoints : [],
+        validation: response && response.validation && typeof response.validation === 'object'
+          ? response.validation
+          : {},
+      });
+    })
+    .catch((error) => {
+      const failure = buildPlanningLiveReadFailure(
+        error,
+        PLANNING_API_CONTRACT_VERSION,
+        'planning.live.plan',
+        `Unable to load live plan ${planId || '(unknown)'} from elegy-planning.`,
+      );
+      sendJson(res, failure.statusCode, failure.body);
+    });
+}
+
+function handlePlanningLiveTodosList(ctx, deps) {
+  const { req, res, u } = ctx;
+  const {
+    sendJson,
+    roadmapWorkflowPlanningBridge,
+    PLANNING_API_CONTRACT_VERSION,
+  } = deps;
+  const repo = resolvePlanningLiveRepoSelection(u);
+  const planId = normalizeOptionalString(u.searchParams.get('planId'));
+  const roadmapId = normalizeOptionalString(u.searchParams.get('roadmapId'));
+  const workPointId = normalizeOptionalString(u.searchParams.get('workPointId'));
+
+  Promise.resolve()
+    .then(async () => {
+      const bridge = requirePlanningLiveAuthorityBridge(roadmapWorkflowPlanningBridge);
+      if (typeof bridge.listTodos !== 'function') {
+        throw buildPlanningLiveRouteError(
+          'planning_live_todos_unavailable',
+          'elegy-planning authority bridge does not expose todo listing.',
+        );
+      }
+
+      let allowedPlanIds = null;
+      if (roadmapId) {
+        if (typeof bridge.listPlans !== 'function') {
+          throw buildPlanningLiveRouteError(
+            'planning_live_plans_unavailable',
+            'elegy-planning authority bridge does not expose plan listing for roadmap todo filters.',
+          );
+        }
+
+        const plansResponse = await bridge.listPlans({
+          requestId: resolvePlanningLiveRequestId(req, roadmapId),
+        });
+        const plans = filterPlanningLivePlans(plansResponse && plansResponse.plans, {
+          repoId: repo && repo.repoId,
+          roadmapId,
+        });
+        allowedPlanIds = new Set(
+          plans
+            .map((plan) => normalizeOptionalString(plan && plan.id))
+            .filter(Boolean),
+        );
+      }
+
+      const response = await bridge.listTodos({
+        requestId: resolvePlanningLiveRequestId(req, workPointId || planId || roadmapId || (repo && repo.repoId) || 'planning-live-todos'),
+      });
+      const todos = filterPlanningLiveTodos(response && response.todos, {
+        repoId: repo && repo.repoId,
+        planId,
+        workPointId,
+        allowedPlanIds,
+      });
+
+      sendJson(res, 200, {
+        contractVersion: PLANNING_API_CONTRACT_VERSION,
+        kind: 'planning.live.todos',
+        deterministic: true,
+        repo,
+        filters: {
+          roadmapId: roadmapId || '',
+          planId: planId || '',
+          workPointId: workPointId || '',
+        },
+        count: todos.length,
+        todos,
+      });
+    })
+    .catch((error) => {
+      const failure = buildPlanningLiveReadFailure(
+        error,
+        PLANNING_API_CONTRACT_VERSION,
+        'planning.live.todos',
+        'Unable to load live todos from elegy-planning.',
+      );
+      sendJson(res, failure.statusCode, failure.body);
+    });
 }
 
 function handlePlanningPersistenceInit(ctx, deps) {
@@ -1985,6 +2471,36 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/planning/task-board',
       handler: (ctx) => handlePlanningTaskBoard(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/live/roadmaps',
+      handler: (ctx) => handlePlanningLiveRoadmapsList(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: /^\/api\/planning\/live\/roadmaps\/([^/]+)$/,
+      handler: (ctx) => handlePlanningLiveRoadmapRead(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: /^\/api\/planning\/live\/goals\/([^/]+)$/,
+      handler: (ctx) => handlePlanningLiveGoalRead(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/live/plans',
+      handler: (ctx) => handlePlanningLivePlansList(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: /^\/api\/planning\/live\/plans\/([^/]+)$/,
+      handler: (ctx) => handlePlanningLivePlanRead(ctx, resolvedDeps),
+    },
+    {
+      method: 'GET',
+      path: '/api/planning/live/todos',
+      handler: (ctx) => handlePlanningLiveTodosList(ctx, resolvedDeps),
     },
     {
       method: 'POST',

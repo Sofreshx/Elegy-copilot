@@ -371,6 +371,19 @@ function getInstallSurfaceLabel(target: InstallSurfaceTarget): string {
   }
 }
 
+function getExternalSourceTargetLabel(target: string): string {
+  const normalized = target.trim().toLowerCase();
+  if (normalized === 'gemini-cli' || normalized === 'antigravity-cli') {
+    return 'Antigravity CLI';
+  }
+  return target;
+}
+
+function normalizeExternalSourceTargetKey(target: string): string {
+  const normalized = target.trim().toLowerCase();
+  return normalized === 'antigravity-cli' ? 'gemini-cli' : normalized;
+}
+
 function listExternalSources(state: CatalogWorkspaceState): CatalogExternalSourceProjection[] {
   return Array.isArray(state.summary?.externalSources)
     ? state.summary.externalSources.filter((source): source is CatalogExternalSourceProjection => Boolean(source?.sourceId))
@@ -381,7 +394,7 @@ function resolveExternalSourceTargetState(source: CatalogExternalSourceProjectio
   const activation = source?.activation && typeof source.activation === 'object'
     ? source.activation
     : {};
-  const targetState = activation[target];
+  const targetState = activation[normalizeExternalSourceTargetKey(target)];
   return targetState && typeof targetState === 'object' ? targetState : {};
 }
 
@@ -1219,26 +1232,29 @@ function createCatalogWorkspaceStore() {
   async function activateExternalSourceInstallable(
     payload: Parameters<typeof activateCatalogSourceInstallable>[0]
   ): Promise<void> {
+    const targetLabel = getExternalSourceTargetLabel(payload.target);
     await runExternalSourceMutation(
-      `Activating ${payload.installableId} for ${payload.target}...`,
+      `Activating ${payload.installableId} for ${targetLabel}...`,
       () => activateCatalogSourceInstallable(payload),
-      () => `Activated ${payload.installableId} for ${payload.target}.`
+      () => `Activated ${payload.installableId} for ${targetLabel}.`
     );
   }
 
   async function deactivateExternalSourceInstallable(
     payload: Parameters<typeof deactivateCatalogSourceInstallable>[0]
   ): Promise<void> {
+    const targetLabel = getExternalSourceTargetLabel(payload.target);
     await runExternalSourceMutation(
-      `Deactivating ${payload.installableId} for ${payload.target}...`,
+      `Deactivating ${payload.installableId} for ${targetLabel}...`,
       () => deactivateCatalogSourceInstallable(payload),
-      () => `Deactivated ${payload.installableId} for ${payload.target}.`
+      () => `Deactivated ${payload.installableId} for ${targetLabel}.`
     );
   }
 
   async function reinstallExternalSourceTarget(sourceId: string, target: string): Promise<void> {
     const normalizedSourceId = sourceId.trim();
     const normalizedTarget = target.trim();
+    const targetLabel = getExternalSourceTargetLabel(normalizedTarget);
     if (!normalizedSourceId || !normalizedTarget) {
       return;
     }
@@ -1251,13 +1267,13 @@ function createCatalogWorkspaceStore() {
     if (enabledInstallables.length === 0) {
       store.setState((state) => ({
         ...state,
-        installMessage: `No active installables found for ${normalizedSourceId} on ${normalizedTarget}.`,
+        installMessage: `No active installables found for ${normalizedSourceId} on ${targetLabel}.`,
       }));
       return;
     }
 
     await runExternalSourceMutation(
-      `Reinstalling ${enabledInstallables.length} installable(s) for ${normalizedTarget} from ${normalizedSourceId}...`,
+      `Reinstalling ${enabledInstallables.length} installable(s) for ${targetLabel} from ${normalizedSourceId}...`,
       async () => {
         for (const installable of enabledInstallables) {
           await activateCatalogSourceInstallable({
@@ -1268,7 +1284,7 @@ function createCatalogWorkspaceStore() {
         }
         return { count: enabledInstallables.length };
       },
-      (response) => `Reinstalled ${(response as { count: number }).count} installable(s) for ${normalizedTarget}.`
+      (response) => `Reinstalled ${(response as { count: number }).count} installable(s) for ${targetLabel}.`
     );
   }
 

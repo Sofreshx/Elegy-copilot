@@ -8,21 +8,7 @@ import {
   type ProjectSortField,
   type ProjectListItem,
 } from './projectsListStore';
-
-// ── Helpers ──
-
-function formatRelativeTime(ms: number | null): string {
-  if (!ms || ms <= 0) return '';
-  const delta = Date.now() - ms;
-  if (delta < 0) return 'just now';
-  const minutes = Math.floor(delta / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
+import { describeDirtyState, formatRelativeTime, formatSignedCount } from './gitUi';
 
 const SORT_OPTIONS: { value: ProjectSortField; label: string }[] = [
   { value: 'name', label: 'Name' },
@@ -48,29 +34,29 @@ export default function ProjectsListView() {
   function renderProjectCard(project: ProjectListItem) {
     return (
       <div
-        key={project.key}
+        key={project.projectId}
         className="project-card"
-        data-testid={`project-card-${project.key}`}
+        data-testid={`project-card-${project.projectId}`}
         role="button"
         tabIndex={0}
-        onClick={() => navigationStore.selectProject(project.key)}
+        onClick={() => navigationStore.selectProject(project.projectId)}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            navigationStore.selectProject(project.key);
+            navigationStore.selectProject(project.projectId);
           }
         }}
       >
         <div className="project-card-header">
           <div className="project-card-title-row">
-            <span className="project-card-name">{project.label}</span>
+            <span className="project-card-name">{project.repoLabel}</span>
             <button
               className="project-card-pin"
-              data-testid={`project-pin-${project.key}`}
+              data-testid={`project-pin-${project.projectId}`}
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                projectsListStore.togglePin(project.key);
+                projectsListStore.togglePin(project.projectId);
               }}
               aria-label={project.pinned ? 'Unpin project' : 'Pin project'}
             >
@@ -80,9 +66,30 @@ export default function ProjectsListView() {
           <span className="project-card-path">{project.repoPath}</span>
         </div>
 
+        <div className="project-card-meta">
+          <span className="project-card-sessions">{project.totalSessionCount} sessions</span>
+          <span className="project-card-git-branch">{project.gitSummary?.branch || 'No branch'}</span>
+          <span className={`project-card-git-state ${project.gitSummary?.clean ? 'project-card-git-clean' : 'project-card-git-dirty'}`}>
+            {describeDirtyState(project.gitSummary?.changedFiles ?? 0, project.gitSummary?.clean ?? true)}
+          </span>
+        </div>
+
+        {project.gitSummary && !project.gitSummary.clean ? (
+          <div className="project-card-git-delta" data-testid={`project-git-delta-${project.projectId}`}>
+            <span className="project-card-git-additions">{formatSignedCount(project.gitSummary.additions)}</span>
+            <span className="project-card-git-deletions">{formatSignedCount(-project.gitSummary.deletions)}</span>
+          </div>
+        ) : null}
+
+        {project.gitSummary?.prNumber ? (
+          <div className="project-card-git-pr" data-testid={`project-git-pr-${project.projectId}`}>
+            PR #{project.gitSummary.prNumber}
+          </div>
+        ) : null}
+
         <div className="project-card-footer">
           {project.activeSessionCount > 0 ? (
-            <Badge tone="brand" testId={`project-sessions-${project.key}`}>
+            <Badge tone="brand" testId={`project-sessions-${project.projectId}`}>
               {project.activeSessionCount} active
             </Badge>
           ) : (
@@ -138,7 +145,7 @@ export default function ProjectsListView() {
     }
 
     return (
-      <div className="projects-list-grid" data-testid="projects-list-grid">
+      <div className="projects-grid" data-testid="projects-list-grid">
         {filtered.map(renderProjectCard)}
       </div>
     );

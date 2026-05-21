@@ -1,6 +1,6 @@
 ---
 created: 2026-03-09
-updated: 2026-05-19
+updated: 2026-05-20
 category: system
 status: current
 doc_kind: node
@@ -21,7 +21,7 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 - Copilot global assets come from `engine-assets/` and install to `~/.copilot`.
 - Codex global assets come from `codex-assets/` and install to `~/.codex`.
 - OpenCode global assets come from `opencode-assets/` and install to `~/.config/opencode`.
-- Antigravity global assets come from `antigravity-assets/` and install to `~/.gemini`.
+- Antigravity global assets come from `antigravity-assets/` and install to the current Gemini-compatible `~/.gemini` layout.
 - Repo-local skills are canonical in `<repo>/.github/skills/**`.
 - Generated repo-local mirrors live in `<repo>/.agents/skills/**`, `<repo>/.opencode/skills/**`, and `<repo>/.gemini/skills/**`.
 - External-source state lives under `~/.copilot/catalog/external-sources/`.
@@ -41,7 +41,7 @@ related: [copilot-ui-guide, repo-skill-sync-governance, domain-authorities-freez
 - Upstream installer scripts are never executed.
 - Activation is global per target, not repo-scoped.
 - Current skill targets: `codex`, `opencode`, `antigravity`.
-- Current MCP targets: `codex`, `opencode`, `gemini-cli`.
+- Current MCP targets: `codex`, `opencode`, `antigravity-cli` (legacy alias: `gemini-cli`).
 - The older `providers` subsystem still exists, but it is separate from external sources.
 
 ## Useful APIs

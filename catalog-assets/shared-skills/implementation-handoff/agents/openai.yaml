@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implementation Handoff"
+  short_description: "Turn plans into repo-grounded executor briefs."
+  default_prompt: "Convert this plan into an implementation handoff brief."

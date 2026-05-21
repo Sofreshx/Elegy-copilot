@@ -109,14 +109,13 @@ const mockState = {
   },
   bundles: [
     {
-      bundleId: 'superpowers-workflow',
-      title: 'Superpowers Workflow Pack',
-      description: 'Optional workflow pack for disciplined planning, debugging, and TDD.',
+      bundleId: 'repo-setup-governance-global',
+      title: 'Repo Setup Governance Skill',
+      description: 'Optional workflow pack for shared repo setup governance guidance.',
       classification: 'workflow',
       targeting: {
-        frameworks: ['react'],
-        scopeKinds: ['repo'],
-        tags: ['superpowers', 'workflow'],
+        scopeKinds: ['global'],
+        tags: ['repo-setup', 'workflow'],
       },
       materialization: 'on-demand',
       status: 'available',
@@ -128,14 +127,23 @@ const mockState = {
         preservesExternalPackages: true,
       },
       stats: {
-        memberCount: 15,
-        installedCount: 3,
-        enabledCount: 2,
-        availableCount: 15,
-        missingCount: 1,
+        memberCount: 1,
+        installedCount: 1,
+        enabledCount: 0,
+        availableCount: 1,
+        missingCount: 0,
       },
-      tags: ['superpowers', 'workflow'],
-      members: [],
+      tags: ['repo-setup', 'workflow'],
+      members: [
+        {
+          assetId: 'skill-repo-setup-governance',
+          available: true,
+          installed: true,
+          enabled: false,
+          kind: 'skill',
+          title: 'Repo Setup Governance',
+        },
+      ],
     },
   ],
   assets: [
@@ -505,7 +513,7 @@ const mockState = {
       },
     },
   },
-  selectedBundleId: 'superpowers-workflow',
+  selectedBundleId: 'repo-setup-governance-global',
 };
 
 const mockCatalogWorkspaceStore = {
@@ -573,7 +581,7 @@ describe('AssetsView catalog workspace', () => {
     expect(storeMocks.loadWorkspace).toHaveBeenCalledTimes(1);
     expect(screen.getByText('Repo scope & registration')).toBeInTheDocument();
     expect(screen.getByText('Workflow packs')).toBeInTheDocument();
-    expect(screen.getAllByText('Superpowers Workflow Pack').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Repo Setup Governance Skill').length).toBeGreaterThan(0);
     expect(screen.getByRole('heading', { name: 'Create asset' })).toBeInTheDocument();
     expect(screen.getByText('Catalog browser')).toBeInTheDocument();
     expect(screen.getByText('Search & recommendations')).toBeInTheDocument();
@@ -636,10 +644,10 @@ describe('AssetsView catalog workspace', () => {
 
     render(<AssetsView />);
 
-    fireEvent.click(screen.getByTestId('catalog-install-bundle-superpowers-workflow'));
+    fireEvent.click(screen.getByTestId('catalog-install-bundle-repo-setup-governance-global'));
 
     await waitFor(() => {
-      expect(storeMocks.installBundle).toHaveBeenCalledWith('superpowers-workflow');
+      expect(storeMocks.installBundle).toHaveBeenCalledWith('repo-setup-governance-global');
     });
   });
 
@@ -654,18 +662,18 @@ describe('AssetsView catalog workspace', () => {
 
     render(<AssetsView />);
 
-    expect(screen.getByTestId('catalog-bundle-lifecycle-superpowers-workflow')).toHaveTextContent('Partial member state');
-    expect(screen.getByTestId('catalog-workflow-bundle-taxonomy-superpowers-workflow'))
-      .toHaveTextContent('Classification: workflow · Targets: scope: repo · frameworks: react · tags: superpowers, workflow');
-    expect(screen.getByTestId('catalog-workflow-bundle-uninstall-policy-superpowers-workflow'))
+    expect(screen.getByTestId('catalog-bundle-lifecycle-repo-setup-governance-global')).toHaveTextContent('Installed member state');
+    expect(screen.getByTestId('catalog-workflow-bundle-taxonomy-repo-setup-governance-global'))
+      .toHaveTextContent('Classification: workflow · Targets: scope: global · tags: repo-setup, workflow');
+    expect(screen.getByTestId('catalog-workflow-bundle-uninstall-policy-repo-setup-governance-global'))
       .toHaveTextContent('removes managed members');
     expect(screen.getByTestId('catalog-selected-bundle-uninstall-policy'))
       .toHaveTextContent('preserves external packages');
 
-    fireEvent.click(screen.getByTestId('catalog-uninstall-workflow-bundle-superpowers-workflow'));
+    fireEvent.click(screen.getByTestId('catalog-uninstall-workflow-bundle-repo-setup-governance-global'));
 
     await waitFor(() => {
-      expect(storeMocks.uninstallBundle).toHaveBeenCalledWith('superpowers-workflow');
+      expect(storeMocks.uninstallBundle).toHaveBeenCalledWith('repo-setup-governance-global');
     });
   });
 

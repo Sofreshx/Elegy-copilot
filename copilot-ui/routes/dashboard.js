@@ -49,6 +49,57 @@ function deriveHealthIndicator(sessions) {
   return health;
 }
 
+function normalizePath(value) {
+  if (!value || typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const resolved = require('node:path').resolve(trimmed);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function resolveProject(projectId, ctx, deps) {
+  const normalizedProjectId = String(projectId || '').trim();
+  if (!normalizedProjectId) return null;
+
+  try {
+    const state = deps.repoInventory.loadRepoInventoryState(ctx.copilotHomeAbs || ctx.copilotHome);
+    const entry = (state.manualRepos || []).find((repo) => repo.repoId === normalizedProjectId);
+    if (!entry) return null;
+    return {
+      projectId: entry.repoId,
+      repoId: entry.repoId,
+      repoPath: entry.repoPath,
+      canonicalRemote: entry.canonicalRemote || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function matchesProjectSession(session, project) {
+  if (!project) return false;
+  if (session.projectId === project.projectId) return true;
+  if (session.repoId === project.repoId) return true;
+  if (session.repo === project.repoPath) return true;
+
+  const projectPath = normalizePath(project.repoPath);
+  const sessionRepo = normalizePath(session.repo);
+  const sessionCwd = normalizePath(session.cwd);
+  if (projectPath && (sessionRepo === projectPath || sessionCwd === projectPath)) {
+    return true;
+  }
+
+  const repositoryFullName = session.repository && typeof session.repository === 'object'
+    ? String(session.repository.fullName || '').trim().toLowerCase()
+    : '';
+  const canonicalRemote = String(project.canonicalRemote || '').trim().toLowerCase();
+  if (repositoryFullName && canonicalRemote && canonicalRemote === repositoryFullName) {
+    return true;
+  }
+
+  return false;
+}
+
 /**
  * Build recent activity from sessions (last 10 by most-recent timestamp desc).
  */
@@ -97,11 +148,12 @@ function handleProjectSessions(ctx, deps) {
       return;
     }
 
+    const project = resolveProject(projectId, ctx, deps);
     const sessions = loadSessions(ctx.copilotHome, deps);
     const list = Array.isArray(sessions) ? sessions : [];
 
     const filtered = list.filter((s) => {
-      // Match by repo path, repo label, or explicit projectId field
+      if (matchesProjectSession(s, project)) return true;
       if (s.projectId === projectId) return true;
       if (s.repo === projectId) return true;
       if (s.repoId === projectId) return true;
@@ -125,10 +177,12 @@ function handleProjectActivity(ctx, deps) {
       return;
     }
 
+    const project = resolveProject(projectId, ctx, deps);
     const sessions = loadSessions(ctx.copilotHome, deps);
     const list = Array.isArray(sessions) ? sessions : [];
 
     const filtered = list.filter((s) => {
+      if (matchesProjectSession(s, project)) return true;
       if (s.projectId === projectId) return true;
       if (s.repo === projectId) return true;
       if (s.repoId === projectId) return true;

@@ -12,6 +12,41 @@
     "instructionsFile": "~/.config/opencode/AGENTS.md",
     "description": "Native-first OpenCode instructions plus curated planning, roadmap, review, security, and governance skills. Kept intentionally minimal to complement OpenCode's built-in harness."
   },
+  "governance": {
+    "g05": {
+      "schemaVersion": "1.0.0",
+      "requiredControls": {
+        "early": [
+          {
+            "id": "safetyTokenParity",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "hookEnforcement",
+            "owner": "Platform Engineering"
+          },
+          {
+            "id": "telemetrySchemaValidation",
+            "owner": "Observability Engineering"
+          }
+        ],
+        "final": [
+          {
+            "id": "evidencePredicates",
+            "owner": "Release Engineering"
+          },
+          {
+            "id": "finalGateWaiverPrecedence",
+            "owner": "Security Engineering"
+          },
+          {
+            "id": "trustedEvidenceBindingRetention",
+            "owner": "Release Engineering"
+          }
+        ]
+      }
+    }
+  },
   "assets": [
     {
       "id": "opencode-global-instructions",
@@ -40,26 +75,30 @@
     {
       "id": "opencode-rubberduck-plan-review-skill",
       "type": "skill",
-      "source": "opencode-assets/skills/rubberduck-plan-review",
-      "destination": "skills/rubberduck-plan-review"
+      "source": "catalog-assets/shared-skills/rubberduck-plan-review",
+      "destination": "skills/rubberduck-plan-review",
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-roadmap-planning-skill",
       "type": "skill",
-      "source": "opencode-assets/skills/roadmap-planning",
-      "destination": "skills/roadmap-planning"
+      "source": "catalog-assets/shared-skills/roadmap-planning",
+      "destination": "skills/roadmap-planning",
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-implementation-review-skill",
       "type": "skill",
-      "source": "opencode-assets/skills/implementation-review",
-      "destination": "skills/implementation-review"
+      "source": "catalog-assets/shared-skills/implementation-review",
+      "destination": "skills/implementation-review",
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-implementation-handoff-skill",
       "type": "skill",
-      "source": "opencode-assets/skills/implementation-handoff",
-      "destination": "skills/implementation-handoff"
+      "source": "catalog-assets/shared-skills/implementation-handoff",
+      "destination": "skills/implementation-handoff",
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-security-skill",

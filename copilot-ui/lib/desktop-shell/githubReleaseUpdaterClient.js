@@ -146,6 +146,24 @@ function parsePublishRepository(value) {
   };
 }
 
+function splitAssetFileNameParts(value) {
+  const fileName = normalizeString(value);
+  if (!fileName) {
+    return null;
+  }
+
+  const extension = path.extname(fileName).toLowerCase();
+  return {
+    fileName,
+    extension,
+    stem: extension ? fileName.slice(0, -extension.length) : fileName,
+  };
+}
+
+function normalizeLooseAssetStem(value) {
+  return normalizeString(value).toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
 function resolveReleaseAsset(assets, name) {
   if (!Array.isArray(assets)) {
     return null;
@@ -156,7 +174,30 @@ function resolveReleaseAsset(assets, name) {
     return null;
   }
 
-  return assets.find((asset) => normalizeString(asset && asset.name) === normalizedName) || null;
+  const exactMatch = assets.find((asset) => normalizeString(asset && asset.name) === normalizedName) || null;
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const expectedParts = splitAssetFileNameParts(normalizedName);
+  if (!expectedParts) {
+    return null;
+  }
+
+  const expectedStem = normalizeLooseAssetStem(expectedParts.stem);
+  if (!expectedStem) {
+    return null;
+  }
+
+  const compatibleAssets = assets.filter((asset) => {
+    const assetParts = splitAssetFileNameParts(asset && asset.name);
+    if (!assetParts || assetParts.extension !== expectedParts.extension) {
+      return false;
+    }
+    return normalizeLooseAssetStem(assetParts.stem) === expectedStem;
+  });
+
+  return compatibleAssets.length === 1 ? compatibleAssets[0] : null;
 }
 
 function validateReleaseManifest(manifest, release, expectedChannel) {
@@ -256,7 +297,8 @@ function validateReleaseManifest(manifest, release, expectedChannel) {
       manifest,
       manifestAssetName: 'release-manifest.json',
       artifact: {
-        name: relativePath,
+        name: normalizeString(releaseAsset.name) || relativePath,
+        declaredName: relativePath,
         sha256: String(artifact.sha256).toLowerCase(),
         size: Number.isFinite(Number(artifact.size)) ? Number(artifact.size) : null,
         downloadUrl: normalizeString(releaseAsset.browser_download_url),

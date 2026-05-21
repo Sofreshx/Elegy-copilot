@@ -9,3 +9,4 @@ export * from './catalog';
 export * from './planning';
 export * from './gateway';
 export * from './git';
+export * from './projects';

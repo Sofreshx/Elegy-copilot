@@ -1,8 +1,8 @@
-# Gemini CLI Tool Mapping
+# Antigravity CLI / Gemini CLI Tool Mapping
 
 Skills use Claude Code tool names. When you encounter these in a skill, use your platform equivalent:
 
-| Skill references | Gemini CLI equivalent |
+| Skill references | Antigravity CLI / Gemini CLI equivalent |
 |-----------------|----------------------|
 | `Read` (file reading) | `read_file` |
 | `Write` (file creation) | `write_file` |
@@ -20,9 +20,9 @@ Skills use Claude Code tool names. When you encounter these in a skill, use your
 
 Gemini CLI has no equivalent to Claude Code's `Task` tool. Skills that rely on subagent dispatch (`subagent-driven-development`, `dispatching-parallel-agents`) will fall back to single-session execution via `executing-plans`.
 
-## Additional Gemini CLI tools
+## Additional Antigravity CLI / Gemini CLI tools
 
-These tools are available in Gemini CLI but have no Claude Code equivalent:
+These tools are available in the current Gemini-compatible CLI surface used by instruction-engine but have no Claude Code equivalent:
 
 | Tool | Purpose |
 |------|---------|

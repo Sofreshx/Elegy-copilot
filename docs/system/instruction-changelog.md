@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-03-01
+updated: 2026-05-20
 category: system
 status: current
 doc_kind: node
@@ -10,6 +10,12 @@ tags: [changelog]
 ---
 
 # Instruction Changelog
+
+## 2026-05-20 - Antigravity 2 / Antigravity CLI compatibility refresh
+
+- Added `antigravity-cli` as a supported compatibility alias for external-source MCP activation and repo-local skill mirror targeting while keeping existing `gemini-cli` state valid.
+- Updated Catalog and repo docs to present the shared CLI surface as Antigravity CLI while preserving the current Gemini-compatible `.gemini` / `GEMINI.md` layout.
+- Refreshed shipped Antigravity-facing guidance so installed docs refer to Antigravity 2 / Antigravity CLI without assuming a new upstream on-disk root.
 
 ## 2026-05-19 - Repo-local skill sync governance and deterministic mirror tooling
 

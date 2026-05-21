@@ -1,15 +1,24 @@
 import { createStore } from '../../lib/store';
+import { listProjectActivity, listProjects, listProjectSessions } from '../../lib/api';
 
 // ── Types ──
 
 export interface ProjectInfo {
-  key: string;
+  projectId: string;
+  repoId: string;
   repoPath: string;
-  label: string;
+  repoLabel: string;
   pinned: boolean;
   lastActivityMs: number | null;
   canonicalRemote: string | null;
   sessionCount: number;
+  activeSessionCount: number;
+  installedAssetSummary?: {
+    agents: number;
+    skills: number;
+  };
+  createdAt?: string | null;
+  updatedAt?: string | null;
 }
 
 export interface ProjectSession {
@@ -66,10 +75,8 @@ function createProjectOverviewStore() {
 
   async function loadProjectInfo(projectId: string): Promise<ProjectInfo | null> {
     try {
-      const res = await fetch('/api/catalog/repos');
-      if (!res.ok) return null;
-      const repos: ProjectInfo[] = await res.json();
-      return repos.find((r) => r.key === projectId) ?? null;
+      const projects = await listProjects();
+      return projects.find((project) => project.projectId === projectId) ?? null;
     } catch {
       return null;
     }
@@ -87,19 +94,25 @@ function createProjectOverviewStore() {
 
     try {
       const [sessionsResult, activityResult, infoResult] = await Promise.allSettled([
-        fetch(`/api/projects/${encodeURIComponent(projectId)}/sessions`).then((r) =>
-          r.ok ? r.json() : [],
-        ),
-        fetch(`/api/projects/${encodeURIComponent(projectId)}/activity`).then((r) =>
-          r.ok ? r.json() : [],
-        ),
+        listProjectSessions(projectId),
+        listProjectActivity(projectId),
         loadProjectInfo(projectId),
       ]);
 
       if (nextVersion !== requestVersion) return;
 
       const sessions: ProjectSession[] =
-        sessionsResult.status === 'fulfilled' ? sessionsResult.value : [];
+        sessionsResult.status === 'fulfilled'
+          ? sessionsResult.value.map((session) => ({
+            id: session.id,
+            title: session.title || session.objective || session.id,
+            status: session.status || 'unknown',
+            source: session.source || 'local',
+            startedAtMs: session.startedAtMs ?? null,
+            updatedAtMs: session.updatedAtMs ?? null,
+            elapsedMs: session.elapsedMs ?? null,
+          }))
+          : [];
       const activity: ActivityItem[] =
         activityResult.status === 'fulfilled' ? activityResult.value : [];
       const projectInfo: ProjectInfo | null =

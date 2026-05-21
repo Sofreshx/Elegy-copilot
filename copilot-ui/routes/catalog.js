@@ -41,7 +41,7 @@ const GLOBAL_HARNESSES = Object.freeze([
   { id: 'codex', title: 'Codex', homeKey: 'codexHome', skillsHomeKey: 'codexSkillsHome', supportsMcp: true },
   { id: 'opencode', title: 'OpenCode', homeKey: 'opencodeHome', skillsHomeKey: 'opencodeSkillsHome', supportsMcp: true },
   { id: 'antigravity', title: 'Antigravity', homeKey: 'antigravityHome', skillsHomeKey: 'antigravitySkillsHome', supportsMcp: false },
-  { id: 'gemini-cli', title: 'Gemini CLI', homeKey: 'geminiHome', skillsHomeKey: null, supportsMcp: true },
+  { id: 'gemini-cli', title: 'Antigravity CLI', homeKey: 'geminiHome', skillsHomeKey: null, supportsMcp: true },
 ]);
 const INSTALL_SURFACE_HARNESSES = new Set(['codex', 'opencode', 'antigravity']);
 const HARNESS_INSTALLABLE_KINDS = Object.freeze({
@@ -670,7 +670,8 @@ function normalizeCatalogItemKind(value) {
 }
 
 function normalizeHarnessId(value) {
-  return normalizeString(value).toLowerCase();
+  const normalized = normalizeString(value).toLowerCase();
+  return normalized === 'antigravity-cli' ? 'gemini-cli' : normalized;
 }
 
 function humanizeHarnessId(value) {

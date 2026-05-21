@@ -7,32 +7,21 @@ import { projectOverviewStore } from './projectOverviewStore';
 import ProjectSessionsList from './ProjectSessionsList';
 import ProjectTaskBoard from './ProjectTaskBoard';
 import ProjectConfigSummary from './ProjectConfigSummary';
-
-// ── Helpers ──
-
-function formatTimeAgo(ms: number | null): string {
-  if (!ms) return 'Never';
-  const diff = Date.now() - ms;
-  if (diff < 60000) return 'just now';
-  const min = Math.floor(diff / 60000);
-  if (min < 60) return `${min}m ago`;
-  const h = Math.floor(min / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
+import { formatRelativeTime } from './gitUi';
+import ProjectGitPanel from './ProjectGitPanel';
 
 const SUB_TABS: { id: ProjectSubView; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'sessions', label: 'Sessions' },
   { id: 'tasks', label: 'Tasks' },
+  { id: 'git', label: 'Git' },
   { id: 'config', label: 'Config' },
 ];
 
 // ── Overview sub-view (inline) ──
 
 function OverviewSummary() {
-  const { sessions, activity, loading } = useStoreValue(projectOverviewStore);
+  const { sessions, activity, loading, projectInfo } = useStoreValue(projectOverviewStore);
 
   if (loading) {
     return <p>Loading…</p>;
@@ -55,8 +44,14 @@ function OverviewSummary() {
             <span className="project-stat-value">{activeCount}</span>
             <span className="project-stat-label">Active</span>
           </div>
+          <div className="project-stat">
+            <span className="project-stat-value">{projectInfo?.installedAssetSummary?.skills ?? 0}</span>
+            <span className="project-stat-label">Skills</span>
+          </div>
         </div>
       </Panel>
+
+      <ProjectGitPanel />
 
       <Panel title="Recent Activity" testId="project-activity-feed">
         {activity.length > 0 ? (
@@ -64,7 +59,7 @@ function OverviewSummary() {
             {activity.slice(0, 10).map((item, i) => (
               <div className="activity-item" key={`${item.timestamp}-${i}`}>
                 <span className="activity-item-time">
-                  {item.timestamp ? formatTimeAgo(item.timestamp) : '—'}
+                  {item.timestamp ? formatRelativeTime(item.timestamp) : '—'}
                 </span>
                 <span className="activity-item-summary">{item.summary}</span>
               </div>
@@ -107,6 +102,8 @@ export default function ProjectOverview() {
         return <ProjectSessionsList />;
       case 'tasks':
         return <ProjectTaskBoard />;
+      case 'git':
+        return <ProjectGitPanel />;
       case 'config':
         return <ProjectConfigSummary />;
       case 'overview':
@@ -119,9 +116,9 @@ export default function ProjectOverview() {
     <div className="project-overview" data-testid="project-overview">
       {/* Header */}
       <header className="project-overview-header" data-testid="project-overview-header">
-        <div className="project-overview-title-row">
+        <div className="project-overview-header-row">
           <h2 className="project-overview-name">
-            {projectInfo?.label ?? projectId}
+            {projectInfo?.repoLabel ?? projectId}
           </h2>
           {projectInfo ? (
             <span
@@ -135,7 +132,7 @@ export default function ProjectOverview() {
           <HealthDot tone="ok" label="Healthy" testId="project-health-dot" />
           {projectInfo?.lastActivityMs ? (
             <Badge tone="neutral" testId="project-last-activity">
-              {formatTimeAgo(projectInfo.lastActivityMs)}
+              {formatRelativeTime(projectInfo.lastActivityMs)}
             </Badge>
           ) : null}
         </div>
@@ -167,13 +164,13 @@ export default function ProjectOverview() {
       </Toolbar>
 
       {/* Sub-tab bar */}
-      <nav className="project-sub-tabs" data-testid="project-sub-tabs" role="tablist">
+      <nav className="project-subtab-bar" data-testid="project-sub-tabs" role="tablist">
         {SUB_TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
-            className={`project-sub-tab ${subView === tab.id ? 'project-sub-tab-active' : ''}`}
+            className={`project-subtab ${subView === tab.id ? 'project-subtab-active' : ''}`}
             aria-selected={subView === tab.id}
             data-testid={`project-tab-${tab.id}`}
             onClick={() => navigationStore.selectProject(projectId, tab.id)}

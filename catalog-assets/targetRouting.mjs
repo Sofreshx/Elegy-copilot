@@ -1,0 +1,296 @@
+const route = (assetId, extra = {}) => ({
+  assetId,
+  ...extra,
+});
+
+export const TARGET_ROUTING_SCHEMA_VERSION = 1;
+
+export const SHARED_G05_GOVERNANCE = {
+  g05: {
+    schemaVersion: '1.0.0',
+    requiredControls: {
+      early: [
+        { id: 'safetyTokenParity', owner: 'Security Engineering' },
+        { id: 'hookEnforcement', owner: 'Platform Engineering' },
+        { id: 'telemetrySchemaValidation', owner: 'Observability Engineering' },
+      ],
+      final: [
+        { id: 'evidencePredicates', owner: 'Release Engineering' },
+        { id: 'finalGateWaiverPrecedence', owner: 'Security Engineering' },
+        { id: 'trustedEvidenceBindingRetention', owner: 'Release Engineering' },
+      ],
+    },
+  },
+};
+
+export const CLI_MANDATORY_ALLOWLIST_ITEMS = Object.freeze({
+  agents: [],
+  skills: ['core-guardrails'],
+  prompts: [],
+});
+
+const ENGINE_ASSET_ROUTES = [
+  route('agent-code-explorer'),
+  route('agent-code-reviewer'),
+  route('agent-deep-researcher'),
+  route('agent-doc-writer'),
+  route('agent-execute'),
+  route('agent-impl'),
+  route('agent-o-planner'),
+  route('agent-o-reframer'),
+  route('agent-orchestrator'),
+  route('agent-orchestrator-claude'),
+  route('agent-orchestrator-claude-cli'),
+  route('agent-orchestrator-cli'),
+  route('agent-orchestrator-gpt'),
+  route('agent-orchestrator-gpt-cli'),
+  route('agent-reviewer-gpt-5-4'),
+  route('agent-reviewer-sonnet-4-6'),
+  route('agent-search'),
+  route('agent-test-runner'),
+  route('copilot-instructions'),
+  route('prompt-instruction-engine-fleet'),
+  route('prompt-instruction-engine-plan'),
+  route('prompt-instruction-engine-review'),
+  route('skill-agent-browser'),
+  route('skill-alba-integration-tests'),
+  route('skill-aspire-apphost'),
+  route('skill-aspire-deployment'),
+  route('skill-audit-report-formats'),
+  route('skill-auth'),
+  route('skill-code-review'),
+  route('skill-core-guardrails'),
+  route('skill-critic'),
+  route('skill-csharp-expert'),
+  route('skill-discovery'),
+  route('skill-documentation-structure-governance'),
+  route('skill-documentation-authoring'),
+  route('skill-e2e-workflow'),
+  route('skill-firebase-auth'),
+  route('skill-friction-feedback'),
+  route('skill-frontend'),
+  route('skill-github-troubleshooting'),
+  route('skill-implementation-friction'),
+  route('skill-instruction-quality'),
+  route('skill-logging-observability'),
+  route('skill-marten-documents'),
+  route('skill-marten-events'),
+  route('skill-marten-linq-querying'),
+  route('skill-microsoft-agent-framework'),
+  route('skill-openai-compatible'),
+  route('skill-orleans'),
+  route('skill-planning-feature'),
+  route('skill-planpack-authoring'),
+  route('skill-project-guidelines'),
+  route('skill-project-conventions-governance'),
+  route('skill-guidelines-authoring'),
+  route('skill-react-query'),
+  route('skill-refactor'),
+  route('skill-repo-setup-governance'),
+  route('skill-roadmap-authoring'),
+  route('skill-security'),
+  route('skill-signalr'),
+  route('skill-skill-forge'),
+  route('skill-stack-audit-patterns'),
+  route('skill-stack-detector'),
+  route('skill-system-cleanup'),
+  route('skill-test-caching-verification'),
+  route('skill-testing-dotnet-unit'),
+  route('skill-testing-frontend-unit'),
+  route('skill-truth-sync'),
+  route('skill-wolverine-core'),
+  route('skill-wolverine-http'),
+];
+
+export const COMPATIBILITY_MANIFESTS = [
+  {
+    manifestId: 'engine',
+    outputPath: 'engine-assets/manifest.json',
+    package: {
+      name: 'instruction-engine',
+      version: '0.1.0',
+      sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
+    },
+    installDefaults: {
+      copilotHome: '~/.copilot',
+      description:
+        'Repo-scoped orchestration agents and support skills for reframing, planning, implementation routing, research, validation, conventions bootstrap, and closure. This is the current home of the former Elegy planner and orchestrator lane.',
+      skillsDir: '~/.copilot/skills',
+      promptsDir: '~/.copilot/prompts',
+      instructionsFile: '~/.copilot/copilot-instructions.md',
+    },
+    installerHints: {
+      preferExplicitDestinations: true,
+      agentsAreFlat: true,
+      skillsRequireFolderName: true,
+      notes:
+        'If the installer flattens source folders, it should still write files using each asset.destination path.',
+    },
+    skillPointer: {
+      enabled: true,
+      schemaVersion: 1,
+      vaultDir: 'skills-vault',
+      loadModes: {
+        always: 'Installed to skills/ (VS Code scans and loads into context). Reserved for meta-skills and transversal skills.',
+        'on-demand':
+          'Installed to skills-vault/ only (NOT scanned by VS Code). Discovered via skill-discovery pattern. Default for domain-specific skills.',
+      },
+      notes:
+        "When enabled, 'always' skills install full content to skills/. 'on-demand' skills install ONLY to skills-vault/ - no pointer stub in skills/. Agents use the skill-discovery skill to find and load on-demand skills at runtime.",
+    },
+    governance: SHARED_G05_GOVERNANCE,
+    assetRoutes: ENGINE_ASSET_ROUTES,
+    bundleIds: [
+      'core-global',
+      'repo-setup-governance-global',
+      'orchestrator-workflow',
+      'roadmap-planning-lane',
+      'instruction-engine-governance-lanes',
+    ],
+  },
+  {
+    manifestId: 'cli',
+    outputPath: '.cli/manifest.json',
+    package: {
+      name: 'elegy-copilot',
+      version: '0.1.0',
+      sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
+    },
+    installDefaults: {
+      copilotHome: '~/.copilot',
+      agentsDir: '~/.copilot/agents',
+      skillsDir: '~/.copilot/skills',
+      promptsDir: '~/.copilot/prompts',
+      instructionsFile: '~/.copilot/copilot-instructions.md',
+    },
+    installerHints: {
+      preferExplicitDestinations: true,
+      agentsAreFlat: true,
+      skillsRequireFolderName: true,
+      notes:
+        'If the installer flattens source folders, it should still write files using each asset.destination path.',
+    },
+    governance: SHARED_G05_GOVERNANCE,
+    inheritRoutesFromManifestId: 'engine',
+    bundleIds: [
+      'core-global',
+      'repo-setup-governance-global',
+      'orchestrator-workflow',
+      'roadmap-planning-lane',
+      'instruction-engine-governance-lanes',
+    ],
+    allowlistPath: '.cli/manifest.allowlist.json',
+    mandatoryAllowlistItems: CLI_MANDATORY_ALLOWLIST_ITEMS,
+    useAllowlist: true,
+    sortAssets: 'type-id',
+  },
+  {
+    manifestId: 'codex',
+    outputPath: 'codex-assets/manifest.json',
+    package: {
+      name: 'instruction-engine-codex',
+      version: '0.1.0',
+      sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
+    },
+    installDefaults: {
+      codexHome: '~/.codex',
+      agentsDir: '~/.codex/agents',
+      skillsDir: '~/.codex/skills',
+      instructionsFile: '~/.codex/AGENTS.md',
+      configFile: '~/.codex/config.toml',
+      description: 'Home-installed Codex session assets for planning-first work, review, and minimal repository setup.',
+    },
+    installerHints: {
+      preferExplicitDestinations: true,
+      agentsAreFlat: true,
+      skillsRequireFolderName: true,
+      notes:
+        'Install only Codex-native home instructions, a read-only reviewer agent, and the repo-setup skill under ~/.codex, then patch ~/.codex/config.toml conservatively. Do not bulk-install Copilot/engine assets into Codex.',
+    },
+    governance: SHARED_G05_GOVERNANCE,
+    assetRoutes: [
+      route('codex-global-instructions'),
+      route('codex-reviewer-agent'),
+      route('codex-repo-setup-skill'),
+      route('codex-rubberduck-plan-review-skill', { sourceAssetId: 'skill-rubberduck-plan-review' }),
+      route('codex-implementation-review-skill', { sourceAssetId: 'skill-implementation-review' }),
+      route('codex-implementation-handoff-skill', { sourceAssetId: 'skill-implementation-handoff' }),
+      route('codex-roadmap-planning-skill', { sourceAssetId: 'skill-roadmap-planning' }),
+    ],
+  },
+  {
+    manifestId: 'opencode',
+    outputPath: 'opencode-assets/manifest.json',
+    package: {
+      name: 'instruction-engine-opencode',
+      version: '0.1.0',
+      sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
+    },
+    installDefaults: {
+      opencodeHome: '~/.config/opencode',
+      agentsDir: '~/.config/opencode/agents',
+      skillsDir: '~/.config/opencode/skills',
+      instructionsFile: '~/.config/opencode/AGENTS.md',
+      description:
+        "Native-first OpenCode instructions plus curated planning, roadmap, review, security, and governance skills. Kept intentionally minimal to complement OpenCode's built-in harness.",
+    },
+    governance: SHARED_G05_GOVERNANCE,
+    assetRoutes: [
+      route('opencode-global-instructions'),
+      route('opencode-code-explorer-agent'),
+      route('opencode-web-searcher-agent'),
+      route('opencode-code-review-skill'),
+      route('opencode-rubberduck-plan-review-skill', { sourceAssetId: 'skill-rubberduck-plan-review' }),
+      route('opencode-roadmap-planning-skill', { sourceAssetId: 'skill-roadmap-planning' }),
+      route('opencode-implementation-review-skill', { sourceAssetId: 'skill-implementation-review' }),
+      route('opencode-implementation-handoff-skill', { sourceAssetId: 'skill-implementation-handoff' }),
+      route('opencode-security-skill'),
+      route('opencode-refactor-skill'),
+      route('opencode-project-conventions-governance-skill'),
+      route('opencode-stack-detector-skill'),
+    ],
+  },
+  {
+    manifestId: 'antigravity',
+    outputPath: 'antigravity-assets/manifest.json',
+    package: {
+      name: 'instruction-engine-antigravity',
+      version: '0.1.0',
+      sourceCommitSha: '<REPLACE_WITH_GIT_SHA>',
+    },
+    installDefaults: {
+      geminiHome: '~/.gemini',
+      antigravityHome: '~/.gemini/antigravity',
+      skillsDir: '~/.gemini/antigravity/skills',
+      instructionsFile: '~/.gemini/GEMINI.md',
+      description:
+        'Home-installed Antigravity 2 / Antigravity CLI assets using the current Gemini-compatible layout for shared skills plus a bounded instruction-engine block in GEMINI.md.',
+    },
+    installerHints: {
+      preferExplicitDestinations: true,
+      skillsRequireFolderName: true,
+      notes:
+        'Install shared skills under ~/.gemini/antigravity/skills and manage only the instruction-engine block inside the current Gemini-compatible ~/.gemini/GEMINI.md layout.',
+    },
+    governance: SHARED_G05_GOVERNANCE,
+    assetRoutes: [
+      route('antigravity-global-instructions'),
+      route('antigravity-rubberduck-plan-review-skill', {
+        sourceAssetId: 'skill-rubberduck-plan-review',
+        destination: 'antigravity/skills/rubberduck-plan-review',
+      }),
+      route('antigravity-implementation-review-skill', {
+        sourceAssetId: 'skill-implementation-review',
+        destination: 'antigravity/skills/implementation-review',
+      }),
+      route('antigravity-implementation-handoff-skill', {
+        sourceAssetId: 'skill-implementation-handoff',
+        destination: 'antigravity/skills/implementation-handoff',
+      }),
+      route('antigravity-roadmap-planning-skill', {
+        sourceAssetId: 'skill-roadmap-planning',
+        destination: 'antigravity/skills/roadmap-planning',
+      }),
+    ],
+  },
+];

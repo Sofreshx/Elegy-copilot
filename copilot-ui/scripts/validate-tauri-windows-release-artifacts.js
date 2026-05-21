@@ -43,6 +43,7 @@ function validateTauriWindowsReleaseArtifacts(options = {}) {
   const stagedLayout = validateStagedTauriNodeSidecarLayoutMetadata({ workspaceRoot: activeWorkspaceRoot });
   const bundleConfig = validateTauriBundleConfig({ workspaceRoot: activeWorkspaceRoot });
   validateTauriNodeSidecarLayoutModel({ workspaceRoot: activeWorkspaceRoot });
+  const stagedRollbackPolicy = JSON.parse(fs.readFileSync(stagedLayout.bundledRollbackPolicyPath, 'utf8'));
 
   const releaseRoot = path.resolve(options.releaseRoot || path.join(activeWorkspaceRoot, 'release', 'tauri', 'windows'));
   const releaseManifestPath = path.join(releaseRoot, 'release-manifest.json');
@@ -82,11 +83,13 @@ function validateTauriWindowsReleaseArtifacts(options = {}) {
   assert(installationGuidanceText.includes('installer download and apply still require explicit user action'), `Expected ${installationGuidancePath} to preserve the manual-installer handoff wording.`);
   assert(releaseManifest.runtime?.manifestRelativePath === 'runtime-manifests/windows-tauri-node-sidecar.json', `Expected ${releaseManifestPath} runtime manifest path to stay fixed.`);
   assert(releaseManifest.runtime?.nodeRuntimeRelativePath === manifest.nodeRuntime.relativePath, `Expected ${releaseManifestPath} node runtime path to match the Tauri sidecar manifest.`);
+  assert(stagedRollbackPolicy.updatesEnabled === true, `Expected ${stagedLayout.bundledRollbackPolicyPath} updatesEnabled=true.`);
 
   return {
     releaseManifestPath,
     installerPath,
     installationGuidancePath,
+    rollbackPolicyPath: stagedLayout.bundledRollbackPolicyPath,
     channel: releaseManifest.releaseChannel,
     stagingNodeRuntime: stagedLayout.nodeRuntimeRelativePath,
     configuredBundleTarget: bundleConfig.bundleTarget,
@@ -100,7 +103,8 @@ if (require.main === module) {
       `[tauri-win-release] validated ${path.basename(result.releaseManifestPath)}; `
       + `installer=${path.basename(result.installerPath)}; channel=${result.channel}; `
       + `target=${result.configuredBundleTarget}; node=${result.stagingNodeRuntime}; `
-      + `guide=${path.basename(result.installationGuidancePath)}.`,
+      + `guide=${path.basename(result.installationGuidancePath)}; `
+      + `rollback=${path.basename(result.rollbackPolicyPath)}.`,
     );
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);

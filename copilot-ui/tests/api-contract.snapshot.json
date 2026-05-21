@@ -69,6 +69,84 @@
       "kind"
     ]
   },
+  "GET /api/planning/live/roadmaps": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/live/roadmaps/RM-demo": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/live/goals/GOAL-demo": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/live/plans": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/live/plans/PLAN-demo": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
+  "GET /api/planning/live/todos": {
+    "status": 503,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "code",
+      "contractVersion",
+      "deterministic",
+      "error",
+      "kind",
+      "reason"
+    ]
+  },
   "POST /api/planning/persistence/init": {
     "status": 200,
     "contentType": "application/json",
@@ -1687,6 +1765,30 @@
       "error"
     ]
   },
+  "GET /api/git/branches": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "GET /api/git/summary": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "GET /api/git/pull-request": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
   "POST /api/git/stage": {
     "status": 400,
     "contentType": "application/json",
@@ -1704,6 +1806,38 @@
     ]
   },
   "POST /api/git/commit": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/git/checkout": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/git/pull": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/git/push": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "error"
+    ]
+  },
+  "POST /api/git/pull-request": {
     "status": 400,
     "contentType": "application/json",
     "bodyType": "json",

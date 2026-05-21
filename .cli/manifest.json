@@ -369,7 +369,11 @@
       "id": "prompt-instruction-engine-review",
       "type": "prompt",
       "source": "engine-assets/prompts/instruction-engine-review.prompt.md",
-      "destination": "prompts/instruction-engine-review.prompt.md"
+      "destination": "prompts/instruction-engine-review.prompt.md",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Compatibility entrypoint only; broad review should follow the canonical code-reviewer/testing-quality/validation contract rather than a separate generic checklist."
+      }
     },
     {
       "id": "skill-agent-browser",
@@ -411,7 +415,11 @@
       "type": "skill",
       "source": "engine-assets/skills/code-review",
       "destination": "skills/code-review",
-      "loadMode": "on-demand"
+      "loadMode": "on-demand",
+      "governance": {
+        "routingClass": "deprecated-compatibility",
+        "routingNote": "Compatibility entrypoint only; generic review routing must inherit the canonical code-reviewer lane and current testing-quality/validation governance."
+      }
     },
     {
       "id": "skill-core-guardrails",
@@ -617,21 +625,5 @@
       "loadMode": "on-demand"
     }
   ],
-  "sourcePatterns": [
-    {
-      "type": "agent",
-      "sourceGlob": "engine-assets/agents/*.agent.md",
-      "destinationDir": "agents"
-    },
-    {
-      "type": "skill",
-      "sourceGlob": "engine-assets/skills/*",
-      "destinationDir": "skills"
-    },
-    {
-      "type": "prompt",
-      "sourceGlob": "engine-assets/prompts/*.prompt.md",
-      "destinationDir": "prompts"
-    }
-  ]
+  "sourcePatterns": []
 }

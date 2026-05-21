@@ -1,16 +1,22 @@
 import { createStore } from '../../lib/store';
+import { getGitSummary, listProjects, updateProject } from '../../lib/api';
+import type { GitSummaryResponse } from '../../lib/api/git';
+import type { ProjectResponse } from '../../lib/api/projects';
+import { EMPTY_PROJECT_GIT_SUMMARY, type ProjectGitSummary, type ProjectRecord } from './projectTypes';
 
 // ── Types ──
 
 export interface ProjectListItem {
-  key: string;
+  projectId: string;
+  repoId: string;
   repoPath: string;
-  label: string;
+  repoLabel: string;
   pinned: boolean;
   lastActivityMs: number | null;
   canonicalRemote: string | null;
   activeSessionCount: number;
   totalSessionCount: number;
+  gitSummary: ProjectGitSummary | null;
 }
 
 export type ProjectSortField = 'name' | 'activity' | 'sessions';
@@ -18,6 +24,7 @@ export type ProjectSortField = 'name' | 'activity' | 'sessions';
 export interface ProjectsListState {
   projects: ProjectListItem[];
   loading: boolean;
+  loadingGitSummary: boolean;
   error: string | null;
   searchQuery: string;
   sortField: ProjectSortField;
@@ -34,7 +41,7 @@ export function getFilteredProjects(state: ProjectsListState): ProjectListItem[]
     const q = state.searchQuery.trim().toLowerCase();
     result = result.filter(
       (p) =>
-        (p.label || '').toLowerCase().includes(q) ||
+        (p.repoLabel || '').toLowerCase().includes(q) ||
         (p.repoPath || '').toLowerCase().includes(q),
     );
   }
@@ -49,7 +56,7 @@ export function getFilteredProjects(state: ProjectsListState): ProjectListItem[]
 
     switch (state.sortField) {
       case 'name':
-        return (a.label || '').toLowerCase().localeCompare((b.label || '').toLowerCase());
+        return (a.repoLabel || '').toLowerCase().localeCompare((b.repoLabel || '').toLowerCase());
       case 'activity':
         return (b.lastActivityMs ?? 0) - (a.lastActivityMs ?? 0);
       case 'sessions':
@@ -60,26 +67,52 @@ export function getFilteredProjects(state: ProjectsListState): ProjectListItem[]
   return result;
 }
 
-// ── API response shapes ──
-
-interface CatalogRepo {
-  key: string;
-  repoPath: string;
-  label: string;
-  pinned?: boolean;
-  canonicalRemote?: string | null;
-  lastActivityMs?: number | null;
-}
-
-interface CatalogReposResponse {
-  repos: CatalogRepo[];
-  totalCount?: number;
-}
-
 interface UnifiedSession {
-  id: string;
+  sessionId: string;
   projectId?: string | null;
   status?: string;
+}
+
+function toProjectGitSummary(summary: GitSummaryResponse): ProjectGitSummary {
+  return {
+    branch: summary.branch,
+    clean: summary.clean,
+    changedFiles: summary.changedFiles,
+    stagedFiles: summary.stagedFiles,
+    ahead: summary.ahead,
+    behind: summary.behind,
+    additions: summary.additions,
+    deletions: summary.deletions,
+    hasRemote: summary.hasRemote,
+    prNumber: summary.pullRequest?.number ?? null,
+    prUrl: summary.pullRequest?.url ?? null,
+    prState: summary.pullRequest?.state ?? null,
+    remoteName: summary.remoteName,
+    remoteLabel: summary.remoteLabel,
+  };
+}
+
+function toProjectListItem(project: ProjectRecord): ProjectListItem {
+  return {
+    projectId: project.projectId,
+    repoId: project.repoId,
+    repoPath: project.repoPath,
+    repoLabel: project.repoLabel,
+    pinned: project.pinned,
+    lastActivityMs: project.lastActivityMs,
+    canonicalRemote: project.canonicalRemote,
+    activeSessionCount: project.activeSessionCount,
+    totalSessionCount: project.sessionCount,
+    gitSummary: null,
+  };
+}
+
+function toProjectRecord(project: ProjectResponse, sessionCount: number, activeSessionCount: number): ProjectRecord {
+  return {
+    ...project,
+    sessionCount,
+    activeSessionCount,
+  };
 }
 
 // ── Store creation ──
@@ -87,14 +120,12 @@ interface UnifiedSession {
 const INITIAL_STATE: ProjectsListState = {
   projects: [],
   loading: false,
+  loadingGitSummary: false,
   error: null,
   searchQuery: '',
   sortField: 'name',
   showPinnedFirst: true,
 };
-
-// Local pin state (fallback when PATCH endpoint is unavailable)
-const localPins = new Map<string, boolean>();
 
 function createProjectsListStore() {
   const store = createStore<ProjectsListState>(INITIAL_STATE);
@@ -102,14 +133,10 @@ function createProjectsListStore() {
   async function loadProjects(): Promise<void> {
     store.setState((s) => ({ ...s, loading: true, error: null }));
     try {
-      const [reposRes, sessionsRes] = await Promise.all([
-        fetch('/api/catalog/repos'),
+      const [projects, sessionsRes] = await Promise.all([
+        listProjects(),
         fetch('/api/sessions/unified?limit=200'),
       ]);
-
-      if (!reposRes.ok) throw new Error(`Failed to load projects (${reposRes.status})`);
-
-      const catalog: CatalogReposResponse = await reposRes.json();
 
       // Build per-project session counts
       let sessions: UnifiedSession[] = [];
@@ -119,7 +146,6 @@ function createProjectsListStore() {
 
       const activeCountMap = new Map<string, number>();
       const totalCountMap = new Map<string, number>();
-      const lastActivityMap = new Map<string, number>();
 
       for (const s of sessions) {
         const pid = s.projectId;
@@ -131,22 +157,52 @@ function createProjectsListStore() {
         }
       }
 
-      const projects: ProjectListItem[] = catalog.repos.map((repo) => ({
-        key: repo.key,
-        repoPath: repo.repoPath,
-        label: repo.label,
-        pinned: localPins.get(repo.key) ?? repo.pinned ?? false,
-        lastActivityMs: repo.lastActivityMs ?? lastActivityMap.get(repo.key) ?? null,
-        canonicalRemote: repo.canonicalRemote ?? null,
-        activeSessionCount: activeCountMap.get(repo.key) ?? 0,
-        totalSessionCount: totalCountMap.get(repo.key) ?? 0,
-      }));
+      const nextProjects = projects.map((project) =>
+        toProjectListItem(
+          toProjectRecord(
+            project,
+            totalCountMap.get(project.projectId) ?? project.sessionCount ?? 0,
+            activeCountMap.get(project.projectId) ?? project.activeSessionCount ?? 0,
+          ),
+        ),
+      );
 
-      store.setState((s) => ({ ...s, projects, loading: false }));
+      store.setState((s) => ({ ...s, projects: nextProjects, loading: false }));
+      void loadGitSummaries(nextProjects);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       store.setState((s) => ({ ...s, error: message, loading: false }));
     }
+  }
+
+  async function loadGitSummaries(projects: ProjectListItem[]): Promise<void> {
+    if (projects.length === 0) {
+      return;
+    }
+
+    store.setState((s) => ({ ...s, loadingGitSummary: true }));
+    const results = await Promise.allSettled(
+      projects.map(async (project) => ({
+        projectId: project.projectId,
+        summary: toProjectGitSummary(await getGitSummary(project.repoPath)),
+      })),
+    );
+
+    const summaryMap = new Map<string, ProjectGitSummary>();
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        summaryMap.set(result.value.projectId, result.value.summary);
+      }
+    }
+
+    store.setState((s) => ({
+      ...s,
+      loadingGitSummary: false,
+      projects: s.projects.map((project) => ({
+        ...project,
+        gitSummary: summaryMap.get(project.projectId) ?? project.gitSummary ?? EMPTY_PROJECT_GIT_SUMMARY,
+      })),
+    }));
   }
 
   function refresh(): void {
@@ -161,30 +217,27 @@ function createProjectsListStore() {
     store.setState((s) => ({ ...s, sortField }));
   }
 
-  function togglePin(projectKey: string): void {
-    // Try PATCH first; fall back to local pin state
+  function togglePin(projectId: string): void {
     const current = store.getState();
-    const project = current.projects.find((p) => p.key === projectKey);
+    const project = current.projects.find((p) => p.projectId === projectId);
     if (!project) return;
 
     const newPinned = !project.pinned;
-    localPins.set(projectKey, newPinned);
 
-    // Optimistic update
     store.setState((s) => ({
       ...s,
       projects: s.projects.map((p) =>
-        p.key === projectKey ? { ...p, pinned: newPinned } : p,
+        p.projectId === projectId ? { ...p, pinned: newPinned } : p,
       ),
     }));
 
-    // Fire-and-forget PATCH attempt
-    fetch(`/api/catalog/repos/${encodeURIComponent(projectKey)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pinned: newPinned }),
-    }).catch(() => {
-      // PATCH not available — pin state persisted locally
+    void updateProject(projectId, { pinned: newPinned }).catch(() => {
+      store.setState((s) => ({
+        ...s,
+        projects: s.projects.map((p) =>
+          p.projectId === projectId ? { ...p, pinned: project.pinned } : p,
+        ),
+      }));
     });
   }
 

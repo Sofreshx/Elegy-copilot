@@ -159,6 +159,56 @@ async function run() {
       assert.strictEqual(demoSource.activation.codex.installables['skill:brainstorming'].enabled, true);
     });
 
+    await test('Antigravity CLI alias normalizes to the shared Gemini CLI target for MCP installs', async () => {
+      const sourceCacheRoot = path.join(externalSources.resolveCacheRoot(copilotHome), 'demo-source');
+      writeJson(path.join(sourceCacheRoot, 'snapshot.json'), {
+        schemaVersion: 1,
+        sourceId: 'demo-source',
+        fetchedAt: '2026-05-20T00:00:00.000Z',
+        resolvedRef: 'main',
+        installables: [
+          {
+            installableId: 'mcp:context7',
+            kind: 'mcp-server',
+            name: 'context7',
+            title: 'Context7',
+            sourcePath: 'server.json',
+            targetSupport: ['codex', 'opencode', 'antigravity-cli', 'gemini-cli'],
+          },
+        ],
+      });
+
+      const listed = externalSources.listSources({ engineRoot, copilotHome });
+      const demoSourceBefore = listed.sources.find((source) => source.sourceId === 'demo-source');
+      assert.deepStrictEqual(
+        demoSourceBefore.installables[0].targetSupport,
+        ['codex', 'opencode', 'gemini-cli'],
+      );
+
+      const result = externalSources.activateInstallable({
+        engineRoot,
+        copilotHome,
+        codexHome,
+        opencodeHome,
+        geminiHome,
+        antigravityHome,
+      }, {
+        sourceId: 'demo-source',
+        installableId: 'mcp:context7',
+        target: 'antigravity-cli',
+      });
+
+      assert.strictEqual(result.target, 'gemini-cli');
+
+      const settingsPath = path.join(geminiHome, 'settings.json');
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      assert.ok(settings.mcpServers['external-demo-source-context7']);
+
+      const state = JSON.parse(fs.readFileSync(externalSources.resolveStatePath(copilotHome), 'utf8'));
+      assert.ok(state.sources['demo-source'].targets['gemini-cli']);
+      assert.ok(!state.sources['demo-source'].targets['antigravity-cli']);
+    });
+
     await test('refreshSource records sync errors when archive download fails', async () => {
       let caught = null;
       try {

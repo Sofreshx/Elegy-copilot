@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, FormInput, LogViewer, Panel, Toolbar } from '../../components';
 import {
   formatTimestampLabel,
+  humanizeToken,
   resolveSessionSourceLabel,
   resolveSessionStartedAt,
   resolveSessionStatus,
@@ -678,7 +679,7 @@ export default function ExecutorView() {
             testId="executor-open-planning-task-board"
             variant="secondary"
           >
-            Open Planning Task Board
+            Open Planning Workspace
           </Button>
         </div>
       </Panel>
@@ -1767,7 +1768,7 @@ export default function ExecutorView() {
                   testId="executor-open-linked-session"
                   variant="secondary"
                 >
-                  Open Linked Session
+                  Open Linked Runtime Session
                 </Button>
                 {selectedJob ? (
                   <Button
