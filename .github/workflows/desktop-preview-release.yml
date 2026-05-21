@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ref: ${{ steps.meta.outputs.ref }}
+      release_target: ${{ steps.meta.outputs.release_target }}
       tag_name: ${{ steps.meta.outputs.tag_name }}
       release_name: ${{ steps.meta.outputs.release_name }}
       prerelease: ${{ steps.meta.outputs.prerelease }}
@@ -68,6 +69,7 @@ jobs:
           set -euo pipefail
 
           ref="${{ inputs.ref }}"
+          release_target=""
           tag_name="${{ inputs.tag_name }}"
           release_name="${{ inputs.release_name }}"
           prerelease="true"
@@ -107,6 +109,8 @@ jobs:
             git fetch --depth=1 origin "${ref}"
           fi
 
+          release_target="$(git rev-parse --verify "${ref}^{commit}")"
+
           package_version="$(python - "${ref}" <<'PY'
           import json
           import subprocess
@@ -127,6 +131,7 @@ jobs:
           fi
 
           echo "ref=${ref}" >> "$GITHUB_OUTPUT"
+          echo "release_target=${release_target}" >> "$GITHUB_OUTPUT"
           echo "tag_name=${tag_name}" >> "$GITHUB_OUTPUT"
           echo "release_name=${release_name}" >> "$GITHUB_OUTPUT"
           echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
@@ -189,7 +194,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ needs.resolve-preview.outputs.tag_name }}
-          RELEASE_TARGET: ${{ needs.resolve-preview.outputs.ref }}
+          RELEASE_TARGET: ${{ needs.resolve-preview.outputs.release_target }}
           RELEASE_NAME: ${{ needs.resolve-preview.outputs.release_name }}
         run: |
           set -euo pipefail
