@@ -7,6 +7,7 @@ const { spawnSync } = require('child_process');
 const workspaceRoot = path.resolve(__dirname, '..');
 const tauriReleaseRoot = path.join(workspaceRoot, 'release', 'tauri');
 const stagedResourcesRoot = path.join(workspaceRoot, 'src-tauri', 'gen', 'resources');
+const tauriBundleRoot = path.join(workspaceRoot, 'src-tauri', 'target', 'release', 'bundle');
 
 function sleep(milliseconds) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds);
@@ -125,11 +126,13 @@ function cleanTauriRelease() {
   const backed = backupTrackedDocs();
   removeTarget(tauriReleaseRoot);
   removeTarget(stagedResourcesRoot);
+  removeTarget(tauriBundleRoot);
   restoreTrackedDocs(backed);
 
   return {
     tauriReleaseRoot,
     stagedResourcesRoot,
+    tauriBundleRoot,
   };
 }
 
@@ -138,7 +141,8 @@ if (require.main === module) {
     const result = cleanTauriRelease();
     console.log(
       `[clean-tauri-release] cleaned ${path.relative(workspaceRoot, result.tauriReleaseRoot)} and `
-      + `${path.relative(workspaceRoot, result.stagedResourcesRoot)}.`,
+      + `${path.relative(workspaceRoot, result.stagedResourcesRoot)} and `
+      + `${path.relative(workspaceRoot, result.tauriBundleRoot)}.`,
     );
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
