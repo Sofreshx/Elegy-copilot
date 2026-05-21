@@ -20,7 +20,7 @@ on:
           - published
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   resolve-release:
