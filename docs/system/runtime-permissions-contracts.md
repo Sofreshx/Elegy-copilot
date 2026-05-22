@@ -132,7 +132,7 @@ Pass/fail contract:
 
 3. Release gate linkage
   - Desktop packaging remains a separate workflow and is not published from `repo-ci.yml`.
-  - Public preview and signed release flows stay in `desktop-preview-release.yml`, `desktop-release.yml`, and `desktop-version-tag.yml`.
+  - Public preview and stable release flows stay in `desktop-preview-release.yml`, `desktop-release.yml`, and `desktop-version-tag.yml`.
 
 ## WS6 Narrow-to-Broad Validation + Rollback Contract (WU-WS6-07)
 

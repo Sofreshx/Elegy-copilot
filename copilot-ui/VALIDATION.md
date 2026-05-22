@@ -601,32 +601,17 @@ Expected gate result:
 - Trigger the preview lane with a target `ref` plus preview `tag_name`.
 - Preview semver tags are evaluation lane only and should publish with `prerelease: true` even on workflow-dispatch backfills.
 
-### Required repo configuration
-
-- Variable: `DESKTOP_SIGNING_SERVICE_URL` (required, fail closed if absent)
-- Variable: `DESKTOP_SIGNING_SERVICE_AUDIENCE` (optional)
-- Secret: `DESKTOP_SIGNING_SERVICE_API_KEY` (optional)
-
 ### Manual checks
 
-1. Run workflow without `DESKTOP_SIGNING_SERVICE_URL` configured.
-  - Expected: workflow fails at signing contract with a clear fail-closed message.
-2. Run workflow with signing endpoint configured and valid service response.
-  - Expected: Windows signed installer + `signature-manifest.json` + `provenance.attestation.json` are required before draft release.
-3. Confirm Linux metadata signature verification step passes.
-  - Expected: `linux-preview-metadata.sha256` is verified against service-issued signature/certificate before publish.
-4. Confirm macOS preview label is present.
+1. Confirm macOS preview label is present.
   - Expected: `MAC_PREVIEW_UNSIGNED.txt` exists and release still stays draft.
-5. Confirm prerelease inference.
+2. Confirm prerelease inference.
   - `1.2.3` and `1.2.3-rc.1` preview releases stay `prerelease: true`
   - `desktop-v1.2.3` => draft stable release (`prerelease: false`)
   - `desktop-v1.2.3-rc.1` => draft prerelease (`prerelease: true`)
-6. Confirm stable promotion preflight.
+3. Confirm stable promotion preflight.
   - For `desktop-v1.2.3`, the matching semver tag `1.2.3` must resolve to the same commit and its preview release must already be published as `prerelease: true` with `release-manifest.json`, a `.exe` installer, and `windows-installation-guide.md`.
-  - Expected: missing preview tag, mismatched commit, draft preview release, non-prerelease preview release, or missing assets all fail closed before build/signing.
-7. Confirm attestation mismatch blocks release.
-  - In a non-production test run, tamper either `artifacts/windows/windows-signed-installer.exe` or `artifacts/windows/provenance.attestation.json` before publish.
-  - Expected: publish gate fails with a provenance mismatch/malformed attestation error and `Publish desktop draft release` does not execute.
+  - Expected: missing preview tag, mismatched commit, draft preview release, non-prerelease preview release, or missing assets all fail closed before build/publish.
 
 ## G-03 — Reconciliation Invariants Checkpoint (G-03-WU-05)
 

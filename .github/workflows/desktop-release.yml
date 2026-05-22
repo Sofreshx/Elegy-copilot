@@ -57,17 +57,6 @@ jobs:
             exit 1
           fi
 
-      - name: Validate signing endpoint configuration (fail closed)
-        shell: bash
-        env:
-          SIGNING_SERVICE_URL: ${{ vars.DESKTOP_SIGNING_SERVICE_URL }}
-        run: |
-          set -euo pipefail
-          if [[ -z "${SIGNING_SERVICE_URL}" ]]; then
-            echo "DESKTOP_SIGNING_SERVICE_URL is not configured. Refusing to build a stable desktop release that cannot be signed." >&2
-            exit 1
-          fi
-
       - name: Resolve release tag and channel
         id: meta
         shell: bash
@@ -179,173 +168,26 @@ jobs:
       - name: Build and stage Windows package
         run: npm --prefix copilot-ui run desktop:preview:stage
 
-      - name: Upload unsigned Windows package
+      - name: Upload Windows package
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-windows-unsigned
+          name: desktop-windows-release
           path: release-artifacts/windows-tauri
           if-no-files-found: error
           retention-days: 14
 
-  sign-windows:
-    needs:
-      - resolve-release
-      - build-windows
-    runs-on: windows-latest
-    permissions:
-      id-token: write
-      contents: read
-    env:
-      SIGNING_SERVICE_URL: ${{ vars.DESKTOP_SIGNING_SERVICE_URL }}
-      SIGNING_SERVICE_AUDIENCE: ${{ vars.DESKTOP_SIGNING_SERVICE_AUDIENCE || 'elegy-copilot-desktop-release' }}
-      SIGNING_SERVICE_API_KEY: ${{ secrets.DESKTOP_SIGNING_SERVICE_API_KEY }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.resolve-release.outputs.release_tag }}
-          fetch-depth: 0
-          fetch-tags: true
-
-      - name: Download unsigned Windows package
-        uses: actions/download-artifact@v4
-        with:
-          name: desktop-windows-unsigned
-          path: release-artifacts/windows-tauri
-
-      - name: Enforce signing endpoint configuration (fail closed)
-        shell: pwsh
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:SIGNING_SERVICE_URL)) {
-            Write-Error "DESKTOP_SIGNING_SERVICE_URL is not configured. Refusing to publish unsigned desktop artifacts."
-            exit 1
-          }
-
-      - name: OIDC signing contract (Windows Authenticode)
-        shell: pwsh
-        run: |
-          $releaseRoot = (Resolve-Path 'release-artifacts/windows-tauri').Path
-          $releaseManifestPath = Join-Path $releaseRoot 'release-manifest.json'
-          if (-not (Test-Path $releaseManifestPath)) {
-            Write-Error "Tauri release manifest is missing at $releaseManifestPath."
-            exit 1
-          }
-
-          $releaseManifest = Get-Content -Path $releaseManifestPath -Raw | ConvertFrom-Json
-          $relativeInstallerPath = [string]$releaseManifest.artifact.relativePath
-          if ([string]::IsNullOrWhiteSpace($relativeInstallerPath)) {
-            Write-Error "release-manifest.json declared an empty installer path."
-            exit 1
-          }
-
-          $candidateInstallerPath = Join-Path $releaseRoot $relativeInstallerPath
-          if (-not (Test-Path $candidateInstallerPath)) {
-            Write-Error "The Windows installer declared in release-manifest.json was not found: $candidateInstallerPath"
-            exit 1
-          }
-
-          $resolvedInstallerPath = [System.IO.Path]::GetFullPath((Resolve-Path $candidateInstallerPath).Path)
-          if (-not $resolvedInstallerPath.StartsWith($releaseRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            Write-Error "The Windows installer declared in release-manifest.json resolves outside the release directory: $resolvedInstallerPath"
-            exit 1
-          }
-
-          if ([System.IO.Path]::GetExtension($resolvedInstallerPath) -ne '.exe') {
-            Write-Error "release-manifest.json declared a non-executable Windows installer path: $resolvedInstallerPath"
-            exit 1
-          }
-
-          $installer = Get-Item -LiteralPath $resolvedInstallerPath
-          $audience = if ([string]::IsNullOrWhiteSpace($env:SIGNING_SERVICE_AUDIENCE)) { 'elegy-copilot-desktop-release' } else { $env:SIGNING_SERVICE_AUDIENCE }
-          $oidcUri = "$($env:ACTIONS_ID_TOKEN_REQUEST_URL)&audience=$([uri]::EscapeDataString($audience))"
-          $oidcHeaders = @{ Authorization = "Bearer $($env:ACTIONS_ID_TOKEN_REQUEST_TOKEN)" }
-          $oidcResponse = Invoke-RestMethod -Method Get -Uri $oidcUri -Headers $oidcHeaders
-
-          if (-not $oidcResponse.value) {
-            Write-Error "OIDC token exchange failed; signing request cannot proceed."
-            exit 1
-          }
-
-          $payload = @{
-            operation = 'windows-authenticode'
-            repository = '${{ github.repository }}'
-            releaseTag = '${{ needs.resolve-release.outputs.release_tag }}'
-            artifactPath = $installer.FullName
-            expectedOutputs = @{
-              signedArtifactPath = 'release-artifacts/windows-tauri/windows-signed-installer.exe'
-              signatureManifestPath = 'release-artifacts/windows-tauri/signature-manifest.json'
-              provenanceAttestationPath = 'release-artifacts/windows-tauri/provenance.attestation.json'
-            }
-          }
-
-          $requestHeaders = @{
-            Authorization = "Bearer $($oidcResponse.value)"
-            'Content-Type' = 'application/json'
-          }
-
-          if (-not [string]::IsNullOrWhiteSpace($env:SIGNING_SERVICE_API_KEY)) {
-            $requestHeaders['X-Signing-Api-Key'] = $env:SIGNING_SERVICE_API_KEY
-          }
-
-          $response = Invoke-RestMethod -Method Post -Uri $env:SIGNING_SERVICE_URL -Headers $requestHeaders -Body ($payload | ConvertTo-Json -Depth 6)
-          $response | ConvertTo-Json -Depth 10 | Out-File -FilePath 'release-artifacts/windows-tauri/signing-response.json' -Encoding utf8
-
-          $requiredKeys = @('signedArtifactPath', 'signatureManifestPath', 'provenanceAttestationPath')
-          foreach ($key in $requiredKeys) {
-            if (-not $response.$key) {
-              Write-Error "Signing service response is missing required field '$key'."
-              exit 1
-            }
-          }
-
-          function Resolve-ContractPath([string] $value) {
-            if ([System.IO.Path]::IsPathRooted($value)) {
-              return $value
-            }
-
-            return Join-Path $env:GITHUB_WORKSPACE $value
-          }
-
-          $signedInstaller = Resolve-ContractPath $response.signedArtifactPath
-          $signatureManifest = Resolve-ContractPath $response.signatureManifestPath
-          $provenanceAttestation = Resolve-ContractPath $response.provenanceAttestationPath
-
-          foreach ($path in @($signedInstaller, $signatureManifest, $provenanceAttestation)) {
-            if (-not (Test-Path $path)) {
-              Write-Error "Required signing evidence is missing: $path"
-              exit 1
-            }
-          }
-
-          Copy-Item $signedInstaller $resolvedInstallerPath -Force
-
-          $updatedManifest = Get-Content -Path $releaseManifestPath -Raw | ConvertFrom-Json
-          $updatedInstaller = Get-Item -LiteralPath $resolvedInstallerPath
-          $hash = (Get-FileHash -LiteralPath $resolvedInstallerPath -Algorithm SHA256).Hash.ToLowerInvariant()
-          $updatedManifest.artifact.size = $updatedInstaller.Length
-          $updatedManifest.artifact.sha256 = $hash
-          ($updatedManifest | ConvertTo-Json -Depth 10) + "`n" | Set-Content -Path $releaseManifestPath -Encoding utf8
-
-      - name: Upload signed Windows artifacts and evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-windows-signed
-          path: release-artifacts/windows-tauri
-          if-no-files-found: error
-          retention-days: 30
-
   publish-release:
     needs:
       - resolve-release
-      - sign-windows
+      - build-windows
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download signed Windows artifacts
+      - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
-          name: desktop-windows-signed
+          name: desktop-windows-release
           path: artifacts/windows-tauri
 
       - name: Publish desktop GitHub release
@@ -362,7 +204,7 @@ jobs:
 
           mapfile -t release_files < <(find artifacts/windows-tauri -type f | sort)
           if [[ "${#release_files[@]}" -eq 0 ]]; then
-            echo "No signed desktop release files were found." >&2
+            echo "No desktop release files were found." >&2
             exit 1
           fi
 

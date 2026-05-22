@@ -33,8 +33,8 @@ desktop path is a Windows-first Tauri shell with a bundled Node sidecar, as defi
 Operational constraints:
 - Stable channel never consumes prerelease artifacts.
 - Managed CLI refresh must stay on the same stable/prerelease lane as the packaged app and bundled SDK dependency.
-- Promotion requires matching provenance/attestation evidence.
-- Missing or invalid signing evidence is release-blocking (fail closed).
+- Promotion requires matching preview/stable release metadata and artifact consistency.
+- Missing or invalid release metadata is release-blocking (fail closed).
 
 ### Rollback + Kill-Switch Activation Rules (G-06-WU-03)
 
@@ -60,19 +60,15 @@ Desktop release CI is split between a public preview lane and the signed maintai
 - Public preview lane:
   - `.github/workflows/desktop-preview-release.yml` can be auto-triggered from a matching semver tag or manually dispatched with a target `ref` plus a preview `tag_name`.
   - It publishes clearly labeled unsigned preview assets to GitHub Releases for open-source evaluation, and semver preview tags always stay `prerelease=true`.
-- Signed maintainer lane:
+- Stable maintainer lane:
   - `.github/workflows/desktop-version-tag.yml` is manually dispatched by maintainers to create `desktop-v*` tags from an explicit target ref when the desktop release helper is intentionally invoked.
   - `.github/workflows/desktop-release.yml` auto-runs on pushed `desktop-v*` tags and also supports manual dispatch with `release_tag`.
-  - It validates that the requested desktop tag matches `copilot-ui/package.json` and only publishes after signing checks pass.
+  - It validates that the requested desktop tag matches `copilot-ui/package.json` and only publishes after preview promotion checks pass.
   - Stable `desktop-vx.y.z` promotion is blocked unless matching preview tag `x.y.z` resolves to the same commit and already has a published prerelease with `release-manifest.json`, a `.exe` installer, and `windows-installation-guide.md` in `desktopRelease.publishRepository`.
 - Windows GA artifact flow:
-  - Build unsigned installer on `windows-latest`.
-  - Exchange GitHub OIDC token (`id-token: write`) for signing identity.
-  - Call managed signing endpoint (`DESKTOP_SIGNING_SERVICE_URL`) with no private keys in repo/runner.
-  - Require signing evidence from service response:
-    - `signature-manifest.json`
-    - `provenance.attestation.json`
-  - Fail closed if endpoint/evidence is missing.
+  - Build installer on `windows-latest`.
+  - Reuse the same staged installer artifacts validated in the desktop release lane.
+  - Publish the GitHub release only after preview/stable promotion checks pass.
 - Linux preview flow:
   - Build preview artifact and metadata digest.
   - Sign metadata via the managed signing endpoint using OIDC.
@@ -80,16 +76,12 @@ Desktop release CI is split between a public preview lane and the signed maintai
 - macOS preview flow:
   - Publish preview artifact only with explicit unsigned label (`MAC_PREVIEW_UNSIGNED.txt`).
 - Publish gate:
-  - Public preview releases can publish unsigned assets without the private signing service.
-  - Signed GitHub releases for `desktop-v*` tags are created only after all verification checks pass.
+  - Public preview releases can publish unsigned assets.
+  - Stable GitHub releases for `desktop-v*` tags are created only after all verification checks pass.
   - Prerelease flag is inferred from desktop tag semver suffix (`desktop-vx.y.z-*` => prerelease).
   - `/releases/latest` is not yet a safe stable shortcut while historic semver preview releases may still exist as non-prerelease GitHub releases.
 
-Required repository configuration (placeholders, not committed secrets):
-
-- Repository variable: `DESKTOP_SIGNING_SERVICE_URL` (required)
-- Repository variable: `DESKTOP_SIGNING_SERVICE_AUDIENCE` (optional; default `elegy-copilot-desktop-release`)
-- Repository secret: `DESKTOP_SIGNING_SERVICE_API_KEY` (optional, service-specific)
+No additional signing-service repository configuration is required for desktop GitHub release publishing.
 
 ### Final Gate Trusted Evidence Binding + Retention (G-05-WU-06)
 

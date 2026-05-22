@@ -7,7 +7,7 @@ Elegy Copilot now ships as a Tauri-only Windows desktop app with a bundled Node 
 - `npm --prefix copilot-ui run desktop:preview:stage` builds and stages the local Windows preview lane.
 - `.github/workflows/desktop-preview-release.yml` publishes unsigned Windows preview artifacts for a matching semver tag.
 - `.github/workflows/desktop-version-tag.yml` creates `desktop-v<version>` tags for maintainer release flows.
-- `.github/workflows/desktop-release.yml` signs and publishes the Windows release for `desktop-v*` tags.
+- `.github/workflows/desktop-release.yml` publishes the Windows release for `desktop-v*` tags.
 
 ## Channel contract
 
@@ -43,7 +43,7 @@ This lane is manual-installer only. It does not claim in-app updater/feed parity
 - Preview releases are evaluation lane only: semver tags always publish as `prerelease=true`, including manual backfills.
 - The workflow fails closed unless it runs from the repository declared in `copilot-ui/package.json` under `desktopRelease.publishRepository`.
 
-## Signed maintainer release
+## Stable maintainer release
 
 Use `.github/workflows/desktop-version-tag.yml` and `.github/workflows/desktop-release.yml`.
 
@@ -52,7 +52,7 @@ Workflow:
 1. Bump `copilot-ui/package.json` version.
 2. Publish the matching semver preview release (`<version>`) first.
 3. Run the desktop tag helper workflow to create `desktop-v<version>`.
-4. Push that tag to trigger the signed release workflow.
+4. Push that tag to trigger the stable release workflow.
 5. Use manual `workflow_dispatch` only for backfills or `publish_mode=draft`.
 
 Stable promotion guardrails:
@@ -62,13 +62,7 @@ Stable promotion guardrails:
 - Hyphenated `desktop-vx.y.z-*` tags still publish as prerelease based on the tag itself.
 - Do not treat `/releases/latest` as the stable shortcut until historic semver releases are remediated so none remain non-prerelease.
 
-Required repository configuration:
-
-- `DESKTOP_SIGNING_SERVICE_URL`
-- optional `DESKTOP_SIGNING_SERVICE_AUDIENCE`
-- optional `DESKTOP_SIGNING_SERVICE_API_KEY`
-
-The signed release lane is fail-closed when signing evidence is unavailable.
+The stable release lane publishes the same staged installer artifacts that passed preview/stable promotion checks.
 
 ## CI expectations
 

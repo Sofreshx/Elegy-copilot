@@ -119,7 +119,7 @@ Migration posture:
 Activation thresholds:
 
 1. **Immediate (`K1`)**
-    - Trigger on any trust-chain compromise signal (missing/invalid signing evidence, attestation mismatch, or unresolved checksum drift during release gating).
+    - Trigger on any trust-chain compromise signal (missing release artifacts, invalid release metadata, or unresolved checksum drift during release gating).
     - Action: set kill switch to true for the affected channel scope immediately.
 2. **Escalated (`K2`)**
     - Trigger when `R2` fail-closed policy outages persist and no safe rollback target can be published.
