@@ -136,10 +136,7 @@
       "pglite.data",
       "initdb.wasm"
     ],
-    "mustRemainFilesystemReadable": true,
-    "electronCompatibility": {
-      "asarUnpackGlob": "node_modules/@electric-sql/pglite/dist/**"
-    }
+    "mustRemainFilesystemReadable": true
   },
   "packagingNotes": [
     "The first Windows-first Tauri shell bootstrap resolves localhost runtime assets through the Tauri resource/app-path seam.",

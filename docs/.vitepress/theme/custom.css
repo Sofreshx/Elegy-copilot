@@ -1,0 +1,36 @@
+.docs-wikilink {
+	display: none;
+}
+
+.docs-mermaid-block {
+	margin: 1rem 0;
+	padding: 1rem;
+	border: 1px solid var(--vp-c-divider);
+	border-radius: 12px;
+	background: var(--vp-c-bg-soft);
+	overflow-x: auto;
+}
+
+.docs-mermaid-canvas {
+	min-width: max-content;
+}
+
+.docs-mermaid-canvas svg {
+	display: block;
+	height: auto;
+	max-width: none;
+}
+
+.docs-mermaid-error {
+	color: var(--vp-c-danger-1);
+	font-size: 0.9rem;
+}
+
+.docs-mermaid-error pre {
+	margin: 0.75rem 0;
+	padding: 0.75rem;
+	border-radius: 8px;
+	background: var(--vp-c-bg);
+	color: var(--vp-c-text-1);
+	white-space: pre-wrap;
+}

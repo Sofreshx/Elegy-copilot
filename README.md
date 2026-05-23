@@ -79,7 +79,10 @@ node scripts/update-repo-skill-mirrors.mjs
 
 ## Docs
 
-- Start at `docs/system/index.md`.
+- Canonical source starts at `docs/system/index.md`.
+- Published docs site: `https://sofreshx.github.io/Elegy-copilot/`.
+- Local docs site commands: `npm run docs:dev`, `npm run docs:build`, `npm run docs:preview`.
+- Cloudflare/custom-domain build: `DOCS_BASE=/ npm run docs:build`.
 - `docs/system/copilot-ui-guide.md` covers the local UI, desktop runtime, and current navigation.
 - `docs/system/catalog-control-plane.md` covers installs, external sources, and `Catalog > Status`.
 - `docs/system/opencode-guide.md` covers the supported OpenCode model.

@@ -184,11 +184,29 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout repository scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve-release.outputs.release_tag }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
           name: desktop-windows-release
           path: artifacts/windows-tauri
+
+      - name: Prune stale desktop release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.resolve-release.outputs.release_tag }}
+        run: node scripts/prune-desktop-release-assets.js --repo "$GH_REPO" --release-tag "$RELEASE_TAG" --artifacts-dir artifacts/windows-tauri
 
       - name: Publish desktop GitHub release
         shell: bash

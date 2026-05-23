@@ -22,6 +22,8 @@ copilot-ui/release/
 copilot-ui/src-tauri/gen/resources/
 copilot-ui/src-tauri/target/
 copilot-ui/ui-dist/
+docs/.vitepress/.vite/
+docs/.vitepress/cache/
 
 # Environment & Logs
 .env

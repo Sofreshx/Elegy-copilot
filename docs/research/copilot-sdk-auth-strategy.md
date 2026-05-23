@@ -18,7 +18,7 @@ This document defines the authentication strategy for `copilot-ui` when using `@
 
 | Runtime context | Primary auth mode | CopilotClientOptions mapping | Notes |
 |---|---|---|---|
-| Electron desktop app (packaged) | External CLI server auth via `cliUrl` | `cliUrl` set, `githubToken` unset, `useLoggedInUser` unset | In `cliUrl` mode the external server owns auth state. SDK rejects `githubToken`/`useLoggedInUser` with `cliUrl`. |
+| Packaged desktop app | External CLI server auth via `cliUrl` | `cliUrl` set, `githubToken` unset, `useLoggedInUser` unset | In `cliUrl` mode the external server owns auth state. SDK rejects `githubToken`/`useLoggedInUser` with `cliUrl`. |
 | Local dev server | Logged-in user by default | `useLoggedInUser: true`, optional `cliPath`/`cliArgs` | Prefer existing Copilot/gh login state for developer ergonomics. |
 | CI or non-interactive automation | Explicit token auth | `githubToken` from `GITHUB_TOKEN`, `useLoggedInUser: false` | Do not rely on interactive login in CI. |
 

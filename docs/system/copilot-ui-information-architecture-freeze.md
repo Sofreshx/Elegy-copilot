@@ -2,7 +2,7 @@
 created: 2026-03-14
 updated: 2026-05-19
 category: system
-status: historical
+status: archived
 doc_kind: node
 id: copilot-ui-information-architecture-freeze
 summary: Historical information architecture freeze retained for research context; the desktop sidebar shell is now canonical.

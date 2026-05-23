@@ -1,0 +1,67 @@
+{
+  "name": "elegy-copilot-desktop",
+  "version": "1.0.2",
+  "private": true,
+  "description": "Elegy Copilot desktop app",
+  "author": "Sofreshx",
+  "license": "MIT",
+  "desktopRelease": {
+    "publishRepository": "Sofreshx/Elegy-copilot"
+  },
+  "scripts": {
+    "test": "node scripts/test-with-ledger.js && npm run test:vitest",
+    "test:vitest": "node scripts/run-vitest.js",
+    "build:local-tracker": "npm --prefix ../local-tracker run build",
+    "build:local-tracker:desktop": "npm --prefix ../local-tracker run build && npm --prefix ../local-tracker run build:gateway",
+    "build:tauri-runtime-host": "node ..\\node_modules\\typescript\\bin\\tsc -p tsconfig.tauri-runtime.json",
+    "test:tauri-runtime-host": "npm run build:tauri-runtime-host && node --test lib\\desktop-shell\\desktopRuntime\\runtimeService.test.js lib\\desktop-shell\\gatewayChildMode.test.js lib\\desktop-shell\\workflowSidecar.test.js",
+    "desktop:dev": "npm run tauri:dev:windows",
+    "desktop:check": "npm run tauri:check",
+    "desktop:smoke:native": "npm run desktop:preview:stage && npm run validate:tauri:native-smoke",
+    "desktop:preview": "npm run package:tauri:win:preview",
+    "desktop:preview:stage": "npm run package:tauri:win:preview:stage",
+    "clean:tauri-release": "node scripts/clean-tauri-release.js",
+    "prepare:local-file-deps": "npm install --no-save --install-links=true --no-package-lock --ignore-scripts --workspaces=false",
+    "prepare:tauri:win-bundle": "node scripts/prepare-tauri-windows-bundle.js",
+    "refresh:tauri:win-release-metadata": "node scripts/refresh-tauri-windows-release-metadata.js",
+    "stage:tauri:win-release-artifacts": "node scripts/stage-tauri-windows-release-artifacts.js",
+    "validate:tauri-node-sidecar-layout": "node scripts/validate-tauri-node-sidecar-layout.js",
+    "validate:tauri:native-smoke": "node scripts/validate-tauri-native-desktop-smoke.js",
+    "validate:tauri:win-release-artifacts": "node scripts/validate-tauri-windows-release-artifacts.js",
+    "tauri:check": "npm run build:tauri-runtime-host && npm run prepare:tauri:win-bundle && cargo check --manifest-path src-tauri/Cargo.toml",
+    "tauri:build:win": "npm exec -- tauri build --bundles nsis",
+    "tauri:dev:windows": "npm run ui:build && npm run build:local-tracker:desktop && npm run build:tauri-runtime-host && npm run prepare:tauri:win-bundle && node scripts/run-tauri-dev-windows.js",
+    "package:tauri:win:preview": "npm run prepare:local-file-deps && npm run clean:tauri-release && npm run ui:build && npm run build:local-tracker:desktop && npm run build:tauri-runtime-host && npm run validate:tauri-node-sidecar-layout && npm run prepare:tauri:win-bundle && npm run tauri:build:win && npm run refresh:tauri:win-release-metadata && npm run validate:tauri:win-release-artifacts",
+    "package:tauri:win:preview:stage": "npm run package:tauri:win:preview && npm run stage:tauri:win-release-artifacts",
+    "ui:build": "vite build --config vite.config.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.4.2",
+    "@elegy-copilot/contracts": "file:../contracts",
+    "@elegy-copilot/root": "file:..",
+    "@github/copilot-sdk": "0.2.2",
+    "dompurify": "^3.3.1",
+    "mermaid": "^11.12.3",
+    "pg": "^8.20.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "toml": "^4.1.1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.10.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/dompurify": "^3.0.5",
+    "@types/node": "^22.13.5",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "jsdom": "^26.1.0",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0",
+    "vitest": "^2.1.9"
+  }
+}

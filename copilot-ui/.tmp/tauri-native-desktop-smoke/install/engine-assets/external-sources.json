@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "sourceId": "caveman",
+      "title": "Caveman",
+      "description": "Public skills repository with compact communication and workflow skills.",
+      "url": "https://github.com/JuliusBrussee/caveman",
+      "sourceType": "github-repo",
+      "owner": "JuliusBrussee",
+      "repo": "caveman",
+      "defaultRef": "main",
+      "includeSkills": true,
+      "includeMcp": false,
+      "preferredSkillPathPrefixes": [
+        "skills/"
+      ]
+    },
+    {
+      "sourceId": "mattpocock-skills",
+      "title": "Matt Pocock Skills",
+      "description": "Composable public engineering skills with setup and workflow helpers.",
+      "url": "https://github.com/mattpocock/skills",
+      "sourceType": "github-repo",
+      "owner": "mattpocock",
+      "repo": "skills",
+      "defaultRef": "main",
+      "includeSkills": true,
+      "includeMcp": false,
+      "preferredSkillPathPrefixes": [
+        "skills/"
+      ],
+      "hiddenPathPrefixes": [
+        "skills/in-progress/",
+        "skills/personal/"
+      ],
+      "deprecatedPathPrefixes": [
+        "skills/deprecated/"
+      ]
+    },
+    {
+      "sourceId": "context7",
+      "title": "Context7",
+      "description": "Public MCP and skill source for up-to-date documentation retrieval.",
+      "url": "https://github.com/upstash/context7",
+      "sourceType": "github-repo",
+      "owner": "upstash",
+      "repo": "context7",
+      "defaultRef": "master",
+      "includeSkills": true,
+      "includeMcp": true,
+      "preferredSkillPathPrefixes": [
+        "skills/"
+      ],
+      "mcpManifestPath": "server.json"
+    }
+  ]
+}

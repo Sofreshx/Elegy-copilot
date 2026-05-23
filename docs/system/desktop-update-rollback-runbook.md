@@ -79,8 +79,6 @@ Migration posture:
 - `INSTRUCTION_ENGINE_DISABLE_UPDATES=false` only clears the kill-switch override; it does not rewrite the
   rollback policy to re-enable updates.
 - Reason codes are machine-readable and emitted in updater logs.
-- During the preview/manual-installer Tauri lane, Electron update surfaces may point users at the matching
-  Tauri installer download, but they must not claim that Electron can auto-replace itself with Tauri in place.
 - Cross-lane auto-mixing is out of contract: stable packaged releases must not pull prerelease SDK/CLI
   assets, and prerelease packaged releases must not silently downgrade into stable-only toolchain state.
 - If the packaged app cannot ensure the required Copilot CLI lane for a feature that depends on it, the

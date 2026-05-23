@@ -284,7 +284,7 @@ function validatePackagedTauriNodeSidecarLayoutMetadata(options = {}) {
   const bundledRollbackPolicyPath = path.join(packagedRuntimeManifestsRoot, 'default-desktop-rollback-policy.json');
   requireFile('packaged Windows default desktop rollback policy', bundledRollbackPolicyPath);
 
-  const packagedPgliteDist = path.join(packagedResourcesRoot, 'app.asar.unpacked', 'node_modules', '@electric-sql', 'pglite', 'dist');
+  const packagedPgliteDist = path.join(packagedResourcesRoot, manifest.pglite.targetDist);
   requireDirectory('packaged Tauri sidecar pglite dist directory', packagedPgliteDist);
   for (const fileName of manifest.pglite.requiredFiles) {
     requireFile(`packaged Tauri sidecar pglite payload ${fileName}`, path.join(packagedPgliteDist, fileName));

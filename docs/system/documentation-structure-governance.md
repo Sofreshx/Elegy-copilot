@@ -35,6 +35,10 @@ only as needed.
 important design and operating context, but they are not peer authority with the canonical system
 nodes.
 
+The published documentation website is a presentation layer over this graph. It may reorganize
+navigation or rendering for readability, but it does not replace `docs/system/**` as the canonical
+source.
+
 Top-down documentation is the default shape: readers should enter through a compact canonical
 entrypoint, move into the relevant MOC, then open the smallest atomic node that answers the current
 question.

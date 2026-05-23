@@ -90,7 +90,7 @@ Still manual after this slice:
 
 - interactive installer UI/UAC/prompt copy review
 - signed-installer trust and external release-publish validation
-- upgrade/migration behavior over an already-installed Electron or Tauri build
+- upgrade/migration behavior over an already-installed Tauri build
 - Windows shell integrations such as shortcuts, Start menu entries, and registry-visible uninstall metadata
 
 ## Endpoint 1: GET /api/sessions/:id/structured-state

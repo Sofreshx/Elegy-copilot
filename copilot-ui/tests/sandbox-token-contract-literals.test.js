@@ -14,7 +14,6 @@ const EXCLUDED_DIRS = new Set([
   'ui-dist',
   'coverage',
   '.tmp',
-  'dist-electron',
   'release',
   'resources',
   'target',

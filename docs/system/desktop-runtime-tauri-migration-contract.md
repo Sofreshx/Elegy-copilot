@@ -14,12 +14,11 @@ related: [copilot-ui-guide, security-model, desktop-update-rollback-runbook, sys
 
 ## Status
 
-This document freezes the approved/current contract for the first Tauri execution slice.
+This document freezes the approved/current contract for the Windows-first Tauri desktop runtime.
 
 - **Former primary desktop runtime:** Electron
 - **Approved migration target:** Windows-first Tauri desktop shell
 - **Current primary desktop runtime:** Windows-first Tauri desktop shell
-- **Current compatibility remainder:** Electron remains only for incumbent updater behavior, legacy release workflows, and explicit Electron-user handoff support while full retirement is still unsafe
 - **Current update posture:** the active Tauri Windows lane is a NSIS preview/manual-installer path with GitHub-release-backed automatic checks and explicit user download/apply, not an in-place updater cutover
 
 The migration does **not** change these existing product contracts:
@@ -149,13 +148,12 @@ Canon for the active Windows Tauri preview/release lane must record:
 2. the Windows signing path and evidence expectations
 3. rollback + kill-switch equivalence with existing fail-closed policy
 4. stable/prerelease lane handling for app artifacts and managed SDK/CLI pairing
-5. the release workflow handoff from Electron packaging to Tauri packaging
+5. the release workflow semantics for the Tauri packaging lane
 
 Checkpoint rules:
 
 - No private signing keys may be committed to the repo or stored on CI runners.
 - Signing custody remains external through the managed signing service / HSM / KMS posture already frozen in [[security-model]] [docs/system/security-model.md](docs/system/security-model.md).
-- Electron release capability may stay available as compatibility residue while the remaining workflow/signing cutover is still being retired safely.
 - The current implemented checkpoint seam is a Windows-first NSIS packaging lane that emits manual-installer release metadata with fail-closed channel pairing; it performs automatic matching-channel release checks but does **not** claim live in-app updater/feed parity yet.
 - The active Tauri shell may expose GitHub-release-backed updater status and manual-installer download state through a shell bridge, but that bridge must require explicit user action for installer download/apply and must not imply seamless transport/feed support until a later cut enables it.
 - Public GitHub semver tags such as `1.2.3` and `1.2.3-rc.1` remain preview/evaluation releases and should stay marked as prerelease, while stable desktop downloads come from promoted non-prerelease `desktop-v*` releases.
