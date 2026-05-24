@@ -36,6 +36,8 @@ export interface DesktopRuntimePaths {
   copilotHome: string;
   gatewayConfigPath: string;
   legacyGatewayConfigPath: string;
+  planningCliPath?: string;
+  planningDbPath?: string;
 }
 
 export interface DesktopRuntimeShellAdapter {
@@ -109,6 +111,7 @@ export interface DesktopRuntimeServiceDependencies {
     workflowSidecarManager: WorkflowSidecarManager;
     planningPersistenceClient?: PlanningPersistenceQueryClient;
     engineRoot?: string;
+    env?: NodeJS.ProcessEnv;
     quiet: boolean;
   }) => Promise<DesktopServerHandle>;
   spawn?: typeof defaultSpawn;
@@ -194,6 +197,62 @@ function buildGatewayInlineConfig(workspaceRoot: string): string {
       cleanupOnStartup: false,
     },
   });
+}
+
+function resolveBundledPlanningCliPath(
+  runtimeRoot: string,
+  copilotHome: string,
+  runtimeFs: Pick<DesktopRuntimeFs, 'existsSync'>,
+): string {
+  const candidates = [
+    path.join(runtimeRoot, 'elegy-planning', 'elegy-planning.exe'),
+    path.join(runtimeRoot, 'elegy-planning', 'bin', 'elegy-planning.exe'),
+    path.join(runtimeRoot, 'copilot-ui', 'resources', 'elegy-planning', 'elegy-planning.exe'),
+    path.join(copilotHome, 'managed-cli', 'planning', 'bin', 'elegy-planning.exe'),
+    path.join(copilotHome, 'managed-cli', 'planning', 'elegy-planning.exe'),
+    path.join(copilotHome, 'bin', 'elegy-planning.exe'),
+  ];
+
+  for (const candidate of candidates) {
+    if (runtimeFs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return '';
+}
+
+function ensurePlanningAuthorityEnv(
+  options: Pick<DesktopRuntimeServiceOptions, 'env' | 'paths' | 'isPackaged'>,
+  runtimeFs: Pick<DesktopRuntimeFs, 'existsSync'>,
+): void {
+  const explicitCliPath = String(options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH || '').trim();
+  const explicitDbPath = String(options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH || '').trim();
+  const configuredCliPath = explicitCliPath
+    || String(options.paths.planningCliPath || '').trim()
+    || resolveBundledPlanningCliPath(options.paths.runtimeRoot, options.paths.copilotHome, runtimeFs);
+  const configuredDbPath = explicitDbPath
+    || String(options.paths.planningDbPath || '').trim()
+    || path.join(options.paths.copilotHome, 'elegy-planning.db');
+
+  if (configuredDbPath) {
+    options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH = configuredDbPath;
+  }
+
+  if (configuredCliPath) {
+    options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED = '1';
+    options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = configuredCliPath;
+    delete options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED;
+    return;
+  }
+
+  if (!options.isPackaged && !explicitCliPath) {
+    delete options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH;
+    return;
+  }
+
+  delete options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH;
+  options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED = '1';
 }
 
 function ensureDefaultGatewayConfig(paths: Pick<DesktopRuntimePaths, 'gatewayConfigPath' | 'legacyGatewayConfigPath'>, runtimeFs: DesktopRuntimeFs): void {
@@ -391,6 +450,7 @@ export function createDesktopRuntimeService(
       logger,
     });
     ensureDefaultGatewayConfig(options.paths, runtimeFs);
+    ensurePlanningAuthorityEnv(options, runtimeFs);
 
     try {
       const trackerToken =
@@ -451,6 +511,7 @@ export function createDesktopRuntimeService(
         workflowSidecarManager,
         planningPersistenceClient: desktopPlanningPersistenceHandle?.queryClient,
         engineRoot: options.isPackaged ? options.paths.runtimeRoot : undefined,
+        env: options.env,
         quiet: true,
       });
 

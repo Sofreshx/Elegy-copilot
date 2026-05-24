@@ -1376,6 +1376,55 @@ function resolvePlanningPersistenceAuthorityState(planningPersistenceConfig, pla
   };
 }
 
+function resolvePlanningLiveAuthorityState(roadmapWorkflowPlanningBridge) {
+  if (!roadmapWorkflowPlanningBridge || typeof roadmapWorkflowPlanningBridge !== 'object') {
+    return {
+      ready: false,
+      enabled: false,
+      configured: false,
+      status: 'missing',
+      error: {
+        code: 'planning_live_authority_bridge_missing',
+        reason: 'planning_live_authority_bridge_missing',
+        message: 'elegy-planning authority bridge is unavailable.',
+        statusCode: 503,
+      },
+    };
+  }
+
+  const status = typeof roadmapWorkflowPlanningBridge.getStatus === 'function'
+    ? roadmapWorkflowPlanningBridge.getStatus()
+    : null;
+  if (status && typeof status === 'object') {
+    const code = String(status.code || '').trim();
+    return {
+      ...status,
+      status: String(status.status || (status.ready === true ? 'ready' : 'unavailable')).trim() || 'unknown',
+      error: status.ready === true
+        ? null
+        : {
+            code: code || 'planning_live_authority_unavailable',
+            reason: code || 'planning_live_authority_unavailable',
+            message: String(status.message || 'elegy-planning authority is unavailable.').trim(),
+            statusCode: 503,
+          },
+    };
+  }
+
+  return {
+    ready: false,
+    enabled: true,
+    configured: false,
+    status: 'unknown',
+    error: {
+      code: 'planning_live_authority_unknown',
+      reason: 'planning_live_authority_unknown',
+      message: 'elegy-planning authority status is unavailable.',
+      statusCode: 503,
+    },
+  };
+}
+
 function buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState) {
   const state = planningPersistenceState && typeof planningPersistenceState === 'object'
     ? planningPersistenceState
@@ -4215,7 +4264,49 @@ function relayTrackerSSE(trackerUrl, trackerToken, req, res) {
   proxyReq.end();
 }
 
-function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry }) {
+function proxyToNativeRuntime(nativeRuntimeUrl, pathname, req, res) {
+  const parsed = new URL(pathname, nativeRuntimeUrl);
+  const options = {
+    hostname: parsed.hostname,
+    port: parsed.port,
+    path: parsed.pathname + parsed.search,
+    method: req.method,
+    headers: {
+      'Accept': 'application/json',
+    },
+    timeout: 10000,
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    const chunks = [];
+    proxyRes.on('data', (chunk) => chunks.push(chunk));
+    proxyRes.on('end', () => {
+      res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);
+      res.end(Buffer.concat(chunks));
+    });
+  });
+
+  proxyReq.on('error', (err) => {
+    if (!res.headersSent) {
+      sendJson(res, 502, { error: `Native runtime unreachable: ${err.message}` });
+    }
+  });
+
+  proxyReq.on('timeout', () => {
+    proxyReq.destroy();
+    if (!res.headersSent) {
+      sendJson(res, 504, { error: 'Native runtime request timed out' });
+    }
+  });
+
+  if (req.method === 'PATCH' || req.method === 'POST' || req.method === 'PUT') {
+    req.pipe(proxyReq);
+  } else {
+    proxyReq.end();
+  }
+}
+
+function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, nativeRuntimeUrl }) {
   // Auth scope: single-session only. Multi-session aggregate views are deferred.
   // All API endpoints serve one session at a time. No cross-session auth tokens.
   const pathname = u.pathname;
@@ -4265,6 +4356,17 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
       sendJson(res, gateFailure.statusCode, gateFailure.body);
       return;
     }
+  }
+
+  if (nativeRuntimeUrl && (
+    pathname.startsWith('/api/projects') ||
+    pathname === '/api/dashboard/summary' ||
+    pathname === '/api/health' ||
+    pathname === '/api/version' ||
+    pathname === '/api/policy/preflight'
+  )) {
+    proxyToNativeRuntime(nativeRuntimeUrl, pathname, req, res);
+    return;
   }
 
   if (routeRegistry && routeRegistry.dispatch({
@@ -4402,6 +4504,9 @@ async function startServer(options = {}) {
   };
 
   const quiet = options.quiet === true;
+  const nativeRuntimeUrl = typeof options.nativeRuntimeUrl === 'string' && options.nativeRuntimeUrl.trim()
+    ? options.nativeRuntimeUrl.trim()
+    : (String(env.INSTRUCTION_ENGINE_NATIVE_RUNTIME_URL || env.ELEGY_NATIVE_RUNTIME_URL || '').trim() || null);
   const managedAssetSyncOnStart = options.managedAssetSyncOnStart !== false
     && String(env.INSTRUCTION_ENGINE_DISABLE_STARTUP_ASSET_SYNC || '').trim() !== '1';
   const engineRoot =
@@ -4697,6 +4802,7 @@ async function startServer(options = {}) {
       resolveMessagingGatewayConfigPath,
       readJsonFileSafe,
       resolvePlanningPersistenceAuthorityState,
+      resolvePlanningLiveAuthorityState,
       probeTrackerReadiness,
       buildGatewayStateEnvelope,
       buildGatewayProbeFailure,
@@ -4797,6 +4903,7 @@ async function startServer(options = {}) {
           startupManagedAssetSync,
           autonomousDecisionLog,
           routeRegistry,
+          nativeRuntimeUrl,
         });
         return;
       }
@@ -4964,5 +5071,6 @@ module.exports = {
   issuePlanningMergeIntent,
   executePlanningMerge,
   rollbackMergeCommitAfterPersistenceFailure,
+  proxyToNativeRuntime,
 };
 

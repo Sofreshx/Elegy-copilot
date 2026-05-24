@@ -14,7 +14,7 @@ related: [catalog-control-plane, session-state-artifacts, planning-backlog-roadm
 
 ## Purpose
 
-`copilot-ui` is the local UI, HTTP API, and desktop shell for Instruction Engine. The packaged desktop app is the normal runtime. `node copilot-ui/server.js` is the backend and debugging path.
+`copilot-ui` is the local UI, HTTP API, and desktop shell for Instruction Engine. The packaged desktop app is the normal runtime. Today the shipped runtime is still Node-backed, but the rewrite is moving active route authority into `native/runtime` slice by slice.
 
 ## Start
 
@@ -27,29 +27,21 @@ node copilot-ui/server.js
 
 - The local backend binds to `127.0.0.1`.
 - Raw server mode is for `/api` work and debugging. The normal app UI is launched through the desktop shell.
+- The Rust rewrite currently owns the bootstrap native routes in `native/runtime` and is expanding across active read surfaces before Node cutover.
+- Set `INSTRUCTION_ENGINE_NATIVE_RUNTIME_URL=http://127.0.0.1:3220` (or pass `nativeRuntimeUrl` to `startServer()`) to hand off `/api/projects*`, `/api/dashboard/summary`, `/api/health`, `/api/version`, and `/api/policy/preflight` routes to the Rust runtime. When unset, these routes return 404 — the JS handlers have been deleted.
 
 ## Main UI
 
 Sidebar sections:
 
-- `Execution`
+- `Runtime`
 - `Projects`
 - `Catalog`
-- `Todo`
-- `Workflows`
+- `Planning`
 - `Maintenance`
 - `Settings`
 
-Catalog sections:
-
-- `Overview`
-- `Status`
-- `Assets`
-- `Skills`
-- `Agents`
-
-- `Catalog > Status` is the primary place for install-surface, external-source, installed-inventory, and runtime-used-skill status.
-- `Assets` remains the authoring, install, repo registration, and repair surface.
+Catalog sections are currently organized through the active shell and do not match older `Catalog > Status` docs exactly. Treat the mounted `App.tsx` shell as the implementation truth during the rewrite.
 
 ## Current Responsibilities
 

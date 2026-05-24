@@ -14,6 +14,8 @@ const CODEX_REQUIRED_ASSETS = [
 	{ id: 'codex-global-instructions', type: 'instructions' },
 	{ id: 'codex-reviewer-agent', type: 'agent' },
 	{ id: 'codex-repo-setup-skill', type: 'skill' },
+	{ id: 'codex-skill-discovery-skill', type: 'skill' },
+	{ id: 'codex-stack-detector-skill', type: 'skill' },
 ];
 
 const ANTIGRAVITY_REQUIRED_ASSETS = [
@@ -22,8 +24,8 @@ const ANTIGRAVITY_REQUIRED_ASSETS = [
 
 const OPENCODE_REQUIRED_ASSETS = [
 	{ id: 'opencode-global-instructions', type: 'instructions' },
-	{ id: 'opencode-code-explorer-agent', type: 'agent' },
-	{ id: 'opencode-web-searcher-agent', type: 'agent' },
+	{ id: 'opencode-skill-discovery-skill', type: 'skill' },
+	{ id: 'opencode-stack-detector-skill', type: 'skill' },
 ];
 
 const manifestFiles = [
@@ -31,7 +33,11 @@ const manifestFiles = [
 	{ path: 'engine-assets/manifest.json', enforceSourceExists: true, requiredAssets: DEFAULT_REQUIRED_ASSETS },
 	{ path: 'codex-assets/manifest.json', enforceSourceExists: true, requiredAssets: CODEX_REQUIRED_ASSETS },
 	{ path: 'opencode-assets/manifest.json', enforceSourceExists: true, requiredAssets: OPENCODE_REQUIRED_ASSETS },
-	{ path: 'antigravity-assets/manifest.json', enforceSourceExists: true, requiredAssets: ANTIGRAVITY_REQUIRED_ASSETS },
+	{ path: 'antigravity-assets/manifest.json', enforceSourceExists: true, requiredAssets: [
+		...ANTIGRAVITY_REQUIRED_ASSETS,
+		{ id: 'antigravity-skill-discovery-skill', type: 'skill' },
+		{ id: 'antigravity-stack-detector-skill', type: 'skill' },
+	] },
 ];
 
 const REQUIRED_G05_CONTROLS = {

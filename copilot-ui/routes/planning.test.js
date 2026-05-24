@@ -145,6 +145,60 @@ async function run() {
     assert.deepEqual(body.roadmaps.map((entry) => entry.id), ['RM-one']);
   });
 
+  await test('planning live roadmaps list matches selected repo by repo path or label metadata', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async listRoadmaps(input) {
+          assert.equal(input.requestId, 'C:\\Users\\lolzi\\source\\repos\\SAASTools');
+          return {
+            roadmaps: [
+              {
+                id: 'RM-path',
+                goalId: 'GOAL-one',
+                title: 'Path matched roadmap',
+                status: 'active',
+                repoPath: 'C:/Users/lolzi/source/repos/SAASTools',
+              },
+              {
+                id: 'RM-label',
+                goalId: 'GOAL-two',
+                title: 'Label matched roadmap',
+                status: 'draft',
+                repoLabel: 'Holon-Repo',
+              },
+              {
+                id: 'RM-other',
+                goalId: 'GOAL-three',
+                title: 'Other roadmap',
+                status: 'finished',
+                repoPath: 'C:/elsewhere',
+                repoLabel: 'Other',
+              },
+            ],
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(
+      routes,
+      'GET',
+      '/api/planning/live/roadmaps?repoPath=C%3A%5CUsers%5Clolzi%5Csource%5Crepos%5CSAASTools&repoLabel=holon-repo',
+      {},
+    );
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
+    assert.equal(body.kind, 'planning.live.roadmaps');
+    assert.equal(body.count, 2);
+    assert.deepEqual(body.roadmaps.map((entry) => entry.id), ['RM-path', 'RM-label']);
+  });
+
   await test('planning live roadmap detail rejects repo scope mismatches', async () => {
     const routes = register({
       PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
@@ -180,6 +234,47 @@ async function run() {
     assert.equal(body.kind, 'planning.live.roadmap');
     assert.equal(body.code, 'planning_live_repo_scope_mismatch');
     assert.equal(body.reason, 'planning_live_repo_scope_mismatch');
+  });
+
+  await test('planning live plan detail accepts repo path scoped matches without repo tag', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async showPlan(input) {
+          assert.equal(input.planId, 'PLAN-path');
+          return {
+            plan: {
+              id: 'PLAN-path',
+              roadmapId: 'RM-one',
+              title: 'Plan Path',
+              repoPath: 'C:/Users/lolzi/source/repos/SAASTools',
+            },
+            todos: [{ id: 'TODO-one', planId: 'PLAN-path', repoPath: 'C:/Users/lolzi/source/repos/SAASTools' }],
+            reviewPoints: [],
+            validation: {
+              status: 'valid',
+              findings: [],
+            },
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(
+      routes,
+      'GET',
+      '/api/planning/live/plans/PLAN-path?repoPath=C%3A%5CUsers%5Clolzi%5Csource%5Crepos%5CSAASTools',
+      {},
+    );
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
+    assert.equal(body.kind, 'planning.live.plan');
+    assert.equal(body.plan.id, 'PLAN-path');
   });
 
   await test('planning live plan detail returns plan todos and validation', async () => {
@@ -258,6 +353,44 @@ async function run() {
     assert.equal(body.kind, 'planning.live.todos');
     assert.equal(body.count, 1);
     assert.deepEqual(body.todos.map((entry) => entry.id), ['TODO-one']);
+  });
+
+  await test('planning live todos list uses repo label matching for roadmap-linked plans', async () => {
+    const routes = register({
+      PLANNING_API_CONTRACT_VERSION: 'stale_planning_contract',
+      sendJson(res, code, payload) {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(payload));
+      },
+      roadmapWorkflowPlanningBridge: {
+        async listPlans(input) {
+          assert.equal(input.requestId, 'RM-label');
+          return {
+            plans: [
+              { id: 'PLAN-label', roadmapId: 'RM-label', repoLabel: 'Holon-Repo' },
+              { id: 'PLAN-other', roadmapId: 'RM-label', repoLabel: 'Other Repo' },
+            ],
+          };
+        },
+        async listTodos(input) {
+          assert.equal(input.requestId, 'RM-label');
+          return {
+            todos: [
+              { id: 'TODO-label', planId: 'PLAN-label', repoLabel: 'holon-repo' },
+              { id: 'TODO-other', planId: 'PLAN-other', repoLabel: 'Other Repo' },
+            ],
+          };
+        },
+      },
+    });
+
+    const { res, body } = await invoke(routes, 'GET', '/api/planning/live/todos?repoLabel=holon-repo&roadmapId=RM-label', {});
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(body.contractVersion, PLANNING_API_CONTRACT_VERSION);
+    assert.equal(body.kind, 'planning.live.todos');
+    assert.equal(body.count, 1);
+    assert.deepEqual(body.todos.map((entry) => entry.id), ['TODO-label']);
   });
 
   await test('planning persistence init failures use the shared planning contract envelope', async () => {

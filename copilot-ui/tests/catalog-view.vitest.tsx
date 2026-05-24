@@ -58,21 +58,24 @@ describe('CatalogView', () => {
           harnesses: [
             { harnessId: 'copilot', title: 'Copilot', homePath: 'C:\\Users\\demo\\.copilot' },
             { harnessId: 'codex', title: 'Codex', homePath: 'C:\\Users\\demo\\.codex', skillsHomePath: 'C:\\Users\\demo\\.codex\\skills' },
+            { harnessId: 'opencode', title: 'OpenCode', homePath: 'C:\\Users\\demo\\.config\\opencode', skillsHomePath: 'C:\\Users\\demo\\.config\\opencode\\skills' },
           ],
           sections: [
             {
               kind: 'skill',
               title: 'Skill',
-              count: 1,
+              count: 2,
               items: [
                 {
                   itemId: 'skill-review',
+                  conceptualKey: 'review',
                   itemKey: 'review',
                   kind: 'skill',
                   title: 'Review skill',
                   description: 'Reusable review guidance.',
                   sourceType: 'catalog-asset',
                   readPath: 'C:\\Users\\demo\\.copilot\\skills\\review\\SKILL.md',
+                  syncStatus: 'available',
                   actions: {
                     kind: 'catalog-asset',
                     installAssetId: 'skill-review',
@@ -82,10 +85,83 @@ describe('CatalogView', () => {
                       harnessId: 'copilot',
                       title: 'Copilot',
                       supported: true,
+                      expected: true,
                       installed: false,
                       active: false,
+                      syncStatus: 'missing',
                       actions: {
                         canInstall: true,
+                      },
+                    },
+                  ],
+                },
+                {
+                  itemId: 'skill-discovery',
+                  conceptualKey: 'skill-discovery',
+                  itemKey: 'skill-discovery',
+                  kind: 'skill',
+                  title: 'Skill Discovery',
+                  description: 'Vault-first routing for on-demand skills.',
+                  sourceType: 'catalog-asset',
+                  readPath: 'C:\\Users\\demo\\.copilot\\skills\\skill-discovery\\SKILL.md',
+                  central: true,
+                  keyFeature: true,
+                  keyFeatureLabel: 'Retrieval',
+                  keyFeatureOrder: 0,
+                  scopeKinds: ['global', 'harness', 'repo'],
+                  syncStatus: 'missing',
+                  missingHarnessCount: 1,
+                  actions: {
+                    kind: 'catalog-asset',
+                    installAssetId: 'skill-discovery',
+                    installSurfaceTargets: ['codex', 'opencode'],
+                  },
+                  harnessStates: [
+                    {
+                      harnessId: 'copilot',
+                      title: 'Copilot',
+                      supported: true,
+                      expected: true,
+                      installed: true,
+                      active: true,
+                      syncStatus: 'synced',
+                      actions: {
+                        canInstall: true,
+                      },
+                      metadata: {
+                        actionKind: 'catalog-asset',
+                      },
+                    },
+                    {
+                      harnessId: 'codex',
+                      title: 'Codex',
+                      supported: true,
+                      expected: true,
+                      installed: false,
+                      active: false,
+                      syncStatus: 'missing',
+                      actions: {
+                        canInstall: true,
+                        canSync: true,
+                      },
+                      metadata: {
+                        actionKind: 'install-surface',
+                      },
+                    },
+                    {
+                      harnessId: 'opencode',
+                      title: 'OpenCode',
+                      supported: true,
+                      expected: true,
+                      installed: true,
+                      active: true,
+                      syncStatus: 'synced',
+                      actions: {
+                        canInstall: true,
+                        canSync: true,
+                      },
+                      metadata: {
+                        actionKind: 'install-surface',
                       },
                     },
                   ],
@@ -95,35 +171,8 @@ describe('CatalogView', () => {
             {
               kind: 'agent',
               title: 'Agent',
-              count: 1,
-              items: [
-                {
-                  itemId: 'opencode-code-explorer-agent',
-                  itemKey: 'agents/code-explorer.md',
-                  kind: 'agent',
-                  title: 'code-explorer',
-                  description: 'OpenCode shipped agent.',
-                  sourceType: 'harness-manifest',
-                  readPath: 'opencode-assets/agents/code-explorer.md',
-                  actions: {
-                    kind: 'install-surface',
-                    installSurfaceTargets: ['opencode'],
-                  },
-                  harnessStates: [
-                    {
-                      harnessId: 'opencode',
-                      title: 'OpenCode',
-                      supported: true,
-                      installed: false,
-                      active: false,
-                      actions: {
-                        canInstall: true,
-                        canSync: true,
-                      },
-                    },
-                  ],
-                },
-              ],
+              count: 0,
+              items: [],
             },
             {
               kind: 'mcp',
@@ -132,6 +181,7 @@ describe('CatalogView', () => {
               items: [
                 {
                   itemId: 'demo-source:mcp:context7',
+                  conceptualKey: 'context7',
                   itemKey: 'mcp:context7',
                   kind: 'mcp',
                   title: 'Context7',
@@ -150,8 +200,10 @@ describe('CatalogView', () => {
                       harnessId: 'codex',
                       title: 'Codex',
                       supported: true,
+                      expected: false,
                       installed: true,
                       active: true,
+                      syncStatus: 'active',
                       actions: {
                         canActivate: true,
                         canDeactivate: true,
@@ -218,9 +270,9 @@ describe('CatalogView', () => {
       expect(mocks.installAsset).toHaveBeenCalledWith({ assetId: 'skill-review' });
     });
 
-    fireEvent.click(screen.getByTestId('catalog-global-action-opencode-code-explorer-agent-opencode'));
+    fireEvent.click(screen.getByTestId('catalog-global-warning-action-skill-discovery-codex'));
     await waitFor(() => {
-      expect(mocks.installSurface).toHaveBeenCalledWith('opencode');
+      expect(mocks.installSurface).toHaveBeenCalledWith('codex');
     });
 
     fireEvent.click(screen.getByTestId('catalog-global-action-demo-source:mcp:context7-codex'));
@@ -240,5 +292,23 @@ describe('CatalogView', () => {
       });
     });
     expect(screen.getByTestId('catalog-global-detail-panel')).toHaveTextContent('# Detail');
+  });
+
+  it('renders key-skill warnings and sync-all action', async () => {
+    const { default: CatalogView } = await import('../ui/src/tabs/Catalog/CatalogView');
+
+    render(<CatalogView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('catalog-global-warning-skill-discovery')).toBeInTheDocument();
+    });
+    expect(screen.getByTestId('catalog-global-sync-all')).toHaveTextContent('Sync all harnesses');
+    expect(screen.getByTestId('catalog-global-item-skill-discovery')).toHaveTextContent('Central');
+    expect(screen.getByTestId('catalog-global-item-skill-discovery')).toHaveTextContent('Retrieval');
+
+    fireEvent.click(screen.getByTestId('catalog-global-sync-all'));
+    await waitFor(() => {
+      expect(mocks.installSurface).toHaveBeenCalledWith('all', false);
+    });
   });
 });

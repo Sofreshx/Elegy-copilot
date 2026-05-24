@@ -756,6 +756,16 @@
       "error"
     ]
   },
+  "GET /api/dashboard/harness-sessions": {
+    "status": 200,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "harnesses",
+      "inventorySummary",
+      "totalSessionCount"
+    ]
+  },
   "GET /api/catalog/repos": {
     "status": 200,
     "contentType": "application/json",
@@ -1127,24 +1137,6 @@
       "projection"
     ]
   },
-  "GET /api/projects": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "[array]"
-    ]
-  },
-  "PATCH /api/projects/test-project-id": {
-    "status": 404,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "deterministic",
-      "error",
-      "kind"
-    ]
-  },
   "GET /api/gateway/state": {
     "status": 200,
     "contentType": "application/json",
@@ -1157,6 +1149,7 @@
       "errors",
       "gateway",
       "kind",
+      "planningAuthority",
       "planningPersistence",
       "ready",
       "tracker"
@@ -1176,6 +1169,7 @@
       "errors",
       "gateway",
       "kind",
+      "planningAuthority",
       "planningPersistence",
       "ready",
       "status",
@@ -1210,138 +1204,6 @@
       "roots",
       "scanRoots",
       "storage"
-    ]
-  },
-  "GET /api/tracker/status": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/tracker/sessions": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/tracker/permissions": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/tracker/synced-notes/sources": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "POST /api/tracker/synced-notes/sources": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/tracker/events": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "GET /api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "PUT /api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "DELETE /api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "POST /api/tracker/permissions/test-id/approve": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
-    ]
-  },
-  "POST /api/tracker/lifecycle/start": {
-    "status": 410,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "code",
-      "deterministic",
-      "error",
-      "kind",
-      "reason"
     ]
   },
   "POST /api/sandboxes/lifecycle/start": {
@@ -1491,33 +1353,6 @@
     "bodyType": "json",
     "bodyKeys": [
       "ok"
-    ]
-  },
-  "GET /api/dashboard/summary": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "activeSessionCount",
-      "healthIndicator",
-      "recentActivity",
-      "totalSessionCount"
-    ]
-  },
-  "GET /api/projects/test-project-id/sessions": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "[array]"
-    ]
-  },
-  "GET /api/projects/test-project-id/activity": {
-    "status": 200,
-    "contentType": "application/json",
-    "bodyType": "json",
-    "bodyKeys": [
-      "[array]"
     ]
   },
   "GET /api/config/remote-sessions": {

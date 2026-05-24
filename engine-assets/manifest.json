@@ -508,17 +508,17 @@
       "loadMode": "always"
     },
     {
-      "id": "skill-documentation-authoring",
-      "type": "skill",
-      "source": "engine-assets/skills/documentation-authoring",
-      "destination": "skills/documentation-authoring",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "skill-documentation-structure-governance",
       "type": "skill",
       "source": "engine-assets/skills/documentation-structure-governance",
       "destination": "skills/documentation-structure-governance",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-documentation-authoring",
+      "type": "skill",
+      "source": "engine-assets/skills/documentation-authoring",
+      "destination": "skills/documentation-authoring",
       "loadMode": "on-demand"
     },
     {
@@ -554,13 +554,6 @@
       "type": "skill",
       "source": "engine-assets/skills/github-troubleshooting",
       "destination": "skills/github-troubleshooting",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-guidelines-authoring",
-      "type": "skill",
-      "source": "engine-assets/skills/guidelines-authoring",
-      "destination": "skills/guidelines-authoring",
       "loadMode": "on-demand"
     },
     {
@@ -641,6 +634,13 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "skill-project-guidelines",
+      "type": "skill",
+      "source": "engine-assets/skills/project-guidelines",
+      "destination": "skills/project-guidelines",
+      "loadMode": "always"
+    },
+    {
       "id": "skill-project-conventions-governance",
       "type": "skill",
       "source": "engine-assets/skills/project-conventions-governance",
@@ -648,11 +648,11 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "skill-project-guidelines",
+      "id": "skill-guidelines-authoring",
       "type": "skill",
-      "source": "engine-assets/skills/project-guidelines",
-      "destination": "skills/project-guidelines",
-      "loadMode": "always"
+      "source": "engine-assets/skills/guidelines-authoring",
+      "destination": "skills/guidelines-authoring",
+      "loadMode": "on-demand"
     },
     {
       "id": "skill-react-query",
@@ -694,20 +694,6 @@
       "loadMode": "on-demand"
     },
     {
-      "id": "skill-signalr",
-      "type": "skill",
-      "source": "engine-assets/skills/signalr",
-      "destination": "skills/signalr",
-      "loadMode": "on-demand"
-    },
-    {
-      "id": "skill-skill-forge",
-      "type": "skill",
-      "source": "engine-assets/skills/skill-forge",
-      "destination": "skills/skill-forge",
-      "loadMode": "on-demand"
-    },
-    {
       "id": "skill-spec-authoring",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-authoring",
@@ -726,6 +712,20 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "skills/spec-review",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-signalr",
+      "type": "skill",
+      "source": "engine-assets/skills/signalr",
+      "destination": "skills/signalr",
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "skill-skill-forge",
+      "type": "skill",
+      "source": "engine-assets/skills/skill-forge",
+      "destination": "skills/skill-forge",
       "loadMode": "on-demand"
     },
     {

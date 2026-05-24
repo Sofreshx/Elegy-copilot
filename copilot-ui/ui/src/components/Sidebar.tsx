@@ -2,6 +2,8 @@ import { useStoreValue } from '../lib/store';
 import type { SidebarItemId, SidebarNavItem } from '../stores/navigation';
 import { questionBadgeStore } from '../stores/questionBadgeStore';
 
+const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
+
 interface SidebarProps {
   items: readonly SidebarNavItem[];
   activeItem: SidebarItemId;
@@ -26,7 +28,15 @@ export default function Sidebar({
   return (
     <nav className="sidebar" data-testid={testId} aria-label="Main navigation">
       <div className="sidebar-header">
-        <span className="sidebar-brand">Elegy Copilot</span>
+        <div className="sidebar-brand-lockup">
+          <img
+            alt=""
+            aria-hidden="true"
+            className="sidebar-brand-icon"
+            src={BRAND_ICON_SRC}
+          />
+          <span className="sidebar-brand">Elegy Copilot</span>
+        </div>
       </div>
 
       <div className="sidebar-nav">

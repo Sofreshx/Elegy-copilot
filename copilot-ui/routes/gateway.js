@@ -16,6 +16,8 @@ function handleGatewayState(ctx, deps) {
     buildPlanningPersistenceHealthEnvelope,
     getPlanningPersistenceHealth,
     resolvePlanningPersistenceAuthorityState,
+    resolvePlanningLiveAuthorityState,
+    roadmapWorkflowPlanningBridge,
     probeTrackerReadiness,
     buildGatewayStateEnvelope,
     buildGatewayProbeFailure,
@@ -29,6 +31,7 @@ function handleGatewayState(ctx, deps) {
     getPlanningPersistenceHealth(ctx.planningPersistenceConfig, ctx.planningPersistenceState),
   );
   const planningAuthority = resolvePlanningPersistenceAuthorityState(ctx.planningPersistenceConfig, ctx.planningPersistenceState);
+  const planningLiveAuthority = resolvePlanningLiveAuthorityState(roadmapWorkflowPlanningBridge);
 
   probeTrackerReadiness(trackerUrl, trackerToken)
     .then((trackerProbe) => {
@@ -39,6 +42,7 @@ function handleGatewayState(ctx, deps) {
         trackerUrl,
         planningPersistence,
         planningAuthority,
+        planningLiveAuthority,
       });
       sendJson(res, 200, state);
     })
@@ -61,6 +65,7 @@ function handleGatewayState(ctx, deps) {
         trackerUrl,
         planningPersistence,
         planningAuthority,
+        planningLiveAuthority,
       });
       sendJson(res, 200, state);
     });
@@ -75,6 +80,8 @@ function handleGatewayConnect(ctx, deps) {
     buildPlanningPersistenceHealthEnvelope,
     getPlanningPersistenceHealth,
     resolvePlanningPersistenceAuthorityState,
+    resolvePlanningLiveAuthorityState,
+    roadmapWorkflowPlanningBridge,
     probeTrackerReadiness,
     buildGatewayStateEnvelope,
     buildGatewayProbeFailure,
@@ -88,6 +95,7 @@ function handleGatewayConnect(ctx, deps) {
     getPlanningPersistenceHealth(ctx.planningPersistenceConfig, ctx.planningPersistenceState),
   );
   const planningAuthority = resolvePlanningPersistenceAuthorityState(ctx.planningPersistenceConfig, ctx.planningPersistenceState);
+  const planningLiveAuthority = resolvePlanningLiveAuthorityState(roadmapWorkflowPlanningBridge);
 
   probeTrackerReadiness(trackerUrl, trackerToken)
     .then((trackerProbe) => {
@@ -98,6 +106,7 @@ function handleGatewayConnect(ctx, deps) {
         trackerUrl,
         planningPersistence,
         planningAuthority,
+        planningLiveAuthority,
       });
       const response = {
         ...baseState,
@@ -133,6 +142,7 @@ function handleGatewayConnect(ctx, deps) {
         trackerUrl,
         planningPersistence,
         planningAuthority,
+        planningLiveAuthority,
       });
 
       sendJson(res, 503, {
@@ -289,6 +299,8 @@ function register(deps = {}) {
     buildPlanningPersistenceHealthEnvelope: deps.buildPlanningPersistenceHealthEnvelope,
     getPlanningPersistenceHealth: deps.getPlanningPersistenceHealth,
     resolvePlanningPersistenceAuthorityState: deps.resolvePlanningPersistenceAuthorityState,
+    resolvePlanningLiveAuthorityState: deps.resolvePlanningLiveAuthorityState,
+    roadmapWorkflowPlanningBridge: deps.roadmapWorkflowPlanningBridge,
     probeTrackerReadiness: deps.probeTrackerReadiness,
     buildGatewayStateEnvelope: deps.buildGatewayStateEnvelope,
     buildGatewayProbeFailure: deps.buildGatewayProbeFailure,

@@ -45,6 +45,8 @@ async function main() {
         skillsHome,
       });
 
+      assert.ok(fs.existsSync(path.join(skillsHome, 'skill-discovery', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'stack-detector', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'rubberduck-plan-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));

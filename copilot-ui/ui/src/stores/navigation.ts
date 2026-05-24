@@ -21,7 +21,6 @@ export type SidebarItemId = (typeof SIDEBAR_IDS)[number];
 export type ProjectSubView = 'overview' | 'sessions' | 'tasks' | 'git' | 'config';
 export type SessionDetailTab = 'activity' | 'tasks' | 'artifacts' | 'config' | 'git' | 'usage';
 export type MaintenanceSection = 'updates' | 'sandboxes' | 'diagnostics';
-export type PlanningSection = 'notes' | 'research' | 'mermaid' | 'ideas';
 export type WizardType = 'session' | 'project' | 'asset' | null;
 
 export interface SelectedSessionContext {
@@ -54,7 +53,6 @@ export type NavigationState = {
   selectedSessionContext: SelectedSessionContext | null;
   sessionDetailTab: SessionDetailTab;
   maintenanceSection: MaintenanceSection;
-  planningSection: PlanningSection;
   adminMode: boolean;
   wizardOpen: WizardType;
 };
@@ -68,7 +66,6 @@ const INITIAL_STATE: NavigationState = {
   selectedSessionContext: null,
   sessionDetailTab: 'activity',
   maintenanceSection: 'updates',
-  planningSection: 'notes',
   adminMode: false,
   wizardOpen: null,
 };
@@ -124,14 +121,6 @@ function createNavigationStore() {
     }));
   }
 
-  function setPlanningSection(section: PlanningSection): void {
-    store.setState((state) => ({
-      ...state,
-      activeSidebarItem: 'planning',
-      planningSection: section,
-    }));
-  }
-
   function openWizard(wizard: WizardType): void {
     store.setState((state) => ({
       ...state,
@@ -165,7 +154,6 @@ function createNavigationStore() {
     selectProject,
     selectSession,
     setMaintenanceSection,
-    setPlanningSection,
     openWizard,
     closeWizard,
     toggleAdmin,

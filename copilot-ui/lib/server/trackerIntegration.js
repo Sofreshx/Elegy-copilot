@@ -459,6 +459,9 @@ function buildGatewayStateEnvelope(input = {}) {
   const planningPersistence = source.planningPersistence && typeof source.planningPersistence === 'object'
     ? source.planningPersistence
     : buildPlanningPersistenceHealthEnvelope({});
+  const planningAuthority = source.planningAuthority && typeof source.planningAuthority === 'object'
+    ? source.planningAuthority
+    : null;
   const trackerCanonicalStatus = tracker && tracker.canonicalStatus && typeof tracker.canonicalStatus === 'object'
     ? tracker.canonicalStatus
     : null;
@@ -551,9 +554,19 @@ function buildGatewayStateEnvelope(input = {}) {
     planningPersistence: {
       ...planningPersistence,
       ready: planningReady,
-      initSupported: Boolean(source.planningAuthority && source.planningAuthority.persistedAuthority),
-      initRequired: Boolean(source.planningAuthority && source.planningAuthority.persistedAuthority) && !planningReady,
+      initSupported: Boolean(planningAuthority && planningAuthority.persistedAuthority),
+      initRequired: Boolean(planningAuthority && planningAuthority.persistedAuthority) && !planningReady,
     },
+    planningAuthority: planningAuthority
+      ? {
+          ...planningAuthority,
+          ready: planningAuthority.ready === true,
+          status: String(planningAuthority.status || (planningAuthority.ready === true ? 'ready' : 'unavailable')).trim() || 'unknown',
+          error: planningAuthority.error && typeof planningAuthority.error === 'object'
+            ? planningAuthority.error
+            : null,
+        }
+      : null,
     errors,
   };
 }

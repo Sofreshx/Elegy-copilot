@@ -46,12 +46,11 @@ async function main() {
       });
 
       assert.ok(fs.existsSync(path.join(opencodeHome, 'AGENTS.md')));
-      assert.ok(fs.existsSync(path.join(opencodeHome, 'agents', 'code-explorer.md')));
-      assert.ok(fs.existsSync(path.join(opencodeHome, 'agents', 'web-searcher.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'rubberduck-plan-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'roadmap-planning', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-review', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'implementation-handoff', 'SKILL.md')));
+      assert.ok(fs.existsSync(path.join(skillsHome, 'skill-discovery', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-dev', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-authoring', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(skillsHome, 'spec-review', 'SKILL.md')));

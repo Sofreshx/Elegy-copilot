@@ -2585,6 +2585,7 @@ export function normalizeGatewayStateResponse(payload: unknown): GatewayStateRes
   const gateway = asRecord(record.gateway);
   const tracker = asRecord(record.tracker);
   const planningPersistence = asRecord(record.planningPersistence);
+  const planningAuthority = asRecord(record.planningAuthority);
 
   return {
     ...record,
@@ -2622,6 +2623,21 @@ export function normalizeGatewayStateResponse(payload: unknown): GatewayStateRes
         ? normalizeGatewayStateError(planningPersistence.error)
         : null,
     },
+    planningAuthority: Object.keys(planningAuthority).length > 0
+      ? {
+          ...planningAuthority,
+          ready: asBoolean(planningAuthority.ready, false),
+          enabled: asBoolean(planningAuthority.enabled, false),
+          configured: asBoolean(planningAuthority.configured, false),
+          status: asTrimmedString(planningAuthority.status) || 'unknown',
+          cliPath: asTrimmedString(planningAuthority.cliPath) || null,
+          dbPath: asTrimmedString(planningAuthority.dbPath) || null,
+          diagnostics: asRecord(planningAuthority.diagnostics),
+          error: planningAuthority.error && typeof planningAuthority.error === 'object'
+            ? normalizeGatewayStateError(planningAuthority.error)
+            : null,
+        }
+      : null,
   };
 }
 

@@ -13,6 +13,7 @@ const {
 const catalogProjectionLib = require('../lib/catalogProjectionService');
 const catalogMutationLib = require('../lib/catalogMutationService');
 const externalSourcesLib = require('../lib/externalSources');
+const { GLOBAL_HARNESSES, humanizeHarnessId, normalizeHarnessId } = require('../lib/harnessCatalog');
 const providerCatalogLib = require('../lib/providerCatalog');
 const repoInventoryLib = require('../lib/repoInventoryService');
 const repoDiscoveryLib = require('../lib/repoDiscoveryService');
@@ -36,13 +37,6 @@ const DEFAULT_AUDIT_LIMIT = 50;
 const MAX_AUDIT_LIMIT = 200;
 const DEFAULT_SEARCH_LIMIT = 20;
 const MAX_SEARCH_LIMIT = 100;
-const GLOBAL_HARNESSES = Object.freeze([
-  { id: 'copilot', title: 'Copilot', homeKey: 'copilotHomeAbs', skillsHomeKey: null, supportsMcp: false },
-  { id: 'codex', title: 'Codex', homeKey: 'codexHome', skillsHomeKey: 'codexSkillsHome', supportsMcp: true },
-  { id: 'opencode', title: 'OpenCode', homeKey: 'opencodeHome', skillsHomeKey: 'opencodeSkillsHome', supportsMcp: true },
-  { id: 'antigravity', title: 'Antigravity', homeKey: 'antigravityHome', skillsHomeKey: 'antigravitySkillsHome', supportsMcp: false },
-  { id: 'gemini-cli', title: 'Antigravity CLI', homeKey: 'geminiHome', skillsHomeKey: null, supportsMcp: true },
-]);
 const INSTALL_SURFACE_HARNESSES = new Set(['codex', 'opencode', 'antigravity']);
 const HARNESS_INSTALLABLE_KINDS = Object.freeze({
   copilot: new Set(['agent', 'skill']),
@@ -50,6 +44,22 @@ const HARNESS_INSTALLABLE_KINDS = Object.freeze({
   opencode: new Set(['agent', 'skill', 'mcp']),
   antigravity: new Set(['skill']),
   'gemini-cli': new Set(['mcp']),
+});
+const GLOBAL_CATALOG_KEY_FEATURES = Object.freeze({
+  'skill::skill-discovery': {
+    central: true,
+    keyFeature: true,
+    keyFeatureLabel: 'Retrieval',
+    keyFeatureOrder: 0,
+    scopeKinds: ['global', 'harness', 'repo'],
+  },
+  'skill::stack-detector': {
+    central: true,
+    keyFeature: true,
+    keyFeatureLabel: 'Retrieval',
+    keyFeatureOrder: 1,
+    scopeKinds: ['global', 'harness', 'repo'],
+  },
 });
 
 function normalizeComparablePathForPrefix(inputPath) {
@@ -661,26 +671,20 @@ function normalizeDisplayText(value, fallback = 'Unknown') {
   return normalized || fallback;
 }
 
+function humanizeCatalogKey(value) {
+  return normalizeDisplayText(String(value || '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (match) => match.toUpperCase()), 'Unknown');
+}
+
 function normalizeCatalogItemKind(value) {
   const normalized = normalizeString(value).toLowerCase();
   if (normalized === 'mcp-server') {
     return 'mcp';
   }
   return normalized;
-}
-
-function normalizeHarnessId(value) {
-  const normalized = normalizeString(value).toLowerCase();
-  return normalized === 'antigravity-cli' ? 'gemini-cli' : normalized;
-}
-
-function humanizeHarnessId(value) {
-  const normalized = normalizeHarnessId(value);
-  const harness = GLOBAL_HARNESSES.find((entry) => entry.id === normalized);
-  if (harness) {
-    return harness.title;
-  }
-  return normalized || 'Unknown';
 }
 
 function humanizeItemKind(kind) {
@@ -699,6 +703,77 @@ function humanizeItemKind(kind) {
 function normalizeDescription(value) {
   const normalized = normalizeString(value);
   return normalized || null;
+}
+
+function normalizeScopeKinds(...values) {
+  return Array.from(new Set(values.flatMap((value) => normalizeArray(value).map((entry) => normalizeString(entry).toLowerCase())).filter(Boolean)));
+}
+
+function buildConceptualCatalogKey(kind, rawValue) {
+  const normalizedKind = normalizeCatalogItemKind(kind);
+  const value = normalizeString(rawValue).replace(/\\/g, '/');
+  if (!value) {
+    return '';
+  }
+  const baseName = value.split('/').filter(Boolean).pop() || value;
+  if (normalizedKind === 'agent') {
+    return baseName
+      .replace(/\.agent\.md$/i, '')
+      .replace(/\.toml$/i, '')
+      .replace(/\.md$/i, '');
+  }
+  if (normalizedKind === 'mcp') {
+    return baseName;
+  }
+  return baseName;
+}
+
+function buildManifestConceptualCatalogKey(asset) {
+  const kind = normalizeManifestAssetItemKind(asset?.type);
+  const destination = normalizeString(asset?.destination).replace(/\\/g, '/');
+  const source = normalizeString(asset?.source).replace(/\\/g, '/');
+  return buildConceptualCatalogKey(kind, destination || source || normalizeString(asset?.id));
+}
+
+function buildGlobalCatalogFeatureKey(kind, conceptualKey) {
+  return `${normalizeCatalogItemKind(kind)}::${normalizeString(conceptualKey).toLowerCase()}`;
+}
+
+function getGlobalCatalogFeatureMetadata(kind, conceptualKey) {
+  return GLOBAL_CATALOG_KEY_FEATURES[buildGlobalCatalogFeatureKey(kind, conceptualKey)] || null;
+}
+
+function getHarnessSortIndex(harnessId) {
+  const index = GLOBAL_HARNESSES.findIndex((entry) => entry.id === harnessId);
+  return index >= 0 ? index : GLOBAL_HARNESSES.length;
+}
+
+function getSupportedHarnessCountForKind(kind) {
+  const normalizedKind = normalizeCatalogItemKind(kind);
+  return GLOBAL_HARNESSES.filter((harness) => HARNESS_INSTALLABLE_KINDS[harness.id]?.has(normalizedKind)).length;
+}
+
+function resolveHarnessSyncStatus(state) {
+  if (!state.supported) {
+    return 'unsupported';
+  }
+  if (state.expected) {
+    return state.installed ? 'synced' : 'missing';
+  }
+  if (state.installed) {
+    return state.metadata?.actionKind === 'external-source' ? 'active' : 'installed';
+  }
+  return 'available';
+}
+
+function sortHarnessStates(states) {
+  return [...(Array.isArray(states) ? states : [])].sort((left, right) => {
+    const harnessCompare = getHarnessSortIndex(normalizeHarnessId(left?.harnessId)) - getHarnessSortIndex(normalizeHarnessId(right?.harnessId));
+    if (harnessCompare !== 0) {
+      return harnessCompare;
+    }
+    return String(left?.title || '').localeCompare(String(right?.title || ''));
+  });
 }
 
 function normalizeStringList(value) {
@@ -757,6 +832,7 @@ function buildHarnessState({
   harnessId,
   kind,
   installedPaths = [],
+  expected = false,
   canInstall = false,
   canActivate = false,
   canDeactivate = false,
@@ -770,6 +846,7 @@ function buildHarnessState({
     harnessId,
     title: humanizeHarnessId(harnessId),
     supported,
+    expected: supported && expected === true,
     installed: Boolean(installPath),
     active: Boolean(installPath),
     installPath,
@@ -781,6 +858,7 @@ function buildHarnessState({
     },
     detail,
     metadata,
+    syncStatus: null,
   };
 }
 
@@ -901,6 +979,7 @@ function buildProjectionInventory(summary, ctx, engineManifestAssetIds = new Set
 
     grouped[kind].push({
       itemId: effectiveAsset.assetId,
+      conceptualKey: buildConceptualCatalogKey(kind, normalizeString(effectiveAsset.assetKey) || normalizeString(selectedEntry.assetKey) || effectiveAsset.assetId),
       itemKey: normalizeString(effectiveAsset.assetKey) || normalizeString(selectedEntry.assetKey) || effectiveAsset.assetId,
       kind,
       title: normalizeDisplayText(selectedEntry.title || effectiveAsset.assetKey || effectiveAsset.assetId),
@@ -916,6 +995,12 @@ function buildProjectionInventory(summary, ctx, engineManifestAssetIds = new Set
         loadMode: normalizeString(installState.loadMode) || null,
         selectedLayer: normalizeString(effectiveAsset.selectedLayer) || null,
         readPath: sourceActionMetadata?.contentPath || null,
+        scopeKind: normalizeString(selectedEntry?.scope?.kind || effectiveAsset?.scope?.kind) || null,
+        scopeKinds: normalizeScopeKinds(
+          selectedEntry?.targeting?.scopeKinds,
+          selectedEntry?.scope?.kind,
+          effectiveAsset?.scope?.kind,
+        ),
       },
       actions: {
         kind: 'catalog-asset',
@@ -929,8 +1014,12 @@ function buildProjectionInventory(summary, ctx, engineManifestAssetIds = new Set
           harnessId: harness.harnessId,
           kind,
           installedPaths,
+          expected: engineManifestAssetIds.has(effectiveAsset.assetId),
           canInstall: harness.harnessId === 'copilot' && engineManifestAssetIds.has(effectiveAsset.assetId),
           detail: sourceActionMetadata,
+          metadata: {
+            actionKind: 'catalog-asset',
+          },
         })),
     });
   }
@@ -1021,13 +1110,15 @@ function buildManifestInventory(ctx) {
       }
       const sourcePath = normalizeString(asset?.source);
       const sourceAbs = sourcePath ? path.join(path.resolve(ctx.engineRoot), sourcePath) : '';
+      const conceptualKey = buildManifestConceptualCatalogKey(asset);
       const installedPaths = buildInstalledPathCandidatesForManifestAsset(ctx, manifestSource.source, asset)
         .filter((candidate) => candidate && safeStat(candidate, fs));
       grouped[kind].push({
         itemId: normalizeString(asset?.id) || `${manifestSource.harnessId}-${kind}-${grouped[kind].length + 1}`,
+        conceptualKey,
         itemKey: normalizeString(asset?.destination || asset?.id) || `${manifestSource.harnessId}-${kind}`,
         kind,
-        title: normalizeDisplayText(asset?.id || asset?.destination),
+        title: humanizeCatalogKey(conceptualKey || asset?.id || asset?.destination),
         description: normalizeDescription(manifestScan.document?.installDefaults?.description),
         sourceType: 'harness-manifest',
         sourceId: manifestSource.source,
@@ -1040,6 +1131,8 @@ function buildManifestInventory(ctx) {
           sourcePath,
           destination: normalizeString(asset?.destination) || null,
           readPath: sourceAbs || null,
+          scopeKind: 'harness',
+          scopeKinds: ['harness'],
         },
         actions: {
           kind: 'install-surface',
@@ -1055,12 +1148,16 @@ function buildManifestInventory(ctx) {
             harnessId: harness.harnessId,
             kind,
             installedPaths,
+            expected: true,
             canInstall: INSTALL_SURFACE_HARNESSES.has(harness.harnessId),
             canSync: INSTALL_SURFACE_HARNESSES.has(harness.harnessId),
             detail: {
               readPath: sourceAbs || null,
               sourcePath,
               destination: normalizeString(asset?.destination) || null,
+            },
+            metadata: {
+              actionKind: 'install-surface',
             },
           })),
       });
@@ -1096,8 +1193,10 @@ function buildExternalSourceInventory(summary, ctx) {
         || installable?.sourcePath
         || installable?.relativePath
       ) || null;
+      const conceptualKey = buildConceptualCatalogKey(kind, normalizeString(installable.installableId) || normalizeString(installable.name) || externalReadPath);
       grouped[kind].push({
         itemId: `${normalizeString(source.sourceId)}:${normalizeString(installable.installableId)}`,
+        conceptualKey,
         itemKey: normalizeString(installable.installableId) || `${normalizeString(source.sourceId)}-${kind}`,
         kind,
         title: normalizeDisplayText(installable.title || installable.name || installable.installableId),
@@ -1114,6 +1213,8 @@ function buildExternalSourceInventory(summary, ctx) {
           relativePath: normalizeString(installable.relativePath) || null,
           sourcePath: normalizeString(installable.sourcePath) || null,
           readPath: externalReadPath,
+          scopeKind: 'harness',
+          scopeKinds: ['harness'],
         },
         actions: {
           kind: 'external-source',
@@ -1137,6 +1238,7 @@ function buildExternalSourceInventory(summary, ctx) {
               harnessId: harness.harnessId,
               kind,
               installedPaths: normalizeStringList([entry.installedPath]),
+              expected: false,
               canActivate: true,
               canDeactivate: true,
               detail: {
@@ -1144,6 +1246,7 @@ function buildExternalSourceInventory(summary, ctx) {
                 installedPath: normalizeString(entry.installedPath) || null,
               },
               metadata: {
+                actionKind: 'external-source',
                 sourceId: normalizeString(source.sourceId) || null,
                 installableId: normalizeString(installable.installableId) || null,
               },
@@ -1156,27 +1259,166 @@ function buildExternalSourceInventory(summary, ctx) {
   return grouped;
 }
 
-function dedupeInventoryItems(items) {
-  const seen = new Set();
-  const results = [];
+function mergeHarnessStateMaps(existingStates, incomingStates) {
+  const merged = new Map();
+  for (const state of [...(Array.isArray(existingStates) ? existingStates : []), ...(Array.isArray(incomingStates) ? incomingStates : [])]) {
+    if (!state || typeof state !== 'object') {
+      continue;
+    }
+    const harnessId = normalizeHarnessId(state.harnessId);
+    if (!harnessId) {
+      continue;
+    }
+    const previous = merged.get(harnessId);
+    if (!previous) {
+      merged.set(harnessId, { ...state });
+      continue;
+    }
+    const mergedMetadata = {
+      ...(previous.metadata && typeof previous.metadata === 'object' ? previous.metadata : {}),
+      ...(state.metadata && typeof state.metadata === 'object' ? state.metadata : {}),
+    };
+    const mergedDetail = {
+      ...(previous.detail && typeof previous.detail === 'object' ? previous.detail : {}),
+      ...(state.detail && typeof state.detail === 'object' ? state.detail : {}),
+    };
+    const mergedActions = {
+      ...(previous.actions && typeof previous.actions === 'object' ? previous.actions : {}),
+      ...(state.actions && typeof state.actions === 'object' ? state.actions : {}),
+    };
+    merged.set(harnessId, {
+      ...previous,
+      ...state,
+      supported: previous.supported || state.supported,
+      expected: previous.expected || state.expected,
+      installed: previous.installed || state.installed,
+      active: previous.active || state.active,
+      installPath: previous.installPath || state.installPath || null,
+      actions: mergedActions,
+      detail: Object.keys(mergedDetail).length ? mergedDetail : null,
+      metadata: Object.keys(mergedMetadata).length ? mergedMetadata : null,
+    });
+  }
+  return sortHarnessStates(Array.from(merged.values())).map((state) => ({
+    ...state,
+    syncStatus: resolveHarnessSyncStatus(state),
+  }));
+}
+
+function mergeInventoryItems(items) {
+  const grouped = new Map();
   for (const item of Array.isArray(items) ? items : []) {
     if (!item || typeof item !== 'object') {
       continue;
     }
-    const key = `${normalizeCatalogItemKind(item.kind)}::${normalizeString(item.itemKey)}::${normalizeString(item.sourceType)}`;
-    if (seen.has(key)) {
+    const kind = normalizeCatalogItemKind(item.kind);
+    const conceptualKey = normalizeString(item.conceptualKey || buildConceptualCatalogKey(kind, item.itemKey || item.itemId)).toLowerCase();
+    const sourceType = normalizeString(item.sourceType).toLowerCase();
+    const key = conceptualKey ? `${kind}::${conceptualKey}` : `${kind}::${normalizeString(item.itemId).toLowerCase()}::${sourceType}`;
+    const previous = grouped.get(key);
+    if (!previous) {
+      grouped.set(key, {
+        ...item,
+        conceptualKey,
+        harnessStates: mergeHarnessStateMaps([], item.harnessStates),
+      });
       continue;
     }
-    seen.add(key);
-    results.push(item);
+
+    const mergedDetail = {
+      ...(previous.detail && typeof previous.detail === 'object' ? previous.detail : {}),
+      ...(item.detail && typeof item.detail === 'object' ? item.detail : {}),
+    };
+    const mergedActions = {
+      ...(previous.actions && typeof previous.actions === 'object' ? previous.actions : {}),
+      ...(item.actions && typeof item.actions === 'object' ? item.actions : {}),
+      installSurfaceTargets: Array.from(new Set([
+        ...normalizeArray(previous.actions?.installSurfaceTargets),
+        ...normalizeArray(item.actions?.installSurfaceTargets),
+      ])),
+      installAssetId: previous.actions?.installAssetId || item.actions?.installAssetId || null,
+    };
+    const previousDetailScopeKinds = Array.isArray(previous.detail?.scopeKinds) ? previous.detail.scopeKinds : [];
+    const nextDetailScopeKinds = Array.isArray(item.detail?.scopeKinds) ? item.detail.scopeKinds : [];
+    grouped.set(key, {
+      ...previous,
+      itemId: previous.itemId || item.itemId,
+      itemKey: previous.itemKey || item.itemKey,
+      title: previous.title || item.title,
+      description: previous.description || item.description,
+      sourceType: previous.sourceType === 'catalog-asset' ? previous.sourceType : item.sourceType || previous.sourceType,
+      sourceId: previous.sourceId || item.sourceId || null,
+      providerId: previous.providerId || item.providerId || null,
+      readPath: previous.readPath || item.readPath || null,
+      detail: {
+        ...mergedDetail,
+        scopeKinds: normalizeScopeKinds(previousDetailScopeKinds, nextDetailScopeKinds),
+        scopeKind: normalizeString(previous.detail?.scopeKind || item.detail?.scopeKind) || null,
+      },
+      actions: mergedActions,
+      harnessStates: mergeHarnessStateMaps(previous.harnessStates, item.harnessStates),
+      conceptualKey,
+    });
   }
-  return results.sort((left, right) => {
-    const titleCompare = String(left.title || '').localeCompare(String(right.title || ''));
-    if (titleCompare !== 0) {
-      return titleCompare;
-    }
-    return String(left.itemId || '').localeCompare(String(right.itemId || ''));
-  });
+
+  return Array.from(grouped.values())
+    .map((item) => {
+      const feature = getGlobalCatalogFeatureMetadata(item.kind, item.conceptualKey);
+      const harnessStates = mergeHarnessStateMaps([], item.harnessStates);
+      const expectedHarnessCount = harnessStates.filter((state) => state.expected).length;
+      const missingHarnessCount = harnessStates.filter((state) => state.syncStatus === 'missing').length;
+      const installedHarnessCount = harnessStates.filter((state) => state.installed).length;
+      const supportedHarnessCount = getSupportedHarnessCountForKind(item.kind);
+      const scopeKinds = normalizeScopeKinds(item.detail?.scopeKinds, feature?.scopeKinds);
+      const syncStatus = missingHarnessCount > 0
+        ? 'missing'
+        : expectedHarnessCount > 0
+          ? 'synced'
+          : installedHarnessCount > 0
+            ? 'installed'
+            : 'available';
+      return {
+        ...item,
+        title: item.title || humanizeCatalogKey(item.conceptualKey || item.itemKey || item.itemId),
+        detail: {
+          ...(item.detail && typeof item.detail === 'object' ? item.detail : {}),
+          scopeKinds,
+          scopeKind: normalizeString(item.detail?.scopeKind) || (scopeKinds.length === 1 ? scopeKinds[0] : null),
+        },
+        harnessStates,
+        central: feature?.central === true,
+        keyFeature: feature?.keyFeature === true,
+        keyFeatureLabel: feature?.keyFeatureLabel || null,
+        keyFeatureOrder: Number.isFinite(feature?.keyFeatureOrder) ? feature.keyFeatureOrder : null,
+        scopeKinds,
+        syncStatus,
+        expectedHarnessCount,
+        missingHarnessCount,
+        installedHarnessCount,
+        supportedHarnessCount,
+      };
+    })
+    .sort((left, right) => {
+      const leftKeyOrder = Number.isFinite(left.keyFeatureOrder) ? left.keyFeatureOrder : Number.MAX_SAFE_INTEGER;
+      const rightKeyOrder = Number.isFinite(right.keyFeatureOrder) ? right.keyFeatureOrder : Number.MAX_SAFE_INTEGER;
+      if (leftKeyOrder !== rightKeyOrder) {
+        return leftKeyOrder - rightKeyOrder;
+      }
+      if (Boolean(left.keyFeature) !== Boolean(right.keyFeature)) {
+        return left.keyFeature ? -1 : 1;
+      }
+      if (Boolean(left.central) !== Boolean(right.central)) {
+        return left.central ? -1 : 1;
+      }
+      if (left.missingHarnessCount !== right.missingHarnessCount) {
+        return right.missingHarnessCount - left.missingHarnessCount;
+      }
+      const titleCompare = String(left.title || '').localeCompare(String(right.title || ''));
+      if (titleCompare !== 0) {
+        return titleCompare;
+      }
+      return String(left.itemId || '').localeCompare(String(right.itemId || ''));
+    });
 }
 
 function buildGlobalCatalogInventory(summary, externalSourcesSummary, ctx) {
@@ -1191,7 +1433,7 @@ function buildGlobalCatalogInventory(summary, externalSourcesSummary, ctx) {
   const externalInventory = buildExternalSourceInventory({ externalSources: externalSourcesSummary?.sources || [] }, ctx);
 
   const sections = ['skill', 'agent', 'mcp'].map((kind) => {
-    const items = dedupeInventoryItems([
+    const items = mergeInventoryItems([
       ...(projectionInventory[kind] || []),
       ...(manifestInventory[kind] || []),
       ...(externalInventory[kind] || []),
@@ -2674,36 +2916,6 @@ function handleCatalogRepoRefresh(ctx, deps) {
     ));
 }
 
-function handleProjectsList(ctx, deps) {
-  const state = deps.repoInventory.loadRepoInventoryState(ctx.copilotHomeAbs);
-  const projects = (state.manualRepos || []).map((entry) => deps.repoInventory.getProjectView(entry));
-  deps.sendJson(ctx.res, 200, projects);
-}
-
-function handleProjectUpdate(ctx, deps) {
-  const repoId = decodeURIComponent(ctx.match[1] || '');
-  if (!repoId) {
-    sendJsonError(ctx.res, deps.sendJson, 400, 'projects.update', 'Project ID is required');
-    return;
-  }
-  deps.readJsonBody(ctx.req)
-    .then((body) => {
-      const updated = deps.repoInventory.updateProjectFields(ctx.copilotHomeAbs, repoId, body);
-      if (!updated) {
-        sendJsonError(ctx.res, deps.sendJson, 404, 'projects.update', `Project not found: ${repoId}`);
-        return;
-      }
-      deps.sendJson(ctx.res, 200, deps.repoInventory.getProjectView(updated));
-    })
-    .catch((error) => sendJsonError(
-      ctx.res,
-      deps.sendJson,
-      error.statusCode || 500,
-      'projects.update',
-      String(error.message || error),
-    ));
-}
-
 function sendJsonError(res, sendJson, statusCode, kind, error) {
   sendJson(res, statusCode, {
     kind,
@@ -2904,16 +3116,6 @@ function register(deps = {}) {
       method: 'GET',
       path: '/api/runtime/catalog-health',
       handler: (ctx) => handleRuntimeCatalogHealth(ctx, resolvedDeps),
-    },
-    {
-      method: 'GET',
-      path: '/api/projects',
-      handler: (ctx) => handleProjectsList(ctx, resolvedDeps),
-    },
-    {
-      method: 'PATCH',
-      path: /^\/api\/projects\/([^/]+)$/,
-      handler: (ctx) => handleProjectUpdate(ctx, resolvedDeps),
     },
   ];
 }

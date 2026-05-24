@@ -74,6 +74,20 @@
       "destination": "skills/repo-setup"
     },
     {
+      "id": "codex-skill-discovery-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/skill-discovery",
+      "destination": "skills/skill-discovery",
+      "loadMode": "always"
+    },
+    {
+      "id": "codex-stack-detector-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/stack-detector",
+      "destination": "skills/stack-detector",
+      "loadMode": "always"
+    },
+    {
       "id": "codex-rubberduck-plan-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",

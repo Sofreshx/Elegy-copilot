@@ -38,6 +38,13 @@
   align-items: flex-start;
 }
 
+.catalog-global-badge-stack {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
 .catalog-global-card-header h4 {
   margin: 0;
 }
@@ -52,6 +59,59 @@
 .catalog-global-item-list {
   display: grid;
   gap: 0.85rem;
+}
+
+.catalog-global-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.catalog-global-harness-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--color-ink-200);
+  background: var(--color-surface-2);
+  color: var(--color-ink-700);
+  font-size: 0.8rem;
+  line-height: 1;
+  padding: 0.35rem 0.55rem;
+}
+
+.catalog-global-harness-pill.sync-synced,
+.catalog-global-harness-pill.sync-installed,
+.catalog-global-harness-pill.sync-active {
+  background: var(--color-accent-50);
+  border-color: var(--color-accent-200);
+  color: var(--color-accent-600);
+}
+
+.catalog-global-harness-pill.sync-missing {
+  background: var(--color-warning-50);
+  border-color: var(--color-warning-200);
+  color: var(--color-warning-500);
+}
+
+.catalog-global-warning-banner {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-warning-200);
+  background: var(--color-warning-50);
+}
+
+.catalog-global-warning-banner p {
+  margin: 0;
+  color: var(--color-warning-500);
+}
+
+.catalog-global-warning-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
 }
 
 .catalog-global-harness-state-list {
@@ -99,5 +159,9 @@
   .catalog-global-card-header,
   .catalog-global-harness-state {
     flex-direction: column;
+  }
+
+  .catalog-global-badge-stack {
+    justify-content: flex-start;
   }
 }

@@ -55,16 +55,11 @@
       "destination": "AGENTS.md"
     },
     {
-      "id": "opencode-code-explorer-agent",
-      "type": "agent",
-      "source": "opencode-assets/agents/code-explorer.md",
-      "destination": "agents/code-explorer.md"
-    },
-    {
-      "id": "opencode-web-searcher-agent",
-      "type": "agent",
-      "source": "opencode-assets/agents/web-searcher.md",
-      "destination": "agents/web-searcher.md"
+      "id": "opencode-skill-discovery-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/skill-discovery",
+      "destination": "skills/skill-discovery",
+      "loadMode": "always"
     },
     {
       "id": "opencode-code-review-skill",

@@ -218,7 +218,8 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/assets/view' },
   { method: 'POST', path: '/api/assets/delete' },
 
-  // Catalog/Search/Audit/Runtime (32)
+  // Catalog/Search/Audit/Runtime (33)
+  { method: 'GET', path: '/api/dashboard/harness-sessions' },
   { method: 'GET', path: '/api/catalog/repos' },
   { method: 'POST', path: '/api/catalog/repos/register' },
   { method: 'POST', path: '/api/catalog/repos/scan-roots' },
@@ -253,8 +254,6 @@ const ROUTE_INVENTORY = [
   { method: 'GET', path: '/api/audit/assets' },
   { method: 'GET', path: '/api/audit/events' },
   { method: 'GET', path: '/api/runtime/catalog-health' },
-  { method: 'GET', path: '/api/projects' },
-  { method: 'PATCH', path: '/api/projects/test-project-id' },
 
   // Gateway (5)
   { method: 'GET', path: '/api/gateway/state' },
@@ -263,18 +262,7 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/gateway/config' },
   { method: 'GET', path: '/api/gateway/scan-repos' },
 
-  // Tracker retirement + sandbox lifecycle (12: 7 exact + 5 regex)
-  { method: 'GET', path: '/api/tracker/status' },
-  { method: 'GET', path: '/api/tracker/sessions' },
-  { method: 'GET', path: '/api/tracker/permissions' },
-  { method: 'GET', path: '/api/tracker/synced-notes/sources' },
-  { method: 'POST', path: '/api/tracker/synced-notes/sources' },
-  { method: 'GET', path: '/api/tracker/events' },
-  { method: 'GET', path: '/api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef' },
-  { method: 'PUT', path: '/api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef' },
-  { method: 'DELETE', path: '/api/tracker/synced-notes/sources/snsrc_0123456789abcdef0123456789abcdef' },
-  { method: 'POST', path: '/api/tracker/permissions/test-id/approve' },
-  { method: 'POST', path: '/api/tracker/lifecycle/start' },
+  // Sandbox lifecycle (1)
   { method: 'POST', path: '/api/sandboxes/lifecycle/start' },
 
   // UI Runtime Overlay (8)
@@ -287,14 +275,11 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/release' },
   { method: 'POST', path: '/api/ui-runtime-overlay/sessions/test-session-id/change-requests/test-change-request-id/executor-job' },
 
-  // Desktop + Dashboard + Config (9)
+  // Desktop + Dashboard + Config (6)
   { method: 'GET', path: '/api/desktop-updater' },
   { method: 'POST', path: '/api/desktop-updater/check' },
   { method: 'POST', path: '/api/desktop-updater/download' },
   { method: 'POST', path: '/api/desktop-updater/restart' },
-  { method: 'GET', path: '/api/dashboard/summary' },
-  { method: 'GET', path: '/api/projects/test-project-id/sessions' },
-  { method: 'GET', path: '/api/projects/test-project-id/activity' },
   { method: 'GET', path: '/api/config/remote-sessions' },
   { method: 'PUT', path: '/api/config/remote-sessions' },
   { method: 'GET', path: '/api/config/codex-provider' },
@@ -504,7 +489,7 @@ async function run() {
 
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 173, `Expected 173 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 158, `Expected 158 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

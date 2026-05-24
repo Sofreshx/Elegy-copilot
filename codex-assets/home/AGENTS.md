@@ -48,6 +48,7 @@ Use plan-first for non-trivial work. Stay in planning until the task is decision
 - Use `$roadmap-planning` for persisted multi-session goals under `docs/roadmaps/<roadmap-slug>.md`; update the roadmap lightly after completing a slice.
 - Use `$spec-dev` when the task needs spec-first clarification, a durable repo spec under `specs/<spec-slug>/spec.md`, or a narrow spec-as-source flow.
 - Use `$spec-authoring` to create or refine durable specs under `specs/`, then `$spec-review` before implementation planning when the spec will drive the work.
+- Use `$stack-detector` for explicit stack/target-context detection, and `$skill-discovery` when the right shared skill is still ambiguous after the first pass.
 - Treat a Roadmap as durable multi-session planning above a session plan: it records goals, non-goals, targets, sequencing, progress, evidence, and reevaluation notes, while the current session implements one selected slice.
 
 ## Repo docs breadcrumb

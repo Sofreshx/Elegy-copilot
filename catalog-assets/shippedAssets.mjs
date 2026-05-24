@@ -153,8 +153,6 @@ export const SHIPPED_ASSETS = [
   skill('codex-repo-setup-skill', 'codex-assets/skills/repo-setup'),
 
   instructions('opencode-global-instructions', 'opencode-assets/home/AGENTS.md'),
-  agent('opencode-code-explorer-agent', 'opencode-assets/agents/code-explorer.md'),
-  agent('opencode-web-searcher-agent', 'opencode-assets/agents/web-searcher.md'),
   skill('opencode-code-review-skill', 'opencode-assets/skills/code-review'),
   skill('opencode-security-skill', 'opencode-assets/skills/security'),
   skill('opencode-refactor-skill', 'opencode-assets/skills/refactor'),

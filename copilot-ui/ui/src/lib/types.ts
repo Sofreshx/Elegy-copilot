@@ -1554,8 +1554,10 @@ export interface CatalogGlobalHarnessState {
   harnessId: string;
   title: string;
   supported: boolean;
+  expected?: boolean;
   installed?: boolean;
   active?: boolean;
+  syncStatus?: 'synced' | 'missing' | 'installed' | 'active' | 'available' | 'unsupported' | string;
   installPath?: string | null;
   actions?: CatalogGlobalHarnessActions;
   detail?: Record<string, unknown> | null;
@@ -1573,11 +1575,14 @@ export interface CatalogGlobalItemActions {
 export interface CatalogGlobalItemDetail {
   itemType?: string | null;
   readPath?: string | null;
+  scopeKind?: string | null;
+  scopeKinds?: string[];
   [key: string]: unknown;
 }
 
 export interface CatalogGlobalItem {
   itemId: string;
+  conceptualKey?: string;
   itemKey: string;
   kind: 'skill' | 'agent' | 'mcp' | string;
   title: string;
@@ -1588,6 +1593,16 @@ export interface CatalogGlobalItem {
   readPath?: string | null;
   detail?: CatalogGlobalItemDetail | Record<string, unknown> | null;
   actions?: CatalogGlobalItemActions | null;
+  central?: boolean;
+  keyFeature?: boolean;
+  keyFeatureLabel?: string | null;
+  keyFeatureOrder?: number | null;
+  scopeKinds?: string[];
+  syncStatus?: string | null;
+  expectedHarnessCount?: number;
+  missingHarnessCount?: number;
+  installedHarnessCount?: number;
+  supportedHarnessCount?: number;
   harnessStates?: CatalogGlobalHarnessState[];
   [key: string]: unknown;
 }
@@ -3086,6 +3101,13 @@ export interface GatewayStateResponse {
     initSupported?: boolean;
     initRequired?: boolean;
   };
+  planningAuthority?: GatewayStateSegment & {
+    enabled?: boolean;
+    configured?: boolean;
+    cliPath?: string | null;
+    dbPath?: string | null;
+    diagnostics?: Record<string, unknown>;
+  } | null;
   [key: string]: unknown;
 }
 

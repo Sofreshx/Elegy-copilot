@@ -41,9 +41,27 @@ function walkFiles(dir, out = []) {
 async function run() {
   console.log('\nUI React Smoke Tests\n');
 
-  await test('index.html mounts React entrypoint', async () => {
+  await test('index.html mounts React entrypoint and exposes the Elegy Copilot favicon', async () => {
     const indexHtml = fs.readFileSync(path.join(uiRoot, 'index.html'), 'utf8');
     assert.ok(indexHtml.includes('/src/main.tsx'), 'Expected ui/index.html to load /src/main.tsx');
+    assert.ok(indexHtml.includes('<title>Elegy Copilot</title>'), 'Expected ui/index.html title to match Elegy Copilot');
+    assert.ok(indexHtml.includes('/elegy-copilot-icon.svg'), 'Expected ui/index.html to declare the branded svg favicon');
+    assert.ok(indexHtml.includes('/favicon.ico'), 'Expected ui/index.html to declare the branded ico favicon');
+  });
+
+  await test('brand icon assets and shell references exist', async () => {
+    const brandIconPath = path.join(uiRoot, 'public', 'elegy-copilot-icon.svg');
+    const sidebarSource = fs.readFileSync(path.join(uiSrcRoot, 'components', 'Sidebar.tsx'), 'utf8');
+    const settingsSource = fs.readFileSync(path.join(uiSrcRoot, 'views', 'Settings', 'SettingsView.tsx'), 'utf8');
+    const bootstrapHtml = fs.readFileSync(path.join(repoRoot, 'src-tauri', 'bootstrap', 'index.html'), 'utf8');
+
+    assert.ok(fs.existsSync(brandIconPath), 'Expected branded svg icon asset in ui/public');
+    assert.ok(sidebarSource.includes('sidebar-brand-icon'), 'Expected Sidebar to render the branded icon');
+    assert.ok(sidebarSource.includes('/elegy-copilot-icon.svg'), 'Expected Sidebar to use the shared branded svg asset');
+    assert.ok(settingsSource.includes('settings-about-brand'), 'Expected Settings about panel to render branded app identity');
+    assert.ok(settingsSource.includes('/elegy-copilot-icon.svg'), 'Expected Settings to use the shared branded svg asset');
+    assert.ok(bootstrapHtml.includes('boot-mark'), 'Expected Tauri bootstrap shell to render the brand mark');
+    assert.ok(bootstrapHtml.includes('Starting workspace...'), 'Expected Tauri bootstrap shell to expose branded startup copy');
   });
 
   await test('main.tsx and App.tsx exist', async () => {

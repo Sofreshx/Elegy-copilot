@@ -26,7 +26,7 @@ This keeps startup context lean and makes domain loading explicit.
 ## Codex operating model
 
 Codex should stay leaner than the legacy Copilot fleet:
-- Global Codex install: `AGENTS.md`, one read-only `reviewer` agent, `repo-setup`, `rubberduck-plan-review`, `implementation-handoff`, `implementation-review`, `roadmap-planning`, `spec-dev`, `spec-authoring`, and `spec-review`.
+- Global Codex install: `AGENTS.md`, one read-only `reviewer` agent, `repo-setup`, `skill-discovery`, `stack-detector`, `rubberduck-plan-review`, `implementation-handoff`, `implementation-review`, `roadmap-planning`, `spec-dev`, `spec-authoring`, and `spec-review`.
 - Repo-specific hazards: repo-local `AGENTS.md` overlays and repo-local skills.
 - Legacy engine/Copilot orchestration agents are not bulk-installed into Codex.
 - Cross-model reviewer agents are not part of the Codex install surface.
@@ -35,7 +35,7 @@ Codex should stay leaner than the legacy Copilot fleet:
 
 OpenCode should stay native-first rather than mirroring the Copilot fleet:
 - Primary OpenCode workflow uses the built-in agents: `Build`, `Plan`, `General`, `Explore`, and `Scout`.
-- Instruction-engine adds only the missing reusable skill surface: `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, and `stack-detector`.
+- Instruction-engine adds only the missing reusable skill surface: `skill-discovery`, `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, and `stack-detector`.
 - `code-review` and `refactor` remain compatibility surfaces during the transition, but they are not the recommended primary OpenCode routing path.
 - Do not bulk-install Copilot orchestration agents, plan-pack/session-state authoring lanes, or other Copilot-only workflow surfaces into OpenCode.
 - Do not create a parallel custom OpenCode agent fleet for code exploration or web research when the built-in `Explore` and `Scout` agents already cover that role.

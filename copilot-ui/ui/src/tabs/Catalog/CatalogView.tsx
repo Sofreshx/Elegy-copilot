@@ -40,6 +40,8 @@ const INITIAL_DETAIL_STATE: GlobalDetailState = {
   label: 'No item selected',
 };
 
+const INSTALL_SURFACE_TARGETS = ['codex', 'opencode', 'antigravity'] as const;
+
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -54,50 +56,95 @@ function getGlobalInventory(summary: CatalogSnapshotEnvelope | null): CatalogGlo
 }
 
 function getHarnessStateLabel(state: CatalogGlobalHarnessState): string {
-  if (!state.supported) {
-    return 'Not supported';
+  switch (state.syncStatus) {
+    case 'missing':
+      return 'Missing';
+    case 'synced':
+      return 'Synced';
+    case 'active':
+      return 'Active';
+    case 'installed':
+      return 'Installed';
+    case 'unsupported':
+      return 'Not supported';
+    default:
+      return state.expected ? 'Pending' : 'Available';
   }
-  if (state.active && state.installed) {
-    return 'Installed';
-  }
-  if (state.installed) {
-    return 'Installed';
-  }
-  return 'Not installed';
 }
 
-function getHarnessBadgeTone(state: CatalogGlobalHarnessState): 'success' | 'neutral' | 'accent' {
-  if (!state.supported) {
-    return 'neutral';
+function getHarnessBadgeTone(state: CatalogGlobalHarnessState): 'success' | 'neutral' | 'accent' | 'danger' {
+  switch (state.syncStatus) {
+    case 'missing':
+      return 'danger';
+    case 'synced':
+    case 'active':
+    case 'installed':
+      return 'success';
+    case 'unsupported':
+      return 'neutral';
+    default:
+      return 'accent';
   }
-  if (state.active || state.installed) {
-    return 'success';
-  }
-  return 'accent';
 }
 
 function getActionLabel(item: CatalogGlobalItem, harnessState: CatalogGlobalHarnessState): string | null {
-  const itemActions = item.actions;
   const harnessActions = harnessState.actions;
-  if (!harnessActions || !itemActions) {
+  const actionKind = typeof harnessState.metadata?.actionKind === 'string'
+    ? harnessState.metadata.actionKind
+    : item.actions?.kind;
+  const installSurfaceTargets = Array.isArray(item.actions?.installSurfaceTargets)
+    ? item.actions.installSurfaceTargets
+    : [];
+  if (!harnessActions || !actionKind) {
     return null;
   }
-  if (harnessActions.canDeactivate && (harnessState.active || harnessState.installed) && itemActions.kind === 'external-source') {
-    return 'Deactivate';
+  if (harnessActions.canDeactivate && (harnessState.active || harnessState.installed) && actionKind === 'external-source') {
+    return 'Disable';
   }
-  if (harnessActions.canActivate && itemActions.kind === 'external-source') {
-    return harnessState.installed ? 'Reinstall' : 'Activate';
+  if (harnessActions.canActivate && actionKind === 'external-source') {
+    return harnessState.installed ? 'Repair source' : 'Enable source';
   }
-  if (harnessActions.canInstall && itemActions.kind === 'catalog-asset') {
+  if (harnessActions.canInstall && actionKind === 'catalog-asset') {
     return 'Install';
   }
-  if (harnessActions.canInstall && itemActions.kind === 'install-surface') {
-    return harnessState.installed ? 'Sync' : 'Install';
+  if (harnessActions.canInstall && actionKind === 'install-surface') {
+    return harnessState.syncStatus === 'missing' || harnessState.installed ? 'Sync harness' : 'Install harness';
   }
-  if (harnessActions.canSync && itemActions.kind === 'install-surface') {
-    return 'Sync';
+  if (harnessActions.canSync && actionKind === 'install-surface' && installSurfaceTargets.includes(harnessState.harnessId)) {
+    return 'Sync harness';
   }
   return null;
+}
+
+function getHarnessTagLabel(state: CatalogGlobalHarnessState): string {
+  if (state.expected) {
+    return `${state.title} ${state.syncStatus === 'missing' ? 'missing' : 'ready'}`;
+  }
+  if (state.installed) {
+    return `${state.title} installed`;
+  }
+  return `${state.title} available`;
+}
+
+function getItemScopeLabel(item: CatalogGlobalItem): string | null {
+  const scopeKinds = Array.isArray(item.scopeKinds) ? item.scopeKinds.filter(Boolean) : [];
+  if (scopeKinds.length === 0) {
+    return null;
+  }
+  return scopeKinds.join(' + ');
+}
+
+function getSyncWarningText(item: CatalogGlobalItem): string | null {
+  if (!item.missingHarnessCount) {
+    return null;
+  }
+  const missingTargets = (item.harnessStates || [])
+    .filter((state) => state.syncStatus === 'missing')
+    .map((state) => state.title);
+  if (missingTargets.length === 0) {
+    return null;
+  }
+  return `Expected on ${missingTargets.join(', ')} but not currently installed.`;
 }
 
 function resolveContentRequest(item: CatalogGlobalItem): { mode: 'absolute' | 'engine' | 'external-source'; path: string; sourceId?: string } | null {
@@ -194,14 +241,34 @@ export default function CatalogView() {
     [globalSections]
   );
 
+  async function refreshSummary(errorMessage: string): Promise<void> {
+    setSummaryLoading(true);
+    try {
+      const response = await getCatalogSummary();
+      setSummary(response.summary ?? null);
+      setSummaryError(null);
+    } catch (error) {
+      setSummaryError(toErrorMessage(error, errorMessage));
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
+  async function handleSyncAllHarnesses(): Promise<void> {
+    await catalogWorkspaceStore.installSurface('all', false);
+    await refreshSummary('Unable to sync all harnesses.');
+  }
+
   async function handleItemAction(item: CatalogGlobalItem, harnessState: CatalogGlobalHarnessState): Promise<void> {
-    const itemActions = item.actions;
     const harnessActions = harnessState.actions;
-    if (!itemActions || !harnessActions) {
+    const actionKind = typeof harnessState.metadata?.actionKind === 'string'
+      ? harnessState.metadata.actionKind
+      : item.actions?.kind;
+    if (!harnessActions || !actionKind) {
       return;
     }
 
-    if (itemActions.kind === 'external-source' && item.sourceId) {
+    if (actionKind === 'external-source' && item.sourceId) {
       const installableId = typeof harnessState.metadata?.installableId === 'string'
         ? harnessState.metadata.installableId
         : typeof item.detail === 'object' && item.detail && 'installableId' in item.detail && typeof item.detail.installableId === 'string'
@@ -223,22 +290,19 @@ export default function CatalogView() {
           target: harnessState.harnessId,
         });
       }
-      const response = await getCatalogSummary();
-      setSummary(response.summary ?? null);
+      await refreshSummary('Unable to refresh the global catalog inventory.');
       return;
     }
 
-    if (itemActions.kind === 'catalog-asset' && itemActions.installAssetId && harnessState.harnessId === 'copilot') {
-      await catalogWorkspaceStore.installAsset({ assetId: itemActions.installAssetId });
-      const response = await getCatalogSummary();
-      setSummary(response.summary ?? null);
+    if (actionKind === 'catalog-asset' && item.actions?.installAssetId && harnessState.harnessId === 'copilot') {
+      await catalogWorkspaceStore.installAsset({ assetId: item.actions.installAssetId });
+      await refreshSummary('Unable to refresh the global catalog inventory.');
       return;
     }
 
-    if (itemActions.kind === 'install-surface' && Array.isArray(itemActions.installSurfaceTargets) && itemActions.installSurfaceTargets.includes(harnessState.harnessId)) {
+    if (actionKind === 'install-surface' && Array.isArray(item.actions?.installSurfaceTargets) && item.actions.installSurfaceTargets.includes(harnessState.harnessId)) {
       await catalogWorkspaceStore.installSurface(harnessState.harnessId as 'codex' | 'opencode' | 'antigravity');
-      const response = await getCatalogSummary();
-      setSummary(response.summary ?? null);
+      await refreshSummary('Unable to refresh the global catalog inventory.');
     }
   }
 
@@ -320,26 +384,27 @@ export default function CatalogView() {
             title="Harness inventory"
             subtitle={summary ? getSectionSummary(summary) : 'Global catalog inventory'}
             actions={
-              <Button
-                onClick={() => {
-                  void (async () => {
-                    setSummaryLoading(true);
-                    try {
-                      const response = await getCatalogSummary();
-                      setSummary(response.summary ?? null);
-                      setSummaryError(null);
-                    } catch (error) {
-                      setSummaryError(toErrorMessage(error, 'Unable to refresh the global catalog inventory.'));
-                    } finally {
-                      setSummaryLoading(false);
-                    }
-                  })();
-                }}
-                testId="catalog-global-refresh"
-                variant="ghost"
-              >
-                {summaryLoading ? 'Refreshing...' : 'Refresh'}
-              </Button>
+              <>
+                <Button
+                  disabled={catalogState.installing || catalogState.refreshing || summaryLoading}
+                  onClick={() => {
+                    void handleSyncAllHarnesses();
+                  }}
+                  testId="catalog-global-sync-all"
+                  variant="secondary"
+                >
+                  {catalogState.installing ? 'Syncing...' : 'Sync all harnesses'}
+                </Button>
+                <Button
+                  onClick={() => {
+                    void refreshSummary('Unable to refresh the global catalog inventory.');
+                  }}
+                  testId="catalog-global-refresh"
+                  variant="ghost"
+                >
+                  {summaryLoading ? 'Refreshing...' : 'Refresh'}
+                </Button>
+              </>
             }
           >
             {summaryError ? <p className="catalog-global-error">{summaryError}</p> : null}
@@ -378,9 +443,55 @@ export default function CatalogView() {
                               {item.providerId ? ` · ${item.providerId}` : ''}
                             </p>
                           </div>
-                          <Badge tone="neutral">{section.title}</Badge>
+                          <div className="catalog-global-badge-stack">
+                            <Badge tone="neutral">{section.title}</Badge>
+                            {item.central ? <Badge tone="accent">Central</Badge> : null}
+                            {item.keyFeature ? <Badge tone="success">{item.keyFeatureLabel || 'Key skill'}</Badge> : null}
+                            {getItemScopeLabel(item) ? <Badge tone="neutral">{getItemScopeLabel(item)}</Badge> : null}
+                          </div>
                         </div>
                         <p className="catalog-global-description">{item.description || 'No description available.'}</p>
+                        <div className="catalog-global-tag-row">
+                          {(item.harnessStates || []).map((harnessState) => (
+                            <span
+                              className={`catalog-global-harness-pill sync-${harnessState.syncStatus || 'available'}`}
+                              data-testid={`catalog-global-pill-${item.itemId}-${harnessState.harnessId}`}
+                              key={`${item.itemId}-pill-${harnessState.harnessId}`}
+                            >
+                              {getHarnessTagLabel(harnessState)}
+                            </span>
+                          ))}
+                        </div>
+                        {getSyncWarningText(item) ? (
+                          <div className="catalog-global-warning-banner" data-testid={`catalog-global-warning-${item.itemId}`}>
+                            <p>{getSyncWarningText(item)}</p>
+                            {item.harnessStates?.some((state) => state.syncStatus === 'missing' && getActionLabel(item, state)) ? (
+                              <div className="catalog-global-warning-actions">
+                                {(item.harnessStates || [])
+                                  .filter((state) => state.syncStatus === 'missing')
+                                  .map((state) => {
+                                    const actionLabel = getActionLabel(item, state);
+                                    if (!actionLabel) {
+                                      return null;
+                                    }
+                                    return (
+                                      <Button
+                                        key={`${item.itemId}-warning-${state.harnessId}`}
+                                        onClick={() => {
+                                          void handleItemAction(item, state);
+                                        }}
+                                        size="sm"
+                                        testId={`catalog-global-warning-action-${item.itemId}-${state.harnessId}`}
+                                        variant="ghost"
+                                      >
+                                        Sync {state.title}
+                                      </Button>
+                                    );
+                                  })}
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
                         <div className="catalog-global-harness-state-list">
                           {(item.harnessStates || []).map((harnessState) => {
                             const actionLabel = getActionLabel(item, harnessState);
@@ -424,13 +535,13 @@ export default function CatalogView() {
                                   navigationStore.setCatalogSectionId('repository');
                                 })();
                               }}
-                              testId={`catalog-global-open-repository-${item.itemId}`}
-                              variant="ghost"
-                            >
-                              Open in Repository
-                            </Button>
-                          ) : null}
-                        </div>
+                            testId={`catalog-global-open-repository-${item.itemId}`}
+                            variant="ghost"
+                          >
+                            Open repo asset
+                          </Button>
+                        ) : null}
+                      </div>
                       </article>
                     ))}
                   </div>

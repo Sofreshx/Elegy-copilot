@@ -1,23 +1,38 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Panel } from '../components';
-import CompactSessionCard from '../components/CompactSessionCard';
 import HealthDot from '../components/HealthDot';
-import { navigationStore } from '../stores/navigation';
 import { STOCK_SESSIONS } from '../constants/stockSessions';
 import type { StockSession } from '../constants/stockSessions';
+import { navigationStore } from '../stores/navigation';
 import PlanFromBacklogPanel from './Dashboard/PlanFromBacklogPanel';
 import { sessionWizardStore } from './Sessions/sessionWizardStore';
 
-interface DashboardSession {
+interface DashboardHarnessSession {
   sessionId: string;
-  objective?: string | null;
-  projectId?: string | null;
+  title: string;
+  canOpen?: boolean;
   projectName?: string | null;
   repoLabel?: string | null;
   source?: string | null;
   status: string;
   elapsedMs?: number | null;
+  startedAtMs?: number | null;
   updatedAtMs?: number | null;
+}
+
+interface DashboardHarnessSummary {
+  harnessId: string;
+  title: string;
+  inventoryAvailable: boolean;
+  inventoryReason?: string | null;
+  sessionCount: number;
+  latestUpdatedAtMs?: number | null;
+  sessions: DashboardHarnessSession[];
+}
+
+interface DashboardHarnessSessionsResponse {
+  totalSessionCount: number;
+  harnesses: DashboardHarnessSummary[];
 }
 
 interface DashboardSummary {
@@ -26,7 +41,7 @@ interface DashboardSummary {
   healthIndicator: 'ok' | 'degraded' | 'error';
   recentActivity: Array<{
     type: string;
-    timestamp: string;
+    timestamp: string | number | null;
     summary: string;
   }>;
 }
@@ -40,6 +55,11 @@ function formatElapsed(ms: number | null | undefined): string {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
+function formatTimestamp(ms: number | null | undefined): string {
+  if (!ms || ms <= 0) return 'No recent activity';
+  return new Date(ms).toLocaleString();
+}
+
 function normalizeStatus(s: string): 'active' | 'idle' | 'completed' | 'failed' | 'unknown' {
   const lower = (s || '').toLowerCase();
   if (lower === 'active' || lower === 'running') return 'active';
@@ -49,8 +69,19 @@ function normalizeStatus(s: string): 'active' | 'idle' | 'completed' | 'failed' 
   return 'unknown';
 }
 
+function resolveSelectedHarnessId(
+  currentSelectedHarnessId: string | null,
+  nextHarnesses: DashboardHarnessSummary[],
+): string | null {
+  if (currentSelectedHarnessId && nextHarnesses.some((harness) => harness.harnessId === currentSelectedHarnessId)) {
+    return currentSelectedHarnessId;
+  }
+  return nextHarnesses.find((harness) => harness.sessionCount > 0)?.harnessId ?? nextHarnesses[0]?.harnessId ?? null;
+}
+
 export default function DashboardView() {
-  const [sessions, setSessions] = useState<DashboardSession[]>([]);
+  const [harnesses, setHarnesses] = useState<DashboardHarnessSummary[]>([]);
+  const [selectedHarnessId, setSelectedHarnessId] = useState<string | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [backlogPanelOpen, setBacklogPanelOpen] = useState(false);
@@ -60,7 +91,6 @@ export default function DashboardView() {
       setBacklogPanelOpen(true);
       return;
     }
-    // Pre-fill the wizard and open it
     sessionWizardStore.reset();
     sessionWizardStore.setAgentId(preset.agentId);
     if (preset.defaultModel) sessionWizardStore.setModel(preset.defaultModel);
@@ -71,14 +101,23 @@ export default function DashboardView() {
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const [sessionsRes, summaryRes] = await Promise.allSettled([
-        fetch('/api/sessions/unified?limit=20', { signal }).then((r) => r.ok ? r.json() : []),
-        fetch('/api/dashboard/summary', { signal }).then((r) => r.ok ? r.json() : null),
+      const [harnessesRes, summaryRes] = await Promise.allSettled([
+        fetch('/api/dashboard/harness-sessions', { signal }).then((r) =>
+          r.ok ? r.json() : { totalSessionCount: 0, harnesses: [] },
+        ),
+        fetch('/api/dashboard/summary', { signal }).then((r) => (r.ok ? r.json() : null)),
       ]);
 
       if (signal?.aborted) return;
 
-      setSessions(sessionsRes.status === 'fulfilled' ? sessionsRes.value : []);
+      const nextHarnesses = harnessesRes.status === 'fulfilled'
+        ? (Array.isArray((harnessesRes.value as DashboardHarnessSessionsResponse).harnesses)
+          ? (harnessesRes.value as DashboardHarnessSessionsResponse).harnesses
+          : [])
+        : [];
+
+      setHarnesses(nextHarnesses);
+      setSelectedHarnessId((currentSelectedHarnessId) => resolveSelectedHarnessId(currentSelectedHarnessId, nextHarnesses));
       setSummary(summaryRes.status === 'fulfilled' ? summaryRes.value : null);
     } catch {
       // API not available yet — show empty state
@@ -87,7 +126,6 @@ export default function DashboardView() {
     }
   }, []);
 
-  // Initial load + auto-refresh every 10s for active sessions
   useEffect(() => {
     const controller = new AbortController();
 
@@ -100,21 +138,23 @@ export default function DashboardView() {
     };
   }, [load]);
 
-  const activeSessions = sessions.filter((s) => {
-    const status = normalizeStatus(s.status);
-    return status === 'active' || status === 'idle';
-  });
+  const totalCount = summary?.totalSessionCount ?? harnesses.reduce((sum, harness) => sum + harness.sessionCount, 0);
+  const selectedHarness = harnesses.find((harness) => harness.harnessId === selectedHarnessId) ?? harnesses[0] ?? null;
+  const selectedHarnessSessions = selectedHarness
+    ? [...(Array.isArray(selectedHarness.sessions) ? selectedHarness.sessions : [])].sort(
+      (left, right) => (right.updatedAtMs || right.startedAtMs || 0) - (left.updatedAtMs || left.startedAtMs || 0),
+    )
+    : [];
 
-  const recentSessions = sessions.filter((s) => {
-    const status = normalizeStatus(s.status);
-    return status !== 'active' && status !== 'idle';
-  });
-
-  const totalCount = summary?.totalSessionCount ?? sessions.length;
+  function handleOpenHarnessSession(session: DashboardHarnessSession) {
+    if (!selectedHarness || !session.canOpen) {
+      return;
+    }
+    navigationStore.selectSession(session.sessionId, 'activity', { source: session.source || 'cli' });
+  }
 
   return (
     <div className="dashboard-view" data-testid="execution-hub">
-      {/* Runtime Header */}
       <div className="execution-hub-header" data-testid="execution-hub-header">
         <div className="execution-hub-header-left">
           <h1 className="execution-hub-title" data-testid="execution-hub-title">Runtime</h1>
@@ -137,7 +177,6 @@ export default function DashboardView() {
         </button>
       </div>
 
-      {/* Quick Start */}
       <div className="execution-hub-quick-start" data-testid="execution-hub-quick-start">
         <span className="execution-hub-quick-start-label">Quick Start</span>
         <div className="execution-hub-quick-start-grid" data-testid="execution-hub-quick-start-grid">
@@ -157,16 +196,16 @@ export default function DashboardView() {
         </div>
       </div>
 
-      {/* Plan from Backlog Panel */}
-      {backlogPanelOpen && (
-        <PlanFromBacklogPanel onClose={() => setBacklogPanelOpen(false)} />
-      )}
+      {backlogPanelOpen ? <PlanFromBacklogPanel onClose={() => setBacklogPanelOpen(false)} /> : null}
 
-      {/* Active Sessions */}
-      <Panel title={`Active Sessions (${activeSessions.length})`} testId="execution-hub-active-sessions">
+      <Panel
+        title={`Harness Sessions (${harnesses.length})`}
+        subtitle="Browse stored sessions by harness, then inspect each harness inventory newest-first."
+        testId="execution-hub-harness-sessions"
+      >
         {loading ? (
           <p className="active-sessions-empty" data-testid="execution-hub-loading">Loading sessions…</p>
-        ) : activeSessions.length === 0 && recentSessions.length === 0 ? (
+        ) : harnesses.length === 0 ? (
           <div className="execution-hub-empty-state" data-testid="execution-hub-empty-state">
             <p style={{ fontSize: '1.1rem', marginBottom: 8 }}>No sessions yet</p>
             <p style={{ opacity: 0.7, marginBottom: 16 }}>Create your first session to get started.</p>
@@ -179,47 +218,107 @@ export default function DashboardView() {
               + Create First Session
             </button>
           </div>
-        ) : activeSessions.length === 0 ? (
-          <p className="active-sessions-empty" data-testid="execution-hub-no-active">No active sessions right now.</p>
         ) : (
-          <div className="active-sessions-strip" data-testid="execution-hub-active-list">
-            {activeSessions.map((session) => (
-              <CompactSessionCard
-                key={session.sessionId}
-                id={session.sessionId}
-                title={session.objective ?? 'Untitled'}
-                projectName={session.projectName || undefined}
-                repoLabel={session.repoLabel || undefined}
-                status={normalizeStatus(session.status)}
-                elapsed={formatElapsed(session.elapsedMs)}
-                onSelect={(id) => navigationStore.selectSession(id, 'activity', { source: session.source })}
-                testId={`execution-hub-session-${session.sessionId}`}
-              />
-            ))}
+          <div className="execution-hub-harness-layout">
+            <div className="execution-hub-harness-list" data-testid="execution-hub-harness-list">
+              {harnesses.map((harness) => (
+                <button
+                  key={harness.harnessId}
+                  type="button"
+                  className={`execution-hub-harness-card ${selectedHarness?.harnessId === harness.harnessId ? 'is-selected' : ''}`}
+                  data-testid={`execution-hub-harness-${harness.harnessId}`}
+                  onClick={() => setSelectedHarnessId(harness.harnessId)}
+                >
+                  <span className="execution-hub-harness-title">{harness.title}</span>
+                  <span className="execution-hub-harness-count">{harness.sessionCount} session{harness.sessionCount !== 1 ? 's' : ''}</span>
+                  <span className="execution-hub-harness-meta">
+                    {harness.inventoryAvailable ? formatTimestamp(harness.latestUpdatedAtMs) : 'Inventory unavailable'}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="execution-hub-harness-detail">
+              {selectedHarness ? (
+                <>
+                  <div className="execution-hub-harness-detail-header">
+                    <h3 className="execution-hub-harness-detail-title" data-testid="execution-hub-selected-harness-title">
+                      {selectedHarness.title}
+                    </h3>
+                    <p className="execution-hub-harness-detail-copy">
+                      {selectedHarness.sessionCount} session{selectedHarness.sessionCount !== 1 ? 's' : ''} · latest activity {formatTimestamp(selectedHarness.latestUpdatedAtMs)}
+                    </p>
+                  </div>
+
+                  {!selectedHarness.inventoryAvailable ? (
+                    <p className="active-sessions-empty" data-testid="execution-hub-harness-unavailable">
+                      Session inventory is not available for {selectedHarness.title} yet.
+                    </p>
+                  ) : selectedHarnessSessions.length === 0 ? (
+                    <p className="active-sessions-empty" data-testid="execution-hub-harness-empty">
+                      No sessions were found for {selectedHarness.title}.
+                    </p>
+                  ) : (
+                    <div className="execution-hub-harness-session-list" data-testid="execution-hub-harness-session-list">
+                      {selectedHarnessSessions.map((session) => {
+                        const status = normalizeStatus(session.status);
+                        const content = (
+                          <>
+                            <div className="execution-hub-harness-session-main">
+                              <span
+                                className="execution-hub-harness-session-title"
+                                data-testid={`execution-hub-harness-session-title-${session.sessionId}`}
+                              >
+                                {session.title}
+                              </span>
+                              <span className="execution-hub-harness-session-copy">
+                                {session.repoLabel || session.projectName || session.source || 'No repo context'}
+                              </span>
+                            </div>
+                            <div className="execution-hub-harness-session-side">
+                              <span className="execution-hub-harness-session-updated">{formatTimestamp(session.updatedAtMs || session.startedAtMs || null)}</span>
+                              <span className={`execution-hub-harness-session-status status-${status}`}>{status}</span>
+                              {session.elapsedMs ? (
+                                <span className="execution-hub-harness-session-elapsed">{formatElapsed(session.elapsedMs)}</span>
+                              ) : null}
+                            </div>
+                          </>
+                        );
+
+                        if (!session.canOpen) {
+                          return (
+                            <article
+                              key={`${selectedHarness.harnessId}:${session.sessionId}`}
+                              className="execution-hub-harness-session-card"
+                              data-testid={`execution-hub-harness-session-${session.sessionId}`}
+                            >
+                              {content}
+                            </article>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={`${selectedHarness.harnessId}:${session.sessionId}`}
+                            type="button"
+                            className="execution-hub-harness-session-card is-openable"
+                            data-testid={`execution-hub-harness-session-${session.sessionId}`}
+                            onClick={() => handleOpenHarnessSession(session)}
+                          >
+                            {content}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="active-sessions-empty">Select a harness to inspect its session inventory.</p>
+              )}
+            </div>
           </div>
         )}
       </Panel>
-
-      {/* Recent Sessions */}
-      {!loading && recentSessions.length > 0 ? (
-        <Panel title={`Recent Sessions (${recentSessions.length})`} testId="execution-hub-recent-sessions">
-          <div className="recent-sessions-list" data-testid="execution-hub-recent-list">
-            {recentSessions.map((session) => (
-              <CompactSessionCard
-                key={session.sessionId}
-                id={session.sessionId}
-                title={session.objective ?? 'Untitled'}
-                projectName={session.projectName || undefined}
-                repoLabel={session.repoLabel || undefined}
-                status={normalizeStatus(session.status)}
-                elapsed={formatElapsed(session.elapsedMs)}
-                onSelect={(id) => navigationStore.selectSession(id, 'activity', { source: session.source })}
-                testId={`execution-hub-session-${session.sessionId}`}
-              />
-            ))}
-          </div>
-        </Panel>
-      ) : null}
     </div>
   );
 }

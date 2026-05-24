@@ -35,6 +35,15 @@ function normalizeStringList(values) {
   return uniqueStrings(Array.isArray(values) ? values : []);
 }
 
+function normalizePathForPlanningComparison(value) {
+  const normalized = normalizeOptionalString(value);
+  if (!normalized) {
+    return '';
+  }
+
+  return normalized.replace(/[\\/]+/g, '/').toLowerCase();
+}
+
 function buildPlanningRepoSelection(repoId, repoPath, repoLabel) {
   const normalizedRepoId = normalizeOptionalString(repoId) || '';
   const normalizedRepoPath = normalizeOptionalString(repoPath) || '';
@@ -65,27 +74,60 @@ function getPlanningEntityTags(entity) {
   return normalizeStringList(entity && entity.tags);
 }
 
-function planningEntityMatchesRepo(entity, repoId) {
-  const normalizedRepoId = normalizeOptionalString(repoId);
-  if (!normalizedRepoId) {
+function planningEntityMatchesRepoSelection(entity, repo) {
+  const selection = repo && typeof repo === 'object' ? repo : null;
+  const repoId = normalizeOptionalString(selection && selection.repoId);
+  const repoPath = normalizePathForPlanningComparison(selection && selection.repoPath);
+  const repoLabel = normalizeOptionalString(selection && selection.repoLabel);
+  if (!repoId && !repoPath && !repoLabel) {
     return true;
   }
 
-  const expectedTag = `repo:${normalizedRepoId}`.toLowerCase();
-  return getPlanningEntityTags(entity).some((tag) => tag.toLowerCase() === expectedTag);
+  const record = entity && typeof entity === 'object' ? entity : {};
+  const tags = getPlanningEntityTags(record).map((tag) => tag.toLowerCase());
+  if (repoId && tags.includes(`repo:${repoId}`.toLowerCase())) {
+    return true;
+  }
+
+  const entityRepoId = normalizeOptionalString(record.repoId)
+    || normalizeOptionalString(record.repositoryId)
+    || normalizeOptionalString(record.repo && record.repo.repoId);
+  if (repoId && entityRepoId && entityRepoId.toLowerCase() === repoId.toLowerCase()) {
+    return true;
+  }
+
+  const entityRepoPath = normalizePathForPlanningComparison(record.repoPath)
+    || normalizePathForPlanningComparison(record.repositoryPath)
+    || normalizePathForPlanningComparison(record.repo && record.repo.repoPath);
+  if (repoPath && entityRepoPath && entityRepoPath === repoPath) {
+    return true;
+  }
+
+  const entityRepoLabel = normalizeOptionalString(record.repoLabel)
+    || normalizeOptionalString(record.repositoryLabel)
+    || normalizeOptionalString(record.repo && record.repo.repoLabel);
+  if (repoLabel && entityRepoLabel && entityRepoLabel.toLowerCase() === repoLabel.toLowerCase()) {
+    return true;
+  }
+
+  return false;
 }
 
-function filterPlanningLiveRoadmaps(roadmaps, repoId) {
-  return (Array.isArray(roadmaps) ? roadmaps : []).filter((roadmap) => planningEntityMatchesRepo(roadmap, repoId));
+function planningEntityMatchesRepo(entity, repoId) {
+  return planningEntityMatchesRepoSelection(entity, buildPlanningRepoSelection(repoId, '', ''));
+}
+
+function filterPlanningLiveRoadmaps(roadmaps, repo) {
+  return (Array.isArray(roadmaps) ? roadmaps : []).filter((roadmap) => planningEntityMatchesRepoSelection(roadmap, repo));
 }
 
 function filterPlanningLivePlans(plans, filters = {}) {
-  const repoId = normalizeOptionalString(filters.repoId);
+  const repo = buildPlanningRepoSelection(filters.repoId, filters.repoPath, filters.repoLabel);
   const goalId = normalizeOptionalString(filters.goalId);
   const roadmapId = normalizeOptionalString(filters.roadmapId);
 
   return (Array.isArray(plans) ? plans : []).filter((plan) => {
-    if (!planningEntityMatchesRepo(plan, repoId)) {
+    if (!planningEntityMatchesRepoSelection(plan, repo)) {
       return false;
     }
     if (goalId && normalizeOptionalString(plan && plan.goalId) !== goalId) {
@@ -99,13 +141,13 @@ function filterPlanningLivePlans(plans, filters = {}) {
 }
 
 function filterPlanningLiveTodos(todos, filters = {}) {
-  const repoId = normalizeOptionalString(filters.repoId);
+  const repo = buildPlanningRepoSelection(filters.repoId, filters.repoPath, filters.repoLabel);
   const planId = normalizeOptionalString(filters.planId);
   const workPointId = normalizeOptionalString(filters.workPointId);
   const allowedPlanIds = filters.allowedPlanIds instanceof Set ? filters.allowedPlanIds : null;
 
   return (Array.isArray(todos) ? todos : []).filter((todo) => {
-    if (!planningEntityMatchesRepo(todo, repoId)) {
+    if (!planningEntityMatchesRepoSelection(todo, repo)) {
       return false;
     }
 
@@ -161,8 +203,8 @@ function requirePlanningLiveAuthorityBridge(bridge) {
   return bridge;
 }
 
-function assertPlanningEntityInRepo(entity, repoId, entityLabel) {
-  if (planningEntityMatchesRepo(entity, repoId)) {
+function assertPlanningEntityInRepo(entity, repo, entityLabel) {
+  if (planningEntityMatchesRepoSelection(entity, repo)) {
     return;
   }
 
@@ -321,9 +363,12 @@ function handlePlanningLiveRoadmapsList(ctx, deps) {
       }
 
       const response = await bridge.listRoadmaps({
-        requestId: resolvePlanningLiveRequestId(req, repo && repo.repoId ? repo.repoId : 'planning-live-roadmaps'),
+        requestId: resolvePlanningLiveRequestId(
+          req,
+          (repo && (repo.repoId || repo.repoPath || repo.repoLabel)) || 'planning-live-roadmaps',
+        ),
       });
-      const roadmaps = filterPlanningLiveRoadmaps(response && response.roadmaps, repo && repo.repoId);
+      const roadmaps = filterPlanningLiveRoadmaps(response && response.roadmaps, repo);
 
       sendJson(res, 200, {
         contractVersion: PLANNING_API_CONTRACT_VERSION,
@@ -373,7 +418,7 @@ function handlePlanningLiveRoadmapRead(ctx, deps) {
         roadmapId,
         requestId: resolvePlanningLiveRequestId(req, roadmapId),
       });
-      assertPlanningEntityInRepo(response && response.roadmap, repo && repo.repoId, `Roadmap ${roadmapId}`);
+      assertPlanningEntityInRepo(response && response.roadmap, repo, `Roadmap ${roadmapId}`);
 
       sendJson(res, 200, {
         contractVersion: PLANNING_API_CONTRACT_VERSION,
@@ -427,8 +472,8 @@ function handlePlanningLiveGoalRead(ctx, deps) {
         goalId,
         requestId: resolvePlanningLiveRequestId(req, goalId),
       });
-      assertPlanningEntityInRepo(response && response.goal, repo && repo.repoId, `Goal ${goalId}`);
-      const roadmaps = filterPlanningLiveRoadmaps(response && response.roadmaps, repo && repo.repoId);
+      assertPlanningEntityInRepo(response && response.goal, repo, `Goal ${goalId}`);
+      const roadmaps = filterPlanningLiveRoadmaps(response && response.roadmaps, repo);
 
       sendJson(res, 200, {
         contractVersion: PLANNING_API_CONTRACT_VERSION,
@@ -475,10 +520,15 @@ function handlePlanningLivePlansList(ctx, deps) {
       }
 
       const response = await bridge.listPlans({
-        requestId: resolvePlanningLiveRequestId(req, roadmapId || goalId || (repo && repo.repoId) || 'planning-live-plans'),
+        requestId: resolvePlanningLiveRequestId(
+          req,
+          roadmapId || goalId || (repo && (repo.repoId || repo.repoPath || repo.repoLabel)) || 'planning-live-plans',
+        ),
       });
       const plans = filterPlanningLivePlans(response && response.plans, {
         repoId: repo && repo.repoId,
+        repoPath: repo && repo.repoPath,
+        repoLabel: repo && repo.repoLabel,
         goalId,
         roadmapId,
       });
@@ -535,7 +585,7 @@ function handlePlanningLivePlanRead(ctx, deps) {
         planId,
         requestId: resolvePlanningLiveRequestId(req, planId),
       });
-      assertPlanningEntityInRepo(response && response.plan, repo && repo.repoId, `Plan ${planId}`);
+      assertPlanningEntityInRepo(response && response.plan, repo, `Plan ${planId}`);
 
       sendJson(res, 200, {
         contractVersion: PLANNING_API_CONTRACT_VERSION,
@@ -597,6 +647,8 @@ function handlePlanningLiveTodosList(ctx, deps) {
         });
         const plans = filterPlanningLivePlans(plansResponse && plansResponse.plans, {
           repoId: repo && repo.repoId,
+          repoPath: repo && repo.repoPath,
+          repoLabel: repo && repo.repoLabel,
           roadmapId,
         });
         allowedPlanIds = new Set(
@@ -607,10 +659,15 @@ function handlePlanningLiveTodosList(ctx, deps) {
       }
 
       const response = await bridge.listTodos({
-        requestId: resolvePlanningLiveRequestId(req, workPointId || planId || roadmapId || (repo && repo.repoId) || 'planning-live-todos'),
+        requestId: resolvePlanningLiveRequestId(
+          req,
+          workPointId || planId || roadmapId || (repo && (repo.repoId || repo.repoPath || repo.repoLabel)) || 'planning-live-todos',
+        ),
       });
       const todos = filterPlanningLiveTodos(response && response.todos, {
         repoId: repo && repo.repoId,
+        repoPath: repo && repo.repoPath,
+        repoLabel: repo && repo.repoLabel,
         planId,
         workPointId,
         allowedPlanIds,

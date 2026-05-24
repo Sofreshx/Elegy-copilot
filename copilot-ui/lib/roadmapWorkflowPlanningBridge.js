@@ -7,6 +7,23 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_CLI_PATH = 'elegy-planning';
 const DEFAULT_DB_FILENAME = 'elegy-planning.db';
 
+function isExecutablePathConfigured(candidate) {
+  const normalized = normalizeString(candidate);
+  if (!normalized) {
+    return false;
+  }
+
+  if (/[/\\]/.test(normalized)) {
+    return true;
+  }
+
+  if (/\.[a-z0-9]+$/i.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -443,6 +460,49 @@ function buildBridgeReadError(code, message, statusCode = 503) {
   return error;
 }
 
+function buildPlanningAuthorityStatus({ disabled, configured, config, configuredCliPath, configuredDbPath }) {
+  const cliPath = normalizeString(config && config.cliPath);
+  const dbPath = normalizeString(config && config.dbPath);
+
+  let code = 'planning_authority_ready';
+  let ready = true;
+  let message = 'elegy-planning authority is configured for live roadmap reads.';
+
+  if (disabled) {
+    ready = false;
+    code = 'bridge_disabled';
+    message = 'elegy-planning authority is disabled.';
+  } else if (!configured) {
+    ready = false;
+    code = 'bridge_not_configured';
+    message = 'elegy-planning authority is not configured.';
+  } else if (!cliPath) {
+    ready = false;
+    code = 'missing_cli_path';
+    message = 'elegy-planning authority requires a CLI path.';
+  } else if (!dbPath) {
+    ready = false;
+    code = 'missing_db_path';
+    message = 'elegy-planning authority requires a database path.';
+  }
+
+  return {
+    ready,
+    enabled: !disabled,
+    configured,
+    cliPath: cliPath || null,
+    dbPath: dbPath || null,
+    code,
+    message,
+    diagnostics: {
+      configuredCliPath: configuredCliPath || null,
+      configuredDbPath: configuredDbPath || null,
+      defaultCliCommand: DEFAULT_CLI_PATH,
+      defaultDbFileName: DEFAULT_DB_FILENAME,
+    },
+  };
+}
+
 function extractMachineData(parsed) {
   return isPlainObject(parsed && parsed.data) ? parsed.data : {};
 }
@@ -459,6 +519,13 @@ function ensureReadableAuthority({ disabled, configured, config }) {
     throw buildBridgeReadError(
       'bridge_not_configured',
       'elegy-planning authority is not configured for live roadmap reads.',
+    );
+  }
+
+   if (!normalizeString(config.cliPath)) {
+    throw buildBridgeReadError(
+      'missing_cli_path',
+      'elegy-planning authority requires a CLI path.',
     );
   }
 
@@ -552,19 +619,31 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
   const disabled = options.enabled === false || normalizeString(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED) === '1';
   const configured = options.enabled === true
     || normalizeString(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED) === '1'
-    || Boolean(configuredCliPath)
+    || isExecutablePathConfigured(configuredCliPath)
     || Boolean(normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH));
   const config = {
     childProcess: options.childProcess,
     processObject,
     env,
-    cliPath: configuredCliPath || DEFAULT_CLI_PATH,
+    cliPath: configuredCliPath,
     dbPath: configuredDbPath,
     cwd: copilotHome || undefined,
     timeoutMs,
   };
+  const planningAuthority = buildPlanningAuthorityStatus({
+    disabled,
+    configured,
+    config,
+    configuredCliPath,
+    configuredDbPath,
+  });
 
   return {
+    getStatus() {
+      return {
+        ...planningAuthority,
+      };
+    },
     async listRoadmaps(input = {}) {
       ensureReadableAuthority({ disabled, configured, config });
       const requestId = resolveReadRequestId(input, 'roadmap-list');
@@ -657,6 +736,13 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
         return buildMissingAuthorityFailure(
           'bridge_not_configured',
           'elegy-planning authority is not configured for workflow artifact persistence.',
+        );
+      }
+
+      if (!normalizeString(config.cliPath)) {
+        return buildMissingAuthorityFailure(
+          'missing_cli_path',
+          'elegy-planning authority requires a CLI path.',
         );
       }
 

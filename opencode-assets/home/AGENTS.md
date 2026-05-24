@@ -45,6 +45,7 @@ Prefer the built-in `Explore` and `Scout` agents.
 Instruction-engine installs curated skills under OpenCode. Skills are loaded on-demand via the skill tool and should be loaded only when they materially improve the result.
 
 Primary skills available:
+- `skill-discovery` — Vault-first skill resolver for on-demand capability routing
 - `rubberduck-plan-review` — Adversarial plan review before complex implementation work
 - `roadmap-planning` — Durable multi-session roadmap work under `docs/roadmaps/<roadmap-slug>.md`
 - `implementation-handoff` — Executor-ready brief for another session or model

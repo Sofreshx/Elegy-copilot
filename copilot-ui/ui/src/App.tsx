@@ -21,7 +21,6 @@ import AddProjectWizard from './views/Project/AddProjectWizard';
 import ProjectOverview from './views/Project/ProjectOverview';
 import ProjectsListView from './views/Project/ProjectsListView';
 import SessionDetailView from './views/Sessions/SessionDetailView';
-import SessionsListView from './views/Sessions/SessionsListView';
 import SessionWizard from './views/Sessions/SessionWizard';
 import SettingsView from './views/Settings/SettingsView';
 import AssetCreationWizard from './views/Catalog/AssetCreationWizard';

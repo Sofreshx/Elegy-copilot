@@ -60,6 +60,20 @@
       "destination": "GEMINI.md"
     },
     {
+      "id": "antigravity-skill-discovery-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/skill-discovery",
+      "destination": "antigravity/skills/skill-discovery",
+      "loadMode": "always"
+    },
+    {
+      "id": "antigravity-stack-detector-skill",
+      "type": "skill",
+      "source": "engine-assets/skills/stack-detector",
+      "destination": "antigravity/skills/stack-detector",
+      "loadMode": "always"
+    },
+    {
       "id": "antigravity-rubberduck-plan-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",

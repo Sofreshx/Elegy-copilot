@@ -217,6 +217,8 @@ export const COMPATIBILITY_MANIFESTS = [
       route('codex-global-instructions'),
       route('codex-reviewer-agent'),
       route('codex-repo-setup-skill'),
+      route('codex-skill-discovery-skill', { sourceAssetId: 'skill-discovery' }),
+      route('codex-stack-detector-skill', { sourceAssetId: 'skill-stack-detector' }),
       route('codex-rubberduck-plan-review-skill', { sourceAssetId: 'skill-rubberduck-plan-review' }),
       route('codex-implementation-review-skill', { sourceAssetId: 'skill-implementation-review' }),
       route('codex-implementation-handoff-skill', { sourceAssetId: 'skill-implementation-handoff' }),
@@ -245,8 +247,7 @@ export const COMPATIBILITY_MANIFESTS = [
     governance: SHARED_G05_GOVERNANCE,
     assetRoutes: [
       route('opencode-global-instructions'),
-      route('opencode-code-explorer-agent'),
-      route('opencode-web-searcher-agent'),
+      route('opencode-skill-discovery-skill', { sourceAssetId: 'skill-discovery' }),
       route('opencode-code-review-skill'),
       route('opencode-rubberduck-plan-review-skill', { sourceAssetId: 'skill-rubberduck-plan-review' }),
       route('opencode-roadmap-planning-skill', { sourceAssetId: 'skill-roadmap-planning' }),
@@ -286,6 +287,14 @@ export const COMPATIBILITY_MANIFESTS = [
     governance: SHARED_G05_GOVERNANCE,
     assetRoutes: [
       route('antigravity-global-instructions'),
+      route('antigravity-skill-discovery-skill', {
+        sourceAssetId: 'skill-discovery',
+        destination: 'antigravity/skills/skill-discovery',
+      }),
+      route('antigravity-stack-detector-skill', {
+        sourceAssetId: 'skill-stack-detector',
+        destination: 'antigravity/skills/stack-detector',
+      }),
       route('antigravity-rubberduck-plan-review-skill', {
         sourceAssetId: 'skill-rubberduck-plan-review',
         destination: 'antigravity/skills/rubberduck-plan-review',

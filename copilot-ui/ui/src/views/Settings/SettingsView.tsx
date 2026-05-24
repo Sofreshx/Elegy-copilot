@@ -7,6 +7,8 @@ import type { HookRule } from '../../lib/api/hooks';
 import CodexProviderPanel from './CodexProviderPanel';
 import RemoteSessionsPanel from './RemoteSessionsPanel';
 
+const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
+
 interface AppInfo {
   version?: string;
   channel?: string;
@@ -218,28 +220,42 @@ export default function SettingsView() {
           {infoLoading ? (
             <p className="settings-about-loading">Loading…</p>
           ) : (
-            <dl className="settings-about-list">
-              <dt>App</dt>
-              <dd>Elegy Copilot</dd>
-              {appInfo.version && (
-                <>
-                  <dt>Version</dt>
-                  <dd data-testid="settings-about-version">{appInfo.version}</dd>
-                </>
-              )}
-              {appInfo.channel && (
-                <>
-                  <dt>Channel</dt>
-                  <dd data-testid="settings-about-channel">{appInfo.channel}</dd>
-                </>
-              )}
-              {appInfo.routeCount != null && (
-                <>
-                  <dt>API Routes</dt>
-                  <dd data-testid="settings-about-routes">{appInfo.routeCount}</dd>
-                </>
-              )}
-            </dl>
+            <>
+              <div className="settings-about-brand">
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="settings-about-icon"
+                  src={BRAND_ICON_SRC}
+                />
+                <div className="settings-about-copy-block">
+                  <p className="settings-about-name">Elegy Copilot</p>
+                  <p className="settings-about-copy">
+                    Desktop workspace for sessions, planning, catalog, and maintenance.
+                  </p>
+                </div>
+              </div>
+              <dl className="settings-about-list">
+                {appInfo.version && (
+                  <>
+                    <dt>Version</dt>
+                    <dd data-testid="settings-about-version">{appInfo.version}</dd>
+                  </>
+                )}
+                {appInfo.channel && (
+                  <>
+                    <dt>Channel</dt>
+                    <dd data-testid="settings-about-channel">{appInfo.channel}</dd>
+                  </>
+                )}
+                {appInfo.routeCount != null && (
+                  <>
+                    <dt>API Routes</dt>
+                    <dd data-testid="settings-about-routes">{appInfo.routeCount}</dd>
+                  </>
+                )}
+              </dl>
+            </>
           )}
         </Panel>
       </div>
