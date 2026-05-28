@@ -1,13 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-05-21
+updated: 2026-05-25
 category: system
 status: current
 doc_kind: index
 id: system-docs-index
 summary: Short entrypoint map for the current canonical docs.
 tags: [documentation, index]
-related: [catalog-control-plane, copilot-ui-guide, opencode-guide, repo-skill-sync-governance, spec-driven-development]
+related: [catalog-control-plane, copilot-ui-guide, opencode-guide, repo-skill-sync-governance, spec-driven-development, progressive-constraint-narrowing, adr-governance]
 ---
 
 # Docs Index
@@ -25,6 +25,8 @@ Use docs in this order:
 - [[opencode-guide]] [docs/system/opencode-guide.md](docs/system/opencode-guide.md)
 - [[repo-skill-sync-governance]] [docs/system/repo-skill-sync-governance.md](docs/system/repo-skill-sync-governance.md)
 - [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md)
+- [[progressive-constraint-narrowing]] [docs/system/progressive-constraint-narrowing.md](docs/system/progressive-constraint-narrowing.md)
+- [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md)
 - [[spec-driven-development]] [docs/system/spec-driven-development.md](docs/system/spec-driven-development.md)
 
 ## MOCs

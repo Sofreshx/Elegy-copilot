@@ -557,10 +557,24 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "skill-implementation-handoff",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/implementation-handoff",
+      "destination": "skills/implementation-handoff",
+      "loadMode": "always"
+    },
+    {
       "id": "skill-implementation-friction",
       "type": "skill",
       "source": "engine-assets/skills/implementation-friction",
       "destination": "skills/implementation-friction",
+      "loadMode": "always"
+    },
+    {
+      "id": "skill-implementation-review",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/implementation-review",
+      "destination": "skills/implementation-review",
       "loadMode": "always"
     },
     {
@@ -624,14 +638,14 @@
       "type": "skill",
       "source": "engine-assets/skills/planning-feature",
       "destination": "skills/planning-feature",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "skill-planpack-authoring",
       "type": "skill",
       "source": "engine-assets/skills/planpack-authoring",
       "destination": "skills/planpack-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "skill-project-guidelines",
@@ -680,11 +694,25 @@
       "loadMode": "on-demand"
     },
     {
+      "id": "skill-roadmap-planning",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/roadmap-planning",
+      "destination": "skills/roadmap-planning",
+      "loadMode": "always"
+    },
+    {
       "id": "skill-roadmap-authoring",
       "type": "skill",
       "source": "engine-assets/skills/roadmap-authoring",
       "destination": "skills/roadmap-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "always"
+    },
+    {
+      "id": "skill-rubberduck-plan-review",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/rubberduck-plan-review",
+      "destination": "skills/rubberduck-plan-review",
+      "loadMode": "always"
     },
     {
       "id": "skill-security",
@@ -698,21 +726,21 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-authoring",
       "destination": "skills/spec-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "skill-spec-dev",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-dev",
       "destination": "skills/spec-dev",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "skill-spec-review",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "skills/spec-review",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "skill-signalr",

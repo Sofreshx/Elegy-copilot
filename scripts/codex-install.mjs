@@ -245,6 +245,7 @@ export function parseArgs(argv) {
     codexHome: '',
     skillsHome: '',
     repoRoot: '',
+    elegyCliPath: '',
     reviewModel: DEFAULT_REVIEW_MODEL,
     profileName: DEFAULT_PROFILE_NAME,
     setupProfile: '',
@@ -288,12 +289,24 @@ export function parseArgs(argv) {
       args.repoRoot = value.slice('--repo-root='.length);
       continue;
     }
+    if (value.startsWith('--elegy-cli=')) {
+      args.elegyCliPath = value.slice('--elegy-cli='.length);
+      continue;
+    }
     if (value === '--repo-root') {
       i += 1;
       if (i >= argv.length) {
         throw new Error('Missing value for --repo-root');
       }
       args.repoRoot = argv[i] || '';
+      continue;
+    }
+    if (value === '--elegy-cli') {
+      i += 1;
+      if (i >= argv.length) {
+        throw new Error('Missing value for --elegy-cli');
+      }
+      args.elegyCliPath = argv[i] || '';
       continue;
     }
     if (value.startsWith('--review-model=')) {
@@ -332,7 +345,7 @@ export function parseArgs(argv) {
       args.setupProfile = argv[i] || '';
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --codex-home <path>, --skills-home <path>, --repo-root <path>, --review-model <model>, --profile-name <name>, --setup-profile <key>)`);
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --codex-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --review-model <model>, --profile-name <name>, --setup-profile <key>)`);
   }
 
   if (args.repoRoot && !args.setupProfile) {
@@ -435,6 +448,7 @@ export function runInstall(args = {}) {
       surface: 'codex',
       repoRoot: repoSetupRoot,
       profileKey: args.setupProfile,
+      elegyCliPath: args.elegyCliPath,
       dryRun: args.dryRun,
       force: args.force,
     })

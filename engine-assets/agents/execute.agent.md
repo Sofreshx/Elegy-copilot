@@ -50,7 +50,9 @@ EXECUTION_BRIEF
 ## Output Guidance
 
 - `constraints` should focus on things that would cause wrong behavior if omitted.
+- Narrow `constraints` to hard constraints only; keep shaping context in `execution_steps` or `residual_risks` instead of inflating the constraint list.
 - `execution_steps` should be short and concrete.
 - `handoff_target` must be a specific agent or worker role when possible.
 - If the selected capability came from `explicit-override` or `fallback-curated` mode, capture any resulting caveat in `constraints` or `residual_risks` instead of silently broadening to sibling capabilities.
+- If the loaded sources reveal a key architectural or workflow-authority decision that future work will need, mention the ADR follow-up need in `residual_risks` instead of assuming the execution brief is the long-term record.
 - If the selected capability is missing or unreadable, return a brief with that failure and safe fallback guidance.

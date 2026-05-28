@@ -1,6 +1,6 @@
 ---
 created: 2024-01-15
-updated: 2026-02-23
+updated: 2026-05-26
 category: system
 status: current
 doc_kind: node
@@ -685,7 +685,8 @@ To also set up VS Code discovery + install VS Code-only prompt files:
 pwsh -File scripts/cli-install.ps1 --all --force
 ```
 
-This installs to `~/.copilot/{agents,skills,copilot-instructions.md}` and (for VS Code) `~/.copilot/prompts`.
+This installs to `~/.copilot/{agents,skills,skills-vault,copilot-instructions.md}` and (for VS Code) `~/.copilot/prompts`.
+Planning-critical shared skills are materialized under `~/.copilot/skills/` and mirrored into `~/.copilot/skills-vault/`; on-demand-only skills stay vault-only.
 
 Note: VS Code prompt files are VS Code-only; Copilot CLI uses skills + instructions instead.
 
@@ -693,7 +694,8 @@ Note: VS Code prompt files are VS Code-only; Copilot CLI uses skills + instructi
 
 Built-in Copilot CLI system prompts are not shipped as editable files. The parts you control are:
 - `~/.copilot/agents/*.agent.md`
-- `~/.copilot/skills/*/SKILL.md`
+- `~/.copilot/skills/*/SKILL.md` for always-installed skills, including the shared planning/spec/review lane
+- `~/.copilot/skills-vault/*/SKILL.md` for vault copies and on-demand-only skills discovered via `skill-discovery`
 - instruction files (repo + user-level)
 
 To inspect what VS Code actually sent (system prompt + user message + context + tool calls):
@@ -847,7 +849,7 @@ This repo includes a small local dashboard for inspecting Copilot CLI state and 
 
 - Preferred runtime: the packaged Elegy Copilot desktop app, which starts the local backend automatically
 - Raw server fallback: `node copilot-ui/server.js` (or `scripts/cli-ui.ps1` / `./scripts/cli-ui.sh`)
-- Observes: `~/.copilot/session-state/` + `~/.copilot/agents/` + `~/.copilot/skills/` + `~/.copilot` config files
+- Observes: `~/.copilot/session-state/` + `~/.copilot/agents/` + `~/.copilot/skills/` + `~/.copilot/skills-vault/` + `~/.copilot` config files
 - Actions: refresh, sync/update assets, delete/remove assets (**guarded**)
 - Safety: local-only, **no auth** — don’t expose the port beyond localhost
 
@@ -1044,7 +1046,8 @@ copilot --acp --port 3000
 ```
 ~/.copilot/copilot-instructions.md      # User-level instructions
 ~/.copilot/agents/*.agent.md            # User-level agents
-~/.copilot/skills/*/SKILL.md            # User-level skills
+~/.copilot/skills/*/SKILL.md            # User-level always-installed skills
+~/.copilot/skills-vault/*/SKILL.md      # User-level vault copies and on-demand-only skills
 ~/.copilot/prompts/*.prompt.md          # VS Code-only prompt files (installed globally)
 ~/.copilot/lsp-config.json              # Copilot CLI LSP (user-level)
 ~/.copilot/session-state/               # Session storage

@@ -619,13 +619,13 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
   const disabled = options.enabled === false || normalizeString(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED) === '1';
   const configured = options.enabled === true
     || normalizeString(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED) === '1'
-    || isExecutablePathConfigured(configuredCliPath)
+    || Boolean(configuredCliPath)
     || Boolean(normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH));
   const config = {
     childProcess: options.childProcess,
     processObject,
     env,
-    cliPath: configuredCliPath,
+    cliPath: configuredCliPath || DEFAULT_CLI_PATH,
     dbPath: configuredDbPath,
     cwd: copilotHome || undefined,
     timeoutMs,

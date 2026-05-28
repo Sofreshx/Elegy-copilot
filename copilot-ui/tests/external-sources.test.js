@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('assert');
+const childProcess = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -33,6 +34,40 @@ function writeText(absPath, text) {
   fs.writeFileSync(absPath, text, 'utf8');
 }
 
+function commandFailure(message, code = 1) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function createExecFileStub(responses) {
+  const calls = [];
+  return {
+    calls,
+    childProcess: {
+      execFile(command, args, options, callback) {
+        const key = `${command} ${args.join(' ')}`.trim();
+        calls.push({ command, args: [...args], cwd: options.cwd, key });
+        const handler = responses[key];
+        if (!handler) {
+          const error = commandFailure(`Unexpected command: ${key}`);
+          callback(error, '', error.message);
+          return;
+        }
+
+        const result = typeof handler === 'function'
+          ? handler({ command, args: [...args], cwd: options.cwd, calls })
+          : handler;
+        if (result instanceof Error) {
+          callback(result, '', result.message);
+          return;
+        }
+        callback(result?.error || null, result?.stdout || '', result?.stderr || '');
+      },
+    },
+  };
+}
+
 async function run() {
   console.log('\nExternal Sources Tests\n');
 
@@ -45,22 +80,37 @@ async function run() {
   const antigravityHome = path.join(geminiHome, 'antigravity');
 
   try {
-    writeJson(path.join(engineRoot, 'engine-assets', 'external-sources.json'), {
-      schemaVersion: 1,
-      sources: [
-        {
-          sourceId: 'seeded-source',
-          title: 'Seeded Source',
-          url: 'https://github.com/example/seeded-source',
-          sourceType: 'github-repo',
-          owner: 'example',
-          repo: 'seeded-source',
-          defaultRef: 'main',
-          includeSkills: true,
-          preferredSkillPathPrefixes: ['skills'],
-        },
-      ],
-    });
+    function writeCatalog(sources) {
+      writeJson(path.join(engineRoot, 'engine-assets', 'external-sources.json'), {
+        schemaVersion: 1,
+        sources,
+      });
+    }
+
+    function createTargetHomes(name) {
+      const root = path.join(tmpRoot, name);
+      return {
+        copilotHome: path.join(root, '.copilot'),
+        codexHome: path.join(root, '.codex'),
+        opencodeHome: path.join(root, '.config', 'opencode'),
+        geminiHome: path.join(root, '.gemini'),
+        antigravityHome: path.join(root, '.gemini', 'antigravity'),
+      };
+    }
+
+    writeCatalog([
+      {
+        sourceId: 'seeded-source',
+        title: 'Seeded Source',
+        url: 'https://github.com/example/seeded-source',
+        sourceType: 'github-repo',
+        owner: 'example',
+        repo: 'seeded-source',
+        defaultRef: 'main',
+        includeSkills: true,
+        preferredSkillPathPrefixes: ['skills'],
+      },
+    ]);
 
     await test('listSources merges shipped and user sources with cached installables', async () => {
       externalSources.addSource({ engineRoot, copilotHome }, {
@@ -117,6 +167,46 @@ async function run() {
       assert.strictEqual(demoSource.activation.codex.installables['skill:brainstorming'].enabled, true);
     });
 
+    await test('listSources surfaces persisted verification state in source sync metadata', async () => {
+      writeJson(path.join(externalSources.resolveStatePath(copilotHome)), {
+        schemaVersion: 1,
+        sources: {
+          'demo-source': {
+            syncStatus: 'ready',
+            lastSyncedAt: '2026-05-19T00:00:00.000Z',
+            lastVerifiedAt: '2026-05-19T00:05:00.000Z',
+            verificationStatus: 'partial',
+            verificationWarnings: ['repo not initialized'],
+            verificationErrors: [],
+            targets: {
+              host: {
+                installables: {
+                  'cli:specify': {
+                    enabled: true,
+                    installed: true,
+                    overallStatus: 'installed',
+                    lastVerifiedAt: '2026-05-19T00:05:00.000Z',
+                    warnings: [],
+                    errors: [],
+                    checks: [],
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const result = externalSources.listSources({ engineRoot, copilotHome });
+      const demoSource = result.sources.find((source) => source.sourceId === 'demo-source');
+
+      assert.ok(demoSource, 'expected demo-source in merged list');
+      assert.strictEqual(demoSource.sync.lastVerifiedAt, '2026-05-19T00:05:00.000Z');
+      assert.strictEqual(demoSource.sync.verificationStatus, 'partial');
+      assert.deepStrictEqual(demoSource.sync.verificationWarnings, ['repo not initialized']);
+      assert.deepStrictEqual(demoSource.sync.verificationErrors, []);
+    });
+
     await test('activateInstallable materializes skills into target homes and records state', async () => {
       const sourceCacheRoot = path.join(externalSources.resolveCacheRoot(copilotHome), 'demo-source');
       writeJson(path.join(sourceCacheRoot, 'snapshot.json'), {
@@ -137,7 +227,7 @@ async function run() {
       });
       writeText(path.join(sourceCacheRoot, 'extracted', 'demo-source-main', 'skills', 'brainstorming', 'SKILL.md'), '# Brainstorming\n');
 
-      const result = externalSources.activateInstallable({
+      const result = await externalSources.activateInstallable({
         engineRoot,
         copilotHome,
         codexHome,
@@ -185,7 +275,7 @@ async function run() {
         ['codex', 'opencode', 'gemini-cli'],
       );
 
-      const result = externalSources.activateInstallable({
+      const result = await externalSources.activateInstallable({
         engineRoot,
         copilotHome,
         codexHome,
@@ -239,6 +329,296 @@ async function run() {
       assert.ok(caught, 'expected removal to be rejected');
       assert.strictEqual(caught.statusCode, 409);
       assert.match(String(caught.message || ''), /active target installs/i);
+    });
+
+    await test('GhidraMCP activation writes absolute cached bridge paths into MCP configs', async () => {
+      writeCatalog([
+        {
+          sourceId: 'ghidra-mcp',
+          title: 'GhidraMCP',
+          url: 'https://github.com/LaurieWired/GhidraMCP',
+          sourceType: 'github-repo',
+          owner: 'LaurieWired',
+          repo: 'GhidraMCP',
+          defaultRef: 'main',
+          includeSkills: false,
+          includeMcp: false,
+          installables: [
+            {
+              installableId: 'mcp:ghidra',
+              kind: 'mcp-server',
+              name: 'ghidra',
+              title: 'GhidraMCP',
+              sourcePath: 'bridge_mcp_ghidra.py',
+              verifyCommand: 'python bridge_mcp_ghidra.py --help',
+              targetSupport: ['codex', 'opencode', 'gemini-cli'],
+              metadata: {
+                bridgeScriptPath: 'bridge_mcp_ghidra.py',
+                defaultGhidraServerUrl: 'http://127.0.0.1:8080/',
+                commandTemplate: ['python', 'bridge_mcp_ghidra.py', '--ghidra-server', 'http://127.0.0.1:8080/'],
+              },
+            },
+          ],
+        },
+      ]);
+
+      const homes = createTargetHomes('ghidra-targets');
+      const originalExecFileSync = childProcess.execFileSync;
+      try {
+        childProcess.execFileSync = (command, args) => {
+          assert.strictEqual(command, 'tar');
+          const extractRoot = args[args.indexOf('-C') + 1];
+          writeText(path.join(extractRoot, 'ghidra-mcp-main', 'bridge_mcp_ghidra.py'), 'print("ghidra")\n');
+        };
+
+        await externalSources.refreshSource({
+          engineRoot,
+          copilotHome: homes.copilotHome,
+          fetch: async () => ({
+            ok: true,
+            arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+          }),
+        }, 'ghidra-mcp');
+      } finally {
+        childProcess.execFileSync = originalExecFileSync;
+      }
+
+      const expectedBridgePath = path.join(
+        externalSources.resolveCacheRoot(homes.copilotHome),
+        'ghidra-mcp',
+        'extracted',
+        'ghidra-mcp-main',
+        'bridge_mcp_ghidra.py',
+      );
+
+      await externalSources.activateInstallable({
+        engineRoot,
+        copilotHome: homes.copilotHome,
+        codexHome: homes.codexHome,
+        opencodeHome: homes.opencodeHome,
+        geminiHome: homes.geminiHome,
+        antigravityHome: homes.antigravityHome,
+      }, {
+        sourceId: 'ghidra-mcp',
+        installableId: 'mcp:ghidra',
+        target: 'codex',
+      });
+      await externalSources.activateInstallable({
+        engineRoot,
+        copilotHome: homes.copilotHome,
+        codexHome: homes.codexHome,
+        opencodeHome: homes.opencodeHome,
+        geminiHome: homes.geminiHome,
+        antigravityHome: homes.antigravityHome,
+      }, {
+        sourceId: 'ghidra-mcp',
+        installableId: 'mcp:ghidra',
+        target: 'opencode',
+      });
+      await externalSources.activateInstallable({
+        engineRoot,
+        copilotHome: homes.copilotHome,
+        codexHome: homes.codexHome,
+        opencodeHome: homes.opencodeHome,
+        geminiHome: homes.geminiHome,
+        antigravityHome: homes.antigravityHome,
+      }, {
+        sourceId: 'ghidra-mcp',
+        installableId: 'mcp:ghidra',
+        target: 'gemini-cli',
+      });
+
+      const codexConfig = fs.readFileSync(path.join(homes.codexHome, 'config.toml'), 'utf8');
+      const opencodeConfig = JSON.parse(fs.readFileSync(path.join(homes.opencodeHome, 'opencode.json'), 'utf8'));
+      const geminiConfig = JSON.parse(fs.readFileSync(path.join(homes.geminiHome, 'settings.json'), 'utf8'));
+
+      assert.ok(codexConfig.includes(expectedBridgePath.replace(/\\/g, '\\\\')));
+      assert.deepStrictEqual(
+        opencodeConfig.mcp['external-ghidra-mcp-ghidra'].command,
+        ['python', expectedBridgePath, '--ghidra-server', 'http://127.0.0.1:8080/'],
+      );
+      assert.deepStrictEqual(
+        geminiConfig.mcpServers['external-ghidra-mcp-ghidra'].args,
+        [expectedBridgePath, '--ghidra-server', 'http://127.0.0.1:8080/'],
+      );
+    });
+
+    await test('Spec Kit install prefers uv when available and uses uv reinstall under force', async () => {
+      writeCatalog([
+        {
+          sourceId: 'spec-kit',
+          title: 'Spec Kit',
+          url: 'https://github.com/github/spec-kit',
+          sourceType: 'github-repo',
+          owner: 'github',
+          repo: 'spec-kit',
+          defaultRef: 'v0.8.13',
+          includeSkills: false,
+          includeMcp: false,
+          installables: [
+            {
+              installableId: 'cli:specify',
+              kind: 'cli-tool',
+              name: 'specify',
+              title: 'Spec Kit',
+              targetSupport: ['host'],
+              installCommand: 'uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.8.13',
+              metadata: {
+                preferredInstaller: 'uv',
+                fallbackInstaller: 'pipx',
+                installCommandUv: 'uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.8.13',
+                installCommandPipx: 'pipx install git+https://github.com/github/spec-kit.git@v0.8.13',
+                reinstallCommandPipx: 'pipx install --force git+https://github.com/github/spec-kit.git@v0.8.13',
+              },
+            },
+          ],
+        },
+      ]);
+
+      const homes = createTargetHomes('spec-kit-uv');
+      const stub = createExecFileStub({
+        'uv --version': { stdout: 'uv 0.4.0\n' },
+        'uv tool install --reinstall specify-cli --from git+https://github.com/github/spec-kit.git@v0.8.13': { stdout: 'specify\n' },
+      });
+
+      const result = await externalSources.activateInstallable({
+        engineRoot,
+        copilotHome: homes.copilotHome,
+        childProcess: stub.childProcess,
+        force: true,
+      }, {
+        sourceId: 'spec-kit',
+        installableId: 'cli:specify',
+        target: 'host',
+      });
+
+      assert.strictEqual(result.materialized.installer, 'uv');
+      assert.deepStrictEqual(
+        stub.calls.map((entry) => entry.key),
+        [
+          'uv --version',
+          'uv tool install --reinstall specify-cli --from git+https://github.com/github/spec-kit.git@v0.8.13',
+        ],
+      );
+    });
+
+    await test('Spec Kit install falls back to pipx when uv is unavailable', async () => {
+      writeCatalog([
+        {
+          sourceId: 'spec-kit',
+          title: 'Spec Kit',
+          url: 'https://github.com/github/spec-kit',
+          sourceType: 'github-repo',
+          owner: 'github',
+          repo: 'spec-kit',
+          defaultRef: 'v0.8.13',
+          includeSkills: false,
+          includeMcp: false,
+          installables: [
+            {
+              installableId: 'cli:specify',
+              kind: 'cli-tool',
+              name: 'specify',
+              title: 'Spec Kit',
+              targetSupport: ['host'],
+              installCommand: 'uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.8.13',
+              metadata: {
+                preferredInstaller: 'uv',
+                fallbackInstaller: 'pipx',
+                installCommandUv: 'uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.8.13',
+                installCommandPipx: 'pipx install git+https://github.com/github/spec-kit.git@v0.8.13',
+                reinstallCommandPipx: 'pipx install --force git+https://github.com/github/spec-kit.git@v0.8.13',
+              },
+            },
+          ],
+        },
+      ]);
+
+      const homes = createTargetHomes('spec-kit-pipx');
+      const stub = createExecFileStub({
+        'uv --version': { error: commandFailure('uv not found') },
+        'pipx --version': { stdout: '1.4.3\n' },
+        'pipx install --force git+https://github.com/github/spec-kit.git@v0.8.13': { stdout: 'specify\n' },
+      });
+
+      const result = await externalSources.activateInstallable({
+        engineRoot,
+        copilotHome: homes.copilotHome,
+        childProcess: stub.childProcess,
+        force: true,
+      }, {
+        sourceId: 'spec-kit',
+        installableId: 'cli:specify',
+        target: 'host',
+      });
+
+      assert.strictEqual(result.materialized.installer, 'pipx');
+      assert.deepStrictEqual(
+        stub.calls.map((entry) => entry.key),
+        [
+          'uv --version',
+          'pipx --version',
+          'pipx install --force git+https://github.com/github/spec-kit.git@v0.8.13',
+        ],
+      );
+    });
+
+    await test('Spec Kit install fails clearly when both uv and pipx are unavailable', async () => {
+      writeCatalog([
+        {
+          sourceId: 'spec-kit',
+          title: 'Spec Kit',
+          url: 'https://github.com/github/spec-kit',
+          sourceType: 'github-repo',
+          owner: 'github',
+          repo: 'spec-kit',
+          defaultRef: 'v0.8.13',
+          includeSkills: false,
+          includeMcp: false,
+          installables: [
+            {
+              installableId: 'cli:specify',
+              kind: 'cli-tool',
+              name: 'specify',
+              title: 'Spec Kit',
+              targetSupport: ['host'],
+              installCommand: 'uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.8.13',
+              metadata: {
+                preferredInstaller: 'uv',
+                fallbackInstaller: 'pipx',
+                installCommandUv: 'uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.8.13',
+                installCommandPipx: 'pipx install git+https://github.com/github/spec-kit.git@v0.8.13',
+              },
+            },
+          ],
+        },
+      ]);
+
+      const homes = createTargetHomes('spec-kit-missing');
+      const stub = createExecFileStub({
+        'uv --version': { error: commandFailure('uv not found') },
+        'pipx --version': { error: commandFailure('pipx not found') },
+      });
+
+      let caught = null;
+      try {
+        await externalSources.activateInstallable({
+          engineRoot,
+          copilotHome: homes.copilotHome,
+          childProcess: stub.childProcess,
+        }, {
+          sourceId: 'spec-kit',
+          installableId: 'cli:specify',
+          target: 'host',
+        });
+      } catch (error) {
+        caught = error;
+      }
+
+      assert.ok(caught, 'expected install to fail');
+      assert.match(String(caught.message || ''), /unable to install spec kit/i);
+      assert.match(String(caught.message || ''), /neither .*uv.* nor .*pipx.* available on path/i);
+      assert.match(String(caught.message || ''), /install one of them and retry/i);
     });
   } finally {
     fs.rmSync(tmpRoot, { recursive: true, force: true });

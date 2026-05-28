@@ -1425,6 +1425,66 @@ function resolvePlanningLiveAuthorityState(roadmapWorkflowPlanningBridge) {
   };
 }
 
+function buildRetiredRepoFilePlanningSurfaceResponse(kind, surfaceLabel) {
+  const label = typeof surfaceLabel === 'string' && surfaceLabel.trim()
+    ? surfaceLabel.trim()
+    : 'Repo-file planning surface';
+
+  return {
+    contractVersion: PLANNING_API_CONTRACT_VERSION,
+    kind,
+    deterministic: true,
+    error: `${label} is retired. Use Planning task board, live planning, and workflow artifact surfaces instead.`,
+    code: 'planning_repo_file_authority_retired',
+    reason: 'planning_repo_file_authority_retired',
+  };
+}
+
+function resolveRetiredRepoFilePlanningSurface(pathname, method) {
+  const route = String(pathname || '').trim();
+  const normalizedMethod = String(method || 'GET').trim().toUpperCase();
+  const isReadMethod = normalizedMethod === 'GET' || normalizedMethod === 'HEAD';
+
+  if (route === '/api/planning/roadmaps') {
+    return isReadMethod
+      ? { kind: 'planning.roadmaps.list', surfaceLabel: 'planning roadmaps' }
+      : null;
+  }
+
+  if (/^\/api\/planning\/roadmaps\/[^/]+\/reconcile$/i.test(route)) {
+    return normalizedMethod === 'POST'
+      ? { kind: 'planning.roadmaps.reconcile', surfaceLabel: 'planning roadmaps' }
+      : null;
+  }
+
+  if (/^\/api\/planning\/roadmaps\/[^/]+$/i.test(route)) {
+    return isReadMethod
+      ? { kind: 'planning.roadmaps.read', surfaceLabel: 'planning roadmaps' }
+      : null;
+  }
+
+  if (route === '/api/planning/backlog' || route.startsWith('/api/planning/backlog/')) {
+    return {
+      kind: isReadMethod ? 'planning.backlog.read' : 'planning.backlog.write',
+      surfaceLabel: 'planning backlog',
+    };
+  }
+
+  if (
+    route === '/api/planning/artifacts/bullets'
+    || route.startsWith('/api/planning/artifacts/bullets/')
+    || route === '/api/planning/artifacts/intake'
+    || route.startsWith('/api/planning/artifacts/intake/')
+  ) {
+    return {
+      kind: isReadMethod ? 'planning.artifacts.read' : 'planning.artifacts.create',
+      surfaceLabel: 'planning artifacts',
+    };
+  }
+
+  return null;
+}
+
 function buildPlanningPersistenceCorruptionEnvelope(planningPersistenceState) {
   const state = planningPersistenceState && typeof planningPersistenceState === 'object'
     ? planningPersistenceState
@@ -4369,6 +4429,19 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     return;
   }
 
+  const retiredRepoFilePlanningSurface = resolveRetiredRepoFilePlanningSurface(pathname, req.method);
+  if (retiredRepoFilePlanningSurface) {
+    sendJson(
+      res,
+      410,
+      buildRetiredRepoFilePlanningSurfaceResponse(
+        retiredRepoFilePlanningSurface.kind,
+        retiredRepoFilePlanningSurface.surfaceLabel,
+      ),
+    );
+    return;
+  }
+
   if (routeRegistry && routeRegistry.dispatch({
     req,
     res,
@@ -5033,6 +5106,7 @@ if (require.main === module) {
 module.exports = {
   startServer,
   readDefaultDesktopRollbackPolicy,
+  resolveRetiredRepoFilePlanningSurface,
   parseArgs,
   probeTrackerReadiness,
   containsUnsafeShellSyntax,

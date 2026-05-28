@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { createTestElegyCliShim, withWorkingDirectory } = require('./test-elegy-cli-shim.js');
 
 let passed = 0;
 
@@ -130,6 +131,7 @@ async function main() {
 
   await test('installer bootstraps opt-in spec-driven repo files', async () => {
     withTempDir((root) => {
+      const shim = createTestElegyCliShim(root);
       const opencodeHome = path.join(root, '.config', 'opencode');
       const skillsHome = path.join(opencodeHome, 'skills');
       const repoRoot = path.join(root, 'target-repo');
@@ -140,13 +142,14 @@ async function main() {
       fs.writeFileSync(path.join(repoRoot, 'package.json'), `${JSON.stringify({ name: 'target-repo', scripts: {} }, null, 2)}\n`, 'utf8');
       fs.writeFileSync(path.join(repoRoot, '.github', 'skills', 'repo-helper', 'SKILL.md'), '---\nname: repo-helper\ndescription: Repo helper\n---\n', 'utf8');
 
-      const summary = installer.runInstall({
+      const summary = withWorkingDirectory(shim.shimDir, () => installer.runInstall({
         force: true,
         opencodeHome,
         skillsHome,
         repoRoot,
+        elegyCliPath: shim.elegyCliPath,
         setupProfile: 'spec-driven',
-      });
+      }));
 
       const copilotInstructions = fs.readFileSync(path.join(repoRoot, '.github', 'copilot-instructions.md'), 'utf8');
       const agentsInstructions = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');

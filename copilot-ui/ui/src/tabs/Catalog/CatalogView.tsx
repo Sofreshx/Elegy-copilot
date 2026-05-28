@@ -11,9 +11,14 @@ import type {
 import { navigationStore, type CatalogSectionId } from '../../stores/navigation';
 import { catalogWorkspaceStore } from '../Assets/catalogWorkspaceStore';
 import AssetsView from '../Assets/AssetsView';
+import CatalogStatusView from './CatalogStatusView';
 import './catalog.css';
 
 const SECTION_COPY: Record<CatalogSectionId, { title: string; body: string }> = {
+  status: {
+    title: 'Status',
+    body: 'Inspect external-source target state, installed inventory, and recent runtime usage in one operator surface.',
+  },
   global: {
     title: 'Global',
     body: 'Inspect the real global inventory for Copilot, Codex, OpenCode, Antigravity, and Antigravity CLI-compatible catalog content.',
@@ -30,6 +35,28 @@ interface GlobalDetailState {
   error: string | null;
   content: string;
   label: string;
+}
+
+interface ExternalSourceVerificationSummary {
+  syncStatus: string | null;
+  resolvedRef: string | null;
+  lastError: string | null;
+  lastVerifiedAt: string | null;
+  verificationStatus: string | null;
+  warnings: string[];
+  errors: string[];
+}
+
+interface ExternalHarnessDetail {
+  enabled: boolean;
+  installed: boolean;
+  managedName: string | null;
+  installedPath: string | null;
+  overallStatus: string | null;
+  sourceStatus: string | null;
+  lastVerifiedAt: string | null;
+  warnings: string[];
+  errors: string[];
 }
 
 const INITIAL_DETAIL_STATE: GlobalDetailState = {
@@ -145,6 +172,82 @@ function getSyncWarningText(item: CatalogGlobalItem): string | null {
     return null;
   }
   return `Expected on ${missingTargets.join(', ')} but not currently installed.`;
+}
+
+function formatTimestamp(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    return 'never';
+  }
+
+  const trimmed = value.trim();
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? new Date(parsed).toLocaleString() : trimmed;
+}
+
+function readDetailRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function readStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+    : [];
+}
+
+function readOptionalString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+function readExternalSourceVerification(item: CatalogGlobalItem): ExternalSourceVerificationSummary | null {
+  if (item.sourceType !== 'external-source') {
+    return null;
+  }
+
+  const detail = readDetailRecord(item.detail);
+  return {
+    syncStatus: readOptionalString(detail.sourceSyncStatus),
+    resolvedRef: readOptionalString(detail.sourceResolvedRef),
+    lastError: readOptionalString(detail.sourceLastError),
+    lastVerifiedAt: readOptionalString(detail.sourceLastVerifiedAt),
+    verificationStatus: readOptionalString(detail.sourceVerificationStatus),
+    warnings: readStringList(detail.sourceVerificationWarnings),
+    errors: readStringList(detail.sourceVerificationErrors),
+  };
+}
+
+function hasExternalSourceVerification(summary: ExternalSourceVerificationSummary | null): boolean {
+  return Boolean(
+    summary && (
+      summary.syncStatus
+      || summary.resolvedRef
+      || summary.lastError
+      || summary.lastVerifiedAt
+      || summary.verificationStatus
+      || summary.warnings.length > 0
+      || summary.errors.length > 0
+    )
+  );
+}
+
+function readExternalHarnessDetail(state: CatalogGlobalHarnessState): ExternalHarnessDetail | null {
+  if (state.metadata?.actionKind !== 'external-source') {
+    return null;
+  }
+
+  const detail = readDetailRecord(state.detail);
+  return {
+    enabled: detail.enabled === true,
+    installed: detail.installed === true,
+    managedName: readOptionalString(detail.managedName),
+    installedPath: readOptionalString(detail.installedPath),
+    overallStatus: readOptionalString(detail.overallStatus),
+    sourceStatus: readOptionalString(detail.sourceStatus),
+    lastVerifiedAt: readOptionalString(detail.lastVerifiedAt),
+    warnings: readStringList(detail.warnings),
+    errors: readStringList(detail.errors),
+  };
 }
 
 function resolveContentRequest(item: CatalogGlobalItem): { mode: 'absolute' | 'engine' | 'external-source'; path: string; sourceId?: string } | null {
@@ -357,6 +460,13 @@ export default function CatalogView() {
 
         <div className="workspace-nav" role="tablist" aria-label="Catalog workspaces">
           <Button
+            onClick={() => navigationStore.setCatalogSectionId('status')}
+            testId="catalog-section-status"
+            variant={activeSection === 'status' ? 'primary' : 'ghost'}
+          >
+            Status
+          </Button>
+          <Button
             onClick={() => navigationStore.setCatalogSectionId('global')}
             testId="catalog-section-global"
             variant={activeSection === 'global' ? 'primary' : 'ghost'}
@@ -374,6 +484,8 @@ export default function CatalogView() {
       </Toolbar>
 
       <p className="workspace-section-label">{sectionCopy.title}</p>
+
+      {activeSection === 'status' ? <CatalogStatusView /> : null}
 
       {activeSection === 'repository' ? <AssetsView /> : null}
 
@@ -428,122 +540,181 @@ export default function CatalogView() {
                 <Panel
                   key={section.kind}
                   testId={`catalog-global-section-${section.kind}`}
-                  title={section.title}
-                  subtitle={`${section.count} item${section.count === 1 ? '' : 's'}`}
+                    title={section.title}
+                    subtitle={`${section.count} item${section.count === 1 ? '' : 's'}`}
                 >
                   <div className="catalog-global-item-list">
-                    {section.items.map((item) => (
-                      <article className="catalog-global-item-card" data-testid={`catalog-global-item-${item.itemId}`} key={item.itemId}>
-                        <div className="catalog-global-card-header">
-                          <div>
-                            <h4>{item.title}</h4>
-                            <p className="catalog-global-subtitle">
-                              {item.itemKey}
-                              {item.sourceId ? ` · ${item.sourceId}` : ''}
-                              {item.providerId ? ` · ${item.providerId}` : ''}
-                            </p>
+                    {section.items.map((item) => {
+                      const sourceVerification = readExternalSourceVerification(item);
+                      return (
+                        <article className="catalog-global-item-card" data-testid={`catalog-global-item-${item.itemId}`} key={item.itemId}>
+                          <div className="catalog-global-card-header">
+                            <div>
+                              <h4>{item.title}</h4>
+                              <p className="catalog-global-subtitle">
+                                {item.itemKey}
+                                {item.sourceId ? ` · ${item.sourceId}` : ''}
+                                {item.providerId ? ` · ${item.providerId}` : ''}
+                              </p>
+                            </div>
+                            <div className="catalog-global-badge-stack">
+                              <Badge tone="neutral">{section.title}</Badge>
+                              {item.central ? <Badge tone="accent">Central</Badge> : null}
+                              {item.keyFeature ? <Badge tone="success">{item.keyFeatureLabel || 'Key skill'}</Badge> : null}
+                              {getItemScopeLabel(item) ? <Badge tone="neutral">{getItemScopeLabel(item)}</Badge> : null}
+                            </div>
                           </div>
-                          <div className="catalog-global-badge-stack">
-                            <Badge tone="neutral">{section.title}</Badge>
-                            {item.central ? <Badge tone="accent">Central</Badge> : null}
-                            {item.keyFeature ? <Badge tone="success">{item.keyFeatureLabel || 'Key skill'}</Badge> : null}
-                            {getItemScopeLabel(item) ? <Badge tone="neutral">{getItemScopeLabel(item)}</Badge> : null}
+                          <p className="catalog-global-description">{item.description || 'No description available.'}</p>
+                          {hasExternalSourceVerification(sourceVerification) ? (
+                            <div className="catalog-global-source-summary">
+                              <p className="catalog-inline-note" data-testid={`catalog-global-source-verification-${item.itemId}`}>
+                                Sync {sourceVerification?.syncStatus || 'unknown'}
+                                {sourceVerification?.resolvedRef ? ` · ref ${sourceVerification.resolvedRef}` : ''}
+                                {sourceVerification?.verificationStatus ? ` · verification ${sourceVerification.verificationStatus}` : ''}
+                                {sourceVerification?.lastVerifiedAt ? ` · verified ${formatTimestamp(sourceVerification.lastVerifiedAt)}` : ''}
+                              </p>
+                              {sourceVerification?.lastError ? (
+                                <p className="catalog-inline-note state-error">{sourceVerification.lastError}</p>
+                              ) : null}
+                              {sourceVerification?.errors.map((issue) => (
+                                <p className="catalog-inline-note state-error" key={`${item.itemId}-source-error-${issue}`}>{issue}</p>
+                              ))}
+                              {sourceVerification?.warnings.map((issue) => (
+                                <p className="catalog-inline-note" key={`${item.itemId}-source-warning-${issue}`}>{issue}</p>
+                              ))}
+                            </div>
+                          ) : null}
+                          <div className="catalog-global-tag-row">
+                            {(item.harnessStates || []).map((harnessState) => (
+                              <span
+                                className={`catalog-global-harness-pill sync-${harnessState.syncStatus || 'available'}`}
+                                data-testid={`catalog-global-pill-${item.itemId}-${harnessState.harnessId}`}
+                                key={`${item.itemId}-pill-${harnessState.harnessId}`}
+                              >
+                                {getHarnessTagLabel(harnessState)}
+                              </span>
+                            ))}
                           </div>
-                        </div>
-                        <p className="catalog-global-description">{item.description || 'No description available.'}</p>
-                        <div className="catalog-global-tag-row">
-                          {(item.harnessStates || []).map((harnessState) => (
-                            <span
-                              className={`catalog-global-harness-pill sync-${harnessState.syncStatus || 'available'}`}
-                              data-testid={`catalog-global-pill-${item.itemId}-${harnessState.harnessId}`}
-                              key={`${item.itemId}-pill-${harnessState.harnessId}`}
-                            >
-                              {getHarnessTagLabel(harnessState)}
-                            </span>
-                          ))}
-                        </div>
-                        {getSyncWarningText(item) ? (
-                          <div className="catalog-global-warning-banner" data-testid={`catalog-global-warning-${item.itemId}`}>
-                            <p>{getSyncWarningText(item)}</p>
-                            {item.harnessStates?.some((state) => state.syncStatus === 'missing' && getActionLabel(item, state)) ? (
-                              <div className="catalog-global-warning-actions">
-                                {(item.harnessStates || [])
-                                  .filter((state) => state.syncStatus === 'missing')
-                                  .map((state) => {
-                                    const actionLabel = getActionLabel(item, state);
-                                    if (!actionLabel) {
-                                      return null;
-                                    }
-                                    return (
-                                      <Button
-                                        key={`${item.itemId}-warning-${state.harnessId}`}
-                                        onClick={() => {
-                                          void handleItemAction(item, state);
-                                        }}
-                                        size="sm"
-                                        testId={`catalog-global-warning-action-${item.itemId}-${state.harnessId}`}
-                                        variant="ghost"
-                                      >
-                                        Sync {state.title}
-                                      </Button>
-                                    );
-                                  })}
-                              </div>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        <div className="catalog-global-harness-state-list">
-                          {(item.harnessStates || []).map((harnessState) => {
-                            const actionLabel = getActionLabel(item, harnessState);
-                            return (
-                              <div className="catalog-global-harness-state" key={`${item.itemId}-${harnessState.harnessId}`}>
-                                <div>
-                                  <p className="catalog-global-harness-name">{harnessState.title}</p>
-                                  <Badge tone={getHarnessBadgeTone(harnessState)}>{getHarnessStateLabel(harnessState)}</Badge>
-                                  {harnessState.installPath ? <p className="catalog-global-path">{harnessState.installPath}</p> : null}
+                          {getSyncWarningText(item) ? (
+                            <div className="catalog-global-warning-banner" data-testid={`catalog-global-warning-${item.itemId}`}>
+                              <p>{getSyncWarningText(item)}</p>
+                              {item.harnessStates?.some((state) => state.syncStatus === 'missing' && getActionLabel(item, state)) ? (
+                                <div className="catalog-global-warning-actions">
+                                  {(item.harnessStates || [])
+                                    .filter((state) => state.syncStatus === 'missing')
+                                    .map((state) => {
+                                      const actionLabel = getActionLabel(item, state);
+                                      if (!actionLabel) {
+                                        return null;
+                                      }
+                                      return (
+                                        <Button
+                                          key={`${item.itemId}-warning-${state.harnessId}`}
+                                          onClick={() => {
+                                            void handleItemAction(item, state);
+                                          }}
+                                          size="sm"
+                                          testId={`catalog-global-warning-action-${item.itemId}-${state.harnessId}`}
+                                          variant="ghost"
+                                        >
+                                          Sync {state.title}
+                                        </Button>
+                                      );
+                                    })}
                                 </div>
-                                {actionLabel ? (
-                                  <Button
-                                    onClick={() => {
-                                      void handleItemAction(item, harnessState);
-                                    }}
-                                    testId={`catalog-global-action-${item.itemId}-${harnessState.harnessId}`}
-                                    variant="secondary"
-                                  >
-                                    {actionLabel}
-                                  </Button>
-                                ) : null}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <div className="catalog-global-item-actions">
-                          <Button
-                            onClick={() => {
-                              void handleOpenDetails(item);
-                            }}
-                            testId={`catalog-global-details-${item.itemId}`}
-                            variant="ghost"
-                          >
-                            Details
-                          </Button>
-                          {item.actions?.kind === 'catalog-asset' && item.actions.installAssetId ? (
+                              ) : null}
+                            </div>
+                          ) : null}
+                          <div className="catalog-global-harness-state-list">
+                            {(item.harnessStates || []).map((harnessState) => {
+                              const actionLabel = getActionLabel(item, harnessState);
+                              const externalDetail = readExternalHarnessDetail(harnessState);
+                              const detailSegments = [
+                                externalDetail?.overallStatus ? `State ${externalDetail.overallStatus}` : '',
+                                externalDetail?.sourceStatus && externalDetail.sourceStatus !== externalDetail.overallStatus ? `source ${externalDetail.sourceStatus}` : '',
+                                externalDetail?.managedName || '',
+                                externalDetail?.installedPath && externalDetail.installedPath !== harnessState.installPath ? externalDetail.installedPath : '',
+                                externalDetail?.lastVerifiedAt ? `verified ${formatTimestamp(externalDetail.lastVerifiedAt)}` : '',
+                              ].filter(Boolean);
+                              const issues = externalDetail
+                                ? [
+                                    ...externalDetail.errors.map((issue) => ({ issue, isError: true })),
+                                    ...externalDetail.warnings
+                                      .filter((issue) => !externalDetail.errors.includes(issue))
+                                      .map((issue) => ({ issue, isError: false })),
+                                  ]
+                                : [];
+                              return (
+                                <div className="catalog-global-harness-state" key={`${item.itemId}-${harnessState.harnessId}`}>
+                                  <div>
+                                    <p className="catalog-global-harness-name">{harnessState.title}</p>
+                                    <Badge tone={getHarnessBadgeTone(harnessState)}>{getHarnessStateLabel(harnessState)}</Badge>
+                                    {harnessState.installPath ? <p className="catalog-global-path">{harnessState.installPath}</p> : null}
+                                    {detailSegments.length > 0 ? (
+                                      <p
+                                        className="catalog-inline-note catalog-global-harness-detail"
+                                        data-testid={`catalog-global-harness-detail-${item.itemId}-${harnessState.harnessId}`}
+                                      >
+                                        {detailSegments.join(' · ')}
+                                      </p>
+                                    ) : null}
+                                    {issues.length > 0 ? (
+                                      <div className="catalog-global-harness-issues">
+                                        {issues.map(({ issue, isError }, index) => (
+                                          <p
+                                            className={`catalog-inline-note ${isError ? 'state-error' : ''}`}
+                                            data-testid={`catalog-global-harness-issue-${item.itemId}-${harnessState.harnessId}-${index}`}
+                                            key={`${item.itemId}-${harnessState.harnessId}-${issue}`}
+                                          >
+                                            {issue}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                  {actionLabel ? (
+                                    <Button
+                                      onClick={() => {
+                                        void handleItemAction(item, harnessState);
+                                      }}
+                                      testId={`catalog-global-action-${item.itemId}-${harnessState.harnessId}`}
+                                      variant="secondary"
+                                    >
+                                      {actionLabel}
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="catalog-global-item-actions">
                             <Button
                               onClick={() => {
-                                void (async () => {
-                                  await catalogWorkspaceStore.selectAsset(item.actions?.installAssetId || item.itemId);
-                                  navigationStore.setCatalogSectionId('repository');
-                                })();
+                                void handleOpenDetails(item);
                               }}
-                            testId={`catalog-global-open-repository-${item.itemId}`}
-                            variant="ghost"
-                          >
-                            Open repo asset
-                          </Button>
-                        ) : null}
-                      </div>
-                      </article>
-                    ))}
+                              testId={`catalog-global-details-${item.itemId}`}
+                              variant="ghost"
+                            >
+                              Details
+                            </Button>
+                            {item.actions?.kind === 'catalog-asset' && item.actions.installAssetId ? (
+                              <Button
+                                onClick={() => {
+                                  void (async () => {
+                                    await catalogWorkspaceStore.selectAsset(item.actions?.installAssetId || item.itemId);
+                                    navigationStore.setCatalogSectionId('repository');
+                                  })();
+                                }}
+                                testId={`catalog-global-open-repository-${item.itemId}`}
+                                variant="ghost"
+                              >
+                                Open repo asset
+                              </Button>
+                            ) : null}
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
                 </Panel>
               ))}

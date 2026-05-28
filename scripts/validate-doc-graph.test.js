@@ -149,3 +149,156 @@ summary: Non-planning top-level doc fixture.
 		fs.rmSync(root, { recursive: true, force: true });
 	}
 });
+
+test('validate-doc-graph requires core ADR headings for docs/system/*-adr.md files', () => {
+	const root = createFixtureRepo();
+
+	try {
+		writeFile(
+			root,
+			'docs/system/sample-adr.md',
+			`---
+created: 2026-03-15
+updated: 2026-03-15
+category: system
+status: current
+doc_kind: node
+id: sample-adr
+summary: ADR fixture.
+tags: [adr]
+---
+
+# Sample ADR
+
+## Context
+
+Context.
+
+## Decision
+
+Decision.
+`
+		);
+
+		const { errors } = validateDocGraph({ repoRoot: root });
+		assert.ok(
+			errors.includes("docs/system/sample-adr.md: ADR docs must include required heading '## Consequences'."),
+			'Expected ADR docs to require Context, Decision, and Consequences headings.'
+		);
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('validate-doc-graph ignores spoofed ADR headings inside fenced code blocks', () => {
+	const root = createFixtureRepo();
+
+	try {
+		writeFile(
+			root,
+			'docs/system/sample-adr.md',
+			`---
+created: 2026-03-15
+updated: 2026-03-15
+category: system
+status: current
+doc_kind: node
+id: sample-adr
+summary: ADR fixture.
+tags: [adr]
+---
+
+# Sample ADR
+
+\`\`\`
+## Context
+
+Context.
+
+## Decision
+
+Decision.
+
+## Consequences
+
+Consequences.
+\`\`\`
+`
+		);
+
+		const { errors } = validateDocGraph({ repoRoot: root });
+		assert.deepStrictEqual(
+			errors,
+			[
+				"docs/system/sample-adr.md: ADR docs must include required heading '## Context'.",
+				"docs/system/sample-adr.md: ADR docs must include required heading '## Decision'.",
+				"docs/system/sample-adr.md: ADR docs must include required heading '## Consequences'.",
+			],
+			'Expected fenced-code ADR heading text to not satisfy the real heading requirement.'
+		);
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('validate-doc-graph rejects docs whose updated date is before created', () => {
+	const root = createFixtureRepo();
+
+	try {
+		writeFile(
+			root,
+			'docs/system/sample-node.md',
+			`---
+created: 2026-06-24
+updated: 2026-05-25
+category: system
+status: current
+doc_kind: node
+id: sample-node
+summary: Sample node fixture.
+---
+
+# Sample Node
+`
+		);
+
+		const { errors } = validateDocGraph({ repoRoot: root });
+		assert.ok(
+			errors.includes('docs/system/sample-node.md: updated must be on or after created.'),
+			'Expected doc frontmatter chronology validation to reject updated dates earlier than created.'
+		);
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test('validate-doc-graph rejects impossible ISO calendar dates', () => {
+	const root = createFixtureRepo();
+
+	try {
+		writeFile(
+			root,
+			'docs/system/sample-node.md',
+			`---
+created: 2026-02-31
+updated: 2026-03-01
+category: system
+status: current
+doc_kind: node
+id: sample-node
+summary: Sample node fixture.
+---
+
+# Sample Node
+`
+		);
+
+		const { errors } = validateDocGraph({ repoRoot: root });
+		assert.ok(
+			errors.includes('docs/system/sample-node.md: created must be a valid ISO date in YYYY-MM-DD format.'),
+			'Expected impossible calendar dates to be rejected even when they match YYYY-MM-DD shape.'
+		);
+	} finally {
+		fs.rmSync(root, { recursive: true, force: true });
+	}
+});

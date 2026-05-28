@@ -1,13 +1,13 @@
 ---
 created: 2026-04-09
-updated: 2026-06-24
+updated: 2026-05-25
 category: system
 status: current
 doc_kind: node
 id: rules-compliance-audit-handoff-workflow
 summary: Canonical overview entrypoint for the first additive slice connecting repo-rule bootstrap, compliance gates, project audit, follow-up routing, and selective rationale capture.
 tags: [governance, compliance, audit, follow-up, routing]
-related: [system-docs-index, moc-conventions-and-governance, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, search-execute-workflow, reviewer-lane-governance, follow-up-discovery-governance]
+related: [system-docs-index, moc-conventions-and-governance, project-conventions-governance, documentation-structure-governance, self-documenting-code-and-rationale-placement, progressive-constraint-narrowing, adr-governance, search-execute-workflow, reviewer-lane-governance, follow-up-discovery-governance]
 ---
 
 # Rules, Compliance, Audit, and Handoff Workflow
@@ -79,8 +79,15 @@ layer. If this page and an atomic node disagree, the atomic canonical node wins.
      or the smallest relevant canonical node.
    - Put planning-worthy ideas, deferred findings, and recurring friction in the approved
      `~/.copilot/backlogs/{repo-name}/issues/*` or backlog surfaces.
-   - Use smart comments only for local, non-obvious rationale that must stay next to code to prevent
-     accidental simplification or boundary erosion.
+    - Use smart comments only for local, non-obvious rationale that must stay next to code to prevent
+      accidental simplification or boundary erosion.
+    - Use [[progressive-constraint-narrowing]]
+      [docs/system/progressive-constraint-narrowing.md](docs/system/progressive-constraint-narrowing.md)
+      to keep active plans and delegated briefs limited to the minimum hard constraints they actually
+      need.
+    - Use [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md) when the
+      change introduces a key architectural, workflow-authority, trust-boundary, or long-lived
+      contract decision.
 
 ## First-slice validation gates
 

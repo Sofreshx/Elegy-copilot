@@ -1502,6 +1502,10 @@ export interface CatalogExternalSourceInstallable {
   deprecated?: boolean;
   setupHints?: string[];
   targetSupport?: string[];
+   installCommand?: string;
+   verifyCommand?: string;
+   bootstrapCommand?: string;
+   runtimeChecks?: string[];
   metadata?: Record<string, unknown> | null;
   [key: string]: unknown;
 }
@@ -1526,10 +1530,52 @@ export interface CatalogExternalSourceProjection {
     lastSyncedAt?: string | null;
     lastError?: string | null;
     resolvedRef?: string | null;
+    lastVerifiedAt?: string | null;
+    verificationStatus?: string | null;
+    verificationWarnings?: string[];
+    verificationErrors?: string[];
     [key: string]: unknown;
   } | null;
   installables?: CatalogExternalSourceInstallable[];
   activation?: Record<string, CatalogExternalSourceActivationState>;
+  [key: string]: unknown;
+}
+
+export interface CatalogExternalSourceCheck {
+  type?: string;
+  name?: string;
+  status?: string;
+  detail?: string | null;
+  target?: string | null;
+  command?: string | null;
+  installedPath?: string | null;
+  repoPath?: string | null;
+  url?: string | null;
+  exitCode?: number | null;
+  [key: string]: unknown;
+}
+
+export interface CatalogExternalSourceTargetResult {
+  sourceId?: string;
+  installableId?: string;
+  target?: string;
+  overallStatus?: string;
+  sourceStatus?: string;
+  checks?: CatalogExternalSourceCheck[];
+  warnings?: string[];
+  errors?: string[];
+  [key: string]: unknown;
+}
+
+export interface CatalogExternalSourceInstallableResult {
+  installableId?: string;
+  kind?: string;
+  overallStatus?: string;
+  sourceStatus?: string;
+  targets?: CatalogExternalSourceTargetResult[];
+  checks?: CatalogExternalSourceCheck[];
+  warnings?: string[];
+  errors?: string[];
   [key: string]: unknown;
 }
 
@@ -2118,6 +2164,13 @@ export interface CatalogSourceMutationResponse {
   deterministic?: boolean;
   source?: CatalogExternalSourceProjection | Record<string, unknown>;
   snapshot?: Record<string, unknown>;
+   overallStatus?: string;
+   sourceStatus?: string;
+   installables?: CatalogExternalSourceInstallableResult[];
+   targets?: CatalogExternalSourceTargetResult[];
+   checks?: CatalogExternalSourceCheck[];
+   warnings?: string[];
+   errors?: string[];
   userSourcesPath?: string;
   sourceId?: string;
   removed?: boolean;
@@ -2133,6 +2186,12 @@ export interface CatalogSourceInstallableMutationResponse {
   materialized?: Record<string, unknown>;
   removed?: Record<string, unknown>;
   state?: Record<string, unknown>;
+   overallStatus?: string;
+   sourceStatus?: string;
+   checks?: CatalogExternalSourceCheck[];
+   warnings?: string[];
+   errors?: string[];
+   bootstrap?: Record<string, unknown>;
   [key: string]: unknown;
 }
 

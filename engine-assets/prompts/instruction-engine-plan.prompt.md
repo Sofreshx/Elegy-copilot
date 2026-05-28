@@ -12,6 +12,8 @@ Requirements:
 - Include: goals, assumptions, explicit scope boundaries, phased steps, risks, validation, and rollback.
 - Add an explicit **High-Level Goals** bullet list for intended outcomes before decomposition.
 - Use canonical goal completion wording only: `complete`, `partial`, `not-complete` (default new planning goals to `not-complete`).
+- Narrow candidate constraints to the minimum hard constraints needed for the active plan and keep open questions separate.
+- If the plan introduces a key architectural, workflow-authority, trust-boundary, or long-lived contract decision, call out ADR follow-up explicitly.
 - Keep the plan actionable (file-level where possible).
 - Do not write code yet.
 

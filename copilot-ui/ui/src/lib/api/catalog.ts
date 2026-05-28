@@ -51,6 +51,8 @@ import type {
   CatalogSourceAddPayload,
   CatalogSourceIdPayload,
   CatalogSourceInstallableMutationPayload,
+   CatalogSourceSyncInstallVerifyPayload,
+   CatalogSpecKitBootstrapPayload,
   CatalogSelectorQuery,
 } from './core';
 
@@ -148,6 +150,34 @@ export function deactivateCatalogSourceInstallable(
   baseUrl?: string
 ): Promise<CatalogSourceInstallableMutationResponse> {
   return apiRequest<CatalogSourceInstallableMutationResponse>('/api/catalog/sources/deactivate', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function syncInstallVerifyCatalogSource(
+  payload: CatalogSourceSyncInstallVerifyPayload,
+  baseUrl?: string
+): Promise<CatalogSourceMutationResponse> {
+  return apiRequest<CatalogSourceMutationResponse>('/api/catalog/sources/sync-install-verify', {
+    baseUrl,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function bootstrapCatalogSpecKit(
+  payload: CatalogSpecKitBootstrapPayload,
+  baseUrl?: string
+): Promise<CatalogSourceInstallableMutationResponse> {
+  return apiRequest<CatalogSourceInstallableMutationResponse>('/api/catalog/tools/spec-kit/bootstrap', {
     baseUrl,
     method: 'POST',
     headers: {

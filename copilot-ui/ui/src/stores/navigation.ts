@@ -1,6 +1,7 @@
 import { createStore } from '../lib/store';
 
 export const CATALOG_SECTION_IDS = [
+  'status',
   'global',
   'repository',
 ] as const;

@@ -65,6 +65,7 @@ Required headings:
 - Use `Implementation Links` for code, docs, plans, PRs, or tickets that materially connect to the spec.
 - When `status: implemented`, `Validation Evidence` must contain real evidence, not a placeholder.
 - Use `Drift Notes` to record deviations, follow-up reconciliation, or `none`.
+- Do not treat a spec as the permanent home for a key architectural or workflow-authority tradeoff when that decision should be promoted into an ADR.
 
 ## Minimal Workflow
 

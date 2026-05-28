@@ -22,7 +22,8 @@ acceptance checks, source-of-truth confusion, and scope drift before the impleme
 5. Look for missing `Non-Goals` where scope creep is likely.
 6. Check whether `Acceptance Checks` are observable and specific enough to plan against.
 7. Check whether `Implementation Links`, `Validation Evidence`, and `Drift Notes` match the current status.
-8. Confirm the spec complements normal planning rather than replacing plan-pack, roadmap, or implementation review flows.
+8. Check whether the spec hides a key architectural or workflow-authority decision that should be promoted to an ADR.
+9. Confirm the spec complements normal planning rather than replacing plan-pack, roadmap, or implementation review flows.
 
 ## Verdict Rules
 
@@ -41,6 +42,8 @@ SPEC_REVIEW
   - <gap or none>
 - required_revisions:
   - <required revision or none>
+- adr_follow_up:
+  - <required adr work or none>
 ```
 
 Lead with defects. Keep the block strict and concise.

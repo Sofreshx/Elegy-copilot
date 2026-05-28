@@ -28,13 +28,16 @@ Use this skill after a normal plan exists and before code changes begin when a d
    - nearest existing patterns for each planned layer.
 3. Convert the plan into an ordered implementation sequence. Each step should name concrete files or code areas when known.
 4. Separate proven repo facts from assumptions. If a file or API is likely but unverified, label it `unconfirmed` instead of presenting it as fact.
-5. Add edge cases, validation commands, and stop conditions that help a less capable executor avoid confident wrong changes.
-6. Keep the brief concise enough to paste into a new coding session.
+5. Separate hard constraints from shaping context and open questions instead of flattening them into one undifferentiated brief.
+6. Call out any key architectural or workflow-authority decision that should be captured in an ADR so the implementer does not treat the handoff as the long-term source of truth.
+7. Add edge cases, validation commands, and stop conditions that help a less capable executor avoid confident wrong changes.
+8. Keep the brief concise enough to paste into a new coding session.
 
 ## Handoff Rules
 
 - Prefer repo-local names, paths, commands, tests, and examples over generic advice.
 - Every major implementation step should cite evidence, usually a file path, test name, command, or documented contract.
+- Keep the active brief narrowed: preserve only the hard constraints and the minimum shaping context needed for correct execution.
 - Preserve non-goals close to the steps where scope creep is likely.
 - Include enough sequencing to avoid circular or premature edits: contracts/types first, storage or state next, runtime wiring next, user/API surfaces next, tests and validation last.
 - Include acceptance checks that are observable by tests, builds, smoke commands, or inspection.
@@ -83,6 +86,15 @@ Edge Cases:
 Tests And Validation:
 - <specific tests to add or update>
 - <commands to run, from repo docs or nearest package config>
+
+Hard Constraints:
+- <must-not-violate rule or none>
+
+Shaping Context:
+- <useful but non-hard context or none>
+
+ADR Follow-Up:
+- <required adr or none>
 
 Stop Conditions:
 - <when the executor should pause instead of guessing>

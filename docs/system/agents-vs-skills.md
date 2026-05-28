@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-02-23
+updated: 2026-05-26
 category: system
 status: current
 doc_kind: node
@@ -29,7 +29,7 @@ If you want something reusable across **Copilot CLI** and **VS Code**, prefer a 
 
 Practical rule:
 - Put skills in `.github/skills/<skill>/...` (single source of truth)
-- Install once per machine into `~/.copilot/skills/<skill>/...`
+- Install once per machine into `~/.copilot/skills/<skill>/...` for always-installed skills, including the shared planning/spec/review lane, or `~/.copilot/skills-vault/<skill>/...` for on-demand-only skills
 - Point VS Code at `~/.copilot/skills` via `chat.agentSkillsLocations` (installer does this)
 
 Agents are still useful, but they’re more likely to diverge (tools, UX, capabilities). Keep agents tool-neutral when possible, and only fork into tool-specific variants when you have a real need.

@@ -8,9 +8,9 @@ metadata: {"aliasKeys":["search-execute"],"stacks":["orchestration"],"tags":["ca
 
 ## Purpose
 
-Most domain-specific skills live in the **skill vault** (`~/.copilot/skills-vault/`) and stay unloaded by default. This keeps startup context and token usage low while still making domain guidance available on demand.
+Most domain-specific skills still live in the **skill vault** (`~/.copilot/skills-vault/`) and stay unloaded by default. The planning/spec/review shared lane is the main exception: it is installed on `~/.copilot/skills/` across shipped harnesses so those workflows are always available without extra materialization steps.
 
-In the first-class Instruction Engine workflow, `@search` handles capability discovery and `@execute` handles capability application. This skill is the always-loaded routing contract they rely on for vault-first skill selection.
+In the first-class Instruction Engine workflow, `@search` handles capability discovery and `@execute` handles capability application. This skill is the always-installed routing contract they rely on for selecting the smallest correct skill.
 
 ## Deterministic resolver chain
 

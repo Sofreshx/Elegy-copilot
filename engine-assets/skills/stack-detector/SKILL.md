@@ -158,14 +158,14 @@ Agent: "I need to understand this codebase"
 
 After detection, verify skills exist:
 ```bash
-# List always-loaded skills
+# List always-installed skills
 ls ~/.copilot/skills/
 
-# List on-demand skills
+# List vault-only or mirrored skills
 ls ~/.copilot/skills-vault/
 
-# Confirm detected on-demand skill exists
-test -f "$HOME/.copilot/skills-vault/<resolved-skill>/SKILL.md" && echo "exists"
+# Confirm detected skill exists on either installed path
+test -f "$HOME/.copilot/skills/<resolved-skill>/SKILL.md" || test -f "$HOME/.copilot/skills-vault/<resolved-skill>/SKILL.md" && echo "exists"
 ```
 
 ## Consumer Guardrails

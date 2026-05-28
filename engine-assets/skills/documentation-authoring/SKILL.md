@@ -22,6 +22,8 @@ When working inside Instruction Engine, ground this skill in:
 - `docs/system/documentation-authoring-governance.md`
 - `docs/system/documentation-structure-governance.md`
 - `docs/system/doc-graph-spec.md`
+- `docs/system/progressive-constraint-narrowing.md`
+- `docs/system/adr-governance.md`
 
 In other repositories, use the nearest repo-local docs contract first, then apply this reusable
 baseline only where it does not conflict.
@@ -30,14 +32,20 @@ baseline only where it does not conflict.
 
 1. Identify the docs source of truth and the intended audience.
 2. Read the smallest relevant canonical entrypoint before editing.
-3. Choose the page role: overview, concept, architecture, guide, reference, troubleshooting,
+3. Narrow candidate constraints to the minimum hard constraints needed for the active step; keep
+   shaping context and open questions separate.
+4. Choose the page role: overview, concept, architecture, guide, reference, troubleshooting,
    changelog/release note, or agent-ingestion surface.
-4. Write from stable concepts, contracts, invariants, and decisions before implementation detail.
-5. Use progressive disclosure: compact summary first, details and edge cases later.
-6. Add diagrams for topology, lifecycle, state, sequence, authority, data/evidence flow, or
+5. Write from stable concepts, contracts, invariants, and decisions before implementation detail.
+6. Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived
+   contract decisions. If one is discovered, call out ADR follow-up instead of hiding it in
+   page-only prose.
+7. Use progressive disclosure: compact summary first, details and edge cases later.
+8. Add diagrams for topology, lifecycle, state, sequence, authority, data/evidence flow, or
    release/version relationships when they clarify the page.
-7. Check whether changelog, known-issues, migration, versioning, or `llms.txt` outputs need updates.
-8. Run the narrowest docs validation available and report any remaining gap.
+9. Check whether changelog, known-issues, migration, versioning, or `llms.txt` outputs need
+   updates.
+10. Run the narrowest docs validation available and report any remaining gap.
 
 ## Page Pattern
 
@@ -100,4 +108,3 @@ DOCUMENTATION_AUTHORING
 - diagrams_or_agent_outputs:
 - validation:
 ```
-

@@ -73,9 +73,13 @@ Do not elevate a pattern when it is only:
 - Default to **audit/propose-first**. Stop at audit/proposal unless direct edits are explicitly
   requested or an approved execution workflow authorizes them.
 - Collect the **smallest relevant** canonical source set before forming conclusions.
+- Narrow candidate constraints to the minimum hard constraints needed for the active step; keep
+  shaping context and open questions separate.
 - Always separate **confirmed canonical** conventions from **inferred** conventions.
 - Prefer **minimal updates** that clarify or promote existing behavior over broad rewrites.
 - Surface drift, ambiguity, and missing entrypoints before suggesting new policy.
+- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived
+  contract decisions. Do not create ADRs for ordinary local convention clarifications.
 - When sources conflict, cite the higher-precedence source and treat lower-precedence material as
   drift until resolved.
 - If intended work materially contradicts current documentation on convention authority, workflow policy, or documentation-backed behavior, surface the contradiction and ask the user for direction before write-capable work continues.
@@ -89,8 +93,10 @@ Do not elevate a pattern when it is only:
 4. Record drift, conflicts, and missing canonical entrypoints.
 5. Surface any material contradiction before approved update work proceeds.
 6. Propose the minimal updates needed to clarify, promote, or de-duplicate conventions.
-7. Route downstream review or follow-up work to the correct lane instead of absorbing it here.
-8. Edit convention artifacts only when explicit approval is present.
+7. Call out ADR follow-up when a proposed convention update creates one of those key durable
+   decisions.
+8. Route downstream review or follow-up work to the correct lane instead of absorbing it here.
+9. Edit convention artifacts only when explicit approval is present.
 
 ## Minimal-Update Heuristics
 
@@ -141,5 +147,7 @@ Route downstream work as follows:
 ## Canonical References
 
 - `docs/system/project-conventions-governance.md`
+- `docs/system/progressive-constraint-narrowing.md`
+- `docs/system/adr-governance.md`
 - `docs/system/search-execute-workflow.md`
 - `docs/system/skills-governance.md`

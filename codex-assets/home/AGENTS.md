@@ -2,6 +2,8 @@
 
 Use plan-first for non-trivial work. Stay in planning until the task is decision-complete and the constraints are clear enough to implement safely.
 
+Narrow candidate constraints to the minimum hard constraints needed for the active step. Keep shaping context and open questions separate.
+
 ## Workflow
 
 1. Ask clarifying questions when missing details would change the implementation.
@@ -48,6 +50,7 @@ Use plan-first for non-trivial work. Stay in planning until the task is decision
 - Use `$roadmap-planning` for persisted multi-session goals under `docs/roadmaps/<roadmap-slug>.md`; update the roadmap lightly after completing a slice.
 - Use `$spec-dev` when the task needs spec-first clarification, a durable repo spec under `specs/<spec-slug>/spec.md`, or a narrow spec-as-source flow.
 - Use `$spec-authoring` to create or refine durable specs under `specs/`, then `$spec-review` before implementation planning when the spec will drive the work.
+- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
 - Use `$stack-detector` for explicit stack/target-context detection, and `$skill-discovery` when the right shared skill is still ambiguous after the first pass.
 - Treat a Roadmap as durable multi-session planning above a session plan: it records goals, non-goals, targets, sequencing, progress, evidence, and reevaluation notes, while the current session implements one selected slice.
 

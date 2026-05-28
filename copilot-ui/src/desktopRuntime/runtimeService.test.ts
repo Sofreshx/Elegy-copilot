@@ -176,7 +176,7 @@ test('desktop runtime service starts the extracted runtime orchestration and shu
   assert.equal(serverOptions?.desktopUiToken, 'desktop-token');
   assert.equal(serverOptions?.engineRoot, runtimeRoot);
   assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH, undefined);
-  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, undefined);
+  assert.equal(serverOptions?.env?.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(copilotHome, 'elegy-planning.db'));
   assert.equal(service.isRunning(), true);
   assert.equal(service.getWindowUrl(), result.windowUrl);
 

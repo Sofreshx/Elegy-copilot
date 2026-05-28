@@ -1,6 +1,6 @@
 ---
 created: 2026-05-11
-updated: 2026-05-21
+updated: 2026-05-28
 category: system
 status: current
 doc_kind: node
@@ -27,13 +27,16 @@ bash scripts/opencode-install.sh
 - Add `--dry-run` to preview writes.
 - The installer writes `~/.config/opencode/AGENTS.md` and curated skills under `~/.config/opencode/skills/`.
 - The installer does not edit `opencode.json`.
-- The installer can also bootstrap a selected repo for opt-in spec-driven setup with `--repo-root <path> --setup-profile spec-driven`.
+- The installer can also bootstrap a selected repo for opt-in spec-driven setup with `--repo-root <path> --setup-profile spec-driven --elegy-cli <path>`.
+- `INSTRUCTION_ENGINE_ELEGY_CLI_PATH` is still accepted as a fallback when rerunning the same local setup.
 
 ## Operating Model
 
 - Built-in agents stay primary: `Build`, `Plan`, `Explore`, `Scout`, `General`.
 - Primary skills: `skill-discovery`, `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, `stack-detector`.
+- Planning, review, and spec skills are installed by default under `~/.config/opencode/skills/`; load them with the skill tool only when they materially improve the current step.
 - Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
+- Shared installed planning and review behavior now narrows constraints to the minimum active set and treats ADRs as key-decision records rather than default documentation for every non-trivial change.
 - Compatibility-only surfaces: `code-review`, `refactor`.
 - Prefer model overrides in `opencode.json` over adding more custom agents.
 - Keep repo-specific guidance in repo `AGENTS.md`.

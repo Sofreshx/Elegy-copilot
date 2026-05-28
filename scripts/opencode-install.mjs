@@ -240,6 +240,7 @@ export function parseArgs(argv) {
     force: false,
     opencodeHome: '',
     repoRoot: '',
+    elegyCliPath: '',
     setupProfile: '',
     skillsHome: '',
   };
@@ -282,12 +283,24 @@ export function parseArgs(argv) {
       args.repoRoot = value.slice('--repo-root='.length);
       continue;
     }
+    if (value.startsWith('--elegy-cli=')) {
+      args.elegyCliPath = value.slice('--elegy-cli='.length);
+      continue;
+    }
     if (value === '--repo-root') {
       i += 1;
       if (i >= argv.length) {
         throw new Error('Missing value for --repo-root');
       }
       args.repoRoot = argv[i] || '';
+      continue;
+    }
+    if (value === '--elegy-cli') {
+      i += 1;
+      if (i >= argv.length) {
+        throw new Error('Missing value for --elegy-cli');
+      }
+      args.elegyCliPath = argv[i] || '';
       continue;
     }
     if (value.startsWith('--setup-profile=')) {
@@ -302,7 +315,7 @@ export function parseArgs(argv) {
       args.setupProfile = argv[i] || '';
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --opencode-home <path>, --skills-home <path>, --repo-root <path>, --setup-profile <key>)`);
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --opencode-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --setup-profile <key>)`);
   }
 
   if (args.repoRoot && !args.setupProfile) {
@@ -387,6 +400,7 @@ export function runInstall(args = {}) {
       surface: 'opencode',
       repoRoot: repoSetupRoot,
       profileKey: args.setupProfile,
+      elegyCliPath: args.elegyCliPath,
       dryRun: args.dryRun,
       force: args.force,
     })

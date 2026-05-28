@@ -1,6 +1,7 @@
 import {
   activateCatalogSourceInstallable,
   addCatalogSource,
+  bootstrapCatalogSpecKit,
   updateCatalogActivation,
   createCatalogAsset,
   deactivateCatalogSourceInstallable,
@@ -28,6 +29,7 @@ import {
   saveCatalogRepoScanRoots,
   searchCatalogAssets,
   selectCatalogRepo,
+  syncInstallVerifyCatalogSource,
   installSurfaces,
   unregisterCatalogRepo,
   updateCatalogAsset,
@@ -375,6 +377,9 @@ function getExternalSourceTargetLabel(target: string): string {
   const normalized = target.trim().toLowerCase();
   if (normalized === 'gemini-cli' || normalized === 'antigravity-cli') {
     return 'Antigravity CLI';
+  }
+  if (normalized === 'host') {
+    return 'Host CLI';
   }
   return target;
 }
@@ -1338,6 +1343,63 @@ function createCatalogWorkspaceStore() {
     );
   }
 
+  async function syncInstallVerifyExternalSource(payload: {
+    sourceId: string;
+    targets?: string[];
+    installableIds?: string[];
+    force?: boolean;
+    repoPath?: string;
+  }): Promise<void> {
+    const normalizedSourceId = payload.sourceId.trim();
+    if (!normalizedSourceId) {
+      return;
+    }
+    await runExternalSourceMutation(
+      `Syncing, installing, and verifying ${normalizedSourceId}...`,
+      () => syncInstallVerifyCatalogSource({
+        sourceId: normalizedSourceId,
+        targets: payload.targets,
+        installableIds: payload.installableIds,
+        force: payload.force,
+        repoPath: payload.repoPath,
+      }),
+      (response) => {
+        const warnings = Array.isArray((response as { warnings?: string[] }).warnings)
+          ? (response as { warnings?: string[] }).warnings?.length || 0
+          : 0;
+        return `Synced, installed, and verified ${normalizedSourceId}${warnings ? ` with ${warnings} warning(s)` : ''}.`;
+      }
+    );
+  }
+
+  async function bootstrapSpecKitRepo(payload?: {
+    repoPath?: string;
+    integration?: 'copilot' | 'codex' | 'gemini' | string;
+    script?: 'ps' | 'sh' | string;
+    force?: boolean;
+    ignoreAgentTools?: boolean;
+  }): Promise<void> {
+    const state = store.getState();
+    const repoPath = normalizeRepoPath(payload?.repoPath)
+      || normalizeRepoPath(state.repoInventory?.selectedRepo?.repoPath)
+      || normalizeRepoPath(state.activeRepoPath);
+    if (!repoPath) {
+      throw new Error('Select a repo before bootstrapping Spec Kit.');
+    }
+
+    await runExternalSourceMutation(
+      `Bootstrapping Spec Kit in ${repoPath}...`,
+      () => bootstrapCatalogSpecKit({
+        repoPath,
+        integration: payload?.integration || 'copilot',
+        script: payload?.script,
+        force: payload?.force,
+        ignoreAgentTools: payload?.ignoreAgentTools,
+      }),
+      (response) => `Bootstrapped Spec Kit in ${String((response as { repoPath?: string }).repoPath || repoPath)}.`
+    );
+  }
+
   async function enableAsset(
     payload: Parameters<typeof enableCatalogAsset>[0]
   ): Promise<CatalogAssetMutationResponse> {
@@ -1832,6 +1894,8 @@ function createCatalogWorkspaceStore() {
     deactivateExternalSourceInstallable,
     reinstallExternalSourceTarget,
     reinstallExternalSourceAllTargets,
+    syncInstallVerifyExternalSource,
+    bootstrapSpecKitRepo,
     enableAsset,
     disableAsset,
     activateBundle,

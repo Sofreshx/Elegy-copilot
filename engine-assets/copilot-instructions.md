@@ -81,22 +81,25 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   - keep summaries under ~300 words per workstream unless I ask for depth.
 
 ## Using Instruction Engine assets
-- A few transversal skills are always loaded (`~/.copilot/skills/`): `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`, `project-guidelines`.
-- **Most domain-specific skills live in the vault** (`~/.copilot/skills-vault/`) and are NOT loaded by default to save tokens.
+- A few transversal skills are always installed on the primary path (`~/.copilot/skills/`): `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`, `project-guidelines`.
+- The shared planning/spec/review lane is also installed on that primary path: `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`.
+- Most other domain-specific skills remain vault-first in `~/.copilot/skills-vault/` to keep the installed scan path lean.
 - The canonical workflow is **search then execute**:
   1. Use `@search` to resolve the smallest relevant capability across docs, agents, and skills.
   2. Use `@execute` to turn the resolved capability into a minimal execution brief.
   3. Only then load or delegate to the downstream specialist agent.
-- When domain-specific behavior matters, **discover and load the right skill on demand**:
+- Narrow candidate constraints to the minimum hard constraints needed for the active step; keep shaping context and open questions separate instead of copying full policy blocks downstream.
+- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions; do not create ADRs for routine local implementation choices.
+- When domain-specific behavior matters, **discover and load the right skill when the current step needs it**:
   1. Match the task domain to a skill name (use the `skill-discovery` skill's keyword map or run `stack-detector` for project-wide detection).
-  2. Load the full skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
+  2. Load the full skill from its installed path: `~/.copilot/skills/{skill-name}/SKILL.md` for always-installed skills, or `~/.copilot/skills-vault/{skill-name}/SKILL.md` for vault-only skills.
   3. Follow the skill's instructions for the current task.
 - For GitHub Actions, workflow runs/logs, PR state, issues, commits, branches, or release-download troubleshooting in
   **Copilot CLI**, load `github-troubleshooting` and prefer the built-in read-only `github-mcp-server` tools. The UI
   workspace MCP patch flow is for VS Code/workspace sessions, not a prerequisite for the CLI lane.
-- If a skill is not found in the vault, it is not installed — proceed with general knowledge.
+- If a skill is not found in either installed location, it is not installed — proceed with general knowledge.
 - For spec-driven work, load `spec-dev` first to choose `spec-first`, `spec-anchored`, or `spec-as-source`.
-- Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`; use `spec-authoring` and `spec-review` on demand.
+- Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`; `spec-authoring` and `spec-review` are installed by default but should still be loaded only when the step needs spec guidance.
 - See `docs/system/search-execute-workflow.md` for the canonical staged-routing model.
 - Prefer canonical documentation in `docs/system/**`; use this file for routing/setup cues, not as a second copy of repo policy.
 - Treat `.instructions/*` paths as legacy and use them only when a repository explicitly opts in.

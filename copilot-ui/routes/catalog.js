@@ -44,6 +44,7 @@ const HARNESS_INSTALLABLE_KINDS = Object.freeze({
   opencode: new Set(['agent', 'skill', 'mcp']),
   antigravity: new Set(['skill']),
   'gemini-cli': new Set(['mcp']),
+  host: new Set(['cli-tool']),
 });
 const GLOBAL_CATALOG_KEY_FEATURES = Object.freeze({
   'skill::skill-discovery': {
@@ -684,6 +685,9 @@ function normalizeCatalogItemKind(value) {
   if (normalized === 'mcp-server') {
     return 'mcp';
   }
+  if (normalized === 'cli-tool') {
+    return 'cli-tool';
+  }
   return normalized;
 }
 
@@ -695,6 +699,8 @@ function humanizeItemKind(kind) {
       return 'Agent';
     case 'mcp':
       return 'MCP';
+    case 'cli-tool':
+      return 'CLI Tool';
     default:
       return normalizeDisplayText(kind, 'Item');
   }
@@ -760,8 +766,17 @@ function resolveHarnessSyncStatus(state) {
   if (state.expected) {
     return state.installed ? 'synced' : 'missing';
   }
+  if (state.metadata?.actionKind === 'external-source') {
+    if (state.active) {
+      return 'active';
+    }
+    if (state.installed) {
+      return 'installed';
+    }
+    return 'available';
+  }
   if (state.installed) {
-    return state.metadata?.actionKind === 'external-source' ? 'active' : 'installed';
+    return 'installed';
   }
   return 'available';
 }
@@ -832,6 +847,9 @@ function buildHarnessState({
   harnessId,
   kind,
   installedPaths = [],
+  installed,
+  active,
+  installPath,
   expected = false,
   canInstall = false,
   canActivate = false,
@@ -840,16 +858,20 @@ function buildHarnessState({
   detail = null,
   metadata = null,
 }) {
-  const installPath = detectHarnessInstallPath(ctx, harnessId, kind, installedPaths);
+  const resolvedInstallPath = typeof installPath === 'string' || installPath === null
+    ? normalizeString(installPath) || null
+    : detectHarnessInstallPath(ctx, harnessId, kind, installedPaths);
   const supported = HARNESS_INSTALLABLE_KINDS[harnessId]?.has(normalizeCatalogItemKind(kind)) === true;
+  const resolvedInstalled = typeof installed === 'boolean' ? installed : Boolean(resolvedInstallPath);
+  const resolvedActive = typeof active === 'boolean' ? active : resolvedInstalled;
   return {
     harnessId,
     title: humanizeHarnessId(harnessId),
     supported,
     expected: supported && expected === true,
-    installed: Boolean(installPath),
-    active: Boolean(installPath),
-    installPath,
+    installed: resolvedInstalled,
+    active: resolvedActive,
+    installPath: resolvedInstallPath,
     actions: {
       canInstall: supported && canInstall,
       canActivate: supported && canActivate,
@@ -1172,21 +1194,111 @@ function buildExternalSourceInventory(summary, ctx) {
     skill: [],
     agent: [],
     mcp: [],
+    'cli-tool': [],
   };
   const sources = Array.isArray(summary?.externalSources) ? summary.externalSources : [];
+
+  const buildSourceVerificationDetail = (source) => {
+    const sync = source?.sync && typeof source.sync === 'object' ? source.sync : {};
+    return {
+      sourceSyncStatus: normalizeString(sync.status) || null,
+      sourceResolvedRef: normalizeString(sync.resolvedRef) || null,
+      sourceLastError: normalizeString(sync.lastError) || null,
+      sourceLastVerifiedAt: normalizeString(sync.lastVerifiedAt) || null,
+      sourceVerificationStatus: normalizeString(sync.verificationStatus) || null,
+      sourceVerificationWarnings: normalizeStringList(sync.verificationWarnings),
+      sourceVerificationErrors: normalizeStringList(sync.verificationErrors),
+    };
+  };
+
+  const buildExternalInstallableDetail = (entry) => ({
+    enabled: entry?.enabled === true,
+    installed: entry?.installed === true,
+    managedName: normalizeString(entry?.managedName) || null,
+    installedPath: normalizeString(entry?.installedPath) || null,
+    overallStatus: normalizeString(entry?.overallStatus) || null,
+    sourceStatus: normalizeString(entry?.sourceStatus) || null,
+    lastVerifiedAt: normalizeString(entry?.lastVerifiedAt) || null,
+    warnings: normalizeStringList(entry?.warnings),
+    errors: normalizeStringList(entry?.errors),
+    checks: Array.isArray(entry?.checks) ? entry.checks.filter((check) => Boolean(check && typeof check === 'object')) : [],
+  });
+
+  const buildExternalHarnessStates = (source, installable, kind, targetSupport, activation) => {
+    if (kind === 'cli-tool') {
+      const targetState = activation.host && typeof activation.host === 'object' ? activation.host : {};
+      const targetInstallables = targetState.installables && typeof targetState.installables === 'object'
+        ? targetState.installables
+        : {};
+      const entry = targetInstallables[installable.installableId] && typeof targetInstallables[installable.installableId] === 'object'
+        ? targetInstallables[installable.installableId]
+        : {};
+      const detail = buildExternalInstallableDetail(entry);
+      return [buildHarnessState({
+        ctx,
+        harnessId: 'host',
+        kind,
+        installed: detail.installed,
+        active: detail.enabled,
+        installPath: detail.installed || detail.enabled ? detail.installedPath : null,
+        expected: false,
+        canActivate: true,
+        canDeactivate: true,
+        detail,
+        metadata: {
+          actionKind: 'external-source',
+          sourceId: normalizeString(source.sourceId) || null,
+          installableId: normalizeString(installable.installableId) || null,
+        },
+      })];
+    }
+
+    return listHarnessRows(ctx)
+      .filter((harness) => targetSupport.includes(harness.harnessId))
+      .map((harness) => {
+        const targetState = activation[harness.harnessId] && typeof activation[harness.harnessId] === 'object'
+          ? activation[harness.harnessId]
+          : {};
+        const targetInstallables = targetState.installables && typeof targetState.installables === 'object'
+          ? targetState.installables
+          : {};
+        const entry = targetInstallables[installable.installableId] && typeof targetInstallables[installable.installableId] === 'object'
+          ? targetInstallables[installable.installableId]
+          : {};
+        const detail = buildExternalInstallableDetail(entry);
+        return buildHarnessState({
+          ctx,
+          harnessId: harness.harnessId,
+          kind,
+          installed: detail.installed,
+          active: detail.enabled,
+          installPath: detail.installed || detail.enabled ? detail.installedPath : null,
+          expected: false,
+          canActivate: true,
+          canDeactivate: true,
+          detail,
+          metadata: {
+            actionKind: 'external-source',
+            sourceId: normalizeString(source.sourceId) || null,
+            installableId: normalizeString(installable.installableId) || null,
+          },
+        });
+      });
+  };
 
   for (const source of sources) {
     const installables = Array.isArray(source?.installables) ? source.installables : [];
     const activation = source?.activation && typeof source.activation === 'object' ? source.activation : {};
     for (const installable of installables) {
       const kind = normalizeCatalogItemKind(installable?.kind);
-      if (kind !== 'skill' && kind !== 'mcp') {
+      if (kind !== 'skill' && kind !== 'mcp' && kind !== 'cli-tool') {
         continue;
       }
       const targetSupport = normalizeStringList(installable?.targetSupport);
       const installableMetadata = installable?.metadata && typeof installable.metadata === 'object'
         ? installable.metadata
         : {};
+      const sourceVerificationDetail = buildSourceVerificationDetail(source);
       const externalReadPath = normalizeString(
         installableMetadata.relativeSkillFilePath
         || installableMetadata.readPath
@@ -1213,45 +1325,16 @@ function buildExternalSourceInventory(summary, ctx) {
           relativePath: normalizeString(installable.relativePath) || null,
           sourcePath: normalizeString(installable.sourcePath) || null,
           readPath: externalReadPath,
-          scopeKind: 'harness',
-          scopeKinds: ['harness'],
+          scopeKind: kind === 'cli-tool' ? 'global' : 'harness',
+          scopeKinds: [kind === 'cli-tool' ? 'global' : 'harness'],
+          ...sourceVerificationDetail,
         },
         actions: {
           kind: 'external-source',
           installAssetId: null,
           installSurfaceTargets: [],
         },
-        harnessStates: listHarnessRows(ctx)
-          .filter((harness) => targetSupport.includes(harness.harnessId))
-          .map((harness) => {
-            const targetState = activation[harness.harnessId] && typeof activation[harness.harnessId] === 'object'
-              ? activation[harness.harnessId]
-              : {};
-            const targetInstallables = targetState.installables && typeof targetState.installables === 'object'
-              ? targetState.installables
-              : {};
-            const entry = targetInstallables[installable.installableId] && typeof targetInstallables[installable.installableId] === 'object'
-              ? targetInstallables[installable.installableId]
-              : {};
-            return buildHarnessState({
-              ctx,
-              harnessId: harness.harnessId,
-              kind,
-              installedPaths: normalizeStringList([entry.installedPath]),
-              expected: false,
-              canActivate: true,
-              canDeactivate: true,
-              detail: {
-                managedName: normalizeString(entry.managedName) || null,
-                installedPath: normalizeString(entry.installedPath) || null,
-              },
-              metadata: {
-                actionKind: 'external-source',
-                sourceId: normalizeString(source.sourceId) || null,
-                installableId: normalizeString(installable.installableId) || null,
-              },
-            });
-          }),
+        harnessStates: buildExternalHarnessStates(source, installable, kind, targetSupport, activation),
       });
     }
   }
@@ -1432,7 +1515,7 @@ function buildGlobalCatalogInventory(summary, externalSourcesSummary, ctx) {
   const manifestInventory = buildManifestInventory(ctx);
   const externalInventory = buildExternalSourceInventory({ externalSources: externalSourcesSummary?.sources || [] }, ctx);
 
-  const sections = ['skill', 'agent', 'mcp'].map((kind) => {
+  const sections = ['skill', 'agent', 'mcp', 'cli-tool'].map((kind) => {
     const items = mergeInventoryItems([
       ...(projectionInventory[kind] || []),
       ...(manifestInventory[kind] || []),
@@ -2265,9 +2348,9 @@ function handleCatalogSourceRefresh(ctx, deps) {
 }
 
 function handleCatalogSourceActivate(ctx, deps) {
-  deps.readJsonBody(ctx.req)
-    .then((body) => {
-      const result = deps.externalSources.activateInstallable({
+  return deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const result = await deps.externalSources.activateInstallable({
         engineRoot: ctx.engineRoot,
         copilotHome: ctx.copilotHomeAbs,
         codexHome: ctx.codexHome,
@@ -2292,7 +2375,7 @@ function handleCatalogSourceActivate(ctx, deps) {
 }
 
 function handleCatalogSourceDeactivate(ctx, deps) {
-  deps.readJsonBody(ctx.req)
+  return deps.readJsonBody(ctx.req)
     .then((body) => {
       const result = deps.externalSources.deactivateInstallable({
         engineRoot: ctx.engineRoot,
@@ -2316,6 +2399,75 @@ function handleCatalogSourceDeactivate(ctx, deps) {
       });
     })
     .catch((error) => sendJsonError(ctx.res, deps.sendJson, error.statusCode || 500, 'catalog.sources.deactivate', String(error.message || error)));
+}
+
+function handleCatalogSourceSyncInstallVerify(ctx, deps) {
+  return deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const result = await deps.externalSources.syncInstallVerifySource({
+        engineRoot: ctx.engineRoot,
+        copilotHome: ctx.copilotHomeAbs,
+        codexHome: ctx.codexHome,
+        codexSkillsHome: ctx.codexSkillsHome,
+        opencodeHome: ctx.opencodeHome,
+        opencodeSkillsHome: ctx.opencodeSkillsHome,
+        geminiHome: ctx.geminiHome,
+        antigravityHome: ctx.antigravityHome,
+        antigravitySkillsHome: ctx.antigravitySkillsHome,
+        fetch: deps.fetch,
+        childProcess: deps.childProcess,
+      }, body);
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.sources.sync-install-verify',
+        deterministic: true,
+        source: result.source,
+        snapshot: result.snapshot,
+        overallStatus: result.overallStatus,
+        sourceStatus: result.sourceStatus,
+        installables: result.installables,
+        targets: result.targets,
+        checks: result.checks,
+        warnings: result.warnings,
+        errors: result.errors,
+      });
+    })
+    .catch((error) => sendJsonError(ctx.res, deps.sendJson, error.statusCode || 500, 'catalog.sources.sync-install-verify', String(error.message || error)));
+}
+
+function handleCatalogSpecKitBootstrap(ctx, deps) {
+  return deps.readJsonBody(ctx.req)
+    .then(async (body) => {
+      const result = await deps.externalSources.bootstrapSpecKitRepo({
+        engineRoot: ctx.engineRoot,
+        copilotHome: ctx.copilotHomeAbs,
+        codexHome: ctx.codexHome,
+        codexSkillsHome: ctx.codexSkillsHome,
+        opencodeHome: ctx.opencodeHome,
+        opencodeSkillsHome: ctx.opencodeSkillsHome,
+        geminiHome: ctx.geminiHome,
+        antigravityHome: ctx.antigravityHome,
+        antigravitySkillsHome: ctx.antigravitySkillsHome,
+        fetch: deps.fetch,
+        childProcess: deps.childProcess,
+      }, body);
+      deps.sendJson(ctx.res, 200, {
+        kind: 'catalog.tools.spec-kit.bootstrap',
+        deterministic: true,
+        source: result.source,
+        installable: result.installable,
+        repoPath: result.repoPath,
+        integration: result.integration,
+        script: result.script,
+        command: result.command,
+        overallStatus: result.overallStatus,
+        sourceStatus: result.sourceStatus,
+        checks: result.checks,
+        warnings: result.warnings,
+        errors: result.errors,
+        bootstrap: result.bootstrap,
+      });
+    })
+    .catch((error) => sendJsonError(ctx.res, deps.sendJson, error.statusCode || 500, 'catalog.tools.spec-kit.bootstrap', String(error.message || error)));
 }
 
 function handleCatalogAssetEnable(ctx, deps) {
@@ -3046,6 +3198,16 @@ function register(deps = {}) {
       method: 'POST',
       path: '/api/catalog/sources/deactivate',
       handler: (ctx) => handleCatalogSourceDeactivate(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/sources/sync-install-verify',
+      handler: (ctx) => handleCatalogSourceSyncInstallVerify(ctx, resolvedDeps),
+    },
+    {
+      method: 'POST',
+      path: '/api/catalog/tools/spec-kit/bootstrap',
+      handler: (ctx) => handleCatalogSpecKitBootstrap(ctx, resolvedDeps),
     },
     {
       method: 'POST',

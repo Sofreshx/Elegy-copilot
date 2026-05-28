@@ -498,6 +498,22 @@ export interface CatalogSourceInstallableMutationPayload {
   target: 'copilot' | 'codex' | 'opencode' | 'antigravity' | 'gemini-cli' | 'antigravity-cli' | string;
 }
 
+export interface CatalogSourceSyncInstallVerifyPayload {
+  sourceId: string;
+  targets?: string[];
+  installableIds?: string[];
+  force?: boolean;
+  repoPath?: string;
+}
+
+export interface CatalogSpecKitBootstrapPayload {
+  repoPath: string;
+  integration?: 'copilot' | 'codex' | 'gemini' | string;
+  script?: 'ps' | 'sh' | string;
+  force?: boolean;
+  ignoreAgentTools?: boolean;
+}
+
 export interface CatalogAssetUpdatePayload extends Omit<CatalogAssetCreatePayload, 'content'> {
   assetId?: string;
   expectedHash?: string;

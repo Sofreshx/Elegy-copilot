@@ -23,7 +23,8 @@ Review completed edits for correctness, scope, regressions, and validation suffi
 3. Check tests and validation evidence. Passing tests are evidence, not proof.
 4. Look for user changes in the worktree and confirm the implementation did not overwrite or revert them.
 5. Verify new instructions or skills are concise, scoped, and not duplicating what the runtime can already handle directly.
-6. Decide whether the work can be handed off or needs revision.
+6. Check ADR posture: missing ADR coverage for a key architectural or workflow-authority decision is a real finding, while ADRs for purely local choices are also drift.
+7. Decide whether the work can be handed off or needs revision.
 
 ## Output Contract
 

@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-05-21
+updated: 2026-05-26
 category: system
 status: current
 doc_kind: node
@@ -19,9 +19,17 @@ Keep skills high-signal and avoid overfitting generic behavior into heavy skills
 Use staged capability routing by default:
 - `@search` resolves the smallest relevant capability across docs, agents, and skills.
 - `@execute` converts that capability into a compact downstream brief.
-- The majority of skills stay vault-first and on-demand; only transversal meta-skills remain always loaded.
+- The majority of skills stay vault-first and on-demand.
+- Transversal meta-skills and the planning-critical shared lane are always installed on the primary harness skill path, but should still be loaded into active context only when the current step needs them.
 
 This keeps startup context lean and makes domain loading explicit.
+
+Installed harness surfaces and shared skills must therefore stay thin and consistent:
+
+- durable cross-harness behavior should live in canonical docs or shared installed skills, not in ad hoc harness-only prose
+- harness home instructions should point to the same rule families and avoid becoming parallel policy surfaces
+- shared skills should narrow active constraints to the minimum authoritative set needed for the step instead of copying whole upstream rule sets
+- if a shared skill keeps restating a standing architectural or workflow-authority rule, that rule likely belongs in a canonical node or ADR instead
 
 ## Codex operating model
 
@@ -43,15 +51,20 @@ OpenCode should stay native-first rather than mirroring the Copilot fleet:
 
 ## Spec-driven development skill posture
 
-- `spec-dev`, `spec-authoring`, and `spec-review` stay on-demand shared skills.
+- `spec-dev`, `spec-authoring`, and `spec-review` install as always-available shared skills across shipped harnesses, but should still be loaded only when the current step needs spec guidance.
 - Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
 - Repo-local spec scaffolding is opt-in per selected repo through the existing harness installers using the `spec-driven` repo-setup profile.
 - Use specs to clarify or anchor requirements before normal planning.
 - Keep plan packs, roadmap flows, implementation review, and validation as the execution and evidence lanes.
 
-## Current always-loaded meta-skills
+## Planning-critical shared install set
 
-These stay loaded by default because they govern cross-cutting workflow safety or repo bootstrap:
+- `rubberduck-plan-review`, `roadmap-planning`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, and `spec-review` install across Copilot, Codex, OpenCode, and Antigravity as always-available shared skills.
+- Copilot-side engine planning authoring skills `planning-feature`, `planpack-authoring`, and `roadmap-authoring` also stay always installed because the planning runtime and continuation flows depend on them.
+
+## Current always-installed meta-skills
+
+These stay installed by default because they govern cross-cutting workflow safety or repo bootstrap:
 
 - `core-guardrails`
 - `skill-discovery`

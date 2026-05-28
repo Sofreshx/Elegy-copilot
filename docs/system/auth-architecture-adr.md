@@ -1,13 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-02-25
+updated: 2026-05-25
 category: system
 status: current
 doc_kind: node
 id: auth-architecture-adr
 summary: Auth architecture ADR for the sandbox-orchestrator surfaces (ACP localhost, Discord gateway, copilot-ui↔local-tracker bridge). No broker dependencies.
 tags: [security, auth, adr, sandbox-orchestrator]
-related: [security-model, session-state-artifacts]
+related: [security-model, session-state-artifacts, adr-governance]
 ---
 
 # Auth Architecture ADR — Sandbox Orchestrator (WU-501)
@@ -23,6 +23,12 @@ This ADR documents **only the new auth surfaces introduced by the sandbox-orches
 Out of scope: remote notification pipelines (message brokers, remote approval relays, etc.).
 
 Out of scope: auth for the existing Instruction Engine cloud relay/mobile/extension ecosystem (see docs/system/security-model.md).
+
+## Context
+
+This ADR records the auth surfaces introduced by the sandbox-orchestrator work because they define
+trust boundaries, possession rules, and mutation authority that future implementation and review work
+must preserve.
 
 ## Decision
 

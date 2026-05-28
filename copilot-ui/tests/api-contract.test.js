@@ -240,6 +240,8 @@ const ROUTE_INVENTORY = [
   { method: 'POST', path: '/api/catalog/sources/refresh' },
   { method: 'POST', path: '/api/catalog/sources/activate' },
   { method: 'POST', path: '/api/catalog/sources/deactivate' },
+  { method: 'POST', path: '/api/catalog/sources/sync-install-verify' },
+  { method: 'POST', path: '/api/catalog/tools/spec-kit/bootstrap' },
   { method: 'POST', path: '/api/catalog/assets/create' },
   { method: 'POST', path: '/api/catalog/assets/update' },
   { method: 'POST', path: '/api/catalog/assets/delete' },
@@ -489,7 +491,7 @@ async function run() {
 
   // Summary: route count
   await test(`route inventory count is ${ROUTE_INVENTORY.length}`, async () => {
-    assert.strictEqual(ROUTE_INVENTORY.length, 158, `Expected 158 routes, got ${ROUTE_INVENTORY.length}`);
+    assert.strictEqual(ROUTE_INVENTORY.length, 160, `Expected 160 routes, got ${ROUTE_INVENTORY.length}`);
   });
 
   } finally {

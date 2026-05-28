@@ -61,6 +61,12 @@
   gap: 0.85rem;
 }
 
+.catalog-global-source-summary {
+  display: grid;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
 .catalog-global-tag-row {
   display: flex;
   flex-wrap: wrap;
@@ -127,6 +133,16 @@
   align-items: flex-start;
   padding-top: 0.75rem;
   border-top: 1px solid var(--color-ink-200);
+}
+
+.catalog-global-harness-detail {
+  margin-top: 0.35rem;
+}
+
+.catalog-global-harness-issues {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.4rem;
 }
 
 .catalog-global-item-actions {

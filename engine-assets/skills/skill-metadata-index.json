@@ -323,6 +323,26 @@
       }
     },
     {
+      "skill": "implementation-handoff",
+      "name": "implementation-handoff",
+      "description": "Convert a feature plan, roadmap slice, or architecture note into a repo-grounded implementation handoff brief for another coding model, especially a weaker, cheaper, or lower-context executor. Use during planning before implementation, delegation, or model handoff when the executor needs concrete file evidence, sequencing, tests, validation commands, edge cases, non-goals, and stop conditions.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-implementation-handoff",
+        "loadMode": "always"
+      }
+    },
+    {
+      "skill": "implementation-review",
+      "name": "implementation-review",
+      "description": "Implementation review for code, docs, skills, agents, and configuration changes. Use after edits when checking correctness, scope, regressions, and validation sufficiency before handoff.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-implementation-review",
+        "loadMode": "always"
+      }
+    },
+    {
       "skill": "instruction-quality",
       "name": "instruction-quality",
       "description": "Research-backed check rules for auditing agent instruction file quality. Triggers on: instruction quality, agent audit, audit instructions, instruction best practices, agent quality.",
@@ -476,7 +496,7 @@
       ],
       "manifest": {
         "id": "skill-planning-feature",
-        "loadMode": "on-demand"
+        "loadMode": "always"
       }
     },
     {
@@ -492,7 +512,7 @@
       ],
       "manifest": {
         "id": "skill-planpack-authoring",
-        "loadMode": "on-demand"
+        "loadMode": "always"
       }
     },
     {
@@ -592,7 +612,27 @@
       ],
       "manifest": {
         "id": "skill-roadmap-authoring",
-        "loadMode": "on-demand"
+        "loadMode": "always"
+      }
+    },
+    {
+      "skill": "roadmap-planning",
+      "name": "roadmap-planning",
+      "description": "Persisted repository roadmap workflow. A Roadmap is the durable multi-session planning artifact above active implementation. For the current Planning app/API compatibility surface in this repo, store repo-visible roadmaps in docs/roadmaps/<roadmap-slug>.md. Use when raw mixed instructions need ordering into a coherent roadmap, or when taking the next slice from a roadmap for concrete implementation.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-roadmap-planning",
+        "loadMode": "always"
+      }
+    },
+    {
+      "skill": "rubberduck-plan-review",
+      "name": "rubberduck-plan-review",
+      "description": "Adversarial Rubberduck plan review. Use before implementing complex plans, migrations, refactors, repo setup changes, or architectural decisions; also use when the user asks to rubberduck, critique, challenge, stress-test, or review a plan.",
+      "triggersOn": [],
+      "manifest": {
+        "id": "skill-rubberduck-plan-review",
+        "loadMode": "always"
       }
     },
     {
@@ -686,7 +726,7 @@
       ],
       "manifest": {
         "id": "skill-spec-authoring",
-        "loadMode": "on-demand"
+        "loadMode": "always"
       }
     },
     {
@@ -710,7 +750,7 @@
       ],
       "manifest": {
         "id": "skill-spec-dev",
-        "loadMode": "on-demand"
+        "loadMode": "always"
       }
     },
     {
@@ -732,7 +772,7 @@
       ],
       "manifest": {
         "id": "skill-spec-review",
-        "loadMode": "on-demand"
+        "loadMode": "always"
       }
     },
     {

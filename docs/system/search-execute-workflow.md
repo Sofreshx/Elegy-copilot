@@ -1,13 +1,13 @@
 ---
 created: 2026-03-07
-updated: 2026-06-23
+updated: 2026-05-26
 category: system
 status: current
 doc_kind: node
 id: search-execute-workflow
-summary: Canonical search/execute workflow for capability discovery and application across agents, docs, and vault-first skills.
+summary: Canonical search/execute workflow for capability discovery and application across agents, docs, and shared skills.
 tags: [agents, skills, search-execute, orchestration]
-related: [catalog-control-plane, skills-governance, orchestration-and-agents, system-upgrade-direction-2026, project-conventions-governance, documentation-structure-governance, reviewer-lane-governance, follow-up-discovery-governance]
+related: [catalog-control-plane, skills-governance, orchestration-and-agents, system-upgrade-direction-2026, project-conventions-governance, documentation-structure-governance, progressive-constraint-narrowing, adr-governance, reviewer-lane-governance, follow-up-discovery-governance]
 ---
 
 # Search/Execute Workflow
@@ -122,6 +122,16 @@ defined above.
 - prompt text, exploration summaries, and repeated implementation patterns may appear as supporting
   context, but they do not satisfy the observable-bootstrap requirement on their own
 
+### Progressive constraint narrowing
+
+- after canonical bootstrap, planning and execution lanes should narrow candidate constraints to the
+  minimum authoritative set needed for the active step rather than forwarding the full upstream rule
+  family
+- keep hard constraints visible, keep shaping context only when it materially affects the current
+  step, and keep unresolved branches out of `constraints`
+- if repeated constraint text is standing in for a durable architectural or workflow decision, route
+  that promotion through [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md) or the owning canonical node instead of repeating it in more prompts and skills
+
 ### Missing bootstrap detection
 
 Treat canonical bootstrap as missing when either of these is true:
@@ -161,6 +171,8 @@ Use existing lanes to catch skipped canonical guidance:
 
 - hard-stop conditions: missing canonical bootstrap when it was required, or material contradictions
   with canonical docs
+- blocking review concern when applicable: a key architectural or workflow-authority change that
+  needed ADR coverage but did not receive it
 - review findings, not contradiction-style blockers: missing rationale or smart-comment coverage where
   the canonical rule itself is already clear
 - optional polish and local cleanup remain non-blocking unless another canonical rule makes them
@@ -245,14 +257,15 @@ eligible capabilities remain plausible after the first-pass classification.
 
 - Canonical docs in `docs/system/**`
 - First-class agent assets in `engine-assets/agents/*.agent.md`
-- Always-loaded meta-skills in `~/.copilot/skills/`
-- On-demand domain skills in `~/.copilot/skills-vault/`
+- Always-installed skills in `~/.copilot/skills/` (meta-skills plus the planning-critical shared lane)
+- On-demand-only domain skills in `~/.copilot/skills-vault/`
 - Repo-local assets in `<repo>/.github/agents` and `<repo>/.github/skills/`
 
 ## Vault-First Skill Model
 
-The majority of skills should remain `on-demand` and live outside the always-loaded scan path.
-Only transversal meta-skills stay always loaded:
+The majority of skills should remain `on-demand` and live outside the primary installed scan path.
+Planning-critical shared skills are the main exception: they install on `~/.copilot/skills/` across shipped harnesses so planning, review, and spec workflows stay available without extra materialization steps.
+These meta-skills remain always installed for workflow safety or repo bootstrap:
 
 - `core-guardrails`
 - `skill-discovery`
@@ -260,7 +273,7 @@ Only transversal meta-skills stay always loaded:
 - `stack-detector`
 - `project-guidelines`
 
-This keeps startup context small and makes skill loading an explicit act.
+This keeps startup context small and makes skill loading an explicit act even when a skill is already installed.
 
 Catalog-backed discovery still exposes vault-first skills in search results and UI views even when
 they are not already loaded into context. Repo-local overrides participate in the same effective
@@ -385,7 +398,7 @@ resolution contracts:
 Instruction Engine owns:
 
 - Prompt and agent assets
-- Install layout and vault-first defaults
+- Install layout and load-mode defaults
 - UI/runtime surfacing
 - Metadata generation and integration glue
 

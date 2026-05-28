@@ -1,13 +1,13 @@
 ---
 created: 2026-04-27
-updated: 2026-04-27
+updated: 2026-05-25
 category: system
 status: current
 doc_kind: node
 id: calibrated-questioning-and-depth-governance
 summary: Canonical shared policy for evidence-bound questioning and depth calibration across planning and review.
 tags: [governance, questioning, depth, planning, review]
-related: [search-execute-workflow, orchestrator-user-guide, reviewer-lane-governance, follow-up-discovery-governance, planning-backlog-roadmap-contract, planpack-spec, skills-governance, model-capability-profile]
+related: [search-execute-workflow, orchestrator-user-guide, reviewer-lane-governance, follow-up-discovery-governance, planning-backlog-roadmap-contract, planpack-spec, progressive-constraint-narrowing, adr-governance, skills-governance, model-capability-profile]
 ---
 
 # Calibrated Questioning and Depth Governance
@@ -31,6 +31,10 @@ Default questioning is evidence-first, assumption-second, and user-question-last
 | Ask the user | The unresolved branch would materially change scope, architecture, validation, verdict, or the proceed-anyway posture | Stop at that branch and ask the user before continuing with the dependent step. |
 
 This ladder is the default for planning and review. Complexity alone is not a reason to ask more questions.
+
+When a question resolves to a standing durable architectural or workflow-authority rule, do not keep
+that rule trapped inside the current plan or prompt. Narrow the active constraint set for the current
+step and promote the durable decision through the owning canonical doc or [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md) when needed.
 
 ## Route-First Depth Calibration
 

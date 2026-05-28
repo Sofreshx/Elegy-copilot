@@ -40,6 +40,10 @@ vi.mock('../ui/src/tabs/Assets/AssetsView', () => ({
   default: () => <div data-testid="mock-assets-view">Repository view</div>,
 }));
 
+vi.mock('../ui/src/tabs/Catalog/CatalogStatusView', () => ({
+  default: () => <div data-testid="mock-catalog-status-view">Catalog status</div>,
+}));
+
 describe('CatalogView', () => {
   beforeEach(() => {
     navigationStore.reset();
@@ -191,6 +195,12 @@ describe('CatalogView', () => {
                   readPath: 'server.json',
                   detail: {
                     installableId: 'mcp:context7',
+                    sourceSyncStatus: 'ready',
+                    sourceResolvedRef: 'main',
+                    sourceLastVerifiedAt: '2026-05-25T00:00:00.000Z',
+                    sourceVerificationStatus: 'partial',
+                    sourceVerificationWarnings: ['OpenCode restart required'],
+                    sourceVerificationErrors: ['Codex config parse failed'],
                   },
                   actions: {
                     kind: 'external-source',
@@ -208,7 +218,47 @@ describe('CatalogView', () => {
                         canActivate: true,
                         canDeactivate: true,
                       },
+                      detail: {
+                        enabled: true,
+                        installed: true,
+                        managedName: 'external--demo-source--context7',
+                        installedPath: 'C:\\Users\\demo\\.codex\\config.toml',
+                        overallStatus: 'installed-active',
+                        sourceStatus: 'ready',
+                        lastVerifiedAt: '2026-05-25T00:00:00.000Z',
+                        warnings: ['Restart Codex to reconnect.'],
+                        errors: [],
+                      },
                       metadata: {
+                        actionKind: 'external-source',
+                        installableId: 'mcp:context7',
+                      },
+                    },
+                    {
+                      harnessId: 'opencode',
+                      title: 'OpenCode',
+                      supported: true,
+                      expected: false,
+                      installed: false,
+                      active: false,
+                      syncStatus: 'available',
+                      actions: {
+                        canActivate: true,
+                        canDeactivate: true,
+                      },
+                      detail: {
+                        enabled: false,
+                        installed: false,
+                        managedName: 'external--demo-source--context7',
+                        installedPath: 'C:\\Users\\demo\\.config\\opencode\\opencode.json',
+                        overallStatus: 'needs-attention',
+                        sourceStatus: 'ready',
+                        lastVerifiedAt: '2026-05-25T00:00:00.000Z',
+                        warnings: ['OpenCode restart required'],
+                        errors: ['OpenCode bridge is not connected'],
+                      },
+                      metadata: {
+                        actionKind: 'external-source',
                         installableId: 'mcp:context7',
                       },
                     },
@@ -222,11 +272,12 @@ describe('CatalogView', () => {
     });
   });
 
-  it('defaults to Global and renders the new catalog sections', async () => {
+  it('defaults to Global and still exposes the status section', async () => {
     const { default: CatalogView } = await import('../ui/src/tabs/Catalog/CatalogView');
 
     render(<CatalogView />);
 
+    expect(screen.getByTestId('catalog-section-status')).toHaveTextContent('Status');
     expect(screen.getByTestId('catalog-section-global')).toHaveTextContent('Global');
     expect(screen.getByTestId('catalog-section-repository')).toHaveTextContent('Per repository');
     expect(screen.getByTestId('catalog-global-view')).toBeInTheDocument();
@@ -236,6 +287,14 @@ describe('CatalogView', () => {
     });
     expect(screen.getByTestId('catalog-global-section-agent')).toBeInTheDocument();
     expect(screen.getByTestId('catalog-global-section-mcp')).toBeInTheDocument();
+
+    act(() => {
+      navigationStore.setCatalogSectionId('status');
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-catalog-status-view')).toBeInTheDocument();
+    });
   });
 
   it('switches to Repository and keeps deep links working', async () => {
@@ -310,5 +369,24 @@ describe('CatalogView', () => {
     await waitFor(() => {
       expect(mocks.installSurface).toHaveBeenCalledWith('all', false);
     });
+  });
+
+  it('renders external-source verification and per-target issues in Global view', async () => {
+    const { default: CatalogView } = await import('../ui/src/tabs/Catalog/CatalogView');
+
+    render(<CatalogView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('catalog-global-source-verification-demo-source:mcp:context7')).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId('catalog-global-source-verification-demo-source:mcp:context7')).toHaveTextContent('Sync ready');
+    expect(screen.getByTestId('catalog-global-source-verification-demo-source:mcp:context7')).toHaveTextContent('verification partial');
+    expect(screen.getByText('Codex config parse failed')).toBeInTheDocument();
+    expect(screen.getAllByText('OpenCode restart required')).toHaveLength(2);
+    expect(screen.getByTestId('catalog-global-harness-detail-demo-source:mcp:context7-codex')).toHaveTextContent('State installed-active');
+    expect(screen.getByTestId('catalog-global-harness-detail-demo-source:mcp:context7-opencode')).toHaveTextContent('State needs-attention');
+    expect(screen.getByText('Restart Codex to reconnect.')).toBeInTheDocument();
+    expect(screen.getByText('OpenCode bridge is not connected')).toBeInTheDocument();
   });
 });

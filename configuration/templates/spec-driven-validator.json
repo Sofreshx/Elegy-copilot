@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "elegy-configuration-template/v1",
+  "templateId": "instruction-engine-spec-driven-validator-template",
+  "displayName": "Instruction Engine Spec Validator",
+  "description": "Copy the repo-local spec validator into the target repository.",
+  "scope": "repo",
+  "operations": [
+    {
+      "operationType": "copyFile",
+      "operationId": "copy-spec-validator",
+      "family": "support-file",
+      "source": {
+        "base": "template-root",
+        "path": "../../scripts/validate-specs.js"
+      },
+      "destination": {
+        "base": "target-root",
+        "path": "scripts/validate-specs.js"
+      }
+    }
+  ]
+}

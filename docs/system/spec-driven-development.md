@@ -1,6 +1,6 @@
 ---
 created: 2026-05-21
-updated: 2026-05-21
+updated: 2026-05-28
 category: system
 status: current
 doc_kind: node
@@ -28,9 +28,11 @@ replace them, and it does not introduce a new orchestrator fleet.
 
 ## Repo Setup Integration
 
-- Shared spec skills install globally per harness and stay on-demand.
+- Shared spec skills install globally per harness as always-available skills; load them into active context only when the current step needs spec-driven guidance.
 - Repo-local spec bootstrap is opt-in per selected repo through the existing harness installers.
-- Use `--repo-root <path> --setup-profile spec-driven` with the Codex, OpenCode, or Antigravity installer when a repo should opt into durable spec scaffolding.
+- Repo-local spec bootstrap now shells through `elegy configuration apply`, so Phase 1 examples should pass `--elegy-cli <path>` explicitly.
+- `INSTRUCTION_ENGINE_ELEGY_CLI_PATH` is a convenience fallback for repeated local runs, but it is not the primary documented invocation.
+- Use `--repo-root <path> --setup-profile spec-driven --elegy-cli <path>` with the Codex, OpenCode, or Antigravity installer when a repo should opt into durable spec scaffolding.
 - The approved `spec-driven` bootstrap adds bounded repo-local instruction overlays, `specs/index.md`, the repo-local spec validator, and the selected harness's repo-skill mirrors.
 - This exists to make spec-driven work easy to opt into without introducing a separate runtime, planner fleet, or second spec contract.
 

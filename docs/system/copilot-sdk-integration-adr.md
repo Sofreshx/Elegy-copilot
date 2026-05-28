@@ -1,13 +1,13 @@
 ---
 created: 2026-03-01
-updated: 2026-04-07
+updated: 2026-05-25
 category: system
 status: current
 doc_kind: node
 id: copilot-sdk-integration-adr
 summary: ADR for initial copilot-ui integration of @github/copilot-sdk using an ESM bridge and additive session artifacts.
 tags: [adr, copilot-sdk, copilot-ui, architecture]
-related: [copilot-sdk-spike, copilot-sdk-auth-strategy, copilot-sdk-artifact-layout]
+related: [copilot-sdk-spike, copilot-sdk-auth-strategy, copilot-sdk-artifact-layout, adr-governance]
 ---
 
 # Copilot SDK Integration ADR

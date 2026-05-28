@@ -1,13 +1,13 @@
 ---
 created: 2026-03-13
-updated: 2026-06-24
+updated: 2026-05-25
 category: system
 status: current
 doc_kind: node
 id: project-conventions-governance
 summary: Canonical contract for how Instruction Engine defines, audits, and routes project-conventions governance work.
 tags: [governance, conventions, routing]
-related: [search-execute-workflow, documentation-structure-governance, self-documenting-code-and-rationale-placement, reviewer-lane-governance, skills-governance]
+related: [search-execute-workflow, documentation-structure-governance, self-documenting-code-and-rationale-placement, progressive-constraint-narrowing, adr-governance, reviewer-lane-governance, skills-governance]
 ---
 
 # Project Conventions Governance
@@ -161,6 +161,10 @@ research design notes, canonical docs, ADRs, and thin instruction surfaces.
 
 - enduring workflow policy, architectural intent, design constraints, and repo-wide or subsystem-wide
   "why" belong in canonical docs under `docs/system/**`
+- when a standing constraint is durable but the active execution step only needs a subset, narrow the
+  active brief using [[progressive-constraint-narrowing]] [docs/system/progressive-constraint-narrowing.md](docs/system/progressive-constraint-narrowing.md) instead of copying the whole rule family forward
+- use an ADR only for key architectural, workflow-authority, trust-boundary, or long-lived contract
+  decisions; do not turn routine implementation choices into ADRs. See [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md)
 - planning-worthy decisions, deferred tradeoffs, unresolved questions, and findings that may drive
   later work belong in the appropriate `~/.copilot/backlogs/{repo-name}/issues/*` log or other canonical follow-up surface
 - code comments are for selective local rationale that must stay next to the code to prevent

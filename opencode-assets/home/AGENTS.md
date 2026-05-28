@@ -11,6 +11,7 @@ Instruction-engine shared baseline for OpenCode. Keep this file workflow-specifi
 5. Use `General` only when a bounded delegated child session will materially help.
 6. Implement in small, verifiable steps in `Build`.
 7. Run the narrowest relevant validation after changes (lint, typecheck, test, build).
+8. Narrow candidate constraints to the minimum hard constraints needed for the active step; keep shaping context and open questions separate.
 
 ## Clarification Standard
 
@@ -56,6 +57,8 @@ Primary skills available:
 - `security` — Security review and vulnerability detection
 - `project-conventions-governance` — Repo conventions and governance
 - `stack-detector` — Automatic tech stack detection
+
+Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
 
 Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
 

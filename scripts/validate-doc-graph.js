@@ -25,6 +25,7 @@ const allowlistedNonRedirectKeys = new Set([
 const allowlistedRedirectKeys = new Set([...requiredKeys, 'redirect_to']);
 
 const idRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const isoDateRegex = /^\d{4}-\d{2}-\d{2}$/;
 
 function toPosix(filePath) {
 	return filePath.split(path.sep).join('/');
@@ -35,6 +36,33 @@ function isAsciiOnly(text) {
 		if (text.charCodeAt(index) > 0x7f) return false;
 	}
 	return true;
+}
+
+function parseIsoDate(value) {
+	if (typeof value !== 'string' || !isoDateRegex.test(value)) return null;
+	const [yearText, monthText, dayText] = value.split('-');
+	const year = Number.parseInt(yearText, 10);
+	const month = Number.parseInt(monthText, 10);
+	const day = Number.parseInt(dayText, 10);
+	const parsed = new Date(Date.UTC(year, month - 1, day));
+	if (
+		parsed.getUTCFullYear() !== year ||
+		parsed.getUTCMonth() !== month - 1 ||
+		parsed.getUTCDate() !== day
+	) {
+		return null;
+	}
+	return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function escapeRegExp(value) {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hasMarkdownHeading(lines, headingText, level = 2) {
+	const hashes = '#'.repeat(level);
+	const headingPattern = new RegExp(`^\\s{0,3}${escapeRegExp(hashes)}\\s+${escapeRegExp(headingText)}(?:\\s+#+)?\\s*$`);
+	return lines.some((line) => headingPattern.test(line));
 }
 
 function walkDir(dir) {
@@ -219,6 +247,20 @@ function validateDocGraph({ repoRoot = defaultRepoRoot } = {}) {
 			ensure(meta[key] !== undefined && meta[key] !== '', `${rel}: Missing required frontmatter key: ${key}`, errors);
 		}
 
+		if (meta.created !== undefined) {
+			const createdDate = parseIsoDate(meta.created);
+			if (!createdDate) {
+				errors.push(`${rel}: created must be a valid ISO date in YYYY-MM-DD format.`);
+			}
+			const updatedDate = parseIsoDate(meta.updated);
+			if (meta.updated !== undefined && !updatedDate) {
+				errors.push(`${rel}: updated must be a valid ISO date in YYYY-MM-DD format.`);
+			}
+			if (createdDate && updatedDate && updatedDate < createdDate) {
+				errors.push(`${rel}: updated must be on or after created.`);
+			}
+		}
+
 		if (meta.category && !allowedCategory.has(meta.category)) {
 			errors.push(`${rel}: Invalid category '${meta.category}'.`);
 		}
@@ -244,6 +286,14 @@ function validateDocGraph({ repoRoot = defaultRepoRoot } = {}) {
 
 		if (rel.startsWith('docs/system/') && meta.category !== 'system') {
 			errors.push(`${rel}: docs/system/** must have category: system.`);
+		}
+		if (rel.startsWith('docs/system/') && rel.endsWith('-adr.md')) {
+			const headingLines = stripFencedAndInlineCode(doc.body.split(/\r?\n/));
+			for (const headingText of ['Context', 'Decision', 'Consequences']) {
+				if (!hasMarkdownHeading(headingLines, headingText, 2)) {
+					errors.push(`${rel}: ADR docs must include required heading '## ${headingText}'.`);
+				}
+			}
 		}
 		if (rel.startsWith('docs/research/') && meta.category !== 'research') {
 			errors.push(`${rel}: docs/research/** must have category: research.`);

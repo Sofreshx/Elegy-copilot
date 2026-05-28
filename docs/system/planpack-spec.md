@@ -1,12 +1,13 @@
 ---
 created: 2026-02-23
-updated: 2026-04-03
+updated: 2026-05-25
 category: system
 status: draft
 doc_kind: node
 id: planpack-spec
 summary: Specification for the Plan Pack document format used by planning agents.
 tags: [planpack, spec, planning]
+related: [goal-contract-governance, progressive-constraint-narrowing, adr-governance]
 ---
 
 # Plan Pack Specification
@@ -96,9 +97,17 @@ Aliased in the template as `Context Loaded (exact files)`. A bullet list of exac
 
 Bullet list of assumptions made during planning and any constraints that bound the solution space (e.g., "no breaking API changes", "must stay on .NET 9").
 
+Rules:
+
+- Narrow broad candidate constraints into the minimum authoritative set needed for the active plan.
+- Keep unresolved branches out of the constraint list; those belong in assumptions, blockers, or user questions.
+- If a constraint is really a durable architectural or workflow-authority decision, do not leave it only inside the plan pack. Promote or reference the owning canonical node or ADR.
+
 ### `## Decisions`
 
 Aliased in the template as `Decisions (with rationale)`. Bullet list of architectural or scoping decisions, each followed by a brief rationale. Decisions are immutable once the plan is approved.
+
+Key architectural, trust-boundary, workflow-authority, or long-lived contract decisions that future work will rely on should be checked against [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md) instead of staying only inside the plan pack.
 
 ### `## Dropped / Deferred`
 

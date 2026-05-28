@@ -1,3 +1,4 @@
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -5,7 +6,6 @@ import {
   ensureDir,
   normalizeRel,
   shaText,
-  syncFile,
 } from './install-surface-utils.mjs';
 import {
   logInstallWarnings,
@@ -16,10 +16,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const instructionEngineRoot = path.resolve(__dirname, '..');
 const setupProfilesPath = path.join(instructionEngineRoot, 'engine-assets', 'skills', 'repo-setup-governance', 'setup-profiles.json');
-const validatorSourcePath = path.join(instructionEngineRoot, 'scripts', 'validate-specs.js');
+const configurationPackagePath = path.join(instructionEngineRoot, 'configuration', 'elegy-plugin-package.json');
 
-const MANAGED_BLOCK_START = '<!-- instruction-engine:begin spec-driven -->';
-const MANAGED_BLOCK_END = '<!-- instruction-engine:end spec-driven -->';
+const SPEC_DRIVEN_OVERLAYS_PROFILE_ID = 'instruction-engine-spec-driven-overlays';
+const SPEC_DRIVEN_VALIDATOR_PROFILE_ID = 'instruction-engine-spec-driven-validator';
+const VALIDATE_SPECS_COMMAND = 'node scripts/validate-specs.js';
+
+function normalizeString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -68,77 +73,6 @@ function buildCounts(results) {
   }
 
   return counts;
-}
-
-function renderManagedBlock(bodyText) {
-  return [
-    MANAGED_BLOCK_START,
-    String(bodyText || '').trim(),
-    MANAGED_BLOCK_END,
-    '',
-  ].join('\n');
-}
-
-function composeManagedMarkdown(existingText, bodyText) {
-  const managedBlock = renderManagedBlock(bodyText);
-  const source = String(existingText || '').replace(/\r\n/g, '\n');
-
-  if (!source.trim()) {
-    return managedBlock;
-  }
-
-  const startIndex = source.indexOf(MANAGED_BLOCK_START);
-  const endIndex = source.indexOf(MANAGED_BLOCK_END);
-  if (startIndex >= 0 && endIndex >= startIndex) {
-    const blockEnd = endIndex + MANAGED_BLOCK_END.length;
-    const before = source.slice(0, startIndex).replace(/\s*$/, '');
-    const after = source.slice(blockEnd).replace(/^\s*/, '');
-    return [before, managedBlock.trimEnd(), after]
-      .filter(Boolean)
-      .join('\n\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trimEnd() + '\n';
-  }
-
-  return `${source.trimEnd()}\n\n${managedBlock}`;
-}
-
-function syncManagedMarkdown(filePath, bodyText, options = {}) {
-  const log = options.log || console.log;
-  ensureDir(path.dirname(filePath), options.dryRun, log);
-
-  const existingText = fs.existsSync(filePath) ? fs.readFileSync(filePath, 'utf8') : '';
-  const nextText = composeManagedMarkdown(existingText, bodyText);
-  const previousHash = fs.existsSync(filePath) ? shaText(existingText) : null;
-  const nextHash = shaText(nextText);
-
-  if (previousHash === nextHash) {
-    log(`[SKIP]   ${filePath} (up-to-date)`);
-    return {
-      action: 'skipped',
-      path: filePath,
-      sourceHash: nextHash,
-      destinationHash: previousHash,
-    };
-  }
-
-  const action = fs.existsSync(filePath)
-    ? (options.dryRun ? 'would_update' : 'updated')
-    : (options.dryRun ? 'would_create' : 'created');
-
-  if (options.dryRun) {
-    log(`[DRY-RUN] ${action === 'would_create' ? 'CREATE' : 'UPDATE'} ${filePath}`);
-  } else {
-    fs.writeFileSync(filePath, nextText, 'utf8');
-    log(`[${action === 'created' ? 'CREATE' : 'UPDATE'}] ${filePath}`);
-  }
-
-  return {
-    action,
-    path: filePath,
-    sourceHash: nextHash,
-    destinationHash: options.dryRun ? previousHash : shaText(fs.readFileSync(filePath, 'utf8')),
-  };
 }
 
 function createTextFileIfMissing(content, filePath, options = {}) {
@@ -239,19 +173,6 @@ function syncPackageJsonScript(packageJsonPath, scriptName, scriptCommand, optio
   };
 }
 
-function buildSpecDrivenInstructionBody() {
-  return [
-    '## Spec-Driven Development',
-    '',
-    'This repo opts into instruction-engine spec-driven development for non-trivial work.',
-    '',
-    '- Use `spec-dev` when a task needs spec-first clarification, a durable repo spec, or a narrow spec-as-source flow.',
-    '- Durable specs live under `specs/<spec-slug>/spec.md`; keep `specs/index.md` current as durable specs accumulate.',
-    '- Use `spec-authoring` to create or refine durable specs and `spec-review` before implementation planning when the spec will drive the work.',
-    '- Validate specs with `node scripts/validate-specs.js` or `npm run validate:specs` when the repo exposes that script.',
-  ].join('\n');
-}
-
 function buildSpecsIndexText() {
   return [
     '# Specs',
@@ -261,6 +182,8 @@ function buildSpecsIndexText() {
     '- Durable specs live under `specs/<spec-slug>/spec.md`.',
     '- Use `spec-dev` to choose `spec-first`, `spec-anchored`, or `spec-as-source`.',
     '- Use `spec-authoring` to create or refine durable specs and `spec-review` before implementation planning when the spec will drive the work.',
+    '- Narrow candidate constraints to the minimum hard constraints needed for the active step.',
+    '- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions.',
     '- Validate specs with `node scripts/validate-specs.js` or `npm run validate:specs` when the repo exposes that script.',
     '',
     '## Index',
@@ -285,6 +208,7 @@ function getSurfaceLabel(surface) {
 }
 
 function getRepoSkillMirrorTarget(surface) {
+  if (surface === 'copilot') return '';
   if (surface === 'codex') return 'codex';
   if (surface === 'opencode') return 'opencode';
   if (surface === 'antigravity') return 'antigravity';
@@ -329,6 +253,122 @@ function resolveBaseProfileForOverlay(repoRoot, profiles, overlayProfile) {
   );
 }
 
+function resolveElegyCliPath(options = {}) {
+  const configuredPath = normalizeString(options.elegyCliPath || process.env.INSTRUCTION_ENGINE_ELEGY_CLI_PATH);
+  if (!configuredPath) {
+    throw new Error('Repo setup bootstrap requires Elegy CLI path. Pass --elegy-cli <path> or set INSTRUCTION_ENGINE_ELEGY_CLI_PATH.');
+  }
+
+  const resolvedPath = path.resolve(configuredPath);
+  if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
+    throw new Error(`Repo setup bootstrap Elegy CLI path does not exist: ${resolvedPath}`);
+  }
+
+  return resolvedPath;
+}
+
+function runElegyConfigurationApply(options = {}) {
+  const args = [
+    'configuration',
+    'apply',
+    '--package',
+    configurationPackagePath,
+    '--profile-id',
+    String(options.profileId || '').trim(),
+    '--target',
+    options.repoRoot,
+    '--json',
+  ];
+  if (options.dryRun) {
+    args.push('--dry-run');
+  }
+  if (options.force) {
+    args.push('--force');
+  }
+
+  for (const [key, value] of Object.entries(options.bindings || {})) {
+    args.push('--binding', `${key}=${value}`);
+  }
+
+  const result = spawnSync(options.elegyCliPath, args, {
+    encoding: 'utf8',
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.signal) {
+    throw new Error(`Elegy configuration apply terminated with signal ${result.signal}.`);
+  }
+
+  const stdout = String(result.stdout || '').trim();
+  if (!stdout) {
+    const stderr = normalizeString(result.stderr);
+    throw new Error(
+      stderr
+        ? `Elegy configuration apply returned no JSON output: ${stderr}`
+        : 'Elegy configuration apply returned no JSON output.'
+    );
+  }
+
+  let envelope;
+  try {
+    envelope = JSON.parse(stdout);
+  } catch (error) {
+    throw new Error(`Failed to parse Elegy configuration JSON output: ${error.message}`);
+  }
+
+  const receipt = envelope && typeof envelope === 'object' ? envelope.data : null;
+  if (!receipt || receipt.schemaVersion !== 'elegy-configuration-receipt/v1') {
+    throw new Error('Elegy configuration apply returned an unexpected receipt payload.');
+  }
+
+  return {
+    exitCode: typeof result.status === 'number' ? result.status : 1,
+    envelope,
+    receipt,
+    stderr: String(result.stderr || ''),
+  };
+}
+
+function mapReceiptActionToBootstrapAction(action) {
+  if (action === 'would-create') return 'would_create';
+  if (action === 'would-update') return 'would_update';
+  if (action === 'conflict') return 'skipped_conflict';
+  if (action === 'created' || action === 'updated' || action === 'skipped') {
+    return action;
+  }
+  return 'skipped';
+}
+
+function receiptEntriesToResults(receipt) {
+  return Array.isArray(receipt?.entries)
+    ? receipt.entries.map((entry) => ({
+        action: mapReceiptActionToBootstrapAction(entry.action),
+        path: entry.path,
+        sourceHash: entry.expectedHash || null,
+        destinationHash: entry.actualHash || null,
+        operationId: entry.operationId,
+        templateId: entry.templateId,
+        detail: entry.detail || '',
+      }))
+    : [];
+}
+
+function buildEmptySkillMirrorSummary(repoRoot) {
+  return {
+    gateName: 'Repo Skill Mirrors',
+    mode: 'install',
+    repoRoot,
+    configPath: '',
+    sourceRoot: path.join(repoRoot, '.github', 'skills'),
+    targets: [],
+    counts: buildCounts([]),
+    results: [],
+    targetSummaries: [],
+    ok: true,
+  };
+}
+
 export function runRepoSetupProfileBootstrap(options = {}) {
   const surface = String(options.surface || '').trim();
   const repoRootInput = String(options.repoRoot || '').trim();
@@ -355,33 +395,60 @@ export function runRepoSetupProfileBootstrap(options = {}) {
   }
 
   const baseProfile = resolveBaseProfileForOverlay(repoRoot, profiles, selectedProfile);
-  const sharedInstructionBody = buildSpecDrivenInstructionBody();
+  const elegyCliPath = resolveElegyCliPath(options);
   const repoInstructionFile = getRepoInstructionFile(surface);
   const results = [];
 
   log(`Repo setup (${getSurfaceLabel(surface)}): ${repoRoot}`);
   log(`Repo setup profile: ${profileKey}`);
   log(`Repo setup base profile: ${baseProfile.key} (${baseProfile.match.canonicalDocEntrypointPath})`);
+  log(`Repo setup Elegy CLI: ${elegyCliPath}`);
 
   results.push(ensureDir(path.join(repoRoot, '.github', 'agents'), Boolean(options.dryRun), log));
   results.push(ensureDir(path.join(repoRoot, '.github', 'skills'), Boolean(options.dryRun), log));
   results.push(ensureDir(path.join(repoRoot, 'specs'), Boolean(options.dryRun), log));
-  results.push(syncManagedMarkdown(path.join(repoRoot, '.github', 'copilot-instructions.md'), sharedInstructionBody, options));
-  results.push(syncManagedMarkdown(path.join(repoRoot, repoInstructionFile), sharedInstructionBody, options));
-  results.push(createTextFileIfMissing(buildSpecsIndexText(), path.join(repoRoot, 'specs', 'index.md'), options));
-  results.push(syncFile(validatorSourcePath, path.join(repoRoot, 'scripts', 'validate-specs.js'), options));
-  results.push(syncPackageJsonScript(path.join(repoRoot, 'package.json'), 'validate:specs', 'node scripts/validate-specs.js', options));
-  const skillMirrors = runRepoSkillMirrors({
-    mode: 'install',
+
+  const overlays = runElegyConfigurationApply({
+    elegyCliPath,
     repoRoot,
+    profileId: SPEC_DRIVEN_OVERLAYS_PROFILE_ID,
     dryRun: Boolean(options.dryRun),
-    targets: [getRepoSkillMirrorTarget(surface)],
-    log,
+    force: true,
+    bindings: {
+      'target.instructions': repoInstructionFile,
+    },
   });
-  logInstallWarnings(skillMirrors);
+  results.push(...receiptEntriesToResults(overlays.receipt));
+
+  results.push(createTextFileIfMissing(buildSpecsIndexText(), path.join(repoRoot, 'specs', 'index.md'), options));
+
+  const validator = runElegyConfigurationApply({
+    elegyCliPath,
+    repoRoot,
+    profileId: SPEC_DRIVEN_VALIDATOR_PROFILE_ID,
+    dryRun: Boolean(options.dryRun),
+    force: Boolean(options.force),
+  });
+  results.push(...receiptEntriesToResults(validator.receipt));
+
+  results.push(syncPackageJsonScript(path.join(repoRoot, 'package.json'), 'validate:specs', VALIDATE_SPECS_COMMAND, options));
+
+  const mirrorTarget = getRepoSkillMirrorTarget(surface);
+  const skillMirrors = mirrorTarget
+    ? runRepoSkillMirrors({
+        mode: 'install',
+        repoRoot,
+        dryRun: Boolean(options.dryRun),
+        targets: [mirrorTarget],
+        log,
+      })
+    : buildEmptySkillMirrorSummary(repoRoot);
+  if (mirrorTarget) {
+    logInstallWarnings(skillMirrors);
+  }
 
   return {
-    ok: true,
+    ok: overlays.exitCode === 0 && validator.exitCode === 0,
     surface,
     repoRoot,
     profileKey,
@@ -389,6 +456,12 @@ export function runRepoSetupProfileBootstrap(options = {}) {
     baseProfileKey: baseProfile.key,
     baseCanonicalDocEntrypointPath: String(baseProfile?.match?.canonicalDocEntrypointPath || '').trim(),
     repoInstructionFile,
+    elegyCliPath,
+    configurationPackagePath,
+    configuration: {
+      overlays: overlays.receipt,
+      validator: validator.receipt,
+    },
     skillMirrors,
     results,
     counts: buildCounts(results),

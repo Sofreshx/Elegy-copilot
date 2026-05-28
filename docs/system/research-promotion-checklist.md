@@ -1,13 +1,13 @@
 ---
 created: 2026-03-01
-updated: 2026-03-01
+updated: 2026-05-25
 category: system
 status: current
 doc_kind: node
 id: research-promotion-checklist
 summary: Checklist and evidence requirements for promoting research findings into canonical system documentation.
 tags: [documentation, governance, promotion, research]
-related: [system-docs-index, doc-graph-spec, moc-skills-governance, orchestration-and-agents]
+related: [system-docs-index, doc-graph-spec, moc-skills-governance, orchestration-and-agents, progressive-constraint-narrowing, adr-governance]
 ---
 
 # Research Promotion Checklist
@@ -40,6 +40,7 @@ If criteria are not met, keep the content in `docs/research/**` and link it as n
 - Choose canonical target:
   - Existing node update, or
   - New node plus MOC/index wiring.
+  - If the promoted content is a key architectural tradeoff rather than a general rule family, prefer an ADR that satisfies `docs/system/adr-governance.md`.
 - Add validation plan:
   - Include the narrowest command/check that verifies correctness.
 - Record evidence (required fields below).

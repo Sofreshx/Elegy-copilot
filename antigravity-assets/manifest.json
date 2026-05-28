@@ -78,49 +78,49 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
       "destination": "antigravity/skills/rubberduck-plan-review",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "antigravity-implementation-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-review",
       "destination": "antigravity/skills/implementation-review",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "antigravity-implementation-handoff-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-handoff",
       "destination": "antigravity/skills/implementation-handoff",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "antigravity-roadmap-planning-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/roadmap-planning",
       "destination": "antigravity/skills/roadmap-planning",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "antigravity-spec-dev-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-dev",
       "destination": "antigravity/skills/spec-dev",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "antigravity-spec-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-authoring",
       "destination": "antigravity/skills/spec-authoring",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     },
     {
       "id": "antigravity-spec-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "antigravity/skills/spec-review",
-      "loadMode": "on-demand"
+      "loadMode": "always"
     }
   ],
   "sourcePatterns": []

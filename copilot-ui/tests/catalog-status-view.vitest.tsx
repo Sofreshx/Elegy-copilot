@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const storeMocks = vi.hoisted(() => ({
@@ -6,6 +6,8 @@ const storeMocks = vi.hoisted(() => ({
   refreshWorkspace: vi.fn(),
   addExternalSource: vi.fn(),
   refreshExternalSource: vi.fn(),
+  syncInstallVerifyExternalSource: vi.fn(),
+  bootstrapSpecKitRepo: vi.fn(),
   removeExternalSource: vi.fn(),
   activateExternalSourceInstallable: vi.fn(),
   deactivateExternalSourceInstallable: vi.fn(),
@@ -17,6 +19,7 @@ const storeMocks = vi.hoisted(() => ({
   stopPolling: vi.fn(),
   refreshStats: vi.fn(),
   getInstalledAssets: vi.fn(),
+  getCatalogContent: vi.fn(),
 }));
 
 const mockCatalogState = {
@@ -26,6 +29,15 @@ const mockCatalogState = {
   mutating: false,
   error: null,
   installMessage: 'Catalog projection refreshed.',
+  repoInventory: {
+    selectedRepo: {
+      repoId: 'repo-1',
+      repoPath: 'C:\\work\\repo-1',
+      repoLabel: 'Repo 1',
+    },
+    repos: [],
+  },
+  activeRepoPath: 'C:\\work\\repo-1',
   summary: {
     externalSources: [
       {
@@ -37,6 +49,10 @@ const mockCatalogState = {
           status: 'ready',
           lastSyncedAt: '2026-03-09T00:00:00.000Z',
           resolvedRef: 'main',
+          lastVerifiedAt: '2026-03-09T00:05:00.000Z',
+          verificationStatus: 'partial',
+          verificationWarnings: ['Ghidra is not running.'],
+          verificationErrors: [],
         },
         installables: [
           {
@@ -45,6 +61,17 @@ const mockCatalogState = {
             title: 'Brainstorming',
             description: 'Prompted ideation skill.',
             targetSupport: ['codex', 'opencode', 'gemini-cli'],
+            metadata: {
+              relativeSkillFilePath: 'skills/brainstorming/SKILL.md',
+            },
+          },
+          {
+            installableId: 'mcp:ghidra',
+            kind: 'mcp',
+            title: 'Ghidra MCP',
+            description: 'Bridge script for the external Ghidra MCP integration.',
+            targetSupport: ['codex', 'opencode'],
+            sourcePath: 'bridge_mcp_ghidra.py',
           },
         ],
         activation: {
@@ -55,6 +82,34 @@ const mockCatalogState = {
                 enabled: true,
                 managedName: 'external--demo-source--brainstorming',
                 installedPath: 'C:\\Users\\demo\\.codex\\skills\\external--demo-source--brainstorming',
+                overallStatus: 'installed and active',
+                lastVerifiedAt: '2026-03-09T00:05:00.000Z',
+                warnings: [],
+                errors: [],
+                checks: [],
+              },
+              'mcp:ghidra': {
+                installed: true,
+                enabled: true,
+                managedName: 'external--demo-source--ghidra',
+                installedPath: 'C:\\Users\\demo\\.codex\\config.toml',
+                overallStatus: 'installed and active',
+                lastVerifiedAt: '2026-03-09T00:05:00.000Z',
+                warnings: [],
+                errors: [],
+                checks: [],
+              },
+            },
+          },
+          opencode: {
+            installables: {
+              'mcp:ghidra': {
+                installed: false,
+                enabled: false,
+                overallStatus: 'supported, not active',
+                warnings: ['OpenCode restart required'],
+                errors: [],
+                checks: [],
               },
             },
           },
@@ -63,6 +118,51 @@ const mockCatalogState = {
               'skill:brainstorming': {
                 installed: false,
                 enabled: false,
+                overallStatus: 'supported, not active',
+                warnings: [],
+                errors: [],
+                checks: [],
+              },
+            },
+          },
+        },
+      },
+      {
+        sourceId: 'spec-kit',
+        title: 'Spec Kit',
+        description: 'Official GitHub Spec Kit CLI for upstream workflows.',
+        editable: false,
+        sync: {
+          status: 'ready',
+          lastSyncedAt: '2026-03-09T00:00:00.000Z',
+          resolvedRef: 'v0.8.13',
+          lastVerifiedAt: '2026-03-09T00:10:00.000Z',
+          verificationStatus: 'ready',
+          verificationWarnings: [],
+          verificationErrors: [],
+        },
+        installables: [
+          {
+            installableId: 'cli:specify',
+            kind: 'cli-tool',
+            title: 'Spec Kit',
+            description: 'Official Specify CLI installed from github/spec-kit.',
+            targetSupport: ['host'],
+          },
+        ],
+        activation: {
+          host: {
+            installables: {
+              'cli:specify': {
+                installed: true,
+                enabled: true,
+                managedName: 'external-spec-kit-specify',
+                installedPath: 'C:\\Users\\demo\\AppData\\Roaming\\Python\\Scripts\\specify.exe',
+                overallStatus: 'installed',
+                lastVerifiedAt: '2026-03-09T00:10:00.000Z',
+                warnings: [],
+                errors: [],
+                checks: [],
               },
             },
           },
@@ -132,6 +232,7 @@ vi.mock('../ui/src/lib/api', async () => {
   return {
     ...actual,
     getInstalledAssets: storeMocks.getInstalledAssets,
+    getCatalogContent: storeMocks.getCatalogContent,
   };
 });
 
@@ -143,6 +244,8 @@ vi.mock('../ui/src/tabs/Assets/catalogWorkspaceStore', () => ({
     refreshWorkspace: storeMocks.refreshWorkspace,
     addExternalSource: storeMocks.addExternalSource,
     refreshExternalSource: storeMocks.refreshExternalSource,
+    syncInstallVerifyExternalSource: storeMocks.syncInstallVerifyExternalSource,
+    bootstrapSpecKitRepo: storeMocks.bootstrapSpecKitRepo,
     removeExternalSource: storeMocks.removeExternalSource,
     activateExternalSourceInstallable: storeMocks.activateExternalSourceInstallable,
     deactivateExternalSourceInstallable: storeMocks.deactivateExternalSourceInstallable,
@@ -188,6 +291,7 @@ describe('CatalogStatusView', () => {
         absPath: 'C:\\Users\\demo\\.copilot\\copilot-instructions.md',
       },
     });
+    storeMocks.getCatalogContent.mockResolvedValue('# External detail');
   });
 
   afterEach(() => {
@@ -198,6 +302,10 @@ describe('CatalogStatusView', () => {
     const { default: CatalogStatusView } = await import('../ui/src/tabs/Catalog/CatalogStatusView');
 
     render(<CatalogStatusView />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('catalog-status-installed-skills-list')).toBeInTheDocument();
+    });
 
     expect(storeMocks.loadWorkspace).toHaveBeenCalledTimes(1);
     expect(storeMocks.loadSkills).toHaveBeenCalledTimes(1);
@@ -210,18 +318,99 @@ describe('CatalogStatusView', () => {
     expect(screen.getByTestId('catalog-status-runtime-panel')).toBeInTheDocument();
 
     expect(screen.getByText('Demo Source')).toBeInTheDocument();
+    expect(screen.getAllByText('Spec Kit').length).toBeGreaterThan(0);
     expect(screen.getByText(/Supports: Codex, OpenCode, Antigravity CLI/i)).toBeInTheDocument();
+    expect(screen.getByText(/Supports: Host CLI/i)).toBeInTheDocument();
     const targetDetails = screen.getAllByTestId('catalog-status-installable-target-detail').map((node) => node.textContent || '');
     expect(targetDetails.some((value) => /Codex: installed and active/i.test(value))).toBe(true);
     expect(targetDetails.some((value) => /OpenCode: supported, not active/i.test(value))).toBe(true);
     expect(targetDetails.some((value) => /Antigravity CLI: supported, not active/i.test(value))).toBe(true);
-    expect(screen.getByText('brainstorming')).toBeInTheDocument();
+    expect(targetDetails.some((value) => /Host CLI: installed/i.test(value))).toBe(true);
+    expect(screen.getAllByText('brainstorming').length).toBeGreaterThan(0);
     expect(screen.getByText('skill:brainstorming')).toBeInTheDocument();
+    expect(screen.getByText(/Verification partial/i)).toBeInTheDocument();
+    expect(screen.getByTestId('catalog-status-external-inventory-list')).toHaveTextContent('Ghidra MCP');
+    expect(screen.getByTestId('catalog-status-external-inventory-list')).toHaveTextContent('Spec Kit');
 
-    fireEvent.click(screen.getByTestId('catalog-status-source-refresh'));
+    const sourceList = screen.getByTestId('catalog-status-source-list');
+    const brainstormingItem = within(sourceList).getByText('Brainstorming').closest('li');
+    const ghidraItem = within(sourceList).getByText('Ghidra MCP').closest('li');
+    const specKitInstallableItem = within(sourceList).getAllByText('Spec Kit')[1]?.closest('li');
+
+    expect(brainstormingItem).not.toBeNull();
+    expect(ghidraItem).not.toBeNull();
+    expect(specKitInstallableItem).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.click(screen.getAllByTestId('catalog-status-source-refresh')[0]);
+      fireEvent.click(screen.getAllByTestId('catalog-status-source-sync-install-verify')[0]);
+      fireEvent.click(screen.getByTestId('catalog-status-source-bootstrap-spec-kit'));
+      fireEvent.click(within(brainstormingItem as HTMLElement).getByRole('button', { name: 'Details' }));
+      fireEvent.click(within(ghidraItem as HTMLElement).getByRole('button', { name: 'Details' }));
+      fireEvent.click(within(brainstormingItem as HTMLElement).getByRole('button', { name: /Deactivate Codex/i }));
+      fireEvent.click(within(brainstormingItem as HTMLElement).getByRole('button', { name: /Activate OpenCode/i }));
+      fireEvent.click(within(brainstormingItem as HTMLElement).getByRole('button', { name: /Activate Antigravity CLI/i }));
+      fireEvent.click(within(specKitInstallableItem as HTMLElement).getByRole('button', { name: /Deactivate Host CLI/i }));
+    });
 
     await waitFor(() => {
       expect(storeMocks.refreshExternalSource).toHaveBeenCalledWith('demo-source');
+    });
+    await waitFor(() => {
+      expect(storeMocks.syncInstallVerifyExternalSource).toHaveBeenCalledWith({
+        sourceId: 'demo-source',
+        repoPath: 'C:\\work\\repo-1',
+      });
+    });
+    await waitFor(() => {
+      expect(storeMocks.bootstrapSpecKitRepo).toHaveBeenCalledWith({
+        repoPath: 'C:\\work\\repo-1',
+        integration: 'copilot',
+        script: 'ps',
+      });
+    });
+    await waitFor(() => {
+      expect(storeMocks.getCatalogContent).toHaveBeenCalledWith({
+        mode: 'external-source',
+        sourceId: 'demo-source',
+        path: 'skills/brainstorming/SKILL.md',
+      });
+    });
+    await waitFor(() => {
+      expect(storeMocks.getCatalogContent).toHaveBeenCalledWith({
+        mode: 'external-source',
+        sourceId: 'demo-source',
+        path: 'bridge_mcp_ghidra.py',
+      });
+    });
+    expect(screen.getByTestId('catalog-status-detail-panel')).toHaveTextContent('# External detail');
+    await waitFor(() => {
+      expect(storeMocks.deactivateExternalSourceInstallable).toHaveBeenCalledWith({
+        sourceId: 'demo-source',
+        installableId: 'skill:brainstorming',
+        target: 'codex',
+      });
+    });
+    await waitFor(() => {
+      expect(storeMocks.activateExternalSourceInstallable).toHaveBeenCalledWith({
+        sourceId: 'demo-source',
+        installableId: 'skill:brainstorming',
+        target: 'opencode',
+      });
+    });
+    await waitFor(() => {
+      expect(storeMocks.activateExternalSourceInstallable).toHaveBeenCalledWith({
+        sourceId: 'demo-source',
+        installableId: 'skill:brainstorming',
+        target: 'gemini-cli',
+      });
+    });
+    await waitFor(() => {
+      expect(storeMocks.deactivateExternalSourceInstallable).toHaveBeenCalledWith({
+        sourceId: 'spec-kit',
+        installableId: 'cli:specify',
+        target: 'host',
+      });
     });
   });
 });

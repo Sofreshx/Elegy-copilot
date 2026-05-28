@@ -7,10 +7,30 @@ const fs = require('fs');
 const path = require('path');
 
 export type ExternalSourceType = ExtensibleString<'github-repo'>;
-export type ExternalInstallableKind = ExtensibleString<'skill' | 'mcp-server'>;
+export type ExternalInstallableKind = ExtensibleString<'skill' | 'mcp-server' | 'cli-tool'>;
 export type ExternalSourceTarget = ExtensibleString<
-  'copilot' | 'codex' | 'opencode' | 'antigravity' | 'gemini-cli' | 'antigravity-cli'
+  'copilot' | 'codex' | 'opencode' | 'antigravity' | 'gemini-cli' | 'antigravity-cli' | 'host'
 >;
+
+export interface ExternalInstallableRecord {
+  installableId: string;
+  kind: ExternalInstallableKind;
+  name?: string;
+  title?: string;
+  description?: string;
+  relativePath?: string;
+  sourcePath?: string;
+  status?: string;
+  hiddenByDefault?: boolean;
+  deprecated?: boolean;
+  setupHints?: string[];
+  targetSupport?: ExternalSourceTarget[];
+  installCommand?: string;
+  verifyCommand?: string;
+  bootstrapCommand?: string;
+  runtimeChecks?: string[];
+  metadata?: Record<string, unknown>;
+}
 
 export interface ExternalSourceRecord {
   sourceId: string;
@@ -27,6 +47,9 @@ export interface ExternalSourceRecord {
   hiddenPathPrefixes?: string[];
   deprecatedPathPrefixes?: string[];
   mcpManifestPath?: string;
+  setupHints?: string[];
+  installables?: ExternalInstallableRecord[];
+  metadata?: Record<string, unknown>;
   editable?: boolean;
 }
 
@@ -66,6 +89,45 @@ function normalizeStringList(value: unknown): string[] {
     : [];
 }
 
+function normalizeRecordObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function normalizeExternalInstallableRecord(value: unknown): ExternalInstallableRecord | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const installableId = normalizeString(record.installableId || record.id);
+  const kind = normalizeString(record.kind);
+  if (!installableId || !kind) {
+    return null;
+  }
+
+  return {
+    installableId,
+    kind,
+    name: normalizeString(record.name) || undefined,
+    title: normalizeString(record.title) || undefined,
+    description: normalizeString(record.description) || undefined,
+    relativePath: normalizeString(record.relativePath) || undefined,
+    sourcePath: normalizeString(record.sourcePath) || undefined,
+    status: normalizeString(record.status) || undefined,
+    hiddenByDefault: normalizeBoolean(record.hiddenByDefault, false),
+    deprecated: normalizeBoolean(record.deprecated, false),
+    setupHints: normalizeStringList(record.setupHints),
+    targetSupport: normalizeStringList(record.targetSupport) as ExternalSourceTarget[],
+    installCommand: normalizeString(record.installCommand) || undefined,
+    verifyCommand: normalizeString(record.verifyCommand) || undefined,
+    bootstrapCommand: normalizeString(record.bootstrapCommand) || undefined,
+    runtimeChecks: normalizeStringList(record.runtimeChecks),
+    metadata: normalizeRecordObject(record.metadata),
+  };
+}
+
 function normalizeExternalSourceRecord(value: unknown): ExternalSourceRecord | null {
   if (!value || typeof value !== 'object') {
     return null;
@@ -96,6 +158,13 @@ function normalizeExternalSourceRecord(value: unknown): ExternalSourceRecord | n
     hiddenPathPrefixes: normalizeStringList(record.hiddenPathPrefixes),
     deprecatedPathPrefixes: normalizeStringList(record.deprecatedPathPrefixes),
     mcpManifestPath: normalizeString(record.mcpManifestPath) || undefined,
+    setupHints: normalizeStringList(record.setupHints),
+    installables: Array.isArray(record.installables)
+      ? record.installables
+        .map((entry) => normalizeExternalInstallableRecord(entry))
+        .filter((entry): entry is ExternalInstallableRecord => Boolean(entry))
+      : undefined,
+    metadata: normalizeRecordObject(record.metadata),
     editable: normalizeBoolean(record.editable, false),
   };
 }

@@ -19,15 +19,17 @@ Elegy Copilot (formerly Instruction Engine) is the shared asset repo for the des
 
 - Shared spec skills still install globally per harness.
 - Repo-local spec bootstrap is opt-in for one selected repo at a time.
-- Use the existing harness installer with `--repo-root <path> --setup-profile spec-driven`.
+- Repo-local spec bootstrap shells through `elegy configuration apply`, so Phase 1 examples pass `--elegy-cli <path>` explicitly.
+- `INSTRUCTION_ENGINE_ELEGY_CLI_PATH` remains available as a fallback for repeated local runs.
+- Use the existing harness installer with `--repo-root <path> --setup-profile spec-driven --elegy-cli <path>`.
 - This bootstraps repo-local spec surfaces without creating a new runtime or planner fleet.
 
 Examples:
 
 ```powershell
-pwsh -File scripts/codex-install.ps1 --repo-root C:\src\my-repo --setup-profile spec-driven
-pwsh -File scripts/opencode-install.ps1 --repo-root C:\src\my-repo --setup-profile spec-driven
-pwsh -File scripts/antigravity-install.ps1 --repo-root C:\src\my-repo --setup-profile spec-driven
+pwsh -File scripts/codex-install.ps1 --repo-root C:\src\my-repo --setup-profile spec-driven --elegy-cli C:\tools\elegy.exe
+pwsh -File scripts/opencode-install.ps1 --repo-root C:\src\my-repo --setup-profile spec-driven --elegy-cli C:\tools\elegy.exe
+pwsh -File scripts/antigravity-install.ps1 --repo-root C:\src\my-repo --setup-profile spec-driven --elegy-cli C:\tools\elegy.exe
 ```
 
 What the `spec-driven` profile bootstraps:

@@ -1,13 +1,13 @@
 ---
 created: 2026-03-13
-updated: 2026-06-23
+updated: 2026-05-25
 category: system
 status: current
 doc_kind: node
 id: documentation-structure-governance
 summary: Canonical contract for documentation and project-structure governance, including human-friendly and LLM-friendly entrypoint expectations.
 tags: [governance, documentation, structure, routing]
-related: [doc-graph-spec, system-docs-index, search-execute-workflow, project-conventions-governance]
+related: [doc-graph-spec, system-docs-index, search-execute-workflow, project-conventions-governance, progressive-constraint-narrowing, adr-governance]
 ---
 
 # Documentation and Structure Governance
@@ -146,6 +146,9 @@ Documentation structure should keep "why" discoverable without creating competin
   replace the canonical doc or issue entry that owns the broader decision
 - if the same rationale would otherwise need to be copied into many comments or scattered docs, create
   or update the smallest relevant canonical node and let local surfaces point back to it
+- when the repeated material is really a standing architectural tradeoff, prefer ADR promotion under
+  [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md) rather than
+  multiplying summary copies
 - when issue logs or comments expose a repeated rationale pattern that should guide future work, route
   promotion through conventions or documentation governance instead of treating the lower-authority
   surface as final policy

@@ -15,7 +15,7 @@ description: "7-phase workflow for planning large or complex features and refact
 
 ### Phase 1: Discovery (Requirements)
 - **Goal**: Clarify the problem, success criteria, and constraints.
-- **Action**: Ask the user for explicit high-level goals. Identify stakeholders, success criteria, constraints, and risk areas.
+- **Action**: Ask the user for explicit high-level goals. Identify stakeholders, success criteria, candidate constraints, and risk areas. Narrow the final constraint set to the minimum hard constraints needed for the active plan.
 - **Output**: A summary of the requirements plus a stable bullet list of high-level goals that the plan should satisfy.
 
 ### Phase 2: Codebase Exploration (Context)
@@ -38,6 +38,7 @@ description: "7-phase workflow for planning large or complex features and refact
     - Propose an architecture that aligns with project patterns.
     - Define component boundaries, data models, and API contracts.
     - Explain *why* this approach was chosen (trade-offs).
+    - Decide whether any key architectural, workflow-authority, trust-boundary, or long-lived contract choice should become an ADR instead of living only in the plan.
 - **Output**: Include at least one `PlanningDiagram` (Mermaid preferred) representing key architecture/data flow.
 
 ### Phase 5: Implementation Plan (Tasks)

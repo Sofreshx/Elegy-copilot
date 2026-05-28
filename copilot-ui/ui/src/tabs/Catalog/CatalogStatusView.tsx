@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, FormInput, Panel, StatusBadge, Toolbar } from '../../components';
-import { getInstalledAssets } from '../../lib/api';
+import { getCatalogContent, getInstalledAssets } from '../../lib/api';
 import { useStoreValue } from '../../lib/store';
 import type {
   CatalogExternalSourceInstallable,
@@ -19,6 +19,11 @@ type ExternalTargetDetails = {
   installed: boolean;
   installedPath: string | null;
   managedName: string | null;
+  overallStatus: string | null;
+  lastVerifiedAt: string | null;
+  warnings: string[];
+  errors: string[];
+  checks: Array<Record<string, unknown>>;
 };
 
 type CountEntry = {
@@ -33,6 +38,25 @@ type InstalledInventoryState = {
   inventory: InstalledAssetsResponse;
 };
 
+type DetailState = {
+  key: string | null;
+  loading: boolean;
+  error: string | null;
+  content: string;
+  label: string;
+};
+
+type ExternalInventoryEntry = {
+  sourceId: string;
+  installableId: string;
+  title: string;
+  target: string;
+  managedName: string | null;
+  installedPath: string | null;
+  overallStatus: string | null;
+  lastVerifiedAt: string | null;
+};
+
 const EMPTY_INSTALLED_INVENTORY: InstalledAssetsResponse = {
   agents: [],
   skills: [],
@@ -41,6 +65,14 @@ const EMPTY_INSTALLED_INVENTORY: InstalledAssetsResponse = {
     installed: false,
     absPath: '',
   },
+};
+
+const INITIAL_DETAIL_STATE: DetailState = {
+  key: null,
+  loading: false,
+  error: null,
+  content: '(select Details to inspect source content)',
+  label: 'No source detail selected',
 };
 
 const INSTALL_SURFACE_CARDS: Array<{
@@ -89,6 +121,8 @@ function getExternalTargetLabel(target: string): string {
     case 'antigravity-cli':
     case 'gemini-cli':
       return 'Antigravity CLI';
+    case 'host':
+      return 'Host CLI';
     default:
       return target;
   }
@@ -134,6 +168,40 @@ function readExternalInstallableTargetDetails(
       typeof state.installedPath === 'string' && state.installedPath.trim() ? state.installedPath.trim() : null,
     managedName:
       typeof state.managedName === 'string' && state.managedName.trim() ? state.managedName.trim() : null,
+    overallStatus:
+      typeof state.overallStatus === 'string' && state.overallStatus.trim() ? state.overallStatus.trim() : null,
+    lastVerifiedAt:
+      typeof state.lastVerifiedAt === 'string' && state.lastVerifiedAt.trim() ? state.lastVerifiedAt.trim() : null,
+    warnings: Array.isArray(state.warnings)
+      ? state.warnings.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+      : [],
+    errors: Array.isArray(state.errors)
+      ? state.errors.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+      : [],
+    checks: Array.isArray(state.checks)
+      ? state.checks.filter((entry): entry is Record<string, unknown> => Boolean(entry && typeof entry === 'object'))
+      : [],
+  };
+}
+
+function readSourceVerificationSummary(source: CatalogExternalSourceProjection | null | undefined): {
+  lastVerifiedAt: string | null;
+  warnings: string[];
+  errors: string[];
+  status: string | null;
+} {
+  const sync = source?.sync && typeof source.sync === 'object' ? source.sync : {};
+  return {
+    lastVerifiedAt:
+      typeof sync.lastVerifiedAt === 'string' && sync.lastVerifiedAt.trim() ? sync.lastVerifiedAt.trim() : null,
+    warnings: Array.isArray(sync.verificationWarnings)
+      ? sync.verificationWarnings.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+      : [],
+    errors: Array.isArray(sync.verificationErrors)
+      ? sync.verificationErrors.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
+      : [],
+    status:
+      typeof sync.verificationStatus === 'string' && sync.verificationStatus.trim() ? sync.verificationStatus.trim() : null,
   };
 }
 
@@ -238,6 +306,66 @@ function toErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function readInstallableReadablePath(installable: CatalogExternalSourceInstallable): string {
+  const metadata = installable.metadata && typeof installable.metadata === 'object'
+    ? installable.metadata as Record<string, unknown>
+    : {};
+  const candidate = [
+    metadata.relativeSkillFilePath,
+    metadata.readPath,
+    installable.sourcePath,
+    installable.relativePath,
+  ].find((value) => typeof value === 'string' && value.trim().length > 0);
+  return typeof candidate === 'string' ? candidate.trim() : '';
+}
+
+function getDetailLabel(source: CatalogExternalSourceProjection, installable: CatalogExternalSourceInstallable): string {
+  return `${source.title || source.sourceId} · ${installable.title || installable.name || installable.installableId}`;
+}
+
+function buildExternalInventoryEntries(sources: CatalogExternalSourceProjection[]): ExternalInventoryEntry[] {
+  return sources
+    .flatMap((source) => {
+      const installables = Array.isArray(source.installables) ? source.installables : [];
+      return installables.flatMap((installable) => {
+        if (installable.kind !== 'mcp' && installable.kind !== 'cli-tool') {
+          return [];
+        }
+        const supportedTargets = readExternalInstallableTargets(installable);
+        const targets = supportedTargets.length > 0 ? supportedTargets : installable.kind === 'cli-tool' ? ['host'] : [];
+        return targets
+          .map((target) => {
+            const details = readExternalInstallableTargetDetails(source, installable.installableId, target);
+            if (!details.enabled && !details.installed && !details.installedPath && !details.managedName && !details.overallStatus) {
+              return null;
+            }
+            return {
+              sourceId: source.sourceId,
+              installableId: installable.installableId,
+              title: installable.title || installable.name || installable.installableId,
+              target,
+              managedName: details.managedName,
+              installedPath: details.installedPath,
+              overallStatus: details.overallStatus,
+              lastVerifiedAt: details.lastVerifiedAt,
+            } satisfies ExternalInventoryEntry;
+          })
+          .filter((entry): entry is ExternalInventoryEntry => Boolean(entry));
+      });
+    })
+    .sort((left, right) => {
+      const titleOrder = left.title.localeCompare(right.title);
+      if (titleOrder !== 0) {
+        return titleOrder;
+      }
+      const sourceOrder = left.sourceId.localeCompare(right.sourceId);
+      if (sourceOrder !== 0) {
+        return sourceOrder;
+      }
+      return left.target.localeCompare(right.target);
+    });
+}
+
 export default function CatalogStatusView() {
   const catalogState = useStoreValue(catalogWorkspaceStore);
   const skillsState = useStoreValue(skillsPreviewStore);
@@ -255,6 +383,7 @@ export default function CatalogStatusView() {
     error: null,
     inventory: EMPTY_INSTALLED_INVENTORY,
   });
+  const [detailState, setDetailState] = useState<DetailState>(INITIAL_DETAIL_STATE);
 
   useEffect(() => {
     void catalogWorkspaceStore.loadWorkspace();
@@ -306,6 +435,11 @@ export default function CatalogStatusView() {
   const providerProjections = Array.isArray(catalogState.summary?.providers)
     ? catalogState.summary.providers
     : [];
+  const selectedRepoPath = typeof catalogState.repoInventory?.selectedRepo?.repoPath === 'string'
+    ? catalogState.repoInventory.selectedRepo.repoPath.trim()
+    : '';
+  const activeRepoPath = typeof catalogState.activeRepoPath === 'string' ? catalogState.activeRepoPath.trim() : '';
+  const effectiveRepoPath = selectedRepoPath || activeRepoPath;
   const topSkills = useMemo(() => buildTopSkills(statsState.recentSessionUsage), [statsState.recentSessionUsage]);
   const alwaysLoadedCount = useMemo(
     () => skillsState.skills.filter((skill) => skill.loadMode === 'always').length,
@@ -314,6 +448,10 @@ export default function CatalogStatusView() {
   const providerBackedCount = useMemo(
     () => skillsState.skills.filter((skill) => skill.provider && skill.provider !== 'user-home').length,
     [skillsState.skills],
+  );
+  const externalInventoryEntries = useMemo(
+    () => buildExternalInventoryEntries(externalSources),
+    [externalSources],
   );
 
   const handleExternalSourceDraftChange = (patch: Partial<typeof externalSourceDraft>) => {
@@ -383,6 +521,72 @@ export default function CatalogStatusView() {
         }
       })(),
     ]);
+  };
+
+  const handleSyncInstallVerifySource = async (source: CatalogExternalSourceProjection) => {
+    await catalogWorkspaceStore.syncInstallVerifyExternalSource({
+      sourceId: source.sourceId,
+      repoPath: effectiveRepoPath || undefined,
+    });
+  };
+
+  const handleBootstrapSpecKit = async () => {
+    await catalogWorkspaceStore.bootstrapSpecKitRepo({
+      repoPath: effectiveRepoPath || undefined,
+      integration: 'copilot',
+      script: 'ps',
+    });
+  };
+
+  const handleOpenDetails = async (
+    source: CatalogExternalSourceProjection,
+    installable: CatalogExternalSourceInstallable,
+  ) => {
+    const readPath = readInstallableReadablePath(installable);
+    const detailKey = `${source.sourceId}:${installable.installableId}`;
+    const label = getDetailLabel(source, installable);
+    if (!readPath) {
+      setDetailState({
+        key: detailKey,
+        loading: false,
+        error: 'No readable detail path is available for this installable.',
+        content: 'No readable detail path is available for this installable.',
+        label,
+      });
+      return;
+    }
+
+    setDetailState({
+      key: detailKey,
+      loading: true,
+      error: null,
+      content: `(loading ${label}...)`,
+      label,
+    });
+
+    try {
+      const content = await getCatalogContent({
+        mode: 'external-source',
+        sourceId: source.sourceId,
+        path: readPath,
+      });
+      setDetailState({
+        key: detailKey,
+        loading: false,
+        error: null,
+        content: content || '(empty content)',
+        label,
+      });
+    } catch (error) {
+      const message = toErrorMessage(error, 'Unable to load source details.');
+      setDetailState({
+        key: detailKey,
+        loading: false,
+        error: message,
+        content: `Unable to load source details: ${message}`,
+        label,
+      });
+    }
   };
 
   return (
@@ -550,6 +754,8 @@ export default function CatalogStatusView() {
                 : [];
               const activeTargetCount = countExternalSourceActiveTargets(source);
               const visibleInstallableCount = countVisibleExternalInstallables(source);
+              const verification = readSourceVerificationSummary(source);
+              const isSpecKit = source.sourceId === 'spec-kit';
 
               return (
                 <li key={source.sourceId}>
@@ -568,7 +774,17 @@ export default function CatalogStatusView() {
                   <p className="catalog-inline-note">
                     {visibleInstallableCount} visible installable(s) · {activeTargetCount} active target(s) · last synced {formatTimestamp(source.sync?.lastSyncedAt)}
                   </p>
+                  <p className="catalog-inline-note">
+                    Verification {verification.status || 'unknown'} · last verified {formatTimestamp(verification.lastVerifiedAt)}
+                    {effectiveRepoPath ? ` · repo ${effectiveRepoPath}` : ''}
+                  </p>
                   {source.sync?.lastError ? <p className="state-message state-error">{source.sync.lastError}</p> : null}
+                  {verification.errors.map((entry) => (
+                    <p className="state-message state-error" key={`${source.sourceId}-error-${entry}`}>{entry}</p>
+                  ))}
+                  {verification.warnings.map((entry) => (
+                    <p className="state-message" key={`${source.sourceId}-warning-${entry}`}>{entry}</p>
+                  ))}
 
                   <div className="catalog-action-row">
                     <Button
@@ -583,6 +799,17 @@ export default function CatalogStatusView() {
                       Refresh source
                     </Button>
                     <Button
+                      disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                      onClick={() => {
+                        void handleSyncInstallVerifySource(source);
+                      }}
+                      size="sm"
+                      testId="catalog-status-source-sync-install-verify"
+                      variant="primary"
+                    >
+                      Sync / install / verify
+                    </Button>
+                    <Button
                       disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || activeTargetCount === 0}
                       onClick={() => {
                         void catalogWorkspaceStore.reinstallExternalSourceAllTargets(source.sourceId);
@@ -593,6 +820,19 @@ export default function CatalogStatusView() {
                     >
                       Reinstall active targets
                     </Button>
+                    {isSpecKit ? (
+                      <Button
+                        disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating || !effectiveRepoPath}
+                        onClick={() => {
+                          void handleBootstrapSpecKit();
+                        }}
+                        size="sm"
+                        testId="catalog-status-source-bootstrap-spec-kit"
+                        variant="ghost"
+                      >
+                        Bootstrap selected repo
+                      </Button>
+                    ) : null}
                     {source.editable ? (
                       <Button
                         disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
@@ -614,6 +854,15 @@ export default function CatalogStatusView() {
                     <ul className="catalog-entry-list">
                       {installables.map((installable) => {
                         const supportedTargets = readExternalInstallableTargets(installable);
+                        const resolvedTargets = supportedTargets.length > 0 ? supportedTargets : installable.kind === 'cli-tool' ? ['host'] : [];
+                        const targetIssues = resolvedTargets.flatMap((target) => {
+                          const details = readExternalInstallableTargetDetails(source, installable.installableId, target);
+                          return [...details.errors, ...details.warnings].map((issue) => ({
+                            target,
+                            issue,
+                            isError: details.errors.includes(issue),
+                          }));
+                        });
                         return (
                           <li key={`${source.sourceId}-${installable.installableId}`}>
                             <div className="catalog-search-result-header">
@@ -627,21 +876,21 @@ export default function CatalogStatusView() {
                               </div>
                             </div>
 
-                            <p className="catalog-inline-note">Supports: {formatHarnessList(supportedTargets)}</p>
+                            <p className="catalog-inline-note">Supports: {formatHarnessList(resolvedTargets)}</p>
                             <div className="catalog-badge-row">
-                              {supportedTargets.map((target) => {
+                              {resolvedTargets.map((target) => {
                                 const details = readExternalInstallableTargetDetails(source, installable.installableId, target);
                                 return (
                                   <StatusBadge
                                     key={`${source.sourceId}-${installable.installableId}-${target}`}
-                                    status={`${getExternalTargetLabel(target)}:${details.enabled ? (details.installed ? 'installed-active' : 'active') : 'inactive'}`}
+                                    status={`${getExternalTargetLabel(target)}:${details.overallStatus || (details.enabled ? (details.installed ? 'installed-active' : 'active') : 'inactive')}`}
                                     testId="catalog-status-installable-target"
                                   />
                                 );
                               })}
                             </div>
 
-                            {supportedTargets.map((target) => {
+                            {resolvedTargets.map((target) => {
                               const details = readExternalInstallableTargetDetails(source, installable.installableId, target);
                               return (
                                 <p
@@ -649,15 +898,37 @@ export default function CatalogStatusView() {
                                   data-testid="catalog-status-installable-target-detail"
                                   key={`${source.sourceId}-${installable.installableId}-${target}-detail`}
                                 >
-                                  {getExternalTargetLabel(target)}: {details.enabled ? (details.installed ? 'installed and active' : 'active') : 'supported, not active'}
+                                  {getExternalTargetLabel(target)}: {details.overallStatus || (details.enabled ? (details.installed ? 'installed and active' : 'active') : 'supported, not active')}
                                   {details.managedName ? ` · ${details.managedName}` : ''}
                                   {details.installedPath ? ` · ${details.installedPath}` : ''}
+                                  {details.lastVerifiedAt ? ` · verified ${formatTimestamp(details.lastVerifiedAt)}` : ''}
                                 </p>
                               );
                             })}
 
+                            {targetIssues.map(({ target, issue, isError }) => (
+                              <p
+                                className={`catalog-inline-note ${isError ? 'state-error' : ''}`}
+                                data-testid="catalog-status-installable-target-issue"
+                                key={`${source.sourceId}-${installable.installableId}-${target}-issue-${issue}`}
+                              >
+                                {getExternalTargetLabel(target)}: {issue}
+                              </p>
+                            ))}
+
                             <div className="catalog-action-row">
-                              {supportedTargets.map((target) => {
+                              <Button
+                                disabled={catalogState.loading || catalogState.refreshing || catalogState.mutating}
+                                onClick={() => {
+                                  void handleOpenDetails(source, installable);
+                                }}
+                                size="sm"
+                                testId="catalog-status-installable-details"
+                                variant="ghost"
+                              >
+                                Details
+                              </Button>
+                              {resolvedTargets.map((target) => {
                                 const details = readExternalInstallableTargetDetails(source, installable.installableId, target);
                                 return (
                                   <Button
@@ -715,6 +986,11 @@ export default function CatalogStatusView() {
               <p className="catalog-stat-value">{installedState.inventory.instructions.installed ? 'yes' : 'no'}</p>
               <p className="catalog-stat-copy">{installedState.inventory.instructions.absPath || 'Instructions not installed.'}</p>
             </article>
+            <article className="catalog-stat-card">
+              <p className="catalog-stat-label">External MCP / CLI</p>
+              <p className="catalog-stat-value">{externalInventoryEntries.length}</p>
+              <p className="catalog-stat-copy">Derived from external source activation state across supported harnesses.</p>
+            </article>
           </div>
 
           <div className="preview-grid">
@@ -729,6 +1005,29 @@ export default function CatalogStatusView() {
                       <div>
                         <span>{skill.name || 'Unknown skill'}</span>
                         <small>{skill.kind}{providerLabel(skill as SkillPreviewItem) ? ` · ${providerLabel(skill as SkillPreviewItem)}` : ''}</small>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+
+            <section>
+              <p className="preview-title">External MCP / CLI inventory</p>
+              {externalInventoryEntries.length === 0 ? <p className="preview-empty">No external MCP or CLI installs detected.</p> : null}
+              {externalInventoryEntries.length > 0 ? (
+                <ul data-testid="catalog-status-external-inventory-list">
+                  {externalInventoryEntries.slice(0, 8).map((entry) => (
+                    <li key={`${entry.sourceId}:${entry.installableId}:${entry.target}`}>
+                      <div>
+                        <span>{entry.title}</span>
+                        <small>
+                          {getExternalTargetLabel(entry.target)}
+                          {entry.overallStatus ? ` · ${entry.overallStatus}` : ''}
+                          {entry.managedName ? ` · ${entry.managedName}` : ''}
+                          {entry.installedPath ? ` · ${entry.installedPath}` : ''}
+                          {entry.lastVerifiedAt ? ` · verified ${formatTimestamp(entry.lastVerifiedAt)}` : ''}
+                        </small>
                       </div>
                     </li>
                   ))}
@@ -799,6 +1098,15 @@ export default function CatalogStatusView() {
               ))}
             </ul>
           )}
+        </Panel>
+
+        <Panel
+          subtitle={detailState.label}
+          testId="catalog-status-detail-panel"
+          title="Source detail"
+        >
+          {detailState.error ? <p className="catalog-global-error">{detailState.error}</p> : null}
+          <pre className="catalog-global-detail-content">{detailState.content}</pre>
         </Panel>
       </div>
     </section>

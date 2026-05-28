@@ -18,6 +18,8 @@ Always ground this skill in:
 - `docs/system/documentation-structure-governance.md`
 - `docs/system/doc-graph-spec.md`
 - `docs/system/search-execute-workflow.md`
+- `docs/system/progressive-constraint-narrowing.md`
+- `docs/system/adr-governance.md`
 
 If these sources conflict, prefer the canonical governance doc, then the doc-graph contract, then the
 search/execute routing doc.
@@ -62,6 +64,10 @@ Do not route here when the request is mainly:
 - **Graph-preserving**: extend `docs/system/**`; do not create a parallel documentation system.
 - **Smallest useful change**: prefer one node and the minimum index/MOC link updates needed.
 - **Single source of truth**: human and LLM entrypoints must encode the same rules.
+- Narrow candidate constraints to the minimum hard constraints needed for the active step; keep
+  shaping context and open questions separate.
+- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived
+  contract decisions. Do not create ADRs for ordinary local navigation or placement adjustments.
 
 ## Contradiction Handling
 
@@ -106,7 +112,9 @@ The human-friendly and LLM-friendly entrypoints may differ in format, but they m
 5. Flag hidden, duplicated, conflicting, or overly broad entrypoint logic.
 6. Surface any material contradiction before approved update work proceeds.
 7. Propose the smallest graph-compliant change that fixes the gap.
-8. Keep generic writing guidance out of scope unless it directly blocks governance clarity.
+8. Call out ADR follow-up when a proposed structure change creates one of those key durable
+   decisions.
+9. Keep generic writing guidance out of scope unless it directly blocks governance clarity.
 
 ## Required Inputs
 

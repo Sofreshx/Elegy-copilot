@@ -272,6 +272,66 @@ function loadManifest(engineRoot) {
   };
 }
 
+function filterManifestAssets(manifest, predicate) {
+  if (typeof predicate !== 'function') {
+    return manifest;
+  }
+
+  const assets = Array.isArray(manifest?.assets)
+    ? manifest.assets.filter((asset) => {
+      try {
+        return predicate(asset) !== false;
+      } catch {
+        return false;
+      }
+    })
+    : [];
+  const includedAssetIds = new Set(
+    assets
+      .map((asset) => String(asset?.id || '').trim())
+      .filter(Boolean)
+  );
+  const bundles = Array.isArray(manifest?.bundles)
+    ? manifest.bundles
+      .map((bundle) => {
+        if (!bundle || typeof bundle !== 'object') {
+          return null;
+        }
+        const assetIds = Array.isArray(bundle.assetIds)
+          ? bundle.assetIds.filter((assetId) => includedAssetIds.has(String(assetId || '').trim()))
+          : [];
+        if (assetIds.length === 0) {
+          return null;
+        }
+        return {
+          ...bundle,
+          assetIds,
+        };
+      })
+      .filter(Boolean)
+    : [];
+  const includedBundleIds = new Set(
+    bundles
+      .map((bundle) => String(bundle?.id || '').trim())
+      .filter(Boolean)
+  );
+
+  return {
+    ...manifest,
+    assets,
+    ...(bundles.length > 0
+      ? {
+          bundles: bundles.map((bundle) => ({
+            ...bundle,
+            dependsOn: Array.isArray(bundle.dependsOn)
+              ? bundle.dependsOn.filter((bundleId) => includedBundleIds.has(String(bundleId || '').trim()))
+              : [],
+          })),
+        }
+      : {}),
+  };
+}
+
 function readJsonIfExists(absPath) {
   try {
     if (!fs.existsSync(absPath) || !fs.statSync(absPath).isFile()) {
@@ -1224,7 +1284,7 @@ function syncAll(engineRoot, destinationHome, opts) {
 }
 
 function syncManagedInstall(engineRoot, destinationHome, opts) {
-  const manifest = loadManifest(engineRoot);
+  const manifest = filterManifestAssets(loadManifest(engineRoot), opts && opts.assetFilter);
   const previousState = readInstallState(destinationHome);
   const synced = manifest.assets
     .map((a) => syncAsset(engineRoot, destinationHome, a.id, opts))
@@ -1235,6 +1295,9 @@ function syncManagedInstall(engineRoot, destinationHome, opts) {
     : [];
 
   const nextState = buildManagedInstallState(syncedAssets, opts);
+  if (opts && opts.preserveManagedPrompts === true && previousState) {
+    nextState.managedPrompts = normalizeInstallStateItems(previousState.managedPrompts);
+  }
   const prunedPaths = [
     ...pruneManagedSkillInstall(destinationHome, nextState, previousState, opts),
     ...pruneManagedFileInstall(destinationHome, 'agents', nextState.managedAgents, previousState && previousState.managedAgents, opts),
@@ -1378,6 +1441,8 @@ function generatePointer(name, description, triggers, vaultRef) {
 module.exports = {
   
   loadManifest,
+  filterManifestAssets,
+  readInstallState,
   listInstalledAgents,
   listInstalledSkills,
   listInstalledSkillInventory,

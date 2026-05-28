@@ -44,6 +44,11 @@ description: "Plan-pack schema, progress tracker format, and quality gate rules 
   - `not-complete`
 - For fresh planning output, default high-level goals to `not-complete`; use `partial`/`complete` only for carryover or replan context.
 
+## Constraint Narrowing And Decision Promotion
+- Narrow candidate constraints into the minimum authoritative hard-constraint set needed for the active plan.
+- Keep shaping context and open questions distinct from hard constraints.
+- If a decision in `## Decisions` is a key architectural, workflow-authority, trust-boundary, or long-lived contract choice, flag ADR follow-up instead of leaving that rationale only inside the plan pack.
+
 ## WU Spec Required Sub-Sections
 Each WU spec (H3) must contain:
 - Context

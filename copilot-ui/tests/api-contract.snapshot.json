@@ -988,6 +988,26 @@
       "kind"
     ]
   },
+  "POST /api/catalog/sources/sync-install-verify": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
+  "POST /api/catalog/tools/spec-kit/bootstrap": {
+    "status": 400,
+    "contentType": "application/json",
+    "bodyType": "json",
+    "bodyKeys": [
+      "deterministic",
+      "error",
+      "kind"
+    ]
+  },
   "POST /api/catalog/assets/create": {
     "status": 400,
     "contentType": "application/json",

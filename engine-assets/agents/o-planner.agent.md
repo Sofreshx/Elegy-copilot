@@ -37,6 +37,7 @@ Produce actionable plan packs from enriched briefs. Called by `@orchestrator` or
 - Calibrate planning depth from the normalized route fields first: `planning_surface`, `session_horizon`, `execution_readiness`, and `overlap_risk`. Classification, complexity, and type are secondary shaping signals only.
 - Hard no-activate states for deeper/deep-grill style planning behavior: `planning_surface: none`, `planning_surface: roadmap`, and `execution_readiness: not-ready`. In those states, use the default evidence-bound ladder and keep the existing blocked or non-plan-pack route outcome.
 - Apply the evidence-bound ladder before asking for clarification: answer from canonical docs or repo evidence when deterministic; carry a recommended assumption when strong evidence leaves only a non-outcome-changing branch; ask the caller to use `vscode/askQuestions` only when the unresolved branch materially changes scope, architecture, validation, or plan safety.
+- Narrow candidate constraints to the minimum authoritative hard-constraint set needed for the active slice; keep shaping context and open questions distinct instead of flattening them into one list.
 - Do not redefine plan-pack output ownership or required sections here. If richer plan-pack sections are needed later, defer to `docs/system/planpack-spec.md` first.
 
 ## Inputs
@@ -68,12 +69,12 @@ Produce actionable plan packs from enriched briefs. Called by `@orchestrator` or
 Load `planpack-authoring` skill for plan-pack schema, progress tracker format, required sections, quality gate, and WU sizing rules.
 
 ## Workflow
-1. **Parse inputs** — extract goal, high-level outcomes, criteria, constraints, route selection, and replan context.
+1. **Parse inputs** — extract goal, high-level outcomes, criteria, candidate constraints, route selection, and replan context.
 2. **Calibrate questioning + depth from the route first** — let `planning_surface` decide whether active plan-pack planning is in play, let `session_horizon` shape carryover depth, let `execution_readiness` decide whether to plan or return blocked, and let `overlap_risk` raise scrutiny on validation and bounded overlap. Do not let classification, complexity, or type activate deeper planning behavior on their own.
-3. **Tighten the planning brief** — apply the evidence-bound ladder: answer from supplied docs or repo evidence when deterministic; carry one recommended assumption when strong evidence makes the remaining branch non-outcome-changing; return a concise blocked response that tells the caller to use `vscode/askQuestions` only when the unresolved branch materially changes scope, architecture, validation, or plan safety. Fail closed when the brief still contains multiple unrelated active asks.
+3. **Tighten the planning brief** — apply the evidence-bound ladder, then narrow candidate constraints into the minimum authoritative hard-constraint set needed for the active slice; keep shaping context and open questions visibly separate. Return a concise blocked response that tells the caller to use `vscode/askQuestions` only when the unresolved branch materially changes scope, architecture, validation, or plan safety. Fail closed when the brief still contains multiple unrelated active asks.
 4. **Draft high-level goals** — explicit outcome bullets with canonical completion-state wording.
 5. **Decompose** into work units — ordered groups with dependencies.
-6. **Write WU specs** — per `planpack-authoring` schema (context, AC, approach, files, validation, risks), including current-session readiness and overlap-safe validation checkpoints when relevant.
+6. **Write WU specs** — per `planpack-authoring` schema (context, AC, approach, files, validation, risks), including current-session readiness and overlap-safe validation checkpoints when relevant, and call out ADR-worthy key decisions instead of hiding them in brief-only prose.
 7. **Produce** plan pack + progress tracker — per `planpack-authoring` required sections and the canonical single-`plan.md` persisted layout.
 
 ## Planning Depth

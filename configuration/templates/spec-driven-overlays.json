@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "elegy-configuration-template/v1",
+  "templateId": "instruction-engine-spec-driven-overlays-template",
+  "displayName": "Instruction Engine Spec-Driven Overlays",
+  "description": "Patch bounded spec-driven instruction overlays into repo-local instruction files.",
+  "scope": "repo",
+  "bindings": {
+    "target.instructions": {
+      "required": true,
+      "description": "Repo-local instruction overlay file to patch."
+    }
+  },
+  "operations": [
+    {
+      "operationType": "patchTextBlock",
+      "operationId": "patch-copilot-instructions",
+      "family": "instruction",
+      "destination": {
+        "base": "target-root",
+        "path": ".github/copilot-instructions.md"
+      },
+      "startMarker": "<!-- instruction-engine:begin spec-driven -->",
+      "endMarker": "<!-- instruction-engine:end spec-driven -->",
+      "contentPath": {
+        "base": "template-root",
+        "path": "../assets/spec-driven-instructions.md"
+      },
+      "createIfMissing": true
+    },
+    {
+      "operationType": "patchTextBlock",
+      "operationId": "patch-surface-instructions",
+      "family": "instruction",
+      "destination": {
+        "base": "target-root",
+        "path": "${target.instructions}"
+      },
+      "startMarker": "<!-- instruction-engine:begin spec-driven -->",
+      "endMarker": "<!-- instruction-engine:end spec-driven -->",
+      "contentPath": {
+        "base": "template-root",
+        "path": "../assets/spec-driven-instructions.md"
+      },
+      "createIfMissing": true
+    }
+  ]
+}

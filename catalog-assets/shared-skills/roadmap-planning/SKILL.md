@@ -90,6 +90,7 @@ Statuses: `pending`, `ready`, `in-progress`, `blocked`, `done`, `dropped`. Use `
 4. Implement and validate the slice.
 5. Lightly update only the relevant roadmap item fields in `docs/roadmaps/<roadmap-slug>.md`.
 6. Keep roadmap edits factual. Do not rewrite unrelated future slices unless the implementation invalidated them.
+7. If the slice introduces a key architectural, trust-boundary, workflow-authority, or long-lived contract decision, capture it in the owning canonical node or ADR instead of burying it only in roadmap prose.
 
 Recommended prompt:
 

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "elegy-plugin-package/v2",
+  "identity": {
+    "packageId": "instruction-engine.spec-driven-config",
+    "name": "instruction-engine-spec-driven-config",
+    "version": "0.1.0",
+    "displayName": "Instruction Engine Spec-Driven Config"
+  },
+  "metadata": {
+    "description": "Package-backed configuration templates for instruction-engine repo spec-driven bootstrap.",
+    "tags": ["instruction-engine", "configuration", "spec-driven"],
+    "license": "MIT"
+  },
+  "components": {
+    "configurationTemplates": [
+      {
+        "id": "instruction-engine-spec-driven-overlays-template",
+        "path": "templates/spec-driven-overlays.json"
+      },
+      {
+        "id": "instruction-engine-spec-driven-validator-template",
+        "path": "templates/spec-driven-validator.json"
+      }
+    ],
+    "configurationProfiles": [
+      {
+        "id": "instruction-engine-spec-driven-overlays",
+        "path": "profiles/spec-driven-overlays.json"
+      },
+      {
+        "id": "instruction-engine-spec-driven-validator",
+        "path": "profiles/spec-driven-validator.json"
+      }
+    ]
+  }
+}

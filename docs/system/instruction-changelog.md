@@ -1,6 +1,6 @@
 ---
 created: 2026-02-23
-updated: 2026-05-20
+updated: 2026-05-25
 category: system
 status: current
 doc_kind: node
@@ -10,6 +10,13 @@ tags: [changelog]
 ---
 
 # Instruction Changelog
+
+## 2026-05-25 - Progressive constraint narrowing and ADR governance across installed harnesses
+
+- Added canonical nodes `docs/system/progressive-constraint-narrowing.md` and `docs/system/adr-governance.md`.
+- Updated planning, conventions, and documentation governance docs so canonical routing now distinguishes hard constraints, shaping context, open questions, and ADR-worthy durable decisions.
+- Tightened shared installed skills and harness home instructions so Codex, OpenCode, Antigravity, and Copilot all encourage the same constraint-narrowing and ADR posture after install.
+- Added ADR structure validation for `docs/system/*-adr.md` and normalized the current ADR examples to the new required sections.
 
 ## 2026-05-20 - Antigravity 2 / Antigravity CLI compatibility refresh
 

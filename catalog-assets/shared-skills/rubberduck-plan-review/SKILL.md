@@ -29,8 +29,10 @@ Stress-test a plan before edits begin. Preserve momentum, but make weak assumpti
 2. Identify assumptions that are not yet proven by repo evidence.
 3. Check whether the plan is the smallest safe change that satisfies the goal.
 4. Look for missing sequencing, rollback, migration, compatibility, permission, or validation steps.
-5. Challenge whether any proposed new abstraction, agent, skill, script, dependency, or doc surface is actually needed.
-6. Decide whether the plan is ready, needs a small edit, or needs user clarification before implementation.
+5. Check whether the plan narrowed candidate constraints to the minimum hard set needed for the active slice instead of forwarding a noisy rule dump.
+6. Check whether any key architectural, trust-boundary, workflow-authority, or long-lived contract decision should be captured in an ADR rather than only in the plan.
+7. Challenge whether any proposed new abstraction, agent, skill, script, dependency, or doc surface is actually needed.
+8. Decide whether the plan is ready, needs a small edit, or needs user clarification before implementation.
 
 ## Output Contract
 
@@ -45,6 +47,8 @@ RUBBERDUCK_PLAN_REVIEW
   - <high-signal risk or none>
 - plan_edits:
   - <specific edit or none>
+- adr_follow_up:
+  - <needed adr or none>
 - clarification_needed:
   - <question or none>
 - validation_required:

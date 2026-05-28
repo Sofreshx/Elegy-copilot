@@ -15,6 +15,8 @@ const mockDeactivateCatalogSourceInstallable = vi.fn();
 const mockRefreshCatalogProjection = vi.fn();
 const mockRefreshCatalogSource = vi.fn();
 const mockRemoveCatalogSource = vi.fn();
+const mockSyncInstallVerifyCatalogSource = vi.fn();
+const mockBootstrapCatalogSpecKit = vi.fn();
 const mockSearchCatalogAssets = vi.fn();
 const mockRecordCatalogSearchSelection = vi.fn();
 const mockSyncAllAssets = vi.fn();
@@ -48,6 +50,7 @@ vi.mock('../ui/src/lib/api', () => ({
   getCatalogRepos: mockGetCatalogRepos,
   getCatalogSummary: mockGetCatalogSummary,
   getRuntimeCatalogHealth: mockGetRuntimeCatalogHealth,
+  bootstrapCatalogSpecKit: mockBootstrapCatalogSpecKit,
   installCatalogAsset: mockInstallCatalogAsset,
   uninstallCatalogBundle: mockUninstallCatalogBundle,
   refreshCatalogSource: mockRefreshCatalogSource,
@@ -59,6 +62,7 @@ vi.mock('../ui/src/lib/api', () => ({
   saveCatalogRepoScanRoots: mockSaveCatalogRepoScanRoots,
   searchCatalogAssets: mockSearchCatalogAssets,
   selectCatalogRepo: mockSelectCatalogRepo,
+  syncInstallVerifyCatalogSource: mockSyncInstallVerifyCatalogSource,
   syncAllAssets: mockSyncAllAssets,
   unregisterCatalogRepo: mockUnregisterCatalogRepo,
   updateCatalogAsset: mockUpdateCatalogAsset,
@@ -82,6 +86,8 @@ describe('catalogWorkspaceStore', () => {
     mockRefreshCatalogProjection.mockReset();
     mockRefreshCatalogSource.mockReset();
     mockRemoveCatalogSource.mockReset();
+    mockSyncInstallVerifyCatalogSource.mockReset();
+    mockBootstrapCatalogSpecKit.mockReset();
     mockSearchCatalogAssets.mockReset();
     mockRecordCatalogSearchSelection.mockReset();
     mockSyncAllAssets.mockReset();
@@ -1342,5 +1348,150 @@ describe('catalogWorkspaceStore', () => {
       target: 'opencode',
     });
     expect(catalogWorkspaceStore.getState().installMessage).toContain('Reinstalled 2 active target(s)');
+  });
+
+  it('syncs, installs, and verifies an external source with the selected repo context', async () => {
+    mockGetCatalogRepos.mockResolvedValue({
+      repos: [
+        {
+          repoId: 'repo-1',
+          repoPath: 'C:\\repo',
+          selected: true,
+        },
+      ],
+      selectedRepo: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\repo',
+        selected: true,
+      },
+    });
+    mockGetCatalogSummary.mockResolvedValue({
+      summary: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+        repoContext: {
+          repoId: 'repo-1',
+          repoPath: 'C:\\repo',
+        },
+        stats: {
+          effectiveCount: 0,
+          installedCount: 0,
+          overriddenCount: 0,
+        },
+        externalSources: [
+          {
+            sourceId: 'demo-source',
+            title: 'Demo Source',
+            sync: {
+              verificationStatus: 'partial',
+            },
+            installables: [],
+            activation: {},
+          },
+        ],
+      },
+    });
+    mockGetCatalogAssets.mockResolvedValue({ assets: [] });
+    mockGetCatalogBundles.mockResolvedValue({ bundles: [] });
+    mockGetRuntimeCatalogHealth.mockResolvedValue({ ok: true, projection: { schemaVersion: 1, generatedAt: '2026-03-09T00:00:00.000Z' } });
+    mockGetCatalogAuditEvents.mockResolvedValue({ events: [] });
+    mockSyncInstallVerifyCatalogSource.mockResolvedValue({
+      overallStatus: 'partial',
+      warnings: ['Ghidra is not running.'],
+    });
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    await catalogWorkspaceStore.loadWorkspace();
+    await catalogWorkspaceStore.syncInstallVerifyExternalSource({
+      sourceId: 'demo-source',
+      repoPath: 'C:\\repo',
+    });
+
+    expect(mockSyncInstallVerifyCatalogSource).toHaveBeenCalledWith({
+      sourceId: 'demo-source',
+      targets: undefined,
+      installableIds: undefined,
+      force: undefined,
+      repoPath: 'C:\\repo',
+    });
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Synced, installed, and verified demo-source with 1 warning');
+  });
+
+  it('bootstraps Spec Kit in the selected repo and defaults to the Windows script', async () => {
+    mockGetCatalogRepos.mockResolvedValue({
+      repos: [
+        {
+          repoId: 'repo-1',
+          repoPath: 'C:\\repo',
+          selected: true,
+        },
+      ],
+      selectedRepo: {
+        repoId: 'repo-1',
+        repoPath: 'C:\\repo',
+        selected: true,
+      },
+    });
+    mockGetCatalogSummary.mockResolvedValue({
+      summary: {
+        schemaVersion: 1,
+        generatedAt: '2026-03-09T00:00:00.000Z',
+        repoContext: {
+          repoId: 'repo-1',
+          repoPath: 'C:\\repo',
+        },
+        stats: {
+          effectiveCount: 0,
+          installedCount: 0,
+          overriddenCount: 0,
+        },
+        externalSources: [
+          {
+            sourceId: 'spec-kit',
+            title: 'Spec Kit',
+            installables: [
+              {
+                installableId: 'cli:specify',
+                kind: 'cli-tool',
+                targetSupport: ['host'],
+              },
+            ],
+            activation: {
+              host: {
+                installables: {
+                  'cli:specify': {
+                    enabled: true,
+                    installed: true,
+                  },
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+    mockGetCatalogAssets.mockResolvedValue({ assets: [] });
+    mockGetCatalogBundles.mockResolvedValue({ bundles: [] });
+    mockGetRuntimeCatalogHealth.mockResolvedValue({ ok: true, projection: { schemaVersion: 1, generatedAt: '2026-03-09T00:00:00.000Z' } });
+    mockGetCatalogAuditEvents.mockResolvedValue({ events: [] });
+    mockBootstrapCatalogSpecKit.mockResolvedValue({
+      repoPath: 'C:\\repo',
+      overallStatus: 'ready',
+    });
+
+    const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
+
+    await catalogWorkspaceStore.loadWorkspace();
+    await catalogWorkspaceStore.bootstrapSpecKitRepo();
+
+    expect(mockBootstrapCatalogSpecKit).toHaveBeenCalledWith({
+      repoPath: 'C:\\repo',
+      integration: 'copilot',
+      script: undefined,
+      force: undefined,
+      ignoreAgentTools: undefined,
+    });
+    expect(catalogWorkspaceStore.getState().installMessage).toContain('Bootstrapped Spec Kit in C:\\repo');
   });
 });

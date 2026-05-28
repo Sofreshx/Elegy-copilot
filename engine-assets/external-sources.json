@@ -52,7 +52,160 @@
       "preferredSkillPathPrefixes": [
         "skills/"
       ],
-      "mcpManifestPath": "server.json"
+      "mcpManifestPath": "server.json",
+      "installables": [
+        {
+          "installableId": "mcp:context7",
+          "kind": "mcp-server",
+          "name": "context7",
+          "title": "Context7",
+          "description": "Context7 MCP server for fresh documentation retrieval.",
+          "sourcePath": "server.json",
+          "targetSupport": [
+            "codex",
+            "opencode",
+            "gemini-cli"
+          ],
+          "installCommand": "npx -y @upstash/context7-mcp",
+          "verifyCommand": "npx -y @upstash/context7-mcp --help",
+          "runtimeChecks": [
+            "MCP command can be launched from the host runtime.",
+            "CONTEXT7_API_KEY is optional and only needed for authenticated access."
+          ],
+          "setupHints": [
+            "Store CONTEXT7_API_KEY outside the repository if you need authenticated access."
+          ],
+          "metadata": {
+            "command": "npx",
+            "args": [
+              "-y",
+              "@upstash/context7-mcp"
+            ],
+            "verifyEnvVars": [
+              "CONTEXT7_API_KEY"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "sourceId": "ghidra-mcp",
+      "title": "GhidraMCP",
+      "description": "Bridge-based MCP for Ghidra reverse-engineering sessions.",
+      "url": "https://github.com/LaurieWired/GhidraMCP",
+      "sourceType": "github-repo",
+      "owner": "LaurieWired",
+      "repo": "GhidraMCP",
+      "defaultRef": "main",
+      "includeSkills": false,
+      "includeMcp": false,
+      "setupHints": [
+        "Install the latest GhidraMCP extension zip inside Ghidra via File > Install Extensions.",
+        "Enable GhidraMCPPlugin in Ghidra and confirm the HTTP server port under Tool Options.",
+        "Keep a local checkout or cached copy of bridge_mcp_ghidra.py available to the host runtime.",
+        "Python 3 and the MCP Python SDK must be available on the host running the bridge script."
+      ],
+      "installables": [
+        {
+          "installableId": "mcp:ghidra",
+          "kind": "mcp-server",
+          "name": "ghidra",
+          "title": "GhidraMCP",
+          "description": "Bridge script for connecting MCP clients to a running Ghidra HTTP server.",
+          "sourcePath": "bridge_mcp_ghidra.py",
+          "targetSupport": [
+            "codex",
+            "opencode",
+            "gemini-cli"
+          ],
+          "verifyCommand": "python bridge_mcp_ghidra.py --help",
+          "runtimeChecks": [
+            "bridge_mcp_ghidra.py is available on disk.",
+            "python is callable from the host runtime.",
+            "Ghidra HTTP server responds at the configured URL."
+          ],
+          "setupHints": [
+            "Point the MCP bridge at the running Ghidra HTTP server URL, typically http://127.0.0.1:8080/.",
+            "The bridge can run in stdio mode by default or SSE mode when explicitly requested."
+          ],
+          "metadata": {
+            "bridgeScriptPath": "bridge_mcp_ghidra.py",
+            "defaultGhidraServerUrl": "http://127.0.0.1:8080/",
+            "defaultMcpHost": "127.0.0.1",
+            "defaultMcpPort": 8081,
+            "pythonCommand": "python",
+            "commandTemplate": [
+              "python",
+              "bridge_mcp_ghidra.py",
+              "--ghidra-server",
+              "http://127.0.0.1:8080/"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "sourceId": "spec-kit",
+      "title": "Spec Kit",
+      "description": "Official GitHub Spec Kit CLI for upstream spec-driven workflows.",
+      "url": "https://github.com/github/spec-kit",
+      "sourceType": "github-repo",
+      "owner": "github",
+      "repo": "spec-kit",
+      "defaultRef": "v0.8.13",
+      "includeSkills": false,
+      "includeMcp": false,
+      "setupHints": [
+        "Spec Kit is optional upstream tooling and does not replace this repo's internal spec-driven profile.",
+        "Use uv for the recommended install path, or pipx when uv is unavailable.",
+        "Bootstrap mutates the selected repo and should only run after explicit operator confirmation."
+      ],
+      "installables": [
+        {
+          "installableId": "cli:specify",
+          "kind": "cli-tool",
+          "name": "specify",
+          "title": "Spec Kit",
+          "description": "Official Specify CLI installed from github/spec-kit.",
+          "targetSupport": [
+            "host"
+          ],
+          "installCommand": "uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.8.13",
+          "verifyCommand": "specify version",
+          "bootstrapCommand": "specify init --here --integration copilot --script ps",
+          "runtimeChecks": [
+            "Python 3.11+ is installed.",
+            "Git is available on PATH.",
+            "uv or pipx is available for installation.",
+            "specify version succeeds from the host runtime."
+          ],
+          "setupHints": [
+            "Do not install unrelated PyPI packages named specify-cli; use the GitHub repo source only.",
+            "Windows bootstrap defaults to PowerShell scripts.",
+            "Use specify init --here only inside the explicitly selected repo."
+          ],
+          "metadata": {
+            "toolName": "specify",
+            "preferredInstaller": "uv",
+            "fallbackInstaller": "pipx",
+            "pinnedVersion": "v0.8.13",
+            "installCommandUv": "uv tool install specify-cli --from git+https://github.com/github/spec-kit.git@v0.8.13",
+            "installCommandPipx": "pipx install git+https://github.com/github/spec-kit.git@v0.8.13",
+            "reinstallCommandPipx": "pipx install --force git+https://github.com/github/spec-kit.git@v0.8.13",
+            "verifyCommand": "specify version",
+            "bootstrapDefaults": {
+              "integration": "copilot",
+              "script": "ps"
+            },
+            "expectedPaths": [
+              ".specify",
+              ".github/agents",
+              ".github/prompts",
+              ".github/copilot-instructions.md"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

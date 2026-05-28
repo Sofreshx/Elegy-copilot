@@ -1,13 +1,13 @@
 ---
 created: 2026-05-17
-updated: 2026-05-17
+updated: 2026-05-25
 category: system
 status: current
 doc_kind: node
 id: documentation-authoring-governance
 summary: Canonical contract for writing durable documentation that is human-readable, agent-readable, progressively disclosed, diagram-friendly, and resistant to drift.
 tags: [documentation, authoring, governance, diagrams, validation]
-related: [doc-graph-spec, documentation-structure-governance, self-documenting-code-and-rationale-placement]
+related: [doc-graph-spec, documentation-structure-governance, self-documenting-code-and-rationale-placement, progressive-constraint-narrowing, adr-governance]
 ---
 
 # Documentation Authoring Governance
@@ -26,6 +26,7 @@ drift-resistant content.
 ## Authoring Principles
 
 - Write from stable concepts, contracts, invariants, and key decisions before implementation detail.
+- Keep the active page focused on the minimum durable rules the reader needs now; do not flatten the full upstream rule family when a narrower canonical node or ADR already exists.
 - Start with a compact explanation, then disclose detail only when the reader needs it.
 - Keep pages atomic enough that an agent can retrieve one page without dragging in an unrelated rule
   family.
@@ -70,6 +71,7 @@ Agent-facing docs should:
 - prefer short canonical pages over broad composite pages
 - include machine-friendly cues such as status, scope, source ownership, validation command, and
   read-next links
+- keep durable architectural tradeoffs in ADRs only when they meet [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md); otherwise keep them in the smallest owning node
 
 ## Drift Resistance
 

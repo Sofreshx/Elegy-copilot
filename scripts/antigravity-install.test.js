@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { createTestElegyCliShim, withWorkingDirectory } = require('./test-elegy-cli-shim.js');
 
 let passed = 0;
 
@@ -132,6 +133,7 @@ async function main() {
 
   await test('installer bootstraps opt-in spec-driven repo files', async () => {
     withTempDir((root) => {
+      const shim = createTestElegyCliShim(root);
       const geminiHome = path.join(root, '.gemini');
       const antigravityHome = path.join(geminiHome, 'antigravity');
       const skillsHome = path.join(antigravityHome, 'skills');
@@ -144,14 +146,15 @@ async function main() {
       fs.writeFileSync(path.join(repoRoot, 'GEMINI.md'), '# Notes\n\nKeep this footer.\n', 'utf8');
       fs.writeFileSync(path.join(repoRoot, '.github', 'skills', 'repo-helper', 'SKILL.md'), '---\nname: repo-helper\ndescription: Repo helper\n---\n', 'utf8');
 
-      const summary = installer.runInstall({
+      const summary = withWorkingDirectory(shim.shimDir, () => installer.runInstall({
         force: true,
         geminiHome,
         antigravityHome,
         skillsHome,
         repoRoot,
+        elegyCliPath: shim.elegyCliPath,
         setupProfile: 'spec-driven',
-      });
+      }));
 
       const geminiInstructions = fs.readFileSync(path.join(repoRoot, 'GEMINI.md'), 'utf8');
       const copilotInstructions = fs.readFileSync(path.join(repoRoot, '.github', 'copilot-instructions.md'), 'utf8');
