@@ -128,7 +128,7 @@ async function run() {
     writeText(path.join(copilotHomeAbs, 'skills-vault', 'core-guardrails', 'SKILL.md'), '# Core Guardrails Vault\n');
     writeText(path.join(copilotHomeAbs, 'skills-vault', 'wolverine-core', 'SKILL.md'), '# Wolverine Core\n');
     writeText(
-      path.join(copilotHomeAbs, 'skills', 'superpowers', 'brainstorming', 'SKILL.md'),
+      path.join(copilotHomeAbs, 'skills', 'external-provider', 'brainstorming', 'SKILL.md'),
       [
         '---',
         'name: brainstorming',
@@ -178,13 +178,13 @@ async function run() {
       const brainstormingItems = response.payload.skills.filter((skill) => skill.name === 'brainstorming');
       assert.strictEqual(brainstormingItems.length, 2, 'expected flat and plugin brainstorming entries');
 
-      const pluginEntry = brainstormingItems.find((skill) => skill.namespace === 'superpowers');
+      const pluginEntry = brainstormingItems.find((skill) => skill.namespace === 'external-provider');
       const flatEntry = brainstormingItems.find((skill) => !skill.namespace);
 
       assert.ok(pluginEntry, 'expected plugin brainstorming entry');
       assert.ok(flatEntry, 'expected flat brainstorming entry');
       assert.notStrictEqual(pluginEntry.assetId, flatEntry.assetId);
-      assert.strictEqual(pluginEntry.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
+      assert.strictEqual(pluginEntry.viewPath, 'skills/external-provider/brainstorming/SKILL.md');
       assert.strictEqual(pluginEntry.readOnly, true);
       assert.ok(
         ['external-provider', 'copilot-home-plugin', 'copilot-marketplace-plugin'].includes(pluginEntry.provider),

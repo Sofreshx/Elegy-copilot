@@ -28,13 +28,13 @@ describe('skillsPreviewStore', () => {
           viewPath: 'skills/brainstorming/SKILL.md',
         },
         {
-          assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
+          assetId: 'skill-copilot-home-plugin-external-provider-brainstorming',
           name: 'brainstorming',
           kind: 'full',
-          namespace: 'superpowers',
+          namespace: 'external-provider',
           provider: 'copilot-home-plugin',
           readOnly: true,
-          viewPath: 'skills/superpowers/brainstorming/SKILL.md',
+          viewPath: 'skills/external-provider/brainstorming/SKILL.md',
         },
       ],
     });
@@ -43,10 +43,10 @@ describe('skillsPreviewStore', () => {
     const { skillsPreviewStore } = await import('../ui/src/tabs/SkillsPreview/skillsPreviewStore');
 
     await skillsPreviewStore.loadSkills();
-    await skillsPreviewStore.loadSkillDetail('skill-copilot-home-plugin-superpowers-brainstorming');
+    await skillsPreviewStore.loadSkillDetail('skill-copilot-home-plugin-external-provider-brainstorming');
 
-    expect(mockGetAssetView).toHaveBeenCalledWith('skills/superpowers/brainstorming/SKILL.md');
-    expect(skillsPreviewStore.getState().selectedSkillId).toBe('skill-copilot-home-plugin-superpowers-brainstorming');
+    expect(mockGetAssetView).toHaveBeenCalledWith('skills/external-provider/brainstorming/SKILL.md');
+    expect(skillsPreviewStore.getState().selectedSkillId).toBe('skill-copilot-home-plugin-external-provider-brainstorming');
     expect(skillsPreviewStore.getState().detailText).toContain('Plugin Brainstorming');
   });
 
@@ -60,13 +60,13 @@ describe('skillsPreviewStore', () => {
           viewPath: 'skills/brainstorming/SKILL.md',
         },
         {
-          assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
+          assetId: 'skill-copilot-home-plugin-external-provider-brainstorming',
           name: 'brainstorming',
           kind: 'full',
-          namespace: 'superpowers',
+          namespace: 'external-provider',
           provider: 'copilot-home-plugin',
           readOnly: true,
-          viewPath: 'skills/superpowers/brainstorming/SKILL.md',
+          viewPath: 'skills/external-provider/brainstorming/SKILL.md',
         },
       ],
     });
@@ -74,7 +74,7 @@ describe('skillsPreviewStore', () => {
     let resolveFlat: ((value: string) => void) | null = null;
     let resolvePlugin: ((value: string) => void) | null = null;
     mockGetAssetView.mockImplementation((requestedPath: string) => new Promise((resolve) => {
-      if (requestedPath.includes('skills/superpowers/brainstorming/SKILL.md')) {
+      if (requestedPath.includes('skills/external-provider/brainstorming/SKILL.md')) {
         resolvePlugin = resolve;
         return;
       }
@@ -86,7 +86,7 @@ describe('skillsPreviewStore', () => {
     await skillsPreviewStore.loadSkills();
 
     const flatLoad = skillsPreviewStore.loadSkillDetail('skill-flat-brainstorming');
-    const pluginLoad = skillsPreviewStore.loadSkillDetail('skill-copilot-home-plugin-superpowers-brainstorming');
+    const pluginLoad = skillsPreviewStore.loadSkillDetail('skill-copilot-home-plugin-external-provider-brainstorming');
 
     expect(resolveFlat).not.toBeNull();
     expect(resolvePlugin).not.toBeNull();
@@ -97,7 +97,7 @@ describe('skillsPreviewStore', () => {
     resolveFlat?.('# Flat Brainstorming');
     await flatLoad;
 
-    expect(skillsPreviewStore.getState().selectedSkillId).toBe('skill-copilot-home-plugin-superpowers-brainstorming');
+    expect(skillsPreviewStore.getState().selectedSkillId).toBe('skill-copilot-home-plugin-external-provider-brainstorming');
     expect(skillsPreviewStore.getState().detailText).toContain('Plugin Brainstorming');
     expect(skillsPreviewStore.getState().detailText).not.toContain('Flat Brainstorming');
   });

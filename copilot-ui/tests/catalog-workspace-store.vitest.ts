@@ -382,14 +382,14 @@ describe('catalogWorkspaceStore', () => {
     mockGetCatalogAssets.mockResolvedValue({
       assets: [
         {
-          assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
-          assetKey: 'copilot-home-plugin-superpowers-brainstorming',
+          assetId: 'skill-copilot-home-plugin-external-provider-brainstorming',
+          assetKey: 'copilot-home-plugin-external-provider-brainstorming',
           kind: 'skill',
           installed: true,
           enabled: true,
           available: true,
           selectedEntry: {
-            assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
+            assetId: 'skill-copilot-home-plugin-external-provider-brainstorming',
             kind: 'skill',
             title: 'Brainstorming',
           },
@@ -411,8 +411,8 @@ describe('catalogWorkspaceStore', () => {
     });
     mockGetCatalogAssetDetail.mockResolvedValue({
       asset: {
-        assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
-        assetKey: 'copilot-home-plugin-superpowers-brainstorming',
+        assetId: 'skill-copilot-home-plugin-external-provider-brainstorming',
+        assetKey: 'copilot-home-plugin-external-provider-brainstorming',
         kind: 'skill',
         installed: true,
         enabled: true,
@@ -420,16 +420,16 @@ describe('catalogWorkspaceStore', () => {
         installState: {
           availability: 'installed',
           installedPaths: {
-            'user-installed': 'C:\\Users\\lolzi\\.copilot\\skills\\superpowers\\brainstorming\\SKILL.md',
+            'user-installed': 'C:\\Users\\lolzi\\.copilot\\skills\\external-provider\\brainstorming\\SKILL.md',
           },
         },
         selectedEntry: {
-          assetId: 'skill-copilot-home-plugin-superpowers-brainstorming',
+          assetId: 'skill-copilot-home-plugin-external-provider-brainstorming',
           kind: 'skill',
           title: 'Brainstorming',
-          contentPath: 'C:\\Users\\lolzi\\.copilot\\skills\\superpowers\\brainstorming\\SKILL.md',
+          contentPath: 'C:\\Users\\lolzi\\.copilot\\skills\\external-provider\\brainstorming\\SKILL.md',
           metadata: {
-            viewPath: 'skills/superpowers/brainstorming/SKILL.md',
+            viewPath: 'skills/external-provider/brainstorming/SKILL.md',
           },
         },
       },
@@ -443,7 +443,7 @@ describe('catalogWorkspaceStore', () => {
     const { catalogWorkspaceStore } = await import('../ui/src/tabs/Assets/catalogWorkspaceStore');
     await catalogWorkspaceStore.loadWorkspace();
 
-    expect(mockGetAssetView).toHaveBeenCalledWith('skills/superpowers/brainstorming/SKILL.md');
+    expect(mockGetAssetView).toHaveBeenCalledWith('skills/external-provider/brainstorming/SKILL.md');
   });
 
   it('runs deterministic catalog search with the active repo scope and load mode preference', async () => {

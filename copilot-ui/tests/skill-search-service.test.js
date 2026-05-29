@@ -173,7 +173,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'skills', 'superpowers', 'brainstorming', 'SKILL.md'),
+      path.join(copilotHome, 'skills', 'external-provider', 'brainstorming', 'SKILL.md'),
       [
         '---',
         'name: brainstorming',
@@ -365,7 +365,7 @@ async function run() {
 
       assert.ok(pluginResponse.results.length >= 1, 'expected plugin skill to appear in search results');
       assert.strictEqual(pluginResponse.results[0].entry?.metadata?.logicalName, 'brainstorming');
-      assert.strictEqual(pluginResponse.results[0].entry?.metadata?.namespace, 'superpowers');
+      assert.strictEqual(pluginResponse.results[0].entry?.metadata?.namespace, 'external-provider');
       assert.notStrictEqual(pluginResponse.results[0].assetId, 'skill-brainstorming');
     });
 

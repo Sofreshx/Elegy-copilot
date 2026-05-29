@@ -900,6 +900,63 @@ function createWorktreeService(config = {}, deps = {}) {
   return new WorktreeService(config, deps);
 }
 
+function resolveOpenCodeWorktreeBase() {
+  return process.env.OPENCODE_WORKTREE_BASE
+    || path.join(process.env.HOME || process.env.USERPROFILE || '~', '.local', 'share', 'opencode', 'worktree');
+}
+
+function buildOpenCodeWorktreeEnv(worktreePath, projectId) {
+  const env = {
+    OPENCODE_WORKTREE_BASE: resolveOpenCodeWorktreeBase(),
+    OPENCODE_PROJECT_ID: projectId || '',
+  };
+  if (worktreePath) {
+    env.OPENCODE_WORKTREE_PATH = worktreePath;
+    env.OPENCODE_WORKTREE_ROOT = worktreePath;
+  }
+  return env;
+}
+
+function createOpenCodeWorktreeRecord(worktreeService, input = {}) {
+  if (!worktreeService || typeof worktreeService.resolveLaunchPlan !== 'function') {
+    return { error: 'worktreeService instance with resolveLaunchPlan method is required' };
+  }
+
+  const copilotHome = input.copilotHome || '.';
+  const repoId = input.repoId;
+  const branch = input.branch || 'main';
+  const repoPath = input.repoPath;
+
+  if (!repoId) {
+    return { error: 'repoId is required' };
+  }
+
+  const worktreeBase = resolveOpenCodeWorktreeBase();
+  const projectId = repoPath
+    ? repoPath.replace(/\\/g, '/').split('/').filter(Boolean).slice(-2).join('-').replace(/[^a-zA-Z0-9_-]/g, '-')
+    : repoId;
+  const worktreePath = path.join(worktreeBase, projectId, branch);
+
+  const record = worktreeService.resolveLaunchPlan({
+    copilotHome,
+    repoId,
+    repoPath,
+    worktree: {
+      mode: 'dedicated',
+      worktreePath,
+      branch,
+    },
+  });
+
+  return {
+    worktreePath,
+    projectId,
+    branch,
+    env: buildOpenCodeWorktreeEnv(worktreePath, projectId),
+    record: record && record.worktree ? record.worktree : null,
+  };
+}
+
 module.exports = {
   WORKTREE_CONTRACT_VERSION,
   WORKTREE_MODES,
@@ -912,4 +969,7 @@ module.exports = {
   createWorktreeId,
   createWorktreeService,
   WorktreeService,
+  resolveOpenCodeWorktreeBase,
+  buildOpenCodeWorktreeEnv,
+  createOpenCodeWorktreeRecord,
 };

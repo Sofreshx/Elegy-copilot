@@ -34,7 +34,7 @@ function installPluginAgent(copilotHomeAbs, text) {
     'marketplace-cache',
     'example-external-provider',
     'plugins',
-    'superpowers',
+    'external-provider',
     'agents',
     'code-reviewer.md',
   );
@@ -133,7 +133,7 @@ async function run() {
 
   try {
     writeText(
-      path.join(copilotHomeAbs, 'skills', 'superpowers', 'brainstorming', 'SKILL.md'),
+      path.join(copilotHomeAbs, 'skills', 'external-provider', 'brainstorming', 'SKILL.md'),
       [
         '---',
         'name: brainstorming',
@@ -146,7 +146,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHomeAbs, 'skills', 'providers', 'superpowers', 'workflow-kit', 'SKILL.md'),
+      path.join(copilotHomeAbs, 'skills', 'providers', 'external-provider', 'workflow-kit', 'SKILL.md'),
       '# Workflow Kit\n',
     );
     writeText(
@@ -158,7 +158,7 @@ async function run() {
       '# On Demand Skill\n',
     );
     writeText(
-      path.join(copilotHomeAbs, 'skills-vault', 'providers', 'superpowers', 'incident-kit', 'index.md'),
+      path.join(copilotHomeAbs, 'skills-vault', 'providers', 'external-provider', 'incident-kit', 'index.md'),
       '# Incident Kit\n',
     );
     const pluginAgentInstall = installPluginAgent(
@@ -199,14 +199,14 @@ async function run() {
       assert.ok(Array.isArray(response.payload.agents), 'expected agents array');
 
       const pluginSkill = response.payload.skills.find(
-        (skill) => skill.viewPath === 'skills/superpowers/brainstorming/SKILL.md'
+        (skill) => skill.viewPath === 'skills/external-provider/brainstorming/SKILL.md'
       );
       assert.ok(pluginSkill, 'expected plugin skill in installed inventory');
-      assert.strictEqual(pluginSkill.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
+      assert.strictEqual(pluginSkill.viewPath, 'skills/external-provider/brainstorming/SKILL.md');
       assert.strictEqual(pluginSkill.readOnly, true);
       assert.strictEqual(pluginSkill.provider, 'copilot-home-plugin');
 
-      const importedSkill = response.payload.skills.find((skill) => skill.viewPath === 'skills/providers/superpowers/workflow-kit/SKILL.md');
+      const importedSkill = response.payload.skills.find((skill) => skill.viewPath === 'skills/providers/external-provider/workflow-kit/SKILL.md');
       assert.ok(importedSkill, 'expected managed-import provider skill in installed inventory');
       assert.strictEqual(importedSkill.provider, 'copilot-home-plugin');
       assert.strictEqual(importedSkill.readOnly, true);
@@ -223,7 +223,7 @@ async function run() {
       assert.strictEqual(vaultOnlySkill.viewPath, 'skills-vault/on-demand-skill/SKILL.md');
 
       const vaultedProviderIndexSkill = response.payload.skills.find(
-        (skill) => skill.viewPath === 'skills-vault/providers/superpowers/incident-kit/index.md'
+        (skill) => skill.viewPath === 'skills-vault/providers/external-provider/incident-kit/index.md'
       );
       assert.ok(vaultedProviderIndexSkill, 'expected vault provider index.md skill in installed inventory');
       assert.strictEqual(vaultedProviderIndexSkill.provider, 'copilot-home-plugin');
@@ -234,7 +234,7 @@ async function run() {
       assert.strictEqual(pluginAgent.readOnly, true);
       if (pluginAgentInstall.linked) {
         assert.strictEqual(pluginAgent.provider, 'copilot-marketplace-plugin');
-        assert.strictEqual(pluginAgent.namespace, 'superpowers');
+        assert.strictEqual(pluginAgent.namespace, 'external-provider');
         assert.strictEqual(pluginAgent.sourcePackage, 'example-external-provider');
       } else {
         assert.strictEqual(pluginAgent.provider, 'copilot-home-plain-agent');
@@ -248,7 +248,7 @@ async function run() {
 
     await test('delete route rejects plugin namespace roots and plain markdown agents', async () => {
       const namespaceDelete = await invokeDelete(copilotHomeAbs, {
-        path: 'skills/superpowers',
+        path: 'skills/external-provider',
         force: true,
       });
       assert.strictEqual(namespaceDelete.status, 400);

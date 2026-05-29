@@ -20,6 +20,48 @@ function binaryName() {
   return isWindows() ? 'elegy-planning.exe' : 'elegy-planning';
 }
 
+function isPathLikeCommand(candidate) {
+  const normalized = normalizeString(candidate);
+  if (!normalized) {
+    return false;
+  }
+
+  if (/^[a-zA-Z]:[\\/]/.test(normalized)) {
+    return true;
+  }
+
+  if (normalized.startsWith('./') || normalized.startsWith('../') || normalized.startsWith('~/')) {
+    return true;
+  }
+
+  return normalized.includes('/') || normalized.includes('\\');
+}
+
+function commandExistsOnPath(command, options = {}) {
+  const normalized = normalizeString(command);
+  if (!normalized || isPathLikeCommand(normalized)) {
+    return false;
+  }
+
+  const platform = normalizeString(options.platform) || process.platform;
+  const env = options.env && typeof options.env === 'object' ? options.env : process.env;
+  const spawnSyncImpl = typeof options.spawnSyncImpl === 'function'
+    ? options.spawnSyncImpl
+    : childProcess.spawnSync;
+  const resolverCommand = platform === 'win32' ? 'where' : 'which';
+
+  try {
+    const result = spawnSyncImpl(resolverCommand, [normalized], {
+      env,
+      windowsHide: true,
+      stdio: 'pipe',
+    });
+    return Number(result && result.status) === 0;
+  } catch {
+    return false;
+  }
+}
+
 function candidatePaths(runtimeRoot, copilotHome) {
   const exe = binaryName();
   const candidates = [];
@@ -243,6 +285,12 @@ function resolveElegyPlanningCliPath(options = {}) {
   const explicitCliPath = normalizeString(options.cliPath);
   const runtimeRoot = normalizeString(options.runtimeRoot);
   const copilotHome = normalizeString(options.copilotHome);
+  const defaultCommand = normalizeString(options.defaultCommand) || 'elegy-planning';
+  const commandLookupOptions = {
+    env: options.env,
+    platform: options.platform,
+    spawnSyncImpl: options.spawnSyncImpl,
+  };
 
   if (explicitCliPath) {
     try {
@@ -251,6 +299,10 @@ function resolveElegyPlanningCliPath(options = {}) {
       }
     } catch {
       // continue
+    }
+
+    if (commandExistsOnPath(explicitCliPath, commandLookupOptions)) {
+      return explicitCliPath;
     }
   }
 
@@ -268,6 +320,10 @@ function resolveElegyPlanningCliPath(options = {}) {
     // continue
   }
 
+  if (commandExistsOnPath(defaultCommand, commandLookupOptions)) {
+    return defaultCommand;
+  }
+
   return '';
 }
 
@@ -277,4 +333,6 @@ module.exports = {
   findExistingBinary,
   candidatePaths,
   buildDownloadPath,
+  commandExistsOnPath,
+  isPathLikeCommand,
 };

@@ -19,6 +19,7 @@ const { pathToFileURL } = require('url');
  */
 
 const sessions = require('./lib/sessions');
+const repoInventoryService = require('./lib/repoInventoryService');
 const assets = require('./lib/assets');
 const planState = require('./lib/planState');
 const { createAutonomousDecisionLog } = require('./lib/autonomousDecisionLog');
@@ -4367,6 +4368,193 @@ function proxyToNativeRuntime(nativeRuntimeUrl, pathname, req, res) {
   }
 }
 
+function loadNativeRuntimeFallbackSessions(copilotHome) {
+  try {
+    const items = sessions.listSessions(copilotHome);
+    return Array.isArray(items) ? items : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeProjectPathForMatch(inputPath) {
+  if (!inputPath || typeof inputPath !== 'string') return '';
+  const resolved = path.resolve(inputPath.trim());
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function isActiveSessionStatus(status) {
+  const normalized = String(status || '').trim().toLowerCase();
+  return normalized === 'active' || normalized === 'running';
+}
+
+function deriveFallbackDashboardHealth(sessionsList) {
+  let health = 'ok';
+  for (const session of sessionsList) {
+    const status = String(session && session.status || '').trim().toLowerCase();
+    if (status === 'error') return 'error';
+    if (status === 'failed' || status === 'missing') {
+      health = 'degraded';
+    }
+  }
+  return health;
+}
+
+function buildFallbackDashboardSummary(sessionsList) {
+  const sorted = sessionsList
+    .slice()
+    .sort((left, right) => {
+      const leftTime = Number(left && (left.lastEventTime || left.startTime || 0)) || 0;
+      const rightTime = Number(right && (right.lastEventTime || right.startTime || 0)) || 0;
+      return rightTime - leftTime;
+    });
+
+  return {
+    activeSessionCount: sessionsList.filter((session) => isActiveSessionStatus(session && session.status)).length,
+    totalSessionCount: sessionsList.length,
+    healthIndicator: deriveFallbackDashboardHealth(sessionsList),
+    recentActivity: sorted.slice(0, 10).map((session) => ({
+      type: 'session',
+      timestamp: session && (session.lastEventTime || session.startTime || null),
+      summary: `Session ${(session && (session.id || session.storageId)) || 'unknown'} [${(session && session.status) || 'unknown'}]`,
+    })),
+    source: 'server-fallback',
+  };
+}
+
+function sessionMatchesProject(session, project) {
+  if (!project || !session) return false;
+  if (session.projectId && session.projectId === project.projectId) return true;
+  if (session.repoId && session.repoId === project.repoId) return true;
+
+  const projectPath = normalizeProjectPathForMatch(project.repoPath);
+  const sessionRepoPath = normalizeProjectPathForMatch(session.repo);
+  const sessionCwdPath = normalizeProjectPathForMatch(session.cwd);
+  if (projectPath && (projectPath === sessionRepoPath || projectPath === sessionCwdPath)) {
+    return true;
+  }
+
+  const repositoryFullName = session.repository && typeof session.repository === 'object'
+    ? String(session.repository.fullName || '').trim().toLowerCase()
+    : '';
+  const canonicalRemote = String(project.canonicalRemote || '').trim().toLowerCase();
+  return Boolean(repositoryFullName && canonicalRemote && repositoryFullName === canonicalRemote);
+}
+
+function buildFallbackProjects(copilotHome, sessionsList) {
+  let state;
+  try {
+    state = repoInventoryService.loadRepoInventoryState(copilotHome);
+  } catch {
+    state = { manualRepos: [] };
+  }
+
+  const repos = Array.isArray(state && state.manualRepos) ? state.manualRepos : [];
+  return repos.map((entry) => {
+    const project = repoInventoryService.getProjectView(entry);
+    const matchingSessions = sessionsList.filter((session) => sessionMatchesProject(session, project));
+    return {
+      ...project,
+      sessionCount: matchingSessions.length,
+      activeSessionCount: matchingSessions.filter((session) => isActiveSessionStatus(session && session.status)).length,
+    };
+  });
+}
+
+function decodeProjectId(pathSegment) {
+  try {
+    return decodeURIComponent(String(pathSegment || '')).trim();
+  } catch {
+    return String(pathSegment || '').trim();
+  }
+}
+
+function buildFallbackProjectActivity(sessionsList, limit = 20) {
+  return sessionsList
+    .map((session) => ({
+      type: 'session',
+      timestamp: session && (session.lastEventTime || session.startTime || null),
+      summary: `Session ${(session && (session.id || session.storageId)) || 'unknown'} [${(session && session.status) || 'unknown'}]`,
+    }))
+    .sort((left, right) => (Number(right.timestamp || 0) - Number(left.timestamp || 0)))
+    .slice(0, limit);
+}
+
+function handleNativeRuntimeFallback({ req, res, pathname, copilotHome }) {
+  const method = String(req.method || 'GET').toUpperCase();
+  const sessionsList = loadNativeRuntimeFallbackSessions(copilotHome);
+
+  if (pathname === '/api/dashboard/summary' && method === 'GET') {
+    sendJson(res, 200, buildFallbackDashboardSummary(sessionsList));
+    return true;
+  }
+
+  if (pathname === '/api/projects' && method === 'GET') {
+    sendJson(res, 200, buildFallbackProjects(copilotHome, sessionsList));
+    return true;
+  }
+
+  const projectRootMatch = pathname.match(/^\/api\/projects\/([^/]+)$/);
+  if (projectRootMatch && method === 'PATCH') {
+    const projectId = decodeProjectId(projectRootMatch[1]);
+    if (!projectId) {
+      sendJson(res, 400, { error: 'missing_project_id', message: 'Project ID is required.' });
+      return true;
+    }
+
+    readJsonBody(req)
+      .then((payload) => {
+        const updated = repoInventoryService.updateProjectFields(copilotHome, projectId, payload || {});
+        if (!updated) {
+          sendJson(res, 404, { error: 'project_not_found', message: `Project ${projectId} was not found.` });
+          return;
+        }
+
+        const project = repoInventoryService.getProjectView(updated);
+        const matchingSessions = sessionsList.filter((session) => sessionMatchesProject(session, project));
+        sendJson(res, 200, {
+          ...project,
+          sessionCount: matchingSessions.length,
+          activeSessionCount: matchingSessions.filter((session) => isActiveSessionStatus(session && session.status)).length,
+        });
+      })
+      .catch((error) => {
+        sendJson(res, Number(error && error.statusCode) || 400, {
+          error: 'invalid_project_update_payload',
+          message: String(error && error.message || error),
+        });
+      });
+
+    return true;
+  }
+
+  const projectSessionsMatch = pathname.match(/^\/api\/projects\/([^/]+)\/sessions$/);
+  if (projectSessionsMatch && method === 'GET') {
+    const projectId = decodeProjectId(projectSessionsMatch[1]);
+    const project = buildFallbackProjects(copilotHome, sessionsList).find((entry) => entry.projectId === projectId) || null;
+    const matchingSessions = sessionsList.filter((session) => {
+      if (sessionMatchesProject(session, project)) return true;
+      return session && (session.projectId === projectId || session.repoId === projectId || session.repo === projectId);
+    });
+    sendJson(res, 200, matchingSessions);
+    return true;
+  }
+
+  const projectActivityMatch = pathname.match(/^\/api\/projects\/([^/]+)\/activity$/);
+  if (projectActivityMatch && method === 'GET') {
+    const projectId = decodeProjectId(projectActivityMatch[1]);
+    const project = buildFallbackProjects(copilotHome, sessionsList).find((entry) => entry.projectId === projectId) || null;
+    const matchingSessions = sessionsList.filter((session) => {
+      if (sessionMatchesProject(session, project)) return true;
+      return session && (session.projectId === projectId || session.repoId === projectId || session.repo === projectId);
+    });
+    sendJson(res, 200, buildFallbackProjectActivity(matchingSessions));
+    return true;
+  }
+
+  return false;
+}
+
 function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engineRoot, changeTracker, trackerUrl, trackerToken, planningPersistenceConfig, planningPersistenceState, planningApiState, planningAuthContext, providerState, planningDurabilityDependencyGate, startupManagedAssetSync, autonomousDecisionLog, routeRegistry, nativeRuntimeUrl }) {
   // Auth scope: single-session only. Multi-session aggregate views are deferred.
   // All API endpoints serve one session at a time. No cross-session auth tokens.
@@ -4423,6 +4611,10 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     pathname.startsWith('/api/projects') ||
     pathname === '/api/dashboard/summary'
   ) {
+    if (!nativeRuntimeUrl && handleNativeRuntimeFallback({ req, res, pathname, copilotHome: copilotHomeAbs })) {
+      return;
+    }
+
     if (!nativeRuntimeUrl) {
       sendJson(res, 503, {
         error: 'Native runtime required',
@@ -4431,6 +4623,7 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
       });
       return;
     }
+
     proxyToNativeRuntime(nativeRuntimeUrl, pathname, req, res);
     return;
   }

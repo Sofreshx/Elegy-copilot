@@ -3,7 +3,7 @@
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
-const { resolveElegyPlanningCliPath } = require('./elegyPlanningCliResolver');
+const { resolveElegyPlanningCliPath, commandExistsOnPath } = require('./elegyPlanningCliResolver');
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_CLI_PATH = 'elegy-planning';
@@ -15,15 +15,15 @@ function isExecutablePathConfigured(candidate) {
     return false;
   }
 
-  if (/[/\\]/.test(normalized)) {
+  if (/^[a-zA-Z]:[\\/]/.test(normalized)) {
     return true;
   }
 
-  if (/\.[a-z0-9]+$/i.test(normalized)) {
+  if (normalized.startsWith('./') || normalized.startsWith('../') || normalized.startsWith('~/')) {
     return true;
   }
 
-  return false;
+  return /[/\\]/.test(normalized);
 }
 
 function normalizeString(value) {
@@ -462,17 +462,19 @@ function buildBridgeReadError(code, message, statusCode = 503) {
   return error;
 }
 
-function buildPlanningAuthorityStatus({ disabled, configured, config, configuredCliPath, configuredDbPath }) {
+function buildPlanningAuthorityStatus({ disabled, configured, config, configuredCliPath, configuredDbPath, commandLookupOptions }) {
   const cliPath = normalizeString(config && config.cliPath);
   const dbPath = normalizeString(config && config.dbPath);
 
   let cliBinaryExists = false;
-  if (cliPath) {
+  if (cliPath && isExecutablePathConfigured(cliPath)) {
     try {
       cliBinaryExists = fs.existsSync(cliPath);
     } catch {
       cliBinaryExists = false;
     }
+  } else if (cliPath) {
+    cliBinaryExists = commandExistsOnPath(cliPath, commandLookupOptions || {});
   }
 
   let code = 'planning_authority_ready';
@@ -522,7 +524,14 @@ function extractMachineData(parsed) {
   return isPlainObject(parsed && parsed.data) ? parsed.data : {};
 }
 
-function ensureReadableAuthority({ disabled, configured, config }) {
+function ensureReadableAuthority({ disabled, configured, config, planningAuthority }) {
+  if (planningAuthority && planningAuthority.ready === false) {
+    throw buildBridgeReadError(
+      planningAuthority.code || 'bridge_not_configured',
+      planningAuthority.message || 'elegy-planning authority is not ready for live roadmap reads.',
+    );
+  }
+
   if (disabled) {
     throw buildBridgeReadError(
       'bridge_disabled',
@@ -628,6 +637,17 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
   const configuredCliPath = normalizeString(options.cliPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH);
   const configuredDbPath = normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH)
     || (copilotHome ? pathModule.join(copilotHome, DEFAULT_DB_FILENAME) : '');
+  const commandLookupPlatform = normalizeString(options.platform)
+    || normalizeString(processObject && processObject.platform)
+    || process.platform;
+  const commandLookupSpawnSync = typeof options.spawnSyncImpl === 'function'
+    ? options.spawnSyncImpl
+    : (typeof options.childProcess?.spawnSync === 'function' ? options.childProcess.spawnSync.bind(options.childProcess) : undefined);
+  const commandLookupOptions = {
+    env,
+    platform: commandLookupPlatform,
+    spawnSyncImpl: commandLookupSpawnSync,
+  };
   const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
     ? Number(options.timeoutMs)
     : DEFAULT_TIMEOUT_MS;
@@ -637,6 +657,9 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     cliPath: configuredCliPath,
     runtimeRoot: normalizeString(options.runtimeRoot) || normalizeString(env.INSTRUCTION_ENGINE_RUNTIME_ROOT),
     copilotHome,
+    env,
+    platform: commandLookupPlatform,
+    spawnSyncImpl: commandLookupSpawnSync,
   });
 
   const configured = options.enabled === true
@@ -659,6 +682,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     config,
     configuredCliPath: resolvedCliPath || configuredCliPath,
     configuredDbPath,
+    commandLookupOptions,
   });
 
   return {
@@ -668,12 +692,12 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
       };
     },
     async listRoadmaps(input = {}) {
-      ensureReadableAuthority({ disabled, configured, config });
+      ensureReadableAuthority({ disabled, configured, config, planningAuthority });
       const requestId = resolveReadRequestId(input, 'roadmap-list');
       return listRoadmaps(config, requestId);
     },
     async showRoadmap(input = {}) {
-      ensureReadableAuthority({ disabled, configured, config });
+      ensureReadableAuthority({ disabled, configured, config, planningAuthority });
       const roadmapId = normalizeString(input.roadmapId);
       if (!roadmapId) {
         throw buildBridgeReadError('missing_roadmap_id', 'roadmapId is required to load a roadmap.', 400);
@@ -695,7 +719,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
       };
     },
     async showGoal(input = {}) {
-      ensureReadableAuthority({ disabled, configured, config });
+      ensureReadableAuthority({ disabled, configured, config, planningAuthority });
       const goalId = normalizeString(input.goalId);
       if (!goalId) {
         throw buildBridgeReadError('missing_goal_id', 'goalId is required to load a goal.', 400);
@@ -716,12 +740,12 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
       };
     },
     async listPlans(input = {}) {
-      ensureReadableAuthority({ disabled, configured, config });
+      ensureReadableAuthority({ disabled, configured, config, planningAuthority });
       const requestId = resolveReadRequestId(input, 'plan-list');
       return listPlans(config, requestId);
     },
     async showPlan(input = {}) {
-      ensureReadableAuthority({ disabled, configured, config });
+      ensureReadableAuthority({ disabled, configured, config, planningAuthority });
       const planId = normalizeString(input.planId);
       if (!planId) {
         throw buildBridgeReadError('missing_plan_id', 'planId is required to load a plan.', 400);
@@ -743,11 +767,18 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
       };
     },
     async listTodos(input = {}) {
-      ensureReadableAuthority({ disabled, configured, config });
+      ensureReadableAuthority({ disabled, configured, config, planningAuthority });
       const requestId = resolveReadRequestId(input, 'todo-list');
       return listTodos(config, requestId);
     },
     async persistArtifact(artifact, input = {}) {
+      if (planningAuthority.ready === false) {
+        return buildMissingAuthorityFailure(
+          planningAuthority.code || 'bridge_not_configured',
+          planningAuthority.message || 'elegy-planning authority is not ready for workflow artifact persistence.',
+        );
+      }
+
       if (disabled) {
         return buildMissingAuthorityFailure(
           'bridge_disabled',

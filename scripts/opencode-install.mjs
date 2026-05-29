@@ -102,6 +102,7 @@ function buildManagedInventory(assetResults) {
     instructions: {},
     agents: {},
     skills: {},
+    plugins: {},
   };
 
   for (const result of Array.isArray(assetResults) ? assetResults : []) {
@@ -120,6 +121,11 @@ function buildManagedInventory(assetResults) {
       if (topDirectory) {
         inventory.skills[topDirectory] = String(result.sourceHash || '');
       }
+      continue;
+    }
+    if (result.type === 'plugin') {
+      const suffix = destination.startsWith('plugins/') ? destination.slice('plugins/'.length) : destination;
+      inventory.plugins[suffix] = String(result.sourceHash || '');
     }
   }
 
@@ -139,6 +145,7 @@ function readManagedInventory(inventoryPath) {
       instructions: toStringMap(parsed.instructions),
       agents: toStringMap(parsed.agents),
       skills: toStringMap(parsed.skills),
+      plugins: toStringMap(parsed.plugins),
     };
   } catch {
     return buildManagedInventory([]);
@@ -348,6 +355,7 @@ export function runInstall(args = {}) {
   ensureDir(opencodeHome, args.dryRun);
   ensureDir(path.join(opencodeHome, 'agents'), args.dryRun);
   ensureDir(skillsHome, args.dryRun);
+  ensureDir(path.join(opencodeHome, 'plugins'), args.dryRun);
 
   const assetResults = [];
   for (const asset of assets) {
@@ -361,6 +369,9 @@ export function runInstall(args = {}) {
       dst = path.join(skillsHome, suffix);
     } else if (asset.type === 'instructions') {
       dst = path.join(opencodeHome, dstRel);
+    } else if (asset.type === 'plugin') {
+      const suffix = dstRel.startsWith('plugins/') ? dstRel.slice('plugins/'.length) : dstRel;
+      dst = path.join(opencodeHome, 'plugins', suffix);
     } else {
       dst = path.join(opencodeHome, dstRel);
     }
@@ -390,6 +401,7 @@ export function runInstall(args = {}) {
   const pruneResults = [
     ...pruneManagedEntries(path.join(opencodeHome, 'agents'), previousInventory.agents, desiredInventory.agents, 'agent', shaFile, args),
     ...pruneManagedEntries(skillsHome, previousInventory.skills, desiredInventory.skills, 'skill', dirHash, args),
+    ...pruneManagedEntries(path.join(opencodeHome, 'plugins'), previousInventory.plugins, desiredInventory.plugins, 'plugin', shaFile, args),
   ];
   const inventoryResult = syncText(`${JSON.stringify(desiredInventory, null, 2)}\n`, inventoryPath, {
     dryRun: args.dryRun,
@@ -432,8 +444,9 @@ export function runInstall(args = {}) {
   console.log(`  1. Ensure your OpenCode config exists at ${path.join(opencodeHome, 'opencode.json')}`);
   console.log('  2. Configure your provider and preferred models for the built-in OpenCode agents:');
   console.log('     Run /connect in OpenCode TUI and select DeepSeek');
-  console.log('  3. Restart OpenCode to pick up new agents and skills');
+  console.log('  3. Restart OpenCode to pick up new agents, skills, and worktree plugin');
   console.log('  4. Try: use Plan for a non-trivial task, Explore for code discovery, Scout for docs, and rubberduck-plan-review for risky plans');
+  console.log('  5. Worktree: use worktree_create tool to create isolated workspaces for feature work');
   console.log('');
   console.log('For native-first model overrides, add to opencode.json:');
   console.log('  "agent": {');
@@ -441,6 +454,9 @@ export function runInstall(args = {}) {
   console.log('    "explore": { "model": "deepseek/deepseek-chat" },');
   console.log('    "scout": { "model": "deepseek/deepseek-chat" }');
   console.log('  }');
+  console.log('');
+  console.log('Worktree plugin config (optional): create .opencode/worktree.json in your project:');
+  console.log('  { "syncFiles": [".env", ".env.local", "config/local.json"] }');
 
   return summary;
 }

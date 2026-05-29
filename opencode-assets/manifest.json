@@ -153,6 +153,18 @@
       "type": "skill",
       "source": "opencode-assets/skills/stack-detector",
       "destination": "skills/stack-detector"
+    },
+    {
+      "id": "opencode-worktree-plugin",
+      "type": "plugin",
+      "source": "opencode-assets/plugins/worktree.js",
+      "destination": "plugins/worktree.js"
+    },
+    {
+      "id": "opencode-worktree-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/worktree",
+      "destination": "skills/worktree"
     }
   ],
   "sourcePatterns": []

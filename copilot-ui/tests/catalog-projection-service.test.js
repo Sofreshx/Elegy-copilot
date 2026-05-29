@@ -66,11 +66,11 @@ async function run() {
           installStrategy: 'managed-import',
           bridgeStrategy: 'plugin-layout',
           assetLayout: {
-            namespace: 'superpowers',
-            skillsRoot: 'plugins/superpowers/skills',
-            agentsRoot: 'plugins/superpowers/agents',
-            managedSkillsRoot: 'skills/providers/superpowers',
-            managedVaultSkillsRoot: 'skills-vault/providers/superpowers',
+            namespace: 'external-provider',
+            skillsRoot: 'plugins/external-provider/skills',
+            agentsRoot: 'plugins/external-provider/agents',
+            managedSkillsRoot: 'skills/providers/external-provider',
+            managedVaultSkillsRoot: 'skills-vault/providers/external-provider',
             managedAgentsPattern: 'agents/providers--external--*.md',
           },
           compatibility: {
@@ -84,7 +84,7 @@ async function run() {
             repoOverrides: true,
           },
           sourcePackageMatchers: ['example-external-provider'],
-          namespaceMatchers: ['superpowers', 'external'],
+          namespaceMatchers: ['external-provider', 'external'],
         },
       ],
     });
@@ -204,7 +204,7 @@ async function run() {
         'marketplace-cache',
         'example-external-provider',
         'plugins',
-        'superpowers',
+        'external-provider',
         'agents',
         'code-reviewer.md',
       ),
@@ -230,7 +230,7 @@ async function run() {
           'marketplace-cache',
           'example-external-provider',
           'plugins',
-          'superpowers',
+          'external-provider',
           'agents',
           'code-reviewer.md',
         ),
@@ -256,7 +256,7 @@ async function run() {
       );
     }
     writeText(
-      path.join(copilotHome, 'skills', 'superpowers', 'brainstorming', 'SKILL.md'),
+      path.join(copilotHome, 'skills', 'external-provider', 'brainstorming', 'SKILL.md'),
       [
         '---',
         'name: brainstorming',
@@ -269,7 +269,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'skills', 'providers', 'superpowers', 'workflow-kit', 'SKILL.md'),
+      path.join(copilotHome, 'skills', 'providers', 'external-provider', 'workflow-kit', 'SKILL.md'),
       [
         '---',
         'name: workflow-kit',
@@ -295,7 +295,7 @@ async function run() {
       ].join('\n'),
     );
     writeText(
-      path.join(copilotHome, 'skills-vault', 'providers', 'superpowers', 'incident-kit', 'index.md'),
+      path.join(copilotHome, 'skills-vault', 'providers', 'external-provider', 'incident-kit', 'index.md'),
       [
         '---',
         'name: incident-kit',
@@ -328,7 +328,7 @@ async function run() {
       '# Repo React Query\n\nRepo-local override for this workspace.\n',
     );
     writeText(
-      path.join(repoPath, '.github', 'skills', 'providers', 'superpowers', 'repo-kit', 'index.md'),
+      path.join(repoPath, '.github', 'skills', 'providers', 'external-provider', 'repo-kit', 'index.md'),
       '# Repo Kit\n\nRepo-local managed-import provider kit.\n',
     );
     writeText(
@@ -420,27 +420,27 @@ async function run() {
         assert.strictEqual(pluginAgent.selectedEntry.metadata.provider, 'external-provider');
         assert.strictEqual(pluginAgent.selectedEntry.provenance.providerId, 'external-provider');
         assert.strictEqual(pluginAgent.selectedEntry.provenance.discoveryMode, 'compatibility-bridge');
-        assert.strictEqual(pluginAgent.selectedEntry.metadata.namespace, 'superpowers');
+        assert.strictEqual(pluginAgent.selectedEntry.metadata.namespace, 'external-provider');
         assert.strictEqual(pluginAgent.selectedEntry.metadata.sourcePackage, 'example-external-provider');
       } else {
         assert.strictEqual(pluginAgent.selectedEntry.metadata.provider, 'copilot-home-plain-agent');
       }
 
       const pluginSkill = snapshot.effectiveAssets.find(
-        (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/superpowers/brainstorming/SKILL.md',
+        (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/external-provider/brainstorming/SKILL.md',
       );
       assert.ok(pluginSkill, 'expected plugin skill to be projected');
       assert.strictEqual(pluginSkill.kind, 'skill');
       assert.strictEqual(pluginSkill.selectedLayer, 'user-installed');
       assert.strictEqual(pluginSkill.selectedEntry.metadata.logicalName, 'brainstorming');
-      assert.strictEqual(pluginSkill.selectedEntry.metadata.viewPath, 'skills/superpowers/brainstorming/SKILL.md');
+      assert.strictEqual(pluginSkill.selectedEntry.metadata.viewPath, 'skills/external-provider/brainstorming/SKILL.md');
       assert.strictEqual(pluginSkill.selectedEntry.metadata.readOnly, true);
       assert.strictEqual(pluginSkill.selectedEntry.metadata.provider, 'external-provider');
       assert.strictEqual(pluginSkill.selectedEntry.provenance.providerId, 'external-provider');
       assert.strictEqual(pluginSkill.selectedEntry.provenance.discoveryMode, 'compatibility-bridge');
 
       const importedProviderSkill = snapshot.effectiveAssets.find(
-        (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/providers/superpowers/workflow-kit/SKILL.md',
+        (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills/providers/external-provider/workflow-kit/SKILL.md',
       );
       assert.ok(importedProviderSkill, 'expected managed-import provider skill to be projected');
       assert.strictEqual(importedProviderSkill.selectedEntry.provenance.providerId, 'external-provider');
@@ -460,7 +460,7 @@ async function run() {
       assert.strictEqual(namespacedIndexSkill.selectedEntry.provenance.discoveryMode, 'compatibility-bridge');
 
       const vaultedProviderIndexSkill = snapshot.effectiveAssets.find(
-        (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills-vault/providers/superpowers/incident-kit/index.md',
+        (asset) => asset.selectedEntry?.metadata?.viewPath === 'skills-vault/providers/external-provider/incident-kit/index.md',
       );
       assert.ok(vaultedProviderIndexSkill, 'expected vault provider index.md skill to be projected');
       assert.strictEqual(vaultedProviderIndexSkill.selectedLayer, 'vault-only');
@@ -470,7 +470,7 @@ async function run() {
       assert.strictEqual(vaultedProviderIndexSkill.selectedEntry.provenance.discoveryMode, 'managed-import');
 
       const repoProviderIndexSkill = snapshot.effectiveAssets.find(
-        (asset) => asset.selectedEntry?.metadata?.viewPath === '.github/skills/providers/superpowers/repo-kit/index.md',
+        (asset) => asset.selectedEntry?.metadata?.viewPath === '.github/skills/providers/external-provider/repo-kit/index.md',
       );
       assert.ok(repoProviderIndexSkill, 'expected repo-local provider index.md skill to be projected');
       assert.strictEqual(repoProviderIndexSkill.selectedLayer, 'repo-local');
