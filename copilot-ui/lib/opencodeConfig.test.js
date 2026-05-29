@@ -1,0 +1,273 @@
+'use strict';
+
+const { describe, it, beforeEach, afterEach } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+
+const {
+  KNOWN_DEFAULT_EXPLORE_MODEL,
+  KNOWN_DEFAULT_SCOUT_MODEL,
+  resolveConfigPath,
+  resolveStatePath,
+  readConfig,
+  parseJsonc,
+  getAgentModels,
+  listAvailableModels,
+  getStatus,
+  setAgentModels,
+  resetConfig,
+} = require('./opencodeConfig');
+
+describe('opencodeConfig', () => {
+  let tmpDir;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opencode-config-test-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  describe('parseJsonc', () => {
+    it('parses plain JSON', () => {
+      const result = parseJsonc('{"a": 1}');
+      assert.deepStrictEqual(result, { a: 1 });
+    });
+
+    it('strips line comments', () => {
+      const result = parseJsonc('{"a": 1 // comment\n}');
+      assert.deepStrictEqual(result, { a: 1 });
+    });
+
+    it('strips block comments', () => {
+      const result = parseJsonc('{"a": /* comment */ 1}');
+      assert.deepStrictEqual(result, { a: 1 });
+    });
+
+    it('removes trailing commas', () => {
+      const result = parseJsonc('{"a": 1, "b": 2,}');
+      assert.deepStrictEqual(result, { a: 1, b: 2 });
+    });
+
+    it('handles JSONC with comments and trailing commas', () => {
+      const input = `{
+        // This is a comment
+        "lsp": true,
+        "agent": {
+          "explore": {
+            "model": "deepseek/deepseek-v4-flash"
+          },
+        },
+      }`;
+      const result = parseJsonc(input);
+      assert.deepStrictEqual(result, {
+        lsp: true,
+        agent: {
+          explore: {
+            model: 'deepseek/deepseek-v4-flash',
+          },
+        },
+      });
+    });
+  });
+
+  describe('readConfig', () => {
+    it('returns empty object when file does not exist', () => {
+      const config = readConfig(tmpDir);
+      assert.deepStrictEqual(config, {});
+    });
+
+    it('returns empty object for invalid JSON', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, 'not valid json{{{', 'utf8');
+      const config = readConfig(tmpDir);
+      assert.deepStrictEqual(config, {});
+    });
+
+    it('reads valid JSONC config', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, '{"lsp": true, "agent": {"explore": {"model": "test/model"}}}', 'utf8');
+      const config = readConfig(tmpDir);
+      assert.deepStrictEqual(config, { lsp: true, agent: { explore: { model: 'test/model' } } });
+    });
+  });
+
+  describe('getAgentModels', () => {
+    it('returns null for missing agent config', () => {
+      const models = getAgentModels({});
+      assert.equal(models.explore, null);
+      assert.equal(models.scout, null);
+    });
+
+    it('returns models when configured', () => {
+      const config = {
+        agent: {
+          explore: { model: 'test/explore' },
+          scout: { model: 'test/scout' },
+        },
+      };
+      const models = getAgentModels(config);
+      assert.equal(models.explore, 'test/explore');
+      assert.equal(models.scout, 'test/scout');
+    });
+
+    it('handles partial agent config', () => {
+      const config = {
+        agent: {
+          explore: { model: 'test/explore' },
+        },
+      };
+      const models = getAgentModels(config);
+      assert.equal(models.explore, 'test/explore');
+      assert.equal(models.scout, null);
+    });
+  });
+
+  describe('listAvailableModels', () => {
+    it('includes known defaults', () => {
+      const models = listAvailableModels({});
+      assert.ok(models.includes(KNOWN_DEFAULT_EXPLORE_MODEL));
+      assert.ok(models.includes(KNOWN_DEFAULT_SCOUT_MODEL));
+    });
+
+    it('includes models from provider config', () => {
+      const config = {
+        provider: {
+          deepseek: {
+            models: {
+              'deepseek-chat': { id: 'deepseek-chat' },
+              'deepseek-reasoner': { id: 'deepseek-reasoner' },
+            },
+          },
+        },
+      };
+      const models = listAvailableModels(config);
+      assert.ok(models.includes('deepseek/deepseek-chat'));
+      assert.ok(models.includes('deepseek/deepseek-reasoner'));
+    });
+
+    it('returns sorted unique list', () => {
+      const config = {
+        provider: {
+          zzz: { models: { 'last-model': {} } },
+          aaa: { models: { 'first-model': {} } },
+        },
+      };
+      const models = listAvailableModels(config);
+      assert.deepStrictEqual(models, [...models].sort());
+    });
+  });
+
+  describe('getStatus', () => {
+    it('returns defaults when no config exists', () => {
+      const status = getStatus(tmpDir);
+      assert.equal(status.exploreModel, KNOWN_DEFAULT_EXPLORE_MODEL);
+      assert.equal(status.scoutModel, KNOWN_DEFAULT_SCOUT_MODEL);
+      assert.equal(status.isCustom, false);
+      assert.ok(Array.isArray(status.availableModels));
+    });
+
+    it('returns custom models when configured', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, JSON.stringify({
+        agent: {
+          explore: { model: 'custom/explore' },
+          scout: { model: 'custom/scout' },
+        },
+      }), 'utf8');
+
+      const status = getStatus(tmpDir);
+      assert.equal(status.exploreModel, 'custom/explore');
+      assert.equal(status.scoutModel, 'custom/scout');
+      assert.equal(status.isCustom, true);
+    });
+  });
+
+  describe('setAgentModels', () => {
+    it('creates config file if it does not exist', () => {
+      const result = setAgentModels(tmpDir, 'new/explore', 'new/scout');
+      assert.equal(result.exploreModel, 'new/explore');
+      assert.equal(result.scoutModel, 'new/scout');
+      assert.equal(result.isCustom, true);
+      assert.ok(fs.existsSync(resolveConfigPath(tmpDir)));
+    });
+
+    it('preserves existing config fields', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, JSON.stringify({ lsp: true }), 'utf8');
+
+      setAgentModels(tmpDir, 'new/explore', 'new/scout');
+      const config = readConfig(tmpDir);
+      assert.equal(config.lsp, true);
+      assert.equal(config.agent.explore.model, 'new/explore');
+    });
+
+    it('updates only explore model when scout is null', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, JSON.stringify({
+        agent: { scout: { model: 'keep/scout' } },
+      }), 'utf8');
+
+      setAgentModels(tmpDir, 'new/explore', null);
+      const config = readConfig(tmpDir);
+      assert.equal(config.agent.explore.model, 'new/explore');
+      assert.equal(config.agent.scout.model, 'keep/scout');
+    });
+
+    it('writes state file with timestamp', () => {
+      setAgentModels(tmpDir, 'new/explore', 'new/scout');
+      const statePath = resolveStatePath(tmpDir);
+      assert.ok(fs.existsSync(statePath));
+      const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+      assert.ok(typeof state.lastAppliedAt === 'string');
+    });
+  });
+
+  describe('resetConfig', () => {
+    it('removes agent model overrides', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, JSON.stringify({
+        lsp: true,
+        agent: {
+          explore: { model: 'custom/explore' },
+          scout: { model: 'custom/scout' },
+        },
+      }), 'utf8');
+
+      const result = resetConfig(tmpDir);
+      assert.equal(result.exploreModel, KNOWN_DEFAULT_EXPLORE_MODEL);
+      assert.equal(result.scoutModel, KNOWN_DEFAULT_SCOUT_MODEL);
+      assert.equal(result.isCustom, false);
+
+      const config = readConfig(tmpDir);
+      assert.equal(config.lsp, true);
+      assert.ok(!config.agent);
+    });
+
+    it('preserves other agent settings when removing models', () => {
+      const configPath = resolveConfigPath(tmpDir);
+      fs.writeFileSync(configPath, JSON.stringify({
+        agent: {
+          explore: { model: 'custom/explore', temperature: 0.5 },
+          build: { model: 'some/build' },
+        },
+      }), 'utf8');
+
+      resetConfig(tmpDir);
+      const config = readConfig(tmpDir);
+      assert.equal(config.agent.explore.temperature, 0.5);
+      assert.ok(!config.agent.explore.model);
+      assert.equal(config.agent.build.model, 'some/build');
+    });
+
+    it('removes state file', () => {
+      setAgentModels(tmpDir, 'new/explore', 'new/scout');
+      assert.ok(fs.existsSync(resolveStatePath(tmpDir)));
+      resetConfig(tmpDir);
+      assert.ok(!fs.existsSync(resolveStatePath(tmpDir)));
+    });
+  });
+});

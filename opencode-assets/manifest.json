@@ -62,6 +62,20 @@
       "loadMode": "always"
     },
     {
+      "id": "opencode-elegy-skills-discovery-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/elegy-skills-discovery",
+      "destination": "skills/elegy-skills-discovery",
+      "loadMode": "always"
+    },
+    {
+      "id": "opencode-elegy-planning-skill",
+      "type": "skill",
+      "source": "catalog-assets/shared-skills/elegy-planning",
+      "destination": "skills/elegy-planning",
+      "loadMode": "always"
+    },
+    {
       "id": "opencode-code-review-skill",
       "type": "skill",
       "source": "opencode-assets/skills/code-review",

@@ -3227,3 +3227,14 @@ export interface ActivityStreamEntry {
   pendingReasoning?: string;
   question?: PendingQuestion;
 }
+
+export interface OpenCodeAgentStatusResponse {
+  opencodeHome: string;
+  configPath: string;
+  exploreModel: string;
+  scoutModel: string;
+  isCustom: boolean;
+  availableModels: string[];
+  lastAppliedAt?: string | null;
+  [key: string]: unknown;
+}

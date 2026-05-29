@@ -6,6 +6,8 @@ These are the lightweight, **global** conventions for using Instruction Engine a
 
 - never use the terminal tool with background: true
 - NEVER change branches while working unless explicitly asked to do so by the user.
+- Narrow candidate constraints to the minimum hard constraints needed for the active step; keep shaping context and open questions separate;
+- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions; Do not create ADRs for ordinary local implementation choices.
 
 ## CRITICAL: run_in_terminal MUST NEVER USE isBackground=true
 
@@ -176,17 +178,14 @@ Note: The "Completion Gate" rule ("ask one targeted question") applies to genera
 
 ## Skills (Default to Skills)
 If a task maps to a known domain, treat skills as the default path:
-- A few transversal skills are always installed in `~/.copilot/skills/`: `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`, `project-guidelines`.
-- The shared planning/spec/review lane is also installed there: `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`.
-- Most other domain skills remain in `~/.copilot/skills-vault/` and are not preloaded into context.
+- A few transversal skills are always loaded in `~/.copilot/skills/`: `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`, `project-guidelines`.
+- **Most domain skills live in `~/.copilot/skills-vault/`** and are NOT loaded by default (saves tokens).
 - Use the staged routing model by default:
 	1. `@search` resolves the smallest relevant capability.
 	2. `@execute` extracts the minimum constraints and steps needed downstream.
-	3. Only load the resolved skill when the task truly needs domain-specific guidance.
-- Narrow candidate constraints to the minimum hard constraints needed for the active step; keep shaping context and open questions separate instead of forwarding the whole upstream rule set.
-- Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions; avoid ADRs for routine local implementation choices.
+	3. Only load the resolved on-demand skill when the task truly needs domain-specific guidance.
 - To find the right skill: use the `skill-discovery` skill's keyword map, or run `stack-detector` for project-wide detection.
-- To load a skill: read `~/.copilot/skills/{skill-name}/SKILL.md` when it is always-installed, otherwise `~/.copilot/skills-vault/{skill-name}/SKILL.md`.
+- To load an on-demand skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
 - Prefer skill-specific guidance over generic judgment.
 - If multiple skills apply, load the primary one first, then the supporting ones.
 

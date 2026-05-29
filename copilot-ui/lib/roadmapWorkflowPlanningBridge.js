@@ -1,7 +1,9 @@
 'use strict';
 
 const childProcess = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
+const { resolveElegyPlanningCliPath } = require('./elegyPlanningCliResolver');
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 const DEFAULT_CLI_PATH = 'elegy-planning';
@@ -464,6 +466,15 @@ function buildPlanningAuthorityStatus({ disabled, configured, config, configured
   const cliPath = normalizeString(config && config.cliPath);
   const dbPath = normalizeString(config && config.dbPath);
 
+  let cliBinaryExists = false;
+  if (cliPath) {
+    try {
+      cliBinaryExists = fs.existsSync(cliPath);
+    } catch {
+      cliBinaryExists = false;
+    }
+  }
+
   let code = 'planning_authority_ready';
   let ready = true;
   let message = 'elegy-planning authority is configured for live roadmap reads.';
@@ -478,8 +489,12 @@ function buildPlanningAuthorityStatus({ disabled, configured, config, configured
     message = 'elegy-planning authority is not configured.';
   } else if (!cliPath) {
     ready = false;
-    code = 'missing_cli_path';
-    message = 'elegy-planning authority requires a CLI path.';
+    code = 'cli_binary_not_found';
+    message = 'elegy-planning CLI binary was not found. Set INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH or install elegy-planning to PATH.';
+  } else if (!cliBinaryExists) {
+    ready = false;
+    code = 'cli_binary_not_found';
+    message = `elegy-planning CLI binary not found at: ${cliPath}`;
   } else if (!dbPath) {
     ready = false;
     code = 'missing_db_path';
@@ -617,15 +632,23 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     ? Number(options.timeoutMs)
     : DEFAULT_TIMEOUT_MS;
   const disabled = options.enabled === false || normalizeString(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED) === '1';
+
+  const resolvedCliPath = resolveElegyPlanningCliPath({
+    cliPath: configuredCliPath,
+    runtimeRoot: normalizeString(options.runtimeRoot) || normalizeString(env.INSTRUCTION_ENGINE_RUNTIME_ROOT),
+    copilotHome,
+  });
+
   const configured = options.enabled === true
     || normalizeString(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED) === '1'
     || Boolean(configuredCliPath)
     || Boolean(normalizeString(options.dbPath || env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH));
+
   const config = {
     childProcess: options.childProcess,
     processObject,
     env,
-    cliPath: configuredCliPath || DEFAULT_CLI_PATH,
+    cliPath: resolvedCliPath || configuredCliPath || '',
     dbPath: configuredDbPath,
     cwd: copilotHome || undefined,
     timeoutMs,
@@ -634,7 +657,7 @@ function createRoadmapWorkflowPlanningBridge(options = {}) {
     disabled,
     configured,
     config,
-    configuredCliPath,
+    configuredCliPath: resolvedCliPath || configuredCliPath,
     configuredDbPath,
   });
 

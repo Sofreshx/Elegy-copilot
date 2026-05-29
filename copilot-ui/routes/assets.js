@@ -253,7 +253,7 @@ function handleAssetsRemove(ctx, deps) {
 
 function handleAssetsView(ctx, deps) {
   const { res, u, copilotHomeAbs } = ctx;
-  const { sendJson, sendText, assets, fs, path, safeResolveUnder } = deps;
+  const { sendJson, sendText, assets, fs, path, safeResolveUnder, engineRoot } = deps;
   const assetsHomeAbs = copilotHomeAbs;
 
   const rel = u.searchParams.get('path');
@@ -266,7 +266,23 @@ function handleAssetsView(ctx, deps) {
     abs = assertInspectableAssetPath(abs, assetsHomeAbs, fs);
     abs = resolvePointerTarget(rel, abs, assetsHomeAbs, assets, fs, safeResolveUnder);
     abs = assertInspectableAssetPath(abs, assetsHomeAbs, fs);
-    const text = assets.readTextFileSafe(abs, 512 * 1024);
+    let text = assets.readTextFileSafe(abs, 512 * 1024);
+
+    if (text == null && engineRoot) {
+      const engineRootAbs = path.resolve(engineRoot);
+      if (engineRootAbs !== assetsHomeAbs) {
+        try {
+          let fallbackAbs = safeResolveUnder(engineRootAbs, rel);
+          fallbackAbs = assertInspectableAssetPath(fallbackAbs, engineRootAbs, fs);
+          fallbackAbs = resolvePointerTarget(rel, fallbackAbs, engineRootAbs, assets, fs, safeResolveUnder);
+          fallbackAbs = assertInspectableAssetPath(fallbackAbs, engineRootAbs, fs);
+          text = assets.readTextFileSafe(fallbackAbs, 512 * 1024);
+        } catch {
+          // fallback failed, continue to 404
+        }
+      }
+    }
+
     if (text == null) {
       sendText(res, 404, 'Asset not found at the resolved path. If this is a repo-scoped asset, ensure the repo context is active.');
       return;

@@ -106,6 +106,10 @@ function compareSemver(left, right) {
   return comparePrerelease(leftVersion.prerelease, rightVersion.prerelease);
 }
 
+function sortBySemverDesc(left, right) {
+  return compareSemver(right, left);
+}
+
 function isStableDesktopReleaseTag(tagName) {
   return /^desktop-v\d+\.\d+\.\d+$/.test(normalizeString(tagName));
 }
@@ -367,6 +371,80 @@ async function writeResponseBodyToFile(response, destinationPath, totalBytes, on
   }
 }
 
+async function pruneInstallerCache(options = {}) {
+  const downloadRoot = normalizeString(options.downloadRoot);
+  const channel = normalizeChannel(options.channel);
+  const keepCount = Number.isFinite(options.keepCount) && Number(options.keepCount) > 0
+    ? Number(options.keepCount)
+    : 2;
+  const logger = typeof options.logger === 'function' ? options.logger : () => {};
+  const keepDirectory = normalizeString(options.keepDirectory);
+  if (!downloadRoot || !channel) {
+    return;
+  }
+
+  const channelRoot = path.join(downloadRoot, channel);
+  const entries = await fs.promises.readdir(channelRoot, { withFileTypes: true }).catch(() => []);
+  const versionEntries = [];
+  const staleEntries = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const entryName = normalizeString(entry.name);
+    const entryPath = path.join(channelRoot, entryName);
+    if (!entryName) {
+      staleEntries.push(entryPath);
+      continue;
+    }
+    if (keepDirectory && path.resolve(entryPath) === path.resolve(keepDirectory)) {
+      versionEntries.push({
+        version: entryName,
+        path: entryPath,
+        keep: true,
+      });
+      continue;
+    }
+    if (!parseSemver(entryName)) {
+      staleEntries.push(entryPath);
+      continue;
+    }
+    versionEntries.push({
+      version: entryName,
+      path: entryPath,
+      keep: false,
+    });
+  }
+
+  const keepPaths = new Set(
+    versionEntries
+      .filter((entry) => entry.keep)
+      .map((entry) => path.resolve(entry.path)),
+  );
+  const sortedVersions = versionEntries
+    .filter((entry) => !entry.keep)
+    .sort((left, right) => sortBySemverDesc(left.version, right.version));
+  const remainingSlots = Math.max(0, keepCount - keepPaths.size);
+
+  for (const entry of sortedVersions.slice(0, remainingSlots)) {
+    keepPaths.add(path.resolve(entry.path));
+  }
+
+  const deletePaths = [
+    ...staleEntries,
+    ...versionEntries
+      .map((entry) => entry.path)
+      .filter((entryPath) => !keepPaths.has(path.resolve(entryPath))),
+  ];
+
+  for (const entryPath of deletePaths) {
+    await fs.promises.rm(entryPath, { force: true, recursive: true }).catch((error) => {
+      logger(`[desktop-updater] failed to prune installer cache entry ${entryPath}: ${String(error && error.message ? error.message : error)}`);
+    });
+  }
+}
+
 function createGitHubReleaseUpdaterClient(options = {}) {
   const fetchImpl = options.fetch || global.fetch;
   const publishRepository = parsePublishRepository(options.publishRepository);
@@ -381,6 +459,10 @@ function createGitHubReleaseUpdaterClient(options = {}) {
     : 15 * 60 * 1000;
   const downloadRoot = normalizeString(options.downloadRoot)
     || path.join(os.tmpdir(), 'elegy-copilot-updater');
+  const keepInstallersPerChannel = Number.isFinite(options.keepInstallersPerChannel)
+    && Number(options.keepInstallersPerChannel) > 0
+    ? Number(options.keepInstallersPerChannel)
+    : 2;
 
   if (typeof fetchImpl !== 'function') {
     throw new Error('Global fetch is unavailable; desktop updater cannot query GitHub releases.');
@@ -556,6 +638,14 @@ function createGitHubReleaseUpdaterClient(options = {}) {
         await fs.promises.rm(destinationDir, { force: true, recursive: true });
         throw new Error(`Installer checksum mismatch for ${candidate.artifact.name}.`);
       }
+
+      await pruneInstallerCache({
+        downloadRoot,
+        channel: candidate.channel,
+        keepCount: keepInstallersPerChannel,
+        keepDirectory: destinationDir,
+        logger,
+      });
 
       return {
         installerPath: destinationPath,

@@ -7,7 +7,7 @@ doc_kind: node
 id: self-documenting-code-and-rationale-placement
 summary: Operational matrix for choosing between self-documenting code, local comments, doc comments, research design notes, canonical docs, ADRs, and thin instruction surfaces.
 tags: [clarity, rationale, comments, documentation]
-related: [project-conventions-governance, documentation-structure-governance, rules-compliance-audit-handoff-workflow, search-execute-workflow, progressive-constraint-narrowing, adr-governance]
+related: [project-conventions-governance, documentation-structure-governance, rules-compliance-audit-handoff-workflow, search-execute-workflow]
 ---
 
 # Clarity Through Self-Documenting Code and Rationale Placement
@@ -55,9 +55,8 @@ Promote rationale once the explanation stops being local and starts guiding futu
 
 - Put exploratory design reasoning and unratified alternatives in `docs/research/**`.
 - Promote durable workflow or rule guidance into [[project-conventions-governance]] [docs/system/project-conventions-governance.md](docs/system/project-conventions-governance.md) or the smallest sibling canonical node that owns the rule family.
-- Use an ADR in `docs/system/**` when the decision is architectural and future readers need the chosen option plus the durable tradeoff record. Apply [[adr-governance]] [docs/system/adr-governance.md](docs/system/adr-governance.md) instead of treating every non-trivial choice as ADR-worthy.
+- Use an ADR in `docs/system/**` when the decision is architectural and future readers need the chosen option plus the durable tradeoff record.
 - If the same rationale would otherwise be copied into multiple comments or tool instructions, the doc graph is the right home.
-- If the repeated material is really a standing constraint, narrow it with [[progressive-constraint-narrowing]] [docs/system/progressive-constraint-narrowing.md](docs/system/progressive-constraint-narrowing.md) and promote the durable remainder into the right canonical node or ADR.
 
 ## Discoverability guidance
 

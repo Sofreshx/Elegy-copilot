@@ -316,3 +316,41 @@ test('GitHub release updater client downloads the installer and verifies sha256'
   assert.equal(result.sha256, expectedSha);
   assert.equal(progress.length > 0, true);
 });
+
+test('GitHub release updater client prunes stale cached installers per channel', async () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ie-updater-prune-'));
+  const installerBody = 'prune-installer-body';
+  const expectedSha = require('node:crypto').createHash('sha256').update(installerBody).digest('hex');
+  const channelRoot = path.join(tempRoot, 'stable');
+
+  fs.mkdirSync(path.join(channelRoot, '1.0.1'), { recursive: true });
+  fs.writeFileSync(path.join(channelRoot, '1.0.1', 'old.exe'), 'old-1');
+  fs.mkdirSync(path.join(channelRoot, '1.0.2'), { recursive: true });
+  fs.writeFileSync(path.join(channelRoot, '1.0.2', 'old.exe'), 'old-2');
+  fs.mkdirSync(path.join(channelRoot, 'not-a-version'), { recursive: true });
+  fs.writeFileSync(path.join(channelRoot, 'not-a-version', 'junk.txt'), 'junk');
+
+  const client = createGitHubReleaseUpdaterClient({
+    publishRepository: 'Sofreshx/Elegy-copilot',
+    downloadRoot: tempRoot,
+    keepInstallersPerChannel: 2,
+    fetch: async () => binaryResponse(installerBody),
+  });
+
+  const result = await client.downloadInstaller({
+    version: '1.0.3',
+    channel: 'stable',
+    artifact: {
+      name: 'Elegy Copilot_1.0.3_x64-setup.exe',
+      sha256: expectedSha,
+      size: installerBody.length,
+      downloadUrl: 'https://example.test/Elegy%20Copilot_1.0.3_x64-setup.exe',
+    },
+  });
+
+  assert.equal(fs.existsSync(result.installerPath), true);
+  assert.equal(fs.existsSync(path.join(channelRoot, '1.0.3')), true);
+  assert.equal(fs.existsSync(path.join(channelRoot, '1.0.2')), true);
+  assert.equal(fs.existsSync(path.join(channelRoot, '1.0.1')), false);
+  assert.equal(fs.existsSync(path.join(channelRoot, 'not-a-version')), false);
+});

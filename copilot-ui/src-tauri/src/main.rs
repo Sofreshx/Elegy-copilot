@@ -314,7 +314,17 @@ fn build_init_script(app: &AppHandle) -> Result<String, String> {
                                     method: 'POST',
                                     timeoutMs: 10000,
                                 });
-                                return Boolean(payload && payload.ok === true);
+                                const accepted = Boolean(payload && payload.ok === true);
+                                if (accepted) {
+                                    queueMicrotask(() => {
+                                        try {
+                                            window.close();
+                                        } catch {
+                                            // best-effort close to release app file handles for installer apply
+                                        }
+                                    });
+                                }
+                                return accepted;
                             } catch (error) {
                                 const message = error instanceof Error && error.message.trim()
                                     ? error.message.trim()

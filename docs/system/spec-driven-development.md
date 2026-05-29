@@ -173,6 +173,37 @@ planner abstraction.
 3. Use `spec-review` before implementation planning when the spec should drive later work.
 4. Move into the existing plan-pack, roadmap, implementation, review, and validation lanes after the spec is ready.
 
+## Specs and Docs Relationship
+
+Specs (`specs/`) and docs (`docs/`) serve different purposes and must not collide:
+
+| Artifact | Location | Purpose | Authority |
+|---|---|---|---|
+| Spec | `specs/<spec-slug>/spec.md` | Durable requirements contract for non-trivial work | Source of truth for acceptance criteria |
+| System doc | `docs/system/*.md` | Architecture, governance, workflow contracts | Source of truth for system design |
+| Roadmap | `docs/roadmaps/*.md` | Multi-session planning slices | Source of truth for sequencing |
+| ADR | `docs/adr/*.md` | Architecture decision records | Source of truth for decisions |
+
+### Cross-referencing
+
+- Specs reference docs in `Context Evidence` section: list the `docs/system/` nodes that inform the spec.
+- System docs can reference specs in `related` frontmatter: add the spec slug to the related array.
+- Roadmaps reference specs in `Plan Refs` when a roadmap slice implements a spec.
+- Do not duplicate content between a spec and a doc. If a spec describes behavior and a doc describes design, link them.
+
+### Discovery
+
+- Find all specs: `ls specs/*/spec.md` or read `specs/index.md` if present.
+- Find spec-related docs: grep for the spec slug in `docs/system/` frontmatter `related` arrays.
+- Find doc-related specs: grep for the doc id in `specs/*/spec.md` `Context Evidence` sections.
+
+### No Collision Rule
+
+- Specs never write into `docs/`. They live at repo root under `specs/`.
+- Docs never write into `specs/`. They live under `docs/`.
+- If a spec needs to capture an architecture decision, write an ADR in `docs/adr/` and reference it from the spec's `Context Evidence`.
+- If a doc needs to capture requirements, reference the spec rather than inlining requirements.
+
 ## Validation
 
 - Prefer the repo-local validator when present: `node scripts/validate-specs.js <spec-root>`.

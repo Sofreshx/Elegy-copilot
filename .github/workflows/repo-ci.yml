@@ -53,8 +53,8 @@ jobs:
       - name: Run UI smoke tests
         run: node copilot-ui/tests/ui-react-smoke.test.js
 
-      - name: Run navigation tests
-        run: node copilot-ui/tests/runtime-home-navigation.test.js
+      - name: Run runtime startup contract tests
+        run: node copilot-ui/tests/runtime-startup-contract.test.js
 
       - name: Run backend tests
         run: node copilot-ui/lib/repoInventoryService.test.js

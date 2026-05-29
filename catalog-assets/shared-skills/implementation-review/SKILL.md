@@ -34,13 +34,29 @@ Use this format:
 IMPLEMENTATION_REVIEW
 - verdict: pass | revise | blocked
 - findings:
-  - <issue with file/line if available, or none>
+  - [severity: critical|high|medium|low] <file:line> — <description>
+  - [severity: critical|high|medium|low] <file:line> — <description>
+  - (repeat for each finding, or "none" if clean)
 - scope_check:
-  - <matches request | scope drift>
+  - matches request | scope drift: <drift description>
 - validation:
-  - <evidence or gap>
+  - evidence: <what was validated and how>
+  - gap: <what was not validated and why>
 - handoff_notes:
-  - <remaining risk or none>
+  - <remaining risk, follow-up items, or none>
 ```
 
-Lead with defects. Skip style-only comments unless they hide correctness or maintainability risk.
+### Finding Severity
+
+- **critical**: Data loss, security breach, broken auth, unrecoverable state. Blocks handoff.
+- **high**: Behavioral regression, broken contract, missing validation for changed behavior. Requires revision.
+- **medium**: Stale docs, missing test for edge case, accidental broadening. Should fix before merge.
+- **low**: Naming drift, minor style hiding maintainability risk, optional cleanup. Fix if time allows.
+
+### Rules
+
+- Lead with defects. List critical/high findings first.
+- Skip style-only comments unless they hide correctness or maintainability risk.
+- Every finding must reference a file and line when available.
+- If findings exist, verdict must be `revise` (or `blocked` for critical).
+- A `pass` verdict requires `findings: none`.

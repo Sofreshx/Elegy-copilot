@@ -5,6 +5,7 @@ import { navigationStore } from '../../stores/navigation';
 import { hookRulesStore, type HookRulesState } from '../../stores/hookRulesStore';
 import type { HookRule } from '../../lib/api/hooks';
 import CodexProviderPanel from './CodexProviderPanel';
+import OpenCodeAgentPanel from './OpenCodeAgentPanel';
 import RemoteSessionsPanel from './RemoteSessionsPanel';
 
 const BRAND_ICON_SRC = '/elegy-copilot-icon.svg';
@@ -202,6 +203,8 @@ export default function SettingsView() {
         <HookRulesPanel />
 
         <CodexProviderPanel />
+
+        <OpenCodeAgentPanel />
 
         <RemoteSessionsPanel />
 

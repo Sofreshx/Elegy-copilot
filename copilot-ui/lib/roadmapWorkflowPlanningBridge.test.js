@@ -42,6 +42,7 @@ async function run() {
       enabled: true,
       copilotHome: path.join('C:', 'copilot'),
       dbPath: path.join('C:', 'planning', 'elegy-planning.db'),
+      cliPath: __filename,
       childProcess: createExecFileStub(({ command, args, options, callback }) => {
         recorded.push({ command, args, options });
         const commandKey = args.slice(6, 8).join(' ');
@@ -176,7 +177,7 @@ async function run() {
       ],
     });
     assert.equal(recorded.length, 6);
-    assert.equal(recorded[0].command, 'elegy-planning');
+    assert.equal(recorded[0].command, __filename);
     assert.deepEqual(recorded[0].args.slice(0, 6), [
       '--json',
       '--non-interactive',
@@ -204,6 +205,7 @@ async function run() {
       enabled: true,
       copilotHome: path.join('C:', 'copilot'),
       dbPath: path.join('C:', 'planning', 'elegy-planning.db'),
+      cliPath: __filename,
       childProcess: createExecFileStub(({ command, args, callback }) => {
         recorded.push({ command, args });
         callback(null, buildMachineEnvelope({
@@ -281,6 +283,7 @@ async function run() {
       enabled: true,
       copilotHome: path.join('C:', 'copilot'),
       dbPath: path.join('C:', 'planning', 'elegy-planning.db'),
+      cliPath: __filename,
       childProcess: createExecFileStub(({ callback }) => {
         callback(null, 'not-json', '');
       }),

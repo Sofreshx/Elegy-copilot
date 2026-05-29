@@ -115,6 +115,7 @@ const {
 const { createRuntimeHealthResolver } = require('./lib/server/runtimeHealth');
 const { createRoadmapWorkflowMemoryBridge } = require('./lib/roadmapWorkflowMemoryBridge');
 const { createRoadmapWorkflowPlanningBridge } = require('./lib/roadmapWorkflowPlanningBridge');
+const { resolveElegyPlanningCliPath, downloadElegyPlanningCli } = require('./lib/elegyPlanningCliResolver');
 const {
   resolveTrackerUrl,
   resolveTrackerToken,
@@ -4418,9 +4419,23 @@ function handleApi({ req, res, u, copilotHome, vscodeHome, sandboxesHome, engine
     }
   }
 
-  if (nativeRuntimeUrl && (
+  if (
     pathname.startsWith('/api/projects') ||
-    pathname === '/api/dashboard/summary' ||
+    pathname === '/api/dashboard/summary'
+  ) {
+    if (!nativeRuntimeUrl) {
+      sendJson(res, 503, {
+        error: 'Native runtime required',
+        code: 'native_runtime_unavailable',
+        message: `The ${pathname} endpoint requires the Rust native runtime, which is not configured. Set INSTRUCTION_ENGINE_NATIVE_RUNTIME_URL or ELEGY_NATIVE_RUNTIME_URL.`,
+      });
+      return;
+    }
+    proxyToNativeRuntime(nativeRuntimeUrl, pathname, req, res);
+    return;
+  }
+
+  if (nativeRuntimeUrl && (
     pathname === '/api/health' ||
     pathname === '/api/version' ||
     pathname === '/api/policy/preflight'
@@ -4830,11 +4845,28 @@ async function startServer(options = {}) {
       childProcess: options.childProcess || childProcess,
       env,
     });
+
+  if (!resolveElegyPlanningCliPath({
+    cliPath: env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
+    runtimeRoot: engineRoot,
+    copilotHome,
+  })) {
+    try {
+      logger('elegy-planning CLI not found locally, attempting download from GitHub releases...');
+      const downloadedPath = await downloadElegyPlanningCli({ copilotHome, logger });
+      env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = downloadedPath;
+      logger(`elegy-planning CLI downloaded to: ${downloadedPath}`);
+    } catch (downloadError) {
+      logger(`elegy-planning CLI download failed: ${downloadError.message}`);
+    }
+  }
+
   const roadmapWorkflowPlanningBridge = Object.prototype.hasOwnProperty.call(options, 'roadmapWorkflowPlanningBridge')
     ? options.roadmapWorkflowPlanningBridge
     : createRoadmapWorkflowPlanningBridge({
       enabled: true,
       copilotHome,
+      runtimeRoot: engineRoot,
       childProcess: options.childProcess || childProcess,
       env,
     });
