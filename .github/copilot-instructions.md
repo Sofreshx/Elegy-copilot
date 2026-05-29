@@ -2,6 +2,12 @@
 
 These are the lightweight, **global** conventions for using Instruction Engine across repos. Keep this file focused on “where to look / where to write / when to delegate”, and let the agents handle the detailed workflow.
 
+Instruction Engine, also published as Elegy Copilot, is the shared asset and
+control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
+skills, prompts, repo setup overlays, and the local dashboard/runtime. Treat
+this repo-local file as a routing aid; durable project policy lives under
+`docs/system/**`.
+
 - Prefer small, verifiable changes.
 
 - never use the terminal tool with background: true
@@ -91,6 +97,13 @@ authority surface:
   loaded observable in your execution or review output
 - if you cannot identify a relevant canonical node or you find a material docs contradiction, stop
   and surface it instead of treating prompt text or local patterns as enough authority
+
+Instruction Engine / Elegy Copilot repo map:
+- `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.copilot`.
+- `codex-assets/`, `opencode-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
+- `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
+- `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
+- For spec-driven work, follow `docs/system/spec-driven-development.md`; durable specs live at `specs/<spec-slug>/spec.md` with optional `specs/index.md`, and the repo-local validator is `node scripts/validate-specs.js <spec-root>`.
 
 Precedence:
 - Canonical decisions live in `docs/system/**`.

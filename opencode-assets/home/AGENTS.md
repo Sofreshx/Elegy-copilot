@@ -1,6 +1,13 @@
 # OpenCode Session Defaults
 
-Instruction-engine shared baseline for OpenCode. Keep this file workflow-specific, not repo-specific.
+Instruction Engine, also published as Elegy Copilot, is the shared asset and
+control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
+skills, prompts, repo setup overlays, and the local dashboard/runtime.
+
+This is the shared OpenCode baseline installed to the user's OpenCode home.
+Keep this file workflow-specific; put target-repo commands, test details, and
+local conventions in the target repo's own `AGENTS.md`, `guidelines.md`, or
+canonical docs.
 
 ## Workflow
 
@@ -61,6 +68,17 @@ Primary skills available:
 Use ADRs only for key architectural, workflow-authority, trust-boundary, or long-lived contract decisions. Do not create ADRs for ordinary local implementation choices.
 
 Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
+Follow `docs/system/spec-driven-development.md` in the Instruction Engine repo when a target repo opts into spec-driven work, and run the target repo's `node scripts/validate-specs.js <spec-root>` validator when present.
+
+## Instruction Engine Repo Map
+
+When the current workspace is Instruction Engine / Elegy Copilot:
+
+- `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.copilot`.
+- `opencode-assets/`, `codex-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
+- `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
+- `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
+- Start repo-rule work at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node.
 
 Compatibility-only skills:
 - `code-review`

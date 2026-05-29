@@ -7,6 +7,12 @@ These instructions are optimized for **Copilot CLI** stock modes (**/plan** and 
 Assume **both** user-level and repo-level instructions apply; conflicts can be non-deterministic, so explicitly reconcile them (see “Conflicts” below).
 For repo-specific policy, treat these instructions as a thin routing surface and defer to canonical docs in `docs/system/**`.
 
+Instruction Engine, also published as Elegy Copilot, is the shared asset and
+control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
+skills, prompts, repo setup overlays, and the local dashboard/runtime. This file
+is the global Copilot baseline installed to `~/.copilot/copilot-instructions.md`,
+so it should route to canonical sources instead of carrying target-repo policy.
+
 ## CRITICAL: run_in_terminal MUST NEVER USE isBackground=true
 
 ** NEVER DO THIS:**
@@ -100,6 +106,14 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
 - See `docs/system/search-execute-workflow.md` for the canonical staged-routing model.
 - Prefer canonical documentation in `docs/system/**`; use this file for routing/setup cues, not as a second copy of repo policy.
 - Treat `.instructions/*` paths as legacy and use them only when a repository explicitly opts in.
+
+When the current workspace is the Instruction Engine / Elegy Copilot repo:
+- `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into `~/.copilot`.
+- `codex-assets/`, `opencode-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
+- `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
+- `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
+- Start repo-rule work at `docs/system/index.md`, then the nearest MOC, then the smallest canonical node.
+- For spec-driven work, follow `docs/system/spec-driven-development.md`; durable specs live at `specs/<spec-slug>/spec.md` with optional `specs/index.md`, and the repo-local validator is `node scripts/validate-specs.js <spec-root>`.
 
 ## Implementation Friction Capture
 - Constructive complaints about hard-to-work-with code are allowed when they help delivery.

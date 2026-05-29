@@ -1,5 +1,12 @@
 # Codex Session Defaults
 
+Instruction Engine, also published as Elegy Copilot, is the shared asset and
+control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
+skills, prompts, repo setup overlays, and the local dashboard/runtime. Treat this
+file as the global Codex baseline installed to `~/.codex/AGENTS.md`; keep
+project-specific commands and conventions in the target repo's own `AGENTS.md`
+or canonical docs.
+
 Use plan-first for non-trivial work. Stay in planning until the task is decision-complete and the constraints are clear enough to implement safely.
 
 Narrow candidate constraints to the minimum hard constraints needed for the active step. Keep shaping context and open questions separate.
@@ -42,6 +49,9 @@ Narrow candidate constraints to the minimum hard constraints needed for the acti
 - To install or refresh the shared Codex agents and skills from this repo, run:
   - Windows: `pwsh -File scripts/codex-install.ps1 --force`
   - macOS/Linux: `bash scripts/codex-install.sh --force`
+- To refresh all supported Instruction Engine surfaces from this repo, run:
+  - Windows: `pwsh -File scripts/install-all.ps1 --force`
+  - macOS/Linux: `bash scripts/install-all.sh --force`
 - Prefer `/plan` for refactors, migrations, ambiguous features, and other multi-step work.
 - Prefer `/init` only when a repository needs persistent repo-local Codex instructions or bootstrap files; do not use it for routine shared asset installation or refresh.
 - Use `/fork` to branch a conversation without losing the original thread.
@@ -59,6 +69,17 @@ Narrow candidate constraints to the minimum hard constraints needed for the acti
 For repo-specific policy, start at `docs/system/index.md`, then the nearest MOC, then the smallest
 canonical node. Use `README.md` and `guidelines.md` as lighter local overlays after that route, not
 as peer authority with `docs/system/**`.
+
+For the Instruction Engine repo itself, the current identity and delivery model are:
+
+- `engine-assets/` ships Copilot agents, skills, prompts, and global instructions into the Copilot home install.
+- `codex-assets/`, `opencode-assets/`, and `antigravity-assets/` ship thinner native home baselines for their harnesses.
+- `copilot-ui/` is the local dashboard and catalog control plane; the packaged Windows desktop app is the normal end-user runtime.
+- `contracts/`, `local-tracker/`, `scripts/`, and `docs/system/**` hold shared contracts, gateway/runtime support, installers/validators, and canonical policy.
+
+For spec-driven work, use the current repo contract in `docs/system/spec-driven-development.md`:
+durable specs live at `specs/<spec-slug>/spec.md`, with optional `specs/index.md`, and should be
+validated with `node scripts/validate-specs.js <spec-root>` when the target repo has that validator.
 
 ## Boundaries
 
