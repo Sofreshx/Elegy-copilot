@@ -2,6 +2,8 @@ name: Elegy Copilot Desktop Preview Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - '*.*.*'
       - '!v*'
@@ -73,17 +75,22 @@ jobs:
           tag_name="${{ inputs.tag_name }}"
           release_name="${{ inputs.release_name }}"
           prerelease="true"
+          main_push="false"
 
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
-            if [[ ! "${GITHUB_REF_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-              echo "Automatic desktop preview publishing only supports non-prefixed semver tags like 1.2.3 or 1.2.3-rc.1." >&2
-              exit 1
-            fi
+            if [[ "${GITHUB_REF_TYPE:-}" == "branch" && "${GITHUB_REF_NAME:-}" == "main" ]]; then
+              ref="${GITHUB_SHA}"
+              tag_name=""
+              main_push="true"
+            else
+              if [[ ! "${GITHUB_REF_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+                echo "Automatic desktop preview publishing only supports main pushes or non-prefixed semver tags like 1.2.3 or 1.2.3-rc.1." >&2
+                exit 1
+              fi
 
-            ref="${GITHUB_REF_NAME}"
-            tag_name="${GITHUB_REF_NAME}"
-            release_name="Elegy Copilot Desktop Preview ${tag_name}"
-            prerelease="true"
+              ref="${GITHUB_REF_NAME}"
+              tag_name="${GITHUB_REF_NAME}"
+            fi
           fi
 
           if [[ -z "${ref}" ]]; then
@@ -124,6 +131,10 @@ jobs:
           print(json.loads(payload)["version"])
           PY
           )"
+
+          if [[ "${main_push}" == "true" ]]; then
+            tag_name="${package_version}"
+          fi
 
           if [[ "${package_version}" != "${tag_name}" ]]; then
             echo "Preview release tag '${tag_name}' must match copilot-ui/package.json version '${package_version}' at ref '${ref}'." >&2
