@@ -98,20 +98,6 @@ jobs:
             exit 1
           fi
 
-          if [[ -z "${tag_name}" ]]; then
-            echo "A preview tag name is required." >&2
-            exit 1
-          fi
-
-          if [[ ! "${tag_name}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "Desktop preview publishing only supports semver tags like 1.2.3 or 1.2.3-rc.1." >&2
-            exit 1
-          fi
-
-          if [[ -z "${release_name}" ]]; then
-            release_name="Elegy Copilot Desktop Preview ${tag_name}"
-          fi
-
           if ! git rev-parse --verify --quiet "${ref}^{commit}" >/dev/null; then
             git fetch --depth=1 origin "${ref}"
           fi
@@ -134,6 +120,20 @@ jobs:
 
           if [[ "${main_push}" == "true" ]]; then
             tag_name="${package_version}"
+          fi
+
+          if [[ -z "${tag_name}" ]]; then
+            echo "A preview tag name is required." >&2
+            exit 1
+          fi
+
+          if [[ ! "${tag_name}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Desktop preview publishing only supports semver tags like 1.2.3 or 1.2.3-rc.1." >&2
+            exit 1
+          fi
+
+          if [[ -z "${release_name}" ]]; then
+            release_name="Elegy Copilot Desktop Preview ${tag_name}"
           fi
 
           if [[ "${package_version}" != "${tag_name}" ]]; then
