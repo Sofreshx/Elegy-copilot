@@ -330,6 +330,7 @@ function resolveElegyPlanningCliPath(options = {}) {
 module.exports = {
   resolveElegyPlanningCliPath,
   downloadElegyPlanningCli,
+  fetchLatestReleaseInfo,
   findExistingBinary,
   candidatePaths,
   buildDownloadPath,

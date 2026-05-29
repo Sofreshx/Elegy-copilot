@@ -13,6 +13,7 @@ import {
 import { desktopUpdaterStore } from './stores/desktopUpdaterStore';
 import { questionBadgeStore } from './stores/questionBadgeStore';
 import { sdkHealthStore } from './stores/sdkHealthStore';
+import { toolingUpdatesStore } from './stores/toolingUpdatesStore';
 import PlanningAuthorityView from './tabs/Planning/PlanningAuthorityView';
 import CatalogShellView from './views/Catalog/CatalogShellView';
 import DashboardView from './views/DashboardView';
@@ -34,10 +35,12 @@ export default function App() {
     sdkHealthStore.startPolling();
     desktopUpdaterStore.startListening();
     questionBadgeStore.startPolling();
+    toolingUpdatesStore.startPolling();
     return () => {
       sdkHealthStore.stopPolling();
       desktopUpdaterStore.stopListening();
       questionBadgeStore.stopPolling();
+      toolingUpdatesStore.stopPolling();
     };
   }, []);
 

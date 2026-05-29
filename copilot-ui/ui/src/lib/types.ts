@@ -1142,6 +1142,47 @@ export interface ManagedAssetsResponse {
   managed: ManagedAssetStatus[];
 }
 
+export interface ToolingManagedSkillAsset {
+  id: string;
+  upToDate: boolean;
+  installed: boolean;
+  source: string;
+  destination: string;
+}
+
+export interface ToolingPlanningCliStatus {
+  cliPath: string | null;
+  currentVersion: string | null;
+  latestVersion: string | null;
+  updateAvailable: boolean;
+  canUpdate: boolean;
+  lastError: string | null;
+}
+
+export interface ToolingSkillsAssetsStatus {
+  trackedCount: number;
+  outdatedCount: number;
+  updateAvailable: boolean;
+  canUpdate: boolean;
+  assets: ToolingManagedSkillAsset[];
+  lastError: string | null;
+}
+
+export interface ToolingUpdatesStatusResponse {
+  checkedAtMs: number;
+  elegyPlanningCli: ToolingPlanningCliStatus;
+  elegySkillsAssets: ToolingSkillsAssetsStatus;
+}
+
+export interface ToolingUpdateActionResponse {
+  ok: boolean;
+  status?: ToolingUpdatesStatusResponse;
+  downloadedPath?: string;
+  syncResult?: unknown;
+  surfaceResults?: unknown[];
+  error?: string;
+}
+
 export interface InstalledAgent {
   assetId?: string;
   name: string;

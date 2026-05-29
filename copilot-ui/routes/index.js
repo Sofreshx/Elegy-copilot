@@ -91,6 +91,7 @@ function createRegistry(context = {}) {
   registry.registerModule(require('./gateway'), context);
   registry.registerModule(require('./sandboxes'), context);
   registry.registerModule(require('./desktopUpdater'), context);
+  registry.registerModule(require('./toolingUpdates'), context);
   registry.registerModule(require('./dashboard'), context);
 
   registry.registerModule(require('./config'), context);
