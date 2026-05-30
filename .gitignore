@@ -44,6 +44,22 @@ tmpclaude-*
 .vscode/mcp.json
 instruction-engine.code-workspace
 *.tsbuildinfo
+.cli/
+
+# Temporary build/test artifacts
+copilot-ui/.tmp/
+scripts/.test-ledger/
+
+# npm-installed CLI wrappers (should come from node_modules)
+copilot-ui/tsc
+copilot-ui/tsc.cmd
+copilot-ui/tsc.ps1
+copilot-ui/tsserver
+copilot-ui/tsserver.cmd
+copilot-ui/tsserver.ps1
+copilot-ui/typescript-language-server
+copilot-ui/typescript-language-server.cmd
+copilot-ui/typescript-language-server.ps1
 
 # Skill installer local artifacts
 .skill-installer/
