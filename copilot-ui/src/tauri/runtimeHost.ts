@@ -18,6 +18,10 @@ const READY_PREFIX = 'TAURI_RUNTIME_READY ';
 const ERROR_PREFIX = 'TAURI_RUNTIME_ERROR ';
 const SHUTDOWN_SIGNAL = 'shutdown';
 
+function bootLog(message: string): void {
+  process.stderr.write(`[boot:runtimeHost] ${message}\n`);
+}
+
 function requireEnv(name: string): string {
   const value = String(process.env[name] || '').trim();
   if (!value) {
@@ -32,6 +36,7 @@ function isPackagedHost(): boolean {
 }
 
 async function main(): Promise<void> {
+  bootLog('resolving environment variables');
   const runtimeRoot = requireEnv('ELEGY_TAURI_RUNTIME_ROOT');
   const nodeExecutablePath = requireEnv('ELEGY_TAURI_NODE_EXECUTABLE');
   const serverEntrypointPath = requireEnv('ELEGY_TAURI_SERVER_ENTRYPOINT');
@@ -44,6 +49,14 @@ async function main(): Promise<void> {
   const copilotHome = path.join(os.homedir(), '.copilot');
   const isPackaged = isPackagedHost();
 
+  bootLog(`runtimeRoot=${runtimeRoot}`);
+  bootLog(`nodeExecutable=${nodeExecutablePath}`);
+  bootLog(`serverEntrypoint=${serverEntrypointPath}`);
+  bootLog(`gatewayEntrypoint=${gatewayEntrypointPath}`);
+  bootLog(`workflowSidecarEntrypoint=${workflowSidecarEntrypointPath}`);
+  bootLog(`isPackaged=${isPackaged}, appVersion=${appVersion}`);
+
+  bootLog('loading planning persistence module');
   const { startDesktopPlanningPersistence } = require(path.join(copilotUiRoot, 'lib', 'desktopPlanningPersistence.js')) as {
     startDesktopPlanningPersistence: (options: Record<string, unknown>) => Promise<{
       connectionString: string;
@@ -54,6 +67,7 @@ async function main(): Promise<void> {
     }>;
   };
 
+  bootLog('loading server module');
   const { startServer } = require(serverEntrypointPath) as {
     startServer: (options: Record<string, unknown>) => Promise<{
       host: string;
@@ -74,6 +88,7 @@ async function main(): Promise<void> {
     await runtimeService?.stop();
   };
 
+  bootLog('creating desktop runtime service');
   runtimeService = createDesktopRuntimeService(
     {
       paths: {
@@ -153,9 +168,12 @@ async function main(): Promise<void> {
   });
 
   try {
+    bootLog('starting runtime service');
     const startResult = await runtimeService.start();
+    bootLog(`runtime service started successfully, port=${startResult.port}`);
     console.log(`${READY_PREFIX}${JSON.stringify({ windowUrl: startResult.windowUrl })}`);
   } catch (error) {
+    bootLog('runtime service start failed, shutting down');
     await shutdown();
     const detail = error instanceof Error ? error.message : String(error);
     console.error(`${ERROR_PREFIX}${JSON.stringify({ message: detail })}`);

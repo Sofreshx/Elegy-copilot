@@ -86,10 +86,11 @@ function candidatePaths(runtimeRoot, copilotHome) {
   return candidates;
 }
 
-function findExistingBinary(runtimeRoot, copilotHome) {
+function findExistingBinary(runtimeRoot, copilotHome, existsSyncImpl) {
+  const existsSyncFn = typeof existsSyncImpl === 'function' ? existsSyncImpl : fs.existsSync;
   for (const candidate of candidatePaths(runtimeRoot, copilotHome)) {
     try {
-      if (fs.existsSync(candidate)) {
+      if (existsSyncFn(candidate)) {
         return candidate;
       }
     } catch {
@@ -286,6 +287,7 @@ function resolveElegyPlanningCliPath(options = {}) {
   const runtimeRoot = normalizeString(options.runtimeRoot);
   const copilotHome = normalizeString(options.copilotHome);
   const defaultCommand = normalizeString(options.defaultCommand) || 'elegy-planning';
+  const existsSyncFn = typeof options.existsSync === 'function' ? options.existsSync : fs.existsSync;
   const commandLookupOptions = {
     env: options.env,
     platform: options.platform,
@@ -294,7 +296,7 @@ function resolveElegyPlanningCliPath(options = {}) {
 
   if (explicitCliPath) {
     try {
-      if (fs.existsSync(explicitCliPath)) {
+      if (existsSyncFn(explicitCliPath)) {
         return explicitCliPath;
       }
     } catch {
@@ -306,14 +308,14 @@ function resolveElegyPlanningCliPath(options = {}) {
     }
   }
 
-  const found = findExistingBinary(runtimeRoot, copilotHome);
+  const found = findExistingBinary(runtimeRoot, copilotHome, existsSyncFn);
   if (found) {
     return found;
   }
 
   const downloadedPath = buildDownloadPath(copilotHome);
   try {
-    if (fs.existsSync(downloadedPath)) {
+    if (existsSyncFn(downloadedPath)) {
       return downloadedPath;
     }
   } catch {

@@ -311,7 +311,7 @@ test('desktop runtime service discovers packaged elegy-planning authority and fo
   await service.stop();
 });
 
-test('desktop runtime service disables packaged planning authority when no CLI is discoverable', async () => {
+test('desktop runtime service defers planning DISABLED decision when no CLI is discoverable', async () => {
   const runtimeRoot = 'C:\\runtime';
   const copilotHome = 'C:\\Users\\tester\\.copilot';
   const fakeChild = new FakeChildProcess();
@@ -409,7 +409,7 @@ test('desktop runtime service disables packaged planning authority when no CLI i
   await service.start();
 
   assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH, undefined);
-  assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED, '1');
+  assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED, undefined);
   assert.equal(env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH, path.join(copilotHome, 'elegy-planning.db'));
 
   await service.stop();

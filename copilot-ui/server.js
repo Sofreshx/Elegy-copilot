@@ -5039,18 +5039,28 @@ async function startServer(options = {}) {
       env,
     });
 
-  if (!resolveElegyPlanningCliPath({
-    cliPath: env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
-    runtimeRoot: engineRoot,
-    copilotHome,
-  })) {
-    try {
-      logger('elegy-planning CLI not found locally, attempting download from GitHub releases...');
-      const downloadedPath = await downloadElegyPlanningCli({ copilotHome, logger });
-      env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = downloadedPath;
-      logger(`elegy-planning CLI downloaded to: ${downloadedPath}`);
-    } catch (downloadError) {
-      logger(`elegy-planning CLI download failed: ${downloadError.message}`);
+  {
+    const resolvedPlanningCli = resolveElegyPlanningCliPath({
+      cliPath: env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH,
+      runtimeRoot: engineRoot,
+      copilotHome,
+    });
+
+    if (resolvedPlanningCli) {
+      env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = resolvedPlanningCli;
+      env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED = '1';
+      delete env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED;
+    } else {
+      try {
+        logger('elegy-planning CLI not found locally, attempting download from GitHub releases...');
+        const downloadedPath = await downloadElegyPlanningCli({ copilotHome, logger });
+        env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH = downloadedPath;
+        env.INSTRUCTION_ENGINE_ELEGY_PLANNING_ENABLED = '1';
+        delete env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED;
+        logger(`elegy-planning CLI downloaded to: ${downloadedPath}`);
+      } catch (downloadError) {
+        logger(`elegy-planning CLI download failed: ${downloadError.message}`);
+      }
     }
   }
 

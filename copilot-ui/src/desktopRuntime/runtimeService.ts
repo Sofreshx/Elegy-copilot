@@ -8,6 +8,11 @@ import type { WorkflowSidecarManager } from '../workflowSidecar';
 
 const DESKTOP_UI_ACCESS_QUERY_PARAM = 'desktop-ui-token';
 const DESKTOP_SMOKE_LOG_WINDOW_URL_ENV = 'INSTRUCTION_ENGINE_DESKTOP_SMOKE_LOG_WINDOW_URL';
+const BOOT_DIAGNOSTIC_PREFIX = '[boot:runtimeService]';
+
+function bootLog(message: string): void {
+  process.stderr.write(`${BOOT_DIAGNOSTIC_PREFIX} ${message}\n`);
+}
 
 interface PlanningPersistenceQueryClient {
   query: (sql: string, params?: unknown[]) => Promise<unknown>;
@@ -204,22 +209,14 @@ function resolveBundledPlanningCliPath(
   copilotHome: string,
   runtimeFs: Pick<DesktopRuntimeFs, 'existsSync'>,
 ): string {
-  const candidates = [
-    path.join(runtimeRoot, 'elegy-planning', 'elegy-planning.exe'),
-    path.join(runtimeRoot, 'elegy-planning', 'bin', 'elegy-planning.exe'),
-    path.join(runtimeRoot, 'copilot-ui', 'resources', 'elegy-planning', 'elegy-planning.exe'),
-    path.join(copilotHome, 'managed-cli', 'planning', 'bin', 'elegy-planning.exe'),
-    path.join(copilotHome, 'managed-cli', 'planning', 'elegy-planning.exe'),
-    path.join(copilotHome, 'bin', 'elegy-planning.exe'),
-  ];
-
-  for (const candidate of candidates) {
-    if (runtimeFs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  return '';
+  // Use the shared cross-platform resolver from elegyPlanningCliResolver
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const resolver = require('../../elegyPlanningCliResolver') as { resolveElegyPlanningCliPath: (options: { runtimeRoot?: string; copilotHome?: string; existsSync?: (path: string) => boolean }) => string };
+  return resolver.resolveElegyPlanningCliPath({
+    runtimeRoot,
+    copilotHome,
+    existsSync: runtimeFs.existsSync,
+  });
 }
 
 function ensurePlanningAuthorityEnv(
@@ -246,13 +243,12 @@ function ensurePlanningAuthorityEnv(
     return;
   }
 
-  if (!options.isPackaged && !explicitCliPath) {
-    delete options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH;
-    return;
-  }
-
+  // Do not set INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED here.
+  // The server startup handles binary download and will set DISABLED only
+  // if both local resolution and download fail. Deferring the decision
+  // avoids a coordination gap where an early DISABLED flag blocks a
+  // successful download from re-enabling planning.
   delete options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_CLI_PATH;
-  options.env.INSTRUCTION_ENGINE_ELEGY_PLANNING_DISABLED = '1';
 }
 
 function ensureDefaultGatewayConfig(paths: Pick<DesktopRuntimePaths, 'gatewayConfigPath' | 'legacyGatewayConfigPath'>, runtimeFs: DesktopRuntimeFs): void {
@@ -402,42 +398,52 @@ export function createDesktopRuntimeService(
   let currentStartResult: DesktopRuntimeStartResult | null = null;
 
   async function stop(): Promise<void> {
+    bootLog('stopping runtime service');
     currentStartResult = null;
 
     if (serverHandle) {
+      bootLog('closing HTTP server');
       const handle = serverHandle;
       serverHandle = null;
       await handle.close();
     }
 
     if (desktopPlanningPersistenceHandle) {
+      bootLog('stopping planning persistence');
       const handle = desktopPlanningPersistenceHandle;
       desktopPlanningPersistenceHandle = null;
       await handle.stop();
     }
 
     if (workflowSidecarManager) {
+      bootLog('stopping workflow sidecar');
       const handle = workflowSidecarManager;
       workflowSidecarManager = null;
       await handle.stop();
     }
 
     if (gatewayProcess) {
+      bootLog('stopping gateway process');
       const child = gatewayProcess;
       gatewayProcess = null;
       await stopChildProcess(child);
     }
+
+    bootLog('runtime service stopped');
   }
 
   async function start(): Promise<DesktopRuntimeStartResult> {
     if (serverHandle && currentStartResult) {
+      bootLog('already running, returning cached result');
       return currentStartResult;
     }
 
     const explicitPlanningDatabaseUrl = String(options.env.INSTRUCTION_ENGINE_PLANNING_DB_URL || '').trim();
     const desktopUiToken = createRandomHex(32);
 
+    bootLog('ensuring SDK bridge enabled');
     dependencies.ensureSdkBridgeDefaultEnabled(options.env);
+    bootLog('evaluating CLI manager state');
     await dependencies.evaluateDesktopCliManagerState({
       runtimeRoot: options.paths.runtimeRoot,
       copilotHome: options.paths.copilotHome,
@@ -449,7 +455,9 @@ export function createDesktopRuntimeService(
       platform: options.platform,
       logger,
     });
+    bootLog('ensuring default gateway config');
     ensureDefaultGatewayConfig(options.paths, runtimeFs);
+    bootLog('ensuring planning authority env');
     ensurePlanningAuthorityEnv(options, runtimeFs);
 
     try {
@@ -460,6 +468,7 @@ export function createDesktopRuntimeService(
 
       const localTrackerRoot = path.join(options.paths.runtimeRoot, 'local-tracker');
       if (runtimeFs.existsSync(localTrackerRoot)) {
+        bootLog(`local-tracker found at ${localTrackerRoot}, starting gateway`);
         const gatewayEnv = {
           ...options.env,
           INSTRUCTION_ENGINE_GATEWAY_HTTP_TOKEN: trackerToken,
@@ -480,8 +489,12 @@ export function createDesktopRuntimeService(
             runtimeFs,
             spawnChildProcess,
           );
+        bootLog(`gateway process spawned: pid=${gatewayProcess?.pid ?? 'null'}`);
+      } else {
+        bootLog(`local-tracker not found at ${localTrackerRoot}, skipping gateway`);
       }
 
+      bootLog('starting workflow sidecar');
       workflowSidecarManager = await dependencies.startWorkflowSidecar({
         runtimeRoot: options.paths.runtimeRoot,
         processExecPath: options.processExecPath,
@@ -489,16 +502,24 @@ export function createDesktopRuntimeService(
         copilotHome: options.paths.copilotHome,
         shellAdapter: options.shellAdapter,
       });
+      bootLog('workflow sidecar started');
 
       if (options.isPackaged && !explicitPlanningDatabaseUrl) {
+        bootLog('starting planning persistence (packaged mode)');
         desktopPlanningPersistenceHandle = await dependencies.startDesktopPlanningPersistence({
           stateRoot: path.join(options.paths.copilotHome, 'planning-db'),
           logger: (message: string) => logger.log(message),
         });
         options.env.INSTRUCTION_ENGINE_PLANNING_DB_URL = desktopPlanningPersistenceHandle.connectionString;
         options.env.INSTRUCTION_ENGINE_PLANNING_DB_REQUIRED = '1';
+        bootLog('planning persistence started');
+      } else if (explicitPlanningDatabaseUrl) {
+        bootLog('skipping planning persistence (explicit DB URL provided)');
+      } else {
+        bootLog('skipping planning persistence (dev mode)');
       }
 
+      bootLog('starting HTTP server');
       serverHandle = await dependencies.startServer({
         host: '127.0.0.1',
         port: resolveDesktopServerPort(options.env),
@@ -514,6 +535,7 @@ export function createDesktopRuntimeService(
         env: options.env,
         quiet: true,
       });
+      bootLog(`HTTP server listening on ${serverHandle.host}:${serverHandle.port}`);
 
       currentStartResult = {
         host: serverHandle.host,
@@ -528,8 +550,10 @@ export function createDesktopRuntimeService(
         logger.log(`[desktop-smoke] window-url=${currentStartResult.windowUrl}`);
       }
 
+      bootLog('startup complete');
       return currentStartResult;
     } catch (error) {
+      bootLog(`startup failed: ${error instanceof Error ? error.message : String(error)}`);
       await stop();
       throw error;
     }

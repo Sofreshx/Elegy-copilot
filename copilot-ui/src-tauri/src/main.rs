@@ -1,10 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::{
+    ffi::OsString,
     io::{BufRead, BufReader, Write},
+    os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::{mpsc, Mutex},
+    sync::{mpsc, Arc, Mutex},
     thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
@@ -18,6 +20,10 @@ const READY_PREFIX: &str = "TAURI_RUNTIME_READY ";
 const ERROR_PREFIX: &str = "TAURI_RUNTIME_ERROR ";
 const SHUTDOWN_SIGNAL: &str = "shutdown\n";
 const RUNTIME_BOOT_TIMEOUT: Duration = Duration::from_secs(60);
+const MAX_DIAGNOSTIC_LINES: usize = 80;
+const MAX_MSGBOX_TEXT_LEN: usize = 4096;
+
+type StderrCapture = Arc<Mutex<Vec<String>>>;
 
 #[derive(Default)]
 struct RuntimeChildState(Mutex<Option<Child>>);
@@ -114,6 +120,69 @@ fn now_ms() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis() as u64)
         .unwrap_or(0)
+}
+
+fn to_wide_string(s: &str) -> Vec<u16> {
+    OsString::from(s)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
+}
+
+#[cfg(windows)]
+fn show_error_dialog(title: &str, message: &str) {
+    extern "system" {
+        fn MessageBoxW(hWnd: *mut core::ffi::c_void, lpText: *const u16, lpCaption: *const u16, uType: u32) -> i32;
+    }
+
+    const MB_ICONERROR: u32 = 0x00000010;
+    const MB_OK: u32 = 0x00000000;
+    const MB_TOPMOST: u32 = 0x00040000;
+
+    let title_w = to_wide_string(title);
+    let message_w = to_wide_string(message);
+
+    unsafe {
+        MessageBoxW(
+            core::ptr::null_mut(),
+            message_w.as_ptr(),
+            title_w.as_ptr(),
+            MB_ICONERROR | MB_OK | MB_TOPMOST,
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn show_error_dialog(title: &str, message: &str) {
+    eprintln!("[{title}] {message}");
+}
+
+fn format_boot_diagnostics(stderr_lines: &[String], primary_error: &str) -> String {
+    let mut output = String::new();
+    output.push_str("Elegy Copilot failed to start.\n\n");
+    output.push_str("Error: ");
+    output.push_str(primary_error);
+    output.push('\n');
+
+    if !stderr_lines.is_empty() {
+        output.push_str("\n--- Runtime diagnostics ---\n");
+        let start = if stderr_lines.len() > MAX_DIAGNOSTIC_LINES {
+            stderr_lines.len() - MAX_DIAGNOSTIC_LINES
+        } else {
+            0
+        };
+        for line in &stderr_lines[start..] {
+            output.push_str(line);
+            output.push('\n');
+        }
+    }
+
+    if output.len() > MAX_MSGBOX_TEXT_LEN {
+        output.truncate(MAX_MSGBOX_TEXT_LEN - 20);
+        output.push_str("\n... (truncated)");
+    }
+
+    output
 }
 
 fn resolve_desktop_update_channel(app: &AppHandle) -> (String, Option<String>, Option<String>) {
@@ -421,7 +490,7 @@ fn create_main_window(app: &AppHandle, window_url: &str) -> Result<(), String> {
         .map_err(|error| format!("Unable to create Tauri window: {error}"))
 }
 
-fn drain_runtime_output(child: &mut Child) -> Result<String, String> {
+fn drain_runtime_output(child: &mut Child, stderr_capture: StderrCapture) -> Result<String, String> {
     let stdout = child
         .stdout
         .take()
@@ -473,9 +542,13 @@ fn drain_runtime_output(child: &mut Child) -> Result<String, String> {
         }
     });
 
+    let stderr_capture_clone = Arc::clone(&stderr_capture);
     thread::spawn(move || {
         for line in BufReader::new(stderr).lines().map_while(Result::ok) {
             eprintln!("[tauri-runtime] {line}");
+            if let Ok(mut lines) = stderr_capture_clone.lock() {
+                lines.push(line);
+            }
         }
     });
 
@@ -500,7 +573,7 @@ fn drain_runtime_output(child: &mut Child) -> Result<String, String> {
     ))
 }
 
-fn launch_runtime_host(app: &AppHandle) -> Result<String, String> {
+fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result<String, String> {
     let root = runtime_root(app)?;
     let node_executable = bundled_node_path(app, &root)?;
     let runtime_host = runtime_host_path(&root)?;
@@ -541,7 +614,7 @@ fn launch_runtime_host(app: &AppHandle) -> Result<String, String> {
         .spawn()
         .map_err(|error| format!("Unable to launch Tauri runtime host: {error}"))?;
 
-    let ready_payload = drain_runtime_output(&mut child)?;
+    let ready_payload = drain_runtime_output(&mut child, stderr_capture)?;
     let parsed: RuntimeReadyPayload = serde_json::from_str(&ready_payload)
         .map_err(|error| format!("Invalid readiness payload from Tauri runtime host: {error}"))?;
 
@@ -586,20 +659,35 @@ fn shutdown_runtime(app: &AppHandle) {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let stderr_capture: StderrCapture = Arc::new(Mutex::new(Vec::new()));
+    let stderr_capture_for_setup = Arc::clone(&stderr_capture);
+
+    let build_result = tauri::Builder::default()
         .manage(RuntimeChildState::default())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             focus_main_window(app);
         }))
-        .setup(|app| {
-            let window_url = launch_runtime_host(app.handle())?;
+        .setup(move |app| {
+            let window_url = launch_runtime_host(app.handle(), stderr_capture_for_setup)?;
             create_main_window(app.handle(), &window_url)?;
             Ok(())
         })
-        .build(tauri::generate_context!())
-        .expect("error while building Tauri shell")
-        .run(|app, event| match event {
-            RunEvent::Exit => shutdown_runtime(app),
-            _ => {}
-        });
+        .build(tauri::generate_context!());
+
+    match build_result {
+        Ok(app) => {
+            app.run(|app, event| match event {
+                RunEvent::Exit => shutdown_runtime(app),
+                _ => {}
+            });
+        }
+        Err(error) => {
+            let stderr_lines = stderr_capture.lock().map(|lines| lines.clone()).unwrap_or_default();
+            let error_message = format!("{error}");
+            let diagnostics = format_boot_diagnostics(&stderr_lines, &error_message);
+            eprintln!("{diagnostics}");
+            show_error_dialog("Elegy Copilot - Startup Failed", &diagnostics);
+            std::process::exit(1);
+        }
+    }
 }

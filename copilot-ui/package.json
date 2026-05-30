@@ -16,6 +16,8 @@
     "build:tauri-runtime-host": "node ..\\node_modules\\typescript\\bin\\tsc -p tsconfig.tauri-runtime.json",
     "test:tauri-runtime-host": "npm run build:tauri-runtime-host && node --test lib\\desktop-shell\\desktopRuntime\\runtimeService.test.js lib\\desktop-shell\\gatewayChildMode.test.js lib\\desktop-shell\\workflowSidecar.test.js",
     "desktop:dev": "npm run tauri:dev:windows",
+    "desktop:prod-sim": "node scripts/run-desktop-production-sim.js",
+    "desktop:prod-sim:skip-build": "node scripts/run-desktop-production-sim.js --skip-build --keep-staging",
     "desktop:check": "npm run tauri:check",
     "desktop:smoke:native": "npm run desktop:preview:stage && npm run validate:tauri:native-smoke",
     "desktop:preview": "npm run package:tauri:win:preview",
