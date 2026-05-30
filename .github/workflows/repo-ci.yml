@@ -35,6 +35,11 @@ jobs:
       - name: Validate CI lockfiles
         run: node scripts/validate-ci-lockfiles.js
 
+      - name: Generate CLI artifacts
+        run: |
+          node scripts/generate-cli-manifest.mjs
+          node scripts/generate-policy-lockfiles.js
+
       - name: Validate manifest
         run: node scripts/validate-manifest.js
 
@@ -79,6 +84,11 @@ jobs:
 
       - name: Install workspace dependencies
         run: npm ci
+
+      - name: Generate CLI artifacts
+        run: |
+          node scripts/generate-cli-manifest.mjs
+          node scripts/generate-policy-lockfiles.js
 
       - name: Build and stage Tauri desktop preview
         run: npm --prefix copilot-ui run desktop:preview:stage

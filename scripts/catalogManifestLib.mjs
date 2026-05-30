@@ -301,6 +301,7 @@ export function writeCompatibilityManifest(manifestId, options = {}) {
   const manifestDefinition = resolveManifestDefinition(manifestId);
   const manifest = buildCompatibilityManifest(manifestId, options);
   const outputPath = path.join(repoRoot, manifestDefinition.outputPath);
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
   fs.writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   return {
     manifestId,
