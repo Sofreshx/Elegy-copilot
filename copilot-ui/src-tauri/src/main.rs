@@ -72,12 +72,17 @@ fn repo_root() -> PathBuf {
 
 fn runtime_root(app: &AppHandle) -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
-        return Ok(repo_root());
+        let root = repo_root();
+        eprintln!("[tauri-runtime] debug mode, runtime root: {}", root.display());
+        return Ok(root);
     }
 
-    app.path()
+    let root = app
+        .path()
         .resource_dir()
-        .map_err(|error| format!("Unable to resolve Tauri resource directory: {error}"))
+        .map_err(|error| format!("Unable to resolve Tauri resource directory: {error}"))?;
+    eprintln!("[tauri-runtime] release mode, resource_dir: {}", root.display());
+    Ok(root)
 }
 
 fn bundled_node_path(_app: &AppHandle, root: &Path) -> Result<PathBuf, String> {
@@ -574,9 +579,13 @@ fn drain_runtime_output(child: &mut Child, stderr_capture: StderrCapture) -> Res
 }
 
 fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result<String, String> {
+    eprintln!("[tauri-runtime] resolving runtime root");
     let root = runtime_root(app)?;
+    eprintln!("[tauri-runtime] runtime root: {}", root.display());
     let node_executable = bundled_node_path(app, &root)?;
+    eprintln!("[tauri-runtime] node executable: {}", node_executable.display());
     let runtime_host = runtime_host_path(&root)?;
+    eprintln!("[tauri-runtime] runtime host: {}", runtime_host.display());
     let copilot_ui_root = root.join("copilot-ui");
     let server_entrypoint = copilot_ui_root.join("server.js");
     let gateway_entrypoint = root
@@ -590,6 +599,7 @@ fn launch_runtime_host(app: &AppHandle, stderr_capture: StderrCapture) -> Result
         .join("messagingGateway")
         .join("workflowSidecar.js");
 
+    eprintln!("[tauri-runtime] spawning node runtime host");
     let mut child = Command::new(node_executable)
         .arg(runtime_host)
         .env(
@@ -659,32 +669,102 @@ fn shutdown_runtime(app: &AppHandle) {
 }
 
 fn main() {
+    let boot_log_path = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map(|home| PathBuf::from(home).join(".copilot").join("tauri-boot.log"))
+        .unwrap_or_else(|_| PathBuf::from("tauri-boot.log"));
+
+    let _ = std::fs::create_dir_all(boot_log_path.parent().unwrap_or(Path::new(".")));
+    let boot_log_file: Option<std::fs::File> = std::fs::File::create(&boot_log_path).ok();
+
+    macro_rules! boot_log {
+        ($msg:expr) => {{
+            let ts = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            let line = format!("[{ts}] {}\n", $msg);
+            eprint!("{line}");
+            if let Some(ref f) = boot_log_file {
+                use std::io::Write;
+                if let Ok(mut clone) = f.try_clone() {
+                    let _ = clone.write_all(line.as_bytes());
+                }
+            }
+        }};
+    }
+
+    boot_log!("tauri main() entered");
+
+    std::panic::set_hook(Box::new(|panic_info| {
+        let thread = std::thread::current();
+        let thread_name = thread.name().unwrap_or("<unnamed>");
+        let payload = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "unknown panic payload".to_string()
+        };
+        let location = panic_info
+            .location()
+            .map(|loc| format!("{}:{}:{}", loc.file(), loc.line(), loc.column()))
+            .unwrap_or_else(|| "unknown location".to_string());
+        let message = format!(
+            "Elegy Copilot crashed unexpectedly.\n\n\
+             Panic: {payload}\n\
+             Location: {location}\n\
+             Thread: {thread_name}"
+        );
+        eprintln!("[tauri-runtime] PANIC: {payload} at {location} (thread: {thread_name})");
+        show_error_dialog("Elegy Copilot - Crash", &message);
+    }));
+
+    boot_log!("panic hook installed");
+
     let stderr_capture: StderrCapture = Arc::new(Mutex::new(Vec::new()));
     let stderr_capture_for_setup = Arc::clone(&stderr_capture);
+    let boot_log_file_for_setup = boot_log_file.as_ref().and_then(|f| f.try_clone().ok());
 
+    boot_log!("building tauri app");
     let build_result = tauri::Builder::default()
         .manage(RuntimeChildState::default())
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             focus_main_window(app);
         }))
         .setup(move |app| {
+            if let Some(ref f) = boot_log_file_for_setup {
+                use std::io::Write;
+                let ts = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0);
+                if let Ok(mut clone) = f.try_clone() {
+                    let _ = clone.write_all(format!("[{ts}] setup closure entered\n").as_bytes());
+                }
+            }
             let window_url = launch_runtime_host(app.handle(), stderr_capture_for_setup)?;
             create_main_window(app.handle(), &window_url)?;
             Ok(())
         })
         .build(tauri::generate_context!());
 
+    boot_log!("tauri builder completed");
+
     match build_result {
         Ok(app) => {
+            boot_log!("tauri build succeeded, starting event loop");
             app.run(|app, event| match event {
                 RunEvent::Exit => shutdown_runtime(app),
                 _ => {}
             });
+            boot_log!("tauri event loop exited");
         }
         Err(error) => {
             let stderr_lines = stderr_capture.lock().map(|lines| lines.clone()).unwrap_or_default();
             let error_message = format!("{error}");
             let diagnostics = format_boot_diagnostics(&stderr_lines, &error_message);
+            boot_log!("tauri build failed");
             eprintln!("{diagnostics}");
             show_error_dialog("Elegy Copilot - Startup Failed", &diagnostics);
             std::process::exit(1);
