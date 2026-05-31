@@ -8,14 +8,7 @@ const repoRoot = path.resolve(__dirname, '..');
 const gateName = 'Legacy-Path Compatibility Audit';
 
 const targetFiles = [
-	'engine-assets/skills/system-cleanup/SKILL.md',
-	'engine-assets/skills/code-review/SKILL.md',
-	'engine-assets/skills/auth/SKILL.md',
-	'engine-assets/skills/frontend/SKILL.md',
-	'engine-assets/skills/refactor/SKILL.md',
 	'engine-assets/skills/security/SKILL.md',
-	'engine-assets/skills/agent-browser/SKILL.md',
-	'engine-assets/skills/e2e-workflow/SKILL.md',
 ].map((relativePath) => ({
 	relativePath,
 	filePath: path.join(repoRoot, relativePath),

@@ -4,7 +4,7 @@ Instruction Engine, also published as Elegy Copilot, is the shared asset and
 control-plane workspace for Copilot, Codex, OpenCode, and Antigravity agents,
 skills, prompts, repo setup overlays, and the local dashboard/runtime.
 
-Use the shared Instruction Engine skills installed under `~/.gemini/antigravity/skills`.
+Use the shared instruction-engine skills installed under `~/.gemini/antigravity/skills`.
 
 Instruction-engine keeps the current Antigravity CLI compatibility surface under the Gemini-compatible `~/.gemini` / `GEMINI.md` layout until upstream docs publish a different canonical root.
 

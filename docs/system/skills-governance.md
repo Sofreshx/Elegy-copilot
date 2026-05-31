@@ -20,7 +20,7 @@ Use staged capability routing by default:
 - `@search` resolves the smallest relevant capability across docs, agents, and skills.
 - `@execute` converts that capability into a compact downstream brief.
 - The majority of skills stay vault-first and on-demand.
-- Transversal meta-skills and the planning-critical shared lane are always installed on the primary harness skill path, but should still be loaded into active context only when the current step needs them.
+- Transversal meta-skills stay on the primary harness skill path. Shared planning/review/spec skills are shipped across harnesses, but Copilot keeps most of them vault-first so they are loaded only when the current step needs them.
 
 This keeps startup context lean and makes domain loading explicit.
 
@@ -44,14 +44,14 @@ Codex should stay leaner than the legacy Copilot fleet:
 OpenCode should stay native-first rather than mirroring the Copilot fleet:
 - Primary OpenCode workflow uses the built-in agents: `Build`, `Plan`, `General`, `Explore`, and `Scout`.
 - Instruction-engine adds only the missing reusable skill surface: `skill-discovery`, `rubberduck-plan-review`, `roadmap-planning`, `implementation-review`, `implementation-handoff`, `spec-dev`, `spec-authoring`, `spec-review`, `security`, `project-conventions-governance`, and `stack-detector`.
-- `code-review` and `refactor` remain compatibility surfaces during the transition, but they are not the recommended primary OpenCode routing path.
+- `code-review` remains a compatibility surface during the transition, but it is not the recommended primary OpenCode routing path.
 - Do not bulk-install Copilot orchestration agents, plan-pack/session-state authoring lanes, or other Copilot-only workflow surfaces into OpenCode.
 - Do not create a parallel custom OpenCode agent fleet for code exploration or web research when the built-in `Explore` and `Scout` agents already cover that role.
-- The current custom `code-explorer` and `web-searcher` subagents are transition-only compatibility aliases and should be pruned once managed stale-asset cleanup is available in the OpenCode installer.
+- The current custom `code-explorer` style aliases are transition-only compatibility surfaces and should not grow into a parallel OpenCode agent fleet.
 
 ## Spec-driven development skill posture
 
-- `spec-dev`, `spec-authoring`, and `spec-review` install as always-available shared skills across shipped harnesses, but should still be loaded only when the current step needs spec guidance.
+- `spec-dev`, `spec-authoring`, and `spec-review` ship across target harnesses, but should still be loaded only when the current step needs spec guidance.
 - Durable repo specs default to `specs/<spec-slug>/spec.md` with optional `specs/index.md`.
 - Repo-local spec scaffolding is opt-in per selected repo through the existing harness installers using the `spec-driven` repo-setup profile.
 - Use specs to clarify or anchor requirements before normal planning.
@@ -59,8 +59,9 @@ OpenCode should stay native-first rather than mirroring the Copilot fleet:
 
 ## Planning-critical shared install set
 
-- `rubberduck-plan-review`, `roadmap-planning`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, and `spec-review` install across Copilot, Codex, OpenCode, and Antigravity as always-available shared skills.
-- Copilot-side engine planning authoring skills `planning-feature`, `planpack-authoring`, and `roadmap-authoring` also stay always installed because the planning runtime and continuation flows depend on them.
+- `rubberduck-plan-review`, `roadmap-planning`, `implementation-handoff`, `implementation-review`, `spec-dev`, `spec-authoring`, and `spec-review` ship across Copilot, Codex, OpenCode, and Antigravity.
+- Copilot keeps those shared planning/review/spec skills vault-first by default, except where a target harness has no separate vault path.
+- Copilot-side `roadmap-authoring` stays always installed because planning and continuation flows depend on it.
 
 ## Current always-installed meta-skills
 
@@ -68,7 +69,7 @@ These stay installed by default because they govern cross-cutting workflow safet
 
 - `core-guardrails`
 - `skill-discovery`
-- `implementation-friction`
+- `roadmap-authoring`
 - `stack-detector`
 - `project-guidelines`
 
@@ -86,16 +87,11 @@ Routing policy for the last two classes:
 In `engine-assets/manifest.json`, governance annotations for these classes are descriptive only. They document the approved routing posture, but current runtime/catalog/search consumers do not enforce those manifest labels directly.
 
 ## Current default-handled set
-These are hidden in extension skill discovery by default:
-- `refactor`
-
-`refactor` remains in the catalog as a compatibility surface, but generic cleanup and restructuring requests should be handled directly unless the caller explicitly asks for the skill.
+No default-handled skill surfaces are currently shipped in the lean first-party engine set. Generic cleanup and restructuring requests should be handled directly unless a target repo provides a narrower skill.
 
 ## Current deprecated compatibility surfaces
 These remain installed only to preserve older routing and prompt references:
-- `auth`: compatibility alias surface; prefer `firebase-auth` for implementation work and `security` for review.
-- `code-review`: compatibility review surface retained for older routing references; prefer current reviewer/agent pathways.
-- `system-cleanup`: compatibility surface for legacy task/backlog cleanup flows.
+- `code-review`: OpenCode compatibility review surface retained for older routing references; prefer current reviewer/agent pathways.
 
 Setting to show them:
 - `skillInstaller.skills.showDefaultHandled = true`
@@ -134,10 +130,10 @@ A skill is a prune/deprecate candidate if:
 Prefer **hide/deprecate** before deletion to preserve backward compatibility.
 
 ## Implementation friction capture
-Use `implementation-friction` when delivery is slowed by recurring codebase pain points (e.g., shaky patterns, dead code, brittle structure).
+Capture recurring delivery pain when codebase structure slows implementation (e.g., shaky patterns, dead code, brittle structure).
 
 Operational rules:
 - Keep capture low-overhead: one concise log entry, then continue implementation.
 - Prefer recurrence-based logging over one-off annoyance logging.
 - Suggestions can be blank when root-cause analysis would derail current work.
-- Log target: `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md`.
+- Use a user-requested tracking surface, or `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md` when that backlog family is active.

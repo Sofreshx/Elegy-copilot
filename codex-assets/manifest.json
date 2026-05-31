@@ -92,49 +92,49 @@
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
       "destination": "skills/rubberduck-plan-review",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "codex-implementation-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-review",
       "destination": "skills/implementation-review",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "codex-implementation-handoff-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-handoff",
       "destination": "skills/implementation-handoff",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "codex-roadmap-planning-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/roadmap-planning",
       "destination": "skills/roadmap-planning",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "codex-spec-dev-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-dev",
       "destination": "skills/spec-dev",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "codex-spec-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-authoring",
       "destination": "skills/spec-authoring",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "codex-spec-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "skills/spec-review",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     }
   ],
   "sourcePatterns": []

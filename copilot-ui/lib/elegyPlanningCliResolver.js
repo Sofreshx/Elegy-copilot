@@ -5,8 +5,9 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const GITHUB_REPO = 'AnomalycoAgent/elegy-planning';
+const GITHUB_REPO = 'Sofreshx/Elegy';
 const GITHUB_RELEASE_TAG = 'latest';
+const BINARY_NAME = 'elegy-planning';
 
 function normalizeString(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -112,29 +113,39 @@ function buildGitHubReleaseUrl() {
   return `https://api.github.com/repos/${GITHUB_REPO}/releases/${GITHUB_RELEASE_TAG}`;
 }
 
-function buildAssetDownloadUrl(version) {
-  const exe = binaryName();
-  const platform = isWindows() ? 'windows' : 'linux';
-  const arch = process.arch === 'arm64' ? 'arm64' : 'x64';
-  const assetName = `elegy-planning-${version}-${platform}-${arch}${isWindows() ? '.exe' : ''}`;
-  return `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${assetName}`;
+function buildTargetTriple() {
+  if (isWindows()) {
+    return process.arch === 'arm64' ? 'aarch64-pc-windows-msvc' : 'x86_64-pc-windows-msvc';
+  }
+  if (process.platform === 'darwin') {
+    return process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
+  }
+  return process.arch === 'arm64' ? 'aarch64-unknown-linux-gnu' : 'x86_64-unknown-linux-gnu';
 }
 
-function buildFallbackAssetUrls(version) {
-  const exe = binaryName();
-  const urls = [];
+function buildAssetDownloadUrl(version, releaseTag) {
+  const tag = normalizeString(releaseTag || version);
+  const triple = buildTargetTriple();
+  const assetName = `${BINARY_NAME}-${version}-${triple}.zip`;
+  return `https://github.com/${GITHUB_REPO}/releases/download/${tag}/${assetName}`;
+}
 
-  if (isWindows()) {
-    urls.push(
-      `https://github.com/${GITHUB_REPO}/releases/download/v${version}/elegy-planning-windows-x64.exe`,
-      `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${exe}`,
-      `https://github.com/${GITHUB_REPO}/releases/download/v${version}/elegy-planning.exe`,
-    );
-  } else {
-    urls.push(
-      `https://github.com/${GITHUB_REPO}/releases/download/v${version}/elegy-planning-linux-x64`,
-      `https://github.com/${GITHUB_REPO}/releases/download/v${version}/${exe}`,
-    );
+function buildFallbackAssetUrls(version, releaseTag) {
+  const tag = normalizeString(releaseTag || version);
+  const urls = [];
+  const triple = buildTargetTriple();
+
+  urls.push(
+    `https://github.com/${GITHUB_REPO}/releases/download/${tag}/${BINARY_NAME}-${version}-${triple}.zip`,
+  );
+
+  if (!isWindows()) {
+    const altTriple = buildTargetTriple().replace('unknown-', '');
+    if (altTriple !== triple) {
+      urls.push(
+        `https://github.com/${GITHUB_REPO}/releases/download/${tag}/${BINARY_NAME}-${version}-${altTriple}.zip`,
+      );
+    }
   }
 
   return urls;
@@ -169,23 +180,30 @@ async function fetchLatestReleaseInfo(fetchImpl) {
   }
 
   const release = await response.json();
-  const version = normalizeString(release.tag_name || '').replace(/^v/, '');
-  if (!version) {
+  const releaseTag = normalizeString(release.tag_name || '');
+  const releaseVersion = releaseTag.replace(/^v/, '');
+  if (!releaseVersion) {
     throw new Error('GitHub release is missing a version tag.');
   }
 
   const assets = Array.isArray(release.assets) ? release.assets : [];
-  const exe = binaryName();
+  const triple = buildTargetTriple();
 
-  let asset = assets.find((a) => normalizeString(a.name) === `elegy-planning-${version}-${isWindows() ? 'windows' : 'linux'}-${process.arch === 'arm64' ? 'arm64' : 'x64'}${isWindows() ? '.exe' : ''}`);
+  let asset = assets.find((a) =>
+    normalizeString(a.name).startsWith(BINARY_NAME) && normalizeString(a.name).includes(triple)
+  );
   if (!asset) {
-    asset = assets.find((a) => normalizeString(a.name) === exe);
+    asset = assets.find((a) =>
+      normalizeString(a.name).startsWith(BINARY_NAME) && normalizeString(a.name).endsWith('.zip')
+    );
   }
   if (!asset) {
-    asset = assets.find((a) => normalizeString(a.name).startsWith('elegy-planning'));
+    asset = assets.find((a) =>
+      normalizeString(a.name) === binaryName() || normalizeString(a.name) === `${BINARY_NAME}.exe`
+    );
   }
 
-  return { version, asset, assets };
+  return { version: releaseVersion, releaseTag, asset, assets };
 }
 
 async function downloadToFile(fetchImpl, url, destinationPath) {
@@ -243,6 +261,51 @@ async function downloadToFile(fetchImpl, url, destinationPath) {
   }
 }
 
+function findBinaryInDir(dirPath, targetName) {
+  try {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isFile() && entry.name === targetName) {
+        return fullPath;
+      }
+      if (entry.isDirectory()) {
+        const found = findBinaryInDir(fullPath, targetName);
+        if (found) return found;
+      }
+    }
+  } catch {
+    // ignore read errors
+  }
+  return null;
+}
+
+function safeRmSync(absPath) {
+  try {
+    fs.rmSync(absPath, { recursive: true, force: true });
+  } catch {
+    // ignore
+  }
+}
+
+async function extractZipTo(zipPath, destDir) {
+  return new Promise((resolve, reject) => {
+    const targetDir = path.resolve(destDir);
+    const cmd = isWindows() ? 'powershell' : 'unzip';
+    const args = isWindows()
+      ? ['-NoProfile', '-NonInteractive', '-Command', `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${targetDir.replace(/'/g, "''")}' -Force`]
+      : ['-o', zipPath, '-d', targetDir];
+
+    childProcess.execFile(cmd, args, { windowsHide: true, timeout: 60_000 }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`Failed to extract zip: ${error.message}`));
+        return;
+      }
+      resolve(targetDir);
+    });
+  });
+}
+
 async function downloadElegyPlanningCli(options = {}) {
   const copilotHome = normalizeString(options.copilotHome);
   if (!copilotHome) {
@@ -254,28 +317,68 @@ async function downloadElegyPlanningCli(options = {}) {
 
   logger('Querying GitHub for latest elegy-planning release...');
   const release = await fetchLatestReleaseInfo(fetchImpl);
-  logger(`Found release v${release.version}`);
+  logger(`Found release ${release.releaseTag}`);
 
   const downloadPath = buildDownloadPath(copilotHome);
+  const downloadDir = buildDownloadDir(copilotHome);
+  const exe = binaryName();
 
   let downloadUrl = null;
   if (release.asset) {
     downloadUrl = normalizeString(release.asset.browser_download_url);
   }
   if (!downloadUrl) {
-    const fallbacks = buildFallbackAssetUrls(release.version);
+    const fallbacks = buildFallbackAssetUrls(release.version, release.releaseTag);
     downloadUrl = fallbacks[0];
   }
 
   if (!downloadUrl) {
-    throw new Error(`No suitable elegy-planning binary found in release v${release.version}.`);
+    throw new Error(`No suitable elegy-planning binary found in release ${release.releaseTag}.`);
   }
 
-  logger(`Downloading elegy-planning from: ${downloadUrl}`);
-  await downloadToFile(fetchImpl, downloadUrl, downloadPath);
+  const isZip = downloadUrl.endsWith('.zip');
+
+  if (isZip) {
+    const zipPath = path.join(downloadDir, `${BINARY_NAME}.zip`);
+    logger(`Downloading elegy-planning zip from: ${downloadUrl}`);
+    await downloadToFile(fetchImpl, downloadUrl, zipPath);
+
+    if (!fs.existsSync(zipPath)) {
+      throw new Error(`Download completed but zip not found at ${zipPath}.`);
+    }
+
+    logger(`Extracting elegy-planning from zip...`);
+    const extractDir = path.join(downloadDir, `extract-${Date.now()}`);
+    await extractZipTo(zipPath, extractDir);
+
+    const found = findBinaryInDir(extractDir, exe);
+    if (!found) {
+      throw new Error(`Binary ${exe} not found after zip extraction.`);
+    }
+
+    try {
+      fs.copyFileSync(found, downloadPath);
+    } catch {
+      fs.renameSync(found, downloadPath);
+    }
+
+    safeRmSync(zipPath);
+    safeRmSync(extractDir);
+  } else {
+    logger(`Downloading elegy-planning from: ${downloadUrl}`);
+    await downloadToFile(fetchImpl, downloadUrl, downloadPath);
+  }
 
   if (!fs.existsSync(downloadPath)) {
     throw new Error(`Download completed but binary not found at ${downloadPath}.`);
+  }
+
+  if (!isWindows()) {
+    try {
+      fs.chmodSync(downloadPath, 0o755);
+    } catch {
+      // best-effort
+    }
   }
 
   logger(`elegy-planning installed to: ${downloadPath}`);
@@ -336,6 +439,10 @@ module.exports = {
   findExistingBinary,
   candidatePaths,
   buildDownloadPath,
+  buildDownloadDir,
+  buildTargetTriple,
+  extractZipTo,
+  binaryName,
   commandExistsOnPath,
   isPathLikeCommand,
 };

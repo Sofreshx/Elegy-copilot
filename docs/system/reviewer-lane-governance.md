@@ -14,18 +14,16 @@ related: [search-execute-workflow, project-conventions-governance, follow-up-dis
 
 ## Purpose
 
-Define the canonical review posture for the lean orchestrator-centric workflow: one shipped reviewer
-leaf for implementation review, plus workflow-specific planning reviewers where the orchestrator
-explicitly requires them.
+Define the canonical review posture for the lean workflow: one shipped reviewer leaf for
+implementation review, plus host-native planning review where the runtime provides it.
 
 ## Context
 
 The approved reviewer model is intentionally small:
 
-- `@code-reviewer` is the single shipped reviewer leaf for broad correctness, regression, convention,
-  and request/spec-fit review
-- `@reviewer-sonnet-4-6` and `@reviewer-gpt-5-4` remain planning-review overlays for non-CLI
-  orchestrators only
+- `@code-reviewer` is the single shipped reviewer leaf for broad correctness, regression,
+  convention, and request/spec-fit review
+- planning review uses the host's native review affordance or `rubberduck-plan-review`
 - final closure, remaining-work judgment, and follow-up discovery are orchestrator responsibilities,
   not separate reviewer lanes
 
@@ -34,9 +32,6 @@ The approved reviewer model is intentionally small:
 | Lane | Primary responsibility | Not responsible for | Default relationship |
 | --- | --- | --- | --- |
 | `@code-reviewer` | high-signal defects, regressions, convention drift, and implementation-vs-request/plan fit | final requested-vs-delivered summary, backlog persistence, roadmap selection | default review lane for execution and bounded review tasks |
-| `@reviewer-sonnet-4-6` | cross-model plan review in non-CLI orchestrator workflows | generic code review, implementation mutation, end-of-run closure | paired with `@reviewer-gpt-5-4` for non-CLI planning gates |
-| `@reviewer-gpt-5-4` | second cross-model plan review in non-CLI orchestrator workflows | generic code review, implementation mutation, end-of-run closure | paired with `@reviewer-sonnet-4-6` for non-CLI planning gates |
-| orchestrator | final closure, remaining-work judgment, follow-up discovery, and persistence routing | file-level defect review | consumes reviewer output rather than delegating closure authority away |
 
 ## Normalized Finding Categories
 
@@ -57,18 +52,15 @@ Use deterministic routing when intent is clear:
 
 - "review this diff", "check correctness", "look for regressions", "did this implementation match the request?" -> `@code-reviewer`
 - "review conventions/style/naming/docs alignment" -> `@code-reviewer`
-- "challenge this plan before execution" -> `@reviewer-sonnet-4-6` + `@reviewer-gpt-5-4` in non-CLI workflows
-- "summarize what shipped and what remains" -> orchestrator closure, not a reviewer lane
+- "challenge this plan before execution" -> use rubberduck-plan-review skill
 
 If the user does not specify a narrow lane, use `@code-reviewer`.
 
 ## Coexistence Rules
 
 1. `@code-reviewer` is both the broad default reviewer and the implementation-vs-spec/request fit reviewer.
-2. Cross-model reviewers are workflow-specific planning reviewers. They are not generic replacements for `@code-reviewer`.
-3. `@orchestrator-cli` uses Rubber Duck for plan challenge instead of explicitly invoking the reviewer pair.
-4. Reviewer lanes stay read-only. Persistence to `~/.copilot/backlogs/{repo-name}/**` should route through the orchestrator plus explicit writing lanes such as `@doc-writer`.
-5. Missing authority-path or conventions-surface issues route through canonical conventions docs and skills, not dedicated governance agents.
+2. Reviewer lanes stay read-only.
+3. Missing authority-path or conventions-surface issues route through canonical conventions docs and skills, not dedicated governance agents.
 
 ## Adversarial Review Posture
 

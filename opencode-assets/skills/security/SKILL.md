@@ -15,8 +15,8 @@ description: "Security review and vulnerability detection. Checks secure coding 
 - Dependency security concerns
 
 ## When NOT to Use
-- General code quality -> `code-review`
-- Auth feature implementation -> `firebase-auth` (or `auth` alias)
+- General code quality -> reviewer lane
+- Auth feature implementation -> target-repo auth docs and normal implementation planning
 - Performance investigation -> `debug` plus the relevant domain skill
 
 ## Related docs

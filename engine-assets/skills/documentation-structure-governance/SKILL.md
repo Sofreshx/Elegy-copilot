@@ -52,7 +52,7 @@ Do not route here when the request is mainly:
 
 ## Do Not Use This Skill When
 
-- the task is generic Markdown writing or frontmatter maintenance -> use `doc-writer`
+- the task is generic Markdown writing or frontmatter maintenance -> use `documentation-authoring` or the host's normal docs-writing lane
 - the task is mainly code/project conventions -> use project-conventions governance
 - the task is correctness, consistency review, or runtime validation -> use the reviewer lanes
 - the task is open-ended research rather than a governance decision -> use research/follow-up lanes
@@ -131,7 +131,7 @@ new structure.
 - Prefer updating existing overview/MOC/node paths before creating new ones.
 - Only create a new entrypoint when the current graph has no clear home for the governed topic.
 - Keep governance guidance additive and reusable.
-- Do not duplicate `doc-writer` guidance about generic headings, fenced code blocks, or broad
+- Do not duplicate generic docs-writing guidance about headings, fenced code blocks, or broad
   frontmatter hygiene unless the structure decision depends on it.
 
 ## Output Contract

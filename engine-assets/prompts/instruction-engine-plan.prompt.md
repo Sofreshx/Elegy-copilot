@@ -19,13 +19,11 @@ Requirements:
 
 Then choose the review path that matches the runtime:
 - **Copilot CLI**: rely on Rubber Duck for the secondary-model challenge. Do not manually invoke reviewer agents.
-- **VS Code / other environments**: request plan review from BOTH:
-  - @reviewer-sonnet-4-6
-  - @reviewer-gpt-5-4
+- **VS Code / other environments**: request plan review from the active reviewer lane, normally `@code-reviewer`, or the host's native plan-review affordance when available.
 
 Manual review loop rules (non-CLI path):
-- Reviewers MUST return a strict line: `Verdict: APPROVED | NEEDS_REVISION | BLOCKED`.
-- Revise the plan until both reviewers return `Verdict: APPROVED`.
+- The reviewer MUST return a strict line: `Verdict: APPROVED | NEEDS_REVISION | BLOCKED`.
+- Revise the plan until review returns `Verdict: APPROVED`.
 - Before asking the user, apply the calibrated ladder: answer from canonical docs or repo evidence when deterministic; carry a recommended assumption when strong evidence makes the remaining branch non-outcome-changing; ask only for the smallest set of outcome-changing unknowns.
 - If a reviewer returns `Verdict: BLOCKED`, use `vscode/askQuestions` only for the smallest set of clarifying questions needed to unblock when the unresolved branch materially changes scope, architecture, validation, or plan safety, then revise.
 - Complexity alone does not justify a question barrage.

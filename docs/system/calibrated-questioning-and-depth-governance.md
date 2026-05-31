@@ -89,7 +89,6 @@ This policy changes questioning intensity, not output ownership.
 ## References
 
 - [docs/system/search-execute-workflow.md](docs/system/search-execute-workflow.md)
-- [docs/system/orchestrator/user-guide.md](docs/system/orchestrator/user-guide.md)
 - [docs/system/reviewer-lane-governance.md](docs/system/reviewer-lane-governance.md)
 - [docs/system/follow-up-discovery-governance.md](docs/system/follow-up-discovery-governance.md)
 - [docs/system/planning-backlog-roadmap-contract.md](docs/system/planning-backlog-roadmap-contract.md)

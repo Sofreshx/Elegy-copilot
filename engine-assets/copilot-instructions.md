@@ -57,7 +57,7 @@ run_in_terminal(command: "git commit", isBackground: false)  # CORRECT
 When I use **/plan** OR custom plan agent, you MUST:
 1. Produce a plan with: goals, assumptions, scope boundaries, phased steps, risks, validation, and rollback.
 2. **In Copilot CLI**: rely on Rubber Duck (native cross-model review) to automatically challenge the plan. No manual reviewer delegation needed.
-3. **In VS Code / other environments**: submit the plan for cross-model review by **BOTH** `@reviewer-sonnet-4-6` and `@reviewer-gpt-5-4`. Revise until BOTH respond “APPROVED”.
+3. **In VS Code / other environments**: request review from the active reviewer lane, normally `@code-reviewer`, or the host's native plan-review affordance when available. Revise until the reviewer approves or blocks with a concrete issue.
 4. Only after review passes: summarize the approved plan and proceed to execution (unless I asked for plan-only).
 5. When work reaches closure, assess the plan's high-level goals, route unresolved non-active goals to `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`, and produce the final requested-vs-delivered summary.
 
@@ -82,14 +82,14 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   - exploration/synthesis → `@code-explorer` (or `explore` agent)
   - running builds/tests → route validation through `@test-runner`; it owns unit, integration, and browser/E2E selection, while builds still go through the appropriate execution lane/task agent
   - high-signal review → `@code-reviewer`
-  - plan authoring → `@o-planner` after `@o-reframer` plus any needed `askQuestions` clarification; do not keep a separate `@brief` lane alive
+  - plan authoring → native `/plan` or the installed `instruction-engine-plan` prompt, plus any needed `askQuestions` clarification
 - Keep context lean:
   - quote only the minimum necessary code, paths, and logs,
   - prefer file paths + line ranges over large pastes,
   - keep summaries under ~300 words per workstream unless I ask for depth.
 
 ## Using Instruction Engine assets
-- A few transversal skills are always loaded (`~/.copilot/skills/`): `core-guardrails`, `skill-discovery`, `implementation-friction`, `stack-detector`, `project-guidelines`.
+- A few transversal skills are always loaded (`~/.copilot/skills/`): `core-guardrails`, `skill-discovery`, `roadmap-authoring`, `stack-detector`, `project-guidelines`.
 - **Most domain-specific skills live in the vault** (`~/.copilot/skills-vault/`) and are NOT loaded by default to save tokens.
 - The canonical workflow is **search then execute**:
   1. Use `@search` to resolve the smallest relevant capability across docs, agents, and skills.
@@ -100,7 +100,7 @@ When I use **/fleet**, optimize for parallel throughput without conflicts:
   2. Load the full skill: `read_file("~/.copilot/skills-vault/{skill-name}/SKILL.md")`.
   3. Follow the skill's instructions for the current task.
 - For GitHub Actions, workflow runs/logs, PR state, issues, commits, branches, or release-download troubleshooting in
-  **Copilot CLI**, load `github-troubleshooting` and prefer the built-in read-only `github-mcp-server` tools. The UI
+  **Copilot CLI**, prefer the built-in read-only `github-mcp-server` tools when available. The UI
   workspace MCP patch flow is for VS Code/workspace sessions, not a prerequisite for the CLI lane.
 - If a skill is not found in the vault, it is not installed — proceed with general knowledge.
 - See `docs/system/search-execute-workflow.md` for the canonical staged-routing model.
@@ -117,8 +117,7 @@ When the current workspace is the Instruction Engine / Elegy Copilot repo:
 
 ## Implementation Friction Capture
 - Constructive complaints about hard-to-work-with code are allowed when they help delivery.
-- When recurring implementation friction is detected (shaky patterns, dead code, brittle design), load the `implementation-friction` skill.
-- Capture issues quickly using the `~/.copilot/backlogs/{repo-name}/issues/implementation-friction-log.md` format, then continue implementation without deep side-tracking.
+- When recurring implementation friction is detected, capture it briefly in chat or the user-requested tracking surface, then continue delivery without deep side-tracking.
 
 ## Conflicts (repo-level + user-level)
 - Assume repo-level instructions (e.g. `.github/copilot-instructions.md`) may add constraints.

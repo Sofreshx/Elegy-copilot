@@ -69,8 +69,8 @@ Omit sections that would be empty. Do not pad pages to fit the pattern.
 - Keep future-state planning separate from current-state docs unless the distinction is explicit.
 - Link to implementation evidence when it helps verification, but keep canonical docs readable
   without the code open.
-- If code and docs materially disagree, use the repo's truth-sync/conflict workflow before
-  rewriting either side.
+- If code and docs materially disagree, surface the conflict and follow the repo's canonical
+  contradiction-handling workflow before rewriting either side.
 
 ## Agent-Readable Docs
 

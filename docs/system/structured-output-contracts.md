@@ -48,10 +48,8 @@ An agent does NOT need a strict output block for:
 
 ## Severity & Confidence
 
-See `structured-analysis-output` skill for severity mapping (Critical/High/Medium/Low) and confidence definitions (high/medium/low).
+Use the reviewer lane severity vocabulary when a narrower skill or agent does not define its own mapping.
 
 ## Canonical References
 
-- Skill: `engine-assets/skills/structured-analysis-output/SKILL.md`
-- Audit specialization: `engine-assets/skills/audit-report-formats/SKILL.md`
 - Reviewer lanes: `docs/system/reviewer-lane-governance.md`

@@ -5,7 +5,7 @@ category: system
 status: current
 doc_kind: node
 id: follow-up-discovery-governance
-summary: Canonical contract for discovering remaining work, gaps, and research follow-ups, including the single orchestrator-only GPT research lane.
+summary: Canonical contract for discovering remaining work, gaps, and research follow-ups.
 tags: [follow-up, research, governance, routing]
 related: [reviewer-lane-governance, search-execute-workflow, project-conventions-governance, goal-contract-governance]
 ---
@@ -19,16 +19,15 @@ research-worthy follow-ups after planning, implementation, or review.
 
 ## Context
 
-This workflow now has two responsibilities:
+This workflow has one responsibility:
 
-- the orchestrator owns remaining-work judgment, session-close follow-up discovery, and durable carryover routing
-- `@deep-researcher` is the single orchestrator-only research lane for questions that need evidence, options, or adoption framing before more implementation should be planned
+- remaining-work judgment, session-close follow-up discovery, and durable carryover routing
 
 There is no separate shipped `remaining-work` or `final-reviewer` lane.
 
 ## Primary Responsibilities
 
-The orchestrator is responsible for:
+Responsibilities include:
 
 - identifying remaining work after execution or review
 - finding missing docs, tests, validation, rollout, or persistence steps
@@ -36,12 +35,6 @@ The orchestrator is responsible for:
 - separating immediate continuation work from durable backlog or roadmap carryover
 - applying unresolved-goal carryover rules from `docs/system/goal-contract-governance.md`
 - prioritizing blockers, active-goal gaps, and missing validation ahead of speculative polish
-
-The research lane is responsible for:
-
-- exploring promising ideas or gaps that need evidence before implementation
-- evaluating adoption risks, integration points, and acceptance checks
-- returning outputs that can feed planning instead of remaining loose notes
 
 ## Normalized Finding Intake
 
@@ -85,15 +78,15 @@ existing Repository Backlog family and approved `~/.copilot/backlogs/{repo-name}
 
 Use deterministic routing when intent is explicit:
 
-- "what remains?", "find follow-up tasks", "identify gaps", "what docs/tests are still missing?" -> orchestrator closure
-- "research this future capability", "explore options before we implement" -> `@deep-researcher`
+- "what remains?", "find follow-up tasks", "identify gaps", "what docs/tests are still missing?" -> coordinator closure
+- "research this future capability", "explore options before we implement" -> host research lane or normal evidence-gathering workflow
 
-Fast workspace, git, or session-state scans may still be used inside the orchestrator as evidence, but
+Fast workspace, git, or session-state scans may still be used inside the coordinator as evidence, but
 they do not define a separate shipped lane.
 
 ## Output Contracts
 
-Use this structure for orchestrator-produced follow-up discovery:
+Use this structure for coordinator-produced follow-up discovery:
 
 ```text
 FOLLOW_UP_DISCOVERY
@@ -117,7 +110,7 @@ FOLLOW_UP_DISCOVERY
   - <blocker or NONE>
 ```
 
-Use this structure when `@deep-researcher` is serving the research lane:
+Use this structure when a research lane is serving the follow-up:
 
 ```text
 DEEP_RESEARCH
@@ -138,12 +131,12 @@ DEEP_RESEARCH
 
 ## Handoff Rules
 
-1. Use orchestrator closure for concrete gap finding tied to current work.
+1. Use coordinator closure for concrete gap finding tied to current work.
 2. Use research when a gap cannot be responsibly closed without additional investigation.
 3. Feed validated follow-up outputs into planning workflows instead of leaving them as narrative-only notes.
 4. Normalize review findings through the category set in `docs/system/reviewer-lane-governance.md` before assigning carryover homes.
-5. Route Repository Backlog or roadmap persistence through orchestrator-owned planning-surface selection and explicit writing lanes such as `@doc-writer`; do not hand persistence authority to dedicated planner agents.
-6. Keep research concentrated in the single orchestrator-only GPT lane.
+5. Route Repository Backlog or roadmap persistence through coordinator-owned planning-surface selection and explicit writing lanes; do not hand persistence authority to dedicated planner agents.
+6. Keep research concentrated in the selected research lane or evidence-gathering workflow.
 
 ## Persistent Discovery Surfaces
 
@@ -161,4 +154,3 @@ The goal/discovery governance surface uses these persistent docs for cross-sessi
 - `docs/system/reviewer-lane-governance.md`
 - `docs/system/project-conventions-governance.md`
 - `docs/system/goal-contract-governance.md`
-- `engine-assets/agents/deep-researcher.agent.md`

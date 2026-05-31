@@ -83,18 +83,18 @@ test('results include vaultRef with SKILL.md path', () => {
 });
 
 test('exact name match scores higher than trigger match', () => {
-	const result = run('--json', 'critic');
+	const result = run('--json', 'security');
 	assert.strictEqual(result.status, 0);
 	const parsed = JSON.parse(result.stdout);
 	assert.ok(parsed.length > 0, 'expected at least one result');
-	assert.strictEqual(parsed[0].name, 'critic', 'exact match should be first');
+	assert.strictEqual(parsed[0].name, 'security', 'exact match should be first');
 	const nextScore = parsed[1] ? parsed[1].score : 0;
 	assert.ok(parsed[0].score >= nextScore, 'exact match should rank first');
 	assert.ok(parsed[0].reasons.includes('exact-name'), 'exact match should explain exact-name');
 });
 
 test('targeting flags influence ranking output', () => {
-	const result = run('--json', '--prefer-load-mode', 'on-demand', 'auth');
+	const result = run('--json', '--prefer-load-mode', 'on-demand', 'roadmap');
 	assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
 	const parsed = JSON.parse(result.stdout);
 	assert.ok(parsed.length > 0, 'expected targeting query to return at least one result');
@@ -105,10 +105,10 @@ test('targeting flags influence ranking output', () => {
 });
 
 test('human format output contains skill name and vault path', () => {
-	const result = run('wolverine');
+	const result = run('stack-detector');
 	assert.strictEqual(result.status, 0);
 	const output = result.stdout;
-	assert.ok(output.includes('wolverine-core'), 'expected wolverine-core in output');
+	assert.ok(output.includes('stack-detector'), 'expected stack-detector in output');
 	assert.ok(output.includes('SKILL.md'), 'expected SKILL.md path in output');
 });
 

@@ -81,7 +81,7 @@ This lane governs:
 
 This lane does not replace:
 
-- `doc-writer` for general Markdown execution
+- `documentation-authoring` or the host's normal docs-writing lane for general Markdown execution
 - the doc graph spec as the validation contract
 - repo implementation docs that are already correctly placed and linked
 

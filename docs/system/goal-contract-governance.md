@@ -51,7 +51,7 @@ High-level goal completion is orchestrator-owned:
 
 - the orchestrator decides whether each goal is `complete`, `partial`, or `not-complete`
 - `@code-reviewer` and `@test-runner` provide evidence, but they do not own goal closure
-- `@doc-writer` performs any required `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` updates when the orchestrator decides carryover should persist
+- an explicit docs-writing lane performs any required `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` updates when carryover should persist
 
 ### Goal Closure Workflow Enforcement
 
@@ -66,7 +66,7 @@ Carryover persistence/removal is routed separately from the closure judgment:
 1. The orchestrator should emit explicit sync instructions (`unresolved_goals_path`, `session_backlog_path`, `carryover_goals`, `resolved_goals_to_remove`) when durable follow-up is needed.
 2. Workflows should pass an explicit carryover owner when one is known. If no stronger owner is available, use a deterministic fallback such as `workflow-orchestrator` rather than leaving Owner undefined.
 3. If a compatibility workflow still needs a carryover file target, `session_backlog_path` should prefer `~/.copilot/backlogs/{repo-name}/backlogs/<session-slug>.md`. `docs/backlog.md` is a deprecated legacy compatibility target only.
-4. The workflow routes unresolved-goal sync and any compatibility carryover-file persistence through `@doc-writer` or another explicit docs-writing lane.
+4. The workflow routes unresolved-goal sync and any compatibility carryover-file persistence through an explicit docs-writing lane.
 5. No workflow should let reviewer or validation lanes write `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` or legacy backlog docs directly.
 
 ### Unresolved Goal Persistence Contract
@@ -112,7 +112,7 @@ Path rules:
 This goal contract is canonical for:
 
 - default `/plan` workflow
-- `@orchestrator + @o-planner` workflow
+- host-native plan-first workflow
 - explicit persisted session-state planning/execution workflows
 
 ### Additional Persistent Goal/Discovery Docs

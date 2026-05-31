@@ -121,7 +121,7 @@ Use this skill when the request is primarily about:
 ## When NOT to Use
 
 Do not use this skill when the request is primarily:
-- execution work-unit decomposition -> use `planpack-authoring` / `@o-planner`
+- execution work-unit decomposition -> use normal implementation planning or `implementation-handoff`
 - generic docs IA or documentation graph hygiene
 - code implementation or validation
 - retrofitting plan-pack sections into repo docs
@@ -339,4 +339,4 @@ Before concluding backlog/roadmap work, confirm:
 
 - `docs/system/planning-backlog-roadmap-contract.md`
 - `docs/system/session-state-artifacts.md`
-- `engine-assets/skills/planpack-authoring/SKILL.md`
+- `catalog-assets/shared-skills/implementation-handoff/SKILL.md`

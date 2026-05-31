@@ -49,10 +49,7 @@ async function main() {
       assert.ok(fs.existsSync(path.join(copilotHome, 'agents', 'search.agent.md')));
       assert.ok(fs.existsSync(path.join(copilotHome, 'skills', 'skill-discovery', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(copilotHome, 'skills', 'core-guardrails', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(copilotHome, 'skills', 'planning-feature', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(copilotHome, 'skills', 'roadmap-authoring', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(copilotHome, 'skills', 'roadmap-planning', 'SKILL.md')));
-      assert.ok(fs.existsSync(path.join(copilotHome, 'skills', 'spec-dev', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(copilotHome, 'skills-vault', 'spec-dev', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(copilotHome, 'skills-vault', 'spec-authoring', 'SKILL.md')));
       assert.ok(fs.existsSync(path.join(copilotHome, 'skills-vault', 'spec-review', 'SKILL.md')));
@@ -66,8 +63,6 @@ async function main() {
       const installState = JSON.parse(fs.readFileSync(path.join(copilotHome, '.instruction-engine-install-state.json'), 'utf8'));
       assert.equal(installState.installProfile, 'minimal');
       assert.ok(Array.isArray(installState.vaultSkills) && installState.vaultSkills.includes('spec-dev'));
-      assert.ok(Array.isArray(installState.alwaysLoadedSkills) && installState.alwaysLoadedSkills.includes('spec-dev'));
-      assert.ok(Array.isArray(installState.alwaysLoadedSkills) && installState.alwaysLoadedSkills.includes('planning-feature'));
       assert.ok(Array.isArray(summary.surfaces) && summary.surfaces.length === 2);
     });
   });

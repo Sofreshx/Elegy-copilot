@@ -686,7 +686,7 @@ pwsh -File scripts/cli-install.ps1 --all --force
 ```
 
 This installs to `~/.copilot/{agents,skills,skills-vault,copilot-instructions.md}` and (for VS Code) `~/.copilot/prompts`.
-Planning-critical shared skills are materialized under `~/.copilot/skills/` and mirrored into `~/.copilot/skills-vault/`; on-demand-only skills stay vault-only.
+Always-loaded skills are materialized under `~/.copilot/skills/`; shared planning/review/spec skills stay discoverable in `~/.copilot/skills-vault/` unless the target harness has no separate vault path.
 
 Note: VS Code prompt files are VS Code-only; Copilot CLI uses skills + instructions instead.
 
@@ -694,8 +694,8 @@ Note: VS Code prompt files are VS Code-only; Copilot CLI uses skills + instructi
 
 Built-in Copilot CLI system prompts are not shipped as editable files. The parts you control are:
 - `~/.copilot/agents/*.agent.md`
-- `~/.copilot/skills/*/SKILL.md` for always-installed skills, including the shared planning/spec/review lane
-- `~/.copilot/skills-vault/*/SKILL.md` for vault copies and on-demand-only skills discovered via `skill-discovery`
+- `~/.copilot/skills/*/SKILL.md` for always-installed skills
+- `~/.copilot/skills-vault/*/SKILL.md` for shared planning/review/spec skills and other on-demand skills discovered via `skill-discovery`
 - instruction files (repo + user-level)
 
 To inspect what VS Code actually sent (system prompt + user message + context + tool calls):

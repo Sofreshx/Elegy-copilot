@@ -76,71 +76,65 @@
       "loadMode": "always"
     },
     {
-      "id": "opencode-code-review-skill",
-      "type": "skill",
-      "source": "opencode-assets/skills/code-review",
-      "destination": "skills/code-review"
-    },
-    {
       "id": "opencode-rubberduck-plan-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/rubberduck-plan-review",
       "destination": "skills/rubberduck-plan-review",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-roadmap-planning-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/roadmap-planning",
       "destination": "skills/roadmap-planning",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-implementation-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-review",
       "destination": "skills/implementation-review",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-implementation-handoff-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/implementation-handoff",
       "destination": "skills/implementation-handoff",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-spec-dev-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-dev",
       "destination": "skills/spec-dev",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-spec-authoring-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-authoring",
       "destination": "skills/spec-authoring",
-      "loadMode": "always"
+      "loadMode": "on-demand"
     },
     {
       "id": "opencode-spec-review-skill",
       "type": "skill",
       "source": "catalog-assets/shared-skills/spec-review",
       "destination": "skills/spec-review",
-      "loadMode": "always"
+      "loadMode": "on-demand"
+    },
+    {
+      "id": "opencode-code-review-skill",
+      "type": "skill",
+      "source": "opencode-assets/skills/code-review",
+      "destination": "skills/code-review"
     },
     {
       "id": "opencode-security-skill",
       "type": "skill",
       "source": "opencode-assets/skills/security",
       "destination": "skills/security"
-    },
-    {
-      "id": "opencode-refactor-skill",
-      "type": "skill",
-      "source": "opencode-assets/skills/refactor",
-      "destination": "skills/refactor"
     },
     {
       "id": "opencode-project-conventions-governance-skill",

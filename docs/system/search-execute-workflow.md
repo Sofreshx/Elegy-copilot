@@ -199,16 +199,16 @@ normalized route-selection fields from [docs/system/planning-backlog-roadmap-con
 Deterministic routing posture:
 
 - `planning_surface: roadmap` -> keep `@orchestrator` as the owner of roadmap/backlog surface selection and persistence rules; when repo writes are needed, route through existing writing lanes and planning skills rather than dedicated backlog/roadmap planner agents
-- `planning_surface: plan-pack` -> route to the plan-pack lane only when `execution_readiness` is `ready` or `stageable`; use `@o-planner` by default and escalate to `@o-planner-gpt` only when premium planning is justified
-- `planning_surface: both` -> keep `@orchestrator` as the coordinator, handle durable roadmap/backlog framing first, then invoke the selected plan-pack leaf only when that slice is `ready` or `stageable`
+- `planning_surface: plan-pack` -> create a bounded implementation plan only when `execution_readiness` is `ready` or `stageable`; use `implementation-handoff` when another executor or future session needs a concrete brief
+- `planning_surface: both` -> handle durable roadmap/backlog framing first, then create the selected implementation plan only when that slice is `ready` or `stageable`
 - `planning_surface: none` -> do not create roadmap or plan-pack artifacts; route directly to the bounded delivery/reporting lane needed for the request, such as commit prep, review prep, or CI result checks
 
 This posture keeps planning-surface choice explicit, preserves the bounded coordinator topology, and avoids
 mixing durable roadmap authority with session execution state by default.
 
-Plan-pack generation runs only when `planning_surface` includes `plan-pack` and `execution_readiness`
-is `ready` or `stageable`. `roadmap`, `none`, and `not-ready` postures must not invoke
-`@o-planner`.
+Plan-pack or handoff generation runs only when `planning_surface` includes `plan-pack` and
+`execution_readiness` is `ready` or `stageable`. `roadmap`, `none`, and `not-ready` postures must
+not start implementation planning.
 
 ## V1 Nested Coordinator Posture
 
@@ -219,9 +219,9 @@ The shipped V1 nested topology is intentionally narrow:
 - Host/runtime nesting support up to depth 5 is runtime headroom only; the shipped repo topology stays bounded and explicit rather than generally recursive.
 - Approved coordinator agents must be named and explicitly allowlisted in frontmatter; all other
    agents remain leaf-only.
-- Planning uses direct orchestrator-owned surface selection. `@o-planner` remains the default
-  planning leaf for plan-pack work, while roadmap/backlog persistence uses existing writing lanes and
-  planning skills instead of dedicated planner agents in the shipped surface.
+- Planning uses direct coordinator-owned surface selection. Implementation handoff is a skill-backed
+  artifact, while roadmap/backlog persistence uses existing writing lanes and planning skills instead
+  of dedicated planner agents in the shipped surface.
 - Validation uses the single leaf `@test-runner`; specialized unit, integration, and browser behavior
   stays inside that lane and its referenced skills rather than nested validation coordinators. The
   default validation posture is lean and risk-based: select the narrowest proof that closes the active
@@ -231,12 +231,10 @@ The shipped V1 nested topology is intentionally narrow:
   default shipped implementation lane; compatibility-only split implementation lanes are not part of
   the primary orchestrator workflow.
 - Coordinator-to-coordinator chains are forbidden in V1.
-- If nested planning is unavailable or disabled, use the legacy-depth-1 fallback: direct
-   orchestrator -> `@o-planner` planning.
+- If nested planning is unavailable or disabled, use a direct plan-first workflow in the current host.
 
-Within this topology, planning-surface selection remains orchestrator-owned. `@o-planner` stays
-leaf-only when the request moves through `plan-pack` or `both` postures, and roadmap/backlog writes
-remain orchestrator-managed instead of handing control to dedicated planner agents.
+Within this topology, planning-surface selection remains coordinator-owned. Roadmap/backlog writes
+remain coordinator-managed instead of handing control to dedicated planner agents.
 
 ## Deterministic capability families
 
@@ -257,19 +255,20 @@ eligible capabilities remain plausible after the first-pass classification.
 
 - Canonical docs in `docs/system/**`
 - First-class agent assets in `engine-assets/agents/*.agent.md`
-- Always-installed skills in `~/.copilot/skills/` (meta-skills plus the planning-critical shared lane)
+- Always-installed skills in `~/.copilot/skills/` (meta-skills plus `roadmap-authoring`)
 - On-demand-only domain skills in `~/.copilot/skills-vault/`
 - Repo-local assets in `<repo>/.github/agents` and `<repo>/.github/skills/`
 
 ## Vault-First Skill Model
 
 The majority of skills should remain `on-demand` and live outside the primary installed scan path.
-Planning-critical shared skills are the main exception: they install on `~/.copilot/skills/` across shipped harnesses so planning, review, and spec workflows stay available without extra materialization steps.
+Shared planning, review, and spec skills are discoverable from the vault in Copilot and installed
+directly only on target harnesses without a separate vault path.
 These meta-skills remain always installed for workflow safety or repo bootstrap:
 
 - `core-guardrails`
 - `skill-discovery`
-- `implementation-friction`
+- `roadmap-authoring`
 - `stack-detector`
 - `project-guidelines`
 
@@ -428,7 +427,7 @@ Use `@search` when:
 
 Skip broad search when:
 
-- the route is deterministic (`@o-reframer`, `@o-planner`, `@code-reviewer`, direct test/doc lane)
+- the route is deterministic (`@code-reviewer`, direct test/doc lane, or an already selected planning skill)
 - the user already named the exact capability and no discovery is needed
 
 Use `@execute` when:

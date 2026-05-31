@@ -70,7 +70,7 @@ A typical session directory contains:
 
 Persisted session-state workflows split **content production** from **artifact materialization**:
 
-- `@o-planner` and equivalent planning leaves return markdown content only. They do **not** own file
+- Planning leaves return markdown content only. They do **not** own file
   writes and must not read, poll, or probe `~/.copilot/session-state/<SESSION_ID>/plan.md` or other
   session-artifact paths to decide whether planning can proceed. Fresh sessions may not have those
   files yet.
@@ -79,7 +79,7 @@ Persisted session-state workflows split **content production** from **artifact m
   to fetch it from disk.
 - When a persisted workflow is active, the orchestrator/host owns deciding when markdown artifacts
   are materialized and should route writes for `plan.md`, `handoff.md`, `proposition.md`, and
-  `verification-guide.md` through `@doc-writer` or another explicit markdown-writing lane.
+  `verification-guide.md` through an explicit markdown-writing lane.
 - The session root remains an orchestrator/host-selected persistence location. Markdown-writing lanes
   should use the canonical session root when it exists and must not invent alternate locations.
 - `execution-state.json` is outside that markdown-writing lane. It remains an additive runtime/host
@@ -287,8 +287,8 @@ Boundary rules:
 2. Only unresolved and non-active goals are eligible to persist in `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md`.
 3. Resolved goals should be removed from `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` without an archive
    requirement.
-4. `@goal-reviewer` remains read-only; workflows should route any persistence/removal for
-   `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` through `@doc-writer` or another explicit docs-writing lane.
+4. Goal review remains read-only; workflows should route any persistence/removal for
+   `~/.copilot/backlogs/{repo-name}/issues/unresolved-goals.md` through an explicit docs-writing lane.
 5. `GOAL_REVIEW.status = NEEDS_REVISION` keeps active goals in session artifacts and sends execution
    back to revision work. `BLOCKED` pauses carryover sync until the missing evidence/context is
    supplied.
@@ -305,7 +305,7 @@ Use durable structured sections so resumptions and downstream planning can extra
 This remains an optional persisted artifact for the chat-first default path. The orchestrator may instead keep the equivalent guidance in concise chat/host state summaries until an explicit persisted workflow or host/runtime artifact flow writes it out.
 
 When the persisted workflow chooses to materialize `proposition.md`, the orchestrator/host should
-route the markdown write through `@doc-writer` or another explicit markdown-writing lane using this
+route the markdown write through an explicit markdown-writing lane using this
 artifact contract.
 
 `proposition.md` is a bridge/summary surface, not a new required memory artifact. It may capture

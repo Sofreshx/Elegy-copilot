@@ -549,6 +549,7 @@ function hasCliInstallerMetadata(metadata) {
   return Boolean(
     normalizeString(metadata.preferredInstaller)
     || normalizeString(metadata.fallbackInstaller)
+    || normalizeString(metadata.installer)
     || normalizeString(metadata.installCommandUv)
     || normalizeString(metadata.installCommandPipx)
     || normalizeString(metadata.reinstallCommandUv)

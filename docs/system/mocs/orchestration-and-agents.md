@@ -20,7 +20,6 @@ related: [system-docs-index]
 
 ## Start here
 
-- If you are changing how orchestration works: read `docs/system/orchestrator/user-guide.md` (flagship model-specific orchestrators are the preferred entrypoints; base orchestrators are compatibility surfaces).
 - If you are changing staged capability routing: read `docs/system/search-execute-workflow.md`.
 - If you are changing calibrated questioning, evidence-bound challenge, or explicit deep/grill overlays across planning and review: read [docs/system/calibrated-questioning-and-depth-governance.md](docs/system/calibrated-questioning-and-depth-governance.md).
 - Contract shape and planning constraints: `docs/system/workflow-planning-contract.md`.

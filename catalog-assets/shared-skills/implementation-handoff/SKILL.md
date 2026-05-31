@@ -1,6 +1,6 @@
 ---
 name: implementation-handoff
-description: "Convert a feature plan, roadmap slice, or architecture note into a repo-grounded implementation handoff brief for another coding model, especially a weaker, cheaper, or lower-context executor. Use during planning before implementation, delegation, or model handoff when the executor needs concrete file evidence, sequencing, tests, validation commands, edge cases, non-goals, and stop conditions."
+description: "Convert a feature plan, roadmap slice, or architecture note into a repo-grounded implementation handoff brief. Triggers on: implementation handoff, executor brief, delegation brief, model handoff, plan to implementation brief."
 ---
 
 # Implementation Handoff
@@ -8,8 +8,6 @@ description: "Convert a feature plan, roadmap slice, or architecture note into a
 ## Purpose
 
 Turn an already plausible plan into an executor-ready brief. Optimize for reducing unresolved implementation decisions, not for adding volume.
-
-Use this skill after a normal plan exists and before code changes begin when a different model, lower-context session, or future implementation run may execute the work.
 
 ## Do Not Use
 
