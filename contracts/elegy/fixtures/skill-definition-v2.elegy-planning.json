@@ -1,0 +1,56 @@
+{
+  "id": "elegy-planning",
+  "name": "elegy-planning",
+  "description": "Durable planning authority via Elegy CLI for goals, roadmaps, plans, todos, issues, review points, validation, health checks, and projection rendering backed by SQLite.",
+  "triggers": [
+    {
+      "pattern": "planning",
+      "description": "Durable planning operations"
+    },
+    {
+      "pattern": "roadmap",
+      "description": "Roadmap creation and management"
+    },
+    {
+      "pattern": "goal",
+      "description": "Goal creation and tracking"
+    },
+    {
+      "pattern": "plan",
+      "description": "Plan authoring and revision"
+    },
+    {
+      "pattern": "todo",
+      "description": "Todo item management"
+    },
+    {
+      "pattern": "issue",
+      "description": "Issue recording and tracking"
+    },
+    {
+      "pattern": "review point",
+      "description": "Review point recording"
+    },
+    {
+      "pattern": "sqlite",
+      "description": "SQLite-backed planning state"
+    },
+    {
+      "pattern": "elegy",
+      "description": "Elegy CLI operations"
+    }
+  ],
+  "constraints": [
+    {
+      "constraintId": "binary-required",
+      "description": "elegy-planning binary must be available on PATH or passed explicitly",
+      "required": true
+    },
+    {
+      "constraintId": "fallback-markdown",
+      "description": "Fall back to repo's markdown planning conventions if binary not installed",
+      "required": false
+    }
+  ],
+  "lifecycleState": "active"
+}

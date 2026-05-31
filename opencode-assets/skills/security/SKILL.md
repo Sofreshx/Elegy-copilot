@@ -1,23 +1,9 @@
----
+﻿---
 name: security
 description: "Security review and vulnerability detection. Checks secure coding practices and exposure risks. Triggers on: security, vulnerability, hardening, secure coding."
 ---
 
 # Security Skill
-
-## When to Use (LLM Routing Guide)
-- User says "is this secure?", "check for vulnerabilities", "security review"
-- Setting up a new project or service (to ensure secrets infrastructure is correct)
-- Configuring CI/CD pipelines
-- Reviewing auth/authz code
-- Handling sensitive data (passwords, tokens, PII)
-- External input handling (user input, API calls)
-- Dependency security concerns
-
-## When NOT to Use
-- General code quality -> reviewer lane
-- Auth feature implementation -> target-repo auth docs and normal implementation planning
-- Performance investigation -> `debug` plus the relevant domain skill
 
 ## Related docs
 

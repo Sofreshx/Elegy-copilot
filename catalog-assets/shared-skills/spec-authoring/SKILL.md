@@ -1,14 +1,10 @@
----
+﻿---
 name: spec-authoring
 description: "Create or refine a durable repo spec under specs/<spec-slug>/spec.md using the shared contract. Use when work should be spec-anchored or spec-as-source and needs a concrete spec artifact before implementation planning. Triggers on: author a spec, create a spec, refine spec.md, specs template, specs folder, durable repo spec."
 metadata: {"tags":["specs","authoring","requirements","contracts"]}
 ---
 
 # Spec Authoring
-
-## Purpose
-
-Create or refine `specs/<spec-slug>/spec.md` using the shared v1 contract.
 
 ## Contract
 

@@ -1,4 +1,4 @@
----
+﻿---
 name: rubberduck-plan-review
 description: "Adversarial Rubberduck plan review. Use before implementing complex plans, migrations, refactors, repo setup changes, or architectural decisions; also use when the user asks to rubberduck, critique, challenge, stress-test, or review a plan."
 ---
@@ -8,13 +8,6 @@ description: "Adversarial Rubberduck plan review. Use before implementing comple
 ## Purpose
 
 Stress-test a plan before edits begin. Preserve momentum, but make weak assumptions visible early.
-
-## When to Use
-
-- Complex plans that touch multiple files, systems, or steps.
-- Migrations, refactors, repo setup changes, or architectural decisions.
-- When the user explicitly asks to rubberduck, critique, challenge, or stress-test a plan.
-- Before committing to new abstractions, agents, skills, scripts, or dependencies.
 
 ## Inputs
 

@@ -58,6 +58,23 @@ async function main() {
         '',
         '[profiles.instruction_engine_plan_review]',
         'personality = "friendly"',
+        '',
+        '[model_providers.opencode]',
+        'name = "OpenCode Zen"',
+        'base_url = "https://opencode.ai/zen/v1"',
+        'env_key = "OPENCODE_API_KEY"',
+        '',
+        '[model_providers.opencode-chat]',
+        'name = "OpenCode Zen Chat"',
+        'base_url = "https://opencode.ai/zen/v1"',
+        'env_key = "OPENCODE_API_KEY"',
+        'wire_api = "chat"',
+        '',
+        '[model_providers.opencode-go]',
+        'name = "OpenCode Go"',
+        'base_url = "https://opencode.ai/zen/go/v1"',
+        'env_key = "OPENCODE_API_KEY"',
+        'wire_api = "chat"',
       ].join('\n'),
       'utf8',
     );
@@ -103,6 +120,50 @@ async function main() {
     const current = fs.readFileSync(configPath, 'utf8');
     assert.strictEqual(current, 'personality = "pragmatic"\n');
     assert.ok(result.content.includes('review_model = "gpt-5.4"'));
+  });
+  });
+
+  await test('patcher adds external providers by default', async () => {
+  withTempDir((root) => {
+    const configPath = path.join(root, 'config.toml');
+    fs.writeFileSync(configPath, '', 'utf8');
+
+    const result = patcher.patchConfigFile(configPath, { enableExternalProviders: true });
+    assert.strictEqual(result.changed, true);
+
+    const patched = fs.readFileSync(configPath, 'utf8');
+    assert.ok(patched.includes('[model_providers.opencode]'), patched);
+    assert.ok(patched.includes('[model_providers.opencode-chat]'), patched);
+    assert.ok(patched.includes('[model_providers.opencode-go]'), patched);
+    assert.ok(patched.includes('wire_api = "chat"'), patched);
+  });
+  });
+
+  await test('patcher skips external providers when disabled', async () => {
+  withTempDir((root) => {
+    const configPath = path.join(root, 'config.toml');
+    fs.writeFileSync(configPath, '', 'utf8');
+
+    const result = patcher.patchConfigFile(configPath, { enableExternalProviders: false });
+    assert.strictEqual(result.changed, true);
+
+    const patched = fs.readFileSync(configPath, 'utf8');
+    assert.ok(patched.includes('review_model = "gpt-5.4"'), patched);
+    assert.ok(!patched.includes('model_providers'), patched);
+  });
+  });
+
+  await test('patcher does not duplicate existing providers when all present', async () => {
+  withTempDir((root) => {
+    const configPath = path.join(root, 'config.toml');
+    fs.writeFileSync(configPath, '', 'utf8');
+
+    const result = patcher.patchConfigFile(configPath, { enableExternalProviders: true });
+    assert.strictEqual(result.changed, true);
+    const first = result.content;
+
+    const result2 = patcher.patchCodexConfig(first, { enableExternalProviders: true });
+    assert.strictEqual(result2, first);
   });
   });
 

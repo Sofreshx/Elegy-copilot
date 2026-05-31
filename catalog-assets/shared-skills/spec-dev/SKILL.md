@@ -1,21 +1,10 @@
----
+﻿---
 name: spec-dev
 description: "Entrypoint/router for spec-driven development. Decide whether the task should use spec-first clarification, a durable repo spec under specs/, or spec-as-source declarative authoring. Triggers on: spec-driven development, write a spec, refine a spec, spec-first, spec-anchored, spec-as-source, specs folder."
 metadata: {"tags":["specs","planning","requirements","validation"]}
 ---
 
 # Spec-Driven Development Router
-
-## Purpose
-
-Choose the right spec posture before planning or implementation:
-
-- `spec-first`
-- `spec-anchored`
-- `spec-as-source`
-
-This skill complements normal planning, roadmap, review, and validation flows. It does not replace
-them.
 
 ## Routing Rules
 

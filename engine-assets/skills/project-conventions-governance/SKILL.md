@@ -1,4 +1,4 @@
----
+﻿---
 name: project-conventions-governance
 description: "Governance rules for identifying, auditing, and proposing project conventions with canonical-vs-inferred separation. Triggers on: project conventions, repo conventions, convention audit, convention drift, convention governance, propose conventions."
 ---
@@ -10,24 +10,6 @@ description: "Governance rules for identifying, auditing, and proposing project 
 Apply the canonical project-conventions governance contract from
 `docs/system/project-conventions-governance.md` so convention work stays deterministic,
 audit/propose-first, and grounded in canonical evidence instead of habit or prompt drift.
-
-## When to Use
-
-Use this skill when the request is primarily about:
-- defining or revising repository conventions
-- auditing whether conventions are documented clearly
-- identifying convention drift across docs, code, and review habits
-- proposing a canonical conventions entrypoint for future agents
-- deciding whether an observed pattern is canonical, inferred, or just a one-off habit
-
-## When NOT to Use
-
-Do not use this skill when the request is primarily:
-- logic or correctness review - use the reviewer lane contract
-- documentation information architecture or repo-structure governance - use the docs/structure lane
-- runtime validation, test orchestration, or "does this work?" review
-- broad code review unrelated to convention governance
-- final requested-vs-delivered summaries
 
 ## Canonical Sources and Precedence
 

@@ -339,6 +339,55 @@
         "id": "skill-stack-detector",
         "loadMode": "always"
       }
+    },
+    {
+      "skill": "elegy-planning",
+      "name": "elegy-planning",
+      "description": "Durable planning authority via Elegy CLI. Use for goals, roadmaps, plans, todos, issues, review points, validation, health checks, and projection rendering backed by SQLite.",
+      "triggersOn": [
+        "planning",
+        "roadmap",
+        "goal",
+        "plan",
+        "todo",
+        "issue",
+        "review point",
+        "sqlite",
+        "elegy"
+      ],
+      "aliasKeys": [
+        "roadmap-planning",
+        "durable-planning"
+      ],
+      "stacks": ["planning"],
+      "tags": ["planning", "goal", "roadmap", "plan", "todo", "issue", "sqlite", "elegy"],
+      "manifest": {
+        "id": "opencode-elegy-planning-skill",
+        "loadMode": "always"
+      }
+    },
+    {
+      "skill": "elegy-skills-discovery",
+      "name": "elegy-skills-discovery",
+      "description": "CLI-based governed skill discovery via Elegy. Use to search, resolve, describe, and validate skills from the governed v2 skill catalog with progressive disclosure.",
+      "triggersOn": [
+        "skill discovery",
+        "elegy skills",
+        "skill catalog",
+        "skill search",
+        "skill validation"
+      ],
+      "aliasKeys": [
+        "skill-discovery",
+        "elegy-skills",
+        "skills"
+      ],
+      "stacks": ["orchestration"],
+      "tags": ["catalog", "discovery", "routing", "skills", "elegy"],
+      "manifest": {
+        "id": "opencode-elegy-skills-discovery-skill",
+        "loadMode": "always"
+      }
     }
   ]
 }

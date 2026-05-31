@@ -1,4 +1,4 @@
----
+﻿---
 name: elegy-skills-discovery
 description: "CLI-based governed skill discovery via Elegy. Use to search, resolve, describe, and validate skills from the governed v2 skill catalog with progressive disclosure."
 metadata: {"aliasKeys":["skill-discovery","elegy-skills","skills"],"stacks":["orchestration"],"tags":["catalog","discovery","routing","skills","elegy"]}
@@ -8,7 +8,7 @@ metadata: {"aliasKeys":["skill-discovery","elegy-skills","skills"],"stacks":["or
 
 ## Purpose
 
-Discover and resolve governed Elegy skills via the CLI. This replaces generic vault-first routing
+This replaces generic vault-first routing
 with a queryable, metadata-backed skill registry that supports progressive disclosure: compact
 index by default, detail on demand.
 
@@ -16,6 +16,27 @@ index by default, detail on demand.
 
 The `elegy-skills` binary (or `elegy skills ...` umbrella command) must be available on PATH.
 If not installed, this skill cannot function -- inform the user that Elegy CLI is required.
+
+## Installation
+
+### Automatic Installation (Recommended)
+The `elegy-skills` CLI is automatically downloaded and managed by the copilot-ui system.
+When first needed, it will be downloaded from GitHub releases at:
+`https://github.com/Sofreshx/Elegy/releases`
+
+### Manual Installation
+1. Download the latest release from: https://github.com/Sofreshx/Elegy/releases
+2. Extract the binary for your platform:
+   - Windows: `elegy-skills.exe` (or `elegy.exe` with skills subcommand)
+   - macOS/Linux: `elegy-skills` (or `elegy` with skills subcommand)
+3. Add to your PATH or place in a directory that's on PATH
+4. Verify installation: `elegy skills --version` or `elegy-skills --version`
+
+### First-Time Setup
+After installation, initialize the skill catalog:
+```bash
+elegy skills list
+```
 
 ## Discovery Commands
 
@@ -42,7 +63,7 @@ Use this chain to minimize context while maximizing relevance:
 
 ## Rules
 
-- Treat v2 skill definitions as authoritative. They live in `contracts/fixtures/skill-definition-v2.*.json`.
+- Treat v2 skill definitions as authoritative. They live in `contracts/elegy/fixtures/skill-definition-v2.*.json`.
 - Do not use or recreate v1 `skill-definition.*.json` files.
 - Inspect `capabilities[].implementation.arguments` before invoking a command.
 - Check `capabilities[].execution.hasSideEffects` before running mutations.
@@ -58,6 +79,6 @@ Use this chain to minimize context while maximizing relevance:
 
 ## Authority Chain
 
-Governed definition: `contracts/fixtures/skill-definition-v2.elegy-skills.json`
-Discovery index: `contracts/fixtures/skill-discovery-index.elegy-skills.json`
+Governed definition: `contracts/elegy/fixtures/skill-definition-v2.elegy-skills-discovery.json`
+Discovery index: `contracts/elegy/fixtures/skill-discovery-index.elegy-skills-discovery.json`
 CLI source: `rust/crates/elegy-skills`

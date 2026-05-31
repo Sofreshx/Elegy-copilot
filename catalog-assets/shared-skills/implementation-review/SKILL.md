@@ -1,13 +1,9 @@
----
+﻿---
 name: implementation-review
 description: "Implementation review for code, docs, skills, agents, and configuration changes. Use after edits when checking correctness, scope, regressions, and validation sufficiency before handoff."
 ---
 
 # Implementation Review
-
-## Purpose
-
-Review completed edits for correctness, scope, regressions, and validation sufficiency before handoff.
 
 ## Inputs
 

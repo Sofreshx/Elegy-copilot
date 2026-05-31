@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "skill": "elegy-skills-discovery",
+      "name": "elegy-skills-discovery",
+      "description": "CLI-based governed skill discovery via Elegy. Use to search, resolve, describe, and validate skills from the governed v2 skill catalog with progressive disclosure.",
+      "triggersOn": [
+        "skill discovery",
+        "elegy skills",
+        "skill catalog",
+        "skill search",
+        "skill validation"
+      ],
+      "manifest": {
+        "id": "opencode-elegy-skills-discovery-skill",
+        "loadMode": "always"
+      }
+    }
+  ]
+}

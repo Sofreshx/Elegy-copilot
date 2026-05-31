@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "skill": "elegy-planning",
+      "name": "elegy-planning",
+      "description": "Durable planning authority via Elegy CLI for goals, roadmaps, plans, todos, issues, review points, validation, health checks, and projection rendering backed by SQLite.",
+      "triggersOn": [
+        "planning",
+        "roadmap",
+        "goal",
+        "plan",
+        "todo",
+        "issue",
+        "review point",
+        "sqlite",
+        "elegy"
+      ],
+      "manifest": {
+        "id": "opencode-elegy-planning-skill",
+        "loadMode": "always"
+      }
+    }
+  ]
+}

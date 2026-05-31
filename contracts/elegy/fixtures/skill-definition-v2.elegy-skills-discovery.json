@@ -1,0 +1,35 @@
+{
+  "id": "elegy-skills-discovery",
+  "name": "elegy-skills-discovery",
+  "description": "CLI-based governed skill discovery via Elegy. Use to search, resolve, describe, and validate skills from the governed v2 skill catalog with progressive disclosure.",
+  "triggers": [
+    {
+      "pattern": "skill discovery",
+      "description": "Skill discovery and resolution"
+    },
+    {
+      "pattern": "elegy skills",
+      "description": "Elegy skill catalog operations"
+    },
+    {
+      "pattern": "skill catalog",
+      "description": "Governed skill catalog"
+    },
+    {
+      "pattern": "skill search",
+      "description": "Skill search and resolution"
+    },
+    {
+      "pattern": "skill validation",
+      "description": "Skill validation operations"
+    }
+  ],
+  "constraints": [
+    {
+      "constraintId": "elegy-skills-binary",
+      "description": "elegy-skills binary or elegy skills umbrella command must be available",
+      "required": true
+    }
+  ],
+  "lifecycleState": "active"
+}

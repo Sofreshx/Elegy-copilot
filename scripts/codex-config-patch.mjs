@@ -9,12 +9,36 @@ export const DEFAULT_PROFILE_NAME = 'instruction_engine_plan_review';
 export const MANAGED_BLOCK_START = '# BEGIN instruction-engine managed codex defaults';
 export const MANAGED_BLOCK_END = '# END instruction-engine managed codex defaults';
 
+export const EXTERNAL_PROVIDERS = [
+  {
+    id: 'opencode',
+    name: 'OpenCode Zen',
+    baseUrl: 'https://opencode.ai/zen/v1',
+    envKey: 'OPENCODE_API_KEY',
+  },
+  {
+    id: 'opencode-chat',
+    name: 'OpenCode Zen Chat',
+    baseUrl: 'https://opencode.ai/zen/v1',
+    envKey: 'OPENCODE_API_KEY',
+    wireApi: 'chat',
+  },
+  {
+    id: 'opencode-go',
+    name: 'OpenCode Go',
+    baseUrl: 'https://opencode.ai/zen/go/v1',
+    envKey: 'OPENCODE_API_KEY',
+    wireApi: 'chat',
+  },
+];
+
 function parseArgs(argv) {
   const args = {
     dryRun: false,
     config: '',
     reviewModel: DEFAULT_REVIEW_MODEL,
     profileName: DEFAULT_PROFILE_NAME,
+    enableExternalProviders: true,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -57,6 +81,14 @@ function parseArgs(argv) {
         throw new Error('Missing required profile name value');
       }
       args.profileName = argv[i] || '';
+      continue;
+    }
+    if (value === '--enable-external-providers') {
+      args.enableExternalProviders = true;
+      continue;
+    }
+    if (value === '--disable-external-providers') {
+      args.enableExternalProviders = false;
       continue;
     }
     throw new Error(`Unknown arg: ${value}`);
@@ -106,7 +138,23 @@ function hasProfile(text, profileName) {
   return new RegExp(`^\\s*\\[profiles\\.${escapeRegExp(profileName)}\\]\\s*$`, 'm').test(text);
 }
 
-function buildManagedBlock({ needsReviewModel, reviewModel, needsProfile, profileName }) {
+function hasProviderTable(text, providerId) {
+  return new RegExp(`^\\s*\\[model_providers\\.${escapeRegExp(providerId)}\\]\\s*$`, 'm').test(text);
+}
+
+function buildProviderTable(provider) {
+  const lines = [];
+  lines.push(`[model_providers.${provider.id}]`);
+  lines.push(`name = "${provider.name}"`);
+  lines.push(`base_url = "${provider.baseUrl}"`);
+  lines.push(`env_key = "${provider.envKey}"`);
+  if (provider.wireApi) {
+    lines.push(`wire_api = "${provider.wireApi}"`);
+  }
+  return lines.join('\n');
+}
+
+function buildManagedBlock({ needsReviewModel, reviewModel, needsProfile, profileName, enableExternalProviders, existingProviders }) {
   const lines = [MANAGED_BLOCK_START];
 
   if (needsReviewModel) {
@@ -122,6 +170,16 @@ function buildManagedBlock({ needsReviewModel, reviewModel, needsProfile, profil
     lines.push('');
   }
 
+  if (enableExternalProviders) {
+    for (const provider of EXTERNAL_PROVIDERS) {
+      if (existingProviders.has(provider.id)) {
+        continue;
+      }
+      lines.push(buildProviderTable(provider));
+      lines.push('');
+    }
+  }
+
   if (lines[lines.length - 1] === '') {
     lines.pop();
   }
@@ -132,11 +190,23 @@ function buildManagedBlock({ needsReviewModel, reviewModel, needsProfile, profil
 export function patchCodexConfig(originalText, options = {}) {
   const reviewModel = options.reviewModel || DEFAULT_REVIEW_MODEL;
   const profileName = options.profileName || DEFAULT_PROFILE_NAME;
+  const enableExternalProviders = options.enableExternalProviders !== false;
   const stripped = stripManagedBlock(originalText);
   const needsReviewModel = !hasTopLevelKey(stripped, 'review_model');
   const needsProfile = !hasProfile(stripped, profileName);
 
-  if (!needsReviewModel && !needsProfile) {
+  const existingProviders = new Set();
+  if (enableExternalProviders) {
+    for (const provider of EXTERNAL_PROVIDERS) {
+      if (hasProviderTable(stripped, provider.id)) {
+        existingProviders.add(provider.id);
+      }
+    }
+  }
+
+  const needsProviders = enableExternalProviders && existingProviders.size < EXTERNAL_PROVIDERS.length;
+
+  if (!needsReviewModel && !needsProfile && !needsProviders) {
     return ensureTrailingNewline(stripped || '');
   }
 
@@ -145,6 +215,8 @@ export function patchCodexConfig(originalText, options = {}) {
     reviewModel,
     needsProfile,
     profileName,
+    enableExternalProviders,
+    existingProviders,
   });
 
   if (!stripped.trim()) {
@@ -178,6 +250,7 @@ if (isMainModule) {
       dryRun: args.dryRun,
       reviewModel: args.reviewModel,
       profileName: args.profileName,
+      enableExternalProviders: args.enableExternalProviders,
     });
 
     if (args.dryRun) {

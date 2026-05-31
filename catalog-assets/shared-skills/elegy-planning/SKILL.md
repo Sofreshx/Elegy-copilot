@@ -1,4 +1,4 @@
----
+﻿---
 name: elegy-planning
 description: "Durable planning authority via Elegy CLI. Use for goals, roadmaps, plans, todos, issues, review points, validation, health checks, and projection rendering backed by SQLite."
 metadata: {"aliasKeys":["roadmap-planning","durable-planning"],"stacks":["planning"],"tags":["planning","goal","roadmap","plan","todo","issue","sqlite","elegy"]}
@@ -6,19 +6,35 @@ metadata: {"aliasKeys":["roadmap-planning","durable-planning"],"stacks":["planni
 
 # Elegy Planning
 
-## Purpose
-
-Use `elegy-planning` for durable planning state that survives sessions. This is the CLI-backed
-authority for goals, roadmaps, plans, todos, issues, review points, scope records, lifecycle
-transitions, validation, health, and projection export.
-
-Prefer this over markdown-only planning conventions when the repo has Elegy installed and the work
-needs queryable, validated, cross-session planning state.
-
 ## Prerequisite
 
 The `elegy-planning` binary must be available on PATH or passed explicitly. If not installed, fall
 back to the repo's markdown planning conventions (e.g., `docs/roadmaps/`).
+
+## Installation
+
+### Automatic Installation (Recommended)
+The `elegy-planning` CLI is automatically downloaded and managed by the copilot-ui system.
+When first needed, it will be downloaded from GitHub releases at:
+`https://github.com/Sofreshx/Elegy/releases`
+
+### Manual Installation
+1. Download the latest release from: https://github.com/Sofreshx/Elegy/releases
+2. Extract the binary for your platform:
+   - Windows: `elegy-planning.exe`
+   - macOS/Linux: `elegy-planning`
+3. Add to your PATH or place in a directory that's on PATH
+4. Verify installation: `elegy-planning --version`
+
+### Environment Variables
+- `INSTRUCTION_ENGINE_ELEGY_PLANNING_DB_PATH`: Custom SQLite database path
+- Default location: `~/.elegy/planning.db` (or `~/.copilot/elegy-planning.db`)
+
+### First-Time Setup
+After installation, initialize the session context:
+```bash
+elegy-planning session init
+```
 
 ## Core Commands
 
@@ -72,6 +88,6 @@ All commands accept `--json` for structured output and `--db <path>` for a custo
 
 ## Authority Chain
 
-Governed definition: `contracts/fixtures/skill-definition-v2.elegy-planning.json`
-Discovery index: `contracts/fixtures/skill-discovery-index.elegy-planning.json`
+Governed definition: `contracts/elegy/fixtures/skill-definition-v2.elegy-planning.json`
+Discovery index: `contracts/elegy/fixtures/skill-discovery-index.elegy-planning.json`
 CLI source: `rust/crates/elegy-planning`

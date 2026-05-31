@@ -1,14 +1,10 @@
----
+﻿---
 name: spec-review
 description: "Adversarial review for a durable repo spec before implementation planning. Use after spec authoring to find ambiguity, missing evidence, weak acceptance checks, or source-of-truth drift. Triggers on: review a spec, spec review, critique spec.md, spec readiness, requirements gaps."
 metadata: {"tags":["specs","review","requirements","planning"]}
 ---
 
 # Spec Review
-
-## Purpose
-
-Review a durable spec before implementation planning.
 
 Treat the review as adversarial. The goal is to expose ambiguity, missing evidence, weak
 acceptance checks, source-of-truth confusion, and scope drift before the implementation plan starts.

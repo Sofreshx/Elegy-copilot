@@ -249,6 +249,7 @@ export function parseArgs(argv) {
     reviewModel: DEFAULT_REVIEW_MODEL,
     profileName: DEFAULT_PROFILE_NAME,
     setupProfile: '',
+    enableExternalProviders: true,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -345,7 +346,15 @@ export function parseArgs(argv) {
       args.setupProfile = argv[i] || '';
       continue;
     }
-    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --codex-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --review-model <model>, --profile-name <name>, --setup-profile <key>)`);
+    if (value === '--enable-external-providers') {
+      args.enableExternalProviders = true;
+      continue;
+    }
+    if (value === '--disable-external-providers') {
+      args.enableExternalProviders = false;
+      continue;
+    }
+    throw new Error(`Unknown arg: ${value} (supported: --dry-run, --force, --codex-home <path>, --skills-home <path>, --repo-root <path>, --elegy-cli <path>, --review-model <model>, --profile-name <name>, --setup-profile <key>, --enable-external-providers, --disable-external-providers)`);
   }
 
   if (args.repoRoot && !args.setupProfile) {
@@ -427,6 +436,7 @@ export function runInstall(args = {}) {
     dryRun: args.dryRun,
     reviewModel: args.reviewModel,
     profileName: args.profileName,
+    enableExternalProviders: args.enableExternalProviders,
   });
   const configAction = args.dryRun
     ? (configResult.changed ? 'would_patch' : 'skipped')

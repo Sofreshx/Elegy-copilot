@@ -1,16 +1,9 @@
----
+﻿---
 name: roadmap-planning
 description: "Persisted repository roadmap workflow. A Roadmap is the durable multi-session planning artifact above active implementation. For the current Planning app/API compatibility surface in this repo, store repo-visible roadmaps in docs/roadmaps/<roadmap-slug>.md. Use when raw mixed instructions need ordering into a coherent roadmap, or when taking the next slice from a roadmap for concrete implementation."
 ---
 
 # Roadmap Planning
-
-## Purpose
-
-Use a roadmap when work must survive multiple implementation sessions. A **Roadmap** is the durable
-repo-visible planning artifact above active implementation: it captures goals, main targets,
-sequencing, and explicit `RM-*` slice state. It is not an active task list; the current session
-should plan and implement one coherent roadmap slice.
 
 ## Core Rules
 
